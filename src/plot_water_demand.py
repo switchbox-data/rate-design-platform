@@ -17,9 +17,9 @@ weather_file = os.path.join(input_path, "G3400270.epw")
 
 # --2. Create sample Dwelling object --
 year = 2007
-month = "Aug"  # enumeration Jan, May, or Aug
+month = "Jan"  # enumeration Jan, May, or Aug
 month_num = list(month_abbr).index(month)
-start_date = 25
+start_date = 1
 start_time = datetime(year, month_num, start_date, 0, 0)  # (Year, Month, Day, Hour, Min)
 time_step = timedelta(minutes=15)
 duration = timedelta(days=30)
@@ -41,4 +41,4 @@ house_args = {
 }
 
 # --3. Create Dwelling object --
-house = Dwelling(**house_args)
+dwelling = Dwelling(**house_args)
