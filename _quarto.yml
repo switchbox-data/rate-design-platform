@@ -6,6 +6,8 @@ format:
     toc: true
   docx:
     toc: true
+project:
+  output-dir: docs/HPWH TOU
 
 execute:
   echo: true
@@ -13,4 +15,4 @@ execute:
   error: false
 
 bibliography: references.bib
-csl: ieee.csl
+csl: styles/ieee.csl
