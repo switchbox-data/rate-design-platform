@@ -113,3 +113,6 @@ ignore = [
 
 [tool.ruff.format]
 preview = true
+
+[tool.deptry.per_rule_ignores]
+DEP002 = ["jupyter", "polars", "seaborn", "pyarrow"]
