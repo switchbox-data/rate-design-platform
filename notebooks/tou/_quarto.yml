@@ -7,7 +7,7 @@ format:
   docx:
     toc: true
 project:
-  output-dir: docs/HPWH TOU
+  output-dir: docs/
 
 execute:
   echo: true
