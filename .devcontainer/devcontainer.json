@@ -6,13 +6,14 @@
     "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bullseye",
     "features": {},
 
-    // Use 'postCreateCommand' to run commands after the container is created.
-    "postCreateCommand": "./.devcontainer/postCreateCommand.sh",
-
-    // Configure tool-specific properties.
     "customizations": {
         "vscode": {
-            "extensions": ["ms-python.python", "editorconfig.editorconfig"],
+            "extensions": [
+                "quarto.quarto",
+                "ms-python.python",
+                "ms-toolsai.jupyter",
+                "editorconfig.editorconfig"
+            ],
             "settings": {
                 "python.testing.pytestArgs": ["tests"],
                 "python.testing.unittestEnabled": false,
@@ -21,5 +22,7 @@
                 "python.testing.pytestPath": "/workspaces/rate-design-platform/.venv/bin/pytest"
             }
         }
-    }
+    },
+    // Use 'postCreateCommand' to run commands after the container is created.
+    "postCreateCommand": "./.devcontainer/postCreateCommand.sh"
 }

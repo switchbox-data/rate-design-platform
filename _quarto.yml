@@ -1,0 +1,16 @@
+format:
+  html:
+    mathjax: true
+  pdf:
+    documentclass: article
+    toc: true
+  docx:
+    toc: true
+
+execute:
+  echo: true
+  warning: false
+  error: false
+
+bibliography: references.bib
+csl: ieee.csl
