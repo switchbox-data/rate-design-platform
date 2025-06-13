@@ -23,7 +23,7 @@ jobs:
       uses: ./.github/actions/setup-python-env
 
     - name: Install dev dependencies
-      run: uv sync --group dev
+      run: uv sync --group dev --group docs
 
     - name: Build documentation
       run: uv run mkdocs build --strict
