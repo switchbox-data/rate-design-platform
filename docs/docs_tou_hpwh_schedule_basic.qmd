@@ -121,13 +121,27 @@ Where:
 - \( E(t) \): Electricity used by HPWH at time \( t \)
 - \( r(t) \): Rate (on-peak/off-peak) at time \( t \)
 
-## Comfort Penalty (optional)
+## Comfort Penalty for Unmet Hot Water Demand
+
+If, under the TOU-adapted HPWH schedule, the consumer experiences unmet hot water demand (i.e., water is delivered below setpoint temperature), they incur a penalty reflecting discomfort or service loss. This penalty is computed as:
 
 \[
-C_{comfort} = \alpha \cdot \sum_{t} \text{Unmet Demand}(t)
+C_{comfort} = \alpha \cdot \left( \sum_{t} \text{Unmet Demand}(t) \right)
 \]
+
 Where:
-- \( \alpha \): Monetization factor for comfort loss (can be set to zero for first-pass)
+- \( \alpha \): Monetization factor for comfort loss (e.g., $/kWh unmet or $/event)
+- \( \text{Unmet Demand}(t) \): Unmet hot water demand per time step (from OCHRE output)
+
+At each billing cycle, the consumer’s net savings from remaining on the TOU-adapted schedule is:
+
+\[
+\text{Net Savings} = \Delta C - C_{switch} - C_{comfort}
+\]
+
+If Net Savings ≤ 0, the consumer switches back to the default schedule.
+
+This approach ensures the model realistically captures the trade-off between cost savings and comfort when responding to TOU rates.
 
 ## Final Decision
 
