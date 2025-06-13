@@ -11,31 +11,31 @@ permissions:
 
 jobs:
   deploy-docs:
-  runs-on: ubuntu-latest
-  environment:
-    name: github-pages
-    url: ${{ steps.deployment.outputs.page_url }}
-  steps:
-    - name: Check out
-      uses: actions/checkout@v4
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
 
-    - name: Set up the environment
-      uses: ./.github/actions/setup-python-env
+      - name: Set up the environment
+        uses: ./.github/actions/setup-python-env
 
-    - name: Install dev dependencies
-      run: uv sync --group dev --group docs
+      - name: Install dev dependencies
+        run: uv sync --group dev --group docs
 
-    - name: Build documentation
-      run: uv run mkdocs build --strict
+      - name: Build documentation
+        run: uv run mkdocs build --strict
 
-    - name: Setup Pages
-      uses: actions/configure-pages@v4
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
 
-    - name: Upload artifact
-      uses: actions/upload-pages-artifact@v3
-      with:
-        path: site
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
 
-    - name: Deploy to GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v4
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
