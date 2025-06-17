@@ -32,9 +32,9 @@
         "vscode": {
             "extensions": [
                 "ms-python.python",
-                "editorconfig.editorconfig",
                 "quarto.quarto",
-                "nefrob.vscode-just-syntax"
+                "nefrob.vscode-just-syntax",
+                "tamasfe.even-better-toml"
             ],
             "settings": {
                 "python.testing.pytestArgs": ["tests"],
