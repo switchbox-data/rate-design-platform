@@ -7,10 +7,14 @@
     // Install Quarto CLI and Chromium
     "features": {
         "ghcr.io/rocker-org/devcontainer-features/quarto-cli:1": {
+            "version": "1.7.32",
             "installChromium": true
         },
         "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
             "packages": "chromium"
+        },
+        "ghcr.io/guiyomh/features/just:0.1.0": {
+            "version": "1.40.0"
         }
     },
 
@@ -29,7 +33,8 @@
             "extensions": [
                 "ms-python.python",
                 "editorconfig.editorconfig",
-                "quarto.quarto"
+                "quarto.quarto",
+                "nefrob.vscode-just-syntax"
             ],
             "settings": {
                 "python.testing.pytestArgs": ["tests"],
