@@ -4,15 +4,17 @@
     "name": "rate-design-platform",
     "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bullseye",
 
-    // Install Quarto CLI and Chromium
     "features": {
+        // Install Quarto CLI
         "ghcr.io/rocker-org/devcontainer-features/quarto-cli:1": {
             "version": "1.7.32",
             "installChromium": true
         },
+        // Install Chromium to render mermaid and graphviz diagrams in Quarto
         "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
             "packages": "chromium"
         },
+        // Install just
         "ghcr.io/guiyomh/features/just:0.1.0": {
             "version": "1.40.0"
         }
