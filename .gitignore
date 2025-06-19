@@ -140,3 +140,7 @@ cython_debug/
 #.idea/
 
 outputs/
+/.quarto/
+*.html
+.DS_Store
+*_files/
