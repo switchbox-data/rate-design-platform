@@ -1834,6 +1834,39 @@ wheels = [
 ]
 
 [[package]]
+name = "mkquartodocs"
+version = "0.5.13"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.10'",
+]
+dependencies = [
+    { name = "mkdocs", marker = "python_full_version < '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/64/ef/6fbe8eab011db3c0342e043a28d4f9d89575a9cf57828e0cb8f53ead0e87/mkquartodocs-0.5.13.tar.gz", hash = "sha256:b16e8b395702b680d88ce7b923088b69b803012965d0724e81049906c259cabc", size = 1023268, upload-time = "2025-03-08T00:21:43.894Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b5/bd/d29e2d236164640aa6ed42bac3f818acafa169f373f977f552a8adb8b47d/mkquartodocs-0.5.13-py3-none-any.whl", hash = "sha256:102fba1af47d75424990d66d24afc73aca1cc97f5002601c960cabe02840545c", size = 11979, upload-time = "2025-03-08T00:21:42.887Z" },
+]
+
+[[package]]
+name = "mkquartodocs"
+version = "0.6.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.12'",
+    "python_full_version == '3.11.*'",
+    "python_full_version == '3.10.*'",
+]
+dependencies = [
+    { name = "mkdocs", marker = "python_full_version >= '3.10'" },
+    { name = "pymdown-extensions", marker = "python_full_version >= '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/81/ba/6e7281d8db03d44362193e4dc260fbeffbd39d97db2c9634d39aac67ac8d/mkquartodocs-0.6.0.tar.gz", hash = "sha256:b6596c1e3cdde78afe129fc1cf1cb187fa74c621940567dc225e7e38d7508d68", size = 1052465, upload-time = "2025-03-21T09:43:13.597Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/01/12/3b28c6e32a36a4e30b24436c18ead574f30db20c23fc97f4c2df2fdb94d8/mkquartodocs-0.6.0-py3-none-any.whl", hash = "sha256:9b73ea91a8d9631601d68b4385e180f5ed789704d948b5c83ed3f7ef99bb3ebe", size = 16403, upload-time = "2025-03-21T09:43:11.527Z" },
+]
+
+[[package]]
 name = "mypy"
 version = "1.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2856,6 +2889,8 @@ dev = [
     { name = "mkdocs" },
     { name = "mkdocs-material" },
     { name = "mkdocstrings", extra = ["python"] },
+    { name = "mkquartodocs", version = "0.5.13", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "mkquartodocs", version = "0.6.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "mypy" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -2877,6 +2912,7 @@ dev = [
     { name = "mkdocs", specifier = ">=1.4.2" },
     { name = "mkdocs-material", specifier = ">=8.5.10" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.26.1" },
+    { name = "mkquartodocs", specifier = ">=0.5.0" },
     { name = "mypy", specifier = ">=0.991" },
     { name = "pre-commit", specifier = ">=2.20.0" },
     { name = "pytest", specifier = ">=7.2.0" },

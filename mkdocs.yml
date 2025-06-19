@@ -9,13 +9,23 @@ copyright: Maintained by <a href="https://switchbox-data.com">switchbox-data</a>
 
 nav:
   - Home: index.md
+  - Examples:
+    - 'Rate Analysis': 'rate_analysis.qmd'
+    - 'DER Impact Study': 'der_impact.qmd'
+    - 'Bill Calculation': 'bill_calculation.qmd'
   - Modules: modules.md
+
 plugins:
   - search
+  - mkquartodocs:
+      quarto_path: quarto
+      keep_output: false
+      force_rebuild: false
   - mkdocstrings:
       handlers:
         python:
           paths: ["rate_design_platform"]
+
 theme:
   name: material
   feature:
@@ -50,3 +60,6 @@ markdown_extensions:
       permalink: true
   - pymdownx.arithmatex:
       generic: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
