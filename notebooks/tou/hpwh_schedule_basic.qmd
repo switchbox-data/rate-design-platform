@@ -1,10 +1,8 @@
 ---
 title: "First-Pass TOU Scheduling Decision Model for HPWHs in OCHRE"
-author: "Switchbox"
-date: "2025-06-13"
-format:
-  html:
-    mathjax: true
+author: "NREL/OCHRE Team"
+date: "`r Sys.Date()`"
+format: gfm
 ---
 
 # Introduction
@@ -12,8 +10,8 @@ format:
 This document outlines a simple, first-pass heuristic-based decision model for consumer response to time-of-use (TOU) electricity rates in residential building simulations using OCHRE, focusing on Heat Pump Water Heaters (HPWHs). The goal is to integrate an adaptive control schedule for the HPWH based on feedback from utility bills and anticipated cost savings, while accounting for consumer effort in shifting schedules.
 
 # 1. Problem Definition
-
-- **Objective:** Model how a consumer, with fixed (exogenous) hot water usage needs, might reschedule their HPWH operation in response to TOU rates to minimize their electricity bills, considering a "switching cost" for effort and a penalty for compromised comfort (unmet hot water demand).
+This section establishes a high-level overview of the core research question and modeling assumptions for consumer response to TOU rates.
+- **Objective:** Model how a consumer, with fixed (exogenous) hot water usage needs, might reschedule their HPWH operation in response to TOU rates to minimize their electricity bills, considering a "switching cost" for effort/comfort.
 - **Assumptions:**
     - Hot water usage schedule is fixed (not flexible).
     - HPWH can be controlled (on/off) on a schedule.
@@ -23,49 +21,46 @@ This document outlines a simple, first-pass heuristic-based decision model for c
     - Decision process is repeated each billing cycle (feedback loop).
 
 # 2. Key Variables and Parameters
+This section defines all variables, parameters, and their temporal dimensions used throughout the decision model. Special attention is given to clarifying the time granularity: while OCHRE operates at 15-minute intervals, consumer decisions occur monthly, and all cost calculations are performed over monthly billing periods (typically 720-744 hours).
 
 | Symbol         | Description                                           | Units          |
 |----------------|------------------------------------------------------|----------------|
-| $S$            | Current HPWH schedule (default or TOU-adapted)       | binary         |
-| $U_{HW}$       | Exogenous hot water usage schedule                   | L/hr           |
-| $\lambda$      | Usage multiplier (building characteristic)           | scalar         |
-| $E$            | Electricity consumption profile (from HPWH operation)| kWh            |
-| $r_{on}, r_{off}$ | TOU electricity rate (on-peak, off-peak)     | $/kWh          |
-| $C_{bill}$     | Monthly electricity bill (for water heating)         | $              |
-| $C_{switch}$   | Consumer switching/"hassle" cost                   | $              |
-| $\Delta C$     | Anticipated bill savings from switching              | $              |
-| $C_{comfort}$  | Comfort penalty for unmet demand                     | $              |
+| \( S \)        | Current HPWH schedule (default or TOU-adapted)       | binary         |
+| \( U_{HW} \)   | Exogenous hot water usage schedule                   | L/hr           |
+| \( \lambda \)  | Usage multiplier (building characteristic)           | scalar         |
+| \( E \)        | Electricity consumption profile (from HPWH operation)| kWh            |
+| \( r_{on}, r_{off} \) | TOU electricity rate (on-peak, off-peak)     | $/kWh          |
+| \( C_{bill} \) | Monthly electricity bill (for water heating)         | $              |
+| \( C_{switch} \) | Consumer switching/"hassle" cost                   | $              |
+| \( \Delta C \) | Anticipated bill savings from switching              | $              |
 
 # 3. Model Steps
-
+This section outlines the sequential decision-making process that consumers follow each month when receiving their utility bill. The framework distinguishes between two decision contexts: initial adoption decisions (based on anticipated savings) and continuation decisions (based on realized performance including comfort penalties). The monthly cycle creates a feedback loop between expectations and experience.
 ## Step 1: Calculate Baseline
 
-- **Hot Water Usage:** $U_{HW}$ is fixed by schedule and multiplier.
+- **Hot Water Usage:** \( U_{HW}(t) \) is fixed by schedule and multiplier.
 - **HPWH Default Schedule:** Operates as needed to meet hot water draws.
-- **Simulate:** Run OCHRE with default HPWH schedule to get $E_{default}$, $C_{bill,default}$.
+- **Simulate:** Run OCHRE with default HPWH schedule to get \( E_{default}(t) \), \( C_{bill,default} \).
 
 ## Step 2: Define TOU-Adaptive Schedule
 
-- **HPWH TOU Schedule:** Only operates HPWH during off-peak hours.
-  - **Note:** Future implementation will allow the agent to specify a more complicated schedule to optimize between comfort and cost. For now, assume the agent can only choose between default schedule  and TOU-adaptive schedule (only runs during off-peak hours).
-- **Simulate:** Run OCHRE with TOU-adaptive HPWH schedule to get $E_{TOU}$, $C_{bill,TOU}$.
+- **HPWH TOU Schedule:** Only operates HPWH during off-peak hours (unless tank runs cold).
+- **Simulate:** Run OCHRE with TOU-adaptive HPWH schedule to get \( E_{TOU}(t) \), \( C_{bill,TOU} \).
 
 ## Step 3: Anticipated Savings
 
 - **Calculate:**
-$$
-\Delta C = C_{bill,default} - C_{bill,TOU}
-$$
+    \[
+    \Delta C = C_{bill,default} - C_{bill,TOU}
+    \]
 - **Net Benefit:**
-$$
-\text{Net Benefit} = \Delta C - C_{switch} - C_{comfort}
-$$
-
-**Note:** The only difference in monthly bill is due to the difference in HPWH operation between the default and TOU-adaptive schedules since we are assuming all other factors remain constant in the OCHRE simulation. Thus the agent can use the difference in monthly bill to calculate the anticipated savings.
+    \[
+    \text{Net Savings} = \Delta C - C_{switch}
+    \]
 
 ## Step 4: Decision Rule
 
-- **If** $\text{Net Benefit} > 0$: Consumer switches to TOU-adapted schedule.
+- **If** \( \text{Net Savings} > 0 \): Consumer switches to TOU-adapted schedule.
 - **Else:** Remains on default schedule.
 
 ## Step 5: Feedback & Iteration
@@ -74,13 +69,13 @@ $$
 - Consumer can reconsider switching if conditions change (e.g., rate structure, switching cost).
 
 # 4. Integration with OCHRE
-
+This section specifies how the behavioral decision model interfaces with OCHRE's technical building simulation capabilities. It identifies the required inputs for consumer modeling, maps OCHRE's simulation outputs to monthly decision variables, and describes the implementation approach for dynamic schedule switching within the simulation framework.
 ## Inputs Required
 
-- Hot water usage schedule: $U_{HW}$ (from input schedule file)
-- Usage multiplier: $\lambda$ (from building HPXML file)
-- TOU rate definition: $r_{on}, r_{off}$ (passed to cost calculation)
-- HPWH scheduling control: ability to enforce on/off operation windows (via `update_external_control()` in HPWH code)
+- Hot water usage schedule: `HotWaterUsageSchedule`
+- Usage multiplier: `UsageMultiplier`
+- TOU rate definition: `r_{on}, r_{off}` (passed to cost calculation)
+- HPWH scheduling control: ability to enforce on/off operation windows
 
 ## OCHRE Outputs Used
 
@@ -93,64 +88,57 @@ $$
 
 ## Implementation Notes
 
-- **Control:** Implement schedule-based control in OCHRE (see `update_external_control()` in HPWH code).
+- **Control:** Implement schedule-based control in OCHRE (see `update_external_control` in HPWH code).
 - **Comfort Check:** If TOU schedule leads to unmet demand or low temp, can factor "comfort penalty" into switching cost.
 - **Outputs:** Compare cost and comfort metrics for both schedules.
 
 # 5. Example Calculation
-
+This section provides a concrete numerical example demonstrating how the decision model operates for a representative consumer. The example is designed to illustrate the model's decision-making logic and the impact of key parameters on the consumer's choice.
 Suppose:
 
 - Default schedule: HPWH runs as needed.
 - TOU schedule: HPWH only runs 10PM–6AM (off-peak).
-- Monthly bill (default): $\$30$
-- Monthly bill (TOU): $\$22$
-- Switching cost: $\$5$ (one-time or amortized)
-- Comfort penalty: $\$2$ (due to unmet demand)
+- Monthly bill (default): $30
+- Monthly bill (TOU): $22
+- Switching cost: $5 (one-time or amortized)
 
-$$
+\[
 \Delta C = 30 - 22 = \$8
-$$
-$$
-\text{Net Benefit} = 8 - 5 - 2 = \$1
-$$
+\]
+\[
+\text{Net Savings} = 8 - 5 = \$3
+\]
 
 **Decision:** Consumer switches to TOU-adaptive schedule.
 
 # 6. Equations
-
+This section presents the key equations used in the model, including cost and comfort penalty calculations, to formalize the methodology.
 ## Electricity Cost Calculation
 
-$$
+\[
 C_{bill} = \sum_{t} E(t) \cdot r(t)
-$$
-
+\]
 Where:
-
-- $E(t)$: Total electricity consumption at time $t$
-
-- $r(t)$: Rate (on-peak/off-peak or constant baseline) at time $t$
-
+- \( E(t) \): Electricity used by HPWH at time \( t \)
+- \( r(t) \): Rate (on-peak/off-peak) at time \( t \)
 
 ## Comfort Penalty for Unmet Hot Water Demand
 
 If, under the TOU-adapted HPWH schedule, the consumer experiences unmet hot water demand (i.e., water is delivered below setpoint temperature), they incur a penalty reflecting discomfort or service loss. This penalty is computed as:
 
-$$
+\[
 C_{comfort} = \alpha \cdot \left( \sum_{t} \text{Unmet Demand}(t) \right)
-$$
+\]
 
 Where:
+- \( \alpha \): Monetization factor for comfort loss (e.g., $/kWh unmet or $/event)
+- \( \text{Unmet Demand}(t) \): Unmet hot water demand per time step (from OCHRE output)
 
-- $\alpha$: Monetization factor for comfort loss (e.g., $/kWh unmet or $/event)
+At each billing cycle, the consumer's net savings from remaining on the TOU-adapted schedule is:
 
-- $\text{Unmet Demand}(t)$: nmet hot water demand per time step (from OCHRE output)Add commentMore actions
-
-At each billing cycle, the consumer’s net savings from remaining on the TOU-adapted schedule is:
-
-$$
+\[
 \text{Net Savings} = \Delta C - C_{switch} - C_{comfort}
-$$
+\]
 
 If Net Savings ≤ 0, the consumer switches back to the default schedule.
 
@@ -158,14 +146,13 @@ This approach ensures the model realistically captures the trade-off between cos
 
 ## Final Decision
 
-$$
-\text{Net Benefit} = \Delta C - C_{switch} - C_{comfort}
-$$
-
-Switch if Net Benefit $> 0$.
+\[
+\text{Net Savings} = \Delta C - C_{switch} - C_{comfort}
+\]
+Switch if Net Savings \( > 0 \).
 
 # 7. Summary Table
-
+This section provides a concise summary of the model's key steps and their integration with OCHRE. It serves as a quick reference for understanding how the decision model operates within the broader simulation framework.
 | Step         | Action                                      | OCHRE Integration                        |
 |--------------|---------------------------------------------|------------------------------------------|
 | 1            | Simulate default schedule                   | Run with normal HPWH control             |
@@ -173,3 +160,10 @@ Switch if Net Benefit $> 0$.
 | 3            | Compare bills and comfort                   | Use OCHRE output variables above         |
 | 4            | Decision to switch?                         | Apply decision rule                      |
 | 5            | Repeat monthly                              | Feedback loop                            |
+
+# 8. References
+This section lists references and resources for further information and context regarding the model and its implementation.
+- [OCHRE Inputs and Arguments](https://github.com/NREL/OCHRE/blob/main/docs/source/InputsAndArguments.rst)
+- [OCHRE Outputs](https://github.com/NREL/OCHRE/blob/main/docs/source/Outputs.rst)
+- [OCHRE Water Model](https://github.com/NREL/OCHRE/blob/main/ochre/Models/Water.py)
+- [HPWH Control Logic](https://github.com/NREL/OCHRE/blob/main/ochre/Equipment/WaterHeater.py)
