@@ -11,6 +11,8 @@ This document outlines a simple, first-pass heuristic-based decision model for c
 
 # 1. Problem Definition
 
+This section gives a high-level overview of the problem being addressed, including the objectives, assumptions, and the context in which the model operates.
+
 - **Objective:** Model how a consumer, with fixed (exogenous) hot water usage needs, might reschedule their HPWH operation in response to TOU rates to minimize their electricity bills, considering a "switching cost" for effort/comfort.
 - **Assumptions:**
     - Hot water usage schedule is fixed (not flexible).
@@ -21,6 +23,8 @@ This document outlines a simple, first-pass heuristic-based decision model for c
     - Decision process is repeated each billing cycle (feedback loop).
 
 # 2. Key Variables and Parameters
+
+Here, we describe the main variables and parameters used in the model, providing definitions and units to clarify their roles in the methodology.
 
 | Symbol         | Description                                           | Units          |
 |----------------|------------------------------------------------------|----------------|
@@ -34,6 +38,8 @@ This document outlines a simple, first-pass heuristic-based decision model for c
 | \( \Delta C \) | Anticipated bill savings from switching              | $              |
 
 # 3. Model Steps
+
+This section details the step-by-step process of the decision model, from baseline calculation to feedback and iteration, explaining how each step contributes to the overall decision-making process.
 
 ## Step 1: Calculate Baseline
 
@@ -69,6 +75,8 @@ This document outlines a simple, first-pass heuristic-based decision model for c
 
 # 4. Integration with OCHRE
 
+This section explains how the model interfaces with OCHRE, specifying required inputs, outputs used, and implementation notes for practical integration.
+
 ## Inputs Required
 
 - Hot water usage schedule: `HotWaterUsageSchedule`
@@ -93,6 +101,8 @@ This document outlines a simple, first-pass heuristic-based decision model for c
 
 # 5. Example Calculation
 
+An example calculation is provided in this section to illustrate how the model works in practice, using sample values for clarity.
+
 Suppose:
 
 - Default schedule: HPWH runs as needed.
@@ -111,6 +121,8 @@ Suppose:
 **Decision:** Consumer switches to TOU-adaptive schedule.
 
 # 6. Equations
+
+This section presents the key equations used in the model, including cost and comfort penalty calculations, to formalize the methodology.
 
 ## Electricity Cost Calculation
 
@@ -133,7 +145,7 @@ Where:
 - \( \alpha \): Monetization factor for comfort loss (e.g., $/kWh unmet or $/event)
 - \( \text{Unmet Demand}(t) \): Unmet hot water demand per time step (from OCHRE output)
 
-At each billing cycle, the consumer’s net savings from remaining on the TOU-adapted schedule is:
+At each billing cycle, the consumer's net savings from remaining on the TOU-adapted schedule is:
 
 \[
 \text{Net Savings} = \Delta C - C_{switch} - C_{comfort}
@@ -152,6 +164,8 @@ Switch if Net Savings \( > 0 \).
 
 # 7. Summary Table
 
+A summary table is provided here to concisely outline the main steps and their integration with OCHRE.
+
 | Step         | Action                                      | OCHRE Integration                        |
 |--------------|---------------------------------------------|------------------------------------------|
 | 1            | Simulate default schedule                   | Run with normal HPWH control             |
@@ -161,6 +175,8 @@ Switch if Net Savings \( > 0 \).
 | 5            | Repeat monthly                              | Feedback loop                            |
 
 # 8. References
+
+This section lists references and resources for further information and context regarding the model and its implementation.
 
 - [OCHRE Inputs and Arguments](https://github.com/NREL/OCHRE/blob/main/docs/source/InputsAndArguments.rst)
 - [OCHRE Outputs](https://github.com/NREL/OCHRE/blob/main/docs/source/Outputs.rst)
