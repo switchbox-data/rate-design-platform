@@ -1,1 +1,3 @@
-::: rate_design_platform.foo
+:: : rate_design_platform.foo
+
+[{obj}`rate_design_platform.foo`]

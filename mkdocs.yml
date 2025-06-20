@@ -9,22 +9,17 @@ copyright: Maintained by <a href="https://switchbox-data.com">switchbox-data</a>
 
 nav:
   - Home: index.md
-  - Examples:
-    - 'Rate Analysis': 'rate_analysis.qmd'
-    - 'DER Impact Study': 'der_impact.qmd'
-    - 'Bill Calculation': 'bill_calculation.qmd'
   - Modules: modules.md
+  - Quarto: docs_tou_hpwh_schedule_basic.md
 
 plugins:
   - search
-  - mkquartodocs:
-      quarto_path: quarto
-      keep_output: false
-      force_rebuild: false
   - mkdocstrings:
       handlers:
         python:
-          paths: ["rate_design_platform"]
+          paths:
+            - rate_design_platform
+  - quarto-render
 
 theme:
   name: material
