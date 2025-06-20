@@ -41,7 +41,7 @@ class QuartoRenderPlugin(BasePlugin):
     config_scheme = (
         ("quarto_cmd", config_options.Type(str, default="quarto")),
         ("source_dir", config_options.Type(str, default="docs")),
-        ("output_format", config_options.Type(str, default="markdown")),
+        ("output_format", config_options.Type(str, default="gfm")),
     )
 
     def on_pre_build(self, config):
