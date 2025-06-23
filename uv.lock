@@ -2888,10 +2888,6 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "deptry" },
-    { name = "mkdocs-material" },
-    { name = "mkdocstrings", extra = ["python"] },
-    { name = "mkquartodocs", version = "0.5.13", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
-    { name = "mkquartodocs", version = "0.6.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "mypy" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -2902,6 +2898,8 @@ docs = [
     { name = "mkdocs" },
     { name = "mkdocs-material" },
     { name = "mkdocstrings", extra = ["python"] },
+    { name = "mkquartodocs", version = "0.5.13", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "mkquartodocs", version = "0.6.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
 ]
 
 [package.metadata]
@@ -2917,9 +2915,6 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "deptry", specifier = ">=0.23.0" },
-    { name = "mkdocs-material", specifier = ">=8.5.10" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.26.1" },
-    { name = "mkquartodocs", specifier = ">=0.5.0" },
     { name = "mypy", specifier = ">=0.991" },
     { name = "pre-commit", specifier = ">=2.20.0" },
     { name = "pytest", specifier = ">=7.2.0" },
@@ -2930,6 +2925,7 @@ docs = [
     { name = "mkdocs", specifier = ">=1.4.2" },
     { name = "mkdocs-material", specifier = ">=8.5.10" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.26.1" },
+    { name = "mkquartodocs", specifier = ">=0.5.0" },
 ]
 
 [[package]]
