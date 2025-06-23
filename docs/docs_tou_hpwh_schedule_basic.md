@@ -1,7 +1,7 @@
 ---
 title: First-Pass TOU Scheduling Decision Model for HPWHs in OCHRE
-author: NREL/OCHRE Team
-date: '`r Sys.Date()`'
+author: Switchbox
+date: '2025-06-23'
 format:
   gfm:
     html-math-method: mathjax
@@ -13,8 +13,8 @@ format:
 
 
 # First-Pass TOU Scheduling Decision Model for HPWHs in OCHRE
-NREL/OCHRE Team
-Invalid Date
+Switchbox
+2025-06-23
 
 # Introduction
 
