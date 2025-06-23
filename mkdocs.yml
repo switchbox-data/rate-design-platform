@@ -10,7 +10,7 @@ copyright: Maintained by <a href="https://switchbox-data.com">switchbox-data</a>
 nav:
   - Home: index.md
   - Modules: modules.md
-  - Quarto: docs_tou_hpwh_schedule_basic.md
+  - HPWH TOU Scheduling: docs_tou_hpwh_schedule_basic.md
 
 plugins:
   - search
