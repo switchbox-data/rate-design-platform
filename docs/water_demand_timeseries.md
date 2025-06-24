@@ -159,3 +159,9 @@ The extraction process generates:
 
     - Electrical equivalentof thermal energy shortfall $D_{m,t}^{unmet}$
       for comfort penalty calculations in W
+
+## Example of Water Demand Time Series
+
+![Water Heating Demand Timeseries](images/water_heating_timeseries.png)
+
+*Water Heating Demand Timeseries*
