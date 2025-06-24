@@ -159,7 +159,7 @@ def human_controller(current_state: int, realized_savings: float = 0.0, unrealiz
 
 def calculate_monthly_bill(consumption: np.ndarray, rates: np.ndarray) -> float:
     """Calculate monthly electricity bill"""
-    return np.sum(consumption * rates)
+    return float(np.sum(consumption * rates))
 
 
 def calculate_comfort_penalty(unmet_demand_watts: np.ndarray, alpha: float) -> float:
@@ -176,7 +176,7 @@ def calculate_comfort_penalty(unmet_demand_watts: np.ndarray, alpha: float) -> f
     # Convert W to kWh: each interval is 15 minutes = 0.25 hours
     # Total unmet energy = sum(W * 0.25 hours) / 1000 W/kW = sum(W) / 4000 kWh
     total_unmet_kwh = np.sum(unmet_demand_watts) * 0.25 / 1000.0
-    return alpha * total_unmet_kwh
+    return float(alpha * total_unmet_kwh)
 
 
 @dataclass
@@ -290,7 +290,7 @@ def simulate_single_month(
         )
 
 
-def simulate_annual_cycle(hot_water_data: np.ndarray, params: TOUParameters = None) -> list[MonthlyResults]:
+def simulate_annual_cycle(hot_water_data: np.ndarray, params: TOUParameters | None = None) -> list[MonthlyResults]:
     """
     Simulate complete annual cycle with monthly decision-making
 
@@ -382,14 +382,16 @@ def load_input_data(csv_path: str | None = None) -> np.ndarray:
     if csv_path is None:
         # Default path relative to this file
         current_dir = Path(__file__).parent
-        csv_path = current_dir / "inputs" / "bldg0000072-up00_schedule.csv"
+        csv_path_resolved: str = str(current_dir / "inputs" / "bldg0000072-up00_schedule.csv")
+    else:
+        csv_path_resolved = csv_path
 
     # Load CSV data
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(csv_path_resolved)
 
     # Extract hot water fixtures column
     if "hot_water_fixtures" in df.columns:
-        hot_water_data = df["hot_water_fixtures"].values
+        hot_water_data: np.ndarray = np.asarray(df["hot_water_fixtures"].values)
     else:
         msg = "CSV file must contain 'hot_water_fixtures' column"
         raise ValueError(msg)
@@ -412,6 +414,10 @@ def run_full_simulation(
     """
     # Load input data
     hot_water_data = load_input_data(csv_path)
+
+    # Use default parameters if None provided
+    if params is None:
+        params = TOUParameters()
 
     # Run annual simulation
     monthly_results = simulate_annual_cycle(hot_water_data, params)
