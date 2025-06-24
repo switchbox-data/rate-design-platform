@@ -2,27 +2,29 @@ import os
 from calendar import month_abbr
 from datetime import datetime, timedelta
 
+import matplotlib.pyplot as plt
+import pandas as pd
 from ochre import Dwelling  # type: ignore[import-untyped]
 
 base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 input_path = os.path.join(base_path, "inputs")
 output_path = os.path.join(base_path, "outputs")
 
-# -- 1. Define file paths for building and schedule HPXMLs --
+# Define file paths for building and schedule HPXML
 hpxml_building_file = os.path.join(input_path, "bldg0000072-up00.xml")  # Path to building HPXML
 hpxml_schedule_file = os.path.join(
     input_path, "bldg0000072-up00_schedule.csv"
 )  # Path to schedule HPXML (alternatively, a CSV or HDF5)
 weather_file = os.path.join(input_path, "G3400270.epw")
 
-# --2. Create sample Dwelling object --
+# Define simulation parameters
 year = 2007
 month = "Jan"  # enumeration Jan, May, or Aug
 month_num = list(month_abbr).index(month)
 start_date = 1
 start_time = datetime(year, month_num, start_date, 0, 0)  # (Year, Month, Day, Hour, Min)
 time_step = timedelta(minutes=15)
-duration = timedelta(days=30)
+duration = timedelta(days=7)
 house_args = {
     # Timing parameters
     "start_time": start_time,
@@ -40,5 +42,36 @@ house_args = {
     "weather_file": weather_file,
 }
 
-# --3. Create Dwelling object --
+# Create Dwelling object
 dwelling = Dwelling(**house_args)
+
+# Read in water demand timeseries using pandas
+csv_file_path = os.path.join(output_path, "ochre_schedule.csv")
+print("Reading CSV with pandas...")
+df = pd.read_csv(csv_file_path)
+
+# Convert Time column to datetime if it's not already
+if df["Time"].dtype == "object":
+    df["Time"] = pd.to_datetime(df["Time"])
+
+# Create the plot using matplotlib
+print("Creating plot with matplotlib...")
+plt.figure(figsize=(12, 6))
+plt.plot(df["Time"], df["Water Heating (L/min)"], linewidth=0.5)
+
+# Customize the plot
+plt.title("Water Heating Demand Timeseries", fontsize=14, fontweight="bold")
+plt.xlabel("Time", fontsize=12)
+plt.ylabel("Water Heating (L/min)", fontsize=12)
+plt.grid(True, alpha=0.3)
+
+# Rotate x-axis labels for better readability
+plt.xticks(rotation=45)
+
+# Adjust layout to prevent label cutoff
+plt.tight_layout()
+
+# Show the plot
+plt.savefig(os.path.join(output_path, "water_heating_timeseries.png"), dpi=300, bbox_inches="tight")
+print(f"Plot saved to: {os.path.join(output_path, 'water_heating_timeseries.png')}")
+plt.close()
