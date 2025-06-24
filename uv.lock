@@ -2254,6 +2254,15 @@ wheels = [
 ]
 
 [[package]]
+name = "ochre"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2a/dc/c9f58298ce87564913e3e3c2eac0c9c1d93fe5d864d54975a66820bd6a44/ochre-0.4.0.tar.gz", hash = "sha256:ecbd7632416038f925dc1cc7446c2b863246c36a1c44bb73d7e0fcc773e3c716", size = 10022, upload-time = "2021-12-19T23:40:35.23Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3b/58/5d62363742a0fe4e7d3b4d596f80ccdbcdfd281d647e89698a31fc27f8e9/ochre-0.4.0-py3-none-any.whl", hash = "sha256:6d64b3a055b455103cb90ea6c1cf7c15519b7dd146e3ff2677481a33f54b885b", size = 9642, upload-time = "2021-12-19T23:40:33.26Z" },
+]
+
+[[package]]
 name = "overrides"
 version = "7.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2928,6 +2937,7 @@ source = { editable = "." }
 dependencies = [
     { name = "jupyter" },
     { name = "mkdocs" },
+    { name = "ochre" },
     { name = "polars" },
     { name = "pyarrow" },
     { name = "seaborn" },
@@ -2958,6 +2968,7 @@ docs = [
 requires-dist = [
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "mkdocs", specifier = ">=1.4.2" },
+    { name = "ochre", specifier = ">=0.4.0" },
     { name = "polars", specifier = ">=1.30.0" },
     { name = "pyarrow", specifier = ">=15.0.0" },
     { name = "seaborn", specifier = ">=0.13.2" },
