@@ -1,4 +1,4 @@
-from rate_design_platform.foo import foo
+from src.foo import foo
 
 
 def test_foo():
