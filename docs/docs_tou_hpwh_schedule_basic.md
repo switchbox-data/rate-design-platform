@@ -15,22 +15,36 @@ shifting schedules.
 # 1. Problem Definition
 
 This section establishes a high-level overview of the core research
-question and modeling assumptions for consumer response to TOU rates. -
-**Objective:** Model how a consumer, with fixed (exogenous) hot water
-usage needs, might reschedule their HPWH operation in response to TOU
-rates to minimize their electricity bills, considering a “switching
-cost” for effort/comfort. - **Assumptions:** - Hot water usage schedule
-is fixed (not flexible) and set by inputs to the model. - HPWH can be
-controlled (on/off) on a schedule. - TOU rate structure
-(on-peak/off-peak) is known and simple (e.g., higher price during peak
-hours), such that the consumer can reasonably set a schedule to turn on
-HPWH during off-peak hours. - Consumer receives feedback on energy cost
-and makes switching decisions at bill receipt each billing cycle
-(monthly) rather than at each operational time step (every 15
-minutes). - Switching to a TOU-adapted schedule incurs a one-time
-“effort cost” (can be fixed or parameterized). - Decision process is
-repeated each billing cycle (feedback loop), with the decision model
-output feeding into the next iteration of the simulation.
+question and modeling assumptions for consumer response to TOU rates.
+
+**Objective:**
+
+Model how a consumer, with fixed (exogenous) hot water usage needs,
+might reschedule their HPWH operation in response to TOU rates to
+minimize their electricity bills, considering a “switching cost” for
+effort/comfort.
+
+**Assumptions:**
+
+- Hot water usage schedule is fixed (not flexible) and set by inputs to
+  the model.
+
+- HPWH can be controlled (on/off) on a schedule.
+
+- TOU rate structure (on-peak/off-peak) is known and simple (e.g.,
+  higher price during peak hours), such that the consumer can reasonably
+  set a schedule to turn on HPWH during off-peak hours.
+
+- Consumer receives feedback on energy cost and makes switching
+  decisions at bill receipt each billing cycle (monthly) rather than at
+  each operational time step (every 15 minutes).
+
+- Switching to a TOU-adapted schedule incurs a one-time “effort cost”
+  (can be fixed or parameterized).
+
+- Decision process is repeated each billing cycle (feedback loop), with
+  the decision model output feeding into the next iteration of the
+  simulation.
 
 # 2. Key Variables and Parameters
 
@@ -92,23 +106,30 @@ rate vector $r_{m,t}$ is constructed by mapping peak hours set $H$ to
 the on-peak rate $r^{on}$ and all other periods to off-peak rate
 $r^{off}$.
 
-**Set Time-Varying Parameters for Month $m$:** - Load hot water usage
-schedule: $U_{m,t}^{HW}$ for all $t \in T$ - Load temperature profiles:
-$T_{m,t}^{setpoint}$, $T_{m,t}^{ambient}$ for all $t \in T$ - Set
-electricity rates: $r_{m,t} = r^{on}$ if $t \in H$, else
-$r_{m,t} = r^{off}$
+**Set Time-Varying Parameters for Month $m$:**
 
-**Initialize Schedule State for Month $m$:** - If $m = 1$: set
-$S_m^{current} = 1$ (start on default schedule) - Else:
-$S_m^{current} = S_{m-1}^{current,next}$ (use previous month’s decision
-outcome)
+- Load hot water usage schedule: $U_{m,t}^{HW}$ for all $t \in T$
 
-**Set Operational Schedule for Month $m$:** The binary operation
-permission vector $s_{m,t}$ is derived from the current schedule state
-$S_m^{current}$. When $S_m^{current} = 1$ (default), the HPWH can
-operate whenever needed ($s_{m,t} = 1$ for all $t$). When
-$S_m^{current} = 0$ (TOU-adapted), operation is restricted during peak
-hours ($s_{m,t} = 0$ when $t \in H$).
+- Load temperature profiles: $T_{m,t}^{setpoint}$, $T_{m,t}^{ambient}$
+  for all $t \in T$
+
+- Set electricity rates: $r_{m,t} = r^{on}$ if $t \in H$, else
+  $r_{m,t} = r^{off}$
+
+**Initialize Schedule State for Month $m$:**
+
+- If $m = 1$: set $S_m^{current} = 1$ (start on default schedule)
+
+- Else: $S_m^{current} = S_{m-1}^{current,next}$ (use previous month’s
+  decision outcome)
+
+**Set Operational Schedule for Month $m$:**
+
+The binary operation permission vector $s_{m,t}$ is derived from the
+current schedule state $S_m^{current}$. When $S_m^{current} = 1$
+(default), the HPWH can operate whenever needed ($s_{m,t} = 1$ for all
+$t$). When $S_m^{current} = 0$ (TOU-adapted), operation is restricted
+during peak hours ($s_{m,t} = 0$ when $t \in H$).
 
 $$
 s_{m,t} = \begin{cases}
@@ -130,18 +151,25 @@ conditions $T_{m,t}^{ambient}$. The monthly electricity bill is computed
 by summing the product of consumption and time-varying rates across all
 time periods in month $m$.
 
-**Execute Monthly Simulation for Month $m$:** - Input: $U_{m,t}^{HW}$,
-$s_{m,t}$, $T_{m,t}^{setpoint}$, $T_{m,t}^{ambient}$ for all $t \in T$ -
-Output: $E_{m,t}$, $T_{m,t}^{tank}$ for all $t \in T$
+**Execute Monthly Simulation for Month $m$:**
 
-**Calculate Monthly Electricity Bill for Month $m$:** $$
+- Input: $U_{m,t}^{HW}$, $s_{m,t}$, $T_{m,t}^{setpoint}$,
+  $T_{m,t}^{ambient}$ for all $t \in T$
+
+- Output: $E_{m,t}$, $T_{m,t}^{tank}$ for all $t \in T$
+
+**Calculate Monthly Electricity Bill for Month $m$:**
+
+$$
 C_m^{bill} = \sum_{t \in T} E_{m,t} \cdot r_{m,t}
-$$ Note that this bill is specific to the HPWH, and does not include
-other electricity loads in the building. In practice, consumers get a
-bill that includes all of their electricity usage, and the HPWH bill is
-a subset of that. However, since other operations remain the same, and
-we are only changing the HPWH, we don’t need to include other loads in
-the model.
+$$
+
+Note that this bill is specific to the HPWH, and does not include other
+electricity loads in the building. In practice, consumers get a bill
+that includes all of their electricity usage, and the HPWH bill is a
+subset of that. However, since other operations remain the same, and we
+are only changing the HPWH, we don’t need to include other loads in the
+model.
 
 ## Step 3: Assess Comfort Performance for Month $m$
 
@@ -197,8 +225,9 @@ simulating the alternative schedule and comparing anticipated costs.
 Since they have no experience with TOU operation, the decision excludes
 comfort penalties $C_m^{comfort}$, which are unknown at this stage.
 
-**Step 4A.1: Simulate Alternative (TOU) Schedule for Month $m$** A
-temporary TOU schedule is created for month $m$ by setting the
+**Step 4A.1: Simulate Alternative (TOU) Schedule for Month $m$**
+
+A temporary TOU schedule is created for month $m$ by setting the
 operational permissions to restrict peak-hour operation. OCHRE simulates
 this alternative schedule using the same input conditions
 ($U_{m,t}^{HW}$, $T_{m,t}^{setpoint}$, $T_{m,t}^{ambient}$) but with the
@@ -213,8 +242,9 @@ scheduling in month $m$.
 - Calculate:
   $C_m^{bill,TOU} = \sum_{t \in T} E_{m,t}^{TOU} \cdot r_{m,t}$
 
-**Step 4A.2: Calculate Anticipated Savings for Month $m$** The
-anticipated bill savings $\Delta C_m^{anticipated}$ represent the
+**Step 4A.2: Calculate Anticipated Savings for Month $m$**
+
+The anticipated bill savings $\Delta C_m^{anticipated}$ represent the
 difference between current default schedule costs and projected TOU
 schedule costs for month $m$. The net anticipated benefit subtracts the
 one-time switching cost $C^{switch}$ but does not include comfort
@@ -228,9 +258,10 @@ $$
 \text{Net Savings}_m^{anticipated} = \Delta C_m^{anticipated} - C^{switch}
 $$
 
-**Step 4A.3: Make Switching Decision for Month $m$** The binary
-switching decision $x_m^{switch}$ is determined by whether anticipated
-net savings are positive in month $m$. If
+**Step 4A.3: Make Switching Decision for Month $m$**
+
+The binary switching decision $x_m^{switch}$ is determined by whether
+anticipated net savings are positive in month $m$. If
 $\text{Net Savings}_m^{anticipated} > 0$, the consumer adopts TOU
 scheduling ($x_m^{switch} = 1$); otherwise, they remain on the default
 schedule ($x_m^{switch} = 0$).
@@ -249,8 +280,9 @@ financial and comfort impacts during the current month. Their
 continuation decision incorporates complete information including
 realized comfort penalties $C_m^{comfort}$.
 
-**Step 4B.1: Simulate Alternative (Default) Schedule for Month $m$** The
-alternative default schedule simulation determines what electricity
+**Step 4B.1: Simulate Alternative (Default) Schedule for Month $m$**
+
+The alternative default schedule simulation determines what electricity
 costs would have been in month $m$ without TOU restrictions. All
 operational permissions are set to allow HPWH operation
 ($s_{m,t}^{temp} = 1$ for all $t$), and OCHRE simulates the resulting
@@ -263,11 +295,13 @@ consumption $E_{m,t}^{default}$ and costs $C_m^{bill,default}$.
 - Calculate:
   $C_m^{bill,default} = \sum_{t \in T} E_{m,t}^{default} \cdot r_{m,t}$
 
-**Step 4B.2: Calculate Realized Performance for Month $m$** The realized
-savings $\Delta C_m^{realized}$ compare the counterfactual default costs
-to actual TOU costs experienced in month $m$. The net realized savings
-subtract both the switching cost $C^{switch}$ and the comfort penalty
-$C_m^{comfort}$ that was actually experienced during TOU operation.
+**Step 4B.2: Calculate Realized Performance for Month $m$**
+
+The realized savings $\Delta C_m^{realized}$ compare the counterfactual
+default costs to actual TOU costs experienced in month $m$. The net
+realized savings subtract both the switching cost $C^{switch}$ and the
+comfort penalty $C_m^{comfort}$ that was actually experienced during TOU
+operation.
 
 $$
 \Delta C_m^{realized} = C_m^{bill,default} - C_m^{bill}
@@ -277,12 +311,13 @@ $$
 \text{Net Savings}_m^{realized} = \Delta C_m^{realized} - C^{switch} - C_m^{comfort}
 $$
 
-**Step 4B.3: Make Continuation Decision for Month $m$** The continuation
-decision evaluates whether to remain on TOU scheduling based on complete
-cost information from month $m$. If realized net savings are
-non-positive ($\text{Net Savings}_m^{realized} \leq 0$), the consumer
-switches back to default scheduling ($x_m^{switch} = 1$); otherwise,
-they continue with TOU ($x_m^{switch} = 0$).
+**Step 4B.3: Make Continuation Decision for Month $m$**
+
+The continuation decision evaluates whether to remain on TOU scheduling
+based on complete cost information from month $m$. If realized net
+savings are non-positive ($\text{Net Savings}_m^{realized} \leq 0$), the
+consumer switches back to default scheduling ($x_m^{switch} = 1$);
+otherwise, they continue with TOU ($x_m^{switch} = 0$).
 
 $$
 x_m^{switch} = \begin{cases}
@@ -310,9 +345,11 @@ S_m^{current} & \text{if } x_m^{switch} = 0
 \end{cases}
 $$
 
-**Store Monthly Results for Month $m$:** - Record: $C_m^{bill}$,
-$C_m^{comfort}$, $x_m^{switch}$, $S_m^{current}$ - Save for annual
-analysis and next month’s initialization
+**Store Monthly Results for Month $m$:**
+
+- Record: $C_m^{bill}$, $C_m^{comfort}$, $x_m^{switch}$, $S_m^{current}$
+
+- Save for annual analysis and next month’s initialization
 
 ## Step 6: Monthly Iteration Control
 
@@ -322,9 +359,12 @@ returns to Step 1 with month $m+1$ and the updated schedule state
 $S_{m+1}^{current}$. If month 12 is complete, the simulation proceeds to
 annual evaluation metrics calculation.
 
-**Check Simulation Status:** - If $m < 12$: increment to month $m+1$,
-return to Step 1 with $S_{m+1}^{current}$ - If $m = 12$: proceed to
-annual evaluation (Step 7)
+**Check Simulation Status:**
+
+- If $m < 12$: increment to month $m+1$, return to Step 1 with
+  $S_{m+1}^{current}$
+
+- If $m = 12$: proceed to annual evaluation (Step 7)
 
 ## Step 7: Annual Evaluation and State Reset
 
@@ -377,30 +417,48 @@ $$
 
 ### Step 7.2: Generate Key Visualizations
 
-**A. Annual Decision Timeline** - Line plot showing $S_m^{current}$
-across months with switching events $x_m^{switch}$ marked - Purpose:
-Visualize adoption patterns and decision stability
+**A. Annual Decision Timeline**
 
-**B. Monthly Cost Decomposition** - Stacked bar chart with $C_m^{bill}$,
-$C_m^{comfort}$, and switching costs for each month - Purpose: Show
-relative impact of each cost component
+- Line plot showing $S_m^{current}$ across months with switching events
+  $x_m^{switch}$ marked
 
-**C. Performance Scatter Plot** - X-axis: $C_m^{comfort}$, Y-axis:
-$\Delta C_m^{realized}$, color-coded by $S_m^{current}$ - Purpose:
-Identify trade-offs between savings and comfort
+- Purpose: Visualize adoption patterns and decision stability
 
-**D. Load Profile Heatmap** - 2D plot: months (x-axis) vs. hours
-(y-axis), color intensity = average $E_{m,t}$ - Purpose: Visualize
-seasonal and daily load shifting patterns
+**B. Monthly Cost Decomposition**
+
+- Stacked bar chart with $C_m^{bill}$, $C_m^{comfort}$, and switching
+  costs for each month
+
+- Purpose: Show relative impact of each cost component
+
+**C. Performance Scatter Plot**
+
+- X-axis: $C_m^{comfort}$, Y-axis: $\Delta C_m^{realized}$, color-coded
+  by $S_m^{current}$
+
+- Purpose: Identify trade-offs between savings and comfort
+
+**D. Load Profile Heatmap**
+
+- 2D plot: months (x-axis) vs. hours (y-axis), color intensity = average
+  $E_{m,t}$
+
+- Purpose: Visualize seasonal and daily load shifting patterns
 
 ### Step 7.3: Reset for Next Year
 
-**Prepare for Next Year:** - Set $S_1^{current} = S_{13}^{current}$
-(carry forward final state) - Clear monthly arrays:
-$\{C_m^{bill}, C_m^{comfort}, x_m^{switch}, S_m^{current}\}_{m=1}^{12}$ -
-Update annual parameters (e.g., rate changes, equipment degradation) -
-Export annual metrics to results database - Return to Step 1 for new
-annual cycle with $m = 1$
+**Prepare for Next Year:**
+
+- Set $S_1^{current} = S_{13}^{current}$ (carry forward final state)
+
+- Clear monthly arrays:
+  $\{C_m^{bill}, C_m^{comfort}, x_m^{switch}, S_m^{current}\}_{m=1}^{12}$
+
+- Update annual parameters (e.g., rate changes, equipment degradation)
+
+- Export annual metrics to results database
+
+- Return to Step 1 for new annual cycle with $m = 1$
 
 This evaluation framework provides both quantitative metrics for model
 validation and intuitive visualizations for understanding consumer
@@ -431,60 +489,86 @@ potential benefits from shifting their HPWH operation to off-peak hours.
 
 #### **The Typical Consumer Journey**
 
-**Monthly Bill Review Phase:** Sarah receives her TOU electricity bill
-showing \$92 this month, with a breakdown: \$38 from peak hours (2-8 PM)
-and \$54 from off-peak. She notices her electric water heater is one of
-her largest energy users. She wonders: “What if I could get my water
-heater to run mostly during off-peak times?”
+**Monthly Bill Review Phase:**
 
-**Basic Calculation Attempt:** Sarah looks at her bill and sees she’s
-paying \$0.28/kWh during peak vs. \$0.12/kWh off-peak. She estimates her
-water heater uses about 800 kWh/month and reasons: “If half of that is
-currently happening during peak hours, that’s 400 kWh × (\$0.28 -
-\$0.12) = \$64 potential savings per month. But realistically, maybe I
-can shift 70% of peak usage to off-peak, so perhaps \$45 savings?”
+Sarah receives her TOU electricity bill showing \$92 this month, with a
+breakdown: \$38 from peak hours (2-8 PM) and \$54 from off-peak. She
+notices her electric water heater is one of her largest energy users.
+She wonders: “What if I could get my water heater to run mostly during
+off-peak times?”
 
-**Social Information Gathering:** At work, Sarah asks her colleague Tom
-about his programmable water heater. Tom says: “I set mine to heat from
-10 PM to 6 AM. My bill went down maybe \$20-25 per month, though
-sometimes the water isn’t quite as hot for evening dishes. It’s a
-trade-off, but worth it for the savings.”
+**Basic Calculation Attempt:**
 
-**Switching Cost Assessment:** Sarah considers the total effort
-required: analyzing her current usage patterns (2 hours), figuring out
-the water heater programming (2-3 hours), and periodically checking
-bills to ensure it’s working. She estimates this represents about \$35
-worth of her time and mental energy. With potential monthly savings of
-\$20-30, the payback period is reasonable: “Even if I only save
-\$20/month, that’s \$240/year for maybe 5 hours of total effort.”
+Sarah looks at her bill and sees she’s paying \$0.28/kWh during peak
+vs. \$0.12/kWh off-peak. She estimates her water heater uses about 800
+kWh/month and reasons: “If half of that is currently happening during
+peak hours, that’s 400 kWh × (\$0.28 - \$0.12) = \$64 potential savings
+per month. But realistically, maybe I can shift 70% of peak usage to
+off-peak, so perhaps \$45 savings?”
+
+**Social Information Gathering:**
+
+At work, Sarah asks her colleague Tom about his programmable water
+heater. Tom says: “I set mine to heat from 10 PM to 6 AM. My bill went
+down maybe \$20-25 per month, though sometimes the water isn’t quite as
+hot for evening dishes. It’s a trade-off, but worth it for the savings.”
+
+**Switching Cost Assessment:**
+
+Sarah considers the total effort required: analyzing her current usage
+patterns (2 hours), figuring out the water heater programming (2-3
+hours), and periodically checking bills to ensure it’s working. She
+estimates this represents about \$35 worth of her time and mental
+energy. With potential monthly savings of \$20-30, the payback period is
+reasonable: “Even if I only save \$20/month, that’s \$240/year for maybe
+5 hours of total effort.”
 
 #### **What Consumers Actually Calculate**
 
-**Peak Usage Estimation:** - Look at TOU bill breakdown or estimate
-major appliance usage during peak hours - Apply simple fractions: “Maybe
-40% of my water heating happens during peak time”
+**Peak Usage Estimation:**
 
-**Rate Differential Application:** - Calculate potential savings as:
-(estimated peak kWh) × (peak rate - off-peak rate) × (shifting
-efficiency) - Use round numbers: “If I shift 300 kWh from \$0.28 to
-\$0.12, that’s \$48 savings”
+- Look at TOU bill breakdown or estimate major appliance usage during
+  peak hours
 
-**Potential Switching Cost Components:** - **Information cost**: Time
-analyzing bills and researching strategies - **Implementation cost**:
-Programming water heater controls and trial-and-error - **Monitoring
-cost**: Ongoing bill checking and adjustments
+- Apply simple fractions: “Maybe 40% of my water heating happens during
+  peak time”
+
+**Rate Differential Application:**
+
+- Calculate potential savings as: (estimated peak kWh) × (peak rate -
+  off-peak rate) × (shifting efficiency)
+
+- Use round numbers: “If I shift 300 kWh from \$0.28 to \$0.12, that’s
+  \$48 savings”
+
+**Potential Switching Cost Components:**
+
+- **Information cost**: Time analyzing bills and researching strategies
+
+- **Implementation cost**: Programming water heater controls and
+  trial-and-error
+
+- **Monitoring cost**: Ongoing bill checking and adjustments
 
 #### **Implications for Model Design**
 
 This realistic decision-making process suggests consumers estimate
-$\Delta C^{anticipated}$ using: $$
+$\Delta C^{anticipated}$ using:
+
+$$
 \hat{\Delta C}_m^{anticipated} = \hat{E}_m^{peak,WH} \times (r^{on} - r^{off}) \times \phi
 $$
 
-Where: - $\hat{E}_m^{peak,WH}$ = consumer’s guess of peak-hour water
-heating usage - $\phi$ = expected shifting effectiveness (0.6-0.8)
+Where:
 
-And evaluate switching against realistic transaction costs: $$
+- $\hat{E}_m^{peak,WH}$ = consumer’s guess of peak-hour water heating
+  usage
+
+- $\phi$ = expected shifting effectiveness (0.6-0.8)
+
+And evaluate switching against realistic transaction costs:
+
+$$
 C^{switch} = \$35 \text{ (representing 3-5 hours of consumer effort)}
 $$
 
@@ -496,11 +580,16 @@ simulations.
 # 5. References
 
 This section lists references and resources for further information and
-context regarding the model and its implementation. - [OCHRE Inputs and
-Arguments](https://github.com/NREL/OCHRE/blob/main/docs/source/InputsAndArguments.rst) -
-[OCHRE
-Outputs](https://github.com/NREL/OCHRE/blob/main/docs/source/Outputs.rst) -
-[OCHRE Water
-Model](https://github.com/NREL/OCHRE/blob/main/ochre/Models/Water.py) -
-[HPWH Control
-Logic](https://github.com/NREL/OCHRE/blob/main/ochre/Equipment/WaterHeater.py)
+context regarding the model and its implementation.
+
+- [OCHRE Inputs and
+  Arguments](https://github.com/NREL/OCHRE/blob/main/docs/source/InputsAndArguments.rst)
+
+- [OCHRE
+  Outputs](https://github.com/NREL/OCHRE/blob/main/docs/source/Outputs.rst)
+
+- [OCHRE Water
+  Model](https://github.com/NREL/OCHRE/blob/main/ochre/Models/Water.py)
+
+- [HPWH Control
+  Logic](https://github.com/NREL/OCHRE/blob/main/ochre/Equipment/WaterHeater.py)
