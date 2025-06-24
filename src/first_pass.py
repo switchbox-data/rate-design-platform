@@ -20,7 +20,7 @@ class TOUParameters:
     r_on: float = 0.28  # $/kWh - peak rate
     r_off: float = 0.12  # $/kWh - off-peak rate
     c_switch: float = 35.0  # $ - switching cost
-    alpha: float = 0.15  # $/kW - comfort penalty factor
+    alpha: float = 0.15  # $/kWh - comfort penalty factor
     cop: float = 3.0  # heat pump coefficient of performance
 
     # Peak hours: 2 PM to 8 PM (14:00 to 20:00)
@@ -32,8 +32,8 @@ class SimulationResults(NamedTuple):
     """Results from HPWH simulation for a given month"""
 
     E_mt: np.ndarray  # Electricity consumption [kWh/15min]
-    T_tank_mt: np.ndarray  # Tank temperature [�C]
-    Q_unmet_mt: np.ndarray  # Thermal unmet demand [J/15min]
+    T_tank_mt: np.ndarray  # Tank temperature [°C]
+    D_unmet_mt: np.ndarray  # Electrical unmet demand [W] (operational power deficit)
 
 
 def define_peak_hours(intervals_per_day: int = 96) -> np.ndarray:
@@ -135,10 +135,10 @@ def building_simulation_controller(
 
     # Static return values
     E_mt = np.full(num_intervals, 0.5)  # kWh/15min
-    T_tank_mt = np.full(num_intervals, 55.0)  # �C
-    Q_unmet_mt = np.zeros(num_intervals)  # J/15min
+    T_tank_mt = np.full(num_intervals, 55.0)  # °C
+    D_unmet_mt = np.zeros(num_intervals)  # W (no unmet demand in static case)
 
-    return SimulationResults(E_mt, T_tank_mt, Q_unmet_mt)
+    return SimulationResults(E_mt, T_tank_mt, D_unmet_mt)
 
 
 def human_controller(current_state: int, realized_savings: float = 0.0, unrealized_savings: float = 0.0) -> int:
@@ -162,21 +162,21 @@ def calculate_monthly_bill(consumption: np.ndarray, rates: np.ndarray) -> float:
     return np.sum(consumption * rates)
 
 
-def calculate_comfort_penalty(unmet_demand: np.ndarray, alpha: float, cop: float) -> float:
+def calculate_comfort_penalty(unmet_demand_watts: np.ndarray, alpha: float) -> float:
     """
-    Calculate comfort penalty in $ from unmet thermal demand
+    Calculate comfort penalty in $ from electrical unmet demand
 
     Args:
-        unmet_demand: Thermal unmet demand [J/15min]
-        alpha: Comfort penalty factor [$/kW]
-        cop: Heat pump coefficient of performance
+        unmet_demand_watts: Electrical unmet demand [W] at each interval (15-min intervals)
+        alpha: Comfort penalty factor [$/kWh]
 
     Returns:
         Comfort penalty in $
     """
-    # Convert J/15min to kW: J/15min * (1 kWh/3.6e6 J) * (4 intervals/hour) / COP
-    total_unmet_kw = np.sum(unmet_demand) / cop / 3.6e6 * 4
-    return alpha * total_unmet_kw
+    # Convert W to kWh: each interval is 15 minutes = 0.25 hours
+    # Total unmet energy = sum(W * 0.25 hours) / 1000 W/kW = sum(W) / 4000 kWh
+    total_unmet_kwh = np.sum(unmet_demand_watts) * 0.25 / 1000.0
+    return alpha * total_unmet_kwh
 
 
 @dataclass
@@ -248,7 +248,7 @@ def simulate_single_month(
     if current_state == 1:  # Currently on Default Schedule (Case A)
         # Calculate unrealized anticipated savings from switching to TOU
         actual_bill = default_bill
-        actual_comfort = calculate_comfort_penalty(default_results.Q_unmet_mt, params.alpha, params.cop)
+        actual_comfort = calculate_comfort_penalty(default_results.D_unmet_mt, params.alpha)
 
         # Anticipated savings (no comfort penalty considered)
         bill_savings = default_bill - tou_bill
@@ -270,7 +270,7 @@ def simulate_single_month(
     else:  # Currently on TOU Schedule (Case B)
         # Calculate realized performance with actual comfort penalty
         actual_bill = tou_bill
-        actual_comfort = calculate_comfort_penalty(tou_results.Q_unmet_mt, params.alpha, params.cop)
+        actual_comfort = calculate_comfort_penalty(tou_results.D_unmet_mt, params.alpha)
 
         # Realized savings (including comfort penalty)
         bill_savings = default_bill - tou_bill
