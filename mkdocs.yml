@@ -21,6 +21,7 @@ plugins:
             - rate_design_platform
   - quarto-render:
       output_format: gfm
+  - mermaid2
 
 theme:
   name: material
