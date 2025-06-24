@@ -92,23 +92,30 @@ rate vector $r_{m,t}$ is constructed by mapping peak hours set $H$ to
 the on-peak rate $r^{on}$ and all other periods to off-peak rate
 $r^{off}$.
 
-**Set Time-Varying Parameters for Month $m$:** - Load hot water usage
-schedule: $U_{m,t}^{HW}$ for all $t \in T$ - Load temperature profiles:
-$T_{m,t}^{setpoint}$, $T_{m,t}^{ambient}$ for all $t \in T$ - Set
-electricity rates: $r_{m,t} = r^{on}$ if $t \in H$, else
-$r_{m,t} = r^{off}$
+**Set Time-Varying Parameters for Month $m$:**
 
-**Initialize Schedule State for Month $m$:** - If $m = 1$: set
-$S_m^{current} = 1$ (start on default schedule) - Else:
-$S_m^{current} = S_{m-1}^{current,next}$ (use previous month’s decision
-outcome)
+- Load hot water usage schedule: $U_{m,t}^{HW}$ for all $t \in T$
 
-**Set Operational Schedule for Month $m$:** The binary operation
-permission vector $s_{m,t}$ is derived from the current schedule state
-$S_m^{current}$. When $S_m^{current} = 1$ (default), the HPWH can
-operate whenever needed ($s_{m,t} = 1$ for all $t$). When
-$S_m^{current} = 0$ (TOU-adapted), operation is restricted during peak
-hours ($s_{m,t} = 0$ when $t \in H$).
+- Load temperature profiles: $T_{m,t}^{setpoint}$, $T_{m,t}^{ambient}$
+  for all $t \in T$
+
+- Set electricity rates: $r_{m,t} = r^{on}$ if $t \in H$, else
+  $r_{m,t} = r^{off}$
+
+**Initialize Schedule State for Month $m$:**
+
+- If $m = 1$: set $S_m^{current} = 1$ (start on default schedule)
+
+- Else: $S_m^{current} = S_{m-1}^{current,next}$ (use previous month’s
+  decision outcome)
+
+**Set Operational Schedule for Month $m$:**
+
+The binary operation permission vector $s_{m,t}$ is derived from the
+current schedule state $S_m^{current}$. When $S_m^{current} = 1$
+(default), the HPWH can operate whenever needed ($s_{m,t} = 1$ for all
+$t$). When $S_m^{current} = 0$ (TOU-adapted), operation is restricted
+during peak hours ($s_{m,t} = 0$ when $t \in H$).
 
 $$
 s_{m,t} = \begin{cases}
@@ -130,18 +137,25 @@ conditions $T_{m,t}^{ambient}$. The monthly electricity bill is computed
 by summing the product of consumption and time-varying rates across all
 time periods in month $m$.
 
-**Execute Monthly Simulation for Month $m$:** - Input: $U_{m,t}^{HW}$,
-$s_{m,t}$, $T_{m,t}^{setpoint}$, $T_{m,t}^{ambient}$ for all $t \in T$ -
-Output: $E_{m,t}$, $T_{m,t}^{tank}$ for all $t \in T$
+**Execute Monthly Simulation for Month $m$:**
 
-**Calculate Monthly Electricity Bill for Month $m$:** $$
+- Input: $U_{m,t}^{HW}$, $s_{m,t}$, $T_{m,t}^{setpoint}$,
+  $T_{m,t}^{ambient}$ for all $t \in T$
+
+- Output: $E_{m,t}$, $T_{m,t}^{tank}$ for all $t \in T$
+
+**Calculate Monthly Electricity Bill for Month $m$:**
+
+$$
 C_m^{bill} = \sum_{t \in T} E_{m,t} \cdot r_{m,t}
-$$ Note that this bill is specific to the HPWH, and does not include
-other electricity loads in the building. In practice, consumers get a
-bill that includes all of their electricity usage, and the HPWH bill is
-a subset of that. However, since other operations remain the same, and
-we are only changing the HPWH, we don’t need to include other loads in
-the model.
+$$
+
+Note that this bill is specific to the HPWH, and does not include other
+electricity loads in the building. In practice, consumers get a bill
+that includes all of their electricity usage, and the HPWH bill is a
+subset of that. However, since other operations remain the same, and we
+are only changing the HPWH, we don’t need to include other loads in the
+model.
 
 ## Step 3: Assess Comfort Performance for Month $m$
 
@@ -310,9 +324,11 @@ S_m^{current} & \text{if } x_m^{switch} = 0
 \end{cases}
 $$
 
-**Store Monthly Results for Month $m$:** - Record: $C_m^{bill}$,
-$C_m^{comfort}$, $x_m^{switch}$, $S_m^{current}$ - Save for annual
-analysis and next month’s initialization
+**Store Monthly Results for Month $m$:**
+
+- Record: $C_m^{bill}$, $C_m^{comfort}$, $x_m^{switch}$, $S_m^{current}$
+
+- Save for annual analysis and next month’s initialization
 
 ## Step 6: Monthly Iteration Control
 
@@ -322,9 +338,12 @@ returns to Step 1 with month $m+1$ and the updated schedule state
 $S_{m+1}^{current}$. If month 12 is complete, the simulation proceeds to
 annual evaluation metrics calculation.
 
-**Check Simulation Status:** - If $m < 12$: increment to month $m+1$,
-return to Step 1 with $S_{m+1}^{current}$ - If $m = 12$: proceed to
-annual evaluation (Step 7)
+**Check Simulation Status:**
+
+- If $m < 12$: increment to month $m+1$, return to Step 1 with
+  $S_{m+1}^{current}$
+
+- If $m = 12$: proceed to annual evaluation (Step 7)
 
 ## Step 7: Annual Evaluation and State Reset
 
@@ -377,30 +396,48 @@ $$
 
 ### Step 7.2: Generate Key Visualizations
 
-**A. Annual Decision Timeline** - Line plot showing $S_m^{current}$
-across months with switching events $x_m^{switch}$ marked - Purpose:
-Visualize adoption patterns and decision stability
+**A. Annual Decision Timeline**
 
-**B. Monthly Cost Decomposition** - Stacked bar chart with $C_m^{bill}$,
-$C_m^{comfort}$, and switching costs for each month - Purpose: Show
-relative impact of each cost component
+- Line plot showing $S_m^{current}$ across months with switching events
+  $x_m^{switch}$ marked
 
-**C. Performance Scatter Plot** - X-axis: $C_m^{comfort}$, Y-axis:
-$\Delta C_m^{realized}$, color-coded by $S_m^{current}$ - Purpose:
-Identify trade-offs between savings and comfort
+- Purpose: Visualize adoption patterns and decision stability
 
-**D. Load Profile Heatmap** - 2D plot: months (x-axis) vs. hours
-(y-axis), color intensity = average $E_{m,t}$ - Purpose: Visualize
-seasonal and daily load shifting patterns
+**B. Monthly Cost Decomposition**
+
+- Stacked bar chart with $C_m^{bill}$, $C_m^{comfort}$, and switching
+  costs for each month
+
+- Purpose: Show relative impact of each cost component
+
+**C. Performance Scatter Plot**
+
+- X-axis: $C_m^{comfort}$, Y-axis: $\Delta C_m^{realized}$, color-coded
+  by $S_m^{current}$
+
+- Purpose: Identify trade-offs between savings and comfort
+
+**D. Load Profile Heatmap**
+
+- 2D plot: months (x-axis) vs. hours (y-axis), color intensity = average
+  $E_{m,t}$
+
+- Purpose: Visualize seasonal and daily load shifting patterns
 
 ### Step 7.3: Reset for Next Year
 
-**Prepare for Next Year:** - Set $S_1^{current} = S_{13}^{current}$
-(carry forward final state) - Clear monthly arrays:
-$\{C_m^{bill}, C_m^{comfort}, x_m^{switch}, S_m^{current}\}_{m=1}^{12}$ -
-Update annual parameters (e.g., rate changes, equipment degradation) -
-Export annual metrics to results database - Return to Step 1 for new
-annual cycle with $m = 1$
+**Prepare for Next Year:**
+
+- Set $S_1^{current} = S_{13}^{current}$ (carry forward final state)
+
+- Clear monthly arrays:
+  $\{C_m^{bill}, C_m^{comfort}, x_m^{switch}, S_m^{current}\}_{m=1}^{12}$
+
+- Update annual parameters (e.g., rate changes, equipment degradation)
+
+- Export annual metrics to results database
+
+- Return to Step 1 for new annual cycle with $m = 1$
 
 This evaluation framework provides both quantitative metrics for model
 validation and intuitive visualizations for understanding consumer
@@ -460,29 +497,46 @@ worth of her time and mental energy. With potential monthly savings of
 
 #### **What Consumers Actually Calculate**
 
-**Peak Usage Estimation:** - Look at TOU bill breakdown or estimate
-major appliance usage during peak hours - Apply simple fractions: “Maybe
-40% of my water heating happens during peak time”
+**Peak Usage Estimation:**
 
-**Rate Differential Application:** - Calculate potential savings as:
-(estimated peak kWh) × (peak rate - off-peak rate) × (shifting
-efficiency) - Use round numbers: “If I shift 300 kWh from \$0.28 to
-\$0.12, that’s \$48 savings”
+- Look at TOU bill breakdown or estimate major appliance usage during
+  peak hours
 
-**Potential Switching Cost Components:** - **Information cost**: Time
-analyzing bills and researching strategies - **Implementation cost**:
-Programming water heater controls and trial-and-error - **Monitoring
-cost**: Ongoing bill checking and adjustments
+- Apply simple fractions: “Maybe 40% of my water heating happens during
+  peak time”
+
+**Rate Differential Application:**
+
+- Calculate potential savings as: (estimated peak kWh) × (peak rate -
+  off-peak rate) × (shifting efficiency)
+
+- Use round numbers: “If I shift 300 kWh from \$0.28 to \$0.12, that’s
+  \$48 savings”
+
+**Potential Switching Cost Components:**
+
+- **Information cost**: Time analyzing bills and researching strategies
+
+- **Implementation cost**: Programming water heater controls and
+  trial-and-error
+
+- **Monitoring cost**: Ongoing bill checking and adjustments
 
 #### **Implications for Model Design**
 
 This realistic decision-making process suggests consumers estimate
-$\Delta C^{anticipated}$ using: $$
+$\Delta C^{anticipated}$ using:
+
+$$
 \hat{\Delta C}_m^{anticipated} = \hat{E}_m^{peak,WH} \times (r^{on} - r^{off}) \times \phi
 $$
 
-Where: - $\hat{E}_m^{peak,WH}$ = consumer’s guess of peak-hour water
-heating usage - $\phi$ = expected shifting effectiveness (0.6-0.8)
+Where:
+
+- $\hat{E}_m^{peak,WH}$ = consumer’s guess of peak-hour water heating
+  usage
+
+- $\phi$ = expected shifting effectiveness (0.6-0.8)
 
 And evaluate switching against realistic transaction costs: $$
 C^{switch} = \$35 \text{ (representing 3-5 hours of consumer effort)}
