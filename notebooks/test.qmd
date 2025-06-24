@@ -1,0 +1,256 @@
+---
+title: "Data Analysis with Polars and Seaborn"
+format: html
+jupyter: python3
+---
+
+# Polars and Seaborn in Quarto
+
+This document demonstrates how to use Polars for data manipulation and Seaborn for visualization in a Quarto document.
+
+## Setup
+
+First, let's import the necessary libraries:
+
+```{python}
+#| label: setup
+#| message: false
+
+import polars as pl
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Set the seaborn theme
+sns.set_theme(style="whitegrid")
+```
+
+## Creating Data with Polars
+
+Let's create a sample dataset using Polars:
+
+```{python}
+#| label: create-data
+
+# Create a sample dataset
+np.random.seed(42)
+n = 200
+
+# Generate synthetic data
+data = {
+    "category": np.random.choice(["A", "B", "C", "D"], size=n),
+    "value1": np.random.normal(10, 2, size=n),
+    "value2": np.random.normal(5, 1.5, size=n),
+    "date": [f"2023-{np.random.randint(1, 13):02d}-{np.random.randint(1, 29):02d}" for _ in range(n)]
+}
+
+# Create a Polars DataFrame
+df = pl.DataFrame(data)
+
+# Display the first few rows
+df.head()
+```
+
+## Data Manipulation with Polars
+
+Polars is excellent for fast data manipulation:
+
+```{python}
+#| label: data-manipulation
+
+# Calculate statistics by category
+summary = (
+    df
+    .group_by("category")
+    .agg(
+        pl.col("value1").mean().alias("avg_value1"),
+        pl.col("value1").std().alias("std_value1"),
+        pl.col("value2").mean().alias("avg_value2"),
+        pl.col("value2").std().alias("std_value2"),
+        pl.count().alias("count")
+    )
+    .sort("category")
+)
+
+summary
+```
+
+Let's add a new column based on calculations:
+
+```{python}
+#| label: add-columns
+
+# Add a calculated column
+df_with_ratio = df.with_columns(
+    (pl.col("value1") / pl.col("value2")).alias("ratio"),
+    pl.col("date").str.to_date().alias("date_parsed")
+)
+
+# Show the modified dataframe
+df_with_ratio.head()
+```
+
+## Visualization with Seaborn
+
+Now let's create some visualizations using Seaborn:
+
+```{python}
+#| label: fig-boxplot
+#| fig-cap: "Distribution of values by category"
+#| fig-width: 10
+#| fig-height: 6
+
+# Use Polars DataFrame with Seaborn
+# For Seaborn to work with Polars, we can use the .to_numpy() method and handle the plotting manually
+categories = df_with_ratio.select("category").to_numpy().flatten()
+values = df_with_ratio.select("value1").to_numpy().flatten()
+
+# Create figure
+plt.figure(figsize=(10, 6))
+
+# Plot using seaborn directly with arrays (no pandas dependency)
+sns.boxplot(x=categories, y=values)
+plt.title("Value Distribution by Category")
+plt.xlabel("Category")
+plt.ylabel("Value1")
+plt.tight_layout()
+plt.show()
+```
+
+Let's create a more complex visualization:
+
+```{python}
+#| label: fig-pairplot
+#| fig-cap: "Pairwise relationships colored by category"
+#| fig-width: 10
+#| fig-height: 10
+
+# Create a pairplot using Polars data directly
+fig, axes = plt.subplots(3, 3, figsize=(10, 10))
+
+# Get the unique categories and prepare colors
+unique_categories = df_with_ratio.select("category").unique().to_numpy().flatten()
+colors = sns.color_palette("deep", len(unique_categories))
+color_dict = dict(zip(unique_categories, colors))
+
+variables = ["value1", "value2", "ratio"]
+
+# Create scatter plots in the off-diagonal
+for i, var1 in enumerate(variables):
+    for j, var2 in enumerate(variables):
+        ax = axes[i, j]
+
+        if i == j:  # Diagonal - create density plot
+            for cat_idx, cat in enumerate(unique_categories):
+                cat_data = df_with_ratio.filter(pl.col("category") == cat).select(var1).to_numpy().flatten()
+                sns.kdeplot(cat_data, ax=ax, color=colors[cat_idx], fill=True, alpha=0.3)
+            ax.set_xlabel(var1)
+            ax.set_ylabel("Density")
+        else:  # Off-diagonal - create scatter plot
+            for cat_idx, cat in enumerate(unique_categories):
+                cat_filter = df_with_ratio.filter(pl.col("category") == cat)
+                x_data = cat_filter.select(var2).to_numpy().flatten()
+                y_data = cat_filter.select(var1).to_numpy().flatten()
+                ax.scatter(x_data, y_data, color=colors[cat_idx], alpha=0.6, s=30, label=cat if i == 0 and j == 1 else "")
+            ax.set_xlabel(var2)
+            ax.set_ylabel(var1)
+
+# Add a legend to one of the subplots
+handles = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=color, markersize=8)
+           for color in colors]
+axes[0, 1].legend(handles, unique_categories, title="Category", loc="best")
+
+plt.suptitle("Pairwise Relationships", y=1.02)
+plt.tight_layout()
+plt.show()
+```
+
+## Time Series Analysis
+
+Let's analyze our data over time:
+
+```{python}
+#| label: fig-timeseries
+#| fig-cap: "Value trends over time"
+#| fig-width: 12
+#| fig-height: 6
+
+# Prepare time series data using only Polars
+time_data = (
+    df_with_ratio
+    .sort("date_parsed")
+    .group_by("date_parsed")
+    .agg(
+        pl.col("value1").mean().alias("avg_value1"),
+        pl.col("value2").mean().alias("avg_value2")
+    )
+)
+
+# Get data for plotting
+dates = time_data.select("date_parsed").to_numpy().flatten()
+values1 = time_data.select("avg_value1").to_numpy().flatten()
+values2 = time_data.select("avg_value2").to_numpy().flatten()
+
+# Plot the time series
+plt.figure(figsize=(12, 6))
+sns.lineplot(x=dates, y=values1, label="Value 1")
+sns.lineplot(x=dates, y=values2, label="Value 2")
+plt.title("Average Values Over Time")
+plt.xlabel("Date")
+plt.ylabel("Value")
+plt.legend()
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+```
+
+## Heatmap of Correlations
+
+Finally, let's visualize the correlations between numerical variables:
+
+```{python}
+#| label: fig-heatmap
+#| fig-cap: "Correlation matrix heatmap"
+#| fig-width: 8
+#| fig-height: 6
+
+# Calculate correlations using Polars
+numeric_cols = ["value1", "value2", "ratio"]
+numeric_data = df_with_ratio.select(numeric_cols)
+
+# Create an empty correlation matrix
+n = len(numeric_cols)
+corr_matrix = np.zeros((n, n))
+
+# Calculate correlations manually
+for i, col1 in enumerate(numeric_cols):
+    for j, col2 in enumerate(numeric_cols):
+        if i >= j:  # Only calculate for lower triangle and diagonal
+            val1 = numeric_data.select(col1).to_numpy().flatten()
+            val2 = numeric_data.select(col2).to_numpy().flatten()
+            correlation = np.corrcoef(val1, val2)[0, 1]
+            corr_matrix[i, j] = correlation
+            if i != j:  # Make it symmetric
+                corr_matrix[j, i] = correlation
+
+# Create a heatmap
+plt.figure(figsize=(8, 6))
+sns.heatmap(
+    corr_matrix,
+    annot=True,
+    cmap="coolwarm",
+    vmin=-1,
+    vmax=1,
+    center=0,
+    square=True,
+    xticklabels=numeric_cols,
+    yticklabels=numeric_cols
+)
+plt.title("Correlation Matrix")
+plt.tight_layout()
+plt.show()
+```
+
+## Conclusion
+
+This example demonstrates how to effectively combine Polars for fast data manipulation with Seaborn for beautiful visualizations in a Quarto document. The workflow allows for interactive data exploration and high-quality report generation.
