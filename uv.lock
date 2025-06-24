@@ -2677,7 +2677,6 @@ source = { editable = "." }
 dependencies = [
     { name = "jupyter" },
     { name = "mkdocs" },
-    { name = "numpy" },
     { name = "ochre-nrel" },
     { name = "polars" },
     { name = "pyarrow" },
@@ -2708,7 +2707,6 @@ docs = [
 requires-dist = [
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "mkdocs", specifier = ">=1.4.2" },
-    { name = "numpy", specifier = ">=1.24.0" },
     { name = "ochre-nrel", specifier = ">=0.9.1" },
     { name = "polars", specifier = ">=1.30.0" },
     { name = "pyarrow", specifier = ">=15.0.0" },

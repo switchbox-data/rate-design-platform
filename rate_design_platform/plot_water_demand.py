@@ -2,7 +2,7 @@ import os
 from calendar import month_abbr
 from datetime import datetime, timedelta
 
-from ochre import Dwelling
+from ochre import Dwelling  # type: ignore[import-untyped]
 
 base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 input_path = os.path.join(base_path, "inputs")
