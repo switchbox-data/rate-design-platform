@@ -3,6 +3,7 @@ title: "Hot Water Demand Time Series Extraction"
 author: "Rate Design Platform Team"
 date: "2025-06-24"
 format: html
+jupyter: python3
 ---
 
 # Hot Water Demand Time Series Extraction
@@ -14,6 +15,28 @@ This document describes the methodology for extracting and calculating time seri
 ## Background
 
 Understanding hot water usage patterns is critical for modeling behavioral responses to TOU electricity rates. When HPWHs are curtailed during peak periods, water temperature may drop, creating comfort penalties for consumers. To quantify these penalties, we need detailed time series of hot water demand.
+
+## S3 Configuration and Data Access
+
+```{python}
+#| label: s3-config
+#| echo: false
+#| output: false
+
+import boto3
+from botocore import UNSIGNED
+from botocore.config import Config
+import pandas as pd
+import io
+from datetime import datetime
+
+# Configure S3 client for anonymous access to public bucket
+bldg_id = 72
+upgrade_id = 0
+s3_client = boto3.client('s3', region_name='us-west-2', config=Config(signature_version=UNSIGNED))
+bucket_name = "switchbox-rate-design-platform"
+s3_prefix = f"ochre_outputs/bldg{bldg_id:07d}-up{upgrade_id:02d}"
+```
 
 ## Calculation Framework and Notation
 
@@ -147,6 +170,59 @@ The extraction process generates:
 
 ## Example of Water Demand Time Series
 
-![Water Heating Demand Timeseries](images/water_heating_timeseries.png)
+```{python}
+#| label: read-schedule-csv
+#| echo: false
+#| output: false
 
-*Water Heating Demand Timeseries*
+# Read the ochre_schedule.csv file from S3
+schedule_key = f"{s3_prefix}/bldg{bldg_id:07d}-up{upgrade_id:02d}_schedule.csv"
+
+try:
+    # Get the object from S3
+    response = s3_client.get_object(Bucket=bucket_name, Key=schedule_key)
+
+    # Read CSV data
+    df = pd.read_csv(io.BytesIO(response['Body'].read()))
+
+except Exception as e:
+    df = None
+```
+
+```{python}
+#| label: plot-water-heating
+#| echo: false
+#| fig-cap: "Water Heating Demand Timeseries"
+
+import matplotlib.pyplot as plt
+
+if df is not None and 'Water Heating (L/min)' in df.columns:
+    # Convert Time column to datetime if it's not already
+    if df['Time'].dtype == 'object':
+        df['Time'] = pd.to_datetime(df['Time'])
+
+    # Create the plot
+    plt.figure(figsize=(12, 6))
+    plt.plot(df['Time'], df['Water Heating (L/min)'], linewidth=0.5)
+
+    # Customize the plot
+    plt.title('Water Heating Demand Timeseries', fontsize=14, fontweight='bold')
+    plt.xlabel('Time', fontsize=12)
+    plt.ylabel('Water Heating (L/min)', fontsize=12)
+    plt.grid(True, alpha=0.3)
+
+    # Rotate x-axis labels for better readability
+    plt.xticks(rotation=45)
+
+    # Adjust layout to prevent label cutoff
+    plt.tight_layout()
+
+    plt.show()
+else:
+    # Create a placeholder plot if data is not available
+    plt.figure(figsize=(12, 6))
+    plt.text(0.5, 0.5, 'Data not available for plotting',
+             ha='center', va='center', transform=plt.gca().transAxes, fontsize=14)
+    plt.title('Water Heating Demand Timeseries', fontsize=14, fontweight='bold')
+    plt.show()
+```

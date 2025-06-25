@@ -19,6 +19,8 @@ during peak periods, water temperature may drop, creating comfort
 penalties for consumers. To quantify these penalties, we need detailed
 time series of hot water demand.
 
+## S3 Configuration and Data Access
+
 ## Calculation Framework and Notation
 
 ### Key Variables (Consistent with TOU Schedule Model)
@@ -162,6 +164,5 @@ The extraction process generates:
 
 ## Example of Water Demand Time Series
 
-![Water Heating Demand Timeseries](images/water_heating_timeseries.png)
-
-*Water Heating Demand Timeseries*
+![Water Heating Demand
+Timeseries](water_demand_timeseries_files/figure-commonmark/plot-water-heating-output-1.png)

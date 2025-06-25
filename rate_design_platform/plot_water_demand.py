@@ -87,34 +87,3 @@ dwelling = Dwelling(**house_args)
 _upload_csv_files_to_s3(
     output_path, "switchbox-rate-design-platform", f"ochre_outputs/bldg{bldg_id:07d}-up{upgrade_id:02d}/"
 )
-
-"""# Read in water demand timeseries using pandas
-csv_file_path = os.path.join(output_path, "ochre_schedule.csv")
-print("Reading CSV with pandas...")
-df = pd.read_csv(csv_file_path)
-
-# Convert Time column to datetime if it's not already
-if df["Time"].dtype == "object":
-    df["Time"] = pd.to_datetime(df["Time"])
-
-# Create the plot using matplotlib
-print("Creating plot with matplotlib...")
-plt.figure(figsize=(12, 6))
-plt.plot(df["Time"], df["Water Heating (L/min)"], linewidth=0.5)
-
-# Customize the plot
-plt.title("Hot water demand timeseries", fontsize=14, fontweight="bold")
-plt.xlabel("Time", fontsize=12)
-plt.ylabel("Hot water demand (L/min)", fontsize=12)
-plt.grid(True, alpha=0.3)
-
-# Rotate x-axis labels for better readability
-plt.xticks(rotation=45)
-
-# Adjust layout to prevent label cutoff
-plt.tight_layout()
-
-# Show the plot
-plt.savefig(os.path.join(docs_image_path, "water_heating_timeseries.png"), dpi=300, bbox_inches="tight")
-print(f"Plot saved to: {os.path.join(docs_image_path, 'water_heating_timeseries.png')}")
-plt.close()"""

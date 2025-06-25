@@ -128,7 +128,8 @@ ignore = [
 preview = true
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["jupyter", "polars", "seaborn", "pyarrow"]
+DEP002 = ["jupyter", "polars", "seaborn", "pyarrow", "pandas", "matplotlib"]
+DEP003 = ["botocore"]
 
 [project.entry-points."mkdocs.plugins"]
 quarto-render = "mkdocs_plugins.qaurto_render:QuartoRenderPlugin"
