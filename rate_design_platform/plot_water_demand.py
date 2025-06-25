@@ -9,6 +9,7 @@ from ochre import Dwelling  # type: ignore[import-untyped]
 base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 input_path = os.path.join(base_path, "inputs")
 output_path = os.path.join(base_path, "outputs")
+docs_image_path = os.path.join(base_path, "docs", "images")
 
 # Define file paths for building and schedule HPXML
 hpxml_building_file = os.path.join(input_path, "bldg0000072-up00.xml")  # Path to building HPXML
@@ -60,9 +61,9 @@ plt.figure(figsize=(12, 6))
 plt.plot(df["Time"], df["Water Heating (L/min)"], linewidth=0.5)
 
 # Customize the plot
-plt.title("Water Heating Demand Timeseries", fontsize=14, fontweight="bold")
+plt.title("Hot water demand timeseries", fontsize=14, fontweight="bold")
 plt.xlabel("Time", fontsize=12)
-plt.ylabel("Water Heating (L/min)", fontsize=12)
+plt.ylabel("Hot water demand (L/min)", fontsize=12)
 plt.grid(True, alpha=0.3)
 
 # Rotate x-axis labels for better readability
@@ -72,6 +73,6 @@ plt.xticks(rotation=45)
 plt.tight_layout()
 
 # Show the plot
-plt.savefig(os.path.join(output_path, "water_heating_timeseries.png"), dpi=300, bbox_inches="tight")
-print(f"Plot saved to: {os.path.join(output_path, 'water_heating_timeseries.png')}")
+plt.savefig(os.path.join(docs_image_path, "water_heating_timeseries.png"), dpi=300, bbox_inches="tight")
+print(f"Plot saved to: {os.path.join(docs_image_path, 'water_heating_timeseries.png')}")
 plt.close()
