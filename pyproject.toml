@@ -17,6 +17,7 @@ dependencies = [
     "pandas>=2.0.0",
     "matplotlib>=3.7.0",
     "boto3>=1.34.0",
+    "botocore>=1.34.0",
 ]
 classifiers = [
     "Intended Audience :: Developers",
@@ -128,8 +129,7 @@ ignore = [
 preview = true
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["jupyter", "polars", "seaborn", "pyarrow", "pandas", "matplotlib"]
-DEP003 = ["botocore"]
+DEP002 = ["jupyter", "polars", "seaborn", "pyarrow", "pandas", "matplotlib", "botocore", "boto3"]
 
 [project.entry-points."mkdocs.plugins"]
 quarto-render = "mkdocs_plugins.qaurto_render:QuartoRenderPlugin"

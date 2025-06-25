@@ -28,6 +28,7 @@ from botocore import UNSIGNED
 from botocore.config import Config
 import pandas as pd
 import io
+import os
 from datetime import datetime
 
 # Configure S3 client for anonymous access to public bucket
@@ -192,6 +193,7 @@ except Exception as e:
 ```{python}
 #| label: plot-water-heating
 #| echo: false
+#| output: false
 #| fig-cap: "Water Heating Demand Timeseries"
 
 import matplotlib.pyplot as plt
@@ -216,13 +218,15 @@ if df is not None and 'Water Heating (L/min)' in df.columns:
 
     # Adjust layout to prevent label cutoff
     plt.tight_layout()
-
-    plt.show()
 else:
     # Create a placeholder plot if data is not available
     plt.figure(figsize=(12, 6))
     plt.text(0.5, 0.5, 'Data not available for plotting',
              ha='center', va='center', transform=plt.gca().transAxes, fontsize=14)
     plt.title('Water Heating Demand Timeseries', fontsize=14, fontweight='bold')
-    plt.show()
+
+os.makedirs('images', exist_ok=True)
+plt.savefig('images/water_heating_demand_timeseries.png')
 ```
+
+![Water Heating Demand Timeseries](images/water_heating_demand_timeseries.png)

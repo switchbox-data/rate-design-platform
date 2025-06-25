@@ -165,4 +165,4 @@ The extraction process generates:
 ## Example of Water Demand Time Series
 
 ![Water Heating Demand
-Timeseries](water_demand_timeseries_files/figure-commonmark/plot-water-heating-output-1.png)
+Timeseries](images/water_heating_demand_timeseries.png)
