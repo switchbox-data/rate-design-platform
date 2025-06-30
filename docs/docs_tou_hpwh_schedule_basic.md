@@ -432,6 +432,7 @@ $$
 - Purpose: Show relative impact of each cost component
 
 **C. Performance Scatter Plot**
+
 - X-axis: $C_m^{comfort}$, Y-axis: $\Delta C_m^{realized}$, color-coded
   by $S_m^{current}$
 
@@ -467,13 +468,13 @@ behavior patterns and system-wide impacts.
 
 ``` mermaid
 stateDiagram-v2
-  [*] --> S_default: First month
-  S_default --> S_TOU: Switch to TOU\nNet Savings^{anticipated} > 0
-  S_default --> S_default: Stay\nNet Savings^{anticipated} ≤ 0
-  S_TOU --> S_default: Switch back to Default\nNet Savings^{realized} ≤ 0
-  S_TOU --> S_TOU: Stay\nNet Savings^{realized} > 0
-  S_default: Default Schedule (S^{current}=1)
-  S_TOU: TOU-adapted Schedule (S^{current}=0)
+  [*] --> S_default: "First month"
+  S_default --> S_TOU: Switch to TOU<br/>Net Anticipated Savings > 0
+  S_default --> S_default: Stay<br/>Net Anticipated Savings ≤ 0
+  S_TOU --> S_default: Switch back to Default<br/>Net Realized Savings ≤ 0
+  S_TOU --> S_TOU: Stay<br/>Net Realized Savings > 0
+  S_default: Default Schedule (S(current)=1)
+  S_TOU: TOU-adapted Schedule (S(current)=0)
 ```
 
 ## Consumer Information and Decision-Making Reality
