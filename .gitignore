@@ -144,3 +144,4 @@ outputs/
 *.html
 .DS_Store
 *_files/
+CLAUDE.md
