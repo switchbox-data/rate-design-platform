@@ -5,13 +5,17 @@ Each function in first_pass.py has a corresponding test_functionname test here.
 """
 
 import os
+
+# Skip all tests in this file if Python < 3.10 (OCHRE requires 3.10+ union syntax)
+import sys
 from datetime import datetime, timedelta
 
 import numpy as np
 import pytest
 
-# Skip all tests in this file if OCHRE cannot be imported
-pytest.importorskip("ochre.utils", reason="OCHRE not available")
+if sys.version_info < (3, 10):
+    pytest.skip("OCHRE requires Python 3.10+", allow_module_level=True)
+
 from ochre.utils import default_input_path
 
 from rate_design_platform.first_pass import (
