@@ -9,7 +9,14 @@ from datetime import datetime, timedelta
 
 import numpy as np
 import pytest
-from ochre.utils import default_input_path
+
+try:
+    from ochre.utils import default_input_path
+
+    OCHRE_AVAILABLE = True
+except (ImportError, TypeError):
+    # TypeError occurs in Python 3.9 due to union syntax in OCHRE
+    OCHRE_AVAILABLE = False
 
 from rate_design_platform.first_pass import (
     MonthlyResults,
@@ -35,18 +42,19 @@ from rate_design_platform.first_pass import (
 @pytest.fixture
 def sample_house_args():
     """Provide sample house_args for testing using OCHRE default paths"""
-    return {
-        "start_time": datetime(2018, 1, 1, 0, 0),
-        "time_res": timedelta(minutes=15),
-        "duration": timedelta(days=31),
-        "initialization_time": timedelta(days=1),
-        "save_results": False,
-        "verbosity": 1,
-        "metrics_verbosity": 1,
-        "hpxml_file": os.path.join(default_input_path, "Input Files", "bldg0112631-up11.xml"),
-        "hpxml_schedule_file": os.path.join(default_input_path, "Input Files", "bldg0112631_schedule.csv"),
-        "weather_file": os.path.join(default_input_path, "Weather", "USA_CO_Denver.Intl.AP.725650_TMY3.epw"),
-    }
+    if OCHRE_AVAILABLE:
+        return {
+            "start_time": datetime(2018, 1, 1, 0, 0),
+            "time_res": timedelta(minutes=15),
+            "duration": timedelta(days=31),
+            "initialization_time": timedelta(days=1),
+            "save_results": False,
+            "verbosity": 1,
+            "metrics_verbosity": 1,
+            "hpxml_file": os.path.join(default_input_path, "Input Files", "bldg0112631-up11.xml"),
+            "hpxml_schedule_file": os.path.join(default_input_path, "Input Files", "bldg0112631_schedule.csv"),
+            "weather_file": os.path.join(default_input_path, "Weather", "USA_CO_Denver.Intl.AP.725650_TMY3.epw"),
+        }
 
 
 def test_calculate_monthly_intervals():
@@ -74,6 +82,8 @@ def test_calculate_monthly_intervals():
 
 def test_create_ochre_dwelling(sample_house_args):
     """Test create_ochre_dwelling function"""
+    if not OCHRE_AVAILABLE:
+        pytest.skip("OCHRE not available")
 
     # Mock the Dwelling class to avoid OCHRE dependency
     class MockDwelling:
@@ -164,6 +174,9 @@ def test_create_operation_schedule():
 
 def test_building_simulation_controller(sample_house_args):
     """Test building_simulation_controller function"""
+    if not OCHRE_AVAILABLE:
+        pytest.skip("OCHRE not available")
+
     operation_schedule = np.ones(96)
     month = 1
 
@@ -236,6 +249,9 @@ def test_calculate_comfort_penalty():
 
 def test_simulate_month_both_schedules(sample_house_args):
     """Test simulate_month_both_schedules function"""
+    if not OCHRE_AVAILABLE:
+        pytest.skip("OCHRE not available")
+
     month = 1
     rates = create_tou_rates(calculate_monthly_intervals(month))
     params = TOUParameters()
@@ -274,6 +290,9 @@ def test_simulate_month_both_schedules(sample_house_args):
 
 def test_simulate_single_month(sample_house_args):
     """Test simulate_single_month function"""
+    if not OCHRE_AVAILABLE:
+        pytest.skip("OCHRE not available")
+
     month = 1
     rates = create_tou_rates(calculate_monthly_intervals(month))
     params = TOUParameters()
@@ -328,6 +347,9 @@ def test_simulate_single_month(sample_house_args):
 
 def test_simulate_annual_cycle(sample_house_args):
     """Test simulate_annual_cycle function"""
+    if not OCHRE_AVAILABLE:
+        pytest.skip("OCHRE not available")
+
     params = TOUParameters()
 
     # Mock the simulate_single_month function
@@ -390,6 +412,9 @@ def test_calculate_annual_metrics():
 
 def test_run_full_simulation():
     """Test run_full_simulation function"""
+    if not OCHRE_AVAILABLE:
+        pytest.skip("OCHRE not available")
+
     # This test will pass if files exist, otherwise check for proper error handling
     try:
         monthly_results, annual_metrics = run_full_simulation()
