@@ -13,7 +13,7 @@ from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
-from ochre import Dwelling
+from ochre import Dwelling  # type: ignore[import-untyped]
 
 
 @dataclass
@@ -54,7 +54,7 @@ def calculate_monthly_intervals(month: int, year: int = 2018) -> int:
     return days_in_month * 96  # 96 intervals per day (24 hours * 4 intervals/hour)
 
 
-def create_ochre_dwelling(house_args: dict, month: int, year: int = 2018):
+def create_ochre_dwelling(house_args: dict, month: int, year: int = 2018) -> Dwelling:  # type: ignore[no-any-unimported]
     """
     Create OCHRE dwelling object for a specific month
 
@@ -175,17 +175,33 @@ def extract_ochre_results(df: pd.DataFrame, num_intervals: int) -> SimulationRes
         SimulationResults with electricity consumption, tank temps, and unmet demand
     """
     # Extract electricity consumption for water heating [kW] -> [kWh/15min]
-    E_mt = df["Water Heating Electric Power (kW)"].values * 0.25  # Convert kW to kWh/15min
+    E_mt = np.array(df["Water Heating Electric Power (kW)"].values, dtype=float) * 0.25  # Convert kW to kWh/15min
 
     # Extract tank temperature [°C]
-    T_tank_mt = df["Hot Water Average Temperature (C)"].values
+    T_tank_mt = np.array(df["Hot Water Average Temperature (C)"].values, dtype=float)
     # Extract unmet demand [kW] -> [kWh/15min]
-    D_unmet_mt = df["Hot Water Unmet Demand (kW)"].values * 0.25  # Convert kW to kWh/15min
+    D_unmet_mt = np.array(df["Hot Water Unmet Demand (kW)"].values, dtype=float) * 0.25  # Convert kW to kWh/15min
+    # Ensure arrays are correct length
+    E_mt = E_mt[:num_intervals] if len(E_mt) >= num_intervals else np.pad(E_mt, (0, num_intervals - len(E_mt)))
+    T_tank_mt = (
+        T_tank_mt[:num_intervals]
+        if len(T_tank_mt) >= num_intervals
+        else np.pad(T_tank_mt, (0, num_intervals - len(T_tank_mt)), constant_values=55.0)
+    )
+    D_unmet_mt = (
+        D_unmet_mt[:num_intervals]
+        if len(D_unmet_mt) >= num_intervals
+        else np.pad(D_unmet_mt, (0, num_intervals - len(D_unmet_mt)))
+    )
 
     return SimulationResults(E_mt, T_tank_mt, D_unmet_mt)
 
 
-def run_ochre_hpwh_dynamic_control(dwelling, operation_schedule: np.ndarray, month: int) -> SimulationResults:
+def run_ochre_hpwh_dynamic_control(
+    dwelling: "Dwelling",
+    operation_schedule: np.ndarray,
+    month: int,  # type: ignore[no-any-unimported]
+) -> SimulationResults:
     """
     Run OCHRE simulation with dynamic HPWH control based on operation schedule
 
@@ -532,23 +548,6 @@ def run_full_simulation(
 
 
 if __name__ == "__main__":
-    # Test TOU rate structure
-    print("=== TOU Rate Structure Test ===")
-    test_intervals = 96 * 7  # One week
-    rates = create_tou_rates(test_intervals)
-
-    print(f"Created {len(rates)} rate intervals")
-    print(f"Peak rate: ${TOUParameters().r_on:.2f}/kWh")
-    print(f"Off-peak rate: ${TOUParameters().r_off:.2f}/kWh")
-    print(f"Peak hours per day: {np.sum(define_peak_hours())}")
-
-    # Test operation schedules
-    default_schedule = create_operation_schedule(1, 96)  # Default
-    tou_schedule = create_operation_schedule(0, 96)  # TOU
-
-    print(f"Default schedule allows operation: {np.sum(default_schedule)}/96 intervals")
-    print(f"TOU schedule allows operation: {np.sum(tou_schedule)}/96 intervals")
-
     # Test full simulation with sample data
     print("\n=== Full Simulation Test ===")
     try:
