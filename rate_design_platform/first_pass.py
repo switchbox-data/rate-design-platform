@@ -197,10 +197,10 @@ def extract_ochre_results(df: pd.DataFrame, num_intervals: int) -> SimulationRes
     return SimulationResults(E_mt, T_tank_mt, D_unmet_mt)
 
 
-def run_ochre_hpwh_dynamic_control(
+def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
     dwelling: "Dwelling",
     operation_schedule: np.ndarray,
-    month: int,  # type: ignore[no-any-unimported]
+    month: int,
 ) -> SimulationResults:
     """
     Run OCHRE simulation with dynamic HPWH control based on operation schedule
