@@ -487,9 +487,7 @@ def calculate_annual_metrics(monthly_results: list[MonthlyResults]) -> dict[str,
     }
 
 
-def run_full_simulation(
-    csv_path: str | None = None, params: TOUParameters | None = None
-) -> tuple[list[MonthlyResults], dict[str, float]]:
+def run_full_simulation(params=None) -> tuple[list[MonthlyResults], dict[str, float]]:  # type: ignore[no-untyped-def]
     """
     Run complete TOU HPWH simulation
 
