@@ -9,6 +9,9 @@ from datetime import datetime, timedelta
 
 import numpy as np
 import pytest
+
+# Skip all tests in this file if OCHRE cannot be imported
+pytest.importorskip("ochre.utils", reason="OCHRE not available")
 from ochre.utils import default_input_path
 
 from rate_design_platform.first_pass import (
@@ -164,6 +167,7 @@ def test_create_operation_schedule():
 
 def test_building_simulation_controller(sample_house_args):
     """Test building_simulation_controller function"""
+
     operation_schedule = np.ones(96)
     month = 1
 
@@ -236,6 +240,7 @@ def test_calculate_comfort_penalty():
 
 def test_simulate_month_both_schedules(sample_house_args):
     """Test simulate_month_both_schedules function"""
+
     month = 1
     rates = create_tou_rates(calculate_monthly_intervals(month))
     params = TOUParameters()
@@ -274,6 +279,7 @@ def test_simulate_month_both_schedules(sample_house_args):
 
 def test_simulate_single_month(sample_house_args):
     """Test simulate_single_month function"""
+
     month = 1
     rates = create_tou_rates(calculate_monthly_intervals(month))
     params = TOUParameters()
@@ -328,6 +334,7 @@ def test_simulate_single_month(sample_house_args):
 
 def test_simulate_annual_cycle(sample_house_args):
     """Test simulate_annual_cycle function"""
+
     params = TOUParameters()
 
     # Mock the simulate_single_month function
@@ -390,6 +397,7 @@ def test_calculate_annual_metrics():
 
 def test_run_full_simulation():
     """Test run_full_simulation function"""
+
     # This test will pass if files exist, otherwise check for proper error handling
     try:
         monthly_results, annual_metrics = run_full_simulation()
