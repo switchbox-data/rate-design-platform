@@ -484,14 +484,22 @@ def simulate_annual_cycle(params: TOUParameters, house_args: dict) -> list[Month
     Returns:
         List of MonthlyResults for each month
     """
-    if params is None:
-        params = TOUParameters()
 
     # Initialize state (start on default schedule)
     current_state = 1
     monthly_results = []
 
-    for month in range(1, 13):
+    # Get start and end times from house_args
+    start_time = house_args["start_time"]
+    end_time = house_args["end_time"]
+
+    # Generate chronological list of (year, month) tuples
+    current_date = start_time.replace(day=1)  # Start at beginning of start month
+    end_date = end_time.replace(day=1)  # End at beginning of end month
+
+    while current_date <= end_date:
+        month = current_date.month
+
         # Calculate monthly intervals and rates
         num_intervals = calculate_monthly_intervals(month)
         monthly_rates = create_tou_rates(num_intervals)
@@ -504,6 +512,12 @@ def simulate_annual_cycle(params: TOUParameters, house_args: dict) -> list[Month
         # Update state for next month based on switching decision
         if result.switching_decision == 1:
             current_state = 1 - current_state  # Toggle state
+
+        # Move to next month
+        if current_date.month == 12:
+            current_date = current_date.replace(year=current_date.year + 1, month=1)
+        else:
+            current_date = current_date.replace(month=current_date.month + 1)
 
     return monthly_results
 
@@ -543,7 +557,7 @@ def calculate_annual_metrics(monthly_results: list[MonthlyResults]) -> dict[str,
     }
 
 
-def run_full_simulation(params=None) -> tuple[list[MonthlyResults], dict[str, float]]:  # type: ignore[no-untyped-def]
+def run_full_simulation(params=None, house_args=HOUSE_ARGS) -> tuple[list[MonthlyResults], dict[str, float]]:  # type: ignore[no-untyped-def]
     """
     Run complete TOU HPWH simulation
 
@@ -572,7 +586,8 @@ if __name__ == "__main__":
     print("\n=== Full Simulation Test ===")
     try:
         # Load real data and run simulation
-        monthly_results, annual_metrics = run_full_simulation()
+        TOU_PARAMS = TOUParameters()
+        monthly_results, annual_metrics = run_full_simulation(TOU_PARAMS, HOUSE_ARGS)
 
         print("Simulation completed")
         print(f"Simulation completed for {len(monthly_results)} months")
