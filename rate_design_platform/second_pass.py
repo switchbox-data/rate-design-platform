@@ -157,9 +157,26 @@ def calculate_monthly_intervals(start_time: datetime, end_time: datetime, time_s
     return intervals
 
 
-def calculate_monthly_bill(simulation_results: SimulationResults, rates: np.ndarray) -> float:
+def calculate_monthly_bill(simulation_results: SimulationResults, rates: list[np.ndarray]) -> list[float]:
     """Calculate monthly electricity bill"""
-    return float(np.sum(simulation_results.E_mt * rates))
+    monthly_bills = []
+    start_idx = 0
+
+    for month_rates in rates:
+        # Get the number of intervals in this month
+        month_intervals = len(month_rates)
+
+        # Extract consumption data for this month
+        month_consumption = simulation_results.E_mt[start_idx : start_idx + month_intervals]
+
+        # Calculate bill for this month: sum(consumption * rates)
+        month_bill = float(np.sum(month_consumption * month_rates))
+        monthly_bills.append(month_bill)
+
+        # Move to next month's starting index
+        start_idx += month_intervals
+
+    return monthly_bills
 
 
 def define_peak_hours(TOU_params: TOUParameters, time_step: timedelta) -> np.ndarray:
@@ -225,38 +242,74 @@ def create_operation_schedule(
         )  # Operation is restricted during peak hours, hence the negation.
 
 
-def create_tou_rates(num_intervals: int, time_step: timedelta, TOU_params: TOUParameters) -> np.ndarray:
+def create_tou_rates(timesteps: np.ndarray, time_step: timedelta, TOU_params: TOUParameters) -> list[np.ndarray]:
     """
-    Create TOU rate structure for entire simulation period
+    Create TOU rate structure for each month in the simulation period
 
     Args:
-        num_intervals: Total number of time_step-long intervals
+        timesteps: Datetime array
         time_step: Time step of the simulation
         TOU_params: TOU parameters (uses default if None)
 
     Returns:
-        Array of electricity rates [$/kWh] for each interval
+        List of arrays, where each array contains electricity rates [$/kWh] for each interval in that month
     """
     if TOU_params is None:
         TOU_params = TOUParameters()
 
     daily_peak_pattern = define_peak_hours(TOU_params, time_step)
-
     intervals_per_day = int(hours_per_day * seconds_per_hour / time_step.total_seconds())
 
-    # Repeat pattern for entire simulation
-    num_days = num_intervals // intervals_per_day
-    peak_pattern = np.tile(daily_peak_pattern, num_days)
+    monthly_rates = []
+    current_month = None
+    month_start_idx = 0
 
-    # Handle remainder if num_intervals not divisible by intervals_per_day
-    remainder = num_intervals % intervals_per_day
-    if remainder > 0:
-        peak_pattern = np.concatenate([peak_pattern, daily_peak_pattern[:remainder]])
+    # Group timesteps by month
+    for i, timestamp in enumerate(timesteps):
+        # Try to get month, with fallback for numpy.datetime64
+        try:
+            month = timestamp.month
+        except AttributeError:
+            # Fallback for numpy.datetime64 objects
+            month = timestamp.astype("datetime64[M]").astype(int) % 12 + 1
 
-    # Create rate array
-    rates = np.where(peak_pattern, TOU_params.r_on, TOU_params.r_off)
+        if current_month is None:
+            current_month = month
+        elif month != current_month:
+            # Month changed, create rates for the previous month
+            month_intervals = i - month_start_idx
+            num_days = month_intervals // intervals_per_day
+            peak_pattern = np.tile(daily_peak_pattern, num_days)
 
-    return rates
+            # Handle remainder
+            remainder = month_intervals % intervals_per_day
+            if remainder > 0:
+                peak_pattern = np.concatenate([peak_pattern, daily_peak_pattern[:remainder]])
+
+            # Create rate array for this month
+            month_rates = np.where(peak_pattern, TOU_params.r_on, TOU_params.r_off)
+            monthly_rates.append(month_rates)
+
+            # Start new month
+            current_month = month
+            month_start_idx = i
+
+    # Handle the last month
+    if month_start_idx < len(timesteps):
+        month_intervals = len(timesteps) - month_start_idx
+        num_days = month_intervals // intervals_per_day
+        peak_pattern = np.tile(daily_peak_pattern, num_days)
+
+        # Handle remainder
+        remainder = month_intervals % intervals_per_day
+        if remainder > 0:
+            peak_pattern = np.concatenate([peak_pattern, daily_peak_pattern[:remainder]])
+
+        # Create rate array for the last month
+        month_rates = np.where(peak_pattern, TOU_params.r_on, TOU_params.r_off)
+        monthly_rates.append(month_rates)
+
+    return monthly_rates
 
 
 def extract_ochre_results(df: pd.DataFrame, time_step: timedelta) -> SimulationResults:
@@ -374,7 +427,7 @@ def simulate_full_cycle(simulation_type: str, TOU_params: TOUParameters, house_a
 
     simulation_results = run_ochre_hpwh_dynamic_control(dwelling, operation_schedule)
 
-    monthly_rates = create_tou_rates(sum(monthly_intervals), time_step, TOU_params)
+    monthly_rates = create_tou_rates(simulation_results.Time, time_step, TOU_params)
 
     monthly_bill = calculate_monthly_bill(simulation_results, monthly_rates)
 
