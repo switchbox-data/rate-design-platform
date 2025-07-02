@@ -5,14 +5,22 @@ This module implements the heuristic-based decision model for consumer response
 to time-of-use (TOU) electricity rates in residential building simulations.
 """
 
+import calendar
+import os
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
+from ochre import Dwelling  # type: ignore[import-untyped]
+
+# Define constants
+seconds_per_hour = 3600
 
 
+# Define data classes for the simulation
 @dataclass
 class TOUParameters:
     """TOU rate structure and simulation parameters"""
@@ -28,6 +36,19 @@ class TOUParameters:
     peak_end_hour: int = 20
 
 
+@dataclass
+class MonthlyResults:
+    """Results from a single month's simulation"""
+
+    month: int
+    current_state: int  # 1=default, 0=TOU
+    bill: float  # Monthly electricity bill [$]
+    comfort_penalty: float  # Monthly comfort penalty [$]
+    switching_decision: int  # 1=switch, 0=stay
+    realized_savings: float  # Realized savings (if on TOU)
+    unrealized_savings: float  # Unrealized/anticipated savings (if on default)
+
+
 class SimulationResults(NamedTuple):
     """Results from HPWH simulation for a given month"""
 
@@ -36,19 +57,114 @@ class SimulationResults(NamedTuple):
     D_unmet_mt: np.ndarray  # Electrical unmet demand [W] (operational power deficit)
 
 
-def define_peak_hours(intervals_per_day: int = 96) -> np.ndarray:
+# Input/Output file paths
+bldg_id = 72
+upgrade_id = 0
+weather_station = "G3400270"
+
+base_path = os.path.abspath(os.path.join(os.path.dirname(__file__)))
+input_path = os.path.join(base_path, "inputs")
+output_path = os.path.join(base_path, "outputs")
+xml_path = os.path.join(input_path, f"bldg{bldg_id:07d}-up{upgrade_id:02d}.xml")
+weather_path = os.path.join(input_path, f"{weather_station}.epw")
+schedule_path = os.path.join(input_path, f"bldg{bldg_id:07d}-up{upgrade_id:02d}_schedule.csv")
+
+# Check that files exist before proceeding
+if not Path(xml_path).exists():
+    raise FileNotFoundError(xml_path)
+if not Path(weather_path).exists():
+    raise FileNotFoundError(weather_path)
+if not Path(schedule_path).exists():
+    raise FileNotFoundError(schedule_path)
+
+# Simulation parameters
+year = 2018
+month = 1
+start_date = 1
+start_time = datetime(year, month, start_date, 0, 0)  # (Year, Month, Day, Hour, Min)
+duration = timedelta(days=365)
+time_step = timedelta(minutes=15)
+end_time = start_time + duration
+sim_times = pd.date_range(start=start_time, end=end_time, freq=time_step)[:-1]
+initialization_time = timedelta(days=1)
+
+HOUSE_ARGS = {
+    # Timing parameters (will be updated per month)
+    "start_time": start_time,
+    "end_time": end_time,
+    "time_res": time_step,
+    "duration": duration,
+    "initialization_time": initialization_time,
+    # Output settings
+    "save_results": True,
+    "verbosity": 9,
+    "metrics_verbosity": 7,
+    "output_path": output_path,
+    # Input file settings
+    "hpxml_file": xml_path,
+    "hpxml_schedule_file": schedule_path,
+    "weather_file": weather_path,
+}
+
+
+def calculate_monthly_intervals(month: int, year: int, time_step: timedelta) -> int:
+    """
+    Calculate number of time_step-long intervals in a given month
+
+    Args:
+        month: Month number (1-12)
+        year: Year
+        time_step: Time step of the simulation
+
+    Returns:
+        Number of time_step-long intervals intervals in the month
+    """
+    days_in_month = calendar.monthrange(year, month)[1]
+    return int(days_in_month * (24 * seconds_per_hour / time_step.total_seconds()))
+
+
+def create_ochre_dwelling(house_args: dict, month: int, year: int = 2018) -> Dwelling:  # type: ignore[no-any-unimported]
+    """
+    Create OCHRE dwelling object for a specific month
+
+    Args:
+        house_args: Base house arguments dictionary
+        month: Month number (1-12)
+        year: Year for simulation (default 2018)
+
+    Returns:
+        OCHRE dwelling object configured for monthly simulation
+    """
+    # Create a copy of house_args to avoid modifying the original
+    monthly_args = house_args.copy()
+
+    # Update timing parameters for the specific month
+    monthly_args["start_time"] = datetime(year, month, 1, 0, 0)
+
+    # Calculate duration for the specific month
+    days_in_month = calendar.monthrange(year, month)[1]
+    monthly_args["duration"] = timedelta(days=days_in_month)
+
+    # Create OCHRE dwelling
+    dwelling = Dwelling(**monthly_args)
+
+    return dwelling
+
+
+def define_peak_hours(intervals_per_day: int, time_step: timedelta) -> np.ndarray:
     """
     Define peak hour intervals in a day (15-minute intervals)
 
     Args:
-        intervals_per_day: Number of 15-minute intervals per day (default 96)
+        intervals_per_day: Number of time_step-long intervals per day
+        time_step: Time step of the simulation
 
     Returns:
         Boolean array indicating peak hours
     """
     params = TOUParameters()
-    peak_start_interval = params.peak_start_hour * 4  # 4 intervals per hour
-    peak_end_interval = params.peak_end_hour * 4
+    peak_start_interval = params.peak_start_hour * int(seconds_per_hour / time_step.total_seconds())
+    peak_end_interval = params.peak_end_hour * int(seconds_per_hour / time_step.total_seconds())
 
     peak_hours = np.zeros(intervals_per_day, dtype=bool)
     peak_hours[peak_start_interval:peak_end_interval] = True
@@ -56,27 +172,27 @@ def define_peak_hours(intervals_per_day: int = 96) -> np.ndarray:
     return peak_hours
 
 
-def create_tou_rates(num_intervals: int) -> np.ndarray:
+def create_tou_rates(num_intervals: int, time_step: timedelta) -> np.ndarray:
     """
     Create TOU rate structure for entire simulation period
 
     Args:
-        num_intervals: Total number of 15-minute intervals
+        num_intervals: Total number of time_step-long intervals
 
     Returns:
         Array of electricity rates [$/kWh] for each interval
     """
     params = TOUParameters()
-    intervals_per_day = 96  # 24 hours * 4 intervals/hour
+    intervals_per_day = int(24 * seconds_per_hour / time_step.total_seconds())
 
     # Get daily peak hour pattern
-    daily_peak_pattern = define_peak_hours(intervals_per_day)
+    daily_peak_pattern = define_peak_hours(intervals_per_day, time_step)
 
     # Repeat pattern for entire simulation
     num_days = num_intervals // intervals_per_day
     peak_pattern = np.tile(daily_peak_pattern, num_days)
 
-    # Handle remainder if num_intervals not divisible by 96
+    # Handle remainder if num_intervals not divisible by intervals_per_day
     remainder = num_intervals % intervals_per_day
     if remainder > 0:
         peak_pattern = np.concatenate([peak_pattern, daily_peak_pattern[:remainder]])
@@ -102,7 +218,7 @@ def create_operation_schedule(current_state: int, num_intervals: int) -> np.ndar
         return np.ones(num_intervals, dtype=int)
     else:  # TOU schedule
         intervals_per_day = 96
-        daily_peak_pattern = define_peak_hours(intervals_per_day)
+        daily_peak_pattern = define_peak_hours(intervals_per_day, timedelta(minutes=15))
 
         # Repeat pattern for the month
         num_days = num_intervals // intervals_per_day
@@ -117,28 +233,109 @@ def create_operation_schedule(current_state: int, num_intervals: int) -> np.ndar
         return (~peak_pattern[:num_intervals]).astype(int)
 
 
-def building_simulation_controller(
-    month: int, operation_schedule: np.ndarray, hot_water_usage: np.ndarray
+def extract_ochre_results(df: pd.DataFrame, num_intervals: int) -> SimulationResults:
+    """
+    Extract simulation results from OCHRE output DataFrame
+
+    Args:
+        df: OCHRE simulation results DataFrame
+        num_intervals: Expected number of 15-minute intervals
+
+    Returns:
+        SimulationResults with electricity consumption, tank temps, and unmet demand
+    """
+    # Extract electricity consumption for water heating [kW] -> [kWh/15min]
+    E_mt = np.array(df["Water Heating Electric Power (kW)"].values, dtype=float) * 0.25  # Convert kW to kWh/15min
+
+    # Extract tank temperature [°C]
+    T_tank_mt = np.array(df["Hot Water Average Temperature (C)"].values, dtype=float)
+    # Extract unmet demand [kW] -> [kWh/15min]
+    D_unmet_mt = np.array(df["Hot Water Unmet Demand (kW)"].values, dtype=float) * 0.25  # Convert kW to kWh/15min
+    # Ensure arrays are correct length
+    E_mt = E_mt[:num_intervals] if len(E_mt) >= num_intervals else np.pad(E_mt, (0, num_intervals - len(E_mt)))
+    T_tank_mt = (
+        T_tank_mt[:num_intervals]
+        if len(T_tank_mt) >= num_intervals
+        else np.pad(T_tank_mt, (0, num_intervals - len(T_tank_mt)), constant_values=55.0)
+    )
+    D_unmet_mt = (
+        D_unmet_mt[:num_intervals]
+        if len(D_unmet_mt) >= num_intervals
+        else np.pad(D_unmet_mt, (0, num_intervals - len(D_unmet_mt)))
+    )
+
+    return SimulationResults(E_mt, T_tank_mt, D_unmet_mt)
+
+
+def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
+    dwelling: "Dwelling",
+    operation_schedule: np.ndarray,
+    month: int,
 ) -> SimulationResults:
     """
-    Static building simulation controller (returns fixed values)
+    Run OCHRE simulation with dynamic HPWH control based on operation schedule
+
+    Args:
+        dwelling: OCHRE dwelling object
+        operation_schedule: Binary array (1=allowed, 0=restricted) for each 15-min interval
+        month: Month number (1-12)
+
+    Returns:
+        SimulationResults with electricity consumption, tank temps, and unmet demand
+    """
+    num_intervals = len(operation_schedule)
+    # TODO: CHECK IF IT'S A HEATPUMP WATER HEATER
+    # Get water heater equipment
+    water_heater = dwelling.get_equipment_by_end_use("Water Heating")
+    if water_heater is None:
+        msg = "No water heating equipment found in dwelling"
+        raise ValueError(msg)
+
+    # Reset dwelling to start state
+    dwelling.reset_time()
+
+    # Dynamic control loop - step through each time interval
+
+    for interval_idx, _date in enumerate(dwelling.sim_times):
+        if interval_idx >= num_intervals:
+            break
+
+        # Set control signal based on operation schedule
+        if operation_schedule[interval_idx] == 0:
+            # Peak hour restriction - force water heater off
+            control_signal = {"Water Heating": {"Load Fraction": 0}}
+        else:
+            # Normal operation allowed
+            control_signal = {"Water Heating": {"Load Fraction": 1}}
+
+        # Apply control and step simulation
+        dwelling.update(control_signal=control_signal)
+
+    # Finalize simulation and get results
+    df, _, _ = dwelling.finalize()
+
+    # Check if df is None and handle appropriately
+    if df is None:
+        raise ValueError()
+
+    # Extract results from OCHRE output
+    return extract_ochre_results(df, num_intervals)
+
+
+def building_simulation_controller(month: int, operation_schedule: np.ndarray, house_args: dict) -> SimulationResults:
+    """
+    OCHRE-based building simulation controller
 
     Args:
         month: Month number (1-12)
         operation_schedule: Binary array of operation permissions
-        hot_water_usage: Hot water usage schedule [L/15min]
-
+        house_args: Base house arguments dictionary
     Returns:
-        SimulationResults with static values
+        SimulationResults with OCHRE-based electricity consumption, tank temps, and unmet demand
     """
-    num_intervals = len(operation_schedule)
-
-    # Static return values
-    E_mt = np.full(num_intervals, 0.5)  # kWh/15min
-    T_tank_mt = np.full(num_intervals, 55.0)  # °C
-    D_unmet_mt = np.zeros(num_intervals)  # W (no unmet demand in static case)
-
-    return SimulationResults(E_mt, T_tank_mt, D_unmet_mt)
+    # Create OCHRE dwelling for this monthly simulation
+    dwelling = create_ochre_dwelling(house_args, month)
+    return run_ochre_hpwh_dynamic_control(dwelling, operation_schedule, month)
 
 
 def human_controller(current_state: int, realized_savings: float = 0.0, unrealized_savings: float = 0.0) -> int:
@@ -179,43 +376,32 @@ def calculate_comfort_penalty(unmet_demand_watts: np.ndarray, alpha: float) -> f
     return float(alpha * total_unmet_kwh)
 
 
-@dataclass
-class MonthlyResults:
-    """Results from a single month's simulation"""
-
-    month: int
-    current_state: int  # 1=default, 0=TOU
-    bill: float  # Monthly electricity bill [$]
-    comfort_penalty: float  # Monthly comfort penalty [$]
-    switching_decision: int  # 1=switch, 0=stay
-    realized_savings: float  # Realized savings (if on TOU)
-    unrealized_savings: float  # Unrealized/anticipated savings (if on default)
-
-
 def simulate_month_both_schedules(
-    month: int, hot_water_usage: np.ndarray, rates: np.ndarray, params: TOUParameters
+    month: int, year: int, time_step: timedelta, rates: np.ndarray, params: TOUParameters, house_args: dict
 ) -> tuple[SimulationResults, SimulationResults, float, float]:
     """
     Simulate both default and TOU schedules for comparison
 
     Args:
         month: Month number (1-12)
-        hot_water_usage: Hot water usage schedule [L/15min]
+        year: Year
+        time_step: Time step of the simulation
         rates: Electricity rates for each interval [$/kWh]
         params: TOU parameters
+        house_args: Base house arguments dictionary
 
     Returns:
         Tuple of (default_results, tou_results, default_bill, tou_bill)
     """
-    num_intervals = len(hot_water_usage)
+    num_intervals = calculate_monthly_intervals(month, year, time_step)
 
     # Create operational schedules
     default_schedule = create_operation_schedule(1, num_intervals)  # Always allowed
     tou_schedule = create_operation_schedule(0, num_intervals)  # Peak restricted
 
     # Run building simulations
-    default_results = building_simulation_controller(month, default_schedule, hot_water_usage)
-    tou_results = building_simulation_controller(month, tou_schedule, hot_water_usage)
+    default_results = building_simulation_controller(month, default_schedule, house_args)
+    tou_results = building_simulation_controller(month, tou_schedule, house_args)
 
     # Calculate bills
     default_bill = calculate_monthly_bill(default_results.E_mt, rates)
@@ -225,24 +411,32 @@ def simulate_month_both_schedules(
 
 
 def simulate_single_month(
-    month: int, current_state: int, hot_water_usage: np.ndarray, rates: np.ndarray, params: TOUParameters
+    month: int,
+    year: int,
+    time_step: timedelta,
+    current_state: int,
+    rates: np.ndarray,
+    params: TOUParameters,
+    house_args: dict,
 ) -> MonthlyResults:
     """
     Simulate a single month with decision logic
 
     Args:
         month: Month number (1-12)
+        year: Year
+        time_step: Time step of the simulation
         current_state: Current schedule state (1=default, 0=TOU)
-        hot_water_usage: Hot water usage schedule [L/15min]
         rates: Electricity rates for each interval [$/kWh]
         params: TOU parameters
+        house_args: Base house arguments dictionary
 
     Returns:
         MonthlyResults with all monthly outcomes
     """
     # Simulate both schedules for comparison
     default_results, tou_results, default_bill, tou_bill = simulate_month_both_schedules(
-        month, hot_water_usage, rates, params
+        month, year, time_step, rates, params, house_args
     )
 
     if current_state == 1:  # Currently on Default Schedule (Case A)
@@ -290,46 +484,54 @@ def simulate_single_month(
         )
 
 
-def simulate_annual_cycle(hot_water_data: np.ndarray, params: TOUParameters | None = None) -> list[MonthlyResults]:
+def simulate_annual_cycle(params: TOUParameters, house_args: dict) -> list[MonthlyResults]:
     """
     Simulate complete annual cycle with monthly decision-making
 
     Args:
-        hot_water_data: Annual hot water usage data [L/15min]
         params: TOU parameters (uses default if None)
+        house_args: Base house arguments dictionary
 
     Returns:
         List of MonthlyResults for each month
     """
-    if params is None:
-        params = TOUParameters()
-
-    # Create annual rate structure
-    annual_rates = create_tou_rates(len(hot_water_data))
-
-    # Split data into monthly chunks (assuming ~2920 intervals per month)
-    intervals_per_month = len(hot_water_data) // 12
 
     # Initialize state (start on default schedule)
     current_state = 1
     monthly_results = []
 
-    for month in range(1, 13):
-        # Extract monthly data
-        start_idx = (month - 1) * intervals_per_month
-        end_idx = start_idx + intervals_per_month
+    # Get start and end times from house_args
+    start_time = house_args["start_time"]
+    end_time = house_args["end_time"]
 
-        monthly_hot_water = hot_water_data[start_idx:end_idx]
-        monthly_rates = annual_rates[start_idx:end_idx]
+    # Generate chronological list of (year, month) tuples
+    current_date = start_time.replace(day=1)  # Start at beginning of start month
+    end_date = end_time.replace(day=1)  # End at beginning of end month
+
+    time_step = house_args["time_res"]
+
+    while current_date <= end_date:
+        year = current_date.year
+        month = current_date.month
+
+        # Calculate monthly intervals and rates
+        num_intervals = calculate_monthly_intervals(month, year, time_step)
+        monthly_rates = create_tou_rates(num_intervals, time_step)
 
         # Simulate month
-        result = simulate_single_month(month, current_state, monthly_hot_water, monthly_rates, params)
+        result = simulate_single_month(month, year, time_step, current_state, monthly_rates, params, house_args)
 
         monthly_results.append(result)
 
         # Update state for next month based on switching decision
         if result.switching_decision == 1:
             current_state = 1 - current_state  # Toggle state
+
+        # Move to next month
+        if current_date.month == 12:
+            current_date = current_date.replace(year=current_date.year + 1, month=1)
+        else:
+            current_date = current_date.replace(month=current_date.month + 1)
 
     return monthly_results
 
@@ -369,58 +571,23 @@ def calculate_annual_metrics(monthly_results: list[MonthlyResults]) -> dict[str,
     }
 
 
-def load_input_data(csv_path: str | None = None) -> np.ndarray:
+def run_full_simulation(params=None, house_args=HOUSE_ARGS) -> tuple[list[MonthlyResults], dict[str, float]]:  # type: ignore[no-untyped-def]
     """
-    Load hot water usage data from CSV file
+    Run complete TOU HPWH simulation
 
     Args:
-        csv_path: Path to CSV file (uses default if None)
-
-    Returns:
-        Hot water usage data [L/15min] as numpy array
-    """
-    if csv_path is None:
-        # Default path relative to this file
-        current_dir = Path(__file__).parent
-        csv_path_resolved: str = str(current_dir / "inputs" / "bldg0000072-up00_schedule.csv")
-    else:
-        csv_path_resolved = csv_path
-
-    # Load CSV data
-    df = pd.read_csv(csv_path_resolved)
-
-    # Extract hot water fixtures column
-    if "hot_water_fixtures" in df.columns:
-        hot_water_data: np.ndarray = np.asarray(df["hot_water_fixtures"].values)
-    else:
-        msg = "CSV file must contain 'hot_water_fixtures' column"
-        raise ValueError(msg)
-
-    return hot_water_data
-
-
-def run_full_simulation(
-    csv_path: str | None = None, params: TOUParameters | None = None
-) -> tuple[list[MonthlyResults], dict[str, float]]:
-    """
-    Run complete TOU HPWH simulation from CSV input data
-
-    Args:
-        csv_path: Path to input CSV file (uses default if None)
+        csv_path: Path to input CSV file (optional, for backward compatibility)
         params: TOU parameters (uses default if None)
 
     Returns:
         Tuple of (monthly_results, annual_metrics)
     """
-    # Load input data
-    hot_water_data = load_input_data(csv_path)
-
     # Use default parameters if None provided
     if params is None:
         params = TOUParameters()
 
-    # Run annual simulation
-    monthly_results = simulate_annual_cycle(hot_water_data, params)
+    # Run annual simulation with house args
+    monthly_results = simulate_annual_cycle(params, house_args)
 
     # Calculate annual metrics
     annual_metrics = calculate_annual_metrics(monthly_results)
@@ -429,30 +596,14 @@ def run_full_simulation(
 
 
 if __name__ == "__main__":
-    # Test TOU rate structure
-    print("=== TOU Rate Structure Test ===")
-    test_intervals = 96 * 7  # One week
-    rates = create_tou_rates(test_intervals)
-
-    print(f"Created {len(rates)} rate intervals")
-    print(f"Peak rate: ${TOUParameters().r_on:.2f}/kWh")
-    print(f"Off-peak rate: ${TOUParameters().r_off:.2f}/kWh")
-    print(f"Peak hours per day: {np.sum(define_peak_hours())}")
-
-    # Test operation schedules
-    default_schedule = create_operation_schedule(1, 96)  # Default
-    tou_schedule = create_operation_schedule(0, 96)  # TOU
-
-    print(f"Default schedule allows operation: {np.sum(default_schedule)}/96 intervals")
-    print(f"TOU schedule allows operation: {np.sum(tou_schedule)}/96 intervals")
-
     # Test full simulation with sample data
     print("\n=== Full Simulation Test ===")
     try:
         # Load real data and run simulation
-        monthly_results, annual_metrics = run_full_simulation()
+        TOU_PARAMS = TOUParameters()
+        monthly_results, annual_metrics = run_full_simulation(TOU_PARAMS, HOUSE_ARGS)
 
-        print(f"Loaded hot water data with {len(load_input_data())} intervals")
+        print("Simulation completed")
         print(f"Simulation completed for {len(monthly_results)} months")
 
         # Display key results
