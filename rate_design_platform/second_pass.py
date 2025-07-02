@@ -276,16 +276,18 @@ def create_operation_schedule(
         daily_peak_pattern = define_peak_hours(TOU_params, time_step)
 
         intervals_per_day = int(hours_per_day * seconds_per_hour / time_step.total_seconds())
-
+        peak_pattern = np.array([], dtype=bool)
         for num_intervals in monthly_intervals:
             # Repeat pattern for the month
             num_days = num_intervals // intervals_per_day  # Number of days in the month
-            peak_pattern = np.tile(daily_peak_pattern, num_days)
+            month_pattern = np.tile(daily_peak_pattern, num_days)
 
             # Handle remainder
             remainder = num_intervals % intervals_per_day
             if remainder > 0:
-                peak_pattern = np.concatenate([peak_pattern, daily_peak_pattern[:remainder]])
+                month_pattern = np.concatenate([month_pattern, daily_peak_pattern[:remainder]])
+
+            peak_pattern = np.concatenate([peak_pattern, month_pattern])
 
         return (~peak_pattern[: sum(monthly_intervals)]).astype(
             bool
@@ -480,8 +482,10 @@ def simulate_full_cycle(simulation_type: str, TOU_params: TOUParameters, house_a
     monthly_rates = create_tou_rates(simulation_results.Time, time_step, TOU_params)
 
     monthly_bill = calculate_monthly_bill(simulation_results, monthly_rates)
+    monthly_comfort_penalty = calculate_monthly_comfort_penalty(simulation_results, TOU_params)
 
     print(monthly_bill)
+    print(monthly_comfort_penalty)
     monthly_results = [
         MonthlyResults(
             month=1,
@@ -513,7 +517,7 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
         TOU_params = TOUParameters()
 
     # Run default annual simulation with house args
-    default_monthly_results = simulate_full_cycle("default", TOU_params, house_args)
+    default_monthly_results = simulate_full_cycle("tou", TOU_params, house_args)
 
     # Calculate annual metrics
     annual_metrics = {
