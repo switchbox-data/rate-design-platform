@@ -149,19 +149,20 @@ def create_ochre_dwelling(house_args: dict, month: int, year: int = 2018) -> Dwe
     return dwelling
 
 
-def define_peak_hours(intervals_per_day: int = 96) -> np.ndarray:
+def define_peak_hours(intervals_per_day: int, time_step: timedelta) -> np.ndarray:
     """
     Define peak hour intervals in a day (15-minute intervals)
 
     Args:
-        intervals_per_day: Number of 15-minute intervals per day (default 96)
+        intervals_per_day: Number of time_step-long intervals per day
+        time_step: Time step of the simulation
 
     Returns:
         Boolean array indicating peak hours
     """
     params = TOUParameters()
-    peak_start_interval = params.peak_start_hour * 4  # 4 intervals per hour
-    peak_end_interval = params.peak_end_hour * 4
+    peak_start_interval = params.peak_start_hour * int(3600 / time_step.total_seconds())
+    peak_end_interval = params.peak_end_hour * int(3600 / time_step.total_seconds())
 
     peak_hours = np.zeros(intervals_per_day, dtype=bool)
     peak_hours[peak_start_interval:peak_end_interval] = True
@@ -183,7 +184,7 @@ def create_tou_rates(num_intervals: int, time_step: timedelta) -> np.ndarray:
     intervals_per_day = int(24 * 3600 / time_step.total_seconds())
 
     # Get daily peak hour pattern
-    daily_peak_pattern = define_peak_hours(intervals_per_day)
+    daily_peak_pattern = define_peak_hours(intervals_per_day, time_step)
 
     # Repeat pattern for entire simulation
     num_days = num_intervals // intervals_per_day
@@ -215,7 +216,7 @@ def create_operation_schedule(current_state: int, num_intervals: int) -> np.ndar
         return np.ones(num_intervals, dtype=int)
     else:  # TOU schedule
         intervals_per_day = 96
-        daily_peak_pattern = define_peak_hours(intervals_per_day)
+        daily_peak_pattern = define_peak_hours(intervals_per_day, timedelta(minutes=15))
 
         # Repeat pattern for the month
         num_days = num_intervals // intervals_per_day
