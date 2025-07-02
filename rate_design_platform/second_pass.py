@@ -105,17 +105,23 @@ HOUSE_ARGS = {
 }
 
 
-def simulate_annual_cycle(params: TOUParameters, house_args: dict) -> list[MonthlyResults]:
+def simulate_annual_cycle(TOU_params: TOUParameters, house_args: dict) -> list[MonthlyResults]:
     """
     Simulate complete annual cycle with monthly decision-making
 
     Args:
-        params: TOU parameters (uses default if None)
+        TOU_params: TOU parameters (uses default if None)
         house_args: Base house arguments dictionary
 
     Returns:
         List of MonthlyResults for each month
     """
+    if TOU_params is None:
+        TOU_params = TOUParameters()
+
+    if house_args is None:
+        house_args = HOUSE_ARGS
+
     monthly_results = [
         MonthlyResults(
             month=1,
@@ -130,7 +136,7 @@ def simulate_annual_cycle(params: TOUParameters, house_args: dict) -> list[Month
     return monthly_results
 
 
-def run_full_simulation(params=None, house_args=HOUSE_ARGS) -> tuple[list[MonthlyResults], dict[str, float]]:  # type: ignore[no-untyped-def]
+def run_full_simulation(TOU_params=None, house_args=HOUSE_ARGS) -> tuple[list[MonthlyResults], dict[str, float]]:  # type: ignore[no-untyped-def]
     """
     Run complete TOU HPWH simulation
 
@@ -142,11 +148,11 @@ def run_full_simulation(params=None, house_args=HOUSE_ARGS) -> tuple[list[Monthl
         Tuple of (monthly_results, annual_metrics)
     """
     # Use default parameters if None provided
-    if params is None:
-        params = TOUParameters()
+    if TOU_params is None:
+        TOU_params = TOUParameters()
 
     # Run annual simulation with house args
-    monthly_results = simulate_annual_cycle(params, house_args)
+    monthly_results = simulate_annual_cycle(TOU_params, house_args)
 
     # Calculate annual metrics
     annual_metrics = {
