@@ -89,6 +89,7 @@ initialization_time = timedelta(days=1)
 HOUSE_ARGS = {
     # Timing parameters (will be updated per month)
     "start_time": start_time,
+    "end_time": end_time,
     "time_res": time_step,
     "duration": duration,
     "initialization_time": initialization_time,
