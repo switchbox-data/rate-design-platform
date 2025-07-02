@@ -105,6 +105,31 @@ HOUSE_ARGS = {
 }
 
 
+def simulate_annual_cycle(params: TOUParameters, house_args: dict) -> list[MonthlyResults]:
+    """
+    Simulate complete annual cycle with monthly decision-making
+
+    Args:
+        params: TOU parameters (uses default if None)
+        house_args: Base house arguments dictionary
+
+    Returns:
+        List of MonthlyResults for each month
+    """
+    monthly_results = [
+        MonthlyResults(
+            month=1,
+            current_state="default",
+            bill=0.0,
+            comfort_penalty=0.0,
+            switching_decision="stay",
+            realized_savings=0.0,
+            unrealized_savings=0.0,
+        )
+    ]
+    return monthly_results
+
+
 def run_full_simulation(params=None, house_args=HOUSE_ARGS) -> tuple[list[MonthlyResults], dict[str, float]]:  # type: ignore[no-untyped-def]
     """
     Run complete TOU HPWH simulation
@@ -121,17 +146,7 @@ def run_full_simulation(params=None, house_args=HOUSE_ARGS) -> tuple[list[Monthl
         params = TOUParameters()
 
     # Run annual simulation with house args
-    monthly_results = [
-        MonthlyResults(
-            month=1,
-            current_state="default",
-            bill=0.0,
-            comfort_penalty=0.0,
-            switching_decision="stay",
-            realized_savings=0.0,
-            unrealized_savings=0.0,
-        )
-    ]
+    monthly_results = simulate_annual_cycle(params, house_args)
 
     # Calculate annual metrics
     annual_metrics = {
