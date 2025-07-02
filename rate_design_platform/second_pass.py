@@ -39,10 +39,10 @@ class MonthlyResults:
     """Results from a single month's simulation"""
 
     month: int
-    current_state: int  # 1=default, 0=TOU
+    current_state: str  # "default" or "tou"
     bill: float  # Monthly electricity bill [$]
     comfort_penalty: float  # Monthly comfort penalty [$]
-    switching_decision: int  # 1=switch, 0=stay
+    switching_decision: str  # "switch" or "stay"
     realized_savings: float  # Realized savings (if on TOU)
     unrealized_savings: float  # Unrealized/anticipated savings (if on default)
 
@@ -124,10 +124,10 @@ def run_full_simulation(params=None, house_args=HOUSE_ARGS) -> tuple[list[Monthl
     monthly_results = [
         MonthlyResults(
             month=1,
-            current_state=1,
+            current_state="default",
             bill=0.0,
             comfort_penalty=0.0,
-            switching_decision=0,
+            switching_decision="stay",
             realized_savings=0.0,
             unrealized_savings=0.0,
         )
