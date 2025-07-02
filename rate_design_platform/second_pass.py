@@ -156,6 +156,11 @@ def calculate_monthly_intervals(start_time: datetime, end_time: datetime, time_s
     return intervals
 
 
+def calculate_monthly_bill(simulation_results: SimulationResults, rates: np.ndarray) -> float:
+    """Calculate monthly electricity bill"""
+    return float(np.sum(simulation_results.E_mt * rates))
+
+
 def define_peak_hours(TOU_params: TOUParameters, time_step: timedelta) -> np.ndarray:
     """
     Define peak hour intervals for a typical day
