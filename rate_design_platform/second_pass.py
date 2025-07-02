@@ -105,7 +105,7 @@ HOUSE_ARGS = {
 }
 
 
-def simulate_annual_cycle(TOU_params: TOUParameters, house_args: dict) -> list[MonthlyResults]:
+def simulate_full_cycle(TOU_params: TOUParameters, house_args: dict) -> list[MonthlyResults]:
     """
     Simulate complete annual cycle with monthly decision-making
 
@@ -152,7 +152,7 @@ def run_full_simulation(TOU_params=None, house_args=HOUSE_ARGS) -> tuple[list[Mo
         TOU_params = TOUParameters()
 
     # Run annual simulation with house args
-    monthly_results = simulate_annual_cycle(TOU_params, house_args)
+    monthly_results = simulate_full_cycle(TOU_params, house_args)
 
     # Calculate annual metrics
     annual_metrics = {
