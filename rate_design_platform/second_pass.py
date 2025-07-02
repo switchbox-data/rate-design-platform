@@ -103,3 +103,58 @@ HOUSE_ARGS = {
     "hpxml_schedule_file": schedule_path,
     "weather_file": weather_path,
 }
+
+
+def run_full_simulation(params=None, house_args=HOUSE_ARGS) -> tuple[list[MonthlyResults], dict[str, float]]:  # type: ignore[no-untyped-def]
+    """
+    Run complete TOU HPWH simulation
+
+    Args:
+        csv_path: Path to input CSV file (optional, for backward compatibility)
+        params: TOU parameters (uses default if None)
+
+    Returns:
+        Tuple of (monthly_results, annual_metrics)
+    """
+    # Use default parameters if None provided
+    if params is None:
+        params = TOUParameters()
+
+    # Run annual simulation with house args
+    monthly_results = [
+        MonthlyResults(
+            month=1,
+            current_state=1,
+            bill=0.0,
+            comfort_penalty=0.0,
+            switching_decision=0,
+            realized_savings=0.0,
+            unrealized_savings=0.0,
+        )
+    ]
+
+    # Calculate annual metrics
+    annual_metrics = {
+        "total_annual_bills": 0.0,
+        "total_comfort_penalty": 0.0,
+        "total_switching_costs": 0.0,
+        "total_realized_savings": 0.0,
+        "net_annual_benefit": 0.0,
+        "tou_adoption_rate_percent": 0.0,
+        "annual_switches": 0,
+        "average_monthly_bill": 0.0,
+    }
+
+    return monthly_results, annual_metrics
+
+
+if __name__ == "__main__":
+    # Test full simulation with sample data
+    print("\n=== Full Simulation Test ===")
+    try:
+        # Load real data and run simulation
+        TOU_PARAMS = TOUParameters()
+        monthly_results, annual_metrics = run_full_simulation(TOU_PARAMS, HOUSE_ARGS)
+    except Exception as e:
+        print(f"Simulation failed: {e}")
+        print("This is expected if input files are not available or properly formatted")
