@@ -47,6 +47,16 @@ class MonthlyResults:
     unrealized_savings: float  # Unrealized/anticipated savings (if on default)
 
 
+@dataclass
+class MonthlyMetrics:
+    """Metrics from a single month's simulation"""
+
+    year: int
+    month: int
+    bill: float
+    comfort_penalty: float
+
+
 class SimulationResults(NamedTuple):
     """Results from HPWH simulation for a given month"""
 
