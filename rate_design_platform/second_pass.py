@@ -61,9 +61,9 @@ class MonthlyMetrics:
 class SimulationResults(NamedTuple):
     """Results from HPWH simulation for a given month"""
 
-    E_mt: np.ndarray  # Electricity consumption [kWh/15min]
+    E_mt: np.ndarray  # Electricity consumption [kWh]
     T_tank_mt: np.ndarray  # Tank temperature [°C]
-    D_unmet_mt: np.ndarray  # Electrical unmet demand [W] (operational power deficit)
+    D_unmet_mt: np.ndarray  # Electrical unmet demand [kWh] (operational power deficit)
 
 
 # Input/Output file paths
@@ -216,6 +216,34 @@ def create_operation_schedule(
         return (~peak_pattern[: sum(monthly_intervals)]).astype(
             bool
         )  # Operation is restricted during peak hours, hence the negation.
+
+
+def extract_ochre_results(df: pd.DataFrame, monthly_intervals: list[int], time_step: timedelta) -> SimulationResults:
+    """
+    Extract simulation results from OCHRE output DataFrame
+
+    Args:
+        df: OCHRE simulation results DataFrame
+        monthly_intervals: Number of intervals for each month in the simulation period
+        time_step: Time step of the simulation
+
+    Returns:
+        SimulationResults with electricity consumption, tank temps, and unmet demand
+    """
+    # Extract electricity consumption for water heating [kW] -> [kWh]
+    time_step_fraction = time_step.total_seconds() / seconds_per_hour
+    E_mt = (
+        np.array(df["Water Heating Electric Power (kW)"].values, dtype=float) * time_step_fraction
+    )  # Convert kW to kWh/15min
+
+    # Extract tank temperature [°C]
+    T_tank_mt = np.array(df["Hot Water Average Temperature (C)"].values, dtype=float)
+    # Extract unmet demand [kW] -> [kWh]
+    D_unmet_mt = (
+        np.array(df["Hot Water Unmet Demand (kW)"].values, dtype=float) * time_step_fraction
+    )  # Convert kW to kWh/15min
+
+    return SimulationResults(E_mt, T_tank_mt, D_unmet_mt)
 
 
 def simulate_default_cycle(TOU_params: TOUParameters, house_args: dict) -> list[MonthlyMetrics]:
