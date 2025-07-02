@@ -104,19 +104,20 @@ HOUSE_ARGS = {
 }
 
 
-def calculate_monthly_intervals(month: int, year: int = 2018) -> int:
+def calculate_monthly_intervals(month: int, year: int, time_step: timedelta) -> int:
     """
-    Calculate number of 15-minute intervals in a given month
+    Calculate number of time_step-long intervals in a given month
 
     Args:
         month: Month number (1-12)
         year: Year (default 2018)
+        time_step: Time step of the simulation
 
     Returns:
-        Number of 15-minute intervals in the month
+        Number of time_step-long intervals intervals in the month
     """
     days_in_month = calendar.monthrange(year, month)[1]
-    return days_in_month * 96  # 96 intervals per day (24 hours * 4 intervals/hour)
+    return int(days_in_month * (24 * 3600 / time_step.total_seconds()))
 
 
 def create_ochre_dwelling(house_args: dict, month: int, year: int = 2018) -> Dwelling:  # type: ignore[no-any-unimported]
@@ -372,13 +373,15 @@ def calculate_comfort_penalty(unmet_demand_watts: np.ndarray, alpha: float) -> f
 
 
 def simulate_month_both_schedules(
-    month: int, rates: np.ndarray, params: TOUParameters, house_args: dict
+    month: int, year: int, time_step: timedelta, rates: np.ndarray, params: TOUParameters, house_args: dict
 ) -> tuple[SimulationResults, SimulationResults, float, float]:
     """
     Simulate both default and TOU schedules for comparison
 
     Args:
         month: Month number (1-12)
+        year: Year
+        time_step: Time step of the simulation
         rates: Electricity rates for each interval [$/kWh]
         params: TOU parameters
         house_args: Base house arguments dictionary
@@ -386,7 +389,7 @@ def simulate_month_both_schedules(
     Returns:
         Tuple of (default_results, tou_results, default_bill, tou_bill)
     """
-    num_intervals = calculate_monthly_intervals(month)
+    num_intervals = calculate_monthly_intervals(month, year, time_step)
 
     # Create operational schedules
     default_schedule = create_operation_schedule(1, num_intervals)  # Always allowed
@@ -405,6 +408,8 @@ def simulate_month_both_schedules(
 
 def simulate_single_month(
     month: int,
+    year: int,
+    time_step: timedelta,
     current_state: int,
     rates: np.ndarray,
     params: TOUParameters,
@@ -415,6 +420,8 @@ def simulate_single_month(
 
     Args:
         month: Month number (1-12)
+        year: Year
+        time_step: Time step of the simulation
         current_state: Current schedule state (1=default, 0=TOU)
         rates: Electricity rates for each interval [$/kWh]
         params: TOU parameters
@@ -425,7 +432,7 @@ def simulate_single_month(
     """
     # Simulate both schedules for comparison
     default_results, tou_results, default_bill, tou_bill = simulate_month_both_schedules(
-        month, rates, params, house_args
+        month, year, time_step, rates, params, house_args
     )
 
     if current_state == 1:  # Currently on Default Schedule (Case A)
@@ -497,15 +504,18 @@ def simulate_annual_cycle(params: TOUParameters, house_args: dict) -> list[Month
     current_date = start_time.replace(day=1)  # Start at beginning of start month
     end_date = end_time.replace(day=1)  # End at beginning of end month
 
+    time_step = house_args["time_res"]
+
     while current_date <= end_date:
+        year = current_date.year
         month = current_date.month
 
         # Calculate monthly intervals and rates
-        num_intervals = calculate_monthly_intervals(month)
+        num_intervals = calculate_monthly_intervals(month, year, time_step)
         monthly_rates = create_tou_rates(num_intervals)
 
         # Simulate month
-        result = simulate_single_month(month, current_state, monthly_rates, params, house_args)
+        result = simulate_single_month(month, year, time_step, current_state, monthly_rates, params, house_args)
 
         monthly_results.append(result)
 
