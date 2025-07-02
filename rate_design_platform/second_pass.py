@@ -16,6 +16,7 @@ import pandas as pd
 
 # Define constants
 seconds_per_hour = 3600
+hours_per_day = 24
 
 
 # Define data classes for the simulation
@@ -152,6 +153,31 @@ def calculate_monthly_intervals(start_time: datetime, end_time: datetime, time_s
         current_time = next_month_start
 
     return intervals
+
+
+def define_peak_hours(TOU_params: TOUParameters, time_step: timedelta) -> np.ndarray:
+    """
+    Define peak hour intervals for a typical day
+
+    Args:
+        TOU_params: TOU parameters (uses default if None)
+        time_step: Time step of the simulation
+
+    Returns:
+        Boolean array indicating peak hours
+    """
+    if TOU_params is None:
+        TOU_params = TOUParameters()
+    peak_start_interval = TOU_params.peak_start_hour * int(seconds_per_hour / time_step.total_seconds())
+    peak_end_interval = TOU_params.peak_end_hour * int(seconds_per_hour / time_step.total_seconds())
+
+    intervals_per_day = int(hours_per_day * seconds_per_hour / time_step.total_seconds())
+
+    # Create a boolean array for peak hours
+    peak_hours = np.zeros(intervals_per_day, dtype=bool)
+    peak_hours[peak_start_interval:peak_end_interval] = True
+
+    return peak_hours
 
 
 def simulate_default_cycle(TOU_params: TOUParameters, house_args: dict) -> list[MonthlyMetrics]:
