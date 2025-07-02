@@ -333,48 +333,6 @@ def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
     return extract_ochre_results(df, time_step)
 
 
-def simulate_default_cycle(TOU_params: TOUParameters, house_args: dict) -> list[MonthlyMetrics]:
-    """
-    Simulate monthly metrics for a default setting
-
-    Args:
-        TOU_params: TOU parameters (uses default if None)
-        house_args: Base house arguments dictionary
-
-    Returns:
-        List of MonthlyMetrics for each month
-    """
-    if TOU_params is None:
-        TOU_params = TOUParameters()
-
-    if house_args is None:
-        house_args = HOUSE_ARGS
-
-    monthly_metrics = [MonthlyMetrics(year=2018, month=1, bill=0.0, comfort_penalty=0.0)]
-    return monthly_metrics
-
-
-def simulate_tou_cycle(TOU_params: TOUParameters, house_args: dict) -> list[MonthlyMetrics]:
-    """
-    Simulate monthly metrics for a TOU setting
-
-    Args:
-        TOU_params: TOU parameters (uses default if None)
-        house_args: Base house arguments dictionary
-
-    Returns:
-        List of MonthlyMetrics for each month
-    """
-    if TOU_params is None:
-        TOU_params = TOUParameters()
-
-    if house_args is None:
-        house_args = HOUSE_ARGS
-
-    monthly_metrics = [MonthlyMetrics(year=2018, month=1, bill=0.0, comfort_penalty=0.0)]
-    return monthly_metrics
-
-
 def simulate_full_cycle(simulation_type: str, TOU_params: TOUParameters, house_args: dict) -> list[MonthlyResults]:
     """
     Simulate complete annual cycle with monthly decision-making
