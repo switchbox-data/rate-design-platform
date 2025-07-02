@@ -219,6 +219,40 @@ def create_operation_schedule(
         )  # Operation is restricted during peak hours, hence the negation.
 
 
+def create_tou_rates(num_intervals: int, time_step: timedelta, TOU_params: TOUParameters) -> np.ndarray:
+    """
+    Create TOU rate structure for entire simulation period
+
+    Args:
+        num_intervals: Total number of time_step-long intervals
+        time_step: Time step of the simulation
+        TOU_params: TOU parameters (uses default if None)
+
+    Returns:
+        Array of electricity rates [$/kWh] for each interval
+    """
+    if TOU_params is None:
+        TOU_params = TOUParameters()
+
+    daily_peak_pattern = define_peak_hours(TOU_params, time_step)
+
+    intervals_per_day = int(hours_per_day * seconds_per_hour / time_step.total_seconds())
+
+    # Repeat pattern for entire simulation
+    num_days = num_intervals // intervals_per_day
+    peak_pattern = np.tile(daily_peak_pattern, num_days)
+
+    # Handle remainder if num_intervals not divisible by intervals_per_day
+    remainder = num_intervals % intervals_per_day
+    if remainder > 0:
+        peak_pattern = np.concatenate([peak_pattern, daily_peak_pattern[:remainder]])
+
+    # Create rate array
+    rates = np.where(peak_pattern, TOU_params.r_on, TOU_params.r_off)
+
+    return rates
+
+
 def extract_ochre_results(df: pd.DataFrame, time_step: timedelta) -> SimulationResults:
     """
     Extract simulation results from OCHRE output DataFrame
