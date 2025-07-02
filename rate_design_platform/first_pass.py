@@ -6,6 +6,7 @@ to time-of-use (TOU) electricity rates in residential building simulations.
 """
 
 import calendar
+import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -14,6 +15,8 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 from ochre import Dwelling  # type: ignore[import-untyped]
+
+# Define data classes for the simulation
 
 
 @dataclass
@@ -31,12 +34,74 @@ class TOUParameters:
     peak_end_hour: int = 20
 
 
+@dataclass
+class MonthlyResults:
+    """Results from a single month's simulation"""
+
+    month: int
+    current_state: int  # 1=default, 0=TOU
+    bill: float  # Monthly electricity bill [$]
+    comfort_penalty: float  # Monthly comfort penalty [$]
+    switching_decision: int  # 1=switch, 0=stay
+    realized_savings: float  # Realized savings (if on TOU)
+    unrealized_savings: float  # Unrealized/anticipated savings (if on default)
+
+
 class SimulationResults(NamedTuple):
     """Results from HPWH simulation for a given month"""
 
     E_mt: np.ndarray  # Electricity consumption [kWh/15min]
     T_tank_mt: np.ndarray  # Tank temperature [°C]
     D_unmet_mt: np.ndarray  # Electrical unmet demand [W] (operational power deficit)
+
+
+# Input/Output file paths
+bldg_id = 72
+upgrade_id = 0
+weather_station = "G3400270"
+
+base_path = os.path.abspath(os.path.join(os.path.dirname(__file__)))
+input_path = os.path.join(base_path, "inputs")
+output_path = os.path.join(base_path, "outputs")
+xml_path = os.path.join(input_path, f"bldg{bldg_id:07d}-up{upgrade_id:02d}.xml")
+weather_path = os.path.join(input_path, f"{weather_station}.epw")
+schedule_path = os.path.join(input_path, f"bldg{bldg_id:07d}-up{upgrade_id:02d}_schedule.csv")
+
+# Check that files exist before proceeding
+if not Path(xml_path).exists():
+    raise FileNotFoundError(xml_path)
+if not Path(weather_path).exists():
+    raise FileNotFoundError(weather_path)
+if not Path(schedule_path).exists():
+    raise FileNotFoundError(schedule_path)
+
+# Simulation parameters
+year = 2018
+month = 1
+start_date = 1
+start_time = datetime(year, month, start_date, 0, 0)  # (Year, Month, Day, Hour, Min)
+duration = timedelta(days=365)
+time_step = timedelta(minutes=15)
+end_time = start_time + duration
+sim_times = pd.date_range(start=start_time, end=end_time, freq=time_step)[:-1]
+initialization_time = timedelta(days=1)
+
+HOUSE_ARGS = {
+    # Timing parameters (will be updated per month)
+    "start_time": start_time,
+    "time_res": time_step,
+    "duration": duration,
+    "initialization_time": initialization_time,
+    # Output settings
+    "save_results": True,
+    "verbosity": 9,
+    "metrics_verbosity": 7,
+    "output_path": output_path,
+    # Input file settings
+    "hpxml_file": xml_path,
+    "hpxml_schedule_file": schedule_path,
+    "weather_file": weather_path,
+}
 
 
 def calculate_monthly_intervals(month: int, year: int = 2018) -> int:
@@ -244,6 +309,10 @@ def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
     # Finalize simulation and get results
     df, _, _ = dwelling.finalize()
 
+    # Check if df is None and handle appropriately
+    if df is None:
+        raise ValueError()
+
     # Extract results from OCHRE output
     return extract_ochre_results(df, num_intervals)
 
@@ -300,19 +369,6 @@ def calculate_comfort_penalty(unmet_demand_watts: np.ndarray, alpha: float) -> f
     # Total unmet energy = sum(W * 0.25 hours) / 1000 W/kW = sum(W) / 4000 kWh
     total_unmet_kwh = np.sum(unmet_demand_watts) * 0.25 / 1000.0
     return float(alpha * total_unmet_kwh)
-
-
-@dataclass
-class MonthlyResults:
-    """Results from a single month's simulation"""
-
-    month: int
-    current_state: int  # 1=default, 0=TOU
-    bill: float  # Monthly electricity bill [$]
-    comfort_penalty: float  # Monthly comfort penalty [$]
-    switching_decision: int  # 1=switch, 0=stay
-    realized_savings: float  # Realized savings (if on TOU)
-    unrealized_savings: float  # Unrealized/anticipated savings (if on default)
 
 
 def simulate_month_both_schedules(
@@ -502,42 +558,8 @@ def run_full_simulation(params=None) -> tuple[list[MonthlyResults], dict[str, fl
     if params is None:
         params = TOUParameters()
 
-    # Get input file paths and check they exist
-    current_dir = Path(__file__).parent
-    xml_path = str(current_dir / "inputs" / "bldg0000072-up00.xml")
-    weather_path = str(current_dir / "inputs" / "G3400270.epw")
-    schedule_path = str(current_dir / "inputs" / "bldg0000072-up00_schedule.csv")
-
-    # Check that files exist before proceeding
-    if not Path(xml_path).exists():
-        raise FileNotFoundError(xml_path)
-    if not Path(weather_path).exists():
-        raise FileNotFoundError(weather_path)
-    if not Path(schedule_path).exists():
-        raise FileNotFoundError(schedule_path)
-
-    # Create base house arguments (will be updated for each month)
-    output_path = str(current_dir / "outputs")
-
-    house_args = {
-        # Timing parameters (will be updated per month)
-        "start_time": datetime(2018, 1, 1, 0, 0),
-        "time_res": timedelta(minutes=15),
-        "duration": timedelta(days=31),
-        "initialization_time": timedelta(days=1),
-        # Output settings
-        "save_results": True,
-        "verbosity": 9,
-        "metrics_verbosity": 7,
-        "output_path": output_path,
-        # Input file settings
-        "hpxml_file": xml_path,
-        "hpxml_schedule_file": schedule_path,
-        "weather_file": weather_path,
-    }
-
     # Run annual simulation with house args
-    monthly_results = simulate_annual_cycle(params, house_args)
+    monthly_results = simulate_annual_cycle(params, HOUSE_ARGS)
 
     # Calculate annual metrics
     annual_metrics = calculate_annual_metrics(monthly_results)
