@@ -13,6 +13,7 @@ from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
+from ochre import Dwelling  # type: ignore[import-untyped]
 
 # Define constants
 seconds_per_hour = 3600
@@ -218,7 +219,7 @@ def create_operation_schedule(
         )  # Operation is restricted during peak hours, hence the negation.
 
 
-def extract_ochre_results(df: pd.DataFrame, monthly_intervals: list[int], time_step: timedelta) -> SimulationResults:
+def extract_ochre_results(df: pd.DataFrame, time_step: timedelta) -> SimulationResults:
     """
     Extract simulation results from OCHRE output DataFrame
 
@@ -234,16 +235,68 @@ def extract_ochre_results(df: pd.DataFrame, monthly_intervals: list[int], time_s
     time_step_fraction = time_step.total_seconds() / seconds_per_hour
     E_mt = (
         np.array(df["Water Heating Electric Power (kW)"].values, dtype=float) * time_step_fraction
-    )  # Convert kW to kWh/15min
+    )  # Convert kW to kWh
 
     # Extract tank temperature [°C]
     T_tank_mt = np.array(df["Hot Water Average Temperature (C)"].values, dtype=float)
     # Extract unmet demand [kW] -> [kWh]
     D_unmet_mt = (
         np.array(df["Hot Water Unmet Demand (kW)"].values, dtype=float) * time_step_fraction
-    )  # Convert kW to kWh/15min
+    )  # Convert kW to kWh
 
     return SimulationResults(E_mt, T_tank_mt, D_unmet_mt)
+
+
+def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
+    dwelling: Dwelling,
+    operation_schedule: np.ndarray,
+) -> SimulationResults:
+    """
+    Run OCHRE simulation with dynamic HPWH control based on operation schedule
+
+    Args:
+        dwelling: OCHRE dwelling object
+        operation_schedule: Boolean array (True=allowed, False=restricted) for each interval
+
+    Returns:
+        SimulationResults with electricity consumption, tank temps, and unmet demand
+    """
+    num_intervals = len(operation_schedule)
+    # Get water heater equipment
+    water_heater = dwelling.get_equipment_by_end_use("Water Heating")
+    if water_heater is None:
+        msg = "No water heating equipment found in dwelling"
+        raise ValueError(msg)
+
+    # Reset dwelling to start state
+    dwelling.reset_time()
+
+    # Dynamic control loop - step through each time interval
+
+    for interval_idx, _date in enumerate(dwelling.sim_times):
+        if interval_idx >= num_intervals:
+            break
+
+        # Set control signal based on operation schedule
+        if operation_schedule[interval_idx] == 0:
+            # Peak hour restriction - force water heater off
+            control_signal = {"Water Heating": {"Load Fraction": 0}}
+        else:
+            # Normal operation allowed
+            control_signal = {"Water Heating": {"Load Fraction": 1}}
+
+        # Apply control and step simulation
+        dwelling.update(control_signal=control_signal)
+
+    # Finalize simulation and get results
+    df, _, _ = dwelling.finalize()
+
+    # Check if df is None and handle appropriately
+    if df is None:
+        raise ValueError()
+
+    # Extract results from OCHRE output
+    return extract_ochre_results(df, time_step)
 
 
 def simulate_default_cycle(TOU_params: TOUParameters, house_args: dict) -> list[MonthlyMetrics]:
