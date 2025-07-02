@@ -192,7 +192,7 @@ def create_tou_rates(num_intervals: int, time_step: timedelta) -> np.ndarray:
     num_days = num_intervals // intervals_per_day
     peak_pattern = np.tile(daily_peak_pattern, num_days)
 
-    # Handle remainder if num_intervals not divisible by 96
+    # Handle remainder if num_intervals not divisible by intervals_per_day
     remainder = num_intervals % intervals_per_day
     if remainder > 0:
         peak_pattern = np.concatenate([peak_pattern, daily_peak_pattern[:remainder]])
