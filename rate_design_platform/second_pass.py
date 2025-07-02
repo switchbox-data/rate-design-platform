@@ -180,6 +180,44 @@ def define_peak_hours(TOU_params: TOUParameters, time_step: timedelta) -> np.nda
     return peak_hours
 
 
+def create_operation_schedule(
+    current_state: str, monthly_intervals: list[int], TOU_params: TOUParameters, time_step: timedelta
+) -> np.ndarray:
+    """
+    Create operational schedule based on current state
+
+    Args:
+        current_state: Current schedule state ("default" or "tou")
+        monthly_intervals: Number of intervals for each month in the simulation period
+        TOU_params: TOU parameters (uses default if None)
+        time_step: Time step of the simulation
+
+    Returns:
+        Boolean array where True=operation allowed, False=restricted.
+        Length of array is sum of monthly_intervals, which is the total number of intervals in the simulation period.
+    """
+    if current_state == "default":  # Default schedule. Operation allowed at all times.
+        return np.ones(sum(monthly_intervals), dtype=bool)
+    else:  # TOU schedule. Operation restricted during peak hours.
+        daily_peak_pattern = define_peak_hours(TOU_params, time_step)
+
+        intervals_per_day = int(hours_per_day * seconds_per_hour / time_step.total_seconds())
+
+        for num_intervals in monthly_intervals:
+            # Repeat pattern for the month
+            num_days = num_intervals // intervals_per_day  # Number of days in the month
+            peak_pattern = np.tile(daily_peak_pattern, num_days)
+
+            # Handle remainder
+            remainder = num_intervals % intervals_per_day
+            if remainder > 0:
+                peak_pattern = np.concatenate([peak_pattern, daily_peak_pattern[:remainder]])
+
+        return (~peak_pattern[: sum(monthly_intervals)]).astype(
+            bool
+        )  # Operation is restricted during peak hours, hence the negation.
+
+
 def simulate_default_cycle(TOU_params: TOUParameters, house_args: dict) -> list[MonthlyMetrics]:
     """
     Simulate monthly metrics for a default setting
