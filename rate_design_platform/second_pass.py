@@ -341,11 +341,12 @@ def simulate_tou_cycle(TOU_params: TOUParameters, house_args: dict) -> list[Mont
     return monthly_metrics
 
 
-def simulate_full_cycle(TOU_params: TOUParameters, house_args: dict) -> list[MonthlyResults]:
+def simulate_full_cycle(simulation_type: str, TOU_params: TOUParameters, house_args: dict) -> list[MonthlyResults]:
     """
     Simulate complete annual cycle with monthly decision-making
 
     Args:
+        simulation_type: Type of simulation to run ("default" or "tou")
         TOU_params: TOU parameters (uses default if None)
         house_args: Base house arguments dictionary
 
@@ -372,13 +373,16 @@ def simulate_full_cycle(TOU_params: TOUParameters, house_args: dict) -> list[Mon
     return monthly_results
 
 
-def run_full_simulation(TOU_params=None, house_args=HOUSE_ARGS) -> tuple[list[MonthlyResults], dict[str, float]]:  # type: ignore[no-untyped-def]
+def run_full_simulation(
+    simulation_type: str, TOU_params: TOUParameters, house_args: dict
+) -> tuple[list[MonthlyResults], dict[str, float]]:
     """
     Run complete TOU HPWH simulation
 
     Args:
-        csv_path: Path to input CSV file (optional, for backward compatibility)
-        params: TOU parameters (uses default if None)
+        simulation_type: Type of simulation to run ("default" or "tou")
+        TOU_params: TOU parameters (uses default if None)
+        house_args: Base house arguments dictionary
 
     Returns:
         Tuple of (monthly_results, annual_metrics)
@@ -388,7 +392,7 @@ def run_full_simulation(TOU_params=None, house_args=HOUSE_ARGS) -> tuple[list[Mo
         TOU_params = TOUParameters()
 
     # Run annual simulation with house args
-    monthly_results = simulate_full_cycle(TOU_params, house_args)
+    default_monthly_results = simulate_full_cycle(simulation_type, TOU_params, house_args)
 
     # Calculate annual metrics
     annual_metrics = {
@@ -402,7 +406,7 @@ def run_full_simulation(TOU_params=None, house_args=HOUSE_ARGS) -> tuple[list[Mo
         "average_monthly_bill": 0.0,
     }
 
-    return monthly_results, annual_metrics
+    return default_monthly_results, annual_metrics
 
 
 if __name__ == "__main__":
@@ -411,7 +415,8 @@ if __name__ == "__main__":
     try:
         # Load real data and run simulation
         TOU_PARAMS = TOUParameters()
-        monthly_results, annual_metrics = run_full_simulation(TOU_PARAMS, HOUSE_ARGS)
+        default_monthly_results, default_annual_metrics = run_full_simulation("default", TOU_PARAMS, HOUSE_ARGS)
+        tou_monthly_results, tou_annual_metrics = run_full_simulation("tou", TOU_PARAMS, HOUSE_ARGS)
     except Exception as e:
         print(f"Simulation failed: {e}")
         print("This is expected if input files are not available or properly formatted")
