@@ -111,7 +111,7 @@ def calculate_monthly_intervals(month: int, year: int, time_step: timedelta) -> 
 
     Args:
         month: Month number (1-12)
-        year: Year (default 2018)
+        year: Year
         time_step: Time step of the simulation
 
     Returns:
@@ -169,18 +169,18 @@ def define_peak_hours(intervals_per_day: int = 96) -> np.ndarray:
     return peak_hours
 
 
-def create_tou_rates(num_intervals: int) -> np.ndarray:
+def create_tou_rates(num_intervals: int, time_step: timedelta) -> np.ndarray:
     """
     Create TOU rate structure for entire simulation period
 
     Args:
-        num_intervals: Total number of 15-minute intervals
+        num_intervals: Total number of time_step-long intervals
 
     Returns:
         Array of electricity rates [$/kWh] for each interval
     """
     params = TOUParameters()
-    intervals_per_day = 96  # 24 hours * 4 intervals/hour
+    intervals_per_day = int(24 * 3600 / time_step.total_seconds())
 
     # Get daily peak hour pattern
     daily_peak_pattern = define_peak_hours(intervals_per_day)
@@ -513,7 +513,7 @@ def simulate_annual_cycle(params: TOUParameters, house_args: dict) -> list[Month
 
         # Calculate monthly intervals and rates
         num_intervals = calculate_monthly_intervals(month, year, time_step)
-        monthly_rates = create_tou_rates(num_intervals)
+        monthly_rates = create_tou_rates(num_intervals, time_step)
 
         # Simulate month
         result = simulate_single_month(month, year, time_step, current_state, monthly_rates, params, house_args)
@@ -584,7 +584,7 @@ def run_full_simulation(params=None, house_args=HOUSE_ARGS) -> tuple[list[Monthl
         params = TOUParameters()
 
     # Run annual simulation with house args
-    monthly_results = simulate_annual_cycle(params, HOUSE_ARGS)
+    monthly_results = simulate_annual_cycle(params, house_args)
 
     # Calculate annual metrics
     annual_metrics = calculate_annual_metrics(monthly_results)
