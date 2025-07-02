@@ -16,9 +16,11 @@ import numpy as np
 import pandas as pd
 from ochre import Dwelling  # type: ignore[import-untyped]
 
+# Define constants
+seconds_per_hour = 3600
+
+
 # Define data classes for the simulation
-
-
 @dataclass
 class TOUParameters:
     """TOU rate structure and simulation parameters"""
@@ -118,7 +120,7 @@ def calculate_monthly_intervals(month: int, year: int, time_step: timedelta) -> 
         Number of time_step-long intervals intervals in the month
     """
     days_in_month = calendar.monthrange(year, month)[1]
-    return int(days_in_month * (24 * 3600 / time_step.total_seconds()))
+    return int(days_in_month * (24 * seconds_per_hour / time_step.total_seconds()))
 
 
 def create_ochre_dwelling(house_args: dict, month: int, year: int = 2018) -> Dwelling:  # type: ignore[no-any-unimported]
@@ -161,8 +163,8 @@ def define_peak_hours(intervals_per_day: int, time_step: timedelta) -> np.ndarra
         Boolean array indicating peak hours
     """
     params = TOUParameters()
-    peak_start_interval = params.peak_start_hour * int(3600 / time_step.total_seconds())
-    peak_end_interval = params.peak_end_hour * int(3600 / time_step.total_seconds())
+    peak_start_interval = params.peak_start_hour * int(seconds_per_hour / time_step.total_seconds())
+    peak_end_interval = params.peak_end_hour * int(seconds_per_hour / time_step.total_seconds())
 
     peak_hours = np.zeros(intervals_per_day, dtype=bool)
     peak_hours[peak_start_interval:peak_end_interval] = True
@@ -181,7 +183,7 @@ def create_tou_rates(num_intervals: int, time_step: timedelta) -> np.ndarray:
         Array of electricity rates [$/kWh] for each interval
     """
     params = TOUParameters()
-    intervals_per_day = int(24 * 3600 / time_step.total_seconds())
+    intervals_per_day = int(24 * seconds_per_hour / time_step.total_seconds())
 
     # Get daily peak hour pattern
     daily_peak_pattern = define_peak_hours(intervals_per_day, time_step)
