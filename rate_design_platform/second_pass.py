@@ -62,6 +62,7 @@ class MonthlyMetrics:
 class SimulationResults(NamedTuple):
     """Results from HPWH simulation for a given month"""
 
+    Time: np.ndarray  # Datetime array
     E_mt: np.ndarray  # Electricity consumption [kWh]
     T_tank_mt: np.ndarray  # Tank temperature [°C]
     D_unmet_mt: np.ndarray  # Electrical unmet demand [kWh] (operational power deficit)
@@ -92,7 +93,7 @@ year = 2018
 month = 1
 start_date = 1
 start_time = datetime(year, month, start_date, 0, 0)  # (Year, Month, Day, Hour, Min)
-duration = timedelta(days=365)
+duration = timedelta(days=61)
 time_step = timedelta(minutes=15)
 end_time = start_time + duration
 sim_times = pd.date_range(start=start_time, end=end_time, freq=time_step)[:-1]
@@ -270,6 +271,9 @@ def extract_ochre_results(df: pd.DataFrame, time_step: timedelta) -> SimulationR
     Returns:
         SimulationResults with electricity consumption, tank temps, and unmet demand
     """
+    # Extract time from the index
+    time_values = df.index.values
+
     # Extract electricity consumption for water heating [kW] -> [kWh]
     time_step_fraction = time_step.total_seconds() / seconds_per_hour
     E_mt = (
@@ -283,7 +287,7 @@ def extract_ochre_results(df: pd.DataFrame, time_step: timedelta) -> SimulationR
         np.array(df["Hot Water Unmet Demand (kW)"].values, dtype=float) * time_step_fraction
     )  # Convert kW to kWh
 
-    return SimulationResults(E_mt, T_tank_mt, D_unmet_mt)
+    return SimulationResults(time_values, E_mt, T_tank_mt, D_unmet_mt)
 
 
 def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
@@ -356,6 +360,25 @@ def simulate_full_cycle(simulation_type: str, TOU_params: TOUParameters, house_a
     if house_args is None:
         house_args = HOUSE_ARGS
 
+    dwelling = Dwelling(**house_args)
+
+    start_time = house_args["start_time"]
+    end_time = house_args["end_time"]
+    time_step = house_args["time_res"]
+    monthly_intervals = calculate_monthly_intervals(start_time, end_time, time_step)
+
+    if simulation_type == "default":
+        operation_schedule = create_operation_schedule("default", monthly_intervals, TOU_params, time_step)
+    else:
+        operation_schedule = create_operation_schedule("tou", monthly_intervals, TOU_params, time_step)
+
+    simulation_results = run_ochre_hpwh_dynamic_control(dwelling, operation_schedule)
+
+    monthly_rates = create_tou_rates(sum(monthly_intervals), time_step, TOU_params)
+
+    monthly_bill = calculate_monthly_bill(simulation_results, monthly_rates)
+
+    print(monthly_bill)
     monthly_results = [
         MonthlyResults(
             month=1,
