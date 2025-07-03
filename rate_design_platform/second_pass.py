@@ -469,16 +469,16 @@ def human_controller(
         anticipated_savings = default_bill - tou_bill
         net_savings = anticipated_savings - TOU_params.c_switch
         if net_savings > 0:
-            return "tou"
+            return "switch"
         else:
-            return "default"
+            return "stay"
     else:
         realized_savings = default_bill - tou_bill
         net_savings = realized_savings - TOU_params.c_switch - tou_comfort_penalty
         if net_savings > 0:
-            return "tou"
+            return "stay"
         else:
-            return "default"
+            return "switch"
 
 
 def simulate_full_cycle(
@@ -523,6 +523,65 @@ def simulate_full_cycle(
     return monthly_bill, monthly_comfort_penalty
 
 
+def evaluate_human_decision(
+    initial_state: str,
+    default_monthly_bill: list[float],
+    tou_monthly_bill: list[float],
+    tou_monthly_comfort_penalty: list[float],
+    TOU_params: TOUParameters,
+) -> tuple[list[str], list[str]]:  # monthly decisions ("switch" or "stay"), states ("default" or "tou")
+    """
+    Evaluate human decision
+
+    Args:
+        initial_state: Initial state ("default" or "tou")
+        default_monthly_bill: List of default monthly bills
+        tou_monthly_bill: List of TOU monthly bills
+        tou_monthly_comfort_penalty: List of TOU monthly comfort penalties
+        TOU_params: TOU parameters
+
+    Returns:
+        List of "default" or "tou" for each month
+    """
+    human_decisions = []
+    states = []
+    current_state = initial_state
+
+    for i in range(len(default_monthly_bill)):
+        states.append(current_state)
+        current_decision = human_controller(
+            current_state, default_monthly_bill[i], tou_monthly_bill[i], tou_monthly_comfort_penalty[i], TOU_params
+        )
+        human_decisions.append(current_decision)
+        if current_decision == "switch":
+            current_state = "tou" if current_state == "default" else "default"
+        else:
+            current_state = current_state
+
+    return human_decisions, states
+
+
+def calculate_simulation_months(house_args: dict) -> list[tuple[int, int]]:
+    """
+    Return list of (year, month) tuples for each month in the simulation period
+    """
+    start_time = house_args["start_time"]
+    end_time = house_args["end_time"]
+    year_months = []
+    current_time = start_time
+    while current_time < end_time:
+        year_months.append((current_time.year, current_time.month))
+        if current_time.month == 12:
+            current_time = current_time.replace(
+                year=current_time.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+            )
+        else:
+            current_time = current_time.replace(
+                month=current_time.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0
+            )
+    return year_months
+
+
 def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[list[MonthlyResults], dict[str, float]]:
     """
     Run complete TOU HPWH simulation
@@ -543,10 +602,20 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
     default_monthly_bill, default_monthly_comfort_penalty = simulate_full_cycle("tou", TOU_params, house_args)
     tou_monthly_bill, tou_monthly_comfort_penalty = simulate_full_cycle("tou", TOU_params, house_args)
 
+    # Evaluate human decisions
+    initial_state = "default"
+    monthly_decisions, states = evaluate_human_decision(
+        initial_state,
+        default_monthly_bill,
+        tou_monthly_bill,
+        tou_monthly_comfort_penalty,
+        TOU_params,
+    )
+
+    print(monthly_decisions)
+    print(states)
     print(default_monthly_bill)
-    print(default_monthly_comfort_penalty)
     print(tou_monthly_bill)
-    print(tou_monthly_comfort_penalty)
 
     # Calculate annual metrics
     annual_metrics = {
