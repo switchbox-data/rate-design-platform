@@ -704,7 +704,27 @@ if __name__ == "__main__":
         # Load real data and run simulation
         TOU_PARAMS = TOUParameters()
         monthly_results, annual_metrics = run_full_simulation(TOU_PARAMS, HOUSE_ARGS)
-        print(monthly_results)
+
+        print("Simulation completed")
+        print(f"Simulation completed for {len(monthly_results)} months")
+
+        # Display key results
+        print("\n=== Annual Results ===")
+        for key, value in annual_metrics.items():
+            if key.endswith("_percent"):
+                print(f"{key}: {value:.1f}%")
+            elif "cost" in key or "bill" in key or "saving" in key or "benefit" in key:
+                print(f"{key}: ${value:.2f}")
+            else:
+                print(f"{key}: {value:.2f}")
+
+        # Display monthly state progression
+        print("\n=== Monthly State Progression ===")
+        states = [r.current_state for r in monthly_results]
+        switches = [r.switching_decision for r in monthly_results]
+        print(f"States (default, tou): {states}")
+        print(f"Switches (switch, stay): {switches}")
+
     except Exception as e:
         print(f"Simulation failed: {e}")
         print("This is expected if input files are not available or properly formatted")
