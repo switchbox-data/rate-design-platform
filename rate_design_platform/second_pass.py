@@ -613,6 +613,41 @@ def calculate_monthly_metrics(
     return monthly_results
 
 
+def calculate_annual_metrics(monthly_results: list[MonthlyResults]) -> dict[str, float]:
+    """
+    Calculate annual performance metrics from monthly results
+
+    Args:
+        monthly_results: List of MonthlyResults for each month
+
+    Returns:
+        Dictionary of annual metrics
+    """
+    total_bills = sum(r.bill for r in monthly_results)
+    total_comfort_penalty = sum(r.comfort_penalty for r in monthly_results)
+    total_switches = sum(1 for r in monthly_results if r.switching_decision == "switch")
+
+    # Calculate TOU adoption rate
+    tou_months = sum(1 for r in monthly_results if r.current_state == "tou")
+    tou_adoption_rate = tou_months / len(monthly_results) * 100
+
+    # Calculate total realized savings (only when on TOU)
+    total_realized_savings = sum(r.realized_savings for r in monthly_results if r.current_state == "tou")
+
+    return {
+        "total_annual_bills": total_bills,
+        "total_comfort_penalty": total_comfort_penalty,
+        "total_switching_costs": total_switches * TOUParameters().c_switch,
+        "total_realized_savings": total_realized_savings,
+        "net_annual_benefit": total_realized_savings
+        - (total_switches * TOUParameters().c_switch)
+        - total_comfort_penalty,
+        "tou_adoption_rate_percent": tou_adoption_rate,
+        "annual_switches": total_switches,
+        "average_monthly_bill": total_bills / len(monthly_results),
+    }
+
+
 def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[list[MonthlyResults], dict[str, float]]:
     """
     Run complete TOU HPWH simulation
@@ -657,16 +692,7 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
     )
 
     # Calculate annual metrics
-    annual_metrics = {
-        "total_annual_bills": 0.0,
-        "total_comfort_penalty": 0.0,
-        "total_switching_costs": 0.0,
-        "total_realized_savings": 0.0,
-        "net_annual_benefit": 0.0,
-        "tou_adoption_rate_percent": 0.0,
-        "annual_switches": 0,
-        "average_monthly_bill": 0.0,
-    }
+    annual_metrics = calculate_annual_metrics(monthly_results)
 
     return monthly_results, annual_metrics
 
