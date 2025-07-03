@@ -447,7 +447,43 @@ def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
     return extract_ochre_results(df, time_step)
 
 
-def simulate_full_cycle(simulation_type: str, TOU_params: TOUParameters, house_args: dict) -> list[MonthlyResults]:
+def human_controller(
+    current_state: str,
+    default_bill: float,
+    tou_bill: float,
+    tou_comfort_penalty: float,
+    TOU_params: TOUParameters,
+) -> str:
+    """
+    Human controller for TOU scheduling
+
+    Args:
+        current_state: Current schedule state ("default" or "tou")
+        realized_savings: Realized savings (if on TOU)
+        unrealized_savings: Unrealized savings (if on default)
+
+    Returns:
+        New schedule state ("default" or "tou")
+    """
+    if current_state == "default":
+        anticipated_savings = default_bill - tou_bill
+        net_savings = anticipated_savings - TOU_params.c_switch
+        if net_savings > 0:
+            return "tou"
+        else:
+            return "default"
+    else:
+        realized_savings = default_bill - tou_bill
+        net_savings = realized_savings - TOU_params.c_switch - tou_comfort_penalty
+        if net_savings > 0:
+            return "tou"
+        else:
+            return "default"
+
+
+def simulate_full_cycle(
+    simulation_type: str, TOU_params: TOUParameters, house_args: dict
+) -> tuple[list[float], list[float]]:
     """
     Simulate complete annual cycle with monthly decision-making
 
@@ -484,20 +520,7 @@ def simulate_full_cycle(simulation_type: str, TOU_params: TOUParameters, house_a
     monthly_bill = calculate_monthly_bill(simulation_results, monthly_rates)
     monthly_comfort_penalty = calculate_monthly_comfort_penalty(simulation_results, TOU_params)
 
-    print(monthly_bill)
-    print(monthly_comfort_penalty)
-    monthly_results = [
-        MonthlyResults(
-            month=1,
-            current_state="default",
-            bill=0.0,
-            comfort_penalty=0.0,
-            switching_decision="stay",
-            realized_savings=0.0,
-            unrealized_savings=0.0,
-        )
-    ]
-    return monthly_results
+    return monthly_bill, monthly_comfort_penalty
 
 
 def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[list[MonthlyResults], dict[str, float]]:
@@ -517,7 +540,13 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
         TOU_params = TOUParameters()
 
     # Run default annual simulation with house args
-    default_monthly_results = simulate_full_cycle("tou", TOU_params, house_args)
+    default_monthly_bill, default_monthly_comfort_penalty = simulate_full_cycle("tou", TOU_params, house_args)
+    tou_monthly_bill, tou_monthly_comfort_penalty = simulate_full_cycle("tou", TOU_params, house_args)
+
+    print(default_monthly_bill)
+    print(default_monthly_comfort_penalty)
+    print(tou_monthly_bill)
+    print(tou_monthly_comfort_penalty)
 
     # Calculate annual metrics
     annual_metrics = {
@@ -531,7 +560,7 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
         "average_monthly_bill": 0.0,
     }
 
-    return default_monthly_results, annual_metrics
+    return [], annual_metrics
 
 
 if __name__ == "__main__":
