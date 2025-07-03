@@ -40,6 +40,7 @@ class TOUParameters:
 class MonthlyResults:
     """Results from a single month's simulation"""
 
+    year: int
     month: int
     current_state: str  # "default" or "tou"
     bill: float  # Monthly electricity bill [$]
@@ -582,6 +583,36 @@ def calculate_simulation_months(house_args: dict) -> list[tuple[int, int]]:
     return year_months
 
 
+def calculate_monthly_metrics(
+    simulation_year_months: list[tuple[int, int]],
+    monthly_decisions: list[str],
+    states: list[str],
+    default_monthly_bill: list[float],
+    tou_monthly_bill: list[float],
+    default_monthly_comfort_penalty: list[float],
+    tou_monthly_comfort_penalty: list[float],
+) -> list[MonthlyResults]:
+    """
+    Calculate monthly results
+    """
+    monthly_results = []
+    for i in range(len(simulation_year_months)):
+        current_monthly_result = MonthlyResults(
+            year=simulation_year_months[i][0],
+            month=simulation_year_months[i][1],
+            current_state=states[i],
+            bill=default_monthly_bill[i] if states[i] == "default" else tou_monthly_bill[i],
+            comfort_penalty=default_monthly_comfort_penalty[i]
+            if states[i] == "default"
+            else tou_monthly_comfort_penalty[i],
+            switching_decision=monthly_decisions[i],
+            realized_savings=default_monthly_bill[i] - tou_monthly_bill[i] if states[i] == "tou" else 0,
+            unrealized_savings=default_monthly_bill[i] - tou_monthly_bill[i] if states[i] == "default" else 0,
+        )
+        monthly_results.append(current_monthly_result)
+    return monthly_results
+
+
 def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[list[MonthlyResults], dict[str, float]]:
     """
     Run complete TOU HPWH simulation
@@ -612,10 +643,18 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
         TOU_params,
     )
 
-    print(monthly_decisions)
-    print(states)
-    print(default_monthly_bill)
-    print(tou_monthly_bill)
+    # Calculate simulation year and months
+    simulation_year_months = calculate_simulation_months(house_args)
+
+    monthly_results = calculate_monthly_metrics(
+        simulation_year_months,
+        monthly_decisions,
+        states,
+        default_monthly_bill,
+        tou_monthly_bill,
+        default_monthly_comfort_penalty,
+        tou_monthly_comfort_penalty,
+    )
 
     # Calculate annual metrics
     annual_metrics = {
@@ -629,7 +668,7 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
         "average_monthly_bill": 0.0,
     }
 
-    return [], annual_metrics
+    return monthly_results, annual_metrics
 
 
 if __name__ == "__main__":
@@ -639,6 +678,7 @@ if __name__ == "__main__":
         # Load real data and run simulation
         TOU_PARAMS = TOUParameters()
         monthly_results, annual_metrics = run_full_simulation(TOU_PARAMS, HOUSE_ARGS)
+        print(monthly_results)
     except Exception as e:
         print(f"Simulation failed: {e}")
         print("This is expected if input files are not available or properly formatted")
