@@ -6,7 +6,6 @@ to time-of-use (TOU) electricity rates in residential building simulations.
 """
 
 import calendar
-import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -16,11 +15,7 @@ import numpy as np
 import pandas as pd
 from ochre import Dwelling  # type: ignore[import-untyped]
 
-# Define constants
-seconds_per_hour = 3600
 
-
-# Define data classes for the simulation
 @dataclass
 class TOUParameters:
     """TOU rate structure and simulation parameters"""
@@ -36,19 +31,6 @@ class TOUParameters:
     peak_end_hour: int = 20
 
 
-@dataclass
-class MonthlyResults:
-    """Results from a single month's simulation"""
-
-    month: int
-    current_state: int  # 1=default, 0=TOU
-    bill: float  # Monthly electricity bill [$]
-    comfort_penalty: float  # Monthly comfort penalty [$]
-    switching_decision: int  # 1=switch, 0=stay
-    realized_savings: float  # Realized savings (if on TOU)
-    unrealized_savings: float  # Unrealized/anticipated savings (if on default)
-
-
 class SimulationResults(NamedTuple):
     """Results from HPWH simulation for a given month"""
 
@@ -57,70 +39,19 @@ class SimulationResults(NamedTuple):
     D_unmet_mt: np.ndarray  # Electrical unmet demand [W] (operational power deficit)
 
 
-# Input/Output file paths
-bldg_id = 72
-upgrade_id = 0
-weather_station = "G3400270"
-
-base_path = os.path.abspath(os.path.join(os.path.dirname(__file__)))
-input_path = os.path.join(base_path, "inputs")
-output_path = os.path.join(base_path, "outputs")
-xml_path = os.path.join(input_path, f"bldg{bldg_id:07d}-up{upgrade_id:02d}.xml")
-weather_path = os.path.join(input_path, f"{weather_station}.epw")
-schedule_path = os.path.join(input_path, f"bldg{bldg_id:07d}-up{upgrade_id:02d}_schedule.csv")
-
-# Check that files exist before proceeding
-if not Path(xml_path).exists():
-    raise FileNotFoundError(xml_path)
-if not Path(weather_path).exists():
-    raise FileNotFoundError(weather_path)
-if not Path(schedule_path).exists():
-    raise FileNotFoundError(schedule_path)
-
-# Simulation parameters
-year = 2018
-month = 1
-start_date = 1
-start_time = datetime(year, month, start_date, 0, 0)  # (Year, Month, Day, Hour, Min)
-duration = timedelta(days=365)
-time_step = timedelta(minutes=15)
-end_time = start_time + duration
-sim_times = pd.date_range(start=start_time, end=end_time, freq=time_step)[:-1]
-initialization_time = timedelta(days=1)
-
-HOUSE_ARGS = {
-    # Timing parameters (will be updated per month)
-    "start_time": start_time,
-    "end_time": end_time,
-    "time_res": time_step,
-    "duration": duration,
-    "initialization_time": initialization_time,
-    # Output settings
-    "save_results": True,
-    "verbosity": 9,
-    "metrics_verbosity": 7,
-    "output_path": output_path,
-    # Input file settings
-    "hpxml_file": xml_path,
-    "hpxml_schedule_file": schedule_path,
-    "weather_file": weather_path,
-}
-
-
-def calculate_monthly_intervals(month: int, year: int, time_step: timedelta) -> int:
+def calculate_monthly_intervals(month: int, year: int = 2018) -> int:
     """
-    Calculate number of time_step-long intervals in a given month
+    Calculate number of 15-minute intervals in a given month
 
     Args:
         month: Month number (1-12)
-        year: Year
-        time_step: Time step of the simulation
+        year: Year (default 2018)
 
     Returns:
-        Number of time_step-long intervals intervals in the month
+        Number of 15-minute intervals in the month
     """
     days_in_month = calendar.monthrange(year, month)[1]
-    return int(days_in_month * (24 * seconds_per_hour / time_step.total_seconds()))
+    return days_in_month * 96  # 96 intervals per day (24 hours * 4 intervals/hour)
 
 
 def create_ochre_dwelling(house_args: dict, month: int, year: int = 2018) -> Dwelling:  # type: ignore[no-any-unimported]
@@ -151,20 +82,19 @@ def create_ochre_dwelling(house_args: dict, month: int, year: int = 2018) -> Dwe
     return dwelling
 
 
-def define_peak_hours(intervals_per_day: int, time_step: timedelta) -> np.ndarray:
+def define_peak_hours(intervals_per_day: int = 96) -> np.ndarray:
     """
     Define peak hour intervals in a day (15-minute intervals)
 
     Args:
-        intervals_per_day: Number of time_step-long intervals per day
-        time_step: Time step of the simulation
+        intervals_per_day: Number of 15-minute intervals per day (default 96)
 
     Returns:
         Boolean array indicating peak hours
     """
     params = TOUParameters()
-    peak_start_interval = params.peak_start_hour * int(seconds_per_hour / time_step.total_seconds())
-    peak_end_interval = params.peak_end_hour * int(seconds_per_hour / time_step.total_seconds())
+    peak_start_interval = params.peak_start_hour * 4  # 4 intervals per hour
+    peak_end_interval = params.peak_end_hour * 4
 
     peak_hours = np.zeros(intervals_per_day, dtype=bool)
     peak_hours[peak_start_interval:peak_end_interval] = True
@@ -172,27 +102,27 @@ def define_peak_hours(intervals_per_day: int, time_step: timedelta) -> np.ndarra
     return peak_hours
 
 
-def create_tou_rates(num_intervals: int, time_step: timedelta) -> np.ndarray:
+def create_tou_rates(num_intervals: int) -> np.ndarray:
     """
     Create TOU rate structure for entire simulation period
 
     Args:
-        num_intervals: Total number of time_step-long intervals
+        num_intervals: Total number of 15-minute intervals
 
     Returns:
         Array of electricity rates [$/kWh] for each interval
     """
     params = TOUParameters()
-    intervals_per_day = int(24 * seconds_per_hour / time_step.total_seconds())
+    intervals_per_day = 96  # 24 hours * 4 intervals/hour
 
     # Get daily peak hour pattern
-    daily_peak_pattern = define_peak_hours(intervals_per_day, time_step)
+    daily_peak_pattern = define_peak_hours(intervals_per_day)
 
     # Repeat pattern for entire simulation
     num_days = num_intervals // intervals_per_day
     peak_pattern = np.tile(daily_peak_pattern, num_days)
 
-    # Handle remainder if num_intervals not divisible by intervals_per_day
+    # Handle remainder if num_intervals not divisible by 96
     remainder = num_intervals % intervals_per_day
     if remainder > 0:
         peak_pattern = np.concatenate([peak_pattern, daily_peak_pattern[:remainder]])
@@ -218,7 +148,7 @@ def create_operation_schedule(current_state: int, num_intervals: int) -> np.ndar
         return np.ones(num_intervals, dtype=int)
     else:  # TOU schedule
         intervals_per_day = 96
-        daily_peak_pattern = define_peak_hours(intervals_per_day, timedelta(minutes=15))
+        daily_peak_pattern = define_peak_hours(intervals_per_day)
 
         # Repeat pattern for the month
         num_days = num_intervals // intervals_per_day
@@ -314,10 +244,6 @@ def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
     # Finalize simulation and get results
     df, _, _ = dwelling.finalize()
 
-    # Check if df is None and handle appropriately
-    if df is None:
-        raise ValueError()
-
     # Extract results from OCHRE output
     return extract_ochre_results(df, num_intervals)
 
@@ -376,16 +302,27 @@ def calculate_comfort_penalty(unmet_demand_watts: np.ndarray, alpha: float) -> f
     return float(alpha * total_unmet_kwh)
 
 
+@dataclass
+class MonthlyResults:
+    """Results from a single month's simulation"""
+
+    month: int
+    current_state: int  # 1=default, 0=TOU
+    bill: float  # Monthly electricity bill [$]
+    comfort_penalty: float  # Monthly comfort penalty [$]
+    switching_decision: int  # 1=switch, 0=stay
+    realized_savings: float  # Realized savings (if on TOU)
+    unrealized_savings: float  # Unrealized/anticipated savings (if on default)
+
+
 def simulate_month_both_schedules(
-    month: int, year: int, time_step: timedelta, rates: np.ndarray, params: TOUParameters, house_args: dict
+    month: int, rates: np.ndarray, params: TOUParameters, house_args: dict
 ) -> tuple[SimulationResults, SimulationResults, float, float]:
     """
     Simulate both default and TOU schedules for comparison
 
     Args:
         month: Month number (1-12)
-        year: Year
-        time_step: Time step of the simulation
         rates: Electricity rates for each interval [$/kWh]
         params: TOU parameters
         house_args: Base house arguments dictionary
@@ -393,7 +330,7 @@ def simulate_month_both_schedules(
     Returns:
         Tuple of (default_results, tou_results, default_bill, tou_bill)
     """
-    num_intervals = calculate_monthly_intervals(month, year, time_step)
+    num_intervals = calculate_monthly_intervals(month)
 
     # Create operational schedules
     default_schedule = create_operation_schedule(1, num_intervals)  # Always allowed
@@ -412,8 +349,6 @@ def simulate_month_both_schedules(
 
 def simulate_single_month(
     month: int,
-    year: int,
-    time_step: timedelta,
     current_state: int,
     rates: np.ndarray,
     params: TOUParameters,
@@ -424,8 +359,6 @@ def simulate_single_month(
 
     Args:
         month: Month number (1-12)
-        year: Year
-        time_step: Time step of the simulation
         current_state: Current schedule state (1=default, 0=TOU)
         rates: Electricity rates for each interval [$/kWh]
         params: TOU parameters
@@ -436,7 +369,7 @@ def simulate_single_month(
     """
     # Simulate both schedules for comparison
     default_results, tou_results, default_bill, tou_bill = simulate_month_both_schedules(
-        month, year, time_step, rates, params, house_args
+        month, rates, params, house_args
     )
 
     if current_state == 1:  # Currently on Default Schedule (Case A)
@@ -495,43 +428,26 @@ def simulate_annual_cycle(params: TOUParameters, house_args: dict) -> list[Month
     Returns:
         List of MonthlyResults for each month
     """
+    if params is None:
+        params = TOUParameters()
 
     # Initialize state (start on default schedule)
     current_state = 1
     monthly_results = []
 
-    # Get start and end times from house_args
-    start_time = house_args["start_time"]
-    end_time = house_args["end_time"]
-
-    # Generate chronological list of (year, month) tuples
-    current_date = start_time.replace(day=1)  # Start at beginning of start month
-    end_date = end_time.replace(day=1)  # End at beginning of end month
-
-    time_step = house_args["time_res"]
-
-    while current_date <= end_date:
-        year = current_date.year
-        month = current_date.month
-
+    for month in range(1, 13):
         # Calculate monthly intervals and rates
-        num_intervals = calculate_monthly_intervals(month, year, time_step)
-        monthly_rates = create_tou_rates(num_intervals, time_step)
+        num_intervals = calculate_monthly_intervals(month)
+        monthly_rates = create_tou_rates(num_intervals)
 
         # Simulate month
-        result = simulate_single_month(month, year, time_step, current_state, monthly_rates, params, house_args)
+        result = simulate_single_month(month, current_state, monthly_rates, params, house_args)
 
         monthly_results.append(result)
 
         # Update state for next month based on switching decision
         if result.switching_decision == 1:
             current_state = 1 - current_state  # Toggle state
-
-        # Move to next month
-        if current_date.month == 12:
-            current_date = current_date.replace(year=current_date.year + 1, month=1)
-        else:
-            current_date = current_date.replace(month=current_date.month + 1)
 
     return monthly_results
 
@@ -571,7 +487,7 @@ def calculate_annual_metrics(monthly_results: list[MonthlyResults]) -> dict[str,
     }
 
 
-def run_full_simulation(params=None, house_args=HOUSE_ARGS) -> tuple[list[MonthlyResults], dict[str, float]]:  # type: ignore[no-untyped-def]
+def run_full_simulation(params=None) -> tuple[list[MonthlyResults], dict[str, float]]:  # type: ignore[no-untyped-def]
     """
     Run complete TOU HPWH simulation
 
@@ -585,6 +501,40 @@ def run_full_simulation(params=None, house_args=HOUSE_ARGS) -> tuple[list[Monthl
     # Use default parameters if None provided
     if params is None:
         params = TOUParameters()
+
+    # Get input file paths and check they exist
+    current_dir = Path(__file__).parent
+    xml_path = str(current_dir / "inputs" / "bldg0000072-up00.xml")
+    weather_path = str(current_dir / "inputs" / "G3400270.epw")
+    schedule_path = str(current_dir / "inputs" / "bldg0000072-up00_schedule.csv")
+
+    # Check that files exist before proceeding
+    if not Path(xml_path).exists():
+        raise FileNotFoundError(xml_path)
+    if not Path(weather_path).exists():
+        raise FileNotFoundError(weather_path)
+    if not Path(schedule_path).exists():
+        raise FileNotFoundError(schedule_path)
+
+    # Create base house arguments (will be updated for each month)
+    output_path = str(current_dir / "outputs")
+
+    house_args = {
+        # Timing parameters (will be updated per month)
+        "start_time": datetime(2018, 1, 1, 0, 0),
+        "time_res": timedelta(minutes=15),
+        "duration": timedelta(days=31),
+        "initialization_time": timedelta(days=1),
+        # Output settings
+        "save_results": True,
+        "verbosity": 9,
+        "metrics_verbosity": 7,
+        "output_path": output_path,
+        # Input file settings
+        "hpxml_file": xml_path,
+        "hpxml_schedule_file": schedule_path,
+        "weather_file": weather_path,
+    }
 
     # Run annual simulation with house args
     monthly_results = simulate_annual_cycle(params, house_args)
@@ -600,8 +550,7 @@ if __name__ == "__main__":
     print("\n=== Full Simulation Test ===")
     try:
         # Load real data and run simulation
-        TOU_PARAMS = TOUParameters()
-        monthly_results, annual_metrics = run_full_simulation(TOU_PARAMS, HOUSE_ARGS)
+        monthly_results, annual_metrics = run_full_simulation()
 
         print("Simulation completed")
         print(f"Simulation completed for {len(monthly_results)} months")
