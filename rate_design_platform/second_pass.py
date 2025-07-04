@@ -8,12 +8,12 @@ to time-of-use (TOU) electricity rates in residential building simulations.
 import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
 from ochre import Dwelling  # type: ignore[import-untyped]
+from ochre.utils import default_input_path
 
 # Define constants
 seconds_per_hour = 3600
@@ -25,14 +25,12 @@ hours_per_day = 24
 class TOUParameters:
     """TOU rate structure and simulation parameters"""
 
-    r_on: float = 0.28  # $/kWh - peak rate
+    r_on: float = 0.48  # $/kWh - peak rate
     r_off: float = 0.12  # $/kWh - off-peak rate
-    c_switch: float = 35.0  # $ - switching cost
+    c_switch: float = 3.0  # $ - switching cost
     alpha: float = 0.15  # $/kWh - comfort penalty factor
-    cop: float = 3.0  # heat pump coefficient of performance
-
-    # Peak hours: 2 PM to 8 PM (14:00 to 20:00)
-    peak_start_hour: int = 14
+    # Peak hours: 12 PM to 8 PM (12:00 to 20:00)
+    peak_start_hour: int = 12
     peak_end_hour: int = 20
 
 
@@ -67,56 +65,6 @@ class SimulationResults(NamedTuple):
     E_mt: np.ndarray  # Electricity consumption [kWh]
     T_tank_mt: np.ndarray  # Tank temperature [°C]
     D_unmet_mt: np.ndarray  # Electrical unmet demand [kWh] (operational power deficit)
-
-
-# Input/Output file paths
-bldg_id = 72
-upgrade_id = 0
-weather_station = "G3400270"
-
-base_path = os.path.abspath(os.path.join(os.path.dirname(__file__)))
-input_path = os.path.join(base_path, "inputs")
-output_path = os.path.join(base_path, "outputs")
-xml_path = os.path.join(input_path, f"bldg{bldg_id:07d}-up{upgrade_id:02d}.xml")
-weather_path = os.path.join(input_path, f"{weather_station}.epw")
-schedule_path = os.path.join(input_path, f"bldg{bldg_id:07d}-up{upgrade_id:02d}_schedule.csv")
-
-# Check that files exist before proceeding
-if not Path(xml_path).exists():
-    raise FileNotFoundError(xml_path)
-if not Path(weather_path).exists():
-    raise FileNotFoundError(weather_path)
-if not Path(schedule_path).exists():
-    raise FileNotFoundError(schedule_path)
-
-# Simulation parameters
-year = 2018
-month = 1
-start_date = 1
-start_time = datetime(year, month, start_date, 0, 0)  # (Year, Month, Day, Hour, Min)
-duration = timedelta(days=61)
-time_step = timedelta(minutes=15)
-end_time = start_time + duration
-sim_times = pd.date_range(start=start_time, end=end_time, freq=time_step)[:-1]
-initialization_time = timedelta(days=1)
-
-HOUSE_ARGS = {
-    # Timing parameters (will be updated per month)
-    "start_time": start_time,
-    "end_time": end_time,
-    "time_res": time_step,
-    "duration": duration,
-    "initialization_time": initialization_time,
-    # Output settings
-    "save_results": True,
-    "verbosity": 9,
-    "metrics_verbosity": 7,
-    "output_path": output_path,
-    # Input file settings
-    "hpxml_file": xml_path,
-    "hpxml_schedule_file": schedule_path,
-    "weather_file": weather_path,
-}
 
 
 def calculate_monthly_intervals(start_time: datetime, end_time: datetime, time_step: timedelta) -> list[int]:
@@ -413,6 +361,7 @@ def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
     num_intervals = len(operation_schedule)
     # Get water heater equipment
     water_heater = dwelling.get_equipment_by_end_use("Water Heating")
+    print(f"Water heater: {water_heater.name}")
     if water_heater is None:
         msg = "No water heating equipment found in dwelling"
         raise ValueError(msg)
@@ -427,7 +376,7 @@ def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
             break
 
         # Set control signal based on operation schedule
-        if operation_schedule[interval_idx] == 0:
+        if not operation_schedule[interval_idx]:
             # Peak hour restriction - force water heater off
             control_signal = {"Water Heating": {"Load Fraction": 0}}
         else:
@@ -475,7 +424,7 @@ def human_controller(
             return "stay"
     else:
         realized_savings = default_bill - tou_bill
-        net_savings = realized_savings - TOU_params.c_switch - tou_comfort_penalty
+        net_savings = realized_savings - tou_comfort_penalty
         if net_savings < 0:
             return "switch"
         else:
@@ -502,6 +451,14 @@ def simulate_full_cycle(
     if house_args is None:
         house_args = HOUSE_ARGS
 
+    # Create separate output directories for each simulation type
+    simulation_output_path = os.path.join(base_path, "outputs", f"{simulation_type}_simulation")
+
+    # Create the directory if it doesn't exist
+    os.makedirs(simulation_output_path, exist_ok=True)
+
+    # Update house_args with the new output path
+    house_args.update({"output_path": simulation_output_path})
     dwelling = Dwelling(**house_args)
 
     start_time = house_args["start_time"]
@@ -547,7 +504,8 @@ def evaluate_human_decision(
     human_decisions = []
     states = []
     current_state = initial_state
-
+    print(f"default_monthly_bill: {default_monthly_bill}")
+    print(f"tou_monthly_bill: {tou_monthly_bill}")
     for i in range(len(default_monthly_bill)):
         states.append(current_state)
         current_decision = human_controller(
@@ -665,7 +623,7 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
         TOU_params = TOUParameters()
 
     # Run default annual simulation with house args
-    default_monthly_bill, default_monthly_comfort_penalty = simulate_full_cycle("tou", TOU_params, house_args)
+    default_monthly_bill, default_monthly_comfort_penalty = simulate_full_cycle("default", TOU_params, house_args)
     tou_monthly_bill, tou_monthly_comfort_penalty = simulate_full_cycle("tou", TOU_params, house_args)
 
     # Evaluate human decisions
@@ -699,6 +657,56 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
 
 if __name__ == "__main__":
     # Test full simulation with sample data
+
+    # # Input/Output file paths
+    # bldg_id = 72
+    # upgrade_id = 0
+    # weather_station = "G3400270"
+
+    base_path = os.path.abspath(os.path.join(os.path.dirname(__file__)))
+    # input_path = os.path.join(base_path, "inputs")
+    output_path = os.path.join(base_path, "outputs")
+    # xml_path = os.path.join(input_path, f"bldg{bldg_id:07d}-up{upgrade_id:02d}.xml")
+    # weather_path = os.path.join(input_path, f"{weather_station}.epw")
+    # schedule_path = os.path.join(input_path, f"bldg{bldg_id:07d}-up{upgrade_id:02d}_schedule.csv")
+
+    # # Check that files exist before proceeding
+    # if not Path(xml_path).exists():
+    #     raise FileNotFoundError(xml_path)
+    # if not Path(weather_path).exists():
+    #     raise FileNotFoundError(weather_path)
+    # if not Path(schedule_path).exists():
+    #     raise FileNotFoundError(schedule_path)
+
+    # Simulation parameters
+    year = 2018
+    month = 1
+    start_date = 1
+    start_time = datetime(year, month, start_date, 0, 0)  # (Year, Month, Day, Hour, Min)
+    duration = timedelta(days=365)
+    time_step = timedelta(minutes=15)
+    end_time = start_time + duration
+    sim_times = pd.date_range(start=start_time, end=end_time, freq=time_step)[:-1]
+    initialization_time = timedelta(days=1)
+
+    HOUSE_ARGS = {
+        # Timing parameters (will be updated per month)
+        "start_time": start_time,
+        "end_time": end_time,
+        "time_res": time_step,
+        "duration": duration,
+        "initialization_time": initialization_time,
+        # Output settings
+        "save_results": True,
+        "verbosity": 9,
+        "metrics_verbosity": 7,
+        "output_path": output_path,
+        # Input file settings
+        "hpxml_file": os.path.join(default_input_path, "Input Files", "bldg0112631-up11.xml"),
+        "hpxml_schedule_file": os.path.join(default_input_path, "Input Files", "bldg0112631_schedule.csv"),
+        "weather_file": os.path.join(default_input_path, "Weather", "USA_CO_Denver.Intl.AP.725650_TMY3.epw"),
+    }
+
     print("\n=== Full Simulation Test ===")
     try:
         # Load real data and run simulation
@@ -727,4 +735,3 @@ if __name__ == "__main__":
 
     except Exception as e:
         print(f"Simulation failed: {e}")
-        print("This is expected if input files are not available or properly formatted")
