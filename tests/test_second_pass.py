@@ -110,8 +110,8 @@ def test_calculate_monthly_bill():
     monthly_bills = calculate_monthly_bill(sim_results, rates)
 
     assert len(monthly_bills) == 2
-    assert monthly_bills[0] == 0.5 * 96 * 0.12  # First month
-    assert monthly_bills[1] == 0.6 * 96 * 0.28  # Second month
+    assert abs(monthly_bills[0] - 0.5 * 96 * 0.12) < 1e-6  # First month
+    assert abs(monthly_bills[1] - 0.6 * 96 * 0.28) < 1e-6  # Second month
 
 
 def test_calculate_monthly_comfort_penalty(sample_tou_params):
