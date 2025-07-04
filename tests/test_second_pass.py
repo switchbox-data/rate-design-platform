@@ -84,7 +84,7 @@ def test_calculate_monthly_intervals(sample_house_args):
     assert intervals[0] == 31 * 96  # January: 31 days * 96 intervals/day
     assert intervals[1] == 28 * 96  # February: 28 days * 96 intervals/day
 
-    # Test edge case: single day
+    # Test  case: single day
     start_day = datetime(2018, 1, 1, 0, 0)
     end_day = datetime(2018, 1, 2, 0, 0)
     single_day_intervals = calculate_monthly_intervals(start_day, end_day, time_step)
@@ -160,6 +160,17 @@ def test_define_peak_hours(sample_tou_params):
     assert not peak_hours[0]  # Midnight
     assert not peak_hours[55]  # 13:45
 
+    # Test  case: different time step
+    time_step_30min = timedelta(minutes=30)
+    peak_hours_30 = define_peak_hours(sample_tou_params, time_step_30min)
+    assert len(peak_hours_30) == 48  # 24 hours * 2 intervals/hour
+    assert np.sum(peak_hours_30) == 12  # 6 hours * 2 intervals/hour
+
+    # Test  case: None params
+    peak_hours_none = define_peak_hours(None, time_step)
+    assert len(peak_hours_none) == 96
+    assert np.sum(peak_hours_none) == 24  # Should use default parameters
+
 
 def test_create_operation_schedule(sample_tou_params):
     """Test create_operation_schedule function"""
@@ -195,6 +206,16 @@ def test_create_tou_rates(sample_timesteps, sample_tou_params):
         peak_count = np.sum(month_rates == 0.28)
         offpeak_count = np.sum(month_rates == 0.12)
         assert peak_count + offpeak_count == len(month_rates)
+
+    # Test  case: single day
+    single_day_times = pd.date_range(start=datetime(2018, 1, 1), periods=96, freq=timedelta(minutes=15))
+    single_rates = create_tou_rates(single_day_times, time_step, sample_tou_params)
+    assert len(single_rates) == 1
+    assert len(single_rates[0]) == 96
+
+    # Test  case: None params
+    rates_none = create_tou_rates(sample_timesteps, time_step, None)
+    assert len(rates_none) == 2  # Should use default parameters
 
 
 def test_extract_ochre_results():
@@ -244,6 +265,18 @@ def test_human_controller(sample_tou_params):
     # Test from TOU state with excellent realized savings
     decision = human_controller("tou", 100.0, 50.0, 5.0, sample_tou_params)
     assert decision == "stay"  # Should stay because net savings positive (50 - 35 - 5 = 10)
+
+    # Test  case: exactly break-even from default
+    decision = human_controller("default", 100.0, 65.0, 5.0, sample_tou_params)
+    assert decision == "stay"  # Net savings = 35 - 35 = 0, not > 0, so stay
+
+    # Test  case: exactly break-even from TOU
+    decision = human_controller("tou", 100.0, 60.0, 5.0, sample_tou_params)
+    assert decision == "stay"  # Net savings = 40 - 35 - 5 = 0, not < 0, so stay on TOU
+
+    # Test  case: zero comfort penalty
+    decision = human_controller("tou", 100.0, 50.0, 0.0, sample_tou_params)
+    assert decision == "stay"  # Net savings = 50 - 35 - 0 = 15 > 0
 
 
 def test_simulate_full_cycle(sample_house_args, sample_tou_params):
@@ -345,6 +378,16 @@ def test_calculate_monthly_metrics():
     assert results[1].comfort_penalty == 6.0  # Uses TOU penalty
     assert results[1].realized_savings == 20.0  # 110 - 90
     assert results[1].unrealized_savings == 0  # No unrealized savings on TOU
+
+    # Test  case: empty inputs
+    empty_results = calculate_monthly_metrics([], [], [], [], [], [], [])
+    assert len(empty_results) == 0
+
+    # Test  case: single month
+    single_results = calculate_monthly_metrics([(2018, 3)], ["stay"], ["default"], [120.0], [95.0], [1.0], [4.0])
+    assert len(single_results) == 1
+    assert single_results[0].month == 3
+    assert single_results[0].unrealized_savings == 25.0  # 120 - 95
 
 
 def test_calculate_annual_metrics():

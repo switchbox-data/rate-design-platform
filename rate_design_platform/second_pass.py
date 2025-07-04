@@ -476,10 +476,10 @@ def human_controller(
     else:
         realized_savings = default_bill - tou_bill
         net_savings = realized_savings - TOU_params.c_switch - tou_comfort_penalty
-        if net_savings > 0:
-            return "stay"
-        else:
+        if net_savings < 0:
             return "switch"
+        else:
+            return "stay"
 
 
 def simulate_full_cycle(
