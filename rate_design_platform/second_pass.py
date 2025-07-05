@@ -8,12 +8,12 @@ to time-of-use (TOU) electricity rates in residential building simulations.
 import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
 from ochre import Dwelling  # type: ignore[import-untyped]
-from ochre.utils import default_input_path
 
 # Define constants
 seconds_per_hour = 3600
@@ -361,7 +361,6 @@ def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
     num_intervals = len(operation_schedule)
     # Get water heater equipment
     water_heater = dwelling.get_equipment_by_end_use("Water Heating")
-    print(f"Water heater: {water_heater.name}")
     if water_heater is None:
         msg = "No water heating equipment found in dwelling"
         raise ValueError(msg)
@@ -459,6 +458,7 @@ def simulate_full_cycle(
 
     # Update house_args with the new output path
     house_args.update({"output_path": simulation_output_path})
+    house_args.update({"name": house_args["name"] + f"_{simulation_type}"})
     dwelling = Dwelling(**house_args)
 
     start_time = house_args["start_time"]
@@ -658,38 +658,40 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
 if __name__ == "__main__":
     # Test full simulation with sample data
 
-    # # Input/Output file paths
-    # bldg_id = 72
-    # upgrade_id = 0
-    # weather_station = "G3400270"
+    # Input/Output file paths
+    bldg_id = 72
+    upgrade_id = 3
+    weather_station = "G3400270"
+    name = f"bldg{bldg_id:07d}-up{upgrade_id:02d}"
 
     base_path = os.path.abspath(os.path.join(os.path.dirname(__file__)))
-    # input_path = os.path.join(base_path, "inputs")
+    input_path = os.path.join(base_path, "inputs")
     output_path = os.path.join(base_path, "outputs")
-    # xml_path = os.path.join(input_path, f"bldg{bldg_id:07d}-up{upgrade_id:02d}.xml")
-    # weather_path = os.path.join(input_path, f"{weather_station}.epw")
-    # schedule_path = os.path.join(input_path, f"bldg{bldg_id:07d}-up{upgrade_id:02d}_schedule.csv")
+    xml_path = os.path.join(input_path, f"{name}.xml")
+    weather_path = os.path.join(input_path, f"{weather_station}.epw")
+    schedule_path = os.path.join(input_path, f"{name}_schedule.csv")
 
-    # # Check that files exist before proceeding
-    # if not Path(xml_path).exists():
-    #     raise FileNotFoundError(xml_path)
-    # if not Path(weather_path).exists():
-    #     raise FileNotFoundError(weather_path)
-    # if not Path(schedule_path).exists():
-    #     raise FileNotFoundError(schedule_path)
+    # Check that files exist before proceeding
+    if not Path(xml_path).exists():
+        raise FileNotFoundError(xml_path)
+    if not Path(weather_path).exists():
+        raise FileNotFoundError(weather_path)
+    if not Path(schedule_path).exists():
+        raise FileNotFoundError(schedule_path)
 
     # Simulation parameters
     year = 2018
     month = 1
     start_date = 1
     start_time = datetime(year, month, start_date, 0, 0)  # (Year, Month, Day, Hour, Min)
-    duration = timedelta(days=365)
+    duration = timedelta(days=90)
     time_step = timedelta(minutes=15)
     end_time = start_time + duration
     sim_times = pd.date_range(start=start_time, end=end_time, freq=time_step)[:-1]
     initialization_time = timedelta(days=1)
 
     HOUSE_ARGS = {
+        "name": name,
         # Timing parameters (will be updated per month)
         "start_time": start_time,
         "end_time": end_time,
@@ -702,9 +704,9 @@ if __name__ == "__main__":
         "metrics_verbosity": 7,
         "output_path": output_path,
         # Input file settings
-        "hpxml_file": os.path.join(default_input_path, "Input Files", "bldg0112631-up11.xml"),
-        "hpxml_schedule_file": os.path.join(default_input_path, "Input Files", "bldg0112631_schedule.csv"),
-        "weather_file": os.path.join(default_input_path, "Weather", "USA_CO_Denver.Intl.AP.725650_TMY3.epw"),
+        "hpxml_file": xml_path,
+        "hpxml_schedule_file": schedule_path,
+        "weather_file": weather_path,
     }
 
     print("\n=== Full Simulation Test ===")

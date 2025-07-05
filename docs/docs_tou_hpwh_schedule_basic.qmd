@@ -415,13 +415,86 @@ $$
 
 The model should reflect that consumers make switching decisions based on rough mental calculations and significant uncertainty about both benefits and comfort impacts, not sophisticated building physics simulations.
 
-# 5. References
-This section lists references and resources for further information and context regarding the model and its implementation.
+# Examples
 
-- [OCHRE Inputs and Arguments](https://github.com/NREL/OCHRE/blob/main/docs/source/InputsAndArguments.rst)
+```{python}
+#| label: plot-water-heating-comparison
+#| echo: false
+#| fig-cap: "Water Heating Electric Power Comparison: Default vs TOU Schedule"
 
-- [OCHRE Outputs](https://github.com/NREL/OCHRE/blob/main/docs/source/Outputs.rst)
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from pathlib import Path
 
-- [OCHRE Water Model](https://github.com/NREL/OCHRE/blob/main/ochre/Models/Water.py)
+# File paths - use absolute path from workspace root
+import os
+base_path = Path("/workspaces/rate-design-platform/rate_design_platform")
+default_file = base_path / "outputs" / "default_simulation" / "bldg0000072-up03_default.csv"
+tou_file = base_path / "outputs" / "tou_simulation" / "bldg0000072-up03_default_tou.csv"
 
-- [HPWH Control Logic](https://github.com/NREL/OCHRE/blob/main/ochre/Equipment/WaterHeater.py)
+# Alternative: try relative path from current directory
+if not default_file.exists():
+    base_path = Path("rate_design_platform")
+    default_file = base_path / "outputs" / "default_simulation" / "bldg0000072-up03_default.csv"
+    tou_file = base_path / "outputs" / "tou_simulation" / "bldg0000072-up03_default_tou.csv"
+
+# Check if files exist
+if not default_file.exists():
+    raise FileNotFoundError(f"Default simulation file not found: {default_file}")
+if not tou_file.exists():
+    raise FileNotFoundError(f"TOU simulation file not found: {tou_file}")
+
+# Load data
+default_df = pd.read_csv(default_file, parse_dates=['Time'])
+tou_df = pd.read_csv(tou_file, parse_dates=['Time'])
+
+# Extract water heating power data
+default_power = default_df['Water Heating Electric Power (kW)']
+tou_power = tou_df['Water Heating Electric Power (kW)']
+time_index = default_df['Time']
+
+# Limit to first 7 days (or less if data is shorter)
+seven_days = pd.Timedelta(days=7)
+end_time = time_index.min() + seven_days
+max_time = min(end_time, time_index.max())
+
+# Filter data to first 7 days
+mask = time_index <= max_time
+default_power_7d = default_power[mask]
+tou_power_7d = tou_power[mask]
+time_index_7d = time_index[mask]
+
+# Create the plot
+plt.figure(figsize=(15, 8))
+
+# Plot both datasets (7-day subset)
+plt.plot(time_index_7d, default_power_7d, label='Default Schedule', alpha=0.7, linewidth=1)
+plt.plot(time_index_7d, tou_power_7d, label='TOU Schedule', alpha=0.7, linewidth=1)
+
+# Customize the plot
+plt.xlabel('Time')
+plt.ylabel('Water Heating Electric Power (kW)')
+plt.title('Water Heating Electric Power Comparison: Default vs TOU Schedule')
+plt.legend()
+plt.grid(True, alpha=0.3)
+
+# Format x-axis to show dates nicely
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=7))  # Show every 7 days
+plt.gcf().autofmt_xdate()  # Rotate and align the tick labels
+
+# Add some statistics (7-day subset)
+default_mean = default_power_7d.mean()
+tou_mean = tou_power_7d.mean()
+default_max = default_power_7d.max()
+tou_max = tou_power_7d.max()
+
+stats_text = f'Default Mean: {default_mean:.3f} kW\nTOU Mean: {tou_mean:.3f} kW\n'
+stats_text += f'Default Max: {default_max:.3f} kW\nTOU Max: {tou_max:.3f} kW'
+
+plt.text(0.02, 0.98, stats_text, transform=plt.gca().transAxes,
+         verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+
+plt.tight_layout()
+```
