@@ -584,3 +584,6 @@ Schedule](docs_tou_hpwh_schedule_basic_files/figure-commonmark/plot-water-heatin
 
 ![Hot Water Outlet Temperature and TOU Rates Comparison: Default vs TOU
 Schedule](docs_tou_hpwh_schedule_basic_files/figure-commonmark/plot-temperature-comparison-output-1.png)
+
+![Monthly Electricity Bills with TOU State
+Highlighting](docs_tou_hpwh_schedule_basic_files/figure-commonmark/plot-monthly-bills-output-1.png)
