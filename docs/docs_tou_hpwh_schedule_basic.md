@@ -581,3 +581,6 @@ simulations.
 
 ![Water Heating Electric Power Comparison: Default vs TOU
 Schedule](docs_tou_hpwh_schedule_basic_files/figure-commonmark/plot-water-heating-comparison-output-1.png)
+
+![Hot Water Outlet Temperature and TOU Rates Comparison: Default vs TOU
+Schedule](docs_tou_hpwh_schedule_basic_files/figure-commonmark/plot-temperature-comparison-output-1.png)

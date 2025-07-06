@@ -67,6 +67,20 @@ class SimulationResults(NamedTuple):
     D_unmet_mt: np.ndarray  # Electrical unmet demand [kWh] (operational power deficit)
 
 
+def save_monthly_results(monthly_results: list[MonthlyResults], output_path: str) -> None:
+    """Save monthly results to a CSV file"""
+    df = pd.DataFrame(monthly_results)
+    df.to_csv(output_path, index=False)
+
+
+def save_monthly_bills_and_comfort_penalties(
+    monthly_bills: list[float], monthly_comfort_penalties: list[float], output_path: str
+) -> None:
+    """Save monthly bills and comfort penalties to a CSV file"""
+    df = pd.DataFrame({"monthly_bills": monthly_bills, "monthly_comfort_penalties": monthly_comfort_penalties})
+    df.to_csv(output_path, index=False)
+
+
 def calculate_monthly_intervals(start_time: datetime, end_time: datetime, time_step: timedelta) -> list[int]:
     """
     Calculate number of time_step-long intervals in a given month
@@ -457,9 +471,10 @@ def simulate_full_cycle(
     os.makedirs(simulation_output_path, exist_ok=True)
 
     # Update house_args with the new output path
-    house_args.update({"output_path": simulation_output_path})
-    house_args.update({"name": house_args["name"] + f"_{simulation_type}"})
-    dwelling = Dwelling(**house_args)
+    house_args_copy = house_args.copy()
+    house_args_copy.update({"output_path": simulation_output_path})
+    house_args_copy.update({"name": house_args["name"] + f"_{simulation_type}"})
+    dwelling = Dwelling(**house_args_copy)
 
     start_time = house_args["start_time"]
     end_time = house_args["end_time"]
@@ -478,6 +493,11 @@ def simulate_full_cycle(
     monthly_bill = calculate_monthly_bill(simulation_results, monthly_rates)
     monthly_comfort_penalty = calculate_monthly_comfort_penalty(simulation_results, TOU_params)
 
+    save_monthly_bills_and_comfort_penalties(
+        monthly_bill,
+        monthly_comfort_penalty,
+        os.path.join(simulation_output_path, f"{simulation_type}_monthly_bills_and_comfort_penalties.csv"),
+    )
     return monthly_bill, monthly_comfort_penalty
 
 
@@ -684,7 +704,7 @@ if __name__ == "__main__":
     month = 1
     start_date = 1
     start_time = datetime(year, month, start_date, 0, 0)  # (Year, Month, Day, Hour, Min)
-    duration = timedelta(days=90)
+    duration = timedelta(days=365)
     time_step = timedelta(minutes=15)
     end_time = start_time + duration
     sim_times = pd.date_range(start=start_time, end=end_time, freq=time_step)[:-1]
@@ -714,6 +734,7 @@ if __name__ == "__main__":
         # Load real data and run simulation
         TOU_PARAMS = TOUParameters()
         monthly_results, annual_metrics = run_full_simulation(TOU_PARAMS, HOUSE_ARGS)
+        save_monthly_results(monthly_results, os.path.join(output_path, f"{name}_monthly_results.csv"))
 
         print("Simulation completed")
         print(f"Simulation completed for {len(monthly_results)} months")

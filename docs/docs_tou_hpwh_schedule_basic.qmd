@@ -465,36 +465,102 @@ default_power_7d = default_power[mask]
 tou_power_7d = tou_power[mask]
 time_index_7d = time_index[mask]
 
-# Create the plot
-plt.figure(figsize=(15, 8))
+# Create the plot with two y-axes
+fig, ax1 = plt.subplots(figsize=(15, 8))
 
-# Plot both datasets (7-day subset)
-plt.plot(time_index_7d, default_power_7d, label='Default Schedule', alpha=0.7, linewidth=1)
-plt.plot(time_index_7d, tou_power_7d, label='TOU Schedule', alpha=0.7, linewidth=1)
-
-# Customize the plot
-plt.xlabel('Time')
-plt.ylabel('Water Heating Electric Power (kW)')
-plt.title('Water Heating Electric Power Comparison: Default vs TOU Schedule')
-plt.legend()
-plt.grid(True, alpha=0.3)
+# Plot power data on primary y-axis (left)
+ax1.plot(time_index_7d, default_power_7d, label='Default Schedule', alpha=0.7, linewidth=2.5, color='blue')
+ax1.plot(time_index_7d, tou_power_7d, label='TOU Schedule', alpha=0.7, linewidth=2.5, color='orange')
+ax1.set_xlabel('Time', fontsize=16)
+ax1.set_ylabel('Water Heating Electric Power (kW)', color='black', fontsize=16)
+ax1.tick_params(axis='y', labelcolor='black')
+ax1.grid(True, alpha=0.3)
 
 # Format x-axis to show dates nicely
-plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=7))  # Show every 7 days
-plt.gcf().autofmt_xdate()  # Rotate and align the tick labels
+ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+ax1.xaxis.set_major_locator(mdates.DayLocator(interval=1))  # Show every day
+ax1.tick_params(axis='x', labelsize=14)  # Set x-axis tick fontsize
+fig.autofmt_xdate()  # Rotate and align the tick labels
 
-# Add some statistics (7-day subset)
-default_mean = default_power_7d.mean()
-tou_mean = tou_power_7d.mean()
-default_max = default_power_7d.max()
-tou_max = tou_power_7d.max()
+# Create secondary y-axis for TOU rates
+ax2 = ax1.twinx()
 
-stats_text = f'Default Mean: {default_mean:.3f} kW\nTOU Mean: {tou_mean:.3f} kW\n'
-stats_text += f'Default Max: {default_max:.3f} kW\nTOU Max: {tou_max:.3f} kW'
+# Extract water heating mode data and convert to TOU rates
+tou_mode = tou_df['Water Heating Mode'][mask]  # Use same mask for 7-day subset
+tou_rates = (tou_mode == 'Upper On').astype(float)  # 1 for "Upper On", 0 for "Off"
+tou_rates = tou_rates * 0.48 + (1 - tou_rates) * 0.12  # Convert to actual rates: 0.48 for "Upper On", 0.12 for "Off"
 
-plt.text(0.02, 0.98, stats_text, transform=plt.gca().transAxes,
-         verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+# Plot TOU rates data on secondary y-axis (right)
+ax2.plot(time_index_7d, tou_rates, label='TOU Rates ($/kWh)',
+         alpha=0.5, linewidth=2.5, color='green', linestyle='--')
+ax2.set_ylabel('TOU Rates ($/kWh)', color='green', fontsize=16)
+ax2.tick_params(axis='y', labelcolor='green')
+ax2.set_ylim(0.05, 0.55)  # Set y-axis limits for rate data
+
+# Add legends
+lines1, labels1 = ax1.get_legend_handles_labels()
+lines2, labels2 = ax2.get_legend_handles_labels()
+ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=16)
+
+plt.title('Water Heating Electric Power and TOU Rates Comparison: Default vs TOU Schedule', fontsize=20)
+
+plt.tight_layout()
+```
+
+```{python}
+#| label: plot-temperature-comparison
+#| echo: false
+#| fig-cap: "Hot Water Outlet Temperature and TOU Rates Comparison: Default vs TOU Schedule"
+
+# Create second plot for hot water outlet temperature
+fig2, ax3 = plt.subplots(figsize=(15, 8))
+
+# Extract hot water outlet temperature data
+default_temp = default_df['Hot Water Outlet Temperature (C)']
+tou_temp = tou_df['Hot Water Outlet Temperature (C)']
+
+# Extract deadband limits (using TOU data for consistency)
+deadband_upper = tou_df['Water Heating Deadband Upper Limit (C)']
+deadband_lower = tou_df['Water Heating Deadband Lower Limit (C)']
+
+# Filter data to first 7 days
+default_temp_7d = default_temp[mask]
+tou_temp_7d = tou_temp[mask]
+deadband_upper_7d = deadband_upper[mask]
+deadband_lower_7d = deadband_lower[mask]
+
+# Plot temperature data on primary y-axis (left)
+ax3.plot(time_index_7d, default_temp_7d, label='Default Schedule', alpha=0.7, linewidth=2.5, color='blue')
+ax3.plot(time_index_7d, tou_temp_7d, label='TOU Schedule', alpha=0.7, linewidth=2.5, color='orange')
+ax3.plot(time_index_7d, deadband_upper_7d, label='Deadband Upper Limit', alpha=0.5, linewidth=2.5, color='red')
+ax3.plot(time_index_7d, deadband_lower_7d, label='Deadband Lower Limit', alpha=0.5, linewidth=2.5, color='red')
+ax3.set_xlabel('Time', fontsize=16)
+ax3.set_ylabel('Hot Water Outlet Temperature (°C)', color='black', fontsize=16)
+ax3.tick_params(axis='y', labelcolor='black')
+ax3.grid(True, alpha=0.3)
+
+# Format x-axis to show dates nicely
+ax3.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+ax3.xaxis.set_major_locator(mdates.DayLocator(interval=1))  # Show every day
+ax3.tick_params(axis='x', labelsize=14)  # Set x-axis tick fontsize
+fig2.autofmt_xdate()  # Rotate and align the tick labels
+
+# Create secondary y-axis for TOU rates (same as first plot)
+ax4 = ax3.twinx()
+
+# Plot TOU rates data on secondary y-axis (right) - same data as first plot
+ax4.plot(time_index_7d, tou_rates, label='TOU Rates ($/kWh)',
+         alpha=0.5, linewidth=2, color='green', linestyle='--')
+ax4.set_ylabel('TOU Rates ($/kWh)', color='green', fontsize=16)
+ax4.tick_params(axis='y', labelcolor='green')
+ax4.set_ylim(0.05, 0.55)  # Set y-axis limits for rate data
+
+# Add legends
+lines3, labels3 = ax3.get_legend_handles_labels()
+lines4, labels4 = ax4.get_legend_handles_labels()
+ax3.legend(lines3 + lines4, labels3 + labels4, loc='upper right', fontsize=16)
+
+plt.title('Hot Water Outlet Temperature and TOU Rates Comparison: Default vs TOU Schedule', fontsize=20)
 
 plt.tight_layout()
 ```
