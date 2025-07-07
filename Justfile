@@ -1,3 +1,10 @@
+# =============================================================================
+# ⭐ DEFAULT
+# =============================================================================
+# If you run `just` you should get the options available, not a full install of the package
+
+default:
+    @just --list
 
 # =============================================================================
 # 🔍 CODE QUALITY & TESTING
@@ -66,3 +73,4 @@ install:
     echo "🚀 Creating virtual environment using uv"
     uv sync
     uv run pre-commit install
+
