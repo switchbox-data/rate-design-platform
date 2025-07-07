@@ -354,6 +354,45 @@ def plot_monthly_bills(
     return fig
 
 
+def load_monthly_results(building_id: str, base_path: Optional[Path] = None) -> pd.DataFrame:
+    """
+    Load monthly results CSV file as a DataFrame.
+
+    Parameters
+    ----------
+    building_id : str
+        Building ID to load (e.g., "bldg0000072-up03")
+    base_path : Path, optional
+        Base path to the rate_design_platform directory. If None, uses current directory.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing monthly results with columns:
+        - year, month, current_state, bill, comfort_penalty, switching_decision,
+          realized_savings, unrealized_savings
+    """
+    if base_path is None:
+        base_path = Path(".")
+
+    # Construct file path
+    monthly_results_file = base_path / "outputs" / f"{building_id}_monthly_results.csv"
+
+    # Check if file exists
+    if not monthly_results_file.exists():
+        msg = f"Monthly results file not found: {monthly_results_file}"
+        raise FileNotFoundError(msg)
+
+    # Load and return the DataFrame
+    df = pd.read_csv(monthly_results_file)
+
+    # Add some helpful derived columns
+    df["month_year"] = df["year"].astype(str) + "-" + df["month"].astype(str).str.zfill(2)
+    df["total_cost"] = df["bill"] + df["comfort_penalty"]
+
+    return df
+
+
 def plot_all_comparisons(
     building_id: str, base_path: Optional[Path] = None, days: int = 7, figsize: tuple[int, int] = (15, 8)
 ) -> tuple[plt.Figure, plt.Figure, plt.Figure]:
