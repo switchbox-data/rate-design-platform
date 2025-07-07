@@ -13,7 +13,7 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 from ochre import Dwelling  # type: ignore[import-untyped]
-from ochre.utils import default_input_path
+from ochre.utils import default_input_path  # type: ignore[import-untyped]
 
 # Define constants
 seconds_per_hour = 3600
