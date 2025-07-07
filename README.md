@@ -22,6 +22,11 @@ To simplify development, this library uses [devcontainers](https://containers.de
 Available commands are defined in [Justfile](Justile). To view available them:
 
 ```bash
+just
+```
+
+or 
+```bash
 just --list
 ```
 
