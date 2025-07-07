@@ -73,4 +73,3 @@ install:
     echo "🚀 Creating virtual environment using uv"
     uv sync
     uv run pre-commit install
-
