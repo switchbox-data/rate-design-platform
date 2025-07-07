@@ -452,6 +452,7 @@ def simulate_full_cycle(
         house_args = HOUSE_ARGS
 
     # Create separate output directories for each simulation type
+    base_path = os.path.abspath(os.path.join(os.path.dirname(__file__)))
     simulation_output_path = os.path.join(base_path, "outputs", f"{simulation_type}_simulation")
 
     # Create the directory if it doesn't exist
