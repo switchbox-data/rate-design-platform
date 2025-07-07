@@ -488,7 +488,7 @@ ax2 = ax1.twinx()
 # Extract water heating mode data and convert to TOU rates
 tou_mode = tou_df['Water Heating Mode'][mask]  # Use same mask for 7-day subset
 tou_rates = (tou_mode == 'Upper On').astype(float)  # 1 for "Upper On", 0 for "Off"
-tou_rates = tou_rates * 0.48 + (1 - tou_rates) * 0.12  # Convert to actual rates: 0.48 for "Upper On", 0.12 for "Off"
+tou_rates = tou_rates * 0.12 + (1 - tou_rates) * 0.48  # Convert to actual rates: 0.12 for "Upper On", 0.48 for "Off"
 
 # Plot TOU rates data on secondary y-axis (right)
 ax2.plot(time_index_7d, tou_rates, label='TOU Rates ($/kWh)',
