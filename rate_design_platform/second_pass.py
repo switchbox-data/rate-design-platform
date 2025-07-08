@@ -361,6 +361,7 @@ def extract_ochre_results(df: pd.DataFrame, time_step: timedelta) -> SimulationR
 def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
     dwelling: Dwelling,
     operation_schedule: np.ndarray,
+    time_step: timedelta,
 ) -> SimulationResults:
     """
     Run OCHRE simulation with dynamic HPWH control based on operation schedule
@@ -368,6 +369,7 @@ def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
     Args:
         dwelling: OCHRE dwelling object
         operation_schedule: Boolean array (True=allowed, False=restricted) for each interval
+        time_step: Time step of the simulation
 
     Returns:
         SimulationResults with electricity consumption, tank temps, and unmet demand
@@ -487,7 +489,7 @@ def simulate_full_cycle(
     else:
         operation_schedule = create_operation_schedule("tou", monthly_intervals, TOU_params, time_step)
 
-    simulation_results = run_ochre_hpwh_dynamic_control(dwelling, operation_schedule)
+    simulation_results = run_ochre_hpwh_dynamic_control(dwelling, operation_schedule, time_step)
 
     monthly_rates = create_tou_rates(simulation_results.Time, time_step, TOU_params)
 
