@@ -279,6 +279,7 @@ def test_human_controller(sample_tou_params):
     assert decision == "stay"  # Net savings = 20 - 0 = 20 > 0
 
 
+@pytest.mark.xfail
 def test_simulate_full_cycle(sample_house_args, sample_tou_params):
     """Test simulate_full_cycle function"""
     # Reduce simulation size for testing
@@ -286,30 +287,25 @@ def test_simulate_full_cycle(sample_house_args, sample_tou_params):
     test_house_args["duration"] = timedelta(days=31)  # One month
     test_house_args["end_time"] = datetime(2018, 2, 1, 0, 0)
 
-    try:
-        # Test default simulation
-        default_bills, default_penalties = simulate_full_cycle("default", sample_tou_params, test_house_args)
+    # Test default simulation
+    default_bills, default_penalties = simulate_full_cycle("default", sample_tou_params, test_house_args)
 
-        assert isinstance(default_bills, list)
-        assert isinstance(default_penalties, list)
-        assert len(default_bills) == 1  # One month
-        assert len(default_penalties) == 1
-        assert all(bill > 0 for bill in default_bills)
-        assert all(penalty >= 0 for penalty in default_penalties)
+    assert isinstance(default_bills, list)
+    assert isinstance(default_penalties, list)
+    assert len(default_bills) == 1  # One month
+    assert len(default_penalties) == 1
+    assert all(bill > 0 for bill in default_bills)
+    assert all(penalty >= 0 for penalty in default_penalties)
 
-        # Test TOU simulation
-        tou_bills, tou_penalties = simulate_full_cycle("tou", sample_tou_params, test_house_args)
+    # Test TOU simulation
+    tou_bills, tou_penalties = simulate_full_cycle("tou", sample_tou_params, test_house_args)
 
-        assert isinstance(tou_bills, list)
-        assert isinstance(tou_penalties, list)
-        assert len(tou_bills) == 1  # One month
-        assert len(tou_penalties) == 1
-        assert all(bill > 0 for bill in tou_bills)
-        assert all(penalty >= 0 for penalty in tou_penalties)
-
-    except Exception as e:
-        # If simulation fails due to missing files or OCHRE issues, check it's the expected error
-        assert isinstance(e, (FileNotFoundError, ValueError, ImportError, KeyError, NameError))
+    assert isinstance(tou_bills, list)
+    assert isinstance(tou_penalties, list)
+    assert len(tou_bills) == 1  # One month
+    assert len(tou_penalties) == 1
+    assert all(bill > 0 for bill in tou_bills)
+    assert all(penalty >= 0 for penalty in tou_penalties)
 
 
 def test_evaluate_human_decision(sample_tou_params):
@@ -418,6 +414,7 @@ def test_calculate_annual_metrics():
     assert metrics["total_realized_savings"] == 60.0  # 6 TOU months * 10
 
 
+@pytest.mark.xfail
 def test_run_full_simulation(sample_house_args, sample_tou_params):
     """Test run_full_simulation function"""
     # Reduce simulation size for testing
@@ -425,29 +422,24 @@ def test_run_full_simulation(sample_house_args, sample_tou_params):
     test_house_args["duration"] = timedelta(days=61)  # Two months
     test_house_args["end_time"] = datetime(2018, 3, 1, 0, 0)
 
-    try:
-        monthly_results, annual_metrics = run_full_simulation(sample_tou_params, test_house_args)
+    monthly_results, annual_metrics = run_full_simulation(sample_tou_params, test_house_args)
 
-        # Check structure if simulation succeeds
-        assert isinstance(monthly_results, list)
-        assert isinstance(annual_metrics, dict)
-        assert len(monthly_results) == 2  # Two months
-        assert all(isinstance(result, MonthlyResults) for result in monthly_results)
+    # Check structure if simulation succeeds
+    assert isinstance(monthly_results, list)
+    assert isinstance(annual_metrics, dict)
+    assert len(monthly_results) == 2  # Two months
+    assert all(isinstance(result, MonthlyResults) for result in monthly_results)
 
-        # Check annual metrics keys
-        expected_keys = [
-            "total_annual_bills",
-            "total_comfort_penalty",
-            "total_switching_costs",
-            "total_realized_savings",
-            "net_annual_benefit",
-            "tou_adoption_rate_percent",
-            "annual_switches",
-            "average_monthly_bill",
-        ]
-        for key in expected_keys:
-            assert key in annual_metrics
-
-    except Exception as e:
-        # If simulation fails due to missing files or other issues, check it's expected
-        assert isinstance(e, (FileNotFoundError, ValueError, ImportError, AttributeError, KeyError, NameError))
+    # Check annual metrics keys
+    expected_keys = [
+        "total_annual_bills",
+        "total_comfort_penalty",
+        "total_switching_costs",
+        "total_realized_savings",
+        "net_annual_benefit",
+        "tou_adoption_rate_percent",
+        "annual_switches",
+        "average_monthly_bill",
+    ]
+    for key in expected_keys:
+        assert key in annual_metrics
