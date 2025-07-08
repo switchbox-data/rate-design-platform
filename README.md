@@ -25,7 +25,7 @@ Available commands are defined in [Justfile](Justile). To view available them:
 just
 ```
 
-or 
+or
 ```bash
 just --list
 ```
