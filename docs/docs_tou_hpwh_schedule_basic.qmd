@@ -410,7 +410,7 @@ Where:
 And evaluate switching against realistic transaction costs:
 
 $$
-C^{switch} = \$5 for now
+C^{switch} = \$35 \text{ (representing 3-5 hours of consumer effort)}
 $$
 
 The model should reflect that consumers make switching decisions based on rough mental calculations and significant uncertainty about both benefits and comfort impacts, not sophisticated building physics simulations.
@@ -418,57 +418,93 @@ The model should reflect that consumers make switching decisions based on rough 
 # Examples
 
 ```{python}
-#| label: setup-plotting
-#| echo: true
-
-import sys
-from pathlib import Path
-import importlib
-
-# Add the rate_design_platform directory to the path
-sys.path.append(str(Path("../rate_design_platform").resolve()))
-import plotting
-importlib.reload(plotting)
-
-from plotting import plot_water_heating_comparison, plot_temperature_comparison, plot_monthly_bills, load_monthly_results
-
-# Configuration: Change this to analyze different buildings
-building_id = "bldg0000072-up03"  # Available options: bldg0000072-up03, bldg0000072-up00, etc.
-base_path = Path("../rate_design_platform")
-days_to_plot = 7  # Number of days to show in time series plots
-
-# Check if the building data exists
-default_file = base_path / "outputs" / "default_simulation" / f"{building_id}_default.csv"
-tou_file = base_path / "outputs" / "tou_simulation" / f"{building_id}_tou.csv"
-monthly_file = base_path / "outputs" / f"{building_id}_monthly_results.csv"
-
-print(f"Analyzing building: {building_id}")
-print(f"Default simulation file exists: {default_file.exists()}")
-print(f"TOU simulation file exists: {tou_file.exists()}")
-print(f"Monthly results file exists: {monthly_file.exists()}")
-
-if not all([default_file.exists(), tou_file.exists(), monthly_file.exists()]):
-    print("\n⚠️  Warning: Some required files are missing for this building ID.")
-    print("Available building IDs can be found in the outputs directory.")
-    # List available building IDs
-    outputs_dir = base_path / "outputs"
-    if outputs_dir.exists():
-        monthly_files = list(outputs_dir.glob("*_monthly_results.csv"))
-        if monthly_files:
-            available_ids = [f.stem.replace("_monthly_results", "") for f in monthly_files]
-            print(f"Available building IDs: {', '.join(available_ids)}")
-```
-
-```{python}
 #| label: plot-water-heating-comparison
 #| echo: false
 #| fig-cap: "Water Heating Electric Power Comparison: Default vs TOU Schedule"
 
-# Plot water heating comparison for the specified building
-if default_file.exists() and tou_file.exists():
-    fig = plot_water_heating_comparison(building_id, base_path, days=days_to_plot)
-else:
-    print(f"Cannot generate water heating comparison plot - missing data files for {building_id}")
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from pathlib import Path
+
+# File paths - use absolute path from workspace root
+import os
+base_path = Path("/workspaces/rate-design-platform/rate_design_platform")
+default_file = base_path / "outputs" / "default_simulation" / "bldg0000072-up03_default.csv"
+tou_file = base_path / "outputs" / "tou_simulation" / "bldg0000072-up03_tou.csv"
+
+# Alternative: try relative path from current directory
+if not default_file.exists():
+    base_path = Path("rate_design_platform")
+    default_file = base_path / "outputs" / "default_simulation" / "bldg0000072-up03_default.csv"
+    tou_file = base_path / "outputs" / "tou_simulation" / "bldg0000072-up03_tou.csv"
+
+# Check if files exist
+if not default_file.exists():
+    raise FileNotFoundError(f"Default simulation file not found: {default_file}")
+if not tou_file.exists():
+    raise FileNotFoundError(f"TOU simulation file not found: {tou_file}")
+
+# Load data
+default_df = pd.read_csv(default_file, parse_dates=['Time'])
+tou_df = pd.read_csv(tou_file, parse_dates=['Time'])
+
+# Extract water heating power data
+default_power = default_df['Water Heating Electric Power (kW)']
+tou_power = tou_df['Water Heating Electric Power (kW)']
+time_index = default_df['Time']
+
+# Limit to first 7 days (or less if data is shorter)
+seven_days = pd.Timedelta(days=7)
+end_time = time_index.min() + seven_days
+max_time = min(end_time, time_index.max())
+
+# Filter data to first 7 days
+mask = time_index <= max_time
+default_power_7d = default_power[mask]
+tou_power_7d = tou_power[mask]
+time_index_7d = time_index[mask]
+
+# Create the plot with two y-axes
+fig, ax1 = plt.subplots(figsize=(15, 8))
+
+# Plot power data on primary y-axis (left)
+ax1.plot(time_index_7d, default_power_7d, label='Default Schedule', alpha=0.7, linewidth=2.5, color='blue')
+ax1.plot(time_index_7d, tou_power_7d, label='TOU Schedule', alpha=0.7, linewidth=2.5, color='orange')
+ax1.set_xlabel('Time', fontsize=16)
+ax1.set_ylabel('Water Heating Electric Power (kW)', color='black', fontsize=16)
+ax1.tick_params(axis='y', labelcolor='black')
+ax1.grid(True, alpha=0.3)
+
+# Format x-axis to show dates nicely
+ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+ax1.xaxis.set_major_locator(mdates.DayLocator(interval=1))  # Show every day
+ax1.tick_params(axis='x', labelsize=14)  # Set x-axis tick fontsize
+fig.autofmt_xdate()  # Rotate and align the tick labels
+
+# Create secondary y-axis for TOU rates
+ax2 = ax1.twinx()
+
+# Extract water heating mode data and convert to TOU rates
+tou_mode = tou_df['Water Heating Mode'][mask]  # Use same mask for 7-day subset
+tou_rates = (tou_mode == 'Upper On').astype(float)  # 1 for "Upper On", 0 for "Off"
+tou_rates = tou_rates * 0.12 + (1 - tou_rates) * 0.48  # Convert to actual rates: 0.12 for "Upper On", 0.48 for "Off"
+
+# Plot TOU rates data on secondary y-axis (right)
+ax2.plot(time_index_7d, tou_rates, label='TOU Rates ($/kWh)',
+         alpha=0.5, linewidth=2.5, color='green', linestyle='--')
+ax2.set_ylabel('TOU Rates ($/kWh)', color='green', fontsize=16)
+ax2.tick_params(axis='y', labelcolor='green')
+ax2.set_ylim(0.05, 0.55)  # Set y-axis limits for rate data
+
+# Add legends
+lines1, labels1 = ax1.get_legend_handles_labels()
+lines2, labels2 = ax2.get_legend_handles_labels()
+ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=16)
+
+plt.title('Water Heating Electric Power and TOU Rates Comparison: Default vs TOU Schedule', fontsize=20)
+
+plt.tight_layout()
 ```
 
 ```{python}
@@ -476,11 +512,57 @@ else:
 #| echo: false
 #| fig-cap: "Hot Water Outlet Temperature and TOU Rates Comparison: Default vs TOU Schedule"
 
-# Plot temperature comparison for the specified building
-if default_file.exists() and tou_file.exists():
-    fig = plot_temperature_comparison(building_id, base_path, days=days_to_plot)
-else:
-    print(f"Cannot generate temperature comparison plot - missing data files for {building_id}")
+# Create second plot for hot water outlet temperature
+fig2, ax3 = plt.subplots(figsize=(15, 8))
+
+# Extract hot water outlet temperature data
+default_temp = default_df['Hot Water Outlet Temperature (C)']
+tou_temp = tou_df['Hot Water Outlet Temperature (C)']
+
+# Extract deadband limits (using TOU data for consistency)
+deadband_upper = tou_df['Water Heating Deadband Upper Limit (C)']
+deadband_lower = tou_df['Water Heating Deadband Lower Limit (C)']
+
+# Filter data to first 7 days
+default_temp_7d = default_temp[mask]
+tou_temp_7d = tou_temp[mask]
+deadband_upper_7d = deadband_upper[mask]
+deadband_lower_7d = deadband_lower[mask]
+
+# Plot temperature data on primary y-axis (left)
+ax3.plot(time_index_7d, default_temp_7d, label='Default Schedule', alpha=0.7, linewidth=2.5, color='blue')
+ax3.plot(time_index_7d, tou_temp_7d, label='TOU Schedule', alpha=0.7, linewidth=2.5, color='orange')
+ax3.plot(time_index_7d, deadband_upper_7d, label='Deadband Upper Limit', alpha=0.5, linewidth=2.5, color='red')
+ax3.plot(time_index_7d, deadband_lower_7d, label='Deadband Lower Limit', alpha=0.5, linewidth=2.5, color='red')
+ax3.set_xlabel('Time', fontsize=16)
+ax3.set_ylabel('Hot Water Outlet Temperature (°C)', color='black', fontsize=16)
+ax3.tick_params(axis='y', labelcolor='black')
+ax3.grid(True, alpha=0.3)
+
+# Format x-axis to show dates nicely
+ax3.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+ax3.xaxis.set_major_locator(mdates.DayLocator(interval=1))  # Show every day
+ax3.tick_params(axis='x', labelsize=14)  # Set x-axis tick fontsize
+fig2.autofmt_xdate()  # Rotate and align the tick labels
+
+# Create secondary y-axis for TOU rates (same as first plot)
+ax4 = ax3.twinx()
+
+# Plot TOU rates data on secondary y-axis (right) - same data as first plot
+ax4.plot(time_index_7d, tou_rates, label='TOU Rates ($/kWh)',
+         alpha=0.5, linewidth=2, color='green', linestyle='--')
+ax4.set_ylabel('TOU Rates ($/kWh)', color='green', fontsize=16)
+ax4.tick_params(axis='y', labelcolor='green')
+ax4.set_ylim(0.05, 0.55)  # Set y-axis limits for rate data
+
+# Add legends
+lines3, labels3 = ax3.get_legend_handles_labels()
+lines4, labels4 = ax4.get_legend_handles_labels()
+ax3.legend(lines3 + lines4, labels3 + labels4, loc='upper right', fontsize=16)
+
+plt.title('Hot Water Outlet Temperature and TOU Rates Comparison: Default vs TOU Schedule', fontsize=20)
+
+plt.tight_layout()
 ```
 
 ```{python}
@@ -488,71 +570,59 @@ else:
 #| echo: false
 #| fig-cap: "Monthly Electricity Bills with TOU State Highlighting"
 
-# Plot monthly bills for the specified building
-if monthly_file.exists():
-    fig = plot_monthly_bills(building_id, base_path)
-else:
-    print(f"Cannot generate monthly bills plot - missing data files for {building_id}")
-```
+# Load monthly bills data from both simulations
+default_bills_file = base_path / "outputs" / "default_simulation" / "default_monthly_bills_and_comfort_penalties.csv"
+tou_bills_file = base_path / "outputs" / "tou_simulation" / "tou_monthly_bills_and_comfort_penalties.csv"
+monthly_results_file = base_path / "outputs" / "bldg0000072-up03_monthly_results.csv"
 
-## Monthly Results Summary
+default_bills_df = pd.read_csv(default_bills_file)
+tou_bills_df = pd.read_csv(tou_bills_file)
+monthly_results_df = pd.read_csv(monthly_results_file)
 
-```{python}
-#| label: monthly-results-table
-#| echo: false
-#| tbl-cap: "Monthly Decision-Making Results and Financial Performance"
+# Create the plot
+fig3, ax5 = plt.subplots(figsize=(15, 8))
 
-# Load and display monthly results as a table
-if monthly_file.exists():
-    try:
-        monthly_results = load_monthly_results(building_id, base_path)
+# Create month labels for x-axis
+month_labels = [f"{row['year']}-{row['month']:02d}" for _, row in monthly_results_df.iterrows()]
 
-        # Round numerical columns for better display
-        display_df = monthly_results.copy()
-        numerical_cols = ['bill', 'comfort_penalty', 'realized_savings', 'unrealized_savings', 'total_cost']
-        for col in numerical_cols:
-            if col in display_df.columns:
-                display_df[col] = display_df[col].round(2)
+# Plot default schedule bills
+ax5.plot(range(len(default_bills_df)), default_bills_df['monthly_bills'], 'o-', linewidth=2.5, markersize=8,
+         color='blue', alpha=0.7, label='Default Schedule')
 
-        # Rename columns for better readability
-        column_mapping = {
-            'year': 'Year',
-            'month': 'Month',
-            'current_state': 'Schedule State',
-            'bill': 'Monthly Bill ($)',
-            'comfort_penalty': 'Comfort Penalty ($)',
-            'switching_decision': 'Decision',
-            'realized_savings': 'Realized Savings ($)',
-            'unrealized_savings': 'Unrealized Savings ($)',
-            'month_year': 'Month-Year',
-            'total_cost': 'Total Cost ($)'
-        }
+# Plot TOU schedule bills
+ax5.plot(range(len(tou_bills_df)), tou_bills_df['monthly_bills'], 'o-', linewidth=2.5, markersize=8,
+         color='red', alpha=0.7, label='TOU Schedule')
 
-        display_df = display_df.rename(columns=column_mapping)
+# Highlight periods when consumer was actually on TOU
+tou_mask = monthly_results_df['current_state'] == 'tou'
+if tou_mask.any():
+    # Find consecutive TOU periods to create background shading
+    tou_periods = []
+    start_idx = None
+    for i, is_tou in enumerate(tou_mask):
+        if is_tou and start_idx is None:
+            start_idx = i
+        elif not is_tou and start_idx is not None:
+            tou_periods.append((start_idx, i-1))
+            start_idx = None
+    # Handle case where TOU period extends to the end
+    if start_idx is not None:
+        tou_periods.append((start_idx, len(tou_mask)-1))
 
-        # Select and reorder columns for display
-        display_columns = [
-            'Month-Year', 'Schedule State', 'Monthly Bill ($)',
-            'Comfort Penalty ($)', 'Total Cost ($)', 'Decision',
-            'Realized Savings ($)', 'Unrealized Savings ($)'
-        ]
+    # Add background shading for TOU periods
+    for start, end in tou_periods:
+        ax5.axvspan(start-0.5, end+0.5, alpha=0.3, color='green', label='TOU Periods' if start == tou_periods[0][0] else "")
 
-        # Filter to only include columns that exist
-        available_columns = [col for col in display_columns if col in display_df.columns]
-        final_df = display_df[available_columns]
+# Customize the plot
+ax5.set_xlabel('Month', fontsize=16)
+ax5.set_ylabel('Monthly Electricity Bill ($)', fontsize=16)
+ax5.set_title('Monthly Electricity Bills: Default vs TOU Schedules', fontsize=20)
+ax5.grid(True, alpha=0.3)
+ax5.legend(fontsize=14)
 
-        print(final_df.to_string(index=False))
+# Set x-axis ticks to show month labels
+ax5.set_xticks(range(len(monthly_results_df)))
+ax5.set_xticklabels(month_labels, rotation=45, ha='right', fontsize=12)
 
-        # Print summary statistics
-        print(f"\n### Summary Statistics for {building_id}")
-        print(f"- **Total months analyzed**: {len(monthly_results)}")
-        print(f"- **Average monthly bill**: ${monthly_results['bill'].mean():.2f}")
-        print(f"- **Total realized savings**: ${monthly_results['realized_savings'].sum():.2f}")
-        print(f"- **Months on TOU schedule**: {(monthly_results['current_state'] == 'tou').sum()}")
-        print(f"- **Total switching decisions**: {(monthly_results['switching_decision'] == 'switch').sum()}")
-
-    except Exception as e:
-        print(f"Error loading monthly results: {e}")
-else:
-    print(f"Monthly results file not found for {building_id}")
+plt.tight_layout()
 ```
