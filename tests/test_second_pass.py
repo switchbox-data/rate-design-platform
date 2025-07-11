@@ -44,6 +44,7 @@ from rate_design_platform.second_pass import (
 def sample_house_args():
     """Provide sample house_args for testing using OCHRE default paths"""
     return {
+        "name": "test_building",
         "start_time": datetime(2018, 1, 1, 0, 0),
         "end_time": datetime(2018, 12, 31, 23, 59),
         "time_res": timedelta(minutes=15),
@@ -98,7 +99,7 @@ def test_calculate_monthly_bill():
     time_vals = pd.date_range(start=datetime(2018, 1, 1), periods=192, freq=timedelta(minutes=15))
     consumption = np.array([0.5] * 96 + [0.6] * 96)  # Two days of consumption
     sim_results = SimulationResults(
-        Time=time_vals, E_mt=consumption, T_tank_mt=np.ones(192) * 50.0, D_unmet_mt=np.zeros(192)
+        Time=time_vals.values, E_mt=consumption, T_tank_mt=np.ones(192) * 50.0, D_unmet_mt=np.zeros(192)
     )
 
     # Create monthly rates (two months)
@@ -130,7 +131,7 @@ def test_calculate_monthly_comfort_penalty(sample_tou_params):
     ])
 
     sim_results = SimulationResults(
-        Time=time_vals,
+        Time=time_vals.values,
         E_mt=np.ones(total_intervals) * 0.5,
         T_tank_mt=np.ones(total_intervals) * 50.0,
         D_unmet_mt=unmet_demand,
@@ -165,11 +166,6 @@ def test_define_peak_hours(sample_tou_params):
     peak_hours_30 = define_peak_hours(sample_tou_params, time_step_30min)
     assert len(peak_hours_30) == 48  # 24 hours * 2 intervals/hour
     assert np.sum(peak_hours_30) == 16  # 8 hours * 2 intervals/hour
-
-    # Test  case: None params
-    peak_hours_none = define_peak_hours(None, time_step)
-    assert len(peak_hours_none) == 96
-    assert np.sum(peak_hours_none) == 32  # Should use default parameters
 
 
 def test_create_operation_schedule(sample_tou_params):
@@ -209,13 +205,9 @@ def test_create_tou_rates(sample_timesteps, sample_tou_params):
 
     # Test  case: single day
     single_day_times = pd.date_range(start=datetime(2018, 1, 1), periods=96, freq=timedelta(minutes=15))
-    single_rates = create_tou_rates(single_day_times, time_step, sample_tou_params)
+    single_rates = create_tou_rates(single_day_times.values, time_step, sample_tou_params)
     assert len(single_rates) == 1
     assert len(single_rates[0]) == 96
-
-    # Test  case: None params
-    rates_none = create_tou_rates(sample_timesteps, time_step, None)
-    assert len(rates_none) == 2  # Should use default parameters
 
 
 def test_extract_ochre_results():

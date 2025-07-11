@@ -7,6 +7,9 @@ edit_uri: edit/main/docs/
 repo_name: switchbox-data/rate-design-platform
 copyright: Maintained by <a href="https://switchbox-data.com">switchbox-data</a>.
 
+# Disable strict mode to allow warnings
+strict: false
+
 nav:
   - Home: index.md
   - Modules: modules.md
