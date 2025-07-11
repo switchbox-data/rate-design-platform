@@ -6,6 +6,9 @@ authors = [{ name = "Switchbox", email = "hello@switch.box" }]
 readme = "README.md"
 keywords = ['python']
 requires-python = ">=3.10,<4.0"
+# NOTE: tkinter (python3-tk) is a required system package for ochre GUI support.
+# On Ubuntu/Debian: sudo apt-get install python3-tk
+# This is installed automatically in the devcontainer.
 dependencies = [
     "ochre-nrel>=0.9.1",
     "jupyter>=1.1.1",
