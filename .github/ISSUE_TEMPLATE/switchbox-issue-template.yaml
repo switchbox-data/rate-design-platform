@@ -1,0 +1,41 @@
+name: Switchbox ticket
+description: Help describe what you're building and why
+title: "Short title that captures the 'What'"
+labels: []
+assignees: []
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: Describe what you're building in 1-2 clear sentences. Focus on the end result, not the implementation details.
+      placeholder: "Example: A new residential heat pump model that accounts for variable-speed compressor operation and ambient temperature derating effects."
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: Explain the problem this solves or the value it creates. Include context about who benefits and why this matters now.
+      placeholder: "Example: Current OCHRE heat pump models assume fixed-speed operation, leading to 15-20% overestimation of energy consumption in moderate climates. This enhancement will improve accuracy for policy analyses evaluating electrification incentives and grid impact studies."
+    validations:
+      required: true
+
+  - type: textarea
+    id: how
+    attributes:
+      label: How
+      description: Outline your approach or key steps. This doesn't need to be exhaustive - just enough to show you have a plan.
+      placeholder: "Example:\n1. Implement variable-speed compressor performance curves from AHRI standards\n2. Add ambient temperature correction factors based on manufacturer data\n3. Integrate with existing OCHRE thermal model architecture\n4. Validate against lab test data and field measurements"
+    validations:
+      required: false
+
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: Deliverables
+      description: List the specific outputs others can expect. Be concrete about what will be delivered.
+      placeholder: "- New HeatPumpVarSpeed class extending base OCHRE equipment\n- Performance curve parameter database\n- Unit tests with validation data\n- Documentation with physics equations and policy use cases"
+    validations:
+      required: true
