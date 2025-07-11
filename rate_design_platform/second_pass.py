@@ -333,7 +333,6 @@ def extract_ochre_results(df: pd.DataFrame, time_step: timedelta) -> SimulationR
 
     Args:
         df: OCHRE simulation results DataFrame
-        monthly_intervals: Number of intervals for each month in the simulation period
         time_step: Time step of the simulation
 
     Returns:
@@ -422,8 +421,10 @@ def human_controller(
 
     Args:
         current_state: Current schedule state ("default" or "tou")
-        realized_savings: Realized savings (if on TOU)
-        unrealized_savings: Unrealized savings (if on default)
+        default_bill: Default monthly bill
+        tou_bill: TOU monthly bill
+        tou_comfort_penalty: TOU monthly comfort penalty
+        TOU_params: TOU parameters
 
     Returns:
         New schedule state ("default" or "tou")
@@ -456,7 +457,7 @@ def simulate_full_cycle(
         house_args: Base house arguments dictionary
 
     Returns:
-        List of MonthlyResults for each month
+        Tuple of (monthly_bills, monthly_comfort_penalties)
     """
     if TOU_params is None:
         TOU_params = TOUParameters()
