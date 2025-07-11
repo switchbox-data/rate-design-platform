@@ -569,7 +569,7 @@ Where:
 And evaluate switching against realistic transaction costs:
 
 $$
-C^{switch} = \$35 \text{ (representing 3-5 hours of consumer effort)}
+C^{switch} = \$5 for now
 $$
 
 The model should reflect that consumers make switching decisions based
@@ -579,6 +579,50 @@ simulations.
 
 # Examples
 
+``` python
+import sys
+from pathlib import Path
+import importlib
+
+# Add the rate_design_platform directory to the path
+sys.path.append(str(Path("../rate_design_platform").resolve()))
+import plotting
+importlib.reload(plotting)
+
+from plotting import plot_water_heating_comparison, plot_temperature_comparison, plot_monthly_bills, load_monthly_results
+
+# Configuration: Change this to analyze different buildings
+building_id = "bldg0000072-up03"  # Available options: bldg0000072-up03, bldg0000072-up00, etc.
+base_path = Path("../rate_design_platform")
+days_to_plot = 7  # Number of days to show in time series plots
+
+# Check if the building data exists
+default_file = base_path / "outputs" / "default_simulation" / f"{building_id}_default.csv"
+tou_file = base_path / "outputs" / "tou_simulation" / f"{building_id}_tou.csv"
+monthly_file = base_path / "outputs" / f"{building_id}_monthly_results.csv"
+
+print(f"Analyzing building: {building_id}")
+print(f"Default simulation file exists: {default_file.exists()}")
+print(f"TOU simulation file exists: {tou_file.exists()}")
+print(f"Monthly results file exists: {monthly_file.exists()}")
+
+if not all([default_file.exists(), tou_file.exists(), monthly_file.exists()]):
+    print("\n⚠️  Warning: Some required files are missing for this building ID.")
+    print("Available building IDs can be found in the outputs directory.")
+    # List available building IDs
+    outputs_dir = base_path / "outputs"
+    if outputs_dir.exists():
+        monthly_files = list(outputs_dir.glob("*_monthly_results.csv"))
+        if monthly_files:
+            available_ids = [f.stem.replace("_monthly_results", "") for f in monthly_files]
+            print(f"Available building IDs: {', '.join(available_ids)}")
+```
+
+    Analyzing building: bldg0000072-up03
+    Default simulation file exists: True
+    TOU simulation file exists: True
+    Monthly results file exists: True
+
 ![Water Heating Electric Power Comparison: Default vs TOU
 Schedule](docs_tou_hpwh_schedule_basic_files/figure-commonmark/plot-water-heating-comparison-output-1.png)
 
@@ -587,3 +631,26 @@ Schedule](docs_tou_hpwh_schedule_basic_files/figure-commonmark/plot-temperature-
 
 ![Monthly Electricity Bills with TOU State
 Highlighting](docs_tou_hpwh_schedule_basic_files/figure-commonmark/plot-monthly-bills-output-1.png)
+
+## Monthly Results Summary
+
+    Month-Year Schedule State  Monthly Bill ($)  Comfort Penalty ($)  Total Cost ($) Decision  Realized Savings ($)  Unrealized Savings ($)
+       2018-01        default             30.91                  0.0           30.91   switch                  0.00                   17.33
+       2018-02            tou             11.86                  0.0           11.86     stay                 16.95                    0.00
+       2018-03            tou             16.26                  0.0           16.26     stay                 23.26                    0.00
+       2018-04            tou             11.51                  0.0           11.51     stay                 14.47                    0.00
+       2018-05            tou             12.12                  0.0           12.12     stay                 15.01                    0.00
+       2018-06            tou             10.51                  0.0           10.51     stay                 12.11                    0.00
+       2018-07            tou              8.93                  0.0            8.93     stay                 12.34                    0.00
+       2018-08            tou              9.29                  0.0            9.29     stay                 13.42                    0.00
+       2018-09            tou              9.57                  0.0            9.57     stay                 12.82                    0.00
+       2018-10            tou             11.33                  0.0           11.33     stay                 14.72                    0.00
+       2018-11            tou             12.12                  0.0           12.12     stay                 15.97                    0.00
+       2018-12            tou             14.55                  0.0           14.55     stay                 18.01                    0.00
+
+    ### Summary Statistics for bldg0000072-up03
+    - **Total months analyzed**: 12
+    - **Average monthly bill**: $13.25
+    - **Total realized savings**: $169.07
+    - **Months on TOU schedule**: 11
+    - **Total switching decisions**: 1
