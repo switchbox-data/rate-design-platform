@@ -635,7 +635,6 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
     Run complete TOU HPWH simulation
 
     Args:
-        simulation_type: Type of simulation to run ("default" or "tou")
         TOU_params: TOU parameters (uses default if None)
         house_args: Base house arguments dictionary
 
