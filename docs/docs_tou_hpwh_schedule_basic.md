@@ -577,19 +577,13 @@ on rough mental calculations and significant uncertainty about both
 benefits and comfort impacts, not sophisticated building physics
 simulations.
 
-# 5. References
+# Examples
 
-This section lists references and resources for further information and
-context regarding the model and its implementation.
+![Water Heating Electric Power Comparison: Default vs TOU
+Schedule](docs_tou_hpwh_schedule_basic_files/figure-commonmark/plot-water-heating-comparison-output-1.png)
 
-- [OCHRE Inputs and
-  Arguments](https://github.com/NREL/OCHRE/blob/main/docs/source/InputsAndArguments.rst)
+![Hot Water Outlet Temperature and TOU Rates Comparison: Default vs TOU
+Schedule](docs_tou_hpwh_schedule_basic_files/figure-commonmark/plot-temperature-comparison-output-1.png)
 
-- [OCHRE
-  Outputs](https://github.com/NREL/OCHRE/blob/main/docs/source/Outputs.rst)
-
-- [OCHRE Water
-  Model](https://github.com/NREL/OCHRE/blob/main/ochre/Models/Water.py)
-
-- [HPWH Control
-  Logic](https://github.com/NREL/OCHRE/blob/main/ochre/Equipment/WaterHeater.py)
+![Monthly Electricity Bills with TOU State
+Highlighting](docs_tou_hpwh_schedule_basic_files/figure-commonmark/plot-monthly-bills-output-1.png)
