@@ -12,7 +12,7 @@
         },
         // Install Chromium to render mermaid and graphviz diagrams in Quarto
         "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
-            "packages": "chromium"
+            "packages": "chromium python3-tk"
         },
         // Install just
         "ghcr.io/guiyomh/features/just:0.1.0": {
