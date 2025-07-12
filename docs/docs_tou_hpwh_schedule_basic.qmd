@@ -427,9 +427,9 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from pathlib import Path
 
-# File paths - use absolute path from workspace root
+# File paths - use relative path from workspace root
 import os
-base_path = Path("/workspaces/rate-design-platform/data")
+base_path = Path("../data")
 default_file = base_path / "bldg0000072-up03_default.csv"
 tou_file = base_path / "bldg0000072-up03_tou.csv"
 
