@@ -708,7 +708,7 @@ if __name__ == "__main__":
     start_date = 1
     start_time = datetime(year, month, start_date, 0, 0)  # (Year, Month, Day, Hour, Min)
     duration = timedelta(days=365)
-    time_step = timedelta(minutes=15)
+    time_step = timedelta(minutes=60)
     end_time = start_time + duration
     sim_times = pd.date_range(start=start_time, end=end_time, freq=time_step)[:-1]
     initialization_time = timedelta(days=1)
