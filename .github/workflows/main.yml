@@ -18,24 +18,6 @@ jobs:
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
-
-      - name: Debug Python setup
-        run: |
-          echo "=== Python versions ==="
-          python --version
-          python3 --version
-          python3.9 --version || echo "python3.9 not found"
-          which python
-          which python3
-          echo "=== UV info ==="
-          uv --version
-          uv python list
-          echo "=== Virtual env info ==="
-          uv run python --version
-          uv run which python
-          echo "=== Tkinter check ==="
-          python3.9 -c "import tkinter; print('tkinter works')" || echo "tkinter failed for python3.9"
-          python3.12 -c "import tkinter; print('tkinter works')" || echo "tkinter failed for python3.12"
       - name: Set up the environment
         uses: ./.github/actions/setup-python-env
 
@@ -68,6 +50,29 @@ jobs:
         uses: ./.github/actions/setup-python-env
         with:
           python-version: ${{ matrix.python-version }}
+
+      - name: Debug Python setup
+        run: |
+          echo "=== Python versions ==="
+          python --version
+          python3 --version
+          python3.9 --version || echo "python3.9 not found"
+          which python
+          which python3
+          echo "=== UV info ==="
+          uv --version
+          uv python list
+          echo "=== Virtual env info ==="
+          uv run python --version
+          uv run which python
+          echo "=== Tkinter check ==="
+          python3.9 -c "import tkinter; print('tkinter works')" || echo "tkinter failed for python3.9"
+          python3.12 -c "import tkinter; print('tkinter works')" || echo "tkinter failed for python3.12"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
 
       - name: Run tests
         run: uv run python -m pytest tests
