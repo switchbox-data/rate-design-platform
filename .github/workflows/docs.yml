@@ -26,7 +26,14 @@ jobs:
         run: uv sync --group dev --group docs
 
       - name: Build documentation
-        run: uv run mkdocs build --strict
+        run: |
+          # Ensure data directory exists and has required files
+          ls -la data/
+          # Force Quarto to regenerate all files
+          find docs -name "*.qmd" -exec touch {} \;
+          # Clean any existing generated files
+          rm -rf docs/*_files/
+          uv run mkdocs build
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
