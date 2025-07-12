@@ -26,19 +26,7 @@ jobs:
         run: uv sync --group dev --group docs
 
       - name: Build documentation
-        run: |
-          # Ensure data directory exists and has required files
-          ls -la data/
-          # Force Quarto to regenerate all files by touching them and their dependencies
-          find docs -name "*.qmd" -exec touch {} \;
-          find data -name "*.csv" -exec touch {} \;
-          # Clean any existing generated files
-          rm -rf docs/*_files/
-          # Force Quarto to render all files
-          uv run quarto render docs/docs_tou_hpwh_schedule_basic.qmd --to gfm
-          uv run quarto render docs/water_demand_timeseries.qmd --to gfm
-          # Now build MkDocs
-          uv run mkdocs build
+        run: uv run mkdocs build --strict
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
