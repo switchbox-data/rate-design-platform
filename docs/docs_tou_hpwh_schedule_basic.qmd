@@ -429,15 +429,10 @@ from pathlib import Path
 
 # File paths - use absolute path from workspace root
 import os
-base_path = Path("/workspaces/rate-design-platform/rate_design_platform")
-default_file = base_path / "outputs" / "default_simulation" / "bldg0000072-up03_default.csv"
-tou_file = base_path / "outputs" / "tou_simulation" / "bldg0000072-up03_tou.csv"
+base_path = Path("/workspaces/rate-design-platform/data")
+default_file = base_path / "bldg0000072-up03_default.csv"
+tou_file = base_path / "bldg0000072-up03_tou.csv"
 
-# Alternative: try relative path from current directory
-if not default_file.exists():
-    base_path = Path("rate_design_platform")
-    default_file = base_path / "outputs" / "default_simulation" / "bldg0000072-up03_default.csv"
-    tou_file = base_path / "outputs" / "tou_simulation" / "bldg0000072-up03_tou.csv"
 
 # Check if files exist
 if not default_file.exists():
@@ -571,9 +566,9 @@ plt.tight_layout()
 #| fig-cap: "Monthly Electricity Bills with TOU State Highlighting"
 
 # Load monthly bills data from both simulations
-default_bills_file = base_path / "outputs" / "default_simulation" / "default_monthly_bills_and_comfort_penalties.csv"
-tou_bills_file = base_path / "outputs" / "tou_simulation" / "tou_monthly_bills_and_comfort_penalties.csv"
-monthly_results_file = base_path / "outputs" / "bldg0000072-up03_monthly_results.csv"
+default_bills_file = base_path / "default_monthly_bills_and_comfort_penalties.csv"
+tou_bills_file = base_path / "tou_monthly_bills_and_comfort_penalties.csv"
+monthly_results_file = base_path / "bldg0000072-up03_monthly_results.csv"
 
 default_bills_df = pd.read_csv(default_bills_file)
 tou_bills_df = pd.read_csv(tou_bills_file)
