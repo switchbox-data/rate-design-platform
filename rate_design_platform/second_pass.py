@@ -381,7 +381,8 @@ def simulate_full_cycle(
     start_time = house_args["start_time"]
     end_time = house_args["end_time"]
     time_step = house_args["time_res"]
-    monthly_intervals = calculate_monthly_intervals(start_time, end_time, time_step)
+    monthly_rate_structure = calculate_monthly_intervals(start_time, end_time, time_step)
+    monthly_intervals = [monthly_rate_structure.intervals for monthly_rate_structure in monthly_rate_structure]
 
     if simulation_type == "default":
         operation_schedule = create_operation_schedule("default", monthly_intervals, TOU_params, time_step)

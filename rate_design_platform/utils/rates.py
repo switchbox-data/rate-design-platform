@@ -2,8 +2,10 @@
 Utility functions for calculating rates, intervals, peak hours, and operation schedules.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+
+import numpy as np
 
 
 @dataclass
@@ -19,9 +21,21 @@ class TOUParameters:
     peak_end_hour: int = 20
 
 
-def calculate_monthly_intervals(start_time: datetime, end_time: datetime, time_step: timedelta) -> list[int]:
+@dataclass
+class MonthlyRateStructure:
+    """Various values to describe monthly rates structure and simulation parameters"""
+
+    year: int = 0
+    month: int = 0
+    rates: np.ndarray = field(default_factory=lambda: np.array([]))  # rates for each interval in the month
+    intervals: int = 0  # number of time_step - long intervals in the month
+
+
+def calculate_monthly_intervals(
+    start_time: datetime, end_time: datetime, time_step: timedelta
+) -> list[MonthlyRateStructure]:
     """
-    Calculate number of time_step-long intervals in a given month
+    Calculate number of time_step - long intervals in a given month
 
     Args:
         start_time: Start time of the simulation
@@ -29,9 +43,9 @@ def calculate_monthly_intervals(start_time: datetime, end_time: datetime, time_s
         time_step: Time step of the simulation
 
     Returns:
-        Number of time_step-long intervals intervals for each month from start_time to end_time
+        Number of time_step - long intervals intervals for each month from start_time to end_time
     """
-    intervals = []
+    monthly_rates = []
     current_time = start_time
     while current_time < end_time:
         # Calculate start and end of the current month within our time range
@@ -50,9 +64,11 @@ def calculate_monthly_intervals(start_time: datetime, end_time: datetime, time_s
         month_duration = month_end - month_start
         # Calculate number of intervals in this month
         num_intervals = int(month_duration.total_seconds() / time_step.total_seconds())
-        intervals.append(num_intervals)
+        monthly_rates.append(
+            MonthlyRateStructure(year=current_time.year, month=current_time.month, intervals=num_intervals)
+        )
 
         # Move to next month
         current_time = next_month_start
 
-    return intervals
+    return monthly_rates
