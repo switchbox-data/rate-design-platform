@@ -8,7 +8,7 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from rate_design_platform.utils.rates import MonthlyRateStructure
+from rate_design_platform.utils.rates import MonthlyRateStructure, TOUParameters
 
 
 @dataclass
@@ -62,3 +62,61 @@ def calculate_monthly_bill(
         monthly_metrics.append(MonthlyMetrics(year=month_rate.year, month=month_rate.month, bill=month_bill))
 
     return monthly_metrics
+
+
+def calculate_monthly_comfort_penalty(
+    simulation_results: SimulationResults, TOU_params: TOUParameters
+) -> list[MonthlyMetrics]:
+    """
+    Calculate comfort penalty in $ from electrical unmet demand
+
+    Args:
+        simulation_results: Simulation results
+        TOU_params: TOU parameters
+
+    Returns:
+        List of comfort penalties for each month
+    """
+    time_stamps = simulation_results.Time
+    unmet_demand_kWh = simulation_results.D_unmet_mt
+    monthly_comfort_penalties = []
+
+    # Group by month
+    current_month = None
+    month_start_idx = 0
+
+    for i, timestamp in enumerate(time_stamps):
+        # Try to get month, with fallback for numpy.datetime64
+        try:
+            year = timestamp.year
+            month = timestamp.month
+        except AttributeError:
+            # Fallback for numpy.datetime64 objects
+            year = timestamp.astype("datetime64[Y]").astype(int)
+            month = timestamp.astype("datetime64[M]").astype(int) % 12 + 1
+
+        if current_month is None:
+            current_month = month
+        elif month != current_month:
+            # Month changed, calculate penalty for the previous month
+            month_intervals = i - month_start_idx
+            month_unmet_demand = unmet_demand_kWh[month_start_idx : month_start_idx + month_intervals]
+            total_unmet_kwh = np.sum(month_unmet_demand)
+            monthly_comfort_penalties.append(
+                MonthlyMetrics(year=year, month=month, comfort_penalty=float(TOU_params.alpha * total_unmet_kwh))
+            )
+
+            # Start new month
+            current_month = month
+            month_start_idx = i
+
+    # Handle the last month
+    if month_start_idx < len(time_stamps):
+        month_intervals = len(time_stamps) - month_start_idx
+        month_unmet_demand = unmet_demand_kWh[month_start_idx : month_start_idx + month_intervals]
+        total_unmet_kwh = np.sum(month_unmet_demand)
+        monthly_comfort_penalties.append(
+            MonthlyMetrics(year=year, month=month, comfort_penalty=float(TOU_params.alpha * total_unmet_kwh))
+        )
+
+    return monthly_comfort_penalties
