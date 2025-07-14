@@ -14,14 +14,11 @@ from ochre import Dwelling  # type: ignore[import-untyped]
 from ochre.utils import default_input_path  # type: ignore[import-untyped]
 
 from rate_design_platform.Analysis import MonthlyResults, SimulationResults
+from rate_design_platform.utils.constants import HOURS_PER_DAY, SECONDS_PER_HOUR
 from rate_design_platform.utils.rates import (
     TOUParameters,
     calculate_monthly_intervals,
 )
-
-# Define constants
-seconds_per_hour = 3600
-hours_per_day = 24
 
 
 def calculate_monthly_bill(simulation_results: SimulationResults, rates: list[np.ndarray]) -> list[float]:
@@ -109,10 +106,10 @@ def define_peak_hours(TOU_params: TOUParameters, time_step: timedelta) -> np.nda
     """
     if TOU_params is None:
         TOU_params = TOUParameters()
-    peak_start_interval = TOU_params.peak_start_hour * int(seconds_per_hour / time_step.total_seconds())
-    peak_end_interval = TOU_params.peak_end_hour * int(seconds_per_hour / time_step.total_seconds())
+    peak_start_interval = TOU_params.peak_start_hour * int(SECONDS_PER_HOUR / time_step.total_seconds())
+    peak_end_interval = TOU_params.peak_end_hour * int(SECONDS_PER_HOUR / time_step.total_seconds())
 
-    intervals_per_day = int(hours_per_day * seconds_per_hour / time_step.total_seconds())
+    intervals_per_day = int(HOURS_PER_DAY * SECONDS_PER_HOUR / time_step.total_seconds())
 
     # Create a boolean array for peak hours
     peak_hours = np.zeros(intervals_per_day, dtype=bool)
@@ -142,7 +139,7 @@ def create_operation_schedule(
     else:  # TOU schedule. Operation restricted during peak hours.
         daily_peak_pattern = define_peak_hours(TOU_params, time_step)
 
-        intervals_per_day = int(hours_per_day * seconds_per_hour / time_step.total_seconds())
+        intervals_per_day = int(HOURS_PER_DAY * SECONDS_PER_HOUR / time_step.total_seconds())
         peak_pattern = np.array([], dtype=bool)
         for num_intervals in monthly_intervals:
             # Repeat pattern for the month
@@ -177,7 +174,7 @@ def create_tou_rates(timesteps: np.ndarray, time_step: timedelta, TOU_params: TO
         TOU_params = TOUParameters()
 
     daily_peak_pattern = define_peak_hours(TOU_params, time_step)
-    intervals_per_day = int(hours_per_day * seconds_per_hour / time_step.total_seconds())
+    intervals_per_day = int(HOURS_PER_DAY * SECONDS_PER_HOUR / time_step.total_seconds())
 
     monthly_rates = []
     current_month = None
@@ -247,7 +244,7 @@ def extract_ochre_results(df: pd.DataFrame, time_step: timedelta) -> SimulationR
     time_values = df.index.values
 
     # Extract electricity consumption for water heating [kW] -> [kWh]
-    time_step_fraction = time_step.total_seconds() / seconds_per_hour
+    time_step_fraction = time_step.total_seconds() / SECONDS_PER_HOUR
     E_mt = (
         np.array(df["Water Heating Electric Power (kW)"].values, dtype=float) * time_step_fraction
     )  # Convert kW to kWh
