@@ -363,7 +363,6 @@ def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
     num_intervals = len(operation_schedule)
     # Get water heater equipment
     water_heater = dwelling.get_equipment_by_end_use("Water Heating")
-    print(f"Water heater: {water_heater.name}")
     if water_heater is None:
         msg = "No water heating equipment found in dwelling"
         raise ValueError(msg)
