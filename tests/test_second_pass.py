@@ -19,10 +19,12 @@ import numpy as np
 import pandas as pd
 from ochre.utils import default_input_path
 
-from rate_design_platform.second_pass import (
+from rate_design_platform.Analysis import (  # type: ignore[import-unresolved]
     MonthlyResults,
     SimulationResults,
     TOUParameters,
+)
+from rate_design_platform.second_pass import (
     calculate_annual_metrics,
     calculate_monthly_bill,
     calculate_monthly_comfort_penalty,
@@ -209,7 +211,7 @@ def test_create_tou_rates(sample_timesteps, sample_tou_params):
 
     # Test  case: single day
     single_day_times = pd.date_range(start=datetime(2018, 1, 1), periods=96, freq=timedelta(minutes=15))
-    single_rates = create_tou_rates(single_day_times, time_step, sample_tou_params)
+    single_rates = create_tou_rates(single_day_times.values, time_step, sample_tou_params)
     assert len(single_rates) == 1
     assert len(single_rates[0]) == 96
 

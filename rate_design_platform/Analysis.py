@@ -9,19 +9,6 @@ import numpy as np
 
 
 @dataclass
-class TOUParameters:
-    """TOU rate structure and simulation parameters"""
-
-    r_on: float = 0.48  # $/kWh - peak rate
-    r_off: float = 0.12  # $/kWh - off-peak rate
-    c_switch: float = 3.0  # $ - switching cost
-    alpha: float = 0.15  # $/kWh - comfort penalty factor
-    # Peak hours: 12 PM to 8 PM (12:00 to 20:00)
-    peak_start_hour: int = 12
-    peak_end_hour: int = 20
-
-
-@dataclass
 class MonthlyResults:
     """Results from a single month's simulation"""
 
@@ -39,28 +26,10 @@ class MonthlyResults:
 class MonthlyMetrics:
     """Metrics from a single month's simulation"""
 
-    year: int
-    month: int
-    bill: float
-    comfort_penalty: float
-
-
-@dataclass
-class MonthlyBill:
-    """Bill from a single month's simulation"""
-
-    year: int
-    month: int
-    bill: float
-
-
-@dataclass
-class MonthlyComfortPenalty:
-    """Comfort penalty from a single month's simulation"""
-
-    year: int
-    month: int
-    comfort_penalty: float
+    year: int = 0
+    month: int = 0
+    bill: float = 0
+    comfort_penalty: float = 0
 
 
 class SimulationResults(NamedTuple):
