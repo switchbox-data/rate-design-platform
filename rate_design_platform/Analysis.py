@@ -45,6 +45,24 @@ class MonthlyMetrics:
     comfort_penalty: float
 
 
+@dataclass
+class MonthlyBill:
+    """Bill from a single month's simulation"""
+
+    year: int
+    month: int
+    bill: float
+
+
+@dataclass
+class MonthlyComfortPenalty:
+    """Comfort penalty from a single month's simulation"""
+
+    year: int
+    month: int
+    comfort_penalty: float
+
+
 class SimulationResults(NamedTuple):
     """Results from HPWH simulation for a given month"""
 
