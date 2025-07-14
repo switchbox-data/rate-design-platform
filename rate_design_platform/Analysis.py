@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from typing import NamedTuple
 
 import numpy as np
+import pandas as pd
+
+from rate_design_platform.utils.rates import MonthlyRateStructure
 
 
 @dataclass
@@ -39,3 +42,23 @@ class SimulationResults(NamedTuple):
     E_mt: np.ndarray  # Electricity consumption [kWh]
     T_tank_mt: np.ndarray  # Tank temperature [°C]
     D_unmet_mt: np.ndarray  # Electrical unmet demand [kWh] (operational power deficit)
+
+
+def calculate_monthly_bill(
+    simulation_results: SimulationResults, monthly_rate_structure: list[MonthlyRateStructure]
+) -> list[MonthlyMetrics]:
+    """Calculate monthly electricity bill"""
+    monthly_metrics = []
+
+    for month_rate in monthly_rate_structure:
+        # Extract consumption data for this month
+        time_pd = pd.to_datetime(simulation_results.Time)
+        simulation_results_year = time_pd.year == month_rate.year
+        simulation_results_month = time_pd.month == month_rate.month
+        month_consumption = simulation_results.E_mt[simulation_results_year & simulation_results_month]
+
+        # Calculate bill for this month: sum(consumption * rates)
+        month_bill = float(np.sum(month_consumption * month_rate.rates))
+        monthly_metrics.append(MonthlyMetrics(year=month_rate.year, month=month_rate.month, bill=month_bill))
+
+    return monthly_metrics

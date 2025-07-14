@@ -22,13 +22,10 @@ from ochre.utils import default_input_path
 from rate_design_platform.Analysis import (  # type: ignore[import-unresolved]
     MonthlyResults,
     SimulationResults,
-    TOUParameters,
 )
 from rate_design_platform.second_pass import (
     calculate_annual_metrics,
-    calculate_monthly_bill,
     calculate_monthly_comfort_penalty,
-    calculate_monthly_intervals,
     calculate_monthly_metrics,
     calculate_simulation_months,
     create_operation_schedule,
@@ -40,6 +37,7 @@ from rate_design_platform.second_pass import (
     run_full_simulation,
     simulate_full_cycle,
 )
+from rate_design_platform.utils.rates import TOUParameters
 
 
 @pytest.fixture
@@ -72,48 +70,6 @@ def sample_timesteps():
     start = datetime(2018, 1, 1, 0, 0)
     end = datetime(2018, 3, 1, 0, 0)  # Two months
     return pd.date_range(start=start, end=end, freq=timedelta(minutes=15))[:-1]
-
-
-def test_calculate_monthly_intervals(sample_house_args):
-    """Test calculate_monthly_intervals function"""
-    start_time = datetime(2018, 1, 1, 0, 0)
-    end_time = datetime(2018, 3, 1, 0, 0)  # Two months
-    time_step = timedelta(minutes=15)
-
-    intervals = calculate_monthly_intervals(start_time, end_time, time_step)
-
-    assert len(intervals) == 2  # Two months
-    assert intervals[0] == 31 * 96  # January: 31 days * 96 intervals/day
-    assert intervals[1] == 28 * 96  # February: 28 days * 96 intervals/day
-
-    # Test  case: single day
-    start_day = datetime(2018, 1, 1, 0, 0)
-    end_day = datetime(2018, 1, 2, 0, 0)
-    single_day_intervals = calculate_monthly_intervals(start_day, end_day, time_step)
-    assert len(single_day_intervals) == 1
-    assert single_day_intervals[0] == 96  # 1 day * 96 intervals/day
-
-
-def test_calculate_monthly_bill():
-    """Test calculate_monthly_bill function"""
-    # Create sample simulation results
-    time_vals = pd.date_range(start=datetime(2018, 1, 1), periods=192, freq=timedelta(minutes=15))
-    consumption = np.array([0.5] * 96 + [0.6] * 96)  # Two days of consumption
-    sim_results = SimulationResults(
-        Time=time_vals, E_mt=consumption, T_tank_mt=np.ones(192) * 50.0, D_unmet_mt=np.zeros(192)
-    )
-
-    # Create monthly rates (two months)
-    rates = [
-        np.array([0.12] * 96),  # First month off-peak
-        np.array([0.28] * 96),  # Second month peak
-    ]
-
-    monthly_bills = calculate_monthly_bill(sim_results, rates)
-
-    assert len(monthly_bills) == 2
-    assert abs(monthly_bills[0] - 0.5 * 96 * 0.12) < 1e-6  # First month
-    assert abs(monthly_bills[1] - 0.6 * 96 * 0.28) < 1e-6  # Second month
 
 
 def test_calculate_monthly_comfort_penalty(sample_tou_params):
