@@ -17,8 +17,8 @@ class TOUParameters:
     c_switch: float = 3.0  # $ - switching cost
     alpha: float = 0.15  # $/kWh - comfort penalty factor
     # Peak hours: 12 PM to 8 PM (12:00 to 20:00)
-    peak_start_hour: int = 12
-    peak_end_hour: int = 20
+    peak_start_hour: timedelta = timedelta(hours=12)
+    peak_end_hour: timedelta = timedelta(hours=20)
 
 
 @dataclass
@@ -72,3 +72,25 @@ def calculate_monthly_intervals(
         current_time = next_month_start
 
     return monthly_rates
+
+
+def define_peak_hours(TOU_params: TOUParameters, time_step: timedelta) -> np.ndarray:
+    """
+    Define peak hour intervals for a typical day
+
+    Args:
+        TOU_params: TOU parameters (uses default if None)
+        time_step: Time step of the simulation
+
+    Returns:
+        Boolean array indicating peak hours
+    """
+    day_intervals = np.arange(timedelta(0), timedelta(days=1), time_step)
+    peak_start_interval = np.where(day_intervals == TOU_params.peak_start_hour)[0][0]
+    peak_end_interval = np.where(day_intervals == TOU_params.peak_end_hour)[0][0]
+
+    # Create a boolean array for peak hours
+    peak_hours = np.zeros(len(day_intervals), dtype=bool)
+    peak_hours[peak_start_interval:peak_end_interval] = True
+
+    return peak_hours

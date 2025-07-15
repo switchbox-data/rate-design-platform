@@ -10,7 +10,9 @@ from datetime import datetime, timedelta
 
 from rate_design_platform.utils.rates import (  # type: ignore[import-unresolved]
     MonthlyRateStructure,
+    TOUParameters,
     calculate_monthly_intervals,
+    define_peak_hours,
 )
 
 
@@ -49,3 +51,10 @@ def test_calculate_monthly_intervals():
     time_step = timedelta(hours=1)
     intervals = calculate_monthly_intervals(start_time, end_time, time_step)
     assert len(intervals) == 0
+
+
+def test_define_peak_hours():
+    TOU_params = TOUParameters(peak_start_hour=timedelta(hours=12), peak_end_hour=timedelta(hours=20))
+    time_step = timedelta(hours=2)
+    peak_hours = define_peak_hours(TOU_params, time_step)
+    assert peak_hours.tolist() == [False, False, False, False, False, False, True, True, True, True, False, False]
