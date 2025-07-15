@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 import numpy as np
+import pandas as pd
 
 from rate_design_platform.utils.constants import HOURS_PER_DAY, SECONDS_PER_HOUR
 
@@ -98,7 +99,9 @@ def define_peak_hours(TOU_params: TOUParameters, time_step: timedelta) -> np.nda
     return peak_hours
 
 
-def create_tou_rates(timesteps: np.ndarray, time_step: timedelta, TOU_params: TOUParameters) -> list[np.ndarray]:
+def create_tou_rates(
+    timesteps: np.ndarray, time_step: timedelta, TOU_params: TOUParameters
+) -> list[MonthlyRateStructure]:
     """
     Create TOU rate structure for each month in the simulation period
 
@@ -108,7 +111,7 @@ def create_tou_rates(timesteps: np.ndarray, time_step: timedelta, TOU_params: TO
         TOU_params: TOU parameters
 
     Returns:
-        List of arrays, where each array contains electricity rates [$/kWh] for each interval in that month
+        List of MonthlyRateStructure, with rates for each interval in the month
     """
     daily_peak_pattern = define_peak_hours(TOU_params, time_step)
     intervals_per_day = int(HOURS_PER_DAY * SECONDS_PER_HOUR / time_step.total_seconds())
@@ -141,7 +144,11 @@ def create_tou_rates(timesteps: np.ndarray, time_step: timedelta, TOU_params: TO
 
             # Create rate array for this month
             month_rates = np.where(peak_pattern, TOU_params.r_on, TOU_params.r_off)
-            monthly_rates.append(month_rates)
+            # Convert numpy.datetime64 to datetime for year/month extraction
+            timestamp_dt = pd.to_datetime(timestamp)
+            monthly_rates.append(
+                MonthlyRateStructure(year=timestamp_dt.year, month=timestamp_dt.month, rates=month_rates)
+            )
 
             # Start new month
             current_month = month
@@ -160,6 +167,9 @@ def create_tou_rates(timesteps: np.ndarray, time_step: timedelta, TOU_params: TO
 
         # Create rate array for the last month
         month_rates = np.where(peak_pattern, TOU_params.r_on, TOU_params.r_off)
-        monthly_rates.append(month_rates)
+        # Get year and month from the last timestamp
+        last_timestamp = timesteps[-1]
+        timestamp_dt = pd.to_datetime(last_timestamp)
+        monthly_rates.append(MonthlyRateStructure(year=timestamp_dt.year, month=timestamp_dt.month, rates=month_rates))
 
     return monthly_rates

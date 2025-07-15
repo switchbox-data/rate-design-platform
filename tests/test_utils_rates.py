@@ -68,10 +68,10 @@ def test_create_tou_rates():
     time_step = timedelta(hours=2)
     timesteps = np.array([datetime(2024, 1, 1, 0, 0, 0), datetime(2024, 1, 1, 2, 0, 0)])
     rates = create_tou_rates(timesteps, time_step, TOU_params)
-    assert rates[0].tolist() == [0.12, 0.12]
+    assert rates[0].rates.tolist() == [0.12, 0.12]
 
     TOU_params = TOUParameters(peak_start_hour=timedelta(hours=12), peak_end_hour=timedelta(hours=20))
     time_step = timedelta(hours=2)
     timesteps = np.arange(datetime(2024, 1, 1, 0, 0, 0), datetime(2024, 1, 2, 0, 0, 0), time_step)
     rates = create_tou_rates(timesteps, time_step, TOU_params)
-    assert rates[0].tolist() == [0.12, 0.12, 0.12, 0.12, 0.12, 0.12, 0.48, 0.48, 0.48, 0.48, 0.12, 0.12]
+    assert rates[0].rates.tolist() == [0.12, 0.12, 0.12, 0.12, 0.12, 0.12, 0.48, 0.48, 0.48, 0.48, 0.12, 0.12]

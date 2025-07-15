@@ -16,8 +16,11 @@ from ochre.utils import default_input_path  # type: ignore[import-untyped]
 from rate_design_platform.Analysis import MonthlyResults, SimulationResults
 from rate_design_platform.utils.constants import HOURS_PER_DAY, SECONDS_PER_HOUR
 from rate_design_platform.utils.rates import (
+    MonthlyRateStructure,
     TOUParameters,
     calculate_monthly_intervals,
+    create_tou_rates,
+    define_peak_hours,
 )
 
 
@@ -93,33 +96,6 @@ def calculate_monthly_comfort_penalty(simulation_results: SimulationResults, TOU
     return monthly_comfort_penalties
 
 
-def define_peak_hours(TOU_params: TOUParameters, time_step: timedelta) -> np.ndarray:
-    """
-    Define peak hour intervals for a typical day
-
-    Args:
-        TOU_params: TOU parameters (uses default if None)
-        time_step: Time step of the simulation
-
-    Returns:
-        Boolean array indicating peak hours
-    """
-    if TOU_params is None:
-        TOU_params = TOUParameters()
-
-    # Convert timedelta to intervals
-    peak_start_interval = int(TOU_params.peak_start_hour.total_seconds() / time_step.total_seconds())
-    peak_end_interval = int(TOU_params.peak_end_hour.total_seconds() / time_step.total_seconds())
-
-    intervals_per_day = int(HOURS_PER_DAY * SECONDS_PER_HOUR / time_step.total_seconds())
-
-    # Create a boolean array for peak hours
-    peak_hours = np.zeros(intervals_per_day, dtype=bool)
-    peak_hours[peak_start_interval:peak_end_interval] = True
-
-    return peak_hours
-
-
 def create_operation_schedule(
     current_state: str, monthly_intervals: list[int], TOU_params: TOUParameters, time_step: timedelta
 ) -> np.ndarray:
@@ -158,76 +134,6 @@ def create_operation_schedule(
         return (~peak_pattern[: sum(monthly_intervals)]).astype(
             bool
         )  # Operation is restricted during peak hours, hence the negation.
-
-
-def create_tou_rates(timesteps: np.ndarray, time_step: timedelta, TOU_params: TOUParameters) -> list[np.ndarray]:
-    """
-    Create TOU rate structure for each month in the simulation period
-
-    Args:
-        timesteps: Datetime array
-        time_step: Time step of the simulation
-        TOU_params: TOU parameters (uses default if None)
-
-    Returns:
-        List of arrays, where each array contains electricity rates [$/kWh] for each interval in that month
-    """
-    if TOU_params is None:
-        TOU_params = TOUParameters()
-
-    daily_peak_pattern = define_peak_hours(TOU_params, time_step)
-    intervals_per_day = int(HOURS_PER_DAY * SECONDS_PER_HOUR / time_step.total_seconds())
-
-    monthly_rates = []
-    current_month = None
-    month_start_idx = 0
-
-    # Group timesteps by month
-    for i, timestamp in enumerate(timesteps):
-        # Try to get month, with fallback for numpy.datetime64
-        try:
-            month = timestamp.month
-        except AttributeError:
-            # Fallback for numpy.datetime64 objects
-            month = timestamp.astype("datetime64[M]").astype(int) % 12 + 1
-
-        if current_month is None:
-            current_month = month
-        elif month != current_month:
-            # Month changed, create rates for the previous month
-            month_intervals = i - month_start_idx
-            num_days = month_intervals // intervals_per_day
-            peak_pattern = np.tile(daily_peak_pattern, num_days)
-
-            # Handle remainder
-            remainder = month_intervals % intervals_per_day
-            if remainder > 0:
-                peak_pattern = np.concatenate([peak_pattern, daily_peak_pattern[:remainder]])
-
-            # Create rate array for this month
-            month_rates = np.where(peak_pattern, TOU_params.r_on, TOU_params.r_off)
-            monthly_rates.append(month_rates)
-
-            # Start new month
-            current_month = month
-            month_start_idx = i
-
-    # Handle the last month
-    if month_start_idx < len(timesteps):
-        month_intervals = len(timesteps) - month_start_idx
-        num_days = month_intervals // intervals_per_day
-        peak_pattern = np.tile(daily_peak_pattern, num_days)
-
-        # Handle remainder
-        remainder = month_intervals % intervals_per_day
-        if remainder > 0:
-            peak_pattern = np.concatenate([peak_pattern, daily_peak_pattern[:remainder]])
-
-        # Create rate array for the last month
-        month_rates = np.where(peak_pattern, TOU_params.r_on, TOU_params.r_off)
-        monthly_rates.append(month_rates)
-
-    return monthly_rates
 
 
 def extract_ochre_results(df: pd.DataFrame, time_step: timedelta) -> SimulationResults:
@@ -395,7 +301,20 @@ def simulate_full_cycle(
 
     monthly_rates = create_tou_rates(simulation_results.Time, time_step, TOU_params)
 
-    monthly_bill = calculate_monthly_bill(simulation_results, monthly_rates)
+    # Combine monthly interals and rates into a single list
+    monthly_rates = [
+        MonthlyRateStructure(
+            year=monthly_rate_structure.year,
+            month=monthly_rate_structure.month,
+            intervals=monthly_rate_structure.intervals,
+            rates=monthly_rate_structure.rates,
+        )
+        for monthly_rate_structure in monthly_rates
+    ]
+
+    monthly_rates_temp = [monthly_rate_structure.rates for monthly_rate_structure in monthly_rates]
+
+    monthly_bill = calculate_monthly_bill(simulation_results, monthly_rates_temp)
     monthly_comfort_penalty = calculate_monthly_comfort_penalty(simulation_results, TOU_params)
 
     return monthly_bill, monthly_comfort_penalty
