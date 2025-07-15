@@ -8,10 +8,13 @@ Each function in rates.py has a corresponding test_functionname test here.
 
 from datetime import datetime, timedelta
 
+import numpy as np
+
 from rate_design_platform.utils.rates import (  # type: ignore[import-unresolved]
     MonthlyRateStructure,
     TOUParameters,
     calculate_monthly_intervals,
+    create_tou_rates,
     define_peak_hours,
 )
 
@@ -58,3 +61,17 @@ def test_define_peak_hours():
     time_step = timedelta(hours=2)
     peak_hours = define_peak_hours(TOU_params, time_step)
     assert peak_hours.tolist() == [False, False, False, False, False, False, True, True, True, True, False, False]
+
+
+def test_create_tou_rates():
+    TOU_params = TOUParameters(peak_start_hour=timedelta(hours=12), peak_end_hour=timedelta(hours=20))
+    time_step = timedelta(hours=2)
+    timesteps = np.array([datetime(2024, 1, 1, 0, 0, 0), datetime(2024, 1, 1, 2, 0, 0)])
+    rates = create_tou_rates(timesteps, time_step, TOU_params)
+    assert rates[0].tolist() == [0.12, 0.12]
+
+    TOU_params = TOUParameters(peak_start_hour=timedelta(hours=12), peak_end_hour=timedelta(hours=20))
+    time_step = timedelta(hours=2)
+    timesteps = np.arange(datetime(2024, 1, 1, 0, 0, 0), datetime(2024, 1, 2, 0, 0, 0), time_step)
+    rates = create_tou_rates(timesteps, time_step, TOU_params)
+    assert rates[0].tolist() == [0.12, 0.12, 0.12, 0.12, 0.12, 0.12, 0.48, 0.48, 0.48, 0.48, 0.12, 0.12]

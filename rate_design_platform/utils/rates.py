@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
+from rate_design_platform.utils.constants import HOURS_PER_DAY, SECONDS_PER_HOUR
+
 
 @dataclass
 class TOUParameters:
@@ -85,7 +87,7 @@ def define_peak_hours(TOU_params: TOUParameters, time_step: timedelta) -> np.nda
     Returns:
         Boolean array indicating peak hours
     """
-    day_intervals = np.arange(timedelta(0), timedelta(days=1), time_step)
+    day_intervals: np.ndarray = np.arange(timedelta(0), timedelta(days=1), time_step)
     peak_start_interval = np.where(day_intervals == TOU_params.peak_start_hour)[0][0]
     peak_end_interval = np.where(day_intervals == TOU_params.peak_end_hour)[0][0]
 
@@ -94,3 +96,70 @@ def define_peak_hours(TOU_params: TOUParameters, time_step: timedelta) -> np.nda
     peak_hours[peak_start_interval:peak_end_interval] = True
 
     return peak_hours
+
+
+def create_tou_rates(timesteps: np.ndarray, time_step: timedelta, TOU_params: TOUParameters) -> list[np.ndarray]:
+    """
+    Create TOU rate structure for each month in the simulation period
+
+    Args:
+        timesteps: Datetime array for each time step in the simulation
+        time_step: Time step of the simulation
+        TOU_params: TOU parameters
+
+    Returns:
+        List of arrays, where each array contains electricity rates [$/kWh] for each interval in that month
+    """
+    daily_peak_pattern = define_peak_hours(TOU_params, time_step)
+    intervals_per_day = int(HOURS_PER_DAY * SECONDS_PER_HOUR / time_step.total_seconds())
+
+    monthly_rates = []
+    current_month = None
+    month_start_idx = 0
+
+    # Group timesteps by month
+    for i, timestamp in enumerate(timesteps):
+        # Try to get month, with fallback for numpy.datetime64
+        try:
+            month = timestamp.month
+        except AttributeError:
+            # Fallback for numpy.datetime64 objects
+            month = timestamp.astype("datetime64[M]").astype(int) % 12 + 1
+
+        if current_month is None:
+            current_month = month
+        elif month != current_month:
+            # Month changed, create rates for the previous month
+            month_intervals = i - month_start_idx
+            num_days = month_intervals // intervals_per_day
+            peak_pattern = np.tile(daily_peak_pattern, num_days)
+
+            # Handle remainder
+            remainder = month_intervals % intervals_per_day
+            if remainder > 0:
+                peak_pattern = np.concatenate([peak_pattern, daily_peak_pattern[:remainder]])
+
+            # Create rate array for this month
+            month_rates = np.where(peak_pattern, TOU_params.r_on, TOU_params.r_off)
+            monthly_rates.append(month_rates)
+
+            # Start new month
+            current_month = month
+            month_start_idx = i
+
+    # Handle the last month
+    if month_start_idx < len(timesteps):
+        month_intervals = len(timesteps) - month_start_idx
+        num_days = month_intervals // intervals_per_day
+        peak_pattern = np.tile(daily_peak_pattern, num_days)
+
+        # Handle remainder
+        remainder = month_intervals % intervals_per_day
+        if remainder > 0:
+            peak_pattern = np.concatenate([peak_pattern, daily_peak_pattern[:remainder]])
+
+        # Create rate array for the last month
+        month_rates = np.where(peak_pattern, TOU_params.r_on, TOU_params.r_off)
+        monthly_rates.append(month_rates)
+
+    return monthly_rates

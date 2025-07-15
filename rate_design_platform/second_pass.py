@@ -106,8 +106,10 @@ def define_peak_hours(TOU_params: TOUParameters, time_step: timedelta) -> np.nda
     """
     if TOU_params is None:
         TOU_params = TOUParameters()
-    peak_start_interval = TOU_params.peak_start_hour * int(SECONDS_PER_HOUR / time_step.total_seconds())
-    peak_end_interval = TOU_params.peak_end_hour * int(SECONDS_PER_HOUR / time_step.total_seconds())
+
+    # Convert timedelta to intervals
+    peak_start_interval = int(TOU_params.peak_start_hour.total_seconds() / time_step.total_seconds())
+    peak_end_interval = int(TOU_params.peak_end_hour.total_seconds() / time_step.total_seconds())
 
     intervals_per_day = int(HOURS_PER_DAY * SECONDS_PER_HOUR / time_step.total_seconds())
 
