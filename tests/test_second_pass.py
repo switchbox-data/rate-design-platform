@@ -25,18 +25,16 @@ from rate_design_platform.Analysis import (  # type: ignore[import-unresolved]
 )
 from rate_design_platform.second_pass import (
     calculate_annual_metrics,
-    calculate_monthly_comfort_penalty,
     calculate_monthly_metrics,
     calculate_simulation_months,
     create_operation_schedule,
-    define_peak_hours,
     evaluate_human_decision,
     extract_ochre_results,
     human_controller,
     run_full_simulation,
     simulate_full_cycle,
 )
-from rate_design_platform.utils.rates import TOUParameters
+from rate_design_platform.utils.rates import TOUParameters, define_peak_hours
 
 
 @pytest.fixture
@@ -69,37 +67,6 @@ def sample_timesteps():
     start = datetime(2018, 1, 1, 0, 0)
     end = datetime(2018, 3, 1, 0, 0)  # Two months
     return pd.date_range(start=start, end=end, freq=timedelta(minutes=15))[:-1]
-
-
-def test_calculate_monthly_comfort_penalty(sample_tou_params):
-    """Test calculate_monthly_comfort_penalty function"""
-    # Create sample simulation results with unmet demand spanning two months
-    # January has 31 days, February has 28 days in 2018
-    jan_intervals = 31 * 96  # January
-    feb_intervals = 28 * 96  # February
-    total_intervals = jan_intervals + feb_intervals
-
-    # Start at Jan 1, go through Feb
-    time_vals = pd.date_range(start=datetime(2018, 1, 1), periods=total_intervals, freq=timedelta(minutes=15))
-    unmet_demand = np.concatenate([
-        np.full(jan_intervals, 0.1),  # January unmet demand
-        np.full(feb_intervals, 0.2),  # February unmet demand
-    ])
-
-    sim_results = SimulationResults(
-        Time=time_vals.values,
-        E_mt=np.ones(total_intervals) * 0.5,
-        T_tank_mt=np.ones(total_intervals) * 50.0,
-        D_unmet_mt=unmet_demand,
-    )
-
-    penalties = calculate_monthly_comfort_penalty(sim_results, sample_tou_params)
-
-    assert len(penalties) == 2
-    expected_penalty_1 = 0.1 * jan_intervals * 0.15  # January
-    expected_penalty_2 = 0.2 * feb_intervals * 0.15  # February
-    assert abs(penalties[0] - expected_penalty_1) < 1e-6
-    assert abs(penalties[1] - expected_penalty_2) < 1e-6
 
 
 @pytest.mark.xfail(reason="Known bug, will fix later")

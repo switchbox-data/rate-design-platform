@@ -13,7 +13,12 @@ import pandas as pd
 from ochre import Dwelling  # type: ignore[import-untyped]
 from ochre.utils import default_input_path  # type: ignore[import-untyped]
 
-from rate_design_platform.Analysis import MonthlyResults, SimulationResults
+from rate_design_platform.Analysis import (
+    MonthlyMetrics,
+    MonthlyResults,
+    SimulationResults,
+    calculate_monthly_bill_and_comfort_penalty,
+)
 from rate_design_platform.utils.constants import HOURS_PER_DAY, SECONDS_PER_HOUR
 from rate_design_platform.utils.rates import (
     MonthlyRateStructure,
@@ -22,78 +27,6 @@ from rate_design_platform.utils.rates import (
     create_tou_rates,
     define_peak_hours,
 )
-
-
-def calculate_monthly_bill(simulation_results: SimulationResults, rates: list[np.ndarray]) -> list[float]:
-    """Calculate monthly electricity bill"""
-    monthly_bills = []
-    start_idx = 0
-
-    for month_rates in rates:
-        # Get the number of intervals in this month
-        month_intervals = len(month_rates)
-
-        # Extract consumption data for this month
-        month_consumption = simulation_results.E_mt[start_idx : start_idx + month_intervals]
-
-        # Calculate bill for this month: sum(consumption * rates)
-        month_bill = float(np.sum(month_consumption * month_rates))
-        monthly_bills.append(month_bill)
-
-        # Move to next month's starting index
-        start_idx += month_intervals
-
-    return monthly_bills
-
-
-def calculate_monthly_comfort_penalty(simulation_results: SimulationResults, TOU_params: TOUParameters) -> list[float]:
-    """
-    Calculate comfort penalty in $ from electrical unmet demand
-
-    Args:
-        simulation_results: Simulation results
-        TOU_params: TOU parameters
-
-    Returns:
-        List of comfort penalties for each month
-    """
-    time_stamps = simulation_results.Time
-    unmet_demand_kWh = simulation_results.D_unmet_mt
-    monthly_comfort_penalties = []
-
-    # Group by month using the same logic as create_tou_rates
-    current_month = None
-    month_start_idx = 0
-
-    for i, timestamp in enumerate(time_stamps):
-        # Try to get month, with fallback for numpy.datetime64
-        try:
-            month = timestamp.month
-        except AttributeError:
-            # Fallback for numpy.datetime64 objects
-            month = timestamp.astype("datetime64[M]").astype(int) % 12 + 1
-
-        if current_month is None:
-            current_month = month
-        elif month != current_month:
-            # Month changed, calculate penalty for the previous month
-            month_intervals = i - month_start_idx
-            month_unmet_demand = unmet_demand_kWh[month_start_idx : month_start_idx + month_intervals]
-            total_unmet_kwh = np.sum(month_unmet_demand)
-            monthly_comfort_penalties.append(float(TOU_params.alpha * total_unmet_kwh))
-
-            # Start new month
-            current_month = month
-            month_start_idx = i
-
-    # Handle the last month
-    if month_start_idx < len(time_stamps):
-        month_intervals = len(time_stamps) - month_start_idx
-        month_unmet_demand = unmet_demand_kWh[month_start_idx : month_start_idx + month_intervals]
-        total_unmet_kwh = np.sum(month_unmet_demand)
-        monthly_comfort_penalties.append(float(TOU_params.alpha * total_unmet_kwh))
-
-    return monthly_comfort_penalties
 
 
 def create_operation_schedule(
@@ -255,9 +188,7 @@ def human_controller(
             return "stay"
 
 
-def simulate_full_cycle(
-    simulation_type: str, TOU_params: TOUParameters, house_args: dict
-) -> tuple[list[float], list[float]]:
+def simulate_full_cycle(simulation_type: str, TOU_params: TOUParameters, house_args: dict) -> list[MonthlyMetrics]:
     """
     Simulate complete annual cycle with monthly decision-making
 
@@ -312,12 +243,11 @@ def simulate_full_cycle(
         for monthly_rate_structure in monthly_rates
     ]
 
-    monthly_rates_temp = [monthly_rate_structure.rates for monthly_rate_structure in monthly_rates]
+    monthly_bill_and_comfort_penalty = calculate_monthly_bill_and_comfort_penalty(
+        simulation_results, monthly_rates, TOU_params
+    )
 
-    monthly_bill = calculate_monthly_bill(simulation_results, monthly_rates_temp)
-    monthly_comfort_penalty = calculate_monthly_comfort_penalty(simulation_results, TOU_params)
-
-    return monthly_bill, monthly_comfort_penalty
+    return monthly_bill_and_comfort_penalty
 
 
 def evaluate_human_decision(
@@ -462,8 +392,25 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
         TOU_params = TOUParameters()
 
     # Run default annual simulation with house args
-    default_monthly_bill, default_monthly_comfort_penalty = simulate_full_cycle("default", TOU_params, house_args)
-    tou_monthly_bill, tou_monthly_comfort_penalty = simulate_full_cycle("tou", TOU_params, house_args)
+    default_monthly_bill_and_comfort_penalty = simulate_full_cycle("default", TOU_params, house_args)
+    tou_monthly_bill_and_comfort_penalty = simulate_full_cycle("tou", TOU_params, house_args)
+
+    default_monthly_bill = [
+        monthly_bill_and_comfort_penalty.bill
+        for monthly_bill_and_comfort_penalty in default_monthly_bill_and_comfort_penalty
+    ]
+    tou_monthly_bill = [
+        monthly_bill_and_comfort_penalty.bill
+        for monthly_bill_and_comfort_penalty in tou_monthly_bill_and_comfort_penalty
+    ]
+    default_monthly_comfort_penalty = [
+        monthly_bill_and_comfort_penalty.comfort_penalty
+        for monthly_bill_and_comfort_penalty in default_monthly_bill_and_comfort_penalty
+    ]
+    tou_monthly_comfort_penalty = [
+        monthly_bill_and_comfort_penalty.comfort_penalty
+        for monthly_bill_and_comfort_penalty in tou_monthly_bill_and_comfort_penalty
+    ]
 
     # Evaluate human decisions
     initial_state = "default"
