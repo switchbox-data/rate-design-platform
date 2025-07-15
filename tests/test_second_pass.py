@@ -4,19 +4,12 @@ Tests for rate_design_platform.second_pass module
 Each function in second_pass.py has a corresponding test_functionname test here.
 """
 
-# Skip all tests in this file if Python < 3.10 (OCHRE requires 3.10+ union syntax)
-import sys
-
-import pytest
-
-if sys.version_info < (3, 10):
-    pytest.skip("OCHRE requires Python 3.10+", allow_module_level=True)
-
 import os
 from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
+import pytest
 from ochre.utils import default_input_path
 
 from rate_design_platform.Analysis import (  # type: ignore[import-unresolved]
