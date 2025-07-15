@@ -135,3 +135,33 @@ def calculate_monthly_bill_and_comfort_penalty(
             )
         )
     return monthly_metrics
+
+
+def calculate_monthly_metrics(
+    simulation_year_months: list[tuple[int, int]],
+    monthly_decisions: list[str],
+    states: list[str],
+    default_monthly_bill: list[float],
+    tou_monthly_bill: list[float],
+    default_monthly_comfort_penalty: list[float],
+    tou_monthly_comfort_penalty: list[float],
+) -> list[MonthlyResults]:
+    """
+    Calculate monthly results
+    """
+    monthly_results = []
+    for i in range(len(simulation_year_months)):
+        current_monthly_result = MonthlyResults(
+            year=simulation_year_months[i][0],
+            month=simulation_year_months[i][1],
+            current_state=states[i],
+            bill=default_monthly_bill[i] if states[i] == "default" else tou_monthly_bill[i],
+            comfort_penalty=default_monthly_comfort_penalty[i]
+            if states[i] == "default"
+            else tou_monthly_comfort_penalty[i],
+            switching_decision=monthly_decisions[i],
+            realized_savings=default_monthly_bill[i] - tou_monthly_bill[i] if states[i] == "tou" else 0,
+            unrealized_savings=default_monthly_bill[i] - tou_monthly_bill[i] if states[i] == "default" else 0,
+        )
+        monthly_results.append(current_monthly_result)
+    return monthly_results

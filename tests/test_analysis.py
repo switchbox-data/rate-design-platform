@@ -4,10 +4,12 @@ import numpy as np
 
 from rate_design_platform.Analysis import (
     MonthlyMetrics,
+    MonthlyResults,
     SimulationResults,
     calculate_monthly_bill,
     calculate_monthly_bill_and_comfort_penalty,
     calculate_monthly_comfort_penalty,
+    calculate_monthly_metrics,
 )
 from rate_design_platform.utils.rates import MonthlyRateStructure, TOUParameters
 
@@ -101,3 +103,48 @@ def test_calculate_monthly_bill_and_comfort_penalty():
     TOU_params = TOUParameters(alpha=0.1)
     monthly_metrics = calculate_monthly_bill_and_comfort_penalty(simulation_results, monthly_rate_structure, TOU_params)
     assert monthly_metrics == [MonthlyMetrics(year=2024, month=1, bill=5, comfort_penalty=3)]
+
+
+def test_calculate_monthly_metrics():
+    """Test calculate_monthly_metrics function"""
+    year_months = [(2018, 1), (2018, 2)]
+    decisions = ["switch", "stay"]
+    states = ["default", "tou"]
+    default_bills = [100.0, 110.0]
+    tou_bills = [80.0, 90.0]
+    default_penalties = [2.0, 3.0]
+    tou_penalties = [5.0, 6.0]
+
+    results = calculate_monthly_metrics(
+        year_months, decisions, states, default_bills, tou_bills, default_penalties, tou_penalties
+    )
+
+    assert len(results) == 2
+    assert all(isinstance(result, MonthlyResults) for result in results)
+
+    # Check first month (default state)
+    assert results[0].year == 2018
+    assert results[0].month == 1
+    assert results[0].current_state == "default"
+    assert results[0].bill == 100.0  # Uses default bill
+    assert results[0].comfort_penalty == 2.0  # Uses default penalty
+    assert results[0].switching_decision == "switch"
+    assert results[0].realized_savings == 0  # No realized savings on default
+    assert results[0].unrealized_savings == 20.0  # 100 - 80
+
+    # Check second month (TOU state)
+    assert results[1].current_state == "tou"
+    assert results[1].bill == 90.0  # Uses TOU bill
+    assert results[1].comfort_penalty == 6.0  # Uses TOU penalty
+    assert results[1].realized_savings == 20.0  # 110 - 90
+    assert results[1].unrealized_savings == 0  # No unrealized savings on TOU
+
+    # Test  case: empty inputs
+    empty_results = calculate_monthly_metrics([], [], [], [], [], [], [])
+    assert len(empty_results) == 0
+
+    # Test  case: single month
+    single_results = calculate_monthly_metrics([(2018, 3)], ["stay"], ["default"], [120.0], [95.0], [1.0], [4.0])
+    assert len(single_results) == 1
+    assert single_results[0].month == 3
+    assert single_results[0].unrealized_savings == 25.0  # 120 - 95
