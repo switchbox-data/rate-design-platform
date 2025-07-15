@@ -17,7 +17,6 @@ from rate_design_platform.Analysis import (  # type: ignore[import-unresolved]
     SimulationResults,
 )
 from rate_design_platform.second_pass import (
-    calculate_annual_metrics,
     calculate_simulation_months,
     create_operation_schedule,
     evaluate_human_decision,
@@ -205,34 +204,6 @@ def test_calculate_simulation_months(sample_house_args):
     assert year_months[0] == (2018, 1)  # January
     assert year_months[1] == (2018, 2)  # February
     assert year_months[2] == (2018, 3)  # March
-
-
-def test_calculate_annual_metrics():
-    """Test calculate_annual_metrics function"""
-    # Create sample monthly results
-    monthly_results = []
-    for month in range(1, 13):
-        result = MonthlyResults(
-            year=2018,
-            month=month,
-            current_state="default" if month % 2 == 1 else "tou",  # Alternate states
-            bill=100.0,
-            comfort_penalty=5.0,
-            switching_decision="switch" if month == 6 else "stay",  # One switch
-            realized_savings=10.0 if month % 2 == 0 else 0.0,
-            unrealized_savings=15.0 if month % 2 == 1 else 0.0,
-        )
-        monthly_results.append(result)
-
-    metrics = calculate_annual_metrics(monthly_results)
-
-    assert metrics["total_annual_bills"] == 1200.0  # 12 * 100
-    assert metrics["total_comfort_penalty"] == 60.0  # 12 * 5
-    assert metrics["annual_switches"] == 1
-    assert metrics["total_switching_costs"] == 3.0  # 1 * 3
-    assert metrics["average_monthly_bill"] == 100.0
-    assert metrics["tou_adoption_rate_percent"] == 50.0  # 6 months TOU
-    assert metrics["total_realized_savings"] == 60.0  # 6 TOU months * 10
 
 
 @pytest.mark.xfail(reason="Known bug, will fix later")

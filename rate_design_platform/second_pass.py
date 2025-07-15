@@ -17,6 +17,7 @@ from rate_design_platform.Analysis import (
     MonthlyMetrics,
     MonthlyResults,
     SimulationResults,
+    calculate_annual_metrics,
     calculate_monthly_bill_and_comfort_penalty,
     calculate_monthly_metrics,
 )
@@ -309,41 +310,6 @@ def calculate_simulation_months(house_args: dict) -> list[tuple[int, int]]:
                 month=current_time.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0
             )
     return year_months
-
-
-def calculate_annual_metrics(monthly_results: list[MonthlyResults]) -> dict[str, float]:
-    """
-    Calculate annual performance metrics from monthly results
-
-    Args:
-        monthly_results: List of MonthlyResults for each month
-
-    Returns:
-        Dictionary of annual metrics
-    """
-    total_bills = sum(r.bill for r in monthly_results)
-    total_comfort_penalty = sum(r.comfort_penalty for r in monthly_results)
-    total_switches = sum(1 for r in monthly_results if r.switching_decision == "switch")
-
-    # Calculate TOU adoption rate
-    tou_months = sum(1 for r in monthly_results if r.current_state == "tou")
-    tou_adoption_rate = tou_months / len(monthly_results) * 100
-
-    # Calculate total realized savings (only when on TOU)
-    total_realized_savings = sum(r.realized_savings for r in monthly_results if r.current_state == "tou")
-
-    return {
-        "total_annual_bills": total_bills,
-        "total_comfort_penalty": total_comfort_penalty,
-        "total_switching_costs": total_switches * TOUParameters().c_switch,
-        "total_realized_savings": total_realized_savings,
-        "net_annual_benefit": total_realized_savings
-        - (total_switches * TOUParameters().c_switch)
-        - total_comfort_penalty,
-        "tou_adoption_rate_percent": tou_adoption_rate,
-        "annual_switches": total_switches,
-        "average_monthly_bill": total_bills / len(monthly_results),
-    }
 
 
 def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[list[MonthlyResults], dict[str, float]]:
