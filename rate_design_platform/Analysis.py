@@ -120,3 +120,18 @@ def calculate_monthly_comfort_penalty(
         )
 
     return monthly_comfort_penalties
+
+
+def calculate_monthly_bill_and_comfort_penalty(
+    simulation_results: SimulationResults, monthly_rate_structure: list[MonthlyRateStructure], TOU_params: TOUParameters
+) -> list[MonthlyMetrics]:
+    monthly_bills = calculate_monthly_bill(simulation_results, monthly_rate_structure)
+    monthly_comfort_penalties = calculate_monthly_comfort_penalty(simulation_results, TOU_params)
+    monthly_metrics = []
+    for bill, comfort_penalty in zip(monthly_bills, monthly_comfort_penalties):
+        monthly_metrics.append(
+            MonthlyMetrics(
+                year=bill.year, month=bill.month, bill=bill.bill, comfort_penalty=comfort_penalty.comfort_penalty
+            )
+        )
+    return monthly_metrics
