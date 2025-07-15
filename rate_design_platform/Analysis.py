@@ -3,11 +3,13 @@ Collection of dataclasses and functions for analyzing the results of the TOU sch
 """
 
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
 
+from rate_design_platform.utils.constants import SECONDS_PER_HOUR
 from rate_design_platform.utils.rates import MonthlyRateStructure, TOUParameters
 
 
@@ -200,3 +202,34 @@ def calculate_annual_metrics(monthly_results: list[MonthlyResults]) -> dict[str,
         "annual_switches": total_switches,
         "average_monthly_bill": total_bills / len(monthly_results),
     }
+
+
+def extract_ochre_results(df: pd.DataFrame, time_step: timedelta) -> SimulationResults:
+    """
+    Extract simulation results from OCHRE output DataFrame
+
+    Args:
+        df: OCHRE simulation results DataFrame
+        monthly_intervals: Number of intervals for each month in the simulation period
+        time_step: Time step of the simulation
+
+    Returns:
+        SimulationResults with electricity consumption, tank temps, and unmet demand
+    """
+    # Extract time from the index
+    time_values = df.index.values
+
+    # Extract electricity consumption for water heating [kW] -> [kWh]
+    time_step_fraction = time_step.total_seconds() / SECONDS_PER_HOUR
+    E_mt = (
+        np.array(df["Water Heating Electric Power (kW)"].values, dtype=float) * time_step_fraction
+    )  # Convert kW to kWh
+
+    # Extract tank temperature [°C]
+    T_tank_mt = np.array(df["Hot Water Average Temperature (C)"].values, dtype=float)
+    # Extract unmet demand [kW] -> [kWh]
+    D_unmet_mt = (
+        np.array(df["Hot Water Unmet Demand (kW)"].values, dtype=float) * time_step_fraction
+    )  # Convert kW to kWh
+
+    return SimulationResults(time_values, E_mt, T_tank_mt, D_unmet_mt)

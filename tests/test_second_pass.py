@@ -14,13 +14,11 @@ from ochre.utils import default_input_path
 
 from rate_design_platform.Analysis import (  # type: ignore[import-unresolved]
     MonthlyResults,
-    SimulationResults,
 )
 from rate_design_platform.second_pass import (
     calculate_simulation_months,
     create_operation_schedule,
     evaluate_human_decision,
-    extract_ochre_results,
     human_controller,
     run_full_simulation,
     simulate_full_cycle,
@@ -81,36 +79,6 @@ def test_create_operation_schedule(sample_tou_params):
     daily_pattern = np.tile(peak_hours, 2)  # Two days
     assert np.all(~tou_schedule[daily_pattern])  # Restricted during peak
     assert np.all(tou_schedule[~daily_pattern])  # Allowed during off-peak
-
-
-def test_extract_ochre_results():
-    """Test extract_ochre_results function"""
-    # Create sample DataFrame
-    time_index = pd.date_range(start=datetime(2018, 1, 1), periods=96, freq=timedelta(minutes=15))
-    df = pd.DataFrame(
-        {
-            "Water Heating Electric Power (kW)": np.ones(96) * 4.0,
-            "Hot Water Average Temperature (C)": np.ones(96) * 50.0,
-            "Hot Water Unmet Demand (kW)": np.ones(96) * 0.5,
-        },
-        index=time_index,
-    )
-
-    time_step = timedelta(minutes=15)
-    results = extract_ochre_results(df, time_step)
-
-    assert isinstance(results, SimulationResults)
-    assert len(results.Time) == 96
-    assert len(results.E_mt) == 96
-    assert len(results.T_tank_mt) == 96
-    assert len(results.D_unmet_mt) == 96
-
-    # Check conversion from kW to kWh
-    expected_energy = 4.0 * 0.25  # 4 kW * 0.25 hours
-    assert np.all(results.E_mt == expected_energy)
-
-    expected_unmet = 0.5 * 0.25  # 0.5 kW * 0.25 hours
-    assert np.all(results.D_unmet_mt == expected_unmet)
 
 
 def test_human_controller(sample_tou_params):

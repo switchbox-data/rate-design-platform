@@ -1,6 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
+import pandas as pd
 
 from rate_design_platform.Analysis import (
     MonthlyMetrics,
@@ -11,6 +12,7 @@ from rate_design_platform.Analysis import (
     calculate_monthly_bill_and_comfort_penalty,
     calculate_monthly_comfort_penalty,
     calculate_monthly_metrics,
+    extract_ochre_results,
 )
 from rate_design_platform.utils.rates import MonthlyRateStructure, TOUParameters
 
@@ -177,3 +179,33 @@ def test_calculate_annual_metrics():
     assert metrics["average_monthly_bill"] == 100.0
     assert metrics["tou_adoption_rate_percent"] == 50.0  # 6 months TOU
     assert metrics["total_realized_savings"] == 60.0  # 6 TOU months * 10
+
+
+def test_extract_ochre_results():
+    """Test extract_ochre_results function"""
+    # Create sample DataFrame
+    time_index = pd.date_range(start=datetime(2018, 1, 1), periods=96, freq=timedelta(minutes=15))
+    df = pd.DataFrame(
+        {
+            "Water Heating Electric Power (kW)": np.ones(96) * 4.0,
+            "Hot Water Average Temperature (C)": np.ones(96) * 50.0,
+            "Hot Water Unmet Demand (kW)": np.ones(96) * 0.5,
+        },
+        index=time_index,
+    )
+
+    time_step = timedelta(minutes=15)
+    results = extract_ochre_results(df, time_step)
+
+    assert isinstance(results, SimulationResults)
+    assert len(results.Time) == 96
+    assert len(results.E_mt) == 96
+    assert len(results.T_tank_mt) == 96
+    assert len(results.D_unmet_mt) == 96
+
+    # Check conversion from kW to kWh
+    expected_energy = 4.0 * 0.25  # 4 kW * 0.25 hours
+    assert np.all(results.E_mt == expected_energy)
+
+    expected_unmet = 0.5 * 0.25  # 0.5 kW * 0.25 hours
+    assert np.all(results.D_unmet_mt == expected_unmet)

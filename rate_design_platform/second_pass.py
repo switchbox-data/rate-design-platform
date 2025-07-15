@@ -20,6 +20,7 @@ from rate_design_platform.Analysis import (
     calculate_annual_metrics,
     calculate_monthly_bill_and_comfort_penalty,
     calculate_monthly_metrics,
+    extract_ochre_results,
 )
 from rate_design_platform.utils.constants import HOURS_PER_DAY, SECONDS_PER_HOUR
 from rate_design_platform.utils.rates import (
@@ -69,37 +70,6 @@ def create_operation_schedule(
         return (~peak_pattern[: sum(monthly_intervals)]).astype(
             bool
         )  # Operation is restricted during peak hours, hence the negation.
-
-
-def extract_ochre_results(df: pd.DataFrame, time_step: timedelta) -> SimulationResults:
-    """
-    Extract simulation results from OCHRE output DataFrame
-
-    Args:
-        df: OCHRE simulation results DataFrame
-        monthly_intervals: Number of intervals for each month in the simulation period
-        time_step: Time step of the simulation
-
-    Returns:
-        SimulationResults with electricity consumption, tank temps, and unmet demand
-    """
-    # Extract time from the index
-    time_values = df.index.values
-
-    # Extract electricity consumption for water heating [kW] -> [kWh]
-    time_step_fraction = time_step.total_seconds() / SECONDS_PER_HOUR
-    E_mt = (
-        np.array(df["Water Heating Electric Power (kW)"].values, dtype=float) * time_step_fraction
-    )  # Convert kW to kWh
-
-    # Extract tank temperature [°C]
-    T_tank_mt = np.array(df["Hot Water Average Temperature (C)"].values, dtype=float)
-    # Extract unmet demand [kW] -> [kWh]
-    D_unmet_mt = (
-        np.array(df["Hot Water Unmet Demand (kW)"].values, dtype=float) * time_step_fraction
-    )  # Convert kW to kWh
-
-    return SimulationResults(time_values, E_mt, T_tank_mt, D_unmet_mt)
 
 
 def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
