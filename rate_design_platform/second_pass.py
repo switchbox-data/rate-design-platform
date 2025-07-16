@@ -19,7 +19,8 @@ from rate_design_platform.Analysis import (
     calculate_monthly_bill_and_comfort_penalty,
     calculate_monthly_metrics,
 )
-from rate_design_platform.ochre_simulation import calculate_simulation_months, run_ochre_wh_dynamic_control
+from rate_design_platform.DecisionMaker import BasicHumanController
+from rate_design_platform.OchreSimulator import calculate_simulation_months, run_ochre_wh_dynamic_control
 from rate_design_platform.utils.rates import (
     MonthlyRateStructure,
     TOUParameters,
@@ -27,40 +28,6 @@ from rate_design_platform.utils.rates import (
     create_operation_schedule,
     create_tou_rates,
 )
-
-
-def human_controller(
-    current_state: str,
-    default_bill: float,
-    tou_bill: float,
-    tou_comfort_penalty: float,
-    TOU_params: TOUParameters,
-) -> str:
-    """
-    Human controller for TOU scheduling
-
-    Args:
-        current_state: Current schedule state ("default" or "tou")
-        realized_savings: Realized savings (if on TOU)
-        unrealized_savings: Unrealized savings (if on default)
-
-    Returns:
-        New schedule state ("default" or "tou")
-    """
-    if current_state == "default":
-        anticipated_savings = default_bill - tou_bill
-        net_savings = anticipated_savings - TOU_params.c_switch
-        if net_savings > 0:
-            return "switch"
-        else:
-            return "stay"
-    else:
-        realized_savings = default_bill - tou_bill
-        net_savings = realized_savings - tou_comfort_penalty
-        if net_savings < 0:
-            return "switch"
-        else:
-            return "stay"
 
 
 def simulate_full_cycle(simulation_type: str, TOU_params: TOUParameters, house_args: dict) -> list[MonthlyMetrics]:
@@ -151,7 +118,8 @@ def evaluate_human_decision(
     print(f"tou_monthly_bill: {tou_monthly_bill}")
     for i in range(len(default_monthly_bill)):
         states.append(current_state)
-        current_decision = human_controller(
+        human_controller = BasicHumanController()
+        current_decision = human_controller.TOU_decision(
             current_state, default_monthly_bill[i], tou_monthly_bill[i], tou_monthly_comfort_penalty[i], TOU_params
         )
         human_decisions.append(current_decision)

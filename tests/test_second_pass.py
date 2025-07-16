@@ -16,7 +16,6 @@ from rate_design_platform.Analysis import (  # type: ignore[import-unresolved]
 )
 from rate_design_platform.second_pass import (
     evaluate_human_decision,
-    human_controller,
     run_full_simulation,
     simulate_full_cycle,
 )
@@ -53,37 +52,6 @@ def sample_timesteps():
     start = datetime(2018, 1, 1, 0, 0)
     end = datetime(2018, 3, 1, 0, 0)  # Two months
     return pd.date_range(start=start, end=end, freq=timedelta(minutes=15))[:-1]
-
-
-def test_human_controller(sample_tou_params):
-    """Test human_controller function"""
-    # Test from default state with positive savings
-    decision = human_controller("default", 100.0, 80.0, 5.0, sample_tou_params)
-    assert decision == "switch"  # Should switch because net savings positive (20 - 3 = 17 > 0)
-
-    # Test from default state with small savings
-    decision = human_controller("default", 100.0, 98.0, 5.0, sample_tou_params)
-    assert decision == "stay"  # Should stay because net savings negative (2 - 3 = -1 < 0)
-
-    # Test from TOU state with good realized savings
-    decision = human_controller("tou", 100.0, 80.0, 5.0, sample_tou_params)
-    assert decision == "stay"  # Should stay because net savings positive (20 - 5 = 15 > 0)
-
-    # Test from TOU state with poor performance (negative savings)
-    decision = human_controller("tou", 100.0, 110.0, 5.0, sample_tou_params)
-    assert decision == "switch"  # Should switch back because net savings negative (-10 - 5 = -15 < 0)
-
-    # Test case: exactly break-even from default
-    decision = human_controller("default", 100.0, 97.0, 5.0, sample_tou_params)
-    assert decision == "stay"  # Net savings = 3 - 3 = 0, not > 0, so stay
-
-    # Test case: exactly break-even from TOU
-    decision = human_controller("tou", 100.0, 95.0, 5.0, sample_tou_params)
-    assert decision == "stay"  # Net savings = 5 - 5 = 0, not < 0, so stay on TOU
-
-    # Test case: zero comfort penalty
-    decision = human_controller("tou", 100.0, 80.0, 0.0, sample_tou_params)
-    assert decision == "stay"  # Net savings = 20 - 0 = 20 > 0
 
 
 @pytest.mark.xfail(reason="Known bug, will fix later")
