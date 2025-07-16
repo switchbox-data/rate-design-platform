@@ -19,7 +19,7 @@ from rate_design_platform.Analysis import (
     calculate_monthly_bill_and_comfort_penalty,
     calculate_monthly_metrics,
 )
-from rate_design_platform.ochre_simulation import run_ochre_wh_dynamic_control
+from rate_design_platform.ochre_simulation import calculate_simulation_months, run_ochre_wh_dynamic_control
 from rate_design_platform.utils.rates import (
     MonthlyRateStructure,
     TOUParameters,
@@ -161,27 +161,6 @@ def evaluate_human_decision(
             current_state = current_state
 
     return human_decisions, states
-
-
-def calculate_simulation_months(house_args: dict) -> list[tuple[int, int]]:
-    """
-    Return list of (year, month) tuples for each month in the simulation period
-    """
-    start_time = house_args["start_time"]
-    end_time = house_args["end_time"]
-    year_months = []
-    current_time = start_time
-    while current_time < end_time:
-        year_months.append((current_time.year, current_time.month))
-        if current_time.month == 12:
-            current_time = current_time.replace(
-                year=current_time.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0
-            )
-        else:
-            current_time = current_time.replace(
-                month=current_time.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0
-            )
-    return year_months
 
 
 def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[list[MonthlyResults], dict[str, float]]:

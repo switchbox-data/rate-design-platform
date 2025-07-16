@@ -6,13 +6,13 @@ from ochre import Dwelling  # type: ignore[import-untyped]
 from rate_design_platform.Analysis import SimulationResults, extract_ochre_results
 
 
-def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
+def run_ochre_wh_dynamic_control(  # type: ignore[no-any-unimported]
     dwelling: Dwelling,
     operation_schedule: np.ndarray,
     time_step: timedelta,
 ) -> SimulationResults:
     """
-    Run OCHRE simulation with dynamic HPWH control based on operation schedule
+    Run OCHRE simulation with dynamic water heater control based on operation schedule
 
     Args:
         dwelling: OCHRE dwelling object
@@ -58,3 +58,24 @@ def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
 
     # Extract results from OCHRE output
     return extract_ochre_results(df, time_step)
+
+
+def calculate_simulation_months(house_args: dict) -> list[tuple[int, int]]:
+    """
+    Return list of (year, month) tuples for each month in the simulation period
+    """
+    start_time = house_args["start_time"]
+    end_time = house_args["end_time"]
+    year_months = []
+    current_time = start_time
+    while current_time < end_time:
+        year_months.append((current_time.year, current_time.month))
+        if current_time.month == 12:
+            current_time = current_time.replace(
+                year=current_time.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+            )
+        else:
+            current_time = current_time.replace(
+                month=current_time.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0
+            )
+    return year_months

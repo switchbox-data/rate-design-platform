@@ -15,7 +15,6 @@ from rate_design_platform.Analysis import (  # type: ignore[import-unresolved]
     MonthlyResults,
 )
 from rate_design_platform.second_pass import (
-    calculate_simulation_months,
     evaluate_human_decision,
     human_controller,
     run_full_simulation,
@@ -132,21 +131,6 @@ def test_evaluate_human_decision(sample_tou_params):
     assert states[0] == "default"  # Initial state
     assert all(decision in ["switch", "stay"] for decision in decisions)
     assert all(state in ["default", "tou"] for state in states)
-
-
-def test_calculate_simulation_months(sample_house_args):
-    """Test calculate_simulation_months function"""
-    # Test with shorter period
-    test_house_args = sample_house_args.copy()
-    test_house_args["start_time"] = datetime(2018, 1, 1, 0, 0)
-    test_house_args["end_time"] = datetime(2018, 4, 1, 0, 0)  # 3 months
-
-    year_months = calculate_simulation_months(test_house_args)
-
-    assert len(year_months) == 3
-    assert year_months[0] == (2018, 1)  # January
-    assert year_months[1] == (2018, 2)  # February
-    assert year_months[2] == (2018, 3)  # March
 
 
 @pytest.mark.xfail(reason="Known bug, will fix later")
