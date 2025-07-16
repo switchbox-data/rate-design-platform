@@ -7,7 +7,6 @@ Each function in second_pass.py has a corresponding test_functionname test here.
 import os
 from datetime import datetime, timedelta
 
-import numpy as np
 import pandas as pd
 import pytest
 from ochre.utils import default_input_path
@@ -17,13 +16,12 @@ from rate_design_platform.Analysis import (  # type: ignore[import-unresolved]
 )
 from rate_design_platform.second_pass import (
     calculate_simulation_months,
-    create_operation_schedule,
     evaluate_human_decision,
     human_controller,
     run_full_simulation,
     simulate_full_cycle,
 )
-from rate_design_platform.utils.rates import TOUParameters, define_peak_hours
+from rate_design_platform.utils.rates import TOUParameters
 
 
 @pytest.fixture
@@ -56,29 +54,6 @@ def sample_timesteps():
     start = datetime(2018, 1, 1, 0, 0)
     end = datetime(2018, 3, 1, 0, 0)  # Two months
     return pd.date_range(start=start, end=end, freq=timedelta(minutes=15))[:-1]
-
-
-@pytest.mark.xfail(reason="Known bug, will fix later")
-def test_create_operation_schedule(sample_tou_params):
-    """Test create_operation_schedule function"""
-    time_step = timedelta(minutes=15)
-    monthly_intervals = [96, 96]  # Two days
-
-    # Test default schedule
-    default_schedule = create_operation_schedule("default", monthly_intervals, sample_tou_params, time_step)
-    assert len(default_schedule) == 192  # Sum of monthly intervals
-    assert np.all(default_schedule)  # Always allowed
-
-    # Test TOU schedule
-    tou_schedule = create_operation_schedule("tou", monthly_intervals, sample_tou_params, time_step)
-    assert len(tou_schedule) == 192
-    assert np.sum(tou_schedule) == 128  # 64 off-peak intervals per day * 2 days
-
-    # Peak hours should be restricted
-    peak_hours = define_peak_hours(sample_tou_params, time_step)
-    daily_pattern = np.tile(peak_hours, 2)  # Two days
-    assert np.all(~tou_schedule[daily_pattern])  # Restricted during peak
-    assert np.all(tou_schedule[~daily_pattern])  # Allowed during off-peak
 
 
 def test_human_controller(sample_tou_params):

@@ -22,54 +22,13 @@ from rate_design_platform.Analysis import (
     calculate_monthly_metrics,
     extract_ochre_results,
 )
-from rate_design_platform.utils.constants import HOURS_PER_DAY, SECONDS_PER_HOUR
 from rate_design_platform.utils.rates import (
     MonthlyRateStructure,
     TOUParameters,
     calculate_monthly_intervals,
+    create_operation_schedule,
     create_tou_rates,
-    define_peak_hours,
 )
-
-
-def create_operation_schedule(
-    current_state: str, monthly_intervals: list[int], TOU_params: TOUParameters, time_step: timedelta
-) -> np.ndarray:
-    """
-    Create operational schedule based on current state
-
-    Args:
-        current_state: Current schedule state ("default" or "tou")
-        monthly_intervals: Number of intervals for each month in the simulation period
-        TOU_params: TOU parameters (uses default if None)
-        time_step: Time step of the simulation
-
-    Returns:
-        Boolean array where True=operation allowed, False=restricted.
-        Length of array is sum of monthly_intervals, which is the total number of intervals in the simulation period.
-    """
-    if current_state == "default":  # Default schedule. Operation allowed at all times.
-        return np.ones(sum(monthly_intervals), dtype=bool)
-    else:  # TOU schedule. Operation restricted during peak hours.
-        daily_peak_pattern = define_peak_hours(TOU_params, time_step)
-
-        intervals_per_day = int(HOURS_PER_DAY * SECONDS_PER_HOUR / time_step.total_seconds())
-        peak_pattern = np.array([], dtype=bool)
-        for num_intervals in monthly_intervals:
-            # Repeat pattern for the month
-            num_days = num_intervals // intervals_per_day  # Number of days in the month
-            month_pattern = np.tile(daily_peak_pattern, num_days)
-
-            # Handle remainder
-            remainder = num_intervals % intervals_per_day
-            if remainder > 0:
-                month_pattern = np.concatenate([month_pattern, daily_peak_pattern[:remainder]])
-
-            peak_pattern = np.concatenate([peak_pattern, month_pattern])
-
-        return (~peak_pattern[: sum(monthly_intervals)]).astype(
-            bool
-        )  # Operation is restricted during peak hours, hence the negation.
 
 
 def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
@@ -193,12 +152,11 @@ def simulate_full_cycle(simulation_type: str, TOU_params: TOUParameters, house_a
     end_time = house_args["end_time"]
     time_step = house_args["time_res"]
     monthly_rate_structure = calculate_monthly_intervals(start_time, end_time, time_step)
-    monthly_intervals = [monthly_rate_structure.intervals for monthly_rate_structure in monthly_rate_structure]
 
     if simulation_type == "default":
-        operation_schedule = create_operation_schedule("default", monthly_intervals, TOU_params, time_step)
+        operation_schedule = create_operation_schedule("default", monthly_rate_structure, TOU_params, time_step)
     else:
-        operation_schedule = create_operation_schedule("tou", monthly_intervals, TOU_params, time_step)
+        operation_schedule = create_operation_schedule("tou", monthly_rate_structure, TOU_params, time_step)
 
     simulation_results = run_ochre_hpwh_dynamic_control(dwelling, operation_schedule, time_step)
 

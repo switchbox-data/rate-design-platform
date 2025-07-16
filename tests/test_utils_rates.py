@@ -14,6 +14,7 @@ from rate_design_platform.utils.rates import (  # type: ignore[import-unresolved
     MonthlyRateStructure,
     TOUParameters,
     calculate_monthly_intervals,
+    create_operation_schedule,
     create_tou_rates,
     define_peak_hours,
 )
@@ -75,3 +76,29 @@ def test_create_tou_rates():
     timesteps = np.arange(datetime(2024, 1, 1, 0, 0, 0), datetime(2024, 1, 2, 0, 0, 0), time_step)
     rates = create_tou_rates(timesteps, time_step, TOU_params)
     assert rates[0].rates.tolist() == [0.12, 0.12, 0.12, 0.12, 0.12, 0.12, 0.48, 0.48, 0.48, 0.48, 0.12, 0.12]
+
+
+def test_create_operation_schedule():
+    """Test create_operation_schedule function"""
+    time_step = timedelta(minutes=15)
+    monthly_rates = [
+        MonthlyRateStructure(year=2024, month=1, intervals=96),
+        MonthlyRateStructure(year=2024, month=2, intervals=96),
+    ]  # Two months
+    TOU_params = TOUParameters(peak_start_hour=timedelta(hours=12), peak_end_hour=timedelta(hours=20))
+
+    # Test default schedule
+    default_schedule = create_operation_schedule("default", monthly_rates, TOU_params, time_step)
+    assert len(default_schedule) == 192  # Sum of monthly intervals
+    assert np.all(default_schedule)  # Always allowed
+
+    # Test TOU schedule
+    tou_schedule = create_operation_schedule("tou", monthly_rates, TOU_params, time_step)
+    assert len(tou_schedule) == 192
+    assert np.sum(tou_schedule) == 128  # 64 off-peak intervals per day * 2 days
+
+    # Peak hours should be restricted
+    peak_hours = define_peak_hours(TOU_params, time_step)
+    daily_pattern = np.tile(peak_hours, 2)  # Two days
+    assert np.all(~tou_schedule[daily_pattern])  # Restricted during peak
+    assert np.all(tou_schedule[~daily_pattern])  # Allowed during off-peak
