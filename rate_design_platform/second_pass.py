@@ -19,7 +19,7 @@ from rate_design_platform.Analysis import (
     calculate_monthly_bill_and_comfort_penalty,
     calculate_monthly_metrics,
 )
-from rate_design_platform.ochre_simulation import run_ochre_hpwh_dynamic_control
+from rate_design_platform.ochre_simulation import run_ochre_wh_dynamic_control
 from rate_design_platform.utils.rates import (
     MonthlyRateStructure,
     TOUParameters,
@@ -102,7 +102,7 @@ def simulate_full_cycle(simulation_type: str, TOU_params: TOUParameters, house_a
     else:
         operation_schedule = create_operation_schedule("tou", monthly_rate_structure, TOU_params, time_step)
 
-    simulation_results = run_ochre_hpwh_dynamic_control(dwelling, operation_schedule, time_step)
+    simulation_results = run_ochre_wh_dynamic_control(dwelling, operation_schedule, time_step)
 
     monthly_rates = create_tou_rates(simulation_results.Time, time_step, TOU_params)
 
