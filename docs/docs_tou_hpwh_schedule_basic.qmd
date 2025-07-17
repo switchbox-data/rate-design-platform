@@ -65,6 +65,53 @@ This section defines all variables, parameters, and their temporal dimensions us
 | $C_m^{comfort}$ | Variable | Monthly comfort penalty from unmet demand in month $m$ | $ | M × 1 |
 | $\Delta C_m$ | Variable | Realized bill savings from TOU schedule vs. default in month $m$ | $ | M × 1 |
 
+## 2.1 Building-Specific Parameter Formulations
+
+The switching costs and comfort monetization factors are derived from building and household characteristics available in ResStock/OCHRE simulations to reflect realistic heterogeneity in consumer behavior.
+
+### Switching Cost Parameters
+
+**Switch to TOU Schedule Cost ($C^{switch,to}$):**
+
+The cost of switching from default to TOU operation reflects the mental effort and complexity of programming a water heater schedule. This cost depends on household characteristics that affect the perceived difficulty and opportunity cost of the task.
+
+$$
+C^{switch,to} = C \times f_{AMI} \times f_{age} \times f_{residents} \times f_{WH}
+$$
+
+Where:
+- $C$ = base switching cost for average household (to be calibrated)
+- $f_{AMI} = \sqrt{\frac{AMI}{80\%}}$ (income factor: square root relationship reflects diminishing marginal utility of income, normalized to 80% AMI median income benchmark)
+- $f_{age} = 1.0 + 0.005 \times \max(0, 2000 - YearBuilt)$ (building age proxy for household tech-savviness: older buildings correlate with older residents who may find technology more challenging; linear 0.5% increase per year before 2000 aligns with pre-internet adoption era)
+- $f_{residents} = 1.0 + 0.1 \times \ln(N_{residents})$ (coordination complexity: logarithmic relationship reflects decreasing marginal coordination difficulty as households develop systems for multi-person decisions)
+- $f_{WH} = \{1.0 \text{ (storage)}, 1.5 \text{ (tankless)}, 0.7 \text{ (heat pump)}\}$ (water heater type complexity: tankless units often lack scheduling capabilities, heat pumps typically have smart controls, storage units have simple timers)
+
+**Switch Back to Default Cost ($C^{switch,back}$):**
+
+The cost of reverting to default operation is lower since it involves returning to a familiar state and typically requires less complex programming (often just "reset to factory settings").
+
+$$
+C^{switch,back} = 0.4 \times C^{switch,to}
+$$
+
+The 0.4 factor reflects that reverting to default is easier than initial programming but still requires some effort to locate and execute reset procedures.
+
+### Comfort Monetization Factor
+
+**Comfort Penalty Monetization ($\alpha$):**
+
+The monetization factor represents how much households value avoiding unmet hot water demand and varies with income, household size, and climate sensitivity.
+
+$$
+\alpha = \alpha_{base} \times g_{AMI} \times g_{residents} \times g_{climate}
+$$
+
+Where:
+- $\alpha_{base}$ = base comfort value for average household (to be calibrated)
+- $g_{AMI} = (\frac{AMI}{80\%})^{0.6}$ (income factor: power function <1 reflects decreasing marginal utility of income; 0.6 exponent based on typical income elasticity of demand for comfort goods)
+- $g_{residents} = 1.0 + 0.2 \times (N_{residents} - 1)$ (household size effect: each additional person increases conflict probability by 20%, reflecting realistic scheduling conflicts over hot water usage)
+- $g_{climate} = \{0.8 \text{ (zones 1-3)}, 1.0 \text{ (zones 4-5)}, 1.2 \text{ (zones 6-8)}\}$ (climate zone factor: colder climates increase hot water importance by 20% per major zone group, based on observed regional energy consumption patterns)
+
 # 3. Detailed Model Steps
 
 This section outlines the complete sequential decision-making process that consumers follow each month, including the initialization of all state variables, decision logic, and state transitions. The model operates on monthly billing cycles with two distinct decision contexts based on the consumer's current schedule state.
