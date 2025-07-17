@@ -8,12 +8,12 @@ to time-of-use (TOU) electricity rates in residential building simulations.
 import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
 from ochre import Dwelling  # type: ignore[import-untyped]
-from ochre.utils import default_input_path  # type: ignore[import-untyped]
 
 # Define constants
 seconds_per_hour = 3600
@@ -65,6 +65,20 @@ class SimulationResults(NamedTuple):
     E_mt: np.ndarray  # Electricity consumption [kWh]
     T_tank_mt: np.ndarray  # Tank temperature [°C]
     D_unmet_mt: np.ndarray  # Electrical unmet demand [kWh] (operational power deficit)
+
+
+def save_monthly_results(monthly_results: list[MonthlyResults], output_path: str) -> None:
+    """Save monthly results to a CSV file"""
+    df = pd.DataFrame(monthly_results)
+    df.to_csv(output_path, index=False)
+
+
+def save_monthly_bills_and_comfort_penalties(
+    monthly_bills: list[float], monthly_comfort_penalties: list[float], output_path: str
+) -> None:
+    """Save monthly bills and comfort penalties to a CSV file"""
+    df = pd.DataFrame({"monthly_bills": monthly_bills, "monthly_comfort_penalties": monthly_comfort_penalties})
+    df.to_csv(output_path, index=False)
 
 
 def calculate_monthly_intervals(start_time: datetime, end_time: datetime, time_step: timedelta) -> list[int]:
@@ -319,7 +333,6 @@ def extract_ochre_results(df: pd.DataFrame, time_step: timedelta) -> SimulationR
 
     Args:
         df: OCHRE simulation results DataFrame
-        monthly_intervals: Number of intervals for each month in the simulation period
         time_step: Time step of the simulation
 
     Returns:
@@ -363,7 +376,6 @@ def run_ochre_hpwh_dynamic_control(  # type: ignore[no-any-unimported]
     num_intervals = len(operation_schedule)
     # Get water heater equipment
     water_heater = dwelling.get_equipment_by_end_use("Water Heating")
-    print(f"Water heater: {water_heater.name}")
     if water_heater is None:
         msg = "No water heating equipment found in dwelling"
         raise ValueError(msg)
@@ -411,8 +423,10 @@ def human_controller(
 
     Args:
         current_state: Current schedule state ("default" or "tou")
-        realized_savings: Realized savings (if on TOU)
-        unrealized_savings: Unrealized savings (if on default)
+        default_bill: Default monthly bill
+        tou_bill: TOU monthly bill
+        tou_comfort_penalty: TOU monthly comfort penalty
+        TOU_params: TOU parameters
 
     Returns:
         New schedule state ("default" or "tou")
@@ -445,7 +459,7 @@ def simulate_full_cycle(
         house_args: Base house arguments dictionary
 
     Returns:
-        List of MonthlyResults for each month
+        Tuple of (monthly_bills, monthly_comfort_penalties)
     """
     if TOU_params is None:
         TOU_params = TOUParameters()
@@ -461,8 +475,10 @@ def simulate_full_cycle(
     os.makedirs(simulation_output_path, exist_ok=True)
 
     # Update house_args with the new output path
-    house_args.update({"output_path": simulation_output_path})
-    dwelling = Dwelling(**house_args)
+    house_args_copy = house_args.copy()
+    house_args_copy.update({"output_path": simulation_output_path})
+    house_args_copy.update({"name": house_args["name"] + f"_{simulation_type}"})
+    dwelling = Dwelling(**house_args_copy)
 
     start_time = house_args["start_time"]
     end_time = house_args["end_time"]
@@ -481,6 +497,11 @@ def simulate_full_cycle(
     monthly_bill = calculate_monthly_bill(simulation_results, monthly_rates)
     monthly_comfort_penalty = calculate_monthly_comfort_penalty(simulation_results, TOU_params)
 
+    save_monthly_bills_and_comfort_penalties(
+        monthly_bill,
+        monthly_comfort_penalty,
+        os.path.join(simulation_output_path, f"{simulation_type}_monthly_bills_and_comfort_penalties.csv"),
+    )
     return monthly_bill, monthly_comfort_penalty
 
 
@@ -614,7 +635,6 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
     Run complete TOU HPWH simulation
 
     Args:
-        simulation_type: Type of simulation to run ("default" or "tou")
         TOU_params: TOU parameters (uses default if None)
         house_args: Base house arguments dictionary
 
@@ -661,25 +681,26 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
 if __name__ == "__main__":
     # Test full simulation with sample data
 
-    # # Input/Output file paths
-    # bldg_id = 72
-    # upgrade_id = 0
-    # weather_station = "G3400270"
+    # Input/Output file paths
+    bldg_id = 72
+    upgrade_id = 3
+    weather_station = "G3400270"
+    name = f"bldg{bldg_id:07d}-up{upgrade_id:02d}"
 
     base_path = os.path.abspath(os.path.join(os.path.dirname(__file__)))
-    # input_path = os.path.join(base_path, "inputs")
+    input_path = os.path.join(base_path, "inputs")
     output_path = os.path.join(base_path, "outputs")
-    # xml_path = os.path.join(input_path, f"bldg{bldg_id:07d}-up{upgrade_id:02d}.xml")
-    # weather_path = os.path.join(input_path, f"{weather_station}.epw")
-    # schedule_path = os.path.join(input_path, f"bldg{bldg_id:07d}-up{upgrade_id:02d}_schedule.csv")
+    xml_path = os.path.join(input_path, f"{name}.xml")
+    weather_path = os.path.join(input_path, f"{weather_station}.epw")
+    schedule_path = os.path.join(input_path, f"{name}_schedule.csv")
 
-    # # Check that files exist before proceeding
-    # if not Path(xml_path).exists():
-    #     raise FileNotFoundError(xml_path)
-    # if not Path(weather_path).exists():
-    #     raise FileNotFoundError(weather_path)
-    # if not Path(schedule_path).exists():
-    #     raise FileNotFoundError(schedule_path)
+    # Check that files exist before proceeding
+    if not Path(xml_path).exists():
+        raise FileNotFoundError(xml_path)
+    if not Path(weather_path).exists():
+        raise FileNotFoundError(weather_path)
+    if not Path(schedule_path).exists():
+        raise FileNotFoundError(schedule_path)
 
     # Simulation parameters
     year = 2018
@@ -687,12 +708,13 @@ if __name__ == "__main__":
     start_date = 1
     start_time = datetime(year, month, start_date, 0, 0)  # (Year, Month, Day, Hour, Min)
     duration = timedelta(days=365)
-    time_step = timedelta(minutes=15)
+    time_step = timedelta(minutes=60)
     end_time = start_time + duration
     sim_times = pd.date_range(start=start_time, end=end_time, freq=time_step)[:-1]
     initialization_time = timedelta(days=1)
 
     HOUSE_ARGS = {
+        "name": name,
         # Timing parameters (will be updated per month)
         "start_time": start_time,
         "end_time": end_time,
@@ -705,9 +727,9 @@ if __name__ == "__main__":
         "metrics_verbosity": 7,
         "output_path": output_path,
         # Input file settings
-        "hpxml_file": os.path.join(default_input_path, "Input Files", "bldg0112631-up11.xml"),
-        "hpxml_schedule_file": os.path.join(default_input_path, "Input Files", "bldg0112631_schedule.csv"),
-        "weather_file": os.path.join(default_input_path, "Weather", "USA_CO_Denver.Intl.AP.725650_TMY3.epw"),
+        "hpxml_file": xml_path,
+        "hpxml_schedule_file": schedule_path,
+        "weather_file": weather_path,
     }
 
     print("\n=== Full Simulation Test ===")
@@ -715,6 +737,7 @@ if __name__ == "__main__":
         # Load real data and run simulation
         TOU_PARAMS = TOUParameters()
         monthly_results, annual_metrics = run_full_simulation(TOU_PARAMS, HOUSE_ARGS)
+        save_monthly_results(monthly_results, os.path.join(output_path, f"{name}_monthly_results.csv"))
 
         print("Simulation completed")
         print(f"Simulation completed for {len(monthly_results)} months")
