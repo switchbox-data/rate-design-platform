@@ -217,7 +217,7 @@ $$
 $$
 
 $$
-\text{Net Savings}_m^{anticipated} = \Delta C_m^{anticipated} - C^{switch}
+\text{Net Savings}_m^{anticipated} = \Delta C_m^{anticipated} - C^{switch,to}
 $$
 
 **Step 4A.3: Make Switching Decision for Month $m$**
@@ -253,7 +253,7 @@ $$
 $$
 
 $$
-\text{Net Savings}_m^{realized} = \Delta C_m^{realized} - C^{switch} - C_m^{comfort}
+\text{Net Savings}_m^{realized} = \Delta C_m^{realized} - C^{switch,back} - C_m^{comfort}
 $$
 
 **Step 4B.3: Make Continuation Decision for Month $m$**
@@ -309,7 +309,10 @@ $$
 $$
 
 $$
-\text{Total Switching Costs} = \sum_{m=1}^{12} x_m^{switch} \cdot C^{switch}
+\text{Total Switching Costs} = \sum_{m=1}^{12} x_m^{switch} \cdot \begin{cases}
+C^{switch,to} & \text{if switching from default to TOU} \\
+C^{switch,back} & \text{if switching from TOU to default}
+\end{cases}
 $$
 
 $$
