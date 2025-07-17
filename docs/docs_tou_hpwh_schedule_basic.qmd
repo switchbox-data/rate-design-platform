@@ -42,8 +42,9 @@ This section defines all variables, parameters, and their temporal dimensions us
 | $U_{m,t}^{HW}$ | Parameter | Exogenous hot water usage schedule at time $t$ in month $m$ | L/15min  | M × T     |
 | $r^{on}$   | Parameter | TOU electricity rate during peak hours              | $/kWh    | 1 × 1     |
 | $r^{off}$  | Parameter | TOU electricity rate during off-peak hours          | $/kWh    | 1 × 1     |
-| $C^{switch}$ | Parameter | Consumer switching/"hassle" cost per schedule change | $        | 1 × 1     |
-| $\alpha$   | Parameter | Monetization factor for comfort penalty              | $/kWh    | 1 × 1     |
+| $C^{switch,to}$ | Parameter | Consumer switching cost from default to TOU schedule | $        | 1 × 1     |
+| $C^{switch,back}$ | Parameter | Consumer switching cost from TOU back to default schedule | $        | 1 × 1     |
+| $\alpha$   | Parameter | Monetization factor for comfort penalty (building-specific) | $/kWh    | 1 × 1     |
 | $T_{m,t}^{setpoint}$ | Parameter | Hot water temperature setpoint at time $t$ in month $m$ | °C | M × T |
 | $T_{m,t}^{ambient}$ | Parameter | Ambient water temperature at time $t$ in month $m$ | °C | M × T |
 | $\rho$     | Parameter | Water density                                         | kg/L     | 1 × 1     |
