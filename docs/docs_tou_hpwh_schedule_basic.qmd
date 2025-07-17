@@ -112,6 +112,8 @@ Where:
 - $g_{residents} = 1.0 + 0.2 \times (N_{residents} - 1)$ (household size effect: each additional person increases conflict probability by 20%, reflecting realistic scheduling conflicts over hot water usage)
 - $g_{climate} = \{0.8 \text{ (zones 1-3)}, 1.0 \text{ (zones 4-5)}, 1.2 \text{ (zones 6-8)}\}$ (climate zone factor: colder climates increase hot water importance by 20% per major zone group, based on observed regional energy consumption patterns)
 
+**Example:** For a mid-income family (80% AMI, 3 residents, 1980 building, storage water heater, zone 4): $C^{switch,to} = C \times 1.0 \times 1.1 \times 1.11 \times 1.0 = 1.22C$ and $\alpha = \alpha_{base} \times 1.0 \times 1.4 \times 1.0 = 1.4\alpha_{base}$.
+
 # 3. Detailed Model Steps
 
 This section outlines the complete sequential decision-making process that consumers follow each month, including the initialization of all state variables, decision logic, and state transitions. The model operates on monthly billing cycles with two distinct decision contexts based on the consumer's current schedule state.
@@ -461,7 +463,7 @@ Where:
 And evaluate switching against realistic transaction costs:
 
 $$
-C^{switch} = \$35 \text{ (representing 3-5 hours of consumer effort)}
+C^{switch,to} = \$35 \text{ (representing 3-5 hours of consumer effort)}
 $$
 
 The model should reflect that consumers make switching decisions based on rough mental calculations and significant uncertainty about both benefits and comfort impacts, not sophisticated building physics simulations.
