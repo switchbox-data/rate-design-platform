@@ -119,7 +119,7 @@ def evaluate_human_decision(
     for i in range(len(default_monthly_bill)):
         states.append(current_state)
         human_controller = BasicHumanController()
-        current_decision = human_controller.TOU_decision(
+        current_decision = human_controller.evaluate_TOU(
             current_state, default_monthly_bill[i], tou_monthly_bill[i], tou_monthly_comfort_penalty[i], TOU_params
         )
         human_decisions.append(current_decision)
