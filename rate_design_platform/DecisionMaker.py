@@ -2,7 +2,7 @@ from rate_design_platform.utils.rates import TOUParameters
 
 
 class BasicHumanController:
-    def TOU_decision(
+    def evaluate_TOU(
         self,
         current_state: str,
         default_bill: float,
