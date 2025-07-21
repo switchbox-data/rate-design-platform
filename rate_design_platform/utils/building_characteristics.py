@@ -40,24 +40,44 @@ def parse_building_xml(xml_file_path: str) -> BuildingCharacteristics:
     tree = ET.parse(xml_file_path)  # noqa: S314
     root = tree.getroot()
 
+    # Define namespace for HPXML files
+    namespace = {"hpxml": "http://hpxmlonline.com/2023/09"}
+
     # Extract location information
-    address = root.find(".//Address")
-    state_code = address.find("StateCode").text if address.find("StateCode") is not None else ""
-    zip_code = address.find("ZipCode").text if address.find("ZipCode") is not None else ""
+    address = root.find(".//hpxml:Address", namespace)
+    if address is not None:
+        state_code_elem = address.find("hpxml:StateCode", namespace)
+        zip_code_elem = address.find("hpxml:ZipCode", namespace)
+        state_code = state_code_elem.text if state_code_elem is not None else ""
+        zip_code = zip_code_elem.text if zip_code_elem is not None else ""
+    else:
+        state_code = ""
+        zip_code = ""
 
     # Extract building construction details
-    building_construction = root.find(".//BuildingConstruction")
-    year_built = int(building_construction.find("YearBuilt").text)
-    n_bedrooms = int(building_construction.find("NumberofBedrooms").text)
-    conditioned_floor_area = float(building_construction.find("ConditionedFloorArea").text)
-    residential_facility_type = building_construction.find("ResidentialFacilityType").text
+    building_construction = root.find(".//hpxml:BuildingConstruction", namespace)
+    if building_construction is not None:
+        year_built = int(building_construction.find("hpxml:YearBuilt", namespace).text)
+        n_bedrooms = int(building_construction.find("hpxml:NumberofBedrooms", namespace).text)
+        conditioned_floor_area = float(building_construction.find("hpxml:ConditionedFloorArea", namespace).text)
+        residential_facility_type = building_construction.find("hpxml:ResidentialFacilityType", namespace).text
+    else:
+        # Fallback defaults
+        year_built = 2000
+        n_bedrooms = 3
+        conditioned_floor_area = 1500.0
+        residential_facility_type = "single-family detached"
 
     # Extract occupancy information
-    building_occupancy = root.find(".//BuildingOccupancy")
-    n_residents = float(building_occupancy.find("NumberofResidents").text)
+    building_occupancy = root.find(".//hpxml:BuildingOccupancy", namespace)
+    if building_occupancy is not None:
+        n_residents_elem = building_occupancy.find("hpxml:NumberofResidents", namespace)
+        n_residents = float(n_residents_elem.text) if n_residents_elem is not None else 2.0
+    else:
+        n_residents = 2.0
 
     # Extract climate zone if available
-    climate_zone_elem = root.find(".//ClimateZoneIECC/ClimateZone")
+    climate_zone_elem = root.find(".//hpxml:ClimateZoneIECC/hpxml:ClimateZone", namespace)
     climate_zone = climate_zone_elem.text if climate_zone_elem is not None else None
 
     return BuildingCharacteristics(
