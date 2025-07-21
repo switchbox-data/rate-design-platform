@@ -105,7 +105,11 @@ def calculate_monthly_comfort_penalty(
             month_unmet_demand = unmet_demand_kWh[month_start_idx : month_start_idx + month_intervals]
             total_unmet_kwh = np.sum(month_unmet_demand)
             monthly_comfort_penalties.append(
-                MonthlyMetrics(year=year, month=month, comfort_penalty=float(TOU_params.alpha * total_unmet_kwh))
+                MonthlyMetrics(
+                    year=year,
+                    month=month,
+                    comfort_penalty=float(TOU_params.get_comfort_penalty_factor() * total_unmet_kwh),
+                )
             )
 
             # Start new month
@@ -118,7 +122,9 @@ def calculate_monthly_comfort_penalty(
         month_unmet_demand = unmet_demand_kWh[month_start_idx : month_start_idx + month_intervals]
         total_unmet_kwh = np.sum(month_unmet_demand)
         monthly_comfort_penalties.append(
-            MonthlyMetrics(year=year, month=month, comfort_penalty=float(TOU_params.alpha * total_unmet_kwh))
+            MonthlyMetrics(
+                year=year, month=month, comfort_penalty=float(TOU_params.get_comfort_penalty_factor() * total_unmet_kwh)
+            )
         )
 
     return monthly_comfort_penalties
@@ -169,19 +175,26 @@ def calculate_monthly_metrics(
     return monthly_results
 
 
-def calculate_annual_metrics(monthly_results: list[MonthlyResults]) -> dict[str, float]:
+def calculate_annual_metrics(monthly_results: list[MonthlyResults], TOU_params: TOUParameters) -> dict[str, float]:
     """
     Calculate annual performance metrics from monthly results
 
     Args:
         monthly_results: List of MonthlyResults for each month
+        TOU_params: TOU parameters with building-dependent costs
 
     Returns:
         Dictionary of annual metrics
     """
     total_bills = sum(r.bill for r in monthly_results)
     total_comfort_penalty = sum(r.comfort_penalty for r in monthly_results)
+
+    # Calculate switching costs based on direction
+    # For proper implementation, we would need to track switch direction
+    # For now, use average of switch-to and switch-back costs
     total_switches = sum(1 for r in monthly_results if r.switching_decision == "switch")
+    avg_switching_cost = (TOU_params.get_switching_cost_to() + TOU_params.get_switching_cost_back()) / 2
+    total_switching_costs = total_switches * avg_switching_cost
 
     # Calculate TOU adoption rate
     tou_months = sum(1 for r in monthly_results if r.current_state == "tou")
@@ -193,11 +206,9 @@ def calculate_annual_metrics(monthly_results: list[MonthlyResults]) -> dict[str,
     return {
         "total_annual_bills": total_bills,
         "total_comfort_penalty": total_comfort_penalty,
-        "total_switching_costs": total_switches * TOUParameters().c_switch,
+        "total_switching_costs": total_switching_costs,
         "total_realized_savings": total_realized_savings,
-        "net_annual_benefit": total_realized_savings
-        - (total_switches * TOUParameters().c_switch)
-        - total_comfort_penalty,
+        "net_annual_benefit": total_realized_savings - total_switching_costs - total_comfort_penalty,
         "tou_adoption_rate_percent": tou_adoption_rate,
         "annual_switches": total_switches,
         "average_monthly_bill": total_bills / len(monthly_results),
