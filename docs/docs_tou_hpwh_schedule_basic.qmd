@@ -58,8 +58,6 @@ This section defines all variables, parameters, and their temporal dimensions us
 | $x_m^{switch}$ | Binary | Decision to switch schedule in month $m$ (1 = switch, 0 = stay) | binary | M × 1 |
 | **Behavioral Parameters** |
 | $\lambda$ | Parameter | Loss aversion coefficient for bill increases | - | 1 × 1 |
-| $\beta$ | Parameter | Status quo bias parameter (inertia against switching) | - | 1 × 1 |
-| $\epsilon$ | Parameter | Exploration rate (probability of random switching) | - | 1 × 1 |
 | $\sigma_{utility}$ | Parameter | Noise in utility savings estimates | $ | 1 × 1 |
 | $w$ | Parameter | Memory window for reference point (months) | months | 1 × 1 |
 | **State Variables** |
@@ -76,9 +74,7 @@ This section defines all variables, parameters, and their temporal dimensions us
 | $\Delta C_m$ | Variable | Realized bill savings from TOU schedule vs. default in month $m$ | $ | M × 1 |
 | **Behavioral State Variables** |
 | $\bar{C}_m^{ref}$ | Variable | Reference point for bills (w-month rolling average) | $ | M × 1 |
-| $\hat{\Delta S}_m^{utility}$ | Variable | Utility's noisy estimate of potential savings | $ | M × 1 |
-| $N_m^{exp}$ | Variable | Number of months of experience with current schedule | months | M × 1 |
-| $H_m$ | Variable | Habit strength for current schedule (0-1) | - | M × 1 |
+| $\hat{\Delta C}_m^{utility}$ | Variable | Utility's noisy estimate of potential savings | $ | M × 1 |
 
 ## 2.1 Building-Specific Parameter Formulations
 
@@ -140,7 +136,7 @@ Where:
 
 # 3. Detailed Model Steps
 
-This section outlines the complete sequential decision-making process that consumers follow each month under **imperfect information and bounded rationality**. Unlike perfect information models, consumers rely on heuristic decision rules, noisy utility estimates, and behavioral biases when making switching decisions. The model operates on monthly billing cycles with decision contexts that reflect realistic information constraints and cognitive limitations.
+This section outlines the complete sequential decision-making process that consumers follow each month under imperfect information and bounded rationality. Consumers rely on heuristic decision rules, noisy utility estimates, and behavioral biases when making switching decisions.
 
 ## Step 1: Initialize Monthly State Variables
 
@@ -215,16 +211,11 @@ $$
 C_m^{comfort} = \alpha \cdot \sum_{t \in T} D_{m,t}^{unmet}
 $$
 
-## Step 4: Behavioral Decision Logic for Month $m$
+## Step 4: Decision Logic for Month $m$
 
-Consumers make switching decisions based on **noisy utility estimates** rather than perfect counterfactual simulations. The utility provides simplified estimates of potential bill impacts (e.g., "you could save approximately $20/month") based on generic models, but with significant noise and uncertainty. This reflects realistic information constraints where utilities cannot provide household-specific building simulations.
+Consumers make switching decisions based on noisy utility estimates.
 
 **Generate Utility's Noisy Estimate for Month $m$:**
-
-The utility generates a simplified estimate by running the counterfactual simulation but adds noise to reflect:
-- Generic (non-building-specific) modeling assumptions
-- Simplified load profiles and average weather conditions
-- Communication uncertainty and rounding
 
 $$\hat{\Delta C}_m^{utility} = \Delta C_m^{true} + \mathcal{N}(0, \sigma_{utility}^2)$$
 
@@ -234,7 +225,7 @@ Where $\Delta C_m^{true}$ is the actual counterfactual savings and $\sigma_{util
 
 ### Case A: Currently on Default Schedule ($S_m^{current} = 1$)
 
-Consumers on the default schedule receive the utility's **noisy estimate** of potential savings from switching to TOU-friendly scheduling. They cannot anticipate comfort impacts but can assess financial trade-offs with uncertainty.
+Consumers on the default schedule receive the utility's noisy estimate of potential savings from switching to TOU-friendly scheduling.
 
 **Step 4A.1: Receive Utility Guidance**
 
@@ -248,22 +239,19 @@ Utility provides noisy estimate (behind the scenes, runs counterfactual simulati
 Consumer forms reference point from recent bill history:
 $$\bar{C}_m^{ref} = \frac{1}{\min(w, m-1)} \sum_{j=1}^{\min(w, m-1)} C_{m-j}^{bill}$$
 
-**Loss aversion evaluation**: Potential bill increases feel worse than equivalent savings:
+**Loss aversion evaluation**:
 $$\text{Perceived Value}_m = \hat{\Delta C}_m^{utility} - \lambda \times \max(0, -\hat{\Delta C}_m^{utility})$$
 
-**Step 4A.3: Switching Decision with Status Quo Bias**
+**Step 4A.3: Switching Decision**
 
-$$P(x_m^{switch} = 1) = \frac{1}{1 + e^{-\beta \cdot (\text{Perceived Value}_m - C^{switch,to})}}$$
-
-With exploration:
 $$x_m^{switch} = \begin{cases}
-1 & \text{if } \mathcal{U}(0,1) < \max(P(x_m^{switch} = 1), \epsilon) \\
+1 & \text{if } \text{Perceived Value}_m > C^{switch,to} \\
 0 & \text{otherwise}
 \end{cases}$$
 
 ### Case B: Currently on TOU-Friendly Schedule ($S_m^{current} = 0$)
 
-Consumers with TOU-friendly scheduling receive the utility's **noisy estimate** of what their bill would have been under default scheduling, plus they experience actual comfort impacts. Their decision incorporates both financial and comfort feedback with uncertainty.
+Consumers with TOU-friendly scheduling receive the utility's noisy estimate of what their bill would have been under default scheduling and experience actual comfort impacts.
 
 **Step 4B.1: Receive Utility Counterfactual Estimate**
 
@@ -280,17 +268,10 @@ $$\hat{\Delta C}_m^{realized} = \hat{C}_m^{bill,default} - C_m^{bill}$$
 Incorporate actual comfort costs:
 $$\text{Net Savings}_m^{perceived} = \hat{\Delta C}_m^{realized} - C_m^{comfort} - C^{switch,back}$$
 
-**Step 4B.3: Continuation Decision with Habit Formation**
+**Step 4B.3: Continuation Decision**
 
-Experience builds habits (reduced switching probability):
-$$N_m^{exp} = \text{months on current TOU schedule}$$
-$$H_m = \min(1, N_m^{exp} / 12)$$
-
-$$P(x_m^{switch} = 1) = \frac{1}{1 + e^{\beta \cdot \text{Net Savings}_m^{perceived}}} \times (1 - H_m)$$
-
-With reduced exploration:
 $$x_m^{switch} = \begin{cases}
-1 & \text{if } \mathcal{U}(0,1) < \max(P(x_m^{switch} = 1), \epsilon/2) \text{ (switch back to default)} \\
+1 & \text{if } \text{Net Savings}_m^{perceived} < -C^{switch,back} \text{ (switch back to default)} \\
 0 & \text{otherwise (stay on TOU)}
 \end{cases}$$
 
@@ -427,71 +408,99 @@ stateDiagram-v2
 
 ## Consumer Information and Decision-Making Reality
 
-### How Consumers Actually Estimate HPWH Schedule Switching Benefits in Practice
+### How Utilities Provide Information to Consumers
 
-In the real world, consumers who are already on TOU rates cannot run sophisticated building simulations to predict whether changing their water heater schedule will save money. Instead, they rely on simplified mental models, basic calculations, and trial-and-error to estimate potential benefits from shifting their HPWH operation to off-peak hours.
+Consumers receive noisy estimates from utilities. Utilities offer generic guidance based on average customer patterns.
 
-#### **The Typical Consumer Journey**
+#### **What Utilities Actually Provide**
 
-**Monthly Bill Review Phase:**
+**Generic Savings Estimates:**
 
-Sarah receives her TOU electricity bill showing $92 this month, with a breakdown: $38 from peak hours (2-8 PM) and $54 from off-peak. She notices her electric water heater is one of her largest energy users. She wonders: "What if I could get my water heater to run mostly during off-peak times?"
+The utility provides Sarah with a simplified estimate: "Customers who shift water heating to off-peak hours typically save $15-30 per month, based on average usage patterns." This estimate comes from:
+- Average load profiles (not Sarah's specific building)
+- Simplified weather assumptions
+- Generic water heater efficiency estimates
+- Rounded/smoothed results for communication
 
-**Basic Calculation Attempt:**
+**Noisy Monthly Comparisons:**
 
-Sarah looks at her bill and sees she's paying $0.28/kWh during peak vs. $0.12/kWh off-peak. She estimates her water heater uses about 800 kWh/month and reasons: "If half of that is currently happening during peak hours, that's 400 kWh × ($0.28 - $0.12) = $64 potential savings per month. But realistically, maybe I can shift 70% of peak usage to off-peak, so perhaps $45 savings?"
+Each month, the utility shows: "If you had used default water heater scheduling this month, your estimated bill would have been $X" - but this estimate has uncertainty due to:
+- Simplified counterfactual simulations
+- Average building characteristics rather than Sarah's specific home
+- Communication rounding (shown as "$15-20 savings" rather than "$17.43")
 
-**Social Information Gathering:**
+**Social Reference Points:**
 
-At work, Sarah asks her colleague Tom about his programmable water heater. Tom says: "I set mine to heat from 10 PM to 6 AM. My bill went down maybe $20-25 per month, though sometimes the water isn't quite as hot for evening dishes. It's a trade-off, but worth it for the savings."
+The utility provides context like: "Similar customers in your area saved an average of $18/month last year with TOU-friendly water heater scheduling" - creating social reference points with built-in noise from averaging across different households.
 
-**Switching Cost Assessment:**
+#### **How Consumers Process Utility Information**
 
-Sarah considers the total effort required: analyzing her current usage patterns (2 hours), figuring out the water heater programming (2-3 hours), and periodically checking bills to ensure it's working. She estimates this represents about $35 worth of her time and mental energy. With potential monthly savings of $20-30, the payback period is reasonable: "Even if I only save $20/month, that's $240/year for maybe 5 hours of total effort."
+**Loss Aversion Response:**
 
-#### **What Consumers Actually Calculate**
+Sarah receives the utility estimate but focuses disproportionately on potential losses: "What if it doesn't save $20 and instead costs me more? That would feel terrible." The fear of bill increases weighs more heavily than equivalent potential savings.
 
-**Peak Usage Estimation:**
+**Reference Point Formation:**
 
-- Look at TOU bill breakdown or estimate major appliance usage during peak hours
+Sarah forms expectations based on:
+- Recent months' bill performance under current schedule
+- Utility's noisy estimates with built-in uncertainty
+- Social comparisons to neighbors (also noisy)
+- Simple mental models: "Maybe I can save 20% of my water heating costs"
 
-- Apply simple fractions: "Maybe 40% of my water heating happens during peak time"
+**Bounded Rationality in Action:**
 
-**Rate Differential Application:**
-
-- Calculate potential savings as: (estimated peak kWh) × (peak rate - off-peak rate) × (shifting efficiency)
-
-- Use round numbers: "If I shift 300 kWh from $0.28 to $0.12, that's $48 savings"
-
-**Potential Switching Cost Components:**
-
-- **Information cost**: Time analyzing bills and researching strategies
-
-- **Implementation cost**: Programming water heater controls and trial-and-error
-
-- **Monitoring cost**: Ongoing bill checking and adjustments
+Rather than optimizing, Sarah uses satisficing rules:
+- "If the utility says I might save $15-30, and my current bills are high, it's worth trying for a few months"
+- "I'll try it and see how my next 2-3 bills look compared to the same months last year"
+- Status quo bias: "It seems like too much work to change unless I'm really confident"
 
 #### **Implications for Model Design**
 
-This realistic decision-making process suggests consumers estimate $\Delta C^{anticipated}$ using:
+This realistic information environment suggests the model should:
 
 $$
-\hat{\Delta C}_m^{anticipated} = \hat{E}_m^{peak,WH} \times (r^{on} - r^{off}) \times \phi
+\hat{\Delta C}_m^{utility} = \Delta C_m^{true} + \mathcal{N}(0, \sigma_{utility}^2)
 $$
 
-Where:
+Where consumers receive the **actual counterfactual savings plus noise** representing:
+- Utility's simplified modeling assumptions
+- Communication uncertainty and rounding
+- Generic rather than building-specific estimates
 
-- $\hat{E}_m^{peak,WH}$ = consumer's guess of peak-hour water heating usage
+Decision-making incorporates:
+- **Loss aversion**: $\lambda > 1$ weighting on potential bill increases
+- **Reference points**: Rolling averages of recent bill performance
+- **Switching costs**: Resistance to changing strategies
 
-- $\phi$ = expected shifting effectiveness (0.6-0.8)
+# 4. Behavioral Framework
 
-And evaluate switching against realistic transaction costs:
+This section formalizes the key behavioral economics concepts implemented in the decision model.
 
-$$
-C^{switch,to} = \$35 \text{ (representing 3-5 hours of consumer effort)}
-$$
+## 4.1 Information Processing
 
-The model should reflect that consumers make switching decisions based on rough mental calculations and significant uncertainty about both benefits and comfort impacts, not sophisticated building physics simulations.
+Consumers receive noisy utility estimates: $\hat{\Delta C}_m^{utility} = \Delta C_m^{true} + \mathcal{N}(0, \sigma_{utility}^2)$ and make decisions based on heuristics.
+
+## 4.2 Loss Aversion and Reference Dependence
+
+**Reference Point Formation:**
+$$\bar{C}_m^{ref} = \frac{1}{\min(w, m-1)} \sum_{j=1}^{\min(w, m-1)} C_{m-j}^{bill}$$
+
+**Loss Aversion in Evaluation:**
+Potential bill increases are weighted more heavily than equivalent savings:
+$$\text{Perceived Value}_m = \hat{\Delta C}_m^{utility} - \lambda \times \max(0, -\hat{\Delta C}_m^{utility})$$
+
+Where $\lambda > 1$ (typically 2-2.5) reflects that losses feel approximately twice as painful as equivalent gains.
+
+## 4.3 Switching Costs
+
+Switching costs create behavioral resistance to changing strategies:
+
+- $C^{switch,to}$: Effort cost of programming TOU-friendly schedule
+- $C^{switch,back}$: Effort cost of reverting to default schedule
+
+## 4.4 Learning Through Trial and Error
+
+Consumers experiment based on noisy utility guidance and update reference points based on realized bill performance.
 
 # 5. References
 This section lists references and resources for further information and context regarding the model and its implementation.
