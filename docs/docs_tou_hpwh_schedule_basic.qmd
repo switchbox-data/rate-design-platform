@@ -13,7 +13,7 @@ This section establishes a high-level overview of the core research question and
 
 **Objective:**
 
-Model how a consumer, with fixed (exogenous) hot water usage needs, might reschedule their HPWH operation in response to TOU rates to minimize their electricity bills, considering a "switching cost" for effort/comfort.
+Model how a consumer, already on TOU electricity rates, might switch from default HPWH operation to a TOU-friendly schedule based on imperfect information and behavioral biases, considering switching costs and learning through trial-and-error.
 
 **Assumptions:**
 
@@ -21,13 +21,17 @@ Model how a consumer, with fixed (exogenous) hot water usage needs, might resche
 
   - HPWH can be controlled (on/off) on a schedule.
 
-  - TOU rate structure (on-peak/off-peak) is known and simple (e.g., higher price during peak hours), such that the consumer can reasonably set a schedule to turn on HPWH during off-peak hours.
+  - Consumer is already on TOU rates (given) and receives aggregate monthly bills without appliance-level breakdowns.
 
-  - Consumer receives feedback on energy cost and makes switching decisions at bill receipt each billing cycle (monthly) rather than at each operational time step (every 15 minutes).
+  - Consumer receives only generic utility guidance (e.g., "customers typically save $15-25/month") rather than household-specific building simulations.
 
-  - Switching to a TOU-adapted schedule incurs a one-time "effort cost" (can be fixed or parameterized).
+  - Decision-making occurs at monthly bill receipt based on imperfect information, social learning, and behavioral biases.
 
-  - Decision process is repeated each billing cycle (feedback loop), with the decision model output feeding into the next iteration of the simulation.
+  - Switching between default and TOU-friendly HPWH schedules incurs effort costs and comfort trade-offs.
+
+  - Consumers learn through trial-and-error with noisy feedback, forming reference points from recent bill history.
+
+  - Decision process incorporates loss aversion (bill increases feel worse than equivalent savings) and habit formation.
 
 # 2. Key Variables and Parameters
 This section defines all variables, parameters, and their temporal dimensions used throughout the decision model. Note that at the beginning of each month, the model is initialized with the previous month's decision outcome, and the model is repeated for each month of the year, or however many months are specified in the simulation.
@@ -52,6 +56,12 @@ This section defines all variables, parameters, and their temporal dimensions us
 | $COP$      | Parameter | Heat pump coefficient of performance                 | -        | 1 × 1     |
 | **Decision Variables** |
 | $x_m^{switch}$ | Binary | Decision to switch schedule in month $m$ (1 = switch, 0 = stay) | binary | M × 1 |
+| **Behavioral Parameters** |
+| $\lambda$ | Parameter | Loss aversion coefficient for bill increases | - | 1 × 1 |
+| $\beta$ | Parameter | Status quo bias parameter (inertia against switching) | - | 1 × 1 |
+| $\epsilon$ | Parameter | Exploration rate (probability of random switching) | - | 1 × 1 |
+| $\sigma_{utility}$ | Parameter | Noise in utility savings estimates | $ | 1 × 1 |
+| $w$ | Parameter | Memory window for reference point (months) | months | 1 × 1 |
 | **State Variables** |
 | $S_m^{current}$ | Binary | Current schedule state in month $m$ (1 = default, 0 = TOU-adapted) | binary | M × 1 |
 | $s_{m,t}$  | Binary | HPWH operation permission at time $t$ in month $m$ (1 = allowed, 0 = restricted) | binary | M × T |
@@ -64,6 +74,11 @@ This section defines all variables, parameters, and their temporal dimensions us
 | $C_m^{bill}$ | Variable | Monthly electricity bill for water heating in month $m$ | $ | M × 1 |
 | $C_m^{comfort}$ | Variable | Monthly comfort penalty from unmet demand in month $m$ | $ | M × 1 |
 | $\Delta C_m$ | Variable | Realized bill savings from TOU schedule vs. default in month $m$ | $ | M × 1 |
+| **Behavioral State Variables** |
+| $\bar{C}_m^{ref}$ | Variable | Reference point for bills (w-month rolling average) | $ | M × 1 |
+| $\hat{\Delta S}_m^{utility}$ | Variable | Utility's noisy estimate of potential savings | $ | M × 1 |
+| $N_m^{exp}$ | Variable | Number of months of experience with current schedule | months | M × 1 |
+| $H_m$ | Variable | Habit strength for current schedule (0-1) | - | M × 1 |
 
 ## 2.1 Building-Specific Parameter Formulations
 
