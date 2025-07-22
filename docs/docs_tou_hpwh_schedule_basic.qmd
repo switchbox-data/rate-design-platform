@@ -140,7 +140,7 @@ Where:
 
 # 3. Detailed Model Steps
 
-This section outlines the complete sequential decision-making process that consumers follow each month, including the initialization of all state variables, decision logic, and state transitions. The model operates on monthly billing cycles with two distinct decision contexts based on the consumer's current schedule state.
+This section outlines the complete sequential decision-making process that consumers follow each month under **imperfect information and bounded rationality**. Unlike perfect information models, consumers rely on heuristic decision rules, noisy utility estimates, and behavioral biases when making switching decisions. The model operates on monthly billing cycles with decision contexts that reflect realistic information constraints and cognitive limitations.
 
 ## Step 1: Initialize Monthly State Variables
 
@@ -215,83 +215,84 @@ $$
 C_m^{comfort} = \alpha \cdot \sum_{t \in T} D_{m,t}^{unmet}
 $$
 
-## Step 4: Decision Logic Branch for Month $m$
+## Step 4: Behavioral Decision Logic for Month $m$
 
-The decision logic branches based on the current schedule state $S_m^{current}$, implementing different information sets and decision criteria for consumers in different situations. See the end of this section for a discussion regarding how consumers might calculate their net savings with the information they have in practice, and how this might differ from the model's assumptions.
+Consumers make switching decisions based on **noisy utility estimates** rather than perfect counterfactual simulations. The utility provides simplified estimates of potential bill impacts (e.g., "you could save approximately $20/month") based on generic models, but with significant noise and uncertainty. This reflects realistic information constraints where utilities cannot provide household-specific building simulations.
+
+**Generate Utility's Noisy Estimate for Month $m$:**
+
+The utility generates a simplified estimate by running the counterfactual simulation but adds noise to reflect:
+- Generic (non-building-specific) modeling assumptions
+- Simplified load profiles and average weather conditions
+- Communication uncertainty and rounding
+
+$$\hat{\Delta C}_m^{utility} = \Delta C_m^{true} + \mathcal{N}(0, \sigma_{utility}^2)$$
+
+Where $\Delta C_m^{true}$ is the actual counterfactual savings and $\sigma_{utility}$ captures utility estimate noise.
 
 **Branch based on current schedule state $S_m^{current}$:**
 
 ### Case A: Currently on Default Schedule ($S_m^{current} = 1$)
 
-Consumers on the default schedule in month $m$ evaluate TOU adoption by simulating the alternative schedule and comparing anticipated costs. Since they have no experience with TOU operation, the decision excludes comfort penalties $C_m^{comfort}$, which are unknown at this stage.
+Consumers on the default schedule receive the utility's **noisy estimate** of potential savings from switching to TOU-friendly scheduling. They cannot anticipate comfort impacts but can assess financial trade-offs with uncertainty.
 
-**Step 4A.1: Simulate Alternative (TOU) Schedule for Month $m$**
+**Step 4A.1: Receive Utility Guidance**
 
-A temporary TOU schedule is created for month $m$ by setting the operational permissions to restrict peak-hour operation. OCHRE simulates this alternative schedule using the same input conditions ($U_{m,t}^{HW}$, $T_{m,t}^{setpoint}$, $T_{m,t}^{ambient}$) but with the modified operational constraints. This produces the electricity consumption profile $E_{m,t}^{TOU}$ that would result under TOU scheduling in month $m$.
+Utility provides noisy estimate (behind the scenes, runs counterfactual simulation):
+- Run temporary TOU simulation: set $S_m^{temp} = 0$, get $E_{m,t}^{TOU}$
+- Calculate true savings: $\Delta C_m^{true} = C_m^{bill} - \sum_{t \in T} E_{m,t}^{TOU} \cdot r_{m,t}$
+- Consumer receives: $\hat{\Delta C}_m^{utility} = \Delta C_m^{true} + \mathcal{N}(0, \sigma_{utility}^2)$
 
-- Temporarily set $S_m^{temp} = 0$
-- Set TOU operational schedule: $s_{m,t}^{temp} = 1$ if $t \notin H$, else $s_{m,t}^{temp} = 0$
-- Run OCHRE simulation to get $E_{m,t}^{TOU}$
-- Calculate: $C_m^{bill,TOU} = \sum_{t \in T} E_{m,t}^{TOU} \cdot r_{m,t}$
+**Step 4A.2: Form Reference Point and Assess Risk**
 
-**Step 4A.2: Calculate Anticipated Savings for Month $m$**
+Consumer forms reference point from recent bill history:
+$$\bar{C}_m^{ref} = \frac{1}{\min(w, m-1)} \sum_{j=1}^{\min(w, m-1)} C_{m-j}^{bill}$$
 
-The anticipated bill savings $\Delta C_m^{anticipated}$ represent the difference between current default schedule costs and projected TOU schedule costs for month $m$. The net anticipated benefit subtracts the one-time switching cost $C^{switch}$ but does not include comfort penalties since the consumer cannot anticipate these impacts.
+**Loss aversion evaluation**: Potential bill increases feel worse than equivalent savings:
+$$\text{Perceived Value}_m = \hat{\Delta C}_m^{utility} - \lambda \times \max(0, -\hat{\Delta C}_m^{utility})$$
 
-$$
-\Delta C_m^{anticipated} = C_m^{bill} - C_m^{bill,TOU}
-$$
+**Step 4A.3: Switching Decision with Status Quo Bias**
 
-$$
-\text{Net Savings}_m^{anticipated} = \Delta C_m^{anticipated} - C^{switch,to}
-$$
+$$P(x_m^{switch} = 1) = \frac{1}{1 + e^{-\beta \cdot (\text{Perceived Value}_m - C^{switch,to})}}$$
 
-**Step 4A.3: Make Switching Decision for Month $m$**
-
-The binary switching decision $x_m^{switch}$ is determined by whether anticipated net savings are positive in month $m$. If $\text{Net Savings}_m^{anticipated} > 0$, the consumer adopts TOU scheduling ($x_m^{switch} = 1$); otherwise, they remain on the default schedule ($x_m^{switch} = 0$).
-
-$$
-x_m^{switch} = \begin{cases}
-1 & \text{if } \text{Net Savings}_m^{anticipated} > 0 \\
+With exploration:
+$$x_m^{switch} = \begin{cases}
+1 & \text{if } \mathcal{U}(0,1) < \max(P(x_m^{switch} = 1), \epsilon) \\
 0 & \text{otherwise}
-\end{cases}
-$$
+\end{cases}$$
 
-### Case B: Currently on TOU Schedule ($S_m^{current} = 0$)
+### Case B: Currently on TOU-Friendly Schedule ($S_m^{current} = 0$)
 
-Consumers already on TOU scheduling in month $m$ have experienced both financial and comfort impacts during the current month. Their continuation decision incorporates complete information including realized comfort penalties $C_m^{comfort}$.
+Consumers with TOU-friendly scheduling receive the utility's **noisy estimate** of what their bill would have been under default scheduling, plus they experience actual comfort impacts. Their decision incorporates both financial and comfort feedback with uncertainty.
 
-**Step 4B.1: Simulate Alternative (Default) Schedule for Month $m$**
+**Step 4B.1: Receive Utility Counterfactual Estimate**
 
-The alternative default schedule simulation determines what electricity costs would have been in month $m$ without TOU restrictions. All operational permissions are set to allow HPWH operation ($s_{m,t}^{temp} = 1$ for all $t$), and OCHRE simulates the resulting consumption $E_{m,t}^{default}$ and costs $C_m^{bill,default}$.
+Utility provides noisy estimate of alternative (default) bill:
+- Run temporary default simulation: set $S_m^{temp} = 1$, get $E_{m,t}^{default}$
+- Calculate true counterfactual: $C_m^{bill,default,true} = \sum_{t \in T} E_{m,t}^{default} \cdot r_{m,t}$
+- Consumer receives: $\hat{C}_m^{bill,default} = C_m^{bill,default,true} + \mathcal{N}(0, \sigma_{utility}^2)$
 
-- Temporarily set $S_m^{temp} = 1$
-- Set default operational schedule: $s_{m,t}^{temp} = 1$ for all $t \in T$
-- Run OCHRE simulation to get $E_{m,t}^{default}$
-- Calculate: $C_m^{bill,default} = \sum_{t \in T} E_{m,t}^{default} \cdot r_{m,t}$
+**Step 4B.2: Evaluate Realized Performance with Noise**
 
-**Step 4B.2: Calculate Realized Performance for Month $m$**
+Consumer compares actual experience to noisy counterfactual:
+$$\hat{\Delta C}_m^{realized} = \hat{C}_m^{bill,default} - C_m^{bill}$$
 
-The realized savings $\Delta C_m^{realized}$ compare the counterfactual default costs to actual TOU costs experienced in month $m$. The net realized savings subtract both the switching cost $C^{switch}$ and the comfort penalty $C_m^{comfort}$ that was actually experienced during TOU operation.
+Incorporate actual comfort costs:
+$$\text{Net Savings}_m^{perceived} = \hat{\Delta C}_m^{realized} - C_m^{comfort} - C^{switch,back}$$
 
-$$
-\Delta C_m^{realized} = C_m^{bill,default} - C_m^{bill}
-$$
+**Step 4B.3: Continuation Decision with Habit Formation**
 
-$$
-\text{Net Savings}_m^{realized} = \Delta C_m^{realized} - C^{switch,back} - C_m^{comfort}
-$$
+Experience builds habits (reduced switching probability):
+$$N_m^{exp} = \text{months on current TOU schedule}$$
+$$H_m = \min(1, N_m^{exp} / 12)$$
 
-**Step 4B.3: Make Continuation Decision for Month $m$**
+$$P(x_m^{switch} = 1) = \frac{1}{1 + e^{\beta \cdot \text{Net Savings}_m^{perceived}}} \times (1 - H_m)$$
 
-The continuation decision evaluates whether to remain on TOU scheduling based on complete cost information from month $m$. If realized net savings are non-positive ($\text{Net Savings}_m^{realized} \leq 0$), the consumer switches back to default scheduling ($x_m^{switch} = 1$); otherwise, they continue with TOU ($x_m^{switch} = 0$).
-
-$$
-x_m^{switch} = \begin{cases}
-1 & \text{if } \text{Net Savings}_m^{realized} \leq 0 \text{ (switch back to default)} \\
+With reduced exploration:
+$$x_m^{switch} = \begin{cases}
+1 & \text{if } \mathcal{U}(0,1) < \max(P(x_m^{switch} = 1), \epsilon/2) \text{ (switch back to default)} \\
 0 & \text{otherwise (stay on TOU)}
-\end{cases}
-$$
+\end{cases}$$
 
 ## Step 5: Update State for Next Month
 
