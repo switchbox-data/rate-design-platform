@@ -7,6 +7,9 @@ edit_uri: edit/main/docs/
 repo_name: switchbox-data/rate-design-platform
 copyright: Maintained by <a href="https://switchbox-data.com">switchbox-data</a>.
 
+# Disable strict mode to allow warnings
+strict: false
+
 nav:
   - Home: index.md
   - Modules: modules.md
@@ -22,7 +25,8 @@ plugins:
             - rate_design_platform
   - quarto-render:
       output_format: gfm
-  - mermaid2
+  - mermaid2:
+      javascript: https://unpkg.com/mermaid/dist/mermaid.min.js
 
 theme:
   name: material
@@ -70,7 +74,3 @@ extra_javascript:
   - javascripts/mathjax.js
   - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
-  - https://unpkg.com/mermaid/dist/mermaid.min.js
-
-extra_css:
-  - stylesheets/extra.css

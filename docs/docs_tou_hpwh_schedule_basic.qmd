@@ -415,13 +415,209 @@ $$
 
 The model should reflect that consumers make switching decisions based on rough mental calculations and significant uncertainty about both benefits and comfort impacts, not sophisticated building physics simulations.
 
-# 5. References
-This section lists references and resources for further information and context regarding the model and its implementation.
+# Examples
 
-- [OCHRE Inputs and Arguments](https://github.com/NREL/OCHRE/blob/main/docs/source/InputsAndArguments.rst)
+```{python}
+#| label: plot-water-heating-comparison
+#| echo: false
+#| fig-cap: "Water Heating Electric Power Comparison: Default vs TOU Schedule"
 
-- [OCHRE Outputs](https://github.com/NREL/OCHRE/blob/main/docs/source/Outputs.rst)
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from pathlib import Path
 
-- [OCHRE Water Model](https://github.com/NREL/OCHRE/blob/main/ochre/Models/Water.py)
+# File paths - use relative path from workspace root
+import os
+base_path = Path("../data")
+default_file = base_path / "bldg0000072-up03_default.csv"
+tou_file = base_path / "bldg0000072-up03_tou.csv"
 
-- [HPWH Control Logic](https://github.com/NREL/OCHRE/blob/main/ochre/Equipment/WaterHeater.py)
+
+# Check if files exist
+if not default_file.exists():
+    raise FileNotFoundError(f"Default simulation file not found: {default_file}")
+if not tou_file.exists():
+    raise FileNotFoundError(f"TOU simulation file not found: {tou_file}")
+
+# Load data
+default_df = pd.read_csv(default_file, parse_dates=['Time'])
+tou_df = pd.read_csv(tou_file, parse_dates=['Time'])
+
+# Extract water heating power data
+default_power = default_df['Water Heating Electric Power (kW)']
+tou_power = tou_df['Water Heating Electric Power (kW)']
+time_index = default_df['Time']
+
+# Limit to first 7 days (or less if data is shorter)
+seven_days = pd.Timedelta(days=7)
+end_time = time_index.min() + seven_days
+max_time = min(end_time, time_index.max())
+
+# Filter data to first 7 days
+mask = time_index <= max_time
+default_power_7d = default_power[mask]
+tou_power_7d = tou_power[mask]
+time_index_7d = time_index[mask]
+
+# Create the plot with two y-axes
+fig, ax1 = plt.subplots(figsize=(15, 8))
+
+# Plot power data on primary y-axis (left)
+ax1.plot(time_index_7d, default_power_7d, label='Default Schedule', alpha=0.7, linewidth=2.5, color='blue')
+ax1.plot(time_index_7d, tou_power_7d, label='TOU Schedule', alpha=0.7, linewidth=2.5, color='orange')
+ax1.set_xlabel('Time', fontsize=16)
+ax1.set_ylabel('Water Heating Electric Power (kW)', color='black', fontsize=16)
+ax1.tick_params(axis='y', labelcolor='black')
+ax1.grid(True, alpha=0.3)
+
+# Format x-axis to show dates nicely
+ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+ax1.xaxis.set_major_locator(mdates.DayLocator(interval=1))  # Show every day
+ax1.tick_params(axis='x', labelsize=14)  # Set x-axis tick fontsize
+fig.autofmt_xdate()  # Rotate and align the tick labels
+
+# Create secondary y-axis for TOU rates
+ax2 = ax1.twinx()
+
+# Extract water heating mode data and convert to TOU rates
+tou_mode = tou_df['Water Heating Mode'][mask]  # Use same mask for 7-day subset
+tou_rates = (tou_mode == 'Upper On').astype(float)  # 1 for "Upper On", 0 for "Off"
+tou_rates = tou_rates * 0.12 + (1 - tou_rates) * 0.48  # Convert to actual rates: 0.12 for "Upper On", 0.48 for "Off"
+
+# Plot TOU rates data on secondary y-axis (right)
+ax2.plot(time_index_7d, tou_rates, label='TOU Rates ($/kWh)',
+         alpha=0.5, linewidth=2.5, color='green', linestyle='--')
+ax2.set_ylabel('TOU Rates ($/kWh)', color='green', fontsize=16)
+ax2.tick_params(axis='y', labelcolor='green')
+ax2.set_ylim(0.05, 0.55)  # Set y-axis limits for rate data
+
+# Add legends
+lines1, labels1 = ax1.get_legend_handles_labels()
+lines2, labels2 = ax2.get_legend_handles_labels()
+ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=16)
+
+plt.title('Water Heating Electric Power and TOU Rates Comparison: Default vs TOU Schedule', fontsize=20)
+
+plt.tight_layout()
+```
+
+```{python}
+#| label: plot-temperature-comparison
+#| echo: false
+#| fig-cap: "Hot Water Outlet Temperature and TOU Rates Comparison: Default vs TOU Schedule"
+
+# Create second plot for hot water outlet temperature
+fig2, ax3 = plt.subplots(figsize=(15, 8))
+
+# Extract hot water outlet temperature data
+default_temp = default_df['Hot Water Outlet Temperature (C)']
+tou_temp = tou_df['Hot Water Outlet Temperature (C)']
+
+# Extract deadband limits (using TOU data for consistency)
+deadband_upper = tou_df['Water Heating Deadband Upper Limit (C)']
+deadband_lower = tou_df['Water Heating Deadband Lower Limit (C)']
+
+# Filter data to first 7 days
+default_temp_7d = default_temp[mask]
+tou_temp_7d = tou_temp[mask]
+deadband_upper_7d = deadband_upper[mask]
+deadband_lower_7d = deadband_lower[mask]
+
+# Plot temperature data on primary y-axis (left)
+ax3.plot(time_index_7d, default_temp_7d, label='Default Schedule', alpha=0.7, linewidth=2.5, color='blue')
+ax3.plot(time_index_7d, tou_temp_7d, label='TOU Schedule', alpha=0.7, linewidth=2.5, color='orange')
+ax3.plot(time_index_7d, deadband_upper_7d, label='Deadband Upper Limit', alpha=0.5, linewidth=2.5, color='red')
+ax3.plot(time_index_7d, deadband_lower_7d, label='Deadband Lower Limit', alpha=0.5, linewidth=2.5, color='red')
+ax3.set_xlabel('Time', fontsize=16)
+ax3.set_ylabel('Hot Water Outlet Temperature (°C)', color='black', fontsize=16)
+ax3.tick_params(axis='y', labelcolor='black')
+ax3.grid(True, alpha=0.3)
+
+# Format x-axis to show dates nicely
+ax3.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+ax3.xaxis.set_major_locator(mdates.DayLocator(interval=1))  # Show every day
+ax3.tick_params(axis='x', labelsize=14)  # Set x-axis tick fontsize
+fig2.autofmt_xdate()  # Rotate and align the tick labels
+
+# Create secondary y-axis for TOU rates (same as first plot)
+ax4 = ax3.twinx()
+
+# Plot TOU rates data on secondary y-axis (right) - same data as first plot
+ax4.plot(time_index_7d, tou_rates, label='TOU Rates ($/kWh)',
+         alpha=0.5, linewidth=2, color='green', linestyle='--')
+ax4.set_ylabel('TOU Rates ($/kWh)', color='green', fontsize=16)
+ax4.tick_params(axis='y', labelcolor='green')
+ax4.set_ylim(0.05, 0.55)  # Set y-axis limits for rate data
+
+# Add legends
+lines3, labels3 = ax3.get_legend_handles_labels()
+lines4, labels4 = ax4.get_legend_handles_labels()
+ax3.legend(lines3 + lines4, labels3 + labels4, loc='upper right', fontsize=16)
+
+plt.title('Hot Water Outlet Temperature and TOU Rates Comparison: Default vs TOU Schedule', fontsize=20)
+
+plt.tight_layout()
+```
+
+```{python}
+#| label: plot-monthly-bills
+#| echo: false
+#| fig-cap: "Monthly Electricity Bills with TOU State Highlighting"
+
+# Load monthly bills data from both simulations
+default_bills_file = base_path / "default_monthly_bills_and_comfort_penalties.csv"
+tou_bills_file = base_path / "tou_monthly_bills_and_comfort_penalties.csv"
+monthly_results_file = base_path / "bldg0000072-up03_monthly_results.csv"
+
+default_bills_df = pd.read_csv(default_bills_file)
+tou_bills_df = pd.read_csv(tou_bills_file)
+monthly_results_df = pd.read_csv(monthly_results_file)
+
+# Create the plot
+fig3, ax5 = plt.subplots(figsize=(15, 8))
+
+# Create month labels for x-axis
+month_labels = [f"{row['year']}-{row['month']:02d}" for _, row in monthly_results_df.iterrows()]
+
+# Plot default schedule bills
+ax5.plot(range(len(default_bills_df)), default_bills_df['monthly_bills'], 'o-', linewidth=2.5, markersize=8,
+         color='blue', alpha=0.7, label='Default Schedule')
+
+# Plot TOU schedule bills
+ax5.plot(range(len(tou_bills_df)), tou_bills_df['monthly_bills'], 'o-', linewidth=2.5, markersize=8,
+         color='red', alpha=0.7, label='TOU Schedule')
+
+# Highlight periods when consumer was actually on TOU
+tou_mask = monthly_results_df['current_state'] == 'tou'
+if tou_mask.any():
+    # Find consecutive TOU periods to create background shading
+    tou_periods = []
+    start_idx = None
+    for i, is_tou in enumerate(tou_mask):
+        if is_tou and start_idx is None:
+            start_idx = i
+        elif not is_tou and start_idx is not None:
+            tou_periods.append((start_idx, i-1))
+            start_idx = None
+    # Handle case where TOU period extends to the end
+    if start_idx is not None:
+        tou_periods.append((start_idx, len(tou_mask)-1))
+
+    # Add background shading for TOU periods
+    for start, end in tou_periods:
+        ax5.axvspan(start-0.5, end+0.5, alpha=0.3, color='green', label='TOU Periods' if start == tou_periods[0][0] else "")
+
+# Customize the plot
+ax5.set_xlabel('Month', fontsize=16)
+ax5.set_ylabel('Monthly Electricity Bill ($)', fontsize=16)
+ax5.set_title('Monthly Electricity Bills: Default vs TOU Schedules', fontsize=20)
+ax5.grid(True, alpha=0.3)
+ax5.legend(fontsize=14)
+
+# Set x-axis ticks to show month labels
+ax5.set_xticks(range(len(monthly_results_df)))
+ax5.set_xticklabels(month_labels, rotation=45, ha='right', fontsize=12)
+
+plt.tight_layout()
+```
