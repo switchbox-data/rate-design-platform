@@ -26,6 +26,7 @@ from rate_design_platform.utils.rates import TOUParameters
 def sample_house_args():
     """Provide sample house_args for testing using OCHRE default paths"""
     return {
+        "name": "test_building",
         "start_time": datetime(2018, 1, 1, 0, 0),
         "end_time": datetime(2018, 12, 31, 23, 59),
         "time_res": timedelta(minutes=15),

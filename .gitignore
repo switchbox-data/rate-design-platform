@@ -150,4 +150,9 @@ outputs/
 *.html
 .DS_Store
 *_files/
+
+# Explicitly include everything in docs directory
+!docs/
+!docs/**/*
+
 CLAUDE.md
