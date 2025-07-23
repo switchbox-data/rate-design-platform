@@ -118,17 +118,23 @@ def create_tou_rates(
 
     monthly_rates = []
     current_month = None
+    current_year = None
     month_start_idx = 0
 
     # Group timesteps by month
     for i, timestamp in enumerate(timesteps):
+        timestamp_dt = pd.to_datetime(timestamp)
         # Try to get month, with fallback for numpy.datetime64
         try:
-            month = timestamp.month
+            month = timestamp_dt.month
+            year = timestamp_dt.year
         except AttributeError:
             # Fallback for numpy.datetime64 objects
-            month = timestamp.astype("datetime64[M]").astype(int) % 12 + 1
+            month = timestamp_dt.astype("datetime64[M]").astype(int) % 12 + 1
+            year = timestamp_dt.astype("datetime64[Y]").astype(int)
 
+        if current_year is None:
+            current_year = year
         if current_month is None:
             current_month = month
         elif month != current_month:
@@ -144,13 +150,11 @@ def create_tou_rates(
 
             # Create rate array for this month
             month_rates = np.where(peak_pattern, TOU_params.r_on, TOU_params.r_off)
-            # Convert numpy.datetime64 to datetime for year/month extraction
-            timestamp_dt = pd.to_datetime(timestamp)
-            monthly_rates.append(
-                MonthlyRateStructure(year=timestamp_dt.year, month=timestamp_dt.month, rates=month_rates)
-            )
+
+            monthly_rates.append(MonthlyRateStructure(year=current_year, month=current_month, rates=month_rates))
 
             # Start new month
+            current_year = year
             current_month = month
             month_start_idx = i
 
