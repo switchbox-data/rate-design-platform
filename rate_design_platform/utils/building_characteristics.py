@@ -27,6 +27,12 @@ class BuildingCharacteristics:
     wh_type: str = "storage"  # Default to storage water heater
 
 
+def _get_text_or_default(parent: ET.Element, xpath: str, namespace: dict, default: str = "") -> str:
+    """Get text from XML element or return default."""
+    elem = parent.find(xpath, namespace)
+    return elem.text or default if elem is not None else default
+
+
 def parse_building_xml(xml_file_path: str) -> BuildingCharacteristics:
     """
     Parse building characteristics from HPXML file.
@@ -39,46 +45,42 @@ def parse_building_xml(xml_file_path: str) -> BuildingCharacteristics:
     """
     tree = ET.parse(xml_file_path)  # noqa: S314
     root = tree.getroot()
-
-    # Define namespace for HPXML files
     namespace = {"hpxml": "http://hpxmlonline.com/2023/09"}
 
     # Extract location information
     address = root.find(".//hpxml:Address", namespace)
-    if address is not None:
-        state_code_elem = address.find("hpxml:StateCode", namespace)
-        zip_code_elem = address.find("hpxml:ZipCode", namespace)
-        state_code = state_code_elem.text if state_code_elem is not None else ""
-        zip_code = zip_code_elem.text if zip_code_elem is not None else ""
-    else:
-        state_code = ""
-        zip_code = ""
+    state_code = _get_text_or_default(address, "hpxml:StateCode", namespace) if address is not None else ""
+    zip_code = _get_text_or_default(address, "hpxml:ZipCode", namespace) if address is not None else ""
 
-    # Extract building construction details
-    building_construction = root.find(".//hpxml:BuildingConstruction", namespace)
-    if building_construction is not None:
-        year_built = int(building_construction.find("hpxml:YearBuilt", namespace).text)
-        n_bedrooms = int(building_construction.find("hpxml:NumberofBedrooms", namespace).text)
-        conditioned_floor_area = float(building_construction.find("hpxml:ConditionedFloorArea", namespace).text)
-        residential_facility_type = building_construction.find("hpxml:ResidentialFacilityType", namespace).text
+    # Extract building construction details with defaults
+    construction = root.find(".//hpxml:BuildingConstruction", namespace)
+    if construction is not None:
+        year_built = int(_get_text_or_default(construction, "hpxml:YearBuilt", namespace, "2000"))
+        n_bedrooms = int(_get_text_or_default(construction, "hpxml:NumberofBedrooms", namespace, "3"))
+        conditioned_floor_area = float(
+            _get_text_or_default(construction, "hpxml:ConditionedFloorArea", namespace, "1500.0")
+        )
+        residential_facility_type = _get_text_or_default(
+            construction, "hpxml:ResidentialFacilityType", namespace, "single-family detached"
+        )
     else:
-        # Fallback defaults
-        year_built = 2000
-        n_bedrooms = 3
-        conditioned_floor_area = 1500.0
-        residential_facility_type = "single-family detached"
+        year_built, n_bedrooms, conditioned_floor_area, residential_facility_type = (
+            2000,
+            3,
+            1500.0,
+            "single-family detached",
+        )
 
     # Extract occupancy information
-    building_occupancy = root.find(".//hpxml:BuildingOccupancy", namespace)
-    if building_occupancy is not None:
-        n_residents_elem = building_occupancy.find("hpxml:NumberofResidents", namespace)
-        n_residents = float(n_residents_elem.text) if n_residents_elem is not None else 2.0
-    else:
-        n_residents = 2.0
+    occupancy = root.find(".//hpxml:BuildingOccupancy", namespace)
+    n_residents = (
+        float(_get_text_or_default(occupancy, "hpxml:NumberofResidents", namespace, "2.0"))
+        if occupancy is not None
+        else 2.0
+    )
 
-    # Extract climate zone if available
-    climate_zone_elem = root.find(".//hpxml:ClimateZoneIECC/hpxml:ClimateZone", namespace)
-    climate_zone = climate_zone_elem.text if climate_zone_elem is not None else None
+    # Extract climate zone
+    climate_zone = _get_text_or_default(root, ".//hpxml:ClimateZoneIECC/hpxml:ClimateZone", namespace) or None
 
     return BuildingCharacteristics(
         state_code=state_code,
