@@ -191,7 +191,7 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
     )
 
     # Calculate annual metrics
-    annual_metrics = calculate_annual_metrics(monthly_results)
+    annual_metrics = calculate_annual_metrics(monthly_results, TOU_params)
 
     return monthly_results, annual_metrics
 
