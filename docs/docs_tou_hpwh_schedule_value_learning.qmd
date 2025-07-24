@@ -46,7 +46,7 @@ This section defines all variables, parameters, and their temporal dimensions us
 | $U_{m,t}^{HW}$ | Parameter | Exogenous hot water usage schedule at time $t$ in month $m$ | L/15min  | M × T     |
 | $r^{on}$   | Parameter | TOU electricity rate during peak hours              | $/kWh    | 1 × 1     |
 | $r^{off}$  | Parameter | TOU electricity rate during off-peak hours          | $/kWh    | 1 × 1     |
-| $\alpha$   | Parameter | Monetization factor for comfort penalty (building-specific) | $/kWh    | 1 × 1     |
+| $\beta$   | Parameter | Monetization factor for comfort penalty (building-specific) | $/kWh    | 1 × 1     |
 | $T_{m,t}^{setpoint}$ | Parameter | Hot water temperature setpoint at time $t$ in month $m$ | °C | M × T |
 | $T_{m,t}^{ambient}$ | Parameter | Ambient water temperature at time $t$ in month $m$ | °C | M × T |
 | $\rho$     | Parameter | Water density                                         | kg/L     | 1 × 1     |
@@ -55,6 +55,9 @@ This section defines all variables, parameters, and their temporal dimensions us
 | **Learning Parameters** |
 | $\epsilon_{base}$ | Parameter | Base exploration rate                              | -        | 1 × 1     |
 | $\alpha_{base}^{learn}$ | Parameter | Base learning rate                               | -        | 1 × 1     |
+| $\lambda$ | Parameter | Experience replay sensitivity parameter | - | 1 × 1 |
+| $\tau_{prior}$ | Parameter | Prior uncertainty standard deviation | $ | 1 × 1 |
+| $\beta_{base}$ | Parameter | Base comfort monetization factor | $/kWh | 1 × 1 |
 | **Decision Variables** |
 | $x_m^{switch}$ | Binary | Decision to switch schedule in month $m$ (1 = switch, 0 = stay) | binary | M × 1 |
 | **State Variables** |
@@ -78,6 +81,26 @@ This section defines all variables, parameters, and their temporal dimensions us
 
 The exploration and learning rates are derived from building and household characteristics available in ResStock/OCHRE simulations to reflect realistic heterogeneity in consumer behavior.
 
+### Household Characteristic Functions
+
+These functions transform ResStock building characteristics into behavioral adjustment factors:
+
+**Income Factor:**
+- $g_{AMI} = (\frac{AMI}{80\%})^{0.6}$ (income factor: higher income households have more resources and education, used in both learning and comfort valuation)
+
+**Building Age Factor:**
+- $f_{age} = 1.0 + 0.005 \times \max(0, 2000 - YearBuilt)$ (newer buildings may correlate with tech-savvy households - can be replaced with better proxy in future)
+
+**Household Size Factors:**
+- $f_{residents} = 1.0 + 0.1 \times \ln(N_{residents})$ (coordination complexity factor for exploration)
+- $g_{residents} = 1.0 + 0.2 \times (N_{residents} - 1)$ (household conflict factor for comfort valuation)
+
+**Water Heater Type Factor:**
+- $f_{WH} = \{0.7 \text{ (heat pump)}, 1.0 \text{ (storage)}, 1.5 \text{ (tankless)}\}$ (technology factor affecting ease of experimentation)
+
+**Climate Zone Factor:**
+- $g_{climate} = \{0.8 \text{ (zones 1-3)}, 1.0 \text{ (zones 4-5)}, 1.2 \text{ (zones 6-8)}\}$ (climate sensitivity for comfort valuation)
+
 ### Exploration Rate Parameters
 
 **Household-Specific Exploration Rate ($\epsilon_m$):**
@@ -85,8 +108,10 @@ The exploration and learning rates are derived from building and household chara
 The propensity to explore new scheduling strategies varies with household characteristics that affect willingness to experiment and tolerance for uncertainty, plus experience replay effects when costs exceed expectations.
 
 $$
-\epsilon_m = \epsilon_{base} \times f_{AMI} \times \frac{1}{f_{age}} \times \frac{1}{f_{residents}} \times f_{WH} + f_{replay}
+\epsilon_m = \sigma(\epsilon_{base} \times f_{AMI} \times \frac{1}{f_{age}} \times \frac{1}{f_{residents}} \times f_{WH} + f_{replay})
 $$
+
+Where $\sigma(z) = \frac{1}{1 + e^{-z}}$ is the sigmoid function, ensuring $\epsilon_m \in (0,1)$.
 
 Where $f_{replay}$ is the experience replay factor:
 
@@ -103,14 +128,8 @@ This mechanism captures the psychology where consumers explore more when their r
 Where:
 
 - $\epsilon_{base}$ = base exploration rate for average household (to be calibrated)
-
-- $f_{AMI} = \sqrt{\frac{AMI}{80\%}}$ (income factor: higher income increases willingness to experiment due to reduced financial stress)
-
-- $f_{age} = 1.0 + 0.005 \times \max(0, 2000 - YearBuilt)$ (building age proxy: newer buildings correlate with tech-savvy households more willing to try new strategies)
-
-- $f_{residents} = 1.0 + 0.1 \times \ln(N_{residents})$ (coordination complexity: fewer residents make it easier to experiment with new schedules)
-
-- $f_{WH} = \{0.7 \text{ (heat pump)}, 1.0 \text{ (storage)}, 1.5 \text{ (tankless)}\}$ (water heater type: heat pumps have smart controls enabling easier experimentation, tankless units are harder to schedule)
+- $f_{AMI} = \sqrt{\frac{AMI}{80\%}}$ (income factor for exploration: higher income increases willingness to experiment due to reduced financial stress)
+- Other factors defined in Household Characteristic Functions section above
 
 ### Learning Rate Parameters
 
@@ -119,52 +138,47 @@ Where:
 The speed at which households update their beliefs about schedule performance varies with characteristics that affect information processing and attention to energy costs.
 
 $$
-\alpha_m^{learn} = \alpha_{base}^{learn} \times g_{AMI} \times \frac{1}{f_{age}}
+\alpha_m^{learn} = \sigma(\alpha_{base}^{learn} \times g_{AMI} \times \frac{1}{f_{age}})
 $$
+
+Where $\sigma(z) = \frac{1}{1 + e^{-z}}$ ensures $\alpha_m^{learn} \in (0,1)$.
 
 Where:
 
 - $\alpha_{base}^{learn}$ = base learning rate for average household (to be calibrated)
-
-- $g_{AMI} = (\frac{AMI}{80\%})^{0.6}$ (income factor: higher income households process bill information faster due to education/resources)
-
-- $\frac{1}{f_{age}}$ = faster learning in newer buildings (proxy for tech-savvy households better at interpreting energy feedback)
+- $g_{AMI}$ and $f_{age}$ defined in Household Characteristic Functions section above
 
 ### Comfort Monetization Factor
 
-**Comfort Penalty Monetization ($\alpha$):**
+**Comfort Penalty Monetization ($\beta$):**
 
 The monetization factor represents how much households value avoiding unmet hot water demand and varies with income, household size, and climate sensitivity.
 
 $$
-\alpha = \alpha_{base} \times g_{AMI} \times g_{residents} \times g_{climate}
+\beta = \beta_{base} \times g_{AMI} \times g_{residents} \times g_{climate}
 $$
 
 Where:
 
-- $\alpha_{base}$ = base comfort value for average household (to be calibrated)
-
-- $g_{AMI} = (\frac{AMI}{80\%})^{0.6}$ (income factor: power function <1 reflects decreasing marginal utility of income)
-
-- $g_{residents} = 1.0 + 0.2 \times (N_{residents} - 1)$ (household size effect: each additional person increases conflict probability over hot water usage)
-
-- $g_{climate} = \{0.8 \text{ (zones 1-3)}, 1.0 \text{ (zones 4-5)}, 1.2 \text{ (zones 6-8)}\}$ (climate zone factor: colder climates increase hot water importance)
+- $\beta_{base}$ = base comfort value for average household (to be calibrated)
+- $g_{AMI}$, $g_{residents}$, and $g_{climate}$ defined in Household Characteristic Functions section above
 
 **Example:** For a mid-income family (80% AMI, 3 residents, 1980 building, storage water heater, zone 4):
-- Base exploration: $\epsilon_{base} \times 1.0 \times \frac{1}{1.1} \times \frac{1}{1.11} \times 1.0 = 0.81\epsilon_{base}$
-- $\epsilon_m = 0.81\epsilon_{base} + f_{replay}$ (total exploration rate including experience replay)
-- $\alpha_m^{learn} = \alpha_{base}^{learn} \times 1.0 \times \frac{1}{1.1} = 0.91\alpha_{base}^{learn}$
-- $\alpha = \alpha_{base} \times 1.0 \times 1.4 \times 1.0 = 1.4\alpha_{base}$
+- Pre-sigmoid exploration: $\epsilon_{base} \times 1.0 \times \frac{1}{1.1} \times \frac{1}{1.11} \times 1.0 + f_{replay} = 0.81\epsilon_{base} + f_{replay}$
+- $\epsilon_m = \sigma(0.81\epsilon_{base} + f_{replay})$ (constrained to [0,1])
+- Pre-sigmoid learning: $\alpha_{base}^{learn} \times 1.0 \times \frac{1}{1.1} = 0.91\alpha_{base}^{learn}$
+- $\alpha_m^{learn} = \sigma(0.91\alpha_{base}^{learn})$ (constrained to [0,1])
+- $\beta = \beta_{base} \times 1.0 \times 1.4 \times 1.0 = 1.4\beta_{base}$
 
-## 2.2 OCHRE-Based Prior Value Initialization
+## 2.2 Prior Value Initialization
 
-**Realistic Prior Expectations:**
+**Setting Prior Expectations:**
 
-Rather than starting with zero knowledge ($V_1^{default} = V_1^{TOU} = 0$), consumers have prior expectations about schedule performance based on general knowledge, utility communications, and building characteristics. These priors are derived from full-year OCHRE simulations to ensure physical realism.
+Rather than starting with zero knowledge ($V_1^{default} = V_1^{TOU} = 0$), consumers have prior expectations about schedule performance based on general knowledge, utility communications, and building characteristics. These priors are derived from existing OCHRE simulations to ensure physical realism.
 
 **Prior Calculation Method:**
 
-Before the learning simulation begins, OCHRE runs complete annual simulations for both schedule types:
+Before the agent learning begins, we actually run OCHRE to produce complete annual building simulations for both schedule types to reduce computational load. This can help us find an approximate avertage monthly bill:
 
 $$
 P^{default} = \frac{1}{12} \sum_{m=1}^{12} C_m^{total,default}
@@ -174,23 +188,22 @@ $$
 P^{TOU} = \frac{1}{12} \sum_{m=1}^{12} C_m^{total,TOU}
 $$
 
-Where $C_m^{total,default}$ and $C_m^{total,TOU}$ are the monthly total costs (bill + comfort) for each schedule type from the pre-simulation runs.
+Where $C_m^{total,default}$ and $C_m^{total,TOU}$ are the monthly total bills (excluding any penalties) for each schedule type from the pre-simulation runs.
 
 **Noisy Prior Initialization:**
 
 To reflect consumer uncertainty about their specific situation relative to average performance, priors include random noise:
 
 $$
-V_1^{default} = P^{default} + \mathcal{N}(0, \sigma_{prior}^2)
+V_1^{default} = P^{default} + \mathcal{N}(0, \tau_{prior}^2)
 $$
 
 $$
-V_1^{TOU} = P^{TOU} + \mathcal{N}(0, \sigma_{prior}^2)
+V_1^{TOU} = P^{TOU} + \mathcal{N}(0, \tau_{prior}^2)
 $$
 
-Where $\sigma_{prior}$ represents the standard deviation of consumer uncertainty about schedule performance (typically 10-20% of mean costs).
-
-**Implementation Note:** This approach ensures that households begin with realistic expectations derived from their specific building physics while maintaining uncertainty that drives meaningful exploration and learning behavior.
+Where $\tau_{prior}$ represents the standard deviation of consumer uncertainty about bill info.
+**Implementation Note:** This approach (smoothing by averaging + adding noise) ensures that households begin with previous bill expectations while maintaining uncertainty about future bill information.
 
 # 3. Detailed Model Steps
 
@@ -250,7 +263,7 @@ $$
 
 ## Step 3: Assess Comfort Performance for Month $m$
 
-Comfort assessment for month $m$ begins by identifying time periods where tank temperature $T_{m,t}^{tank}$ falls below the setpoint $T_{m,t}^{setpoint}$ during hot water usage events ($U_{m,t}^{HW} > 0$). For each such period, the thermal energy shortfall $Q_{m,t}^{unmet}$ is calculated as the energy required to heat the delivered water from tank temperature to setpoint temperature, using water density $\rho$ and specific heat $c_p$. This thermal deficit is then converted to electrical energy equivalent $D_{m,t}^{unmet}$ by dividing by the heat pump's coefficient of performance $COP$ and converting from Joules to kWh. The total comfort penalty for month $m$, $C_m^{comfort}$, monetizes these electrical energy equivalents using the comfort parameter $\alpha$.
+Comfort assessment for month $m$ begins by identifying time periods where tank temperature $T_{m,t}^{tank}$ falls below the setpoint $T_{m,t}^{setpoint}$ during hot water usage events ($U_{m,t}^{HW} > 0$). For each such period, the thermal energy shortfall $Q_{m,t}^{unmet}$ is calculated as the energy required to heat the delivered water from tank temperature to setpoint temperature, using water density $\rho$ and specific heat $c_p$. This thermal deficit is then converted to electrical energy equivalent $D_{m,t}^{unmet}$ by dividing by the heat pump's coefficient of performance $COP$ and converting from Joules to kWh. The total comfort penalty for month $m$, $C_m^{comfort}$, monetizes these electrical energy equivalents using the comfort parameter $\beta$.
 
 **Calculate Thermal Unmet Demand for Month $m$:**
 
@@ -270,7 +283,7 @@ $$
 **Calculate Monthly Comfort Penalty for Month $m$:**
 
 $$
-C_m^{comfort} = \alpha \cdot \sum_{t \in T} D_{m,t}^{unmet}
+C_m^{comfort} = \beta \cdot \sum_{t \in T} D_{m,t}^{unmet}
 $$
 
 ## Step 4: Value Learning and Decision Logic for Month $m$
@@ -485,19 +498,19 @@ By now Sarah has a good sense of TOU performance for her household. She's learne
 
 ### Implications for Model Design
 
-This realistic learning process suggests the model should incorporate both household characteristics and experience replay:
+This realistic learning process suggests the model should incorporate both household characteristics and experience replay to capture key behavioral drivers:
 
 $$
-\epsilon_m = \epsilon_{base} \times f_{AMI} \times \frac{1}{f_{age}} \times \frac{1}{f_{residents}} \times f_{WH} + f_{replay}
+\epsilon_m = \sigma(\epsilon_{base} \times f_{AMI} \times \frac{1}{f_{age}} \times \frac{1}{f_{residents}} \times f_{WH} + f_{replay})
 $$
 
-Where households with higher income, newer buildings, fewer residents, and smart water heaters explore more frequently, plus additional exploration when recent costs exceed expectations.
+Where households with higher income, newer buildings, fewer residents, and smart water heaters have higher baseline exploration rates, plus additional exploration when recent costs exceed expectations, with sigmoid constraints ensuring valid probabilities.
 
 $$
-\alpha_m^{learn} = \alpha_{base}^{learn} \times g_{AMI} \times \frac{1}{f_{age}}
+\alpha_m^{learn} = \sigma(\alpha_{base}^{learn} \times g_{AMI} \times \frac{1}{f_{age}})
 $$
 
-Where households with higher income and newer buildings learn faster from their experiences.
+Where households with higher income and newer buildings learn faster from their experiences, with sigmoid constraints ensuring valid learning rates.
 
 The value learning framework captures realistic consumer decision-making through direct experience while maintaining mathematical tractability for simulation modeling.
 
