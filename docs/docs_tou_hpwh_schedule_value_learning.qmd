@@ -83,23 +83,32 @@ The exploration and learning rates are derived from building and household chara
 
 ### Household Characteristic Functions
 
-These functions transform ResStock building characteristics into behavioral adjustment factors:
-
 **Income Factor:**
-- $g_{AMI} = (\frac{AMI}{80\%})^{0.6}$ (income factor: higher income households have more resources and education, used in both learning and comfort valuation)
+$$f_{AMI} = \left(\frac{AMI}{80\%}\right)^{0.6}$$
+Higher income → more experimentation (lower financial risk) and faster learning (education/resources). Power function <1 captures diminishing returns.
 
 **Building Age Factor:**
-- $f_{age} = 1.0 + 0.005 \times \max(0, 2000 - YearBuilt)$ (newer buildings may correlate with tech-savvy households - can be replaced with better proxy in future)
+$$f_{age} = 1.0 + 0.005 \times \max(0, 2000 - YearBuilt)$$
+Newer buildings → higher tech adoption. Linear approximation; weak empirical basis.
 
-**Household Size Factors:**
-- $f_{residents} = 1.0 + 0.1 \times \ln(N_{residents})$ (coordination complexity factor for exploration)
-- $g_{residents} = 1.0 + 0.2 \times (N_{residents} - 1)$ (household conflict factor for comfort valuation)
+**Household Size Factor:**
+$$f_{residents} = 1.0 + 0.1 \times \ln(N_{residents})$$
+More residents → harder coordination, more comfort conflicts. Logarithmic captures diminishing marginal effect.
 
-**Water Heater Type Factor:**
-- $f_{WH} = \{0.7 \text{ (heat pump)}, 1.0 \text{ (storage)}, 1.5 \text{ (tankless)}\}$ (technology factor affecting ease of experimentation)
+**Water Heater Technology Factor:**
+$$f_{WH} = \begin{cases}
+0.7 & \text{heat pump (smart controls)} \\
+1.0 & \text{storage (baseline)} \\
+1.5 & \text{tankless (complex scheduling)}
+\end{cases}$$
 
 **Climate Zone Factor:**
-- $g_{climate} = \{0.8 \text{ (zones 1-3)}, 1.0 \text{ (zones 4-5)}, 1.2 \text{ (zones 6-8)}\}$ (climate sensitivity for comfort valuation)
+$$f_{climate} = \begin{cases}
+0.8 & \text{zones 1-3 (warm)} \\
+1.0 & \text{zones 4-5 (moderate)} \\
+1.2 & \text{zones 6-8 (cold)}
+\end{cases}$$
+Colder climates → higher hot water importance → greater comfort sensitivity.
 
 ### Exploration Rate Parameters
 
@@ -138,7 +147,7 @@ Where:
 The speed at which households update their beliefs about schedule performance varies with characteristics that affect information processing and attention to energy costs.
 
 $$
-\alpha_m^{learn} = \sigma(\alpha_{base}^{learn} \times g_{AMI} \times \frac{1}{f_{age}})
+\alpha_m^{learn} = \sigma(\alpha_{base}^{learn} \times f_{AMI} \times \frac{1}{f_{age}})
 $$
 
 Where $\sigma(z) = \frac{1}{1 + e^{-z}}$ ensures $\alpha_m^{learn} \in (0,1)$.
@@ -146,7 +155,7 @@ Where $\sigma(z) = \frac{1}{1 + e^{-z}}$ ensures $\alpha_m^{learn} \in (0,1)$.
 Where:
 
 - $\alpha_{base}^{learn}$ = base learning rate for average household (to be calibrated)
-- $g_{AMI}$ and $f_{age}$ defined in Household Characteristic Functions section above
+- $f_{AMI}$ and $f_{age}$ defined in Household Characteristic Functions section above
 
 ### Comfort Monetization Factor
 
@@ -155,13 +164,13 @@ Where:
 The monetization factor represents how much households value avoiding unmet hot water demand and varies with income, household size, and climate sensitivity.
 
 $$
-\beta = \beta_{base} \times g_{AMI} \times g_{residents} \times g_{climate}
+\beta = \beta_{base} \times f_{AMI} \times f_{residents} \times f_{climate}
 $$
 
 Where:
 
 - $\beta_{base}$ = base comfort value for average household (to be calibrated)
-- $g_{AMI}$, $g_{residents}$, and $g_{climate}$ defined in Household Characteristic Functions section above
+- $f_{AMI}$, $f_{residents}$, and $f_{climate}$ defined in Household Characteristic Functions section above
 
 **Example:** For a mid-income family (80% AMI, 3 residents, 1980 building, storage water heater, zone 4):
 - Pre-sigmoid exploration: $\epsilon_{base} \times 1.0 \times \frac{1}{1.1} \times \frac{1}{1.11} \times 1.0 + f_{replay} = 0.81\epsilon_{base} + f_{replay}$
@@ -507,7 +516,7 @@ $$
 Where households with higher income, newer buildings, fewer residents, and smart water heaters have higher baseline exploration rates, plus additional exploration when recent costs exceed expectations, with sigmoid constraints ensuring valid probabilities.
 
 $$
-\alpha_m^{learn} = \sigma(\alpha_{base}^{learn} \times g_{AMI} \times \frac{1}{f_{age}})
+\alpha_m^{learn} = \sigma(\alpha_{base}^{learn} \times f_{AMI} \times \frac{1}{f_{age}})
 $$
 
 Where households with higher income and newer buildings learn faster from their experiences, with sigmoid constraints ensuring valid learning rates.
