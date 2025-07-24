@@ -42,8 +42,9 @@ This section defines all variables, parameters, and their temporal dimensions us
 | $U_{m,t}^{HW}$ | Parameter | Exogenous hot water usage schedule at time $t$ in month $m$ | L/15min  | M × T     |
 | $r^{on}$   | Parameter | TOU electricity rate during peak hours              | $/kWh    | 1 × 1     |
 | $r^{off}$  | Parameter | TOU electricity rate during off-peak hours          | $/kWh    | 1 × 1     |
-| $C^{switch}$ | Parameter | Consumer switching/"hassle" cost per schedule change | $        | 1 × 1     |
-| $\alpha$   | Parameter | Monetization factor for comfort penalty              | $/kWh    | 1 × 1     |
+| $C^{switch,to}$ | Parameter | Consumer switching cost from default to TOU schedule | $        | 1 × 1     |
+| $C^{switch,back}$ | Parameter | Consumer switching cost from TOU back to default schedule | $        | 1 × 1     |
+| $\alpha$   | Parameter | Monetization factor for comfort penalty (building-specific) | $/kWh    | 1 × 1     |
 | $T_{m,t}^{setpoint}$ | Parameter | Hot water temperature setpoint at time $t$ in month $m$ | °C | M × T |
 | $T_{m,t}^{ambient}$ | Parameter | Ambient water temperature at time $t$ in month $m$ | °C | M × T |
 | $\rho$     | Parameter | Water density                                         | kg/L     | 1 × 1     |
@@ -63,6 +64,64 @@ This section defines all variables, parameters, and their temporal dimensions us
 | $C_m^{bill}$ | Variable | Monthly electricity bill for water heating in month $m$ | $ | M × 1 |
 | $C_m^{comfort}$ | Variable | Monthly comfort penalty from unmet demand in month $m$ | $ | M × 1 |
 | $\Delta C_m$ | Variable | Realized bill savings from TOU schedule vs. default in month $m$ | $ | M × 1 |
+
+## 2.1 Building-Specific Parameter Formulations
+
+The switching costs and comfort monetization factors are derived from building and household characteristics available in ResStock/OCHRE simulations to reflect realistic heterogeneity in consumer behavior.
+
+### Switching Cost Parameters
+
+**Switch to TOU Schedule Cost ($C^{switch,to}$):**
+
+The cost of switching from default to TOU operation reflects the mental effort and complexity of programming a water heater schedule. This cost depends on household characteristics that affect the perceived difficulty and opportunity cost of the task.
+
+$$
+C^{switch,to} = C \times f_{AMI} \times f_{age} \times f_{residents} \times f_{WH}
+$$
+
+Where:
+
+- $C$ = base switching cost for average household (to be calibrated)
+
+- $f_{AMI} = \sqrt{\frac{AMI}{80\%}}$ (income factor: square root relationship reflects diminishing marginal utility of income, normalized to 80% AMI median income benchmark)
+
+- $f_{age} = 1.0 + 0.005 \times \max(0, 2000 - YearBuilt)$ (building age proxy for household tech-savviness: older buildings correlate with older residents who may find technology more challenging; linear 0.5% increase per year before 2000 aligns with pre-internet adoption era)
+
+- $f_{residents} = 1.0 + 0.1 \times \ln(N_{residents})$ (coordination complexity: logarithmic relationship reflects decreasing marginal coordination difficulty as households develop systems for multi-person decisions)
+
+- $f_{WH} = \{1.0 \text{ (storage)}, 1.5 \text{ (tankless)}, 0.7 \text{ (heat pump)}\}$ (water heater type complexity: tankless units often lack scheduling capabilities, heat pumps typically have smart controls, storage units have simple timers)
+
+**Switch Back to Default Cost ($C^{switch,back}$):**
+
+The cost of reverting to default operation is lower since it involves returning to a familiar state and typically requires less complex programming (often just "reset to factory settings").
+
+$$
+C^{switch,back} = 0.4 \times C^{switch,to}
+$$
+
+The 0.4 factor reflects that reverting to default is easier than initial programming but still requires some effort to locate and execute reset procedures.
+
+### Comfort Monetization Factor
+
+**Comfort Penalty Monetization ($\alpha$):**
+
+The monetization factor represents how much households value avoiding unmet hot water demand and varies with income, household size, and climate sensitivity.
+
+$$
+\alpha = \alpha_{base} \times g_{AMI} \times g_{residents} \times g_{climate}
+$$
+
+Where:
+
+- $\alpha_{base}$ = base comfort value for average household (to be calibrated)
+
+- $g_{AMI} = (\frac{AMI}{80\%})^{0.6}$ (income factor: power function <1 reflects decreasing marginal utility of income; 0.6 exponent based on typical income elasticity of demand for comfort goods)
+
+- $g_{residents} = 1.0 + 0.2 \times (N_{residents} - 1)$ (household size effect: each additional person increases conflict probability by 20%, reflecting realistic scheduling conflicts over hot water usage)
+
+- $g_{climate} = \{0.8 \text{ (zones 1-3)}, 1.0 \text{ (zones 4-5)}, 1.2 \text{ (zones 6-8)}\}$ (climate zone factor: colder climates increase hot water importance by 20% per major zone group, based on observed regional energy consumption patterns)
+
+**Example:** For a mid-income family (80% AMI, 3 residents, 1980 building, storage water heater, zone 4): $C^{switch,to} = C \times 1.0 \times 1.1 \times 1.11 \times 1.0 = 1.22C$ and $\alpha = \alpha_{base} \times 1.0 \times 1.4 \times 1.0 = 1.4\alpha_{base}$.
 
 # 3. Detailed Model Steps
 
@@ -169,7 +228,7 @@ $$
 $$
 
 $$
-\text{Net Savings}_m^{anticipated} = \Delta C_m^{anticipated} - C^{switch}
+\text{Net Savings}_m^{anticipated} = \Delta C_m^{anticipated} - C^{switch,to}
 $$
 
 **Step 4A.3: Make Switching Decision for Month $m$**
@@ -205,7 +264,7 @@ $$
 $$
 
 $$
-\text{Net Savings}_m^{realized} = \Delta C_m^{realized} - C^{switch} - C_m^{comfort}
+\text{Net Savings}_m^{realized} = \Delta C_m^{realized} - C^{switch,back} - C_m^{comfort}
 $$
 
 **Step 4B.3: Make Continuation Decision for Month $m$**
@@ -261,7 +320,10 @@ $$
 $$
 
 $$
-\text{Total Switching Costs} = \sum_{m=1}^{12} x_m^{switch} \cdot C^{switch}
+\text{Total Switching Costs} = \sum_{m=1}^{12} x_m^{switch} \cdot \begin{cases}
+C^{switch,to} & \text{if switching from default to TOU} \\
+C^{switch,back} & \text{if switching from TOU to default}
+\end{cases}
 $$
 
 $$
@@ -410,7 +472,7 @@ Where:
 And evaluate switching against realistic transaction costs:
 
 $$
-C^{switch} = \$35 \text{ (representing 3-5 hours of consumer effort)}
+C^{switch,to} = \$35 \text{ (representing 3-5 hours of consumer effort)}
 $$
 
 The model should reflect that consumers make switching decisions based on rough mental calculations and significant uncertainty about both benefits and comfort impacts, not sophisticated building physics simulations.
