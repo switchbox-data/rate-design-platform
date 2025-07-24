@@ -136,7 +136,6 @@ def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[li
     Run complete TOU HPWH simulation
 
     Args:
-        simulation_type: Type of simulation to run ("default" or "tou")
         TOU_params: TOU parameters (uses default if None)
         house_args: Base house arguments dictionary
 
@@ -225,7 +224,7 @@ if __name__ == "__main__":
     month = 1
     start_date = 1
     start_time = datetime(year, month, start_date, 0, 0)  # (Year, Month, Day, Hour, Min)
-    duration = timedelta(days=365)
+    duration = timedelta(days=61)
     time_step = timedelta(minutes=15)
     end_time = start_time + duration
     sim_times = pd.date_range(start=start_time, end=end_time, freq=time_step)[:-1]

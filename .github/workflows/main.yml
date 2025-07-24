@@ -18,9 +18,13 @@ jobs:
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
-
       - name: Set up the environment
         uses: ./.github/actions/setup-python-env
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
 
       - name: Run checks
         run: |
