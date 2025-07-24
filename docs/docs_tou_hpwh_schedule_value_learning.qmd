@@ -82,11 +82,23 @@ The exploration and learning rates are derived from building and household chara
 
 **Household-Specific Exploration Rate ($\epsilon_m$):**
 
-The propensity to explore new scheduling strategies varies with household characteristics that affect willingness to experiment and tolerance for uncertainty.
+The propensity to explore new scheduling strategies varies with household characteristics that affect willingness to experiment and tolerance for uncertainty, plus experience replay effects when costs exceed expectations.
 
 $$
-\epsilon_m = \epsilon_{base} \times f_{AMI} \times \frac{1}{f_{age}} \times \frac{1}{f_{residents}} \times f_{WH}
+\epsilon_m = \epsilon_{base} \times f_{AMI} \times \frac{1}{f_{age}} \times \frac{1}{f_{residents}} \times f_{WH} + f_{replay}
 $$
+
+Where $f_{replay}$ is the experience replay factor:
+
+$$
+f_{replay} = \lambda \times \max(0, C_{recent}^{total} - E[C^{total}])
+$$
+
+- $\lambda$ = experience replay sensitivity parameter (controls how much cost surprises increase exploration)
+- $C_{recent}^{total}$ = average total cost over last 2-3 months for current schedule
+- $E[C^{total}]$ = expected total cost based on learned value for current schedule
+
+This mechanism captures the psychology where consumers explore more when their recent experience is worse than expected, addressing the concern that higher bills should drive more exploration behavior.
 
 Where:
 
@@ -139,9 +151,46 @@ Where:
 - $g_{climate} = \{0.8 \text{ (zones 1-3)}, 1.0 \text{ (zones 4-5)}, 1.2 \text{ (zones 6-8)}\}$ (climate zone factor: colder climates increase hot water importance)
 
 **Example:** For a mid-income family (80% AMI, 3 residents, 1980 building, storage water heater, zone 4):
-- $\epsilon_m = \epsilon_{base} \times 1.0 \times \frac{1}{1.1} \times \frac{1}{1.11} \times 1.0 = 0.81\epsilon_{base}$
+- Base exploration: $\epsilon_{base} \times 1.0 \times \frac{1}{1.1} \times \frac{1}{1.11} \times 1.0 = 0.81\epsilon_{base}$
+- $\epsilon_m = 0.81\epsilon_{base} + f_{replay}$ (total exploration rate including experience replay)
 - $\alpha_m^{learn} = \alpha_{base}^{learn} \times 1.0 \times \frac{1}{1.1} = 0.91\alpha_{base}^{learn}$
 - $\alpha = \alpha_{base} \times 1.0 \times 1.4 \times 1.0 = 1.4\alpha_{base}$
+
+## 2.2 OCHRE-Based Prior Value Initialization
+
+**Realistic Prior Expectations:**
+
+Rather than starting with zero knowledge ($V_1^{default} = V_1^{TOU} = 0$), consumers have prior expectations about schedule performance based on general knowledge, utility communications, and building characteristics. These priors are derived from full-year OCHRE simulations to ensure physical realism.
+
+**Prior Calculation Method:**
+
+Before the learning simulation begins, OCHRE runs complete annual simulations for both schedule types:
+
+$$
+P^{default} = \frac{1}{12} \sum_{m=1}^{12} C_m^{total,default}
+$$
+
+$$
+P^{TOU} = \frac{1}{12} \sum_{m=1}^{12} C_m^{total,TOU}
+$$
+
+Where $C_m^{total,default}$ and $C_m^{total,TOU}$ are the monthly total costs (bill + comfort) for each schedule type from the pre-simulation runs.
+
+**Noisy Prior Initialization:**
+
+To reflect consumer uncertainty about their specific situation relative to average performance, priors include random noise:
+
+$$
+V_1^{default} = P^{default} + \mathcal{N}(0, \sigma_{prior}^2)
+$$
+
+$$
+V_1^{TOU} = P^{TOU} + \mathcal{N}(0, \sigma_{prior}^2)
+$$
+
+Where $\sigma_{prior}$ represents the standard deviation of consumer uncertainty about schedule performance (typically 10-20% of mean costs).
+
+**Implementation Note:** This approach ensures that households begin with realistic expectations derived from their specific building physics while maintaining uncertainty that drives meaningful exploration and learning behavior.
 
 # 3. Detailed Model Steps
 
@@ -167,7 +216,7 @@ This step loads the exogenous input data and sets the initial state variables fo
 
 **Initialize Value Learning State for Month $m$:**
 
-- If $m = 1$: set $V_m^{default} = V_m^{TOU} = 0$ (no prior experience)
+- If $m = 1$: Initialize with OCHRE-based priors (see Section 2.2)
 
 - Else: $V_m^{default} = V_{m-1}^{default}$ and $V_m^{TOU} = V_{m-1}^{TOU}$ (carry forward learned values)
 
@@ -436,13 +485,13 @@ By now Sarah has a good sense of TOU performance for her household. She's learne
 
 ### Implications for Model Design
 
-This realistic learning process suggests the model should:
+This realistic learning process suggests the model should incorporate both household characteristics and experience replay:
 
 $$
-\epsilon_m = \epsilon_{base} \times f_{AMI} \times \frac{1}{f_{age}} \times \frac{1}{f_{residents}} \times f_{WH}
+\epsilon_m = \epsilon_{base} \times f_{AMI} \times \frac{1}{f_{age}} \times \frac{1}{f_{residents}} \times f_{WH} + f_{replay}
 $$
 
-Where households with higher income, newer buildings, fewer residents, and smart water heaters explore more frequently.
+Where households with higher income, newer buildings, fewer residents, and smart water heaters explore more frequently, plus additional exploration when recent costs exceed expectations.
 
 $$
 \alpha_m^{learn} = \alpha_{base}^{learn} \times g_{AMI} \times \frac{1}{f_{age}}
