@@ -22,16 +22,18 @@ class BasicHumanController:
             New schedule state ("default" or "tou")
         """
         if current_state == "default":
+            # Currently on default schedule, considering switch TO TOU
             anticipated_savings = default_bill - tou_bill
-            net_savings = anticipated_savings - TOU_params.c_switch
+            net_savings = anticipated_savings - TOU_params.get_switching_cost_to()
             if net_savings > 0:
                 return "switch"
             else:
                 return "stay"
         else:
+            # Currently on TOU schedule, considering switch BACK to default
             realized_savings = default_bill - tou_bill
-            net_savings = realized_savings - tou_comfort_penalty
-            if net_savings < 0:
+            net_savings = realized_savings - TOU_params.get_switching_cost_back() - tou_comfort_penalty
+            if net_savings <= 0:  # Note: condition changed to match section 2.1 logic
                 return "switch"
             else:
                 return "stay"

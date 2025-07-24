@@ -170,12 +170,15 @@ def test_calculate_annual_metrics():
         )
         monthly_results.append(result)
 
-    metrics = calculate_annual_metrics(monthly_results)
+    from rate_design_platform.utils.rates import TOUParameters
+
+    tou_params = TOUParameters()
+    metrics = calculate_annual_metrics(monthly_results, tou_params)
 
     assert metrics["total_annual_bills"] == 1200.0  # 12 * 100
     assert metrics["total_comfort_penalty"] == 60.0  # 12 * 5
     assert metrics["annual_switches"] == 1
-    assert metrics["total_switching_costs"] == 3.0  # 1 * 3
+    assert metrics["total_switching_costs"] == 2.1  # 1 * ((3.0 + 1.2) / 2) = 1 * 2.1
     assert metrics["average_monthly_bill"] == 100.0
     assert metrics["tou_adoption_rate_percent"] == 50.0  # 6 months TOU
     assert metrics["total_realized_savings"] == 60.0  # 6 TOU months * 10
