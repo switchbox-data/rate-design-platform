@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from ochre.utils import default_input_path  # type: ignore[import-untyped]
 
+from rate_design_platform.Analysis import batch_run_analysis
 from rate_design_platform.second_pass import run_full_simulation
 from rate_design_platform.utils.rates import TOUParameters
 
@@ -42,24 +43,27 @@ HOUSE_ARGS = {
 }
 TOU_PARAMS = TOUParameters()
 
-monthly_results = []
-annual_metrics = []
+if __name__ == "__main__":
+    monthly_results = []
+    annual_metrics = []
 
-for bldg_file in os.listdir(hpxml_path):
-    # Only process XML files
-    if bldg_file.endswith(".xml"):
-        # Get the base filename without extension
-        bldg_upgrade_id = os.path.splitext(bldg_file)[0]
-        print(f"Processing: {bldg_upgrade_id}")
+    for bldg_file in os.listdir(hpxml_path):
+        # Only process XML files
+        if bldg_file.endswith(".xml"):
+            # Get the base filename without extension
+            bldg_upgrade_id = os.path.splitext(bldg_file)[0]
+            print(f"Processing: {bldg_upgrade_id}")
 
-        hpxml_file = os.path.join(hpxml_path, bldg_file)
-        schedule_file = os.path.join(schedule_path, f"{bldg_upgrade_id}_schedule.csv")
+            hpxml_file = os.path.join(hpxml_path, bldg_file)
+            schedule_file = os.path.join(schedule_path, f"{bldg_upgrade_id}_schedule.csv")
 
-        HOUSE_ARGS["hpxml_file"] = hpxml_file
-        HOUSE_ARGS["hpxml_schedule_file"] = schedule_file
-        HOUSE_ARGS["weather_file"] = weather_path
+            HOUSE_ARGS["hpxml_file"] = hpxml_file
+            HOUSE_ARGS["hpxml_schedule_file"] = schedule_file
+            HOUSE_ARGS["weather_file"] = weather_path
 
-        monthly_result, annual_metric = run_full_simulation(TOU_PARAMS, HOUSE_ARGS)
+            monthly_result, annual_metric = run_full_simulation(TOU_PARAMS, HOUSE_ARGS)
 
-        monthly_results.append(monthly_result)
-        annual_metrics.append(annual_metric)
+            monthly_results.append(monthly_result)
+            annual_metrics.append(annual_metric)
+
+    batch_run_analysis(monthly_results, annual_metrics)

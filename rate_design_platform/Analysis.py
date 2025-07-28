@@ -6,8 +6,12 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import NamedTuple
 
+import matplotlib
+
+matplotlib.use("Agg")  # Use non-interactive backend
 import numpy as np
 import pandas as pd
+from matplotlib import pyplot as plt
 
 from rate_design_platform.utils.constants import SECONDS_PER_HOUR
 from rate_design_platform.utils.rates import MonthlyRateStructure, TOUParameters
@@ -244,3 +248,81 @@ def extract_ochre_results(df: pd.DataFrame, time_step: timedelta) -> SimulationR
     )  # Convert kW to kWh
 
     return SimulationResults(time_values, E_mt, T_tank_mt, D_unmet_mt)
+
+
+def batch_run_analysis(monthly_results: list[list[MonthlyResults]], annual_metrics: list[dict[str, float]]) -> None:
+    """
+    Analyze the results of the batch run
+    """
+    benefited_bldgs = []
+    no_benefit_bldgs = []
+    for i in range(len(annual_metrics)):
+        if annual_metrics[i]["total_realized_savings"] > 0:
+            benefited_bldgs.append(annual_metrics[i])
+        else:
+            no_benefit_bldgs.append(annual_metrics[i])
+
+    print(f"Benefited bldgs: {len(benefited_bldgs)}")
+    print(f"No benefit bldgs: {len(no_benefit_bldgs)}")
+    print(f"Percentage of benefited bldgs: {len(benefited_bldgs) / len(annual_metrics) * 100}%")
+    print(
+        f"Average total savings for all homes: ${sum(annual_metric['total_realized_savings'] for annual_metric in annual_metrics) / len(annual_metrics):.2f}"
+    )
+    print(
+        f"Average total savings for benefitting homes: {sum(benefited_bldg['total_realized_savings'] for benefited_bldg in benefited_bldgs) / len(benefited_bldgs):.2f}$"
+    )
+
+    total_savings = [annual_metric["total_realized_savings"] for annual_metric in annual_metrics]
+
+    """Total savings plot"""
+    # Create a more informative histogram
+    plt.figure(figsize=(10, 6))
+    plt.hist(total_savings, bins=20, alpha=0.7, color="skyblue", edgecolor="black")
+
+    # Add vertical line for mean
+    mean_savings = float(np.mean(total_savings))
+    plt.axvline(mean_savings, color="red", linestyle="--", linewidth=2, label=f"Mean: ${mean_savings:.2f}")
+
+    # Add vertical line for median
+    median_savings = float(np.median(total_savings))
+    plt.axvline(median_savings, color="orange", linestyle="--", linewidth=2, label=f"Median: ${median_savings:.2f}")
+
+    # Add vertical line at zero
+    plt.axvline(0, color="green", linestyle="-", linewidth=1, alpha=0.7, label="Break-even line")
+
+    plt.xlabel("Total Realized Savings ($)", fontsize=12)
+    plt.ylabel("Number of Households", fontsize=12)
+    plt.title("Distribution of Annual TOU Rate Savings Across Households", fontsize=14, fontweight="bold")
+    plt.legend(fontsize=10)
+    plt.grid(True, alpha=0.3)
+
+    # Add text box with summary statistics
+    positive_savings = [s for s in total_savings if s > 0]
+    negative_savings = [s for s in total_savings if s < 0]
+
+    stats_text = f"Total Households: {len(total_savings)}\n"
+    stats_text += (
+        f"Households with Savings: {len(positive_savings)} ({len(positive_savings) / len(total_savings) * 100:.1f}%)\n"
+    )
+    stats_text += (
+        f"Households with Losses: {len(negative_savings)} ({len(negative_savings) / len(total_savings) * 100:.1f}%)\n"
+    )
+    stats_text += f"Average Savings: ${mean_savings:.2f}\n"
+    if positive_savings:
+        stats_text += f"Avg Savings (Benefiting HH): ${np.mean(positive_savings):.2f}"
+
+    plt.text(
+        0.02,
+        0.98,
+        stats_text,
+        transform=plt.gca().transAxes,
+        verticalalignment="top",
+        bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.8},
+        fontsize=9,
+    )
+
+    plt.tight_layout()
+    # Save the plot to a file instead of showing it
+    plt.savefig("outputs/total_savings_distribution.png", dpi=300, bbox_inches="tight")
+    print("Plot saved as 'total_savings_distribution.png'")
+    plt.close()  # Close the figure to free memory
