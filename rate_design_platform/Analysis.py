@@ -3,10 +3,11 @@ Collection of dataclasses and functions for analyzing the results of the TOU sch
 """
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import NamedTuple
 
 import matplotlib
+import matplotlib.dates as mdates
 
 matplotlib.use("Agg")  # Use non-interactive backend
 import numpy as np
@@ -326,3 +327,68 @@ def batch_run_analysis(monthly_results: list[list[MonthlyResults]], annual_metri
     plt.savefig("outputs/total_savings_distribution.png", dpi=300, bbox_inches="tight")
     print("Plot saved as 'total_savings_distribution.png'")
     plt.close()  # Close the figure to free memory
+
+    """Switching decision plot"""
+    default = np.zeros(len(monthly_results[0]))
+    tou = np.zeros(len(monthly_results[0]))
+    month_years = []
+    for i in range(len(monthly_results)):
+        bldg_monthly_results = monthly_results[i]
+        for j in range(len(bldg_monthly_results)):
+            bldg_monthly_result = bldg_monthly_results[j]
+            if i == 0:
+                month_years.append(datetime(year=bldg_monthly_result.year, month=bldg_monthly_result.month, day=1))
+            if bldg_monthly_result.current_state == "default":
+                default[j] += 1
+            else:
+                tou[j] += 1
+
+    # Create the switching decision time series plot
+    fig, ax1 = plt.subplots(figsize=(12, 6))
+
+    # Convert datetime objects to matplotlib dates
+    month_years_mpl = mdates.date2num(month_years)
+
+    # Plot both lines on primary axis
+    ax1.plot(month_years_mpl, default, marker="o", linewidth=2, label="Default Rate", color="blue")
+    ax1.plot(month_years_mpl, tou, marker="s", linewidth=2, label="TOU Rate", color="red")
+
+    # Set integer y-axis ticks on the left
+    total_households = len(monthly_results)
+    ax1.set_ylim(0, total_households)
+    ax1.yaxis.set_major_locator(plt.matplotlib.ticker.MaxNLocator(integer=True))
+
+    # Customize the primary axis
+    ax1.set_xlabel("Month", fontsize=12)
+    ax1.set_ylabel("Number of Households", fontsize=12)
+    ax1.set_title("Household Rate Adoption Over Time", fontsize=14, fontweight="bold")
+    ax1.grid(True, alpha=0.3)
+
+    # Format x-axis to show months nicely
+    ax1.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
+    ax1.xaxis.set_major_locator(mdates.MonthLocator())
+    plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45)
+
+    # Create secondary y-axis for percentages
+    ax2 = ax1.twinx()
+
+    # Calculate percentages for each month
+    default_percentages = [default[i] / total_households * 100 for i in range(len(default))]
+    tou_percentages = [tou[i] / total_households * 100 for i in range(len(tou))]
+
+    # Set percentage axis limits and ticks
+    ax2.set_ylim(0, 100)
+    ax2.set_ylabel("Percentage of Households (%)", fontsize=12)
+
+    # Add percentage line on secondary axis (invisible but sets the scale)
+    ax2.plot(month_years_mpl, default_percentages, alpha=0)  # Invisible line to set scale
+    ax2.plot(month_years_mpl, tou_percentages, alpha=0)  # Invisible line to set scale
+
+    # Combine legends
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    ax1.legend(lines1, labels1, fontsize=10, loc="upper left")
+
+    plt.tight_layout()
+    plt.savefig("outputs/rate_adoption_timeseries.png", dpi=300, bbox_inches="tight")
+    print("Rate adoption time series plot saved as 'outputs/rate_adoption_timeseries.png'")
+    plt.close()
