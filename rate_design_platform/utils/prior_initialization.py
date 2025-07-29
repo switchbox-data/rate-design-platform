@@ -5,18 +5,12 @@ This module implements the prior calculation method described in the documentati
 to initialize consumer expectations about schedule performance.
 """
 
-import os
-
-from rate_design_platform.second_pass import simulate_full_cycle
-from rate_design_platform.utils.rates import TOUParameters
 from rate_design_platform.utils.value_learning_params import ValueLearningParameters
 
 
-def calculate_prior_values(
-    house_args: dict, TOU_params: TOUParameters, output_path_suffix: str = "prior_calc"
-) -> tuple[float, float]:
+def calculate_prior_values(default_monthly_results, tou_monthly_results) -> tuple[float, float]:
     """
-    Calculate prior expectations by running complete OCHRE simulations.
+    Calculate prior expectations from pre-computed OCHRE simulation results.
 
     From documentation:
     "Before the agent learning begins, we actually run OCHRE to produce
@@ -24,66 +18,52 @@ def calculate_prior_values(
     computational load."
 
     Args:
-        house_args: OCHRE house arguments
-        TOU_params: TOU parameters
-        output_path_suffix: Suffix for output directory to avoid conflicts
+        default_monthly_results: Pre-computed default schedule monthly bill results
+        tou_monthly_results: Pre-computed TOU schedule monthly bill results
 
     Returns:
-        Tuple of (default_annual_cost, tou_annual_cost)
+        Tuple of (default_annual_cost, tou_annual_cost) - bills only, no comfort penalty
     """
-    # Create separate output directories to avoid conflicts
-    original_output_path = house_args.get("output_path", "")
+    # Calculate annual costs from monthly bill results only (priors don't include comfort penalty)
+    default_annual_cost = sum(result.bill for result in default_monthly_results)
+    tou_annual_cost = sum(result.bill for result in tou_monthly_results)
 
-    # Update house args with separate output paths for prior calculations
-    default_house_args = house_args.copy()
-    tou_house_args = house_args.copy()
+    print("Prior calculation complete (bills only for priors):")
+    print(f"  Default annual bill: ${default_annual_cost:.2f}")
+    print(f"  TOU annual bill: ${tou_annual_cost:.2f}")
+    print(f"  Potential annual bill savings: ${default_annual_cost - tou_annual_cost:.2f}")
 
-    if original_output_path:
-        base_dir = os.path.dirname(original_output_path)
-        default_house_args["output_path"] = os.path.join(base_dir, f"prior_default_{output_path_suffix}")
-        tou_house_args["output_path"] = os.path.join(base_dir, f"prior_tou_{output_path_suffix}")
-
-    # Run full annual simulations for both schedule types
-    print("Calculating priors: Running default schedule simulation...")
-    default_monthly_results = simulate_full_cycle("default", TOU_params, default_house_args)
-
-    print("Calculating priors: Running TOU schedule simulation...")
-    tou_monthly_results = simulate_full_cycle("tou", TOU_params, tou_house_args)
-
-    # Calculate annual costs from monthly results
-    default_annual_cost = sum(result.bill + result.comfort_penalty for result in default_monthly_results)
-    tou_annual_cost = sum(result.bill + result.comfort_penalty for result in tou_monthly_results)
-
-    print("Prior calculation complete:")
-    print(f"  Default annual cost: ${default_annual_cost:.2f}")
-    print(f"  TOU annual cost: ${tou_annual_cost:.2f}")
-    print(f"  Potential annual savings: ${default_annual_cost - tou_annual_cost:.2f}")
+    # Show comfort penalties are available but not used in priors
+    default_comfort_total = sum(result.comfort_penalty for result in default_monthly_results)
+    tou_comfort_total = sum(result.comfort_penalty for result in tou_monthly_results)
+    print(f"  Default comfort penalty total: ${default_comfort_total:.2f} (not included in priors)")
+    print(f"  TOU comfort penalty total: ${tou_comfort_total:.2f} (not included in priors)")
 
     return default_annual_cost, tou_annual_cost
 
 
 def initialize_value_learning_controller_with_priors(
     params: ValueLearningParameters,
-    building_chars,  # BuildingCharacteristics - avoiding import for now
-    house_args: dict,
-    TOU_params: TOUParameters,
+    building_chars,
+    default_monthly_results,
+    tou_monthly_results,
 ):
     """
-    Initialize a ValueLearningController with realistic priors from OCHRE simulation.
+    Initialize a ValueLearningController with realistic priors from pre-computed OCHRE simulation results.
 
     Args:
         params: Value learning parameters
         building_chars: Building characteristics
-        house_args: OCHRE house arguments
-        TOU_params: TOU parameters
+        default_monthly_results: Pre-computed default schedule monthly results
+        tou_monthly_results: Pre-computed TOU schedule monthly results
 
     Returns:
         ValueLearningController with initialized priors
     """
     from rate_design_platform.DecisionMaker import ValueLearningController
 
-    # Calculate prior values using OCHRE simulations
-    default_annual_cost, tou_annual_cost = calculate_prior_values(house_args, TOU_params)
+    # Calculate prior values using pre-computed results
+    default_annual_cost, tou_annual_cost = calculate_prior_values(default_monthly_results, tou_monthly_results)
 
     # Create controller with calculated priors
     controller = ValueLearningController(
@@ -94,30 +74,3 @@ def initialize_value_learning_controller_with_priors(
     )
 
     return controller
-
-
-def create_default_value_learning_setup(
-    building_chars,  # BuildingCharacteristics
-    house_args: dict,
-    TOU_params: TOUParameters = None,
-    params: ValueLearningParameters = None,
-):
-    """
-    Create a complete value learning setup with reasonable defaults.
-
-    Args:
-        building_chars: Building characteristics
-        house_args: OCHRE house arguments
-        TOU_params: TOU parameters (uses default if None)
-        params: Value learning parameters (uses default if None)
-
-    Returns:
-        ValueLearningController ready for simulation
-    """
-    if TOU_params is None:
-        TOU_params = TOUParameters()
-
-    if params is None:
-        params = ValueLearningParameters()
-
-    return initialize_value_learning_controller_with_priors(params, building_chars, house_args, TOU_params)

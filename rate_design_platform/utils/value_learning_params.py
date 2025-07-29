@@ -189,7 +189,8 @@ def calculate_household_exploration_rate(
     Calculate household-specific exploration rate.
 
     From documentation:
-    epsilon_m = sigmoid(epsilon_base + lambda_1*f_AMI + lambda_2*f_age + lambda_3*f_residents + lambda_4*f_WH + lambda_5*max(0, C_recent - E[C]))
+    epsilon_m = sigmoid(epsilon_base + lambda_1*f_AMI + lambda_2*f_age + lambda_3*f_residents +
+                        lambda_4*f_WH + lambda_5*max(0, C_recent - E[C]))
 
     Args:
         params: Value learning parameters

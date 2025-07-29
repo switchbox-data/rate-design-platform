@@ -2,7 +2,6 @@
 Building characteristics parser and data structures for building-dependent parameters.
 """
 
-import math
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Optional
@@ -137,87 +136,6 @@ def map_climate_zone_to_numeric(climate_zone: str) -> int:
         return min(8, max(1, int(numeric_part)))
     else:
         return 4  # Default
-
-
-def calculate_switching_cost_to(building_chars: BuildingCharacteristics, base_cost: float = 35.0) -> float:
-    """
-    Calculate building-specific switching cost from default to TOU schedule.
-
-    Based on section 2.1 formula:
-    C^{switch,to} = C * f_{AMI} * f_{age} * f_{residents} * f_{WH}
-
-    Args:
-        building_chars: Building characteristics
-        base_cost: Base switching cost for average household ($)
-
-    Returns:
-        Building-specific switching cost ($)
-    """
-    ami = building_chars.ami or 1.0  # Default to 80% AMI if not available
-
-    # f_AMI = sqrt(AMI / 0.8) - income factor
-    f_ami = math.sqrt(ami / 0.8) if ami > 0 else 1.0
-
-    # f_age = 1.0 + 0.005 * max(0, 2000 - YearBuilt) - building age proxy
-    f_age = 1.0 + 0.005 * max(0, 2000 - building_chars.year_built)
-
-    # f_residents = 1.0 + 0.1 * ln(N_residents) - coordination complexity
-    f_residents = 1.0 + 0.1 * math.log(max(1.0, building_chars.n_residents))
-
-    # f_WH = {1.0 (storage), 1.5 (tankless), 0.7 (heat pump)} - water heater complexity
-    wh_factors = {"storage": 1.0, "tankless": 1.5, "heat_pump": 0.7}
-    f_wh = wh_factors.get(building_chars.wh_type, 1.0)
-
-    return base_cost * f_ami * f_age * f_residents * f_wh
-
-
-def calculate_switching_cost_back(switching_cost_to: float) -> float:
-    """
-    Calculate cost to switch back from TOU to default schedule.
-
-    Based on section 2.1: C^{switch,back} = 0.4 * C^{switch,to}
-
-    Args:
-        switching_cost_to: Cost to switch to TOU schedule
-
-    Returns:
-        Cost to switch back to default schedule ($)
-    """
-    return 0.4 * switching_cost_to
-
-
-def calculate_comfort_penalty_factor(building_chars: BuildingCharacteristics, base_alpha: float = 0.15) -> float:
-    """
-    Calculate building-specific comfort penalty monetization factor.
-
-    Based on section 2.1 formula:
-    alpha = alpha_base * g_{AMI} * g_{residents} * g_{climate}
-
-    Args:
-        building_chars: Building characteristics
-        base_alpha: Base comfort penalty factor ($/kWh)
-
-    Returns:
-        Building-specific comfort penalty factor ($/kWh)
-    """
-    ami = building_chars.ami or 1.0  # Default to 80% AMI if not available
-
-    # g_AMI = (AMI / 0.8)^0.6 - income factor with diminishing returns
-    g_ami = (ami / 0.8) ** 0.6 if ami > 0 else 1.0
-
-    # g_residents = 1.0 + 0.2 * (N_residents - 1) - household size effect
-    g_residents = 1.0 + 0.2 * max(0, building_chars.n_residents - 1)
-
-    # g_climate = {0.8 (zones 1-3), 1.0 (zones 4-5), 1.2 (zones 6-8)} - climate factor
-    climate_zone = map_climate_zone_to_numeric(building_chars.climate_zone or "4A")
-    if climate_zone <= 3:
-        g_climate = 0.8
-    elif climate_zone <= 5:
-        g_climate = 1.0
-    else:
-        g_climate = 1.2
-
-    return base_alpha * g_ami * g_residents * g_climate
 
 
 def enrich_building_characteristics(building_chars: BuildingCharacteristics) -> BuildingCharacteristics:

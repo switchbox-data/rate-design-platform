@@ -91,14 +91,15 @@ def calculate_monthly_bill(
 
 
 def calculate_monthly_comfort_penalty(
-    simulation_results: SimulationResults, TOU_params: TOUParameters
+    simulation_results: SimulationResults, TOU_params: TOUParameters, comfort_penalty_factor: float = 0.15
 ) -> list[MonthlyMetrics]:
     """
     Calculate comfort penalty in $ from electrical unmet demand
 
     Args:
         simulation_results: Simulation results
-        TOU_params: TOU parameters
+        TOU_params: TOU parameters (unused but kept for compatibility)
+        comfort_penalty_factor: Monetization factor for comfort penalty ($/kWh)
 
     Returns:
         List of comfort penalties for each month
@@ -132,7 +133,7 @@ def calculate_monthly_comfort_penalty(
                 MonthlyMetrics(
                     year=year,
                     month=month,
-                    comfort_penalty=float(TOU_params.get_comfort_penalty_factor() * total_unmet_kwh),
+                    comfort_penalty=float(comfort_penalty_factor * total_unmet_kwh),
                 )
             )
 
@@ -146,19 +147,22 @@ def calculate_monthly_comfort_penalty(
         month_unmet_demand = unmet_demand_kWh[month_start_idx : month_start_idx + month_intervals]
         total_unmet_kwh = np.sum(month_unmet_demand)
         monthly_comfort_penalties.append(
-            MonthlyMetrics(
-                year=year, month=month, comfort_penalty=float(TOU_params.get_comfort_penalty_factor() * total_unmet_kwh)
-            )
+            MonthlyMetrics(year=year, month=month, comfort_penalty=float(comfort_penalty_factor * total_unmet_kwh))
         )
 
     return monthly_comfort_penalties
 
 
 def calculate_monthly_bill_and_comfort_penalty(
-    simulation_results: SimulationResults, monthly_rate_structure: list[MonthlyRateStructure], TOU_params: TOUParameters
+    simulation_results: SimulationResults,
+    monthly_rate_structure: list[MonthlyRateStructure],
+    TOU_params: TOUParameters,
+    comfort_penalty_factor: float = 0.15,
 ) -> list[MonthlyMetrics]:
     monthly_bills = calculate_monthly_bill(simulation_results, monthly_rate_structure)
-    monthly_comfort_penalties = calculate_monthly_comfort_penalty(simulation_results, TOU_params)
+    monthly_comfort_penalties = calculate_monthly_comfort_penalty(
+        simulation_results, TOU_params, comfort_penalty_factor
+    )
     monthly_metrics = []
     for bill, comfort_penalty in zip(monthly_bills, monthly_comfort_penalties):
         monthly_metrics.append(
@@ -199,26 +203,18 @@ def calculate_monthly_metrics(
     return monthly_results
 
 
-def calculate_annual_metrics(monthly_results: list[MonthlyResults], TOU_params: TOUParameters) -> dict[str, float]:
+def calculate_annual_metrics(monthly_results: list[MonthlyResults]) -> dict[str, float]:
     """
-    Calculate annual performance metrics from monthly results
+    Calculate basic annual performance metrics from monthly results
 
     Args:
         monthly_results: List of MonthlyResults for each month
-        TOU_params: TOU parameters with building-dependent costs
 
     Returns:
-        Dictionary of annual metrics
+        Dictionary of basic annual metrics
     """
     total_bills = sum(r.bill for r in monthly_results)
     total_comfort_penalty = sum(r.comfort_penalty for r in monthly_results)
-
-    # Calculate switching costs based on direction
-    # For proper implementation, we would need to track switch direction
-    # For now, use average of switch-to and switch-back costs
-    total_switches = sum(1 for r in monthly_results if r.switching_decision == "switch")
-    avg_switching_cost = (TOU_params.get_switching_cost_to() + TOU_params.get_switching_cost_back()) / 2
-    total_switching_costs = total_switches * avg_switching_cost
 
     # Calculate TOU adoption rate
     tou_months = sum(1 for r in monthly_results if r.current_state == "tou")
@@ -230,11 +226,9 @@ def calculate_annual_metrics(monthly_results: list[MonthlyResults], TOU_params: 
     return {
         "total_annual_bills": total_bills,
         "total_comfort_penalty": total_comfort_penalty,
-        "total_switching_costs": total_switching_costs,
         "total_realized_savings": total_realized_savings,
-        "net_annual_benefit": total_realized_savings - total_switching_costs - total_comfort_penalty,
+        "net_annual_benefit": total_realized_savings - total_comfort_penalty,
         "tou_adoption_rate_percent": tou_adoption_rate,
-        "annual_switches": total_switches,
         "average_monthly_bill": total_bills / len(monthly_results),
     }
 

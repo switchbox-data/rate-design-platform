@@ -4,7 +4,6 @@ Utility functions for calculating rates, intervals, peak hours, and operation sc
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -19,29 +18,9 @@ class TOUParameters:
     r_on: float = 0.48  # $/kWh - peak rate
     r_off: float = 0.12  # $/kWh - off-peak rate
 
-    # Building-dependent parameters (will be calculated based on building characteristics)
-    c_switch_to: Optional[float] = None  # $ - switching cost from default to TOU
-    c_switch_back: Optional[float] = None  # $ - switching cost from TOU to default
-    alpha: Optional[float] = None  # $/kWh - building-specific comfort penalty factor
-
-    # Fallback to legacy single switching cost if building-dependent costs not available
-    c_switch: float = 3.0  # $ - legacy switching cost (deprecated)
-
     # Peak hours: 12 PM to 8 PM (12:00 to 20:00)
     peak_start_hour: timedelta = timedelta(hours=12)
     peak_end_hour: timedelta = timedelta(hours=20)
-
-    def get_switching_cost_to(self) -> float:
-        """Get switching cost from default to TOU schedule."""
-        return self.c_switch_to if self.c_switch_to is not None else self.c_switch
-
-    def get_switching_cost_back(self) -> float:
-        """Get switching cost from TOU back to default schedule."""
-        return self.c_switch_back if self.c_switch_back is not None else (0.4 * self.get_switching_cost_to())
-
-    def get_comfort_penalty_factor(self) -> float:
-        """Get comfort penalty monetization factor."""
-        return self.alpha if self.alpha is not None else 0.15
 
 
 @dataclass
@@ -235,83 +214,3 @@ def create_operation_schedule(
         return (~peak_pattern[: sum(monthly_intervals)]).astype(
             bool
         )  # Operation is restricted during peak hours, hence the negation.
-
-
-def create_building_dependent_tou_params(
-    building_xml_path: str, base_params: Optional[TOUParameters] = None
-) -> TOUParameters:
-    """
-    Create TOU parameters with building-dependent switching costs and comfort penalties.
-
-    Args:
-        building_xml_path: Path to building HPXML file
-        base_params: Base TOU parameters (uses default if None)
-
-    Returns:
-        TOUParameters with building-specific costs and penalties
-    """
-    from rate_design_platform.utils.building_characteristics import (
-        calculate_comfort_penalty_factor,
-        calculate_switching_cost_back,
-        calculate_switching_cost_to,
-        enrich_building_characteristics,
-        parse_building_xml,
-    )
-
-    if base_params is None:
-        base_params = TOUParameters()
-
-    # Parse building characteristics
-    building_chars = parse_building_xml(building_xml_path)
-    building_chars = enrich_building_characteristics(building_chars)
-
-    # Calculate building-dependent parameters
-    c_switch_to = calculate_switching_cost_to(building_chars)
-    c_switch_back = calculate_switching_cost_back(c_switch_to)
-    alpha = calculate_comfort_penalty_factor(building_chars)
-
-    # Create new TOUParameters with building-dependent values
-    return TOUParameters(
-        r_on=base_params.r_on,
-        r_off=base_params.r_off,
-        c_switch_to=c_switch_to,
-        c_switch_back=c_switch_back,
-        alpha=alpha,
-        c_switch=base_params.c_switch,  # Keep legacy value for backward compatibility
-        peak_start_hour=base_params.peak_start_hour,
-        peak_end_hour=base_params.peak_end_hour,
-    )
-
-
-def create_value_learning_parameters_from_building(building_xml_path: str, base_params=None):
-    """
-    Create value learning parameters with building-dependent characteristics.
-
-    Args:
-        building_xml_path: Path to building HPXML file
-        base_params: Base value learning parameters (uses default if None)
-
-    Returns:
-        ValueLearningParameters with building-specific characteristics
-    """
-    from rate_design_platform.utils.building_characteristics import (
-        enrich_building_characteristics,
-        parse_building_xml,
-    )
-    from rate_design_platform.utils.value_learning_params import ValueLearningParameters
-
-    if base_params is None:
-        base_params = ValueLearningParameters()
-
-    # Parse building characteristics
-    building_chars = parse_building_xml(building_xml_path)
-    building_chars = enrich_building_characteristics(building_chars)
-
-    # Create ValueLearningParameters - the dataclass will handle scaling automatically
-    return ValueLearningParameters(
-        epsilon_base=base_params.epsilon_base,
-        alpha_base_learn=base_params.alpha_base_learn,
-        tau_prior=base_params.tau_prior,
-        beta_base=base_params.beta_base,
-        # Lambda and gamma coefficients will be set automatically by __post_init__
-    )

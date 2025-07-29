@@ -9,6 +9,7 @@ import os
 from datetime import datetime, timedelta
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 from ochre import Dwelling  # type: ignore[import-untyped]
 from ochre.utils import default_input_path  # type: ignore[import-untyped]
@@ -17,10 +18,10 @@ from rate_design_platform.Analysis import (
     MonthlyMetrics,
     MonthlyResults,
     calculate_annual_metrics,
-    calculate_monthly_bill_and_comfort_penalty,
+    calculate_monthly_bill,
     calculate_monthly_metrics,
 )
-from rate_design_platform.DecisionMaker import BasicHumanController, ValueLearningController
+from rate_design_platform.DecisionMaker import ValueLearningController
 from rate_design_platform.OchreSimulator import calculate_simulation_months, run_ochre_wh_dynamic_control
 from rate_design_platform.utils.rates import (
     MonthlyRateStructure,
@@ -31,9 +32,11 @@ from rate_design_platform.utils.rates import (
 )
 
 
-def simulate_full_cycle(simulation_type: str, TOU_params: TOUParameters, house_args: dict) -> list[MonthlyMetrics]:
+def simulate_full_cycle(
+    simulation_type: str, TOU_params: TOUParameters, house_args: dict
+) -> tuple[list[MonthlyMetrics], list[float]]:
     """
-    Simulate complete annual cycle with monthly decision-making
+    Simulate complete annual cycle to get bills and unmet demand for prior initialization
 
     Args:
         simulation_type: Type of simulation to run ("default" or "tou")
@@ -41,7 +44,9 @@ def simulate_full_cycle(simulation_type: str, TOU_params: TOUParameters, house_a
         house_args: Base house arguments dictionary
 
     Returns:
-        List of MonthlyResults for each month
+        Tuple of (monthly_bills, monthly_unmet_demand_totals)
+        - monthly_bills: List of MonthlyMetrics with bill amounts only
+        - monthly_unmet_demand_totals: List of monthly unmet demand totals in kWh
     """
     if TOU_params is None:
         TOU_params = TOUParameters()
@@ -85,59 +90,51 @@ def simulate_full_cycle(simulation_type: str, TOU_params: TOUParameters, house_a
         for monthly_rate_structure in monthly_rates
     ]
 
-    monthly_bill_and_comfort_penalty = calculate_monthly_bill_and_comfort_penalty(
-        simulation_results, monthly_rates, TOU_params
-    )
+    # Calculate monthly bills only
+    monthly_bills = calculate_monthly_bill(simulation_results, monthly_rates)
 
-    return monthly_bill_and_comfort_penalty
+    # Extract monthly unmet demand totals for later comfort penalty calculation
+    monthly_unmet_demand = []
+    time_stamps = simulation_results.Time
+    unmet_demand_kWh = simulation_results.D_unmet_mt
 
+    # Group by month
+    current_month = None
+    month_start_idx = 0
 
-def evaluate_human_decision(
-    initial_state: str,
-    default_monthly_bill: list[float],
-    tou_monthly_bill: list[float],
-    tou_monthly_comfort_penalty: list[float],
-    TOU_params: TOUParameters,
-) -> tuple[list[str], list[str]]:  # monthly decisions ("switch" or "stay"), states ("default" or "tou")
-    """
-    Evaluate human decision
+    for i, timestamp in enumerate(time_stamps):
+        try:
+            month = timestamp.month
+        except AttributeError:
+            month = timestamp.astype("datetime64[M]").astype(int) % 12 + 1
 
-    Args:
-        initial_state: Initial state ("default" or "tou")
-        default_monthly_bill: List of default monthly bills
-        tou_monthly_bill: List of TOU monthly bills
-        tou_monthly_comfort_penalty: List of TOU monthly comfort penalties
-        TOU_params: TOU parameters
+        if current_month is None:
+            current_month = month
+        elif month != current_month:
+            # Month changed, calculate total unmet demand for the previous month
+            month_intervals = i - month_start_idx
+            month_demand = unmet_demand_kWh[month_start_idx : month_start_idx + month_intervals]
+            monthly_unmet_demand.append(float(np.sum(month_demand)))
 
-    Returns:
-        List of "default" or "tou" for each month
-    """
-    human_decisions = []
-    states = []
-    current_state = initial_state
-    print(f"default_monthly_bill: {default_monthly_bill}")
-    print(f"tou_monthly_bill: {tou_monthly_bill}")
-    for i in range(len(default_monthly_bill)):
-        states.append(current_state)
-        human_controller = BasicHumanController()
-        current_decision = human_controller.evaluate_TOU(
-            current_state, default_monthly_bill[i], tou_monthly_bill[i], tou_monthly_comfort_penalty[i], TOU_params
-        )
-        human_decisions.append(current_decision)
-        if current_decision == "switch":
-            current_state = "tou" if current_state == "default" else "default"
-        else:
-            current_state = current_state
+            # Start new month
+            current_month = month
+            month_start_idx = i
 
-    return human_decisions, states
+    # Handle the last month
+    if month_start_idx < len(time_stamps):
+        month_intervals = len(time_stamps) - month_start_idx
+        month_demand = unmet_demand_kWh[month_start_idx : month_start_idx + month_intervals]
+        monthly_unmet_demand.append(float(np.sum(month_demand)))
+
+    return monthly_bills, monthly_unmet_demand
 
 
 def evaluate_value_learning_decision(
     controller: ValueLearningController,
     default_monthly_bill: list[float],
     tou_monthly_bill: list[float],
-    default_monthly_comfort_penalty: list[float],
-    tou_monthly_comfort_penalty: list[float],
+    default_monthly_unmet_demand: list[float],
+    tou_monthly_unmet_demand: list[float],
 ) -> tuple[list[str], list[str], list[dict]]:
     """
     Evaluate value learning decisions for each month.
@@ -146,8 +143,8 @@ def evaluate_value_learning_decision(
         controller: ValueLearningController instance
         default_monthly_bill: List of default monthly bills
         tou_monthly_bill: List of TOU monthly bills
-        default_monthly_comfort_penalty: List of default monthly comfort penalties
-        tou_monthly_comfort_penalty: List of TOU monthly comfort penalties
+        default_monthly_unmet_demand: List of default monthly unmet demand in kWh
+        tou_monthly_unmet_demand: List of TOU monthly unmet demand in kWh
 
     Returns:
         Tuple of (monthly_decisions, states, learning_metrics_history)
@@ -163,17 +160,25 @@ def evaluate_value_learning_decision(
     print(f"Initial state: {controller.get_current_state()}")
     print(f"Initial learning state: {controller.get_learning_state()}")
 
+    # Get building-specific beta for comfort penalty calculation
+    building_beta = controller.state_manager.state.beta
+    print(f"Using building-specific beta for comfort penalties: {building_beta:.4f}")
+
     for i in range(len(default_monthly_bill)):
         # Record current state before decision
         current_state = controller.get_current_state()
         states.append(current_state)
 
+        # Calculate comfort penalties on-the-fly using building-specific beta
+        default_comfort_penalty = building_beta * default_monthly_unmet_demand[i]
+        tou_comfort_penalty = building_beta * tou_monthly_unmet_demand[i]
+
         # Make value learning decision
         decision, learning_metrics = controller.evaluate_TOU(
             default_monthly_bill[i],
             tou_monthly_bill[i],
-            default_monthly_comfort_penalty[i],
-            tou_monthly_comfort_penalty[i],
+            default_comfort_penalty,
+            tou_comfort_penalty,
         )
 
         decisions.append(decision)
@@ -195,72 +200,6 @@ def evaluate_value_learning_decision(
     print(f"  Final exploration rate: {final_state['epsilon_m']:.3f}")
 
     return decisions, states, learning_metrics_history
-
-
-def run_full_simulation(TOU_params: TOUParameters, house_args: dict) -> tuple[list[MonthlyResults], dict[str, float]]:
-    """
-    Run complete TOU HPWH simulation
-
-    Args:
-        simulation_type: Type of simulation to run ("default" or "tou")
-        TOU_params: TOU parameters (uses default if None)
-        house_args: Base house arguments dictionary
-
-    Returns:
-        Tuple of (monthly_results, annual_metrics)
-    """
-    # Use default parameters if None provided
-    if TOU_params is None:
-        TOU_params = TOUParameters()
-
-    # Run default annual simulation with house args
-    default_monthly_bill_and_comfort_penalty = simulate_full_cycle("default", TOU_params, house_args)
-    tou_monthly_bill_and_comfort_penalty = simulate_full_cycle("tou", TOU_params, house_args)
-
-    default_monthly_bill = [
-        monthly_bill_and_comfort_penalty.bill
-        for monthly_bill_and_comfort_penalty in default_monthly_bill_and_comfort_penalty
-    ]
-    tou_monthly_bill = [
-        monthly_bill_and_comfort_penalty.bill
-        for monthly_bill_and_comfort_penalty in tou_monthly_bill_and_comfort_penalty
-    ]
-    default_monthly_comfort_penalty = [
-        monthly_bill_and_comfort_penalty.comfort_penalty
-        for monthly_bill_and_comfort_penalty in default_monthly_bill_and_comfort_penalty
-    ]
-    tou_monthly_comfort_penalty = [
-        monthly_bill_and_comfort_penalty.comfort_penalty
-        for monthly_bill_and_comfort_penalty in tou_monthly_bill_and_comfort_penalty
-    ]
-
-    # Evaluate human decisions
-    initial_state = "default"
-    monthly_decisions, states = evaluate_human_decision(
-        initial_state,
-        default_monthly_bill,
-        tou_monthly_bill,
-        tou_monthly_comfort_penalty,
-        TOU_params,
-    )
-
-    # Calculate simulation year and months
-    simulation_year_months = calculate_simulation_months(house_args)
-
-    monthly_results = calculate_monthly_metrics(
-        simulation_year_months,
-        monthly_decisions,
-        states,
-        default_monthly_bill,
-        tou_monthly_bill,
-        default_monthly_comfort_penalty,
-        tou_monthly_comfort_penalty,
-    )
-
-    # Calculate annual metrics
-    annual_metrics = calculate_annual_metrics(monthly_results)
-
-    return monthly_results, annual_metrics
 
 
 def run_value_learning_simulation(
@@ -315,28 +254,40 @@ def run_value_learning_simulation(
                 wh_type="storage",
             )
 
-    # Create value learning parameters and controller with priors
+    # 1. Initialize ValueLearning Parameters
     params = ValueLearningParameters()
-    controller = initialize_value_learning_controller_with_priors(params, building_chars, house_args, TOU_params)
+    print(f"Initialized value learning parameters with beta_base: {params.beta_base}")
 
-    # Run default and TOU annual simulations to get monthly bills
-    print("Running pre-simulations for monthly bill calculation...")
-    default_monthly_bill_and_comfort_penalty = simulate_full_cycle("default", TOU_params, house_args)
-    tou_monthly_bill_and_comfort_penalty = simulate_full_cycle("tou", TOU_params, house_args)
+    # 2. Run Year-Long Simulations to get bills and unmet demand
+    print("Running year-long pre-simulations to get bills and unmet demand...")
+    default_monthly_bills, default_monthly_unmet_demand = simulate_full_cycle("default", TOU_params, house_args)
+    tou_monthly_bills, tou_monthly_unmet_demand = simulate_full_cycle("tou", TOU_params, house_args)
 
-    # Extract monthly data
-    default_monthly_bill = [result.bill for result in default_monthly_bill_and_comfort_penalty]
-    tou_monthly_bill = [result.bill for result in tou_monthly_bill_and_comfort_penalty]
-    default_monthly_comfort_penalty = [result.comfort_penalty for result in default_monthly_bill_and_comfort_penalty]
-    tou_monthly_comfort_penalty = [result.comfort_penalty for result in tou_monthly_bill_and_comfort_penalty]
+    # 3. Initialize Priors (bills only)
+    print("Initializing controller with priors (bills only)...")
+    controller = initialize_value_learning_controller_with_priors(
+        params, building_chars, default_monthly_bills, tou_monthly_bills
+    )
 
-    # Run value learning decision process
+    # 4. Run Value Learning Simulation
+    print("Starting value learning simulation with on-the-fly comfort penalty calculation...")
+
+    # Extract monthly bill data
+    default_monthly_bill = [result.bill for result in default_monthly_bills]
+    tou_monthly_bill = [result.bill for result in tou_monthly_bills]
+
+    # Run value learning decision process with unmet demand for on-the-fly comfort penalty calculation
     monthly_decisions, states, learning_metrics_history = evaluate_value_learning_decision(
-        controller, default_monthly_bill, tou_monthly_bill, default_monthly_comfort_penalty, tou_monthly_comfort_penalty
+        controller, default_monthly_bill, tou_monthly_bill, default_monthly_unmet_demand, tou_monthly_unmet_demand
     )
 
     # Calculate simulation year and months
     simulation_year_months = calculate_simulation_months(house_args)
+
+    # Calculate comfort penalties for final metrics using building-specific beta
+    building_beta = controller.state_manager.state.beta
+    default_monthly_comfort_penalty = [building_beta * unmet for unmet in default_monthly_unmet_demand]
+    tou_monthly_comfort_penalty = [building_beta * unmet for unmet in tou_monthly_unmet_demand]
 
     # Calculate monthly metrics
     monthly_results = calculate_monthly_metrics(
@@ -457,48 +408,18 @@ if __name__ == "__main__":
         "weather_file": os.path.join(default_input_path, "Weather", "USA_CO_Denver.Intl.AP.725650_TMY3.epw"),
     }
 
-    print("\n=== Full Simulation Test ===")
+    print("=== Value Learning Simulation Test ===")
     try:
-        # Load real data and run simulation
+        # Run value learning simulation
         TOU_PARAMS = TOUParameters()
-        monthly_results, annual_metrics = run_full_simulation(TOU_PARAMS, HOUSE_ARGS)
+        monthly_results, annual_metrics, learning_history = run_value_learning_simulation(TOU_PARAMS, HOUSE_ARGS)
 
-        print("Simulation completed")
+        print("Value Learning Simulation completed")
         print(f"Simulation completed for {len(monthly_results)} months")
 
         # Display key results
         print("\n=== Annual Results ===")
         for key, value in annual_metrics.items():
-            if key.endswith("_percent"):
-                print(f"{key}: {value:.1f}%")
-            elif "cost" in key or "bill" in key or "saving" in key or "benefit" in key:
-                print(f"{key}: ${value:.2f}")
-            else:
-                print(f"{key}: {value:.2f}")
-
-        # Display monthly state progression
-        print("\n=== Monthly State Progression ===")
-        states = [r.current_state for r in monthly_results]
-        switches = [r.switching_decision for r in monthly_results]
-        print(f"States (default, tou): {states}")
-        print(f"Switches (switch, stay): {switches}")
-
-    except Exception as e:
-        print(f"Simulation failed: {e}")
-
-    print("\n" + "=" * 60)
-    print("=== Value Learning Simulation Test ===")
-    try:
-        # Run value learning simulation
-        TOU_PARAMS = TOUParameters()
-        monthly_results_vl, annual_metrics_vl, learning_history = run_value_learning_simulation(TOU_PARAMS, HOUSE_ARGS)
-
-        print("Value Learning Simulation completed")
-        print(f"Simulation completed for {len(monthly_results_vl)} months")
-
-        # Display key results
-        print("\n=== Value Learning Annual Results ===")
-        for key, value in annual_metrics_vl.items():
             if key.endswith("_percent"):
                 print(f"{key}: {value:.1f}%")
             elif "cost" in key or "bill" in key or "saving" in key or "benefit" in key or key.startswith("final_v_"):
@@ -510,8 +431,8 @@ if __name__ == "__main__":
 
         # Display monthly state progression
         print("\n=== Monthly Learning Progression ===")
-        states = [r.current_state for r in monthly_results_vl]
-        switches = [r.switching_decision for r in monthly_results_vl]
+        states = [r.current_state for r in monthly_results]
+        switches = [r.switching_decision for r in monthly_results]
         exploration_types = [metrics.get("decision_type", "unknown") for metrics in learning_history]
 
         print(f"States (default, tou): {states}")
