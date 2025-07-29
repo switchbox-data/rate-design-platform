@@ -22,21 +22,21 @@ class ValueLearningParameters:
 
     # Exploration coefficients (lambda parameters) - scale with epsilon_base
     lambda_1: Optional[float] = None  # Income coefficient (epsilon_base/10)
-    lambda_2: Optional[float] = None  # Building age coefficient (-epsilon_base/10)
+    lambda_2: Optional[float] = None  # Building age coefficient (epsilon_base/10)
     lambda_3: Optional[float] = None  # Household size coefficient (-epsilon_base/10)
     lambda_4: Optional[float] = None  # Water heater technology coefficient (epsilon_base/10)
     lambda_5: Optional[float] = None  # Experience replay coefficient (epsilon_base/10)
 
     # Learning rate coefficients (gamma parameters) - scale with alpha_base_learn
     gamma_1: Optional[float] = None  # Income coefficient (alpha_base_learn/10)
-    gamma_2: Optional[float] = None  # Building age coefficient (-alpha_base_learn/10)
+    gamma_2: Optional[float] = None  # Building age coefficient (alpha_base_learn/10)
 
     def __post_init__(self) -> None:
         """Set lambda and gamma coefficients based on base parameters if not provided."""
         if self.lambda_1 is None:
             self.lambda_1 = self.epsilon_base / 10
         if self.lambda_2 is None:
-            self.lambda_2 = -self.epsilon_base / 100
+            self.lambda_2 = self.epsilon_base / 10
         if self.lambda_3 is None:
             self.lambda_3 = -self.epsilon_base / 10
         if self.lambda_4 is None:
@@ -46,24 +46,24 @@ class ValueLearningParameters:
         if self.gamma_1 is None:
             self.gamma_1 = self.alpha_base_learn / 10
         if self.gamma_2 is None:
-            self.gamma_2 = -self.alpha_base_learn / 100
+            self.gamma_2 = self.alpha_base_learn / 10
 
     # Prior uncertainty and comfort parameters
     tau_prior: float = 3.0  # Prior uncertainty standard deviation ($)
     beta_base: float = 2.0  # Base comfort monetization factor ($/kWh)
 
 
-def sigmoid(z: float) -> float:
+def clamp_to_0_1(x: float) -> float:
     """
-    Sigmoid function to constrain rates to (0,1).
+    Clamp value to range [0,1].
 
     Args:
-        z: Input value
+        x: Input value
 
     Returns:
-        Sigmoid value in range (0,1)
+        Value clamped to range [0,1]
     """
-    return float(1.0 / (1.0 + math.exp(-z)))
+    return float(max(0, min(x, 1)))
 
 
 def calculate_ami_factor(ami: float) -> float:
@@ -88,18 +88,24 @@ def calculate_ami_factor(ami: float) -> float:
 def calculate_age_factor(year_built: int) -> float:
     """
     Calculate building age factor for household characteristics.
-
-    From documentation: f_age = max(0, 2000 - YearBuilt)
-    Newer buildings (f_age = 0) → higher tech adoption.
-    Older buildings have positive values.
+    Newer buildings → positive factor (more tech-savvy, quicker adoption)
+    Older buildings → negative factor (slower adoption, more hesitant)
+    Normalized and centered around year 2000.
 
     Args:
         year_built: Year the building was built
 
     Returns:
-        Building age factor (0 for buildings built in 2000 or later)
+        Building age factor in [-1, 1] range, positive for newer buildings
     """
-    return max(0.0, 2000 - year_built)
+    reference_year = 2015  # Center point for normalization
+    max_age_diff = 50  # Maximum years difference to consider
+
+    # Calculate normalized age difference from reference year
+    age_diff = year_built - reference_year
+    normalized_factor = float(max(-1.0, min(1.0, age_diff / max_age_diff)))
+
+    return normalized_factor  # Positive for newer buildings (>2000), negative for older ones
 
 
 def calculate_residents_factor(n_residents: float) -> float:
@@ -216,7 +222,7 @@ def calculate_household_exploration_rate(
     f_wh = calculate_water_heater_factor(wh_type)
 
     # Calculate pre-sigmoid exploration rate
-    pre_sigmoid = (
+    pre_transform = (
         params.epsilon_base
         + lambda_1 * f_ami
         + lambda_2 * f_age
@@ -225,7 +231,9 @@ def calculate_household_exploration_rate(
         + lambda_5 * max(0.0, recent_cost_surprise)
     )
 
-    return float(sigmoid(pre_sigmoid))
+    final_epsilon = float(clamp_to_0_1(pre_transform))
+
+    return final_epsilon
 
 
 def calculate_household_learning_rate(params: ValueLearningParameters, ami: float, year_built: int) -> float:
@@ -251,9 +259,11 @@ def calculate_household_learning_rate(params: ValueLearningParameters, ami: floa
     f_age = calculate_age_factor(year_built)
 
     # Calculate pre-sigmoid learning rate
-    pre_sigmoid = params.alpha_base_learn + gamma_1 * f_ami + gamma_2 * f_age
+    pre_transform = params.alpha_base_learn + gamma_1 * f_ami + gamma_2 * f_age
 
-    return float(sigmoid(pre_sigmoid))
+    final_alpha = float(clamp_to_0_1(pre_transform))
+
+    return final_alpha
 
 
 def calculate_comfort_monetization_factor(
