@@ -215,6 +215,19 @@ wheels = [
 ]
 
 [[package]]
+name = "buildstock-fetch"
+version = "0.0.1"
+source = { git = "https://github.com/switchbox-data/buildstock-fetch.git#8488588a82c7c92397dd2a00e6858ccea1d9f3e5" }
+dependencies = [
+    { name = "boto3" },
+    { name = "botocore" },
+    { name = "numpy" },
+    { name = "polars" },
+    { name = "pyarrow" },
+    { name = "requests" },
+]
+
+[[package]]
 name = "cachetools"
 version = "6.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2756,6 +2769,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "boto3-stubs" },
+    { name = "buildstock-fetch" },
     { name = "deptry" },
     { name = "mypy" },
     { name = "pandas-stubs" },
@@ -2776,8 +2790,8 @@ docs = [
 
 [package.metadata]
 requires-dist = [
-    { name = "boto3", specifier = ">=1.34.0" },
-    { name = "botocore", specifier = ">=1.34.0" },
+    { name = "boto3", specifier = ">=1.33.0" },
+    { name = "botocore", specifier = ">=1.33.0" },
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "matplotlib", specifier = ">=3.7.0" },
     { name = "mkdocs", specifier = ">=1.4.2" },
@@ -2793,6 +2807,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "boto3-stubs", specifier = ">=1.34.0" },
+    { name = "buildstock-fetch", git = "https://github.com/switchbox-data/buildstock-fetch.git" },
     { name = "deptry", specifier = ">=0.23.0" },
     { name = "mypy", specifier = ">=0.991" },
     { name = "pandas-stubs", specifier = ">=2.0.0" },
