@@ -22,6 +22,9 @@ jobs:
       - name: Set up the environment
         uses: ./.github/actions/setup-python-env
 
+      - name: Install Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+
       - name: Install dev dependencies
         run: uv sync --group dev --group docs
 

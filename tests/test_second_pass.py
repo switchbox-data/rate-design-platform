@@ -54,7 +54,6 @@ def sample_timesteps():
     return pd.date_range(start=start, end=end, freq=timedelta(minutes=15))[:-1]
 
 
-@pytest.mark.xfail(reason="Known bug, will fix later")
 def test_simulate_full_cycle(sample_house_args, sample_tou_params):
     """Test simulate_full_cycle function"""
     # Reduce simulation size for testing
@@ -63,24 +62,32 @@ def test_simulate_full_cycle(sample_house_args, sample_tou_params):
     test_house_args["end_time"] = datetime(2018, 2, 1, 0, 0)
 
     # Test default simulation
-    default_bills, default_penalties = simulate_full_cycle("default", sample_tou_params, test_house_args)
+    default_monthly_bill_and_comfort_penalty = simulate_full_cycle("default", sample_tou_params, test_house_args)
 
-    assert isinstance(default_bills, list)
-    assert isinstance(default_penalties, list)
-    assert len(default_bills) == 1  # One month
-    assert len(default_penalties) == 1
-    assert all(bill > 0 for bill in default_bills)
-    assert all(penalty >= 0 for penalty in default_penalties)
+    assert isinstance(default_monthly_bill_and_comfort_penalty, list)
+    assert len(default_monthly_bill_and_comfort_penalty) == 1  # One month
+    assert all(
+        monthly_bill_and_comfort_penalty.bill > 0
+        for monthly_bill_and_comfort_penalty in default_monthly_bill_and_comfort_penalty
+    )
+    assert all(
+        monthly_bill_and_comfort_penalty.comfort_penalty >= 0
+        for monthly_bill_and_comfort_penalty in default_monthly_bill_and_comfort_penalty
+    )
 
     # Test TOU simulation
-    tou_bills, tou_penalties = simulate_full_cycle("tou", sample_tou_params, test_house_args)
+    tou_monthly_bill_and_comfort_penalty = simulate_full_cycle("tou", sample_tou_params, test_house_args)
 
-    assert isinstance(tou_bills, list)
-    assert isinstance(tou_penalties, list)
-    assert len(tou_bills) == 1  # One month
-    assert len(tou_penalties) == 1
-    assert all(bill > 0 for bill in tou_bills)
-    assert all(penalty >= 0 for penalty in tou_penalties)
+    assert isinstance(tou_monthly_bill_and_comfort_penalty, list)
+    assert len(tou_monthly_bill_and_comfort_penalty) == 1  # One month
+    assert all(
+        monthly_bill_and_comfort_penalty.bill > 0
+        for monthly_bill_and_comfort_penalty in tou_monthly_bill_and_comfort_penalty
+    )
+    assert all(
+        monthly_bill_and_comfort_penalty.comfort_penalty >= 0
+        for monthly_bill_and_comfort_penalty in tou_monthly_bill_and_comfort_penalty
+    )
 
 
 def test_evaluate_human_decision(sample_tou_params):
@@ -101,7 +108,6 @@ def test_evaluate_human_decision(sample_tou_params):
     assert all(state in ["default", "tou"] for state in states)
 
 
-@pytest.mark.xfail(reason="Known bug, will fix later")
 def test_run_full_simulation(sample_house_args, sample_tou_params):
     """Test run_full_simulation function"""
     # Reduce simulation size for testing
