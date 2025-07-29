@@ -55,7 +55,15 @@ This section defines all variables, parameters, and their temporal dimensions us
 | **Learning Parameters** |
 | $\epsilon_{base}$ | Parameter | Base exploration rate                              | -        | 1 × 1     |
 | $\alpha_{base}^{learn}$ | Parameter | Base learning rate                               | -        | 1 × 1     |
-| $\lambda$ | Parameter | Experience replay sensitivity parameter | - | 1 × 1 |
+| $\lambda_1, \lambda_2, \lambda_3, \lambda_4, \lambda_5$ | Parameter | Exploration coefficients (income, age, residents, water heater, experience replay) | - | 5 × 1 |
+| $\gamma_1, \gamma_2$ | Parameter | Learning rate coefficients (income, age) | - | 2 × 1 |
+
+**Coefficient Calibration Notes:**
+- λ and γ coefficients control the strength and direction of household characteristic effects
+- Positive λ/γ values increase exploration/learning rates; negative values decrease them
+- Suggested starting values: λ₁ = ε_base/10 (income), λ₂ = -ε_base/10 (age), λ₃ = -ε_base/10 (household size), λ₄ = ε_base/10 (technology), λ₅ = ε_base/10 (experience replay); γ₁ = α_base/10 (income), γ₂ = -α_base/10 (age)
+- Calibrate using target TOU adoption rates by demographic groups from ResStock/survey data
+- Additive structure ensures coefficients are independent and directly interpretable
 | $\tau_{prior}$ | Parameter | Prior uncertainty standard deviation | $ | 1 × 1 |
 | $\beta_{base}$ | Parameter | Base comfort monetization factor | $/kWh | 1 × 1 |
 | **Decision Variables** |
@@ -84,22 +92,22 @@ The exploration and learning rates are derived from building and household chara
 ### Household Characteristic Functions
 
 **Income Factor:**
-$$f_{AMI} = \left(\frac{AMI}{80\%}\right)^{0.6}$$
-Higher income → more experimentation (lower financial risk) and faster learning (education/resources). Power function <1 captures diminishing returns.
+$$f_{AMI} = \left(\frac{AMI}{80\%}\right)^{0.6} - 1$$
+Higher income → more experimentation (lower financial risk) and faster learning (education/resources). Centered at zero for 80% AMI. Power function <1 captures diminishing returns.
 
 **Building Age Factor:**
-$$f_{age} = 1.0 + 0.005 \times \max(0, 2000 - YearBuilt)$$
-Newer buildings → higher tech adoption. Linear approximation; weak empirical basis.
+$$f_{age} = \max(0, 2000 - YearBuilt)$$
+Newer buildings (f_age = 0) → higher tech adoption. Older buildings have positive values. Linear approximation; weak empirical basis.
 
 **Household Size Factor:**
-$$f_{residents} = 1.0 + 0.1 \times \ln(N_{residents})$$
-More residents → harder coordination, more comfort conflicts. Logarithmic captures diminishing marginal effect.
+$$f_{residents} = \ln(N_{residents})$$
+More residents → harder coordination, more comfort conflicts. Centered at zero for single person household. Logarithmic captures diminishing marginal effect.
 
 **Water Heater Technology Factor:**
 $$f_{WH} = \begin{cases}
-0.7 & \text{heat pump (smart controls)} \\
-1.0 & \text{storage (baseline)} \\
-1.5 & \text{tankless (complex scheduling)}
+-0.3 & \text{heat pump (smart controls)} \\
+0.0 & \text{storage (baseline)} \\
+0.5 & \text{tankless (complex scheduling)}
 \end{cases}$$
 
 **Climate Zone Factor:**
@@ -117,20 +125,16 @@ Colder climates → higher hot water importance → greater comfort sensitivity.
 The propensity to explore new scheduling strategies varies with household characteristics that affect willingness to experiment and tolerance for uncertainty, plus experience replay effects when costs exceed expectations.
 
 $$
-\epsilon_m = \sigma(\epsilon_{base} \times f_{AMI} \times \frac{1}{f_{age}} \times \frac{1}{f_{residents}} \times f_{WH} + f_{replay})
+\epsilon_m = \sigma(\epsilon_{base} + \lambda_1 f_{AMI} + \lambda_2 f_{age} + \lambda_3 f_{residents} + \lambda_4 f_{WH} + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]))
 $$
 
 Where $\sigma(z) = \frac{1}{1 + e^{-z}}$ is the sigmoid function, ensuring $\epsilon_m \in (0,1)$.
 
-Where $f_{replay}$ is the experience replay factor:
-
-$$
-f_{replay} = \lambda \times \max(0, C_{recent}^{total} - E[C^{total}])
-$$
-
-- $\lambda$ = experience replay sensitivity parameter (controls how much cost surprises increase exploration)
+Where:
+- $\lambda_5 \max(0, C_{recent}^{total} - E[C^{total}])$ captures experience replay effects
 - $C_{recent}^{total}$ = average total cost over last 2-3 months for current schedule
 - $E[C^{total}]$ = expected total cost based on learned value for current schedule
+- $\lambda_5$ = experience replay sensitivity coefficient (controls how much cost surprises increase exploration)
 
 This mechanism captures the psychology where consumers explore more when their recent experience is worse than expected, addressing the concern that higher bills should drive more exploration behavior.
 
@@ -147,7 +151,7 @@ Where:
 The speed at which households update their beliefs about schedule performance varies with characteristics that affect information processing and attention to energy costs.
 
 $$
-\alpha_m^{learn} = \sigma(\alpha_{base}^{learn} \times f_{AMI} \times \frac{1}{f_{age}})
+\alpha_m^{learn} = \sigma(\alpha_{base}^{learn} + \gamma_1 f_{AMI} + \gamma_2 f_{age})
 $$
 
 Where $\sigma(z) = \frac{1}{1 + e^{-z}}$ ensures $\alpha_m^{learn} \in (0,1)$.
@@ -173,10 +177,11 @@ Where:
 - $f_{AMI}$, $f_{residents}$, and $f_{climate}$ defined in Household Characteristic Functions section above
 
 **Example:** For a mid-income family (80% AMI, 3 residents, 1980 building, storage water heater, zone 4):
-- Pre-sigmoid exploration: $\epsilon_{base} \times 1.0 \times \frac{1}{1.1} \times \frac{1}{1.11} \times 1.0 + f_{replay} = 0.81\epsilon_{base} + f_{replay}$
-- $\epsilon_m = \sigma(0.81\epsilon_{base} + f_{replay})$ (constrained to [0,1])
-- Pre-sigmoid learning: $\alpha_{base}^{learn} \times 1.0 \times \frac{1}{1.1} = 0.91\alpha_{base}^{learn}$
-- $\alpha_m^{learn} = \sigma(0.91\alpha_{base}^{learn})$ (constrained to [0,1])
+- Factor values: $f_{AMI} = 0.0$, $f_{age} = 20$, $f_{residents} = 1.10$, $f_{WH} = 0.0$
+- Pre-sigmoid exploration: $\epsilon_{base} + \lambda_1 \times 0.0 + \lambda_2 \times 20 + \lambda_3 \times 1.10 + \lambda_4 \times 0.0 + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]) = \epsilon_{base} + 20\lambda_2 + 1.10\lambda_3 + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}])$
+- $\epsilon_m = \sigma(\epsilon_{base} + 20\lambda_2 + 1.10\lambda_3 + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]))$ (constrained to [0,1])
+- Pre-sigmoid learning: $\alpha_{base}^{learn} + \gamma_1 \times 0.0 + \gamma_2 \times 20 = \alpha_{base}^{learn} + 20\gamma_2$
+- $\alpha_m^{learn} = \sigma(\alpha_{base}^{learn} + 20\gamma_2)$ (constrained to [0,1])
 - $\beta = \beta_{base} \times 1.0 \times 1.4 \times 1.0 = 1.4\beta_{base}$
 
 ## 2.2 Prior Value Initialization
@@ -510,13 +515,13 @@ By now Sarah has a good sense of TOU performance for her household. She's learne
 This realistic learning process suggests the model should incorporate both household characteristics and experience replay to capture key behavioral drivers:
 
 $$
-\epsilon_m = \sigma(\epsilon_{base} \times f_{AMI} \times \frac{1}{f_{age}} \times \frac{1}{f_{residents}} \times f_{WH} + f_{replay})
+\epsilon_m = \sigma(\epsilon_{base} + \lambda_1 f_{AMI} + \lambda_2 f_{age} + \lambda_3 f_{residents} + \lambda_4 f_{WH} + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]))
 $$
 
-Where households with higher income, newer buildings, fewer residents, and smart water heaters have higher baseline exploration rates, plus additional exploration when recent costs exceed expectations, with sigmoid constraints ensuring valid probabilities.
+Where households with higher income, newer buildings, fewer residents, and smart water heaters have higher baseline exploration rates (through positive λ coefficients), plus additional exploration when recent costs exceed expectations, with sigmoid constraints ensuring valid probabilities.
 
 $$
-\alpha_m^{learn} = \sigma(\alpha_{base}^{learn} \times f_{AMI} \times \frac{1}{f_{age}})
+\alpha_m^{learn} = \sigma(\alpha_{base}^{learn} + \gamma_1 f_{AMI} + \gamma_2 f_{age})
 $$
 
 Where households with higher income and newer buildings learn faster from their experiences, with sigmoid constraints ensuring valid learning rates.
