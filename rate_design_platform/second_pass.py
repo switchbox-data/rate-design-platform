@@ -17,9 +17,9 @@ from ochre.utils import default_input_path  # type: ignore[import-untyped]
 from rate_design_platform.Analysis import (
     MonthlyMetrics,
     MonthlyResults,
-    calculate_annual_metrics,
     calculate_monthly_bill,
-    calculate_monthly_metrics,
+    calculate_value_learning_annual_metrics,
+    calculate_value_learning_monthly_metrics,
 )
 from rate_design_platform.DecisionMaker import ValueLearningController
 from rate_design_platform.OchreSimulator import calculate_simulation_months, run_ochre_wh_dynamic_control
@@ -289,8 +289,8 @@ def run_value_learning_simulation(
     default_monthly_comfort_penalty = [building_beta * unmet for unmet in default_monthly_unmet_demand]
     tou_monthly_comfort_penalty = [building_beta * unmet for unmet in tou_monthly_unmet_demand]
 
-    # Calculate monthly metrics
-    monthly_results = calculate_monthly_metrics(
+    # Calculate value learning monthly metrics
+    monthly_results = calculate_value_learning_monthly_metrics(
         simulation_year_months,
         monthly_decisions,
         states,
@@ -298,13 +298,11 @@ def run_value_learning_simulation(
         tou_monthly_bill,
         default_monthly_comfort_penalty,
         tou_monthly_comfort_penalty,
+        learning_metrics_history,
     )
 
-    # Calculate annual metrics
-    annual_metrics = calculate_annual_metrics(monthly_results)
-
-    # Add value learning specific metrics
-    annual_metrics.update(_calculate_value_learning_annual_metrics(learning_metrics_history))
+    # Calculate value learning annual metrics
+    annual_metrics = calculate_value_learning_annual_metrics(monthly_results)
 
     return monthly_results, annual_metrics, learning_metrics_history
 
