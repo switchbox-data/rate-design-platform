@@ -21,22 +21,22 @@ class ValueLearningParameters:
     alpha_base_learn: float = 0.2  # Base learning rate
 
     # Exploration coefficients (lambda parameters) - scale with epsilon_base
-    lambda_1: float = None  # Income coefficient (epsilon_base/10)
-    lambda_2: float = None  # Building age coefficient (-epsilon_base/10)
-    lambda_3: float = None  # Household size coefficient (-epsilon_base/10)
-    lambda_4: float = None  # Water heater technology coefficient (epsilon_base/10)
-    lambda_5: float = None  # Experience replay coefficient (epsilon_base/10)
+    lambda_1: Optional[float] = None  # Income coefficient (epsilon_base/10)
+    lambda_2: Optional[float] = None  # Building age coefficient (-epsilon_base/10)
+    lambda_3: Optional[float] = None  # Household size coefficient (-epsilon_base/10)
+    lambda_4: Optional[float] = None  # Water heater technology coefficient (epsilon_base/10)
+    lambda_5: Optional[float] = None  # Experience replay coefficient (epsilon_base/10)
 
     # Learning rate coefficients (gamma parameters) - scale with alpha_base_learn
-    gamma_1: float = None  # Income coefficient (alpha_base_learn/10)
-    gamma_2: float = None  # Building age coefficient (-alpha_base_learn/10)
+    gamma_1: Optional[float] = None  # Income coefficient (alpha_base_learn/10)
+    gamma_2: Optional[float] = None  # Building age coefficient (-alpha_base_learn/10)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Set lambda and gamma coefficients based on base parameters if not provided."""
         if self.lambda_1 is None:
             self.lambda_1 = self.epsilon_base / 10
         if self.lambda_2 is None:
-            self.lambda_2 = -self.epsilon_base / 10
+            self.lambda_2 = -self.epsilon_base / 100
         if self.lambda_3 is None:
             self.lambda_3 = -self.epsilon_base / 10
         if self.lambda_4 is None:
@@ -46,11 +46,11 @@ class ValueLearningParameters:
         if self.gamma_1 is None:
             self.gamma_1 = self.alpha_base_learn / 10
         if self.gamma_2 is None:
-            self.gamma_2 = -self.alpha_base_learn / 10
+            self.gamma_2 = -self.alpha_base_learn / 100
 
     # Prior uncertainty and comfort parameters
-    tau_prior: float = 10.0  # Prior uncertainty standard deviation ($)
-    beta_base: float = 0.15  # Base comfort monetization factor ($/kWh)
+    tau_prior: float = 3.0  # Prior uncertainty standard deviation ($)
+    beta_base: float = 2.0  # Base comfort monetization factor ($/kWh)
 
 
 def sigmoid(z: float) -> float:
@@ -63,7 +63,7 @@ def sigmoid(z: float) -> float:
     Returns:
         Sigmoid value in range (0,1)
     """
-    return 1.0 / (1.0 + math.exp(-z))
+    return float(1.0 / (1.0 + math.exp(-z)))
 
 
 def calculate_ami_factor(ami: float) -> float:
@@ -82,7 +82,7 @@ def calculate_ami_factor(ami: float) -> float:
     """
     if ami <= 0:
         return -1.0  # Avoid math errors
-    return (ami / 0.8) ** 0.6 - 1.0
+    return float((ami / 0.8) ** 0.6 - 1.0)
 
 
 def calculate_age_factor(year_built: int) -> float:
@@ -118,7 +118,7 @@ def calculate_residents_factor(n_residents: float) -> float:
     """
     if n_residents <= 0:
         return 0.0  # Avoid math errors
-    return math.log(max(1.0, n_residents))
+    return float(math.log(max(1.0, n_residents)))  # Explicitly cast to float
 
 
 def calculate_water_heater_factor(wh_type: str) -> float:
@@ -137,11 +137,11 @@ def calculate_water_heater_factor(wh_type: str) -> float:
         Water heater technology factor
     """
     wh_factors = {
-        "heat_pump": -0.3,  # Smart controls, easier scheduling
-        "storage": 0.0,  # Baseline
-        "tankless": 0.5,  # Complex scheduling challenges
+        "heat_pump": -0.3,
+        "storage": 0.0,
+        "tankless": 0.5,
     }
-    return wh_factors.get(wh_type, 0.0)  # Default to storage baseline
+    return float(wh_factors.get(wh_type, 0.0))
 
 
 def calculate_climate_factor(climate_zone: Optional[str]) -> float:
@@ -203,7 +203,13 @@ def calculate_household_exploration_rate(
     Returns:
         Household-specific exploration rate in (0,1)
     """
-    # Calculate household characteristic factors
+    # Ensure all lambdas are float
+    lambda_1 = params.lambda_1 if params.lambda_1 is not None else params.epsilon_base / 10
+    lambda_2 = params.lambda_2 if params.lambda_2 is not None else -params.epsilon_base / 10
+    lambda_3 = params.lambda_3 if params.lambda_3 is not None else -params.epsilon_base / 10
+    lambda_4 = params.lambda_4 if params.lambda_4 is not None else params.epsilon_base / 10
+    lambda_5 = params.lambda_5 if params.lambda_5 is not None else params.epsilon_base / 10
+
     f_ami = calculate_ami_factor(ami)
     f_age = calculate_age_factor(year_built)
     f_residents = calculate_residents_factor(n_residents)
@@ -212,14 +218,14 @@ def calculate_household_exploration_rate(
     # Calculate pre-sigmoid exploration rate
     pre_sigmoid = (
         params.epsilon_base
-        + params.lambda_1 * f_ami
-        + params.lambda_2 * f_age
-        + params.lambda_3 * f_residents
-        + params.lambda_4 * f_wh
-        + params.lambda_5 * max(0.0, recent_cost_surprise)
+        + lambda_1 * f_ami
+        + lambda_2 * f_age
+        + lambda_3 * f_residents
+        + lambda_4 * f_wh
+        + lambda_5 * max(0.0, recent_cost_surprise)
     )
 
-    return sigmoid(pre_sigmoid)
+    return float(sigmoid(pre_sigmoid))
 
 
 def calculate_household_learning_rate(params: ValueLearningParameters, ami: float, year_built: int) -> float:
@@ -237,14 +243,17 @@ def calculate_household_learning_rate(params: ValueLearningParameters, ami: floa
     Returns:
         Household-specific learning rate in (0,1)
     """
-    # Calculate household characteristic factors
+    # Ensure gamma_1 and gamma_2 are float
+    gamma_1 = params.gamma_1 if params.gamma_1 is not None else params.alpha_base_learn / 10
+    gamma_2 = params.gamma_2 if params.gamma_2 is not None else -params.alpha_base_learn / 10
+
     f_ami = calculate_ami_factor(ami)
     f_age = calculate_age_factor(year_built)
 
     # Calculate pre-sigmoid learning rate
-    pre_sigmoid = params.alpha_base_learn + params.gamma_1 * f_ami + params.gamma_2 * f_age
+    pre_sigmoid = params.alpha_base_learn + gamma_1 * f_ami + gamma_2 * f_age
 
-    return sigmoid(pre_sigmoid)
+    return float(sigmoid(pre_sigmoid))
 
 
 def calculate_comfort_monetization_factor(
@@ -274,7 +283,7 @@ def calculate_comfort_monetization_factor(
     # Climate factor
     f_climate = calculate_climate_factor(climate_zone)
 
-    return params.beta_base * f_ami * f_residents * f_climate
+    return float(params.beta_base * f_ami * f_residents * f_climate)
 
 
 def initialize_prior_values(

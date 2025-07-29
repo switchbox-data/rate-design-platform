@@ -5,10 +5,14 @@ This module implements the prior calculation method described in the documentati
 to initialize consumer expectations about schedule performance.
 """
 
+from collections.abc import Sequence
+from typing import Any
+
+from rate_design_platform.DecisionMaker import ValueLearningController
 from rate_design_platform.utils.value_learning_params import ValueLearningParameters
 
 
-def calculate_prior_values(default_monthly_results, tou_monthly_results) -> tuple[float, float]:
+def calculate_prior_values(default_monthly_results: Sequence, tou_monthly_results: Sequence) -> tuple[float, float]:
     """
     Calculate prior expectations from pre-computed OCHRE simulation results.
 
@@ -44,10 +48,10 @@ def calculate_prior_values(default_monthly_results, tou_monthly_results) -> tupl
 
 def initialize_value_learning_controller_with_priors(
     params: ValueLearningParameters,
-    building_chars,
-    default_monthly_results,
-    tou_monthly_results,
-):
+    building_chars: Any,
+    default_monthly_results: Sequence,
+    tou_monthly_results: Sequence,
+) -> ValueLearningController:
     """
     Initialize a ValueLearningController with realistic priors from pre-computed OCHRE simulation results.
 
@@ -60,8 +64,6 @@ def initialize_value_learning_controller_with_priors(
     Returns:
         ValueLearningController with initialized priors
     """
-    from rate_design_platform.DecisionMaker import ValueLearningController
-
     # Calculate prior values using pre-computed results
     default_annual_cost, tou_annual_cost = calculate_prior_values(default_monthly_results, tou_monthly_results)
 
@@ -73,4 +75,5 @@ def initialize_value_learning_controller_with_priors(
         tou_annual_cost=tou_annual_cost,
     )
 
+    return controller
     return controller

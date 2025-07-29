@@ -16,7 +16,6 @@ from ochre.utils import default_input_path  # type: ignore[import-untyped]
 
 from rate_design_platform.Analysis import (
     MonthlyMetrics,
-    MonthlyResults,
     calculate_monthly_bill,
     calculate_value_learning_annual_metrics,
     calculate_value_learning_monthly_metrics,
@@ -204,7 +203,7 @@ def evaluate_value_learning_decision(
 
 def run_value_learning_simulation(
     TOU_params: TOUParameters, house_args: dict, building_xml_path: Optional[str] = None
-) -> tuple[list[MonthlyResults], dict[str, float], list[dict]]:
+) -> tuple[list, dict[str, float], list[dict]]:
     """
     Run complete value learning TOU HPWH simulation.
 
@@ -382,7 +381,7 @@ if __name__ == "__main__":
     month = 1
     start_date = 1
     start_time = datetime(year, month, start_date, 0, 0)  # (Year, Month, Day, Hour, Min)
-    duration = timedelta(days=61)
+    duration = timedelta(days=365)
     time_step = timedelta(minutes=15)
     end_time = start_time + duration
     sim_times = pd.date_range(start=start_time, end=end_time, freq=time_step)[:-1]

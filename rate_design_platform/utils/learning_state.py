@@ -31,8 +31,8 @@ class LearningState:
     current_state: bool = True  # S_m^current (True=default, False=TOU)
 
     # Household-specific learning parameters
-    epsilon_m: float = 0.1  # Household exploration rate
-    alpha_m_learn: float = 0.2  # Household learning rate
+    epsilon_m: float = 0.05  # Household exploration rate
+    alpha_m_learn: float = 0.1  # Household learning rate
     beta: float = 0.15  # Comfort monetization factor ($/kWh)
 
     # Experience tracking for experience replay
@@ -145,10 +145,10 @@ class ValueLearningStateManager:
             return 0.0  # Not enough history
 
         # Calculate average of recent costs
-        recent_avg = sum(self.state.recent_costs) / len(self.state.recent_costs)
+        recent_avg = float(sum(self.state.recent_costs)) / float(len(self.state.recent_costs))
 
         # Expected cost is learned value for current schedule
-        expected = self.state.v_default if self.state.current_state else self.state.v_tou
+        expected = float(self.state.v_default if self.state.current_state else self.state.v_tou)
 
         return max(0.0, recent_avg - expected)
 
