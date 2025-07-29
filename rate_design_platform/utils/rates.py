@@ -281,3 +281,37 @@ def create_building_dependent_tou_params(
         peak_start_hour=base_params.peak_start_hour,
         peak_end_hour=base_params.peak_end_hour,
     )
+
+
+def create_value_learning_parameters_from_building(building_xml_path: str, base_params=None):
+    """
+    Create value learning parameters with building-dependent characteristics.
+
+    Args:
+        building_xml_path: Path to building HPXML file
+        base_params: Base value learning parameters (uses default if None)
+
+    Returns:
+        ValueLearningParameters with building-specific characteristics
+    """
+    from rate_design_platform.utils.building_characteristics import (
+        enrich_building_characteristics,
+        parse_building_xml,
+    )
+    from rate_design_platform.utils.value_learning_params import ValueLearningParameters
+
+    if base_params is None:
+        base_params = ValueLearningParameters()
+
+    # Parse building characteristics
+    building_chars = parse_building_xml(building_xml_path)
+    building_chars = enrich_building_characteristics(building_chars)
+
+    # Create ValueLearningParameters - the dataclass will handle scaling automatically
+    return ValueLearningParameters(
+        epsilon_base=base_params.epsilon_base,
+        alpha_base_learn=base_params.alpha_base_learn,
+        tau_prior=base_params.tau_prior,
+        beta_base=base_params.beta_base,
+        # Lambda and gamma coefficients will be set automatically by __post_init__
+    )
