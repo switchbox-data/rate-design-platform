@@ -269,9 +269,10 @@ def batch_run_analysis(monthly_results: list[list[MonthlyResults]], annual_metri
     print(
         f"Average total savings for all homes: ${sum(annual_metric['total_realized_savings'] for annual_metric in annual_metrics) / len(annual_metrics):.2f}"
     )
-    print(
-        f"Average total savings for benefitting homes: {sum(benefited_bldg['total_realized_savings'] for benefited_bldg in benefited_bldgs) / len(benefited_bldgs):.2f}$"
-    )
+    if len(benefited_bldgs) > 0:
+        print(
+            f"Average total savings for benefitting homes: {sum(benefited_bldg['total_realized_savings'] for benefited_bldg in benefited_bldgs) / len(benefited_bldgs):.2f}$"
+        )
 
     total_savings = [annual_metric["total_realized_savings"] for annual_metric in annual_metrics]
 
@@ -323,9 +324,14 @@ def batch_run_analysis(monthly_results: list[list[MonthlyResults]], annual_metri
     )
 
     plt.tight_layout()
+    # Create outputs directory if it doesn't exist
+    from pathlib import Path
+
+    base_path = Path(__file__).parent.absolute()
+    Path(base_path / "outputs").mkdir(exist_ok=True)
     # Save the plot to a file instead of showing it
-    plt.savefig("outputs/total_savings_distribution.png", dpi=300, bbox_inches="tight")
-    print("Plot saved as 'total_savings_distribution.png'")
+    plt.savefig(base_path / "outputs" / "total_savings_distribution.png", dpi=300, bbox_inches="tight")
+    print(f"Plot saved as '{base_path / 'outputs' / 'total_savings_distribution.png'}'")
     plt.close()  # Close the figure to free memory
 
     """Switching decision plot"""
@@ -389,6 +395,9 @@ def batch_run_analysis(monthly_results: list[list[MonthlyResults]], annual_metri
     ax1.legend(lines1, labels1, fontsize=10, loc="upper left")
 
     plt.tight_layout()
-    plt.savefig("outputs/rate_adoption_timeseries.png", dpi=300, bbox_inches="tight")
-    print("Rate adoption time series plot saved as 'outputs/rate_adoption_timeseries.png'")
+    # Create outputs directory if it doesn't exist (already created above, but just in case)
+    base_path = Path(__file__).parent.absolute()
+    Path(base_path / "outputs").mkdir(exist_ok=True)
+    plt.savefig(base_path / "outputs" / "rate_adoption_timeseries.png", dpi=300, bbox_inches="tight")
+    print(f"Rate adoption time series plot saved as '{base_path / 'outputs' / 'rate_adoption_timeseries.png'}'")
     plt.close()
