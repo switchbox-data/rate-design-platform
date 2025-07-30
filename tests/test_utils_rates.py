@@ -14,7 +14,6 @@ from rate_design_platform.utils.rates import (  # type: ignore[import-unresolved
     MonthlyRateStructure,
     TOUParameters,
     calculate_monthly_intervals,
-    create_building_dependent_tou_params,
     create_operation_schedule,
     create_tou_rates,
     define_peak_hours,
@@ -111,106 +110,27 @@ def test_tou_parameters_defaults():
 
     assert params.r_on == 0.48
     assert params.r_off == 0.12
-    assert params.c_switch == 3.0
-    assert params.c_switch_to is None
-    assert params.c_switch_back is None
-    assert params.alpha is None
     assert params.peak_start_hour == timedelta(hours=12)
     assert params.peak_end_hour == timedelta(hours=20)
 
 
-def test_tou_parameters_get_switching_cost_to():
-    """Test get_switching_cost_to method."""
-    # Test with building-dependent cost
-    params = TOUParameters(c_switch_to=45.0)
-    assert params.get_switching_cost_to() == 45.0
-
-    # Test fallback to legacy cost
-    params = TOUParameters(c_switch_to=None, c_switch=25.0)
-    assert params.get_switching_cost_to() == 25.0
+# Removed obsolete method tests - TOUParameters no longer has building-dependent get methods
 
 
-def test_tou_parameters_get_switching_cost_back():
-    """Test get_switching_cost_back method."""
-    # Test with building-dependent cost
-    params = TOUParameters(c_switch_back=18.0)
-    assert params.get_switching_cost_back() == 18.0
-
-    # Test fallback calculation (0.4 * switch_to_cost)
-    params = TOUParameters(c_switch_to=50.0, c_switch_back=None)
-    assert params.get_switching_cost_back() == 20.0  # 0.4 * 50
-
-    # Test fallback to legacy cost
-    params = TOUParameters(c_switch_to=None, c_switch_back=None, c_switch=30.0)
-    assert params.get_switching_cost_back() == 12.0  # 0.4 * 30
+# Removed obsolete function tests - create_building_dependent_tou_params no longer exists in refactored code
 
 
-def test_tou_parameters_get_comfort_penalty_factor():
-    """Test get_comfort_penalty_factor method."""
-    # Test with building-dependent alpha
-    params = TOUParameters(alpha=0.25)
-    assert params.get_comfort_penalty_factor() == 0.25
-
-    # Test fallback to default
-    params = TOUParameters(alpha=None)
-    assert params.get_comfort_penalty_factor() == 0.15
-
-
-def test_create_building_dependent_tou_params():
-    """Test creation of building-dependent TOU parameters."""
-    xml_path = "rate_design_platform/inputs/bldg0000072-up00.xml"
-    params = create_building_dependent_tou_params(xml_path)
-
-    # Should have building-specific values
-    assert params.c_switch_to is not None
-    assert params.c_switch_back is not None
-    assert params.alpha is not None
-
-    # Should maintain base rates
-    assert params.r_on == 0.48
-    assert params.r_off == 0.12
-
-    # Building-dependent costs should be different from defaults
-    assert params.get_switching_cost_to() != 3.0
-    assert params.get_comfort_penalty_factor() != 0.15
-
-    # Switch-back should be 40% of switch-to
-    expected_switch_back = 0.4 * params.c_switch_to
-    assert abs(params.c_switch_back - expected_switch_back) < 0.01
-
-
-def test_create_building_dependent_tou_params_with_base():
-    """Test creation with custom base parameters."""
-    base_params = TOUParameters(r_on=0.60, r_off=0.08)
-    xml_path = "rate_design_platform/inputs/bldg0000072-up00.xml"
-
-    params = create_building_dependent_tou_params(xml_path, base_params)
-
-    # Should use custom base rates
-    assert params.r_on == 0.60
-    assert params.r_off == 0.08
-
-    # Should still have building-specific costs
-    assert params.c_switch_to is not None
-    assert params.c_switch_back is not None
-    assert params.alpha is not None
-
-
-def test_tou_parameters_with_all_building_dependent_values():
-    """Test TOUParameters with all building-dependent values set."""
+def test_tou_parameters_with_custom_values():
+    """Test TOUParameters with custom values."""
     params = TOUParameters(
         r_on=0.50,
         r_off=0.10,
-        c_switch_to=42.5,
-        c_switch_back=17.0,
-        alpha=0.22,
-        c_switch=5.0,  # Legacy value
+        peak_start_hour=timedelta(hours=14),
+        peak_end_hour=timedelta(hours=18),
     )
 
-    # Should use building-dependent values
-    assert params.get_switching_cost_to() == 42.5
-    assert params.get_switching_cost_back() == 17.0
-    assert params.get_comfort_penalty_factor() == 0.22
-
-    # Legacy value should still be accessible
-    assert params.c_switch == 5.0
+    # Should use custom values
+    assert params.r_on == 0.50
+    assert params.r_off == 0.10
+    assert params.peak_start_hour == timedelta(hours=14)
+    assert params.peak_end_hour == timedelta(hours=18)

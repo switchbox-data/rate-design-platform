@@ -31,8 +31,19 @@ class ValueLearningParameters:
     gamma_1: Optional[float] = None  # Income coefficient (alpha_base_learn/10)
     gamma_2: Optional[float] = None  # Building age coefficient (alpha_base_learn/10)
 
+    # Comfort penalty coefficients (delta parameters) - scale with beta_base
+    delta_1: Optional[float] = None  # Income coefficient (beta_base/10)
+    delta_2: Optional[float] = None  # Household size coefficient (beta_base/10)
+    delta_3: Optional[float] = None  # Climate coefficient (beta_base/10)
+
     def __post_init__(self) -> None:
         """Set lambda and gamma coefficients based on base parameters if not provided."""
+        self._initialize_lambda_coefficients()
+        self._initialize_gamma_coefficients()
+        self._initialize_delta_coefficients()
+
+    def _initialize_lambda_coefficients(self) -> None:
+        """Initialize lambda coefficients if not provided."""
         if self.lambda_1 is None:
             self.lambda_1 = self.epsilon_base / 10
         if self.lambda_2 is None:
@@ -43,10 +54,22 @@ class ValueLearningParameters:
             self.lambda_4 = self.epsilon_base / 10
         if self.lambda_5 is None:
             self.lambda_5 = self.epsilon_base / 10
+
+    def _initialize_gamma_coefficients(self) -> None:
+        """Initialize gamma coefficients if not provided."""
         if self.gamma_1 is None:
             self.gamma_1 = self.alpha_base_learn / 10
         if self.gamma_2 is None:
             self.gamma_2 = self.alpha_base_learn / 10
+
+    def _initialize_delta_coefficients(self) -> None:
+        """Initialize delta coefficients if not provided."""
+        if self.delta_1 is None:
+            self.delta_1 = self.beta_base / 10
+        if self.delta_2 is None:
+            self.delta_2 = self.beta_base / 10
+        if self.delta_3 is None:
+            self.delta_3 = self.beta_base / 10
 
     # Prior uncertainty and comfort parameters
     tau_prior: float = 3.0  # Prior uncertainty standard deviation ($)
@@ -98,14 +121,10 @@ def calculate_age_factor(year_built: int) -> float:
     Returns:
         Building age factor in [-1, 1] range, positive for newer buildings
     """
-    reference_year = 2015  # Center point for normalization
-    max_age_diff = 50  # Maximum years difference to consider
-
-    # Calculate normalized age difference from reference year
-    age_diff = year_built - reference_year
-    normalized_factor = float(max(-1.0, min(1.0, age_diff / max_age_diff)))
-
-    return normalized_factor  # Positive for newer buildings (>2000), negative for older ones
+    # Simple linear factor: (year_built - 2000) / 15
+    # Centered at zero for buildings built in 2000
+    # Positive for newer buildings, negative for older buildings
+    return float((year_built - 2000) / 15)
 
 
 def calculate_residents_factor(n_residents: float) -> float:
@@ -273,7 +292,7 @@ def calculate_comfort_monetization_factor(
     Calculate household-specific comfort monetization factor.
 
     From documentation:
-    beta = beta_base * f_AMI * f_residents * f_climate
+    beta = beta_base + delta_1*f_AMI + delta_2*f_residents + delta_3*f_climate
 
     Args:
         params: Value learning parameters
@@ -284,16 +303,26 @@ def calculate_comfort_monetization_factor(
     Returns:
         Household-specific comfort monetization factor ($/kWh)
     """
-    # Use the AMI factor directly (not the centered version for comfort)
-    f_ami = (ami / 0.8) ** 0.6 if ami > 0 else 1.0
+    # Ensure all deltas are float
+    delta_1 = params.delta_1 if params.delta_1 is not None else params.beta_base / 10
+    delta_2 = params.delta_2 if params.delta_2 is not None else params.beta_base / 10
+    delta_3 = params.delta_3 if params.delta_3 is not None else params.beta_base / 10
 
-    # Residents factor for comfort (different from exploration factor)
-    f_residents = 1.0 + 0.2 * max(0, n_residents - 1)
+    # Use centered factors
+    f_ami = calculate_ami_factor(ami)
+    f_residents = calculate_residents_factor(n_residents)
 
-    # Climate factor
-    f_climate = calculate_climate_factor(climate_zone)
+    # Convert climate factor to centered form
+    raw_climate = calculate_climate_factor(climate_zone)
+    if raw_climate == 0.8:  # warm zones
+        f_climate = -0.2
+    elif raw_climate == 1.0:  # moderate zones
+        f_climate = 0.0
+    else:  # cold zones (1.2)
+        f_climate = 0.2
 
-    return float(params.beta_base * f_ami * f_residents * f_climate)
+    # Additive structure
+    return float(params.beta_base + delta_1 * f_ami + delta_2 * f_residents + delta_3 * f_climate)
 
 
 def initialize_prior_values(

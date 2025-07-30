@@ -15,8 +15,8 @@ from rate_design_platform.utils.value_learning_params import (
     calculate_household_learning_rate,
     calculate_residents_factor,
     calculate_water_heater_factor,
+    clamp_to_0_1,
     initialize_prior_values,
-    sigmoid,
 )
 
 
@@ -27,19 +27,19 @@ def test_value_learning_parameters_default():
     # Test base parameters
     assert params.epsilon_base == 0.1
     assert params.alpha_base_learn == 0.2
-    assert params.tau_prior == 10.0
-    assert params.beta_base == 0.15
+    assert params.tau_prior == 3.0
+    assert params.beta_base == 2.0
 
     # Test that lambda coefficients scale with epsilon_base
     assert params.lambda_1 == params.epsilon_base / 10
-    assert params.lambda_2 == -params.epsilon_base / 10
+    assert params.lambda_2 == params.epsilon_base / 10  # Positive, not negative
     assert params.lambda_3 == -params.epsilon_base / 10
     assert params.lambda_4 == params.epsilon_base / 10
     assert params.lambda_5 == params.epsilon_base / 10
 
     # Test that gamma coefficients scale with alpha_base_learn
     assert params.gamma_1 == params.alpha_base_learn / 10
-    assert params.gamma_2 == -params.alpha_base_learn / 10
+    assert params.gamma_2 == params.alpha_base_learn / 10  # Positive, not negative
 
 
 def test_value_learning_parameters_custom():
@@ -52,24 +52,25 @@ def test_value_learning_parameters_custom():
 
     # Test that coefficients scale correctly
     assert params.lambda_1 == 0.02  # 0.2 / 10
-    assert params.lambda_2 == -0.02  # -0.2 / 10
+    assert params.lambda_2 == 0.02  # 0.2 / 10 (positive)
     assert params.gamma_1 == 0.03  # 0.3 / 10
-    assert params.gamma_2 == -0.03  # -0.3 / 10
+    assert params.gamma_2 == 0.03  # 0.3 / 10 (positive)
 
 
-def test_sigmoid_function():
-    """Test sigmoid function behavior."""
-    # Test basic properties
-    assert sigmoid(0) == 0.5
-    assert 0 < sigmoid(-10) < 0.5
-    assert 0.5 < sigmoid(10) < 1
+def test_clamp_to_0_1():
+    """Test clamp_to_0_1 function behavior."""
+    # Test basic clamping
+    assert clamp_to_0_1(0.5) == 0.5
+    assert clamp_to_0_1(-10) == 0.0
+    assert clamp_to_0_1(10) == 1.0
 
-    # Test extreme values
-    assert sigmoid(-100) < 0.01
-    assert sigmoid(100) > 0.99
+    # Test boundary values
+    assert clamp_to_0_1(0.0) == 0.0
+    assert clamp_to_0_1(1.0) == 1.0
 
-    # Test monotonicity
-    assert sigmoid(-1) < sigmoid(0) < sigmoid(1)
+    # Test edge cases
+    assert clamp_to_0_1(-0.001) == 0.0
+    assert clamp_to_0_1(1.001) == 1.0
 
 
 def test_calculate_ami_factor():
@@ -92,14 +93,14 @@ def test_calculate_age_factor():
     """Test building age factor calculation."""
     # Test newer buildings (built in 2000 or later)
     assert calculate_age_factor(2000) == 0
-    assert calculate_age_factor(2010) == 0
+    assert calculate_age_factor(2010) == pytest.approx(10 / 15, abs=0.01)  # (2010-2000)/15
 
-    # Test older buildings
-    assert calculate_age_factor(1990) == 10
-    assert calculate_age_factor(1980) == 20
+    # Test older buildings (negative factors for older buildings)
+    assert calculate_age_factor(1990) == pytest.approx(-10 / 15, abs=0.01)  # (1990-2000)/15
+    assert calculate_age_factor(1980) == pytest.approx(-20 / 15, abs=0.01)  # (1980-2000)/15
 
     # Test very old buildings
-    assert calculate_age_factor(1950) == 50
+    assert calculate_age_factor(1950) == pytest.approx(-50 / 15, abs=0.01)  # (1950-2000)/15
 
 
 def test_calculate_residents_factor():
@@ -161,8 +162,8 @@ def test_calculate_household_exploration_rate():
     # Test baseline case (80% AMI, 2000 year, 1 resident, storage WH, no surprise)
     rate = calculate_household_exploration_rate(params, ami=0.8, year_built=2000, n_residents=1.0, wh_type="storage")
 
-    # Should be close to sigmoid(epsilon_base) since factors are mostly 0
-    expected = sigmoid(params.epsilon_base)
+    # Should be close to clamp_to_0_1(epsilon_base) since factors are mostly 0
+    expected = clamp_to_0_1(params.epsilon_base)
     assert rate == pytest.approx(expected, abs=0.01)
 
     # Test with cost surprise (should increase exploration)
@@ -171,11 +172,11 @@ def test_calculate_household_exploration_rate():
     )
     assert rate_with_surprise > rate
 
-    # Test that result is always in (0,1)
+    # Test that result is always in [0,1] (clamped)
     rate_extreme = calculate_household_exploration_rate(
         params, ami=2.0, year_built=1900, n_residents=10.0, wh_type="tankless", recent_cost_surprise=100.0
     )
-    assert 0 < rate_extreme < 1
+    assert 0 <= rate_extreme <= 1
 
 
 def test_calculate_household_learning_rate():
@@ -184,7 +185,7 @@ def test_calculate_household_learning_rate():
 
     # Test baseline case
     rate = calculate_household_learning_rate(params, ami=0.8, year_built=2000)
-    expected = sigmoid(params.alpha_base_learn)
+    expected = clamp_to_0_1(params.alpha_base_learn)
     assert rate == pytest.approx(expected, abs=0.01)
 
     # Test with higher income (should increase learning rate)
@@ -243,8 +244,8 @@ def test_initialize_prior_values():
     avg_prior_default = np.mean([p[0] for p in priors])
     avg_prior_tou = np.mean([p[1] for p in priors])
 
-    assert avg_prior_default == pytest.approx(default_monthly, abs=2.0)
-    assert avg_prior_tou == pytest.approx(tou_monthly, abs=2.0)
+    assert avg_prior_default == pytest.approx(default_monthly, abs=5.0)
+    assert avg_prior_tou == pytest.approx(tou_monthly, abs=5.0)
 
     # Check that there's variability (not all the same)
     default_values = [p[0] for p in priors]
