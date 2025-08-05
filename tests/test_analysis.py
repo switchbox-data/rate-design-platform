@@ -57,8 +57,8 @@ def test_calculate_monthly_comfort_penalty():
         T_tank_mt=np.array([50, 60]),
         D_unmet_mt=np.array([0, 0]),
     )
-    TOU_params = TOUParameters(alpha=0.1)
-    monthly_metrics = calculate_monthly_comfort_penalty(simulation_results, TOU_params)
+    comfort_penalty_factor = 0.1
+    monthly_metrics = calculate_monthly_comfort_penalty(simulation_results, TOUParameters(), comfort_penalty_factor)
     assert monthly_metrics == [MonthlyMetrics(year=2024, month=1, comfort_penalty=0)]
 
     # Test case 2: Some unmet demand
@@ -68,8 +68,8 @@ def test_calculate_monthly_comfort_penalty():
         T_tank_mt=np.array([50, 60]),
         D_unmet_mt=np.array([10, 20]),
     )
-    TOU_params = TOUParameters(alpha=0.1)
-    monthly_metrics = calculate_monthly_comfort_penalty(simulation_results, TOU_params)
+    comfort_penalty_factor = 0.1
+    monthly_metrics = calculate_monthly_comfort_penalty(simulation_results, TOUParameters(), comfort_penalty_factor)
     assert monthly_metrics == [MonthlyMetrics(year=2024, month=1, comfort_penalty=3)]
 
     # Test case 3: more unmet demands
@@ -79,8 +79,8 @@ def test_calculate_monthly_comfort_penalty():
         T_tank_mt=np.array([50, 60, 70]),
         D_unmet_mt=np.array([10, 20, 30]),
     )
-    TOU_params = TOUParameters(alpha=0.1)
-    monthly_metrics = calculate_monthly_comfort_penalty(simulation_results, TOU_params)
+    comfort_penalty_factor = 0.1
+    monthly_metrics = calculate_monthly_comfort_penalty(simulation_results, TOUParameters(), comfort_penalty_factor)
     assert monthly_metrics == [MonthlyMetrics(year=2024, month=1, comfort_penalty=6)]
 
 
@@ -92,8 +92,10 @@ def test_calculate_monthly_bill_and_comfort_penalty():
         D_unmet_mt=np.array([0, 0]),
     )
     monthly_rate_structure = [MonthlyRateStructure(year=2024, month=1, intervals=2, rates=np.array([0.1, 0.2]))]
-    TOU_params = TOUParameters(alpha=0.1)
-    monthly_metrics = calculate_monthly_bill_and_comfort_penalty(simulation_results, monthly_rate_structure, TOU_params)
+    comfort_penalty_factor = 0.1
+    monthly_metrics = calculate_monthly_bill_and_comfort_penalty(
+        simulation_results, monthly_rate_structure, TOUParameters(), comfort_penalty_factor
+    )
     assert monthly_metrics == [MonthlyMetrics(year=2024, month=1, bill=5, comfort_penalty=0)]
 
     simulation_results = SimulationResults(
@@ -103,8 +105,10 @@ def test_calculate_monthly_bill_and_comfort_penalty():
         D_unmet_mt=np.array([10, 20]),
     )
     monthly_rate_structure = [MonthlyRateStructure(year=2024, month=1, intervals=2, rates=np.array([0.1, 0.2]))]
-    TOU_params = TOUParameters(alpha=0.1)
-    monthly_metrics = calculate_monthly_bill_and_comfort_penalty(simulation_results, monthly_rate_structure, TOU_params)
+    comfort_penalty_factor = 0.1
+    monthly_metrics = calculate_monthly_bill_and_comfort_penalty(
+        simulation_results, monthly_rate_structure, TOUParameters(), comfort_penalty_factor
+    )
     assert monthly_metrics == [MonthlyMetrics(year=2024, month=1, bill=5, comfort_penalty=3)]
 
 
@@ -170,15 +174,10 @@ def test_calculate_annual_metrics():
         )
         monthly_results.append(result)
 
-    from rate_design_platform.utils.rates import TOUParameters
-
-    tou_params = TOUParameters()
-    metrics = calculate_annual_metrics(monthly_results, tou_params)
+    metrics = calculate_annual_metrics(monthly_results)
 
     assert metrics["total_annual_bills"] == 1200.0  # 12 * 100
     assert metrics["total_comfort_penalty"] == 60.0  # 12 * 5
-    assert metrics["annual_switches"] == 1
-    assert metrics["total_switching_costs"] == 2.1  # 1 * ((3.0 + 1.2) / 2) = 1 * 2.1
     assert metrics["average_monthly_bill"] == 100.0
     assert metrics["tou_adoption_rate_percent"] == 50.0  # 6 months TOU
     assert metrics["total_realized_savings"] == 60.0  # 6 TOU months * 10
@@ -212,3 +211,112 @@ def test_extract_ochre_results():
 
     expected_unmet = 0.5 * 0.25  # 0.5 kW * 0.25 hours
     assert np.all(results.D_unmet_mt == expected_unmet)
+
+
+def test_calculate_value_learning_monthly_metrics():
+    """Test calculate_value_learning_monthly_metrics function"""
+    from rate_design_platform.Analysis import ValueLearningResults, calculate_value_learning_monthly_metrics
+
+    # Sample data
+    simulation_year_months = [(2018, 1), (2018, 2)]
+    monthly_decisions = ["switch", "stay"]
+    states = ["default", "tou"]
+    default_monthly_bill = [100.0, 110.0]
+    tou_monthly_bill = [80.0, 90.0]
+    default_monthly_comfort_penalty = [2.0, 3.0]
+    tou_monthly_comfort_penalty = [5.0, 6.0]
+    learning_metrics_history = [
+        {
+            "v_default": 95.0,
+            "v_tou": 85.0,
+            "epsilon_m": 0.1,
+            "alpha_m_learn": 0.2,
+            "decision_type": "exploration",
+            "value_difference": 10.0,
+            "recent_cost_surprise": 0.0,
+        },
+        {
+            "v_default": 98.0,
+            "v_tou": 88.0,
+            "epsilon_m": 0.08,
+            "alpha_m_learn": 0.2,
+            "decision_type": "exploitation",
+            "value_difference": 10.0,
+            "recent_cost_surprise": 2.0,
+        },
+    ]
+
+    results = calculate_value_learning_monthly_metrics(
+        simulation_year_months,
+        monthly_decisions,
+        states,
+        default_monthly_bill,
+        tou_monthly_bill,
+        default_monthly_comfort_penalty,
+        tou_monthly_comfort_penalty,
+        learning_metrics_history,
+    )
+
+    assert len(results) == 2
+    assert all(isinstance(result, ValueLearningResults) for result in results)
+
+    # Check first month (default state)
+    assert results[0].year == 2018
+    assert results[0].month == 1
+    assert results[0].current_state == "default"
+    assert results[0].bill == 100.0
+    assert results[0].comfort_penalty == 2.0
+    assert results[0].switching_decision == "switch"
+    assert results[0].v_default == 95.0
+    assert results[0].v_tou == 85.0
+    assert results[0].decision_type == "exploration"
+
+
+def test_calculate_value_learning_annual_metrics():
+    """Test calculate_value_learning_annual_metrics function"""
+    from rate_design_platform.Analysis import ValueLearningResults, calculate_value_learning_annual_metrics
+
+    # Create sample ValueLearningResults
+    monthly_results = []
+    for month in range(1, 13):
+        result = ValueLearningResults(
+            year=2018,
+            month=month,
+            current_state="default" if month % 2 == 1 else "tou",
+            bill=100.0,
+            comfort_penalty=5.0,
+            switching_decision="switch" if month == 6 else "stay",
+            realized_savings=10.0 if month % 2 == 0 else 0.0,
+            unrealized_savings=15.0 if month % 2 == 1 else 0.0,
+            v_default=95.0 + month,
+            v_tou=85.0 + month,
+            epsilon_m=0.1,
+            alpha_m_learn=0.2,
+            decision_type="exploration" if month < 6 else "exploitation",
+            value_difference=10.0,
+            recent_cost_surprise=0.0,
+        )
+        monthly_results.append(result)
+
+    metrics = calculate_value_learning_annual_metrics(monthly_results)
+
+    # Check required keys exist
+    expected_keys = [
+        "total_annual_bills",
+        "total_comfort_penalty",
+        "total_realized_savings",
+        "exploration_rate_percent",
+        "final_value_difference",
+        "tou_adoption_rate_percent",
+        "final_v_default",
+        "final_v_tou",
+    ]
+    for key in expected_keys:
+        assert key in metrics
+        assert isinstance(metrics[key], (int, float))
+
+    assert metrics["total_annual_bills"] == 1200.0  # 12 * 100
+    assert metrics["total_comfort_penalty"] == 60.0  # 12 * 5
+    assert metrics["tou_adoption_rate_percent"] == 50.0  # 6 months TOU
+    assert metrics["final_v_default"] == 107.0  # 95 + 12
+    assert metrics["final_v_tou"] == 97.0  # 85 + 12

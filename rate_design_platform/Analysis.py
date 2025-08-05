@@ -28,6 +28,30 @@ class MonthlyResults:
 
 
 @dataclass
+class ValueLearningResults:
+    """Results from value learning simulation including learning metrics"""
+
+    # Inherit all fields from MonthlyResults
+    year: int
+    month: int
+    current_state: str
+    bill: float
+    comfort_penalty: float
+    switching_decision: str
+    realized_savings: float
+    unrealized_savings: float
+
+    # Value learning specific fields
+    v_default: float  # Learned value for default schedule
+    v_tou: float  # Learned value for TOU schedule
+    epsilon_m: float  # Exploration rate for this month
+    alpha_m_learn: float  # Learning rate for this month
+    decision_type: str  # "exploration" or "exploitation"
+    value_difference: float  # |V_tou - V_default|
+    recent_cost_surprise: float  # Experience replay cost surprise
+
+
+@dataclass
 class MonthlyMetrics:
     """Metrics from a single month's simulation"""
 
@@ -67,14 +91,15 @@ def calculate_monthly_bill(
 
 
 def calculate_monthly_comfort_penalty(
-    simulation_results: SimulationResults, TOU_params: TOUParameters
+    simulation_results: SimulationResults, TOU_params: TOUParameters, comfort_penalty_factor: float = 0.15
 ) -> list[MonthlyMetrics]:
     """
     Calculate comfort penalty in $ from electrical unmet demand
 
     Args:
         simulation_results: Simulation results
-        TOU_params: TOU parameters
+        TOU_params: TOU parameters (unused but kept for compatibility)
+        comfort_penalty_factor: Monetization factor for comfort penalty ($/kWh)
 
     Returns:
         List of comfort penalties for each month
@@ -108,7 +133,7 @@ def calculate_monthly_comfort_penalty(
                 MonthlyMetrics(
                     year=year,
                     month=month,
-                    comfort_penalty=float(TOU_params.get_comfort_penalty_factor() * total_unmet_kwh),
+                    comfort_penalty=float(comfort_penalty_factor * total_unmet_kwh),
                 )
             )
 
@@ -122,19 +147,22 @@ def calculate_monthly_comfort_penalty(
         month_unmet_demand = unmet_demand_kWh[month_start_idx : month_start_idx + month_intervals]
         total_unmet_kwh = np.sum(month_unmet_demand)
         monthly_comfort_penalties.append(
-            MonthlyMetrics(
-                year=year, month=month, comfort_penalty=float(TOU_params.get_comfort_penalty_factor() * total_unmet_kwh)
-            )
+            MonthlyMetrics(year=year, month=month, comfort_penalty=float(comfort_penalty_factor * total_unmet_kwh))
         )
 
     return monthly_comfort_penalties
 
 
 def calculate_monthly_bill_and_comfort_penalty(
-    simulation_results: SimulationResults, monthly_rate_structure: list[MonthlyRateStructure], TOU_params: TOUParameters
+    simulation_results: SimulationResults,
+    monthly_rate_structure: list[MonthlyRateStructure],
+    TOU_params: TOUParameters,
+    comfort_penalty_factor: float = 0.15,
 ) -> list[MonthlyMetrics]:
     monthly_bills = calculate_monthly_bill(simulation_results, monthly_rate_structure)
-    monthly_comfort_penalties = calculate_monthly_comfort_penalty(simulation_results, TOU_params)
+    monthly_comfort_penalties = calculate_monthly_comfort_penalty(
+        simulation_results, TOU_params, comfort_penalty_factor
+    )
     monthly_metrics = []
     for bill, comfort_penalty in zip(monthly_bills, monthly_comfort_penalties):
         monthly_metrics.append(
@@ -175,26 +203,18 @@ def calculate_monthly_metrics(
     return monthly_results
 
 
-def calculate_annual_metrics(monthly_results: list[MonthlyResults], TOU_params: TOUParameters) -> dict[str, float]:
+def calculate_annual_metrics(monthly_results: list[MonthlyResults]) -> dict[str, float]:
     """
-    Calculate annual performance metrics from monthly results
+    Calculate basic annual performance metrics from monthly results
 
     Args:
         monthly_results: List of MonthlyResults for each month
-        TOU_params: TOU parameters with building-dependent costs
 
     Returns:
-        Dictionary of annual metrics
+        Dictionary of basic annual metrics
     """
     total_bills = sum(r.bill for r in monthly_results)
     total_comfort_penalty = sum(r.comfort_penalty for r in monthly_results)
-
-    # Calculate switching costs based on direction
-    # For proper implementation, we would need to track switch direction
-    # For now, use average of switch-to and switch-back costs
-    total_switches = sum(1 for r in monthly_results if r.switching_decision == "switch")
-    avg_switching_cost = (TOU_params.get_switching_cost_to() + TOU_params.get_switching_cost_back()) / 2
-    total_switching_costs = total_switches * avg_switching_cost
 
     # Calculate TOU adoption rate
     tou_months = sum(1 for r in monthly_results if r.current_state == "tou")
@@ -206,11 +226,9 @@ def calculate_annual_metrics(monthly_results: list[MonthlyResults], TOU_params: 
     return {
         "total_annual_bills": total_bills,
         "total_comfort_penalty": total_comfort_penalty,
-        "total_switching_costs": total_switching_costs,
         "total_realized_savings": total_realized_savings,
-        "net_annual_benefit": total_realized_savings - total_switching_costs - total_comfort_penalty,
+        "net_annual_benefit": total_realized_savings - total_comfort_penalty,
         "tou_adoption_rate_percent": tou_adoption_rate,
-        "annual_switches": total_switches,
         "average_monthly_bill": total_bills / len(monthly_results),
     }
 
@@ -244,3 +262,162 @@ def extract_ochre_results(df: pd.DataFrame, time_step: timedelta) -> SimulationR
     )  # Convert kW to kWh
 
     return SimulationResults(time_values, E_mt, T_tank_mt, D_unmet_mt)
+
+
+def calculate_value_learning_monthly_metrics(
+    simulation_year_months: list[tuple[int, int]],
+    monthly_decisions: list[str],
+    states: list[str],
+    default_monthly_bill: list[float],
+    tou_monthly_bill: list[float],
+    default_monthly_comfort_penalty: list[float],
+    tou_monthly_comfort_penalty: list[float],
+    learning_metrics_history: list[dict],
+) -> list[ValueLearningResults]:
+    """
+    Calculate monthly results for value learning simulation.
+
+    Args:
+        simulation_year_months: List of (year, month) tuples
+        monthly_decisions: List of decisions ("switch" or "stay")
+        states: List of states ("default" or "tou")
+        default_monthly_bill: List of default monthly bills
+        tou_monthly_bill: List of TOU monthly bills
+        default_monthly_comfort_penalty: List of default comfort penalties
+        tou_monthly_comfort_penalty: List of TOU comfort penalties
+        learning_metrics_history: List of learning metrics dictionaries
+
+    Returns:
+        List of ValueLearningResults for each month
+    """
+    monthly_results = []
+
+    for i in range(len(monthly_decisions)):
+        year, month = simulation_year_months[i]
+        current_state = states[i]
+        decision = monthly_decisions[i]
+        learning_metrics = learning_metrics_history[i]
+
+        # Calculate savings based on current state
+        if current_state == "default":
+            realized_savings = 0.0
+            unrealized_savings = default_monthly_bill[i] - tou_monthly_bill[i]
+            bill = default_monthly_bill[i]
+            comfort_penalty = default_monthly_comfort_penalty[i]
+        else:  # TOU
+            realized_savings = default_monthly_bill[i] - tou_monthly_bill[i]
+            unrealized_savings = 0.0
+            bill = tou_monthly_bill[i]
+            comfort_penalty = tou_monthly_comfort_penalty[i]
+
+        # Create ValueLearningResults with both standard and learning metrics
+        result = ValueLearningResults(
+            year=year,
+            month=month,
+            current_state=current_state,
+            bill=bill,
+            comfort_penalty=comfort_penalty,
+            switching_decision=decision,
+            realized_savings=realized_savings,
+            unrealized_savings=unrealized_savings,
+            # Value learning specific fields
+            v_default=learning_metrics.get("v_default", 0.0),
+            v_tou=learning_metrics.get("v_tou", 0.0),
+            epsilon_m=learning_metrics.get("epsilon_m", 0.0),
+            alpha_m_learn=learning_metrics.get("alpha_m_learn", 0.0),
+            decision_type=learning_metrics.get("decision_type", "unknown"),
+            value_difference=learning_metrics.get("value_difference", 0.0),
+            recent_cost_surprise=learning_metrics.get("recent_cost_surprise", 0.0),
+        )
+
+        monthly_results.append(result)
+
+    return monthly_results
+
+
+def calculate_value_learning_annual_metrics(monthly_results: list[ValueLearningResults]) -> dict[str, float]:
+    """
+    Calculate comprehensive annual metrics for value learning simulation.
+
+    From documentation metrics:
+    - Exploration Rate = (sum of switches) / 12 * 100%
+    - Final Value Difference = |V_12^TOU - V_12^default|
+    - TOU Adoption Rate = (sum of months on TOU) / 12 * 100%
+    - Peak Load Reduction = comparison with baseline
+
+    Args:
+        monthly_results: List of ValueLearningResults for each month
+
+    Returns:
+        Dictionary with comprehensive annual metrics
+    """
+    if not monthly_results:
+        return {}
+
+    # Standard financial metrics
+    total_bills = sum(r.bill for r in monthly_results)
+    total_comfort_penalty = sum(r.comfort_penalty for r in monthly_results)
+    total_realized_savings = sum(r.realized_savings for r in monthly_results if r.current_state == "tou")
+
+    # Value learning specific metrics
+
+    # 1. Exploration Rate (from documentation)
+    total_switches = sum(1 for r in monthly_results if r.switching_decision == "switch")
+    exploration_rate = (total_switches / len(monthly_results)) * 100
+
+    # 2. Final Value Difference (from documentation)
+    final_result = monthly_results[-1]
+    final_value_difference = abs(final_result.v_tou - final_result.v_default)
+
+    # 3. TOU Adoption Rate (from documentation)
+    tou_months = sum(1 for r in monthly_results if r.current_state == "tou")
+    tou_adoption_rate = (tou_months / len(monthly_results)) * 100
+
+    # 4. Learning behavior metrics
+    exploration_decisions = sum(1 for r in monthly_results if r.decision_type == "exploration")
+    exploitation_decisions = len(monthly_results) - exploration_decisions
+    exploration_vs_exploitation_ratio = (
+        (exploration_decisions / exploitation_decisions) if exploitation_decisions > 0 else float("inf")
+    )
+
+    # 5. Learning convergence metrics
+    initial_value_diff = abs(monthly_results[0].v_tou - monthly_results[0].v_default)
+    learning_convergence = abs(final_value_difference - initial_value_diff)
+
+    # 6. Exploration rate evolution
+    avg_exploration_rate = sum(r.epsilon_m for r in monthly_results) / len(monthly_results)
+    final_exploration_rate = final_result.epsilon_m
+    exploration_rate_change = final_exploration_rate - monthly_results[0].epsilon_m
+
+    # 7. Experience replay metrics
+    total_cost_surprises = sum(r.recent_cost_surprise for r in monthly_results)
+    avg_cost_surprise = total_cost_surprises / len(monthly_results) if len(monthly_results) > 0 else 0
+    value_learning_efficiency = (final_value_difference / initial_value_diff) if initial_value_diff > 0 else 1.0
+
+    return {
+        # Standard financial metrics
+        "total_annual_bills": total_bills,
+        "total_comfort_penalty": total_comfort_penalty,
+        "total_realized_savings": total_realized_savings,
+        "net_annual_benefit": total_realized_savings - total_comfort_penalty,
+        "average_monthly_bill": total_bills / len(monthly_results),
+        # Core value learning metrics (from documentation)
+        "exploration_rate_percent": exploration_rate,
+        "final_value_difference": final_value_difference,
+        "tou_adoption_rate_percent": tou_adoption_rate,
+        # Extended learning behavior metrics
+        "exploration_decisions": exploration_decisions,
+        "exploitation_decisions": exploitation_decisions,
+        "exploration_vs_exploitation_ratio": exploration_vs_exploitation_ratio,
+        "learning_convergence": learning_convergence,
+        "avg_exploration_rate": avg_exploration_rate,
+        "final_exploration_rate": final_exploration_rate,
+        "exploration_rate_change": exploration_rate_change,
+        "avg_cost_surprise": avg_cost_surprise,
+        "total_cost_surprises": total_cost_surprises,
+        "value_learning_efficiency": value_learning_efficiency,
+        # Final learned values
+        "final_v_default": final_result.v_default,
+        "final_v_tou": final_result.v_tou,
+        "final_alpha_learn": final_result.alpha_m_learn,
+    }
