@@ -1,0 +1,265 @@
+---
+title: "Cross-Subsidization in Electric Utility Rate Design: Analytical Frameworks and Practical Considerations"
+format:
+  pdf:
+    documentclass: article
+    fontsize: 11pt
+    geometry: margin=1in
+    linestretch: 2
+  html:
+    toc: true
+    number-sections: true
+date: today
+bibliography: ref.bib
+---
+
+## Introduction
+
+Cross-subsidization in electric utility rate design constitutes a core challenge in regulatory economics, involving the systematic transfer of costs between customer classes through rate structures that deviate from strict cost-causation principles. The characterization and measurement of cross-subsidization has evolved significantly from the foundational works of @bonbright1961principles and @kahn1971economics through contemporary frameworks incorporating advanced metering infrastructure and distributed energy resources. This document provides an analysis of cross-subsidization concepts, examining the formal definitions and analytical methods developed in the utility economics literature, with particular focus on the frameworks established by @lazar2020electric in their treatment of cost allocation methods and the Bill Alignment Test methodology introduced by @simeone2023bill.
+
+The central thesis emerging from this literature is that cross-subsidization measurement requires explicit mathematical formalization of policy preferences, rather than relying solely on technical cost allocation procedures. This evolution from positive to normative analytical frameworks reflects both the technological capabilities enabled by smart metering infrastructure and the growing recognition that utility rate design inherently involves policy trade-offs that cannot be resolved through purely economic optimization. As @simeone2023bill demonstrate through their analysis of over 35,000 hourly customer load profiles, the choice of residual cost allocation method—which embodies regulatory policy preferences—often has greater impact on cross-subsidization patterns than the choice between flat and time-varying rate structures.
+
+Understanding cross-subsidization requires appreciation of several fundamental developments in utility regulation: (1) the sequential nature of rate-making processes, (2) the role of cost drivers in determining appropriate allocation methods, (3) the distinct purposes served by embedded versus marginal cost frameworks, (4) how technological change challenges traditional allocation methods, and (5) how modern analytical tools bridge cost allocation theory with customer impact assessment. These themes structure our following discussion.
+
+## The Sequential Structure of Utility Rate-Making
+
+### The Three-Step Process and Its Implications
+
+Modern utility regulation, as described by @lazar2020electric, involves a three-step process in which "each phase feeds into the next" and "the analysis is inevitably sequential," meaning that decisions made in early phases create constraints that shape options in later stages.
+
+The first step, **revenue requirement determination**, establishes the total annual revenue $R$ that the utility must collect to both recover prudently incurred operating expenses and earn a fair return on capital investments used and useful in providing service. This phase typically receives the most regulatory attention, involving detailed examination of utility expenditures, rate base valuation, depreciation schedules, and the allowed rate of return [@joskow2007regulation]. The revenue requirement can be expressed mathematically as:
+
+$$R = O + D + T + (RB \times ROR)$$ {#eq-revenue}
+
+where $O$ represents operating expenses, $D$ is depreciation, $T$ represents taxes, $RB$ is the rate base (net plant in service plus working capital), and $ROR$ is the allowed rate of return.
+
+The second step, **cost allocation**, divides this revenue requirement among customer classes. Here, we determine how much each customer class—typically residential, commercial, and industrial, though classifications vary by jurisdiction—should contribute toward total revenue recovery. The allocation process theoretically follows cost-causation principles, attempting to assign costs to the customers who cause them to be incurred. However, as @lazar2020electric document, this process involves substantial policy judgments about appropriate allocation methods, the treatment of joint and common costs, and considerations of fairness and equity that go beyond technical cost accounting. Formally, we require that:
+
+$$R = \sum_{i=1}^{n} R_i$$ {#eq-allocation}
+
+where $R_i$ represents the revenue allocated to customer class $i$.
+
+The third step, **rate design**, translates class-level revenue allocations into specific tariff structures that individual customers within each class will face. While rate design principles emphasize forward-looking economic efficiency and the provision of appropriate price signals to influence customer behavior [@borenstein2005time], rate designers operate within binding constraints established by the cost allocation phase. The designed tariffs must satisfy the revenue requirement for each class:
+
+$$\sum_{j \in i} B_j(T_i) = R_i$$ {#eq-tariff}
+
+where $B_j(T_i)$ represents the annual bill for customer $j$ under tariff $T_i$ designed for class $i$.
+
+This sequential nature creates path dependence in regulatory decision-making. Rate designers in step three face binding constraints on how much revenue each class must contribute even if optimal rate design principles suggest otherwise. As a result, cross-subsidization patterns embedded during the cost allocation phase cannot be fully corrected through rate design alone. Institutional inertia develops as cross-subsidizing patterns established in one regulatory proceeding persist through multiple rate cycles due to the procedurally complex and politically contentious nature of reopening cost allocation.
+
+The Bill Alignment Test methodology developed by @simeone2023bill addresses this by enabling ex-post evaluation of whether final rate outcomes align with stated regulatory preferences. By comparing customer bills to allocated costs under explicit policy preferences for residual cost treatment, the BAT can identify when the accumulation of sequential decisions has produced outcomes inconsistent with regulatory intent.
+
+## Cost Drivers and the Challenge of Cost Causation
+
+### Understanding Cost Causation in Complex Electric Systems
+
+Effective cost allocation and cross-subsidization analysis depend fundamentally on identifying what @lazar2020electric term "cost drivers", which can be complex in electricity systems for various reasons. For one, electricity cannot be stored economically at scale (though this is changing with battery technology), requiring real-time balancing of supply and demand. Additionally, the shared network infrastructure means that one customer's usage decisions affect system costs experienced by all customers. Finally, energy provisioning involves clearing the market not just in the spot electricity market, but also in the ancillary services and capacity markets [@joskow2019challenges].
+
+### Traditional Cost Categories and Their Limitations
+
+Traditional utility regulation has relied on broad categorizations of costs as customer-related, demand-related, or energy-related, a framework formalized in the @naruc1992electric cost allocation manual that has guided regulatory practice for decades.
+
+However, the evolution of modern electricity systems challenges these traditional categories. For example, advanced metering infrastructure has traditionally been classified as a customer-related cost since meters primarily served billing functions. Yet modern smart meters provide system-wide benefits including voltage control, outage management, demand response enablement, and distributed resource integration that extend far beyond individual customer service [@hledik2014role]. Similarly, renewable energy resources challenge traditional demand/energy classifications. As @lazar2020electric observe, "wind and solar generation does not necessarily provide firm capacity at peak times as envisioned by the legacy frameworks, and it displaces the need for fuel supply, so it doesn't fit as a demand-related cost." These resources provide energy value when available but may contribute little to system reliability during peak periods, requiring new analytical approaches that can accommodate their unique cost and value characteristics.
+
+### Load Diversity and System Cost Implications
+
+One of the fundamental insights in utility cost allocation is the role of load diversity, which @lazar2020electric define mathematically as the difference between the sum of individual customer peak loads (non-coincident peak or NCP) and the actual system peak load (coincident peak or CP). They explain that "the shared portions of the system need to be sized to meet only the coincident peak loads for combined customer usage at each point of the system, rather than the sum of the customers' noncoincident peak loads." This diversity benefit arises because customers reach their maximum demand at different times, allowing shared infrastructure to be smaller than would be required if all customers peaked simultaneously.
+
+The mathematical representation of load diversity is:
+
+$$LD = \sum_j \max_h(q_{jh}) - \max_h\left(\sum_j q_{jh}\right)$$ {#eq-diversity}
+
+where $q_{jh}$ represents customer $j$'s load in hour $h$. The diversity factor, defined as the ratio of coincident to non-coincident peak, typically ranges from 0.3 to 0.7 for residential customers, meaning that shared infrastructure needs only 30-70% of the capacity that would be required without diversity benefits.
+
+The allocation of diversity benefits among customers significantly affects cross-subsidization patterns. Customers whose individual peak usage occurs at times different from the system peak impose lower costs on shared infrastructure, while those whose peaks coincide with system peaks drive capacity requirements throughout the generation, transmission, and distribution systems. Yet traditional allocation methods may not fully capture these timing differences, potentially creating cross-subsidization between customers with different load profiles even within the same rate class.
+
+## Theoretical Foundations and Mathematical Definitions
+
+### Evolution from Game-Theoretic to Regulatory Frameworks
+
+The mathematical foundation for cross-subsidization analysis emerged from the intersection of cooperative game theory and public utility regulation in the 1970s. @faulhaber1975cross provided the first rigorous definition using game-theoretic sustainability concepts, establishing mathematical bounds that remain influential in contemporary regulatory analysis. However, the evolution from these theoretical foundations to practical regulatory frameworks reveals fundamental tensions between economic theory and regulatory implementation that continue to shape modern cross-subsidization analysis.
+
+Faulhaber's framework treats utility service as a cooperative game where customer classes must agree to share costs in a manner that prevents any subset from preferring to "go it alone" by self-providing service or seeking alternative suppliers. For a utility serving customer classes $i \in \{1, 2, ..., n\}$, let $C(S)$ represent the stand-alone cost of serving customer subset $S \subseteq N$, where $N = \{1, 2, ..., n\}$ is the set of all customer classes. The incremental cost of serving class $i$ is defined as:
+
+$$IC_i = C(N) - C(N \setminus \{i\})$$ {#eq-incremental}
+
+This represents the additional cost imposed on the system by serving class $i$. The stand-alone cost for class $i$ is simply $SAC_i = C(\{i\})$, the cost of serving that class in isolation. Faulhaber's sustainability condition requires that prices satisfy:
+
+$$IC_i \leq P_i \leq SAC_i \quad \forall i \in N$$ {#eq-sustainability}
+
+This framework establishes mathematical bounds for subsidy-free pricing: prices below incremental cost constitute cross-subsidization of class $i$ by other classes (since class $i$ is not covering the costs it imposes), while prices above stand-alone cost represent cross-subsidization by class $i$ to others (since class $i$ could obtain service more cheaply independently).
+
+The limitation of this approach, in addition to requiring a detailed estimate of $IC_i$ and $SAC_i$, is that the bounds are often quite wide. Stand-alone costs may be several times incremental costs, providing little guidance for selecting specific prices within the subsidy-free range.
+
+### The Marginal Cost Alternative and Efficiency Foundations
+
+@kahn1971economics established an alternative foundation for cross-subsidization analysis through marginal cost pricing theory. This approach offers a way to select prices based on economic welfare maximization, providing a standard for optimal pricing.
+
+In the utility context, marginal cost $MC_i(q_i)$ represents the cost of serving an additional unit of consumption by customer class $i$. Under this framework, cross-subsidization occurs whenever prices deviate from marginal cost:
+
+$$CS_i = P_i - MC_i$$ {#eq-marginal-cs}
+
+where $CS_i > 0$ indicates that class $i$ is paying above marginal cost and therefore subsidizing others, while $CS_i < 0$ indicates that class $i$ is paying below marginal cost and receiving subsidies.
+
+The connection between marginal cost deviations and economic efficiency operates through standard welfare analysis. When prices exceed marginal cost, consumers reduce consumption below economically efficient levels, creating deadweight loss from foregone consumption that would have generated benefits exceeding costs. When prices fall below marginal cost, consumers increase consumption beyond efficient levels, consuming units where costs exceed benefits. The deadweight loss from these price distortions can be approximated as:
+
+$$DWL_i = \frac{1}{2} \epsilon_i \frac{(P_i - MC_i)^2}{P_i}$$ {#eq-dwl}
+
+where $\epsilon_i$ is the price elasticity of demand for class $i$. Thus, marginal cost pricing serves both as a cross-subsidization test and an efficiency standard, with deviations creating both distributional and efficiency consequences.
+
+### Second-Best Theory and the Revenue Adequacy Problem
+
+The practical application of marginal cost pricing in electricity markets encounters what is known as the revenue adequacy problem or "missing money" problem. Electric utilities are characterized by high fixed costs for generation, transmission, and distribution infrastructure combined with relatively low (sometimes near-zero) short-run marginal costs, particularly in systems with substantial renewable generation. Pricing at short-run marginal cost would fail to recover total costs, threatening financial viability.
+
+This revenue insufficiency challenge led to the development of second-best pricing theory, formalized through Ramsey pricing principles. @baumol1982contestable extended the marginal cost framework for multi-product utilities with joint and common costs that cannot be attributed to specific services. The optimal second-best pricing rule minimizes deadweight loss subject to a revenue adequacy constraint:
+
+$$\frac{P_i - MC_i}{P_i} = \frac{\lambda}{1 + \lambda} \cdot \frac{1}{\epsilon_i}$$ {#eq-ramsey}
+
+where $\lambda$ is the Lagrange multiplier on the revenue constraint (representing the shadow cost of the revenue requirement) and $\epsilon_i$ is the price elasticity of demand for class $i$.
+
+Optimal second-best pricing necessarily involves cross-subsidization in the marginal cost sense, since prices must deviate from marginal cost to achieve revenue adequacy. However, these deviations follow systematic patterns based on demand elasticities rather than arbitrary regulatory preferences. Customer classes with inelastic demand (low $\epsilon_i$) optimally bear larger markups over marginal cost, effectively subsidizing classes with elastic demand. This is economically efficient because it minimizes the distortion in consumption patterns required to meet the revenue constraint.
+
+## Cost Allocation Framework: From Theory to Implementation
+
+### Embedded Cost Allocation
+
+@lazar2020electric provide a characterization of embedded cost allocation, aligning with the three-step framework discussed earlier. The embedded cost framework begins with the fundamental requirement that all costs must be allocated. Let $R$ represent the utility's total revenue requirement. Let $C_{f,c,a}$ represent costs categorized by function $f$, classification $c$, and allocation method $a$.
+
+**Step 1: Functionalization** assigns costs to system functions based on the primary purpose served by each asset or expense category. @lazar2020electric identify the major functions as generation $(G)$, transmission $(T)$, distribution $(D)$, and customer service $(C)$. The functionalization requirement is:
+
+$$\sum_{f \in \{G,T,D,C\}} C_f = R$$ {#eq-functionalization}
+
+This equation ensures that every dollar of revenue requirement must be assigned to some system function. However, the assignment process involves regulatory judgment, especially for shared assets that serve multiple functions simultaneously.
+
+**Step 2: Classification** assigns functional costs to causation categories based on the primary drivers of cost incurrence. The traditional categories are energy-related, demand-related, and customer-related:
+
+$$C_f = C_{f,E} + C_{f,D} + C_{f,C} \quad \forall f$$ {#eq-classification}
+
+The energy category captures costs that vary with total electricity consumption (primarily fuel and variable O&M), the demand category captures costs driven by peak usage requirements (capacity-related infrastructure), and the customer category captures costs that vary with the number of customers served regardless of usage levels (meters, billing, service drops).
+
+**Step 3: Allocation** distributes classified costs among customer classes using allocation factors that reflect each class's contribution to the relevant cost driver:
+
+$$C_i = \sum_f \sum_c \alpha_{f,c,i} \cdot C_{f,c}$$ {#eq-final-allocation}
+
+where $\alpha_{f,c,i}$ represents class $i$'s allocation factor for costs in function $f$ and classification $c$, with the requirement that $\sum_i \alpha_{f,c,i} = 1$ for all $(f,c)$ combinations.
+
+### Marginal Cost of Service Studies: Operationalizing Efficiency Theory
+
+The translation of Kahn's marginal cost pricing theory into operational regulatory methodology required development of what became known as "marginal cost of service studies." These studies represent a distinct analytical framework that attempts to implement efficiency principles within the constraints of utility regulation.
+
+The mathematical formulation calculates class-specific marginal cost revenue requirements by multiplying estimated marginal costs by relevant usage determinants:
+
+$$MCRR_i = \sum_j MC_j \cdot Q_{ij}$$ {#eq-mcrr-class}
+
+where $MC_j$ represents the marginal cost for system component $j$ and $Q_{ij}$ represents class $i$'s usage of component $j$ (measured in appropriate units such as kWh for energy components, kW for capacity components, or customer counts for customer-related components).
+
+The system-wide marginal cost revenue requirement aggregates across all customer classes:
+
+$$MCRR = \sum_i MCRR_i$$ {#eq-mcrr-total}
+
+This calculation typically yields a revenue requirement that differs substantially from the embedded cost revenue requirement $R$, creating what @lazar2020electric identify as the fundamental reconciliation challenge.
+
+## The Bill Alignment Test
+
+### Conceptual Foundation and Normative Redefinition
+
+@simeone2023bill introduce a paradigmatic shift in cross-subsidization analysis by explicitly defining cross-subsidization as a normative concept rather than attempting to establish objective technical criteria. Their Bill Alignment Test (BAT) framework acknowledges that any determination of cross-subsidization inherently involves policy judgments about how costs should be allocated among customers.
+
+The BAT framework begins by calculating each customer's economic cost based on marginal cost principles. For customer $j$ in class $i$, the economic cost is:
+
+$$EC_j = \sum_h MC_h \cdot q_{jh}$$ {#eq-economic-cost}
+
+where $MC_h$ is the system marginal cost in hour $h$ and $q_{jh}$ is customer $j$'s consumption in hour $h$. This calculation uses actual customer load data from smart meters, capturing the full temporal variation in both costs and consumption patterns.
+
+The total system cost allocated to customer $j$ then depends on the stated residual allocation preference $\psi$:
+
+$$SC_j = EC_j + RS_j(\psi)$$ {#eq-system-cost}
+
+where $RS_j(\psi)$ represents customer $j$'s share of residual costs under policy preference $\psi$. The residual costs are defined as $RC = R - \sum_j EC_j$, the difference between the total revenue requirement and the sum of all customers' economic costs.
+
+### Residual Cost Allocation Methods
+
+@simeone2023bill implement and compare three different residual cost allocation methods:
+
+**Flat (Per-Customer) Method:** This approach allocates residual costs equally among all customers:
+
+$$RS_j^{flat} = \frac{RC}{N}$$ {#eq-flat-residual}
+
+where $N$ is the total number of customers.
+
+**Volumetric (Per-kWh) Method:** This approach allocates residual costs proportionally to total consumption:
+
+$$RS_j^{vol} = RC \cdot \frac{\sum_h q_{jh}}{\sum_j \sum_h q_{jh}}$$ {#eq-vol-residual}
+
+**Volumetric Excluding Low-Income Method:** This approach exempts designated customer groups from residual cost allocation:
+
+$$RS_j^{vol-ex} = \begin{cases}
+0 & \text{if } j \in LI \\
+RC \cdot \frac{\sum_h q_{jh}}{\sum_{k \notin LI} \sum_h q_{kh}} & \text{if } j \notin LI
+\end{cases}$$ {#eq-vol-ex-residual}
+
+where $LI$ denotes the set of low-income customers.
+
+### Bill Alignment Calculation and Interpretation
+
+The bill alignment for customer $j$ under tariff $T$ and residual allocation policy $\psi$ is calculated as:
+
+$$BA_j(T,\psi) = B_j(T) - SC_j(\psi)$$ {#eq-bill-alignment}
+
+where $B_j(T)$ is customer $j$'s annual bill under tariff $T$ and $SC_j(\psi)$ is their allocated system cost under policy $\psi$.
+
+The interpretation of bill alignment values is straightforward:
+
+- $BA_j > 0 \implies$ customer $j$ overpays (provides cross-subsidy)
+- $BA_j < 0 \implies$ customer $j$ underpays (receives cross-subsidy)
+- $BA_j = 0 \implies$ no cross-subsidization
+
+### Aggregate Cross-Subsidy Metrics
+
+**Average Cross-Subsidy (ACS):** This metric measures the average absolute deviation from ideal bill alignment:
+
+$$ACS = \frac{1}{N} \sum_j |BA_j|$$ {#eq-acs}
+
+Lower ACS values indicate that customer bills more closely match allocated costs, suggesting less cross-subsidization overall.
+
+**Directional Cross-Subsidy between Groups:** For analyzing transfers between customer groups:
+
+$$DCS_{G_1 \to G_2} = \frac{1}{|G_1|}\sum_{j \in G_1} \max(BA_j, 0) = -\frac{1}{|G_2|}\sum_{j \in G_2} \min(BA_j, 0)$$ {#eq-dcs}
+
+**Deadweight Loss (DWL):** To capture efficiency implications:
+
+$$DWL = \sum_h \sum_j \frac{\epsilon}{2} \cdot q_{jh} \cdot \left(\frac{P_h - MC_h}{P_h}\right)^2$$ {#eq-dwl-bat}
+
+## Policy Implications and Trade-off Analysis
+
+### Multi-Objective Optimization Framework
+
+The BAT framework enables formal treatment of regulatory trade-offs through multi-objective optimization:
+
+$$
+\begin{aligned}
+\min_{\psi, T} \quad & \mathcal{L}(\psi, T) = w_1 \cdot ACS(\psi, T) + w_2 \cdot DWL(\psi, T) \\
+& \quad + w_3 \cdot IGT_{solar}(\psi, T) + w_4 \cdot LI_{burden}(\psi, T) \\
+\text{s.t.} \quad & \sum_j B_j(T) = R \quad \text{(revenue adequacy)} \\
+& |BA_j(\psi, T)| \leq \tau_j \quad \forall j \in \text{Protected classes} \\
+& P_{min} \leq P_h(T) \leq P_{max} \quad \forall h \quad \text{(rate bounds)}
+\end{aligned}
+$$ {#eq-optimization}
+
+where the weights $w_i$ reflect regulatory priorities for minimizing total cross-subsidies, deadweight loss, inter-group transfers, and burden on vulnerable customers.
+
+### Implementation Recommendations
+
+Based on their empirical analysis, @simeone2023bill offer several recommendations for regulatory practice:
+
+1. **Explicit Policy Statements:** Regulators should explicitly state preferences for residual cost allocation before rate design begins.
+
+2. **Customer-Level Analysis:** When smart meter data is available, analyze customer-level impacts rather than relying solely on class averages.
+
+3. **Sensitivity Testing:** Evaluate rate proposals under multiple residual allocation methods to understand the robustness of conclusions.
+
+4. **Multiple Metrics:** Report multiple metrics (ACS, DWL, inter-group transfers) to illuminate trade-offs rather than focusing on a single criterion.
+
+5. **Regular Reassessment:** As technology and usage patterns evolve, periodically reassess whether existing rates achieve stated objectives.
+
+## References
