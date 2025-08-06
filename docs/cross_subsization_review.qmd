@@ -123,7 +123,7 @@ Optimal second-best pricing necessarily involves cross-subsidization in the marg
 
 ### Embedded Cost Allocation
 
-@lazar2020electric provide a characterization of embedded cost allocation, aligning with the three-step framework discussed earlier. The embedded cost framework begins with the fundamental requirement that all costs must be allocated. Let $R$ represent the utility's total revenue requirement, established through the rate-making process described in @sec-sequential. Let $C_{f,c,a}$ represent costs categorized by function $f$, classification $c$, and allocation method $a$.
+@lazar2020electric provide a characterization of embedded cost allocation, aligning with the three-step framework discussed earlier. The embedded cost framework begins with the fundamental requirement that all costs must be allocated. Let $R$ represent the utility's total revenue requirement. Let $C_{f,c,a}$ represent costs categorized by function $f$, classification $c$, and allocation method $a$.
 
 **Step 1: Functionalization** assigns costs to system functions based on the primary purpose served by each asset or expense category. @lazar2020electric identify the major functions as generation $(G)$, transmission $(T)$, distribution $(D)$, and customer service $(C)$. The functionalization requirement is:
 
