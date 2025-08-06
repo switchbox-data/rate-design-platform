@@ -1,0 +1,818 @@
+% Options for packages loaded elsewhere
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
+%
+\documentclass[
+  11pt,
+]{article}
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\usepackage{setspace}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+% Make \paragraph and \subparagraph free-standing
+\makeatletter
+\ifx\paragraph\undefined\else
+  \let\oldparagraph\paragraph
+  \renewcommand{\paragraph}{
+    \@ifstar
+      \xxxParagraphStar
+      \xxxParagraphNoStar
+  }
+  \newcommand{\xxxParagraphStar}[1]{\oldparagraph*{#1}\mbox{}}
+  \newcommand{\xxxParagraphNoStar}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+  \let\oldsubparagraph\subparagraph
+  \renewcommand{\subparagraph}{
+    \@ifstar
+      \xxxSubParagraphStar
+      \xxxSubParagraphNoStar
+  }
+  \newcommand{\xxxSubParagraphStar}[1]{\oldsubparagraph*{#1}\mbox{}}
+  \newcommand{\xxxSubParagraphNoStar}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+\makeatother
+
+
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+
+
+% definitions for citeproc citations
+\NewDocumentCommand\citeproctext{}{}
+\NewDocumentCommand\citeproc{mm}{%
+  \begingroup\def\citeproctext{#2}\cite{#1}\endgroup}
+\makeatletter
+ % allow citations to break across lines
+ \let\@cite@ofmt\@firstofone
+ % avoid brackets around text for \cite:
+ \def\@biblabel#1{}
+ \def\@cite#1#2{{#1\if@tempswa , #2\fi}}
+\makeatother
+\newlength{\cslhangindent}
+\setlength{\cslhangindent}{1.5em}
+\newlength{\csllabelwidth}
+\setlength{\csllabelwidth}{3em}
+\newenvironment{CSLReferences}[2] % #1 hanging-indent, #2 entry-spacing
+ {\begin{list}{}{%
+  \setlength{\itemindent}{0pt}
+  \setlength{\leftmargin}{0pt}
+  \setlength{\parsep}{0pt}
+  % turn on hanging indent if param 1 is 1
+  \ifodd #1
+   \setlength{\leftmargin}{\cslhangindent}
+   \setlength{\itemindent}{-1\cslhangindent}
+  \fi
+  % set entry spacing
+  \setlength{\itemsep}{#2\baselineskip}}}
+ {\end{list}}
+\usepackage{calc}
+\newcommand{\CSLBlock}[1]{\hfill\break\parbox[t]{\linewidth}{\strut\ignorespaces#1\strut}}
+\newcommand{\CSLLeftMargin}[1]{\parbox[t]{\csllabelwidth}{\strut#1\strut}}
+\newcommand{\CSLRightInline}[1]{\parbox[t]{\linewidth - \csllabelwidth}{\strut#1\strut}}
+\newcommand{\CSLIndent}[1]{\hspace{\cslhangindent}#1}
+
+
+
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+
+
+
+
+
+\makeatletter
+\@ifpackageloaded{caption}{}{\usepackage{caption}}
+\AtBeginDocument{%
+\ifdefined\contentsname
+  \renewcommand*\contentsname{Table of contents}
+\else
+  \newcommand\contentsname{Table of contents}
+\fi
+\ifdefined\listfigurename
+  \renewcommand*\listfigurename{List of Figures}
+\else
+  \newcommand\listfigurename{List of Figures}
+\fi
+\ifdefined\listtablename
+  \renewcommand*\listtablename{List of Tables}
+\else
+  \newcommand\listtablename{List of Tables}
+\fi
+\ifdefined\figurename
+  \renewcommand*\figurename{Figure}
+\else
+  \newcommand\figurename{Figure}
+\fi
+\ifdefined\tablename
+  \renewcommand*\tablename{Table}
+\else
+  \newcommand\tablename{Table}
+\fi
+}
+\@ifpackageloaded{float}{}{\usepackage{float}}
+\floatstyle{ruled}
+\@ifundefined{c@chapter}{\newfloat{codelisting}{h}{lop}}{\newfloat{codelisting}{h}{lop}[chapter]}
+\floatname{codelisting}{Listing}
+\newcommand*\listoflistings{\listof{codelisting}{List of Listings}}
+\makeatother
+\makeatletter
+\makeatother
+\makeatletter
+\@ifpackageloaded{caption}{}{\usepackage{caption}}
+\@ifpackageloaded{subcaption}{}{\usepackage{subcaption}}
+\makeatother
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={Cross-Subsidization in Electric Utility Rate Design: Analytical Frameworks and Practical Considerations},
+  colorlinks=true,
+  linkcolor={blue},
+  filecolor={Maroon},
+  citecolor={Blue},
+  urlcolor={Blue},
+  pdfcreator={LaTeX via pandoc}}
+
+
+\title{Cross-Subsidization in Electric Utility Rate Design: Analytical
+Frameworks and Practical Considerations}
+\author{}
+\date{2025-08-06}
+\begin{document}
+\maketitle
+
+
+\setstretch{2}
+\subsection{Introduction}\label{introduction}
+
+Cross-subsidization in electric utility rate design constitutes a core
+challenge in regulatory economics, involving the systematic transfer of
+costs between customer classes through rate structures that deviate from
+strict cost-causation principles. The characterization and measurement
+of cross-subsidization has evolved significantly from the foundational
+works of Bonbright (1961) and Kahn (1971) through contemporary
+frameworks incorporating advanced metering infrastructure and
+distributed energy resources. This document provides an analysis of
+cross-subsidization concepts, examining the formal definitions and
+analytical methods developed in the utility economics literature, with
+particular focus on the frameworks established by Lazar and Gonzalez
+(2020) in their treatment of cost allocation methods and the Bill
+Alignment Test methodology introduced by Simeone et al. (2023).
+
+The central thesis emerging from this literature is that
+cross-subsidization measurement requires explicit mathematical
+formalization of policy preferences, rather than relying solely on
+technical cost allocation procedures. This evolution from positive to
+normative analytical frameworks reflects both the technological
+capabilities enabled by smart metering infrastructure and the growing
+recognition that utility rate design inherently involves policy
+trade-offs that cannot be resolved through purely economic optimization.
+As Simeone et al. (2023) demonstrate through their analysis of over
+35,000 hourly customer load profiles, the choice of residual cost
+allocation method---which embodies regulatory policy preferences---often
+has greater impact on cross-subsidization patterns than the choice
+between flat and time-varying rate structures.
+
+Understanding cross-subsidization requires appreciation of several
+fundamental developments in utility regulation: (1) the sequential
+nature of rate-making processes, (2) the role of cost drivers in
+determining appropriate allocation methods, (3) the distinct purposes
+served by embedded versus marginal cost frameworks, (4) how
+technological change challenges traditional allocation methods, and (5)
+how modern analytical tools bridge cost allocation theory with customer
+impact assessment. These themes structure our following discussion.
+
+\subsection{The Sequential Structure of Utility
+Rate-Making}\label{the-sequential-structure-of-utility-rate-making}
+
+\subsubsection{The Three-Step Process and Its
+Implications}\label{the-three-step-process-and-its-implications}
+
+Modern utility regulation, as described by Lazar and Gonzalez (2020),
+involves a three-step process in which ``each phase feeds into the
+next'' and ``the analysis is inevitably sequential,'' meaning that
+decisions made in early phases create constraints that shape options in
+later stages.
+
+The first step, \textbf{revenue requirement determination}, establishes
+the total annual revenue \(R\) that the utility must collect to both
+recover prudently incurred operating expenses and earn a fair return on
+capital investments used and useful in providing service. This phase
+typically receives the most regulatory attention, involving detailed
+examination of utility expenditures, rate base valuation, depreciation
+schedules, and the allowed rate of return (Joskow 2007). The revenue
+requirement can be expressed mathematically as:
+
+\begin{equation}\phantomsection\label{eq-revenue}{R = O + D + T + (RB \times ROR)}\end{equation}
+
+where \(O\) represents operating expenses, \(D\) is depreciation, \(T\)
+represents taxes, \(RB\) is the rate base (net plant in service plus
+working capital), and \(ROR\) is the allowed rate of return.
+
+The second step, \textbf{cost allocation}, divides this revenue
+requirement among customer classes. Here, we determine how much each
+customer class---typically residential, commercial, and industrial,
+though classifications vary by jurisdiction---should contribute toward
+total revenue recovery. The allocation process theoretically follows
+cost-causation principles, attempting to assign costs to the customers
+who cause them to be incurred. However, as Lazar and Gonzalez (2020)
+document, this process involves substantial policy judgments about
+appropriate allocation methods, the treatment of joint and common costs,
+and considerations of fairness and equity that go beyond technical cost
+accounting. Formally, we require that:
+
+\begin{equation}\phantomsection\label{eq-allocation}{R = \sum_{i=1}^{n} R_i}\end{equation}
+
+where \(R_i\) represents the revenue allocated to customer class \(i\).
+
+The third step, \textbf{rate design}, translates class-level revenue
+allocations into specific tariff structures that individual customers
+within each class will face. While rate design principles emphasize
+forward-looking economic efficiency and the provision of appropriate
+price signals to influence customer behavior (Borenstein 2005), rate
+designers operate within binding constraints established by the cost
+allocation phase. The designed tariffs must satisfy the revenue
+requirement for each class:
+
+\begin{equation}\phantomsection\label{eq-tariff}{\sum_{j \in i} B_j(T_i) = R_i}\end{equation}
+
+where \(B_j(T_i)\) represents the annual bill for customer \(j\) under
+tariff \(T_i\) designed for class \(i\).
+
+This sequential nature creates path dependence in regulatory
+decision-making. Rate designers in step three face binding constraints
+on how much revenue each class must contribute even if optimal rate
+design principles suggest otherwise. As a result, cross-subsidization
+patterns embedded during the cost allocation phase cannot be fully
+corrected through rate design alone. Institutional inertia develops as
+cross-subsidizing patterns established in one regulatory proceeding
+persist through multiple rate cycles due to the procedurally complex and
+politically contentious nature of reopening cost allocation.
+
+The Bill Alignment Test methodology developed by Simeone et al. (2023)
+addresses this by enabling ex-post evaluation of whether final rate
+outcomes align with stated regulatory preferences. By comparing customer
+bills to allocated costs under explicit policy preferences for residual
+cost treatment, the BAT can identify when the accumulation of sequential
+decisions has produced outcomes inconsistent with regulatory intent.
+
+\subsection{Cost Drivers and the Challenge of Cost
+Causation}\label{cost-drivers-and-the-challenge-of-cost-causation}
+
+\subsubsection{Understanding Cost Causation in Complex Electric
+Systems}\label{understanding-cost-causation-in-complex-electric-systems}
+
+Effective cost allocation and cross-subsidization analysis depend
+fundamentally on identifying what Lazar and Gonzalez (2020) term ``cost
+drivers'', which can be complex in electricity systems for various
+reasons. For one, electricity cannot be stored economically at scale
+(though this is changing with battery technology), requiring real-time
+balancing of supply and demand. Additionally, the shared network
+infrastructure means that one customer's usage decisions affect system
+costs experienced by all customers. Finally, energy provisioning
+involves clearing the market not just in the spot electricity market,
+but also in the ancillary services and capacity markets (Joskow 2019).
+
+\subsubsection{Traditional Cost Categories and Their
+Limitations}\label{traditional-cost-categories-and-their-limitations}
+
+Traditional utility regulation has relied on broad categorizations of
+costs as customer-related, demand-related, or energy-related, a
+framework formalized in the National Association of Regulatory Utility
+Commissioners (1992) cost allocation manual that has guided regulatory
+practice for decades.
+
+However, the evolution of modern electricity systems challenges these
+traditional categories. For example, advanced metering infrastructure
+has traditionally been classified as a customer-related cost since
+meters primarily served billing functions. Yet modern smart meters
+provide system-wide benefits including voltage control, outage
+management, demand response enablement, and distributed resource
+integration that extend far beyond individual customer service (Hledik
+2014). Similarly, renewable energy resources challenge traditional
+demand/energy classifications. As Lazar and Gonzalez (2020) observe,
+``wind and solar generation does not necessarily provide firm capacity
+at peak times as envisioned by the legacy frameworks, and it displaces
+the need for fuel supply, so it doesn't fit as a demand-related cost.''
+These resources provide energy value when available but may contribute
+little to system reliability during peak periods, requiring new
+analytical approaches that can accommodate their unique cost and value
+characteristics.
+
+\subsubsection{Load Diversity and System Cost
+Implications}\label{load-diversity-and-system-cost-implications}
+
+One of the fundamental insights in utility cost allocation is the role
+of load diversity, which Lazar and Gonzalez (2020) define mathematically
+as the difference between the sum of individual customer peak loads
+(non-coincident peak or NCP) and the actual system peak load (coincident
+peak or CP). They explain that ``the shared portions of the system need
+to be sized to meet only the coincident peak loads for combined customer
+usage at each point of the system, rather than the sum of the customers'
+noncoincident peak loads.'' This diversity benefit arises because
+customers reach their maximum demand at different times, allowing shared
+infrastructure to be smaller than would be required if all customers
+peaked simultaneously.
+
+The mathematical representation of load diversity is:
+
+\begin{equation}\phantomsection\label{eq-diversity}{LD = \sum_j \max_h(q_{jh}) - \max_h\left(\sum_j q_{jh}\right)}\end{equation}
+
+where \(q_{jh}\) represents customer \(j\)'s load in hour \(h\). The
+diversity factor, defined as the ratio of coincident to non-coincident
+peak, typically ranges from 0.3 to 0.7 for residential customers,
+meaning that shared infrastructure needs only 30-70\% of the capacity
+that would be required without diversity benefits.
+
+The allocation of diversity benefits among customers significantly
+affects cross-subsidization patterns. Customers whose individual peak
+usage occurs at times different from the system peak impose lower costs
+on shared infrastructure, while those whose peaks coincide with system
+peaks drive capacity requirements throughout the generation,
+transmission, and distribution systems. Yet traditional allocation
+methods may not fully capture these timing differences, potentially
+creating cross-subsidization between customers with different load
+profiles even within the same rate class.
+
+\subsection{Theoretical Foundations and Mathematical
+Definitions}\label{theoretical-foundations-and-mathematical-definitions}
+
+\subsubsection{Evolution from Game-Theoretic to Regulatory
+Frameworks}\label{evolution-from-game-theoretic-to-regulatory-frameworks}
+
+The mathematical foundation for cross-subsidization analysis emerged
+from the intersection of cooperative game theory and public utility
+regulation in the 1970s. Faulhaber (1975) provided the first rigorous
+definition using game-theoretic sustainability concepts, establishing
+mathematical bounds that remain influential in contemporary regulatory
+analysis. However, the evolution from these theoretical foundations to
+practical regulatory frameworks reveals fundamental tensions between
+economic theory and regulatory implementation that continue to shape
+modern cross-subsidization analysis.
+
+Faulhaber's framework treats utility service as a cooperative game where
+customer classes must agree to share costs in a manner that prevents any
+subset from preferring to ``go it alone'' by self-providing service or
+seeking alternative suppliers. For a utility serving customer classes
+\(i \in \{1, 2, ..., n\}\), let \(C(S)\) represent the stand-alone cost
+of serving customer subset \(S \subseteq N\), where
+\(N = \{1, 2, ..., n\}\) is the set of all customer classes. The
+incremental cost of serving class \(i\) is defined as:
+
+\begin{equation}\phantomsection\label{eq-incremental}{IC_i = C(N) - C(N \setminus \{i\})}\end{equation}
+
+This represents the additional cost imposed on the system by serving
+class \(i\). The stand-alone cost for class \(i\) is simply
+\(SAC_i = C(\{i\})\), the cost of serving that class in isolation.
+Faulhaber's sustainability condition requires that prices satisfy:
+
+\begin{equation}\phantomsection\label{eq-sustainability}{IC_i \leq P_i \leq SAC_i \quad \forall i \in N}\end{equation}
+
+This framework establishes mathematical bounds for subsidy-free pricing:
+prices below incremental cost constitute cross-subsidization of class
+\(i\) by other classes (since class \(i\) is not covering the costs it
+imposes), while prices above stand-alone cost represent
+cross-subsidization by class \(i\) to others (since class \(i\) could
+obtain service more cheaply independently).
+
+The limitation of this approach, in addition to requiring a detailed
+estimate of \(IC_i\) and \(SAC_i\), is that the bounds are often quite
+wide. Stand-alone costs may be several times incremental costs,
+providing little guidance for selecting specific prices within the
+subsidy-free range.
+
+\subsubsection{The Marginal Cost Alternative and Efficiency
+Foundations}\label{the-marginal-cost-alternative-and-efficiency-foundations}
+
+Kahn (1971) established an alternative foundation for
+cross-subsidization analysis through marginal cost pricing theory. This
+approach offers a way to select prices based on economic welfare
+maximization, providing a standard for optimal pricing.
+
+In the utility context, marginal cost \(MC_i(q_i)\) represents the cost
+of serving an additional unit of consumption by customer class \(i\).
+Under this framework, cross-subsidization occurs whenever prices deviate
+from marginal cost:
+
+\begin{equation}\phantomsection\label{eq-marginal-cs}{CS_i = P_i - MC_i}\end{equation}
+
+where \(CS_i > 0\) indicates that class \(i\) is paying above marginal
+cost and therefore subsidizing others, while \(CS_i < 0\) indicates that
+class \(i\) is paying below marginal cost and receiving subsidies.
+
+The connection between marginal cost deviations and economic efficiency
+operates through standard welfare analysis. When prices exceed marginal
+cost, consumers reduce consumption below economically efficient levels,
+creating deadweight loss from foregone consumption that would have
+generated benefits exceeding costs. When prices fall below marginal
+cost, consumers increase consumption beyond efficient levels, consuming
+units where costs exceed benefits. The deadweight loss from these price
+distortions can be approximated as:
+
+\begin{equation}\phantomsection\label{eq-dwl}{DWL_i = \frac{1}{2} \epsilon_i \frac{(P_i - MC_i)^2}{P_i}}\end{equation}
+
+where \(\epsilon_i\) is the price elasticity of demand for class \(i\).
+Thus, marginal cost pricing serves both as a cross-subsidization test
+and an efficiency standard, with deviations creating both distributional
+and efficiency consequences.
+
+\subsubsection{Second-Best Theory and the Revenue Adequacy
+Problem}\label{second-best-theory-and-the-revenue-adequacy-problem}
+
+The practical application of marginal cost pricing in electricity
+markets encounters what is known as the revenue adequacy problem or
+``missing money'' problem. Electric utilities are characterized by high
+fixed costs for generation, transmission, and distribution
+infrastructure combined with relatively low (sometimes near-zero)
+short-run marginal costs, particularly in systems with substantial
+renewable generation. Pricing at short-run marginal cost would fail to
+recover total costs, threatening financial viability.
+
+This revenue insufficiency challenge led to the development of
+second-best pricing theory, formalized through Ramsey pricing
+principles. Baumol, Panzar, and Willig (1982) extended the marginal cost
+framework for multi-product utilities with joint and common costs that
+cannot be attributed to specific services. The optimal second-best
+pricing rule minimizes deadweight loss subject to a revenue adequacy
+constraint:
+
+\begin{equation}\phantomsection\label{eq-ramsey}{\frac{P_i - MC_i}{P_i} = \frac{\lambda}{1 + \lambda} \cdot \frac{1}{\epsilon_i}}\end{equation}
+
+where \(\lambda\) is the Lagrange multiplier on the revenue constraint
+(representing the shadow cost of the revenue requirement) and
+\(\epsilon_i\) is the price elasticity of demand for class \(i\).
+
+Optimal second-best pricing necessarily involves cross-subsidization in
+the marginal cost sense, since prices must deviate from marginal cost to
+achieve revenue adequacy. However, these deviations follow systematic
+patterns based on demand elasticities rather than arbitrary regulatory
+preferences. Customer classes with inelastic demand (low \(\epsilon_i\))
+optimally bear larger markups over marginal cost, effectively
+subsidizing classes with elastic demand. This is economically efficient
+because it minimizes the distortion in consumption patterns required to
+meet the revenue constraint.
+
+\subsection{Cost Allocation Framework: From Theory to
+Implementation}\label{cost-allocation-framework-from-theory-to-implementation}
+
+\subsubsection{Embedded Cost Allocation}\label{embedded-cost-allocation}
+
+Lazar and Gonzalez (2020) provide a characterization of embedded cost
+allocation, aligning with the three-step framework discussed earlier.
+The embedded cost framework begins with the fundamental requirement that
+all costs must be allocated. Let \(R\) represent the utility's total
+revenue requirement, established through the rate-making process
+described in \textbf{?@sec-sequential}. Let \(C_{f,c,a}\) represent
+costs categorized by function \(f\), classification \(c\), and
+allocation method \(a\).
+
+\textbf{Step 1: Functionalization} assigns costs to system functions
+based on the primary purpose served by each asset or expense category.
+Lazar and Gonzalez (2020) identify the major functions as generation
+\((G)\), transmission \((T)\), distribution \((D)\), and customer
+service \((C)\). The functionalization requirement is:
+
+\begin{equation}\phantomsection\label{eq-functionalization}{\sum_{f \in \{G,T,D,C\}} C_f = R}\end{equation}
+
+This equation ensures that every dollar of revenue requirement must be
+assigned to some system function. However, the assignment process
+involves regulatory judgment, especially for shared assets that serve
+multiple functions simultaneously.
+
+\textbf{Step 2: Classification} assigns functional costs to causation
+categories based on the primary drivers of cost incurrence. The
+traditional categories are energy-related, demand-related, and
+customer-related:
+
+\begin{equation}\phantomsection\label{eq-classification}{C_f = C_{f,E} + C_{f,D} + C_{f,C} \quad \forall f}\end{equation}
+
+The energy category captures costs that vary with total electricity
+consumption (primarily fuel and variable O\&M), the demand category
+captures costs driven by peak usage requirements (capacity-related
+infrastructure), and the customer category captures costs that vary with
+the number of customers served regardless of usage levels (meters,
+billing, service drops).
+
+\textbf{Step 3: Allocation} distributes classified costs among customer
+classes using allocation factors that reflect each class's contribution
+to the relevant cost driver:
+
+\begin{equation}\phantomsection\label{eq-final-allocation}{C_i = \sum_f \sum_c \alpha_{f,c,i} \cdot C_{f,c}}\end{equation}
+
+where \(\alpha_{f,c,i}\) represents class \(i\)'s allocation factor for
+costs in function \(f\) and classification \(c\), with the requirement
+that \(\sum_i \alpha_{f,c,i} = 1\) for all \((f,c)\) combinations.
+
+\subsubsection{Marginal Cost of Service Studies: Operationalizing
+Efficiency
+Theory}\label{marginal-cost-of-service-studies-operationalizing-efficiency-theory}
+
+The translation of Kahn's marginal cost pricing theory into operational
+regulatory methodology required development of what became known as
+``marginal cost of service studies.'' These studies represent a distinct
+analytical framework that attempts to implement efficiency principles
+within the constraints of utility regulation.
+
+The mathematical formulation calculates class-specific marginal cost
+revenue requirements by multiplying estimated marginal costs by relevant
+usage determinants:
+
+\begin{equation}\phantomsection\label{eq-mcrr-class}{MCRR_i = \sum_j MC_j \cdot Q_{ij}}\end{equation}
+
+where \(MC_j\) represents the marginal cost for system component \(j\)
+and \(Q_{ij}\) represents class \(i\)'s usage of component \(j\)
+(measured in appropriate units such as kWh for energy components, kW for
+capacity components, or customer counts for customer-related
+components).
+
+The system-wide marginal cost revenue requirement aggregates across all
+customer classes:
+
+\begin{equation}\phantomsection\label{eq-mcrr-total}{MCRR = \sum_i MCRR_i}\end{equation}
+
+This calculation typically yields a revenue requirement that differs
+substantially from the embedded cost revenue requirement \(R\), creating
+what Lazar and Gonzalez (2020) identify as the fundamental
+reconciliation challenge.
+
+\subsection{The Bill Alignment Test}\label{the-bill-alignment-test}
+
+\subsubsection{Conceptual Foundation and Normative
+Redefinition}\label{conceptual-foundation-and-normative-redefinition}
+
+Simeone et al. (2023) introduce a paradigmatic shift in
+cross-subsidization analysis by explicitly defining cross-subsidization
+as a normative concept rather than attempting to establish objective
+technical criteria. Their Bill Alignment Test (BAT) framework
+acknowledges that any determination of cross-subsidization inherently
+involves policy judgments about how costs should be allocated among
+customers.
+
+The BAT framework begins by calculating each customer's economic cost
+based on marginal cost principles. For customer \(j\) in class \(i\),
+the economic cost is:
+
+\begin{equation}\phantomsection\label{eq-economic-cost}{EC_j = \sum_h MC_h \cdot q_{jh}}\end{equation}
+
+where \(MC_h\) is the system marginal cost in hour \(h\) and \(q_{jh}\)
+is customer \(j\)'s consumption in hour \(h\). This calculation uses
+actual customer load data from smart meters, capturing the full temporal
+variation in both costs and consumption patterns.
+
+The total system cost allocated to customer \(j\) then depends on the
+stated residual allocation preference \(\psi\):
+
+\begin{equation}\phantomsection\label{eq-system-cost}{SC_j = EC_j + RS_j(\psi)}\end{equation}
+
+where \(RS_j(\psi)\) represents customer \(j\)'s share of residual costs
+under policy preference \(\psi\). The residual costs are defined as
+\(RC = R - \sum_j EC_j\), the difference between the total revenue
+requirement and the sum of all customers' economic costs.
+
+\subsubsection{Residual Cost Allocation
+Methods}\label{residual-cost-allocation-methods}
+
+Simeone et al. (2023) implement and compare three different residual
+cost allocation methods:
+
+\textbf{Flat (Per-Customer) Method:} This approach allocates residual
+costs equally among all customers:
+
+\begin{equation}\phantomsection\label{eq-flat-residual}{RS_j^{flat} = \frac{RC}{N}}\end{equation}
+
+where \(N\) is the total number of customers.
+
+\textbf{Volumetric (Per-kWh) Method:} This approach allocates residual
+costs proportionally to total consumption:
+
+\begin{equation}\phantomsection\label{eq-vol-residual}{RS_j^{vol} = RC \cdot \frac{\sum_h q_{jh}}{\sum_j \sum_h q_{jh}}}\end{equation}
+
+\textbf{Volumetric Excluding Low-Income Method:} This approach exempts
+designated customer groups from residual cost allocation:
+
+\begin{equation}\phantomsection\label{eq-vol-ex-residual}{RS_j^{vol-ex} = \begin{cases}
+0 & \text{if } j \in LI \\
+RC \cdot \frac{\sum_h q_{jh}}{\sum_{k \notin LI} \sum_h q_{kh}} & \text{if } j \notin LI
+\end{cases}}\end{equation}
+
+where \(LI\) denotes the set of low-income customers.
+
+\subsubsection{Bill Alignment Calculation and
+Interpretation}\label{bill-alignment-calculation-and-interpretation}
+
+The bill alignment for customer \(j\) under tariff \(T\) and residual
+allocation policy \(\psi\) is calculated as:
+
+\begin{equation}\phantomsection\label{eq-bill-alignment}{BA_j(T,\psi) = B_j(T) - SC_j(\psi)}\end{equation}
+
+where \(B_j(T)\) is customer \(j\)'s annual bill under tariff \(T\) and
+\(SC_j(\psi)\) is their allocated system cost under policy \(\psi\).
+
+The interpretation of bill alignment values is straightforward:
+
+\begin{itemize}
+\tightlist
+\item
+  \(BA_j > 0 \implies\) customer \(j\) overpays (provides cross-subsidy)
+\item
+  \(BA_j < 0 \implies\) customer \(j\) underpays (receives
+  cross-subsidy)\\
+\item
+  \(BA_j = 0 \implies\) no cross-subsidization
+\end{itemize}
+
+\subsubsection{Aggregate Cross-Subsidy
+Metrics}\label{aggregate-cross-subsidy-metrics}
+
+\textbf{Average Cross-Subsidy (ACS):} This metric measures the average
+absolute deviation from ideal bill alignment:
+
+\begin{equation}\phantomsection\label{eq-acs}{ACS = \frac{1}{N} \sum_j |BA_j|}\end{equation}
+
+Lower ACS values indicate that customer bills more closely match
+allocated costs, suggesting less cross-subsidization overall.
+
+\textbf{Directional Cross-Subsidy between Groups:} For analyzing
+transfers between customer groups:
+
+\begin{equation}\phantomsection\label{eq-dcs}{DCS_{G_1 \to G_2} = \frac{1}{|G_1|}\sum_{j \in G_1} \max(BA_j, 0) = -\frac{1}{|G_2|}\sum_{j \in G_2} \min(BA_j, 0)}\end{equation}
+
+\textbf{Deadweight Loss (DWL):} To capture efficiency implications:
+
+\begin{equation}\phantomsection\label{eq-dwl-bat}{DWL = \sum_h \sum_j \frac{\epsilon}{2} \cdot q_{jh} \cdot \left(\frac{P_h - MC_h}{P_h}\right)^2}\end{equation}
+
+\subsection{Policy Implications and Trade-off
+Analysis}\label{policy-implications-and-trade-off-analysis}
+
+\subsubsection{Multi-Objective Optimization
+Framework}\label{multi-objective-optimization-framework}
+
+The BAT framework enables formal treatment of regulatory trade-offs
+through multi-objective optimization:
+
+\begin{equation}\phantomsection\label{eq-optimization}{\begin{align}
+\min_{\psi, T} \quad & \mathcal{L}(\psi, T) = w_1 \cdot ACS(\psi, T) + w_2 \cdot DWL(\psi, T) \\
+& \quad + w_3 \cdot IGT_{solar}(\psi, T) + w_4 \cdot LI_{burden}(\psi, T) \\
+\text{s.t.} \quad & \sum_j B_j(T) = R \quad \text{(revenue adequacy)} \\
+& |BA_j(\psi, T)| \leq \tau_j \quad \forall j \in \text{Protected classes} \\
+& P_{min} \leq P_h(T) \leq P_{max} \quad \forall h \quad \text{(rate bounds)}
+\end{align}}\end{equation}
+
+where the weights \(w_i\) reflect regulatory priorities for minimizing
+total cross-subsidies, deadweight loss, inter-group transfers, and
+burden on vulnerable customers.
+
+\subsubsection{Implementation
+Recommendations}\label{implementation-recommendations}
+
+Based on their empirical analysis, Simeone et al. (2023) offer several
+recommendations for regulatory practice:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\item
+  \textbf{Explicit Policy Statements:} Regulators should explicitly
+  state preferences for residual cost allocation before rate design
+  begins.
+\item
+  \textbf{Customer-Level Analysis:} When smart meter data is available,
+  analyze customer-level impacts rather than relying solely on class
+  averages.
+\item
+  \textbf{Sensitivity Testing:} Evaluate rate proposals under multiple
+  residual allocation methods to understand the robustness of
+  conclusions.
+\item
+  \textbf{Multiple Metrics:} Report multiple metrics (ACS, DWL,
+  inter-group transfers) to illuminate trade-offs rather than focusing
+  on a single criterion.
+\item
+  \textbf{Regular Reassessment:} As technology and usage patterns
+  evolve, periodically reassess whether existing rates achieve stated
+  objectives.
+\end{enumerate}
+
+\subsection{References}\label{references}
+
+\{\#refs\}
+
+\phantomsection\label{refs}
+\begin{CSLReferences}{1}{0}
+\bibitem[\citeproctext]{ref-baumol1982contestable}
+Baumol, William J, John C Panzar, and Robert D Willig. 1982.
+\emph{Contestable Markets and the Theory of Industry Structure}. New
+York: Harcourt Brace Jovanovich.
+
+\bibitem[\citeproctext]{ref-bonbright1961principles}
+Bonbright, James C. 1961. \emph{Principles of Public Utility Rates}. New
+York: Columbia University Press.
+
+\bibitem[\citeproctext]{ref-borenstein2005time}
+Borenstein, Severin. 2005. {``Time-Varying Retail Electricity Prices:
+Theory and Practice.''} \emph{Electricity Deregulation: Choices and
+Challenges}, 317--57.
+
+\bibitem[\citeproctext]{ref-faulhaber1975cross}
+Faulhaber, Gerald R. 1975. {``Cross-Subsidization: Pricing in Public
+Enterprises.''} \emph{The American Economic Review} 65 (5): 966--77.
+
+\bibitem[\citeproctext]{ref-hledik2014role}
+Hledik, Ryan. 2014. {``The Role of Advanced Metering Infrastructure in
+the Electricity Sector.''} \emph{The Electricity Journal} 27 (6): 3--10.
+
+\bibitem[\citeproctext]{ref-joskow2007regulation}
+Joskow, Paul L. 2007. \emph{Regulation of Natural Monopoly}. Cambridge,
+MA: MIT Press.
+
+\bibitem[\citeproctext]{ref-joskow2019challenges}
+---------. 2019. {``Challenges for Wholesale Electricity Markets with
+Intermittent Renewable Generation at Scale: The US Experience.''}
+\emph{Oxford Review of Economic Policy} 35 (2): 291--331.
+
+\bibitem[\citeproctext]{ref-kahn1971economics}
+Kahn, Alfred E. 1971. \emph{The Economics of Regulation: Principles and
+Institutions}. New York: John Wiley \& Sons.
+
+\bibitem[\citeproctext]{ref-lazar2020electric}
+Lazar, Jim, and Wilson Gonzalez. 2020. {``Electric Utility Cost
+Allocation for a New Era: A Manual.''} Montpelier, VT: Regulatory
+Assistance Project.
+\url{https://www.raponline.org/knowledge-center/electric-utility-cost-allocation-for-a-new-era-a-manual/}.
+
+\bibitem[\citeproctext]{ref-naruc1992electric}
+National Association of Regulatory Utility Commissioners. 1992.
+\emph{Electric Utility Cost Allocation Manual}. Washington, DC: National
+Association of Regulatory Utility Commissioners.
+
+\bibitem[\citeproctext]{ref-simeone2023bill}
+Simeone, Christina E, Pieter Gagnon, Peter Cappers, and Andrew
+Satchwell. 2023. {``The Bill Alignment Test: Identifying Trade-Offs with
+Residential Rate Design Options.''} \emph{Utilities Policy} 82: 101539.
+\url{https://doi.org/10.1016/j.jup.2023.101539}.
+
+\end{CSLReferences}
+
+
+
+
+\end{document}
