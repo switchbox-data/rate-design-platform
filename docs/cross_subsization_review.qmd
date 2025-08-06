@@ -236,13 +236,15 @@ $$DWL = \sum_h \sum_j \frac{\epsilon}{2} \cdot q_{jh} \cdot \left(\frac{P_h - MC
 
 The BAT framework enables formal treatment of regulatory trade-offs through multi-objective optimization:
 
-$$\begin{align}
+$$
+\begin{aligned}
 \min_{\psi, T} \quad & \mathcal{L}(\psi, T) = w_1 \cdot ACS(\psi, T) + w_2 \cdot DWL(\psi, T) \\
 & \quad + w_3 \cdot IGT_{solar}(\psi, T) + w_4 \cdot LI_{burden}(\psi, T) \\
 \text{s.t.} \quad & \sum_j B_j(T) = R \quad \text{(revenue adequacy)} \\
 & |BA_j(\psi, T)| \leq \tau_j \quad \forall j \in \text{Protected classes} \\
 & P_{min} \leq P_h(T) \leq P_{max} \quad \forall h \quad \text{(rate bounds)}
-\end{align}$$ {#eq-optimization}
+\end{aligned}
+$$ {#eq-optimization}
 
 where the weights $w_i$ reflect regulatory priorities for minimizing total cross-subsidies, deadweight loss, inter-group transfers, and burden on vulnerable customers.
 
