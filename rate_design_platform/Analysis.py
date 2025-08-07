@@ -3,11 +3,16 @@ Collection of dataclasses and functions for analyzing the results of the TOU sch
 """
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import NamedTuple
 
+import matplotlib
+import matplotlib.dates as mdates
+
+matplotlib.use("Agg")  # Use non-interactive backend
 import numpy as np
 import pandas as pd
+from matplotlib import pyplot as plt
 
 from rate_design_platform.utils.constants import SECONDS_PER_HOUR
 from rate_design_platform.utils.rates import MonthlyRateStructure, TOUParameters
@@ -262,6 +267,158 @@ def extract_ochre_results(df: pd.DataFrame, time_step: timedelta) -> SimulationR
     )  # Convert kW to kWh
 
     return SimulationResults(time_values, E_mt, T_tank_mt, D_unmet_mt)
+
+
+def batch_run_analysis(monthly_results: list[list[MonthlyResults]], annual_metrics: list[dict[str, float]]) -> None:
+    """
+    Analyze the results of the batch run
+    """
+    benefited_bldgs = []
+    no_benefit_bldgs = []
+    for i in range(len(annual_metrics)):
+        if annual_metrics[i]["total_realized_savings"] > 0:
+            benefited_bldgs.append(annual_metrics[i])
+        else:
+            no_benefit_bldgs.append(annual_metrics[i])
+
+    print(f"Benefited bldgs: {len(benefited_bldgs)}")
+    print(f"No benefit bldgs: {len(no_benefit_bldgs)}")
+    print(f"Percentage of benefited bldgs: {len(benefited_bldgs) / len(annual_metrics) * 100}%")
+    print(
+        f"Average total savings for all homes: ${sum(annual_metric['total_realized_savings'] for annual_metric in annual_metrics) / len(annual_metrics):.2f}"
+    )
+    if len(benefited_bldgs) > 0:
+        print(
+            f"Average total savings for benefitting homes: {sum(benefited_bldg['total_realized_savings'] for benefited_bldg in benefited_bldgs) / len(benefited_bldgs):.2f}$"
+        )
+
+    total_savings = [annual_metric["total_realized_savings"] for annual_metric in annual_metrics]
+
+    """Total savings plot"""
+    # Create a more informative histogram
+    plt.figure(figsize=(10, 6))
+    plt.hist(total_savings, bins=20, alpha=0.7, color="skyblue", edgecolor="black")
+
+    # Add vertical line for mean
+    mean_savings = float(np.mean(total_savings))
+    plt.axvline(mean_savings, color="red", linestyle="--", linewidth=2, label=f"Mean: ${mean_savings:.2f}")
+
+    # Add vertical line for median
+    median_savings = float(np.median(total_savings))
+    plt.axvline(median_savings, color="orange", linestyle="--", linewidth=2, label=f"Median: ${median_savings:.2f}")
+
+    # Add vertical line at zero
+    plt.axvline(0, color="green", linestyle="-", linewidth=1, alpha=0.7, label="Break-even line")
+
+    plt.xlabel("Total Realized Savings ($)", fontsize=12)
+    plt.ylabel("Number of Households", fontsize=12)
+    plt.title("Distribution of Annual TOU Rate Savings Across Households", fontsize=14, fontweight="bold")
+    plt.legend(fontsize=10)
+    plt.grid(True, alpha=0.3)
+
+    # Add text box with summary statistics
+    positive_savings = [s for s in total_savings if s > 0]
+    negative_savings = [s for s in total_savings if s < 0]
+
+    stats_text = f"Total Households: {len(total_savings)}\n"
+    stats_text += (
+        f"Households with Savings: {len(positive_savings)} ({len(positive_savings) / len(total_savings) * 100:.1f}%)\n"
+    )
+    stats_text += (
+        f"Households with Losses: {len(negative_savings)} ({len(negative_savings) / len(total_savings) * 100:.1f}%)\n"
+    )
+    stats_text += f"Average Savings: ${mean_savings:.2f}\n"
+    if positive_savings:
+        stats_text += f"Avg Savings (Benefiting HH): ${np.mean(positive_savings):.2f}"
+
+    plt.text(
+        0.02,
+        0.98,
+        stats_text,
+        transform=plt.gca().transAxes,
+        verticalalignment="top",
+        bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.8},
+        fontsize=9,
+    )
+
+    plt.tight_layout()
+    # Create outputs directory if it doesn't exist
+    from pathlib import Path
+
+    base_path = Path(__file__).parent.absolute()
+    Path(base_path / "outputs").mkdir(exist_ok=True)
+    # Save the plot to a file instead of showing it
+    plt.savefig(base_path / "outputs" / "total_savings_distribution.png", dpi=300, bbox_inches="tight")
+    print(f"Plot saved as '{base_path / 'outputs' / 'total_savings_distribution.png'}'")
+    plt.close()  # Close the figure to free memory
+
+    """Switching decision plot"""
+    default = np.zeros(len(monthly_results[0]))
+    tou = np.zeros(len(monthly_results[0]))
+    month_years = []
+    for i in range(len(monthly_results)):
+        bldg_monthly_results = monthly_results[i]
+        for j in range(len(bldg_monthly_results)):
+            bldg_monthly_result = bldg_monthly_results[j]
+            if i == 0:
+                month_years.append(datetime(year=bldg_monthly_result.year, month=bldg_monthly_result.month, day=1))
+            if bldg_monthly_result.current_state == "default":
+                default[j] += 1
+            else:
+                tou[j] += 1
+
+    # Create the switching decision time series plot
+    fig, ax1 = plt.subplots(figsize=(12, 6))
+
+    # Convert datetime objects to matplotlib dates
+    month_years_mpl = mdates.date2num(month_years)
+
+    # Plot both lines on primary axis
+    ax1.plot(month_years_mpl, default, marker="o", linewidth=2, label="Default Rate", color="blue")
+    ax1.plot(month_years_mpl, tou, marker="s", linewidth=2, label="TOU Rate", color="red")
+
+    # Set integer y-axis ticks on the left
+    total_households = len(monthly_results)
+    ax1.set_ylim(0, total_households)
+    ax1.yaxis.set_major_locator(plt.matplotlib.ticker.MaxNLocator(integer=True))
+
+    # Customize the primary axis
+    ax1.set_xlabel("Month", fontsize=12)
+    ax1.set_ylabel("Number of Households", fontsize=12)
+    ax1.set_title("Household Rate Adoption Over Time", fontsize=14, fontweight="bold")
+    ax1.grid(True, alpha=0.3)
+
+    # Format x-axis to show months nicely
+    ax1.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
+    ax1.xaxis.set_major_locator(mdates.MonthLocator())
+    plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45)
+
+    # Create secondary y-axis for percentages
+    ax2 = ax1.twinx()
+
+    # Calculate percentages for each month
+    default_percentages = [default[i] / total_households * 100 for i in range(len(default))]
+    tou_percentages = [tou[i] / total_households * 100 for i in range(len(tou))]
+
+    # Set percentage axis limits and ticks
+    ax2.set_ylim(0, 100)
+    ax2.set_ylabel("Percentage of Households (%)", fontsize=12)
+
+    # Add percentage line on secondary axis (invisible but sets the scale)
+    ax2.plot(month_years_mpl, default_percentages, alpha=0)  # Invisible line to set scale
+    ax2.plot(month_years_mpl, tou_percentages, alpha=0)  # Invisible line to set scale
+
+    # Combine legends
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    ax1.legend(lines1, labels1, fontsize=10, loc="upper left")
+
+    plt.tight_layout()
+    # Create outputs directory if it doesn't exist (already created above, but just in case)
+    base_path = Path(__file__).parent.absolute()
+    Path(base_path / "outputs").mkdir(exist_ok=True)
+    plt.savefig(base_path / "outputs" / "rate_adoption_timeseries.png", dpi=300, bbox_inches="tight")
+    print(f"Rate adoption time series plot saved as '{base_path / 'outputs' / 'rate_adoption_timeseries.png'}'")
+    plt.close()
 
 
 def calculate_value_learning_monthly_metrics(
