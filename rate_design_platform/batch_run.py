@@ -6,7 +6,7 @@ import pandas as pd
 from ochre.utils import default_input_path  # type: ignore[import-untyped]
 
 from rate_design_platform.Analysis import batch_run_analysis
-from rate_design_platform.second_pass import run_full_simulation
+from rate_design_platform.second_pass import run_value_learning_simulation
 from rate_design_platform.utils.buildstock import download_bldg_files
 from rate_design_platform.utils.rates import TOUParameters
 
@@ -60,6 +60,7 @@ if __name__ == "__main__":
     )
     monthly_results = []
     annual_metrics = []
+    learning_metrics_histories = []
 
     for bldg_file in os.listdir(hpxml_path):
         # Only process XML files
@@ -79,10 +80,13 @@ if __name__ == "__main__":
             HOUSE_ARGS["weather_file"] = weather_path
 
             try:
-                monthly_result, annual_metric = run_full_simulation(TOU_PARAMS, HOUSE_ARGS)
+                monthly_result, annual_metric, learning_metrics_history = run_value_learning_simulation(
+                    TOU_PARAMS, HOUSE_ARGS
+                )
 
                 monthly_results.append(monthly_result)
                 annual_metrics.append(annual_metric)
+                learning_metrics_histories.append(learning_metrics_history)
             except Exception as e:
                 print(f"Error processing {bldg_file}: {e}")
                 continue

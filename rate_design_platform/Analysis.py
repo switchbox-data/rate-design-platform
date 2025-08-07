@@ -419,8 +419,8 @@ def batch_run_analysis(monthly_results: list[list[MonthlyResults]], annual_metri
     plt.savefig(base_path / "outputs" / "rate_adoption_timeseries.png", dpi=300, bbox_inches="tight")
     print(f"Rate adoption time series plot saved as '{base_path / 'outputs' / 'rate_adoption_timeseries.png'}'")
     plt.close()
-    
-    
+
+
 def calculate_value_learning_monthly_metrics(
     simulation_year_months: list[tuple[int, int]],
     monthly_decisions: list[str],
