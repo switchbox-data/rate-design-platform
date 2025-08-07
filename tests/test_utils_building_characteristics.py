@@ -5,9 +5,6 @@ Test file for utils/building_characteristics.py module.
 
 from rate_design_platform.utils.building_characteristics import (
     BuildingCharacteristics,
-    calculate_comfort_penalty_factor,
-    calculate_switching_cost_back,
-    calculate_switching_cost_to,
     enrich_building_characteristics,
     get_ami_for_location,
     map_climate_zone_to_numeric,
@@ -52,80 +49,8 @@ def test_map_climate_zone_to_numeric():
     assert map_climate_zone_to_numeric("ABC") == 4  # No numeric part
 
 
-def test_calculate_switching_cost_to():
-    """Test building-specific switching cost calculation."""
-    # Create test building characteristics
-    building = BuildingCharacteristics(
-        state_code="NY",
-        zip_code="12345",
-        year_built=1980,
-        n_residents=3.0,
-        n_bedrooms=3,
-        conditioned_floor_area=1500.0,
-        residential_facility_type="single-family detached",
-        climate_zone="4A",
-        ami=1.0,  # 80% AMI
-        wh_type="storage",
-    )
-
-    base_cost = 35.0
-    result = calculate_switching_cost_to(building, base_cost)
-
-    # Should be greater than base cost due to building age and residents
-    assert result > base_cost
-    assert isinstance(result, float)
-
-    # Test with different water heater types
-    building.wh_type = "heat_pump"
-    result_hp = calculate_switching_cost_to(building, base_cost)
-    assert result_hp < result  # Heat pump should be easier (0.7 factor)
-
-    building.wh_type = "tankless"
-    result_tankless = calculate_switching_cost_to(building, base_cost)
-    assert result_tankless > result  # Tankless should be harder (1.5 factor)
-
-
-def test_calculate_switching_cost_back():
-    """Test switching back cost calculation."""
-    switch_to_cost = 50.0
-    result = calculate_switching_cost_back(switch_to_cost)
-
-    expected = 0.4 * switch_to_cost
-    assert result == expected
-    assert result == 20.0
-
-
-def test_calculate_comfort_penalty_factor():
-    """Test building-specific comfort penalty factor calculation."""
-    # Create test building characteristics
-    building = BuildingCharacteristics(
-        state_code="NY",
-        zip_code="12345",
-        year_built=1980,
-        n_residents=3.0,
-        n_bedrooms=3,
-        conditioned_floor_area=1500.0,
-        residential_facility_type="single-family detached",
-        climate_zone="4A",  # Zone 4 should give factor 1.0
-        ami=1.0,  # 80% AMI
-        wh_type="storage",
-    )
-
-    base_alpha = 0.15
-    result = calculate_comfort_penalty_factor(building, base_alpha)
-
-    # Should be greater than base due to multiple residents
-    assert result > base_alpha
-    assert isinstance(result, float)
-
-    # Test different climate zones
-    building.climate_zone = "2A"  # Cold climate
-    result_cold = calculate_comfort_penalty_factor(building, base_alpha)
-    assert result_cold < result  # Should be lower (0.8 factor)
-
-    building.climate_zone = "7B"  # Hot climate
-    result_hot = calculate_comfort_penalty_factor(building, base_alpha)
-    assert result_hot > result  # Should be higher (1.2 factor)
+# Removed obsolete function tests - calculate_switching_cost_to, calculate_switching_cost_back,
+# and calculate_comfort_penalty_factor no longer exist in the refactored code
 
 
 def test_enrich_building_characteristics():
