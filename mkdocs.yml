@@ -13,7 +13,8 @@ strict: false
 nav:
   - Home: index.md
   - Modules: modules.md
-  - HPWH TOU Scheduling: docs_tou_hpwh_schedule_basic.md
+  - HPWH TOU Scheduling: docs_tou_hpwh_schedule_value_learning.md
+  - Cross Subsidization Overview: cross_subsization_review.md
   - Water Demand Timeseries: water_demand_timeseries.md
 
 plugins:
