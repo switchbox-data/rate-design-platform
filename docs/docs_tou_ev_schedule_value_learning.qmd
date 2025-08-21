@@ -40,33 +40,28 @@ This section defines all variables, parameters, and their temporal dimensions us
 |----------------|------|-------------------------------------------------------|----------|-----------|
 | **Sets** |
 | $M$        | Set  | Months in simulation year, $m \in \{1, 2, ..., 12\}$ | -        | 12 × 1    |
-| $T$        | Set  | Time periods in billing month, $t \in \{1, 2, ..., T\}$ where $T \approx 2976$ (15-min intervals) | -        | \|T\| × 1  |
+| $T$        | Set  | Time periods in billing month, $t \in \{1, 2, ..., T\}$ | -        | \|T\| × 1  |
 | $H$        | Set  | Peak hour periods, $H \subset T$                 | -        | \|H\| × 1 |
 | $D$        | Set  | Days in month $m$, $d \in \{1, 2, ..., D_m\}$    | -        | D_m × 1   |
 | **Parameters** |
 | **BuildStock-Fetch EV Trip Data** |
-| $N_{trips}^{m,d}$ | Parameter | Number of trips on day $d$ in month $m$ (from BSF trip schedule) | - | M × D |
-| $t_{dep}^{m,d,i}$ | Parameter | Departure time for trip $i$ on day $d$ in month $m$ (integer hours from BSF) | hour | M × D × I |
-| $t_{arr}^{m,d,i}$ | Parameter | Arrival time for trip $i$ on day $d$ in month $m$ (integer hours from BSF) | hour | M × D × I |
-| $miles^{m,d,i}$ | Parameter | Miles driven for trip $i$ on day $d$ in month $m$ (from BSF trip schedule) | miles | M × D × I |
-| $t_{dep}^{first,m,d}$ | Parameter | First departure time on day $d$ in month $m$ (min of all $t_{dep}^{m,d,i}$) | hour | M × D |
-| $t_{arr}^{last,m,d}$ | Parameter | Final arrival time on day $d$ in month $m$ (max of all $t_{arr}^{m,d,i}$) | hour | M × D |
-| $miles_{total}^{m,d}$ | Parameter | Total daily miles on day $d$ in month $m$ ($\sum_i miles^{m,d,i}$) | miles | M × D |
+| $N_{trips}^{m,d}$ | Parameter | Number of trips on day $d$ in month $m$ | - | M × D |
+| $t_{dep}^{m,d,i}$ | Parameter | Departure time for trip $i$ on day $d$ in month $m$ | hour | M × D × I |
+| $t_{arr}^{m,d,i}$ | Parameter | Arrival time for trip $i$ on day $d$ in month $m$ | hour | M × D × I |
+| $miles^{m,d,i}$ | Parameter | Miles driven for trip $i$ on day $d$ in month $m$ | miles | M × D × I |
+| $t_{dep}^{first,m,d}$ | Parameter | First departure time on day $d$ in month $m$ | hour | M × D |
+| $t_{arr}^{last,m,d}$ | Parameter | Final arrival time on day $d$ in month $m$ | hour | M × D |
+| $miles_{total}^{m,d}$ | Parameter | Total daily miles on day $d$ in month $m$ | miles | M × D |
 | **EV System Parameters** |
 | $r^{on}$   | Parameter | TOU electricity rate during peak hours              | $/kWh    | 1 × 1     |
 | $r^{off}$  | Parameter | TOU electricity rate during off-peak hours          | $/kWh    | 1 × 1     |
-| $\beta$   | Parameter | Monetization factor for range anxiety penalty (household-specific) | $/kWh    | 1 × 1     |
-| $Cap^{battery}$ | Parameter | EV battery energy capacity (total kWh storage) | kWh | 1 × 1 |
+| $\beta$   | Parameter | Monetization factor for range anxiety penalty | $/kWh    | 1 × 1     |
+| $Cap^{battery}$ | Parameter | EV battery energy capacity | kWh | 1 × 1 |
 | $Eff^{EV}$ | Parameter | EV efficiency (miles per kWh) | miles/kWh | 1 × 1 |
-| $P^{hardware}$ | Parameter | Physical maximum charging power capacity of home charging equipment | kW | 1 × 1 |
-| $P^{max}$ | Parameter | Controllable upper limit for charging power (≤ $P^{hardware}$) | kW | 1 × 1 |
+| $Pow^{max}$ | Parameter | Physical maximum charging power capacity | kW | 1 × 1 |
 | $SOC^{min}$ | Parameter | Minimum comfortable SOC threshold | - | 1 × 1 |
-| $SOC_{critical}^{m,d}$ | Parameter | Critical SOC threshold triggering emergency charging ($SOC_{req}^{m,d} - 0.05$) | - | M × D |
-| $P^{emergency}$ | Parameter | Emergency charging power during peak hours | kW | 1 × 1 |
-| **Derived Charging Variables** |
-| $Window_{avail}^{m,d}$ | Variable | Available charging time periods for day $d$ in month $m$ | - | M × D |
+| **Derived Variables** |
 | $Window_{off}^{m,d}$ | Variable | Off-peak charging time periods for day $d$ in month $m$ | - | M × D |
-| $Window_{peak}^{m,d}$ | Variable | Peak charging time periods for day $d$ in month $m$ | - | M × D |
 | $kWh_{req}^{m,d}$ | Variable | Required charging energy for day $d$ in month $m$ | kWh | M × D |
 | **Learning Parameters** |
 | $\epsilon_{base}$ | Parameter | Base exploration rate                              | -        | 1 × 1     |
@@ -74,6 +69,23 @@ This section defines all variables, parameters, and their temporal dimensions us
 | $\lambda_1, \lambda_2, \lambda_3, \lambda_4, \lambda_5$ | Parameter | Exploration coefficients (income, age, residents, EV type, experience replay) | - | 5 × 1 |
 | $\gamma_1, \gamma_2$ | Parameter | Learning rate coefficients (income, age) | - | 2 × 1 |
 | $\delta_1, \delta_2, \delta_3$ | Parameter | Range anxiety coefficients (income, residents, EV type) | $/kWh | 3 × 1 |
+| **Decision Variables** |
+| $x_m^{switch}$ | Binary | Decision to switch charging schedule in month $m$ | binary | M × 1 |
+| **State Variables** |
+| $S_m^{current}$ | Binary | Current charging schedule state in month $m$ | binary | M × 1 |
+| $r_{m,t}$  | Variable | Electricity rate at time $t$ in month $m$ | $/kWh | M × T |
+| $E_{m,t}^{EV}$ | Variable | EV energy consumption at time $t$ in month $m$ | kWh | M × T |
+| $SOC_{m,t}$ | Variable | EV state of charge at time $t$ in month $m$ | - | M × T |
+| $Home_{m,t}$ | Binary | Vehicle home availability at time $t$ in month $m$ | binary | M × T |
+| $Q_{m,t}^{unmet}$ | Variable | Unmet charging load at time $t$ in month $m$ | kWh | M × T |
+| **Derived Variables** |
+| $C_m^{bill}$ | Variable | Monthly electricity bill for EV charging in month $m$ | $ | M × 1 |
+| $C_m^{anxiety}$ | Variable | Monthly range anxiety penalty in month $m$ | $ | M × 1 |
+| **Value Learning State Variables** |
+| $V_m^{default}$ | Variable | Learned value for default charging schedule | $ | M × 1 |
+| $V_m^{TOU}$ | Variable | Learned value for TOU charging schedule | $ | M × 1 |
+| $\epsilon_m$ | Variable | Household-specific exploration rate in month $m$ | - | M × 1 |
+| $\alpha_m^{learn}$ | Variable | Household-specific learning rate in month $m$ | - | M × 1 |
 
 **Coefficient Calibration Notes:**
 - λ, γ, and δ coefficients control the strength and direction of household characteristic effects
@@ -259,12 +271,10 @@ This step loads the exogenous input data and sets the initial state variables fo
 
 $$
 Home_{m,t} = \begin{cases}
-0 & \text{if } t_{dep}^{first,m,d} \leq hour(t) < t_{arr}^{last,m,d} \text{ for day } d \text{ containing time } t \\
+0 & \text{if } t_{dep}^{first,m,d} \leq t < t_{arr}^{last,m,d} \text{ for day } d \text{ containing time } t \\
 1 & \text{otherwise (vehicle is home and available for charging)}
 \end{cases}
 $$
-
-Where $hour(t)$ converts 15-minute time interval $t$ to integer hour.
 
 **Initialize Schedule State for Month $m$:**
 
@@ -342,8 +352,8 @@ $$
 **Primary TOU Strategy** (no emergency charging):
 
 $$
-P_{max}^{m,t} = \begin{cases}
-P^{hardware} & \text{if } t \in Window_{off}^{m,d} \text{ and } SOC_{m,t} < SOC_{req}^{m,d} \\
+Pow_{max}^{m,t} = \begin{cases}
+Pow^{max} & \text{if } t \in Window_{off}^{m,d} \text{ and } SOC_{m,t} < SOC_{req}^{m,d} \\
 0 & \text{if } t \in Window_{peak}^{m,d} \text{ (no peak charging)} \\
 0 & \text{if } Home_{m,t} = 0 \text{ (vehicle away)}
 \end{cases}
@@ -352,24 +362,34 @@ $$
 **Alternative: Emergency Override Implementation**
 
 $$
-P_{max}^{m,t} = \begin{cases}
-P^{hardware} & \text{if } t \in Window_{off}^{m,d} \text{ and } SOC_{m,t} < SOC_{req}^{m,d} \\
+Pow_{max}^{m,t} = \begin{cases}
+Pow^{max} & \text{if } t \in Window_{off}^{m,d} \text{ and } SOC_{m,t} < SOC_{req}^{m,d} \\
 0 & \text{if } t \in Window_{peak}^{m,d} \text{ and } SOC_{m,t} \geq SOC_{critical} \\
-P^{emergency} & \text{if } t \in Window_{peak}^{m,d} \text{ and } SOC_{m,t} < SOC_{critical} \\
+Pow^{emerg} & \text{if } t \in Window_{peak}^{m,d} \text{ and } SOC_{m,t} < SOC_{critical} \\
 0 & \text{if } Home_{m,t} = 0 \text{ (vehicle away)}
 \end{cases}
 $$
 
 **Control Logic:**
 - $SOC_{critical} = SOC_{req}^{m,d} - 0.05$ (emergency charging threshold)
-- Unmet demand theoretically calculated as: $\max(0, kWh_{req}^{m,d} - |Window_{off}^{m,d}| \times 0.25 \times P^{hardware})$
 
 ## Step 2: Run OCHRE Simulation for Month $m$
 
 **Execute Monthly Simulation:**
 
 - Input: BSF trip schedules, "EV Max Power (kW)" control signals, home availability
-- OCHRE Output: $E_{m,t}^{EV}$ (energy consumption), $SOC_{m,t}$ (state of charge), $Q_{m,t}^{unmet}$ (unmet load)
+- Output: $E_{m,t}^{EV}$ (energy consumption), $SOC_{m,t}$ (state of charge)
+
+**Calculate Unmet Charging Demand:**
+
+$$
+Q_{m,t}^{unmet} = \begin{cases}
+(SOC_{req}^{m,d} - SOC_{m,t}) \times Cap^{battery} & \text{if } SOC_{m,t} < SOC_{req}^{m,d} \text{ during day } d \\
+0 & \text{otherwise}
+\end{cases}
+$$
+
+This calculates the actual energy shortfall at each time period when SOC falls below the required level for upcoming trips.
 
 **Calculate Monthly Costs:**
 
