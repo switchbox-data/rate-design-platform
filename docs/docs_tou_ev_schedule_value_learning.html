@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.7.32">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Switchbox">
+<meta name="dcterms.date" content="2025-08-21">
+
+<title>Value-Learning TOU Charging Decision Model for Electric Vehicles in OCHRE</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="docs_tou_ev_schedule_value_learning_files/libs/clipboard/clipboard.min.js"></script>
+<script src="docs_tou_ev_schedule_value_learning_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="docs_tou_ev_schedule_value_learning_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="docs_tou_ev_schedule_value_learning_files/libs/quarto-html/popper.min.js"></script>
+<script src="docs_tou_ev_schedule_value_learning_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="docs_tou_ev_schedule_value_learning_files/libs/quarto-html/anchor.min.js"></script>
+<link href="docs_tou_ev_schedule_value_learning_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="docs_tou_ev_schedule_value_learning_files/libs/quarto-html/quarto-syntax-highlighting-37eea08aefeeee20ff55810ff984fec1.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="docs_tou_ev_schedule_value_learning_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="docs_tou_ev_schedule_value_learning_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="docs_tou_ev_schedule_value_learning_files/libs/bootstrap/bootstrap-81267100e462c21b3d6c0d5bf76a3417.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="docs_tou_ev_schedule_value_learning_files/libs/quarto-diagram/mermaid.min.js"></script>
+<script src="docs_tou_ev_schedule_value_learning_files/libs/quarto-diagram/mermaid-init.js"></script>
+<link href="docs_tou_ev_schedule_value_learning_files/libs/quarto-diagram/mermaid.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="docs_tou_ev_schedule_value_learning.md"><i class="bi bi-file-code"></i>Github (GFM)</a></li></ul></div></div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Value-Learning TOU Charging Decision Model for Electric Vehicles in OCHRE</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Switchbox </p>
+          </div>
+  </div>
+
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">August 21, 2025</p>
+    </div>
+  </div>
+
+
+  </div>
+
+
+
+</header>
+
+
+<section id="introduction" class="level1">
+<h1>Introduction</h1>
+<p>This document outlines a value-learning decision model for electric vehicle (EV) owner response to time-of-use (TOU) electricity rates in residential building simulations using OCHRE. The goal is to model how EV owners learn about charging schedule performance through direct experience, using exploration and exploitation strategies to optimize their electricity costs while accounting for range anxiety and charging convenience trade-offs.</p>
+</section>
+<section id="problem-definition" class="level1">
+<h1>1. Problem Definition</h1>
+<p>This section establishes a high-level overview of the core research question and modeling assumptions for learning of TOU-adapted EV charging schedule performance.</p>
+<p><strong>Objective:</strong></p>
+<p>Model how EV owners adopt TOU-friendly charging scheduling through direct experience, using exploration and exploitation strategies to balance trying new approaches with using learned knowledge to minimize electricity costs and range anxiety penalties.</p>
+<p><strong>Assumptions:</strong></p>
+<ul>
+<li><p>EV trip schedules are exogenous and determined by household mobility patterns from buildstock-fetch data.</p></li>
+<li><p>EV can be controlled through charging power limits and timing when parked at home.</p></li>
+<li><p>Consumer already owns an EV and is on TOU rates, must choose between default and TOU-friendly charging schedules.</p></li>
+<li><p>Consumers learn charging schedule performance through direct experience rather than external information sources.</p></li>
+<li><p>Decision-making occurs at monthly bill receipt based on learned values for each charging schedule option.</p></li>
+<li><p>Exploration propensity varies by household characteristics (income, building age, household size, EV type).</p></li>
+<li><p>Learning speed varies by household characteristics affecting information processing ability.</p></li>
+<li><p>Consumers track total costs (bills + range anxiety impacts) for each schedule and use this learned knowledge to make decisions.</p></li>
+</ul>
+</section>
+<section id="key-variables-and-parameters" class="level1">
+<h1>2. Key Variables and Parameters</h1>
+<p>This section defines all variables, parameters, and their temporal dimensions used throughout the value-learning decision model.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 16%">
+<col style="width: 6%">
+<col style="width: 56%">
+<col style="width: 10%">
+<col style="width: 11%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Type</th>
+<th>Description</th>
+<th>Units</th>
+<th>Dimension</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Sets</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(M\)</span></td>
+<td>Set</td>
+<td>Months in simulation year, <span class="math inline">\(m \in \{1, 2, ..., 12\}\)</span></td>
+<td>-</td>
+<td>12 × 1</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(T\)</span></td>
+<td>Set</td>
+<td>Time periods in billing month, <span class="math inline">\(t \in \{1, 2, ..., T\}\)</span></td>
+<td>-</td>
+<td>|T| × 1</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(H\)</span></td>
+<td>Set</td>
+<td>Peak hour periods, <span class="math inline">\(H \subset T\)</span></td>
+<td>-</td>
+<td>|H| × 1</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(D\)</span></td>
+<td>Set</td>
+<td>Days in month <span class="math inline">\(m\)</span>, <span class="math inline">\(d \in \{1, 2, ..., D_m\}\)</span></td>
+<td>-</td>
+<td>D_m × 1</td>
+</tr>
+<tr class="even">
+<td><strong>Parameters</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><strong>BuildStock-Fetch EV Trip Data</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(N_{trips}^{m,d}\)</span></td>
+<td>Parameter</td>
+<td>Number of trips on day <span class="math inline">\(d\)</span> in month <span class="math inline">\(m\)</span></td>
+<td>-</td>
+<td>M × D</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(t_{dep}^{m,d,i}\)</span></td>
+<td>Parameter</td>
+<td>Departure time for trip <span class="math inline">\(i\)</span> on day <span class="math inline">\(d\)</span> in month <span class="math inline">\(m\)</span></td>
+<td>hour</td>
+<td>M × D × I</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(t_{arr}^{m,d,i}\)</span></td>
+<td>Parameter</td>
+<td>Arrival time for trip <span class="math inline">\(i\)</span> on day <span class="math inline">\(d\)</span> in month <span class="math inline">\(m\)</span></td>
+<td>hour</td>
+<td>M × D × I</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(miles^{m,d,i}\)</span></td>
+<td>Parameter</td>
+<td>Miles driven for trip <span class="math inline">\(i\)</span> on day <span class="math inline">\(d\)</span> in month <span class="math inline">\(m\)</span></td>
+<td>miles</td>
+<td>M × D × I</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(t_{dep}^{first,m,d}\)</span></td>
+<td>Parameter</td>
+<td>First departure time on day <span class="math inline">\(d\)</span> in month <span class="math inline">\(m\)</span></td>
+<td>hour</td>
+<td>M × D</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(t_{arr}^{last,m,d}\)</span></td>
+<td>Parameter</td>
+<td>Final arrival time on day <span class="math inline">\(d\)</span> in month <span class="math inline">\(m\)</span></td>
+<td>hour</td>
+<td>M × D</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(miles_{total}^{m,d}\)</span></td>
+<td>Parameter</td>
+<td>Total daily miles on day <span class="math inline">\(d\)</span> in month <span class="math inline">\(m\)</span></td>
+<td>miles</td>
+<td>M × D</td>
+</tr>
+<tr class="odd">
+<td><strong>EV System Parameters</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(r^{on}\)</span></td>
+<td>Parameter</td>
+<td>TOU electricity rate during peak hours</td>
+<td>$/kWh</td>
+<td>1 × 1</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(r^{off}\)</span></td>
+<td>Parameter</td>
+<td>TOU electricity rate during off-peak hours</td>
+<td>$/kWh</td>
+<td>1 × 1</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\beta\)</span></td>
+<td>Parameter</td>
+<td>Monetization factor for range anxiety penalty</td>
+<td>$/kWh</td>
+<td>1 × 1</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(Cap^{battery}\)</span></td>
+<td>Parameter</td>
+<td>EV battery energy capacity</td>
+<td>kWh</td>
+<td>1 × 1</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(Eff^{EV}\)</span></td>
+<td>Parameter</td>
+<td>EV efficiency (miles per kWh)</td>
+<td>miles/kWh</td>
+<td>1 × 1</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(Pow^{max}\)</span></td>
+<td>Parameter</td>
+<td>Physical maximum charging power capacity</td>
+<td>kW</td>
+<td>1 × 1</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(SOC^{min}\)</span></td>
+<td>Parameter</td>
+<td>Minimum comfortable SOC threshold</td>
+<td>-</td>
+<td>1 × 1</td>
+</tr>
+<tr class="odd">
+<td><strong>Derived Variables</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(Window_{off}^{m,d}\)</span></td>
+<td>Variable</td>
+<td>Off-peak charging time periods for day <span class="math inline">\(d\)</span> in month <span class="math inline">\(m\)</span></td>
+<td>-</td>
+<td>M × D</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(kWh_{req}^{m,d}\)</span></td>
+<td>Variable</td>
+<td>Required charging energy for day <span class="math inline">\(d\)</span> in month <span class="math inline">\(m\)</span></td>
+<td>kWh</td>
+<td>M × D</td>
+</tr>
+<tr class="even">
+<td><strong>Learning Parameters</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\epsilon_{base}\)</span></td>
+<td>Parameter</td>
+<td>Base exploration rate</td>
+<td>-</td>
+<td>1 × 1</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\alpha_{base}^{learn}\)</span></td>
+<td>Parameter</td>
+<td>Base learning rate</td>
+<td>-</td>
+<td>1 × 1</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\lambda_1, \lambda_2, \lambda_3, \lambda_4, \lambda_5\)</span></td>
+<td>Parameter</td>
+<td>Exploration coefficients (income, age, residents, EV type, experience replay)</td>
+<td>-</td>
+<td>5 × 1</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\gamma_1, \gamma_2\)</span></td>
+<td>Parameter</td>
+<td>Learning rate coefficients (income, age)</td>
+<td>-</td>
+<td>2 × 1</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\delta_1, \delta_2, \delta_3\)</span></td>
+<td>Parameter</td>
+<td>Range anxiety coefficients (income, residents, EV type)</td>
+<td>$/kWh</td>
+<td>3 × 1</td>
+</tr>
+<tr class="even">
+<td><strong>Decision Variables</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(x_m^{switch}\)</span></td>
+<td>Binary</td>
+<td>Decision to switch charging schedule in month <span class="math inline">\(m\)</span></td>
+<td>binary</td>
+<td>M × 1</td>
+</tr>
+<tr class="even">
+<td><strong>State Variables</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(S_m^{current}\)</span></td>
+<td>Binary</td>
+<td>Current charging schedule state in month <span class="math inline">\(m\)</span></td>
+<td>binary</td>
+<td>M × 1</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(r_{m,t}\)</span></td>
+<td>Variable</td>
+<td>Electricity rate at time <span class="math inline">\(t\)</span> in month <span class="math inline">\(m\)</span></td>
+<td>$/kWh</td>
+<td>M × T</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(E_{m,t}^{EV}\)</span></td>
+<td>Variable</td>
+<td>EV energy consumption at time <span class="math inline">\(t\)</span> in month <span class="math inline">\(m\)</span></td>
+<td>kWh</td>
+<td>M × T</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(SOC_{m,t}\)</span></td>
+<td>Variable</td>
+<td>EV state of charge at time <span class="math inline">\(t\)</span> in month <span class="math inline">\(m\)</span></td>
+<td>-</td>
+<td>M × T</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(Home_{m,t}\)</span></td>
+<td>Binary</td>
+<td>Vehicle home availability at time <span class="math inline">\(t\)</span> in month <span class="math inline">\(m\)</span></td>
+<td>binary</td>
+<td>M × T</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(Q_{m,t}^{unmet}\)</span></td>
+<td>Variable</td>
+<td>Unmet charging load at time <span class="math inline">\(t\)</span> in month <span class="math inline">\(m\)</span></td>
+<td>kWh</td>
+<td>M × T</td>
+</tr>
+<tr class="odd">
+<td><strong>Derived Variables</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(C_m^{bill}\)</span></td>
+<td>Variable</td>
+<td>Monthly electricity bill for EV charging in month <span class="math inline">\(m\)</span></td>
+<td>$</td>
+<td>M × 1</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(C_m^{anxiety}\)</span></td>
+<td>Variable</td>
+<td>Monthly range anxiety penalty in month <span class="math inline">\(m\)</span></td>
+<td>$</td>
+<td>M × 1</td>
+</tr>
+<tr class="even">
+<td><strong>Value Learning State Variables</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(V_m^{default}\)</span></td>
+<td>Variable</td>
+<td>Learned value for default charging schedule</td>
+<td>$</td>
+<td>M × 1</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(V_m^{TOU}\)</span></td>
+<td>Variable</td>
+<td>Learned value for TOU charging schedule</td>
+<td>$</td>
+<td>M × 1</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\epsilon_m\)</span></td>
+<td>Variable</td>
+<td>Household-specific exploration rate in month <span class="math inline">\(m\)</span></td>
+<td>-</td>
+<td>M × 1</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\alpha_m^{learn}\)</span></td>
+<td>Variable</td>
+<td>Household-specific learning rate in month <span class="math inline">\(m\)</span></td>
+<td>-</td>
+<td>M × 1</td>
+</tr>
+</tbody>
+</table>
+<div class="line-block"><span class="math inline">\(\tau_{prior}\)</span> | Parameter | Prior uncertainty standard deviation | $ | 1 × 1 |<br>
+<span class="math inline">\(\beta_{base}\)</span> | Parameter | Base range anxiety monetization factor | $/kWh | 1 × 1 |</div>
+<p><strong>Coefficient Calibration Notes:</strong> - λ, γ, and δ coefficients control household characteristic effects - Positive coefficients increase exploration/learning/anxiety rates; negative values decrease them - Calibrate using target TOU adoption rates by demographic groups from EV survey data</p>
+<section id="building-specific-parameter-formulations" class="level2">
+<h2 class="anchored" data-anchor-id="building-specific-parameter-formulations">2.1 Building-Specific Parameter Formulations</h2>
+<p>The exploration and learning rates are derived from building and household characteristics available in ResStock/OCHRE simulations to reflect realistic heterogeneity in EV owner behavior.</p>
+<section id="household-characteristic-functions" class="level3">
+<h3 class="anchored" data-anchor-id="household-characteristic-functions">Household Characteristic Functions</h3>
+<p><strong>Income Factor:</strong> <span class="math display">\[f_{AMI} = \left(\frac{AMI}{80\%}\right)^{0.6} - 1\]</span> Higher income → more experimentation (lower financial risk) and faster learning (education/resources). Centered at zero for 80% AMI. Power function &lt;1 captures diminishing returns.</p>
+<p><strong>Building Age Factor:</strong> <span class="math display">\[f_{age} = \frac{YearBuilt - 2000}{15}\]</span> Normalized building age difference from reference year 2000. Positive for newer buildings (higher tech adoption), negative for older buildings. Centered at zero for buildings built in 2000.</p>
+<p><strong>Household Size Factor:</strong> <span class="math display">\[f_{residents} = \ln(N_{residents})\]</span> More residents → more complex trip coordination, more range anxiety concerns. Centered at zero for single person household. Logarithmic captures diminishing marginal effect.</p>
+<p><strong>EV Technology Factor:</strong> <span class="math display">\[f_{EV} = \begin{cases}
+-0.2 &amp; \text{long-range EV with smart charging (&gt;300 miles)} \\
+0.0 &amp; \text{standard EV (200-300 miles, baseline)} \\
+0.3 &amp; \text{short-range EV (&lt;200 miles)}
+\end{cases}\]</span></p>
+<p><strong>Climate Zone Factor:</strong> <span class="math display">\[f_{climate} = \begin{cases}
+0.1 &amp; \text{zones 1-3 (hot)} \\
+0.0 &amp; \text{zones 4-5 (moderate)} \\
+0.1 &amp; \text{zones 6-8 (cold)}
+\end{cases}\]</span> Extreme climates → higher range anxiety due to temperature effects on battery performance and HVAC use. Centered at zero for moderate climates (zones 4-5).</p>
+</section>
+<section id="exploration-rate-parameters" class="level3">
+<h3 class="anchored" data-anchor-id="exploration-rate-parameters">Exploration Rate Parameters</h3>
+<p><strong>Household-Specific Exploration Rate (<span class="math inline">\(\epsilon_m\)</span>):</strong></p>
+<p>The propensity to explore new charging strategies varies with household characteristics that affect willingness to experiment and tolerance for range uncertainty, plus experience replay effects when costs exceed expectations.</p>
+<p><span class="math display">\[
+\epsilon_m = \text{clamp}_{[0,1]}(\epsilon_{base} + \lambda_1 f_{AMI} + \lambda_2 f_{age} + \lambda_3 f_{residents} + \lambda_4 f_{EV} + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]))
+\]</span></p>
+<p>Where <span class="math inline">\(\text{clamp}_{[0,1]}(z) = \max(0, \min(1, z))\)</span> constrains the result to <span class="math inline">\(\epsilon_m \in [0,1]\)</span>.</p>
+<p>Where: - <span class="math inline">\(\lambda_5 \max(0, C_{recent}^{total} - E[C^{total}])\)</span> captures experience replay effects - <span class="math inline">\(C_{recent}^{total}\)</span> = average total cost over last 2-3 months for current schedule - <span class="math inline">\(E[C^{total}]\)</span> = expected total cost based on learned value for current schedule - <span class="math inline">\(\lambda_5\)</span> = experience replay sensitivity coefficient (controls how much cost surprises increase exploration)</p>
+<p>This mechanism captures the psychology where EV owners explore more when their recent experience is worse than expected, addressing the concern that higher bills or range anxiety should drive more exploration behavior.</p>
+<p>Where:</p>
+<ul>
+<li><span class="math inline">\(\epsilon_{base}\)</span> = base exploration rate for average household (to be calibrated)</li>
+<li><span class="math inline">\(f_{AMI} = \sqrt{\frac{AMI}{80\%}}\)</span> (income factor for exploration: higher income increases willingness to experiment due to reduced financial stress)</li>
+<li>Other factors defined in Household Characteristic Functions section above</li>
+</ul>
+</section>
+<section id="learning-rate-parameters" class="level3">
+<h3 class="anchored" data-anchor-id="learning-rate-parameters">Learning Rate Parameters</h3>
+<p><strong>Household-Specific Learning Rate (<span class="math inline">\(\alpha_m^{learn}\)</span>):</strong></p>
+<p>The speed at which households update their beliefs about charging schedule performance varies with characteristics that affect information processing and attention to energy costs.</p>
+<p><span class="math display">\[
+\alpha_m^{learn} = \text{clamp}_{[0,1]}(\alpha_{base}^{learn} + \gamma_1 f_{AMI} + \gamma_2 f_{age})
+\]</span></p>
+<p>Where <span class="math inline">\(\text{clamp}_{[0,1]}(z) = \max(0, \min(1, z))\)</span> constrains the result to <span class="math inline">\(\alpha_m^{learn} \in [0,1]\)</span>.</p>
+<p>Where:</p>
+<ul>
+<li><span class="math inline">\(\alpha_{base}^{learn}\)</span> = base learning rate for average household (to be calibrated)</li>
+<li><span class="math inline">\(f_{AMI}\)</span> and <span class="math inline">\(f_{age}\)</span> defined in Household Characteristic Functions section above</li>
+</ul>
+</section>
+<section id="range-anxiety-monetization-factor" class="level3">
+<h3 class="anchored" data-anchor-id="range-anxiety-monetization-factor">Range Anxiety Monetization Factor</h3>
+<p><strong>Range Anxiety Penalty Monetization (<span class="math inline">\(\beta\)</span>):</strong></p>
+<p>The monetization factor represents how much households value avoiding unmet charging demand and varies with income, household size, and EV characteristics using an additive structure.</p>
+<p><span class="math display">\[
+\beta = \beta_{base} + \delta_1 f_{AMI} + \delta_2 f_{residents} + \delta_3 f_{EV}
+\]</span></p>
+<p>Where:</p>
+<ul>
+<li><span class="math inline">\(\beta_{base}\)</span> = base range anxiety value for average household (to be calibrated)</li>
+<li><span class="math inline">\(\delta_1, \delta_2, \delta_3\)</span> = range anxiety sensitivity coefficients for income, household size, and EV type effects</li>
+<li><span class="math inline">\(f_{AMI}\)</span>, <span class="math inline">\(f_{residents}\)</span>, and <span class="math inline">\(f_{EV}\)</span> defined in Household Characteristic Functions section above</li>
+</ul>
+<p><strong>Example:</strong> For a mid-income family (80% AMI, 3 residents, 1980 building, standard EV, zone 4): - Factor values: <span class="math inline">\(f_{AMI} = 0.0\)</span>, <span class="math inline">\(f_{age} = \frac{1980-2000}{15} = -1.33\)</span>, <span class="math inline">\(f_{residents} = \ln(3) = 1.10\)</span>, <span class="math inline">\(f_{EV} = 0.0\)</span>, <span class="math inline">\(f_{climate} = 0.0\)</span> - Pre-clamp exploration: <span class="math inline">\(\epsilon_{base} + \lambda_1 \times 0.0 + \lambda_2 \times (-1.33) + \lambda_3 \times 1.10 + \lambda_4 \times 0.0 + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]) = \epsilon_{base} - 1.33\lambda_2 + 1.10\lambda_3 + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}])\)</span> - <span class="math inline">\(\epsilon_m = \text{clamp}_{[0,1]}(\epsilon_{base} - 1.33\lambda_2 + 1.10\lambda_3 + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]))\)</span> (constrained to [0,1]) - Pre-clamp learning: <span class="math inline">\(\alpha_{base}^{learn} + \gamma_1 \times 0.0 + \gamma_2 \times (-1.33) = \alpha_{base}^{learn} - 1.33\gamma_2\)</span> - <span class="math inline">\(\alpha_m^{learn} = \text{clamp}_{[0,1]}(\alpha_{base}^{learn} - 1.33\gamma_2)\)</span> (constrained to [0,1]) - <span class="math inline">\(\beta = \beta_{base} + \delta_1 \times 0.0 + \delta_2 \times 1.10 + \delta_3 \times 0.0 = \beta_{base} + 1.10\delta_2\)</span></p>
+</section>
+</section>
+<section id="prior-value-initialization" class="level2">
+<h2 class="anchored" data-anchor-id="prior-value-initialization">2.2 Prior Value Initialization</h2>
+<p><strong>Setting Prior Expectations:</strong></p>
+<p>Rather than starting with zero knowledge (<span class="math inline">\(V_1^{default} = V_1^{TOU} = 0\)</span>), EV owners have prior expectations about charging schedule performance based on general knowledge, utility communications, and EV characteristics. These priors are derived from existing OCHRE simulations to ensure physical realism.</p>
+<p><strong>Prior Calculation Method:</strong></p>
+<p>Before the agent learning begins, we actually run OCHRE to produce complete annual building simulations for both charging schedule types to reduce computational load. This can help us find an approximate average monthly bill:</p>
+<p><span class="math display">\[
+P^{default} = \frac{1}{12} \sum_{m=1}^{12} C_m^{total,default}
+\]</span></p>
+<p><span class="math display">\[
+P^{TOU} = \frac{1}{12} \sum_{m=1}^{12} C_m^{total,TOU}
+\]</span></p>
+<p>Where <span class="math inline">\(C_m^{total,default}\)</span> and <span class="math inline">\(C_m^{total,TOU}\)</span> are the monthly total costs (excluding any penalties) for each charging schedule type from the pre-simulation runs.</p>
+<p><strong>Noisy Prior Initialization:</strong></p>
+<p>To reflect consumer uncertainty about their specific situation relative to average performance, priors include random noise:</p>
+<p><span class="math display">\[
+V_1^{default} = P^{default} + \mathcal{N}(0, \tau_{prior}^2)
+\]</span></p>
+<p><span class="math display">\[
+V_1^{TOU} = P^{TOU} + \mathcal{N}(0, \tau_{prior}^2)
+\]</span></p>
+<p>Where <span class="math inline">\(\tau_{prior}\)</span> represents the standard deviation of consumer uncertainty about charging cost info. <strong>Implementation Note:</strong> This approach (smoothing by averaging + adding noise) ensures that households begin with previous charging cost expectations while maintaining uncertainty about future performance.</p>
+</section>
+</section>
+<section id="detailed-model-steps" class="level1">
+<h1>3. Detailed Model Steps</h1>
+<p>This section outlines the complete sequential decision-making process that EV owners follow each month through exploration, exploitation, and value learning based on direct experience.</p>
+<section id="step-1-initialize-monthly-state-variables" class="level2">
+<h2 class="anchored" data-anchor-id="step-1-initialize-monthly-state-variables">Step 1: Initialize Monthly State Variables</h2>
+<p>This step loads the exogenous input data and sets the initial state variables for month <span class="math inline">\(m\)</span>’s simulation. The trip schedules <span class="math inline">\(Trip_{m,d}\)</span> define departure times, arrival times, and daily miles for each day in the month. The electricity rate vector <span class="math inline">\(r_{m,t}\)</span> is constructed by mapping peak hours set <span class="math inline">\(H\)</span> to the on-peak rate <span class="math inline">\(r^{on}\)</span> and all other periods to off-peak rate <span class="math inline">\(r^{off}\)</span>. Home availability <span class="math inline">\(Home_{m,t}\)</span> is derived from trip schedules to determine when the vehicle is available for charging.</p>
+<p><strong>Set Time-Varying Parameters for Month <span class="math inline">\(m\)</span>:</strong></p>
+<ul>
+<li><p>Load BSF trip schedules: <span class="math inline">\(N_{trips}^{m,d}\)</span>, <span class="math inline">\(t_{dep}^{m,d,i}\)</span>, <span class="math inline">\(t_{arr}^{m,d,i}\)</span>, <span class="math inline">\(miles^{m,d,i}\)</span> for all trips <span class="math inline">\(i\)</span> on all days <span class="math inline">\(d\)</span> in month <span class="math inline">\(m\)</span></p></li>
+<li><p>Calculate derived trip variables:</p>
+<ul>
+<li><span class="math inline">\(t_{dep}^{first,m,d} = \min_i(t_{dep}^{m,d,i})\)</span> (first departure of day)</li>
+<li><span class="math inline">\(t_{arr}^{last,m,d} = \max_i(t_{arr}^{m,d,i})\)</span> (final arrival of day)</li>
+<li><span class="math inline">\(miles_{total}^{m,d} = \sum_{i=1}^{N_{trips}^{m,d}} miles^{m,d,i}\)</span> (total daily miles)</li>
+</ul></li>
+<li><p>Set electricity rates: <span class="math inline">\(r_{m,t} = r^{on}\)</span> if <span class="math inline">\(t \in H\)</span>, else <span class="math inline">\(r_{m,t} = r^{off}\)</span></p></li>
+<li><p>Calculate home availability from BSF trip data:</p></li>
+</ul>
+<p><span class="math display">\[
+Home_{m,t} = \begin{cases}
+0 &amp; \text{if } t_{dep}^{first,m,d} \leq t &lt; t_{arr}^{last,m,d} \text{ for day } d \text{ containing time } t \\
+1 &amp; \text{otherwise (vehicle is home and available for charging)}
+\end{cases}
+\]</span></p>
+<p><strong>Initialize Schedule State for Month <span class="math inline">\(m\)</span>:</strong></p>
+<ul>
+<li><p>If <span class="math inline">\(m = 1\)</span>: set <span class="math inline">\(S_m^{current} = 1\)</span> (start on default charging schedule)</p></li>
+<li><p>Else: <span class="math inline">\(S_m^{current} = S_{m-1}^{current,next}\)</span> (use previous month’s decision outcome)</p></li>
+</ul>
+<p><strong>Initialize Value Learning State for Month <span class="math inline">\(m\)</span>:</strong></p>
+<ul>
+<li><p>If <span class="math inline">\(m = 1\)</span>: Initialize with OCHRE-based priors (see Section 2.2)</p></li>
+<li><p>Else: <span class="math inline">\(V_m^{default} = V_{m-1}^{default}\)</span> and <span class="math inline">\(V_m^{TOU} = V_{m-1}^{TOU}\)</span> (carry forward learned values)</p></li>
+</ul>
+<p><strong>Set Charging Control Strategy for Month <span class="math inline">\(m\)</span>:</strong></p>
+<p>The charging control strategy is determined by the current schedule state <span class="math inline">\(S_m^{current}\)</span> and implemented through OCHRE’s “EV Max Power (kW)” control signal:</p>
+<p><strong>Default Charging (<span class="math inline">\(S_m^{current} = 1\)</span>):</strong></p>
+<p>For each time period <span class="math inline">\(t\)</span> in month <span class="math inline">\(m\)</span>: <span class="math display">\[
+Pow_{max}^{m,t} = \begin{cases}
+Pow^{max} &amp; \text{if } Home_{m,t} = 1 \text{ and } SOC_{m,t} &lt; 1.0 \\
+0 &amp; \text{otherwise}
+\end{cases}
+\]</span></p>
+<p><em>Charging Logic:</em> - Immediate charging at full power when vehicle arrives home - Continue charging until 100% SOC or next departure (whichever comes first) - No consideration of electricity rates or time-of-use periods</p>
+<p><strong>TOU-Adapted Charging (<span class="math inline">\(S_m^{current} = 0\)</span>):</strong></p>
+<p><em>Step 1: Calculate Daily SOC Requirements</em></p>
+<p>For each day <span class="math inline">\(d\)</span> in month <span class="math inline">\(m\)</span>, calculate minimum SOC needed before first departure: <span class="math display">\[
+SOC_{req}^{m,d} = \max\left(SOC^{min}, \frac{miles_{total}^{m,d}}{Eff^{EV} \cdot Cap^{battery}} + 0.2\right)
+\]</span></p>
+<p>Where: - <span class="math inline">\(miles_{total}^{m,d} = \sum_{i=1}^{N_{trips}^{m,d}} miles^{m,d,i}\)</span> (total daily miles from BSF data) - 0.2 represents 20% safety buffer above calculated range requirement - <span class="math inline">\(SOC^{min}\)</span> is household comfort threshold (e.g., never below 20% SOC) - <span class="math inline">\(Cap^{battery}\)</span> is the total energy storage capacity (e.g., 75 kWh for a typical long-range EV) - <span class="math inline">\(Eff^{EV}\)</span> converts miles to energy consumption (e.g., 3.5 miles/kWh efficiency)</p>
+<p><em>Step 2: Calculate Required Charging Energy</em></p>
+<p>For day <span class="math inline">\(d\)</span>, the energy needed to reach required SOC by first departure: <span class="math display">\[
+kWh_{req}^{m,d} = (SOC_{req}^{m,d} - SOC_{m,t_{arr}^{last,m,d-1}}) \times Cap^{battery}
+\]</span></p>
+<p>Where <span class="math inline">\(SOC_{m,t_{arr}^{last,m,d-1}}\)</span> is SOC when vehicle returned home the previous day.</p>
+<p><em>Step 3: Calculate Available Charging Windows</em></p>
+<p>For each day <span class="math inline">\(d\)</span>, identify available charging periods: <span class="math display">\[
+Window_{avail}^{m,d} = \{t : Home_{m,t} = 1 \text{ and } t_{arr}^{last,m,d-1} \leq hour(t) &lt; t_{dep}^{first,m,d}\}
+\]</span></p>
+<p>Separate into off-peak and peak periods: <span class="math display">\[
+Window_{off}^{m,d} = Window_{avail}^{m,d} \cap \{t : t \notin H\}
+\]</span> <span class="math display">\[
+Window_{peak}^{m,d} = Window_{avail}^{m,d} \cap \{t : t \in H\}
+\]</span></p>
+<p><em>Step 4: TOU Charging Power Control</em></p>
+<p><strong>Primary TOU Strategy</strong> (no emergency charging):</p>
+<p><span class="math display">\[
+Pow_{max}^{m,t} = \begin{cases}
+Pow^{max} &amp; \text{if } t \in Window_{off}^{m,d} \text{ and } SOC_{m,t} &lt; SOC_{req}^{m,d} \\
+0 &amp; \text{if } t \in Window_{peak}^{m,d} \text{ (no peak charging)} \\
+0 &amp; \text{if } Home_{m,t} = 0 \text{ (vehicle away)}
+\end{cases}
+\]</span></p>
+<p><strong>Alternative: Emergency Override Implementation</strong></p>
+<p><span class="math display">\[
+Pow_{max}^{m,t} = \begin{cases}
+Pow^{max} &amp; \text{if } t \in Window_{off}^{m,d} \text{ and } SOC_{m,t} &lt; SOC_{req}^{m,d} \\
+0 &amp; \text{if } t \in Window_{peak}^{m,d} \text{ and } SOC_{m,t} \geq SOC_{critical} \\
+Pow^{emerg} &amp; \text{if } t \in Window_{peak}^{m,d} \text{ and } SOC_{m,t} &lt; SOC_{critical} \\
+0 &amp; \text{if } Home_{m,t} = 0 \text{ (vehicle away)}
+\end{cases}
+\]</span></p>
+<p><strong>Control Logic:</strong> - <span class="math inline">\(SOC_{critical} = SOC_{req}^{m,d} - 0.05\)</span> (emergency charging threshold)</p>
+</section>
+<section id="step-2-run-ochre-simulation-for-month-m" class="level2">
+<h2 class="anchored" data-anchor-id="step-2-run-ochre-simulation-for-month-m">Step 2: Run OCHRE Simulation for Month <span class="math inline">\(m\)</span></h2>
+<p><strong>Execute Monthly Simulation:</strong></p>
+<ul>
+<li>Input: BSF trip schedules, “EV Max Power (kW)” control signals, home availability</li>
+<li>Output: <span class="math inline">\(E_{m,t}^{EV}\)</span> (energy consumption), <span class="math inline">\(SOC_{m,t}\)</span> (state of charge)</li>
+</ul>
+<p><strong>Calculate Unmet Charging Demand:</strong></p>
+<p><span class="math display">\[
+Q_{m,t}^{unmet} = \begin{cases}
+(SOC_{req}^{m,d} - SOC_{m,t}) \times Cap^{battery} &amp; \text{if } SOC_{m,t} &lt; SOC_{req}^{m,d} \text{ during day } d \\
+0 &amp; \text{otherwise}
+\end{cases}
+\]</span></p>
+<p>This calculates the actual energy shortfall at each time period when SOC falls below the required level for upcoming trips.</p>
+<p><strong>Calculate Monthly Costs:</strong></p>
+<p><span class="math display">\[
+C_m^{bill} = \sum_{t \in T} E_{m,t}^{EV} \cdot r_{m,t}
+\]</span></p>
+<p><span class="math display">\[
+C_m^{anxiety} = \beta \cdot \sum_{t \in T} Q_{m,t}^{unmet}
+\]</span></p>
+</section>
+<section id="step-4-value-learning-and-decision-logic-for-month-m" class="level2">
+<h2 class="anchored" data-anchor-id="step-4-value-learning-and-decision-logic-for-month-m">Step 4: Value Learning and Decision Logic for Month <span class="math inline">\(m\)</span></h2>
+<p>Consumers make decisions using an exploration-exploitation framework, where they either explore alternative charging schedules or exploit their learned knowledge about schedule performance. The decision process incorporates household-specific exploration and learning rates based on building and EV characteristics.</p>
+<p><strong>Calculate Total Cost for Month <span class="math inline">\(m\)</span>:</strong></p>
+<p><span class="math display">\[
+C_m^{total} = C_m^{bill} + C_m^{anxiety}
+\]</span></p>
+<p><strong>Update Learned Values:</strong></p>
+<p>Update the learned value for the schedule that was used in month <span class="math inline">\(m\)</span> using household-specific learning rate:</p>
+<p><span class="math display">\[
+V_m^{current} = (1 - \alpha_m^{learn}) \cdot V_{m-1}^{current} + \alpha_m^{learn} \cdot C_m^{total}
+\]</span></p>
+<p>Where <span class="math inline">\(V_m^{current} = V_m^{default}\)</span> if <span class="math inline">\(S_m^{current} = 1\)</span>, else <span class="math inline">\(V_m^{TOU}\)</span>.</p>
+<p><strong>Generate Exploration Decision:</strong></p>
+<p>Generate random number <span class="math inline">\(u \sim \mathcal{U}(0,1)\)</span> and compare to household-specific exploration rate:</p>
+<p><span class="math display">\[
+\text{Explore} = \begin{cases}
+1 &amp; \text{if } u &lt; \epsilon_m \\
+0 &amp; \text{otherwise}
+\end{cases}
+\]</span></p>
+<p><strong>Make Switching Decision:</strong></p>
+<p>The switching decision combines exploration and exploitation logic:</p>
+<p><span class="math display">\[
+x_m^{switch} = \begin{cases}
+1 &amp; \text{if Explore = 1} \\
+1 &amp; \text{if Explore = 0 and } V_m^{other} &lt; V_m^{current} \\
+0 &amp; \text{otherwise}
+\end{cases}
+\]</span></p>
+<p>Where <span class="math inline">\(V_m^{other}\)</span> is the learned value for the alternative schedule (if current schedule is default, then <span class="math inline">\(V_m^{other} = V_m^{TOU}\)</span>, and vice versa).</p>
+</section>
+<section id="step-5-update-state-for-next-month" class="level2">
+<h2 class="anchored" data-anchor-id="step-5-update-state-for-next-month">Step 5: Update State for Next Month</h2>
+<p>The schedule state <span class="math inline">\(S_{m+1}^{current}\)</span> for the next month is determined by the switching decision <span class="math inline">\(x_m^{switch}\)</span> made in month <span class="math inline">\(m\)</span>. If switching occurs (<span class="math inline">\(x_m^{switch} = 1\)</span>), the state toggles to its opposite value (<span class="math inline">\(1 - S_m^{current}\)</span>). If no switching occurs (<span class="math inline">\(x_m^{switch} = 0\)</span>), the state remains unchanged. Monthly results for month <span class="math inline">\(m\)</span> including <span class="math inline">\(C_m^{bill}\)</span>, <span class="math inline">\(C_m^{anxiety}\)</span>, <span class="math inline">\(x_m^{switch}\)</span>, <span class="math inline">\(S_m^{current}\)</span>, and learned values are recorded for annual analysis.</p>
+<p><strong>Update Schedule State for Month <span class="math inline">\(m+1\)</span>:</strong></p>
+<p><span class="math display">\[
+S_{m+1}^{current} = \begin{cases}
+1 - S_m^{current} &amp; \text{if } x_m^{switch} = 1 \\
+S_m^{current} &amp; \text{if } x_m^{switch} = 0
+\end{cases}
+\]</span></p>
+<p><strong>Store Monthly Results for Month <span class="math inline">\(m\)</span>:</strong></p>
+<ul>
+<li><p>Record: <span class="math inline">\(C_m^{bill}\)</span>, <span class="math inline">\(C_m^{anxiety}\)</span>, <span class="math inline">\(C_m^{total}\)</span>, <span class="math inline">\(x_m^{switch}\)</span>, <span class="math inline">\(S_m^{current}\)</span></p></li>
+<li><p>Record: <span class="math inline">\(V_m^{default}\)</span>, <span class="math inline">\(V_m^{TOU}\)</span>, <span class="math inline">\(\epsilon_m\)</span>, <span class="math inline">\(\alpha_m^{learn}\)</span></p></li>
+<li><p>Save for annual analysis and next month’s initialization</p></li>
+</ul>
+</section>
+<section id="step-6-monthly-iteration-control" class="level2">
+<h2 class="anchored" data-anchor-id="step-6-monthly-iteration-control">Step 6: Monthly Iteration Control</h2>
+<p>The simulation checks whether the annual cycle is complete. If the current month <span class="math inline">\(m &lt; 12\)</span>, the month counter increments and the process returns to Step 1 with month <span class="math inline">\(m+1\)</span> and the updated schedule state <span class="math inline">\(S_{m+1}^{current}\)</span> and learned values. If month 12 is complete, the simulation proceeds to annual evaluation metrics calculation.</p>
+<p><strong>Check Simulation Status:</strong></p>
+<ul>
+<li><p>If <span class="math inline">\(m &lt; 12\)</span>: increment to month <span class="math inline">\(m+1\)</span>, return to Step 1 with <span class="math inline">\(S_{m+1}^{current}\)</span>, <span class="math inline">\(V_{m+1}^{default}\)</span>, <span class="math inline">\(V_{m+1}^{TOU}\)</span></p></li>
+<li><p>If <span class="math inline">\(m = 12\)</span>: proceed to annual evaluation (Step 7)</p></li>
+</ul>
+</section>
+<section id="step-7-annual-evaluation-and-state-reset" class="level2">
+<h2 class="anchored" data-anchor-id="step-7-annual-evaluation-and-state-reset">Step 7: Annual Evaluation and State Reset</h2>
+<p>For multi-year simulations, the final month’s schedule state <span class="math inline">\(S_{13}^{current}\)</span> and learned values become the initial state for the following year’s first month, allowing persistence of consumer preferences and knowledge across years. Before resetting for the next annual cycle, comprehensive evaluation metrics are calculated and key visualizations are generated to assess model performance and EV owner behavior patterns.</p>
+<section id="step-7.1-calculate-annual-performance-metrics" class="level3">
+<h3 class="anchored" data-anchor-id="step-7.1-calculate-annual-performance-metrics">Step 7.1: Calculate Annual Performance Metrics</h3>
+<p><strong>Financial Performance:</strong></p>
+<p><span class="math display">\[
+\text{Total Annual Bill Costs} = \sum_{m=1}^{12} C_m^{bill}
+\]</span></p>
+<p><span class="math display">\[
+\text{Total Annual Range Anxiety Costs} = \sum_{m=1}^{12} C_m^{anxiety}
+\]</span></p>
+<p><span class="math display">\[
+\text{Total Annual Costs} = \sum_{m=1}^{12} C_m^{total}
+\]</span></p>
+<p><strong>Learning Metrics:</strong></p>
+<p><span class="math display">\[
+\text{Exploration Rate} = \frac{\sum_{m=1}^{12} x_m^{switch}}{12} \times 100\%
+\]</span></p>
+<p><span class="math display">\[
+\text{Final Value Difference} = |V_{12}^{TOU} - V_{12}^{default}|
+\]</span></p>
+<p><span class="math display">\[
+\text{TOU Adoption Rate} = \frac{\sum_{m=1}^{12} (1 - S_m^{current})}{12} \times 100\%
+\]</span></p>
+<p><strong>System Performance:</strong></p>
+<p><span class="math display">\[
+\text{Peak Load Reduction} = \frac{\sum_{m=1}^{12} \sum_{t \in H} (E_{m,t}^{baseline} - E_{m,t}^{EV})}{\sum_{m=1}^{12} \sum_{t \in H} E_{m,t}^{baseline}} \times 100\%
+\]</span></p>
+</section>
+<section id="step-7.2-generate-key-visualizations" class="level3">
+<h3 class="anchored" data-anchor-id="step-7.2-generate-key-visualizations">Step 7.2: Generate Key Visualizations</h3>
+<p><strong>A. Learning Trajectory</strong></p>
+<ul>
+<li><p>Line plot showing <span class="math inline">\(V_m^{default}\)</span> and <span class="math inline">\(V_m^{TOU}\)</span> over months with switching events marked</p></li>
+<li><p>Purpose: Visualize learning process and convergence</p></li>
+</ul>
+<p><strong>B. Exploration vs Exploitation</strong></p>
+<ul>
+<li><p>Stacked bar chart showing exploration vs exploitation decisions by month</p></li>
+<li><p>Purpose: Show balance between trying new strategies and using learned knowledge</p></li>
+</ul>
+<p><strong>C. Household Heterogeneity</strong></p>
+<ul>
+<li><p>Scatter plots of <span class="math inline">\(\epsilon_m\)</span> and <span class="math inline">\(\alpha_m^{learn}\)</span> vs.&nbsp;household characteristics</p></li>
+<li><p>Purpose: Demonstrate realistic variation in exploration and learning behavior</p></li>
+</ul>
+<p><strong>D. Performance Over Time</strong></p>
+<ul>
+<li><p>Line plot showing monthly total costs <span class="math inline">\(C_m^{total}\)</span> with trend analysis</p></li>
+<li><p>Purpose: Assess whether learning leads to improved performance</p></li>
+</ul>
+</section>
+<section id="step-7.3-reset-for-next-year" class="level3">
+<h3 class="anchored" data-anchor-id="step-7.3-reset-for-next-year">Step 7.3: Reset for Next Year</h3>
+<p><strong>Prepare for Next Year:</strong></p>
+<ul>
+<li><p>Set <span class="math inline">\(S_1^{current} = S_{13}^{current}\)</span> (carry forward final state)</p></li>
+<li><p>Set <span class="math inline">\(V_1^{default} = V_{13}^{default}\)</span> and <span class="math inline">\(V_1^{TOU} = V_{13}^{TOU}\)</span> (carry forward learned values)</p></li>
+<li><p>Clear monthly arrays: <span class="math inline">\(\{C_m^{bill}, C_m^{anxiety}, C_m^{total}, x_m^{switch}, S_m^{current}\}_{m=1}^{12}\)</span></p></li>
+<li><p>Update annual parameters (e.g., rate changes, battery degradation)</p></li>
+<li><p>Export annual metrics to results database</p></li>
+<li><p>Return to Step 1 for new annual cycle with <span class="math inline">\(m = 1\)</span></p></li>
+</ul>
+<p>This evaluation framework provides both quantitative metrics for model validation and intuitive visualizations for understanding EV owner learning patterns and the evolution of charging preferences over time.</p>
+</section>
+</section>
+<section id="state-space-diagram" class="level2">
+<h2 class="anchored" data-anchor-id="state-space-diagram">State space diagram</h2>
+<div class="cell" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">stateDiagram-v2
+  [*] --&gt; S_default: "First month"
+  S_default --&gt; S_TOU: Exploration OR V_TOU &lt; V_default
+  S_default --&gt; S_default: No exploration AND V_default ≤ V_TOU
+  S_TOU --&gt; S_default: Exploration OR V_default &lt; V_TOU
+  S_TOU --&gt; S_TOU: No exploration AND V_TOU ≤ V_default
+  S_default: Default Charging (S(current)=1)
+  S_TOU: TOU-adapted Charging (S(current)=0)
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="behavioral-framework" class="level1">
+<h1>4. Behavioral Framework</h1>
+<p>EV owners balance exploration (trying new charging strategies) with exploitation (using learned knowledge). Both exploration propensity and learning speed vary systematically with household characteristics from ResStock data, creating realistic heterogeneity in decision-making behavior.</p>
+</section>
+<section id="consumer-information-and-decision-making-reality" class="level1">
+<h1>5. Consumer Information and Decision-Making Reality</h1>
+<section id="how-ev-owners-actually-learn-about-charging-schedule-performance" class="level2">
+<h2 class="anchored" data-anchor-id="how-ev-owners-actually-learn-about-charging-schedule-performance">How EV Owners Actually Learn About Charging Schedule Performance</h2>
+<p>In practice, EV owners learn about charging schedule performance through trial-and-error rather than sophisticated analysis. They experiment with different charging approaches and gradually build intuition about which strategies work better for their household’s mobility patterns.</p>
+<section id="the-typical-ev-owner-learning-journey" class="level3">
+<h3 class="anchored" data-anchor-id="the-typical-ev-owner-learning-journey">The Typical EV Owner Learning Journey</h3>
+<p><strong>Month 1-3: Initial Experimentation</strong></p>
+<p>David starts with immediate charging whenever he plugs in at home but decides to try TOU-friendly charging after reading utility materials. He programs his EV to delay charging during peak hours while ensuring adequate range for his daily commute. His first month shows a $30 savings, but he notices some anxiety when SOC was lower than usual before a weekend trip.</p>
+<p><strong>Month 4-8: Learning Through Experience</strong></p>
+<p>David continues with TOU charging, tracking his bills and range experiences. Some months show good savings ($35-50), others less clear ($15-25). He starts to notice patterns - months with longer trips require more careful planning, winter months reduce range efficiency. His learned value for TOU charging gradually incorporates both financial and range anxiety experiences.</p>
+<p><strong>Month 9-12: Informed Decision Making</strong></p>
+<p>By now David has a good sense of TOU charging performance for his household. He’s learned that TOU charging typically saves $25-40/month but occasionally causes range anxiety when plans change unexpectedly. When bills are particularly high one month, he briefly considers switching back to default charging but decides his learned experience suggests TOU is still better overall.</p>
+</section>
+<section id="what-drives-exploration-vs-exploitation" class="level3">
+<h3 class="anchored" data-anchor-id="what-drives-exploration-vs-exploitation">What Drives Exploration vs Exploitation</h3>
+<p><strong>Household Characteristics Affecting Exploration:</strong></p>
+<ul>
+<li><strong>Income level</strong>: Higher-income households are more willing to experiment since potential range limitations are less consequential (can use ride-sharing, rental cars)</li>
+<li><strong>EV experience</strong>: Households with newer, longer-range EVs find it easier to try different charging approaches</li>
+<li><strong>Trip predictability</strong>: Households with routine schedules can experiment more easily than those with variable travel patterns</li>
+</ul>
+<p><strong>Learning Speed Variation:</strong></p>
+<ul>
+<li><strong>Education/resources</strong>: Higher-income households process charging cost information faster and make connections between timing and bills</li>
+<li><strong>Technology familiarity</strong>: Tech-savvy households better understand EV charging systems and energy management</li>
+</ul>
+</section>
+<section id="implications-for-model-design" class="level3">
+<h3 class="anchored" data-anchor-id="implications-for-model-design">Implications for Model Design</h3>
+<p>This realistic learning process suggests the model should incorporate both household characteristics and experience replay to capture key behavioral drivers:</p>
+<p><span class="math display">\[
+\epsilon_m = \text{clamp}_{[0,1]}(\epsilon_{base} + \lambda_1 f_{AMI} + \lambda_2 f_{age} + \lambda_3 f_{residents} + \lambda_4 f_{EV} + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]))
+\]</span></p>
+<p>Where households with higher income, newer buildings, fewer residents, and longer-range EVs have higher baseline exploration rates (through positive λ coefficients), plus additional exploration when recent costs exceed expectations, with clamp constraints ensuring valid probabilities.</p>
+<p><span class="math display">\[
+\alpha_m^{learn} = \text{clamp}_{[0,1]}(\alpha_{base}^{learn} + \gamma_1 f_{AMI} + \gamma_2 f_{age})
+\]</span></p>
+<p>Where households with higher income and newer buildings learn faster from their experiences, with clamp constraints ensuring valid learning rates.</p>
+<p>The value learning framework captures realistic EV owner decision-making through direct experience while maintaining mathematical tractability for simulation modeling.</p>
+</section>
+</section>
+</section>
+<section id="references" class="level1">
+<h1>6. References</h1>
+<p>This section lists references and resources for further information and context regarding the model and its implementation.</p>
+<ul>
+<li><p><a href="https://github.com/NREL/OCHRE/blob/main/docs/source/InputsAndArguments.rst">OCHRE Inputs and Arguments</a></p></li>
+<li><p><a href="https://github.com/NREL/OCHRE/blob/main/docs/source/Outputs.rst">OCHRE Outputs</a></p></li>
+<li><p><a href="https://github.com/NREL/OCHRE/blob/main/ochre/Equipment/ElectricVehicle.py">OCHRE Electric Vehicle Model</a></p></li>
+<li><p><a href="https://github.com/NREL/OCHRE/blob/main/ochre/Equipment/ElectricVehicle.py">EV Control Logic</a></p></li>
+<li><p><a href="https://github.com/switchbox-data/buildstock-fetch/tree/74-run-create-ev-data-for-ny-and-upload-to-s3">BuildStock-Fetch EV Data</a></p></li>
+</ul>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button,
+          { trigger: "manual",
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+        const codeEl = trigger.previousElementSibling.cloneNode(true);
+        for (const childEl of codeEl.children) {
+          if (isCodeAnnotation(childEl)) {
+            childEl.remove();
+          }
+        }
+        return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config);
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined;
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              }
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            }
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
