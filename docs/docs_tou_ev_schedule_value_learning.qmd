@@ -56,9 +56,10 @@ This section defines all variables, parameters, and their temporal dimensions us
 | $r^{on}$   | Parameter | TOU electricity rate during peak hours              | $/kWh    | 1 × 1     |
 | $r^{off}$  | Parameter | TOU electricity rate during off-peak hours          | $/kWh    | 1 × 1     |
 | $\beta$   | Parameter | Monetization factor for range anxiety penalty (household-specific) | $/kWh    | 1 × 1     |
-| $Cap^{battery}$ | Parameter | EV battery capacity | kWh | 1 × 1 |
+| $Cap^{battery}$ | Parameter | EV battery energy capacity (total kWh storage) | kWh | 1 × 1 |
 | $Eff^{EV}$ | Parameter | EV efficiency (miles per kWh) | miles/kWh | 1 × 1 |
-| $P^{max}$ | Parameter | Maximum charging power available at home | kW | 1 × 1 |
+| $P^{hardware}$ | Parameter | Physical maximum charging power capacity of home charging equipment | kW | 1 × 1 |
+| $P^{max}$ | Parameter | Controllable upper limit for charging power (≤ $P^{hardware}$) | kW | 1 × 1 |
 | $SOC^{min}$ | Parameter | Minimum comfortable SOC threshold | - | 1 × 1 |
 | $SOC_{critical}^{m,d}$ | Parameter | Critical SOC threshold triggering emergency charging ($SOC_{req}^{m,d} - 0.05$) | - | M × D |
 | $P^{emergency}$ | Parameter | Emergency charging power during peak hours | kW | 1 × 1 |
@@ -310,6 +311,8 @@ Where:
 - $miles_{total}^{m,d} = \sum_{i=1}^{N_{trips}^{m,d}} miles^{m,d,i}$ (total daily miles from BSF data)
 - 0.2 represents 20% safety buffer above calculated range requirement
 - $SOC^{min}$ is household comfort threshold (e.g., never below 20% SOC)
+- $Cap^{battery}$ is the total energy storage capacity (e.g., 75 kWh for a typical long-range EV)
+- $Eff^{EV}$ converts miles to energy consumption (e.g., 3.5 miles/kWh efficiency)
 
 *Step 2: Calculate Required Charging Energy*
 
@@ -363,6 +366,25 @@ P_{required}^{m,d} = \frac{kWh_{req}^{m,d}}{|Window_{off}^{m,d}| \times 0.25}
 $$
 
 Where $|Window_{off}^{m,d}| \times 0.25$ converts count of 15-minute intervals to hours.
+
+**Key Distinctions:**
+
+**Power Capacity vs. Energy Capacity:**
+- **$P^{hardware}$** is physical charging **power capacity** (kW) - maximum possible charging power
+  - Example: Level 2 home charger hardware = 7.2 kW maximum capability
+- **$Cap^{battery}$** is energy **capacity** (kWh) - how much energy the battery stores
+  - Example: Tesla Model 3 = 75 kWh battery energy capacity
+
+**Controllable vs. Physical Limits:**
+- **$P^{hardware}$** is the fixed physical limit (cannot exceed this)
+- **$P^{max}$** is our controllable upper limit ($0 \leq P^{max} \leq P^{hardware}$)
+- In OCHRE: "EV Max Power (kW)" control signal sets $P^{max}$ dynamically
+
+**Example:** If $P^{hardware} = 7.2$ kW:
+- Default charging: Set $P^{max} = 7.2$ kW (use full hardware capacity)
+- TOU off-peak: Set $P^{max} = 7.2$ kW (fast charging when cheap)
+- TOU peak: Set $P^{max} = 0$ kW (no charging when expensive)
+- Emergency: Set $P^{max} = 3.6$ kW (limited charging if critically needed)
 
 *Step 6: SOC Update Logic*
 
