@@ -1,0 +1,563 @@
+---
+title: "Value-Learning TOU Charging Decision Model for Electric Vehicles in OCHRE"
+author: "Switchbox"
+date: "2025-08-21"
+format: gfm
+---
+# Introduction
+
+This document outlines a value-learning decision model for electric vehicle (EV) owner response to time-of-use (TOU) electricity rates in residential building simulations using OCHRE. The goal is to model how EV owners learn about charging schedule performance through direct experience, using exploration and exploitation strategies to optimize their electricity costs while accounting for range anxiety and charging convenience trade-offs.
+
+# 1. Problem Definition
+This section establishes a high-level overview of the core research question and modeling assumptions for learning of TOU-adapted EV charging schedule performance.
+
+**Objective:**
+
+Model how EV owners adopt TOU-friendly charging scheduling through direct experience, using exploration and exploitation strategies to balance trying new approaches with using learned knowledge to minimize electricity costs and range anxiety penalties.
+
+**Assumptions:**
+
+  - EV trip schedules are exogenous and determined by household mobility patterns from buildstock-fetch data.
+
+  - EV can be controlled through charging power limits and timing when parked at home.
+
+  - Consumer already owns an EV and is on TOU rates, must choose between default and TOU-friendly charging schedules.
+
+  - Consumers learn charging schedule performance through direct experience rather than external information sources.
+
+  - Decision-making occurs at monthly bill receipt based on learned values for each charging schedule option.
+
+  - Exploration propensity varies by household characteristics (income, building age, household size, EV type).
+
+  - Learning speed varies by household characteristics affecting information processing ability.
+
+  - Consumers track total costs (bills + range anxiety impacts) for each schedule and use this learned knowledge to make decisions.
+
+# 2. Key Variables and Parameters
+This section defines all variables, parameters, and their temporal dimensions used throughout the value-learning decision model.
+
+| Symbol         | Type | Description                                           | Units    | Dimension |
+|----------------|------|-------------------------------------------------------|----------|-----------|
+| **Sets** |
+| $M$        | Set  | Months in simulation year, $m \in \{1, 2, ..., 12\}$ | -        | 12 × 1    |
+| $T$        | Set  | Time periods in billing month, $t \in \{1, 2, ..., T\}$ where $T \approx 2976$ (15-min intervals) | -        | \|T\| × 1  |
+| $H$        | Set  | Peak hour periods, $H \subset T$                 | -        | \|H\| × 1 |
+| $D$        | Set  | Days in month $m$, $d \in \{1, 2, ..., D_m\}$    | -        | D_m × 1   |
+| **Parameters** |
+| **BuildStock-Fetch EV Trip Data** |
+| $N_{trips}^{m,d}$ | Parameter | Number of trips on day $d$ in month $m$ (from BSF trip schedule) | - | M × D |
+| $t_{dep}^{m,d,i}$ | Parameter | Departure time for trip $i$ on day $d$ in month $m$ (integer hours from BSF) | hour | M × D × I |
+| $t_{arr}^{m,d,i}$ | Parameter | Arrival time for trip $i$ on day $d$ in month $m$ (integer hours from BSF) | hour | M × D × I |
+| $miles^{m,d,i}$ | Parameter | Miles driven for trip $i$ on day $d$ in month $m$ (from BSF trip schedule) | miles | M × D × I |
+| $t_{dep}^{first,m,d}$ | Parameter | First departure time on day $d$ in month $m$ (min of all $t_{dep}^{m,d,i}$) | hour | M × D |
+| $t_{arr}^{last,m,d}$ | Parameter | Final arrival time on day $d$ in month $m$ (max of all $t_{arr}^{m,d,i}$) | hour | M × D |
+| $miles_{total}^{m,d}$ | Parameter | Total daily miles on day $d$ in month $m$ ($\sum_i miles^{m,d,i}$) | miles | M × D |
+| **EV System Parameters** |
+| $r^{on}$   | Parameter | TOU electricity rate during peak hours              | $/kWh    | 1 × 1     |
+| $r^{off}$  | Parameter | TOU electricity rate during off-peak hours          | $/kWh    | 1 × 1     |
+| $\beta$   | Parameter | Monetization factor for range anxiety penalty (household-specific) | $/kWh    | 1 × 1     |
+| $Cap^{battery}$ | Parameter | EV battery capacity | kWh | 1 × 1 |
+| $Eff^{EV}$ | Parameter | EV efficiency (miles per kWh) | miles/kWh | 1 × 1 |
+| $P^{max}$ | Parameter | Maximum charging power available at home | kW | 1 × 1 |
+| $SOC^{min}$ | Parameter | Minimum comfortable SOC threshold | - | 1 × 1 |
+| **Learning Parameters** |
+| $\epsilon_{base}$ | Parameter | Base exploration rate                              | -        | 1 × 1     |
+| $\alpha_{base}^{learn}$ | Parameter | Base learning rate                               | -        | 1 × 1     |
+| $\lambda_1, \lambda_2, \lambda_3, \lambda_4, \lambda_5$ | Parameter | Exploration coefficients (income, age, residents, EV type, experience replay) | - | 5 × 1 |
+| $\gamma_1, \gamma_2$ | Parameter | Learning rate coefficients (income, age) | - | 2 × 1 |
+| $\delta_1, \delta_2, \delta_3$ | Parameter | Range anxiety coefficients (income, residents, EV type) | $/kWh | 3 × 1 |
+
+**Coefficient Calibration Notes:**
+- λ, γ, and δ coefficients control the strength and direction of household characteristic effects
+- Positive coefficients increase exploration/learning/anxiety rates; negative values decrease them
+- Suggested starting values: λ₁ = ε_base/10 (income), λ₂ = ε_base/10 (age), λ₃ = -ε_base/10 (household size), λ₄ = ε_base/10 (EV technology), λ₅ = ε_base/10 (experience replay); γ₁ = α_base/10 (income), γ₂ = α_base/10 (age); δ₁ = β_base/10 (income), δ₂ = β_base/10 (residents), δ₃ = β_base/10 (EV type)
+- Calibrate using target TOU adoption rates by demographic groups from EV survey data
+- Additive structure ensures coefficients are independent and directly interpretable
+| $\tau_{prior}$ | Parameter | Prior uncertainty standard deviation | $ | 1 × 1 |
+| $\beta_{base}$ | Parameter | Base range anxiety monetization factor | $/kWh | 1 × 1 |
+| **Decision Variables** |
+| $x_m^{switch}$ | Binary | Decision to switch charging schedule in month $m$ (1 = switch, 0 = stay) | binary | M × 1 |
+| **State Variables** |
+| $S_m^{current}$ | Binary | Current charging schedule state in month $m$ (1 = default, 0 = TOU-adapted) | binary | M × 1 |
+| $r_{m,t}$  | Variable | Electricity rate at time $t$ in month $m$ (determined by peak/off-peak) | $/kWh | M × T |
+| $P_{m,t}^{charge}$ | Variable | EV charging power at time $t$ in month $m$ | kW | M × T |
+| $SOC_{m,t}$ | Variable | EV state of charge at time $t$ in month $m$ | - | M × T |
+| $Home_{m,t}$ | Binary | Vehicle home availability at time $t$ in month $m$ (1 = home, 0 = away) | binary | M × T |
+| $Q_{m,t}^{unmet}$ | Variable | Unmet charging load at time $t$ in month $m$ (from OCHRE output) | kWh | M × T |
+| **Derived Variables** |
+| $C_m^{bill}$ | Variable | Monthly electricity bill for EV charging in month $m$ | $ | M × 1 |
+| $C_m^{anxiety}$ | Variable | Monthly range anxiety penalty from unmet charging in month $m$ | $ | M × 1 |
+| **Value Learning State Variables** |
+| $V_m^{default}$ | Variable | Learned value (total cost) for default charging schedule | $ | M × 1 |
+| $V_m^{TOU}$ | Variable | Learned value (total cost) for TOU charging schedule | $ | M × 1 |
+| $\epsilon_m$ | Variable | Household-specific exploration rate in month $m$ | - | M × 1 |
+| $\alpha_m^{learn}$ | Variable | Household-specific learning rate in month $m$ | - | M × 1 |
+
+## 2.1 Building-Specific Parameter Formulations
+
+The exploration and learning rates are derived from building and household characteristics available in ResStock/OCHRE simulations to reflect realistic heterogeneity in EV owner behavior.
+
+### Household Characteristic Functions
+
+**Income Factor:**
+$$f_{AMI} = \left(\frac{AMI}{80\%}\right)^{0.6} - 1$$
+Higher income → more experimentation (lower financial risk) and faster learning (education/resources). Centered at zero for 80% AMI. Power function <1 captures diminishing returns.
+
+**Building Age Factor:**
+$$f_{age} = \frac{YearBuilt - 2000}{15}$$
+Normalized building age difference from reference year 2000. Positive for newer buildings (higher tech adoption), negative for older buildings. Centered at zero for buildings built in 2000.
+
+**Household Size Factor:**
+$$f_{residents} = \ln(N_{residents})$$
+More residents → more complex trip coordination, more range anxiety concerns. Centered at zero for single person household. Logarithmic captures diminishing marginal effect.
+
+**EV Technology Factor:**
+$$f_{EV} = \begin{cases}
+-0.2 & \text{long-range EV with smart charging (>300 miles)} \\
+0.0 & \text{standard EV (200-300 miles, baseline)} \\
+0.3 & \text{short-range EV (<200 miles)}
+\end{cases}$$
+
+**Climate Zone Factor:**
+$$f_{climate} = \begin{cases}
+0.1 & \text{zones 1-3 (hot)} \\
+0.0 & \text{zones 4-5 (moderate)} \\
+0.1 & \text{zones 6-8 (cold)}
+\end{cases}$$
+Extreme climates → higher range anxiety due to temperature effects on battery performance and HVAC use. Centered at zero for moderate climates (zones 4-5).
+
+### Exploration Rate Parameters
+
+**Household-Specific Exploration Rate ($\epsilon_m$):**
+
+The propensity to explore new charging strategies varies with household characteristics that affect willingness to experiment and tolerance for range uncertainty, plus experience replay effects when costs exceed expectations.
+
+$$
+\epsilon_m = \text{clamp}_{[0,1]}(\epsilon_{base} + \lambda_1 f_{AMI} + \lambda_2 f_{age} + \lambda_3 f_{residents} + \lambda_4 f_{EV} + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]))
+$$
+
+Where $\text{clamp}_{[0,1]}(z) = \max(0, \min(1, z))$ constrains the result to $\epsilon_m \in [0,1]$.
+
+Where:
+- $\lambda_5 \max(0, C_{recent}^{total} - E[C^{total}])$ captures experience replay effects
+- $C_{recent}^{total}$ = average total cost over last 2-3 months for current schedule
+- $E[C^{total}]$ = expected total cost based on learned value for current schedule
+- $\lambda_5$ = experience replay sensitivity coefficient (controls how much cost surprises increase exploration)
+
+This mechanism captures the psychology where EV owners explore more when their recent experience is worse than expected, addressing the concern that higher bills or range anxiety should drive more exploration behavior.
+
+Where:
+
+- $\epsilon_{base}$ = base exploration rate for average household (to be calibrated)
+- $f_{AMI} = \sqrt{\frac{AMI}{80\%}}$ (income factor for exploration: higher income increases willingness to experiment due to reduced financial stress)
+- Other factors defined in Household Characteristic Functions section above
+
+### Learning Rate Parameters
+
+**Household-Specific Learning Rate ($\alpha_m^{learn}$):**
+
+The speed at which households update their beliefs about charging schedule performance varies with characteristics that affect information processing and attention to energy costs.
+
+$$
+\alpha_m^{learn} = \text{clamp}_{[0,1]}(\alpha_{base}^{learn} + \gamma_1 f_{AMI} + \gamma_2 f_{age})
+$$
+
+Where $\text{clamp}_{[0,1]}(z) = \max(0, \min(1, z))$ constrains the result to $\alpha_m^{learn} \in [0,1]$.
+
+Where:
+
+- $\alpha_{base}^{learn}$ = base learning rate for average household (to be calibrated)
+- $f_{AMI}$ and $f_{age}$ defined in Household Characteristic Functions section above
+
+### Range Anxiety Monetization Factor
+
+**Range Anxiety Penalty Monetization ($\beta$):**
+
+The monetization factor represents how much households value avoiding unmet charging demand and varies with income, household size, and EV characteristics using an additive structure.
+
+$$
+\beta = \beta_{base} + \delta_1 f_{AMI} + \delta_2 f_{residents} + \delta_3 f_{EV}
+$$
+
+Where:
+
+- $\beta_{base}$ = base range anxiety value for average household (to be calibrated)
+- $\delta_1, \delta_2, \delta_3$ = range anxiety sensitivity coefficients for income, household size, and EV type effects
+- $f_{AMI}$, $f_{residents}$, and $f_{EV}$ defined in Household Characteristic Functions section above
+
+**Example:** For a mid-income family (80% AMI, 3 residents, 1980 building, standard EV, zone 4):
+- Factor values: $f_{AMI} = 0.0$, $f_{age} = \frac{1980-2000}{15} = -1.33$, $f_{residents} = \ln(3) = 1.10$, $f_{EV} = 0.0$, $f_{climate} = 0.0$
+- Pre-clamp exploration: $\epsilon_{base} + \lambda_1 \times 0.0 + \lambda_2 \times (-1.33) + \lambda_3 \times 1.10 + \lambda_4 \times 0.0 + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]) = \epsilon_{base} - 1.33\lambda_2 + 1.10\lambda_3 + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}])$
+- $\epsilon_m = \text{clamp}_{[0,1]}(\epsilon_{base} - 1.33\lambda_2 + 1.10\lambda_3 + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]))$ (constrained to [0,1])
+- Pre-clamp learning: $\alpha_{base}^{learn} + \gamma_1 \times 0.0 + \gamma_2 \times (-1.33) = \alpha_{base}^{learn} - 1.33\gamma_2$
+- $\alpha_m^{learn} = \text{clamp}_{[0,1]}(\alpha_{base}^{learn} - 1.33\gamma_2)$ (constrained to [0,1])
+- $\beta = \beta_{base} + \delta_1 \times 0.0 + \delta_2 \times 1.10 + \delta_3 \times 0.0 = \beta_{base} + 1.10\delta_2$
+
+## 2.2 Prior Value Initialization
+
+**Setting Prior Expectations:**
+
+Rather than starting with zero knowledge ($V_1^{default} = V_1^{TOU} = 0$), EV owners have prior expectations about charging schedule performance based on general knowledge, utility communications, and EV characteristics. These priors are derived from existing OCHRE simulations to ensure physical realism.
+
+**Prior Calculation Method:**
+
+Before the agent learning begins, we actually run OCHRE to produce complete annual building simulations for both charging schedule types to reduce computational load. This can help us find an approximate average monthly bill:
+
+$$
+P^{default} = \frac{1}{12} \sum_{m=1}^{12} C_m^{total,default}
+$$
+
+$$
+P^{TOU} = \frac{1}{12} \sum_{m=1}^{12} C_m^{total,TOU}
+$$
+
+Where $C_m^{total,default}$ and $C_m^{total,TOU}$ are the monthly total costs (excluding any penalties) for each charging schedule type from the pre-simulation runs.
+
+**Noisy Prior Initialization:**
+
+To reflect consumer uncertainty about their specific situation relative to average performance, priors include random noise:
+
+$$
+V_1^{default} = P^{default} + \mathcal{N}(0, \tau_{prior}^2)
+$$
+
+$$
+V_1^{TOU} = P^{TOU} + \mathcal{N}(0, \tau_{prior}^2)
+$$
+
+Where $\tau_{prior}$ represents the standard deviation of consumer uncertainty about charging cost info.
+**Implementation Note:** This approach (smoothing by averaging + adding noise) ensures that households begin with previous charging cost expectations while maintaining uncertainty about future performance.
+
+# 3. Detailed Model Steps
+
+This section outlines the complete sequential decision-making process that EV owners follow each month through exploration, exploitation, and value learning based on direct experience.
+
+## Step 1: Initialize Monthly State Variables
+
+This step loads the exogenous input data and sets the initial state variables for month $m$'s simulation. The trip schedules $Trip_{m,d}$ define departure times, arrival times, and daily miles for each day in the month. The electricity rate vector $r_{m,t}$ is constructed by mapping peak hours set $H$ to the on-peak rate $r^{on}$ and all other periods to off-peak rate $r^{off}$. Home availability $Home_{m,t}$ is derived from trip schedules to determine when the vehicle is available for charging.
+
+**Set Time-Varying Parameters for Month $m$:**
+
+- Load trip schedules: $Trip_{m,d}$, $t_{dep}^{m,d}$, $t_{arr}^{m,d}$, $miles_{m,d}$ for all days $d$ in month $m$
+
+- Set electricity rates: $r_{m,t} = r^{on}$ if $t \in H$, else $r_{m,t} = r^{off}$
+
+- Calculate home availability from BSF trip data:
+
+$$
+Home_{m,t} = \begin{cases}
+0 & \text{if } t_{dep}^{first,m,d} \leq hour(t) < t_{arr}^{last,m,d} \text{ for day } d \text{ containing time } t \\
+1 & \text{otherwise (vehicle is home and available for charging)}
+\end{cases}
+$$
+
+Where $hour(t)$ converts 15-minute time interval $t$ to integer hour.
+
+**Initialize Schedule State for Month $m$:**
+
+- If $m = 1$: set $S_m^{current} = 1$ (start on default charging schedule)
+
+- Else: $S_m^{current} = S_{m-1}^{current,next}$ (use previous month's decision outcome)
+
+**Initialize Value Learning State for Month $m$:**
+
+- If $m = 1$: Initialize with OCHRE-based priors (see Section 2.2)
+
+- Else: $V_m^{default} = V_{m-1}^{default}$ and $V_m^{TOU} = V_{m-1}^{TOU}$ (carry forward learned values)
+
+**Set Charging Control Strategy for Month $m$:**
+
+The charging control strategy is determined by the current schedule state $S_m^{current}$:
+
+**Default Charging ($S_m^{current} = 1$):**
+- EV Max Power: $P^{max}$ (full power charging when home)
+- Charging logic: Immediate charging upon arrival until 100% SOC or departure
+- No time-based restrictions
+
+**TOU-Adapted Charging ($S_m^{current} = 0$):**
+
+*During Off-Peak Hours ($t \notin H$) and $Home_{m,t} = 1$:*
+- EV Max Power: $P^{max}$ (unrestricted charging)
+- Priority charging for next-day trip requirements
+
+*During Peak Hours ($t \in H$) and $Home_{m,t} = 1$:*
+- EV Max Power: $0$ (no charging during peak hours)
+- Rely on pre-charged SOC from off-peak periods
+
+*Calculate Required SOC:*
+For each day $d$, calculate minimum SOC needed before departure:
+$$
+SOC_{req}^{m,d} = \max(SOC^{min}, \frac{miles_{m,d}}{Eff^{EV} \cdot Cap^{battery}} + 0.2)
+$$
+
+## Step 2: Run OCHRE Simulation for Month $m$
+
+**Execute Monthly Simulation for Month $m$:**
+
+- Input: Trip schedules, charging control strategy, home availability
+- Output: $P_{m,t}^{charge}$, $SOC_{m,t}$, $Q_{m,t}^{unmet}$
+
+**Calculate Monthly Electricity Bill for Month $m$:**
+
+$$
+C_m^{bill} = \sum_{t \in T} P_{m,t}^{charge} \cdot r_{m,t} \cdot \frac{1}{4}
+$$
+
+Where the factor $\frac{1}{4}$ converts 15-minute intervals to hours.
+
+## Step 3: Assess Range Anxiety Performance for Month $m$
+
+**Extract Unmet Charging Demand from OCHRE for Month $m$:**
+
+$$
+Q_{m,t}^{\text{unmet}} = \text{OCHRE output: "EV Unmet Load (kWh)" at time } t \text{ in month } m
+$$
+
+Unmet charging load occurs when the EV cannot achieve required SOC due to insufficient charging time or power limitations under TOU restrictions.
+
+**Calculate Monthly Range Anxiety Penalty for Month $m$:**
+
+$$
+C_m^{anxiety} = \beta \cdot \sum_{t \in T} Q_{m,t}^{unmet}
+$$
+
+## Step 4: Value Learning and Decision Logic for Month $m$
+
+Consumers make decisions using an exploration-exploitation framework, where they either explore alternative charging schedules or exploit their learned knowledge about schedule performance. The decision process incorporates household-specific exploration and learning rates based on building and EV characteristics.
+
+**Calculate Total Cost for Month $m$:**
+
+$$
+C_m^{total} = C_m^{bill} + C_m^{anxiety}
+$$
+
+**Update Learned Values:**
+
+Update the learned value for the schedule that was used in month $m$ using household-specific learning rate:
+
+$$
+V_m^{current} = (1 - \alpha_m^{learn}) \cdot V_{m-1}^{current} + \alpha_m^{learn} \cdot C_m^{total}
+$$
+
+Where $V_m^{current} = V_m^{default}$ if $S_m^{current} = 1$, else $V_m^{TOU}$.
+
+**Generate Exploration Decision:**
+
+Generate random number $u \sim \mathcal{U}(0,1)$ and compare to household-specific exploration rate:
+
+$$
+\text{Explore} = \begin{cases}
+1 & \text{if } u < \epsilon_m \\
+0 & \text{otherwise}
+\end{cases}
+$$
+
+**Make Switching Decision:**
+
+The switching decision combines exploration and exploitation logic:
+
+$$
+x_m^{switch} = \begin{cases}
+1 & \text{if Explore = 1} \\
+1 & \text{if Explore = 0 and } V_m^{other} < V_m^{current} \\
+0 & \text{otherwise}
+\end{cases}
+$$
+
+Where $V_m^{other}$ is the learned value for the alternative schedule (if current schedule is default, then $V_m^{other} = V_m^{TOU}$, and vice versa).
+
+## Step 5: Update State for Next Month
+
+The schedule state $S_{m+1}^{current}$ for the next month is determined by the switching decision $x_m^{switch}$ made in month $m$. If switching occurs ($x_m^{switch} = 1$), the state toggles to its opposite value ($1 - S_m^{current}$). If no switching occurs ($x_m^{switch} = 0$), the state remains unchanged. Monthly results for month $m$ including $C_m^{bill}$, $C_m^{anxiety}$, $x_m^{switch}$, $S_m^{current}$, and learned values are recorded for annual analysis.
+
+**Update Schedule State for Month $m+1$:**
+
+$$
+S_{m+1}^{current} = \begin{cases}
+1 - S_m^{current} & \text{if } x_m^{switch} = 1 \\
+S_m^{current} & \text{if } x_m^{switch} = 0
+\end{cases}
+$$
+
+**Store Monthly Results for Month $m$:**
+
+- Record: $C_m^{bill}$, $C_m^{anxiety}$, $C_m^{total}$, $x_m^{switch}$, $S_m^{current}$
+
+- Record: $V_m^{default}$, $V_m^{TOU}$, $\epsilon_m$, $\alpha_m^{learn}$
+
+- Save for annual analysis and next month's initialization
+
+## Step 6: Monthly Iteration Control
+
+The simulation checks whether the annual cycle is complete. If the current month $m < 12$, the month counter increments and the process returns to Step 1 with month $m+1$ and the updated schedule state $S_{m+1}^{current}$ and learned values. If month 12 is complete, the simulation proceeds to annual evaluation metrics calculation.
+
+**Check Simulation Status:**
+
+- If $m < 12$: increment to month $m+1$, return to Step 1 with $S_{m+1}^{current}$, $V_{m+1}^{default}$, $V_{m+1}^{TOU}$
+
+- If $m = 12$: proceed to annual evaluation (Step 7)
+
+## Step 7: Annual Evaluation and State Reset
+
+For multi-year simulations, the final month's schedule state $S_{13}^{current}$ and learned values become the initial state for the following year's first month, allowing persistence of consumer preferences and knowledge across years. Before resetting for the next annual cycle, comprehensive evaluation metrics are calculated and key visualizations are generated to assess model performance and EV owner behavior patterns.
+
+### Step 7.1: Calculate Annual Performance Metrics
+
+**Financial Performance:**
+
+$$
+\text{Total Annual Bill Costs} = \sum_{m=1}^{12} C_m^{bill}
+$$
+
+$$
+\text{Total Annual Range Anxiety Costs} = \sum_{m=1}^{12} C_m^{anxiety}
+$$
+
+$$
+\text{Total Annual Costs} = \sum_{m=1}^{12} C_m^{total}
+$$
+
+**Learning Metrics:**
+
+$$
+\text{Exploration Rate} = \frac{\sum_{m=1}^{12} x_m^{switch}}{12} \times 100\%
+$$
+
+$$
+\text{Final Value Difference} = |V_{12}^{TOU} - V_{12}^{default}|
+$$
+
+$$
+\text{TOU Adoption Rate} = \frac{\sum_{m=1}^{12} (1 - S_m^{current})}{12} \times 100\%
+$$
+
+**System Performance:**
+
+$$
+\text{Peak Load Reduction} = \frac{\sum_{m=1}^{12} \sum_{t \in H} (P_{m,t}^{baseline} - P_{m,t}^{charge})}{\sum_{m=1}^{12} \sum_{t \in H} P_{m,t}^{baseline}} \times 100\%
+$$
+
+### Step 7.2: Generate Key Visualizations
+
+**A. Learning Trajectory**
+
+- Line plot showing $V_m^{default}$ and $V_m^{TOU}$ over months with switching events marked
+
+- Purpose: Visualize learning process and convergence
+
+**B. Exploration vs Exploitation**
+
+- Stacked bar chart showing exploration vs exploitation decisions by month
+
+- Purpose: Show balance between trying new strategies and using learned knowledge
+
+**C. Household Heterogeneity**
+
+- Scatter plots of $\epsilon_m$ and $\alpha_m^{learn}$ vs. household characteristics
+
+- Purpose: Demonstrate realistic variation in exploration and learning behavior
+
+**D. Performance Over Time**
+
+- Line plot showing monthly total costs $C_m^{total}$ with trend analysis
+
+- Purpose: Assess whether learning leads to improved performance
+
+### Step 7.3: Reset for Next Year
+
+**Prepare for Next Year:**
+
+- Set $S_1^{current} = S_{13}^{current}$ (carry forward final state)
+
+- Set $V_1^{default} = V_{13}^{default}$ and $V_1^{TOU} = V_{13}^{TOU}$ (carry forward learned values)
+
+- Clear monthly arrays: $\{C_m^{bill}, C_m^{anxiety}, C_m^{total}, x_m^{switch}, S_m^{current}\}_{m=1}^{12}$
+
+- Update annual parameters (e.g., rate changes, battery degradation)
+
+- Export annual metrics to results database
+
+- Return to Step 1 for new annual cycle with $m = 1$
+
+This evaluation framework provides both quantitative metrics for model validation and intuitive visualizations for understanding EV owner learning patterns and the evolution of charging preferences over time.
+
+## State space diagram
+
+```{mermaid}
+stateDiagram-v2
+  [*] --> S_default: "First month"
+  S_default --> S_TOU: Exploration OR V_TOU < V_default
+  S_default --> S_default: No exploration AND V_default ≤ V_TOU
+  S_TOU --> S_default: Exploration OR V_default < V_TOU
+  S_TOU --> S_TOU: No exploration AND V_TOU ≤ V_default
+  S_default: Default Charging (S(current)=1)
+  S_TOU: TOU-adapted Charging (S(current)=0)
+```
+
+# 4. Behavioral Framework
+
+EV owners balance exploration (trying new charging strategies) with exploitation (using learned knowledge). Both exploration propensity and learning speed vary systematically with household characteristics from ResStock data, creating realistic heterogeneity in decision-making behavior.
+
+# 5. Consumer Information and Decision-Making Reality
+
+## How EV Owners Actually Learn About Charging Schedule Performance
+
+In practice, EV owners learn about charging schedule performance through trial-and-error rather than sophisticated analysis. They experiment with different charging approaches and gradually build intuition about which strategies work better for their household's mobility patterns.
+
+### The Typical EV Owner Learning Journey
+
+**Month 1-3: Initial Experimentation**
+
+David starts with immediate charging whenever he plugs in at home but decides to try TOU-friendly charging after reading utility materials. He programs his EV to delay charging during peak hours while ensuring adequate range for his daily commute. His first month shows a $30 savings, but he notices some anxiety when SOC was lower than usual before a weekend trip.
+
+**Month 4-8: Learning Through Experience**
+
+David continues with TOU charging, tracking his bills and range experiences. Some months show good savings ($35-50), others less clear ($15-25). He starts to notice patterns - months with longer trips require more careful planning, winter months reduce range efficiency. His learned value for TOU charging gradually incorporates both financial and range anxiety experiences.
+
+**Month 9-12: Informed Decision Making**
+
+By now David has a good sense of TOU charging performance for his household. He's learned that TOU charging typically saves $25-40/month but occasionally causes range anxiety when plans change unexpectedly. When bills are particularly high one month, he briefly considers switching back to default charging but decides his learned experience suggests TOU is still better overall.
+
+### What Drives Exploration vs Exploitation
+
+**Household Characteristics Affecting Exploration:**
+
+- **Income level**: Higher-income households are more willing to experiment since potential range limitations are less consequential (can use ride-sharing, rental cars)
+- **EV experience**: Households with newer, longer-range EVs find it easier to try different charging approaches
+- **Trip predictability**: Households with routine schedules can experiment more easily than those with variable travel patterns
+
+**Learning Speed Variation:**
+
+- **Education/resources**: Higher-income households process charging cost information faster and make connections between timing and bills
+- **Technology familiarity**: Tech-savvy households better understand EV charging systems and energy management
+
+### Implications for Model Design
+
+This realistic learning process suggests the model should incorporate both household characteristics and experience replay to capture key behavioral drivers:
+
+$$
+\epsilon_m = \text{clamp}_{[0,1]}(\epsilon_{base} + \lambda_1 f_{AMI} + \lambda_2 f_{age} + \lambda_3 f_{residents} + \lambda_4 f_{EV} + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]))
+$$
+
+Where households with higher income, newer buildings, fewer residents, and longer-range EVs have higher baseline exploration rates (through positive λ coefficients), plus additional exploration when recent costs exceed expectations, with clamp constraints ensuring valid probabilities.
+
+$$
+\alpha_m^{learn} = \text{clamp}_{[0,1]}(\alpha_{base}^{learn} + \gamma_1 f_{AMI} + \gamma_2 f_{age})
+$$
+
+Where households with higher income and newer buildings learn faster from their experiences, with clamp constraints ensuring valid learning rates.
+
+The value learning framework captures realistic EV owner decision-making through direct experience while maintaining mathematical tractability for simulation modeling.
+
+# 6. References
+This section lists references and resources for further information and context regarding the model and its implementation.
+
+- [OCHRE Inputs and Arguments](https://github.com/NREL/OCHRE/blob/main/docs/source/InputsAndArguments.rst)
+
+- [OCHRE Outputs](https://github.com/NREL/OCHRE/blob/main/docs/source/Outputs.rst)
+
+- [OCHRE Electric Vehicle Model](https://github.com/NREL/OCHRE/blob/main/ochre/Equipment/ElectricVehicle.py)
+
+- [EV Control Logic](https://github.com/NREL/OCHRE/blob/main/ochre/Equipment/ElectricVehicle.py)
+
+- [BuildStock-Fetch EV Data](https://github.com/switchbox-data/buildstock-fetch/tree/74-run-create-ev-data-for-ny-and-upload-to-s3)
