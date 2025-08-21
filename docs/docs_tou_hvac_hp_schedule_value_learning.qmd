@@ -1,0 +1,549 @@
+---
+title: "Value-Learning TOU Scheduling Decision Model for HVAC Heat Pumps in OCHRE"
+author: "Switchbox"
+date: "2025-08-21"
+format: gfm
+---
+# Introduction
+
+This document outlines a value-learning decision model for consumer response to time-of-use (TOU) electricity rates in residential building simulations using OCHRE, focusing on HVAC Heat Pumps for space conditioning. The goal is to model how consumers learn about schedule performance through direct experience, using exploration and exploitation strategies to optimize their electricity costs while accounting for comfort trade-offs in heating and cooling.
+
+# 1. Problem Definition
+This section establishes a high-level overview of the core research question and modeling assumptions for consumer learning about TOU schedule performance.
+
+**Objective:**
+
+Model how consumers learn about TOU-friendly HVAC heat pump scheduling through direct experience, using exploration and exploitation strategies to balance trying new approaches with using learned knowledge to minimize electricity costs and comfort penalties.
+
+**Assumptions:**
+
+  - Space conditioning demand schedule is determined by occupancy patterns, weather conditions, and building thermal characteristics.
+
+  - HVAC heat pump can be controlled through setpoint adjustment, deadband modification, and operation scheduling.
+
+  - Consumer is already on TOU rates (given) and must choose between default and TOU-friendly HVAC operation schedules.
+
+  - Consumers learn schedule performance through direct experience rather than external information sources.
+
+  - Decision-making occurs at monthly bill receipt based on learned values for each schedule option.
+
+  - Exploration propensity varies by household characteristics (income, building age, household size, HVAC system type).
+
+  - Learning speed varies by household characteristics affecting information processing ability.
+
+  - Consumers track total costs (bills + comfort impacts) for each schedule and use this learned knowledge to make decisions.
+
+# 2. Key Variables and Parameters
+This section defines all variables, parameters, and their temporal dimensions used throughout the value-learning decision model.
+
+| Symbol         | Type | Description                                           | Units    | Dimension |
+|----------------|------|-------------------------------------------------------|----------|-----------|
+| **Sets** |
+| $M$        | Set  | Months in simulation year, $m \in \{1, 2, ..., 12\}$ | -        | 12 × 1    |
+| $T$        | Set  | Time periods in billing month, $t \in \{1, 2, ..., T\}$ where $T \approx 2976$ (15-min intervals) | -        | \|T\| × 1  |
+| $H$        | Set  | Peak hour periods, $H \subset T$                 | -        | \|H\| × 1 |
+| **Parameters** |
+| $Q_{m,t}^{heat}$ | Parameter | Exogenous heating demand at time $t$ in month $m$ | kWh/15min  | M × T     |
+| $Q_{m,t}^{cool}$ | Parameter | Exogenous cooling demand at time $t$ in month $m$ | kWh/15min  | M × T     |
+| $r^{on}$   | Parameter | TOU electricity rate during peak hours              | $/kWh    | 1 × 1     |
+| $r^{off}$  | Parameter | TOU electricity rate during off-peak hours          | $/kWh    | 1 × 1     |
+| $\beta$   | Parameter | Monetization factor for comfort penalty (building-specific) | $/°C·hr    | 1 × 1     |
+| $T_{m,t}^{setpoint,heat}$ | Parameter | Heating temperature setpoint at time $t$ in month $m$ | °C | M × T |
+| $T_{m,t}^{setpoint,cool}$ | Parameter | Cooling temperature setpoint at time $t$ in month $m$ | °C | M × T |
+| $T_{m,t}^{outdoor}$ | Parameter | Outdoor air temperature at time $t$ in month $m$ | °C | M × T |
+| $DB^{heat}$ | Parameter | Heating deadband (temperature tolerance below setpoint) | °C | 1 × 1 |
+| $DB^{cool}$ | Parameter | Cooling deadband (temperature tolerance above setpoint) | °C | 1 × 1 |
+| **Learning Parameters** |
+| $\epsilon_{base}$ | Parameter | Base exploration rate                              | -        | 1 × 1     |
+| $\alpha_{base}^{learn}$ | Parameter | Base learning rate                               | -        | 1 × 1     |
+| $\lambda_1, \lambda_2, \lambda_3, \lambda_4, \lambda_5$ | Parameter | Exploration coefficients (income, age, residents, HVAC system, experience replay) | - | 5 × 1 |
+| $\gamma_1, \gamma_2$ | Parameter | Learning rate coefficients (income, age) | - | 2 × 1 |
+| $\delta_1, \delta_2, \delta_3$ | Parameter | Comfort penalty coefficients (income, residents, climate) | $/°C·hr | 3 × 1 |
+
+**Coefficient Calibration Notes:**
+- λ, γ, and δ coefficients control the strength and direction of household characteristic effects
+- Positive coefficients increase exploration/learning/comfort rates; negative values decrease them
+- Suggested starting values: λ₁ = ε_base/10 (income), λ₂ = ε_base/10 (age), λ₃ = -ε_base/10 (household size), λ₄ = ε_base/10 (technology), λ₅ = ε_base/10 (experience replay); γ₁ = α_base/10 (income), γ₂ = α_base/10 (age); δ₁ = β_base/10 (income), δ₂ = β_base/10 (residents), δ₃ = β_base/10 (climate)
+- Calibrate using target load/usage profiles by demographic groups from ResStock/survey data
+- Additive structure ensures coefficients are independent and directly interpretable
+| $\tau_{prior}$ | Parameter | Prior uncertainty standard deviation | $ | 1 × 1 |
+| $\beta_{base}$ | Parameter | Base comfort monetization factor | $/°C·hr | 1 × 1 |
+| **Decision Variables** |
+| $x_m^{switch}$ | Binary | Decision to switch schedule in month $m$ (1 = switch, 0 = stay) | binary | M × 1 |
+| **State Variables** |
+| $S_m^{current}$ | Binary | Current schedule state in month $m$ (1 = default, 0 = TOU-adapted) | binary | M × 1 |
+| $r_{m,t}$  | Variable | Electricity rate at time $t$ in month $m$ (determined by peak/off-peak) | $/kWh | M × T |
+| $E_{m,t}^{heat}$  | Variable | Electricity consumption from heating at time $t$ in month $m$ | kWh/15min | M × T |
+| $E_{m,t}^{cool}$  | Variable | Electricity consumption from cooling at time $t$ in month $m$ | kWh/15min | M × T |
+| $T_{m,t}^{indoor}$ | Variable | Indoor air temperature at time $t$ in month $m$ | °C | M × T |
+| $Q_{m,t}^{unmet}$ | Variable | Thermal unmet HVAC load at time $t$ in month $m$ (from OCHRE output) | °C | M × T |
+| **Derived Variables** |
+| $C_m^{bill}$ | Variable | Monthly electricity bill for space conditioning in month $m$ | $ | M × 1 |
+| $C_m^{comfort}$ | Variable | Monthly comfort penalty from unmet demand in month $m$ | $ | M × 1 |
+| **Value Learning State Variables** |
+| $V_m^{default}$ | Variable | Learned value (total cost) for default schedule | $ | M × 1 |
+| $V_m^{TOU}$ | Variable | Learned value (total cost) for TOU schedule | $ | M × 1 |
+| $\epsilon_m$ | Variable | Household-specific exploration rate in month $m$ | - | M × 1 |
+| $\alpha_m^{learn}$ | Variable | Household-specific learning rate in month $m$ | - | M × 1 |
+
+## 2.1 Building-Specific Parameter Formulations
+
+The exploration and learning rates are derived from building and household characteristics available in ResStock/OCHRE simulations to reflect realistic heterogeneity in consumer behavior.
+
+### Household Characteristic Functions
+
+**Income Factor:**
+$$f_{AMI} = \left(\frac{AMI}{80\%}\right)^{0.6} - 1$$
+Higher income → more experimentation (lower financial risk) and faster learning (education/resources). Centered at zero for 80% AMI. Power function <1 captures diminishing returns.
+
+**Building Age Factor:**
+$$f_{age} = \frac{YearBuilt - 2000}{15}$$
+Normalized building age difference from reference year 2000. Positive for newer buildings (higher tech adoption), negative for older buildings. Centered at zero for buildings built in 2000.
+
+**Household Size Factor:**
+$$f_{residents} = \ln(N_{residents})$$
+More residents → harder coordination, more comfort conflicts. Centered at zero for single person household. Logarithmic captures diminishing marginal effect.
+
+**HVAC System Technology Factor:**
+$$f_{HVAC} = \begin{cases}
+-0.2 & \text{heat pump with smart thermostat} \\
+0.0 & \text{heat pump with standard thermostat (baseline)} \\
+0.3 & \text{older heat pump without advanced controls}
+\end{cases}$$
+
+**Climate Zone Factor:**
+$$f_{climate} = \begin{cases}
+-0.1 & \text{zones 1-3 (warm)} \\
+0.0 & \text{zones 4-5 (moderate)} \\
+0.2 & \text{zones 6-8 (cold)}
+\end{cases}$$
+Extreme climates (hot or cold) → higher space conditioning importance → greater comfort sensitivity. Centered at zero for moderate climates (zones 4-5).
+
+### Exploration Rate Parameters
+
+**Household-Specific Exploration Rate ($\epsilon_m$):**
+
+The propensity to explore new scheduling strategies varies with household characteristics that affect willingness to experiment and tolerance for uncertainty, plus experience replay effects when costs exceed expectations.
+
+$$
+\epsilon_m = \text{clamp}_{[0,1]}(\epsilon_{base} + \lambda_1 f_{AMI} + \lambda_2 f_{age} + \lambda_3 f_{residents} + \lambda_4 f_{HVAC} + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]))
+$$
+
+Where $\text{clamp}_{[0,1]}(z) = \max(0, \min(1, z))$ constrains the result to $\epsilon_m \in [0,1]$.
+
+Where:
+- $\lambda_5 \max(0, C_{recent}^{total} - E[C^{total}])$ captures experience replay effects
+- $C_{recent}^{total}$ = average total cost over last 2-3 months for current schedule
+- $E[C^{total}]$ = expected total cost based on learned value for current schedule
+- $\lambda_5$ = experience replay sensitivity coefficient (controls how much cost surprises increase exploration)
+
+This mechanism captures the psychology where consumers explore more when their recent experience is worse than expected, addressing the concern that higher bills should drive more exploration behavior.
+
+Where:
+
+- $\epsilon_{base}$ = base exploration rate for average household (to be calibrated)
+- $f_{AMI} = \sqrt{\frac{AMI}{80\%}}$ (income factor for exploration: higher income increases willingness to experiment due to reduced financial stress)
+- Other factors defined in Household Characteristic Functions section above
+
+### Learning Rate Parameters
+
+**Household-Specific Learning Rate ($\alpha_m^{learn}$):**
+
+The speed at which households update their beliefs about schedule performance varies with characteristics that affect information processing and attention to energy costs.
+
+$$
+\alpha_m^{learn} = \text{clamp}_{[0,1]}(\alpha_{base}^{learn} + \gamma_1 f_{AMI} + \gamma_2 f_{age})
+$$
+
+Where $\text{clamp}_{[0,1]}(z) = \max(0, \min(1, z))$ constrains the result to $\alpha_m^{learn} \in [0,1]$.
+
+Where:
+
+- $\alpha_{base}^{learn}$ = base learning rate for average household (to be calibrated)
+- $f_{AMI}$ and $f_{age}$ defined in Household Characteristic Functions section above
+
+### Comfort Monetization Factor
+
+**Comfort Penalty Monetization ($\beta$):**
+
+The monetization factor represents how much households value avoiding unmet space conditioning demand and varies with income, household size, and climate sensitivity using an additive structure.
+
+$$
+\beta = \beta_{base} + \delta_1 f_{AMI} + \delta_2 f_{residents} + \delta_3 f_{climate}
+$$
+
+Where:
+
+- $\beta_{base}$ = base comfort value for average household (to be calibrated)
+- $\delta_1, \delta_2, \delta_3$ = comfort sensitivity coefficients for income, household size, and climate effects
+- $f_{AMI}$, $f_{residents}$, and $f_{climate}$ defined in Household Characteristic Functions section above
+
+**Example:** For a mid-income family (80% AMI, 3 residents, 1980 building, standard heat pump thermostat, zone 4):
+- Factor values: $f_{AMI} = 0.0$, $f_{age} = \frac{1980-2000}{15} = -1.33$, $f_{residents} = \ln(3) = 1.10$, $f_{HVAC} = 0.0$, $f_{climate} = 0.0$
+- Pre-clamp exploration: $\epsilon_{base} + \lambda_1 \times 0.0 + \lambda_2 \times (-1.33) + \lambda_3 \times 1.10 + \lambda_4 \times 0.0 + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]) = \epsilon_{base} - 1.33\lambda_2 + 1.10\lambda_3 + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}])$
+- $\epsilon_m = \text{clamp}_{[0,1]}(\epsilon_{base} - 1.33\lambda_2 + 1.10\lambda_3 + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]))$ (constrained to [0,1])
+- Pre-clamp learning: $\alpha_{base}^{learn} + \gamma_1 \times 0.0 + \gamma_2 \times (-1.33) = \alpha_{base}^{learn} - 1.33\gamma_2$
+- $\alpha_m^{learn} = \text{clamp}_{[0,1]}(\alpha_{base}^{learn} - 1.33\gamma_2)$ (constrained to [0,1])
+- $\beta = \beta_{base} + \delta_1 \times 0.0 + \delta_2 \times 1.10 + \delta_3 \times 0.0 = \beta_{base} + 1.10\delta_2$
+
+## 2.2 Prior Value Initialization
+
+**Setting Prior Expectations:**
+
+Rather than starting with zero knowledge ($V_1^{default} = V_1^{TOU} = 0$), consumers have prior expectations about schedule performance based on general knowledge, utility communications, and building characteristics. These priors are derived from existing OCHRE simulations to ensure physical realism.
+
+**Prior Calculation Method:**
+
+Before the agent learning begins, we actually run OCHRE to produce complete annual building simulations for both schedule types to reduce computational load. This can help us find an approximate average monthly bill:
+
+$$
+P^{default} = \frac{1}{12} \sum_{m=1}^{12} C_m^{total,default}
+$$
+
+$$
+P^{TOU} = \frac{1}{12} \sum_{m=1}^{12} C_m^{total,TOU}
+$$
+
+Where $C_m^{total,default}$ and $C_m^{total,TOU}$ are the monthly total bills (excluding any penalties) for each schedule type from the pre-simulation runs.
+
+**Noisy Prior Initialization:**
+
+To reflect consumer uncertainty about their specific situation relative to average performance, priors include random noise:
+
+$$
+V_1^{default} = P^{default} + \mathcal{N}(0, \tau_{prior}^2)
+$$
+
+$$
+V_1^{TOU} = P^{TOU} + \mathcal{N}(0, \tau_{prior}^2)
+$$
+
+Where $\tau_{prior}$ represents the standard deviation of consumer uncertainty about bill info.
+**Implementation Note:** This approach (smoothing by averaging + adding noise) ensures that households begin with previous bill expectations while maintaining uncertainty about future bill information.
+
+# 3. Detailed Model Steps
+
+This section outlines the complete sequential decision-making process that consumers follow each month through exploration, exploitation, and value learning based on direct experience.
+
+## Step 1: Initialize Monthly State Variables
+
+This step loads the exogenous input data and sets the initial state variables for month $m$'s simulation. The space conditioning demand profiles $Q_{m,t}^{heat}$ and $Q_{m,t}^{cool}$ define when and how much heating and cooling is demanded throughout the month's time periods. Temperature setpoints $T_{m,t}^{setpoint,heat}$ and $T_{m,t}^{setpoint,cool}$ and outdoor conditions $T_{m,t}^{outdoor}$ establish the thermal boundary conditions for month $m$. The electricity rate vector $r_{m,t}$ is constructed by mapping peak hours set $H$ to the on-peak rate $r^{on}$ and all other periods to off-peak rate $r^{off}$.
+
+**Set Time-Varying Parameters for Month $m$:**
+
+- Load space conditioning demand schedules: $Q_{m,t}^{heat}$, $Q_{m,t}^{cool}$ for all $t \in T$
+
+- Load temperature profiles: $T_{m,t}^{setpoint,heat}$, $T_{m,t}^{setpoint,cool}$, $T_{m,t}^{outdoor}$ for all $t \in T$
+
+- Set electricity rates: $r_{m,t} = r^{on}$ if $t \in H$, else $r_{m,t} = r^{off}$
+
+**Initialize Schedule State for Month $m$:**
+
+- If $m = 1$: set $S_m^{current} = 1$ (start on default schedule)
+
+- Else: $S_m^{current} = S_{m-1}^{current,next}$ (use previous month's decision outcome)
+
+**Initialize Value Learning State for Month $m$:**
+
+- If $m = 1$: Initialize with OCHRE-based priors (see Section 2.2)
+
+- Else: $V_m^{default} = V_{m-1}^{default}$ and $V_m^{TOU} = V_{m-1}^{TOU}$ (carry forward learned values)
+
+**Set Operational Schedule for Month $m$:**
+
+The schedule state $S_m^{current}$ determines specific HVAC control actions implemented through OCHRE's controller interface:
+
+**Default Schedule ($S_m^{current} = 1$):**
+- Heating setpoint: $T_{m,t}^{setpoint,heat}$ = baseline schedule values
+- Cooling setpoint: $T_{m,t}^{setpoint,cool}$ = baseline schedule values
+- Heating deadband: $DB^{heat} = 1°C$ (normal comfort tolerance)
+- Cooling deadband: $DB^{cool} = 1°C$ (normal comfort tolerance)
+- Load fraction: No restrictions (system operates as needed)
+
+**TOU-Adapted Schedule ($S_m^{current} = 0$):**
+
+*During Off-Peak Hours ($t \notin H$):*
+- Heating setpoint: $T_{m,t}^{setpoint,heat} = $ baseline $+ 2°C$ (pre-heating to prepare for setback)
+- Cooling setpoint: $T_{m,t}^{setpoint,cool} = $ baseline $- 2°C$ (pre-cooling to prepare for setup)
+- Heating deadband: $DB^{heat} = 1°C$ (normal tolerance)
+- Cooling deadband: $DB^{cool} = 1°C$ (normal tolerance)
+- Load fraction: Unrestricted operation for pre-conditioning
+
+*During Peak Hours ($t \in H$):*
+- Heating setpoint: $T_{m,t}^{setpoint,heat} = $ baseline $- 2°C$ (setback)
+- Cooling setpoint: $T_{m,t}^{setpoint,cool} = $ baseline $+ 2°C$ (setup)
+- Heating deadband: $DB^{heat} = 2°C$ (relaxed tolerance)
+- Cooling deadband: $DB^{cool} = 2°C$ (relaxed tolerance)
+- Load fraction: $0$ (HVAC operation disabled)
+
+## Step 2: Run OCHRE Simulation for Month $m$
+
+**Execute Monthly Simulation for Month $m$:**
+
+- Input: Setpoints, deadbands, and load fraction controls based on schedule state
+- Output: $E_{m,t}^{heat}$, $E_{m,t}^{cool}$, $T_{m,t}^{indoor}$, $Q_{m,t}^{unmet}$
+
+**Calculate Monthly Electricity Bill for Month $m$:**
+
+$$
+C_m^{bill} = \sum_{t \in T} (E_{m,t}^{heat} + E_{m,t}^{cool}) \cdot r_{m,t}
+$$
+
+## Step 3: Assess Comfort Performance for Month $m$
+
+**Extract Thermal Unmet Demand from OCHRE for Month $m$:**
+
+$$
+Q_{m,t}^{\text{unmet}} = \text{OCHRE output: "Unmet HVAC Load (C)" at time } t \text{ in month } m
+$$
+
+Unmet load occurs when indoor temperature exceeds deadband limits:
+- **Heating:** $T_{m,t}^{indoor} < (T_{m,t}^{setpoint,heat} - DB^{heat})$
+- **Cooling:** $T_{m,t}^{indoor} > (T_{m,t}^{setpoint,cool} + DB^{cool})$
+
+**Calculate Monthly Comfort Penalty for Month $m$:**
+
+$$
+C_m^{comfort} = \beta \cdot \sum_{t \in T} Q_{m,t}^{unmet}
+$$
+
+## Step 4: Value Learning and Decision Logic for Month $m$
+
+Consumers make decisions using an exploration-exploitation framework, where they either explore alternative schedules or exploit their learned knowledge about schedule performance. The decision process incorporates household-specific exploration and learning rates based on building characteristics.
+
+**Calculate Total Cost for Month $m$:**
+
+$$
+C_m^{total} = C_m^{bill} + C_m^{comfort}
+$$
+
+**Update Learned Values:**
+
+Update the learned value for the schedule that was used in month $m$ using household-specific learning rate:
+
+$$
+V_m^{current} = (1 - \alpha_m^{learn}) \cdot V_{m-1}^{current} + \alpha_m^{learn} \cdot C_m^{total}
+$$
+
+Where $V_m^{current} = V_m^{default}$ if $S_m^{current} = 1$, else $V_m^{TOU}$.
+
+**Generate Exploration Decision:**
+
+Generate random number $u \sim \mathcal{U}(0,1)$ and compare to household-specific exploration rate:
+
+$$
+\text{Explore} = \begin{cases}
+1 & \text{if } u < \epsilon_m \\
+0 & \text{otherwise}
+\end{cases}
+$$
+
+**Make Switching Decision:**
+
+The switching decision combines exploration and exploitation logic:
+
+$$
+x_m^{switch} = \begin{cases}
+1 & \text{if Explore = 1} \\
+1 & \text{if Explore = 0 and } V_m^{other} < V_m^{current} \\
+0 & \text{otherwise}
+\end{cases}
+$$
+
+Where $V_m^{other}$ is the learned value for the alternative schedule (if current schedule is default, then $V_m^{other} = V_m^{TOU}$, and vice versa).
+
+## Step 5: Update State for Next Month
+
+The schedule state $S_{m+1}^{current}$ for the next month is determined by the switching decision $x_m^{switch}$ made in month $m$. If switching occurs ($x_m^{switch} = 1$), the state toggles to its opposite value ($1 - S_m^{current}$). If no switching occurs ($x_m^{switch} = 0$), the state remains unchanged. Monthly results for month $m$ including $C_m^{bill}$, $C_m^{comfort}$, $x_m^{switch}$, $S_m^{current}$, and learned values are recorded for annual analysis.
+
+**Update Schedule State for Month $m+1$:**
+
+$$
+S_{m+1}^{current} = \begin{cases}
+1 - S_m^{current} & \text{if } x_m^{switch} = 1 \\
+S_m^{current} & \text{if } x_m^{switch} = 0
+\end{cases}
+$$
+
+**Store Monthly Results for Month $m$:**
+
+- Record: $C_m^{bill}$, $C_m^{comfort}$, $C_m^{total}$, $x_m^{switch}$, $S_m^{current}$
+
+- Record: $V_m^{default}$, $V_m^{TOU}$, $\epsilon_m$, $\alpha_m^{learn}$
+
+- Save for annual analysis and next month's initialization
+
+## Step 6: Monthly Iteration Control
+
+The simulation checks whether the annual cycle is complete. If the current month $m < 12$, the month counter increments and the process returns to Step 1 with month $m+1$ and the updated schedule state $S_{m+1}^{current}$ and learned values. If month 12 is complete, the simulation proceeds to annual evaluation metrics calculation.
+
+**Check Simulation Status:**
+
+- If $m < 12$: increment to month $m+1$, return to Step 1 with $S_{m+1}^{current}$, $V_{m+1}^{default}$, $V_{m+1}^{TOU}$
+
+- If $m = 12$: proceed to annual evaluation (Step 7)
+
+## Step 7: Annual Evaluation and State Reset
+
+For multi-year simulations, the final month's schedule state $S_{13}^{current}$ and learned values become the initial state for the following year's first month, allowing persistence of consumer preferences and knowledge across years. Before resetting for the next annual cycle, comprehensive evaluation metrics are calculated and key visualizations are generated to assess model performance and consumer behavior patterns.
+
+### Step 7.1: Calculate Annual Performance Metrics
+
+**Financial Performance:**
+
+$$
+\text{Total Annual Bill Costs} = \sum_{m=1}^{12} C_m^{bill}
+$$
+
+$$
+\text{Total Annual Comfort Costs} = \sum_{m=1}^{12} C_m^{comfort}
+$$
+
+$$
+\text{Total Annual Costs} = \sum_{m=1}^{12} C_m^{total}
+$$
+
+**Learning Metrics:**
+
+$$
+\text{Exploration Rate} = \frac{\sum_{m=1}^{12} x_m^{switch}}{12} \times 100\%
+$$
+
+$$
+\text{Final Value Difference} = |V_{12}^{TOU} - V_{12}^{default}|
+$$
+
+$$
+\text{TOU Adoption Rate} = \frac{\sum_{m=1}^{12} (1 - S_m^{current})}{12} \times 100\%
+$$
+
+**System Performance:**
+
+$$
+\text{Peak Load Reduction} = \frac{\sum_{m=1}^{12} \sum_{t \in H} (E_{m,t}^{baseline} - E_{m,t}^{heat} - E_{m,t}^{cool})}{\sum_{m=1}^{12} \sum_{t \in H} E_{m,t}^{baseline}} \times 100\%
+$$
+
+### Step 7.2: Generate Key Visualizations
+
+**A. Learning Trajectory**
+
+- Line plot showing $V_m^{default}$ and $V_m^{TOU}$ over months with switching events marked
+
+- Purpose: Visualize learning process and convergence
+
+**B. Exploration vs Exploitation**
+
+- Stacked bar chart showing exploration vs exploitation decisions by month
+
+- Purpose: Show balance between trying new strategies and using learned knowledge
+
+**C. Household Heterogeneity**
+
+- Scatter plots of $\epsilon_m$ and $\alpha_m^{learn}$ vs. household characteristics
+
+- Purpose: Demonstrate realistic variation in exploration and learning behavior
+
+**D. Performance Over Time**
+
+- Line plot showing monthly total costs $C_m^{total}$ with trend analysis
+
+- Purpose: Assess whether learning leads to improved performance
+
+### Step 7.3: Reset for Next Year
+
+**Prepare for Next Year:**
+
+- Set $S_1^{current} = S_{13}^{current}$ (carry forward final state)
+
+- Set $V_1^{default} = V_{13}^{default}$ and $V_1^{TOU} = V_{13}^{TOU}$ (carry forward learned values)
+
+- Clear monthly arrays: $\{C_m^{bill}, C_m^{comfort}, C_m^{total}, x_m^{switch}, S_m^{current}\}_{m=1}^{12}$
+
+- Update annual parameters (e.g., rate changes, equipment degradation)
+
+- Export annual metrics to results database
+
+- Return to Step 1 for new annual cycle with $m = 1$
+
+This evaluation framework provides both quantitative metrics for model validation and intuitive visualizations for understanding consumer learning patterns and the evolution of schedule preferences over time.
+
+## State space diagram
+
+```{mermaid}
+stateDiagram-v2
+  [*] --> S_default: "First month"
+  S_default --> S_TOU: Exploration OR V_TOU < V_default
+  S_default --> S_default: No exploration AND V_default ≤ V_TOU
+  S_TOU --> S_default: Exploration OR V_default < V_TOU
+  S_TOU --> S_TOU: No exploration AND V_TOU ≤ V_default
+  S_default: Default Schedule (S(current)=1)
+  S_TOU: TOU-adapted Schedule (S(current)=0)
+```
+
+# 4. Behavioral Framework
+
+Consumers balance exploration (trying new strategies) with exploitation (using learned knowledge). Both exploration propensity and learning speed vary systematically with household characteristics from ResStock data, creating realistic heterogeneity in decision-making behavior.
+
+# 5. Consumer Information and Decision-Making Reality
+
+## How Consumers Actually Learn About Schedule Performance
+
+In practice, consumers learn about HVAC heat pump schedule performance through trial-and-error rather than sophisticated analysis. They experiment with different temperature setpoint strategies and gradually build intuition about which approaches work better for their household.
+
+### The Typical Consumer Learning Journey
+
+**Month 1-3: Initial Experimentation**
+
+Michael starts with the default thermostat schedule but decides to try TOU-friendly scheduling after reading utility materials. He programs his smart thermostat to pre-heat the house during off-peak hours and allows slightly higher temperatures during peak periods. His first month shows a $25 savings, but he notices the house feels slightly warmer on hot afternoons.
+
+**Month 4-8: Learning Through Experience**
+
+Michael continues with TOU scheduling, tracking his bills and comfort experiences. Some months show good savings ($30-40), others less clear ($10-15). He starts to notice patterns - summer months have larger potential savings but more comfort issues, winter heating shows consistent but smaller benefits. His learned value for TOU scheduling gradually incorporates both financial and comfort experiences.
+
+**Month 9-12: Informed Decision Making**
+
+By now Michael has a good sense of TOU performance for his household. He's learned that TOU scheduling typically saves $20-30/month but occasionally causes afternoon discomfort during heat waves. When bills are particularly high one month, he briefly considers switching back to default scheduling but decides his learned experience suggests TOU is still better overall.
+
+### What Drives Exploration vs Exploitation
+
+**Household Characteristics Affecting Exploration:**
+
+- **Income level**: Higher-income households are more willing to experiment since potential losses are less consequential
+- **Tech comfort**: Households with smart thermostats and newer HVAC systems find it easier to try different scheduling approaches
+- **Household complexity**: Smaller households can experiment more easily without coordination challenges over comfort preferences
+
+**Learning Speed Variation:**
+
+- **Education/resources**: Higher-income households process bill information faster and make connections between scheduling and costs
+- **Technology familiarity**: Tech-savvy households better understand thermostat settings and temperature control impacts
+
+### Implications for Model Design
+
+This realistic learning process suggests the model should incorporate both household characteristics and experience replay to capture key behavioral drivers:
+
+$$
+\epsilon_m = \text{clamp}_{[0,1]}(\epsilon_{base} + \lambda_1 f_{AMI} + \lambda_2 f_{age} + \lambda_3 f_{residents} + \lambda_4 f_{HVAC} + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]))
+$$
+
+Where households with higher income, newer buildings, fewer residents, and smart HVAC systems have higher baseline exploration rates (through positive λ coefficients), plus additional exploration when recent costs exceed expectations, with clamp constraints ensuring valid probabilities.
+
+$$
+\alpha_m^{learn} = \text{clamp}_{[0,1]}(\alpha_{base}^{learn} + \gamma_1 f_{AMI} + \gamma_2 f_{age})
+$$
+
+Where households with higher income and newer buildings learn faster from their experiences, with clamp constraints ensuring valid learning rates.
+
+The value learning framework captures realistic consumer decision-making through direct experience while maintaining mathematical tractability for simulation modeling.
+
+# 6. References
+This section lists references and resources for further information and context regarding the model and its implementation.
+
+- [OCHRE Inputs and Arguments](https://github.com/NREL/OCHRE/blob/main/docs/source/InputsAndArguments.rst)
+
+- [OCHRE Outputs](https://github.com/NREL/OCHRE/blob/main/docs/source/Outputs.rst)
+
+- [OCHRE HVAC Model](https://github.com/NREL/OCHRE/blob/main/ochre/Models/HVAC.py)
+
+- [Heat Pump Control Logic](https://github.com/NREL/OCHRE/blob/main/ochre/Equipment/HeatPump.py)
+
+- [OCHRE Controller Integration Documentation](https://ochre-nrel.readthedocs.io/en/latest/ControllerIntegration.html)
