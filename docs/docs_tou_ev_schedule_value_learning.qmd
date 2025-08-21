@@ -68,7 +68,6 @@ This section defines all variables, parameters, and their temporal dimensions us
 | $Window_{off}^{m,d}$ | Variable | Off-peak charging time periods for day $d$ in month $m$ | - | M × D |
 | $Window_{peak}^{m,d}$ | Variable | Peak charging time periods for day $d$ in month $m$ | - | M × D |
 | $kWh_{req}^{m,d}$ | Variable | Required charging energy for day $d$ in month $m$ | kWh | M × D |
-| $P_{required}^{m,d}$ | Variable | Required charging power for day $d$ in month $m$ | kW | M × D |
 | **Learning Parameters** |
 | $\epsilon_{base}$ | Parameter | Base exploration rate                              | -        | 1 × 1     |
 | $\alpha_{base}^{learn}$ | Parameter | Base learning rate                               | -        | 1 × 1     |
@@ -89,7 +88,7 @@ This section defines all variables, parameters, and their temporal dimensions us
 | **State Variables** |
 | $S_m^{current}$ | Binary | Current charging schedule state in month $m$ (1 = default, 0 = TOU-adapted) | binary | M × 1 |
 | $r_{m,t}$  | Variable | Electricity rate at time $t$ in month $m$ (determined by peak/off-peak) | $/kWh | M × T |
-| $P_{m,t}^{charge}$ | Variable | EV charging power at time $t$ in month $m$ | kW | M × T |
+| $E_{m,t}^{EV}$ | Variable | EV energy consumption at time $t$ in month $m$ (from OCHRE output) | kWh | M × T |
 | $SOC_{m,t}$ | Variable | EV state of charge at time $t$ in month $m$ | - | M × T |
 | $Home_{m,t}$ | Binary | Vehicle home availability at time $t$ in month $m$ (1 = home, 0 = away) | binary | M × T |
 | $Q_{m,t}^{unmet}$ | Variable | Unmet charging load at time $t$ in month $m$ (from OCHRE output) | kWh | M × T |
@@ -340,86 +339,43 @@ $$
 
 *Step 4: TOU Charging Power Control*
 
+**Primary TOU Strategy** (no emergency charging):
+
 $$
 P_{max}^{m,t} = \begin{cases}
-P^{max} & \text{if } t \in Window_{off}^{m,d} \text{ and sufficient charging needed} \\
+P^{hardware} & \text{if } t \in Window_{off}^{m,d} \text{ and } SOC_{m,t} < SOC_{req}^{m,d} \\
 0 & \text{if } t \in Window_{peak}^{m,d} \text{ (no peak charging)} \\
+0 & \text{if } Home_{m,t} = 0 \text{ (vehicle away)}
+\end{cases}
+$$
+
+**Alternative: Emergency Override Implementation**
+
+$$
+P_{max}^{m,t} = \begin{cases}
+P^{hardware} & \text{if } t \in Window_{off}^{m,d} \text{ and } SOC_{m,t} < SOC_{req}^{m,d} \\
+0 & \text{if } t \in Window_{peak}^{m,d} \text{ and } SOC_{m,t} \geq SOC_{critical} \\
 P^{emergency} & \text{if } t \in Window_{peak}^{m,d} \text{ and } SOC_{m,t} < SOC_{critical} \\
 0 & \text{if } Home_{m,t} = 0 \text{ (vehicle away)}
 \end{cases}
 $$
 
-Where:
-- $SOC_{critical} = SOC_{req}^{m,d} - 0.05$ (5% below required SOC triggers emergency charging)
-- $P^{emergency} = \min(P^{max}, \frac{kWh_{remaining}}{hours_{until\_departure}})$ (minimum power to meet departure requirement)
-
-*Step 5: Charging Priority Algorithm*
-
-Within off-peak periods, prioritize charging to minimize cost while ensuring range requirements:
-
-1. **Primary Goal**: Achieve $SOC_{req}^{m,d}$ using only off-peak hours if possible
-2. **Secondary Goal**: If off-peak hours insufficient, use minimum peak hours necessary
-3. **Charging Rate**: Use available charging hours to determine required power:
-
-$$
-P_{required}^{m,d} = \frac{kWh_{req}^{m,d}}{|Window_{off}^{m,d}| \times 0.25}
-$$
-
-Where $|Window_{off}^{m,d}| \times 0.25$ converts count of 15-minute intervals to hours.
-
-**Key Distinctions:**
-
-**Power Capacity vs. Energy Capacity:**
-- **$P^{hardware}$** is physical charging **power capacity** (kW) - maximum possible charging power
-  - Example: Level 2 home charger hardware = 7.2 kW maximum capability
-- **$Cap^{battery}$** is energy **capacity** (kWh) - how much energy the battery stores
-  - Example: Tesla Model 3 = 75 kWh battery energy capacity
-
-**Controllable vs. Physical Limits:**
-- **$P^{hardware}$** is the fixed physical limit (cannot exceed this)
-- **$P^{max}$** is our controllable upper limit ($0 \leq P^{max} \leq P^{hardware}$)
-- In OCHRE: "EV Max Power (kW)" control signal sets $P^{max}$ dynamically
-
-**Example:** If $P^{hardware} = 7.2$ kW:
-- Default charging: Set $P^{max} = 7.2$ kW (use full hardware capacity)
-- TOU off-peak: Set $P^{max} = 7.2$ kW (fast charging when cheap)
-- TOU peak: Set $P^{max} = 0$ kW (no charging when expensive)
-- Emergency: Set $P^{max} = 3.6$ kW (limited charging if critically needed)
-
-*Step 6: SOC Update Logic*
-
-The state of charge is updated by OCHRE based on:
-- Energy consumed during trips: $SOC_{post\_trip} = SOC_{pre\_trip} - \frac{miles^{trip}}{Eff^{EV} \times Cap^{battery}}$
-- Energy added during charging: $SOC_{t+1} = SOC_t + \frac{P_{charge}^{m,t} \times 0.25}{Cap^{battery}}$ (for 15-min intervals)
-
-This TOU-adapted strategy ensures range requirements are met while minimizing charging during expensive peak hours, using BSF trip data to precisely calculate when charging must occur.
+**Control Logic:**
+- $SOC_{critical} = SOC_{req}^{m,d} - 0.05$ (emergency charging threshold)
+- Unmet demand theoretically calculated as: $\max(0, kWh_{req}^{m,d} - |Window_{off}^{m,d}| \times 0.25 \times P^{hardware})$
 
 ## Step 2: Run OCHRE Simulation for Month $m$
 
-**Execute Monthly Simulation for Month $m$:**
+**Execute Monthly Simulation:**
 
-- Input: Trip schedules, charging control strategy, home availability
-- Output: $P_{m,t}^{charge}$, $SOC_{m,t}$, $Q_{m,t}^{unmet}$
+- Input: BSF trip schedules, "EV Max Power (kW)" control signals, home availability
+- OCHRE Output: $E_{m,t}^{EV}$ (energy consumption), $SOC_{m,t}$ (state of charge), $Q_{m,t}^{unmet}$ (unmet load)
 
-**Calculate Monthly Electricity Bill for Month $m$:**
-
-$$
-C_m^{bill} = \sum_{t \in T} P_{m,t}^{charge} \cdot r_{m,t} \cdot \frac{1}{4}
-$$
-
-Where the factor $\frac{1}{4}$ converts 15-minute intervals to hours.
-
-## Step 3: Assess Range Anxiety Performance for Month $m$
-
-**Extract Unmet Charging Demand from OCHRE for Month $m$:**
+**Calculate Monthly Costs:**
 
 $$
-Q_{m,t}^{\text{unmet}} = \text{OCHRE output: "EV Unmet Load (kWh)" at time } t \text{ in month } m
+C_m^{bill} = \sum_{t \in T} E_{m,t}^{EV} \cdot r_{m,t}
 $$
-
-Unmet charging load occurs when the EV cannot achieve required SOC due to insufficient charging time or power limitations under TOU restrictions.
-
-**Calculate Monthly Range Anxiety Penalty for Month $m$:**
 
 $$
 C_m^{anxiety} = \beta \cdot \sum_{t \in T} Q_{m,t}^{unmet}
