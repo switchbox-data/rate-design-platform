@@ -87,31 +87,13 @@ This section defines all variables, parameters, and their temporal dimensions us
 | $\epsilon_m$ | Variable | Household-specific exploration rate in month $m$ | - | M × 1 |
 | $\alpha_m^{learn}$ | Variable | Household-specific learning rate in month $m$ | - | M × 1 |
 
-**Coefficient Calibration Notes:**
-- λ, γ, and δ coefficients control the strength and direction of household characteristic effects
-- Positive coefficients increase exploration/learning/anxiety rates; negative values decrease them
-- Suggested starting values: λ₁ = ε_base/10 (income), λ₂ = ε_base/10 (age), λ₃ = -ε_base/10 (household size), λ₄ = ε_base/10 (EV technology), λ₅ = ε_base/10 (experience replay); γ₁ = α_base/10 (income), γ₂ = α_base/10 (age); δ₁ = β_base/10 (income), δ₂ = β_base/10 (residents), δ₃ = β_base/10 (EV type)
-- Calibrate using target TOU adoption rates by demographic groups from EV survey data
-- Additive structure ensures coefficients are independent and directly interpretable
 | $\tau_{prior}$ | Parameter | Prior uncertainty standard deviation | $ | 1 × 1 |
 | $\beta_{base}$ | Parameter | Base range anxiety monetization factor | $/kWh | 1 × 1 |
-| **Decision Variables** |
-| $x_m^{switch}$ | Binary | Decision to switch charging schedule in month $m$ (1 = switch, 0 = stay) | binary | M × 1 |
-| **State Variables** |
-| $S_m^{current}$ | Binary | Current charging schedule state in month $m$ (1 = default, 0 = TOU-adapted) | binary | M × 1 |
-| $r_{m,t}$  | Variable | Electricity rate at time $t$ in month $m$ (determined by peak/off-peak) | $/kWh | M × T |
-| $E_{m,t}^{EV}$ | Variable | EV energy consumption at time $t$ in month $m$ (from OCHRE output) | kWh | M × T |
-| $SOC_{m,t}$ | Variable | EV state of charge at time $t$ in month $m$ | - | M × T |
-| $Home_{m,t}$ | Binary | Vehicle home availability at time $t$ in month $m$ (1 = home, 0 = away) | binary | M × T |
-| $Q_{m,t}^{unmet}$ | Variable | Unmet charging load at time $t$ in month $m$ (from OCHRE output) | kWh | M × T |
-| **Derived Variables** |
-| $C_m^{bill}$ | Variable | Monthly electricity bill for EV charging in month $m$ | $ | M × 1 |
-| $C_m^{anxiety}$ | Variable | Monthly range anxiety penalty from unmet charging in month $m$ | $ | M × 1 |
-| **Value Learning State Variables** |
-| $V_m^{default}$ | Variable | Learned value (total cost) for default charging schedule | $ | M × 1 |
-| $V_m^{TOU}$ | Variable | Learned value (total cost) for TOU charging schedule | $ | M × 1 |
-| $\epsilon_m$ | Variable | Household-specific exploration rate in month $m$ | - | M × 1 |
-| $\alpha_m^{learn}$ | Variable | Household-specific learning rate in month $m$ | - | M × 1 |
+
+**Coefficient Calibration Notes:**
+- λ, γ, and δ coefficients control household characteristic effects
+- Positive coefficients increase exploration/learning/anxiety rates; negative values decrease them
+- Calibrate using target TOU adoption rates by demographic groups from EV survey data
 
 ## 2.1 Building-Specific Parameter Formulations
 
