@@ -58,13 +58,6 @@ This section defines all variables, parameters, and their temporal dimensions us
 | $\lambda_1, \lambda_2, \lambda_3, \lambda_4, \lambda_5$ | Parameter | Exploration coefficients (income, age, residents, water heater, experience replay) | - | 5 × 1 |
 | $\gamma_1, \gamma_2$ | Parameter | Learning rate coefficients (income, age) | - | 2 × 1 |
 | $\delta_1, \delta_2, \delta_3$ | Parameter | Comfort penalty coefficients (income, residents, climate) | $/kWh | 3 × 1 |
-
-**Coefficient Calibration Notes:**
-- λ, γ, and δ coefficients control the strength and direction of household characteristic effects
-- Positive coefficients increase exploration/learning/comfort rates; negative values decrease them
-- Suggested starting values: λ₁ = ε_base/10 (income), λ₂ = ε_base/10 (age), λ₃ = -ε_base/10 (household size), λ₄ = ε_base/10 (technology), λ₅ = ε_base/10 (experience replay); γ₁ = α_base/10 (income), γ₂ = α_base/10 (age); δ₁ = β_base/10 (income), δ₂ = β_base/10 (residents), δ₃ = β_base/10 (climate)
-- Calibrate using target TOU adoption rates by demographic groups from ResStock/survey data
-- Additive structure ensures coefficients are independent and directly interpretable
 | $\tau_{prior}$ | Parameter | Prior uncertainty standard deviation | $ | 1 × 1 |
 | $\beta_{base}$ | Parameter | Base comfort monetization factor | $/kWh | 1 × 1 |
 | **Decision Variables** |
@@ -85,6 +78,17 @@ This section defines all variables, parameters, and their temporal dimensions us
 | $V_m^{TOU}$ | Variable | Learned value (total cost) for TOU schedule | $ | M × 1 |
 | $\epsilon_m$ | Variable | Household-specific exploration rate in month $m$ | - | M × 1 |
 | $\alpha_m^{learn}$ | Variable | Household-specific learning rate in month $m$ | - | M × 1 |
+
+**Coefficient Calibration Notes:**
+- λ, γ, and δ coefficients control the strength and direction of household characteristic effects
+
+- Positive coefficients increase exploration/learning/comfort rates; negative values decrease them
+
+- Suggested starting values: λ₁ = ε_base/10 (income), λ₂ = ε_base/10 (age), λ₃ = -ε_base/10 (household size), λ₄ = ε_base/10 (technology), λ₅ = ε_base/10 (experience replay); γ₁ = α_base/10 (income), γ₂ = α_base/10 (age); δ₁ = β_base/10 (income), δ₂ = β_base/10 (residents), δ₃ = β_base/10 (climate)
+
+- Calibrate using target TOU adoption rates by demographic groups from ResStock/survey data
+
+- Additive structure ensures coefficients are independent and directly interpretable
 
 ## 2.1 Building-Specific Parameter Formulations
 
@@ -133,8 +137,11 @@ Where $\text{clamp}_{[0,1]}(z) = \max(0, \min(1, z))$ constrains the result to $
 
 Where:
 - $\lambda_5 \max(0, C_{recent}^{total} - E[C^{total}])$ captures experience replay effects
+
 - $C_{recent}^{total}$ = average total cost over last 2-3 months for current schedule
+
 - $E[C^{total}]$ = expected total cost based on learned value for current schedule
+
 - $\lambda_5$ = experience replay sensitivity coefficient (controls how much cost surprises increase exploration)
 
 This mechanism captures the psychology where consumers explore more when their recent experience is worse than expected, addressing the concern that higher bills should drive more exploration behavior.
@@ -142,7 +149,9 @@ This mechanism captures the psychology where consumers explore more when their r
 Where:
 
 - $\epsilon_{base}$ = base exploration rate for average household (to be calibrated)
+
 - $f_{AMI} = \sqrt{\frac{AMI}{80\%}}$ (income factor for exploration: higher income increases willingness to experiment due to reduced financial stress)
+
 - Other factors defined in Household Characteristic Functions section above
 
 ### Learning Rate Parameters
@@ -160,7 +169,9 @@ Where $\text{clamp}_{[0,1]}(z) = \max(0, \min(1, z))$ constrains the result to $
 Where:
 
 - $\alpha_{base}^{learn}$ = base learning rate for average household (to be calibrated)
+
 - $f_{AMI}$ and $f_{age}$ defined in Household Characteristic Functions section above
+
 
 ### Comfort Monetization Factor
 
@@ -180,10 +191,15 @@ Where:
 
 **Example:** For a mid-income family (80% AMI, 3 residents, 1980 building, storage water heater, zone 4):
 - Factor values: $f_{AMI} = 0.0$, $f_{age} = \frac{1980-2000}{15} = -1.33$, $f_{residents} = \ln(3) = 1.10$, $f_{WH} = 0.0$, $f_{climate} = 0.0$
+
 - Pre-clamp exploration: $\epsilon_{base} + \lambda_1 \times 0.0 + \lambda_2 \times (-1.33) + \lambda_3 \times 1.10 + \lambda_4 \times 0.0 + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]) = \epsilon_{base} - 1.33\lambda_2 + 1.10\lambda_3 + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}])$
+
 - $\epsilon_m = \text{clamp}_{[0,1]}(\epsilon_{base} - 1.33\lambda_2 + 1.10\lambda_3 + \lambda_5 \max(0, C_{recent}^{total} - E[C^{total}]))$ (constrained to [0,1])
+
 - Pre-clamp learning: $\alpha_{base}^{learn} + \gamma_1 \times 0.0 + \gamma_2 \times (-1.33) = \alpha_{base}^{learn} - 1.33\gamma_2$
+
 - $\alpha_m^{learn} = \text{clamp}_{[0,1]}(\alpha_{base}^{learn} - 1.33\gamma_2)$ (constrained to [0,1])
+
 - $\beta = \beta_{base} + \delta_1 \times 0.0 + \delta_2 \times 1.10 + \delta_3 \times 0.0 = \beta_{base} + 1.10\delta_2$
 
 ## 2.2 Prior Value Initialization
