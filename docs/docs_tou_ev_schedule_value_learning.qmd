@@ -278,8 +278,8 @@ The charging control strategy is determined by the current schedule state $S_m^{
 
 For each time period $t$ in month $m$:
 $$
-P_{max}^{m,t} = \begin{cases}
-P^{max} & \text{if } Home_{m,t} = 1 \text{ and } SOC_{m,t} < 1.0 \\
+Pow_{max}^{m,t} = \begin{cases}
+Pow^{max} & \text{if } Home_{m,t} = 1 \text{ and } SOC_{m,t} < 1.0 \\
 0 & \text{otherwise}
 \end{cases}
 $$
@@ -496,7 +496,7 @@ $$
 **System Performance:**
 
 $$
-\text{Peak Load Reduction} = \frac{\sum_{m=1}^{12} \sum_{t \in H} (P_{m,t}^{baseline} - P_{m,t}^{charge})}{\sum_{m=1}^{12} \sum_{t \in H} P_{m,t}^{baseline}} \times 100\%
+\text{Peak Load Reduction} = \frac{\sum_{m=1}^{12} \sum_{t \in H} (E_{m,t}^{baseline} - E_{m,t}^{EV})}{\sum_{m=1}^{12} \sum_{t \in H} E_{m,t}^{baseline}} \times 100\%
 $$
 
 ### Step 7.2: Generate Key Visualizations
