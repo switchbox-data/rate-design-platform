@@ -1,0 +1,26 @@
+---
+title: "Typical Heat Pump and Heat Pump Water Heater Controls"
+format:
+  pdf:
+    documentclass: article
+    fontsize: 11pt
+    geometry: margin=1in
+    linestretch: 2
+  html:
+    toc: true
+    number-sections: true
+date: today
+bibliography: ref.bib
+---
+
+# Introduction
+
+This document outlines the typical controls for heat pump and heat pump water heater (HPWH) systems.
+
+# Heat Pump Controls
+
+Most smart thermostats will allow a scheduled setpoint control. These can be daily repeating schedules for home, sleep, away, etc., but also for longer-term set schedules are avaliable such as vacation mode. It's not typical that there will be complete controls for on/off status, but people can usually set the setpoints to be high/low enough that the heat pump won't be turned on (for example setting the setpoint to 80F when cooling or 50F when heating). Most smart thermostats do not offer change in operation mode, i.e. using heat pump only or electrical resistance only, etc. However, some thermostats, typically from the same company as the heat pump manufacturers, will allow different lock-out settings for electrical resistance heating. "Lock out temperature" refers to the lower limit threshold of the outdoor temperature for back-up heat activation. So if the lock-out temperature is set to 20F, and the outdoor temperature is 30F, the back-up heat won't be activated (and if the outdoor temperature is 15F, then it will be activated as dictated by the lower-level controller of the heat pump).
+
+# Heat Pump Water Heater Controls
+
+The most common type of thermostats for water heaters are the standard mechanical/digital thermostats. These thermostats have a very simple control of setting a fixed setpoint temperature. They have no scheduling abilities. The more advanced smart thermostats have scheduled control that allows setpoint scheduling for different parts of the day. Some of the really advanced thermostats such as the Rheem EcoNet allow for different operation mode (HPWH, electrical resistance, hybrid, etc.) based on the time of the day. Most of the thermostats are typically from the same company as the water heater.

@@ -16,6 +16,7 @@ nav:
   - HPWH TOU Scheduling: docs_tou_hpwh_schedule_value_learning.md
   - Cross Subsidization Overview: cross_subsization_review.md
   - Water Demand Timeseries: water_demand_timeseries.md
+  - HP and HPWH Controls: HP_and_HPWH_controls.md
 
 plugins:
   - search
