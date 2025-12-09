@@ -4,10 +4,15 @@ This repository is a clean scaffold for rate design analysis, focused on New Yor
 
 ## Layout
 
-- `src/rate_design/` — package skeleton for shared logic, utilities, and New York–specific code.
-- `data/ny/` — local cache for BuildStock and CAIRO inputs/outputs (kept out of git).
-- `scripts/` — helper scripts (e.g., running a NY heat pump rate scenario).
-- `tests/` — placeholder test files to fill in alongside new code.
+- `rate_design/` — package root.
+  - `ny/hp_rates/`
+    - `data/` — local inputs/outputs; `buildstock_*` and `cairo_cases/` are git-ignored. Configs under `tariff_structure/` and `tariff_mapping/` stay versioned.
+    - `scenarios/` — YAML configs selecting tariffs/mappings and other simulation parameters.
+    - `scripts/` — helpers such as customer selection, tariff builders, and case path helpers.
+    - `Justfile` — NY HP-specific recipes (stub).
+  - `ny/ev_rates/` — stubbed EV structure (data, scenarios, scripts, Justfile).
+- `utils/` — cross-jurisdiction utilities (buildstock IO, S3 sync, conversions).
+- `tests/` — placeholder test files to expand alongside code.
 
 ## Notes
-- Data under `data/` should remain local or synced via S3 tooling you add; keep large artifacts out of git.
+- Data under `rate_design/ny/hp_rates/data/` (buildstock raw/processed, cairo cases) should remain local or synced via S3 tooling you add; keep large artifacts out of git.
