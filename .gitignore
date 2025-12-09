@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+
+# Local data and outputs
+data/
+outputs/
+site/
+
+# Python packaging/build artifacts
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
