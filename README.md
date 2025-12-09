@@ -1,6 +1,6 @@
 # rate-design-platform
 
-This repository is a clean scaffold for rate design analysis. It preserves the folder layout used by the prior project while leaving code and data empty so new implementation work can start fresh.
+This repository is a clean scaffold for rate design analysis, focused on New York State. It provides a structured starting point for implementing rate design logic, data handling, and testing. For old ochre sims code see the [ochre-sims-rate-design](https://github.com/switchbox-data/rate-design-platform-archive) repository.
 
 ## Layout
 
@@ -9,13 +9,5 @@ This repository is a clean scaffold for rate design analysis. It preserves the f
 - `scripts/` — helper scripts (e.g., running a NY heat pump rate scenario).
 - `tests/` — placeholder test files to fill in alongside new code.
 
-## Getting started
-
-1) Create and activate a virtual environment (e.g., `python -m venv .venv && source .venv/bin/activate`).
-2) Install in editable mode once dependencies are added: `pip install -e .[dev]`.
-3) Fill in modules under `src/rate_design` and expand tests under `tests`.
-
 ## Notes
-
-- Add real dependencies to `pyproject.toml` as you build out functionality.
 - Data under `data/` should remain local or synced via S3 tooling you add; keep large artifacts out of git.
