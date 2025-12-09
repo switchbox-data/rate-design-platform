@@ -6,7 +6,13 @@ readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Switchbox Data" }]
 license = { file = "LICENSE" }
-dependencies = []
+dependencies = [
+    "buildstock-fetch",
+    "cairo",
+    "polars",
+    "numpy",
+    "pyarrow",
+]
 
 [project.optional-dependencies]
 dev = ["pytest"]
@@ -21,3 +27,6 @@ package-dir = { "" = "src" }
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["rate_design*"]
+
+[tool.uv.sources]
+cairo = { git = "https://github.com/NREL/CAIRO.git", rev = "tb/dev_package" }
