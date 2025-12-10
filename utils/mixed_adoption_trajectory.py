@@ -10,11 +10,6 @@ Workflow:
    - Fetch upgrade data ONLY for those specific buildings
    - Create mixed metadata (baseline + upgrade with adoption flag)
    - Create mixed load curves (baseline + upgrade concatenated)
-
-Key properties:
-- Efficient: Only fetches upgrade data for buildings that actually adopt
-- Cumulative: Adopters at X% ⊆ Adopters at Y% when X < Y
-- Reproducible: Same seed → same adoption ordering
 """
 
 from pathlib import Path

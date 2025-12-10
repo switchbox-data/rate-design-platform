@@ -176,13 +176,13 @@ def fetch_for_building_ids(
     # Convert integer building IDs to BuildingID objects
     bldg_id_objects = [
         BuildingID(
-            product="resstock",
-            release_year=release_year,
-            weather_file=weather_file,
-            release_version=release_version,
-            state=state,
-            upgrade_id=upgrade_id,
             bldg_id=bid,
+            release_number=release_version,
+            release_year=release_year,
+            res_com="resstock",
+            weather=weather_file,
+            upgrade_id=upgrade_id,
+            state=state,
         )
         for bid in building_ids
     ]

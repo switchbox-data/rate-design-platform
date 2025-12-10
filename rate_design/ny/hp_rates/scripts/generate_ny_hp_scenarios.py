@@ -94,17 +94,6 @@ def main():
         n_adopters = int(round(fraction * len(building_ids)))
         print(f"  {fraction*100:3.0f}% adoption ({n_adopters:4d} buildings) → {path.name}")
 
-    print(f"\nAll scenarios use seed {CONFIG['sample_seed']} ensuring:")
-    print("  - Reproducibility: Re-running with same seed gives identical results")
-    print("  - Cumulative property: Adopters at X% ⊆ Adopters at Y% for X < Y")
-    print("  - Efficiency: Upgrade data fetched only for buildings that adopt")
-
-    print("\nNext steps:")
-    print("  - Load scenarios with: pl.read_parquet(path)")
-    print("  - Check 'adopted' column (0=baseline, 1=upgrade)")
-    print("  - Use for GenX/CAIRO modeling")
-    print("\n✓ Done!")
-
 
 if __name__ == "__main__":
     main()

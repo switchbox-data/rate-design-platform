@@ -37,3 +37,8 @@ include = ["rate_design*", "utils*"]
 
 [tool.uv.sources]
 cairo = { git = "https://github.com/NREL/CAIRO.git", rev = "tb/dev_package" }
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as integration tests that require API access (deselect with '-m \"not integration\"')",
+]
