@@ -7,8 +7,14 @@ __pycache__/
 
 # Local data and outputs
 data/
+rate_design/ny/hp_rates/data/buildstock_raw/
+rate_design/ny/hp_rates/data/buildstock_processed/
+rate_design/ny/hp_rates/data/cairo_cases/
 outputs/
 site/
+
+# Test outputs (generated during tests)
+tests/test_outputs/
 
 # Python packaging/build artifacts
 *.pyc
