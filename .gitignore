@@ -13,6 +13,9 @@ rate_design/ny/hp_rates/data/cairo_cases/
 outputs/
 site/
 
+# Test outputs (generated during tests)
+tests/test_outputs/
+
 # Python packaging/build artifacts
 *.pyc
 *.pyo
