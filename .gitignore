@@ -20,3 +20,6 @@ site/
 *.egg-info/
 dist/
 build/
+
+*.csv
+*.json
