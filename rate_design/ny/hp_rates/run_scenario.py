@@ -148,8 +148,8 @@ bs = MeetRevenueSufficiencySystemWide(
     output_dir=path_results, # will default to this folder if not pass, mostly testing ability for user to pass arbitrary output directory
 )
 
-# TODO: figure out how to get gas loads
-# TODO: figure out how to get 
+# TODO: figure out how to get gas loads and calculate gas bills
+# TODO: add (maybe post-processing)module for delivered fuels bills
 bs.simulate(
     revenue_requirement=revenue_requirement,
     tariffs_params = tariffs_params, 
