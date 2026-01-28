@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -75,7 +75,7 @@ wheels = [
 [[package]]
 name = "cairo"
 version = "0.1.0"
-source = { git = "https://github.com/NatLabRockies/CAIRO?rev=main#ddb03783dc78c3dc78b9962713669edfb0d36a07" }
+source = { git = "https://github.com/switchbox-data/CAIRO?rev=sz%2Fgas_billing#e5882f316713f230cc3ce111fac9deac5947c91f" }
 dependencies = [
     { name = "dask" },
     { name = "natsort" },
@@ -1099,7 +1099,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "buildstock-fetch" },
-    { name = "cairo", git = "https://github.com/NatLabRockies/CAIRO?rev=main" },
+    { name = "cairo", git = "https://github.com/switchbox-data/CAIRO?rev=sz%2Fgas_billing" },
     { name = "ipykernel", specifier = ">=7.1.0" },
     { name = "numpy" },
     { name = "polars" },
