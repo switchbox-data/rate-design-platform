@@ -219,18 +219,35 @@ dev-setup: aws _terraform
     done
     echo
 
-    # Connect via SSM and set up just and AWS CLI (no SSH keys needed!)
-    echo "🔧 Installing just, AWS CLI, and setting up shared directories..."
-    aws ssm send-command \
+    # Connect via SSM and set up tools (no SSH keys needed!)
+    echo "🔧 Installing just, uv, AWS CLI, and setting up shared directories..."
+    SETUP_CMD_ID=$(aws ssm send-command \
         --instance-ids "$INSTANCE_ID" \
         --document-name "AWS-RunShellScript" \
         --parameters 'commands=[
-            "bash -c \"set -eu; if ! command -v just >/dev/null 2>&1; then curl --proto =https --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin; fi; if ! command -v aws >/dev/null 2>&1; then apt-get update && apt-get install -y awscli; fi; mkdir -p /data/home /data/shared; chmod 755 /data/home; chmod 777 /data/shared\""
+            "bash -c \"set -eu; apt-get update; if ! command -v just >/dev/null 2>&1; then curl --proto =https --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin; fi; if ! command -v uv >/dev/null 2>&1; then curl -LsSf https://astral.sh/uv/install.sh | sh && cp /root/.cargo/bin/uv /usr/local/bin/uv && chmod +x /usr/local/bin/uv; fi; if ! command -v aws >/dev/null 2>&1; then apt-get install -y awscli; fi; mkdir -p /data/home /data/shared; chmod 755 /data/home; chmod 777 /data/shared\""
         ]' \
-        --output text >/dev/null
+        --query 'Command.CommandId' \
+        --output text 2>/dev/null)
     
-    # Wait for command to complete
-    sleep 3
+    # Wait for setup command to complete
+    echo "   Waiting for tools installation to complete..."
+    for i in {1..60}; do
+        STATUS=$(aws ssm get-command-invocation \
+            --command-id "$SETUP_CMD_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query 'Status' \
+            --output text 2>/dev/null || echo "InProgress")
+        
+        if [ "$STATUS" = "Success" ]; then
+            echo "   ✅ Tools installed successfully"
+            break
+        elif [ "$STATUS" = "Failed" ]; then
+            echo "   ⚠️  Tool installation had issues, but continuing..."
+            break
+        fi
+        sleep 2
+    done
 
     echo "✅ Setup complete!"
     echo
