@@ -225,7 +225,7 @@ dev-setup: aws _terraform
         --instance-ids "$INSTANCE_ID" \
         --document-name "AWS-RunShellScript" \
         --parameters 'commands=[
-            "bash -c \"set -eu; apt-get update; if ! command -v just >/dev/null 2>&1; then curl --proto =https --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin; fi; if ! command -v uv >/dev/null 2>&1; then curl -LsSf https://astral.sh/uv/install.sh | sh && cp /root/.cargo/bin/uv /usr/local/bin/uv && chmod +x /usr/local/bin/uv; fi; if ! command -v aws >/dev/null 2>&1; then apt-get install -y awscli; fi; mkdir -p /data/home /data/shared; chmod 755 /data/home; chmod 777 /data/shared\""
+            "bash -c \"set -eu; apt-get update; if [ ! -x /usr/local/bin/just ]; then curl --proto =https --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin; fi; if [ ! -x /usr/local/bin/uv ]; then curl -LsSf https://astral.sh/uv/install.sh | sh && cp /root/.cargo/bin/uv /usr/local/bin/uv && chmod +x /usr/local/bin/uv; fi; if ! command -v aws >/dev/null 2>&1; then apt-get install -y awscli; fi; mkdir -p /data/home /data/shared; chmod 755 /data/home; chmod 777 /data/shared\""
         ]' \
         --query 'Command.CommandId' \
         --output text 2>/dev/null)
