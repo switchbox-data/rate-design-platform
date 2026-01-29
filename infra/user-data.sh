@@ -112,9 +112,11 @@ fi
 # Create directory structure on EBS volume
 mkdir -p /data/home
 mkdir -p /data/shared
+mkdir -p /data/buildstock  # Shared buildstock data directory
 chmod 755 /data
 chmod 755 /data/home
-chmod 777 /data/shared  # Shared directory for all users
+chmod 777 /data/shared     # Shared directory for all users
+chmod 777 /data/buildstock # Shared buildstock data for all users
 
 # Set up S3 mount
 mkdir -p ${s3_mount_path}
