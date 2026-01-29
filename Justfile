@@ -729,7 +729,7 @@ dev-login: aws
         echo "   ✅ Git config synced from local machine"
     fi
 
-    # Set up repo on first login via SSM
+    # Set up repo on first login via SSM (only clone + uv sync on first time)
     echo "📦 Setting up development environment..."
     REPO_DIR="$USER_HOME/rate-design-platform"
     REPO_URL="https://github.com/switchbox-data/rate-design-platform.git"
@@ -737,12 +737,12 @@ dev-login: aws
         --instance-ids "$INSTANCE_ID" \
         --document-name "AWS-RunShellScript" \
         --parameters "commands=[
-            'bash -c \"set -eu; REPO_DIR=\\\"$REPO_DIR\\\"; REPO_URL=\\\"$REPO_URL\\\"; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; if [ ! -d \\\"\\\$REPO_DIR\\\" ]; then echo \\\"Cloning repository...\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git clone \\\"\\\$REPO_URL\\\" \\\"\\\$REPO_DIR\\\"; echo \\\"Running uv sync...\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- bash -c \\\"cd \\\\\\\"\\\$REPO_DIR\\\\\\\" && /usr/local/bin/uv sync\\\"; echo \\\"Repository cloned and dependencies installed\\\"; else echo \\\"Repository already exists, running uv sync...\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- bash -c \\\"cd \\\\\\\"\\\$REPO_DIR\\\\\\\" && /usr/local/bin/uv sync\\\"; fi\"'
+            'bash -c \"set -eu; REPO_DIR=\\\"$REPO_DIR\\\"; REPO_URL=\\\"$REPO_URL\\\"; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; if [ ! -d \\\"\\\$REPO_DIR\\\" ]; then echo \\\"Cloning repository...\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git clone \\\"\\\$REPO_URL\\\" \\\"\\\$REPO_DIR\\\"; echo \\\"Running uv sync...\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- bash -c \\\"cd \\\\\\\"\\\$REPO_DIR\\\\\\\" && /usr/local/bin/uv sync\\\"; echo \\\"Repository cloned and dependencies installed\\\"; else echo \\\"Repository already exists, skipping setup\\\"; fi\"'
         ]" \
         --query 'Command.CommandId' \
         --output text 2>/dev/null)
     
-    # Wait for repo setup to complete and check for errors
+    # Wait for repo setup to complete (only if first-time clone)
     if [ -n "$REPO_COMMAND_ID" ]; then
         echo "   Waiting for repository setup..."
         for i in {1..60}; do
@@ -753,11 +753,19 @@ dev-login: aws
                 --output text 2>/dev/null || echo "Pending")
             
             if [ "$STATUS" = "Success" ]; then
-                echo "   ✅ Repository setup complete"
+                OUTPUT=$(aws ssm get-command-invocation \
+                    --command-id "$REPO_COMMAND_ID" \
+                    --instance-id "$INSTANCE_ID" \
+                    --query 'StandardOutputContent' \
+                    --output text 2>/dev/null || echo "")
+                if echo "$OUTPUT" | grep -q "already exists"; then
+                    echo "   ✅ Repository ready"
+                else
+                    echo "   ✅ Repository cloned and dependencies installed"
+                fi
                 break
             elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
                 echo "   ❌ Repository setup failed!"
-                # Show the error output
                 aws ssm get-command-invocation \
                     --command-id "$REPO_COMMAND_ID" \
                     --instance-id "$INSTANCE_ID" \
