@@ -7,5 +7,5 @@ download:
   -st NY \
   -f "metadata load_curve_hourly" \
   -u "0 1 2 3 4 5" \
-  -o /data \
+  -o /data/buildstock \
   -sm all
