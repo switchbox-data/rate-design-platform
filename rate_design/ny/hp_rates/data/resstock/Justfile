@@ -1,0 +1,11 @@
+download:
+  uv run bsf \
+  -p resstock \
+  -y 2024 \
+  -w amy2018 \
+  -r 2 \
+  -st NY \
+  -f "metadata load_curve_hourly" \
+  -u "0 1 2 3 4 5" \
+  -o /data \
+  -sm all
