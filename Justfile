@@ -855,7 +855,52 @@ dev-login: aws
     # Try to open Cursor with remote workspace using SSM port forwarding
     REPO_DIR="$USER_HOME/rate-design-platform"
     
-    # Check if port is already in use (SSM port forwarding might be active)
+    # Function to start SSM port forwarding
+    start_port_forwarding() {
+        echo "📡 Starting SSM port forwarding in background..."
+        echo "   Forwarding local port $LOCAL_SSH_PORT to SSH (port 22) on the instance"
+        
+        nohup aws ssm start-session \
+            --target "$INSTANCE_ID" \
+            --document-name "AWS-StartPortForwardingSession" \
+            --parameters "{\"portNumber\":[\"22\"],\"localPortNumber\":[\"$LOCAL_SSH_PORT\"]}" \
+            > /tmp/ssm-port-forward-${INSTANCE_ID}.log 2>&1 &
+        SSM_PID=$!
+        
+        echo "   Waiting for port forwarding to establish..."
+        for i in {1..20}; do
+            sleep 1
+            if command -v lsof >/dev/null 2>&1; then
+                if lsof -i ":$LOCAL_SSH_PORT" >/dev/null 2>&1; then
+                    echo "   ✅ Port forwarding active (PID: $SSM_PID)"
+                    echo "   Logs: /tmp/ssm-port-forward-${INSTANCE_ID}.log"
+                    return 0
+                fi
+            elif command -v netstat >/dev/null 2>&1; then
+                if netstat -an 2>/dev/null | grep -q ":$LOCAL_SSH_PORT.*LISTEN"; then
+                    echo "   ✅ Port forwarding active (PID: $SSM_PID)"
+                    return 0
+                fi
+            fi
+        done
+        
+        echo "   ⚠️  Port forwarding may not be ready yet, but continuing..."
+        return 1
+    }
+    
+    # Function to kill any process using the port
+    kill_port_process() {
+        if command -v lsof >/dev/null 2>&1; then
+            local PID=$(lsof -ti ":$LOCAL_SSH_PORT" 2>/dev/null || echo "")
+            if [ -n "$PID" ]; then
+                echo "   Killing stale process on port $LOCAL_SSH_PORT (PID: $PID)"
+                kill $PID 2>/dev/null || true
+                sleep 2
+            fi
+        fi
+    }
+    
+    # Check if port is already in use
     PORT_IN_USE=false
     if command -v lsof >/dev/null 2>&1; then
         if lsof -i ":$LOCAL_SSH_PORT" >/dev/null 2>&1; then
@@ -867,75 +912,46 @@ dev-login: aws
         fi
     fi
     
-    # Start SSM port forwarding in background if not already running
-    if [ "$PORT_IN_USE" = false ]; then
-        echo "📡 Starting SSM port forwarding in background..."
-        echo "   Forwarding local port $LOCAL_SSH_PORT to SSH (port 22) on the instance"
-        
-        # Start SSM port forwarding in background
-        # Use nohup and redirect output so it doesn't block
-        nohup aws ssm start-session \
-            --target "$INSTANCE_ID" \
-            --document-name "AWS-StartPortForwardingSession" \
-            --parameters "{\"portNumber\":[\"22\"],\"localPortNumber\":[\"$LOCAL_SSH_PORT\"]}" \
-            > /tmp/ssm-port-forward-${INSTANCE_ID}.log 2>&1 &
-        SSM_PID=$!
-        
-        # Wait a moment for port forwarding to establish
-        echo "   Waiting for port forwarding to establish..."
-        for i in {1..20}; do
-            sleep 1
-            if command -v lsof >/dev/null 2>&1; then
-                if lsof -i ":$LOCAL_SSH_PORT" >/dev/null 2>&1; then
-                    PORT_IN_USE=true
-                    break
-                fi
-            elif command -v netstat >/dev/null 2>&1; then
-                if netstat -an 2>/dev/null | grep -q ":$LOCAL_SSH_PORT.*LISTEN"; then
-                    PORT_IN_USE=true
-                    break
-                fi
-            fi
-        done
-        
-        if [ "$PORT_IN_USE" = true ]; then
-            echo "   ✅ Port forwarding active (PID: $SSM_PID)"
-            echo "   Logs: /tmp/ssm-port-forward-${INSTANCE_ID}.log"
-            echo "   To stop: kill $SSM_PID"
+    # If port is in use, test if SSH actually works through the tunnel
+    if [ "$PORT_IN_USE" = true ]; then
+        echo "🔍 Port $LOCAL_SSH_PORT is in use, testing existing tunnel..."
+        if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -i "$SSH_KEY_PRIVATE" -p $LOCAL_SSH_PORT "$LINUX_USERNAME@localhost" "echo test" >/dev/null 2>&1; then
+            echo "   ✅ Existing tunnel is working"
         else
-            echo "   ⚠️  Port forwarding may not be ready yet, but continuing..."
-            echo "   Check logs: /tmp/ssm-port-forward-${INSTANCE_ID}.log"
+            echo "   ⚠️  Existing tunnel is stale, restarting..."
+            kill_port_process
+            start_port_forwarding
         fi
         echo ""
     else
-        echo "✅ Port $LOCAL_SSH_PORT is already in use (SSM port forwarding active)"
+        # No existing tunnel, start a new one
+        start_port_forwarding
         echo ""
     fi
     
-    # Verify SSH connection works before opening Cursor
-    if [ "$PORT_IN_USE" = true ]; then
-        echo "🔍 Verifying SSH connection..."
-        SSH_TEST_SUCCESS=false
-        for i in {1..10}; do
-            if ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-                -i "$SSH_KEY_PRIVATE" -p $LOCAL_SSH_PORT "$LINUX_USERNAME@localhost" "echo test" >/dev/null 2>&1; then
-                SSH_TEST_SUCCESS=true
-                echo "   ✅ SSH connection verified"
-                break
-            else
-                if [ $i -lt 10 ]; then
-                    echo "   Waiting for SSH to be ready... ($i/10)"
-                    sleep 2
-                fi
+    # Final SSH verification before opening Cursor
+    echo "🔍 Verifying SSH connection..."
+    SSH_TEST_SUCCESS=false
+    for i in {1..10}; do
+        if ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -i "$SSH_KEY_PRIVATE" -p $LOCAL_SSH_PORT "$LINUX_USERNAME@localhost" "echo test" >/dev/null 2>&1; then
+            SSH_TEST_SUCCESS=true
+            echo "   ✅ SSH connection verified"
+            break
+        else
+            if [ $i -lt 10 ]; then
+                echo "   Waiting for SSH to be ready... ($i/10)"
+                sleep 2
             fi
-        done
-        
-        if [ "$SSH_TEST_SUCCESS" = false ]; then
-            echo "   ⚠️  SSH connection test failed, but continuing..."
-            echo "   You may need to manually reconnect in Cursor"
         fi
-        echo ""
+    done
+    
+    if [ "$SSH_TEST_SUCCESS" = false ]; then
+        echo "   ⚠️  SSH connection test failed, but continuing..."
+        echo "   You may need to manually reconnect in Cursor"
     fi
+    echo ""
     
     # Try to open Cursor
     if command -v cursor >/dev/null 2>&1 && [ -f "$SSH_KEY" ]; then
