@@ -638,28 +638,10 @@ dev-login: aws
     # Create/setup user account via SSM (no SSH keys needed!)
     echo "👤 Setting up user account..."
     USER_HOME="/data/home/$LINUX_USERNAME"
-    # Use a here-doc to create the script, then base64 encode and execute it
+    # Build script using printf to avoid here-doc syntax issues
     # This avoids all JSON/shell escaping issues
     TEMP_SCRIPT=$(mktemp)
-    cat > "$TEMP_SCRIPT" <<EOF
-#!/bin/bash
-set -eu
-USER_HOME="$USER_HOME"
-LINUX_USERNAME="$LINUX_USERNAME"
-if ! id "\$LINUX_USERNAME" &>/dev/null; then
-  echo "Creating user account: \$LINUX_USERNAME"
-  mkdir -p "\$USER_HOME"
-  useradd -d "\$USER_HOME" -s /bin/bash "\$LINUX_USERNAME"
-  usermod -aG sudo "\$LINUX_USERNAME"
-  chown -R "\$LINUX_USERNAME:\$LINUX_USERNAME" "\$USER_HOME"
-  chmod 755 "\$USER_HOME"
-  echo "User created and added to sudo group"
-else
-  echo "User account already exists: \$LINUX_USERNAME"
-  usermod -aG sudo "\$LINUX_USERNAME" 2>/dev/null || true
-  echo "Ensured user is in sudo group"
-fi
-EOF
+    printf '#!/bin/bash\nset -eu\nUSER_HOME="%s"\nLINUX_USERNAME="%s"\nif ! id "$LINUX_USERNAME" &>/dev/null; then\n  echo "Creating user account: $LINUX_USERNAME"\n  mkdir -p "$USER_HOME"\n  useradd -d "$USER_HOME" -s /bin/bash "$LINUX_USERNAME"\n  usermod -aG sudo "$LINUX_USERNAME"\n  chown -R "$LINUX_USERNAME:$LINUX_USERNAME" "$USER_HOME"\n  chmod 755 "$USER_HOME"\n  echo "User created and added to sudo group"\nelse\n  echo "User account already exists: $LINUX_USERNAME"\n  usermod -aG sudo "$LINUX_USERNAME" 2>/dev/null || true\n  echo "Ensured user is in sudo group"\nfi\n' "$USER_HOME" "$LINUX_USERNAME" > "$TEMP_SCRIPT"
     SCRIPT_B64=$(base64 < "$TEMP_SCRIPT")
     rm -f "$TEMP_SCRIPT"
     # Execute base64-encoded script - simple command with no complex escaping
