@@ -574,7 +574,7 @@ dev-login: aws
         
         # Wait a moment for port forwarding to establish
         echo "   Waiting for port forwarding to establish..."
-        for i in {1..10}; do
+        for i in {1..20}; do
             sleep 1
             if command -v lsof >/dev/null 2>&1; then
                 if lsof -i ":$LOCAL_SSH_PORT" >/dev/null 2>&1; then
@@ -600,6 +600,31 @@ dev-login: aws
         echo ""
     else
         echo "✅ Port $LOCAL_SSH_PORT is already in use (SSM port forwarding active)"
+        echo ""
+    fi
+    
+    # Verify SSH connection works before opening Cursor
+    if [ "$PORT_IN_USE" = true ]; then
+        echo "🔍 Verifying SSH connection..."
+        SSH_TEST_SUCCESS=false
+        for i in {1..10}; do
+            if ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                -i "$SSH_KEY_PRIVATE" -p $LOCAL_SSH_PORT "$LINUX_USERNAME@localhost" "echo test" >/dev/null 2>&1; then
+                SSH_TEST_SUCCESS=true
+                echo "   ✅ SSH connection verified"
+                break
+            else
+                if [ $i -lt 10 ]; then
+                    echo "   Waiting for SSH to be ready... ($i/10)"
+                    sleep 2
+                fi
+            fi
+        done
+        
+        if [ "$SSH_TEST_SUCCESS" = false ]; then
+            echo "   ⚠️  SSH connection test failed, but continuing..."
+            echo "   You may need to manually reconnect in Cursor"
+        fi
         echo ""
     fi
     
