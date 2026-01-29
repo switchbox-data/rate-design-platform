@@ -1,12 +1,648 @@
 default: help
 
 help:
-\t@echo "Available recipes:"
-\t@just -l
+    @echo "Available recipes:"
+    @just -l
 
 install:
-\tpip install --upgrade pip
-\tpip install -e .[dev]
+    pip install --upgrade pip
+    pip install -e .[dev]
 
 test:
-\tpytest -q
+    pytest -q
+
+# =============================================================================
+# 🔍 AWS
+# =============================================================================
+
+# Authenticate with AWS via SSO (for manual AWS CLI usage like S3 access)
+# Automatically configures SSO if not already configured
+aws:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Check for AWS CLI (silent if installed, error if not)
+    if ! command -v aws >/dev/null 2>&1; then
+        echo "❌ ERROR: AWS CLI is not installed" >&2
+        echo "" >&2
+        echo "Install AWS CLI first:" >&2
+        echo "  https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html" >&2
+        echo "" >&2
+        exit 1
+    fi
+
+    # Check if credentials are already valid (early exit if so)
+    # Test with an actual EC2 API call since DevPod uses EC2
+    if aws sts get-caller-identity &>/dev/null && \
+       aws ec2 describe-instances --max-results 5 &>/dev/null; then
+        echo "✅ AWS credentials are already valid"
+        echo
+        exit 0
+    fi
+
+    # Credentials are not valid, so we need to configure and/or login
+    # Load AWS SSO configuration from shell script (needed for session name)
+    CONFIG_FILE=".secrets/aws-sso-config.sh"
+    if [ -f "$CONFIG_FILE" ]; then
+        # shellcheck source=.secrets/aws-sso-config.sh
+        . "$CONFIG_FILE"
+    fi
+    # Check if SSO is already configured for the default profile
+    # (default profile is used when --profile is not specified)
+    NEEDS_CONFIG=false
+    if ! aws configure get sso_start_url &>/dev/null || \
+       ! aws configure get sso_region &>/dev/null; then
+        NEEDS_CONFIG=true
+    fi
+
+    if [ "$NEEDS_CONFIG" = true ]; then
+        echo "🔧 AWS SSO not configured. Setting up SSO configuration..."
+        echo
+
+        # Load AWS SSO configuration from shell script
+        CONFIG_FILE=".secrets/aws-sso-config.sh"
+        if [ ! -f "$CONFIG_FILE" ]; then
+            echo "❌ ERROR: Missing AWS SSO configuration file" >&2
+            echo "" >&2
+            echo "   The file '$CONFIG_FILE' is required but not found." >&2
+            echo "   Please ask a team member for this file and place it in the .secrets/ directory." >&2
+            echo "" >&2
+            exit 1
+        fi
+
+        # Source the configuration file
+        # shellcheck source=.secrets/aws-sso-config.sh
+        . "$CONFIG_FILE"
+
+
+        # Configure default profile with SSO settings
+        aws configure set sso_start_url "$SSO_START_URL"
+        aws configure set sso_region "$SSO_REGION"
+        aws configure set sso_account_id "$SSO_ACCOUNT_ID"
+        aws configure set sso_role_name "$SSO_ROLE_NAME"
+        aws configure set region "$SSO_REGION"
+        aws configure set output "json"
+
+        echo "✅ AWS SSO configuration complete"
+        echo
+    fi
+
+    # Run SSO login (handles browser authentication)
+    # Use profile-based login since we configure SSO settings directly on the profile
+    echo "🔓 Starting AWS SSO login..."
+    echo
+    aws sso login
+    echo
+
+# =============================================================================
+# 🚀 DEVELOPMENT ENVIRONMENT
+# =============================================================================
+
+# Set up EC2 instance (run once by admin)
+# Idempotent: safe to run multiple times
+dev-setup: aws
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Check for Terraform
+    if ! command -v terraform >/dev/null 2>&1; then
+        echo "❌ ERROR: Terraform is not installed" >&2
+        echo "" >&2
+        echo "Install Terraform first:" >&2
+        echo "  https://developer.hashicorp.com/terraform/downloads" >&2
+        echo "" >&2
+        exit 1
+    fi
+
+    # No SSH required - we use AWS Systems Manager Session Manager!
+
+    echo "🚀 Setting up EC2 instance..."
+    echo
+
+    # Change to infra directory
+    cd infra
+
+    # Initialize Terraform if needed
+    if [ ! -d ".terraform" ]; then
+        echo "📦 Initializing Terraform..."
+        terraform init
+        echo
+    fi
+
+    # Apply Terraform configuration
+    echo "🏗️  Applying Terraform configuration..."
+    terraform apply -auto-approve
+    echo
+
+    # Get instance information
+    INSTANCE_ID=$(terraform output -raw instance_id)
+    AVAILABILITY_ZONE=$(terraform output -raw availability_zone)
+    PUBLIC_IP=$(terraform output -raw instance_public_ip 2>/dev/null || echo "")
+
+    echo "⏳ Waiting for instance to be ready..."
+    aws ec2 wait instance-status-ok --instance-ids "$INSTANCE_ID"
+    echo "✅ Instance is ready"
+    echo
+
+    # Wait for SSM agent to be ready (no SSH keys needed - uses AWS SSO!)
+    echo "⏳ Waiting for SSM agent to be ready..."
+    for i in {1..30}; do
+        if aws ssm describe-instance-information \
+            --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
+            --query 'InstanceInformationList[0].PingStatus' \
+            --output text 2>/dev/null | grep -q "Online"; then
+            echo "✅ SSM agent is ready"
+            break
+        fi
+        if [ $i -eq 30 ]; then
+            echo "⚠️  SSM agent not ready yet, but continuing..."
+        fi
+        sleep 2
+    done
+    echo
+
+    # Connect via SSM and set up just and AWS CLI (no SSH keys needed!)
+    echo "🔧 Installing just, AWS CLI, and setting up shared directories..."
+    aws ssm send-command \
+        --instance-ids "$INSTANCE_ID" \
+        --document-name "AWS-RunShellScript" \
+        --parameters 'commands=[
+            "bash -c \"set -eu; if ! command -v just >/dev/null 2>&1; then curl --proto =https --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin; fi; if ! command -v aws >/dev/null 2>&1; then apt-get update && apt-get install -y awscli; fi; mkdir -p /data/home /data/shared; chmod 755 /data/home; chmod 777 /data/shared\""
+        ]' \
+        --output text >/dev/null
+    
+    # Wait for command to complete
+    sleep 3
+
+    echo "✅ Setup complete!"
+    echo
+    echo "Instance ID: $INSTANCE_ID"
+    echo "Public IP: $PUBLIC_IP"
+    echo "Availability Zone: $AVAILABILITY_ZONE"
+    echo
+    echo "Users can now connect with: just dev-login"
+
+# User login (run by any authorized user)
+dev-login: aws
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Check for Session Manager plugin (required for SSM sessions)
+    if ! command -v session-manager-plugin >/dev/null 2>&1; then
+        echo "📦 Session Manager plugin not found. Installing from AWS..."
+        echo ""
+        
+        # Detect architecture (Intel vs Apple Silicon)
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "arm64" ]; then
+            DOWNLOAD_URL="https://s3.amazonaws.com/session-manager-downloads/plugin/latest/mac_arm64/session-manager-plugin.pkg"
+            echo "   Detected Apple Silicon (arm64)"
+        else
+            DOWNLOAD_URL="https://s3.amazonaws.com/session-manager-downloads/plugin/latest/mac/session-manager-plugin.pkg"
+            echo "   Detected Intel (x86_64)"
+        fi
+        
+        # Create temp directory
+        TEMP_DIR=$(mktemp -d)
+        PKG_FILE="$TEMP_DIR/session-manager-plugin.pkg"
+        
+        echo "   Downloading from AWS..."
+        curl -sSL "$DOWNLOAD_URL" -o "$PKG_FILE"
+        
+        if [ ! -f "$PKG_FILE" ] || [ ! -s "$PKG_FILE" ]; then
+            echo "❌ ERROR: Failed to download Session Manager plugin" >&2
+            rm -rf "$TEMP_DIR"
+            exit 1
+        fi
+        
+        echo "   Installing (requires sudo)..."
+        sudo installer -pkg "$PKG_FILE" -target / >/dev/null 2>&1
+        
+        # Create symlink if it doesn't exist
+        if [ ! -f /usr/local/bin/session-manager-plugin ]; then
+            sudo mkdir -p /usr/local/bin
+            sudo ln -sf /usr/local/sessionmanagerplugin/bin/session-manager-plugin /usr/local/bin/session-manager-plugin
+        fi
+        
+        # Clean up
+        rm -rf "$TEMP_DIR"
+        
+        # Verify installation
+        if ! command -v session-manager-plugin >/dev/null 2>&1; then
+            echo "❌ ERROR: Failed to install Session Manager plugin" >&2
+            echo "" >&2
+            echo "   Please install manually:" >&2
+            echo "     https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html" >&2
+            echo "" >&2
+            exit 1
+        fi
+        
+        echo "✅ Session Manager plugin installed successfully"
+        echo ""
+    fi
+
+    # No SSH required - we use AWS Systems Manager Session Manager!
+
+    # Get AWS IAM username (handle both IAM users and SSO)
+    IAM_USERNAME=$(aws sts get-caller-identity --query User.UserName --output text 2>/dev/null || echo "")
+    # For SSO users, try Identity.UserName or extract from ARN
+    if [ -z "$IAM_USERNAME" ] || [ "$IAM_USERNAME" = "None" ]; then
+        IAM_USERNAME=$(aws sts get-caller-identity --query Identity.UserName --output text 2>/dev/null || echo "")
+    fi
+    # If still empty, try extracting from ARN (format: arn:aws:sts::ACCOUNT:assumed-role/ROLE/USERNAME)
+    if [ -z "$IAM_USERNAME" ] || [ "$IAM_USERNAME" = "None" ]; then
+        ARN=$(aws sts get-caller-identity --query Arn --output text 2>/dev/null || echo "")
+        if [ -n "$ARN" ]; then
+            # Extract username from ARN (last part after the last /)
+            IAM_USERNAME=$(echo "$ARN" | awk -F'/' '{print $NF}')
+        fi
+    fi
+    if [ -z "$IAM_USERNAME" ] || [ "$IAM_USERNAME" = "None" ]; then
+        echo "❌ ERROR: Could not get AWS IAM username" >&2
+        echo "   Got: $(aws sts get-caller-identity --output json 2>/dev/null || echo 'unknown')" >&2
+        exit 1
+    fi
+
+    # Sanitize username for Linux (lowercase, replace invalid chars with underscores)
+    LINUX_USERNAME=$(echo "$IAM_USERNAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/g')
+
+    echo "🔐 Logging in as: $LINUX_USERNAME"
+    echo
+
+    # Get instance information using AWS CLI (no Terraform required)
+    # Find instance by project tag (default: rate-design-platform)
+    PROJECT_NAME="${PROJECT_NAME:-rate-design-platform}"
+    
+    echo "🔍 Looking for EC2 instance..."
+    INSTANCE_ID=$(aws ec2 describe-instances \
+        --filters "Name=tag:Project,Values=$PROJECT_NAME" "Name=instance-state-name,Values=running" \
+        --query 'Reservations[0].Instances[0].InstanceId' \
+        --output text 2>/dev/null || echo "")
+    
+    if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ]; then
+        echo "❌ ERROR: Instance not found. Run 'just dev-setup' first." >&2
+        exit 1
+    fi
+    
+    AVAILABILITY_ZONE=$(aws ec2 describe-instances \
+        --instance-ids "$INSTANCE_ID" \
+        --query 'Reservations[0].Instances[0].Placement.AvailabilityZone' \
+        --output text 2>/dev/null || echo "")
+    
+    PUBLIC_IP=$(aws ec2 describe-instances \
+        --instance-ids "$INSTANCE_ID" \
+        --query 'Reservations[0].Instances[0].PublicIpAddress' \
+        --output text 2>/dev/null || echo "")
+    
+    PRIVATE_IP=$(aws ec2 describe-instances \
+        --instance-ids "$INSTANCE_ID" \
+        --query 'Reservations[0].Instances[0].PrivateIpAddress' \
+        --output text 2>/dev/null || echo "")
+
+    # Use private IP if no public IP (instance in private subnet)
+    if [ -z "$PUBLIC_IP" ]; then
+        CONNECT_IP="$PRIVATE_IP"
+        echo "⚠️  Instance has no public IP, using private IP (ensure you're connected via VPN/bastion)"
+    else
+        CONNECT_IP="$PUBLIC_IP"
+    fi
+
+    # Wait for SSM agent to be ready (no SSH keys needed - uses AWS SSO!)
+    echo "⏳ Waiting for SSM agent to be ready..."
+    for i in {1..30}; do
+        if aws ssm describe-instance-information \
+            --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
+            --query 'InstanceInformationList[0].PingStatus' \
+            --output text 2>/dev/null | grep -q "Online"; then
+            echo "✅ SSM agent is ready"
+            break
+        fi
+        if [ $i -eq 30 ]; then
+            echo "⚠️  SSM agent not ready yet, but continuing..."
+        fi
+        sleep 2
+    done
+    echo
+
+    # Create/setup user account via SSM (no SSH keys needed!)
+    echo "👤 Setting up user account..."
+    USER_HOME="/data/home/$LINUX_USERNAME"
+    COMMAND_ID=$(aws ssm send-command \
+        --instance-ids "$INSTANCE_ID" \
+        --document-name "AWS-RunShellScript" \
+        --parameters "commands=[
+            'bash -c \"set -eu; USER_HOME=\\\"$USER_HOME\\\"; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; if ! id \\\"\\\$LINUX_USERNAME\\\" &>/dev/null; then echo \\\"Creating user account: \\\$LINUX_USERNAME\\\"; mkdir -p \\\"\\\$USER_HOME\\\"; useradd -d \\\"\\\$USER_HOME\\\" -s /bin/bash \\\"\\\$LINUX_USERNAME\\\"; usermod -aG sudo \\\"\\\$LINUX_USERNAME\\\"; chown -R \\\"\\\$LINUX_USERNAME:\\\$LINUX_USERNAME\\\" \\\"\\\$USER_HOME\\\"; chmod 755 \\\"\\\$USER_HOME\\\"; echo \\\"User created and added to sudo group\\\"; else echo \\\"User account already exists: \\\$LINUX_USERNAME\\\"; usermod -aG sudo \\\"\\\$LINUX_USERNAME\\\" 2>/dev/null || true; echo \\\"Ensured user is in sudo group\\\"; fi\"'
+        ]" \
+        --query 'Command.CommandId' \
+        --output text 2>/dev/null)
+    
+    # Wait for command to complete and check ACTUAL output/errors
+    if [ -n "$COMMAND_ID" ]; then
+        echo "   Waiting for user creation to complete..."
+        for i in {1..30}; do
+            STATUS=$(aws ssm get-command-invocation \
+                --command-id "$COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --query 'Status' \
+                --output text 2>/dev/null || echo "InProgress")
+            
+            if [ "$STATUS" = "Success" ] || [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
+                # Get ACTUAL output and error output
+                OUTPUT=$(aws ssm get-command-invocation \
+                    --command-id "$COMMAND_ID" \
+                    --instance-id "$INSTANCE_ID" \
+                    --query 'StandardOutputContent' \
+                    --output text 2>/dev/null || echo "")
+                ERROR_OUTPUT=$(aws ssm get-command-invocation \
+                    --command-id "$COMMAND_ID" \
+                    --instance-id "$INSTANCE_ID" \
+                    --query 'StandardErrorContent' \
+                    --output text 2>/dev/null || echo "")
+                
+                echo "   Command status: $STATUS"
+                if [ -n "$OUTPUT" ]; then
+                    echo "   Output: $OUTPUT"
+                fi
+                if [ -n "$ERROR_OUTPUT" ]; then
+                    echo "   Errors: $ERROR_OUTPUT"
+                fi
+                
+                if [ "$STATUS" = "Failed" ]; then
+                    echo "   ERROR: User creation command failed!" >&2
+                    exit 1
+                fi
+                
+                # Now verify user actually exists by checking /etc/passwd
+                VERIFY_CMD_ID=$(aws ssm send-command \
+                    --instance-ids "$INSTANCE_ID" \
+                    --document-name "AWS-RunShellScript" \
+                    --parameters "commands=['bash -c \"if getent passwd \\\"$LINUX_USERNAME\\\" >/dev/null 2>&1; then echo EXISTS; else echo NOT_EXISTS; fi\"']" \
+                    --query 'Command.CommandId' \
+                    --output text 2>/dev/null)
+                
+                if [ -n "$VERIFY_CMD_ID" ]; then
+                    sleep 3
+                    VERIFY_OUTPUT=$(aws ssm get-command-invocation \
+                        --command-id "$VERIFY_CMD_ID" \
+                        --instance-id "$INSTANCE_ID" \
+                        --query 'StandardOutputContent' \
+                        --output text 2>/dev/null || echo "")
+                    
+                    if echo "$VERIFY_OUTPUT" | grep -q "EXISTS"; then
+                        echo "   User account verified in /etc/passwd"
+                        break
+                    else
+                        echo "   WARNING: User not found in /etc/passwd, output: $VERIFY_OUTPUT"
+                        if [ $i -lt 30 ]; then
+                            echo "   Retrying verification... ($i/30)"
+                            sleep 2
+                            continue
+                        fi
+                    fi
+                fi
+                break
+            fi
+            sleep 1
+        done
+    else
+        echo "   ERROR: Could not get command ID" >&2
+        exit 1
+    fi
+
+    # Ensure user is in sudo group, configure passwordless sudo, and mount S3
+    echo "🔧 Ensuring sudo access and S3 mount..."
+    aws ssm send-command \
+        --instance-ids "$INSTANCE_ID" \
+        --document-name "AWS-RunShellScript" \
+        --parameters "commands=[
+            'bash -c \"set -eu; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; usermod -aG sudo \\\"\\\$LINUX_USERNAME\\\" 2>/dev/null || true; echo \\\"\\\$LINUX_USERNAME ALL=(ALL) NOPASSWD:ALL\\\" > /etc/sudoers.d/\\\$LINUX_USERNAME; chmod 440 /etc/sudoers.d/\\\$LINUX_USERNAME; if ! command -v uv >/dev/null 2>&1; then curl -LsSf https://astral.sh/uv/install.sh | sh && cp /root/.cargo/bin/uv /usr/local/bin/uv 2>/dev/null || true && chmod +x /usr/local/bin/uv; fi; if ! grep -q \\\"^user_allow_other\\\" /etc/fuse.conf; then sed -i \\\"s/#user_allow_other/user_allow_other/\\\" /etc/fuse.conf || echo \\\"user_allow_other\\\" >> /etc/fuse.conf; fi; if [ ! -d /s3 ]; then mkdir -p /s3; chmod 755 /s3; fi; if ! grep -q \\\"data.sb /s3\\\" /etc/fstab; then echo \\\"data.sb /s3 fuse.s3fs _netdev,allow_other,use_cache=/tmp/s3fs-cache,iam_role=auto,umask=0002,use_path_request_style 0 0\\\" >> /etc/fstab; else sed -i \\\"s|data.sb /s3.*|data.sb /s3 fuse.s3fs _netdev,allow_other,use_cache=/tmp/s3fs-cache,iam_role=auto,umask=0002,use_path_request_style 0 0|\\\" /etc/fstab; fi; mkdir -p /tmp/s3fs-cache; chmod 1777 /tmp/s3fs-cache; if ! mountpoint -q /s3; then mount /s3 2>&1 || echo \\\"Mount failed, will retry\\\"; sleep 3; if mountpoint -q /s3; then echo \\\"S3 mounted successfully\\\"; else echo \\\"S3 mount still not active\\\"; fi; fi\"'
+        ]" \
+        --output text >/dev/null
+    sleep 3
+
+    # Set up repo on first login via SSM
+    echo "📦 Setting up development environment..."
+    REPO_DIR="$USER_HOME/rate-design-platform"
+    REPO_URL="https://github.com/switchbox-data/rate-design-platform.git"
+    REPO_COMMAND_ID=$(aws ssm send-command \
+        --instance-ids "$INSTANCE_ID" \
+        --document-name "AWS-RunShellScript" \
+        --parameters "commands=[
+            'bash -c \"set -eu; REPO_DIR=\\\"$REPO_DIR\\\"; REPO_URL=\\\"$REPO_URL\\\"; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; if [ ! -d \\\"\\\$REPO_DIR\\\" ]; then echo \\\"Cloning repository...\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git clone \\\"\\\$REPO_URL\\\" \\\"\\\$REPO_DIR\\\"; cd \\\"\\\$REPO_DIR\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- bash -c \\\"cd \\\\\\\"\\\$REPO_DIR\\\\\\\" && uv sync\\\"; echo \\\"Repository cloned and dependencies installed\\\"; echo \\\"\\\"; echo \\\"Note: For GitHub authentication (push/pull), run gh auth login on the instance\\\"; else echo \\\"Repository already exists, skipping clone\\\"; fi\"'
+        ]" \
+        --query 'Command.CommandId' \
+        --output text 2>/dev/null)
+    
+    # Wait briefly for repo setup (but don't block - it can happen in background)
+    if [ -n "$REPO_COMMAND_ID" ]; then
+        sleep 2
+    fi
+
+    echo ""
+
+    # Verify user actually exists before starting session (critical check)
+    echo "   Verifying user account exists..."
+    USER_EXISTS=false
+    MAX_RETRIES=20
+    
+    for i in $(seq 1 $MAX_RETRIES); do
+        VERIFY_COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters "commands=['bash -c \"if id \\\"$LINUX_USERNAME\\\" >/dev/null 2>&1; then echo EXISTS; else echo NOT_EXISTS; fi\"']" \
+            --query 'Command.CommandId' \
+            --output text 2>/dev/null)
+        
+        if [ -n "$VERIFY_COMMAND_ID" ]; then
+            # Wait for command to complete
+            sleep 3
+            OUTPUT=$(aws ssm get-command-invocation \
+                --command-id "$VERIFY_COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --query 'StandardOutputContent' \
+                --output text 2>/dev/null || echo "")
+            
+            if echo "$OUTPUT" | grep -q "EXISTS"; then
+                USER_EXISTS=true
+                echo "   User account verified"
+                break
+            else
+                if [ $i -lt $MAX_RETRIES ]; then
+                    echo "   User not found yet, retrying... ($i/$MAX_RETRIES)"
+                fi
+            fi
+        fi
+        
+        sleep 2
+    done
+    
+    if [ "$USER_EXISTS" = false ]; then
+        echo "   ERROR: User account '$LINUX_USERNAME' does not exist after $MAX_RETRIES attempts" >&2
+        echo "   The user creation may have failed. Check the SSM command output." >&2
+        exit 1
+    fi
+    
+    # Set up SSH access for Cursor (use dedicated keypair for this project)
+    echo "Setting up SSH access for Cursor..."
+    SSH_KEY_NAME="rate_design_platform_ec2"
+    SSH_KEY=~/.ssh/${SSH_KEY_NAME}.pub
+    SSH_KEY_PRIVATE=~/.ssh/${SSH_KEY_NAME}
+    
+    # Check for dedicated keypair, generate if missing
+    if [ ! -f "$SSH_KEY" ] || [ ! -f "$SSH_KEY_PRIVATE" ]; then
+        echo "   Generating dedicated SSH keypair for EC2 access..."
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        ssh-keygen -t ed25519 -f "$SSH_KEY_PRIVATE" -N "" -C "rate-design-platform-ec2-$(date +%Y%m%d)" >/dev/null 2>&1
+        echo "   SSH keypair generated: $SSH_KEY_PRIVATE"
+    else
+        echo "   Using existing SSH keypair: $SSH_KEY_PRIVATE"
+    fi
+    
+    if [ -f "$SSH_KEY" ]; then
+        SSH_KEY_CONTENT=$(cat "$SSH_KEY" | sed 's/"/\\"/g')
+        aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters "commands=[
+                'bash -c \"set -eu; USER_HOME=\\\"$USER_HOME\\\"; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; SSH_KEY=\\\"$SSH_KEY_CONTENT\\\"; mkdir -p \\\"\\\$USER_HOME/.ssh\\\"; chmod 700 \\\"\\\$USER_HOME/.ssh\\\"; chown \\\"\\\$LINUX_USERNAME:\\\$LINUX_USERNAME\\\" \\\"\\\$USER_HOME/.ssh\\\"; if ! grep -qF \\\"\\\$SSH_KEY\\\" \\\"\\\$USER_HOME/.ssh/authorized_keys\\\" 2>/dev/null; then echo \\\"\\\$SSH_KEY\\\" >> \\\"\\\$USER_HOME/.ssh/authorized_keys\\\"; chmod 600 \\\"\\\$USER_HOME/.ssh/authorized_keys\\\"; chown \\\"\\\$LINUX_USERNAME:\\\$LINUX_USERNAME\\\" \\\"\\\$USER_HOME/.ssh/authorized_keys\\\"; fi\"'
+            ]" \
+            --output text >/dev/null
+        sleep 2
+        echo "   SSH key configured on instance"
+    fi
+    
+    # Configure SSH config for SSM port forwarding
+    # Use SSM port forwarding for SSH (more secure, works regardless of security group rules)
+    LOCAL_SSH_PORT=2222
+    if [ -f "$SSH_KEY" ]; then
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        
+        # Update or add SSH config entry for SSM port forwarding
+        if grep -q "Host rate-design-platform" ~/.ssh/config 2>/dev/null; then
+            # Remove old entry and add new one (handle both Linux and macOS sed)
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                sed -i '' '/^Host rate-design-platform$/,/^$/d' ~/.ssh/config 2>/dev/null || true
+            else
+                sed -i.bak '/^Host rate-design-platform$/,/^$/d' ~/.ssh/config 2>/dev/null || true
+            fi
+        fi
+        
+        {
+            echo "Host rate-design-platform"
+            echo "    HostName localhost"
+            echo "    Port $LOCAL_SSH_PORT"
+            echo "    User $LINUX_USERNAME"
+            echo "    IdentityFile $SSH_KEY_PRIVATE"
+            echo "    StrictHostKeyChecking no"
+            echo "    UserKnownHostsFile /dev/null"
+            echo ""
+        } >> ~/.ssh/config
+        chmod 600 ~/.ssh/config
+        echo "   SSH config updated for SSM port forwarding (localhost:$LOCAL_SSH_PORT)"
+    fi
+    
+    # Try to open Cursor with remote workspace using SSM port forwarding
+    REPO_DIR="$USER_HOME/rate-design-platform"
+    
+    # Check if port is already in use (SSM port forwarding might be active)
+    PORT_IN_USE=false
+    if command -v lsof >/dev/null 2>&1; then
+        if lsof -i ":$LOCAL_SSH_PORT" >/dev/null 2>&1; then
+            PORT_IN_USE=true
+        fi
+    elif command -v netstat >/dev/null 2>&1; then
+        if netstat -an 2>/dev/null | grep -q ":$LOCAL_SSH_PORT.*LISTEN"; then
+            PORT_IN_USE=true
+        fi
+    fi
+    
+    # Start SSM port forwarding in background if not already running
+    if [ "$PORT_IN_USE" = false ]; then
+        echo "📡 Starting SSM port forwarding in background..."
+        echo "   Forwarding local port $LOCAL_SSH_PORT to SSH (port 22) on the instance"
+        
+        # Start SSM port forwarding in background
+        # Use nohup and redirect output so it doesn't block
+        nohup aws ssm start-session \
+            --target "$INSTANCE_ID" \
+            --document-name "AWS-StartPortForwardingSession" \
+            --parameters "{\"portNumber\":[\"22\"],\"localPortNumber\":[\"$LOCAL_SSH_PORT\"]}" \
+            > /tmp/ssm-port-forward-${INSTANCE_ID}.log 2>&1 &
+        SSM_PID=$!
+        
+        # Wait a moment for port forwarding to establish
+        echo "   Waiting for port forwarding to establish..."
+        for i in {1..10}; do
+            sleep 1
+            if command -v lsof >/dev/null 2>&1; then
+                if lsof -i ":$LOCAL_SSH_PORT" >/dev/null 2>&1; then
+                    PORT_IN_USE=true
+                    break
+                fi
+            elif command -v netstat >/dev/null 2>&1; then
+                if netstat -an 2>/dev/null | grep -q ":$LOCAL_SSH_PORT.*LISTEN"; then
+                    PORT_IN_USE=true
+                    break
+                fi
+            fi
+        done
+        
+        if [ "$PORT_IN_USE" = true ]; then
+            echo "   ✅ Port forwarding active (PID: $SSM_PID)"
+            echo "   Logs: /tmp/ssm-port-forward-${INSTANCE_ID}.log"
+            echo "   To stop: kill $SSM_PID"
+        else
+            echo "   ⚠️  Port forwarding may not be ready yet, but continuing..."
+            echo "   Check logs: /tmp/ssm-port-forward-${INSTANCE_ID}.log"
+        fi
+        echo ""
+    else
+        echo "✅ Port $LOCAL_SSH_PORT is already in use (SSM port forwarding active)"
+        echo ""
+    fi
+    
+    # Try to open Cursor
+    if command -v cursor >/dev/null 2>&1 && [ -f "$SSH_KEY" ]; then
+        echo "Opening Cursor with remote workspace..."
+        if cursor --remote ssh-remote+rate-design-platform "$REPO_DIR" 2>/dev/null; then
+            echo "   ✅ Cursor opened successfully"
+            echo ""
+            echo "   💡 Keep the SSM port forwarding session running while using Cursor"
+            if [ -n "${SSM_PID:-}" ]; then
+                echo "   To stop port forwarding: kill $SSM_PID"
+            fi
+        else
+            echo "   ⚠️  Could not open Cursor remotely"
+            echo ""
+            echo "   You can manually connect in Cursor to: ssh-remote+rate-design-platform"
+            if [ -n "${SSM_PID:-}" ]; then
+                echo "   Port forwarding is running (PID: $SSM_PID)"
+            fi
+        fi
+    else
+        echo ""
+        echo "📋 To connect Cursor manually:"
+        echo ""
+        echo "   In Cursor, connect to: ssh-remote+rate-design-platform"
+        echo ""
+        if ! command -v cursor >/dev/null 2>&1; then
+            echo "💡 Tip: Install Cursor CLI for automatic connection:"
+            echo "     curl https://cursor.com/install -fsS | bash"
+            echo ""
+        fi
+        if [ -n "${SSM_PID:-}" ]; then
+            echo "   Port forwarding is running in background (PID: $SSM_PID)"
+        fi
+    fi
+    echo ""
+    
+    # Open interactive SSM session
+    echo "Opening interactive session..."
+    echo "   (Press Ctrl+D to exit)"
+    echo ""
+    aws ssm start-session \
+        --target "$INSTANCE_ID" \
+        --document-name "AWS-StartInteractiveCommand" \
+        --parameters "command=sudo -u $LINUX_USERNAME bash -l"

@@ -23,3 +23,9 @@ build/
 
 *.csv
 *.json
+
+# Terraform state files
+infra/*.tfstate
+infra/*.tfstate.*
+infra/.terraform/
+infra/.terraform.lock.hcl
