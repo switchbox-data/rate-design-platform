@@ -90,23 +90,45 @@ if ! grep -q "^user_allow_other" /etc/fuse.conf; then
     sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf || echo "user_allow_other" >> /etc/fuse.conf
 fi
 
+# Create cache directory for s3fs BEFORE mounting
+mkdir -p /tmp/s3fs-cache
+chmod 1777 /tmp/s3fs-cache
+
+# Ensure cache directory is recreated on every boot (since /tmp is cleared on reboot)
+# This is needed for the fstab mount to work automatically on boot
+echo "d /tmp/s3fs-cache 1777 root root -" > /etc/tmpfiles.d/s3fs-cache.conf
+
 # Mount S3 bucket using IAM instance profile
 # s3fs automatically uses IAM role when no credentials are specified
 # Note: use_path_request_style is required for bucket names with dots (like data.sb)
-echo "${s3_bucket_name} ${s3_mount_path} fuse.s3fs _netdev,allow_other,use_cache=/tmp/s3fs-cache,iam_role=auto,umask=0002,use_path_request_style,endpoint=us-west-2,url=https://s3.us-west-2.amazonaws.com 0 0" >> /etc/fstab
+# Note: endpoint and url are required because bucket is in us-west-2
+S3FS_OPTS="_netdev,allow_other,use_cache=/tmp/s3fs-cache,iam_role=auto,umask=0002,use_path_request_style,endpoint=us-west-2,url=https://s3.us-west-2.amazonaws.com"
+echo "${s3_bucket_name} ${s3_mount_path} fuse.s3fs $S3FS_OPTS 0 0" >> /etc/fstab
 
-# Try to mount S3 (may fail if network not ready, will be mounted on boot)
-# Wait a bit for network to be ready
-sleep 10
-# Mount in background since it can take time to initialize
-if ! mountpoint -q ${s3_mount_path}; then
-    nohup mount ${s3_mount_path} > /tmp/s3fs-mount.log 2>&1 &
-    echo "S3 mount initiated in background (check /tmp/s3fs-mount.log for status)"
+# Try to mount S3 with retries (IAM role may take a moment to be available)
+echo "Mounting S3 bucket ${s3_bucket_name} to ${s3_mount_path}..."
+for i in 1 2 3 4 5; do
+    if mountpoint -q ${s3_mount_path}; then
+        echo "S3 already mounted"
+        break
+    fi
+    
+    echo "  Attempt $i: mounting S3..."
+    if mount ${s3_mount_path} 2>&1; then
+        echo "  S3 mounted successfully"
+        break
+    else
+        echo "  Mount attempt $i failed, waiting before retry..."
+        sleep 10
+    fi
+done
+
+# Final check
+if mountpoint -q ${s3_mount_path}; then
+    echo "S3 mount verified: $(ls ${s3_mount_path} | head -3)"
+else
+    echo "WARNING: S3 mount not active after retries. Will be mounted on next boot or login."
 fi
-
-# Create cache directory for s3fs
-mkdir -p /tmp/s3fs-cache
-chmod 1777 /tmp/s3fs-cache
 
 # Start and enable SSM agent (for AWS Systems Manager Session Manager)
 systemctl enable amazon-ssm-agent
