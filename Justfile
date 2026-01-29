@@ -746,7 +746,7 @@ dev-login: aws
         echo "   ✅ Git config synced from local machine"
     fi
 
-    # Set up repo on first login via SSM (only clone + uv sync on first time)
+    # Clone repo on first login (user runs uv sync manually after gh auth)
     echo "📦 Setting up development environment..."
     REPO_DIR="$USER_HOME/rate-design-platform"
     REPO_URL="https://github.com/switchbox-data/rate-design-platform.git"
@@ -754,7 +754,7 @@ dev-login: aws
         --instance-ids "$INSTANCE_ID" \
         --document-name "AWS-RunShellScript" \
         --parameters "commands=[
-            'bash -c \"set -eu; REPO_DIR=\\\"$REPO_DIR\\\"; REPO_URL=\\\"$REPO_URL\\\"; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; if [ -d \\\"\\\$REPO_DIR/.git\\\" ]; then echo \\\"Repository already exists, skipping clone\\\"; elif [ -d \\\"\\\$REPO_DIR\\\" ]; then echo \\\"Directory exists but is not a git repo, removing and cloning fresh...\\\"; rm -rf \\\"\\\$REPO_DIR\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git clone \\\"\\\$REPO_URL\\\" \\\"\\\$REPO_DIR\\\"; echo \\\"Running uv sync...\\\"; cd \\\"\\\$REPO_DIR\\\" && runuser -u \\\"\\\$LINUX_USERNAME\\\" -- /usr/local/bin/uv sync --python 3.13; echo \\\"Repository cloned and dependencies installed\\\"; else echo \\\"Cloning repository...\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git clone \\\"\\\$REPO_URL\\\" \\\"\\\$REPO_DIR\\\"; echo \\\"Running uv sync...\\\"; cd \\\"\\\$REPO_DIR\\\" && runuser -u \\\"\\\$LINUX_USERNAME\\\" -- /usr/local/bin/uv sync --python 3.13; echo \\\"Repository cloned and dependencies installed\\\"; fi\"'
+            'bash -c "set -eu; REPO_DIR=\"$REPO_DIR\"; REPO_URL=\"$REPO_URL\"; LINUX_USERNAME=\"$LINUX_USERNAME\"; if [ -d \"\\$REPO_DIR/.git\" ]; then echo \"Repository already exists\"; else echo \"Cloning repository...\"; runuser -u \"\\$LINUX_USERNAME\" -- git clone \"\\$REPO_URL\" \"\\$REPO_DIR\"; echo \"Repository cloned. Run: gh auth login && uv sync --python 3.13\"; fi"'
         ]" \
         --query 'Command.CommandId' \
         --output text 2>/dev/null)
