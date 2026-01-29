@@ -783,7 +783,7 @@ dev-login: aws
                 break
             elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
                 echo "   ❌ Repository setup failed!"
-                aws ssm get-command-invocation \
+                AWS_PAGER="" aws ssm get-command-invocation \
                     --command-id "$REPO_COMMAND_ID" \
                     --instance-id "$INSTANCE_ID" \
                     --query 'StandardErrorContent' \
