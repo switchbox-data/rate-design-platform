@@ -11,10 +11,15 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get upgrade -y
 
+# Add deadsnakes PPA for Python 3.13
+apt-get install -y software-properties-common
+add-apt-repository -y ppa:deadsnakes/ppa
+apt-get update
+
 # Install system dependencies
 apt-get install -y \
-    python3.11 \
-    python3.11-dev \
+    python3.13 \
+    python3.13-dev \
     python3-pip \
     git \
     build-essential \
