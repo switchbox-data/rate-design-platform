@@ -777,8 +777,10 @@ dev-login: aws
                     --output text 2>/dev/null || echo "")
                 if echo "$OUTPUT" | grep -q "already exists"; then
                     echo "   ✅ Repository ready"
+                    REPO_CLONED=false
                 else
-                    echo "   ✅ Repository cloned and dependencies installed"
+                    echo "   ✅ Repository cloned"
+                    REPO_CLONED=true
                 fi
                 break
             elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
@@ -1000,16 +1002,16 @@ dev-login: aws
     fi
     echo ""
     
-    # Run first-login setup script via SSH (supports interactive gh auth)
-    if [ "$SSH_TEST_SUCCESS" = true ]; then
+    # Run first-login setup script via SSH only if repo was just cloned
+    if [ "$SSH_TEST_SUCCESS" = true ] && [ "${REPO_CLONED:-false}" = true ]; then
         FIRST_LOGIN_SCRIPT="$(dirname "$0")/infra/first-login.sh"
         # Try relative to Justfile location, then try from repo root
         if [ ! -f "$FIRST_LOGIN_SCRIPT" ]; then
             FIRST_LOGIN_SCRIPT="infra/first-login.sh"
         fi
         if [ -f "$FIRST_LOGIN_SCRIPT" ]; then
-            echo "🚀 Running first-login setup..."
-            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            echo "🚀 Running first-login setup (gh auth + uv sync)..."
+            ssh -t -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
                 -i "$SSH_KEY_PRIVATE" -p $LOCAL_SSH_PORT "$LINUX_USERNAME@localhost" \
                 'bash -s' < "$FIRST_LOGIN_SCRIPT"
             echo ""
