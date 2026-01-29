@@ -27,7 +27,12 @@ if ! gh auth status &>/dev/null; then
     echo "📦 GitHub authentication required for private dependencies..."
     echo ""
     gh auth login
+    # Configure git to use gh as credential helper (so uv/git can fetch private repos)
+    gh auth setup-git
     echo ""
+else
+    # Ensure git is configured to use gh even if already authenticated
+    gh auth setup-git 2>/dev/null || true
 fi
 
 # Run uv sync
