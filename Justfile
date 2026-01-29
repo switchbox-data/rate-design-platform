@@ -1042,4 +1042,4 @@ dev-login: aws
     aws ssm start-session \
         --target "$INSTANCE_ID" \
         --document-name "AWS-StartInteractiveCommand" \
-        --parameters "command=sudo -i -u $LINUX_USERNAME bash -c '~/rate-design-platform/infra/first-login.sh; exec bash'"
+        --parameters "{\"command\":[\"sudo -i -u $LINUX_USERNAME bash -l\"]}"
