@@ -98,21 +98,79 @@ aws:
 # 🚀 DEVELOPMENT ENVIRONMENT
 # =============================================================================
 
-# Set up EC2 instance (run once by admin)
-# Idempotent: safe to run multiple times
-dev-setup: aws
+# Ensure Terraform is installed (internal dependency)
+_terraform:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    # Check for Terraform
-    if ! command -v terraform >/dev/null 2>&1; then
-        echo "❌ ERROR: Terraform is not installed" >&2
-        echo "" >&2
-        echo "Install Terraform first:" >&2
-        echo "  https://developer.hashicorp.com/terraform/downloads" >&2
-        echo "" >&2
+    if command -v terraform >/dev/null 2>&1; then
+        exit 0
+    fi
+
+    echo "📦 Terraform not found. Installing..."
+    echo ""
+
+    # Detect OS
+    OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+    ARCH=$(uname -m)
+
+    if [ "$OS" = "darwin" ]; then
+        # macOS - prefer Homebrew if available
+        if command -v brew >/dev/null 2>&1; then
+            echo "   Installing via Homebrew..."
+            brew tap hashicorp/tap
+            brew install hashicorp/tap/terraform
+        else
+            # Manual install
+            if [ "$ARCH" = "arm64" ]; then
+                TF_ARCH="arm64"
+            else
+                TF_ARCH="amd64"
+            fi
+            echo "   Downloading Terraform for macOS ($TF_ARCH)..."
+            TF_VERSION="1.7.5"
+            TEMP_DIR=$(mktemp -d)
+            curl -sSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_darwin_${TF_ARCH}.zip" -o "$TEMP_DIR/terraform.zip"
+            unzip -q "$TEMP_DIR/terraform.zip" -d "$TEMP_DIR"
+            sudo mv "$TEMP_DIR/terraform" /usr/local/bin/terraform
+            rm -rf "$TEMP_DIR"
+        fi
+    elif [ "$OS" = "linux" ]; then
+        # Linux - download binary
+        if [ "$ARCH" = "x86_64" ]; then
+            TF_ARCH="amd64"
+        elif [ "$ARCH" = "aarch64" ]; then
+            TF_ARCH="arm64"
+        else
+            TF_ARCH="amd64"
+        fi
+        echo "   Downloading Terraform for Linux ($TF_ARCH)..."
+        TF_VERSION="1.7.5"
+        TEMP_DIR=$(mktemp -d)
+        curl -sSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_${TF_ARCH}.zip" -o "$TEMP_DIR/terraform.zip"
+        unzip -q "$TEMP_DIR/terraform.zip" -d "$TEMP_DIR"
+        sudo mv "$TEMP_DIR/terraform" /usr/local/bin/terraform
+        rm -rf "$TEMP_DIR"
+    else
+        echo "❌ ERROR: Unsupported OS: $OS" >&2
+        echo "   Please install Terraform manually:" >&2
+        echo "   https://developer.hashicorp.com/terraform/downloads" >&2
         exit 1
     fi
+
+    # Verify installation
+    if command -v terraform >/dev/null 2>&1; then
+        echo "✅ Terraform installed: $(terraform version -json | head -1)"
+    else
+        echo "❌ ERROR: Terraform installation failed" >&2
+        exit 1
+    fi
+
+# Set up EC2 instance (run once by admin)
+# Idempotent: safe to run multiple times
+dev-setup: aws _terraform
+    #!/usr/bin/env bash
+    set -euo pipefail
 
     # No SSH required - we use AWS Systems Manager Session Manager!
 
@@ -181,6 +239,242 @@ dev-setup: aws
     echo "Availability Zone: $AVAILABILITY_ZONE"
     echo
     echo "Users can now connect with: just dev-login"
+
+# Destroy EC2 instance but preserve data volume (to recreate, run dev-setup again)
+dev-teardown: aws _terraform
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    PROJECT_NAME="rate-design-platform"
+
+    echo "🗑️  Destroying EC2 instance (preserving data volume)..."
+    echo
+
+    # Change to infra directory
+    cd infra
+
+    # Check if Terraform is initialized
+    if [ ! -d ".terraform" ]; then
+        echo "📦 Initializing Terraform..."
+        terraform init
+        echo
+    fi
+
+    # Destroy only instance-related resources, keeping the EBS volume
+    # Use targeted destroy to preserve the data volume
+    echo "🏗️  Destroying instance resources (keeping data volume)..."
+    terraform destroy -auto-approve \
+        -target=aws_volume_attachment.data \
+        -target=aws_instance.main \
+        -target=aws_security_group.ec2_sg \
+        -target=aws_iam_instance_profile.ec2_profile \
+        -target=aws_iam_role_policy.s3_access \
+        -target=aws_iam_role_policy.ssm_managed_instance \
+        -target=aws_iam_role.ec2_role \
+        || true
+    echo
+
+    # Clean up any orphaned AWS resources that might exist outside Terraform state
+    echo "🧹 Cleaning up any orphaned AWS resources..."
+    echo
+
+    # 1. Terminate EC2 instance by tag (if exists)
+    INSTANCE_ID=$(aws ec2 describe-instances \
+        --filters "Name=tag:Project,Values=$PROJECT_NAME" "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+        --query 'Reservations[0].Instances[0].InstanceId' \
+        --output text 2>/dev/null || echo "None")
+    
+    if [ -n "$INSTANCE_ID" ] && [ "$INSTANCE_ID" != "None" ]; then
+        echo "   Terminating EC2 instance: $INSTANCE_ID"
+        aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" >/dev/null 2>&1 || true
+        echo "   Waiting for instance to terminate..."
+        aws ec2 wait instance-terminated --instance-ids "$INSTANCE_ID" 2>/dev/null || true
+    fi
+
+    # 2. Delete security group (if exists) - NOT the EBS volume!
+    SG_ID=$(aws ec2 describe-security-groups \
+        --filters "Name=group-name,Values=${PROJECT_NAME}-sg" \
+        --query 'SecurityGroups[0].GroupId' \
+        --output text 2>/dev/null || echo "None")
+    
+    if [ -n "$SG_ID" ] && [ "$SG_ID" != "None" ]; then
+        echo "   Deleting security group: $SG_ID"
+        # Retry a few times (might need to wait for instance to fully terminate)
+        for i in {1..10}; do
+            if aws ec2 delete-security-group --group-id "$SG_ID" 2>/dev/null; then
+                break
+            fi
+            sleep 3
+        done
+    fi
+
+    # 3. Clean up IAM resources
+    ROLE_NAME="${PROJECT_NAME}-ec2-role"
+    PROFILE_NAME="${PROJECT_NAME}-ec2-profile"
+
+    # Check if role exists
+    if aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
+        echo "   Cleaning up IAM role: $ROLE_NAME"
+        
+        # Remove role from instance profile
+        aws iam remove-role-from-instance-profile \
+            --instance-profile-name "$PROFILE_NAME" \
+            --role-name "$ROLE_NAME" 2>/dev/null || true
+        
+        # Delete instance profile
+        aws iam delete-instance-profile --instance-profile-name "$PROFILE_NAME" 2>/dev/null || true
+        
+        # Delete inline policies from role
+        POLICIES=$(aws iam list-role-policies --role-name "$ROLE_NAME" --query 'PolicyNames[]' --output text 2>/dev/null || echo "")
+        for policy in $POLICIES; do
+            aws iam delete-role-policy --role-name "$ROLE_NAME" --policy-name "$policy" 2>/dev/null || true
+        done
+        
+        # Detach managed policies from role
+        ATTACHED=$(aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query 'AttachedPolicies[].PolicyArn' --output text 2>/dev/null || echo "")
+        for policy_arn in $ATTACHED; do
+            aws iam detach-role-policy --role-name "$ROLE_NAME" --policy-arn "$policy_arn" 2>/dev/null || true
+        done
+        
+        # Delete the role
+        aws iam delete-role --role-name "$ROLE_NAME" 2>/dev/null || true
+    fi
+
+    # Also try to delete instance profile if it exists but role doesn't
+    aws iam delete-instance-profile --instance-profile-name "$PROFILE_NAME" 2>/dev/null || true
+
+    # Check if data volume was preserved
+    VOLUME_ID=$(aws ec2 describe-volumes \
+        --filters "Name=tag:Name,Values=${PROJECT_NAME}-data" \
+        --query 'Volumes[0].VolumeId' \
+        --output text 2>/dev/null || echo "None")
+
+    echo
+    echo "✅ Teardown complete"
+    if [ -n "$VOLUME_ID" ] && [ "$VOLUME_ID" != "None" ]; then
+        echo "   📦 Data volume preserved: $VOLUME_ID"
+    fi
+    echo
+    echo "To recreate the instance, run: just dev-setup"
+
+# Destroy everything including data volume (WARNING: destroys all data!)
+dev-teardown-all: aws _terraform
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    PROJECT_NAME="rate-design-platform"
+
+    echo "⚠️  WARNING: This will destroy EVERYTHING including the data volume!"
+    echo "   All data on the EBS volume will be permanently deleted."
+    echo
+    read -p "Are you sure? Type 'yes' to confirm: " CONFIRM
+    if [ "$CONFIRM" != "yes" ]; then
+        echo "Aborted."
+        exit 1
+    fi
+    echo
+
+    echo "🗑️  Destroying all resources..."
+    echo
+
+    # Change to infra directory
+    cd infra
+
+    # Check if Terraform is initialized
+    if [ ! -d ".terraform" ]; then
+        echo "📦 Initializing Terraform..."
+        terraform init
+        echo
+    fi
+
+    # Destroy ALL Terraform-managed resources
+    terraform destroy -auto-approve || true
+    echo
+
+    # Clean up any orphaned AWS resources
+    echo "🧹 Cleaning up any orphaned AWS resources..."
+    echo
+
+    # 1. Terminate EC2 instance by tag (if exists)
+    INSTANCE_ID=$(aws ec2 describe-instances \
+        --filters "Name=tag:Project,Values=$PROJECT_NAME" "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+        --query 'Reservations[0].Instances[0].InstanceId' \
+        --output text 2>/dev/null || echo "None")
+    
+    if [ -n "$INSTANCE_ID" ] && [ "$INSTANCE_ID" != "None" ]; then
+        echo "   Terminating EC2 instance: $INSTANCE_ID"
+        aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" >/dev/null 2>&1 || true
+        echo "   Waiting for instance to terminate..."
+        aws ec2 wait instance-terminated --instance-ids "$INSTANCE_ID" 2>/dev/null || true
+    fi
+
+    # 2. Delete EBS volume by tag (if exists)
+    VOLUME_ID=$(aws ec2 describe-volumes \
+        --filters "Name=tag:Name,Values=${PROJECT_NAME}-data" \
+        --query 'Volumes[0].VolumeId' \
+        --output text 2>/dev/null || echo "None")
+    
+    if [ -n "$VOLUME_ID" ] && [ "$VOLUME_ID" != "None" ]; then
+        echo "   Deleting EBS volume: $VOLUME_ID"
+        # Wait for volume to become available (detached)
+        for i in {1..30}; do
+            STATE=$(aws ec2 describe-volumes --volume-ids "$VOLUME_ID" --query 'Volumes[0].State' --output text 2>/dev/null || echo "deleted")
+            if [ "$STATE" = "available" ] || [ "$STATE" = "deleted" ]; then
+                break
+            fi
+            sleep 2
+        done
+        aws ec2 delete-volume --volume-id "$VOLUME_ID" 2>/dev/null || true
+    fi
+
+    # 3. Delete security group (if exists)
+    SG_ID=$(aws ec2 describe-security-groups \
+        --filters "Name=group-name,Values=${PROJECT_NAME}-sg" \
+        --query 'SecurityGroups[0].GroupId' \
+        --output text 2>/dev/null || echo "None")
+    
+    if [ -n "$SG_ID" ] && [ "$SG_ID" != "None" ]; then
+        echo "   Deleting security group: $SG_ID"
+        for i in {1..10}; do
+            if aws ec2 delete-security-group --group-id "$SG_ID" 2>/dev/null; then
+                break
+            fi
+            sleep 3
+        done
+    fi
+
+    # 4. Clean up IAM resources
+    ROLE_NAME="${PROJECT_NAME}-ec2-role"
+    PROFILE_NAME="${PROJECT_NAME}-ec2-profile"
+
+    if aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
+        echo "   Cleaning up IAM role: $ROLE_NAME"
+        
+        aws iam remove-role-from-instance-profile \
+            --instance-profile-name "$PROFILE_NAME" \
+            --role-name "$ROLE_NAME" 2>/dev/null || true
+        
+        aws iam delete-instance-profile --instance-profile-name "$PROFILE_NAME" 2>/dev/null || true
+        
+        POLICIES=$(aws iam list-role-policies --role-name "$ROLE_NAME" --query 'PolicyNames[]' --output text 2>/dev/null || echo "")
+        for policy in $POLICIES; do
+            aws iam delete-role-policy --role-name "$ROLE_NAME" --policy-name "$policy" 2>/dev/null || true
+        done
+        
+        ATTACHED=$(aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query 'AttachedPolicies[].PolicyArn' --output text 2>/dev/null || echo "")
+        for policy_arn in $ATTACHED; do
+            aws iam detach-role-policy --role-name "$ROLE_NAME" --policy-arn "$policy_arn" 2>/dev/null || true
+        done
+        
+        aws iam delete-role --role-name "$ROLE_NAME" 2>/dev/null || true
+    fi
+
+    aws iam delete-instance-profile --instance-profile-name "$PROFILE_NAME" 2>/dev/null || true
+
+    echo
+    echo "✅ Complete teardown finished (all resources destroyed)"
+    echo
+    echo "To recreate everything from scratch, run: just dev-setup"
 
 # User login (run by any authorized user)
 dev-login: aws
