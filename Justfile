@@ -745,6 +745,7 @@ dev-login: aws
             --output text >/dev/null
         echo "   ✅ Git config synced from local machine"
     fi
+    echo
 
     # Clone repo on first login (user runs uv sync manually after gh auth)
     echo "📦 Setting up development environment..."
@@ -839,7 +840,8 @@ dev-login: aws
         echo "   The user creation may have failed. Check the SSM command output." >&2
         exit 1
     fi
-    
+    echo
+
     # Set up SSH access for Cursor (use dedicated keypair for this project)
     echo "Setting up SSH access for Cursor..."
     SSH_KEY_NAME="rate_design_platform_ec2"
