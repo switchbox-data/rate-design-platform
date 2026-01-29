@@ -93,7 +93,7 @@ fi
 # Mount S3 bucket using IAM instance profile
 # s3fs automatically uses IAM role when no credentials are specified
 # Note: use_path_request_style is required for bucket names with dots (like data.sb)
-echo "${s3_bucket_name} ${s3_mount_path} fuse.s3fs _netdev,allow_other,use_cache=/tmp/s3fs-cache,iam_role=auto,umask=0002,use_path_request_style 0 0" >> /etc/fstab
+echo "${s3_bucket_name} ${s3_mount_path} fuse.s3fs _netdev,allow_other,use_cache=/tmp/s3fs-cache,iam_role=auto,umask=0002,use_path_request_style,endpoint=us-west-2,url=https://s3.us-west-2.amazonaws.com 0 0" >> /etc/fstab
 
 # Try to mount S3 (may fail if network not ready, will be mounted on boot)
 # Wait a bit for network to be ready
