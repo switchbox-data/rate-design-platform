@@ -415,10 +415,25 @@ dev-login: aws
         --instance-ids "$INSTANCE_ID" \
         --document-name "AWS-RunShellScript" \
         --parameters "commands=[
-            'bash -c \"set -eu; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; usermod -aG sudo \\\"\\\$LINUX_USERNAME\\\" 2>/dev/null || true; echo \\\"\\\$LINUX_USERNAME ALL=(ALL) NOPASSWD:ALL\\\" > /etc/sudoers.d/\\\$LINUX_USERNAME; chmod 440 /etc/sudoers.d/\\\$LINUX_USERNAME; if ! command -v uv >/dev/null 2>&1; then curl -LsSf https://astral.sh/uv/install.sh | sh && cp /root/.cargo/bin/uv /usr/local/bin/uv 2>/dev/null || true && chmod +x /usr/local/bin/uv; fi; if ! grep -q \\\"^user_allow_other\\\" /etc/fuse.conf; then sed -i \\\"s/#user_allow_other/user_allow_other/\\\" /etc/fuse.conf || echo \\\"user_allow_other\\\" >> /etc/fuse.conf; fi; if [ ! -d /s3 ]; then mkdir -p /s3; chmod 755 /s3; fi; if ! grep -q \\\"data.sb /s3\\\" /etc/fstab; then echo \\\"data.sb /s3 fuse.s3fs _netdev,allow_other,use_cache=/tmp/s3fs-cache,iam_role=auto,umask=0002,use_path_request_style 0 0\\\" >> /etc/fstab; else sed -i \\\"s|data.sb /s3.*|data.sb /s3 fuse.s3fs _netdev,allow_other,use_cache=/tmp/s3fs-cache,iam_role=auto,umask=0002,use_path_request_style 0 0|\\\" /etc/fstab; fi; mkdir -p /tmp/s3fs-cache; chmod 1777 /tmp/s3fs-cache; if ! mountpoint -q /s3; then mount /s3 2>&1 || echo \\\"Mount failed, will retry\\\"; sleep 3; if mountpoint -q /s3; then echo \\\"S3 mounted successfully\\\"; else echo \\\"S3 mount still not active\\\"; fi; fi\"'
+            'bash -c \"set -eu; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; usermod -aG sudo \\\"\\\$LINUX_USERNAME\\\" 2>/dev/null || true; echo \\\"\\\$LINUX_USERNAME ALL=(ALL) NOPASSWD:ALL\\\" > /etc/sudoers.d/\\\$LINUX_USERNAME; chmod 440 /etc/sudoers.d/\\\$LINUX_USERNAME; if ! command -v uv >/dev/null 2>&1; then curl -LsSf https://astral.sh/uv/install.sh | sh && cp /root/.cargo/bin/uv /usr/local/bin/uv 2>/dev/null || true && chmod +x /usr/local/bin/uv; fi; if ! grep -q \\\"^user_allow_other\\\" /etc/fuse.conf; then sed -i \\\"s/#user_allow_other/user_allow_other/\\\" /etc/fuse.conf || echo \\\"user_allow_other\\\" >> /etc/fuse.conf; fi; if [ ! -d /s3 ]; then mkdir -p /s3; chmod 755 /s3; fi; if ! grep -q \\\"data.sb /s3\\\" /etc/fstab; then echo \\\"data.sb /s3 fuse.s3fs _netdev,allow_other,use_cache=/tmp/s3fs-cache,iam_role=auto,umask=0002,use_path_request_style,endpoint=us-west-2,url=https://s3.us-west-2.amazonaws.com 0 0\\\" >> /etc/fstab; else sed -i \\\"s|data.sb /s3.*|data.sb /s3 fuse.s3fs _netdev,allow_other,use_cache=/tmp/s3fs-cache,iam_role=auto,umask=0002,use_path_request_style,endpoint=us-west-2,url=https://s3.us-west-2.amazonaws.com 0 0|\\\" /etc/fstab; fi; mkdir -p /tmp/s3fs-cache; chmod 1777 /tmp/s3fs-cache; if ! mountpoint -q /s3; then mount /s3 2>&1 || echo \\\"Mount failed, will retry\\\"; sleep 3; if mountpoint -q /s3; then echo \\\"S3 mounted successfully\\\"; else echo \\\"S3 mount still not active\\\"; fi; fi\"'
         ]" \
         --output text >/dev/null
     sleep 3
+
+    # Forward local git config to remote instance
+    LOCAL_GIT_EMAIL=$(git config --global user.email 2>/dev/null || echo "")
+    LOCAL_GIT_NAME=$(git config --global user.name 2>/dev/null || echo "")
+    if [ -n "$LOCAL_GIT_EMAIL" ] || [ -n "$LOCAL_GIT_NAME" ]; then
+        echo "🔧 Forwarding local git config..."
+        aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters "commands=[
+                'bash -c \"set -eu; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; USER_HOME=\\\"$USER_HOME\\\"; GIT_EMAIL=\\\"$LOCAL_GIT_EMAIL\\\"; GIT_NAME=\\\"$LOCAL_GIT_NAME\\\"; if [ -n \\\"\\\$GIT_EMAIL\\\" ]; then runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git config --global user.email \\\"\\\$GIT_EMAIL\\\"; echo \\\"   git user.email: \\\$GIT_EMAIL\\\"; fi; if [ -n \\\"\\\$GIT_NAME\\\" ]; then runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git config --global user.name \\\"\\\$GIT_NAME\\\"; echo \\\"   git user.name: \\\$GIT_NAME\\\"; fi\"'
+            ]" \
+            --output text >/dev/null
+        echo "   ✅ Git config synced from local machine"
+    fi
 
     # Set up repo on first login via SSM
     echo "📦 Setting up development environment..."
