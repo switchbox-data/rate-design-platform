@@ -1000,6 +1000,22 @@ dev-login: aws
     fi
     echo ""
     
+    # Run first-login setup script via SSH (supports interactive gh auth)
+    if [ "$SSH_TEST_SUCCESS" = true ]; then
+        FIRST_LOGIN_SCRIPT="$(dirname "$0")/infra/first-login.sh"
+        # Try relative to Justfile location, then try from repo root
+        if [ ! -f "$FIRST_LOGIN_SCRIPT" ]; then
+            FIRST_LOGIN_SCRIPT="infra/first-login.sh"
+        fi
+        if [ -f "$FIRST_LOGIN_SCRIPT" ]; then
+            echo "🚀 Running first-login setup..."
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                -i "$SSH_KEY_PRIVATE" -p $LOCAL_SSH_PORT "$LINUX_USERNAME@localhost" \
+                'bash -s' < "$FIRST_LOGIN_SCRIPT"
+            echo ""
+        fi
+    fi
+    
     # Try to open Cursor
     if command -v cursor >/dev/null 2>&1 && [ -f "$SSH_KEY" ]; then
         echo "Opening Cursor with remote workspace..."
