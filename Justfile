@@ -703,13 +703,13 @@ dev-login: aws
         exit 1
     fi
 
-    # Ensure user is in sudo group, configure passwordless sudo, install uv, and ensure S3 mount
-    echo "🔧 Configuring user access and tools..."
+    # Ensure user is in sudo group, configure passwordless sudo, and ensure S3 mount
+    echo "🔧 Configuring user access..."
     aws ssm send-command \
         --instance-ids "$INSTANCE_ID" \
         --document-name "AWS-RunShellScript" \
         --parameters "commands=[
-            'bash -c \"set -eu; usermod -aG sudo \\\"$LINUX_USERNAME\\\" 2>/dev/null || true; echo \\\"$LINUX_USERNAME ALL=(ALL) NOPASSWD:ALL\\\" > /etc/sudoers.d/$LINUX_USERNAME; chmod 440 /etc/sudoers.d/$LINUX_USERNAME; if ! command -v uv >/dev/null; then echo \\\"Installing uv...\\\"; curl -LsSf https://astral.sh/uv/install.sh | sh; for p in /root/.cargo/bin/uv /root/.local/bin/uv; do [ -f \\\"\\\$p\\\" ] && cp \\\"\\\$p\\\" /usr/local/bin/uv && chmod +x /usr/local/bin/uv && break; done; /usr/local/bin/uv --version || { echo \\\"ERROR: uv install failed\\\"; exit 1; }; fi; mountpoint -q /s3 || mount /s3 2>/dev/null || echo \\\"S3 will mount on next boot\\\"\"'
+            'bash -c \"set -eu; usermod -aG sudo \\\"$LINUX_USERNAME\\\" 2>/dev/null || true; echo \\\"$LINUX_USERNAME ALL=(ALL) NOPASSWD:ALL\\\" > /etc/sudoers.d/$LINUX_USERNAME; chmod 440 /etc/sudoers.d/$LINUX_USERNAME; mountpoint -q /s3 || mount /s3 2>/dev/null || true\"'
         ]" \
         --output text >/dev/null
     sleep 2
