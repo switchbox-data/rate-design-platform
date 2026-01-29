@@ -420,6 +420,21 @@ dev-login: aws
         --output text >/dev/null
     sleep 3
 
+    # Forward local git config to remote instance
+    LOCAL_GIT_EMAIL=$(git config --global user.email 2>/dev/null || echo "")
+    LOCAL_GIT_NAME=$(git config --global user.name 2>/dev/null || echo "")
+    if [ -n "$LOCAL_GIT_EMAIL" ] || [ -n "$LOCAL_GIT_NAME" ]; then
+        echo "🔧 Forwarding local git config..."
+        aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters "commands=[
+                'bash -c \"set -eu; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; USER_HOME=\\\"$USER_HOME\\\"; GIT_EMAIL=\\\"$LOCAL_GIT_EMAIL\\\"; GIT_NAME=\\\"$LOCAL_GIT_NAME\\\"; if [ -n \\\"\\\$GIT_EMAIL\\\" ]; then runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git config --global user.email \\\"\\\$GIT_EMAIL\\\"; echo \\\"   git user.email: \\\$GIT_EMAIL\\\"; fi; if [ -n \\\"\\\$GIT_NAME\\\" ]; then runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git config --global user.name \\\"\\\$GIT_NAME\\\"; echo \\\"   git user.name: \\\$GIT_NAME\\\"; fi\"'
+            ]" \
+            --output text >/dev/null
+        echo "   ✅ Git config synced from local machine"
+    fi
+
     # Set up repo on first login via SSM
     echo "📦 Setting up development environment..."
     REPO_DIR="$USER_HOME/rate-design-platform"
