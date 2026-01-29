@@ -27,7 +27,8 @@ apt-get install -y \
     unzip \
     s3fs \
     e2fsprogs \
-    awscli
+    awscli \
+    gh
 
 # Install SSM agent (not in default Ubuntu repos, use snap)
 snap install amazon-ssm-agent --classic || true
