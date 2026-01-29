@@ -703,13 +703,13 @@ dev-login: aws
         exit 1
     fi
 
-    # Ensure user is in sudo group, configure passwordless sudo, and ensure S3 mount
-    echo "🔧 Configuring user access..."
+    # Ensure user is in sudo group, configure passwordless sudo, install uv, and ensure S3 mount
+    echo "🔧 Configuring user access and tools..."
     aws ssm send-command \
         --instance-ids "$INSTANCE_ID" \
         --document-name "AWS-RunShellScript" \
         --parameters "commands=[
-            'bash -c \"set -eu; usermod -aG sudo \\\"$LINUX_USERNAME\\\" 2>/dev/null || true; echo \\\"$LINUX_USERNAME ALL=(ALL) NOPASSWD:ALL\\\" > /etc/sudoers.d/$LINUX_USERNAME; chmod 440 /etc/sudoers.d/$LINUX_USERNAME; command -v uv >/dev/null || { curl -LsSf https://astral.sh/uv/install.sh | sh && cp /root/.cargo/bin/uv /usr/local/bin/uv && chmod +x /usr/local/bin/uv; }; mountpoint -q /s3 || mount /s3 2>/dev/null || echo \\\"S3 will mount on next boot\\\"\"'
+            'bash -c \"set -eu; usermod -aG sudo \\\"$LINUX_USERNAME\\\" 2>/dev/null || true; echo \\\"$LINUX_USERNAME ALL=(ALL) NOPASSWD:ALL\\\" > /etc/sudoers.d/$LINUX_USERNAME; chmod 440 /etc/sudoers.d/$LINUX_USERNAME; if ! command -v uv >/dev/null; then echo \\\"Installing uv...\\\"; curl -LsSf https://astral.sh/uv/install.sh | sh; for p in /root/.cargo/bin/uv /root/.local/bin/uv; do [ -f \\\"\\\$p\\\" ] && cp \\\"\\\$p\\\" /usr/local/bin/uv && chmod +x /usr/local/bin/uv && break; done; /usr/local/bin/uv --version || { echo \\\"ERROR: uv install failed\\\"; exit 1; }; fi; mountpoint -q /s3 || mount /s3 2>/dev/null || echo \\\"S3 will mount on next boot\\\"\"'
         ]" \
         --output text >/dev/null
     sleep 2
@@ -737,14 +737,36 @@ dev-login: aws
         --instance-ids "$INSTANCE_ID" \
         --document-name "AWS-RunShellScript" \
         --parameters "commands=[
-            'bash -c \"set -eu; REPO_DIR=\\\"$REPO_DIR\\\"; REPO_URL=\\\"$REPO_URL\\\"; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; if [ ! -d \\\"\\\$REPO_DIR\\\" ]; then echo \\\"Cloning repository...\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git clone \\\"\\\$REPO_URL\\\" \\\"\\\$REPO_DIR\\\"; cd \\\"\\\$REPO_DIR\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- bash -c \\\"cd \\\\\\\"\\\$REPO_DIR\\\\\\\" && uv sync\\\"; echo \\\"Repository cloned and dependencies installed\\\"; echo \\\"\\\"; echo \\\"Note: For GitHub authentication (push/pull), run gh auth login on the instance\\\"; else echo \\\"Repository already exists, skipping clone\\\"; fi\"'
+            'bash -c \"set -eu; REPO_DIR=\\\"$REPO_DIR\\\"; REPO_URL=\\\"$REPO_URL\\\"; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; if [ ! -d \\\"\\\$REPO_DIR\\\" ]; then echo \\\"Cloning repository...\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git clone \\\"\\\$REPO_URL\\\" \\\"\\\$REPO_DIR\\\"; echo \\\"Running uv sync...\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- bash -c \\\"cd \\\\\\\"\\\$REPO_DIR\\\\\\\" && /usr/local/bin/uv sync\\\"; echo \\\"Repository cloned and dependencies installed\\\"; else echo \\\"Repository already exists, running uv sync...\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- bash -c \\\"cd \\\\\\\"\\\$REPO_DIR\\\\\\\" && /usr/local/bin/uv sync\\\"; fi\"'
         ]" \
         --query 'Command.CommandId' \
         --output text 2>/dev/null)
     
-    # Wait briefly for repo setup (but don't block - it can happen in background)
+    # Wait for repo setup to complete and check for errors
     if [ -n "$REPO_COMMAND_ID" ]; then
-        sleep 2
+        echo "   Waiting for repository setup..."
+        for i in {1..60}; do
+            STATUS=$(aws ssm get-command-invocation \
+                --command-id "$REPO_COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --query 'Status' \
+                --output text 2>/dev/null || echo "Pending")
+            
+            if [ "$STATUS" = "Success" ]; then
+                echo "   ✅ Repository setup complete"
+                break
+            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
+                echo "   ❌ Repository setup failed!"
+                # Show the error output
+                aws ssm get-command-invocation \
+                    --command-id "$REPO_COMMAND_ID" \
+                    --instance-id "$INSTANCE_ID" \
+                    --query 'StandardErrorContent' \
+                    --output text 2>/dev/null || true
+                break
+            fi
+            sleep 2
+        done
     fi
 
     echo ""

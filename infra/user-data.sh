@@ -27,12 +27,33 @@ apt-get install -y \
 
 # Install uv system-wide
 curl -LsSf https://astral.sh/uv/install.sh | sh
-export PATH="$HOME/.cargo/bin:$PATH"
-# Install to /usr/local/bin so it's available system-wide
-cp "$HOME/.cargo/bin/uv" /usr/local/bin/uv 2>/dev/null || true
+
+# Find where uv was installed (installer uses ~/.cargo/bin or ~/.local/bin)
+UV_BIN=""
+for path in "$HOME/.cargo/bin/uv" "$HOME/.local/bin/uv" "/root/.cargo/bin/uv" "/root/.local/bin/uv"; do
+    if [ -f "$path" ]; then
+        UV_BIN="$path"
+        break
+    fi
+done
+
+if [ -z "$UV_BIN" ]; then
+    echo "ERROR: uv binary not found after installation"
+    exit 1
+fi
+
+echo "Found uv at: $UV_BIN"
+
+# Copy to /usr/local/bin so it's available system-wide
+cp "$UV_BIN" /usr/local/bin/uv
 chmod +x /usr/local/bin/uv
-# Also add to system PATH for all users (backup)
-echo 'export PATH="$HOME/.cargo/bin:/usr/local/bin:$PATH"' >> /etc/profile.d/uv.sh
+
+# Verify uv works
+if ! /usr/local/bin/uv --version; then
+    echo "ERROR: uv installation failed"
+    exit 1
+fi
+echo "uv installed successfully: $(/usr/local/bin/uv --version)"
 
 # Find the EBS volume device
 # The volume is attached as /dev/sdf, but on newer instances it might be /dev/nvme1n1
