@@ -1,0 +1,15 @@
+{
+  "recommendations": [
+    "ms-vscode-remote.remote-ssh",
+    "ms-python.python",
+    "charliermarsh.ruff",
+    "tekumara.typos-vscode",
+    "astral-sh.ty",
+    "dvirtz.parquet-viewer",
+    "hashicorp.terraform",
+    "davidanson.vscode-markdownlint",
+    "tombi-toml.tombi",
+    "nefrob.vscode-just-syntax",
+    "christian-kohler.path-intellisense"
+  ]
+}

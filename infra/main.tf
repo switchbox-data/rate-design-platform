@@ -121,6 +121,12 @@ resource "aws_iam_role_policy" "ssm_managed_instance" {
   })
 }
 
+# Attach AWS managed policy for SSM (required for SSM commands to work)
+resource "aws_iam_role_policy_attachment" "ssm_managed_instance_core" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 # IAM policy for S3 access
 resource "aws_iam_role_policy" "s3_access" {
   count = var.enable_s3_access ? 1 : 0

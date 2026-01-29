@@ -1,0 +1,16 @@
+{
+  "remote.SSH.remotePlatform": {
+    "rate-design-platform": "linux"
+  },
+  "remote.SSH.showLoginTerminal": true,
+  "remote.SSH.connectTimeout": 60,
+  "ruff.nativeServer": "on",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  }
+}

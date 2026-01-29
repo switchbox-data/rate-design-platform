@@ -638,12 +638,35 @@ dev-login: aws
     # Create/setup user account via SSM (no SSH keys needed!)
     echo "👤 Setting up user account..."
     USER_HOME="/data/home/$LINUX_USERNAME"
+    # Use a here-doc to create the script, then base64 encode and execute it
+    # This avoids all JSON/shell escaping issues
+    TEMP_SCRIPT=$(mktemp)
+    cat > "$TEMP_SCRIPT" <<EOF
+#!/bin/bash
+set -eu
+USER_HOME="$USER_HOME"
+LINUX_USERNAME="$LINUX_USERNAME"
+if ! id "\$LINUX_USERNAME" &>/dev/null; then
+  echo "Creating user account: \$LINUX_USERNAME"
+  mkdir -p "\$USER_HOME"
+  useradd -d "\$USER_HOME" -s /bin/bash "\$LINUX_USERNAME"
+  usermod -aG sudo "\$LINUX_USERNAME"
+  chown -R "\$LINUX_USERNAME:\$LINUX_USERNAME" "\$USER_HOME"
+  chmod 755 "\$USER_HOME"
+  echo "User created and added to sudo group"
+else
+  echo "User account already exists: \$LINUX_USERNAME"
+  usermod -aG sudo "\$LINUX_USERNAME" 2>/dev/null || true
+  echo "Ensured user is in sudo group"
+fi
+EOF
+    SCRIPT_B64=$(base64 < "$TEMP_SCRIPT")
+    rm -f "$TEMP_SCRIPT"
+    # Execute base64-encoded script - simple command with no complex escaping
     COMMAND_ID=$(aws ssm send-command \
         --instance-ids "$INSTANCE_ID" \
         --document-name "AWS-RunShellScript" \
-        --parameters "commands=[
-            'bash -c \"set -eu; USER_HOME=\\\"$USER_HOME\\\"; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; if ! id \\\"\\\$LINUX_USERNAME\\\" &>/dev/null; then echo \\\"Creating user account: \\\$LINUX_USERNAME\\\"; mkdir -p \\\"\\\$USER_HOME\\\"; useradd -d \\\"\\\$USER_HOME\\\" -s /bin/bash \\\"\\\$LINUX_USERNAME\\\"; usermod -aG sudo \\\"\\\$LINUX_USERNAME\\\"; chown -R \\\"\\\$LINUX_USERNAME:\\\$LINUX_USERNAME\\\" \\\"\\\$USER_HOME\\\"; chmod 755 \\\"\\\$USER_HOME\\\"; echo \\\"User created and added to sudo group\\\"; else echo \\\"User account already exists: \\\$LINUX_USERNAME\\\"; usermod -aG sudo \\\"\\\$LINUX_USERNAME\\\" 2>/dev/null || true; echo \\\"Ensured user is in sudo group\\\"; fi\"'
-        ]" \
+        --parameters "commands=[\"echo $SCRIPT_B64 | base64 -d | bash\"]" \
         --query 'Command.CommandId' \
         --output text 2>/dev/null)
     
