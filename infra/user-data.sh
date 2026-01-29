@@ -22,8 +22,16 @@ apt-get install -y \
     unzip \
     s3fs \
     e2fsprogs \
-    amazon-ssm-agent \
     awscli
+
+# Install SSM agent (not in default Ubuntu repos, use snap)
+snap install amazon-ssm-agent --classic || true
+# Or download from AWS if snap fails
+if ! command -v amazon-ssm-agent &> /dev/null; then
+    curl -o /tmp/amazon-ssm-agent.deb https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb
+    dpkg -i /tmp/amazon-ssm-agent.deb || apt-get install -f -y
+    rm /tmp/amazon-ssm-agent.deb
+fi
 
 # Install uv system-wide
 curl -LsSf https://astral.sh/uv/install.sh | sh
