@@ -754,7 +754,7 @@ dev-login: aws
         --instance-ids "$INSTANCE_ID" \
         --document-name "AWS-RunShellScript" \
         --parameters "commands=[
-            'bash -c "set -eu; REPO_DIR=\"$REPO_DIR\"; REPO_URL=\"$REPO_URL\"; LINUX_USERNAME=\"$LINUX_USERNAME\"; if [ -d \"\\$REPO_DIR/.git\" ]; then echo \"Repository already exists\"; else echo \"Cloning repository...\"; runuser -u \"\\$LINUX_USERNAME\" -- git clone \"\\$REPO_URL\" \"\\$REPO_DIR\"; echo \"Repository cloned. Run: gh auth login && uv sync --python 3.13\"; fi"'
+            'bash -c \"set -eu; REPO_DIR=\\\"$REPO_DIR\\\"; REPO_URL=\\\"$REPO_URL\\\"; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; if [ -d \\\"\\\$REPO_DIR/.git\\\" ]; then echo \\\"Repository already exists\\\"; else echo \\\"Cloning repository...\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git clone \\\"\\\$REPO_URL\\\" \\\"\\\$REPO_DIR\\\"; echo \\\"Repository cloned. Run: gh auth login && uv sync --python 3.13\\\"; fi\"'
         ]" \
         --query 'Command.CommandId' \
         --output text 2>/dev/null)
