@@ -37,6 +37,7 @@ prototype_ids = [
 path_project = Path("./rate_design/ny/hp_rates")
 path_data = path_project / "data"
 path_tariff_map = path_data / "tariff_map" / "precalculation_testing.csv"
+tariff_map_name = path_tariff_map.stem
 path_resstock = path_data / "resstock"
 path_resstock_metadata = path_resstock / "results_up00.parquet"
 path_resstock_loads = path_resstock / "loads"
@@ -110,6 +111,14 @@ raw_load_elec = _return_load(
     load_filepath_key=bldg_id_to_load_filepath,
     force_tz="EST"
 )
+raw_load_gas = _return_load(
+    raw_load_passed=None,
+    load_type="gas",
+    target_year=test_year_run,
+    building_stock_sample=prototype_ids,
+    load_filepath_key=bldg_id_to_load_filepath,
+    force_tz="EST"
+)
 
 # calculate and otherwise modify the revenue requirement as needed
 # load bulk power marginal costs in $/kWh (assumed to be static)
@@ -147,9 +156,9 @@ bs = MeetRevenueSufficiencySystemWide(
     run_name=run_name,
     output_dir=path_results, # will default to this folder if not pass, mostly testing ability for user to pass arbitrary output directory
 )
+bs.tariff_map = tariff_map_name
 
-# TODO: figure out how to get gas loads
-# TODO: figure out how to get 
+# TODO: add (maybe post-processing)module for delivered fuels bills
 bs.simulate(
     revenue_requirement=revenue_requirement,
     tariffs_params = tariffs_params, 
@@ -157,7 +166,7 @@ bs.simulate(
     precalc_period_mapping=precalc_mapping,
     customer_metadata = customer_metadata, 
     customer_electricity_load=raw_load_elec,
-    customer_gas_load=None,
+    customer_gas_load=raw_load_gas,
     load_cols='total_fuel_electricity',
     marginal_system_prices=marginal_system_prices,
     costs_by_type=costs_by_type,
@@ -169,4 +178,3 @@ bs.simulate(
 )
 
 log.info(".... Completed full simulation run for Dummy - Precalculation")
-
