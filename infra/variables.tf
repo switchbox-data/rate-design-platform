@@ -49,7 +49,7 @@ variable "s3_bucket_name" {
 variable "s3_mount_path" {
   description = "Path to mount S3 bucket"
   type        = string
-  default     = "/s3"
+  default     = "/data.sb"
 }
 
 variable "project_name" {

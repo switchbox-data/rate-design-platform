@@ -70,14 +70,14 @@ if ! blkid $EBS_DEVICE > /dev/null 2>&1; then
 fi
 
 # Create mount point
-mkdir -p /data
+mkdir -p /ebs
 
 # Mount the volume
-mount $EBS_DEVICE /data
+mount $EBS_DEVICE /ebs
 
 # Check if filesystem needs resizing (if volume was increased)
 VOLUME_SIZE=$(blockdev --getsize64 $EBS_DEVICE)
-FILESYSTEM_SIZE=$(df -B1 /data | tail -1 | awk '{print $2}')
+FILESYSTEM_SIZE=$(df -B1 /ebs | tail -1 | awk '{print $2}')
 if [ $VOLUME_SIZE -gt $FILESYSTEM_SIZE ]; then
     echo "Resizing filesystem to match volume size..."
     resize2fs $EBS_DEVICE
@@ -86,15 +86,15 @@ fi
 # Add to fstab for persistence
 EBS_UUID=$(blkid -s UUID -o value $EBS_DEVICE)
 if ! grep -q "$EBS_UUID" /etc/fstab; then
-    echo "UUID=$EBS_UUID /data ext4 defaults,nofail 0 2" >> /etc/fstab
+    echo "UUID=$EBS_UUID /ebs ext4 defaults,nofail 0 2" >> /etc/fstab
 fi
 
 # Create directory structure on EBS volume
-mkdir -p /data/home
-mkdir -p /data/shared
-chmod 755 /data
-chmod 755 /data/home
-chmod 777 /data/shared  # Shared directory for all users
+mkdir -p /ebs/home
+mkdir -p /ebs/shared
+chmod 755 /ebs
+chmod 755 /ebs/home
+chmod 777 /ebs/shared  # Shared directory for all users
 
 # Set up S3 mount
 mkdir -p ${s3_mount_path}

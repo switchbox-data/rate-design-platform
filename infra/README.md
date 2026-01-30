@@ -6,8 +6,8 @@ This directory contains Terraform configuration for provisioning a shared EC2 in
 
 The infrastructure includes:
 - EC2 instance (Ubuntu 22.04) with configurable instance type
-- Persistent EBS volume (mounted at `/data`) for user home directories and shared data
-- S3 bucket mount (`s3://data.sb/` mounted at `/s3/`) for large data files
+- Persistent EBS volume (mounted at `/ebs`) for user home directories and shared data
+- S3 bucket mount (`s3://data.sb/` mounted at `/data.sb/`) for large data files
 - IAM roles and security groups for secure access
 - Automatic user account creation based on AWS IAM users
 
@@ -52,10 +52,10 @@ This will:
 
 On the EC2 instance:
 
-- `/data/` - EBS volume (persistent)
-  - `/data/home/username/` - User home directories (persistent)
-  - `/data/shared/` - Shared data accessible to all users
-- `/s3/` - S3 bucket mount (`s3://data.sb/`)
+- `/ebs/` - EBS volume (persistent)
+  - `/ebs/home/username/` - User home directories (persistent)
+  - `/ebs/shared/` - Shared data accessible to all users
+- `/data.sb/` - S3 bucket mount (`s3://data.sb/`)
 - User repos: `~/rate-design-platform/` (in user's home directory on EBS)
 
 ## Configuration
@@ -80,7 +80,7 @@ To change the instance type:
    - Change the instance type
    - Start the new instance
    - Reattach the EBS volume
-   - All user data in `/data/home/` persists automatically
+   - All user data in `/ebs/home/` persists automatically
 
 ## EBS Volume Resizing
 
@@ -125,5 +125,5 @@ To grant access, add these permissions to the user's IAM role/user. Their Linux 
 ### User account issues
 
 - Verify AWS IAM username is valid
-- Check `/data/home/` directory permissions
+- Check `/ebs/home/` directory permissions
 - User accounts are created automatically on first login
