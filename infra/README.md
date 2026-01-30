@@ -5,6 +5,7 @@ This directory contains Terraform configuration for provisioning a shared EC2 in
 ## Overview
 
 The infrastructure includes:
+
 - EC2 instance (Ubuntu 22.04) with configurable instance type
 - Persistent EBS volume (mounted at `/data`) for user home directories and shared data
 - S3 bucket mount (`s3://data.sb/` mounted at `/s3/`) for large data files
@@ -28,6 +29,7 @@ just dev-setup
 ```
 
 This will:
+
 - Create the EC2 instance
 - Set up the EBS volume and S3 mount
 - Install system dependencies
@@ -42,6 +44,7 @@ just dev-login
 ```
 
 This will:
+
 - Authenticate via AWS SSO
 - Create your Linux user account (if first time)
 - Clone the repository to `~/rate-design-platform/`
@@ -61,6 +64,7 @@ On the EC2 instance:
 ## Configuration
 
 Edit `variables.tf` to customize:
+
 - `instance_type` - EC2 instance type (default: `c5.2xlarge`)
 - `ebs_volume_size` - EBS volume size in GB (default: 500)
 - `aws_region` - AWS region (default: `us-west-2`)
@@ -95,6 +99,7 @@ To increase the EBS volume size:
 ## Authorization
 
 Users need the following AWS IAM permissions:
+
 - `ec2-instance-connect:SendSSHPublicKey`
 - `ec2:DescribeInstances`
 

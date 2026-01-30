@@ -1,0 +1,73 @@
+{
+  "name": "rate-design-platform",
+  // Build from Dockerfile instead of pulling pre-built image
+  // All devcontainer features and dependencies are baked into the image during build
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      // GITHUB_TOKEN: Optional build arg for accessing private git repositories
+      //
+      // For local development:
+      //   - Leave empty (will show warning but may work if repo is public)
+      //   - Or set to your GitHub PAT for private repos
+      //   - IMPORTANT: If accessing repos in DIFFERENT organizations, use CLASSIC PAT
+      //     (fine-grained PATs only work for one organization)
+      //   - If org has SSO: Authorize token after creating it
+      //
+      // For CI/CD: Set via workflow (see .github/workflows/main.yml)
+      "GITHUB_TOKEN": ""
+    }
+  },
+  // Run as root to avoid permission issues between build-time and run-time users
+  "remoteUser": "root",
+  "workspaceFolder": "/workspaces/rate-design-platform",
+  // Install pre-commit hooks into .git/hooks/
+  // This must run after container creation because .git/ is mounted from the host.
+  // The prek CLI itself is already installed in the Docker image.
+  "postCreateCommand": ".devcontainer/install-prek-deps.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "tombi-toml.tombi",
+        "nefrob.vscode-just-syntax",
+        "davidanson.vscode-markdownlint",
+        "christian-kohler.path-intellisense",
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "astral-sh.ty",
+        "tekumara.typos-vscode",
+        "dvirtz.parquet-viewer",
+        "hashicorp.terraform",
+        "foxundermoon.shell-format",
+        "dprint.dprint"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/opt/venv/bin/python",
+        "python.terminal.activateEnvironment": false,
+        "python.testing.pytestArgs": ["tests"],
+        "python.testing.pytestPath": "/opt/venv/bin/pytest",
+        "python.testing.unittestEnabled": false,
+        "python.testing.pytestEnabled": true,
+        "ruff.nativeServer": "on",
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff",
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.fixAll": "explicit",
+            "source.organizeImports": "explicit"
+          }
+        },
+        "shellformat.flag": "-i 2",
+        "[shellscript]": {
+          "editor.defaultFormatter": "foxundermoon.shell-format",
+          "editor.formatOnSave": true
+        },
+        "[markdown]": {
+          "editor.defaultFormatter": "dprint.dprint",
+          "editor.formatOnSave": true
+        }
+      }
+    }
+  }
+}
