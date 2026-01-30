@@ -26,7 +26,7 @@ on:
 # to use the prebuilt image with devpod up.
 #
 #   Layer 1: Hash-Based Caching (Complete Skip)
-#     - DevPod hashes devcontainer.json + Dockerfile + build context files
+#     - DevPod hashes devcontainer.json + Dockerfile + build context files (pyproject.toml, uv.lock, install scripts)
 #     - If hash matches existing image → Skip build entirely (~30s vs ~8min)
 #     - Example: Changing only README.md doesn't rebuild the image
 #
@@ -160,7 +160,8 @@ jobs:
           #
           # The hash is calculated from:
           #   - devcontainer.json content
-          #   - Files referenced in devcontainer.json (install scripts, pyproject.toml, uv.lock, etc.)
+          #   - Dockerfile content
+          #   - Files COPYed in Dockerfile (install scripts, pyproject.toml, uv.lock, etc.)
           #
           # If the hash matches an existing image in the registry → DevPod skips the
           # build entirely and just pulls the existing image (~30s instead of minutes).
@@ -267,15 +268,6 @@ jobs:
       - name: Configure Git safe directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      # Run postCreateCommand scripts to install dependencies (Python deps, prek, pre-commit hooks)
-      # This is needed because the devcontainer.json uses postCreateCommand to install things
-      # that are required for `just check` to work.
-      # Note: We skip install-ohmyzsh-plugins.sh in CI since oh-my-zsh plugins aren't needed for checks
-      - name: Install dependencies
-        working-directory: ${{ github.workspace }}
-        run: |
-          bash -c '.devcontainer/install-python-deps.sh . && .devcontainer/install-prek.sh && .devcontainer/install-prek-deps.sh'
-
       - name: Run quality checks
         run: just check
 
@@ -295,15 +287,6 @@ jobs:
 
       - name: Configure Git safe directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      # Run postCreateCommand scripts to install dependencies (Python deps, prek, pre-commit hooks)
-      # This is needed because the devcontainer.json uses postCreateCommand to install things
-      # that are required for `just test` to work.
-      # Note: We skip install-ohmyzsh-plugins.sh in CI since oh-my-zsh plugins aren't needed for tests
-      - name: Install dependencies
-        working-directory: ${{ github.workspace }}
-        run: |
-          bash -c '.devcontainer/install-python-deps.sh . && .devcontainer/install-prek.sh && .devcontainer/install-prek-deps.sh'
 
       - name: Run tests
         run: just test

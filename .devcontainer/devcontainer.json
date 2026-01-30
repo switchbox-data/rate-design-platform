@@ -1,16 +1,18 @@
 {
   "name": "rate-design-platform",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
-  "features": {
-    "ghcr.io/guiyomh/features/just:0.1.0": { "version": "1.42.4" },
-    "ghcr.io/devcontainers/features/python:1": { "version": "os-provided" },
-    "ghcr.io/kreemer/features/chrometesting:1": {},
-    "ghcr.io/nils-geistmann/devcontainers-features/zsh:0": {
-      "plugins": "git colored-man-pages colorize history zsh-autosuggestions fast-syntax-highlighting zsh-autocomplete",
-      "theme": "bira"
-    }
+  // Build from Dockerfile instead of pulling pre-built image
+  // All devcontainer features and dependencies are baked into the image during build
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
   },
-  "postCreateCommand": "bash -c '.devcontainer/install-ohmyzsh-plugins.sh && .devcontainer/install-python-deps.sh && .devcontainer/install-prek.sh && .devcontainer/install-prek-deps.sh'",
+  // Run as root to avoid permission issues between build-time and run-time users
+  "remoteUser": "root",
+  "workspaceFolder": "/workspaces/rate-design-platform",
+  // Install pre-commit hooks into .git/hooks/
+  // This must run after container creation because .git/ is mounted from the host.
+  // The prek CLI itself is already installed in the Docker image.
+  "postCreateCommand": ".devcontainer/install-prek-deps.sh",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -26,10 +28,10 @@
         "hashicorp.terraform"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/workspaces/rate-design-platform/.venv/bin/python",
+        "python.defaultInterpreterPath": "/opt/venv/bin/python",
         "python.terminal.activateEnvironment": false,
         "python.testing.pytestArgs": ["tests"],
-        "python.testing.pytestPath": "/workspaces/rate-design-platform/.venv/bin/pytest",
+        "python.testing.pytestPath": "/opt/venv/bin/pytest",
         "python.testing.unittestEnabled": false,
         "python.testing.pytestEnabled": true,
         "ruff.nativeServer": "on",
