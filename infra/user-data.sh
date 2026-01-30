@@ -11,6 +11,18 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get upgrade -y
 
+# Resize root filesystem if volume was increased (runs on every boot)
+# Get root device (could be /dev/sda1, /dev/nvme0n1p1, etc.)
+ROOT_DEVICE=$(findmnt -n -o SOURCE / | sed 's/p[0-9]*$//' || echo "")
+if [ -n "$ROOT_DEVICE" ] && [ -b "$ROOT_DEVICE" ]; then
+    ROOT_VOLUME_SIZE=$(blockdev --getsize64 "$ROOT_DEVICE" 2>/dev/null || echo "0")
+    ROOT_FS_SIZE=$(df -B1 / | tail -1 | awk '{print $2}')
+    if [ "$ROOT_VOLUME_SIZE" -gt "$ROOT_FS_SIZE" ] && [ "$ROOT_VOLUME_SIZE" -gt 0 ]; then
+        echo "Root volume size ($ROOT_VOLUME_SIZE) is larger than filesystem ($ROOT_FS_SIZE), resizing..."
+        resize2fs "$ROOT_DEVICE" 2>&1 || echo "Resize may have failed, but continuing..."
+    fi
+fi
+
 # Add deadsnakes PPA for Python 3.13
 apt-get install -y software-properties-common
 add-apt-repository -y ppa:deadsnakes/ppa
@@ -40,6 +52,9 @@ if ! command -v amazon-ssm-agent &> /dev/null; then
 fi
 
 # Install uv system-wide
+# Set HOME if not set (cloud-init runs as root without HOME set)
+# Note: $$ escapes $ for Terraform templatefile
+export HOME="$${HOME:-/root}"
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Find where uv was installed (installer uses ~/.cargo/bin or ~/.local/bin)
@@ -69,15 +84,27 @@ if ! /usr/local/bin/uv --version; then
 fi
 echo "uv installed successfully: $(/usr/local/bin/uv --version)"
 
-# Find the EBS volume device
+# Find the EBS volume device with retries (volume attachment happens after instance creation)
 # The volume is attached as /dev/sdf, but on newer instances it might be /dev/nvme1n1
 EBS_DEVICE=""
-if [ -b /dev/nvme1n1 ]; then
-    EBS_DEVICE="/dev/nvme1n1"
-elif [ -b /dev/sdf ]; then
-    EBS_DEVICE="/dev/sdf"
-else
-    echo "ERROR: Could not find EBS volume device"
+echo "Waiting for EBS volume to be attached..."
+for i in {1..60}; do
+    if [ -b /dev/nvme1n1 ]; then
+        EBS_DEVICE="/dev/nvme1n1"
+        break
+    elif [ -b /dev/sdf ]; then
+        EBS_DEVICE="/dev/sdf"
+        break
+    fi
+    if [ $((i % 10)) -eq 0 ]; then
+        echo "  Still waiting for EBS volume device... ($i/60)"
+    fi
+    sleep 2
+done
+
+if [ -z "$EBS_DEVICE" ]; then
+    echo "ERROR: Could not find EBS volume device after 2 minutes" >&2
+    echo "This will cause data to be written to root filesystem instead of EBS volume!" >&2
     exit 1
 fi
 
@@ -87,18 +114,80 @@ echo "Found EBS device: $EBS_DEVICE"
 if ! blkid $EBS_DEVICE > /dev/null 2>&1; then
     echo "Formatting EBS volume..."
     mkfs.ext4 -F $EBS_DEVICE
+    # Wait a moment for filesystem to be ready
+    sleep 2
 fi
 
-# Create mount point
+# Ensure mount point exists and is empty
+if mountpoint -q /data 2>/dev/null; then
+    echo "Unmounting existing /data mount..."
+    umount /data || true
+fi
 mkdir -p /data
+# Ensure directory is empty (remove any files that might prevent mount)
+rm -rf /data/* /data/.* 2>/dev/null || true
 
-# Mount the volume
-mount $EBS_DEVICE /data
+# Mount the volume with retries and verification
+echo "Mounting EBS volume $EBS_DEVICE to /data..."
+MOUNT_SUCCESS=false
+for i in {1..30}; do
+    # Try to mount with explicit filesystem type
+    if mount -t ext4 $EBS_DEVICE /data 2>&1; then
+        # Wait a moment for mount to settle
+        sleep 1
+        # Verify mount actually worked using findmnt (more reliable than df)
+        MOUNTED_DEVICE=$(findmnt -n -o SOURCE /data 2>/dev/null || echo "")
+        if [ -n "$MOUNTED_DEVICE" ] && [ "$MOUNTED_DEVICE" != "/" ] && mountpoint -q /data; then
+            # Double-check: verify the mounted device matches our EBS device
+            # Handle both /dev/nvme1n1 and /dev/nvme1n1p1 formats
+            if echo "$MOUNTED_DEVICE" | grep -q "$(basename $EBS_DEVICE)"; then
+                echo "EBS volume mounted successfully to /data (device: $MOUNTED_DEVICE)"
+                MOUNT_SUCCESS=true
+                break
+            else
+                echo "Mount device mismatch: expected $EBS_DEVICE, got $MOUNTED_DEVICE, retrying..."
+                umount /data 2>/dev/null || true
+            fi
+        else
+            echo "Mount verification failed (device: $MOUNTED_DEVICE), retrying..."
+            umount /data 2>/dev/null || true
+        fi
+    else
+        MOUNT_ERROR=$?
+        if [ $((i % 5)) -eq 0 ]; then
+            echo "  Mount attempt $i failed (exit code: $MOUNT_ERROR), retrying..."
+            # Show what's currently mounted at /data if anything
+            if mountpoint -q /data 2>/dev/null; then
+                echo "    Current mount: $(findmnt -n -o SOURCE /data 2>/dev/null || echo 'unknown')"
+            fi
+        fi
+    fi
+    sleep 2
+done
+
+if [ "$MOUNT_SUCCESS" = false ]; then
+    echo "ERROR: Failed to mount EBS volume to /data after 30 attempts" >&2
+    echo "EBS device: $EBS_DEVICE" >&2
+    echo "Current /data mount: $(findmnt -n -o SOURCE /data 2>/dev/null || echo 'not mounted')" >&2
+    echo "Root device: $(findmnt -n -o SOURCE / 2>/dev/null || echo 'unknown')" >&2
+    echo "This will cause data to be written to root filesystem instead of EBS volume!" >&2
+    exit 1
+fi
+
+# Final verification we're actually using the EBS volume
+MOUNTED_DEVICE=$(findmnt -n -o SOURCE /data 2>/dev/null || echo "")
+ROOT_DEVICE=$(findmnt -n -o SOURCE / 2>/dev/null || echo "")
+if [ "$MOUNTED_DEVICE" = "$ROOT_DEVICE" ] || [ -z "$MOUNTED_DEVICE" ]; then
+    echo "ERROR: /data mount verification failed!" >&2
+    echo "Mounted device: $MOUNTED_DEVICE" >&2
+    echo "Root device: $ROOT_DEVICE" >&2
+    exit 1
+fi
 
 # Check if filesystem needs resizing (if volume was increased)
 VOLUME_SIZE=$(blockdev --getsize64 $EBS_DEVICE)
 FILESYSTEM_SIZE=$(df -B1 /data | tail -1 | awk '{print $2}')
-if [ $VOLUME_SIZE -gt $FILESYSTEM_SIZE ]; then
+if [ "$VOLUME_SIZE" -gt "$FILESYSTEM_SIZE" ] && [ "$VOLUME_SIZE" -gt 0 ] && [ "$FILESYSTEM_SIZE" -gt 0 ]; then
     echo "Resizing filesystem to match volume size..."
     resize2fs $EBS_DEVICE
 fi
@@ -170,5 +259,38 @@ fi
 # Start and enable SSM agent (for AWS Systems Manager Session Manager)
 systemctl enable amazon-ssm-agent
 systemctl start amazon-ssm-agent
+
+# Create a per-boot script to resize root filesystem if needed
+cat > /usr/local/bin/resize-root-fs.sh <<'RESIZE_SCRIPT'
+#!/bin/bash
+ROOT_DEVICE=$(findmnt -n -o SOURCE / | sed 's/p[0-9]*$//' || echo "")
+if [ -n "$ROOT_DEVICE" ] && [ -b "$ROOT_DEVICE" ]; then
+    ROOT_VOLUME_SIZE=$(blockdev --getsize64 "$ROOT_DEVICE" 2>/dev/null || echo "0")
+    ROOT_FS_SIZE=$(df -B1 / | tail -1 | awk '{print $2}')
+    if [ "$ROOT_VOLUME_SIZE" -gt "$ROOT_FS_SIZE" ] && [ "$ROOT_VOLUME_SIZE" -gt 0 ]; then
+        echo "Resizing root filesystem from $ROOT_FS_SIZE to $ROOT_VOLUME_SIZE..."
+        resize2fs "$ROOT_DEVICE" 2>&1
+    fi
+fi
+RESIZE_SCRIPT
+chmod +x /usr/local/bin/resize-root-fs.sh
+
+# Create systemd service to run resize on boot
+cat > /etc/systemd/system/resize-root-fs.service <<'SERVICE_SCRIPT'
+[Unit]
+Description=Resize root filesystem if volume was increased
+After=local-fs.target
+Before=sshd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/resize-root-fs.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+SERVICE_SCRIPT
+systemctl enable resize-root-fs.service
+systemctl start resize-root-fs.service
 
 echo "User-data script completed successfully!"
