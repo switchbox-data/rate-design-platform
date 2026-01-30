@@ -26,14 +26,21 @@ echo ""
 if ! gh auth status &>/dev/null; then
   echo "📦 GitHub authentication required for private dependencies..."
   echo ""
-  # Always use --web flag to work reliably in both interactive and non-interactive environments
-  # This will either open a browser or print a URL to visit manually
-  echo "Opening browser for GitHub authentication..."
-  echo "   (If browser doesn't open, visit the URL shown below)"
+  # Ensure BROWSER is set so gh can attempt to open browser (or print URL)
+  # In SSH/non-interactive sessions, browser won't open but URL will be printed
+  export BROWSER="${BROWSER:-}"
+  echo "🔐 Starting GitHub authentication..."
+  echo "   (If browser doesn't open automatically, copy the URL below and open it manually)"
   echo ""
-  gh auth login --web
+  # Use --web flag - it will print a URL if browser can't open
+  gh auth login --web 2>&1 || {
+    echo ""
+    echo "⚠️  GitHub authentication failed or was cancelled."
+    echo "   You can run 'gh auth login --web' manually later."
+    echo ""
+  }
   # Configure git to use gh as credential helper (so uv/git can fetch private repos)
-  gh auth setup-git
+  gh auth setup-git 2>/dev/null || true
   echo ""
 else
   # Ensure git is configured to use gh even if already authenticated
