@@ -15,7 +15,7 @@ echo
 # Install prek
 echo "📦 Installing prek"
 curl --proto '=https' --tlsv1.2 -LsSf \
-    https://github.com/j178/prek/releases/download/v0.2.11/prek-installer.sh | sh
+  https://github.com/j178/prek/releases/download/v0.2.11/prek-installer.sh | sh
 echo
 
 # Add prek to PATH for this session
@@ -24,9 +24,9 @@ export PATH="${HOME}/.local/bin:${PATH}"
 
 # Verify installation
 if ! PREK_VERSION=$(prek --version 2>&1); then
-    echo "❌ ERROR: prek installation failed or prek command not found" >&2
-    echo "Expected location: ${HOME}/.local/bin/prek" >&2
-    exit 1
+  echo "❌ ERROR: prek installation failed or prek command not found" >&2
+  echo "Expected location: ${HOME}/.local/bin/prek" >&2
+  exit 1
 fi
 
 echo "✅ Installed: ${PREK_VERSION}"

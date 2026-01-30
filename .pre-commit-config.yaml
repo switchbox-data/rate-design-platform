@@ -37,8 +37,9 @@ repos:
       - id: dprint
         name: dprint (markdown)
         entry: dprint fmt
-        language: system
+        language: python
         types: [markdown]
+        additional_dependencies: [dprint-py]
 
       - id: ty
         name: ty check

@@ -15,4 +15,5 @@ This repository is a clean scaffold for rate design analysis, focused on New Yor
 - `tests/` — placeholder test files to expand alongside code.
 
 ## Notes
+
 - Data under `rate_design/ny/hp_rates/data/` (buildstock raw/processed, cairo cases) should remain local or synced via S3 tooling you add; keep large artifacts out of git.

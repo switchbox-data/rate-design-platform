@@ -24,25 +24,25 @@ echo
 
 # Check if Python is installed
 if command -v python3 >/dev/null 2>&1; then
-    PYTHON_VERSION=$(python3 --version)
-    echo "✅ Using: ${PYTHON_VERSION}"
+  PYTHON_VERSION=$(python3 --version)
+  echo "✅ Using: ${PYTHON_VERSION}"
 else
-    echo "❌ ERROR: Python is not installed" >&2
-    echo "" >&2
-    echo "Please install Python before running this script:" >&2
-    echo "  • Ubuntu/Debian: sudo apt-get install python3" >&2
-    echo "  • macOS: brew install python3" >&2
-    exit 1
+  echo "❌ ERROR: Python is not installed" >&2
+  echo "" >&2
+  echo "Please install Python before running this script:" >&2
+  echo "  • Ubuntu/Debian: sudo apt-get install python3" >&2
+  echo "  • macOS: brew install python3" >&2
+  exit 1
 fi
 echo
 
 # Check if pyproject.toml exists
 PYPROJECT_PATH="${WORKSPACE_PATH}/pyproject.toml"
 if [ -f "${PYPROJECT_PATH}" ]; then
-    echo "✅ Found pyproject.toml: $(realpath "${PYPROJECT_PATH}")"
+  echo "✅ Found pyproject.toml: $(realpath "${PYPROJECT_PATH}")"
 else
-    echo "❌ ERROR: pyproject.toml is necessary but not found in ${WORKSPACE_PATH}" >&2
-    exit 1
+  echo "❌ ERROR: pyproject.toml is necessary but not found in ${WORKSPACE_PATH}" >&2
+  exit 1
 fi
 echo
 
@@ -51,25 +51,25 @@ echo
 export PATH="${HOME}/.local/bin:${PATH}"
 
 if command -v uv >/dev/null 2>&1; then
-    UV_VERSION=$(uv --version 2>&1)
-    echo "✅ uv already installed: ${UV_VERSION}"
+  UV_VERSION=$(uv --version 2>&1)
+  echo "✅ uv already installed: ${UV_VERSION}"
 else
-    # Install uv package manager
-    echo "📦 Installing uv package manager..."
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+  # Install uv package manager
+  echo "📦 Installing uv package manager..."
+  curl -LsSf https://astral.sh/uv/install.sh | sh
 
-    # Add uv to PATH for this session so command can be used
-    # The installer adds uv to ~/.local/bin
-    export PATH="${HOME}/.local/bin:${PATH}"
+  # Add uv to PATH for this session so command can be used
+  # The installer adds uv to ~/.local/bin
+  export PATH="${HOME}/.local/bin:${PATH}"
 
-    # Verify installation
-    if UV_VERSION=$(uv --version 2>&1); then
-        echo "✅ Installed: ${UV_VERSION}"
-    else
-        echo "❌ ERROR: uv installation failed or uv command not found" >&2
-        echo "Expected location: ${HOME}/.local/bin/uv" >&2
-        exit 1
-    fi
+  # Verify installation
+  if UV_VERSION=$(uv --version 2>&1); then
+    echo "✅ Installed: ${UV_VERSION}"
+  else
+    echo "❌ ERROR: uv installation failed or uv command not found" >&2
+    echo "Expected location: ${HOME}/.local/bin/uv" >&2
+    exit 1
+  fi
 fi
 echo
 
@@ -79,10 +79,10 @@ cd "${WORKSPACE_PATH}"
 # Install Python dependencies
 echo "📥 Installing Python dependencies from pyproject.toml + uv.lock..."
 if uv sync --group dev; then
-    echo "✅ Python dependencies installed successfully"
+  echo "✅ Python dependencies installed successfully"
 else
-    echo "❌ ERROR: Failed to install Python dependencies" >&2
-    exit 1
+  echo "❌ ERROR: Failed to install Python dependencies" >&2
+  exit 1
 fi
 echo
 

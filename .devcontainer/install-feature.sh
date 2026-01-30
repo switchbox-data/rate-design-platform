@@ -10,8 +10,8 @@ set -euo pipefail
 # with options passed as environment variables.
 
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 FEATURE_ID [key=value ...]" >&2
-    exit 1
+  echo "Usage: $0 FEATURE_ID [key=value ...]" >&2
+  exit 1
 fi
 
 FEATURE_ID="$1"
@@ -28,9 +28,9 @@ echo "===================================================================="
 #   ghcr.io/guiyomh/features/just:0.1.0
 
 if [[ ! "$FEATURE_ID" =~ ^([^/]+)/([^/]+)/([^/]+)/([^:]+):(.+)$ ]]; then
-    echo "ERROR: Invalid feature ID format: ${FEATURE_ID}" >&2
-    echo "Expected format: registry/owner/repo/feature:version" >&2
-    exit 1
+  echo "ERROR: Invalid feature ID format: ${FEATURE_ID}" >&2
+  echo "Expected format: registry/owner/repo/feature:version" >&2
+  exit 1
 fi
 
 REGISTRY="${BASH_REMATCH[1]}"
@@ -61,26 +61,26 @@ curl -fsSL "${FEATURE_URL}" | tar -xz -C "${FEATURE_DIR}" --strip-components=1
 # Check if feature directory exists
 INSTALL_SCRIPT="${FEATURE_DIR}/src/${FEATURE_NAME}/install.sh"
 if [ ! -f "${INSTALL_SCRIPT}" ]; then
-    echo "ERROR: Feature install script not found at ${INSTALL_SCRIPT}" >&2
-    echo "Available paths:" >&2
-    find "${FEATURE_DIR}" -name "install.sh" || true
-    exit 1
+  echo "ERROR: Feature install script not found at ${INSTALL_SCRIPT}" >&2
+  echo "Available paths:" >&2
+  find "${FEATURE_DIR}" -name "install.sh" || true
+  exit 1
 fi
 
 # Export options as environment variables (uppercase, no prefix)
 # Example: version=3.11 -> VERSION=3.11
 # Example: installTools=false -> INSTALLTOOLS=false
 for arg in "$@"; do
-    if [[ "$arg" =~ ^([^=]+)=(.*)$ ]]; then
-        key="${BASH_REMATCH[1]}"
-        value="${BASH_REMATCH[2]}"
+  if [[ "$arg" =~ ^([^=]+)=(.*)$ ]]; then
+    key="${BASH_REMATCH[1]}"
+    value="${BASH_REMATCH[2]}"
 
-        # Convert to uppercase, remove hyphens
-        env_var="$(echo "${key}" | tr '[:lower:]' '[:upper:]' | tr '-' '_')"
+    # Convert to uppercase, remove hyphens
+    env_var="$(echo "${key}" | tr '[:lower:]' '[:upper:]' | tr '-' '_')"
 
-        export "${env_var}=${value}"
-        echo "  ${env_var}=${value}"
-    fi
+    export "${env_var}=${value}"
+    echo "  ${env_var}=${value}"
+  fi
 done
 
 # Set required environment variables that features expect
