@@ -48,6 +48,112 @@ if [ ! -d ".terraform" ]; then
   echo
 fi
 
+# Clean up any orphaned AWS resources that might exist from previous runs
+# Only removes resources that exist in AWS but NOT in Terraform state (truly orphaned)
+# This ensures idempotency - resources managed by Terraform are never touched
+PROJECT_NAME="${PROJECT_NAME:-rate-design-platform}"
+
+# Disable AWS CLI pager so output prints directly to screen (no less/more)
+export AWS_PAGER=""
+
+echo "🧹 Checking for orphaned AWS resources (exist in AWS but not in Terraform state)..."
+echo
+
+# Helper function to check if a resource exists in Terraform state
+# Returns 0 (true) if resource is in state, 1 (false) if not
+resource_in_state() {
+  # terraform state list works regardless of backend (local, S3, etc.)
+  # If state doesn't exist or command fails, assume resource is not in state
+  terraform state list 2>/dev/null | grep -q "^$1$" || return 1
+}
+
+# 1. Check for orphaned EC2 instance
+INSTANCE_ID=$(aws ec2 describe-instances \
+  --filters "Name=tag:Project,Values=$PROJECT_NAME" "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+  --query 'Reservations[0].Instances[0].InstanceId' \
+  --output text 2>/dev/null || echo "None")
+
+if [ -n "$INSTANCE_ID" ] && [ "$INSTANCE_ID" != "None" ]; then
+  if ! resource_in_state "aws_instance.main"; then
+    echo "   Found orphaned EC2 instance: $INSTANCE_ID (not in Terraform state)"
+    echo "   Terminating orphaned instance..."
+    aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" || true
+    echo "   Waiting for instance to terminate..."
+    aws ec2 wait instance-terminated --instance-ids "$INSTANCE_ID" || true
+  else
+    echo "   EC2 instance exists and is managed by Terraform (skipping)"
+  fi
+fi
+
+# 2. Check for orphaned security group
+SG_ID=$(aws ec2 describe-security-groups \
+  --filters "Name=group-name,Values=${PROJECT_NAME}-sg" \
+  --query 'SecurityGroups[0].GroupId' \
+  --output text 2>/dev/null || echo "None")
+
+if [ -n "$SG_ID" ] && [ "$SG_ID" != "None" ]; then
+  if ! resource_in_state "aws_security_group.ec2_sg"; then
+    echo "   Found orphaned security group: $SG_ID (not in Terraform state)"
+    echo "   Deleting orphaned security group..."
+    for i in {1..10}; do
+      if aws ec2 delete-security-group --group-id "$SG_ID"; then
+        break
+      fi
+      sleep 3
+    done
+  else
+    echo "   Security group exists and is managed by Terraform (skipping)"
+  fi
+fi
+
+# 3. Check for orphaned IAM resources
+ROLE_NAME="${PROJECT_NAME}-ec2-role"
+PROFILE_NAME="${PROJECT_NAME}-ec2-profile"
+
+if aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
+  if ! resource_in_state "aws_iam_role.ec2_role"; then
+    echo "   Found orphaned IAM role: $ROLE_NAME (not in Terraform state)"
+    echo "   Cleaning up orphaned IAM resources..."
+
+    # Remove role from instance profile
+    aws iam remove-role-from-instance-profile \
+      --instance-profile-name "$PROFILE_NAME" \
+      --role-name "$ROLE_NAME" || true
+
+    # Delete instance profile
+    aws iam delete-instance-profile --instance-profile-name "$PROFILE_NAME" || true
+
+    # Delete inline policies
+    POLICIES=$(aws iam list-role-policies --role-name "$ROLE_NAME" --query 'PolicyNames[]' --output text 2>/dev/null || echo "")
+    for policy in $POLICIES; do
+      aws iam delete-role-policy --role-name "$ROLE_NAME" --policy-name "$policy" || true
+    done
+
+    # Detach managed policies
+    ATTACHED=$(aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query 'AttachedPolicies[].PolicyArn' --output text 2>/dev/null || echo "")
+    for policy_arn in $ATTACHED; do
+      aws iam detach-role-policy --role-name "$ROLE_NAME" --policy-arn "$policy_arn" || true
+    done
+
+    # Delete role
+    aws iam delete-role --role-name "$ROLE_NAME" || true
+  else
+    echo "   IAM role exists and is managed by Terraform (skipping)"
+  fi
+fi
+
+# Check for orphaned instance profile separately
+if aws iam get-instance-profile --instance-profile-name "$PROFILE_NAME" >/dev/null 2>&1; then
+  if ! resource_in_state "aws_iam_instance_profile.ec2_profile"; then
+    echo "   Found orphaned IAM instance profile: $PROFILE_NAME (not in Terraform state)"
+    echo "   Deleting orphaned instance profile..."
+    aws iam delete-instance-profile --instance-profile-name "$PROFILE_NAME" || true
+  fi
+fi
+
+echo "✅ Cleanup check complete"
+echo
+
 # Apply Terraform configuration
 echo "🏗️  Applying Terraform configuration..."
 terraform apply -auto-approve

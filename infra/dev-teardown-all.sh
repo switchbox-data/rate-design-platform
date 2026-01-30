@@ -14,7 +14,7 @@ fi
 
 # When run via `just dev-teardown-all`, `aws` already ran (Justfile dependency).
 
-export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-west-2}"="${AWS_DEFAULT_REGION:-us-west-2}"
+export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-west-2}"
 
 export_aws_creds() {
   eval "$(aws configure export-credentials --format env 2>/dev/null)"
