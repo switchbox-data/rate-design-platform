@@ -1,0 +1,305 @@
+name: Main
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
+
+# ============================================================================
+# CI/CD ARCHITECTURE: Multi-Arch Devcontainer Build + Parallel Test Execution
+# ============================================================================
+#
+# This workflow uses a 4-job structure to optimize CI performance:
+#
+# 1. build-devcontainer-amd64: Builds AMD64 image (for CI and EC2/DevPod users)
+# 2. build-devcontainer-arm64: Builds ARM64 image on native ARM64 runner (for local ARM64/DevPod users)
+# 3. quality-checks & tests: Pull the AMD64 :latest image and run checks in PARALLEL
+#
+# Both builds run in parallel on native hardware (no emulation needed).
+# Tests only wait for AMD64 - the ARM64 build doesn't block CI.
+#
+# WHY USE DEVPOD FOR CI BUILDS?
+#
+# We use DevPod CLI (not docker/build-push-action) to build devcontainer images
+# because it creates a hash-based tag for the image, which is required if we want
+# to use the prebuilt image with devpod up.
+#
+#   Layer 1: Hash-Based Caching (Complete Skip)
+#     - DevPod hashes devcontainer.json + Dockerfile + build context files
+#     - If hash matches existing image → Skip build entirely (~30s vs ~8min)
+#     - Example: Changing only README.md doesn't rebuild the image
+#
+#   Layer 2: BuildKit Registry Layer Caching (Incremental Build)
+#     - When hash changes → DevPod performs an incremental rebuild
+#     - BuildKit reuses unchanged layers from GHCR registry cache
+#     - Only rebuilds layers starting from the changed file
+#     - Example: Adding a Python package only rebuilds the final Python deps layer
+#
+# CACHE STORAGE:
+#
+#   - Final images: ghcr.io/switchbox-data/rate-design-platform:devpod-<hash-amd64> (AMD64 hash tag)
+#                   ghcr.io/switchbox-data/rate-design-platform:devpod-<hash-arm64> (ARM64 hash tag)
+#                   ghcr.io/switchbox-data/rate-design-platform:latest (AMD64 only, for CI jobs)
+#   - Layer cache:  ghcr.io/switchbox-data/rate-design-platform:buildcache-amd64
+#                   ghcr.io/switchbox-data/rate-design-platform:buildcache-arm64
+#
+# WHY SEPARATE LAYER CACHES PER PLATFORM?
+#
+# BuildKit layer caches are platform-specific - AMD64 and ARM64 layers are not
+# interchangeable. Using separate :buildcache-amd64 and :buildcache-arm64 tags
+# avoids cache conflicts and ensures each platform gets optimal layer reuse.
+#
+# DEVPOD PLATFORM-AWARE HASHING:
+#
+# DevPod calculates a hash that INCLUDES the target architecture:
+#   hash = sha256(architecture + devcontainer.json + Dockerfile + context files)
+#
+# This means AMD64 and ARM64 get DIFFERENT hash tags automatically:
+#   - AMD64 build → :devpod-abc123 (includes "amd64" in hash input)
+#   - ARM64 build → :devpod-def456 (includes "arm64" in hash input)
+#
+# When a user runs `devpod up --provider docker` on an ARM64 machine:
+#   1. DevPod detects their machine is ARM64 (via runtime.GOARCH)
+#   2. Calculates hash including "arm64" → gets :devpod-def456
+#   3. Finds the prebuilt image in GHCR → pulls it instantly
+#
+# This is why separate images with separate tags (not a multi-arch manifest)
+# is the correct approach for DevPod's hash-based prebuild system.
+#
+# In other words: DevPod will grab the correct image for the platform it is running on:
+#   - AMD for EC2 instances or Apple Intel machines
+#   - ARM for Apple Silicon machines
+#
+# HOW USERS ACCESS PREBUILDS:
+#
+# Default workflow:
+#   - Open project in Cursor/VS Code → builds from devcontainer.json locally
+#   - No prebuilds involved, always uses latest devcontainer.json
+#
+# DevPod local workflow (opt-in for faster startup):
+#   - Run: just up-local
+#   - DevPod finds and pulls the prebuilt image (AMD or ARM) for whatever local platform that Docker is running on
+#   - Much faster than building locally (~30s vs ~8min)
+#
+# DevPod AWS workflow (opt-in for faster startup):
+#   - Run: just up-aws
+#   - DevPod finds and pulls the prebuilt AMD image for the EC2 instance
+#   - Much faster than building locally (~30s vs ~8min)
+#
+# EXPECTED BUILD TIMES:
+#
+#   - Cache hit (hash match):      ~30s (no rebuild)
+#   - Layer cache hit:             ~2-4min (incremental rebuild)
+#   - Full rebuild (no cache):     ~10min (everything from scratch)
+#
+# ============================================================================
+
+jobs:
+  build-devcontainer-amd64:
+    # Builds and publishes the AMD64 devcontainer image using DevPod CLI.
+    # This image is used by:
+    #   - CI jobs (quality-checks, tests) via the :latest tag
+    #   - DevPod users on EC2/AMD64 machines via the :devpod-<hash> tag
+    # DevPod creates hash-based tags (e.g. devpod-d95c1f5a) and we also tag as :latest.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write  # Needed to push image to ghcr.io
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Install DevPod CLI (skevetter's maintained fork)
+      - name: Install DevPod CLI
+        run: |
+          curl -L -o devpod "https://github.com/skevetter/devpod/releases/latest/download/devpod-linux-amd64"
+          chmod +x devpod
+          sudo mv devpod /usr/local/bin/
+
+      - name: Initialize Docker provider
+        run: devpod provider add docker
+
+      # Configure BuildKit layer caching via DevPod
+      # This enables Layer 2 caching (incremental builds when hash changes)
+      - name: Configure DevPod to use GHCR as a build cache backend
+        run: |
+          # DevPod automatically translates REGISTRY_CACHE into BuildKit cache flags:
+          #   --cache-from type=registry,ref=ghcr.io/switchbox-data/rate-design-platform:buildcache-amd64
+          #   --cache-to type=registry,ref=ghcr.io/switchbox-data/rate-design-platform:buildcache-amd64,mode=max
+          #
+          # mode=max ensures ALL intermediate layers are cached (not just the final image).
+          # This allows BuildKit to reuse layers even when the final image hash changes.
+          #
+          # Example: If you add a Python package (changing pyproject.toml):
+          #   - Layers 1-21 (base Ubuntu, Python, just, etc.): CACHED ✓ (pulled from :buildcache-amd64)
+          #   - Layer 22 (Python deps): REBUILT (only this layer changes)
+          #
+          # This turns an 8-minute full rebuild into a ~2-minute incremental rebuild.
+
+          devpod context set-options -o REGISTRY_CACHE=ghcr.io/switchbox-data/rate-design-platform:buildcache-amd64
+
+      # Build the devcontainer image with DevPod
+      # DevPod provides two-tier caching (see workflow header for details)
+      - name: Build and push devcontainer image with DevPod
+        run: |
+          # DEVPOD TAGGING BEHAVIOR:
+          #
+          # DevPod automatically creates two tags for the built image:
+          #   1. devpod-<hash> - Hash-based tag for `devpod up` compatibility
+          #   2. latest - Via --tag flag, used by downstream CI jobs
+          #
+          # The hash is calculated from:
+          #   - devcontainer.json content
+          #   - Files referenced in devcontainer.json (install scripts, pyproject.toml, uv.lock, etc.)
+          #
+          # If the hash matches an existing image in the registry → DevPod skips the
+          # build entirely and just pulls the existing image (~30s instead of minutes).
+          #
+          # If the hash is different → DevPod performs a full build, but BuildKit
+          # still uses layer caching (configured above) to reuse unchanged layers.
+
+          # Enable debug logging to troubleshoot cache behavior
+          export BUILDKIT_PROGRESS=plain
+
+          devpod build . \
+            --provider docker \
+            --repository ghcr.io/switchbox-data/rate-design-platform \
+            --platform linux/amd64 \
+            --tag latest \
+            --debug
+
+  build-devcontainer-arm64:
+    # Builds and publishes the ARM64 devcontainer image using DevPod CLI.
+    # This image is used by DevPod users on ARM64 machines (usually Apple Silicon machines) via local Docker provider.
+    #
+    # We use GitHub's native ARM64 Linux runner (ubuntu-24.04-arm) for fast builds (no QEMU emulation needed).
+    #
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write  # Needed to push image to ghcr.io
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Install DevPod CLI (skevetter's maintained fork) - ARM64 version for native runner
+      - name: Install DevPod CLI
+        run: |
+          curl -L -o devpod "https://github.com/skevetter/devpod/releases/latest/download/devpod-linux-arm64"
+          chmod +x devpod
+          sudo mv devpod /usr/local/bin/
+
+      - name: Initialize Docker provider
+        run: devpod provider add docker
+
+      # Configure BuildKit layer caching via DevPod
+      # Uses separate cache tag from AMD64 to avoid cross-platform cache conflicts
+      - name: Configure DevPod to use GHCR as a build cache backend
+        run: |
+          # Uses :buildcache-arm64 (separate from :buildcache-amd64) because:
+          #   - BuildKit layer caches are platform-specific
+          #   - Mixing AMD64 and ARM64 layers would cause cache misses or errors
+          devpod context set-options -o REGISTRY_CACHE=ghcr.io/switchbox-data/rate-design-platform:buildcache-arm64
+
+      # Build the ARM64 devcontainer image with DevPod
+      # Note: No --tag latest here - only AMD64 gets :latest (used by CI jobs)
+      - name: Build and push devcontainer image with DevPod
+        run: |
+          # ARM64 build creates only the hash-based tag (e.g. :devpod-def456).
+          # We don't tag as :latest because:
+          #   - CI jobs run on AMD64 and need the AMD64 :latest image
+          #   - DevPod users don't use :latest - they use the hash-based tag
+          export BUILDKIT_PROGRESS=plain
+
+          devpod build . \
+            --provider docker \
+            --repository ghcr.io/switchbox-data/rate-design-platform \
+            --platform linux/arm64 \
+            --debug
+
+  quality-checks:
+    # Runs quality checks (lock file validation + pre-commit hooks) in parallel with tests.
+    #
+    # Using GitHub Actions' native container support:
+    #   - Pulls the prebuilt :latest image
+    #   - Runs the entire job inside the container
+    #   - Handles mounting workspace
+    #
+    # Note: why container keyword instead of devcontainers/ci?
+    # devcontainers/ci always rebuilds the image (~2-8 minutes), even with cacheFrom.
+    #
+    # We want to use the exact image that build-devcontainer-amd64 just pushed.
+    # NOTE: Only depends on AMD64 build - doesn't wait for ARM64.
+    needs: build-devcontainer-amd64
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/switchbox-data/rate-design-platform:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: --user root
+      # Note: The devcontainer runs as root by default. The --user root is redundant but explicit.
+      # Running as root avoids permission issues between the runner (UID 1001) and container.
+    steps:
+      - uses: actions/checkout@v5
+
+      # When git commands, running as UID 0 (root), see the repo is owned by UID 1001 (runner),
+      #it throws a "dubious ownership" error. This configures Git to trust the directory, avoiding the error.
+      - name: Configure Git safe directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # Run postCreateCommand to install dependencies (Python deps, prek, pre-commit hooks)
+      # This is needed because the devcontainer.json uses postCreateCommand to install things
+      # that are required for `just check` to work
+      - name: Install dependencies
+        run: |
+          bash -c '.devcontainer/install-ohmyzsh-plugins.sh && .devcontainer/install-python-deps.sh && .devcontainer/install-prek.sh && .devcontainer/install-prek-deps.sh'
+
+      - name: Run quality checks
+        run: just check
+
+  tests:
+    # Runs test suite in parallel with quality-checks.
+    # Uses the same container approach as quality-checks (see comments there).
+    needs: build-devcontainer-amd64
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/switchbox-data/rate-design-platform:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: --user root
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure Git safe directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # Run postCreateCommand to install dependencies (Python deps, prek, pre-commit hooks)
+      # This is needed because the devcontainer.json uses postCreateCommand to install things
+      # that are required for `just test` to work
+      - name: Install dependencies
+        run: |
+          bash -c '.devcontainer/install-ohmyzsh-plugins.sh && .devcontainer/install-python-deps.sh && .devcontainer/install-prek.sh && .devcontainer/install-prek-deps.sh'
+
+      - name: Run tests
+        run: just test
