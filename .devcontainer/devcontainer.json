@@ -4,7 +4,20 @@
   // All devcontainer features and dependencies are baked into the image during build
   "build": {
     "dockerfile": "Dockerfile",
-    "context": ".."
+    "context": "..",
+    "args": {
+      // GITHUB_TOKEN: Optional build arg for accessing private git repositories
+      //
+      // For local development:
+      //   - Leave empty (will show warning but may work if repo is public)
+      //   - Or set to your GitHub PAT for private repos
+      //   - IMPORTANT: If accessing repos in DIFFERENT organizations, use CLASSIC PAT
+      //     (fine-grained PATs only work for one organization)
+      //   - If org has SSO: Authorize token after creating it
+      //
+      // For CI/CD: Set via workflow (see .github/workflows/main.yml)
+      "GITHUB_TOKEN": ""
+    }
   },
   // Run as root to avoid permission issues between build-time and run-time users
   "remoteUser": "root",

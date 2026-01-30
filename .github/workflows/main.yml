@@ -106,6 +106,9 @@ jobs:
     permissions:
       contents: read
       packages: write  # Needed to push image to ghcr.io
+      # Note: GITHUB_TOKEN is automatically provided by GitHub Actions
+      # It should have access to repos in the same organization (switchbox-data)
+      # If it doesn't work, you'll need to create a PAT and add it as a repository secret
     steps:
       - uses: actions/checkout@v5
 
@@ -172,12 +175,62 @@ jobs:
           # Enable debug logging to troubleshoot cache behavior
           export BUILDKIT_PROGRESS=plain
 
+          # Pass GITHUB_TOKEN via BuildKit secret (doesn't affect DevPod cache hash)
+          #
+          # RESEARCH FINDINGS:
+          # 1. DevPod CLI doesn't support --build-arg flag directly
+          # 2. GITHUB_TOKEN cannot access other private repos (confirmed GitHub limitation)
+          # 3. Solution: Use Personal Access Token (PAT)
+          #
+          # SETUP REQUIRED:
+          # IMPORTANT: If CAIRO repo is in a DIFFERENT organization:
+          #   - You MUST use a CLASSIC PAT (not fine-grained)
+          #   - Fine-grained PATs only work for ONE organization
+          #   - Classic PAT: https://github.com/settings/tokens (classic)
+          #   - If org has SSO: Authorize token for SSO after creating it
+          #
+          # If CAIRO repo is in SAME organization (switchbox-data):
+          #   - Fine-grained PAT works (select org as resource owner)
+          #   - Classic PAT also works
+          #
+          # 1. Create PAT at: https://github.com/settings/tokens
+          # 2. Select 'repo' scope (classic) or 'Contents: Read' (fine-grained)
+          # 3. If SSO enabled: Authorize token for the organization
+          # 4. Add token as repository secret: GH_PAT (note: cannot start with GITHUB_)
+          GH_PAT="${{ secrets.GH_PAT }}"
+          if [ -z "$GH_PAT" ]; then
+            echo "❌ ERROR: GH_PAT secret not set!"
+            echo ""
+            echo "SETUP INSTRUCTIONS:"
+            echo "1. Go to: https://github.com/settings/tokens"
+            echo "2. Create a CLASSIC PAT (not fine-grained) if accessing cross-org repos"
+            echo "3. Select 'repo' scope"
+            echo "4. If org has SSO: Click 'Configure SSO' and authorize for the org"
+            echo "5. Copy token and add as repository secret 'GH_PAT'"
+            exit 1
+          fi
+
+          # Update devcontainer.json with token temporarily
+          # DevPod reads build.args from devcontainer.json and passes them to docker build
+          # We restore it after build to avoid committing the token
+          if command -v jq >/dev/null 2>&1; then
+            jq --arg token "$GH_PAT" '.build.args.GITHUB_TOKEN = $token' .devcontainer/devcontainer.json > .devcontainer/devcontainer.json.tmp
+            mv .devcontainer/devcontainer.json.tmp .devcontainer/devcontainer.json
+          else
+            # Fallback to sed
+            sed -i.bak "s|\"GITHUB_TOKEN\": \"\"|\"GITHUB_TOKEN\": \"$GH_PAT\"|" .devcontainer/devcontainer.json
+            rm -f .devcontainer/devcontainer.json.bak
+          fi
+
           devpod build . \
             --provider docker \
             --repository ghcr.io/switchbox-data/rate-design-platform \
             --platform linux/amd64 \
             --tag latest \
             --debug
+
+          # Restore original devcontainer.json (remove token to avoid committing it)
+          git checkout .devcontainer/devcontainer.json || true
 
   build-devcontainer-arm64:
     # Builds and publishes the ARM64 devcontainer image using DevPod CLI.
@@ -189,6 +242,9 @@ jobs:
     permissions:
       contents: read
       packages: write  # Needed to push image to ghcr.io
+      # Note: GITHUB_TOKEN is automatically provided by GitHub Actions
+      # It should have access to repos in the same organization (switchbox-data)
+      # If it doesn't work, you'll need to create a PAT and add it as a repository secret
     steps:
       - uses: actions/checkout@v5
 
@@ -231,11 +287,28 @@ jobs:
           #   - DevPod users don't use :latest - they use the hash-based tag
           export BUILDKIT_PROGRESS=plain
 
+          # Pass GITHUB_TOKEN via devcontainer.json (same approach as AMD64)
+          GH_PAT="${{ secrets.GH_PAT }}"
+          if [ -z "$GH_PAT" ]; then
+            echo "❌ ERROR: GH_PAT secret not set!"
+            exit 1
+          fi
+
+          if command -v jq >/dev/null 2>&1; then
+            jq --arg token "$GH_PAT" '.build.args.GITHUB_TOKEN = $token' .devcontainer/devcontainer.json > .devcontainer/devcontainer.json.tmp
+            mv .devcontainer/devcontainer.json.tmp .devcontainer/devcontainer.json
+          else
+            sed -i.bak "s|\"GITHUB_TOKEN\": \"\"|\"GITHUB_TOKEN\": \"$GH_PAT\"|" .devcontainer/devcontainer.json
+            rm -f .devcontainer/devcontainer.json.bak
+          fi
+
           devpod build . \
             --provider docker \
             --repository ghcr.io/switchbox-data/rate-design-platform \
             --platform linux/arm64 \
             --debug
+
+          git checkout .devcontainer/devcontainer.json || true
 
   quality-checks:
     # Runs quality checks (lock file validation + pre-commit hooks) in parallel with tests.

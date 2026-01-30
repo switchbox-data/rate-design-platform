@@ -56,11 +56,34 @@ RUN chmod +x /tmp/install-prek.sh && \
 # Install Python dependencies from pyproject.toml + uv.lock
 # This layer rebuilds when either file changes
 # Note: venv is installed to /opt/venv (not workspace) to avoid being shadowed by mounted code
+#
+# GitHub token for accessing private repositories (e.g., CAIRO)
+# Can be passed via:
+#   1. devcontainer.json build.args.GITHUB_TOKEN (for local development)
+#   2. BuildKit secret mount (for CI/CD - more secure, doesn't affect cache hash)
+ARG GITHUB_TOKEN=""
 COPY .devcontainer/install-python-deps.sh /tmp/install-python-deps.sh
 COPY pyproject.toml uv.lock /tmp/
 # Set UV_PROJECT_ENVIRONMENT to install venv to /opt/venv
 # This ensures uv commands (uv add, uv run, etc.) always use this location
 ENV UV_PROJECT_ENVIRONMENT="/opt/venv"
+# Configure git to use GitHub token for authentication when fetching private repos
+# uv uses git under the hood, so this enables uv to fetch git-based dependencies
+# Try BuildKit secret first (mounted at /run/secrets/GITHUB_TOKEN), then fall back to ARG
+RUN TOKEN=""; \
+    if [ -f /run/secrets/GITHUB_TOKEN ]; then \
+        TOKEN=$(cat /run/secrets/GITHUB_TOKEN); \
+        echo "Using GitHub token from BuildKit secret mount"; \
+    elif [ -n "$GITHUB_TOKEN" ]; then \
+        TOKEN="$GITHUB_TOKEN"; \
+        echo "Using GitHub token from build arg"; \
+    fi; \
+    if [ -n "$TOKEN" ]; then \
+        git config --global url."https://${TOKEN}@github.com/".insteadOf "https://github.com/"; \
+        echo "Configured git to use GitHub token for private repository access"; \
+    else \
+        echo "Warning: No GITHUB_TOKEN provided. Private git dependencies may fail."; \
+    fi
 RUN mkdir -p /opt/venv && \
     chmod +x /tmp/install-python-deps.sh && \
     /tmp/install-python-deps.sh /tmp
