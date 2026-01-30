@@ -11,14 +11,16 @@ from cairo.rates_tool.tariffs import (
 )
 
 
-def build_bldg_id_to_load_filepath(path_resstock_loads: Path, path_resstock: Path) -> dict[int, Path]:
+def build_bldg_id_to_load_filepath(
+    path_resstock_loads: Path, path_resstock: Path
+) -> dict[int, Path]:
     """
     Build a dictionary mapping building IDs to their load file paths.
-    
+
     Args:
         path_resstock_loads: Path to the directory containing parquet load files
         path_resstock: Base path for constructing full file paths
-        
+
     Returns:
         Dictionary mapping building ID (int) to full file path (Path)
     """
@@ -28,14 +30,14 @@ def build_bldg_id_to_load_filepath(path_resstock_loads: Path, path_resstock: Pat
         bldg_id = int(parquet_file.stem.split("-")[0])
         # Construct path using path_resstock as base
         bldg_id_to_load_filepath[bldg_id] = path_resstock / "loads" / parquet_file.name
-    
+
     return bldg_id_to_load_filepath
 
 
 def __find_tariff_path_by_prototype__(
     prototype,
     tariff_strategy,
-    #tariff_str_loc,
+    # tariff_str_loc,
     tariffsdir,
     tarff_list_main=None,  # TODO: This variable is not found in cairo codebase - may need to be defined or passed
 ):
@@ -63,7 +65,7 @@ def __find_tariff_path_by_prototype__(
     # Note: tarff_list_main is not found in cairo codebase - this may need to be defined
     if tarff_list_main is None:
         raise ValueError("tarff_list_main must be provided")
-    
+
     tariff_path = (
         tariffsdir
         / f"tariff_{tarff_list_main[tariffs_stock_map[prototype]['tariff']]}.json"
@@ -73,7 +75,6 @@ def __find_tariff_path_by_prototype__(
 
 
 def __initialize_tariff__(tariff_path):
-
     with open(tariff_path) as tariff_json_file:
         tariff_dict = json.load(tariff_json_file)
         tariff_dict = tariff_dict["items"][0]
@@ -82,7 +83,6 @@ def __initialize_tariff__(tariff_path):
 
 
 def get_default_tariff_structures(tariff_paths):
-    
     """
     Sets up the initial default tariff and overwrites things as needed. Importantly it converts the
     structure of the tariffs to the ElectricityRates structure used elsewhere in code.
@@ -92,9 +92,10 @@ def get_default_tariff_structures(tariff_paths):
     # for each customer class being evaluated, process the default tariff to use as a
     # basic structure and then overwrite as necessary with user input in lookups.py
     for tariff_path in tariff_paths:
-
         # read default tariff structure, convert to 'local' format from URDB json format
-        default_tariff_dict.update({tariff_path: __initialize_tariff__(tariff_path=tariff_path)})
+        default_tariff_dict.update(
+            {tariff_path: __initialize_tariff__(tariff_path=tariff_path)}
+        )
         default_tariff_dict.update(
             {tariff_path: URDBv7_to_ElectricityRates(default_tariff_dict[tariff_path])}
         )
@@ -103,7 +104,6 @@ def get_default_tariff_structures(tariff_paths):
 
 
 def _initialize_tariffs(tariff_map, tariff_paths, building_stock_sample=None):
-
     """
     Once at the beginning of the run, establish the params_grid which will
     be used for calculating customer bills. It contains all information on the
@@ -117,7 +117,7 @@ def _initialize_tariffs(tariff_map, tariff_paths, building_stock_sample=None):
         tariff_map_df = pd.read_csv(tariff_map_fp)
     elif isinstance(tariff_map, PurePath):
         # if a PurePath is passed, assume it is the full path to the tariff map
-        tariff_map_fp = tariff_map        
+        tariff_map_fp = tariff_map
         tariff_map_df = pd.read_csv(tariff_map_fp)
     elif isinstance(tariff_map, pd.DataFrame):
         tariff_map_fp = None
@@ -128,9 +128,7 @@ def _initialize_tariffs(tariff_map, tariff_paths, building_stock_sample=None):
             tariff_map_df.bldg_id.isin(building_stock_sample)
         ]
 
-    customer_class_iter = tariff_map_df["tariff_key"].unique()
-
-    # Get Parameter Grid for Tech 
+    # Get Parameter Grid for Tech
     # placed here so that postprocessing initialization not thrown off,
     # it relies on seeing self.params_grid which is defined here
     param_grid = get_default_tariff_structures(tariff_paths)

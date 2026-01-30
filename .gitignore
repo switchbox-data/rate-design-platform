@@ -23,6 +23,8 @@ build/
 
 *.csv
 *.json
+!dprint.json
+!.markdownlint.json
 
 # Terraform state files
 infra/*.tfstate

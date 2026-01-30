@@ -1,10 +1,8 @@
 """Entrypoint for running NY heat pump rate scenarios (stub)."""
 
 import logging
-import json
 import pandas as pd
 from pathlib import Path
-from cairo.rates_tool.config import OUTPUT_INTERNAL_POSTPROCESSING
 from cairo.rates_tool.loads import _return_load, return_buildingstock
 from cairo.rates_tool.systemsimulator import (
     MeetRevenueSufficiencySystemWide,
@@ -16,15 +14,16 @@ from cairo.utils.marginal_costs.marginal_cost_calculator import (
     _load_cambium_marginal_costs,
     add_distribution_costs,
 )
-#from tests import constant_tests as const_vars
-#from tests.utils import reweight_customer_metadata
+
+# from tests import constant_tests as const_vars
+# from tests.utils import reweight_customer_metadata
 from utils.cairo import build_bldg_id_to_load_filepath
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
 log.info(
-        ".... Beginning basic test of functions - run full simulation: Dummy - Precalculation"
-    )
+    ".... Beginning basic test of functions - run full simulation: Dummy - Precalculation"
+)
 
 prototype_ids = [
     3837,
@@ -41,7 +40,9 @@ tariff_map_name = path_tariff_map.stem
 path_resstock = path_data / "resstock"
 path_resstock_metadata = path_resstock / "results_up00.parquet"
 path_resstock_loads = path_resstock / "loads"
-path_cambium_marginal_costs = path_data / "marginal_costs" / "example_marginal_costs.csv"
+path_cambium_marginal_costs = (
+    path_data / "marginal_costs" / "example_marginal_costs.csv"
+)
 path_results = path_project / "results"
 
 test_revenue_requirement_target = 1000000000
@@ -55,35 +56,44 @@ process_workers = 20
 tariff_paths = [
     path_data / "tariffs" / "tariff_1.json",
     path_data / "tariffs" / "tariff_2.json",
-] 
+]
 
 # load in and manipulate tariff information as needed for bill calculation
-#tariffs_params, tariff_map_df = _initialize_tariffs(
+# tariffs_params, tariff_map_df = _initialize_tariffs(
 #    tariff_map=path_tariff_map,
 #    building_stock_sample=prototype_ids,
 #    tariff_paths=tariff_paths,
-#)
+# )
 tariffs_params, tariff_map_df = _initialize_tariffs(
     tariff_map=path_tariff_map,
     building_stock_sample=prototype_ids,
 )
 
 # TODO: update this depending on the tariff structure
-precalc_mapping = pd.DataFrame().from_dict(
-    {f"period_{i+1}":{
-        "period":p[0], 
-        "tier":p[1], 
-        "rel_value": [1.0, 1.25, 2.0, 2.5, 1.5, 1.75][i], 
-        "tariff":"dummy_electrical_fixed"
-    } for i,p in enumerate(tariffs_params["dummy_electrical_fixed"]["ur_ec_tou_mat"])}
-).T
+precalc_mapping = (
+    pd.DataFrame()
+    .from_dict(
+        {
+            f"period_{i + 1}": {
+                "period": p[0],
+                "tier": p[1],
+                "rel_value": [1.0, 1.25, 2.0, 2.5, 1.5, 1.75][i],
+                "tariff": "dummy_electrical_fixed",
+            }
+            for i, p in enumerate(
+                tariffs_params["dummy_electrical_fixed"]["ur_ec_tou_mat"]
+            )
+        }
+    )
+    .T
+)
 
 
 # read in basic customer-level information
 customer_metadata = return_buildingstock(
-        load_scenario=path_resstock_metadata,
-        building_stock_sample=prototype_ids,
-    )
+    load_scenario=path_resstock_metadata,
+    building_stock_sample=prototype_ids,
+)
 
 
 # read in solar PV compensation structure, and which customers have adopted solar PV
@@ -91,7 +101,7 @@ sell_rate = _return_export_compensation_rate(
     year_run=test_year_run,
     solar_pv_compensation=test_solar_pv_compensation,
     solar_pv_export_import_ratio=1.0,
-    tariff_dict = tariffs_params,
+    tariff_dict=tariffs_params,
 )
 
 bldg_id_to_load_filepath = build_bldg_id_to_load_filepath(
@@ -109,7 +119,7 @@ raw_load_elec = _return_load(
     target_year=test_year_run,
     building_stock_sample=prototype_ids,
     load_filepath_key=bldg_id_to_load_filepath,
-    force_tz="EST"
+    force_tz="EST",
 )
 raw_load_gas = _return_load(
     raw_load_passed=None,
@@ -117,34 +127,28 @@ raw_load_gas = _return_load(
     target_year=test_year_run,
     building_stock_sample=prototype_ids,
     load_filepath_key=bldg_id_to_load_filepath,
-    force_tz="EST"
+    force_tz="EST",
 )
 
 # calculate and otherwise modify the revenue requirement as needed
 # load bulk power marginal costs in $/kWh (assumed to be static)
 bulk_marginal_costs = _load_cambium_marginal_costs(
-    path_cambium_marginal_costs, 
-    test_year_run
+    path_cambium_marginal_costs, test_year_run
 )
 # calculate distribution marginal costs in $/kWh (dynamic based on net load)
-distribution_marginal_costs = add_distribution_costs(
-    raw_load_elec, test_year_run
-)
+distribution_marginal_costs = add_distribution_costs(raw_load_elec, test_year_run)
 
-(
-    revenue_requirement, 
-    marginal_system_prices, 
-    marginal_system_costs, 
-    costs_by_type
-) = _return_revenue_requirement_target(
-    building_load = raw_load_elec,
-    sample_weight = customer_metadata[["bldg_id", "weight"]],
-    revenue_requirement_target = test_revenue_requirement_target,
-    residual_cost = None,
-    residual_cost_frac = None,
-    bulk_marginal_costs = bulk_marginal_costs,
-    distribution_marginal_costs = distribution_marginal_costs,
-    low_income_strategy = None
+(revenue_requirement, marginal_system_prices, marginal_system_costs, costs_by_type) = (
+    _return_revenue_requirement_target(
+        building_load=raw_load_elec,
+        sample_weight=customer_metadata[["bldg_id", "weight"]],
+        revenue_requirement_target=test_revenue_requirement_target,
+        residual_cost=None,
+        residual_cost_frac=None,
+        bulk_marginal_costs=bulk_marginal_costs,
+        distribution_marginal_costs=distribution_marginal_costs,
+        low_income_strategy=None,
+    )
 )
 
 bs = MeetRevenueSufficiencySystemWide(
@@ -154,24 +158,24 @@ bs = MeetRevenueSufficiencySystemWide(
     process_workers=process_workers,
     building_stock_sample=prototype_ids,
     run_name=run_name,
-    output_dir=path_results, # will default to this folder if not pass, mostly testing ability for user to pass arbitrary output directory
+    output_dir=path_results,  # will default to this folder if not pass, mostly testing ability for user to pass arbitrary output directory
 )
 bs.tariff_map = tariff_map_name
 
 # TODO: add (maybe post-processing)module for delivered fuels bills
 bs.simulate(
     revenue_requirement=revenue_requirement,
-    tariffs_params = tariffs_params, 
+    tariffs_params=tariffs_params,
     tariff_map=tariff_map_df,
     precalc_period_mapping=precalc_mapping,
-    customer_metadata = customer_metadata, 
+    customer_metadata=customer_metadata,
     customer_electricity_load=raw_load_elec,
     customer_gas_load=raw_load_gas,
-    load_cols='total_fuel_electricity',
+    load_cols="total_fuel_electricity",
     marginal_system_prices=marginal_system_prices,
     costs_by_type=costs_by_type,
     solar_pv_compensation=None,
-    sell_rate = sell_rate,
+    sell_rate=sell_rate,
     low_income_strategy=None,
     low_income_participation_target=None,
     low_income_bill_assistance_program=None,
