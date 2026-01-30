@@ -568,7 +568,8 @@ echo ""
 echo "Opening interactive session..."
 echo "   (Press Ctrl+D to exit)"
 echo ""
+# Use user's login shell (zsh after oh-my-zsh setup), not bash
 aws ssm start-session \
   --target "$INSTANCE_ID" \
   --document-name "AWS-StartInteractiveCommand" \
-  --parameters "{\"command\":[\"sudo -i -u $LINUX_USERNAME bash -l\"]}"
+  --parameters "{\"command\":[\"sudo -i -u $LINUX_USERNAME\"]}"
