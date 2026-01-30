@@ -4,11 +4,41 @@ set -euo pipefail
 # Set up EC2 instance (run once by admin). Idempotent: safe to run multiple times.
 # Run from repo root: infra/dev-setup.sh (or from infra: ./dev-setup.sh)
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Use same profile/config as `just aws` (script runs in a new process, so we must load it here)
+CONFIG_FILE="$REPO_ROOT/.secrets/aws-sso-config.sh"
+if [ -f "$CONFIG_FILE" ]; then
+  # shellcheck source=.secrets/aws-sso-config.sh
+  . "$CONFIG_FILE"
+fi
+
+# When run via `just dev-setup`, `aws` already ran (Justfile dependency). When run
+# directly, export_aws_creds below will prompt for SSO login if needed.
+
+# Use same region as Terraform (infra/variables.tf default)
+export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-west-2}"
+
+# Export credentials so Terraform (and child processes) see them; Terraform's
+# provider doesn't use the same SSO cache as the CLI without this.
+export_aws_creds() {
+  eval "$(aws configure export-credentials --format env 2>/dev/null)"
+}
+if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
+  if ! export_aws_creds || [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
+    echo "⚠️  Credentials not exported (SSO may be expired). Running 'aws sso login'..."
+    aws sso login || true
+    if ! export_aws_creds || [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
+      echo "❌ Could not export AWS credentials for Terraform. Run 'just aws' to log in, then run 'just dev-setup' again." >&2
+      exit 1
+    fi
+  fi
+fi
+
 echo "🚀 Setting up EC2 instance..."
 echo
 
-# Change to infra directory (script may be run from repo root or infra)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Initialize Terraform if needed

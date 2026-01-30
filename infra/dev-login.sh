@@ -7,6 +7,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# When run via `just dev-login`, `aws` already ran (Justfile dependency).
+
+# Use same region as Terraform (infra/variables.tf default) so we find the instance
+export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-west-2}"
+
 # Check for Session Manager plugin (required for SSM sessions)
 if ! command -v session-manager-plugin >/dev/null 2>&1; then
   echo "📦 Session Manager plugin not found. Installing from AWS..."

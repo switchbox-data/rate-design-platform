@@ -4,12 +4,35 @@ set -euo pipefail
 # Destroy EC2 instance but preserve data volume (to recreate, run dev-setup again)
 # Run from repo root: infra/dev-teardown.sh (or from infra: ./dev-teardown.sh)
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+CONFIG_FILE="$REPO_ROOT/.secrets/aws-sso-config.sh"
+if [ -f "$CONFIG_FILE" ]; then
+  . "$CONFIG_FILE"
+fi
+
+# When run via `just dev-teardown`, `aws` already ran (Justfile dependency).
+
+export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-west-2}"="${AWS_DEFAULT_REGION:-us-west-2}"
+
+export_aws_creds() {
+  eval "$(aws configure export-credentials --format env 2>/dev/null)"
+}
+if ! export_aws_creds || [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
+  echo "⚠️  Credentials not exported (SSO may be expired). Running 'aws sso login'..."
+  aws sso login || true
+  if ! export_aws_creds || [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
+    echo "❌ Could not export AWS credentials for Terraform. Run 'just aws' to log in, then run this script again." >&2
+    exit 1
+  fi
+fi
+
 PROJECT_NAME="${PROJECT_NAME:-rate-design-platform}"
 
 echo "🗑️  Destroying EC2 instance (preserving data volume)..."
 echo
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Check if Terraform is initialized
