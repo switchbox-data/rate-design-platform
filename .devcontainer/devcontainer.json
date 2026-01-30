@@ -25,7 +25,8 @@
         "astral-sh.ty",
         "tekumara.typos-vscode",
         "dvirtz.parquet-viewer",
-        "hashicorp.terraform"
+        "hashicorp.terraform",
+        "foxundermoon.shell-format"
       ],
       "settings": {
         "python.defaultInterpreterPath": "/opt/venv/bin/python",
@@ -42,6 +43,11 @@
             "source.fixAll": "explicit",
             "source.organizeImports": "explicit"
           }
+        },
+        "shellformat.flag": "-i 2",
+        "[shellscript]": {
+          "editor.defaultFormatter": "foxundermoon.shell-format",
+          "editor.formatOnSave": true
         }
       }
     }
