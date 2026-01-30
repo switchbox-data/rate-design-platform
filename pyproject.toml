@@ -4,10 +4,10 @@ version = "0.0.0"
 description = "Simulation platform for electrical rate design."
 authors = [{ name = "Switchbox", email = "hello@switch.box" }]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
-    "buildstock-fetch",
+    "buildstock-fetch>=1.6.1",
     "cairo",
     "polars",
     "numpy",
