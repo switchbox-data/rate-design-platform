@@ -267,12 +267,14 @@ jobs:
       - name: Configure Git safe directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      # Run postCreateCommand to install dependencies (Python deps, prek, pre-commit hooks)
+      # Run postCreateCommand scripts to install dependencies (Python deps, prek, pre-commit hooks)
       # This is needed because the devcontainer.json uses postCreateCommand to install things
-      # that are required for `just check` to work
+      # that are required for `just check` to work.
+      # Note: We skip install-ohmyzsh-plugins.sh in CI since oh-my-zsh plugins aren't needed for checks
       - name: Install dependencies
+        working-directory: ${{ github.workspace }}
         run: |
-          bash -c '.devcontainer/install-ohmyzsh-plugins.sh && .devcontainer/install-python-deps.sh && .devcontainer/install-prek.sh && .devcontainer/install-prek-deps.sh'
+          bash -c '.devcontainer/install-python-deps.sh . && .devcontainer/install-prek.sh && .devcontainer/install-prek-deps.sh'
 
       - name: Run quality checks
         run: just check
@@ -294,12 +296,14 @@ jobs:
       - name: Configure Git safe directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      # Run postCreateCommand to install dependencies (Python deps, prek, pre-commit hooks)
+      # Run postCreateCommand scripts to install dependencies (Python deps, prek, pre-commit hooks)
       # This is needed because the devcontainer.json uses postCreateCommand to install things
-      # that are required for `just test` to work
+      # that are required for `just test` to work.
+      # Note: We skip install-ohmyzsh-plugins.sh in CI since oh-my-zsh plugins aren't needed for tests
       - name: Install dependencies
+        working-directory: ${{ github.workspace }}
         run: |
-          bash -c '.devcontainer/install-ohmyzsh-plugins.sh && .devcontainer/install-python-deps.sh && .devcontainer/install-prek.sh && .devcontainer/install-prek-deps.sh'
+          bash -c '.devcontainer/install-python-deps.sh . && .devcontainer/install-prek.sh && .devcontainer/install-prek-deps.sh'
 
       - name: Run tests
         run: just test
