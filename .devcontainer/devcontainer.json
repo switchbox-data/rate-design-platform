@@ -26,7 +26,8 @@
         "tekumara.typos-vscode",
         "dvirtz.parquet-viewer",
         "hashicorp.terraform",
-        "foxundermoon.shell-format"
+        "foxundermoon.shell-format",
+        "dprint.dprint"
       ],
       "settings": {
         "python.defaultInterpreterPath": "/opt/venv/bin/python",
@@ -47,6 +48,10 @@
         "shellformat.flag": "-i 2",
         "[shellscript]": {
           "editor.defaultFormatter": "foxundermoon.shell-format",
+          "editor.formatOnSave": true
+        },
+        "[markdown]": {
+          "editor.defaultFormatter": "dprint.dprint",
           "editor.formatOnSave": true
         }
       }
