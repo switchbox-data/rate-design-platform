@@ -1,0 +1,47 @@
+{
+  "name": "rate-design-platform",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/guiyomh/features/just:0.1.0": { "version": "1.42.4" },
+    "ghcr.io/devcontainers/features/python:1": { "version": "os-provided" },
+    "ghcr.io/kreemer/features/chrometesting:1": {},
+    "ghcr.io/nils-geistmann/devcontainers-features/zsh:0": {
+      "plugins": "git colored-man-pages colorize history zsh-autosuggestions fast-syntax-highlighting zsh-autocomplete",
+      "theme": "bira"
+    }
+  },
+  "postCreateCommand": "bash -c '.devcontainer/install-ohmyzsh-plugins.sh && .devcontainer/install-python-deps.sh && .devcontainer/install-prek.sh && .devcontainer/install-prek-deps.sh'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "tombi-toml.tombi",
+        "nefrob.vscode-just-syntax",
+        "davidanson.vscode-markdownlint",
+        "christian-kohler.path-intellisense",
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "astral-sh.ty",
+        "tekumara.typos-vscode",
+        "dvirtz.parquet-viewer",
+        "hashicorp.terraform"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/workspaces/rate-design-platform/.venv/bin/python",
+        "python.terminal.activateEnvironment": false,
+        "python.testing.pytestArgs": ["tests"],
+        "python.testing.pytestPath": "/workspaces/rate-design-platform/.venv/bin/pytest",
+        "python.testing.unittestEnabled": false,
+        "python.testing.pytestEnabled": true,
+        "ruff.nativeServer": "on",
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff",
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.fixAll": "explicit",
+            "source.organizeImports": "explicit"
+          }
+        }
+      }
+    }
+  }
+}
