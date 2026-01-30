@@ -213,14 +213,11 @@ jobs:
           # Update devcontainer.json with token temporarily
           # DevPod reads build.args from devcontainer.json and passes them to docker build
           # We restore it after build to avoid committing the token
-          if command -v jq >/dev/null 2>&1; then
-            jq --arg token "$GH_PAT" '.build.args.GITHUB_TOKEN = $token' .devcontainer/devcontainer.json > .devcontainer/devcontainer.json.tmp
-            mv .devcontainer/devcontainer.json.tmp .devcontainer/devcontainer.json
-          else
-            # Fallback to sed
-            sed -i.bak "s|\"GITHUB_TOKEN\": \"\"|\"GITHUB_TOKEN\": \"$GH_PAT\"|" .devcontainer/devcontainer.json
-            rm -f .devcontainer/devcontainer.json.bak
-          fi
+          # Use sed (preserves JSON comments) since jq doesn't support JSONC files
+          # Escape special regex characters in token for sed
+          ESCAPED_TOKEN=$(echo "$GH_PAT" | sed 's/[[\.*^$()+?{|]/\\&/g')
+          sed -i.bak "s|\"GITHUB_TOKEN\": \"\"|\"GITHUB_TOKEN\": \"$ESCAPED_TOKEN\"|" .devcontainer/devcontainer.json
+          rm -f .devcontainer/devcontainer.json.bak
 
           devpod build . \
             --provider docker \
@@ -294,13 +291,10 @@ jobs:
             exit 1
           fi
 
-          if command -v jq >/dev/null 2>&1; then
-            jq --arg token "$GH_PAT" '.build.args.GITHUB_TOKEN = $token' .devcontainer/devcontainer.json > .devcontainer/devcontainer.json.tmp
-            mv .devcontainer/devcontainer.json.tmp .devcontainer/devcontainer.json
-          else
-            sed -i.bak "s|\"GITHUB_TOKEN\": \"\"|\"GITHUB_TOKEN\": \"$GH_PAT\"|" .devcontainer/devcontainer.json
-            rm -f .devcontainer/devcontainer.json.bak
-          fi
+          # Use sed (preserves JSON comments) since jq doesn't support JSONC files
+          ESCAPED_TOKEN=$(echo "$GH_PAT" | sed 's/[[\.*^$()+?{|]/\\&/g')
+          sed -i.bak "s|\"GITHUB_TOKEN\": \"\"|\"GITHUB_TOKEN\": \"$ESCAPED_TOKEN\"|" .devcontainer/devcontainer.json
+          rm -f .devcontainer/devcontainer.json.bak
 
           devpod build . \
             --provider docker \
