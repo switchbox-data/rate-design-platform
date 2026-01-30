@@ -620,31 +620,44 @@ dev-login: aws
 
     # Wait for SSM agent to be ready (no SSH keys needed - uses AWS SSO!)
     echo "⏳ Waiting for SSM agent to be ready..."
-    for i in {1..30}; do
+    SSM_READY=false
+    for i in {1..120}; do
         if aws ssm describe-instance-information \
             --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
             --query 'InstanceInformationList[0].PingStatus' \
             --output text 2>/dev/null | grep -q "Online"; then
             echo "✅ SSM agent is ready"
+            SSM_READY=true
             break
         fi
-        if [ $i -eq 30 ]; then
-            echo "⚠️  SSM agent not ready yet, but continuing..."
+        if [ $((i % 10)) -eq 0 ]; then
+            echo "   Still waiting... ($i/120)"
         fi
         sleep 2
     done
+    
+    if [ "$SSM_READY" = false ]; then
+        echo "⚠️  SSM agent not ready after 4 minutes" >&2
+        echo "   The instance may need more time to start the SSM agent." >&2
+        echo "   You can check status with: aws ssm describe-instance-information --filters 'Key=InstanceIds,Values=$INSTANCE_ID'" >&2
+        exit 1
+    fi
     echo
 
     # Create/setup user account via SSM (no SSH keys needed!)
     echo "👤 Setting up user account..."
     USER_HOME="/data/home/$LINUX_USERNAME"
+    echo "   User: $LINUX_USERNAME"
+    echo "   Home: $USER_HOME"
     # Build script using printf to avoid here-doc syntax issues
     # This avoids all JSON/shell escaping issues
     TEMP_SCRIPT=$(mktemp)
     printf '#!/bin/bash\nset -eu\nUSER_HOME="%s"\nLINUX_USERNAME="%s"\nif ! id "$LINUX_USERNAME" &>/dev/null; then\n  echo "Creating user account: $LINUX_USERNAME"\n  mkdir -p "$USER_HOME"\n  useradd -d "$USER_HOME" -s /bin/bash "$LINUX_USERNAME"\n  usermod -aG sudo "$LINUX_USERNAME"\n  chown -R "$LINUX_USERNAME:$LINUX_USERNAME" "$USER_HOME"\n  chmod 755 "$USER_HOME"\n  echo "User created and added to sudo group"\nelse\n  echo "User account already exists: $LINUX_USERNAME"\n  usermod -aG sudo "$LINUX_USERNAME" 2>/dev/null || true\n  echo "Ensured user is in sudo group"\nfi\n' "$USER_HOME" "$LINUX_USERNAME" > "$TEMP_SCRIPT"
     SCRIPT_B64=$(base64 < "$TEMP_SCRIPT")
     rm -f "$TEMP_SCRIPT"
+    echo "   Script encoded (length: ${#SCRIPT_B64} chars)"
     # Execute base64-encoded script - simple command with no complex escaping
+    echo "   Sending SSM command..."
     COMMAND_ID=$(aws ssm send-command \
         --instance-ids "$INSTANCE_ID" \
         --document-name "AWS-RunShellScript" \
@@ -652,78 +665,46 @@ dev-login: aws
         --query 'Command.CommandId' \
         --output text 2>/dev/null)
     
-    # Wait for command to complete and check ACTUAL output/errors
-    if [ -n "$COMMAND_ID" ]; then
-        echo "   Waiting for user creation to complete..."
-        for i in {1..30}; do
-            STATUS=$(aws ssm get-command-invocation \
-                --command-id "$COMMAND_ID" \
-                --instance-id "$INSTANCE_ID" \
-                --query 'Status' \
-                --output text 2>/dev/null || echo "InProgress")
-            
-            if [ "$STATUS" = "Success" ] || [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
-                # Get ACTUAL output and error output
-                OUTPUT=$(aws ssm get-command-invocation \
-                    --command-id "$COMMAND_ID" \
-                    --instance-id "$INSTANCE_ID" \
-                    --query 'StandardOutputContent' \
-                    --output text 2>/dev/null || echo "")
-                ERROR_OUTPUT=$(aws ssm get-command-invocation \
-                    --command-id "$COMMAND_ID" \
-                    --instance-id "$INSTANCE_ID" \
-                    --query 'StandardErrorContent' \
-                    --output text 2>/dev/null || echo "")
-                
-                echo "   Command status: $STATUS"
-                if [ -n "$OUTPUT" ]; then
-                    echo "   Output: $OUTPUT"
-                fi
-                if [ -n "$ERROR_OUTPUT" ]; then
-                    echo "   Errors: $ERROR_OUTPUT"
-                fi
-                
-                if [ "$STATUS" = "Failed" ]; then
-                    echo "   ERROR: User creation command failed!" >&2
-                    exit 1
-                fi
-                
-                # Now verify user actually exists by checking /etc/passwd
-                VERIFY_CMD_ID=$(aws ssm send-command \
-                    --instance-ids "$INSTANCE_ID" \
-                    --document-name "AWS-RunShellScript" \
-                    --parameters "commands=['bash -c \"if getent passwd \\\"$LINUX_USERNAME\\\" >/dev/null 2>&1; then echo EXISTS; else echo NOT_EXISTS; fi\"']" \
-                    --query 'Command.CommandId' \
-                    --output text 2>/dev/null)
-                
-                if [ -n "$VERIFY_CMD_ID" ]; then
-                    sleep 3
-                    VERIFY_OUTPUT=$(aws ssm get-command-invocation \
-                        --command-id "$VERIFY_CMD_ID" \
-                        --instance-id "$INSTANCE_ID" \
-                        --query 'StandardOutputContent' \
-                        --output text 2>/dev/null || echo "")
-                    
-                    if echo "$VERIFY_OUTPUT" | grep -q "EXISTS"; then
-                        echo "   User account verified in /etc/passwd"
-                        break
-                    else
-                        echo "   WARNING: User not found in /etc/passwd, output: $VERIFY_OUTPUT"
-                        if [ $i -lt 30 ]; then
-                            echo "   Retrying verification... ($i/30)"
-                            sleep 2
-                            continue
-                        fi
-                    fi
-                fi
-                break
-            fi
-            sleep 1
-        done
-    else
-        echo "   ERROR: Could not get command ID" >&2
+    if [ -z "$COMMAND_ID" ]; then
+        echo "   ERROR: Failed to send SSM command" >&2
         exit 1
     fi
+    
+    echo "   Command ID: $COMMAND_ID"
+    echo "   Waiting for user creation to complete..."
+    
+    # Wait for command to complete
+    for i in {1..30}; do
+        STATUS=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query 'Status' \
+            --output text 2>/dev/null || echo "InProgress")
+        
+        if [ "$STATUS" = "Success" ]; then
+            OUTPUT=$(aws ssm get-command-invocation \
+                --command-id "$COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --query 'StandardOutputContent' \
+                --output text 2>/dev/null || echo "")
+            if [ -n "$OUTPUT" ]; then
+                echo "   $OUTPUT"
+            fi
+            break
+        elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
+            ERROR_OUTPUT=$(aws ssm get-command-invocation \
+                --command-id "$COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --query 'StandardErrorContent' \
+                --output text 2>/dev/null || echo "")
+            echo "   ERROR: User creation command failed!" >&2
+            if [ -n "$ERROR_OUTPUT" ]; then
+                echo "   $ERROR_OUTPUT" >&2
+            fi
+            exit 1
+        fi
+        sleep 1
+    done
 
     # Ensure user is in sudo group, configure passwordless sudo, and ensure S3 mount
     echo "🔧 Configuring user access..."
