@@ -1,11 +1,11 @@
 download:
   uv run bsf \
-  -p resstock \
-  -y 2024 \
-  -w amy2018 \
-  -r 2 \
-  -st NY \
-  -f "metadata load_curve_hourly" \
-  -u "0 1 2 3 4 5" \
-  -o /data/buildstock \
-  -sm all
+  --product resstock \
+  --release_year 2024 \
+  --weather_file amy2018 \
+  --release_version 2 \
+  --states NY \
+  --file_type "metadata load_curve_hourly" \
+  --upgrade_id "0 1 2 3 4 5" \
+  --output_directory /data/buildstock \
+  --sample all
