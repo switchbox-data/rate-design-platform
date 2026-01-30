@@ -1,10 +1,10 @@
 [project]
 name = "rate-design-platform"
 version = "0.0.0"
-description = "Skeleton for the rate design platform."
+description = "Simulation platform for electrical rate design."
+authors = [{ name = "Switchbox", email = "hello@switch.box" }]
 readme = "README.md"
 requires-python = ">=3.11"
-authors = [{ name = "Switchbox Data" }]
 license = "LicenseRef-Proprietary"
 dependencies = [
     "buildstock-fetch",
@@ -12,11 +12,19 @@ dependencies = [
     "polars",
     "numpy",
     "pyarrow",
-    "ipykernel>=7.1.0",
 ]
 
-[project.optional-dependencies]
-dev = ["pytest"]
+[project.urls]
+Repository = "https://github.com/switchbox-data/rate-design-platform"
+
+[dependency-groups]
+dev = [
+    "pytest>=7.2.0",
+    "ruff>=0.11.5",
+    "ty>=0.0.1a21",
+    "deptry>=0.20.0",
+    "ipykernel>=7.1.0",
+]
 
 [build-system]
 requires = ["setuptools>=61.0"]
