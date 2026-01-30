@@ -5,7 +5,7 @@ description = "Simulation platform for electrical rate design."
 authors = [{ name = "Switchbox", email = "hello@switch.box" }]
 readme = "README.md"
 requires-python = ">=3.11"
-license = "LicenseRef-Proprietary"
+license = { text = "MIT" }
 dependencies = [
     "buildstock-fetch",
     "cairo",
