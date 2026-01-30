@@ -89,5 +89,11 @@ dev-teardown-all: _terraform
     bash infra/dev-teardown-all.sh
 
 # User login (run by any authorized user)
+# Automatically starts instance if it's stopped
 dev-login: aws
     bash infra/dev-login.sh
+
+# Stop EC2 instance (preserves instance and data, saves compute costs)
+# Instance can be restarted automatically by running dev-login
+dev-stop: aws
+    bash infra/dev-stop.sh

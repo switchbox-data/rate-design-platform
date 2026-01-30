@@ -87,13 +87,42 @@ PROJECT_NAME="${PROJECT_NAME:-rate-design-platform}"
 
 echo "🔍 Looking for EC2 instance..."
 INSTANCE_ID=$(aws ec2 describe-instances \
-  --filters "Name=tag:Project,Values=$PROJECT_NAME" "Name=instance-state-name,Values=running" \
+  --filters "Name=tag:Project,Values=$PROJECT_NAME" "Name=instance-state-name,Values=running,stopped,stopping" \
   --query 'Reservations[0].Instances[0].InstanceId' \
   --output text 2>/dev/null || echo "")
 
 if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ]; then
   echo "❌ ERROR: Instance not found. Run 'just dev-setup' first." >&2
   exit 1
+fi
+
+# Check instance state and start if stopped
+INSTANCE_STATE=$(aws ec2 describe-instances \
+  --instance-ids "$INSTANCE_ID" \
+  --query 'Reservations[0].Instances[0].State.Name' \
+  --output text 2>/dev/null || echo "unknown")
+
+if [ "$INSTANCE_STATE" = "stopped" ]; then
+  echo "⏸️  Instance is stopped. Starting it now..."
+  aws ec2 start-instances --instance-ids "$INSTANCE_ID" >/dev/null 2>&1
+  echo "   Waiting for instance to start..."
+  aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
+  echo "✅ Instance started"
+  echo
+elif [ "$INSTANCE_STATE" = "stopping" ]; then
+  echo "⏳ Instance is stopping. Waiting for it to stop, then starting..."
+  aws ec2 wait instance-stopped --instance-ids "$INSTANCE_ID"
+  echo "   Starting instance..."
+  aws ec2 start-instances --instance-ids "$INSTANCE_ID" >/dev/null 2>&1
+  aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
+  echo "✅ Instance started"
+  echo
+elif [ "$INSTANCE_STATE" != "running" ]; then
+  echo "⚠️  Instance is in state: $INSTANCE_STATE"
+  echo "   Waiting for it to become available..."
+  aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
+  echo "✅ Instance is running"
+  echo
 fi
 
 AVAILABILITY_ZONE=$(aws ec2 describe-instances \
