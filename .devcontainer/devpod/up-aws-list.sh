@@ -9,6 +9,28 @@ set -euo pipefail
 # This script lists all active EC2 instances running devcontainers and provides
 # commands to delete them.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Source the aws.sh script to ensure SSO is configured and logged in
+# This runs in the same shell session, so the SSO cache will be available to DevPod
+# We need to source it in a subshell to avoid its early exit, but still get the SSO login effect
+if ! (
+  # shellcheck source=.devcontainer/devpod/aws.sh
+  . "$SCRIPT_DIR/aws.sh"
+); then
+  # If aws.sh exited early (credentials already valid), that's fine
+  # But we still want to ensure SSO session is fresh for DevPod
+  # Force a refresh by running sso login (it will use cached browser session if valid)
+  echo "🔄 Refreshing SSO session for DevPod..."
+  aws sso login --no-browser 2>/dev/null || aws sso login || true
+  echo
+fi
+# The SSO login from aws.sh will have refreshed the cache, which DevPod can now use
+
+# Use same region as DevPod provider
+export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-west-2}"
+
 # Check for DevPod CLI (silent if installed, error if not)
 if ! command -v devpod >/dev/null 2>&1; then
   echo "❌ ERROR: DevPod CLI is not installed" >&2
