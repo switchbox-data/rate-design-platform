@@ -17,6 +17,17 @@ RUN /tmp/install-feature.sh "ghcr.io/devcontainers/features/python:1" \
     version=os-provided \
     installTools=false
 
+# Install build dependencies needed for building Python packages from source (e.g., cairo from git)
+# build-essential: gcc, g++, make, and other build tools
+# python3-dev: Python development headers needed for building C extensions
+# git: needed for cloning git-based dependencies (e.g., cairo)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        python3-dev \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install just CLI
 RUN /tmp/install-feature.sh "ghcr.io/guiyomh/features/just:0.1.0" \
     version=1.42.4

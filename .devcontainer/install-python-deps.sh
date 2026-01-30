@@ -78,19 +78,11 @@ cd "${WORKSPACE_PATH}"
 
 # Install Python dependencies
 echo "📥 Installing Python dependencies from pyproject.toml + uv.lock..."
-UV_OUTPUT=$(uv sync --group dev 2>&1)
-echo "$UV_OUTPUT"
-echo
-
-# Parse uv output to determine what happened
-if echo "$UV_OUTPUT" | grep -q "Installed [0-9]"; then
-    PACKAGE_COUNT=$(echo "$UV_OUTPUT" | grep -o "Installed [0-9]\+ package" | grep -o "[0-9]\+")
-    echo "✅ Installed ${PACKAGE_COUNT} Python packages"
-elif echo "$UV_OUTPUT" | grep -q "Audited [0-9]"; then
-    PACKAGE_COUNT=$(echo "$UV_OUTPUT" | grep -o "Audited [0-9]\+ package" | grep -o "[0-9]\+")
-    echo "✅ ${PACKAGE_COUNT} Python packages already installed"
+if uv sync --group dev; then
+    echo "✅ Python dependencies installed successfully"
 else
-    echo "✅ Python packages ready"
+    echo "❌ ERROR: Failed to install Python dependencies" >&2
+    exit 1
 fi
 echo
 
