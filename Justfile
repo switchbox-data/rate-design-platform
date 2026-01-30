@@ -1,15 +1,49 @@
-default: help
+# =============================================================================
+# ⭐ DEFAULT
+# =============================================================================
+# If you run `just`, you see all available commands
+default:
+    @just --list
 
-help:
-    @echo "Available recipes:"
-    @just -l
 
-install:
-    pip install --upgrade pip
-    pip install -e .[dev]
+# =============================================================================
+# 🔍 CODE QUALITY & TESTING
+# =============================================================================
+# These commands check your code quality and run tests
 
+# Run code quality tools (same as CI)
+check:
+    echo "🚀 Checking lock file consistency with 'pyproject.toml'"
+    uv lock --locked
+    echo "🚀 Linting, formatting, and type checking code"
+    prek run -a
+
+# Check for obsolete dependencies
+check-deps:
+    echo "🚀 Checking for obsolete dependencies: Running deptry"
+    uv run deptry .
+
+# Run tests
 test:
-    pytest -q
+    echo "🚀 Testing code: Running pytest"
+    uv run python -m pytest --doctest-modules tests/
+
+# =============================================================================
+# 🏗️  DEVELOPMENT ENVIRONMENT SETUP
+# =============================================================================
+# These commands help you set up your development environment
+
+# Install uv, python packages, r packages, prek, and pre-commit hooks
+install:
+    @echo "🚀 Setting up development environment\n"
+    @.devcontainer/install-python-deps.sh .
+    @.devcontainer/install-prek.sh
+    @.devcontainer/install-prek-deps.sh
+    @echo "✨ Development environment ready!\n"
+
+# Clean generated files and caches
+clean:
+    rm -rf .pytest_cache .ruff_cache tmp
 
 # =============================================================================
 # 🔍 AWS
