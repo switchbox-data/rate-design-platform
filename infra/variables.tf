@@ -1,7 +1,7 @@
 variable "instance_type" {
   description = "EC2 instance type"
   type        = string
-  default     = "c5.2xlarge"
+  default     = "m7i.2xlarge"
 }
 
 variable "ebs_volume_size" {
@@ -49,7 +49,7 @@ variable "s3_bucket_name" {
 variable "s3_mount_path" {
   description = "Path to mount S3 bucket"
   type        = string
-  default     = "/s3"
+  default     = "/data.sb"
 }
 
 variable "project_name" {
