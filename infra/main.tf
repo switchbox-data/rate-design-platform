@@ -226,6 +226,13 @@ resource "aws_instance" "main" {
     encrypted   = true
   }
 
+  # Force replacement when root volume size changes
+  lifecycle {
+    replace_triggered_by = [
+      self.root_block_device[0].volume_size
+    ]
+  }
+
   tags = {
     Name    = var.project_name
     Project = var.project_name
