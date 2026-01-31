@@ -120,46 +120,46 @@ if ! blkid $EBS_DEVICE >/dev/null 2>&1; then
 fi
 
 # Ensure mount point exists and is empty
-if mountpoint -q /data 2>/dev/null; then
-  echo "Unmounting existing /data mount..."
-  umount /data || true
+if mountpoint -q /ebs 2>/dev/null; then
+  echo "Unmounting existing /ebs mount..."
+  umount /ebs || true
 fi
-mkdir -p /data
+mkdir -p /ebs
 # Ensure directory is empty (remove any files that might prevent mount)
-rm -rf /data/* /data/.* 2>/dev/null || true
+rm -rf /ebs/* /ebs/.* 2>/dev/null || true
 
 # Mount the volume with retries and verification
-echo "Mounting EBS volume $EBS_DEVICE to /data..."
+echo "Mounting EBS volume $EBS_DEVICE to /ebs..."
 MOUNT_SUCCESS=false
 for i in {1..30}; do
   # Try to mount with explicit filesystem type
-  if mount -t ext4 $EBS_DEVICE /data 2>&1; then
+  if mount -t ext4 $EBS_DEVICE /ebs 2>&1; then
     # Wait a moment for mount to settle
     sleep 1
     # Verify mount actually worked using findmnt (more reliable than df)
-    MOUNTED_DEVICE=$(findmnt -n -o SOURCE /data 2>/dev/null || echo "")
-    if [ -n "$MOUNTED_DEVICE" ] && [ "$MOUNTED_DEVICE" != "/" ] && mountpoint -q /data; then
+    MOUNTED_DEVICE=$(findmnt -n -o SOURCE /ebs 2>/dev/null || echo "")
+    if [ -n "$MOUNTED_DEVICE" ] && [ "$MOUNTED_DEVICE" != "/" ] && mountpoint -q /ebs; then
       # Double-check: verify the mounted device matches our EBS device
       # Handle both /dev/nvme1n1 and /dev/nvme1n1p1 formats
       if echo "$MOUNTED_DEVICE" | grep -q "$(basename $EBS_DEVICE)"; then
-        echo "EBS volume mounted successfully to /data (device: $MOUNTED_DEVICE)"
+        echo "EBS volume mounted successfully to /ebs (device: $MOUNTED_DEVICE)"
         MOUNT_SUCCESS=true
         break
       else
         echo "Mount device mismatch: expected $EBS_DEVICE, got $MOUNTED_DEVICE, retrying..."
-        umount /data 2>/dev/null || true
+        umount /ebs 2>/dev/null || true
       fi
     else
       echo "Mount verification failed (device: $MOUNTED_DEVICE), retrying..."
-      umount /data 2>/dev/null || true
+      umount /ebs 2>/dev/null || true
     fi
   else
     MOUNT_ERROR=$?
     if [ $((i % 5)) -eq 0 ]; then
       echo "  Mount attempt $i failed (exit code: $MOUNT_ERROR), retrying..."
-      # Show what's currently mounted at /data if anything
-      if mountpoint -q /data 2>/dev/null; then
-        echo "    Current mount: $(findmnt -n -o SOURCE /data 2>/dev/null || echo 'unknown')"
+      # Show what's currently mounted at /ebs if anything
+      if mountpoint -q /ebs 2>/dev/null; then
+        echo "    Current mount: $(findmnt -n -o SOURCE /ebs 2>/dev/null || echo 'unknown')"
       fi
     fi
   fi
@@ -167,19 +167,19 @@ for i in {1..30}; do
 done
 
 if [ "$MOUNT_SUCCESS" = false ]; then
-  echo "ERROR: Failed to mount EBS volume to /data after 30 attempts" >&2
+  echo "ERROR: Failed to mount EBS volume to /ebs after 30 attempts" >&2
   echo "EBS device: $EBS_DEVICE" >&2
-  echo "Current /data mount: $(findmnt -n -o SOURCE /data 2>/dev/null || echo 'not mounted')" >&2
+  echo "Current /ebs mount: $(findmnt -n -o SOURCE /ebs 2>/dev/null || echo 'not mounted')" >&2
   echo "Root device: $(findmnt -n -o SOURCE / 2>/dev/null || echo 'unknown')" >&2
   echo "This will cause data to be written to root filesystem instead of EBS volume!" >&2
   exit 1
 fi
 
 # Final verification we're actually using the EBS volume
-MOUNTED_DEVICE=$(findmnt -n -o SOURCE /data 2>/dev/null || echo "")
+MOUNTED_DEVICE=$(findmnt -n -o SOURCE /ebs 2>/dev/null || echo "")
 ROOT_DEVICE=$(findmnt -n -o SOURCE / 2>/dev/null || echo "")
 if [ "$MOUNTED_DEVICE" = "$ROOT_DEVICE" ] || [ -z "$MOUNTED_DEVICE" ]; then
-  echo "ERROR: /data mount verification failed!" >&2
+  echo "ERROR: /ebs mount verification failed!" >&2
   echo "Mounted device: $MOUNTED_DEVICE" >&2
   echo "Root device: $ROOT_DEVICE" >&2
   exit 1
@@ -187,7 +187,7 @@ fi
 
 # Check if filesystem needs resizing (if volume was increased)
 VOLUME_SIZE=$(blockdev --getsize64 $EBS_DEVICE)
-FILESYSTEM_SIZE=$(df -B1 /data | tail -1 | awk '{print $2}')
+FILESYSTEM_SIZE=$(df -B1 /ebs | tail -1 | awk '{print $2}')
 if [ "$VOLUME_SIZE" -gt "$FILESYSTEM_SIZE" ] && [ "$VOLUME_SIZE" -gt 0 ] && [ "$FILESYSTEM_SIZE" -gt 0 ]; then
   echo "Resizing filesystem to match volume size..."
   resize2fs $EBS_DEVICE
@@ -196,17 +196,17 @@ fi
 # Add to fstab for persistence
 EBS_UUID=$(blkid -s UUID -o value $EBS_DEVICE)
 if ! grep -q "$EBS_UUID" /etc/fstab; then
-  echo "UUID=$EBS_UUID /data ext4 defaults,nofail 0 2" >>/etc/fstab
+  echo "UUID=$EBS_UUID /ebs ext4 defaults,nofail 0 2" >>/etc/fstab
 fi
 
 # Create directory structure on EBS volume
-mkdir -p /data/home
-mkdir -p /data/shared
-mkdir -p /data/buildstock # Shared buildstock data directory
-chmod 755 /data
-chmod 755 /data/home
-chmod 777 /data/shared     # Shared directory for all users
-chmod 777 /data/buildstock # Shared buildstock data for all users
+mkdir -p /ebs/home
+mkdir -p /ebs/shared
+mkdir -p /ebs/buildstock # Shared buildstock data directory
+chmod 755 /ebs
+chmod 755 /ebs/home
+chmod 777 /ebs/shared     # Shared directory for all users
+chmod 777 /ebs/buildstock # Shared buildstock data for all users
 
 # Set up S3 mount
 mkdir -p ${s3_mount_path}

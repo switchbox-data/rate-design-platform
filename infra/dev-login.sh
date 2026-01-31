@@ -145,7 +145,7 @@ echo
 
 # Create/setup user account via SSM
 echo "👤 Setting up user account..."
-USER_HOME="/data/home/$LINUX_USERNAME"
+USER_HOME="/ebs/home/$LINUX_USERNAME"
 echo "   User: $LINUX_USERNAME"
 echo "   Home: $USER_HOME"
 TEMP_SCRIPT=$(mktemp)
@@ -237,7 +237,7 @@ aws ssm send-command \
   --instance-ids "$INSTANCE_ID" \
   --document-name "AWS-RunShellScript" \
   --parameters "commands=[
-        'bash -c \"set -eu; usermod -aG sudo \\\"$LINUX_USERNAME\\\" 2>/dev/null || true; echo \\\"$LINUX_USERNAME ALL=(ALL) NOPASSWD:ALL\\\" > /etc/sudoers.d/$LINUX_USERNAME; chmod 440 /etc/sudoers.d/$LINUX_USERNAME; mountpoint -q /s3 || mount /s3 2>/dev/null || true\"'
+        'bash -c \"set -eu; usermod -aG sudo \\\"$LINUX_USERNAME\\\" 2>/dev/null || true; echo \\\"$LINUX_USERNAME ALL=(ALL) NOPASSWD:ALL\\\" > /etc/sudoers.d/$LINUX_USERNAME; chmod 440 /etc/sudoers.d/$LINUX_USERNAME; mountpoint -q /data.sb || mount /data.sb 2>/dev/null || true\"'
     ]" \
   --output text >/dev/null
 sleep 2
