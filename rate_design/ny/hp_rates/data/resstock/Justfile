@@ -1,0 +1,11 @@
+download:
+  uv run bsf \
+  --product resstock \
+  --release_year 2024 \
+  --weather_file amy2018 \
+  --release_version 2 \
+  --states NY \
+  --file_type "metadata load_curve_hourly" \
+  --upgrade_id "0 1 2 3 4 5" \
+  --output_directory /data.sb/nrel/resstock \
+  --sample 0 # All buildings
