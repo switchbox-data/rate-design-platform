@@ -203,10 +203,12 @@ fi
 mkdir -p /ebs/home
 mkdir -p /ebs/shared
 mkdir -p /ebs/buildstock # Shared buildstock data directory
+mkdir -p /ebs/tmp        # Temporary files directory (for TMPDIR)
 chmod 755 /ebs
 chmod 755 /ebs/home
 chmod 777 /ebs/shared     # Shared directory for all users
 chmod 777 /ebs/buildstock # Shared buildstock data for all users
+chmod 1777 /ebs/tmp       # Sticky bit for temp directory (all users can write, only owner can delete)
 
 # Set up S3 mount
 mkdir -p ${s3_mount_path}
@@ -257,6 +259,13 @@ if mountpoint -q ${s3_mount_path}; then
   echo "S3 mount verified: $(ls ${s3_mount_path} | head -3)"
 else
   echo "WARNING: S3 mount not active after retries. Will be mounted on next boot or login."
+fi
+
+# Set TMPDIR system-wide to use EBS volume for temporary files
+# This prevents "No space left on device" errors when buildstock-fetch downloads
+# large temporary files. Python's tempfile module respects TMPDIR.
+if ! grep -q "^TMPDIR=" /etc/environment; then
+  echo "TMPDIR=/ebs/tmp" >> /etc/environment
 fi
 
 # Start and enable SSM agent (for AWS Systems Manager Session Manager)
