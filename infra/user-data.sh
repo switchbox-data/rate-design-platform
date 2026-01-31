@@ -219,13 +219,14 @@ if ! grep -q "^user_allow_other" /etc/fuse.conf; then
   sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf || echo "user_allow_other" >>/etc/fuse.conf
 fi
 
-# Create cache directory for s3fs BEFORE mounting
-mkdir -p /tmp/s3fs-cache
-chmod 1777 /tmp/s3fs-cache
+# Create cache directory for s3fs on EBS volume (not root filesystem)
+# This prevents s3fs cache from filling up the root volume when writing many files
+mkdir -p /ebs/tmp/s3fs-cache
+chmod 1777 /ebs/tmp/s3fs-cache
 
-# Ensure cache directory is recreated on every boot (since /tmp is cleared on reboot)
+# Ensure cache directory is recreated on every boot
 # This is needed for the fstab mount to work automatically on boot
-echo "d /tmp/s3fs-cache 1777 root root -" >/etc/tmpfiles.d/s3fs-cache.conf
+echo "d /ebs/tmp/s3fs-cache 1777 root root -" >/etc/tmpfiles.d/s3fs-cache.conf
 
 # Mount S3 bucket using IAM instance profile
 # s3fs automatically uses IAM role when no credentials are specified
@@ -233,7 +234,7 @@ echo "d /tmp/s3fs-cache 1777 root root -" >/etc/tmpfiles.d/s3fs-cache.conf
 # Note: endpoint and url are required because bucket is in us-west-2
 # umask=0000 allows all users to write to the S3 mount (files appear as 777)
 # Without this, files appear as 775 owned by root:root, blocking non-root writes
-S3FS_OPTS="_netdev,allow_other,use_cache=/tmp/s3fs-cache,iam_role=auto,umask=0000,use_path_request_style,endpoint=us-west-2,url=https://s3.us-west-2.amazonaws.com"
+S3FS_OPTS="_netdev,allow_other,use_cache=/ebs/tmp/s3fs-cache,iam_role=auto,umask=0000,use_path_request_style,endpoint=us-west-2,url=https://s3.us-west-2.amazonaws.com"
 echo "${s3_bucket_name} ${s3_mount_path} fuse.s3fs $S3FS_OPTS 0 0" >>/etc/fstab
 
 # Try to mount S3 with retries (IAM role may take a moment to be available)
