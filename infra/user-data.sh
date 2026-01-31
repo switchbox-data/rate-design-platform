@@ -210,7 +210,7 @@ chmod 777 /ebs/buildstock # Shared buildstock data for all users
 
 # Set up S3 mount
 mkdir -p ${s3_mount_path}
-chmod 777 ${s3_mount_path}  # Allow all users to write (needed for allow_other)
+chmod 755 ${s3_mount_path}
 
 # Enable user_allow_other in fuse.conf (required for allow_other mount option)
 if ! grep -q "^user_allow_other" /etc/fuse.conf; then
