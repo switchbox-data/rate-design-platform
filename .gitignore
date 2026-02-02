@@ -31,3 +31,5 @@ infra/*.tfstate
 infra/*.tfstate.*
 infra/.terraform/
 infra/.terraform.lock.hcl
+
+.secrets
