@@ -265,7 +265,7 @@ fi
 # This prevents "No space left on device" errors when buildstock-fetch downloads
 # large temporary files. Python's tempfile module respects TMPDIR.
 if ! grep -q "^TMPDIR=" /etc/environment; then
-  echo "TMPDIR=/ebs/tmp" >> /etc/environment
+  echo "TMPDIR=/ebs/tmp" >>/etc/environment
 fi
 
 # Start and enable SSM agent (for AWS Systems Manager Session Manager)
