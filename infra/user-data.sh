@@ -203,10 +203,12 @@ fi
 mkdir -p /ebs/home
 mkdir -p /ebs/shared
 mkdir -p /ebs/buildstock # Shared buildstock data directory
+mkdir -p /ebs/tmp        # Temporary files directory (for TMPDIR)
 chmod 755 /ebs
 chmod 755 /ebs/home
 chmod 777 /ebs/shared     # Shared directory for all users
 chmod 777 /ebs/buildstock # Shared buildstock data for all users
+chmod 1777 /ebs/tmp       # Sticky bit for temp directory (all users can write, only owner can delete)
 
 # Set up S3 mount
 mkdir -p ${s3_mount_path}
@@ -229,7 +231,9 @@ echo "d /tmp/s3fs-cache 1777 root root -" >/etc/tmpfiles.d/s3fs-cache.conf
 # s3fs automatically uses IAM role when no credentials are specified
 # Note: use_path_request_style is required for bucket names with dots (like data.sb)
 # Note: endpoint and url are required because bucket is in us-west-2
-S3FS_OPTS="_netdev,allow_other,use_cache=/tmp/s3fs-cache,iam_role=auto,umask=0002,use_path_request_style,endpoint=us-west-2,url=https://s3.us-west-2.amazonaws.com"
+# umask=0000 allows all users to write to the S3 mount (files appear as 777)
+# Without this, files appear as 775 owned by root:root, blocking non-root writes
+S3FS_OPTS="_netdev,allow_other,use_cache=/tmp/s3fs-cache,iam_role=auto,umask=0000,use_path_request_style,endpoint=us-west-2,url=https://s3.us-west-2.amazonaws.com"
 echo "${s3_bucket_name} ${s3_mount_path} fuse.s3fs $S3FS_OPTS 0 0" >>/etc/fstab
 
 # Try to mount S3 with retries (IAM role may take a moment to be available)
@@ -255,6 +259,13 @@ if mountpoint -q ${s3_mount_path}; then
   echo "S3 mount verified: $(ls ${s3_mount_path} | head -3)"
 else
   echo "WARNING: S3 mount not active after retries. Will be mounted on next boot or login."
+fi
+
+# Set TMPDIR system-wide to use EBS volume for temporary files
+# This prevents "No space left on device" errors when buildstock-fetch downloads
+# large temporary files. Python's tempfile module respects TMPDIR.
+if ! grep -q "^TMPDIR=" /etc/environment; then
+  echo "TMPDIR=/ebs/tmp" >>/etc/environment
 fi
 
 # Start and enable SSM agent (for AWS Systems Manager Session Manager)

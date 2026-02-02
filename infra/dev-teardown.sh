@@ -44,15 +44,17 @@ fi
 
 # Destroy only instance-related resources, keeping the EBS volume
 echo "🏗️  Destroying instance resources (keeping data volume)..."
-terraform destroy -auto-approve \
+TERRAFORM_DESTROY_SUCCESS=false
+if terraform destroy -auto-approve \
   -target=aws_volume_attachment.data \
   -target=aws_instance.main \
   -target=aws_security_group.ec2_sg \
   -target=aws_iam_instance_profile.ec2_profile \
   -target=aws_iam_role_policy.s3_access \
   -target=aws_iam_role_policy.ssm_managed_instance \
-  -target=aws_iam_role.ec2_role ||
-  true
+  -target=aws_iam_role.ec2_role; then
+  TERRAFORM_DESTROY_SUCCESS=true
+fi
 echo
 
 # Clean up any orphaned AWS resources that might exist outside Terraform state
@@ -122,9 +124,15 @@ VOLUME_ID=$(aws ec2 describe-volumes \
   --output text 2>/dev/null || echo "None")
 
 echo
-echo "✅ Teardown complete"
-if [ -n "$VOLUME_ID" ] && [ "$VOLUME_ID" != "None" ]; then
-  echo "   📦 Data volume preserved: $VOLUME_ID"
+if [ "$TERRAFORM_DESTROY_SUCCESS" = true ]; then
+  echo "✅ Teardown complete"
+  if [ -n "$VOLUME_ID" ] && [ "$VOLUME_ID" != "None" ]; then
+    echo "   📦 Data volume preserved: $VOLUME_ID"
+  fi
+  echo
+  echo "To recreate the instance, run: just dev-setup"
+else
+  echo "❌ Teardown failed - Terraform destroy encountered errors"
+  echo "   Check the error messages above and fix any issues before retrying"
+  exit 1
 fi
-echo
-echo "To recreate the instance, run: just dev-setup"
