@@ -20,4 +20,3 @@ test-download:
     --release res_2024_amy2018_2 \
     --state RI \
     --upgrade_id 00
-
