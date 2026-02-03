@@ -1,50 +1,40 @@
-"""CLI tool to generate customer count reweighting CSV files for utilities.
+"""Utility function to reweight customer counts for rate design analysis.
 
-This script reweights ResStock building samples to match utility-specific customer
-counts from rate cases.
+This module provides a function to reweight ResStock building samples to match
+utility-specific customer counts from rate cases using the CAIRO reweighting formula.
 """
 
-import argparse
 from pathlib import Path
 
-
-def main():
-    """Parse CLI arguments and generate reweighted customer CSV."""
-    parser = argparse.ArgumentParser(
-        description="Generate customer count reweighting CSV for a utility territory"
-    )
-    parser.add_argument(
-        "--customer-count",
-        type=int,
-        required=True,
-        help="Target customer count for the utility territory",
-    )
-    parser.add_argument(
-        "--metadata-path",
-        type=Path,
-        required=True,
-        help="Path to ResStock metadata parquet file",
-    )
-    parser.add_argument(
-        "--utility-name",
-        type=str,
-        required=True,
-        help="Utility name to filter buildings on",
-    )
-    parser.add_argument(
-        "--output-path",
-        type=Path,
-        required=True,
-        help="Output path for the reweighted customer CSV",
-    )
-
-    args = parser.parse_args()
-
-    print(f"Customer count: {args.customer_count}")
-    print(f"Metadata path: {args.metadata_path}")
-    print(f"Utility name: {args.utility_name}")
-    print(f"Output path: {args.output_path}")
+import pandas as pd
 
 
-if __name__ == "__main__":
-    main()
+def reweight_customer_counts(
+    customer_metadata: pd.DataFrame,
+    target_count: int,
+    output_path: Path,
+) -> pd.DataFrame:
+    """Reweight customer metadata to match target customer count and save to CSV.
+
+    Applies CAIRO reweighting formula: new_weight = old_weight * (target / sum_old)
+
+    Args:
+        customer_metadata: DataFrame with bldg_id and weight columns (from return_buildingstock)
+        target_count: Target total customer count for the utility
+        output_path: Path for output CSV file
+
+    Returns:
+        DataFrame with reweighted bldg_id and weight columns
+    """
+    df = customer_metadata[["bldg_id", "weight"]].copy()
+
+    current_sum = df["weight"].sum()
+    scale_factor = target_count / current_sum
+
+    df["weight"] = df["weight"] * scale_factor
+
+    # Save to CSV
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(output_path, index=False)
+
+    return df
