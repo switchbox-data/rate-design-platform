@@ -18,7 +18,7 @@ from cairo.utils.marginal_costs.marginal_cost_calculator import (
 # from tests import constant_tests as const_vars
 # from tests.utils import reweight_customer_metadata
 from utils.cairo import build_bldg_id_to_load_filepath
-from utils.reweight_resstock_customers_by_utility import reweight_customer_counts
+from utils.reweight_customer_counts import reweight_customer_counts
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
