@@ -18,6 +18,7 @@ from cairo.utils.marginal_costs.marginal_cost_calculator import (
 # from tests import constant_tests as const_vars
 # from tests.utils import reweight_customer_metadata
 from utils.cairo import build_bldg_id_to_load_filepath
+from utils.reweight_resstock_customers_by_utility import reweight_customer_counts
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
@@ -50,6 +51,7 @@ test_year_run = 2019
 year_dollar_conversion = 2021
 test_solar_pv_compensation = "net_metering"
 run_name = "tests_precalc"
+target_customer_count = 3650  # Target customer count for utility territory
 
 process_workers = 20
 
@@ -95,6 +97,12 @@ customer_metadata = return_buildingstock(
     building_stock_sample=prototype_ids,
 )
 
+# Reweight customer metadata to match utility customer count
+customer_metadata = reweight_customer_counts(
+    customer_metadata,
+    target_customer_count,
+    path_resstock / "customer_weights.csv",
+)
 
 # read in solar PV compensation structure, and which customers have adopted solar PV
 sell_rate = _return_export_compensation_rate(
