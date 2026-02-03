@@ -24,17 +24,17 @@ def reweight_customer_counts(
         output_path: Path for output CSV file
 
     Returns:
-        DataFrame with reweighted bldg_id and weight columns
+        Full customer_metadata DataFrame with reweighted weight column
     """
-    df = customer_metadata[["bldg_id", "weight"]].copy()
+    df = customer_metadata.copy()
 
     current_sum = df["weight"].sum()
     scale_factor = target_count / current_sum
 
     df["weight"] = df["weight"] * scale_factor
 
-    # Save to CSV
+    # Save weights to CSV
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(output_path, index=False)
+    df[["bldg_id", "weight"]].to_csv(output_path, index=False)
 
     return df
