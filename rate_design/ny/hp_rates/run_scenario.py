@@ -98,11 +98,7 @@ customer_metadata = return_buildingstock(
 )
 
 # Reweight customer metadata to match utility customer count
-customer_metadata = reweight_customer_counts(
-    customer_metadata,
-    target_customer_count,
-    path_resstock / "customer_weights.csv",
-)
+customer_metadata = reweight_customer_counts(customer_metadata, target_customer_count)
 
 # read in solar PV compensation structure, and which customers have adopted solar PV
 sell_rate = _return_export_compensation_rate(
