@@ -20,3 +20,10 @@ test-download:
     --release res_2024_amy2018_2 \
     --state RI \
     --upgrade_id "00 01 02 03 04 05"
+
+
+identify-hp-customers:
+  cd {{project_root}} && uv run python {{project_root}}/utils/identify_hp_customers.py \
+    --data_path "s3://data.sb/nrel/resstock/" \
+    --release res_2024_amy2018_2 \
+    --state NY

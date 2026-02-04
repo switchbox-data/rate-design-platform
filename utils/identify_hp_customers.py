@@ -63,21 +63,6 @@ def identify_hp_customers(metadata_path: S3Path, upgrade_id: str):
     metadata_df = metadata_df.with_columns(
         hp_customers.alias("postprocess_group.has_hp")
     )
-    """print(f"Upgrade id: {upgrade_id}")
-    print(f"Number of HP customers: {metadata_df['postprocess_group.has_hp'].sum()}")
-
-    non_hp_customers = metadata_df.filter(~pl.col("postprocess_group.has_hp"))
-    non_hp_customer_in_values = non_hp_customers["in.hvac_heating_type_and_fuel"]
-    print("Number of total customers: ", len(metadata_df))
-    print("Number of non-HP customers: ", len(non_hp_customers))
-    print(f"Non-HP customer values: {non_hp_customer_in_values.unique()}")
-    if upgrade_id != "00":
-        non_hp_customer_upgrade_values = non_hp_customers[
-            "upgrade.hvac_heating_efficiency"
-        ]
-        print(
-            f"Non-HP customer upgrade values: {non_hp_customer_upgrade_values.unique()}"
-        )"""
     return metadata_df
 
 
@@ -103,19 +88,25 @@ def add_has_HP_column(data_path: str, release: str, state: str):
         metadata_bldg_ids: pl.DataFrame = (
             pl.read_parquet(io.BytesIO(metadata_bytes)).select("bldg_id").unique()
         )
-        print(f"Number of metadata bldg ids: {len(metadata_bldg_ids)}")
+        print(f"Processing upgrade id: {upgrade_id}")
+        print(f"Number of bldg_ids in the metadata parquet: {len(metadata_bldg_ids)}")
         sb_metadata_df = identify_hp_customers(metadata_path, upgrade_id)
-        sb_metadata_df.write_parquet(
+        output_path = (
             release_dir
             / "metadata"
             / f"state={state}"
             / f"upgrade={upgrade_id}"
             / "metadata-sb.parquet"
         )
+        if not output_path.parent.exists():
+            output_path.parent.mkdir(parents=True)
+        sb_metadata_df.write_parquet(output_path)
+        print(f"Wrote metadata to {output_path}")
+    print("All upgrades processed")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Verify resstock data download.")
+    parser = argparse.ArgumentParser(description="Add has_HP column to metadata.")
     parser.add_argument(
         "--data_path", required=True, help="Base path for resstock data"
     )
@@ -126,16 +117,8 @@ def main():
     )
     parser.add_argument("--state", required=True, help="State code (e.g. RI)")
     args = parser.parse_args()
-    add_has_HP_column(
-        data_path=args.data_path,
-        release=args.release,
-        state=args.state,
-    )
+    add_has_HP_column(data_path=args.data_path, release=args.release, state=args.state)
 
 
 if __name__ == "__main__":
-    add_has_HP_column(
-        data_path="s3://data.sb/nrel/resstock/",
-        release="res_2024_amy2018_2",
-        state="RI",
-    )
+    main()
