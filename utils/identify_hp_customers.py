@@ -100,7 +100,10 @@ def add_has_HP_column(data_path: str, release: str, state: str):
         )
         if not output_path.parent.exists():
             output_path.parent.mkdir(parents=True)
-        sb_metadata_df.write_parquet(output_path)
+        # Polars doesn't accept S3Path; write to buffer then upload via cloudpathlib
+        buf = io.BytesIO()
+        sb_metadata_df.write_parquet(buf)
+        output_path.write_bytes(buf.getvalue())
         print(f"Wrote metadata to {output_path}")
     print("All upgrades processed")
 
