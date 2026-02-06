@@ -35,33 +35,50 @@ prototype_ids = [
     44581,
 ]
 
-path_project = Path("./rate_design/ny/hp_rates")
-path_data = path_project / "data"
-path_tariff_map = path_data / "tariff_map" / "precalculation_testing.csv"
-tariff_map_name = path_tariff_map.stem
-path_resstock = path_data / "resstock"
-path_resstock_metadata = path_resstock / "results_up00.parquet"
-path_resstock_loads = path_resstock / "loads"
-path_cambium_marginal_costs = (
-    path_data / "marginal_costs" / "example_marginal_costs.csv"
+run_name = "ri_default_test_run"
+path_project = Path("./rate_design/ri/hp_rates")
+path_resstock = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
+path_config = path_project / "data"
+
+state = "RI"
+upgrade = "00"
+path_resstock_metadata = (
+    path_resstock
+    / "metadata"
+    / f"state={state}"
+    / f"upgrade={upgrade}"
+    / "metadata.parquet"
 )
-path_results = path_project / "results"
-# TODO: update this to actually reflect the revenue requirement target for the test scenario, and add any other parameters needed to specify the scenario
-test_revenue_requirement_target = 1000000000
+path_resstock_loads = (
+    path_resstock / "load_curve_hourly" / f"state={state}" / f"upgrade={upgrade}"
+)
+# TODO: alex - make dummy zero-valued marginal costs file for RI test scenario, and update this path to point to that file
+path_cambium_marginal_costs = (
+    path_config / "marginal_costs" / "example_marginal_costs.csv"
+)
+path_results = Path("/data.sb/switchbox/cairo/ri_default_test_run/")
+# TODO: alex - figure out how cairo is adjusting for inflation and make sure this is consistent with the test scenario parameters
+test_revenue_requirement_target = 241869601  # $241,869,601
 test_year_run = 2019
-year_dollar_conversion = 2021
+year_dollar_conversion = 2025
 test_solar_pv_compensation = "net_metering"
-run_name = "tests_precalc"
-target_customer_count = 3650  # Target customer count for utility territory
+
+target_customer_count = 451381  # Target customer count for utility territory
+# TODO: lee - update this to point to the actual tariff map for the test scenario, and make sure it has the necessary information for the test scenario (e.g. contains the tariffs being tested, and any necessary parameters for those tariffs)
+path_tariff_map = path_config / "tariff_map" / "precalculation_testing.csv"
+tariff_map_name = path_tariff_map.stem
+# TODO: lee - make dummy gas tariff files for RI test scenario, and update this to point to those files
 gas_tariff_map_name = "dummy_gas"  # Gas tariff map name for gas bill calculation
 
 process_workers = 20
-
+# TODO: sherry - replace with actual tariff paths for RI test scenario
+# TODO: sherry - make RIE tariffs
+# Fixed Customer Charge: Both A-16 and A-60 are proposed to increase to $6.75 per month. Volumetric Distribution Charge: Both A-16 and A-60 are proposed to increase to $0.06455 per kWh
 tariff_paths = [
-    path_data / "tariffs" / "tariff_1.json",
-    path_data / "tariffs" / "tariff_2.json",
+    path_config / "tariffs" / "tariff_1.json",
+    path_config / "tariffs" / "tariff_2.json",
 ]
-
+# TODO: juan pablo - point tariff paths to actual RDP tariff files
 # load in and manipulate tariff information as needed for bill calculation
 # tariffs_params, tariff_map_df = _initialize_tariffs(
 #    tariff_map=path_tariff_map,
@@ -73,7 +90,7 @@ tariffs_params, tariff_map_df = _initialize_tariffs(
     building_stock_sample=prototype_ids,
 )
 
-# TODO: update this depending on the tariff structure
+# TODO: sherry - update this depending on RIE tariff structure, make into JSON and put in config folder if needed, and make sure it has the necessary information for the test scenario (e.g. contains the periods and tiers being tested, and any necessary parameters for those)
 precalc_mapping = (
     pd.DataFrame()
     .from_dict(
@@ -139,6 +156,7 @@ raw_load_gas = _return_load(
 bulk_marginal_costs = _load_cambium_marginal_costs(
     path_cambium_marginal_costs, test_year_run
 )
+# TODO: sherry - add in distribution cost parameters as config file and load in
 # calculate distribution marginal costs in $/kWh (dynamic based on net load)
 distribution_marginal_costs = add_distribution_costs(raw_load_elec, test_year_run)
 
