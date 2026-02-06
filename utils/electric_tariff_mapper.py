@@ -1,6 +1,6 @@
+import argparse
 import io
 from pathlib import Path
-from typing import cast
 
 import polars as pl
 from cloudpathlib import S3Path
@@ -183,22 +183,24 @@ def map_electric_tariff(
     return
 
 
-if __name__ == "__main__":
-    data_path = S3Path("s3://data.sb/nrel/resstock/")
-    release_dir = data_path / "res_2024_amy2018_2"
-    state = "NY"
-    upgrade_id = "04"
-    metadata_path = (
-        release_dir
-        / "metadata"
-        / f"state={state}"
-        / f"upgrade={upgrade_id}"
-        / "metadata-sb.parquet"
+def main():
+    parser = argparse.ArgumentParser(description="Map electrical tariff.")
+    parser.add_argument(
+        "--metadata_path", required=True, help="Base path for resstock data"
     )
+    parser.add_argument("--state", required=True, help="State code (e.g. RI)")
+    parser.add_argument(
+        "--electric_utility", required=True, help="Electric utility (e.g. Coned)"
+    )
+    parser.add_argument(
+        "--SB_scenario_name", required=True, help="SB scenario name (e.g. default_1)"
+    )
+    args = parser.parse_args()
 
     #########################################################
     # For now, we will manually add the electric utility name column. Later on, the metadata parquet will be updated to include this column.
     # Assign first ~1/3 to Coned, next ~1/3 to National Grid, last ~1/3 to NYSEG.
+    metadata_path = S3Path(args.metadata_path)
     metadata_df = pl.read_parquet(io.BytesIO(metadata_path.read_bytes()))
     n = len(metadata_df)
     metadata_df = (
@@ -221,12 +223,16 @@ if __name__ == "__main__":
 
     map_electric_tariff(
         SB_metadata_path=temp_path,
-        electric_utility=cast(electric_utility, "Coned"),
-        SB_scenario_name=cast(SB_scenario, "default_1"),
-        state=state,
+        electric_utility=args.electric_utility,
+        SB_scenario_name=args.SB_scenario_name,
+        state=args.state,
     )
 
     #########################################################
     # Remove the temp file that contains electric utility name column.
     temp_path.unlink()
     #########################################################
+
+
+if __name__ == "__main__":
+    main()
