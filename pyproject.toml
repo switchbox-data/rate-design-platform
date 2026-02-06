@@ -42,4 +42,4 @@ include = ["rate_design*", "utils*"]
 ]
 
 [tool.uv.sources]
-cairo = { git = "https://github.com/switchbox-data/CAIRO", rev = "sz/gas_billing" }
+cairo = { git = "https://github.com/NatLabRockies/CAIRO", rev = "main" }
