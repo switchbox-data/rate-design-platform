@@ -2,11 +2,12 @@
 project_root := absolute_path(justfile_directory() / ".." / ".." / ".." / ".." / "..")
 data_base := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
 
-# Usage: just map-electric-tariff [state] [electric_utility] [SB_scenario_name] [upgrade_id]
-# Example: just map-electric-tariff "Coned" default_1 00
-map-electric-tariff electric_utility SB_scenario_name upgrade_id:
+# Usage: just map-electric-tariff [electric_utility] [SB_scenario_type] [SB_scenario_year] [upgrade_id]
+# Example: just map-electric-tariff Coned default 1 00
+map-electric-tariff electric_utility SB_scenario_name SB_scenario_year upgrade_id:
   cd {{project_root}} && uv run python {{project_root}}/utils/electric_tariff_mapper.py \
     --metadata_path "{{data_base}}/state=NY/upgrade={{upgrade_id}}/metadata-sb.parquet" \
     --state NY \
     --electric_utility "{{electric_utility}}" \
-    --SB_scenario_name "{{SB_scenario_name}}"
+    --SB_scenario_name "{{SB_scenario_name}}" \
+    --SB_scenario_year "{{SB_scenario_year}}"

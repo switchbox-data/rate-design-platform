@@ -1,18 +1,16 @@
 from typing import Literal
 
-SB_scenario = Literal[
-    "default_1",
-    "default_2",
-    "default_3",
-    "seasonal_1",
-    "seasonal_2",
-    "seasonal_3",
-    "class_specific_seasonal_1",
-    "class_specific_seasonal_2",
-    "class_specific_seasonal_3",
-    "class_specific_seasonal_TOU_1",
-    "class_specific_seasonal_TOU_2",
-    "class_specific_seasonal_TOU_3",
-]
 
+class SB_scenario:
+    analysis_type: Literal["default", "seasonal", "class_specific_seasonal"]
+    analysis_year: int
+
+    def __init__(self, analysis_type: Literal["default", "seasonal", "class_specific_seasonal"], analysis_year: int):
+        self.analysis_type = analysis_type
+        self.analysis_year = analysis_year
+    
+    def __str__(self):
+        return f"{self.analysis_type}_{self.analysis_year}"
+
+    
 electric_utility = Literal["Coned", "National Grid", "NYSEG"]

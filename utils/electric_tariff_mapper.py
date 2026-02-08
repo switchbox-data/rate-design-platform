@@ -15,138 +15,49 @@ SB_scenarios_path = Path(__file__).parent / "SB_scenarios.json"
 
 
 def define_electrical_tariff_key(
-    SB_scenario_name: SB_scenario,
+    SB_scenario: SB_scenario,
     electric_utility: electric_utility,
-    customer_class: str,
-) -> str:
-    tariff_key = ""
-    match SB_scenario_name:
-        # Default scenario
-        case "default_1" | "default_2" | "default_3":
-            tariff_key = "default"
-
-        # Seasonal flat scenarios
-        case "seasonal_1" | "seasonal_2" | "seasonal_3":
-            if electric_utility == "Coned":
-                if customer_class == "has_HP":
-                    tariff_key = "Coned_seasonal_HP"
-                elif customer_class == "no_HP":
-                    tariff_key = "Coned_seasonal_default"
-                else:
-                    raise ValueError(f"Invalid customer class: {customer_class}")
-            elif electric_utility == "National Grid":
-                if customer_class == "has_HP":
-                    tariff_key = "National_Grid_seasonal_HP"
-                elif customer_class == "no_HP":
-                    tariff_key = "National_Grid_seasonal_default"
-                else:
-                    raise ValueError(f"Invalid customer class: {customer_class}")
-            elif electric_utility == "NYSEG":
-                if customer_class == "has_HP":
-                    tariff_key = "NYSEG_seasonal_HP"
-                elif customer_class == "no_HP":
-                    tariff_key = "NYSEG_seasonal_default"
-                else:
-                    raise ValueError(f"Invalid customer class: {customer_class}")
-            else:
-                raise ValueError(f"Invalid electric utility: {electric_utility}")
-
-        # Class-specific seasonal flat scenarios
-        case (
-            "class_specific_seasonal_1"
-            | "class_specific_seasonal_2"
-            | "class_specific_seasonal_3"
-        ):
-            if electric_utility == "Coned":
-                if customer_class == "has_HP":
-                    tariff_key = "Coned_class_specific_seasonal_HP"
-                elif customer_class == "no_HP":
-                    tariff_key = "Coned_class_specific_seasonal_default"
-                else:
-                    raise ValueError(f"Invalid customer class: {customer_class}")
-            elif electric_utility == "National Grid":
-                if customer_class == "has_HP":
-                    tariff_key = "National_Grid_class_specific_seasonal_HP"
-                elif customer_class == "no_HP":
-                    tariff_key = "National_Grid_class_specific_seasonal_default"
-                else:
-                    raise ValueError(f"Invalid customer class: {customer_class}")
-            elif electric_utility == "NYSEG":
-                if customer_class == "has_HP":
-                    tariff_key = "NYSEG_class_specific_seasonal_HP"
-                elif customer_class == "no_HP":
-                    tariff_key = "NYSEG_class_specific_seasonal_default"
-                else:
-                    raise ValueError(f"Invalid customer class: {customer_class}")
-
-        # Class-specific seasonal TOU scenarios
-        case (
-            "class_specific_seasonal_TOU_1"
-            | "class_specific_seasonal_TOU_2"
-            | "class_specific_seasonal_TOU_3"
-        ):
-            if electric_utility == "Coned":
-                if customer_class == "has_HP":
-                    tariff_key = "Coned_class_specific_seasonal_TOU_HP"
-                elif customer_class == "no_HP":
-                    tariff_key = "Coned_class_specific_seasonal_TOU_default"
-                else:
-                    raise ValueError(f"Invalid customer class: {customer_class}")
-            elif electric_utility == "National Grid":
-                if customer_class == "has_HP":
-                    tariff_key = "National_Grid_class_specific_seasonal_TOU_HP"
-                elif customer_class == "no_HP":
-                    tariff_key = "National_Grid_class_specific_seasonal_TOU_default"
-                else:
-                    raise ValueError(f"Invalid customer class: {customer_class}")
-            elif electric_utility == "NYSEG":
-                if customer_class == "has_HP":
-                    tariff_key = "NYSEG_class_specific_seasonal_TOU_HP"
-                elif customer_class == "no_HP":
-                    tariff_key = "NYSEG_class_specific_seasonal_TOU_default"
-                else:
-                    raise ValueError(f"Invalid customer class: {customer_class}")
-            else:
-                raise ValueError(f"Invalid electric utility: {electric_utility}")
-        case _:
-            raise ValueError(f"Invalid SB scenario name: {SB_scenario_name}")
-    return tariff_key
+    has_hp: pl.Series,
+) -> pl.Expr:
+    if SB_scenario.analysis_type == "default":
+        return pl.lit(f"{electric_utility}_{SB_scenario}_default")
+    elif (
+        SB_scenario.analysis_type == "seasonal"
+        or SB_scenario.analysis_type == "class_specific_seasonal"
+    ):
+        return (
+            pl.when(has_hp)
+            .then(pl.lit(f"{electric_utility}_{SB_scenario}_HP.csv"))
+            .otherwise(pl.lit(f"{electric_utility}_{SB_scenario}_flat.csv"))
+        )
+    else:
+        raise ValueError(f"Invalid SB scenario: {SB_scenario}")
 
 
 def generate_electrical_tariff_mapping(
     metadata_df: pl.DataFrame,
-    SB_scenario_name: SB_scenario,
+    SB_scenario: SB_scenario,
     electric_utility: electric_utility,
 ) -> pl.DataFrame:
-    electrical_tariff_mapping_df = metadata_df.select(pl.col("bldg_id")).with_columns(
-        pl.lit("").alias("tariff_key")
-    )
     has_hp = metadata_df["postprocess_group.has_hp"]
-    for customer_class in ["has_HP", "no_HP"]:
-        tariff_key = define_electrical_tariff_key(
-            SB_scenario_name, electric_utility, customer_class
+
+    electrical_tariff_mapping_df = (
+        metadata_df.select(pl.col("bldg_id"))
+        .with_columns(pl.lit("").alias("tariff_key"))
+        .with_columns(
+            define_electrical_tariff_key(SB_scenario, electric_utility, has_hp).alias(
+                "tariff_key"
+            )
         )
-        if customer_class == "has_HP":
-            electrical_tariff_mapping_df = electrical_tariff_mapping_df.with_columns(
-                pl.when(has_hp)  # Only change rows where has_hp is True
-                .then(pl.lit(tariff_key))
-                .otherwise(pl.col("tariff_key"))
-                .alias("tariff_key")
-            )
-        elif customer_class == "no_HP":
-            electrical_tariff_mapping_df = electrical_tariff_mapping_df.with_columns(
-                pl.when(~has_hp)  # Only change rows where has_hp is False
-                .then(pl.lit(tariff_key))
-                .otherwise(pl.col("tariff_key"))
-                .alias("tariff_key")
-            )
+    )
+
     return electrical_tariff_mapping_df
 
 
 def map_electric_tariff(
     SB_metadata_path: S3Path,
     electric_utility: electric_utility,
-    SB_scenario_name: SB_scenario,
+    SB_scenario: SB_scenario,
     state: str,
 ):
     if not SB_metadata_path.exists():
@@ -160,12 +71,10 @@ def map_electric_tariff(
         return
 
     print(utility_metadata_df.head(20))
-    print(len(utility_metadata_df))
 
     electrical_tariff_mapping_df = generate_electrical_tariff_mapping(
-        utility_metadata_df, SB_scenario_name, electric_utility
+        utility_metadata_df, SB_scenario, electric_utility
     )
-
     print(electrical_tariff_mapping_df.head(20))
 
     output_path = (
@@ -174,7 +83,7 @@ def map_electric_tariff(
         / "hp_rates"
         / "data"
         / "tariff_map"
-        / f"{electric_utility}_{SB_scenario_name}.csv"
+        / f"{electric_utility}_{SB_scenario}.csv"
     )
     if not output_path.parent.exists():
         output_path.parent.mkdir(parents=True)
@@ -194,6 +103,9 @@ def main():
     )
     parser.add_argument(
         "--SB_scenario_name", required=True, help="SB scenario name (e.g. default_1)"
+    )
+    parser.add_argument(
+        "--SB_scenario_year", required=True, help="SB scenario year (e.g. 2024)"
     )
     args = parser.parse_args()
 
@@ -221,10 +133,18 @@ def main():
     temp_path.write_bytes(buf.getvalue())
     #########################################################
 
+    if (
+        args.SB_scenario_name != "default"
+        and args.SB_scenario_name != "seasonal"
+        and args.SB_scenario_name != "class_specific_seasonal"
+    ):
+        raise ValueError(f"Invalid SB scenario name: {args.SB_scenario_name}")
+
+    sb_scenario = SB_scenario(args.SB_scenario_name, args.SB_scenario_year)
     map_electric_tariff(
         SB_metadata_path=temp_path,
         electric_utility=args.electric_utility,
-        SB_scenario_name=args.SB_scenario_name,
+        SB_scenario=sb_scenario,
         state=args.state,
     )
 
