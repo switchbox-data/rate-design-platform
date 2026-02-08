@@ -5,7 +5,7 @@ from pathlib import Path
 import polars as pl
 from cloudpathlib import S3Path
 
-from utils.types import SB_scenario, electric_utility, gas_utility
+from utils.types import SB_scenario, electric_utility
 
 # Project root (rate-design-platform); independent of cwd or caller
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -15,11 +15,48 @@ RATE_DESIGN_DIR = _PROJECT_ROOT / "rate_design"
 def map_gas_tariff(
     SB_metadata_path: S3Path,
     electric_utility_name: electric_utility,
-    gas_utility_name: gas_utility,
     SB_scenario: SB_scenario,
     state: str,
 ):
-    pass
+    if not SB_metadata_path.exists():
+        raise FileNotFoundError(f"SB metadata path {SB_metadata_path} does not exist")
+
+    utility_metadata_df = (
+        pl.scan_parquet(io.BytesIO(SB_metadata_path.read_bytes()))
+        .filter(pl.col("sb.electric_utility") == electric_utility_name)
+        .collect()
+    )
+    if utility_metadata_df.is_empty():
+        return
+
+    gas_tariff_mapping_df = (
+        utility_metadata_df.select(pl.col("bldg_id", "sb.gas_utility"))
+        .with_columns(
+            pl.when(pl.col("sb.gas_utility") == "National Grid")
+            .then(pl.lit("National Grid"))
+            .otherwise(pl.lit("NYSEG"))
+            .alias("tariff_key")
+        )
+        .drop("sb.gas_utility")
+    )
+
+    print(gas_tariff_mapping_df.head(20))
+
+    # Save gas tariff mapping to a csv file
+
+    output_path = (
+        RATE_DESIGN_DIR
+        / state.lower()
+        / "hp_rates"
+        / "data"
+        / "tariff_map"
+        / f"{electric_utility_name}_gas.csv"
+    )
+    if not output_path.parent.exists():
+        output_path.parent.mkdir(parents=True)
+    gas_tariff_mapping_df.write_csv(output_path)
+
+    return
 
 
 def main():
@@ -30,9 +67,6 @@ def main():
     parser.add_argument("--state", required=True, help="State code (e.g. RI)")
     parser.add_argument(
         "--electric_utility", required=True, help="Electric utility (e.g. Coned)"
-    )
-    parser.add_argument(
-        "--gas_utility", required=True, help="Gas utility (e.g. National Grid)"
     )
     parser.add_argument(
         "--SB_scenario_name", required=True, help="SB scenario name (e.g. default_1)"
@@ -65,7 +99,7 @@ def main():
     metadata_df = (
         metadata_df.with_row_index("_row_idx")
         .with_columns(
-            pl.when(pl.col("_row_idx") < n // 2)
+            pl.when(pl.col("_row_idx") < n % 2 == 0)
             .then(pl.lit("National Grid"))
             .otherwise(pl.lit("NYSEG"))
             .alias("sb.gas_utility")
@@ -89,7 +123,6 @@ def main():
     map_gas_tariff(
         SB_metadata_path=temp_path,
         electric_utility_name=args.electric_utility,
-        gas_utility_name=args.gas_utility,
         SB_scenario=sb_scenario,
         state=args.state,
     )
