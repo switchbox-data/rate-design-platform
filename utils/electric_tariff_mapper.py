@@ -11,8 +11,6 @@ from utils.types import SB_scenario, electric_utility
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RATE_DESIGN_DIR = _PROJECT_ROOT / "rate_design"
 
-SB_scenarios_path = Path(__file__).parent / "SB_scenarios.json"
-
 
 def define_electrical_tariff_key(
     SB_scenario: SB_scenario,
@@ -35,19 +33,17 @@ def define_electrical_tariff_key(
 
 
 def generate_electrical_tariff_mapping(
-    metadata_df: pl.DataFrame,
+    metadata_has_hp: pl.DataFrame,
     SB_scenario: SB_scenario,
     electric_utility: electric_utility,
 ) -> pl.DataFrame:
-    has_hp = metadata_df["postprocess_group.has_hp"]
+    has_hp = metadata_has_hp["postprocess_group.has_hp"]
 
-    electrical_tariff_mapping_df = (
-        metadata_df.select(pl.col("bldg_id"))
-        .with_columns(pl.lit("").alias("tariff_key"))
-        .with_columns(
-            define_electrical_tariff_key(SB_scenario, electric_utility, has_hp).alias(
-                "tariff_key"
-            )
+    electrical_tariff_mapping_df = metadata_has_hp.select(
+        pl.col("bldg_id")
+    ).with_columns(
+        define_electrical_tariff_key(SB_scenario, electric_utility, has_hp).alias(
+            "tariff_key"
         )
     )
 
@@ -70,11 +66,13 @@ def map_electric_tariff(
     if utility_metadata_df.is_empty():
         return
 
-    print(utility_metadata_df.head(20))
-
-    electrical_tariff_mapping_df = generate_electrical_tariff_mapping(
-        utility_metadata_df, SB_scenario, electric_utility
+    metadata_has_hp = utility_metadata_df.select(
+        pl.col("bldg_id", "postprocess_group.has_hp")
     )
+    electrical_tariff_mapping_df = generate_electrical_tariff_mapping(
+        metadata_has_hp, SB_scenario, electric_utility
+    )
+
     print(electrical_tariff_mapping_df.head(20))
 
     output_path = (
