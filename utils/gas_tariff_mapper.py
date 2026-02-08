@@ -39,8 +39,6 @@ def map_gas_tariff(
         .drop("sb.gas_utility")
     )
 
-    print(gas_tariff_mapping_df.head(20))
-
     # Save gas tariff mapping to a csv file
 
     output_path = (
@@ -59,7 +57,7 @@ def map_gas_tariff(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Map electrical tariff.")
+    parser = argparse.ArgumentParser(description="Map gas tariff.")
     parser.add_argument(
         "--metadata_path", required=True, help="Base path for resstock data"
     )
@@ -92,7 +90,7 @@ def main():
     metadata_df = (
         metadata_df.with_row_index("_row_idx")
         .with_columns(
-            pl.when(pl.col("_row_idx") < n % 2 == 0)
+            pl.when((pl.col("_row_idx") % 2) == 0)
             .then(pl.lit("National Grid"))
             .otherwise(pl.lit("NYSEG"))
             .alias("sb.gas_utility")
