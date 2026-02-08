@@ -5,7 +5,7 @@ from pathlib import Path
 import polars as pl
 from cloudpathlib import S3Path
 
-from utils.types import SB_scenario, electric_utility
+from utils.types import electric_utility
 
 # Project root (rate-design-platform); independent of cwd or caller
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -15,7 +15,6 @@ RATE_DESIGN_DIR = _PROJECT_ROOT / "rate_design"
 def map_gas_tariff(
     SB_metadata_path: S3Path,
     electric_utility_name: electric_utility,
-    SB_scenario: SB_scenario,
     state: str,
 ):
     if not SB_metadata_path.exists():
@@ -68,12 +67,6 @@ def main():
     parser.add_argument(
         "--electric_utility", required=True, help="Electric utility (e.g. Coned)"
     )
-    parser.add_argument(
-        "--SB_scenario_name", required=True, help="SB scenario name (e.g. default_1)"
-    )
-    parser.add_argument(
-        "--SB_scenario_year", required=True, help="SB scenario year (e.g. 2024)"
-    )
     args = parser.parse_args()
 
     #########################################################
@@ -112,18 +105,9 @@ def main():
     temp_path.write_bytes(buf.getvalue())
     #########################################################
 
-    if (
-        args.SB_scenario_name != "default"
-        and args.SB_scenario_name != "seasonal"
-        and args.SB_scenario_name != "class_specific_seasonal"
-    ):
-        raise ValueError(f"Invalid SB scenario name: {args.SB_scenario_name}")
-
-    sb_scenario = SB_scenario(args.SB_scenario_name, args.SB_scenario_year)
     map_gas_tariff(
         SB_metadata_path=temp_path,
         electric_utility_name=args.electric_utility,
-        SB_scenario=sb_scenario,
         state=args.state,
     )
 
