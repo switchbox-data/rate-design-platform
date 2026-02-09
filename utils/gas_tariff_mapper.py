@@ -5,10 +5,11 @@ from typing import cast
 import polars as pl
 from cloudpathlib import S3Path
 
+from utils import get_project_root
 from utils.types import electric_utility
 
-# Project root (rate-design-platform); independent of cwd or caller
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Project root (rate-design-platform); found by git rev-parse --show-toplevel
+_PROJECT_ROOT = get_project_root()
 RATE_DESIGN_DIR = _PROJECT_ROOT / "rate_design"
 
 AWS_REGION = "us-west-2"
