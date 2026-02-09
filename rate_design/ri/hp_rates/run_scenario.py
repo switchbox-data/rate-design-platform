@@ -67,10 +67,11 @@ year_dollar_conversion = 2025  # this is a placeholder value that is required bu
 test_solar_pv_compensation = "net_metering"
 
 target_customer_count = 451381  # Target customer count for utility territory
-# TODO: lee - update this to point to the actual tariff map for the test scenario, and make sure it has the necessary information for the test scenario (e.g. contains the tariffs being tested, and any necessary parameters for those tariffs)
+
+# TODO: lee - take the prototype_id's above, and create a (bldg_id, tariff_key) mapping for the prototype_ids, then have path_tariff_map point to the mapping file.
 path_tariff_map = path_config / "tariff_map" / "dummy_electric_tariff_ri_run_1.csv"
 tariff_map_name = path_tariff_map.stem
-path_gas_tariff_map = path_config / "tariff_map" / "gas_tariff_map.csv"
+path_gas_tariff_map = path_config / "tariff_map" / "dummy_gas_tariff_ri_run_1.csv"
 
 process_workers = 20
 
