@@ -1,13 +1,15 @@
-# Resolve project root as absolute path from this Justfile's location (works for any clone)
-project_root := absolute_path(justfile_directory() / ".." / ".." / ".." / ".." / "..")
-data_base := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
+# Resolve project root via git (works from any subdirectory in the repo)
+project_root := `git rev-parse --show-toplevel`
+path_s3_resstock_metadata := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
 
 # Usage: just map-electric-tariff [electric_utility] [SB_scenario_type] [SB_scenario_year] [upgrade_id]
 # Example: just map-electric-tariff Coned default 1 00
-map-electric-tariff electric_utility SB_scenario_name SB_scenario_year upgrade_id:
-  cd {{project_root}} && uv run python {{project_root}}/utils/electric_tariff_mapper.py \
-    --metadata_path "{{data_base}}/state=NY/upgrade={{upgrade_id}}/metadata-sb.parquet" \
+map-electric-tariff electric_utility SB_scenario_type SB_scenario_year upgrade_id output_dir="":
+  uv run python {{project_root}}/utils/electric_tariff_mapper.py \
+    --metadata_path "{{path_s3_resstock_metadata}}" \
     --state NY \
+    --upgrade_id "{{upgrade_id}}" \
     --electric_utility "{{electric_utility}}" \
-    --SB_scenario_name "{{SB_scenario_name}}" \
-    --SB_scenario_year "{{SB_scenario_year}}"
+    --SB_scenario_type "{{SB_scenario_type}}" \
+    --SB_scenario_year "{{SB_scenario_year}}" \
+    {{ if output_dir != "" { "--output_dir \"" + output_dir + "\"" } else { "" } }}

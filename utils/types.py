@@ -1,7 +1,7 @@
 from typing import Literal
 
 
-class SB_scenario:
+class SBScenario:
     analysis_type: Literal["default", "seasonal", "class_specific_seasonal"]
     analysis_year: int
 
@@ -10,6 +10,8 @@ class SB_scenario:
         analysis_type: Literal["default", "seasonal", "class_specific_seasonal"],
         analysis_year: int,
     ):
+        if analysis_type not in ["default", "seasonal", "class_specific_seasonal"]:
+            raise ValueError(f"Invalid analysis type: {analysis_type}")
         self.analysis_type = analysis_type
         self.analysis_year = analysis_year
 

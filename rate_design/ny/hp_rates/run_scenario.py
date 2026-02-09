@@ -1,8 +1,9 @@
 """Entrypoint for running NY heat pump rate scenarios (stub)."""
 
 import logging
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
 from cairo.rates_tool.loads import _return_load, return_buildingstock
 from cairo.rates_tool.systemsimulator import (
     MeetRevenueSufficiencySystemWide,
@@ -164,7 +165,7 @@ bs = MeetRevenueSufficiencySystemWide(
     run_name=run_name,
     output_dir=path_results,  # will default to this folder if not pass, mostly testing ability for user to pass arbitrary output directory
 )
-bs.tariff_map = tariff_map_name
+# bs.tariff_map = tariff_map_name
 
 # TODO: add (maybe post-processing)module for delivered fuels bills
 bs.simulate(
