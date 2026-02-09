@@ -38,6 +38,27 @@ DEFAULT_BUILDINGSTOCK_COLUMNS: list[str] = [
 ]
 
 
+def patch_postprocessor_weight_handling():
+    """
+    Patch CAIRO's calculate_bill_stats_by_group to handle missing 'weight' column.
+
+    CAIRO's _postprocess_bill_results merges elec and gas bills with
+    suffixes=("_elec", "_gas"), renaming 'weight' to 'weight_elec'/'weight_gas'
+    in combined bills. This patch restores 'weight' from metadata_df when missing.
+    """
+    from cairo.rates_tool.postprocessing import InternalCustomerBillProcessor
+
+    _original = InternalCustomerBillProcessor.calculate_bill_stats_by_group
+
+    def _patched(self, metadata_df, bill_type, bill_df, gcn):
+        if "weight" not in bill_df.columns:
+            weight_map = metadata_df[["bldg_id", "weight"]].drop_duplicates()
+            bill_df = bill_df.merge(weight_map, on="bldg_id", how="left")
+        return _original(self, metadata_df, bill_type, bill_df, gcn)
+
+    InternalCustomerBillProcessor.calculate_bill_stats_by_group = _patched
+
+
 def build_bldg_id_to_load_filepath(
     path_resstock_loads: Path,
     building_ids: list[int] | None = None,
