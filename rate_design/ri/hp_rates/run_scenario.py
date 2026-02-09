@@ -9,13 +9,11 @@ from cairo.rates_tool.systemsimulator import (
     _return_export_compensation_rate,
     _return_revenue_requirement_target,
 )
-from cairo.utils.marginal_costs.marginal_cost_calculator import (
-    _load_cambium_marginal_costs,
-    add_distribution_costs,
-)
+from cairo.utils.marginal_costs.marginal_cost_calculator import add_distribution_costs
 
 from utils.cairo import (
     _initialize_tariffs,
+    _load_cambium_marginal_costs,
     _return_load,
     build_bldg_id_to_load_filepath,
     patch_postprocessor_weight_handling,
@@ -40,7 +38,7 @@ prototype_ids = [
 ]
 
 run_name = "ri_default_test_run"
-path_project = Path("./rate_design/ri/hp_rates")
+path_project = Path(".")
 path_resstock = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
 path_config = path_project / "data"
 

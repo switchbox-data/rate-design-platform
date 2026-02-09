@@ -8,11 +8,36 @@ from pathlib import Path, PurePath
 import dask
 
 from cairo.rates_tool import config, lookups
-from cairo.rates_tool.loads import _load_worker
+from cairo.rates_tool.loads import __timeshift__, _load_worker
 from cairo.rates_tool.tariffs import URDBv7_to_ElectricityRates
 
 # Default columns to load from buildingstock metadata parquet files.
 # Mirrors cairo.rates_tool.lookups.summary_buildings_cols_keep
+def _load_cambium_marginal_costs(path: Path | PurePath, target_year: int):
+    """Load Cambium marginal costs using engine='c' so columns are numpy-backed.
+    Avoids Arrow-backed in-place division failure in pandas (LossySetitemError / Arrow _arith_method).
+    """
+    df = pd.read_csv(
+        path, skiprows=5, index_col="timestamp", parse_dates=True, engine="c"
+    )
+    keep_cols = {
+        "energy_cost_enduse": "Marginal Energy Costs ($/kWh)",
+        "capacity_cost_enduse": "Marginal Capacity Costs ($/kWh)",
+    }
+    df = df.loc[:, list(keep_cols)].rename(columns=keep_cols)
+    df.loc[:, [c for c in df.columns if "/kWh" in c]] /= 1000  # $/MWh -> $/kWh
+    df.index.name = "time"
+    common_years = [2017, 2023, 2034, 2045, 2051]
+    year_diff = [abs(y - target_year) for y in common_years]
+    common_year = common_years[year_diff.index(min(year_diff))]
+    df.index = pd.DatetimeIndex(
+        [t.replace(year=common_year) for t in df.index], name="time"
+    )
+    df = __timeshift__(df, target_year)
+    df.index = df.index.tz_localize("EST")
+    return df
+
+
 DEFAULT_BUILDINGSTOCK_COLUMNS: list[str] = [
     "bldg_id",
     "weight",
