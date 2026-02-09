@@ -1,5 +1,6 @@
-"""Entrypoint for running NY heat pump rate scenarios (stub)."""
+"""Entrypoint for running RI heat pump rate scenarios - Residential (non-LMI)."""
 
+import json
 import logging
 from pathlib import Path
 
@@ -7,7 +8,6 @@ import pandas as pd
 from cairo.rates_tool.loads import _return_load, return_buildingstock
 from cairo.rates_tool.systemsimulator import (
     MeetRevenueSufficiencySystemWide,
-    _initialize_tariffs,
     _return_export_compensation_rate,
     _return_revenue_requirement_target,
 )
@@ -16,15 +16,14 @@ from cairo.utils.marginal_costs.marginal_cost_calculator import (
     add_distribution_costs,
 )
 
-# from tests import constant_tests as const_vars
-# from tests.utils import reweight_customer_metadata
-from utils.cairo import build_bldg_id_to_load_filepath
+from utils.cairo import _initialize_tariffs, build_bldg_id_to_load_filepath
+from utils.generate_precalc_mapping import generate_default_precalc_mapping
 from utils.reweight_customer_counts import reweight_customer_counts
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
 log.info(
-    ".... Beginning basic test of functions - run full simulation: Dummy - Precalculation"
+    ".... Beginning RI residential (non-LMI) rate scenario - RIE A-16 tariff"
 )
 
 prototype_ids = [
@@ -71,42 +70,25 @@ tariff_map_name = path_tariff_map.stem
 gas_tariff_map_name = "dummy_gas"  # Gas tariff map name for gas bill calculation
 
 process_workers = 20
-# TODO: sherry - replace with actual tariff paths for RI test scenario
-# TODO: sherry - make RIE tariffs
-# Fixed Customer Charge: Both A-16 and A-60 are proposed to increase to $6.75 per month. Volumetric Distribution Charge: Both A-16 and A-60 are proposed to increase to $0.06455 per kWh
+
+# RIE Residential Tariffs (A-16 for standard residential)
+# Fixed Customer Charge: $6.75/month, Volumetric Distribution Charge: $0.06455/kWh
 tariff_paths = [
-    path_config / "tariffs" / "tariff_1.json",
-    path_config / "tariffs" / "tariff_2.json",
+    path_config / "tariff_structure" / "tariff_structure_rie_a16.json",
 ]
-# TODO: juan pablo - point tariff paths to actual RDP tariff files
-# load in and manipulate tariff information as needed for bill calculation
-# tariffs_params, tariff_map_df = _initialize_tariffs(
-#    tariff_map=path_tariff_map,
-#    building_stock_sample=prototype_ids,
-#    tariff_paths=tariff_paths,
-# )
+
+# Load in and manipulate tariff information as needed for bill calculation
 tariffs_params, tariff_map_df = _initialize_tariffs(
     tariff_map=path_tariff_map,
     building_stock_sample=prototype_ids,
+    tariff_paths=tariff_paths,
 )
 
-# TODO: sherry - update this depending on RIE tariff structure, make into JSON and put in config folder if needed, and make sure it has the necessary information for the test scenario (e.g. contains the periods and tiers being tested, and any necessary parameters for those)
-precalc_mapping = (
-    pd.DataFrame()
-    .from_dict(
-        {
-            f"period_{i + 1}": {
-                "period": p[0],
-                "tier": p[1],
-                "rel_value": [1.0, 1.25, 2.0, 2.5, 1.5, 1.75][i],
-                "tariff": "dummy_electrical_fixed",
-            }
-            for i, p in enumerate(
-                tariffs_params["dummy_electrical_fixed"]["ur_ec_tou_mat"]
-            )
-        }
-    )
-    .T
+# Generate precalc mapping from RIE A-16 tariff structure
+# rel_values derived proportionally from rates (normalized to min rate = 1.0)
+precalc_mapping = generate_default_precalc_mapping(
+    tariff_path=path_config / "tariff_structure" / "tariff_structure_rie_a16.json",
+    tariff_key="rie_a16",
 )
 
 
@@ -156,9 +138,18 @@ raw_load_gas = _return_load(
 bulk_marginal_costs = _load_cambium_marginal_costs(
     path_cambium_marginal_costs, test_year_run
 )
-# TODO: sherry - add in distribution cost parameters as config file and load in
-# calculate distribution marginal costs in $/kWh (dynamic based on net load)
-distribution_marginal_costs = add_distribution_costs(raw_load_elec, test_year_run)
+# Load distribution cost parameters from config
+# Sources: AESC 2024 ($69/kW-year), RI Energy Rate Case RY1 NCP data (nc_ratio=1.41)
+with open(path_config / "distribution_cost_params.json") as f:
+    dist_cost_params = json.load(f)
+
+# Calculate distribution marginal costs in $/kWh (dynamic based on net load)
+distribution_marginal_costs = add_distribution_costs(
+    raw_load_elec,
+    annual_future_distr_costs=dist_cost_params["annual_future_distr_costs"],
+    distr_peak_hrs=dist_cost_params["distr_peak_hrs"],
+    nc_ratio_baseline=dist_cost_params["nc_ratio_baseline"],
+)
 
 (revenue_requirement, marginal_system_prices, marginal_system_costs, costs_by_type) = (
     _return_revenue_requirement_target(
@@ -203,4 +194,4 @@ bs.simulate(
     low_income_bill_assistance_program=None,
 )
 
-log.info(".... Completed full simulation run for Dummy - Precalculation")
+log.info(".... Completed RI residential (non-LMI) rate scenario simulation")
