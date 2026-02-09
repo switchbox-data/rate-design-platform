@@ -57,9 +57,8 @@ path_cambium_marginal_costs =  Path("/data.sb/nrel/cambium/dummy_rie_marginal_co
 path_results = Path("/data.sb/switchbox/cairo/ri_default_test_run/")
 # TODO: alex - figure out how cairo is adjusting for inflation and make sure this is consistent with the test scenario parameters
 test_revenue_requirement_target = 241869601  # $241,869,601
-test_year_run = 2019
-year_dollar_conversion = 2025
-test_solar_pv_compensation = "net_metering"
+test_year_run = 2019 # set to analysis year, will be used to set datetime on load curves AND for inflation adjustment target year
+year_dollar_conversion = 2025 # this is a placeholder value that is required but never applied. See dollar_year_conversion._apply_price_inflator() - functionally returns its own input df
 
 target_customer_count = 451381  # Target customer count for utility territory
 # TODO: lee - update this to point to the actual tariff map for the test scenario, and make sure it has the necessary information for the test scenario (e.g. contains the tariffs being tested, and any necessary parameters for those tariffs)
