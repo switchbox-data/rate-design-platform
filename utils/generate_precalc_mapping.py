@@ -40,9 +40,10 @@ def generate_default_precalc_mapping(
     min_rate = min(all_rates) if all_rates else 1.0
 
     # Second pass: build mapping with rel_value = rate / min_rate
+    # Note: periods and tiers use 1-based indexing to match PySAM/CAIRO convention
     mappings = []
-    for period_idx, period_tiers in enumerate(rate_structure):
-        for tier_idx, tier in enumerate(period_tiers):
+    for period_idx, period_tiers in enumerate(rate_structure, start=1):
+        for tier_idx, tier in enumerate(period_tiers, start=1):
             effective_rate = tier["rate"] + tier.get("adj", 0.0)
             rel_value = effective_rate / min_rate if min_rate > 0 else 1.0
             mappings.append(
