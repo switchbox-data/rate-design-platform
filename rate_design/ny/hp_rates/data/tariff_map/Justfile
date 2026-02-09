@@ -23,4 +23,3 @@ map-gas-tariff electric_utility upgrade_id output_dir="":
     --upgrade_id "{{upgrade_id}}" \
     --electric_utility "{{electric_utility}}" \
     {{ if output_dir != "" { "--output_dir \"" + output_dir + "\"" } else { "" } }}
-
