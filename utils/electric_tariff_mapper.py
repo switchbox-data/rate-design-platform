@@ -5,16 +5,10 @@ from typing import cast
 import polars as pl
 from cloudpathlib import S3Path
 
-from utils import get_project_root
+from utils import get_aws_region
 from utils.types import SBScenario, electric_utility
 
-# Project root (rate-design-platform); found by marker file, not relative path
-_PROJECT_ROOT = get_project_root()
-RATE_DESIGN_DIR = _PROJECT_ROOT / "rate_design"
-
-AWS_REGION = "us-west-2"
-
-STORAGE_OPTIONS = {"aws_region": AWS_REGION}
+STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
 
 def define_electrical_tariff_key(
@@ -50,12 +44,12 @@ def generate_electrical_tariff_mapping(
 
 
 def map_electric_tariff(
-    SB_metadata_lazy_df: pl.LazyFrame,
+    SB_metadata_df: pl.LazyFrame,
     electric_utility: electric_utility,
     SB_scenario: SBScenario,
     state: str,
 ) -> pl.LazyFrame:
-    utility_metadata_df = SB_metadata_lazy_df.filter(
+    utility_metadata_df = SB_metadata_df.filter(
         pl.col("sb.electric_utility") == electric_utility
     )
 
@@ -99,8 +93,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--output_dir",
-        default=None,
-        help="Optional directory for output CSV; default is rate_design/<state>/hp_rates/data/tariff_map/",
+        required=True,
+        help="Output directory for output CSV",
     )
     args = parser.parse_args()
 
@@ -118,7 +112,7 @@ if __name__ == "__main__":
         if not metadata_path.exists():
             raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
         # Polars scan_parquet needs a string path; S3Path.as_uri() gives s3:// URL
-        SB_metadata_lazy_df = pl.scan_parquet(
+        SB_metadata_df = pl.scan_parquet(
             str(metadata_path), storage_options=STORAGE_OPTIONS
         )
     except ValueError:
@@ -132,10 +126,10 @@ if __name__ == "__main__":
         )
         if not metadata_path.exists():
             raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
-        SB_metadata_lazy_df = pl.scan_parquet(str(metadata_path))
+        SB_metadata_df = pl.scan_parquet(str(metadata_path))
 
     # Add dummy electric utility column (deterministic by bldg_id). Later this column will be pre-existing in the SB metadata parquet.
-    SB_metadata_lazy_df_with_electric_utility = SB_metadata_lazy_df.with_columns(
+    SB_metadata_df_with_electric_utility = SB_metadata_df.with_columns(
         pl.when(pl.col("bldg_id").hash() % 3 == 0)
         .then(pl.lit("Coned"))
         .when(pl.col("bldg_id").hash() % 3 == 1)
@@ -147,35 +141,22 @@ if __name__ == "__main__":
 
     sb_scenario = SBScenario(args.SB_scenario_type, args.SB_scenario_year)
     electrical_tariff_mapping_df = map_electric_tariff(
-        SB_metadata_lazy_df=SB_metadata_lazy_df_with_electric_utility,
+        SB_metadata_df=SB_metadata_df_with_electric_utility,
         electric_utility=args.electric_utility,
         SB_scenario=sb_scenario,
         state=args.state,
     )
-    if args.output_dir:
-        try:
-            base_path = S3Path(args.output_dir)
-            output_path = base_path / f"{args.electric_utility}_{sb_scenario}.csv"
-            if not output_path.parent.exists():
-                output_path.parent.mkdir(parents=True)
-            electrical_tariff_mapping_df.sink_csv(
-                str(output_path), storage_options=STORAGE_OPTIONS
-            )
-        except ValueError:
-            base_path = Path(args.output_dir)
-            output_path = base_path / f"{args.electric_utility}_{sb_scenario}.csv"
-            if not output_path.parent.exists():
-                output_path.parent.mkdir(parents=True)
-            electrical_tariff_mapping_df.sink_csv(str(output_path))
-    else:
-        output_path = (
-            RATE_DESIGN_DIR
-            / args.state.lower()
-            / "hp_rates"
-            / "data"
-            / "tariff_map"
-            / f"{args.electric_utility}_{sb_scenario}.csv"
+    try:
+        base_path = S3Path(args.output_dir)
+        output_path = base_path / f"{args.electric_utility}_{sb_scenario}.csv"
+        if not output_path.parent.exists():
+            output_path.parent.mkdir(parents=True)
+        electrical_tariff_mapping_df.sink_csv(
+            str(output_path), storage_options=STORAGE_OPTIONS
         )
+    except ValueError:
+        base_path = Path(args.output_dir)
+        output_path = base_path / f"{args.electric_utility}_{sb_scenario}.csv"
         if not output_path.parent.exists():
             output_path.parent.mkdir(parents=True)
         electrical_tariff_mapping_df.sink_csv(str(output_path))

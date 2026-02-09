@@ -21,4 +21,4 @@ class SBScenario:
 
 electric_utility = Literal["Coned", "National Grid", "NYSEG"]
 
-gas_utility = Literal["National Grid", "NYSEG"]
+gas_utility = Literal["National Grid", "NYSEG", "RIE"]

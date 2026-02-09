@@ -5,23 +5,17 @@ from typing import cast
 import polars as pl
 from cloudpathlib import S3Path
 
-from utils import get_project_root
+from utils import get_aws_region
 from utils.types import electric_utility
 
-# Project root (rate-design-platform); found by git rev-parse --show-toplevel
-_PROJECT_ROOT = get_project_root()
-RATE_DESIGN_DIR = _PROJECT_ROOT / "rate_design"
-
-AWS_REGION = "us-west-2"
-
-STORAGE_OPTIONS = {"aws_region": AWS_REGION}
+STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
 
 def map_gas_tariff(
-    SB_metadata_lazy_df: pl.LazyFrame,
+    SB_metadata_df: pl.LazyFrame,
     electric_utility_name: electric_utility,
 ) -> pl.LazyFrame:
-    utility_metadata_df = SB_metadata_lazy_df.filter(
+    utility_metadata_df = SB_metadata_df.filter(
         pl.col("sb.electric_utility") == electric_utility_name
     )
 
@@ -60,8 +54,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--output_dir",
-        default=None,
-        help="Optional directory for output CSV; default is rate_design/<state>/hp_rates/data/tariff_map/",
+        required=True,
+        help="Output directory for output CSV",
     )
     args = parser.parse_args()
 
@@ -78,7 +72,7 @@ if __name__ == "__main__":
         )
         if not metadata_path.exists():
             raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
-        SB_metadata_lazy_df = pl.scan_parquet(
+        SB_metadata_df = pl.scan_parquet(
             str(metadata_path), storage_options=STORAGE_OPTIONS
         )
     except ValueError:  # If the metadata path is a local path, use the Path class.
@@ -91,9 +85,9 @@ if __name__ == "__main__":
         )
         if not metadata_path.exists():
             raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
-        SB_metadata_lazy_df = pl.scan_parquet(str(metadata_path))
+        SB_metadata_df = pl.scan_parquet(str(metadata_path))
 
-    SB_metadata_lazy_df_with_utilities = SB_metadata_lazy_df.with_columns(
+    SB_metadata_df_with_utilities = SB_metadata_df.with_columns(
         pl.when(pl.col("bldg_id").hash() % 3 == 0)
         .then(pl.lit("Coned"))
         .when(pl.col("bldg_id").hash() % 3 == 1)
@@ -108,35 +102,22 @@ if __name__ == "__main__":
     #########################################################
 
     gas_tariff_mapping_df = map_gas_tariff(
-        SB_metadata_lazy_df=SB_metadata_lazy_df_with_utilities,
+        SB_metadata_df=SB_metadata_df_with_utilities,
         electric_utility_name=args.electric_utility,
     )
 
     output_filename = f"{args.electric_utility}_gas.csv"
-    if args.output_dir:
-        try:
-            out_base = S3Path(args.output_dir)
-            output_path = out_base / output_filename
-            if not output_path.parent.exists():
-                output_path.parent.mkdir(parents=True)
-            gas_tariff_mapping_df.sink_csv(
-                str(output_path), storage_options=STORAGE_OPTIONS
-            )
-        except ValueError:
-            out_base = Path(args.output_dir)
-            output_path = out_base / output_filename
-            if not output_path.parent.exists():
-                out_base.mkdir(parents=True, exist_ok=True)
-            gas_tariff_mapping_df.sink_csv(str(output_path))
-    else:
-        output_path = (
-            RATE_DESIGN_DIR
-            / args.state.lower()
-            / "hp_rates"
-            / "data"
-            / "tariff_map"
-            / output_filename
-        )
+    try:
+        out_base = S3Path(args.output_dir)
+        output_path = out_base / output_filename
         if not output_path.parent.exists():
             output_path.parent.mkdir(parents=True)
+        gas_tariff_mapping_df.sink_csv(
+            str(output_path), storage_options=STORAGE_OPTIONS
+        )
+    except ValueError:
+        out_base = Path(args.output_dir)
+        output_path = out_base / output_filename
+        if not output_path.parent.exists():
+            out_base.mkdir(parents=True, exist_ok=True)
         gas_tariff_mapping_df.sink_csv(str(output_path))
