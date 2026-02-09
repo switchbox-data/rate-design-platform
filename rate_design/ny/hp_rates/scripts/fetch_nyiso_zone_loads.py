@@ -8,7 +8,7 @@ Setup:
     2. Create .env file in project root: EIA_API_KEY=your_key_here
 
 Output structure: s3://data.sb/nyiso/loads/zone=X/year=YYYY/month=MM/data.parquet
-Schema: timestamp (timezone-aware, America/New_York), zone, load_mw, forecast_mw
+Schema: timestamp (timezone-aware, America/New_York), zone, load_mw, filled (bool)
 
 Timezone handling:
     - EIA API returns UTC timestamps (frequency='hourly')
@@ -271,6 +271,12 @@ def fetch_all_zones_from_eia(
         if not rows:
             break
         
+        # Debug: Print first few rows from first API call to verify format
+        if offset == 0 and len(rows) > 0:
+            print(f"  First 3 raw API rows:")
+            for row in rows[:3]:
+                print(f"    period={row.get('period')}, subba={row.get('subba')}, value={row.get('value')}")
+        
         all_data.extend(rows)
         
         # Check if we got all data
@@ -382,6 +388,116 @@ def fetch_nyiso_zone_data(start_date: str, end_date: str, api_key: str) -> pl.Da
     except Exception as e:
         print(f"  ✗ Error fetching data: {e}")
         raise
+
+
+def fill_missing_hours(df: pl.DataFrame, start_date: str, end_date: str) -> pl.DataFrame:
+    """Fill missing hours with linear interpolation.
+    
+    Safety constraint: Will only interpolate if there are no more than 2 consecutive
+    missing hours at any zone. If 3+ consecutive hours are missing, raises an error.
+    
+    Args:
+        df: DataFrame with zone load data (timezone-aware timestamps in Eastern Time)
+        start_date: Start date (YYYY-MM-DD)
+        end_date: End date (YYYY-MM-DD)
+        
+    Returns:
+        DataFrame with missing hours filled via interpolation, including 'filled' column
+        to track which rows were interpolated (True) vs. original (False)
+        
+    Raises:
+        ValueError: If any zone has 3+ consecutive missing hours
+    """
+    from zoneinfo import ZoneInfo
+    
+    print("\nChecking for missing hours and gaps...")
+    
+    # Add 'filled' column to original data (all False initially)
+    df = df.with_columns(pl.lit(False).alias("filled"))
+    
+    start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=ZoneInfo("America/New_York"))
+    end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=ZoneInfo("America/New_York"))
+    
+    # Generate complete hourly range
+    all_timestamps = []
+    current = start_dt
+    while current <= end_dt:
+        for hour in range(24):
+            try:
+                ts = current.replace(hour=hour, minute=0, second=0, microsecond=0)
+                if ts <= end_dt.replace(hour=23, minute=0, second=0):
+                    all_timestamps.append(ts)
+            except:
+                pass  # Skip invalid hours (DST spring forward)
+        current += timedelta(days=1)
+    
+    all_zones_data = []
+    
+    for zone in NYISO_ZONES:
+        zone_df = df.filter(pl.col("zone") == zone).sort("timestamp")
+        actual_timestamps = set(zone_df['timestamp'].to_list())
+        expected_set = set(all_timestamps)
+        missing = sorted(expected_set - actual_timestamps)
+        
+        if not missing:
+            print(f"  ✓ Zone {zone}: Complete (no missing hours)")
+            all_zones_data.append(zone_df)
+            continue
+        
+        # Check for consecutive gaps
+        consecutive_gaps = []
+        current_gap = [missing[0]]
+        
+        for i in range(1, len(missing)):
+            if missing[i] - missing[i-1] == timedelta(hours=1):
+                current_gap.append(missing[i])
+            else:
+                consecutive_gaps.append(current_gap)
+                current_gap = [missing[i]]
+        consecutive_gaps.append(current_gap)
+        
+        max_gap = max(len(gap) for gap in consecutive_gaps)
+        
+        if max_gap > 2:
+            raise ValueError(
+                f"Zone {zone} has {max_gap} consecutive missing hours. "
+                f"First gap: {consecutive_gaps[0][0]}. "
+                f"Cannot safely interpolate gaps > 2 hours."
+            )
+        
+        print(f"  ⚠️  Zone {zone}: {len(missing)} missing hour(s), max consecutive: {max_gap}")
+        print(f"      Missing: {[ts.strftime('%m-%d %H:%M') for ts in missing]}")
+        
+        # Fill missing hours with interpolation
+        # Create complete time series with nulls for missing hours
+        complete_df = pl.DataFrame({
+            "timestamp": all_timestamps,
+            "zone": [zone] * len(all_timestamps)
+        })
+        
+        # Left join to get existing data (brings 'filled' column along)
+        filled_df = complete_df.join(zone_df, on=["timestamp", "zone"], how="left")
+        
+        # Mark rows that need interpolation (where load_mw is null) before interpolating
+        filled_df = filled_df.with_columns([
+            pl.when(pl.col("load_mw").is_null())
+            .then(pl.lit(True))
+            .otherwise(pl.col("filled"))
+            .alias("filled")
+        ])
+        
+        # Interpolate load_mw (linear interpolation between neighbors)
+        filled_df = filled_df.with_columns([
+            pl.col("load_mw").interpolate(method="linear").alias("load_mw")
+        ])
+        
+        all_zones_data.append(filled_df)
+        print(f"      ✓ Filled via linear interpolation")
+    
+    # Combine all zones
+    result_df = pl.concat(all_zones_data)
+    
+    return result_df
 
 
 def validate_zone_data(df: pl.DataFrame, start_date: str, end_date: str) -> None:
@@ -636,6 +752,12 @@ def main():
     print(f"\nFiltered to exact date range: {start_date} 00:00 to {end_date} 23:00 (Eastern Time)")
     print(f"Total rows after filtering: {len(df):,}")
     
+    # Fill missing hours with interpolation (raises error if gaps > 2 consecutive hours)
+    df = fill_missing_hours(df, start_date, end_date)
+    print(f"Total rows after gap filling: {len(df):,}")
+    filled_count = df.filter(pl.col("filled") == True).shape[0]
+    print(f"Interpolated rows: {filled_count} ({filled_count/len(df)*100:.2f}%)")
+    
     # Debug: Check for missing hours in one zone (with timezone-aware timestamps)
     debug_zone = df.filter(pl.col("zone") == "A").sort("timestamp")
     if len(debug_zone) > 0:
@@ -710,9 +832,9 @@ def main():
     print(f"\nSample data (last 10 rows):")
     print(df.tail(10))
     
-    # Show what would be uploaded (S3 upload disabled for testing)
+    # Upload to S3
     print("\n" + "="*60)
-    print("⚠️  S3 UPLOAD DISABLED FOR TESTING")
+    print("UPLOADING TO S3")
     print("="*60)
     
     # Add year/month columns to show partition structure
@@ -723,7 +845,7 @@ def main():
     
     # Show partition summary
     partitions = df_with_partitions.select(["zone", "year", "month"]).unique().sort(["zone", "year", "month"])
-    print(f"\nWould create {len(partitions)} partitions:")
+    print(f"\nPreparing to upload {len(partitions)} partitions:")
     for row in partitions.iter_rows(named=True):
         zone, year, month = row["zone"], row["year"], row["month"]
         count = len(df_with_partitions.filter(
@@ -733,14 +855,11 @@ def main():
         ))
         print(f"  zone={zone}/year={year}/month={month:02d}/ - {count:,} rows")
     
-    print(f"\nTo enable upload, uncomment the upload_zone_data_to_s3() call in main()")
-    
-    # Uncomment to actually upload:
-    # upload_zone_data_to_s3(df, args.s3_base, skip_existing=skip_existing)
+    # Upload to S3
+    upload_zone_data_to_s3(df, args.s3_base, skip_existing=skip_existing)
     
     print("\n" + "="*60)
-    print("✓ NYISO zone load data fetch completed successfully")
-    print("✓ Data ready for inspection (not uploaded)")
+    print("✓ NYISO zone load data fetch and upload completed successfully")
     print("="*60)
 
 
