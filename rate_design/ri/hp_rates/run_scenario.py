@@ -4,7 +4,6 @@ import json
 import logging
 from pathlib import Path
 
-from cairo.rates_tool.loads import _return_load
 from cairo.rates_tool.systemsimulator import (
     MeetRevenueSufficiencySystemWide,
     _return_export_compensation_rate,
@@ -17,6 +16,7 @@ from cairo.utils.marginal_costs.marginal_cost_calculator import (
 
 from utils.cairo import (
     _initialize_tariffs,
+    _return_load,
     build_bldg_id_to_load_filepath,
     return_buildingstock,
 )
@@ -111,7 +111,7 @@ sell_rate = _return_export_compensation_rate(
 
 bldg_id_to_load_filepath = build_bldg_id_to_load_filepath(
     path_resstock_loads=path_resstock_loads,
-    return_path_base=path_resstock / "loads",
+    building_ids=prototype_ids,
 )
 
 # process load directly or find where load stored
@@ -121,14 +121,12 @@ bldg_id_to_load_filepath = build_bldg_id_to_load_filepath(
 raw_load_elec = _return_load(
     load_type="electricity",
     target_year=test_year_run,
-    building_stock_sample=prototype_ids,
     load_filepath_key=bldg_id_to_load_filepath,
     force_tz="EST",
 )
 raw_load_gas = _return_load(
     load_type="gas",
     target_year=test_year_run,
-    building_stock_sample=prototype_ids,
     load_filepath_key=bldg_id_to_load_filepath,
     force_tz="EST",
 )

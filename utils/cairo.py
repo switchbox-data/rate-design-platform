@@ -5,7 +5,10 @@ import pandas as pd
 import polars as pl
 from pathlib import Path, PurePath
 
-from cairo.rates_tool import config
+import dask
+
+from cairo.rates_tool import config, lookups
+from cairo.rates_tool.loads import _load_worker
 from cairo.rates_tool.tariffs import URDBv7_to_ElectricityRates
 
 # Default columns to load from buildingstock metadata parquet files.
@@ -37,6 +40,7 @@ DEFAULT_BUILDINGSTOCK_COLUMNS: list[str] = [
 
 def build_bldg_id_to_load_filepath(
     path_resstock_loads: Path,
+    building_ids: list[int] | None = None,
     return_path_base: Path | None = None,
 ) -> dict[int, Path]:
     """
@@ -44,6 +48,7 @@ def build_bldg_id_to_load_filepath(
 
     Args:
         path_resstock_loads: Directory containing parquet load files to scan
+        building_ids: Optional list of building IDs to include. If None, includes all.
         return_path_base: Base directory for returned paths.
             If None, returns actual file paths from path_resstock_loads.
             If Path, returns paths as return_path_base / filename.
@@ -57,12 +62,17 @@ def build_bldg_id_to_load_filepath(
     if not path_resstock_loads.exists():
         raise FileNotFoundError(f"Load directory not found: {path_resstock_loads}")
 
+    building_ids_set = set(building_ids) if building_ids is not None else None
+
     bldg_id_to_load_filepath = {}
     for parquet_file in path_resstock_loads.glob("*.parquet"):
         try:
             bldg_id = int(parquet_file.stem.split("-")[0])
         except ValueError:
             continue  # Skip files that don't match expected pattern
+
+        if building_ids_set is not None and bldg_id not in building_ids_set:
+            continue
 
         if return_path_base is None:
             filepath = parquet_file
@@ -226,3 +236,62 @@ def return_buildingstock(
         df = df.with_columns(pl.lit(default_weight).alias("weight"))
 
     return df.to_pandas()
+
+
+# Column renames from ResStock parquet names to CAIRO internal names
+_LOAD_COL_RENAMES = {
+    "timestamp": "time",
+    "out.electricity.total.energy_consumption": "load_data",
+    "out.natural_gas.total.energy_consumption": "load_data",
+    "out.electricity.net.energy_consumption": "electricity_net",
+    "out.electricity.pv.energy_consumption": "pv_generation",
+}
+
+
+def _return_load(
+    load_type: str,
+    target_year: int,
+    load_filepath_key: dict[int, Path],
+    force_tz: str | None = None,
+) -> pd.DataFrame:
+    """
+    Load hourly building load profiles from per-building parquet files.
+
+    Alternative to cairo.rates_tool.loads._return_load that handles
+    per-building files where bldg_id is not the parquet index.
+    Reads each file, sets bldg_id as index, renames columns to CAIRO
+    conventions, then delegates to CAIRO's _load_worker pipeline for
+    time correction, year shifting, and timezone localization.
+
+    Args:
+        load_type: 'electricity' or 'gas'
+        target_year: Target year for timestamp alignment
+        load_filepath_key: Dict mapping bldg_id -> parquet file path
+        force_tz: Timezone string to apply (e.g. 'EST'), or None
+
+    Returns:
+        pd.DataFrame with MultiIndex ['bldg_id', 'time'], 8760 rows per building
+    """
+    assert load_type in ["electricity", "gas"], "load_type must be 'electricity' or 'gas'"
+    load_col_key = "total_fuel_electricity" if load_type == "electricity" else "total_fuel_gas"
+
+    delayed_results = []
+    for bldg_id, filepath in load_filepath_key.items():
+        # Read parquet, set bldg_id as index, rename cols to CAIRO conventions
+        df = pd.read_parquet(filepath, engine="pyarrow", columns=lookups.load_types_map[load_col_key])
+        df.index = pd.Index([bldg_id] * len(df), name="bldg_id")
+        df = df.rename(columns=_LOAD_COL_RENAMES)
+
+        # Handle electricity_net when PV data is present
+        if "electricity_net" not in df.columns and "pv_generation" in df.columns and load_col_key != "total_fuel_gas":
+            if all(df["pv_generation"] == 0.0):
+                df["electricity_net"] = df["load_data"]
+            elif any(df["pv_generation"] < 0.0):
+                df["electricity_net"] = df["load_data"] + df["pv_generation"]
+            else:
+                df["electricity_net"] = df["load_data"] - df["pv_generation"]
+
+        delayed_results.append(dask.delayed(_load_worker)(bldg_id, df, load_col_key, target_year, force_tz))
+
+    results = dask.compute(delayed_results)[0]
+    return pd.concat(results)
