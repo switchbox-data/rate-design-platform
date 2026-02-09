@@ -66,8 +66,7 @@ target_customer_count = 451381  # Target customer count for utility territory
 # TODO: lee - update this to point to the actual tariff map for the test scenario, and make sure it has the necessary information for the test scenario (e.g. contains the tariffs being tested, and any necessary parameters for those tariffs)
 path_tariff_map = path_config / "tariff_map" / "precalculation_testing.csv"
 tariff_map_name = path_tariff_map.stem
-# TODO: lee - make dummy gas tariff files for RI test scenario, and update this to point to those files
-gas_tariff_map_name = "dummy_gas"  # Gas tariff map name for gas bill calculation
+path_gas_tariff_map = path_config / "tariff_map" / "gas_tariff_map.csv"
 
 process_workers = 20
 
@@ -76,12 +75,22 @@ process_workers = 20
 tariff_paths = {
     "rie_a16": path_config / "tariff_structure" / "tariff_structure_rie_a16.json",
 }
+gas_tariff_paths = {
+    "dummy_gas": path_config / "tariff_structure" / "tariff_structure_dummy_gas.json",
+}
 
 # Load in and manipulate tariff information as needed for bill calculation
 tariffs_params, tariff_map_df = _initialize_tariffs(
     tariff_map=path_tariff_map,
     building_stock_sample=prototype_ids,
     tariff_paths=tariff_paths,
+)
+
+# Initialize gas tariffs using the same pattern as electricity
+gas_tariffs_params, gas_tariff_map_df = _initialize_tariffs(
+    tariff_map=path_gas_tariff_map,
+    building_stock_sample=prototype_ids,
+    tariff_paths=gas_tariff_paths,
 )
 
 # Generate precalc mapping from RIE A-16 tariff structure
@@ -181,7 +190,7 @@ bs.simulate(
     customer_metadata=customer_metadata,
     customer_electricity_load=raw_load_elec,
     customer_gas_load=raw_load_gas,
-    gas_tariff_map=gas_tariff_map_name,
+    gas_tariff_map=gas_tariff_map_df,
     load_cols="total_fuel_electricity",
     marginal_system_prices=marginal_system_prices,
     costs_by_type=costs_by_type,
