@@ -51,10 +51,9 @@ path_resstock_metadata = (
 path_resstock_loads = (
     path_resstock / "load_curve_hourly" / f"state={state}" / f"upgrade={upgrade}"
 )
-# TODO: alex - make dummy zero-valued marginal costs file for RI test scenario, and update this path to point to that file
-path_cambium_marginal_costs = (
-    path_config / "marginal_costs" / "example_marginal_costs.csv"
-)
+
+path_cambium_marginal_costs =  Path("/data.sb/nrel/cambium/dummy_rie_marginal_costs.csv")
+
 path_results = Path("/data.sb/switchbox/cairo/ri_default_test_run/")
 # TODO: alex - figure out how cairo is adjusting for inflation and make sure this is consistent with the test scenario parameters
 test_revenue_requirement_target = 241869601  # $241,869,601
