@@ -73,9 +73,9 @@ process_workers = 20
 
 # RIE Residential Tariffs (A-16 for standard residential)
 # Fixed Customer Charge: $6.75/month, Volumetric Distribution Charge: $0.06455/kWh
-tariff_paths = [
-    path_config / "tariff_structure" / "tariff_structure_rie_a16.json",
-]
+tariff_paths = {
+    "rie_a16": path_config / "tariff_structure" / "tariff_structure_rie_a16.json",
+}
 
 # Load in and manipulate tariff information as needed for bill calculation
 tariffs_params, tariff_map_df = _initialize_tariffs(
