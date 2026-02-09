@@ -93,8 +93,8 @@ precalc_mapping = generate_default_precalc_mapping(
 
 # read in basic customer-level information
 customer_metadata = return_buildingstock(
-    load_scenario=path_resstock_metadata,
-    building_stock_sample=prototype_ids,
+    metadata_path=path_resstock_metadata,
+    building_ids=prototype_ids,
 )
 
 # Reweight customer metadata to match utility customer count
