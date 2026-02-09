@@ -9,8 +9,10 @@ license = { text = "MIT" }
 dependencies = [
     "buildstock-fetch>=1.6.1",
     "cairo",
-    "polars",
+    "cloudpathlib[s3]>=0.23.0",
     "numpy",
+    "polars",
+    "prek>=0.3.2",
     "pyarrow",
 ]
 
@@ -42,4 +44,4 @@ include = ["rate_design*", "utils*"]
 ]
 
 [tool.uv.sources]
-cairo = { git = "https://github.com/switchbox-data/CAIRO", rev = "sz/gas_billing" }
+cairo = { git = "https://github.com/NatLabRockies/CAIRO", rev = "main" }

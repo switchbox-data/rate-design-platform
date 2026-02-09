@@ -1,8 +1,9 @@
 """Entrypoint for running NY heat pump rate scenarios (stub)."""
 
 import logging
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
 from cairo.rates_tool.loads import _return_load, return_buildingstock
 from cairo.rates_tool.systemsimulator import (
     MeetRevenueSufficiencySystemWide,
@@ -52,6 +53,7 @@ year_dollar_conversion = 2021
 test_solar_pv_compensation = "net_metering"
 run_name = "tests_precalc"
 target_customer_count = 3650  # Target customer count for utility territory
+gas_tariff_map_name = "dummy_gas"  # Gas tariff map name for gas bill calculation
 
 process_workers = 20
 
@@ -118,7 +120,6 @@ bldg_id_to_load_filepath = build_bldg_id_to_load_filepath(
 # and return 8760 profiles for each. Prototype ids and tariff. Make sure nice mathematical
 # properties. Maybe constants_tests.py has data needed for this.
 raw_load_elec = _return_load(
-    raw_load_passed=None,
     load_type="electricity",
     target_year=test_year_run,
     building_stock_sample=prototype_ids,
@@ -126,7 +127,6 @@ raw_load_elec = _return_load(
     force_tz="EST",
 )
 raw_load_gas = _return_load(
-    raw_load_passed=None,
     load_type="gas",
     target_year=test_year_run,
     building_stock_sample=prototype_ids,
@@ -164,7 +164,6 @@ bs = MeetRevenueSufficiencySystemWide(
     run_name=run_name,
     output_dir=path_results,  # will default to this folder if not pass, mostly testing ability for user to pass arbitrary output directory
 )
-bs.tariff_map = tariff_map_name
 
 # TODO: add (maybe post-processing)module for delivered fuels bills
 bs.simulate(
@@ -175,6 +174,7 @@ bs.simulate(
     customer_metadata=customer_metadata,
     customer_electricity_load=raw_load_elec,
     customer_gas_load=raw_load_gas,
+    gas_tariff_map=gas_tariff_map_name,
     load_cols="total_fuel_electricity",
     marginal_system_prices=marginal_system_prices,
     costs_by_type=costs_by_type,
