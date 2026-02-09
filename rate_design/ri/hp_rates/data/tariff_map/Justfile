@@ -14,6 +14,36 @@ map-electric-tariff electric_utility SB_scenario_type SB_scenario_year upgrade_i
     --SB_scenario_year "{{SB_scenario_year}}" \
     {{ if output_dir != "" { "--output_dir \"" + output_dir + "\"" } else { "" } }}
 
+# Some useful enumerations:
+
+map-coned-default:
+  just map-electric-tariff Coned default 1 00
+
+map-coned-seasonal:
+  just map-electric-tariff Coned seasonal 1 00
+
+map-coned-class-specific-seasonal:
+  just map-electric-tariff Coned class_specific_seasonal 1 00
+
+map-national-grid-default:
+  just map-gas-tariff National Grid 00
+
+map-national-grid-seasonal:
+  just map-gas-tariff National Grid 00
+
+map-national-grid-class-specific-seasonal:
+  just map-gas-tariff National Grid 00
+
+map-nyseg-default:
+  just map-gas-tariff NYSEG 00
+
+map-nyseg-seasonal:
+  just map-gas-tariff NYSEG 00
+
+map-nyseg-class-specific-seasonal:
+  just map-gas-tariff NYSEG 00
+
+
 # Usage: just map-gas-tariff [electric_utility] [upgrade_id] [output_dir]
 # Example: just map-gas-tariff National Grid 00
 map-gas-tariff electric_utility upgrade_id output_dir="":
@@ -23,3 +53,23 @@ map-gas-tariff electric_utility upgrade_id output_dir="":
     --upgrade_id "{{upgrade_id}}" \
     --electric_utility "{{electric_utility}}" \
     {{ if output_dir != "" { "--output_dir \"" + output_dir + "\"" } else { "" } }}
+
+# Some useful enumerations:
+
+map-national-grid-default:
+  just map-gas-tariff National Grid 00
+
+map-national-grid-seasonal:
+  just map-gas-tariff National Grid 00
+
+map-national-grid-class-specific-seasonal:
+  just map-gas-tariff National Grid 00
+
+map-nyseg-default:
+  just map-gas-tariff NYSEG 00
+
+map-nyseg-seasonal:
+  just map-gas-tariff NYSEG 00
+
+map-nyseg-class-specific-seasonal:
+  just map-gas-tariff NYSEG 00
