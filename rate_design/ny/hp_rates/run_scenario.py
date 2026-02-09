@@ -165,7 +165,6 @@ bs = MeetRevenueSufficiencySystemWide(
     run_name=run_name,
     output_dir=path_results,  # will default to this folder if not pass, mostly testing ability for user to pass arbitrary output directory
 )
-# bs.tariff_map = tariff_map_name
 
 # TODO: add (maybe post-processing)module for delivered fuels bills
 bs.simulate(
