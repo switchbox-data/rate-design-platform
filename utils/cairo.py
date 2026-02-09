@@ -2,10 +2,36 @@
 
 import json
 import pandas as pd
+import polars as pl
 from pathlib import Path, PurePath
 
 from cairo.rates_tool import config
 from cairo.rates_tool.tariffs import URDBv7_to_ElectricityRates
+
+# Default columns to load from buildingstock metadata parquet files.
+# Mirrors cairo.rates_tool.lookups.summary_buildings_cols_keep
+DEFAULT_BUILDINGSTOCK_COLUMNS: list[str] = [
+    "bldg_id",
+    "weight",
+    "applicability",
+    "upgrade",
+    "in.income",
+    "in.ashrae_iecc_climate_zone_2004",
+    "in.census_region",
+    "in.county_and_puma",
+    "in.federal_poverty_level",
+    "in.geometry_building_type_recs",
+    "in.geometry_building_type_acs",
+    "in.has_pv",
+    "in.pv_orientation",
+    "in.pv_system_size",
+    "in.occupants",
+    "in.tenure",
+    "in.vintage",
+    "in.vintage_acs",
+    "out.electricity.total.energy_consumption.kwh",
+    "out.natural_gas.total.energy_consumption.kwh",
+]
 
 
 def build_bldg_id_to_load_filepath(
@@ -143,3 +169,59 @@ def _initialize_tariffs(
     param_grid = get_default_tariff_structures(tariff_paths)
 
     return param_grid, tariff_map_df
+
+
+def return_buildingstock(
+    metadata_path: Path,
+    columns: list[str] | None = None,
+    building_ids: list[int] | None = None,
+    default_weight: float = 1.0,
+) -> pd.DataFrame:
+    """
+    Load buildingstock metadata from parquet with custom column selection.
+
+    Alternative to cairo.rates_tool.loads.return_buildingstock with:
+    - Custom column selection (only loads columns that exist)
+    - Default weight values when 'weight' column is missing
+
+    Args:
+        metadata_path: Path to the buildingstock metadata parquet file
+        columns: List of columns to load. If None, uses DEFAULT_BUILDINGSTOCK_COLUMNS.
+                 Columns that don't exist are silently skipped.
+                 'bldg_id' is always included.
+        building_ids: Optional list of building IDs to filter to.
+        default_weight: Default weight value when 'weight' column is missing (default: 1.0)
+
+    Returns:
+        pd.DataFrame with 'bldg_id' and 'weight' columns guaranteed
+
+    Raises:
+        FileNotFoundError: If metadata_path does not exist
+        ValueError: If 'bldg_id' column is not in the parquet file
+    """
+    if not metadata_path.exists():
+        raise FileNotFoundError(f"Parquet file not found: {metadata_path}")
+
+    if columns is None:
+        columns = DEFAULT_BUILDINGSTOCK_COLUMNS
+
+    schema = pl.read_parquet_schema(metadata_path)
+    available_cols = set(schema.keys())
+
+    if "bldg_id" not in available_cols:
+        raise ValueError(
+            f"Required column 'bldg_id' not found in {metadata_path}. "
+            f"Available columns: {sorted(available_cols)}"
+        )
+
+    columns_to_load = ["bldg_id"] + [c for c in columns if c in available_cols and c != "bldg_id"]
+
+    df = pl.read_parquet(metadata_path, columns=columns_to_load)
+
+    if building_ids is not None:
+        df = df.filter(pl.col("bldg_id").is_in(building_ids))
+
+    if "weight" not in df.columns:
+        df = df.with_columns(pl.lit(default_weight).alias("weight"))
+
+    return df.to_pandas()

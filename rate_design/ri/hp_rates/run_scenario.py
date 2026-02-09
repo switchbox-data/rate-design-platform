@@ -4,8 +4,7 @@ import json
 import logging
 from pathlib import Path
 
-import pandas as pd
-from cairo.rates_tool.loads import _return_load, return_buildingstock
+from cairo.rates_tool.loads import _return_load
 from cairo.rates_tool.systemsimulator import (
     MeetRevenueSufficiencySystemWide,
     _return_export_compensation_rate,
@@ -16,15 +15,17 @@ from cairo.utils.marginal_costs.marginal_cost_calculator import (
     add_distribution_costs,
 )
 
-from utils.cairo import _initialize_tariffs, build_bldg_id_to_load_filepath
+from utils.cairo import (
+    _initialize_tariffs,
+    build_bldg_id_to_load_filepath,
+    return_buildingstock,
+)
 from utils.generate_precalc_mapping import generate_default_precalc_mapping
 from utils.reweight_customer_counts import reweight_customer_counts
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
-log.info(
-    ".... Beginning RI residential (non-LMI) rate scenario - RIE A-16 tariff"
-)
+log.info(".... Beginning RI residential (non-LMI) rate scenario - RIE A-16 tariff")
 
 prototype_ids = [
     3837,
@@ -52,13 +53,13 @@ path_resstock_loads = (
     path_resstock / "load_curve_hourly" / f"state={state}" / f"upgrade={upgrade}"
 )
 
-path_cambium_marginal_costs =  Path("/data.sb/nrel/cambium/dummy_rie_marginal_costs.csv")
+path_cambium_marginal_costs = Path("/data.sb/nrel/cambium/dummy_rie_marginal_costs.csv")
 
 path_results = Path("/data.sb/switchbox/cairo/ri_default_test_run/")
 # TODO: alex - figure out how cairo is adjusting for inflation and make sure this is consistent with the test scenario parameters
 test_revenue_requirement_target = 241869601  # $241,869,601
-test_year_run = 2019 # set to analysis year, will be used to set datetime on load curves AND for inflation adjustment target year
-year_dollar_conversion = 2025 # this is a placeholder value that is required but never applied. See dollar_year_conversion._apply_price_inflator() - functionally returns its own input df
+test_year_run = 2019  # set to analysis year, will be used to set datetime on load curves AND for inflation adjustment target year
+year_dollar_conversion = 2025  # this is a placeholder value that is required but never applied. See dollar_year_conversion._apply_price_inflator() - functionally returns its own input df
 
 target_customer_count = 451381  # Target customer count for utility territory
 # TODO: lee - update this to point to the actual tariff map for the test scenario, and make sure it has the necessary information for the test scenario (e.g. contains the tariffs being tested, and any necessary parameters for those tariffs)
