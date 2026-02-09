@@ -59,9 +59,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Create a flat-rate URDB v7 format tariff JSON file"
     )
-    parser.add_argument(
-        "--label", required=True, help="Tariff label/identifier"
-    )
+    parser.add_argument("--label", required=True, help="Tariff label/identifier")
     parser.add_argument(
         "--volumetric-rate",
         type=float,
@@ -85,9 +83,7 @@ def main():
         default="GenericUtility",
         help="Utility name (default: GenericUtility)",
     )
-    parser.add_argument(
-        "--output-path", required=True, help="Output JSON file path"
-    )
+    parser.add_argument("--output-path", required=True, help="Output JSON file path")
 
     args = parser.parse_args()
 

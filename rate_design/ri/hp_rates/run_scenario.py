@@ -68,7 +68,7 @@ test_solar_pv_compensation = "net_metering"
 
 target_customer_count = 451381  # Target customer count for utility territory
 # TODO: lee - update this to point to the actual tariff map for the test scenario, and make sure it has the necessary information for the test scenario (e.g. contains the tariffs being tested, and any necessary parameters for those tariffs)
-path_tariff_map = path_config / "tariff_map" / "precalculation_testing.csv"
+path_tariff_map = path_config / "tariff_map" / "dummy_electric_tariff_ri_run_1.csv"
 tariff_map_name = path_tariff_map.stem
 path_gas_tariff_map = path_config / "tariff_map" / "gas_tariff_map.csv"
 

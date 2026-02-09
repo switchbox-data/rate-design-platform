@@ -677,8 +677,8 @@
         ]
       ],
       "fixedchargefirstmeter": 15.76,
-      "fixedchargeunits": "$\/month",
-      "mincharge": -1E38,
+      "fixedchargeunits": "$/month",
+      "mincharge": -1e+38,
       "minchargeunits": "$/month",
       "utility": "ConEdison",
       "servicetype": "Bundled",

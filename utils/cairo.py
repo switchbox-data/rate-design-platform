@@ -181,7 +181,9 @@ def _initialize_tariffs(
         ValueError: If tariff_map type is unsupported
     """
     if isinstance(tariff_map, str):
-        base_dir = tariff_map_dir if tariff_map_dir is not None else config.TARIFFSSTOCKMAP
+        base_dir = (
+            tariff_map_dir if tariff_map_dir is not None else config.TARIFFSSTOCKMAP
+        )
         tariff_map_fp = base_dir / f"tariff_map_{tariff_map}.csv"
         if not tariff_map_fp.exists():
             raise FileNotFoundError(f"Tariff map not found: {tariff_map_fp}")
@@ -193,7 +195,9 @@ def _initialize_tariffs(
     elif isinstance(tariff_map, pd.DataFrame):
         tariff_map_df = tariff_map
     else:
-        raise ValueError(f"tariff_map must be str, Path, or DataFrame, got {type(tariff_map)}")
+        raise ValueError(
+            f"tariff_map must be str, Path, or DataFrame, got {type(tariff_map)}"
+        )
 
     if building_stock_sample is not None:
         tariff_map_df = tariff_map_df.loc[
@@ -248,7 +252,9 @@ def return_buildingstock(
             f"Available columns: {sorted(available_cols)}"
         )
 
-    columns_to_load = ["bldg_id"] + [c for c in columns if c in available_cols and c != "bldg_id"]
+    columns_to_load = ["bldg_id"] + [
+        c for c in columns if c in available_cols and c != "bldg_id"
+    ]
 
     df = pl.read_parquet(metadata_path, columns=columns_to_load)
 
@@ -295,18 +301,28 @@ def _return_load(
     Returns:
         pd.DataFrame with MultiIndex ['bldg_id', 'time'], 8760 rows per building
     """
-    assert load_type in ["electricity", "gas"], "load_type must be 'electricity' or 'gas'"
-    load_col_key = "total_fuel_electricity" if load_type == "electricity" else "total_fuel_gas"
+    assert load_type in ["electricity", "gas"], (
+        "load_type must be 'electricity' or 'gas'"
+    )
+    load_col_key = (
+        "total_fuel_electricity" if load_type == "electricity" else "total_fuel_gas"
+    )
 
     delayed_results = []
     for bldg_id, filepath in load_filepath_key.items():
         # Read parquet, set bldg_id as index, rename cols to CAIRO conventions
-        df = pd.read_parquet(filepath, engine="pyarrow", columns=lookups.load_types_map[load_col_key])
+        df = pd.read_parquet(
+            filepath, engine="pyarrow", columns=lookups.load_types_map[load_col_key]
+        )
         df.index = pd.Index([bldg_id] * len(df), name="bldg_id")
         df = df.rename(columns=_LOAD_COL_RENAMES)
 
         # Handle electricity_net when PV data is present
-        if "electricity_net" not in df.columns and "pv_generation" in df.columns and load_col_key != "total_fuel_gas":
+        if (
+            "electricity_net" not in df.columns
+            and "pv_generation" in df.columns
+            and load_col_key != "total_fuel_gas"
+        ):
             if all(df["pv_generation"] == 0.0):
                 df["electricity_net"] = df["load_data"]
             elif any(df["pv_generation"] < 0.0):
@@ -314,7 +330,9 @@ def _return_load(
             else:
                 df["electricity_net"] = df["load_data"] - df["pv_generation"]
 
-        delayed_results.append(dask.delayed(_load_worker)(bldg_id, df, load_col_key, target_year, force_tz))
+        delayed_results.append(
+            dask.delayed(_load_worker)(bldg_id, df, load_col_key, target_year, force_tz)
+        )
 
     results = dask.compute(delayed_results)[0]
     return pd.concat(results)
