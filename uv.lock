@@ -295,7 +295,7 @@ wheels = [
 [[package]]
 name = "cairo"
 version = "0.1.0"
-source = { git = "https://github.com/switchbox-data/CAIRO?rev=sz%2Fgas_billing#1104e4b0d791587520695e375b23b587ef86d224" }
+source = { git = "https://github.com/NatLabRockies/CAIRO?rev=main#cda9613ec90b804040e477b43ef24a8f9e0b8986" }
 dependencies = [
     { name = "dask" },
     { name = "natsort" },
@@ -1581,7 +1581,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "buildstock-fetch", specifier = ">=1.6.1" },
-    { name = "cairo", git = "https://github.com/switchbox-data/CAIRO?rev=sz%2Fgas_billing" },
+    { name = "cairo", git = "https://github.com/NatLabRockies/CAIRO?rev=main" },
     { name = "cloudpathlib", extras = ["s3"], specifier = ">=0.23.0" },
     { name = "numpy" },
     { name = "polars" },
