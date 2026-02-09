@@ -262,7 +262,7 @@ wheels = [
 
 [[package]]
 name = "buildstock-fetch"
-version = "1.6.3"
+version = "1.6.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aioboto3" },
@@ -273,6 +273,7 @@ dependencies = [
     { name = "cloudpathlib" },
     { name = "httpx" },
     { name = "polars" },
+    { name = "prek" },
     { name = "psutil" },
     { name = "pyarrow" },
     { name = "questionary" },
@@ -286,9 +287,9 @@ dependencies = [
     { name = "useful-types" },
     { name = "xmltodict" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e7/dc/f3ad7a8dddc6c02373ba6394ef8f715cba8fdc1cfaeac96ccdf9747f2067/buildstock_fetch-1.6.3.tar.gz", hash = "sha256:fb3715c407b5a12e95f59c4f939a22de21e6c62700cc5aa4773da0388ce3a93f", size = 80071521, upload-time = "2026-02-06T19:00:59.508Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/01/79/b2dfd5589bdeb1d78a0cec7d9b5efed4b992bb45de31e09d1cdee96de55d/buildstock_fetch-1.6.4.tar.gz", hash = "sha256:b7aafe88d81392a0780da0dbeb399252d6c7c6bec024f111a8022223e289ad76", size = 80072798, upload-time = "2026-02-09T18:01:39.378Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5b/c2/a4c22eea5873729e0be6b7f9fe8bcb8ab44a44f9b4da02774d3d1c856e98/buildstock_fetch-1.6.3-py3-none-any.whl", hash = "sha256:9e0cba5460effe2a04fae094690d72a0e0d8c97ecc25767b9be2b34d45dfad5e", size = 80540225, upload-time = "2026-02-06T19:00:50.492Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/44/3bb1213d0c51e7d0c6256a6dd41c7e694b727ef6ff5c6914eb44778a4db0/buildstock_fetch-1.6.4-py3-none-any.whl", hash = "sha256:b702b02bca274f227b42afce6a9d0294bc45539ccf5d1a0b36668f5d6052c0de", size = 80540255, upload-time = "2026-02-09T18:01:33.224Z" },
 ]
 
 [[package]]
