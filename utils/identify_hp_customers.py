@@ -1,6 +1,8 @@
 import argparse
 import io
 
+from pathlib import Path
+
 import polars as pl
 from cloudpathlib import S3Path
 
@@ -12,9 +14,13 @@ UPGRADE_HVAC_COLUMNS = [
 ]
 
 
+def _base_path(data_path: str):
+    return S3Path(data_path) if data_path.startswith("s3://") else Path(data_path)
+
+
 def get_upgrade_ids(data_path: str, release: str, state: str) -> list[str]:
     """Test that the resstock data is downloaded to the correct path."""
-    base = S3Path(data_path)
+    base = _base_path(data_path)
     release_dir = base / release
     if not release_dir.exists():
         raise FileNotFoundError(f"Release directory {release_dir} does not exist")
@@ -32,7 +38,7 @@ def get_upgrade_ids(data_path: str, release: str, state: str) -> list[str]:
     return upgrade_ids
 
 
-def identify_hp_customers(metadata_path: S3Path, upgrade_id: str):
+def identify_hp_customers(metadata_path, upgrade_id: str):
     metadata_bytes = metadata_path.read_bytes()
     metadata_df = pl.read_parquet(io.BytesIO(metadata_bytes))
 
@@ -68,7 +74,7 @@ def identify_hp_customers(metadata_path: S3Path, upgrade_id: str):
 
 def add_has_HP_column(data_path: str, release: str, state: str):
     upgrade_ids = get_upgrade_ids(data_path, release, state)
-    base = S3Path(data_path)
+    base = _base_path(data_path)
     release_dir = base / release
     if not release_dir.exists():
         raise FileNotFoundError(f"Release directory {release_dir} does not exist")

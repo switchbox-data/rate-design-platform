@@ -47,7 +47,7 @@ path_resstock_metadata = (
     / "metadata"
     / f"state={state}"
     / f"upgrade={upgrade}"
-    / "metadata.parquet"
+    / "metadata-sb.parquet"
 )
 path_resstock_loads = (
     path_resstock / "load_curve_hourly" / f"state={state}" / f"upgrade={upgrade}"
