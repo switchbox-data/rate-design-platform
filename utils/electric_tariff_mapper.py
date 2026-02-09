@@ -75,7 +75,9 @@ def map_electric_tariff(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Map electrical tariff.")
+    parser = argparse.ArgumentParser(
+        description="Utility to help assign electricity tariffs to utility customers."
+    )
     parser.add_argument(
         "--metadata_path",
         required=True,
@@ -92,7 +94,7 @@ if __name__ == "__main__":
         help="SB scenario type (e.g. default, seasonal, class_specific_seasonal)",
     )
     parser.add_argument(
-        "--SB_scenario_year", required=True, help="SB scenario year (e.g. 2024)"
+        "--SB_scenario_year", required=True, help="SB scenario year (e.g. 1 , 2, 3)"
     )
     parser.add_argument(
         "--output_dir",

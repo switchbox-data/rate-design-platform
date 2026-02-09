@@ -11,13 +11,15 @@ map-electric-tariff electric_utility SB_scenario_type SB_scenario_year upgrade_i
     --upgrade_id "{{upgrade_id}}" \
     --electric_utility "{{electric_utility}}" \
     --SB_scenario_type "{{SB_scenario_type}}" \
-    --SB_scenario_year "{{SB_scenario_year}}"
+    --SB_scenario_year "{{SB_scenario_year}}" \
     {{ if output_dir != "" { "--output_dir \"" + output_dir + "\"" } else { "" } }}
-  
-# Usage: just map-gas-tariff [gas_utility] [upgrade_id]
-# Example: just map-gas-tariff NYSEG 00
-map-gas-tariff electric_utility upgrade_id:
-  cd {{project_root}} && uv run python {{project_root}}/utils/gas_tariff_mapper.py \
-    --metadata_path "{{data_base}}/state=RI/upgrade={{upgrade_id}}/metadata-sb.parquet" \
+
+# Usage: just map-gas-tariff [electric_utility] [upgrade_id] [output_dir]
+# Example: just map-gas-tariff National Grid 00
+map-gas-tariff electric_utility upgrade_id output_dir="":
+  uv run python {{project_root}}/utils/gas_tariff_mapper.py \
+    --metadata_path "{{path_s3_resstock_metadata}}" \
     --state RI \
+    --upgrade_id "{{upgrade_id}}" \
     --electric_utility "{{electric_utility}}" \
+    {{ if output_dir != "" { "--output_dir \"" + output_dir + "\"" } else { "" } }}
