@@ -110,30 +110,31 @@ def _load_tariff_json(tariff_path: Path) -> dict:
     return tariff_data["items"][0]
 
 
-def get_default_tariff_structures(tariff_paths: list[Path]) -> dict[Path, object]:
+def get_default_tariff_structures(tariff_paths: dict[str, Path]) -> dict[str, object]:
     """
     Load tariff JSON files and convert to ElectricityRates objects.
 
     Args:
-        tariff_paths: List of paths to tariff structure JSON files (URDB v7 format)
+        tariff_paths: Dict mapping tariff key name to JSON file path.
+                      Keys must match tariff_key values in tariff map CSV.
 
     Returns:
-        Dictionary mapping tariff path to ElectricityRates object
+        Dictionary mapping tariff key (str) to ElectricityRates object
 
     Raises:
         FileNotFoundError: If any tariff file does not exist
     """
     tariff_structures = {}
-    for tariff_path in tariff_paths:
+    for tariff_key, tariff_path in tariff_paths.items():
         tariff_dict = _load_tariff_json(tariff_path)
-        tariff_structures[tariff_path] = URDBv7_to_ElectricityRates(tariff_dict)
+        tariff_structures[tariff_key] = URDBv7_to_ElectricityRates(tariff_dict)
 
     return tariff_structures
 
 
 def _initialize_tariffs(
     tariff_map: str | Path | pd.DataFrame,
-    tariff_paths: list[Path],
+    tariff_paths: dict[str, Path],
     building_stock_sample: list[int] | None = None,
     tariff_map_dir: Path | None = None,
 ) -> tuple[dict, pd.DataFrame]:
@@ -145,7 +146,8 @@ def _initialize_tariffs(
             - str: Name prefix (loads "tariff_map_{name}.csv" from tariff_map_dir)
             - Path: Direct path to CSV file
             - DataFrame: Pre-loaded tariff mapping
-        tariff_paths: List of paths to tariff structure JSON files
+        tariff_paths: Dict mapping tariff key name to JSON file path.
+                      Keys must match tariff_key values in tariff map CSV.
         building_stock_sample: Optional list of building IDs to filter
         tariff_map_dir: Directory for string-based tariff map lookup.
             If None and tariff_map is str, falls back to config.TARIFFSSTOCKMAP.
