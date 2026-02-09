@@ -18,6 +18,7 @@ from utils.cairo import (
     _initialize_tariffs,
     _return_load,
     build_bldg_id_to_load_filepath,
+    patch_postprocessor_weight_handling,
     return_buildingstock,
 )
 from utils.generate_precalc_mapping import generate_default_precalc_mapping
@@ -26,6 +27,9 @@ from utils.reweight_customer_counts import reweight_customer_counts
 log = logging.getLogger("rates_analysis").getChild("tests")
 
 log.info(".... Beginning RI residential (non-LMI) rate scenario - RIE A-16 tariff")
+
+# Apply patch for combined bill weight column handling
+patch_postprocessor_weight_handling()
 
 prototype_ids = [
     134,
