@@ -5,10 +5,7 @@ import pandas as pd
 from pathlib import Path, PurePath
 
 from cairo.rates_tool import config
-from cairo.rates_tool.tariffs import (
-    URDBv7_to_ElectricityRates,
-    __load_tariff_maps__,
-)
+from cairo.rates_tool.tariffs import URDBv7_to_ElectricityRates
 
 
 def build_bldg_id_to_load_filepath(
@@ -50,73 +47,51 @@ def build_bldg_id_to_load_filepath(
     return bldg_id_to_load_filepath
 
 
-def __find_tariff_path_by_prototype__(
-    prototype,
-    tariff_strategy,
-    # tariff_str_loc,
-    tariffsdir,
-    tarff_list_main=None,  # TODO: This variable is not found in cairo codebase - may need to be defined or passed
-):
+def _load_tariff_json(tariff_path: Path) -> dict:
     """
-    matches building stock with appropriate tariff for strategy and baseline
-    Inputs
-    ---------
-    tariffs_stock_map_path
-    prototype
+    Load and extract tariff structure from URDB v7 JSON file.
 
-    Outputs
-    ---------
-    Direct
-        - None
-    Implicit
-        - tariff path strategy - SQL or local file path (latter only temporary) after strategy implemented
-        - strategy path baseline - SQL or local file path (latter only temporary) before strategy implemented
+    Args:
+        tariff_path: Path to tariff JSON file
+
+    Returns:
+        Tariff dictionary (first item from URDB "items" array)
+
+    Raises:
+        FileNotFoundError: If tariff file does not exist
+        KeyError: If JSON structure is invalid (missing "items" key)
     """
+    if not tariff_path.exists():
+        raise FileNotFoundError(f"Tariff file not found: {tariff_path}")
 
-    tariffs_stock_map = __load_tariff_maps__(tariff_strategy)
+    with open(tariff_path) as f:
+        tariff_data = json.load(f)
 
-    tariffs_stock_map = tariffs_stock_map.loc[(tariffs_stock_map.index == prototype)]
-    tariffs_stock_map = tariffs_stock_map.to_dict(orient="index")
+    if "items" not in tariff_data or not tariff_data["items"]:
+        raise KeyError(f"Invalid tariff JSON structure in: {tariff_path}")
 
-    # Note: tarff_list_main is not found in cairo codebase - this may need to be defined
-    if tarff_list_main is None:
-        raise ValueError("tarff_list_main must be provided")
-
-    tariff_path = (
-        tariffsdir
-        / f"tariff_{tarff_list_main[tariffs_stock_map[prototype]['tariff']]}.json"
-    )
-
-    return tariff_path
+    return tariff_data["items"][0]
 
 
-def __initialize_tariff__(tariff_path):
-    with open(tariff_path) as tariff_json_file:
-        tariff_dict = json.load(tariff_json_file)
-        tariff_dict = tariff_dict["items"][0]
-
-    return tariff_dict
-
-
-def get_default_tariff_structures(tariff_paths):
+def get_default_tariff_structures(tariff_paths: list[Path]) -> dict[Path, object]:
     """
-    Sets up the initial default tariff and overwrites things as needed. Importantly it converts the
-    structure of the tariffs to the ElectricityRates structure used elsewhere in code.
-    """
+    Load tariff JSON files and convert to ElectricityRates objects.
 
-    default_tariff_dict = {tariff_path: None for tariff_path in tariff_paths}
-    # for each customer class being evaluated, process the default tariff to use as a
-    # basic structure and then overwrite as necessary with user input in lookups.py
+    Args:
+        tariff_paths: List of paths to tariff structure JSON files (URDB v7 format)
+
+    Returns:
+        Dictionary mapping tariff path to ElectricityRates object
+
+    Raises:
+        FileNotFoundError: If any tariff file does not exist
+    """
+    tariff_structures = {}
     for tariff_path in tariff_paths:
-        # read default tariff structure, convert to 'local' format from URDB json format
-        default_tariff_dict.update(
-            {tariff_path: __initialize_tariff__(tariff_path=tariff_path)}
-        )
-        default_tariff_dict.update(
-            {tariff_path: URDBv7_to_ElectricityRates(default_tariff_dict[tariff_path])}
-        )
+        tariff_dict = _load_tariff_json(tariff_path)
+        tariff_structures[tariff_path] = URDBv7_to_ElectricityRates(tariff_dict)
 
-    return default_tariff_dict
+    return tariff_structures
 
 
 def _initialize_tariffs(
