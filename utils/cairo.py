@@ -15,6 +15,7 @@ DEFAULT_BUILDINGSTOCK_COLUMNS: list[str] = [
     "weight",
     "applicability",
     "upgrade",
+    "postprocess_group.has_hp",
     "in.income",
     "in.ashrae_iecc_climate_zone_2004",
     "in.census_region",
