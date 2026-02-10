@@ -32,7 +32,8 @@ patch_postprocessor_weight_handling()
 patch_postprocessor_peak_allocation()
 
 run_name = "ri_default_test_run"
-path_project = Path(".")
+# Resolve paths relative to this script so the scenario can be run from any CWD.
+path_project = Path(__file__).resolve().parent
 path_resstock = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
 path_config = path_project / "data"
 
