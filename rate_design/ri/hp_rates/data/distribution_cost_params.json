@@ -1,9 +1,9 @@
 {
-  "annual_future_distr_costs": 69.0,
+  "annual_future_distr_costs": 80.24,
   "distr_peak_hrs": 100,
   "nc_ratio_baseline": 1.41,
   "_sources": {
-    "annual_future_distr_costs": "AESC 2024 - Regional transmission avoided cost ($69/kW-year)",
+    "annual_future_distr_costs": "Updated for RI run: $80.24/kW-year",
     "nc_ratio_baseline": "RI Energy Rate Case RY1 NCP data: Subtransmission Total NCP (1,998,811 kW) / Secondary Total NCP (1,413,473 kW) = 1.414"
   }
 }
