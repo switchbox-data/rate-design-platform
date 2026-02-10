@@ -29,14 +29,6 @@ log.info(".... Beginning RI residential (non-LMI) rate scenario - RIE A-16 tarif
 # Apply patch for combined bill weight column handling
 patch_postprocessor_weight_handling()
 
-prototype_ids = [
-    134,
-    373,
-    635,
-    958,
-    993,
-]
-
 run_name = "ri_default_test_run"
 path_project = Path(".")
 path_resstock = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
@@ -85,14 +77,12 @@ gas_tariff_paths = {
 # Load in and manipulate tariff information as needed for bill calculation
 tariffs_params, tariff_map_df = _initialize_tariffs(
     tariff_map=path_tariff_map,
-    building_stock_sample=prototype_ids,
     tariff_paths=tariff_paths,
 )
 
 # Initialize gas tariffs using the same pattern as electricity
 gas_tariffs_params, gas_tariff_map_df = _initialize_tariffs(
     tariff_map=path_gas_tariff_map,
-    building_stock_sample=prototype_ids,
     tariff_paths=gas_tariff_paths,
 )
 
@@ -107,7 +97,6 @@ precalc_mapping = generate_default_precalc_mapping(
 # read in basic customer-level information
 customer_metadata = return_buildingstock(
     metadata_path=path_resstock_metadata,
-    building_ids=prototype_ids,
 )
 
 # Reweight customer metadata to match utility customer count
@@ -123,7 +112,6 @@ sell_rate = _return_export_compensation_rate(
 
 bldg_id_to_load_filepath = build_bldg_id_to_load_filepath(
     path_resstock_loads=path_resstock_loads,
-    building_ids=prototype_ids,
 )
 
 # process load directly or find where load stored
@@ -179,7 +167,6 @@ bs = MeetRevenueSufficiencySystemWide(
     year_run=test_year_run,
     year_dollar_conversion=year_dollar_conversion,
     process_workers=process_workers,
-    building_stock_sample=prototype_ids,
     run_name=run_name,
     output_dir=path_results,  # will default to this folder if not pass, mostly testing ability for user to pass arbitrary output directory
 )
