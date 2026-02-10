@@ -14,6 +14,65 @@ import numpy as np
 import pandas as pd
 import polars as pl
 from cloudpathlib import S3Path
+from pygris import pumas as get_pumas
+
+CONFIGS: dict = {
+    "state_code": "NY",
+    "state_fips": "36",
+    "state_crs": 2260,  # New York state plane (meters)
+    "bldg_id_utility_mapping_output_path": "data.sb/nrel/resstock/<release>/utilities/<state>/utility_lookup.parquet",  # This is the output path
+    "resstock_path": "/workspaces/reports/data/ResStock/2022_resstock_amy2018_release_1.1/20230922.db",  # change to S3 metadata path
+    "electric_poly_path": "s3://data.sb/utility_territories/ny/NYS_Electric_Utility_Service_Territories.shp",
+    "gas_poly_path": "s3://data.sb/utility_territories/ny/NYS_Electric_Utility_Service_Territories.shp",
+    "utility_name_map": [
+        {
+            "state_name": "Bath Electric Gas and Water",
+            "std_name": "bath",
+        },  # TODO: Don't include in the mapping (i.e. )
+        {"state_name": "Central Hudson Gas and Electric", "std_name": "cenhud"},
+        {
+            "state_name": "Chautauqua Utilities, Inc.",
+            "std_name": "chautauqua",
+        },  # TODO: Don't include in the mapping
+        {"state_name": "Consolidated Edison", "std_name": "coned"},
+        {
+            "state_name": "Corning Natural Gas",
+            "std_name": "corning",
+        },  # TODO: Don't include in the mapping
+        {
+            "state_name": "Fillmore Gas Company",
+            "std_name": "fillmore",
+        },  # TODO: Don't include in the mapping
+        {"state_name": "National Grid - NYC", "std_name": "kedny"},
+        {"state_name": "National Grid - Long Island", "std_name": "kedli"},
+        {"state_name": "National Grid", "std_name": "nimo"},
+        {"state_name": "None", "std_name": "none"},
+        {
+            "state_name": "National Fuel Gas Distribution",
+            "std_name": "nationalfuel",
+        },
+        {"state_name": "NYS Electric and Gas", "std_name": "nyseg"},
+        {"state_name": "Orange and Rockland Utilities", "std_name": "or"},
+        {"state_name": "Long Island Power Authority", "std_name": "pseg-li"},
+        {
+            "state_name": "Reserve Gas Company",
+            "std_name": "reserve",
+        },  # TODO: Don't include in the mapping. Leave it blank/unassigned, then nearest neighbor to the nearest puma polygon, then assign based on that polygon's assignment probability
+        {"state_name": "Rochester Gas and Electric", "std_name": "rge"},
+        {
+            "state_name": "St. Lawrence Gas",
+            "std_name": "stlawrence",
+        },  # TODO: Don't include in the mapping
+        {
+            "state_name": "Valley Energy",
+            "std_name": "valley",
+        },  # TODO: Don't include in the mapping
+        {
+            "state_name": "Woodhull Municipal Gas Company",
+            "std_name": "woodhull",
+        },  # TODO: Don't include in the mapping
+    ],
+}
 
 
 ########################################################
@@ -63,122 +122,6 @@ def make_empty_utility_crosswalk(path_to_rs2024_metadata: str | Path) -> pl.Data
     return bldg_utility_mapping
 
 
-########################################################
-# Forced Utility Mapping
-########################################################
-def forced_utility_crosswalk_ri(path_to_rs2024_metadata: str | Path) -> pl.DataFrame:
-    """
-    Apply forced utility mapping for RI: electric and gas set to rhode_island_energy
-    where state is RI; gas only where natural gas consumption > 10.
-    """
-
-    USE_THESE_COLUMNS = [
-        "bldg_id",
-        "in.state",
-        "in.heating_fuel",
-        "out.natural_gas.total.energy_consumption.kwh",
-    ]
-
-    path = Path(path_to_rs2024_metadata)
-    if path.is_dir():
-        parquet_path = path / "metadata.parquet"
-    else:
-        parquet_path = path
-    out_dir = parquet_path.parent if parquet_path.suffix else path
-
-    bldg_utility_mapping = pl.read_parquet(
-        parquet_path, columns=USE_THESE_COLUMNS
-    ).with_columns(
-        pl.lit(None).cast(pl.Utf8).alias("electric_utility"),
-        pl.lit(None).cast(pl.Utf8).alias("gas_utility"),
-    )
-
-    ng_col = "out.natural_gas.total.energy_consumption.kwh"
-    bldg_utility_mapping = bldg_utility_mapping.with_columns(
-        pl.when(pl.col("in.state") == "RI")
-        .then(pl.lit("rhode_island_energy"))
-        .otherwise(pl.col("electric_utility"))
-        .alias("electric_utility"),
-        pl.when((pl.col("in.state") == "RI") & (pl.col(ng_col) > 10))
-        .then(pl.lit("rhode_island_energy"))
-        .otherwise(pl.col("gas_utility"))
-        .alias("gas_utility"),
-    )
-
-    bldg_utility_mapping.write_ipc(out_dir / "rs2024_bldg_utility_crosswalk.feather")
-    bldg_utility_mapping.write_csv(out_dir / "rs2024_bldg_utility_crosswalk.csv")
-    return bldg_utility_mapping
-
-
-########################################################
-# GIS Utility Mapping
-########################################################
-STATE_CONFIGS: dict[str, dict] = {
-    "NY": {
-        "state_fips": "36",
-        "state_crs": 2260,  # New York state plane (meters)
-        "hh_utilities_path": "/workspaces/reports/data/ResStock/utility_lookups/NY_hh_utilities.csv",  # Need to update this path
-        "resstock_path": "/workspaces/reports/data/ResStock/2022_resstock_amy2018_release_1.1/20230922.db",  # Need to update this path
-        "electric_poly_path": "/workspaces/reports/data/buildings2/Utilities/NYS_Electric_Utility_Service_Territories.csv",  # Need to update this path
-        "gas_poly_path": "/workspaces/reports/data/buildings2/Utilities/NYS_Gas_Utility_Service_Territories.csv",  # Need to update this path
-        "utility_name_map": [
-            {"state_name": "Bath Electric Gas and Water", "std_name": "bath"},
-            {"state_name": "Central Hudson Gas and Electric", "std_name": "cenhud"},
-            {"state_name": "Chautauqua Utilities, Inc.", "std_name": "chautauqua"},
-            {"state_name": "Consolidated Edison", "std_name": "coned"},
-            {"state_name": "Corning Natural Gas", "std_name": "corning"},
-            {"state_name": "Fillmore Gas Company", "std_name": "fillmore"},
-            {"state_name": "National Grid - NYC", "std_name": "kedny"},
-            {"state_name": "National Grid - Long Island", "std_name": "kedli"},
-            {"state_name": "National Grid", "std_name": "nimo"},
-            {"state_name": "None", "std_name": "none"},
-            {
-                "state_name": "National Fuel Gas Distribution",
-                "std_name": "nationalfuel",
-            },
-            {"state_name": "NYS Electric and Gas", "std_name": "nyseg"},
-            {"state_name": "Orange and Rockland Utilities", "std_name": "or"},
-            {"state_name": "Long Island Power Authority", "std_name": "pseg-li"},
-            {"state_name": "Reserve Gas Company", "std_name": "reserve"},
-            {"state_name": "Rochester Gas and Electric", "std_name": "rge"},
-            {"state_name": "St. Lawrence Gas", "std_name": "stlawrence"},
-            {"state_name": "Valley Energy", "std_name": "valley"},
-            {"state_name": "Woodhull Municipal Gas Company", "std_name": "woodhull"},
-        ],
-    },
-    "MA": {
-        "state_fips": "25",
-        "state_crs": 26986,  # Massachusetts state plane (meters)
-        "hh_utilities_path": "/workspaces/reports/data/ResStock/utility_lookups/MA_hh_utilities.csv",  # Need to update this path
-        "resstock_path": "/workspaces/reports/data/ResStock/2022_resstock_amy2018_release_1.1/rs_20250326.db",  # Need to update this path
-        "electric_poly_path": "/workspaces/reports/data/datamagov/MA_utility_territory_shapefiles_20250326/TOWNS_POLY_V_ELEC.shp",  # Need to update this path
-        "gas_poly_path": "/workspaces/reports/data/datamagov/MA_utility_territory_shapefiles_20250326/TOWNS_POLY_V_GAS.shp",  # Need to update this path
-        "utility_name_map": [
-            {"state_name": "The Berkshire Gas Company", "std_name": "berkshire"},
-            {"state_name": "Eversource Energy", "std_name": "eversource"},
-            {
-                "state_name": "NSTAR Electric d/b/a Eversource Energy",
-                "std_name": "eversource",
-            },
-            {"state_name": "Liberty Utilities", "std_name": "liberty"},
-            {"state_name": "Municipal", "std_name": "municipal"},
-            {"state_name": "National Grid", "std_name": "nationalgrid"},
-            {
-                "state_name": "Massachusetts Electric d/b/a National Grid",
-                "std_name": "nationalgrid",
-            },
-            {
-                "state_name": "Nantucket Electric Company d/b/a National Grid",
-                "std_name": "nationalgrid",
-            },
-            {"state_name": "No Natural Gas Service", "std_name": "none"},
-            {"state_name": "Unitil", "std_name": "unitil"},
-            {"state_name": "UNITIL", "std_name": "unitil"},
-        ],
-    },
-}
-
-
 def get_bldg_by_utility(
     state_code: str,
     utility_electric: str | list[str] | None = None,
@@ -201,15 +144,12 @@ def get_bldg_by_utility(
     Returns:
         DataFrame with columns bldg_id, electric_utility, gas_utility.
     """
-    config = config or STATE_CONFIGS
-    state_config = config.get(state_code)
-    if state_config is None:
-        raise ValueError(f"No configuration available for state: {state_code}")
+    state_config = config or CONFIGS
 
-    hh_path = Path(state_config["hh_utilities_path"])
+    hh_path = Path(state_config["bldg_id_utility_mapping_output_path"])
     if not hh_path.exists():
         print("Creating new hh_utilities file")
-        hh_df = create_hh_utilities(state_code=state_code, config=config)
+        hh_df = create_hh_utilities(config=config)
     else:
         print("Loading existing hh_utilities file")
         hh_df = pl.read_csv(hh_path)
@@ -244,7 +184,7 @@ def _read_housing_parquet(s3_path: str | Path | S3Path) -> pl.DataFrame:
         path = S3Path(path_str) if not isinstance(s3_path, S3Path) else s3_path
         raw = pl.read_parquet(io.BytesIO(path.read_bytes()))
     else:
-        raw = pl.read_parquet(s3_path)
+        raw = pl.read_parquet(str(s3_path))
 
     return raw.select(
         pl.col("bldg_id"),
@@ -253,8 +193,10 @@ def _read_housing_parquet(s3_path: str | Path | S3Path) -> pl.DataFrame:
     )
 
 
+########################################################
+# GIS Utility Mapping
+########################################################
 def create_hh_utilities(
-    state_code: str,
     config: dict | None = None,
     puma_year: int = 2019,
     save_file: bool = True,
@@ -268,10 +210,9 @@ def create_hh_utilities(
     sampling from PUMA-level probabilities. Requires geopandas and S3Path.
 
     Args:
-        state_code: "NY" or "MA".
-        config: State config; defaults to STATE_CONFIGS.
+        config: State config; defaults to CONFIGS (state is implied by config keys e.g. state_fips).
         puma_year: Year for PUMA boundaries.
-        save_file: Whether to save the result to state_config["hh_utilities_path"].
+        save_file: Whether to save the result to state_config["bldg_id_utility_mapping_output_path"].
         s3_path: S3 path or local path to a parquet file containing housing units
             with columns bldg_id, in.puma, in.heating_fuel.
 
@@ -279,65 +220,55 @@ def create_hh_utilities(
         DataFrame with bldg_id, electric_utility, gas_utility.
     """
 
-    config = config or STATE_CONFIGS
-    state_config = config.get(state_code)
-    if state_config is None:
-        raise ValueError(f"No configuration available for state: {state_code}")
+    config = config or CONFIGS
 
     utility_name_map = pl.DataFrame(
-        state_config["utility_name_map"]
+        config["utility_name_map"]
     )  # Need to update this path
-    s3_path = s3_path or state_config["resstock_path"]
+    s3_path = s3_path or config["resstock_path"]
 
-    # Load PUMAs (Census TIGER; tigris equivalent in Python via census-data or URL)
-    # Using geopandas read_file with Census TIGER PUMAs URL or local path
-    pumas = gpd.read_file(
-        f"https://www2.census.gov/geo/tiger/TIGER2023/PUMA/tl_2023_{state_config['state_fips']}_puma10.zip"
+    # Load PUMAS using pygris
+    pumas = get_pumas(
+        state=config["state_code"],
+        year=puma_year,
+        cb=True,  # Use cartographic boundaries (simplified)
     )
-    pumas = pumas.to_crs(epsg=state_config["state_crs"])
+    pumas = pumas.to_crs(epsg=config["state_crs"])
     pumas["puma_area"] = pumas.geometry.area
 
     # Load utility polygons (NY: CSV with WKT the_geom; MA: shapefile merged by utility)
-    if state_code == "MA":
-        electric_gdf = _merge_ma_electric_polygons(state_config["electric_poly_path"])
-        gas_gdf = _merge_ma_gas_polygons(state_config["gas_poly_path"])
-    else:
-        electric_df = pd.read_csv(state_config["electric_poly_path"])
-        electric_gdf = gpd.GeoDataFrame(
-            electric_df,
-            geometry=gpd.GeoSeries.from_wkt(electric_df["the_geom"]),
-            crs="EPSG:4326",
-        ).to_crs(epsg=state_config["state_crs"])
-        electric_gdf = gpd.GeoDataFrame(
-            electric_gdf.rename(columns={"COMP_FULL": "utility"}),
-            geometry=electric_gdf.geometry,
-            crs=electric_gdf.crs,
-        )
+    electric_df = pd.read_csv(config["electric_poly_path"])
+    electric_gdf = gpd.GeoDataFrame(
+        electric_df,
+        geometry=gpd.GeoSeries.from_wkt(electric_df["the_geom"]),
+        crs="EPSG:4326",
+    ).to_crs(epsg=config["state_crs"])
+    electric_gdf = gpd.GeoDataFrame(
+        electric_gdf.rename(columns={"COMP_FULL": "utility"}),
+        geometry=electric_gdf.geometry,
+        crs=electric_gdf.crs,
+    )
 
-        gas_df = pd.read_csv(state_config["gas_poly_path"])
-        gas_gdf = gpd.GeoDataFrame(
-            gas_df,
-            geometry=gpd.GeoSeries.from_wkt(gas_df["the_geom"]),
-            crs="EPSG:4326",
-        ).to_crs(epsg=state_config["state_crs"])
-        gas_gdf = gpd.GeoDataFrame(
-            gas_gdf.rename(columns={"COMP_FULL": "utility"}),
-            geometry=gas_gdf.geometry,
-            crs=gas_gdf.crs,
-        )
+    gas_df = pd.read_csv(config["gas_poly_path"])
+    gas_gdf = gpd.GeoDataFrame(
+        gas_df,
+        geometry=gpd.GeoSeries.from_wkt(gas_df["the_geom"]),
+        crs="EPSG:4326",
+    ).to_crs(epsg=config["state_crs"])
+    gas_gdf = gpd.GeoDataFrame(
+        gas_gdf.rename(columns={"COMP_FULL": "utility"}),
+        geometry=gas_gdf.geometry,
+        crs=gas_gdf.crs,
+    )
 
     # Calculate overlap between PUMAs and utilities
     puma_elec_overlap = _calculate_puma_utility_overlap(
-        pumas, electric_gdf, state_config["state_crs"]
+        pumas, electric_gdf, config["state_crs"]
     )
 
     puma_gas_overlap = _calculate_puma_utility_overlap(
-        pumas, gas_gdf, state_config["state_crs"]
+        pumas, gas_gdf, config["state_crs"]
     )
-
-    if state_code == "MA":
-        puma_elec_overlap = _split_multi_service_areas(puma_elec_overlap)
-        puma_gas_overlap = _split_multi_service_areas(puma_gas_overlap)
 
     # Electric utility probabilities
     puma_elec_probs = _calculate_utility_probabilities(
@@ -371,7 +302,9 @@ def create_hh_utilities(
     )
 
     if save_file:
-        out_path = Path(state_config["hh_utilities_path"])  # Need to update this path
+        out_path = Path(
+            config["bldg_id_utility_mapping_output_path"]
+        )  # Need to update this path
         out_path.parent.mkdir(parents=True, exist_ok=True)
         building_utilities.write_csv(out_path)
 
@@ -422,6 +355,7 @@ def _calculate_puma_utility_overlap(
     return pl.from_pandas(puma_overlap)
 
 
+# TODO: Check the posterior distribution matches the prior probabilities of utilities per PUMA district
 def _calculate_utility_probabilities(
     puma_overlap: pl.DataFrame,
     utility_name_map: pl.DataFrame,
@@ -549,66 +483,6 @@ def _sample_utility_per_building(
     return result
 
 
-def _merge_ma_electric_polygons(electric_poly_path: str | Path) -> "gpd.GeoDataFrame":
-    """MA electric polygons: read shapefile, merge by utility label."""
-
-    gdf = gpd.read_file(electric_poly_path)
-    gdf["utility_1"] = (
-        gdf["ELEC_LABEL"].str.extract(r"^([^,]+)", expand=False).str.strip()
-    )
-    gdf["utility_2"] = (
-        gdf["ELEC_LABEL"].str.extract(r", (.+)", expand=False).str.strip()
-    )
-    gdf["multi_utility"] = gdf["utility_2"].notna().astype(int)
-    gdf = gdf.rename(columns={"ELEC_LABEL": "utility"})
-
-    # Group by utility and aggregate to match R's summarise behavior
-    merged = gdf.dissolve(
-        by="utility",
-        aggfunc={"utility_1": "first", "utility_2": "first", "multi_utility": "first"},
-    )
-
-    # Add n_towns count
-    merged["n_towns"] = gdf.groupby("utility").size()
-
-    # Keep only the columns that R keeps (plus geometry which is automatic)
-    merged = merged[["n_towns", "utility_1", "utility_2", "multi_utility"]]
-
-    # Reset index to make 'utility' a column instead of the index
-    merged = merged.reset_index()
-
-    return merged
-
-
-def _merge_ma_gas_polygons(gas_poly_path: str | Path) -> "gpd.GeoDataFrame":
-    """MA gas polygons: read shapefile, merge by utility label."""
-
-    gdf = gpd.read_file(gas_poly_path)
-    gdf["utility_1"] = (
-        gdf["GAS_LABEL"].str.extract(r"^([^,]+)", expand=False).str.strip()
-    )
-    gdf["utility_2"] = gdf["GAS_LABEL"].str.extract(r", (.+)", expand=False).str.strip()
-    gdf["multi_utility"] = gdf["utility_2"].notna().astype(int)
-    gdf = gdf.rename(columns={"GAS_LABEL": "utility"})
-
-    # Group by utility and aggregate to match R's summarise behavior
-    merged = gdf.dissolve(
-        by="utility",
-        aggfunc={"utility_1": "first", "utility_2": "first", "multi_utility": "first"},
-    )
-
-    # Add n_towns count
-    merged["n_towns"] = gdf.groupby("utility").size()
-
-    # Keep only the columns that R keeps (plus geometry which is automatic)
-    merged = merged[["n_towns", "utility_1", "utility_2", "multi_utility"]]
-
-    # Reset index to make 'utility' a column instead of the index
-    merged = merged.reset_index()
-
-    return merged
-
-
 def _split_multi_service_areas(puma_utility_overlap: pl.DataFrame) -> pl.DataFrame:
     """Split rows with two utilities into two rows with half overlap each.
 
@@ -661,15 +535,9 @@ def write_utilities_to_s3(
         config: Optional state configuration dictionary
     """
 
-    config = config or STATE_CONFIGS
-    if state_code not in config:
-        print(
-            f"Cannot add utilities, state {state_code} not supported. "
-            f"Only {' and '.join(config.keys())} are currently supported."
-        )
-        return None
+    config = config or CONFIGS
 
-    building_utilities = create_hh_utilities(state_code, s3_path=s3_path, config=config)
+    building_utilities = create_hh_utilities(s3_path=s3_path, config=config)
 
     # Convert to S3Path if needed
     if isinstance(s3_path, str):
@@ -693,3 +561,16 @@ def write_utilities_to_s3(
 
     # Write back to the same location
     housing_units.write_parquet(str(s3_path))
+
+
+if __name__ == "__main__":
+    path_s3 = S3Path("s3://data.sb/nrel/resstock/")
+    path_release = path_s3 / "res_2024_amy2018_2"
+    metadata_path = (
+        path_release / "metadata" / "state=NY" / "upgrade=00" / "metadata-sb.parquet"
+    )
+    write_utilities_to_s3(
+        state_code="NY",
+        s3_path=metadata_path,
+        config=CONFIGS,
+    )
