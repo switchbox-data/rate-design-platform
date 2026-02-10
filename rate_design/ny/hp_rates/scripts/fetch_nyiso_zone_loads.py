@@ -27,8 +27,9 @@ Usage:
     python fetch_nyiso_zone_loads.py --start-month 2024-01 --end-month 2024-12 --eia-api-key YOUR_KEY
     
 Note:
-    Script automatically expands month ranges to full month dates (first to last day)
-    and skips months that already exist in S3.
+    - Script automatically expands month ranges to full month dates (first to last day)
+    - Skips months that already exist in S3 (use --force to overwrite)
+    - Uses BytesIO buffer + boto3 for S3 uploads (avoids Polars' S3 client issues)
 """
 
 import argparse
@@ -418,17 +419,30 @@ def fill_missing_hours(df: pl.DataFrame, start_date: str, end_date: str) -> pl.D
     start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=ZoneInfo("America/New_York"))
     end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=ZoneInfo("America/New_York"))
     
-    # Generate complete hourly range
+    # Generate complete hourly range (skip DST non-existent hours)
     all_timestamps = []
     current = start_dt
     while current <= end_dt:
         for hour in range(24):
             try:
+                # Create datetime for this hour
                 ts = current.replace(hour=hour, minute=0, second=0, microsecond=0)
+                
+                # Validate that this timestamp actually exists (not a DST gap)
+                # DST spring forward: 2:00 AM doesn't exist, clock jumps to 3:00 AM
+                # Test by converting to UTC and back - if it changes, it's invalid
+                ts_utc = ts.astimezone(ZoneInfo("UTC"))
+                ts_back = ts_utc.astimezone(ZoneInfo("America/New_York"))
+                
+                # If the hour changed, this time doesn't exist (DST spring forward)
+                if ts_back.hour != ts.hour:
+                    continue  # Skip this non-existent hour
+                
                 if ts <= end_dt.replace(hour=23, minute=0, second=0):
                     all_timestamps.append(ts)
-            except:
-                pass  # Skip invalid hours (DST spring forward)
+            except (ValueError, OSError):
+                # Skip any invalid datetime (shouldn't happen with above check, but be safe)
+                pass
         current += timedelta(days=1)
     
     all_zones_data = []
@@ -466,7 +480,9 @@ def fill_missing_hours(df: pl.DataFrame, start_date: str, end_date: str) -> pl.D
             )
         
         print(f"  ⚠️  Zone {zone}: {len(missing)} missing hour(s), max consecutive: {max_gap}")
-        print(f"      Missing: {[ts.strftime('%m-%d %H:%M') for ts in missing]}")
+        # Sort missing timestamps chronologically for display
+        missing_sorted = sorted(missing)
+        print(f"      Missing: {[ts.strftime('%Y-%m-%d %H:%M %Z') for ts in missing_sorted]}")
         
         # Fill missing hours with interpolation
         # Create complete time series with nulls for missing hours
@@ -516,17 +532,29 @@ def validate_zone_data(df: pl.DataFrame, start_date: str, end_date: str) -> None
     start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=ZoneInfo("America/New_York"))
     end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=ZoneInfo("America/New_York"))
     
-    # Count actual hours accounting for DST
+    # Count actual hours accounting for DST (skip non-existent hours)
     expected_hours = 0
     current = start_dt
     while current <= end_dt:
         for hour in range(24):
             try:
+                # Create datetime for this hour
                 ts = current.replace(hour=hour, minute=0, second=0, microsecond=0)
+                
+                # Validate that this timestamp actually exists (not a DST gap)
+                # DST spring forward: 2:00 AM doesn't exist, clock jumps to 3:00 AM
+                # Test by converting to UTC and back - if it changes, it's invalid
+                ts_utc = ts.astimezone(ZoneInfo("UTC"))
+                ts_back = ts_utc.astimezone(ZoneInfo("America/New_York"))
+                
+                # If the hour changed, this time doesn't exist (DST spring forward)
+                if ts_back.hour != ts.hour:
+                    continue  # Skip this non-existent hour
+                
                 if ts <= end_dt.replace(hour=23, minute=0, second=0):
                     expected_hours += 1
-            except:
-                # Skip invalid hours (spring forward)
+            except (ValueError, OSError):
+                # Skip any invalid datetime (shouldn't happen with above check, but be safe)
                 pass
         current += timedelta(days=1)
     
@@ -564,8 +592,11 @@ def validate_zone_data(df: pl.DataFrame, start_date: str, end_date: str) -> None
 def upload_zone_data_to_s3(df: pl.DataFrame, s3_base: str, skip_existing: bool = True):
     """Upload zone load data to S3 with zone/year/month partitioning.
     
+    Uses BytesIO buffer approach to avoid Polars' S3 client threading issues.
+    Writes each partition separately via cloudpathlib (boto3).
+    
     Args:
-        df: DataFrame with columns timestamp, zone, load_mw, forecast_mw
+        df: DataFrame with columns timestamp, zone, load_mw, filled
         s3_base: Base S3 path (e.g., s3://data.sb/nyiso/loads)
         skip_existing: If True, skip uploading partitions that already exist
         
@@ -573,8 +604,8 @@ def upload_zone_data_to_s3(df: pl.DataFrame, s3_base: str, skip_existing: bool =
         s3://data.sb/nyiso/loads/zone=A/year=2024/month=01/data.parquet
         
     Note:
-        Uses Polars partition_by to automatically create Hive-style partitioning.
-        Checks for existing partitions and skips them if skip_existing=True.
+        Creates Hive-style partitioning manually to avoid Polars' S3 threading bug.
+        Uses boto3 (via cloudpathlib) for reliable AWS credential handling.
     """
     base_path = S3Path(s3_base)
     
@@ -605,28 +636,32 @@ def upload_zone_data_to_s3(df: pl.DataFrame, s3_base: str, skip_existing: bool =
         print("\n⚠️  All partitions already exist. Nothing to upload.")
         return
     
-    # Filter to only partitions we want to write
-    filter_expr = pl.lit(False)
+    print(f"\nUploading {len(partitions_to_write)} partitions...")
+    
+    # Write each partition separately using BytesIO buffer
     for zone, year, month in partitions_to_write:
-        filter_expr = filter_expr | (
+        # Filter to this partition
+        partition_df = df.filter(
             (pl.col("zone") == zone) & 
             (pl.col("year") == year) & 
             (pl.col("month") == month)
         )
+        
+        # Drop the partition columns (they're encoded in the path)
+        partition_df = partition_df.drop(["year", "month"])
+        
+        # Write to in-memory buffer
+        buf = io.BytesIO()
+        partition_df.write_parquet(buf, compression="zstd")
+        
+        # Create S3 path and upload via cloudpathlib (uses boto3)
+        output_path = base_path / f"zone={zone}" / f"year={year}" / f"month={month:02d}" / "data.parquet"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(buf.getvalue())
+        
+        print(f"  ✓ Uploaded zone={zone}/year={year}/month={month:02d} ({len(partition_df):,} rows)")
     
-    df_to_write = df.filter(filter_expr)
-    
-    print(f"\nWriting {len(df_to_write):,} rows across {len(partitions_to_write)} partitions...")
-    
-    # Write with Polars partitioning (automatically creates directory structure)
-    df_to_write.write_parquet(
-        str(base_path),
-        partition_by=["zone", "year", "month"],
-        use_pyarrow=False,
-        compression="zstd",
-    )
-    
-    print(f"✓ Successfully uploaded to {base_path}")
+    print(f"\n✓ Successfully uploaded {len(partitions_to_write)} partitions to {base_path}")
 
 
 def parse_month_to_date_range(start_month: str, end_month: str) -> tuple[str, str]:
