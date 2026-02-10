@@ -23,6 +23,11 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+      # Use GH_PAT (same secret as devcontainer workflow) so uv can clone private CAIRO dep
+      - name: Configure Git for private GitHub clone
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+
       - name: Install dependencies (uv, prek, pre-commit hooks)
         run: |
           export PATH="$HOME/.local/bin:$PATH"
@@ -43,6 +48,11 @@ jobs:
           mkdir -p ~/.local/bin
           curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      # Use GH_PAT (same secret as devcontainer workflow) so uv can clone private CAIRO dep
+      - name: Configure Git for private GitHub clone
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
 
       - name: Install dependencies (uv, prek, pre-commit hooks)
         run: |
