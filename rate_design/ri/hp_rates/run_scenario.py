@@ -16,6 +16,7 @@ from utils.cairo import (
     _load_cambium_marginal_costs,
     _return_load,
     build_bldg_id_to_load_filepath,
+    patch_postprocessor_peak_allocation,
     patch_postprocessor_weight_handling,
     return_buildingstock,
 )
@@ -26,8 +27,9 @@ log = logging.getLogger("rates_analysis").getChild("tests")
 
 log.info(".... Beginning RI residential (non-LMI) rate scenario - RIE A-16 tariff")
 
-# Apply patch for combined bill weight column handling
+# Apply patches for CAIRO postprocessing
 patch_postprocessor_weight_handling()
+patch_postprocessor_peak_allocation()
 
 run_name = "ri_default_test_run"
 path_project = Path(".")
