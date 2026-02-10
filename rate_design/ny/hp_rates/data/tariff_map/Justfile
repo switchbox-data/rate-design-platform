@@ -82,5 +82,3 @@ map-gas-nyseg-seasonal:
 
 map-gas-nyseg-class-specific-seasonal:
   just map-gas-tariff NYSEG 00 {{tariff_map_dir_ny}}
-
-

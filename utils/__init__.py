@@ -12,6 +12,7 @@ def get_aws_region(default: str = "us-west-2") -> str:
         return region
     try:
         import boto3
+
         session = boto3.Session()
         if session.region_name:
             return session.region_name
