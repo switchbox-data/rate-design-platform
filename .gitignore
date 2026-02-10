@@ -33,5 +33,6 @@ infra/.terraform/
 infra/.terraform.lock.hcl
 
 .secrets
+.env
 
 CLAUDE.md
