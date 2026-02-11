@@ -10,10 +10,14 @@ dependencies = [
     "buildstock-fetch>=1.6.1",
     "cairo",
     "cloudpathlib[s3]>=0.23.0",
+    "geopandas>=1.0.0",
     "numpy",
+    "pandas",
     "polars",
     "prek>=0.3.2",
     "pyarrow",
+    "pygris>=0.2.1",
+    "s3fs>=2026.2.0",
 ]
 
 [project.urls]
