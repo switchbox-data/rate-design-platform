@@ -1,0 +1,23 @@
+# Resolve project root as absolute path from this Justfile's location (works for any clone)
+project_root := absolute_path(justfile_directory() / ".." / ".." / ".." / ".." / "..")
+
+create-td-mc-data:
+  just create-td-mc-data-rie
+
+create-td-mc-data-rie:
+  cd {{project_root}} && uv run python {{project_root}}/utils/fetch_eia_zone_loads.py \
+    --state RI \
+    --start-month 2025-01 \
+    --end-month 2025-12
+  cd {{project_root}} && uv run python {{project_root}}/utils/aggregate_eia_utility_loads.py \
+    --state RI \
+    --year 2025 \
+    --utility rie \
+    --upload
+  cd {{project_root}} && uv run python {{project_root}}/utils/generate_utility_tx_dx_mc.py \
+    --state RI \
+    --utility rie \
+    --mc-year 2025 \
+    --load-year 2025 \
+    --mc-table-path {{project_root}}/rate_design/ri/hp_rates/data/marginal_costs/ri_marginal_costs_2025.csv \
+    --upload
