@@ -9,8 +9,10 @@ license = { text = "MIT" }
 dependencies = [
     "buildstock-fetch>=1.6.1",
     "cairo",
-    "polars",
+    "cloudpathlib[s3]>=0.23.0",
     "numpy",
+    "polars",
+    "prek>=0.3.2",
     "pyarrow",
     "cloudpathlib>=0.23.0",
     "python-dotenv>=1.0.0",
