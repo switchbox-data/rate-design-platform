@@ -362,5 +362,27 @@ jobs:
       - name: Configure Git safe directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Configure AWS credentials
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+        run: |
+          if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "⚠️  Warning: AWS credentials not configured. S3-dependent tests will fail."
+            echo "To fix: Add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY as repository secrets."
+          else
+            echo "✓ AWS credentials configured"
+            if [ -n "$AWS_DEFAULT_REGION" ]; then
+              echo "  Using region from secret: $AWS_DEFAULT_REGION"
+            else
+              echo "  Using region from AWS config file or default SDK behavior"
+            fi
+          fi
+
       - name: Run tests
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
         run: just test
