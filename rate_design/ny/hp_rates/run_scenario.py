@@ -112,7 +112,6 @@ sell_rate = _return_export_compensation_rate(
 
 bldg_id_to_load_filepath = build_bldg_id_to_load_filepath(
     path_resstock_loads=path_resstock_loads,
-    path_resstock=path_resstock,
 )
 
 # process load directly or find where load stored

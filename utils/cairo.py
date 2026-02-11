@@ -97,8 +97,10 @@ def patch_postprocessor_peak_allocation():
 
         return annual_customer_residual_share
 
-    InternalCrossSubsidizationProcessor._allocate_residual_peak = (
-        _patched_allocate_residual_peak
+    setattr(
+        InternalCrossSubsidizationProcessor,
+        "_allocate_residual_peak",
+        _patched_allocate_residual_peak,
     )
 
 
