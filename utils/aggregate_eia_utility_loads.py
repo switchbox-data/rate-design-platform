@@ -13,10 +13,10 @@ Output:
 Usage:
     # Process single year (inspection only, no upload)
     python aggregate_utility_loads.py --state NY --year 2024
-    
+
     # Process and upload to S3
     python aggregate_utility_loads.py --state RI --year 2024 --upload
-    
+
     # Process single utility
     python aggregate_utility_loads.py --state NY --year 2024 --utility nyseg
 """
@@ -26,18 +26,11 @@ import argparse
 import polars as pl
 from dotenv import load_dotenv
 
-try:
-    from utils.eia_region_config import (
-        get_aws_storage_options,
-        get_state_config,
-        get_utility_zone_mapping_for_state,
-    )
-except ModuleNotFoundError:  # pragma: no cover - supports running from utils/ directory
-    from eia_region_config import (
-        get_aws_storage_options,
-        get_state_config,
-        get_utility_zone_mapping_for_state,
-    )
+from utils.eia_region_config import (
+    get_aws_storage_options,
+    get_state_config,
+    get_utility_zone_mapping_for_state,
+)
 
 
 def load_zone_data(
@@ -48,27 +41,27 @@ def load_zone_data(
     storage_options: dict[str, str],
 ) -> pl.DataFrame:
     """Load zone load data from S3 for specified zones and year.
-    
+
     Reads from Hive-style partitioned structure:
     region=<iso_region>/zone=X/year=YYYY/month=M/data.parquet
     Validates that all 12 months are present for each zone before loading.
-    
+
     Args:
         s3_base: Base S3 path (e.g., s3://data.sb/eia/hourly_demand/zones)
         iso_region: ISO region partition key (e.g., nyiso, isone)
         year: Calendar year (must have all 12 months)
         zones: List of zone identifiers (e.g., ["A", "B", "C"])
         storage_options: Polars S3 storage options with AWS bucket region
-        
+
     Returns:
         Combined DataFrame with all zone data
-        
+
     Raises:
         ValueError: If any zone is missing months or if data validation fails
     """
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("LOADING DATA")
-    print("="*60)
+    print("=" * 60)
 
     combined = (
         pl.scan_parquet(
@@ -92,8 +85,7 @@ def load_zone_data(
     missing_data = []
     for zone in zones:
         zone_months = (
-            combined
-            .filter(pl.col("zone") == zone)
+            combined.filter(pl.col("zone") == zone)
             .select(pl.col("month").cast(pl.Int32).unique().sort())
             .to_series()
             .to_list()
@@ -116,41 +108,42 @@ def load_zone_data(
 
 
 def aggregate_utility_load(
-    zone_df: pl.DataFrame, 
-    utility_name: str, 
-    zones: list[str]
+    zone_df: pl.DataFrame, utility_name: str, zones: list[str]
 ) -> pl.DataFrame:
     """Aggregate zone loads for a single utility.
-    
+
     Args:
         zone_df: DataFrame with zone load data
         utility_name: Name of the utility
         zones: List of zones served by this utility
-        
+
     Returns:
         DataFrame with aggregated utility load
         Schema: timestamp, utility, load_mw
     """
     # Filter to zones served by this utility
     utility_data = zone_df.filter(pl.col("zone").is_in(zones))
-    
+
     if len(utility_data) == 0:
         raise ValueError(f"No data found for utility {utility_name} zones {zones}")
-    
+
     # Aggregate by summing loads across zones for each timestamp
     aggregated = (
-        utility_data
-        .group_by("timestamp")
-        .agg([
-            pl.col("load_mw").sum().alias("load_mw"),
-        ])
-        .with_columns([
-            pl.lit(utility_name).alias("utility"),
-        ])
+        utility_data.group_by("timestamp")
+        .agg(
+            [
+                pl.col("load_mw").sum().alias("load_mw"),
+            ]
+        )
+        .with_columns(
+            [
+                pl.lit(utility_name).alias("utility"),
+            ]
+        )
         .select(["timestamp", "utility", "load_mw"])
         .sort("timestamp")
     )
-    
+
     return aggregated
 
 
@@ -170,7 +163,7 @@ def process_all_utilities(
     upload_to_s3: bool = False,
 ):
     """Process all utilities and create aggregated load profiles for a calendar year.
-    
+
     Args:
         zone_s3_base: Base S3 path for zonal loads
         utility_s3_base: Base S3 path for utility outputs
@@ -184,10 +177,10 @@ def process_all_utilities(
     all_zones = set()
     for zones in utility_zone_mapping.values():
         all_zones.update(zones)
-    
+
     print(f"\nZones needed: {sorted(all_zones)}")
     print(f"Calendar year: {year}")
-    
+
     # Load all zone data once (validates all 12 months present)
     zone_df = load_zone_data(
         zone_s3_base,
@@ -196,48 +189,50 @@ def process_all_utilities(
         sorted(all_zones),
         storage_options,
     )
-    
-    print(f"\n{'='*60}")
+
+    print(f"\n{'=' * 60}")
     print(f"Total zone data loaded: {len(zone_df):,} rows")
     print(f"Date range: {zone_df['timestamp'].min()} to {zone_df['timestamp'].max()}")
-    print(f"{'='*60}")
-    
+    print(f"{'=' * 60}")
+
     expected_hours = expected_hours_for_year(year)
-    
+
     # Process each utility
     for utility_name, zones in utility_zone_mapping.items():
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"UTILITY: {utility_name}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Zones: {zones}")
-        
+
         # Aggregate utility load
         utility_df = aggregate_utility_load(zone_df, utility_name, zones)
         print(f"\nAggregated to {len(utility_df):,} hourly records")
-        
+
         if len(utility_df) != expected_hours:
             print(f"⚠️  Expected {expected_hours} hours, got {len(utility_df)}")
         else:
             print(f"✓ Hour count matches expected: {expected_hours}")
-        
+
         # Show data summary
-        print(f"\nLoad statistics (MW):")
+        print("\nLoad statistics (MW):")
         print(f"  Min:  {utility_df['load_mw'].min():.2f}")
         print(f"  Max:  {utility_df['load_mw'].max():.2f}")
         print(f"  Mean: {utility_df['load_mw'].mean():.2f}")
-        
-        print(f"\nSample data (first 5 rows):")
+
+        print("\nSample data (first 5 rows):")
         print(utility_df.head(5))
-        
-        print(f"\nSample data (last 5 rows):")
+
+        print("\nSample data (last 5 rows):")
         print(utility_df.tail(5))
-        
+
         if upload_to_s3:
-            output_df = utility_df.with_columns([
-                pl.lit(iso_region).alias("region"),
-                pl.col("timestamp").dt.year().alias("year"),
-                pl.col("timestamp").dt.month().alias("month"),
-            ])
+            output_df = utility_df.with_columns(
+                [
+                    pl.lit(iso_region).alias("region"),
+                    pl.col("timestamp").dt.year().alias("year"),
+                    pl.col("timestamp").dt.month().alias("month"),
+                ]
+            )
             output_df.write_parquet(
                 utility_s3_base,
                 compression="zstd",
@@ -249,21 +244,21 @@ def process_all_utilities(
                 f"{utility_s3_base}/region={iso_region}/utility={utility_name}/"
             )
         else:
-            print(f"\n⚠️  S3 upload disabled (use --upload to enable)")
-    
+            print("\n⚠️  S3 upload disabled (use --upload to enable)")
+
     if upload_to_s3:
-        print(f"\n{'='*60}")
-        print(f"✓ All utilities processed and uploaded")
+        print(f"\n{'=' * 60}")
+        print("✓ All utilities processed and uploaded")
         print(
             "✓ Output structure: "
             f"{utility_s3_base}/region={iso_region}/utility=<UTILITY>/year={year}/month=<M>/data.parquet"
         )
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
     else:
-        print(f"\n{'='*60}")
-        print(f"✓ All utilities processed (data inspection complete)")
-        print(f"⚠️  No data uploaded to S3 (use --upload flag to enable)")
-        print(f"{'='*60}")
+        print(f"\n{'=' * 60}")
+        print("✓ All utilities processed (data inspection complete)")
+        print("⚠️  No data uploaded to S3 (use --upload flag to enable)")
+        print(f"{'=' * 60}")
 
 
 def main():
@@ -301,7 +296,7 @@ def main():
         action="store_true",
         help="Upload results to S3 (default: False, for data inspection only)",
     )
-    
+
     args = parser.parse_args()
     load_dotenv()
     config = get_state_config(args.state)
@@ -320,11 +315,11 @@ def main():
 
     resolved_zone_s3_base = args.s3_base or config.default_zone_s3_base
     resolved_utility_s3_base = config.default_utility_s3_base
-    
+
     utility_list = sorted(utility_zone_mapping.keys())
-    print("="*60)
+    print("=" * 60)
     print(f"{config.label} UTILITY LOAD AGGREGATION")
-    print("="*60)
+    print("=" * 60)
     print(f"State: {config.state}")
     print(f"Calendar year: {args.year}")
     print(f"ISO region partition: {config.iso_region}")
@@ -336,8 +331,8 @@ def main():
         "Utilities: "
         f"{selected_utility if selected_utility != 'all' else 'All (' + ', '.join(utility_list) + ')'}"
     )
-    print("="*60)
-    
+    print("=" * 60)
+
     if selected_utility == "all":
         process_all_utilities(
             resolved_zone_s3_base,
@@ -353,7 +348,7 @@ def main():
         zones = utility_zone_mapping[selected_utility]
         print(f"\nProcessing single utility: {selected_utility}")
         print(f"Zones: {zones}")
-        
+
         zone_df = load_zone_data(
             resolved_zone_s3_base,
             config.iso_region,
@@ -362,31 +357,33 @@ def main():
             storage_options,
         )
         utility_df = aggregate_utility_load(zone_df, selected_utility, zones)
-        
-        print(f"\n{'='*60}")
+
+        print(f"\n{'=' * 60}")
         print(f"Aggregated to {len(utility_df):,} hourly records")
-        
+
         expected_hours = expected_hours_for_year(args.year)
-        
+
         if len(utility_df) != expected_hours:
             print(f"⚠️  Expected {expected_hours} hours, got {len(utility_df)}")
         else:
             print(f"✓ Hour count matches expected: {expected_hours}")
-        
-        print(f"\nLoad statistics (MW):")
+
+        print("\nLoad statistics (MW):")
         print(f"  Min:  {utility_df['load_mw'].min():.2f}")
         print(f"  Max:  {utility_df['load_mw'].max():.2f}")
         print(f"  Mean: {utility_df['load_mw'].mean():.2f}")
-        
-        print(f"\nSample data (first 10 rows):")
+
+        print("\nSample data (first 10 rows):")
         print(utility_df.head(10))
-        
+
         if args.upload:
-            output_df = utility_df.with_columns([
-                pl.lit(config.iso_region).alias("region"),
-                pl.col("timestamp").dt.year().alias("year"),
-                pl.col("timestamp").dt.month().alias("month"),
-            ])
+            output_df = utility_df.with_columns(
+                [
+                    pl.lit(config.iso_region).alias("region"),
+                    pl.col("timestamp").dt.year().alias("year"),
+                    pl.col("timestamp").dt.month().alias("month"),
+                ]
+            )
             output_df.write_parquet(
                 resolved_utility_s3_base,
                 compression="zstd",
@@ -398,7 +395,7 @@ def main():
                 f"{selected_utility} partitions to {resolved_utility_s3_base}/region={config.iso_region}/"
             )
         else:
-            print(f"\n⚠️  S3 upload disabled (use --upload to enable)")
+            print("\n⚠️  S3 upload disabled (use --upload to enable)")
 
 
 if __name__ == "__main__":

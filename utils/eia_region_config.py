@@ -7,6 +7,7 @@ This module centralizes:
 
 import os
 from dataclasses import dataclass
+from typing import TypedDict
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,13 @@ class StateConfig:
     default_utility_s3_base: str
     default_mc_output_s3_base: str
     label: str
+
+
+class UtilityServiceArea(TypedDict):
+    """Typed utility service area entry."""
+
+    state: str
+    zones: list[str]
 
 
 STATE_CONFIGS: dict[str, StateConfig] = {
@@ -72,7 +80,7 @@ STATE_CONFIGS: dict[str, StateConfig] = {
 
 # Utilities are modeled as service areas to support future multi-state utilities.
 # A single utility can have multiple state entries.
-UTILITY_SERVICE_AREAS: dict[str, list[dict[str, object]]] = {
+UTILITY_SERVICE_AREAS: dict[str, list[UtilityServiceArea]] = {
     "nyseg": [
         {"state": "NY", "zones": ["A", "C", "D", "E", "F", "G", "H"]},
     ],
@@ -118,7 +126,9 @@ def get_utility_zone_mapping_for_state(state: str) -> dict[str, list[str]]:
 
 def get_aws_storage_options() -> dict[str, str]:
     """Return Polars-compatible AWS storage options for S3 access."""
-    aws_region = os.getenv("AWS_DEFAULT_REGION") or os.getenv("AWS_REGION") or "us-west-2"
+    aws_region = (
+        os.getenv("AWS_DEFAULT_REGION") or os.getenv("AWS_REGION") or "us-west-2"
+    )
     return {
         "region": aws_region,
         "default_region": aws_region,

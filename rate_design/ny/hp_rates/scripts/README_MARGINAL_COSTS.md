@@ -29,15 +29,18 @@ s3://data.sb/switchbox/marginal_costs/ny/{utility}/year={year}/mc_8760.parquet
 ## S3 Data Schema
 
 ### Zone Load Data
+
 **Path**: `s3://data.sb/nyiso/loads/year={YYYY}/zone/zone_{A-K}.parquet`
 
 **Schema**:
+
 - `timestamp` (datetime): Hour ending timestamp
 - `zone` (string): NYISO zone identifier (A-K)
 - `load_mw` (float): Actual load in MW
 - `forecast_mw` (float): Forecasted load in MW
 
 **Example**:
+
 ```
 timestamp            zone  load_mw  forecast_mw
 2024-01-01 00:00:00  A     1234.5   1250.0
@@ -46,14 +49,17 @@ timestamp            zone  load_mw  forecast_mw
 ```
 
 ### Utility Load Data
+
 **Path**: `s3://data.sb/nyiso/loads/year={YYYY}/utility/{utility_name}.parquet`
 
 **Schema**:
+
 - `timestamp` (datetime): Hour ending timestamp
 - `utility` (string): Utility name
 - `load_mw` (float): Aggregated load in MW
 
 **Example**:
+
 ```
 timestamp            utility  load_mw
 2024-01-01 00:00:00  NYSEG    5678.9
@@ -62,9 +68,11 @@ timestamp            utility  load_mw
 ```
 
 ### Allocated Marginal Costs
+
 **Path**: `s3://data.sb/switchbox/marginal_costs/ny/{utility}/year={year}/mc_8760.parquet`
 
 **Schema**:
+
 - `timestamp` (datetime): Hour ending timestamp
 - `utility` (string): Utility name
 - `year` (int): Target year for marginal costs
@@ -78,6 +86,7 @@ timestamp            utility  load_mw
 - `w_dist` (float): Probability of peak weight for distribution (sums to 1.0)
 
 **Example**:
+
 ```
 timestamp            utility  year  load_mw  mc_upstream_per_kwh  mc_dist_per_kwh  mc_total_per_kwh  is_upstream_peak  is_dist_peak  w_upstream  w_dist
 2024-07-15 15:00:00  NYSEG    2026  8234.5   0.01234              0.00876          0.02110           true              true          0.01145     0.01876
@@ -93,6 +102,7 @@ timestamp            utility  year  load_mw  mc_upstream_per_kwh  mc_dist_per_kw
 Fetches NYISO zone load data from the EIA API v2 and uploads to S3 with year partitioning.
 
 **Setup**:
+
 1. Register for a free EIA API key at https://www.eia.gov/opendata/
 2. Create a `.env` file in the project root:
    ```bash
@@ -100,6 +110,7 @@ Fetches NYISO zone load data from the EIA API v2 and uploads to S3 with year par
    ```
 
 **Usage**:
+
 ```bash
 # Fetch full year 2024
 python fetch_nyiso_zone_loads.py --start 2024-01-01 --end 2024-12-31
@@ -112,6 +123,7 @@ python fetch_nyiso_zone_loads.py --start 2024-01-01 --end 2024-12-31 --eia-api-k
 ```
 
 **Arguments**:
+
 - `--start`: Start date in YYYY-MM-DD format (required)
 - `--end`: End date in YYYY-MM-DD format (required)
 - `--eia-api-key`: EIA API key (optional if set in `.env` file)
@@ -120,6 +132,7 @@ python fetch_nyiso_zone_loads.py --start 2024-01-01 --end 2024-12-31 --eia-api-k
 **Output**: 11 parquet files (one per zone A-K) at `s3://data.sb/nyiso/loads/year={YYYY}/zone/`
 
 **Features**:
+
 - Uses `python-dotenv` for API key management
 - Automatic pagination for EIA API (5000 row limit per request)
 - Interactive API key prompting if not found in `.env`
@@ -131,6 +144,7 @@ python fetch_nyiso_zone_loads.py --start 2024-01-01 --end 2024-12-31 --eia-api-k
 Maps NYISO zones to utilities and creates aggregated utility-level load profiles.
 
 **Usage**:
+
 ```bash
 # Process all utilities
 python aggregate_utility_loads.py --year 2024
@@ -140,11 +154,13 @@ python aggregate_utility_loads.py --year 2024 --utility NYSEG
 ```
 
 **Arguments**:
+
 - `--year`: Target year (default: 2024)
 - `--s3-base`: Base S3 path (default: s3://data.sb/nyiso/loads)
 - `--utility`: Specific utility to process, or 'all' (default: all)
 
 **Zone-to-Utility Mapping**:
+
 ```python
 UTILITY_ZONE_MAPPING = {
     "NYSEG": ["A", "C", "D", "E", "F"],
@@ -161,6 +177,7 @@ UTILITY_ZONE_MAPPING = {
 Allocates marginal transmission and distribution costs to hourly price signals using the Probability of Peak (PoP) methodology.
 
 **Usage**:
+
 ```bash
 python generate_utility_tx_dx_MC.py \
     --utility NYSEG \
@@ -169,6 +186,7 @@ python generate_utility_tx_dx_MC.py \
 ```
 
 **Arguments**:
+
 - `--utility`: Utility name (required)
 - `--year`: Target year for MC allocation (2026-2035) (required)
 - `--year-load`: Year of load profile to use (optional, defaults to --year)
@@ -181,6 +199,7 @@ python generate_utility_tx_dx_MC.py \
 **Output**: `s3://data.sb/switchbox/marginal_costs/ny/{utility}/year={year}/mc_8760.parquet`
 
 **Example with different load year**:
+
 ```bash
 # Apply 2030 marginal costs to 2024 load shape
 python generate_utility_tx_dx_MC.py \
@@ -209,12 +228,12 @@ The PoP method allocates annual capacity costs ($/kW-yr) to hourly price signals
        w_h_upstream = load_h / sum(top 100 loads)
      else:
        w_h_upstream = 0
-     
+
      if h in top_50_hours:
        w_h_dist = load_h / sum(top 50 loads)
      else:
        w_h_dist = 0
-   
+
    Verify: sum(w_h_upstream) = 1.0, sum(w_h_dist) = 1.0
    ```
 
@@ -233,12 +252,14 @@ The PoP method allocates annual capacity costs ($/kW-yr) to hourly price signals
 ### Example
 
 Given:
+
 - MC_upstream = 10.14 $/kW-yr
 - MC_dist = 14.00 $/kW-yr (12.34 substation + 1.66 feeder)
 - Top 100 load hours sum = 654,321 MW
 - Hour h has load = 7,500 MW
 
 Calculation:
+
 - w_h_upstream = 7,500 / 654,321 = 0.01146
 - P_h_upstream = 10.14 * 0.01146 = 0.1162 $/kWh
 
@@ -251,6 +272,7 @@ For all 8760 hours, the sum equals 10.14 $/kW-yr.
 **Path**: `rate_design/ny/hp_rates/data/marginal_costs/ny_marginal_costs_2026_2035.csv`
 
 **Format**:
+
 ```csv
 Utility,Year,Upstream,Distribution Substation,Primary Feeder,Total MC
 Central Hudson,2026,0.00,0.00,3.03,3.03
@@ -264,6 +286,7 @@ RG&E,2027,19.92,14.28,0.00,37.47
 **Source**: 2025 MCOS (Marginal Cost of Service) studies, collected in docket R2-84.
 
 **Notes**:
+
 - All costs in nominal $/kW-yr
 - Uses "diluted" method (territory-wide peak-load weighted average)
 - Covers Central Hudson, NYSEG, RG&E (2026-2035)
@@ -272,6 +295,7 @@ RG&E,2027,19.92,14.28,0.00,37.47
 ## Testing
 
 Run unit tests:
+
 ```bash
 # Test marginal cost allocation logic
 python tests/test_marginal_cost_allocation.py
@@ -352,6 +376,7 @@ done
 **Problem**: The 1 kW constant load test shows error > 0.01%
 
 **Solutions**:
+
 - Check that weights sum to exactly 1.0 (numerical precision issues)
 - Verify that the correct number of peak hours was identified
 - Ensure no missing or duplicate timestamps in the load profile
@@ -361,6 +386,7 @@ done
 **Problem**: `Zone file not found` error in aggregation
 
 **Solutions**:
+
 - Run fetch_nyiso_zone_loads.py first to collect zone data
 - Check that S3 paths are correct and accessible
 - Verify year parameter matches available data
@@ -370,6 +396,7 @@ done
 **Problem**: All marginal costs are zero in output
 
 **Solutions**:
+
 - Check that MC table has non-zero values for that utility/year
 - Verify load profile was loaded correctly
 - Check for mismatched year parameters (--year vs --year-load)
