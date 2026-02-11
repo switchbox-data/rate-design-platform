@@ -1,10 +1,11 @@
-s3_base := env_var_or_default("S3_UTILITY_TERRITORIES", "s3://data.sb")
+s3_base := "s3://data.sb"
+project_root := `git rev-parse --show-toplevel`
 
+# Download NY electric and gas utility polygons from NY Open Data.
 download-ny-utility-polygons s3_base=s3_base:
 	just download-ny-electric-utility-polygons {{s3_base}}
 	just download-ny-gas-utility-polygons {{s3_base}}
 
-# Stream CSV from NY open data directly to S3 (no local file). Requires AWS CLI configured.
 download-ny-electric-utility-polygons s3_base=s3_base:
 	wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/api/views/i7nm-ih89/rows.csv" | aws s3 cp - "{{s3_base}}/utility_territories/ny/NYS_Electric_Utility_Service_Territories.csv"
 	just test-ny-electric-utility-polygons-download {{s3_base}}
@@ -13,10 +14,36 @@ download-ny-gas-utility-polygons s3_base=s3_base:
 	wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/api/views/i7nm-ih89/rows.csv" | aws s3 cp - "{{s3_base}}/utility_territories/ny/NYS_Gas_Utility_Service_Territories.csv"
 	just test-ny-gas-utility-polygons-download {{s3_base}}
 
-# Assert the downloaded electric utility file exists in S3 (run after download-ny-electric-utility-polygons).
 test-ny-electric-utility-polygons-download s3_base=s3_base:
 	aws s3 ls "{{s3_base}}/utility_territories/ny/NYS_Electric_Utility_Service_Territories.csv"
 
-# Assert the downloaded gas utility file exists in S3 (run after download-ny-gas-utility-polygons).
 test-ny-gas-utility-polygons-download s3_base=s3_base:
 	aws s3 ls "{{s3_base}}/utility_territories/ny/NYS_Gas_Utility_Service_Territories.csv"
+
+# Assign electric and gas utilities to ResStock buildings in NY.
+assign-ny-utilities release upgrade_id:
+	uv run python {{project_root}}/utils/utility_assignment_ny.py \
+		--input_path "s3://data.sb/nrel/resstock/{{release}}/metadata/state=NY/upgrade={{upgrade_id}}/metadata-sb.parquet" \
+		--output_path "s3://data.sb/nrel/resstock/{{release}}/metadata/state=NY/upgrade={{upgrade_id}}/metadata-sb-with-utilities.parquet" \
+		--state "NY" \
+		--release "{{release}}" \
+		--upgrade_id "{{upgrade_id}}"
+
+# Useful enumerations
+assign-ny-utilities-upgrade-00:
+	just assign-ny-utilities res_2024_amy2018_2 00
+
+assign-ny-utilities-upgrade-01:
+	just assign-ny-utilities res_2024_amy2018_2 01
+
+assign-ny-utilities-upgrade-02:
+	just assign-ny-utilities res_2024_amy2018_2 02
+
+assign-ny-utilities-upgrade-03:
+	just assign-ny-utilities res_2024_amy2018_2 03
+
+assign-ny-utilities-upgrade-04:
+	just assign-ny-utilities res_2024_amy2018_2 04
+
+assign-ny-utilities-upgrade-05:
+	just assign-ny-utilities res_2024_amy2018_2 05

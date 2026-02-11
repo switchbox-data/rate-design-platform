@@ -6,6 +6,7 @@ For create_hh_utilities: requires geopandas; building data from S3 or local parq
 For write_utilities_to_s3: requires S3Path.
 """
 
+import argparse
 import io
 from pathlib import Path
 
@@ -23,8 +24,6 @@ CONFIGS: dict = {
     "state_code": "NY",
     "state_fips": "36",
     "state_crs": 2260,  # New York state plane (meters)
-    "bldg_id_utility_mapping_output_path": "data.sb/nrel/resstock/<release>/utilities/<state>/utility_lookup.parquet",  # This is the output path
-    "resstock_path": "/workspaces/reports/data/ResStock/2022_resstock_amy2018_release_1.1/20230922.db",  # change to S3 metadata path
     "electric_poly_path": "s3://data.sb/utility_territories/ny/NYS_Electric_Utility_Service_Territories.csv",
     "gas_poly_path": "s3://data.sb/utility_territories/ny/NYS_Electric_Utility_Service_Territories.csv",
     "utility_name_map": [
@@ -115,7 +114,6 @@ def make_empty_utility_crosswalk(path_to_rs2024_metadata: str | Path) -> pl.Data
         pl.lit(None).cast(pl.Utf8).alias("sb.electric_utility"),
         pl.lit(None).cast(pl.Utf8).alias("sb.gas_utility"),
     )
-    print(bldg_utility_mapping.head())
 
     feather_path = out_dir / "rs2024_bldg_utility_crosswalk.feather"
     csv_path = out_dir / "rs2024_bldg_utility_crosswalk.csv"
@@ -123,56 +121,6 @@ def make_empty_utility_crosswalk(path_to_rs2024_metadata: str | Path) -> pl.Data
     bldg_utility_mapping.write_csv(csv_path)
 
     return bldg_utility_mapping
-
-
-def get_bldg_by_utility(
-    state_code: str,
-    utility_electric: str | list[str] | None = None,
-    utility_gas: str | list[str] | None = None,
-    config: dict | None = None,
-) -> pl.DataFrame:
-    """
-    Get buildings by utility service area.
-
-    Returns bldg_id, sb.electric_utility, sb.gas_utility for buildings matching the
-    given electric and/or gas utilities. If neither filter is given, returns all
-    buildings in the state with their utilities.
-
-    Args:
-        state_code: "NY" or "MA".
-        utility_electric: Electric utility std_name(s) to filter (e.g. "nimo", "coned").
-        utility_gas: Gas utility std_name(s) to filter.
-        config: State config dict; defaults to STATE_CONFIGS.
-
-    Returns:
-        DataFrame with columns bldg_id, sb.electric_utility, sb.gas_utility.
-    """
-    state_config = config or CONFIGS
-
-    hh_path = Path(state_config["bldg_id_utility_mapping_output_path"])
-    if not hh_path.exists():
-        print("Creating new hh_utilities file")
-        hh_df = create_hh_utilities(config=config)
-    else:
-        print("Loading existing hh_utilities file")
-        hh_df = pl.read_csv(hh_path)
-
-    elec_filter = True
-    if utility_electric is not None:
-        elec_list = (
-            [utility_electric]
-            if isinstance(utility_electric, str)
-            else utility_electric
-        )
-        elec_filter = pl.col("sb.electric_utility").is_in(elec_list)
-    gas_filter = True
-    if utility_gas is not None:
-        gas_list = [utility_gas] if isinstance(utility_gas, str) else utility_gas
-        gas_filter = pl.col("sb.gas_utility").is_in(gas_list)
-
-    return hh_df.filter(elec_filter & gas_filter).select(
-        "bldg_id", "sb.electric_utility", "sb.gas_utility"
-    )
 
 
 def _read_housing_parquet(s3_path: str | Path | S3Path) -> pl.DataFrame:
@@ -189,20 +137,22 @@ def _read_housing_parquet(s3_path: str | Path | S3Path) -> pl.DataFrame:
     else:
         raw = pl.read_parquet(str(s3_path))
 
-    return raw.select(
+    result = raw.select(
         pl.col("bldg_id"),
         pl.col("in.puma").str.slice(-5).alias("puma"),
         pl.col("in.heating_fuel").alias("heating_fuel"),
     )
+
+    return result
 
 
 ########################################################
 # GIS Utility Mapping
 ########################################################
 def create_hh_utilities(
+    s3_path: str | Path | S3Path,
     config: dict | None = None,
     puma_year: int = 2019,
-    s3_path: str | Path | S3Path | None = None,
 ) -> pl.DataFrame:
     """
     Create a dataframe of households with their associated utilities.
@@ -214,7 +164,6 @@ def create_hh_utilities(
     Args:
         config: State config; defaults to CONFIGS (state is implied by config keys e.g. state_fips).
         puma_year: Year for PUMA boundaries.
-        save_file: Whether to save the result to state_config["bldg_id_utility_mapping_output_path"].
         s3_path: S3 path or local path to a parquet file containing housing units
             with columns bldg_id, in.puma, in.heating_fuel.
 
@@ -227,7 +176,7 @@ def create_hh_utilities(
     utility_name_map = pl.DataFrame(
         config["utility_name_map"]
     )  # Need to update this path
-    s3_path = s3_path or config["resstock_path"]
+    s3_path = s3_path
 
     # Load PUMAS using pygris
     pumas = get_pumas(
@@ -806,33 +755,50 @@ def write_utilities_to_s3(
     )
 
     # Write back to the same location
-    housing_units.write_parquet(str(output_path_s3), storage_options=STORAGE_OPTIONS)
+    housing_units.write_parquet(
+        str(output_path_s3),
+        storage_options=STORAGE_OPTIONS,
+    )
 
 
 if __name__ == "__main__":
-    path_s3 = S3Path("s3://data.sb/nrel/resstock/")
-    state = "NY"
-    upgrade_id = "00"
-    release = "res_2024_amy2018_2"
-    path_release = path_s3 / release
-    input_metadata_path = (
-        path_release
-        / "metadata"
-        / f"state={state}"
-        / f"upgrade={upgrade_id}"
-        / "metadata-sb.parquet"
+    parser = argparse.ArgumentParser(
+        description="Assign electric and gas utilities to ResStock buildings in NY"
+    )
+    parser.add_argument(
+        "--input_path",
+        type=str,
+        required=True,
+        help="Input path to metadata parquet file (S3 or local)",
+    )
+    parser.add_argument(
+        "--output_path",
+        type=str,
+        required=True,
+        help="Output path for parquet file with utilities (S3 or local)",
+    )
+    parser.add_argument(
+        "--state",
+        type=str,
+        required=True,
+        help="State code (e.g., 'NY')",
+    )
+    parser.add_argument(
+        "--release",
+        type=str,
+        default="res_2024_amy2018_2",
+        help="ResStock release name (default: res_2024_amy2018_2)",
+    )
+    parser.add_argument(
+        "--upgrade_id",
+        type=str,
+        help="Upgrade ID (e.g., '00')",
     )
 
-    output_metadata_path = S3Path(
-        path_release
-        / "metadata"
-        / f"state={state}"
-        / f"upgrade={upgrade_id}"
-        / "metadata-sb-with-utilities.parquet"
-    )
+    args = parser.parse_args()
 
     write_utilities_to_s3(
-        input_path_s3=input_metadata_path,
-        output_path_s3=output_metadata_path,
+        input_path_s3=args.input_path,
+        output_path_s3=args.output_path,
         config=CONFIGS,
     )
