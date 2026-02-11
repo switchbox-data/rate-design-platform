@@ -50,11 +50,11 @@ CONFIGS: dict = {
         {"state_name": "None", "std_name": "none"},
         {
             "state_name": "National Fuel Gas Distribution",
-            "std_name": "nationalfuel",
+            "std_name": "nfg",
         },
         {"state_name": "NYS Electric and Gas", "std_name": "nyseg"},
         {"state_name": "Orange and Rockland Utilities", "std_name": "or"},
-        {"state_name": "Long Island Power Authority", "std_name": "pseg-li"},
+        {"state_name": "Long Island Power Authority", "std_name": "psegli"},
         {
             "state_name": "Reserve Gas Company",
             "std_name": "reserve",
@@ -62,7 +62,7 @@ CONFIGS: dict = {
         {"state_name": "Rochester Gas and Electric", "std_name": "rge"},
         {
             "state_name": "St. Lawrence Gas",
-            "std_name": "stlawrence",
+            "std_name": "stlaw",
         },  # TODO: Don't include in the mapping
         {
             "state_name": "Valley Energy",
@@ -759,23 +759,6 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="Output path for parquet file with utilities (S3 or local)",
-    )
-    parser.add_argument(
-        "--state",
-        type=str,
-        required=True,
-        help="State code (e.g., 'NY')",
-    )
-    parser.add_argument(
-        "--release",
-        type=str,
-        default="res_2024_amy2018_2",
-        help="ResStock release name (default: res_2024_amy2018_2)",
-    )
-    parser.add_argument(
-        "--upgrade_id",
-        type=str,
-        help="Upgrade ID (e.g., '00')",
     )
 
     args = parser.parse_args()

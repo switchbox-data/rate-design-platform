@@ -21,29 +21,10 @@ test-ny-gas-utility-polygons-download s3_base=s3_base:
 	aws s3 ls "{{s3_base}}/utility_territories/ny/NYS_Gas_Utility_Service_Territories.csv"
 
 # Assign electric and gas utilities to ResStock buildings in NY.
-assign-ny-utilities release upgrade_id:
+assign-ny-utilities release:
 	uv run python {{project_root}}/utils/utility_assignment_ny.py \
-		--input_path "s3://data.sb/nrel/resstock/{{release}}/metadata/state=NY/upgrade={{upgrade_id}}/metadata-sb.parquet" \
-		--output_path "s3://data.sb/nrel/resstock/{{release}}/metadata/state=NY/upgrade={{upgrade_id}}/metadata-sb-with-utilities.parquet" \
-		--state "NY" \
-		--release "{{release}}" \
-		--upgrade_id "{{upgrade_id}}"
+		--input_path "s3://data.sb/nrel/resstock/{{release}}/metadata/state=NY/upgrade=00/metadata-sb.parquet" \
+		--output_path "s3://data.sb/nrel/resstock/{{release}}/metadata_utility/state=NY/utility_assignment.parquet"
 
-# Useful enumerations
-assign-ny-utilities-upgrade-00:
-	just assign-ny-utilities res_2024_amy2018_2 00
-
-assign-ny-utilities-upgrade-01:
-	just assign-ny-utilities res_2024_amy2018_2 01
-
-assign-ny-utilities-upgrade-02:
-	just assign-ny-utilities res_2024_amy2018_2 02
-
-assign-ny-utilities-upgrade-03:
-	just assign-ny-utilities res_2024_amy2018_2 03
-
-assign-ny-utilities-upgrade-04:
-	just assign-ny-utilities res_2024_amy2018_2 04
-
-assign-ny-utilities-upgrade-05:
-	just assign-ny-utilities res_2024_amy2018_2 05
+assign-ny-utilities-amy2018-2:
+	just assign-ny-utilities res_2024_amy2018_2
