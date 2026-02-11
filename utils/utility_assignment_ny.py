@@ -16,14 +16,17 @@ import polars as pl
 from cloudpathlib import S3Path
 from pygris import pumas as get_pumas
 
+from utils import get_aws_region
+
+STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 CONFIGS: dict = {
     "state_code": "NY",
     "state_fips": "36",
     "state_crs": 2260,  # New York state plane (meters)
     "bldg_id_utility_mapping_output_path": "data.sb/nrel/resstock/<release>/utilities/<state>/utility_lookup.parquet",  # This is the output path
     "resstock_path": "/workspaces/reports/data/ResStock/2022_resstock_amy2018_release_1.1/20230922.db",  # change to S3 metadata path
-    "electric_poly_path": "s3://data.sb/utility_territories/ny/NYS_Electric_Utility_Service_Territories.shp",
-    "gas_poly_path": "s3://data.sb/utility_territories/ny/NYS_Electric_Utility_Service_Territories.shp",
+    "electric_poly_path": "s3://data.sb/utility_territories/ny/NYS_Electric_Utility_Service_Territories.csv",
+    "gas_poly_path": "s3://data.sb/utility_territories/ny/NYS_Electric_Utility_Service_Territories.csv",
     "utility_name_map": [
         {
             "state_name": "Bath Electric Gas and Water",
@@ -82,14 +85,14 @@ def make_empty_utility_crosswalk(path_to_rs2024_metadata: str | Path) -> pl.Data
     """
     Make an empty utility crosswalk CSV/feather file.
 
-    Reads the ResStock metadata parquet, adds empty electric_utility and gas_utility
+    Reads the ResStock metadata parquet, adds empty sb.electric_utility and sb.gas_utility
     columns, and writes rs2024_bldg_utility_crosswalk.feather and .csv to the same dir.
 
     Args:
         path_to_rs2024_metadata: Directory containing metadata.parquet (or path to metadata.parquet).
 
     Returns:
-        DataFrame with bldg_id, in.state, in.heating_fuel, out.natural_gas..., electric_utility, gas_utility.
+        DataFrame with bldg_id, in.state, in.heating_fuel, out.natural_gas..., sb.electric_utility, sb.gas_utility.
     """
 
     USE_THESE_COLUMNS = [
@@ -109,8 +112,8 @@ def make_empty_utility_crosswalk(path_to_rs2024_metadata: str | Path) -> pl.Data
     out_dir = parquet_path.parent if parquet_path.suffix else path
 
     bldg_utility_mapping = bldg_utility_mapping.with_columns(
-        pl.lit(None).cast(pl.Utf8).alias("electric_utility"),
-        pl.lit(None).cast(pl.Utf8).alias("gas_utility"),
+        pl.lit(None).cast(pl.Utf8).alias("sb.electric_utility"),
+        pl.lit(None).cast(pl.Utf8).alias("sb.gas_utility"),
     )
     print(bldg_utility_mapping.head())
 
@@ -131,7 +134,7 @@ def get_bldg_by_utility(
     """
     Get buildings by utility service area.
 
-    Returns bldg_id, electric_utility, gas_utility for buildings matching the
+    Returns bldg_id, sb.electric_utility, sb.gas_utility for buildings matching the
     given electric and/or gas utilities. If neither filter is given, returns all
     buildings in the state with their utilities.
 
@@ -142,7 +145,7 @@ def get_bldg_by_utility(
         config: State config dict; defaults to STATE_CONFIGS.
 
     Returns:
-        DataFrame with columns bldg_id, electric_utility, gas_utility.
+        DataFrame with columns bldg_id, sb.electric_utility, sb.gas_utility.
     """
     state_config = config or CONFIGS
 
@@ -161,14 +164,14 @@ def get_bldg_by_utility(
             if isinstance(utility_electric, str)
             else utility_electric
         )
-        elec_filter = pl.col("electric_utility").is_in(elec_list)
+        elec_filter = pl.col("sb.electric_utility").is_in(elec_list)
     gas_filter = True
     if utility_gas is not None:
         gas_list = [utility_gas] if isinstance(utility_gas, str) else utility_gas
-        gas_filter = pl.col("gas_utility").is_in(gas_list)
+        gas_filter = pl.col("sb.gas_utility").is_in(gas_list)
 
     return hh_df.filter(elec_filter & gas_filter).select(
-        "bldg_id", "electric_utility", "gas_utility"
+        "bldg_id", "sb.electric_utility", "sb.gas_utility"
     )
 
 
@@ -199,7 +202,6 @@ def _read_housing_parquet(s3_path: str | Path | S3Path) -> pl.DataFrame:
 def create_hh_utilities(
     config: dict | None = None,
     puma_year: int = 2019,
-    save_file: bool = True,
     s3_path: str | Path | S3Path | None = None,
 ) -> pl.DataFrame:
     """
@@ -217,7 +219,7 @@ def create_hh_utilities(
             with columns bldg_id, in.puma, in.heating_fuel.
 
     Returns:
-        DataFrame with bldg_id, electric_utility, gas_utility.
+        DataFrame with bldg_id, sb.electric_utility, sb.gas_utility.
     """
 
     config = config or CONFIGS
@@ -236,30 +238,18 @@ def create_hh_utilities(
     pumas = pumas.to_crs(epsg=config["state_crs"])
     pumas["puma_area"] = pumas.geometry.area
 
-    # Load utility polygons (NY: CSV with WKT the_geom; MA: shapefile merged by utility)
-    electric_df = pd.read_csv(config["electric_poly_path"])
-    electric_gdf = gpd.GeoDataFrame(
-        electric_df,
-        geometry=gpd.GeoSeries.from_wkt(electric_df["the_geom"]),
-        crs="EPSG:4326",
-    ).to_crs(epsg=config["state_crs"])
-    electric_gdf = gpd.GeoDataFrame(
-        electric_gdf.rename(columns={"COMP_FULL": "utility"}),
-        geometry=electric_gdf.geometry,
-        crs=electric_gdf.crs,
+    # Load utility polygons (.csv files from S3)
+    electric_gdf = read_csv_to_gdf_from_s3(
+        config["electric_poly_path"], geometry_col="the_geom", crs="EPSG:4326"
     )
+    electric_gdf = electric_gdf.to_crs(epsg=config["state_crs"])
+    electric_gdf = electric_gdf.rename(columns={"COMP_FULL": "utility"})
 
-    gas_df = pd.read_csv(config["gas_poly_path"])
-    gas_gdf = gpd.GeoDataFrame(
-        gas_df,
-        geometry=gpd.GeoSeries.from_wkt(gas_df["the_geom"]),
-        crs="EPSG:4326",
-    ).to_crs(epsg=config["state_crs"])
-    gas_gdf = gpd.GeoDataFrame(
-        gas_gdf.rename(columns={"COMP_FULL": "utility"}),
-        geometry=gas_gdf.geometry,
-        crs=gas_gdf.crs,
+    gas_gdf = read_csv_to_gdf_from_s3(
+        config["gas_poly_path"], geometry_col="the_geom", crs="EPSG:4326"
     )
+    gas_gdf = gas_gdf.to_crs(epsg=config["state_crs"])
+    gas_gdf = gas_gdf.rename(columns={"COMP_FULL": "utility"})
 
     # Calculate overlap between PUMAs and utilities
     puma_elec_overlap = _calculate_puma_utility_overlap(
@@ -290,25 +280,62 @@ def create_hh_utilities(
 
     # Assign electric and gas to bldg's
     building_elec = _sample_utility_per_building(
-        bldg_ids_df, puma_elec_probs, "electric_utility"
+        bldg_ids_df, puma_elec_probs, "sb.electric_utility"
     )
 
     building_gas = _sample_utility_per_building(
-        bldg_ids_df, puma_gas_probs, "gas_utility", only_when_fuel="Natural Gas"
+        bldg_ids_df, puma_gas_probs, "sb.gas_utility", only_when_fuel="Natural Gas"
     )
 
     building_utilities = building_elec.join(
-        building_gas.select("bldg_id", "gas_utility"), on="bldg_id", how="left"
+        building_gas.select("bldg_id", "sb.gas_utility"), on="bldg_id", how="left"
     )
 
-    if save_file:
-        out_path = Path(
-            config["bldg_id_utility_mapping_output_path"]
-        )  # Need to update this path
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        building_utilities.write_csv(out_path)
-
     return building_utilities
+
+
+def read_csv_to_gdf_from_s3(s3_path, geometry_col="the_geom", crs="EPSG:4326"):
+    """
+    Read a CSV file from S3 with WKT geometry and convert to GeoDataFrame.
+
+    Parameters
+    ----------
+    s3_path : str
+        S3 path to the CSV file (e.g., 's3://bucket/path/file.csv')
+    geometry_col : str, default 'the_geom'
+        Name of the column containing WKT geometry
+    crs : str, default 'EPSG:4326'
+        Coordinate reference system for the geometries
+
+    Returns
+    -------
+    gpd.GeoDataFrame
+        GeoDataFrame with geometry from the WKT column
+    """
+    # Read CSV directly from S3
+    df = pd.read_csv(s3_path, low_memory=False)
+
+    # Convert numeric columns that might have been read as strings
+    # Skip geometry column and known string columns (like COMP_FULL/utility names)
+    string_columns = {"COMP_FULL", "utility", "state_name", "std_name"}
+    for col in df.columns:
+        if col != geometry_col and col not in string_columns:
+            try:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+            except (ValueError, TypeError):
+                pass  # Leave non-numeric columns as-is
+
+    # Ensure string columns stay as strings (in case they were inferred as numeric)
+    for col in string_columns:
+        if col in df.columns:
+            df[col] = df[col].astype(str)
+
+    # Convert to GeoDataFrame
+    gdf = gpd.GeoDataFrame(
+        df, geometry=gpd.GeoSeries.from_wkt(df[geometry_col]), crs=crs
+    )
+
+    return gdf
 
 
 def _calculate_puma_utility_overlap(
@@ -351,7 +378,7 @@ def _calculate_puma_utility_overlap(
         columns={"PUMACE10": "puma_id"}
     )
 
-    # Convert to polars
+    # Convert to polars (utility column should already be string from source CSV)
     return pl.from_pandas(puma_overlap)
 
 
@@ -457,8 +484,8 @@ def _sample_utility_per_building(
             if row["heating_fuel"] != only_when_fuel:
                 return None
 
-        # Get probabilities for this row
-        probs = row[utility_cols].values
+        # Get probabilities for this row and convert to numeric (float)
+        probs = pd.to_numeric(row[utility_cols].values, errors="coerce").astype(float)
 
         # Handle cases where all probabilities are 0 or NaN
         if np.all(np.isnan(probs)) or np.sum(probs) == 0:
@@ -523,10 +550,12 @@ def _split_multi_service_areas(puma_utility_overlap: pl.DataFrame) -> pl.DataFra
 
 
 def write_utilities_to_s3(
-    state_code: str, s3_path: str | Path | S3Path, config: dict | None = None
+    input_path_s3: str | Path | S3Path,
+    output_path_s3: str | Path | S3Path,
+    config: dict | None = None,
 ) -> None:
     """
-    Create hh_utilities for the state and write electric_utility, gas_utility
+    Create hh_utilities for the state and write sb.electric_utility, sb.gas_utility
     to the housing_units parquet file.
 
     Args:
@@ -537,40 +566,60 @@ def write_utilities_to_s3(
 
     config = config or CONFIGS
 
-    building_utilities = create_hh_utilities(s3_path=s3_path, config=config)
+    building_utilities = create_hh_utilities(s3_path=input_path_s3, config=config)
 
     # Convert to S3Path if needed
-    if isinstance(s3_path, str):
-        s3_path = S3Path(s3_path) if s3_path.startswith("s3://") else Path(s3_path)
+    if isinstance(input_path_s3, str):
+        input_path_s3 = (
+            S3Path(input_path_s3)
+            if input_path_s3.startswith("s3://")
+            else Path(input_path_s3)
+        )
 
     # Read existing housing_units
-    housing_units = pl.read_parquet(str(s3_path))
+    housing_units = pl.read_parquet(str(input_path_s3), storage_options=STORAGE_OPTIONS)
 
     # Drop existing utility columns if they exist (equivalent to ADD COLUMN IF NOT EXISTS)
-    if "electric_utility" in housing_units.columns:
-        housing_units = housing_units.drop("electric_utility")
-    if "gas_utility" in housing_units.columns:
-        housing_units = housing_units.drop("gas_utility")
+    if "sb.electric_utility" in housing_units.columns:
+        housing_units = housing_units.drop("sb.electric_utility")
+    if "sb.gas_utility" in housing_units.columns:
+        housing_units = housing_units.drop("sb.gas_utility")
 
     # Join utilities to housing_units (equivalent to UPDATE ... FROM)
     housing_units = housing_units.join(
-        building_utilities.select(["bldg_id", "electric_utility", "gas_utility"]),
+        building_utilities.select(["bldg_id", "sb.electric_utility", "sb.gas_utility"]),
         on="bldg_id",
         how="left",
     )
 
     # Write back to the same location
-    housing_units.write_parquet(str(s3_path))
+    housing_units.write_parquet(str(output_path_s3), storage_options=STORAGE_OPTIONS)
 
 
 if __name__ == "__main__":
     path_s3 = S3Path("s3://data.sb/nrel/resstock/")
-    path_release = path_s3 / "res_2024_amy2018_2"
-    metadata_path = (
-        path_release / "metadata" / "state=NY" / "upgrade=00" / "metadata-sb.parquet"
+    state = "NY"
+    upgrade_id = "00"
+    release = "res_2024_amy2018_2"
+    path_release = path_s3 / release
+    input_metadata_path = (
+        path_release
+        / "metadata"
+        / f"state={state}"
+        / f"upgrade={upgrade_id}"
+        / "metadata-sb.parquet"
     )
+
+    output_metadata_path = S3Path(
+        path_release
+        / "metadata"
+        / f"state={state}"
+        / f"upgrade={upgrade_id}"
+        / "metadata-sb-with-utilities.parquet"
+    )
+
     write_utilities_to_s3(
-        state_code="NY",
-        s3_path=metadata_path,
+        input_path_s3=input_metadata_path,
+        output_path_s3=output_metadata_path,
         config=CONFIGS,
     )

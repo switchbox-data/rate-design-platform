@@ -6,17 +6,17 @@ download-ny-utility-polygons s3_base=s3_base:
 
 # Stream CSV from NY open data directly to S3 (no local file). Requires AWS CLI configured.
 download-ny-electric-utility-polygons s3_base=s3_base:
-	wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/api/views/i7nm-ih89/rows.csv" | aws s3 cp - "{{s3_base}}/utility_territories/ny/NYS_Electric_Utility_Service_Territories.shp"
+	wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/api/views/i7nm-ih89/rows.csv" | aws s3 cp - "{{s3_base}}/utility_territories/ny/NYS_Electric_Utility_Service_Territories.csv"
 	just test-ny-electric-utility-polygons-download {{s3_base}}
 
 download-ny-gas-utility-polygons s3_base=s3_base:
-	wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/api/views/i7nm-ih89/rows.csv" | aws s3 cp - "{{s3_base}}/utility_territories/ny/NYS_Gas_Utility_Service_Territories.shp"
+	wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/api/views/i7nm-ih89/rows.csv" | aws s3 cp - "{{s3_base}}/utility_territories/ny/NYS_Gas_Utility_Service_Territories.csv"
 	just test-ny-gas-utility-polygons-download {{s3_base}}
 
 # Assert the downloaded electric utility file exists in S3 (run after download-ny-electric-utility-polygons).
 test-ny-electric-utility-polygons-download s3_base=s3_base:
-	aws s3 ls "{{s3_base}}/utility_territories/ny/NYS_Electric_Utility_Service_Territories.shp"
+	aws s3 ls "{{s3_base}}/utility_territories/ny/NYS_Electric_Utility_Service_Territories.csv"
 
 # Assert the downloaded gas utility file exists in S3 (run after download-ny-gas-utility-polygons).
 test-ny-gas-utility-polygons-download s3_base=s3_base:
-	aws s3 ls "{{s3_base}}/utility_territories/ny/NYS_Gas_Utility_Service_Territories.shp"
+	aws s3 ls "{{s3_base}}/utility_territories/ny/NYS_Gas_Utility_Service_Territories.csv"
