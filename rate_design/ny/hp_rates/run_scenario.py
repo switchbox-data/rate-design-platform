@@ -1,8 +1,9 @@
 """Entrypoint for running NY heat pump rate scenarios (stub)."""
 
 import logging
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
 from cairo.rates_tool.loads import _return_load, return_buildingstock
 from cairo.rates_tool.systemsimulator import (
     MeetRevenueSufficiencySystemWide,

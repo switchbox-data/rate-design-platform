@@ -1,0 +1,64 @@
+# CI using the GitHub Actions runner directly (no devcontainer image build).
+# Runs `just install` on each job to install uv, Python deps, prek, and pre-commit
+# hooks, then runs quality checks and tests as parallel jobs.
+
+name: CI (runner-native)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  quality-checks:
+    name: Quality checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install just
+        run: |
+          mkdir -p ~/.local/bin
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      # Use GH_PAT (same secret as devcontainer workflow) so uv can clone private CAIRO dep
+      - name: Configure Git for private GitHub clone
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Install dependencies (uv, prek, pre-commit hooks)
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          just install
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Run quality checks
+        run: just check
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install just
+        run: |
+          mkdir -p ~/.local/bin
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      # Use GH_PAT (same secret as devcontainer workflow) so uv can clone private CAIRO dep
+      - name: Configure Git for private GitHub clone
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Install dependencies (uv, prek, pre-commit hooks)
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          just install
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Run tests
+        run: just test

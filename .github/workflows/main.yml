@@ -1,10 +1,17 @@
-name: Main
+# -----------------------------------------------------------------------------
+# DISABLED: This devcontainer-based workflow is kept for reference but no longer
+# runs on push/PR. CI now uses the runner-native workflow (ci-runner-native.yml)
+# which installs deps on the GHA runner and runs just check / just test in parallel.
+# To re-enable: restore the "on:" block below and remove or disable ci-runner-native.yml.
+# -----------------------------------------------------------------------------
+name: Main (devcontainer — disabled)
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    types: [ opened, synchronize, reopened, ready_for_review ]
+  workflow_dispatch:  # Only manual trigger; push/PR use ci-runner-native.yml
+  # push:
+  #   branches: [ main ]
+  # pull_request:
+  #   types: [ opened, synchronize, reopened, ready_for_review ]
 
 # ============================================================================
 # CI/CD ARCHITECTURE: Multi-Arch Devcontainer Build + Parallel Test Execution
