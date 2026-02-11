@@ -1,8 +1,9 @@
 import argparse
 import io
+import os
 
-import pytest
 import polars as pl
+import pytest
 from cloudpathlib import S3Path
 
 
@@ -12,6 +13,10 @@ from cloudpathlib import S3Path
         ("s3://data.sb/nrel/resstock/", "res_2024_amy2018_2", "NY", "00"),
         ("s3://data.sb/nrel/resstock/", "res_2024_amy2018_2", "RI", "00"),
     ],
+)
+@pytest.mark.skipif(
+    os.getenv("GITHUB_ACTIONS") == "true",
+    reason="Skipping in GitHub Actions CI - requires AWS credentials",
 )
 def test_resstock_download_to_s3(
     data_path: str, release: str, state: str, upgrade_id: str
