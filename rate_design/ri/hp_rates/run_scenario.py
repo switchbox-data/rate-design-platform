@@ -18,6 +18,7 @@ from cairo.utils.marginal_costs.marginal_cost_calculator import (
 
 from utils.cairo import (
     build_bldg_id_to_load_filepath,
+    ensure_metadata_has_weight,
     patch_postprocessor_peak_allocation,
 )
 from utils.generate_precalc_mapping import generate_default_precalc_mapping
@@ -97,6 +98,9 @@ precalc_mapping = generate_default_precalc_mapping(
     tariff_key="rie_a16",
 )
 
+
+# Ensure metadata has a weight column (some ResStock parquets omit it)
+path_resstock_metadata = ensure_metadata_has_weight(path_resstock_metadata)
 
 # read in basic customer-level information and reweight to utility customer count
 customer_metadata = return_buildingstock(

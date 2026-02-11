@@ -1,7 +1,32 @@
 """Utility functions for Cairo-related operations."""
 
 import pandas as pd
+import pyarrow.parquet as pq
 from pathlib import Path
+
+
+def ensure_metadata_has_weight(
+    metadata_path: Path, default_weight: float = 1.0
+) -> Path:
+    """Inject a default weight column into a metadata parquet if missing.
+
+    Writes a patched copy next to the original (suffixed '_weighted') and
+    returns its path.  If weight already exists, returns the original path.
+
+    TODO: Remove once all metadata parquets include a weight column.
+    """
+    schema = pq.read_schema(metadata_path)
+    if "weight" in schema.names:
+        return metadata_path
+
+    df = pd.read_parquet(metadata_path, engine="pyarrow")
+    df["weight"] = default_weight
+
+    patched_path = metadata_path.with_name(
+        metadata_path.stem + "_weighted" + metadata_path.suffix
+    )
+    df.to_parquet(patched_path, engine="pyarrow", index=False)
+    return patched_path
 
 
 def patch_postprocessor_peak_allocation():
