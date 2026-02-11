@@ -356,23 +356,33 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
       options: --user root
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
     steps:
       - uses: actions/checkout@v5
 
       - name: Configure Git safe directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_DEFAULT_REGION || 'us-west-2' }}
-
       - name: Verify AWS credentials
         run: |
-          echo "Testing AWS access..."
-          aws sts get-caller-identity 2>/dev/null && echo "✓ AWS credentials verified" || echo "⚠️  Warning: AWS credentials not working. S3-dependent tests will fail."
+          echo "Checking if AWS credentials are available..."
+          if [ -z "$AWS_ACCESS_KEY_ID" ]; then
+            echo "❌ AWS_ACCESS_KEY_ID is not set"
+          else
+            echo "✓ AWS_ACCESS_KEY_ID is set"
+          fi
+          
+          if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "❌ AWS_SECRET_ACCESS_KEY is not set"
+          else
+            echo "✓ AWS_SECRET_ACCESS_KEY is set"
+          fi
+          
+          # Test actual AWS access
+          aws sts get-caller-identity 2>/dev/null && echo "✓ AWS credentials verified" || echo "⚠️  AWS credentials validation failed"
 
       - name: Run tests
         run: just test
