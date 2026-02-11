@@ -4,31 +4,30 @@ import json
 import logging
 from pathlib import Path
 
+from cairo.rates_tool.loads import _return_load, return_buildingstock
 from cairo.rates_tool.systemsimulator import (
     MeetRevenueSufficiencySystemWide,
+    _initialize_tariffs,
     _return_export_compensation_rate,
     _return_revenue_requirement_target,
 )
-from cairo.utils.marginal_costs.marginal_cost_calculator import add_distribution_costs
+from cairo.utils.marginal_costs.marginal_cost_calculator import (
+    _load_cambium_marginal_costs,
+    add_distribution_costs,
+)
 
 from utils.cairo import (
-    _initialize_tariffs,
-    _load_cambium_marginal_costs,
-    _return_load,
     build_bldg_id_to_load_filepath,
     patch_postprocessor_peak_allocation,
-    patch_postprocessor_weight_handling,
-    return_buildingstock,
 )
 from utils.generate_precalc_mapping import generate_default_precalc_mapping
-from utils.reweight_customer_counts import reweight_customer_counts
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
 log.info(".... Beginning RI residential (non-LMI) rate scenario - RIE A-16 tariff")
 
-# Apply patches for CAIRO postprocessing
-patch_postprocessor_weight_handling()
+# Apply patch for CAIRO peak allocation postprocessing
+# TODO: Remove once CAIRO branch sz/peak-residual-sum-costs is merged to main
 patch_postprocessor_peak_allocation()
 
 run_name = "ri_default_test_run"
@@ -80,12 +79,14 @@ gas_tariff_paths = {
 # Load in and manipulate tariff information as needed for bill calculation
 tariffs_params, tariff_map_df = _initialize_tariffs(
     tariff_map=path_tariff_map,
+    building_stock_sample=None,
     tariff_paths=tariff_paths,
 )
 
 # Initialize gas tariffs using the same pattern as electricity
 gas_tariffs_params, gas_tariff_map_df = _initialize_tariffs(
     tariff_map=path_gas_tariff_map,
+    building_stock_sample=None,
     tariff_paths=gas_tariff_paths,
 )
 
@@ -97,13 +98,18 @@ precalc_mapping = generate_default_precalc_mapping(
 )
 
 
-# read in basic customer-level information
+# read in basic customer-level information and reweight to utility customer count
 customer_metadata = return_buildingstock(
-    metadata_path=path_resstock_metadata,
+    load_scenario=path_resstock_metadata,
+    customer_count=target_customer_count,
+    columns=[
+        "applicability",
+        "postprocess_group.has_hp",
+        "in.vintage_acs",
+        "out.electricity.total.energy_consumption.kwh",
+        "out.natural_gas.total.energy_consumption.kwh",
+    ],
 )
-
-# Reweight customer metadata to match utility customer count
-customer_metadata = reweight_customer_counts(customer_metadata, target_customer_count)
 
 # read in solar PV compensation structure, and which customers have adopted solar PV
 sell_rate = _return_export_compensation_rate(
