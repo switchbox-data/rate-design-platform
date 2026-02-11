@@ -7,8 +7,7 @@ For write_utilities_to_s3: requires S3Path.
 """
 
 import argparse
-import io
-from pathlib import Path
+from typing import cast
 
 import geopandas as gpd
 import numpy as np
@@ -77,65 +76,14 @@ CONFIGS: dict = {
 }
 
 
-########################################################
-# Making or updating utility crosswalks
-########################################################
-def make_empty_utility_crosswalk(path_to_rs2024_metadata: str | Path) -> pl.DataFrame:
-    """
-    Make an empty utility crosswalk CSV/feather file.
-
-    Reads the ResStock metadata parquet, adds empty sb.electric_utility and sb.gas_utility
-    columns, and writes rs2024_bldg_utility_crosswalk.feather and .csv to the same dir.
-
-    Args:
-        path_to_rs2024_metadata: Directory containing metadata.parquet (or path to metadata.parquet).
-
-    Returns:
-        DataFrame with bldg_id, in.state, in.heating_fuel, out.natural_gas..., sb.electric_utility, sb.gas_utility.
-    """
-
-    USE_THESE_COLUMNS = [
-        "bldg_id",
-        "in.state",
-        "in.heating_fuel",
-        "out.natural_gas.total.energy_consumption.kwh",
-    ]
-
-    path = Path(path_to_rs2024_metadata)
-    if path.is_dir():
-        parquet_path = path / "metadata.parquet"
-    else:
-        parquet_path = path
-
-    bldg_utility_mapping = pl.read_parquet(parquet_path, columns=USE_THESE_COLUMNS)
-    out_dir = parquet_path.parent if parquet_path.suffix else path
-
-    bldg_utility_mapping = bldg_utility_mapping.with_columns(
-        pl.lit(None).cast(pl.Utf8).alias("sb.electric_utility"),
-        pl.lit(None).cast(pl.Utf8).alias("sb.gas_utility"),
-    )
-
-    feather_path = out_dir / "rs2024_bldg_utility_crosswalk.feather"
-    csv_path = out_dir / "rs2024_bldg_utility_crosswalk.csv"
-    bldg_utility_mapping.write_ipc(feather_path)
-    bldg_utility_mapping.write_csv(csv_path)
-
-    return bldg_utility_mapping
-
-
-def _read_housing_parquet(s3_path: str | Path | S3Path) -> pl.DataFrame:
+def _read_housing_parquet(s3_path: S3Path) -> pl.LazyFrame:
     """
     Read housing units from a parquet file (S3 or local).
 
-    Expects columns bldg_id, in.puma, in.heating_fuel. Returns DataFrame with
+    Expects columns bldg_id, in.puma, in.heating_fuel. Returns LazyFrame with
     bldg_id, puma (last 5 chars of in.puma), heating_fuel.
     """
-    path_str = str(s3_path)
-    if path_str.startswith("s3://"):
-        path = S3Path(path_str) if not isinstance(s3_path, S3Path) else s3_path
-        raw = pl.read_parquet(io.BytesIO(path.read_bytes()))
-    else:
-        raw = pl.read_parquet(str(s3_path))
+    raw = pl.scan_parquet(str(s3_path), storage_options=STORAGE_OPTIONS)
 
     result = raw.select(
         pl.col("bldg_id"),
@@ -150,12 +98,12 @@ def _read_housing_parquet(s3_path: str | Path | S3Path) -> pl.DataFrame:
 # GIS Utility Mapping
 ########################################################
 def create_hh_utilities(
-    s3_path: str | Path | S3Path,
+    s3_path: S3Path,
     config: dict | None = None,
     puma_year: int = 2019,
-) -> pl.DataFrame:
+) -> pl.LazyFrame:
     """
-    Create a dataframe of households with their associated utilities.
+    Create a LazyFrame of households with their associated utilities.
 
     Uses Census PUMAs and utility service territory polygons to compute
     overlap, then assigns electric/gas utilities to ResStock buildings by
@@ -168,15 +116,14 @@ def create_hh_utilities(
             with columns bldg_id, in.puma, in.heating_fuel.
 
     Returns:
-        DataFrame with bldg_id, sb.electric_utility, sb.gas_utility.
+        LazyFrame with bldg_id, sb.electric_utility, sb.gas_utility.
     """
 
     config = config or CONFIGS
 
     utility_name_map = pl.DataFrame(
         config["utility_name_map"]
-    )  # Need to update this path
-    s3_path = s3_path
+    ).lazy()  # Convert to LazyFrame for consistency
 
     # Load PUMAS using pygris
     pumas = get_pumas(
@@ -305,7 +252,7 @@ def _calculate_puma_utility_overlap(
     pumas: gpd.GeoDataFrame,
     utility_gdf: gpd.GeoDataFrame,
     state_crs: int,
-) -> pl.DataFrame:
+) -> pl.LazyFrame:
     """Calculate overlap between PUMAs and utility service territories.
 
     Args:
@@ -314,7 +261,7 @@ def _calculate_puma_utility_overlap(
         state_crs: State-specific CRS (EPSG code) for accurate area calculations
 
     Returns:
-        Polars DataFrame with puma_id, pct_overlap, and all utility columns
+        Polars LazyFrame with puma_id, pct_overlap, and all utility columns
     """
     # Transform PUMAs to state CRS and calculate area
     puma_overlap = pumas.to_crs(epsg=state_crs).copy()
@@ -341,33 +288,44 @@ def _calculate_puma_utility_overlap(
         columns={"PUMACE10": "puma_id"}
     )
 
-    # Convert to polars (utility column should already be string from source CSV)
-    return pl.from_pandas(puma_overlap)
+    # Convert to polars LazyFrame (utility column should already be string from source CSV)
+    return pl.from_pandas(puma_overlap).lazy()
 
 
 def _calculate_prior_distributions(
-    puma_elec_probs: pl.DataFrame,
-    puma_gas_probs: pl.DataFrame,
-    bldg_ids_df: pl.DataFrame,
+    puma_elec_probs: pl.LazyFrame,
+    puma_gas_probs: pl.LazyFrame,
+    bldg_ids_df: pl.LazyFrame,
 ) -> tuple[dict[str, float], dict[str, float]]:
     """Calculate prior probability distributions for electric and gas utilities.
 
     Args:
-        puma_elec_probs: Wide-format DataFrame with puma_id and electric utility probability columns
-        puma_gas_probs: Wide-format DataFrame with puma_id and gas utility probability columns
-        bldg_ids_df: DataFrame with bldg_id, puma, heating_fuel
+        puma_elec_probs: Wide-format LazyFrame with puma_id and electric utility probability columns
+        puma_gas_probs: Wide-format LazyFrame with puma_id and gas utility probability columns
+        bldg_ids_df: LazyFrame with bldg_id, puma, heating_fuel
 
     Returns:
         Tuple of (elec_prior_weighted dict, gas_prior_weighted dict) for later comparison
     """
     # Electric: Calculate weighted average probability across all PUMAs
     # (weighted by number of buildings in each PUMA)
-    puma_counts = bldg_ids_df.group_by("puma").agg(pl.len().alias("count"))
+    puma_counts = bldg_ids_df.group_by("puma").agg(pl.len().alias("count")).collect()
 
-    elec_prior = puma_elec_probs.join(
-        puma_counts, left_on="puma_id", right_on="puma", how="left"
-    ).with_columns(pl.col("count").fill_null(0))
-    utility_cols_elec = [c for c in puma_elec_probs.columns if c != "puma_id"]
+    elec_prior = cast(
+        pl.DataFrame,
+        (
+            puma_elec_probs.join(
+                pl.LazyFrame(puma_counts),
+                left_on="puma_id",
+                right_on="puma",
+                how="left",
+            )
+            .with_columns(pl.col("count").fill_null(0))
+            .collect()
+        ),
+    )
+    puma_elec_probs_df = cast(pl.DataFrame, puma_elec_probs.collect())
+    utility_cols_elec = [c for c in puma_elec_probs_df.columns if c != "puma_id"]
     elec_prior_weighted = {}
     total_bldgs = elec_prior["count"].sum()
     for util in utility_cols_elec:
@@ -381,12 +339,23 @@ def _calculate_prior_distributions(
 
     # Gas: Calculate weighted average probability (only for Natural Gas buildings)
     gas_bldgs = bldg_ids_df.filter(pl.col("heating_fuel") == "Natural Gas")
-    gas_puma_counts = gas_bldgs.group_by("puma").agg(pl.len().alias("count"))
+    gas_puma_counts = gas_bldgs.group_by("puma").agg(pl.len().alias("count")).collect()
 
-    gas_prior = puma_gas_probs.join(
-        gas_puma_counts, left_on="puma_id", right_on="puma", how="left"
-    ).with_columns(pl.col("count").fill_null(0))
-    utility_cols_gas = [c for c in puma_gas_probs.columns if c != "puma_id"]
+    gas_prior = cast(
+        pl.DataFrame,
+        (
+            puma_gas_probs.join(
+                pl.LazyFrame(gas_puma_counts),
+                left_on="puma_id",
+                right_on="puma",
+                how="left",
+            )
+            .with_columns(pl.col("count").fill_null(0))
+            .collect()
+        ),
+    )
+    puma_gas_probs_df = cast(pl.DataFrame, puma_gas_probs.collect())
+    utility_cols_gas = [c for c in puma_gas_probs_df.columns if c != "puma_id"]
     gas_prior_weighted = {}
     total_gas_bldgs = gas_prior["count"].sum()
     for util in utility_cols_gas:
@@ -402,11 +371,11 @@ def _calculate_prior_distributions(
 
 
 def _print_comparison_summary(
-    building_elec: pl.DataFrame,
-    building_gas: pl.DataFrame,
+    building_elec: pl.LazyFrame,
+    building_gas: pl.LazyFrame,
     elec_prior_weighted: dict[str, float],
     gas_prior_weighted: dict[str, float],
-    bldg_ids_df: pl.DataFrame,
+    bldg_ids_df: pl.LazyFrame,
 ) -> None:
     """Print comparison summary showing prior vs posterior distributions in a formatted table.
 
@@ -423,7 +392,7 @@ def _print_comparison_summary(
 
     def _print_comparison_table(
         utility_type: str,
-        building_df: pl.DataFrame,
+        building_df: pl.LazyFrame,
         utility_col: str,
         prior_weighted: dict[str, float],
         filter_fuel_type: str | None = None,
@@ -444,12 +413,18 @@ def _print_comparison_summary(
             building_df_filtered = building_df
 
         # Calculate posterior distribution (only on assigned buildings, not NULL)
-        posterior_df = (
-            building_df_filtered.filter(pl.col(utility_col).is_not_null())
-            .group_by(utility_col)
-            .agg(pl.len().alias("count"))
-            .with_columns((pl.col("count") / pl.col("count").sum()).alias("proportion"))
-            .sort("proportion", descending=True)
+        posterior_df = cast(
+            pl.DataFrame,
+            (
+                building_df_filtered.filter(pl.col(utility_col).is_not_null())
+                .group_by(utility_col)
+                .agg(pl.len().alias("count"))
+                .with_columns(
+                    (pl.col("count") / pl.col("count").sum()).alias("proportion")
+                )
+                .sort("proportion", descending=True)
+                .collect()
+            ),
         )
 
         # Build comparison data
@@ -465,13 +440,20 @@ def _print_comparison_summary(
         )
 
         # Get total number of buildings (filtered by fuel type if specified)
-        total_buildings = len(building_df_filtered)
+        building_df_filtered_collected = cast(
+            pl.DataFrame, building_df_filtered.collect()
+        )
+        total_buildings = building_df_filtered_collected.height
 
         # For gas, only count buildings that should get assigned (Natural Gas)
         if filter_fuel_type is not None:
-            assigned_buildings = building_df_filtered.filter(
-                pl.col(utility_col).is_not_null()
-            ).height
+            assigned_buildings_df = cast(
+                pl.DataFrame,
+                building_df_filtered.filter(
+                    pl.col(utility_col).is_not_null()
+                ).collect(),
+            )
+            assigned_buildings = assigned_buildings_df.height
             print(
                 f"\nNote: Comparing only {filter_fuel_type} buildings "
                 f"({assigned_buildings} assigned out of {total_buildings} total)"
@@ -585,21 +567,21 @@ def _print_comparison_summary(
 
 # TODO: Check the posterior distribution matches the prior probabilities of utilities per PUMA district
 def _calculate_utility_probabilities(
-    puma_overlap: pl.DataFrame,
-    utility_name_map: pl.DataFrame,
+    puma_overlap: pl.LazyFrame,
+    utility_name_map: pl.LazyFrame,
     handle_municipal: bool = True,
     filter_none: bool = False,
-) -> pl.DataFrame:
+) -> pl.LazyFrame:
     """Calculate utility probabilities for each PUMA based on overlap percentages.
 
     Args:
-        puma_overlap: DataFrame with puma_id, utility, pct_overlap columns
-        utility_name_map: Mapping from state_name to std_name for utilities
+        puma_overlap: LazyFrame with puma_id, utility, pct_overlap columns
+        utility_name_map: LazyFrame mapping from state_name to std_name for utilities
         handle_municipal: Whether to transform "Municipal Utility:" names to "muni-" format
         filter_none: Whether to filter out utilities named "none"
 
     Returns:
-        Wide-format DataFrame with puma_id and probability columns for each utility
+        Wide-format LazyFrame with puma_id and probability columns for each utility
     """
     # Join with utility name map
     probs = puma_overlap.join(
@@ -642,30 +624,32 @@ def _calculate_utility_probabilities(
     if filter_none:
         probs = probs.filter(pl.col("utility") != "none")
 
-    # Pivot to wide format
-    probs = probs.pivot(index="puma_id", on="utility", values="probability").fill_null(
-        0
+    # Pivot to wide format (pivot must be done on collected DataFrame)
+    probs_collected = cast(pl.DataFrame, probs.collect())
+    probs_pivoted = probs_collected.pivot(
+        index="puma_id", on="utility", values="probability", aggregate_function=None
     )
+    probs = probs_pivoted.fill_null(0).lazy()
 
     return probs
 
 
 def _sample_utility_per_building(
-    bldgs: pl.DataFrame,
-    puma_probs: pl.DataFrame,
+    bldgs: pl.LazyFrame,
+    puma_probs: pl.LazyFrame,
     utility_col_name: str,
     only_when_fuel: str | None = None,
-) -> pl.DataFrame:
+) -> pl.LazyFrame:
     """For each building, sample one utility from its PUMA's probability distribution.
 
     Args:
-        bldgs: DataFrame with bldg_id, puma, heating_fuel
-        puma_probs: Wide-format DataFrame with puma_id and probability columns for each utility
+        bldgs: LazyFrame with bldg_id, puma, heating_fuel
+        puma_probs: Wide-format LazyFrame with puma_id and probability columns for each utility
         utility_col_name: Name for the output utility column
         only_when_fuel: If provided, only sample when heating_fuel matches this value
 
     Returns:
-        DataFrame with bldg_id and the sampled utility column
+        LazyFrame with bldg_id and the sampled utility column
     """
     # Join buildings with their PUMA probabilities
     bldgs_joined = bldgs.join(
@@ -673,10 +657,12 @@ def _sample_utility_per_building(
     )
 
     # Get utility column names (all columns except puma_id from puma_probs)
-    utility_cols = [c for c in puma_probs.columns if c != "puma_id"]
+    puma_probs_df = cast(pl.DataFrame, puma_probs.collect())
+    utility_cols = [c for c in puma_probs_df.columns if c != "puma_id"]
 
-    # Convert to pandas for row-wise sampling with numpy
-    bldgs_pd = bldgs_joined.to_pandas()
+    # Convert to pandas for row-wise sampling with numpy (need to collect for pandas)
+    bldgs_joined_df = cast(pl.DataFrame, bldgs_joined.collect())
+    bldgs_pd = bldgs_joined_df.to_pandas()
 
     def sample_utility(row):
         """Sample one utility based on probability distribution."""
@@ -705,15 +691,15 @@ def _sample_utility_per_building(
     # Apply sampling to each row
     bldgs_pd[utility_col_name] = bldgs_pd.apply(sample_utility, axis=1)
 
-    # Convert back to polars and select only needed columns
-    result = pl.from_pandas(bldgs_pd[["bldg_id", utility_col_name]])
+    # Convert back to polars LazyFrame and select only needed columns
+    result = pl.from_pandas(bldgs_pd[["bldg_id", utility_col_name]]).lazy()
 
     return result
 
 
 def write_utilities_to_s3(
-    input_path_s3: str | Path | S3Path,
-    output_path_s3: str | Path | S3Path,
+    input_path_s3: S3Path,
+    output_path_s3: S3Path,
     config: dict | None = None,
 ) -> None:
     """
@@ -730,22 +716,20 @@ def write_utilities_to_s3(
 
     building_utilities = create_hh_utilities(s3_path=input_path_s3, config=config)
 
-    # Convert to S3Path if needed
-    if isinstance(input_path_s3, str):
-        input_path_s3 = (
-            S3Path(input_path_s3)
-            if input_path_s3.startswith("s3://")
-            else Path(input_path_s3)
-        )
+    # Read existing housing_units as LazyFrame
+    housing_units = pl.scan_parquet(str(input_path_s3), storage_options=STORAGE_OPTIONS)
 
-    # Read existing housing_units
-    housing_units = pl.read_parquet(str(input_path_s3), storage_options=STORAGE_OPTIONS)
+    # Get schema to check for existing columns
+    schema = housing_units.collect_schema()
+    drop_cols = []
+    if "sb.electric_utility" in schema:
+        drop_cols.append("sb.electric_utility")
+    if "sb.gas_utility" in schema:
+        drop_cols.append("sb.gas_utility")
 
     # Drop existing utility columns if they exist (equivalent to ADD COLUMN IF NOT EXISTS)
-    if "sb.electric_utility" in housing_units.columns:
-        housing_units = housing_units.drop("sb.electric_utility")
-    if "sb.gas_utility" in housing_units.columns:
-        housing_units = housing_units.drop("sb.gas_utility")
+    if drop_cols:
+        housing_units = housing_units.drop(drop_cols)
 
     # Join utilities to housing_units (equivalent to UPDATE ... FROM)
     housing_units = housing_units.join(
@@ -754,10 +738,9 @@ def write_utilities_to_s3(
         how="left",
     )
 
-    # Write back to the same location
-    housing_units.write_parquet(
-        str(output_path_s3),
-        storage_options=STORAGE_OPTIONS,
+    # Write back to the same location using sink_parquet
+    housing_units.sink_parquet(
+        str(output_path_s3), compression="zstd", storage_options=STORAGE_OPTIONS
     )
 
 
@@ -797,8 +780,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    input_path_s3 = S3Path(args.input_path)
+    output_path_s3 = S3Path(args.output_path)
     write_utilities_to_s3(
-        input_path_s3=args.input_path,
-        output_path_s3=args.output_path,
+        input_path_s3=input_path_s3,
+        output_path_s3=output_path_s3,
         config=CONFIGS,
     )
