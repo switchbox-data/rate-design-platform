@@ -139,7 +139,7 @@ bulk_marginal_costs = _load_cambium_marginal_costs(
     path_cambium_marginal_costs, test_year_run
 )
 # calculate distribution marginal costs in $/kWh (dynamic based on net load)
-distribution_marginal_costs = add_distribution_costs(raw_load_elec, test_year_run)
+distribution_marginal_costs = add_distribution_costs(raw_load_elec[["electricity_net"]], test_year_run)
 
 (revenue_requirement, marginal_system_prices, marginal_system_costs, costs_by_type) = (
     _return_revenue_requirement_target(

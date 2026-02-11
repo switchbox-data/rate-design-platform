@@ -156,7 +156,7 @@ with open(path_config / "distribution_cost_params.json") as f:
 
 # Calculate distribution marginal costs in $/kWh (dynamic based on net load)
 distribution_marginal_costs = add_distribution_costs(
-    raw_load_elec,
+    raw_load_elec[["electricity_net"]],
     annual_future_distr_costs=dist_cost_params["annual_future_distr_costs"],
     distr_peak_hrs=dist_cost_params["distr_peak_hrs"],
     nc_ratio_baseline=dist_cost_params["nc_ratio_baseline"],
