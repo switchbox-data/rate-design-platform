@@ -205,3 +205,7 @@ bs.simulate(
 )
 
 log.info(".... Completed RI residential (non-LMI) rate scenario simulation")
+
+# Temporary patch: overwrite customer_metadata.csv with full metadata columns
+# TODO: Remove once NatLabRockies/CAIRO PR #64 is merged
+customer_metadata.to_csv(bs.save_file_loc / "customer_metadata.csv", index=False)
