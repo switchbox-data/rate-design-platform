@@ -1,3 +1,5 @@
+import argparse
+
 import polars as pl
 from cloudpathlib import S3Path
 
@@ -8,6 +10,16 @@ IN_HVAC_COLUMN = "in.hvac_heating_type_and_fuel"
 UPGRADE_HVAC_COLUMN = "upgrade.hvac_heating_efficiency"
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
+
+HP_SUBSTRINGS = ("MSHP", "ASHP", "GSHP")
+FOSSIL_SUBSTRINGS = ("Fuel Oil", "Natural Gas", "Other Fuel", "Propane")
+
+
+def _col_contains_any(column: str, substrings: tuple[str, ...]) -> pl.Expr:
+    """True where the column value contains any of the given substrings (literal match)."""
+    return pl.any_horizontal(
+        [pl.col(column).str.contains(s, literal=True) for s in substrings]
+    ).fill_null(False)
 
 
 def get_upgrade_ids(data_path: str, release: str, state: str) -> list[str]:
@@ -32,27 +44,15 @@ def get_upgrade_ids(data_path: str, release: str, state: str) -> list[str]:
 
 def identify_heating_type(metadata_df: pl.LazyFrame, upgrade_id: str) -> pl.LazyFrame:
     """Add postprocess_group.heating_type: 'heat_pump', 'electrical_resistance', 'fossil_fuel', or 'none'."""
-    # Heat pump: MSHP, ASHP, or GSHP
+    # Identify heat pumps (has "ASHP", "MSHP", or "GSHP" in the column value)
     if upgrade_id == "00":
-        heating_type_is_hp = (
-            pl.col(IN_HVAC_COLUMN).str.contains("MSHP", literal=True)
-            | pl.col(IN_HVAC_COLUMN).str.contains("ASHP", literal=True)
-            | pl.col(IN_HVAC_COLUMN).str.contains("GSHP", literal=True)
-        ).fill_null(False)
+        heating_type_is_hp = _col_contains_any(IN_HVAC_COLUMN, HP_SUBSTRINGS)
     else:
-        upgrade_is_hp = (
-            pl.col(UPGRADE_HVAC_COLUMN).str.contains("MSHP", literal=True)
-            | pl.col(UPGRADE_HVAC_COLUMN).str.contains("ASHP", literal=True)
-            | pl.col(UPGRADE_HVAC_COLUMN).str.contains("GSHP", literal=True)
-        )
-        in_is_hp = (
-            pl.col(IN_HVAC_COLUMN).str.contains("MSHP", literal=True)
-            | pl.col(IN_HVAC_COLUMN).str.contains("ASHP", literal=True)
-            | pl.col(IN_HVAC_COLUMN).str.contains("GSHP", literal=True)
-        )
+        upgrade_is_hp = _col_contains_any(UPGRADE_HVAC_COLUMN, HP_SUBSTRINGS)
+        in_is_hp = _col_contains_any(IN_HVAC_COLUMN, HP_SUBSTRINGS)
         heating_type_is_hp = (upgrade_is_hp | in_is_hp).fill_null(False)
 
-    # Electrical resistance: contains "Electricity" but not HP
+    # Identify electrical resistance heating (contains "Electricity" but not HP)
     if upgrade_id == "00":
         heating_fuel_is_electric = pl.col(IN_HVAC_COLUMN).str.contains(
             "Electricity", literal=True
@@ -64,30 +64,17 @@ def identify_heating_type(metadata_df: pl.LazyFrame, upgrade_id: str) -> pl.Lazy
         upgrade_heating_fuel_is_electric = pl.col(UPGRADE_HVAC_COLUMN).str.contains(
             "Electricity", literal=True
         )
-        upgrade_is_hp = (
-            pl.col(UPGRADE_HVAC_COLUMN).str.contains("MSHP", literal=True)
-            | pl.col(UPGRADE_HVAC_COLUMN).str.contains("ASHP", literal=True)
-            | pl.col(UPGRADE_HVAC_COLUMN).str.contains("GSHP", literal=True)
-        )
         heating_type_is_electric_resistance = (
             upgrade_heating_fuel_is_electric & ~upgrade_is_hp
         ).fill_null(False)
 
-    # Fossil fuel: Fuel Oil, Natural Gas, Other Fuel, or Propane
+    # Identify fossil fuel heating (contains "Fuel Oil", "Natural Gas", "Other Fuel", or "Propane" in the column value)
     if upgrade_id == "00":
-        heating_type_is_fossil = (
-            pl.col(IN_HVAC_COLUMN).str.contains("Fuel Oil", literal=True)
-            | pl.col(IN_HVAC_COLUMN).str.contains("Natural Gas", literal=True)
-            | pl.col(IN_HVAC_COLUMN).str.contains("Other Fuel", literal=True)
-            | pl.col(IN_HVAC_COLUMN).str.contains("Propane", literal=True)
-        ).fill_null(False)
+        heating_type_is_fossil = _col_contains_any(IN_HVAC_COLUMN, FOSSIL_SUBSTRINGS)
     else:
-        heating_type_is_fossil = (
-            pl.col(UPGRADE_HVAC_COLUMN).str.contains("Fuel Oil", literal=True)
-            | pl.col(UPGRADE_HVAC_COLUMN).str.contains("Natural Gas", literal=True)
-            | pl.col(UPGRADE_HVAC_COLUMN).str.contains("Other Fuel", literal=True)
-            | pl.col(UPGRADE_HVAC_COLUMN).str.contains("Propane", literal=True)
-        ).fill_null(False)
+        heating_type_is_fossil = _col_contains_any(
+            UPGRADE_HVAC_COLUMN, FOSSIL_SUBSTRINGS
+        )
 
     heating_type = (
         pl.when(heating_type_is_hp)
@@ -114,49 +101,43 @@ def add_heating_type_column_and_save_to_s3(
     if not output_path.parent.exists():
         output_path.parent.mkdir(parents=True)
     sb_metadata_df.sink_parquet(str(output_path), storage_options=STORAGE_OPTIONS)
-    print(f"Wrote metadata to {output_path}")
+    print(f"Added heating type column metadata written to {output_path}")
 
 
 if __name__ == "__main__":
-    """parser = argparse.ArgumentParser(description="Add heating type column to metadata.")
+    parser = argparse.ArgumentParser(description="Add heating type column to metadata.")
     parser.add_argument(
         "--data_path", required=True, help="Base path for resstock data"
     )
     parser.add_argument(
-        "--release",
-        required=True,
-        help="Resstock release name (e.g. res_2024_amy2018_2)",
+        "--output_path", required=True, help="Output path for modified metadata"
     )
-    parser.add_argument("--state", required=True, help="State code (e.g. RI)")
+    parser.add_argument(
+        "--input_filename",
+        required=True,
+        help="Input filename (e.g. 'metadata.parquet')",
+    )
+    parser.add_argument(
+        "--output_filename",
+        required=True,
+        help="Output filename (e.g. 'metadata-sb.parquet')",
+    )
+    parser.add_argument(
+        "--upgrade_id",
+        required=True,
+        help="Space separated list of upgrade ids (e.g. '00 01 02 03 04 05')",
+    )
     args = parser.parse_args()
+    upgrade_ids = args.upgrade_id.split(" ")
 
-    add_heating_type_column(
-        data_path=args.data_path, release=args.release, state=args.state
-    )"""
-
-    data_path = "s3://data.sb/nrel/resstock/"
-    release = "res_2024_amy2018_2"
-    state = "RI"
-    base_path = S3Path(data_path)
-    release_dir = base_path / release
-    upgrade_ids = get_upgrade_ids(data_path, release, state)
     for upgrade_id in upgrade_ids:
         metadata_path = (
-            release_dir
-            / "metadata"
-            / f"state={state}"
-            / f"upgrade={upgrade_id}"
-            / "metadata.parquet"
+            S3Path(args.data_path) / f"upgrade={upgrade_id}" / args.input_filename
         )
         if not metadata_path.exists():
-            raise FileNotFoundError(f"Metadata file {metadata_path} does not exist")
-
+            raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
         output_path = (
-            release_dir
-            / "metadata"
-            / f"state={state}"
-            / f"upgrade={upgrade_id}"
-            / "metadata-sb-with-heating-type.parquet"
+            S3Path(args.output_path) / f"upgrade={upgrade_id}" / args.output_filename
         )
         add_heating_type_column_and_save_to_s3(
             metadata_path=metadata_path, upgrade_id=upgrade_id, output_path=output_path
