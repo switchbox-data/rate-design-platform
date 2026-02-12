@@ -286,10 +286,16 @@ def main():
         help="Calendar year to process (e.g., 2024). Must have all 12 months available.",
     )
     parser.add_argument(
-        "--s3-base",
+        "--zone-s3-base",
         type=str,
-        default=None,
-        help="Base S3 path override (default depends on --state)",
+        required=True,
+        help="Base S3 path for zonal load inputs (e.g., s3://data.sb/eia/hourly_demand/zones/)",
+    )
+    parser.add_argument(
+        "--utility-s3-base",
+        type=str,
+        required=True,
+        help="Base S3 path for utility load outputs (e.g., s3://data.sb/eia/hourly_demand/utilities/)",
     )
     parser.add_argument(
         "--upload",
@@ -313,8 +319,8 @@ def main():
             f"Valid values: all, {valid}"
         )
 
-    resolved_zone_s3_base = args.s3_base or config.default_zone_s3_base
-    resolved_utility_s3_base = config.default_utility_s3_base
+    resolved_zone_s3_base = args.zone_s3_base
+    resolved_utility_s3_base = args.utility_s3_base
 
     utility_list = sorted(utility_zone_mapping.keys())
     print("=" * 60)

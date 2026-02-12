@@ -63,6 +63,9 @@ def find_project_root() -> Path:
 
     Returns:
         Path to project root
+
+    Raises:
+        RuntimeError: If project root cannot be found from this file path
     """
     # Start from current file and search upwards
     current = Path(__file__).resolve()
@@ -72,9 +75,10 @@ def find_project_root() -> Path:
         if (parent / ".git").exists() or (parent / "pyproject.toml").exists():
             return parent
 
-    # Fallback: assume we're in rate_design/ny/hp_rates/scripts/
-    # and go up to project root
-    return Path(__file__).resolve().parent.parent.parent.parent.parent
+    raise RuntimeError(
+        "Could not locate project root: no '.git' directory or 'pyproject.toml' "
+        f"found when searching upward from '{current}'."
+    )
 
 
 def load_api_key(cli_key: str | None = None, interactive: bool = True) -> str:
@@ -711,8 +715,8 @@ def main():
     parser.add_argument(
         "--s3-base",
         type=str,
-        default=None,
-        help="Base S3 path for uploads (default depends on --state)",
+        required=True,
+        help="Base S3 path for uploads (e.g., s3://data.sb/eia/hourly_demand/zones/)",
     )
     parser.add_argument(
         "--skip-existing",
@@ -739,7 +743,7 @@ def main():
         parser.error(str(e))
 
     skip_existing = args.skip_existing and not args.force
-    resolved_s3_base = args.s3_base or config.default_zone_s3_base
+    resolved_s3_base = args.s3_base
     storage_options = get_aws_storage_options()
 
     print("=" * 60)
@@ -871,25 +875,25 @@ def main():
         .unique()
         .sort(["region", "zone", "year", "month"])
     )
-    print(f"\nPreparing to upload {len(partitions)} partitions:")
-    for row in partitions.iter_rows(named=True):
-        region, zone, year, month = (
-            row["region"],
-            row["zone"],
-            row["year"],
-            row["month"],
-        )
-        count = len(
-            df_with_partitions.filter(
-                (pl.col("region") == region)
-                & (pl.col("zone") == zone)
-                & (pl.col("year") == year)
-                & (pl.col("month") == month)
-            )
-        )
-        print(
-            f"  region={region}/zone={zone}/year={year}/month={month}/ - {count:,} rows"
-        )
+    # DEBUGGING: print(f"\nPreparing to upload {len(partitions)} partitions:")
+    # for row in partitions.iter_rows(named=True):
+    #     region, zone, year, month = (
+    #         row["region"],
+    #         row["zone"],
+    #         row["year"],
+    #         row["month"],
+    #     )
+    #     count = len(
+    #         df_with_partitions.filter(
+    #             (pl.col("region") == region)
+    #             & (pl.col("zone") == zone)
+    #             & (pl.col("year") == year)
+    #             & (pl.col("month") == month)
+    #         )
+    #     )
+    #     print(
+    #         f"  region={region}/zone={zone}/year={year}/month={month}/ - {count:,} rows"
+    #     )
 
     # Upload to S3
     upload_zone_data_to_s3(

@@ -21,9 +21,6 @@ class StateConfig:
     zones: list[str]
     timezone: str
     iso_region: str
-    default_zone_s3_base: str
-    default_utility_s3_base: str
-    default_mc_output_s3_base: str
     label: str
 
 
@@ -55,9 +52,6 @@ STATE_CONFIGS: dict[str, StateConfig] = {
         zones=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"],
         timezone="America/New_York",
         iso_region="nyiso",
-        default_zone_s3_base="s3://data.sb/eia/hourly_demand/zones/",
-        default_utility_s3_base="s3://data.sb/eia/hourly_demand/utilities/",
-        default_mc_output_s3_base="s3://data.sb/switchbox/marginal_costs/ny/",
         label="NYISO",
     ),
     "RI": StateConfig(
@@ -70,9 +64,6 @@ STATE_CONFIGS: dict[str, StateConfig] = {
         zones=["RI"],
         timezone="America/New_York",
         iso_region="isone",
-        default_zone_s3_base="s3://data.sb/eia/hourly_demand/zones/",
-        default_utility_s3_base="s3://data.sb/eia/hourly_demand/utilities/",
-        default_mc_output_s3_base="s3://data.sb/switchbox/marginal_costs/ri/",
         label="ISONE",
     ),
 }

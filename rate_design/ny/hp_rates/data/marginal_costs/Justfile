@@ -1,62 +1,52 @@
-# Resolve project root as absolute path from this Justfile's location (works for any clone)
-project_root := absolute_path(justfile_directory() / ".." / ".." / ".." / ".." / "..")
+# Resolve project root via git (works from any subdirectory in the repo)
+project_root := `git rev-parse --show-toplevel`
+state := "NY"
+start_month := "2025-01"
+end_month := "2025-12"
+load_year := "2025"
+mc_year := "2026"
+zone_s3_base := "s3://data.sb/eia/hourly_demand/zones/"
+utility_s3_base := "s3://data.sb/eia/hourly_demand/utilities/"
+mc_output_s3_base := "s3://data.sb/switchbox/marginal_costs/ny/"
 
-create-td-mc-data:
-  just create-td-mc-data-nyseg
-  just create-td-mc-data-rge
-  just create-td-mc-data-cenhud
-  just create-td-mc-data-nimo
+# Usage: just create-td-mc-data [utility]
+# Example: just create-td-mc-data nyseg
+create-td-mc-data utility:
+  cd {{project_root}} && uv run python {{project_root}}/utils/fetch_eia_zone_loads.py \
+    --state {{state}} \
+    --start-month {{start_month}} \
+    --end-month {{end_month}} \
+    --s3-base {{zone_s3_base}}
+  cd {{project_root}} && uv run python {{project_root}}/utils/aggregate_eia_utility_loads.py \
+    --state {{state}} \
+    --year {{load_year}} \
+    --utility {{utility}} \
+    --zone-s3-base {{zone_s3_base}} \
+    --utility-s3-base {{utility_s3_base}} \
+    --upload
+  cd {{project_root}} && uv run python {{project_root}}/utils/generate_utility_tx_dx_mc.py \
+    --state {{state}} \
+    --utility {{utility}} \
+    --mc-year {{mc_year}} \
+    --load-year {{load_year}} \
+    --mc-table-path {{project_root}}/rate_design/ny/hp_rates/data/marginal_costs/ny_marginal_costs_2026_2035.csv \
+    --utility-load-s3-base {{utility_s3_base}} \
+    --output-s3-base {{mc_output_s3_base}} \
+    --upload
+
+create-td-mc-data-all:
+  just create-td-mc-data nyseg
+  just create-td-mc-data rge
+  just create-td-mc-data cenhud
+
 
 create-td-mc-data-nyseg:
-  cd {{project_root}} && uv run python {{project_root}}/utils/fetch_eia_zone_loads.py \
-    --state NY \
-    --start-month 2025-01 \
-    --end-month 2025-12
-  cd {{project_root}} && uv run python {{project_root}}/utils/aggregate_eia_utility_loads.py \
-    --state NY \
-    --year 2025 \
-    --utility nyseg \
-    --upload
-  cd {{project_root}} && uv run python {{project_root}}/utils/generate_utility_tx_dx_mc.py \
-    --state NY \
-    --utility nyseg \
-    --mc-year 2026 \
-    --load-year 2025 \
-    --mc-table-path {{project_root}}/rate_design/ny/hp_rates/data/marginal_costs/ny_marginal_costs_2026_2035.csv \
-    --upload
+  just create-td-mc-data nyseg
 
 create-td-mc-data-rge:
-  cd {{project_root}} && uv run python {{project_root}}/utils/fetch_eia_zone_loads.py \
-    --state NY \
-    --start-month 2025-01 \
-    --end-month 2025-12
-  cd {{project_root}} && uv run python {{project_root}}/utils/aggregate_eia_utility_loads.py \
-    --state NY \
-    --year 2025 \
-    --utility rge \
-    --upload
-  cd {{project_root}} && uv run python {{project_root}}/utils/generate_utility_tx_dx_mc.py \
-    --state NY \
-    --utility rge \
-    --mc-year 2026 \
-    --load-year 2025 \
-    --mc-table-path {{project_root}}/rate_design/ny/hp_rates/data/marginal_costs/ny_marginal_costs_2026_2035.csv \
-    --upload
+  just create-td-mc-data rge
 
 create-td-mc-data-cenhud:
-  cd {{project_root}} && uv run python {{project_root}}/utils/fetch_eia_zone_loads.py \
-    --state NY \
-    --start-month 2025-01 \
-    --end-month 2025-12
-  cd {{project_root}} && uv run python {{project_root}}/utils/aggregate_eia_utility_loads.py \
-    --state NY \
-    --year 2025 \
-    --utility cenhud \
-    --upload
-  cd {{project_root}} && uv run python {{project_root}}/utils/generate_utility_tx_dx_mc.py \
-    --state NY \
-    --utility cenhud \
-    --mc-year 2026 \
-    --load-year 2025 \
-    --mc-table-path {{project_root}}/rate_design/ny/hp_rates/data/marginal_costs/ny_marginal_costs_2026_2035.csv \
-    --upload
+  just create-td-mc-data cenhud
+
+

@@ -534,17 +534,17 @@ def main():
         "--nyiso-s3-base",
         dest="utility_load_s3_base",
         type=str,
-        default=None,
+        required=True,
         help=(
             "Base S3 path for utility loads "
-            "(default from state config, e.g. s3://data.sb/eia/hourly_demand/utilities)"
+            "(e.g. s3://data.sb/eia/hourly_demand/utilities/)"
         ),
     )
     parser.add_argument(
         "--output-s3-base",
         type=str,
-        default=None,
-        help="Base S3 path for output (default depends on --state)",
+        required=True,
+        help="Base S3 path for output (e.g., s3://data.sb/switchbox/marginal_costs/ny/)",
     )
     parser.add_argument(
         "--upstream-hours",
@@ -586,8 +586,8 @@ def main():
     print(f"Upload to S3: {'Yes' if args.upload else 'No (inspection only)'}")
     print("=" * 60)
 
-    utility_load_s3_base = args.utility_load_s3_base or config.default_utility_s3_base
-    output_s3_base = args.output_s3_base or config.default_mc_output_s3_base
+    utility_load_s3_base = args.utility_load_s3_base
+    output_s3_base = args.output_s3_base
 
     # Load utility load profile
     load_df = load_utility_load_profile(
