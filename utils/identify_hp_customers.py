@@ -13,7 +13,7 @@ UPGRADE_HVAC_COLUMNS = [
 
 
 def get_upgrade_ids(data_path: str, release: str, state: str) -> list[str]:
-    """Test that the resstock data is downloaded to the correct path."""
+    """Get the upgrade ids for the given state, release, and data path."""
     base = S3Path(data_path)
     release_dir = base / release
     if not release_dir.exists():
