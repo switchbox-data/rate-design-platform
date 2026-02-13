@@ -141,6 +141,10 @@ def test_identify_heating_type():
     print("All tests passed")
 
 
+@pytest.mark.skipif(
+    os.getenv("GITHUB_ACTIONS") == "true",
+    reason="Skipping in GitHub Actions CI - requires AWS credentials",
+)
 def test_identify_heating_type_null_upgrade_column():
     """Test heating_type identification specifically for rows where upgrade.hvac_heating_efficiency is null."""
     for state in states:
