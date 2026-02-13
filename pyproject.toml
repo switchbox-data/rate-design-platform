@@ -47,4 +47,4 @@ include = ["rate_design*", "utils*"]
 ]
 
 [tool.uv.sources]
-cairo = { git = "https://github.com/NatLabRockies/CAIRO", rev = "main" }
+cairo = { git = "https://github.com/NatLabRockies/CAIRO", rev = "9b52c91" }

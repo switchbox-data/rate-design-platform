@@ -2,6 +2,9 @@
 
 This module provides a function to reweight ResStock building samples to match
 utility-specific customer counts from rate cases using the CAIRO reweighting formula.
+
+TODO: Delete this module once NY run_scenario is updated to use
+cairo.rates_tool.loads.return_buildingstock(customer_count=...) directly.
 """
 
 import pandas as pd
