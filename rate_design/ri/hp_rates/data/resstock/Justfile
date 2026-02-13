@@ -1,5 +1,5 @@
-# Resolve project root as absolute path from this Justfile's location (works for any clone)
-project_root := absolute_path(justfile_directory() / ".." / ".." / ".." / ".." / "..")
+# Resolve project root via git (works from any subdirectory in the repo)
+project_root := `git rev-parse --show-toplevel
 
 download:
   uv run bsf \

@@ -28,7 +28,7 @@ apt-get install -y software-properties-common
 add-apt-repository -y ppa:deadsnakes/ppa
 apt-get update
 
-# Install system dependencies
+# Install system dependencies (do not install awscli from apt - it's v1; we install AWS CLI v2 below)
 apt-get install -y \
   python3.13 \
   python3.13-dev \
@@ -39,9 +39,18 @@ apt-get install -y \
   unzip \
   s3fs \
   e2fsprogs \
-  awscli \
   gh \
   zsh
+
+# Install AWS CLI v2 (official installer; apt awscli is v1)
+if ! command -v aws &>/dev/null || [ "$(aws --version 2>&1 | grep -o 'aws-cli/[0-9]*' | cut -d/ -f2)" = "1" ]; then
+  echo "Installing AWS CLI v2..."
+  curl -sSfL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+  unzip -q -o /tmp/awscliv2.zip -d /tmp
+  /tmp/aws/install -i /usr/local/aws-cli -b /usr/local/bin
+  rm -rf /tmp/aws /tmp/awscliv2.zip
+  echo "AWS CLI v2 installed: $(aws --version)"
+fi
 
 # Install SSM agent (not in default Ubuntu repos, use snap)
 snap install amazon-ssm-agent --classic || true
