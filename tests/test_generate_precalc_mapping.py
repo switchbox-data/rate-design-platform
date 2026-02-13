@@ -39,8 +39,8 @@ class TestGenerateDefaultPrecalcMapping:
         assert isinstance(result, pd.DataFrame)
         assert list(result.columns) == ["period", "tier", "rel_value", "tariff"]
         assert len(result) == 1
-        assert result.iloc[0]["period"] == 0
-        assert result.iloc[0]["tier"] == 0
+        assert result.iloc[0]["period"] == 1
+        assert result.iloc[0]["tier"] == 1
         assert result.iloc[0]["rel_value"] == 1.0
         assert result.iloc[0]["tariff"] == "flat_test"
 
@@ -69,9 +69,9 @@ class TestGenerateDefaultPrecalcMapping:
         # Off-peak: 0.08/0.08 = 1.0
         # Mid-peak: 0.12/0.08 = 1.5
         # On-peak: 0.20/0.08 = 2.5
-        assert result[result["period"] == 0]["rel_value"].iloc[0] == 1.0
-        assert result[result["period"] == 1]["rel_value"].iloc[0] == 1.5
-        assert result[result["period"] == 2]["rel_value"].iloc[0] == 2.5
+        assert result[result["period"] == 1]["rel_value"].iloc[0] == 1.0
+        assert result[result["period"] == 2]["rel_value"].iloc[0] == 1.5
+        assert result[result["period"] == 3]["rel_value"].iloc[0] == 2.5
 
         tariff_path.unlink()
 
@@ -96,10 +96,10 @@ class TestGenerateDefaultPrecalcMapping:
         result = generate_default_precalc_mapping(tariff_path, "tiered_test")
 
         assert len(result) == 3
-        # All in period 0, tiers 0, 1, 2
+        # All in period 1, tiers 1, 2, 3 (1-based indexing per PySAM/CAIRO)
         # rel_values: 0.10/0.10=1.0, 0.15/0.10=1.5, 0.20/0.10=2.0
-        assert all(result["period"] == 0)
-        assert list(result["tier"]) == [0, 1, 2]
+        assert all(result["period"] == 1)
+        assert list(result["tier"]) == [1, 2, 3]
         assert list(result["rel_value"]) == [1.0, 1.5, 2.0]
 
         tariff_path.unlink()
@@ -136,10 +136,10 @@ class TestGenerateDefaultPrecalcMapping:
         # Period 1, tier 0: 0.12/0.06 = 2.0
         # Period 1, tier 1: 0.18/0.06 = 3.0
         expected = [
-            {"period": 0, "tier": 0, "rel_value": 1.0},
-            {"period": 0, "tier": 1, "rel_value": round(0.08 / 0.06, 4)},
-            {"period": 1, "tier": 0, "rel_value": 2.0},
-            {"period": 1, "tier": 1, "rel_value": 3.0},
+            {"period": 1, "tier": 1, "rel_value": 1.0},
+            {"period": 1, "tier": 2, "rel_value": round(0.08 / 0.06, 4)},
+            {"period": 2, "tier": 1, "rel_value": 2.0},
+            {"period": 2, "tier": 2, "rel_value": 3.0},
         ]
         for i, exp in enumerate(expected):
             assert result.iloc[i]["period"] == exp["period"]
@@ -216,10 +216,10 @@ class TestGenerateDefaultPrecalcMapping:
         assert "tier" in result.columns
         assert "rel_value" in result.columns
         assert "tariff" in result.columns
-        assert result["period"].dtype in [int, "int64"]
-        assert result["tier"].dtype in [int, "int64"]
-        assert result["rel_value"].dtype == float
-        assert result["tariff"].dtype == object
+        assert pd.api.types.is_integer_dtype(result["period"])
+        assert pd.api.types.is_integer_dtype(result["tier"])
+        assert pd.api.types.is_float_dtype(result["rel_value"])
+        assert pd.api.types.is_string_dtype(result["tariff"])
 
         tariff_path.unlink()
 
