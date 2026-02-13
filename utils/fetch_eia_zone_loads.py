@@ -860,41 +860,6 @@ def main():
     print("UPLOADING TO S3")
     print("=" * 60)
 
-    # Add partition columns to show output structure
-    df_with_partitions = df.with_columns(
-        [
-            pl.lit(config.iso_region).alias("region"),
-            pl.col("timestamp").dt.year().alias("year"),
-            pl.col("timestamp").dt.month().alias("month"),
-        ]
-    )
-    # DEBUGGING: partition summary
-    # Show partition summary
-    # partitions = (
-    #     df_with_partitions.select(["region", "zone", "year", "month"])
-    #     .unique()
-    #     .sort(["region", "zone", "year", "month"])
-    # )
-    # print(f"\nPreparing to upload {len(partitions)} partitions:")
-    # for row in partitions.iter_rows(named=True):
-    #     region, zone, year, month = (
-    #         row["region"],
-    #         row["zone"],
-    #         row["year"],
-    #         row["month"],
-    #     )
-    #     count = len(
-    #         df_with_partitions.filter(
-    #             (pl.col("region") == region)
-    #             & (pl.col("zone") == zone)
-    #             & (pl.col("year") == year)
-    #             & (pl.col("month") == month)
-    #         )
-    #     )
-    #     print(
-    #         f"  region={region}/zone={zone}/year={year}/month={month}/ - {count:,} rows"
-    #     )
-
     # Upload to S3
     upload_zone_data_to_s3(
         df,
