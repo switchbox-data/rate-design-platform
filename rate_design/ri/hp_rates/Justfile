@@ -1,4 +1,4 @@
-# NY heat pump tasks (placeholder).
+# RI heat pump tasks (placeholder).
 
 # Resolve project root as absolute path using git
 project_root := `git rev-parse --show-toplevel`
@@ -9,14 +9,14 @@ identify-hp-customers release upgrade_ids input_filename output_filename:
   set -e
   for upgrade_id in {{upgrade_ids}}; do
     uv run python {{project_root}}/utils/identify_hp_customers.py \
-      --input_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=NY/upgrade=$upgrade_id" \
-      --output_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=NY/upgrade=$upgrade_id" \
+      --input_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=RI/upgrade=$upgrade_id" \
+      --output_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=RI/upgrade=$upgrade_id" \
       --input_filename "{{input_filename}}" \
       --output_filename "{{output_filename}}" \
       --upgrade_id "$upgrade_id"
   done
 
-identify-hp-customers-all-upgrades-amy2018-2-ny:
+identify-hp-customers-all-upgrades-amy2018-2-ri:
   just identify-hp-customers "res_2024_amy2018_2" "00 01 02 03 04 05" "metadata.parquet" "metadata-sb.parquet"
 
 # Identify heating type
@@ -25,17 +25,17 @@ identify-heating-type release upgrade_ids input_filename output_filename:
   set -e
   for upgrade_id in {{upgrade_ids}}; do
     uv run python {{project_root}}/utils/identify_heating_type.py \
-      --input_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=NY/upgrade=$upgrade_id" \
-      --output_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=NY/upgrade=$upgrade_id" \
+      --input_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=RI/upgrade=$upgrade_id" \
+      --output_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=RI/upgrade=$upgrade_id" \
       --input_filename "{{input_filename}}" \
       --output_filename "{{output_filename}}" \
       --upgrade_id "$upgrade_id"
   done
 
-identify-heating-type-all-upgrades-amy2018-2-ny:
+identify-heating-type-all-upgrades-amy2018-2-ri:
   just identify-heating-type "res_2024_amy2018_2" "00 01 02 03 04 05" "metadata.parquet" "metadata-sb.parquet"
 
 # Identify HP customers and heating type
-identify-hp-customers-and-heating-type-all-upgrades-amy2018-2-ny:
+identify-hp-customers-and-heating-type-all-upgrades-amy2018-2-ri:
   just identify-hp-customers "res_2024_amy2018_2" "00 01 02 03 04 05" "metadata.parquet" "metadata-sb.parquet"
   just identify-heating-type "res_2024_amy2018_2" "00 01 02 03 04 05" "metadata-sb.parquet" "metadata-sb.parquet"
