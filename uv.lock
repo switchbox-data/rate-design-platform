@@ -304,7 +304,7 @@ wheels = [
 [[package]]
 name = "cairo"
 version = "0.1.0"
-source = { git = "https://github.com/NatLabRockies/CAIRO?rev=main#b637cc5656d8e191ca2cf507fc26e1a115dc29d8" }
+source = { git = "https://github.com/NatLabRockies/CAIRO?rev=9b52c91#9b52c919880e6942af228422e18923e116864a89" }
 dependencies = [
     { name = "dask" },
     { name = "natsort" },
@@ -1590,7 +1590,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "buildstock-fetch", specifier = ">=1.6.1" },
-    { name = "cairo", git = "https://github.com/NatLabRockies/CAIRO?rev=main" },
+    { name = "cairo", git = "https://github.com/NatLabRockies/CAIRO?rev=9b52c91" },
     { name = "cloudpathlib", extras = ["s3"], specifier = ">=0.23.0" },
     { name = "numpy" },
     { name = "polars" },
