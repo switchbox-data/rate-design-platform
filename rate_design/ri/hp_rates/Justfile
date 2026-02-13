@@ -3,12 +3,26 @@
 # Resolve project root as absolute path using git
 project_root := `git rev-parse --show-toplevel`
 
-identify-hp-customers:
-  uv run python {{project_root}}/utils/identify_hp_customers.py \
-    --data_path "s3://data.sb/nrel/resstock/" \
-    --release res_2024_amy2018_2 \
-    --state RI
+# Identify HP customers
+identify-hp-customers release upgrade_ids input_filename output_filename:
+  #!/usr/bin/env bash
+  set -e
+  if [[ "{{release}}" != *"2024"* ]]; then
+    echo "Warning: this task is only verified to work with 2024 releases. It may work with other releases, but has not been tested."
+  fi
+  for upgrade_id in {{upgrade_ids}}; do
+    uv run python {{project_root}}/utils/identify_hp_customers.py \
+      --input_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=RI/upgrade=$upgrade_id" \
+      --output_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=RI/upgrade=$upgrade_id" \
+      --input_filename "{{input_filename}}" \
+      --output_filename "{{output_filename}}" \
+      --upgrade_id "$upgrade_id"
+  done
 
+identify-hp-customers-all-upgrades-2024-amy2018-2-ri:
+  just identify-hp-customers "res_2024_amy2018_2" "00 01 02 03 04 05" "metadata.parquet" "metadata-sb.parquet"
+
+# Identify heating type
 identify-heating-type release upgrade_ids input_filename output_filename:
   #!/usr/bin/env bash
   set -e
@@ -26,3 +40,8 @@ identify-heating-type release upgrade_ids input_filename output_filename:
 
 identify-heating-type-all-upgrades-2024-amy2018-2-ri:
   just identify-heating-type "res_2024_amy2018_2" "00 01 02 03 04 05" "metadata.parquet" "metadata-sb.parquet"
+
+# Identify HP customers and heating type
+identify-hp-customers-and-heating-type-all-upgrades-2024-amy2018-2-ri:
+  just identify-hp-customers "res_2024_amy2018_2" "00 01 02 03 04 05" "metadata.parquet" "metadata-sb.parquet"
+  just identify-heating-type "res_2024_amy2018_2" "00 01 02 03 04 05" "metadata-sb.parquet" "metadata-sb.parquet"
