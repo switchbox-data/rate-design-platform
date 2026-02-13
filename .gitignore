@@ -25,6 +25,10 @@ build/
 *.json
 !dprint.json
 !.markdownlint.json
+!rate_design/ny/hp_rates/data/tariff_structure/**
+!rate_design/ri/hp_rates/data/tariff_structure/**
+!rate_design/ny/hp_rates/data/tariff_map/**
+!rate_design/ri/hp_rates/data/tariff_map/**
 
 # Terraform state files
 infra/*.tfstate
