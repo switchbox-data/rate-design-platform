@@ -63,7 +63,7 @@ def load_zone_data(
     print("LOADING DATA")
     print("=" * 60)
 
-    combined = (
+    collected = (
         pl.scan_parquet(
             s3_base,
             storage_options=storage_options,
@@ -73,10 +73,18 @@ def load_zone_data(
         .filter(pl.col("year") == year)
         .collect()
     )
+    if not isinstance(collected, pl.DataFrame):
+        raise TypeError("Expected DataFrame from zone data collect()")
+    combined = collected
 
     if combined.is_empty():
         raise ValueError(
-            f"No zone data found for region={iso_region}, year={year}, zones={zones}"
+            f"No zone data found for region={iso_region}, year={year}, zones={zones}. "
+            "Fetch zone data first, for example:\n"
+            "  uv run python utils/fetch_eia_zone_loads.py "
+            "--state <NY|RI> "
+            f"--start-month {year}-01 --end-month {year}-12 "
+            f"--s3-base {s3_base}"
         )
 
     if "month" not in combined.columns:
@@ -100,7 +108,12 @@ def load_zone_data(
             print(f"  • {item}")
         raise ValueError(
             f"Cannot proceed with incomplete data. Missing {len(missing_data)} partition(s). "
-            f"All 12 months required for calendar year {year}."
+            f"All 12 months required for calendar year {year}. "
+            "Re-run zone fetch to backfill missing partitions:\n"
+            "  uv run python utils/fetch_eia_zone_loads.py "
+            "--state <NY|RI> "
+            f"--start-month {year}-01 --end-month {year}-12 "
+            f"--s3-base {s3_base}"
         )
 
     print(f"✓ Loaded complete zone data for region={iso_region}, year={year}")

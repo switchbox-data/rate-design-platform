@@ -29,6 +29,7 @@ Usage:
 import argparse
 import io
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import polars as pl
 from cloudpathlib import S3Path
@@ -60,7 +61,7 @@ def load_utility_load_profile(
         DataFrame with columns: timestamp, utility, load_mw
     """
     s3_base = s3_base.rstrip("/") + "/"
-    df = (
+    collected = (
         pl.scan_parquet(
             s3_base,
             hive_partitioning=True,
@@ -71,6 +72,9 @@ def load_utility_load_profile(
         .filter(pl.col("year") == year_load)
         .collect()
     )
+    if not isinstance(collected, pl.DataFrame):
+        raise TypeError("Expected DataFrame from utility load collect()")
+    df = collected
     if df.is_empty():
         raise FileNotFoundError(
             "Utility load profile not found for "
@@ -209,6 +213,18 @@ def load_marginal_cost_table(mc_table_path: str) -> pl.DataFrame:
 
     print(f"Loaded marginal cost table with {len(df)} rows")
     return df
+
+
+def validate_mc_table_path(mc_table_path: str) -> None:
+    """Fail early if marginal cost table path does not exist."""
+    if mc_table_path.startswith("s3://"):
+        s3_path = S3Path(mc_table_path)
+        if not s3_path.exists():
+            raise FileNotFoundError(f"Marginal cost table not found: {mc_table_path}")
+        return
+
+    if not Path(mc_table_path).exists():
+        raise FileNotFoundError(f"Marginal cost table not found: {mc_table_path}")
 
 
 def get_marginal_costs_for_year(
@@ -549,14 +565,16 @@ def main():
     parser.add_argument(
         "--upstream-hours",
         type=int,
+        choices=range(0, 8761),
         default=100,
-        help="Number of top load hours for upstream allocation (default: 100)",
+        help="Number of top load hours for upstream allocation (0-8760, default: 100)",
     )
     parser.add_argument(
         "--dist-hours",
         type=int,
+        choices=range(0, 8761),
         default=50,
-        help="Number of top load hours for distribution allocation (default: 50)",
+        help="Number of top load hours for distribution allocation (0-8760, default: 50)",
     )
     parser.add_argument(
         "--upload",
@@ -565,6 +583,7 @@ def main():
     )
 
     args = parser.parse_args()
+    validate_mc_table_path(args.mc_table_path)
     load_dotenv()
     config = get_state_config(args.state)
     storage_options = get_aws_storage_options()

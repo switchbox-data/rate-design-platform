@@ -9,14 +9,17 @@ zone_s3_base := "s3://data.sb/eia/hourly_demand/zones/"
 utility_s3_base := "s3://data.sb/eia/hourly_demand/utilities/"
 mc_output_s3_base := "s3://data.sb/switchbox/marginal_costs/ny/"
 
-# Usage: just create-td-mc-data [utility]
-# Example: just create-td-mc-data nyseg
-create-td-mc-data utility:
+# Usage: just fetch-zone-data
+fetch-zone-data:
   cd {{project_root}} && uv run python {{project_root}}/utils/fetch_eia_zone_loads.py \
     --state {{state}} \
     --start-month {{start_month}} \
     --end-month {{end_month}} \
     --s3-base {{zone_s3_base}}
+
+# Usage: just create-td-mc-data [utility]
+# Example: just create-td-mc-data nyseg
+create-td-mc-data utility:
   cd {{project_root}} && uv run python {{project_root}}/utils/aggregate_eia_utility_loads.py \
     --state {{state}} \
     --year {{load_year}} \
@@ -34,6 +37,9 @@ create-td-mc-data utility:
     --output-s3-base {{mc_output_s3_base}} \
     --upload
 
+# Usage:
+#   just create-td-mc-data-all          # assumes zone data already fetched
+#   just fetch-zone-data && just create-td-mc-data-all
 create-td-mc-data-all:
   just create-td-mc-data nyseg
   just create-td-mc-data rge
@@ -48,5 +54,3 @@ create-td-mc-data-rge:
 
 create-td-mc-data-cenhud:
   just create-td-mc-data cenhud
-
-

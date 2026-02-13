@@ -38,10 +38,12 @@ def create_sample_load_profile(n_hours: int = 8760) -> pl.DataFrame:
     )[:n_hours]
 
     # Create varying load pattern (higher during day, lower at night)
+    # plus a tiny monotonic trend to avoid tied peak loads.
     hours_of_day = pl.Series(range(n_hours)) % 24
+    hour_index = pl.Series(range(n_hours))
     base_load = 1000.0
     daily_variation = 500.0
-    load_mw = base_load + daily_variation * (hours_of_day / 24.0)
+    load_mw = base_load + daily_variation * (hours_of_day / 24.0) + 0.001 * hour_index
 
     df = pl.DataFrame(
         {
@@ -58,16 +60,16 @@ def create_sample_mc_table() -> pl.DataFrame:
     """Create a sample marginal cost table for testing.
 
     Returns:
-        DataFrame with Utility, Year, Upstream, Distribution Substation,
-        Primary Feeder, Total MC columns
+        DataFrame with utility, year, upstream, distribution_substation,
+        primary_feeder, total_mc columns
     """
     data = {
-        "Utility": ["Test Utility", "Test Utility"],
-        "Year": [2026, 2027],
-        "Upstream": [10.0, 15.0],
-        "Distribution Substation": [5.0, 7.0],
-        "Primary Feeder": [3.0, 4.0],
-        "Total MC": [18.0, 26.0],
+        "utility": ["Test Utility", "Test Utility"],
+        "year": [2026, 2027],
+        "upstream": [10.0, 15.0],
+        "distribution_substation": [5.0, 7.0],
+        "primary_feeder": [3.0, 4.0],
+        "total_mc": [18.0, 26.0],
     }
 
     return pl.DataFrame(data)
