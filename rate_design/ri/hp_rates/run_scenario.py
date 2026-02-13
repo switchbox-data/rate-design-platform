@@ -16,20 +16,12 @@ from cairo.utils.marginal_costs.marginal_cost_calculator import (
     add_distribution_costs,
 )
 
-from utils.cairo import (
-    build_bldg_id_to_load_filepath,
-    ensure_metadata_has_weight,
-    patch_postprocessor_peak_allocation,
-)
+from utils.cairo import build_bldg_id_to_load_filepath
 from utils.generate_precalc_mapping import generate_default_precalc_mapping
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
 log.info(".... Beginning RI residential (non-LMI) rate scenario - RIE A-16 tariff")
-
-# Apply patch for CAIRO peak allocation postprocessing
-# TODO: Remove once CAIRO branch sz/peak-residual-sum-costs is merged to main
-patch_postprocessor_peak_allocation()
 
 run_name = "ri_default_test_run"
 # Resolve paths relative to this script so the scenario can be run from any CWD.
@@ -98,9 +90,6 @@ precalc_mapping = generate_default_precalc_mapping(
     tariff_key="rie_a16",
 )
 
-
-# Ensure metadata has a weight column (some ResStock parquets omit it)
-path_resstock_metadata = ensure_metadata_has_weight(path_resstock_metadata)
 
 # read in basic customer-level information and reweight to utility customer count
 customer_metadata = return_buildingstock(
@@ -205,7 +194,3 @@ bs.simulate(
 )
 
 log.info(".... Completed RI residential (non-LMI) rate scenario simulation")
-
-# Temporary patch: overwrite customer_metadata.csv with full metadata columns
-# TODO: Remove once NatLabRockies/CAIRO PR #64 is merged
-customer_metadata.to_csv(bs.save_file_loc / "customer_metadata.csv", index=False)
