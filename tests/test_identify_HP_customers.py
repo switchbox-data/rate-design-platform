@@ -81,7 +81,3 @@ def test_identify_HP_customers():
             print(f"Test passed for state: {state} and upgrade id: {upgrade_id}")
 
     print("All tests passed")
-
-
-if __name__ == "__main__":
-    test_identify_HP_customers()
