@@ -1,8 +1,10 @@
 import io
+import os
 import random
 import time
 
 import polars as pl
+import pytest
 from cloudpathlib import S3Path
 
 IN_HVAC_COLUMNS = ["in.hvac_cooling_type", "in.hvac_heating_type"]
@@ -18,6 +20,10 @@ states = ["RI", "NY"]
 upgrade_ids = ["00", "01", "02", "03", "04", "05"]
 
 
+@pytest.mark.skipif(
+    os.getenv("GITHUB_ACTIONS") == "true",
+    reason="Skipping in GitHub Actions CI - requires AWS credentials",
+)
 def test_identify_HP_customers():
     for state in states:
         for upgrade_id in upgrade_ids:
@@ -75,7 +81,3 @@ def test_identify_HP_customers():
             print(f"Test passed for state: {state} and upgrade id: {upgrade_id}")
 
     print("All tests passed")
-
-
-if __name__ == "__main__":
-    test_identify_HP_customers()

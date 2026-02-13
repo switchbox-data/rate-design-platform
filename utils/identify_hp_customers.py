@@ -19,7 +19,7 @@ def _base_path(data_path: str):
 
 
 def get_upgrade_ids(data_path: str, release: str, state: str) -> list[str]:
-    """Test that the resstock data is downloaded to the correct path."""
+    """Get the upgrade ids for the given state, release, and data path."""
     base = _base_path(data_path)
     release_dir = base / release
     if not release_dir.exists():

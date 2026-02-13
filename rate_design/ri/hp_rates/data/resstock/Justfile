@@ -1,5 +1,5 @@
-# Resolve project root via git (works from any subdirectory in the repo)
-project_root := `git rev-parse --show-toplevel
+# Resolve project root as absolute path using git
+project_root := `git rev-parse --show-toplevel`
 
 download:
   uv run bsf \
