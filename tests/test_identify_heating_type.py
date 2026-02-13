@@ -1,9 +1,11 @@
 import io
+import os
 import random
 import time
 from typing import cast
 
 import polars as pl
+import pytest
 from cloudpathlib import S3Path
 
 from utils.identify_heating_type import (
@@ -22,6 +24,10 @@ states = ["RI", "NY"]
 upgrade_ids = ["00", "01", "02", "03", "04", "05"]
 
 
+@pytest.mark.skipif(
+    os.getenv("GITHUB_ACTIONS") == "true",
+    reason="Skipping in GitHub Actions CI - requires AWS credentials",
+)
 def test_identify_heating_type():
     for state in states:
         for upgrade_id in upgrade_ids:
