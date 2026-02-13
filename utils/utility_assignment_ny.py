@@ -16,9 +16,9 @@ import polars as pl
 from cloudpathlib import S3Path
 from pygris import pumas as get_pumas
 
-from utils import get_aws_region
+from utils import get_storage_options
 
-STORAGE_OPTIONS = {"aws_region": get_aws_region()}
+STORAGE_OPTIONS = get_storage_options()
 CONFIGS: dict = {
     "state_code": "NY",
     "state_fips": "36",

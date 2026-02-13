@@ -1,1 +1,33 @@
 # NY heat pump tasks (placeholder).
+
+s3_base := "s3://data.sb"
+project_root := `git rev-parse --show-toplevel`
+
+# Download NY electric and gas utility polygons from NY Open Data.
+download-ny-utility-polygons:
+	just download-ny-electric-utility-polygons
+	just download-ny-gas-utility-polygons
+
+download-ny-electric-utility-polygons:
+	wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/api/views/i7nm-ih89/rows.csv" | aws s3 cp - "{{s3_base}}/utility_territories/ny/NYS_Electric_Utility_Service_Territories.csv"
+	just test-ny-electric-utility-polygons-download
+
+download-ny-gas-utility-polygons:
+	wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/api/views/i7nm-ih89/rows.csv" | aws s3 cp - "{{s3_base}}/utility_territories/ny/NYS_Gas_Utility_Service_Territories.csv"
+	just test-ny-gas-utility-polygons-download
+
+test-ny-electric-utility-polygons-download:
+	aws s3 ls "{{s3_base}}/utility_territories/ny/NYS_Electric_Utility_Service_Territories.csv"
+
+test-ny-gas-utility-polygons-download:
+	aws s3 ls "{{s3_base}}/utility_territories/ny/NYS_Gas_Utility_Service_Territories.csv"
+
+# Assign electric and gas utilities to ResStock buildings in NY.
+assign-ny-utilities release:
+	just download-ny-utility-polygons
+	uv run python {{project_root}}/utils/utility_assignment_ny.py \
+		--input_path "s3://data.sb/nrel/resstock/{{release}}/metadata/state=NY/upgrade=00/metadata-sb.parquet" \
+		--output_path "s3://data.sb/nrel/resstock/{{release}}/metadata_utility/state=NY/utility_assignment.parquet"
+
+assign-ny-utilities-amy2018-2:
+	just assign-ny-utilities res_2024_amy2018_2
