@@ -868,14 +868,14 @@ def main():
             pl.col("timestamp").dt.month().alias("month"),
         ]
     )
-
+    # DEBUGGING: partition summary
     # Show partition summary
-    partitions = (
-        df_with_partitions.select(["region", "zone", "year", "month"])
-        .unique()
-        .sort(["region", "zone", "year", "month"])
-    )
-    # DEBUGGING: print(f"\nPreparing to upload {len(partitions)} partitions:")
+    # partitions = (
+    #     df_with_partitions.select(["region", "zone", "year", "month"])
+    #     .unique()
+    #     .sort(["region", "zone", "year", "month"])
+    # )
+    # print(f"\nPreparing to upload {len(partitions)} partitions:")
     # for row in partitions.iter_rows(named=True):
     #     region, zone, year, month = (
     #         row["region"],

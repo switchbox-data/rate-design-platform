@@ -296,8 +296,10 @@ def calculate_pop_weights(
     # Add peak flags and weights
     result_df = load_df.with_columns(
         [
-            pl.col("timestamp").is_in(top_upstream_indices).alias("is_upstream_peak"),
-            pl.col("timestamp").is_in(top_dist_indices).alias("is_dist_peak"),
+            pl.col("timestamp")
+            .is_in(top_upstream_indices.implode())
+            .alias("is_upstream_peak"),
+            pl.col("timestamp").is_in(top_dist_indices.implode()).alias("is_dist_peak"),
         ]
     )
 
