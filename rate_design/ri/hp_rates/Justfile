@@ -47,10 +47,15 @@ identify-hp-customers-and-heating-type-all-upgrades-2024-amy2018-2-ri:
   just identify-heating-type "res_2024_amy2018_2" "00 01 02 03 04 05" "metadata-sb.parquet" "metadata-sb.parquet"
 
 # -----------------------------------------------------------------------------
-# Post-processing: apply RI LIDR+ discounts to CAIRO bills
+# Post-processing: CPI and RI LIDR+ discounts
 # -----------------------------------------------------------------------------
-# Run fetch-cpi first (from repo root): just fetch-cpi
-# Then pass the CPI path from that run (e.g. s3://data.sb/fred/cpi/cpiaucsl_2020_2025_YYYYMMDD.parquet)
+# Fetch CPIAUCSL from FRED (2020–2025) and upload to S3. Requires FRED_API_KEY.
+# Output: s3://data.sb/fred/cpi/cpiaucsl_<start>_<end>_<YYYYMMDD>.parquet
+fetch-cpi start_year="2020" end_year="2025":
+  uv run python {{project_root}}/utils/post/fetch_cpi_from_fred.py \
+    --start-year {{start_year}} --end-year {{end_year}} --upload
+
+# Apply RI LIDR+ discounts to CAIRO bills. Run fetch-cpi first, then pass --cpi-s3-path.
 apply-ri-lmi-discounts run_dir state utility inflation_year cpi_s3_path participation_rate="1.0" rider="false":
   uv run python {{project_root}}/utils/post/apply_ri_lmi_discounts_to_bills.py \
     --run-dir "{{run_dir}}" \
