@@ -94,3 +94,12 @@ Under the proposed redesign:
 ### **3\. Legislative Context (Separate from the Rate Case)**
 
 Separate legislative proposals in Rhode Island (e.g., bills in the General Assembly) have contemplated low-income discount programs structured around _caps on energy costs as a percentage of income (e.g., 3% for gas heating, 3% for electric non-heating, and 6% for electric heating)_. However, those legislative texts are _not the same as the LIDR+ proposal filed in Docket 25-45-GE_. The rate case filing itself uses **tiered percentage discounts** in the structure described above; it does not propose the specific fixed dollar credits or percentage-of-income caps.
+
+### **4\. Cost-recovery rider (postprocessing)**
+
+When modeling LIDR+ with a cost-recovery rider (so that total revenue is unchanged), the platform applies a **volumetric** allocation: the total discount cost (sum of discounts given to participants, by fuel) is divided by total non-participant consumption to obtain a rider rate.
+
+- **Electric:** rider ($/kWh) = total electric discount cost ÷ total non-participant kWh. The rider is added to each non-participant’s electric bill in proportion to their annual kWh (from ResStock metadata).
+- **Gas:** rider ($/therm) = total gas discount cost ÷ total non-participant therms. Gas consumption is taken from ResStock in kWh and converted to therms (1 therm ≈ 29.3 kWh); the rider is added to each non-participant’s gas bill in proportion to their annual therms.
+
+This matches the volumetric cost-recovery approach used in CAIRO’s native LMI logic (see `docs/cairo_lmi_and_bat_analysis.md`).
