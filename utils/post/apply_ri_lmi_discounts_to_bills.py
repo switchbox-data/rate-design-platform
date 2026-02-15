@@ -142,25 +142,26 @@ def main() -> None:
     util_path = f"{s3_base}/metadata_utility/state={args.state}"
     opts = _storage_opts()
 
-    # Load FPL and CPI
+    # Load FPL and CPI (scan + filter to two years, then collect minimal rows)
     fpl = load_fpl_guidelines(args.inflation_year)
-    cpi_df = pl.read_parquet(args.cpi_s3_path, storage_options=opts)
-    cpi_2019 = cpi_df.filter(pl.col("year") == RESSTOCK_INCOME_DOLLAR_YEAR).select(
-        "cpi_value"
+    cpi_df = (
+        pl.scan_parquet(args.cpi_s3_path, storage_options=opts)
+        .filter(
+            pl.col("year").is_in([RESSTOCK_INCOME_DOLLAR_YEAR, args.inflation_year])
+        )
+        .collect()
     )
-    cpi_target = cpi_df.filter(pl.col("year") == args.inflation_year).select(
-        "cpi_value"
-    )
+    assert isinstance(cpi_df, pl.DataFrame)
+    cpi_2019 = cpi_df.filter(pl.col("year") == RESSTOCK_INCOME_DOLLAR_YEAR)
+    cpi_target = cpi_df.filter(pl.col("year") == args.inflation_year)
     if cpi_2019.is_empty() or cpi_target.is_empty():
         raise ValueError(
             f"CPI data must contain {RESSTOCK_INCOME_DOLLAR_YEAR} and {args.inflation_year}"
         )
-    cpi_ratio = float(cpi_target.item()) / float(cpi_2019.item())
+    cpi_ratio = float(cpi_target["cpi_value"][0]) / float(cpi_2019["cpi_value"][0])
 
-    # Lazy: metadata + utility filter + vacancy filter
-    meta = pl.scan_parquet(meta_path, storage_options=opts).filter(
-        pl.col("in.vacancy_status") != "Vacant"
-    )
+    # Lazy: metadata + utility filter (no vacancy filter; if bldg has bills, apply discount)
+    meta = pl.scan_parquet(meta_path, storage_options=opts)
     util = pl.scan_parquet(util_path, storage_options=opts, hive_partitioning=True)
     meta = meta.join(
         util.filter(pl.col("electric_utility") == args.utility).select(BLDG_ID_COL),
