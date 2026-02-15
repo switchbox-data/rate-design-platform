@@ -1,6 +1,8 @@
 # =============================================================================
 # ⭐ DEFAULT
 # =============================================================================
+project_root := `git rev-parse --show-toplevel`
+
 # If you run `just`, you see all available commands
 default:
     @just --list
@@ -44,6 +46,17 @@ install:
 # Clean generated files and caches
 clean:
     rm -rf .pytest_cache .ruff_cache tmp
+
+# =============================================================================
+# 📊 DATA (FRED, etc.)
+# =============================================================================
+
+# Fetch CPIAUCSL from FRED (2020–2025) and upload to S3
+# Output: s3://data.sb/fred/cpi/cpiaucsl_2020_2025_<YYYYMMDD>.parquet
+# Requires FRED_API_KEY in environment
+fetch-cpi start_year="2020" end_year="2025":
+    uv run python {{project_root}}/utils/post/fetch_cpi_from_fred.py \
+        --start-year {{start_year}} --end-year {{end_year}} --upload
 
 # =============================================================================
 # 🔍 AWS
