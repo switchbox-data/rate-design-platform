@@ -135,7 +135,7 @@ This is a scientific computing python codebase. We make heavy use of polars, pre
 
 ## Conventions agents should follow
 
-1. **Do not add intermediates to docs:** Agent plans, GitHub (or Linear) issue bodies, design drafts, and other working artifacts should not be added under `docs/`. Keep `docs/` for domain, tool, and dataset notes that belong in the index (see `docs/README.md`). Put issue templates and one-off specs in `.github/` or another appropriate location.
+1. **Do not add intermediates to docs:** Agent plans, GitHub (or Linear) issue bodies, design drafts, and other working artifacts should not be added under `docs/`. Do not commit issue-body or issue-template markdown files to the repo (not in `docs/`, not in `.github/`). Keep `docs/` for domain, tool, and dataset notes that belong in the index (see `docs/README.md`).
 2. **Prefer existing entrypoints**: Add or use `just` recipes and `utils` CLIs rather than one-off scripts at the repo root.
 3. **Respect data boundaries**: Don't assume large data is in git; follow S3/local paths and env (e.g. AWS, `GH_PAT`) documented in Justfiles and CI.
 4. **Keep docs and code aligned**: If you change behavior that `docs/` describes (e.g. CAIRO LMI, ResStock columns), update the relevant doc.
