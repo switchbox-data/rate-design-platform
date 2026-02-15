@@ -31,22 +31,9 @@ from utils.post.lmi_common import (
     select_participants_weighted,
 )
 
-# Bill CSV: bldg_id + monthly columns + Annual (CAIRO convention)
-BILL_MONTH_COLS = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-]
-ANNUAL_COL = "Annual"
+# Bill CSV: CAIRO writes long format (bldg_id, weight, month, bill_level, dollar_year)
+# month values: Jan, Feb, ..., Dec, Annual
+ANNUAL_MONTH_VALUE = "Annual"
 BLDG_ID_COL = "bldg_id"
 # ResStock gas energy: column is in kWh; convert to therms for rider (1 therm ≈ 29.3 kWh)
 KWH_PER_THERM = 29.3
@@ -54,10 +41,6 @@ KWH_PER_THERM = 29.3
 
 def _storage_opts() -> dict[str, str]:
     return get_aws_storage_options()
-
-
-def _month_and_annual_cols() -> list[str]:
-    return BILL_MONTH_COLS + [ANNUAL_COL]
 
 
 def _run_dir_bills(run_dir: S3Path | Path, name: str) -> str:
@@ -240,7 +223,7 @@ def main() -> None:
         pl.col("gas_therms"),
     )
 
-    # Bills (lazy)
+    # Bills (lazy): CAIRO long format = bldg_id, weight, month, bill_level, dollar_year
     storage = opts if isinstance(run_dir, S3Path) else None
     elec_bills = pl.scan_csv(
         _run_dir_bills(run_dir, "elec_bills_year_run.csv"), storage_options=storage
@@ -249,28 +232,30 @@ def main() -> None:
         _run_dir_bills(run_dir, "gas_bills_year_run.csv"), storage_options=storage
     )
 
-    # Join tier and consumption to bills
+    # Original annual bill per bldg (from the "Annual" month row)
+    elec_annual = elec_bills.filter(pl.col("month") == ANNUAL_MONTH_VALUE).select(
+        BLDG_ID_COL, pl.col("bill_level").alias("original_annual_elec")
+    )
+    gas_annual = gas_bills.filter(pl.col("month") == ANNUAL_MONTH_VALUE).select(
+        BLDG_ID_COL, pl.col("bill_level").alias("original_annual_gas")
+    )
+
+    # Join tier, consumption, and original annual to bills
     tc_lazy = tier_consumption
     elec_bills = elec_bills.join(
         tc_lazy.select(BLDG_ID_COL, "lmi_tier", tier_col, "participates", "elec_kwh"),
         on=BLDG_ID_COL,
         how="left",
-    )
+    ).join(elec_annual, on=BLDG_ID_COL, how="left")
     gas_bills = gas_bills.join(
         tc_lazy.select(BLDG_ID_COL, "lmi_tier", tier_col, "participates", "gas_therms"),
         on=BLDG_ID_COL,
         how="left",
-    )
+    ).join(gas_annual, on=BLDG_ID_COL, how="left")
     elec_bills = elec_bills.with_columns(pl.col("lmi_tier").fill_null(0))
     gas_bills = gas_bills.with_columns(pl.col("lmi_tier").fill_null(0))
 
-    # Original annual (for discount amount and rider)
-    elec_bills = elec_bills.with_columns(
-        pl.col(ANNUAL_COL).alias("original_annual_elec")
-    )
-    gas_bills = gas_bills.with_columns(pl.col(ANNUAL_COL).alias("original_annual_gas"))
-
-    # Discount amount per customer (for rider total)
+    # Discount amount per customer (same for all 13 rows per bldg; used for rider)
     elec_disc, gas_disc = discount_fractions_for_ri()
     disc_elec_expr = pl.when(pl.col("lmi_tier") == 3).then(
         pl.col("original_annual_elec") * elec_disc[3]
@@ -295,9 +280,11 @@ def main() -> None:
     disc_gas_expr = disc_gas_expr.otherwise(0.0)
     gas_bills = gas_bills.with_columns(disc_gas_expr.alias("discount_gas"))
 
-    # Rider totals (one small collect)
+    # Rider totals from Annual rows only (one row per bldg) to avoid 13x overcount
     if args.rider:
-        elec_totals_df = elec_bills.select(
+        elec_annual_rows = elec_bills.filter(pl.col("month") == ANNUAL_MONTH_VALUE)
+        gas_annual_rows = gas_bills.filter(pl.col("month") == ANNUAL_MONTH_VALUE)
+        elec_totals_df = elec_annual_rows.select(
             pl.col("discount_elec").sum().alias("total_discount_elec"),
             pl.when(~pl.col("participates").fill_null(False))
             .then(pl.col("elec_kwh"))
@@ -305,7 +292,7 @@ def main() -> None:
             .sum()
             .alias("total_kwh_non"),
         ).collect()
-        gas_totals_df = gas_bills.select(
+        gas_totals_df = gas_annual_rows.select(
             pl.col("discount_gas").sum().alias("total_discount_gas"),
             pl.when(~pl.col("participates").fill_null(False))
             .then(pl.col("gas_therms"))
@@ -324,21 +311,21 @@ def main() -> None:
         tg_non = float(row_gas[1] or 0.0)
         rider_per_kwh = (td_elec / tk_non) if tk_non > 0 else 0.0
         rider_per_therm = (td_gas / tg_non) if tg_non > 0 else 0.0
-        rider_elec = (
+        rider_elec_annual = (
             pl.when(~pl.col("participates").fill_null(False))
             .then(pl.col("elec_kwh") * rider_per_kwh)
             .otherwise(0.0)
         )
-        rider_gas = (
+        rider_gas_annual = (
             pl.when(~pl.col("participates").fill_null(False))
             .then(pl.col("gas_therms") * rider_per_therm)
             .otherwise(0.0)
         )
     else:
-        rider_elec = pl.lit(0.0)
-        rider_gas = pl.lit(0.0)
+        rider_elec_annual = pl.lit(0.0)
+        rider_gas_annual = pl.lit(0.0)
 
-    # Apply discount multiplier to bill columns
+    # Apply discount and rider in long format: one row per (bldg_id, month)
     mult_elec = pl.when(pl.col("lmi_tier") == 3).then(1.0 - elec_disc[3])
     mult_elec = mult_elec.when(pl.col("lmi_tier") == 2).then(1.0 - elec_disc[2])
     mult_elec = mult_elec.when(pl.col("lmi_tier") == 1).then(1.0 - elec_disc[1])
@@ -347,28 +334,24 @@ def main() -> None:
     mult_gas = mult_gas.when(pl.col("lmi_tier") == 2).then(1.0 - gas_disc[2])
     mult_gas = mult_gas.when(pl.col("lmi_tier") == 1).then(1.0 - gas_disc[1])
     mult_gas = mult_gas.otherwise(1.0)
-    for col in _month_and_annual_cols():
-        if col in elec_bills.collect_schema().names():
-            if col == ANNUAL_COL:
-                elec_bills = elec_bills.with_columns(
-                    (pl.col(col) * mult_elec + rider_elec).alias(col)
-                )
-            else:
-                elec_bills = elec_bills.with_columns(
-                    (pl.col(col) * mult_elec + rider_elec / 12).alias(col)
-                )
-    for col in _month_and_annual_cols():
-        if col in gas_bills.collect_schema().names():
-            if col == ANNUAL_COL:
-                gas_bills = gas_bills.with_columns(
-                    (pl.col(col) * mult_gas + rider_gas).alias(col)
-                )
-            else:
-                gas_bills = gas_bills.with_columns(
-                    (pl.col(col) * mult_gas + rider_gas / 12).alias(col)
-                )
+    rider_elec_row = (
+        pl.when(pl.col("month") == ANNUAL_MONTH_VALUE)
+        .then(rider_elec_annual)
+        .otherwise(rider_elec_annual / 12)
+    )
+    rider_gas_row = (
+        pl.when(pl.col("month") == ANNUAL_MONTH_VALUE)
+        .then(rider_gas_annual)
+        .otherwise(rider_gas_annual / 12)
+    )
+    elec_bills = elec_bills.with_columns(
+        (pl.col("bill_level") * mult_elec + rider_elec_row).alias("bill_level")
+    )
+    gas_bills = gas_bills.with_columns(
+        (pl.col("bill_level") * mult_gas + rider_gas_row).alias("bill_level")
+    )
 
-    # Drop helper columns for output
+    # Drop helper columns for output (keep bldg_id, weight, month, bill_level, dollar_year, lmi_tier)
     drop_elec = [
         c
         for c in [
@@ -411,30 +394,34 @@ def main() -> None:
         gas_bills.sink_csv(
             out_gas, storage_options=opts if isinstance(run_dir, S3Path) else None
         )
-        # Combined: elec + gas by month and Annual
-        comb = elec_bills.join(
-            gas_bills.select(
-                BLDG_ID_COL,
-                *[
-                    pl.col(c).alias(f"gas_{c}")
-                    for c in _month_and_annual_cols()
-                    if c in gas_bills.collect_schema().names()
-                ],
-            ),
-            on=BLDG_ID_COL,
+        # Combined: merge elec + gas on (bldg_id, weight, month, dollar_year), sum bill_level
+        elec_for_comb = elec_bills.select(
+            BLDG_ID_COL,
+            "weight",
+            "month",
+            "dollar_year",
+            pl.col("bill_level").alias("bill_level_elec"),
+            "lmi_tier",
+        )
+        gas_for_comb = gas_bills.select(
+            BLDG_ID_COL,
+            "weight",
+            "month",
+            "dollar_year",
+            pl.col("bill_level").alias("bill_level_gas"),
+        )
+        comb = elec_for_comb.join(
+            gas_for_comb,
+            on=[BLDG_ID_COL, "weight", "month", "dollar_year"],
             how="left",
-        )
-        month_cols = [
-            c for c in BILL_MONTH_COLS if c in elec_bills.collect_schema().names()
-        ]
-        comb = comb.with_columns(
-            [(pl.col(c) + pl.col(f"gas_{c}")).alias(c) for c in month_cols]
-        )
-        if ANNUAL_COL in comb.collect_schema().names():
-            comb = comb.with_columns(
-                (pl.col(ANNUAL_COL) + pl.col(f"gas_{ANNUAL_COL}")).alias(ANNUAL_COL)
+        ).with_columns(
+            (pl.col("bill_level_elec") + pl.col("bill_level_gas").fill_null(0)).alias(
+                "bill_level"
             )
-        comb = comb.select(BLDG_ID_COL, "lmi_tier", *month_cols, ANNUAL_COL)
+        )
+        comb = comb.select(
+            BLDG_ID_COL, "weight", "month", "bill_level", "dollar_year", "lmi_tier"
+        )
         comb.sink_csv(
             out_comb, storage_options=opts if isinstance(run_dir, S3Path) else None
         )
