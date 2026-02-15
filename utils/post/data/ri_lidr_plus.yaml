@@ -1,0 +1,22 @@
+# RIE LIDR+ tier definitions (Docket 25-45-GE).
+# FPL bands and discount percentages (same for electric and gas per filing).
+# See docs/lmi_discounts_in_ri.md.
+
+max_eligible_fpl: 250
+
+tiers:
+  - tier: 3
+    name: Deepest
+    fpl_upper_bound: 75
+    electric_discount_pct: 0.60
+    gas_discount_pct: 0.60
+  - tier: 2
+    name: Middle
+    fpl_upper_bound: 150
+    electric_discount_pct: 0.30
+    gas_discount_pct: 0.30
+  - tier: 1
+    name: Smallest
+    fpl_upper_bound: 250
+    electric_discount_pct: 0.10
+    gas_discount_pct: 0.10
