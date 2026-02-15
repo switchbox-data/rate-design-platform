@@ -45,3 +45,19 @@ identify-heating-type-all-upgrades-2024-amy2018-2-ri:
 identify-hp-customers-and-heating-type-all-upgrades-2024-amy2018-2-ri:
   just identify-hp-customers "res_2024_amy2018_2" "00 01 02 03 04 05" "metadata.parquet" "metadata-sb.parquet"
   just identify-heating-type "res_2024_amy2018_2" "00 01 02 03 04 05" "metadata-sb.parquet" "metadata-sb.parquet"
+
+# -----------------------------------------------------------------------------
+# Post-processing: apply RI LIDR+ discounts to CAIRO bills
+# -----------------------------------------------------------------------------
+# Run fetch-cpi first (from repo root): just fetch-cpi
+# Then pass the CPI path from that run (e.g. s3://data.sb/fred/cpi/cpiaucsl_2020_2025_YYYYMMDD.parquet)
+apply-ri-lmi-discounts run_dir state utility inflation_year cpi_s3_path participation_rate="1.0" rider="false":
+  uv run python {{project_root}}/utils/post/apply_ri_lmi_discounts_to_bills.py \
+    --run-dir "{{run_dir}}" \
+    --state {{state}} \
+    --utility {{utility}} \
+    --inflation-year {{inflation_year}} \
+    --cpi-s3-path "{{cpi_s3_path}}" \
+    --participation-rate {{participation_rate}} \
+    --rider {{rider}} \
+    --upload
