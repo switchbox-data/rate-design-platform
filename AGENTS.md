@@ -41,7 +41,7 @@ The main outputs are calibrated tariffs (when CAIRO is run in pre-calc mode), cu
 | **`rate_design/`**                  | Package root. Jurisdiction-specific logic and data live under `ny/` and `ri/`, each with `hp_rates/` (heat pump rate scenarios).                                                                                                                                     |
 | **`rate_design/{ny,ri}/hp_rates/`** | Scenario entrypoints (`run_scenario.py`), **Justfiles** (primary task interface), and `data/` (tariff_structure JSON, tariff_map CSV, marginal_costs, resstock). Large artifacts (buildstock raw/processed, cairo_cases) are git-ignored; sync via S3 or keep local. |
 | **`utils/`**                        | Cross-jurisdiction utilities: EIA zone load fetch/aggregation, utility marginal-cost allocation, ResStock metadata (e.g. identify HP customers, heating type), tariff mapping generators, CAIRO helpers. All runnable as CLI or imported by `rate_design`.           |
-| **`docs/`**                         | Notes on domain, software, adn data (e.g. on rate design, lmi programs, how CAIRO works, what data is available on ResStock, etc.).                                                                                                                                  |
+| **`docs/`**                         | Notes on domain, software, and data (e.g. rate design, LMI programs, CAIRO, ResStock). See **`docs/README.md`** for an index; update that index when adding or removing docs.                                                                                        |
 | **`tests/`**                        | Pytest tests; mirror `utils/` and key `rate_design` behavior.                                                                                                                                                                                                        |
 | **`.devcontainer/`**                | Dev container and install scripts. CI uses runner-native workflow (`just install` then `just check` / `just test`); optional devcontainer for local/DevPod.                                                                                                          |
 | **`infra/`**                        | Terraform and scripts for EC2/dev environment (e.g. `dev-setup`, `dev-teardown`).                                                                                                                                                                                    |
@@ -104,15 +104,15 @@ All work is tracked with Linear issues (which sync to GitHub Issues automaticall
 When asked to create or update a ticket, use the Linear MCP tools.
 Every new issue MUST satisfy all of the following before it is created:
 
-- [ ] **Title** follows the format `Brief description` that starts with a verb (e.g., `Add winter peak analysis`).
-- [ ] **What** is filled in: a concise, high-level description of what is being built,
+- [ ] Title follows the format `Brief description` that starts with a verb (e.g., `Add winter peak analysis`).
+- [ ] `## What` is filled in: a concise, high-level description of what is being built,
       changed, or decided. Anyone should be able to understand the scope at a glance.
-- [ ] **Why** is filled in: context, importance, and value — why this matters, what
+- [ ] `## Why` is filled in: context, importance, and value — why this matters, what
       problem it solves, and what it unblocks.
-- [ ] **How** is filled in (skip only when the What is self-explanatory and
+- [ ] `## How` is filled in (skip only when the What is self-explanatory and
       implementation is trivial) via numbered implementation steps, trade-offs, dependencies.
-- [ ] **Deliverables** lists concrete, verifiable outputs that define "done", basically acceptance criteria:
-  - Code: "PR that adds …", "Tests for …", "Data in `s3://...`"
+- [ ] `## Deliverables` lists concrete, verifiable outputs that define "done", basically acceptance criteria:
+      c - Code: "PR that adds …", "Tests for …", "Data in `s3://...`"
   - Never vague ("Finish the analysis") or unmeasurable ("Make it better").
 - [ ] **Project** is set, ask the user if unsure.
 - [ ] **Status** is set. Default to **Backlog**. Options: Backlog, To Do, In Progress,
@@ -138,7 +138,6 @@ This is a scientific computing python codebase. We make heavy use of polars, pre
 1. **Do not add intermediates to docs:** Agent plans, GitHub (or Linear) issue bodies, design drafts, and other working artifacts should not be added under `docs/`. Do not commit issue-body or issue-template markdown files to the repo (not in `docs/`, not in `.github/`). Keep `docs/` for domain, tool, and dataset notes that belong in the index (see `docs/README.md`).
 2. **Prefer existing entrypoints**: Add or use `just` recipes and `utils` CLIs rather than one-off scripts at the repo root.
 3. **Respect data boundaries**: Don't assume large data is in git; follow S3/local paths and env (e.g. AWS, `GH_PAT`) documented in Justfiles and CI.
-4. **Keep docs and code aligned**: If you change behavior that `docs/` describes (e.g. CAIRO LMI, ResStock columns), update the relevant doc.
 5. **Update the docs index**: When adding or removing files under `docs/`, update `docs/README.md` so the index stays accurate.
 6. **Type and style**: Use type hints and Ruff; run `just check` before considering a change done.
 
