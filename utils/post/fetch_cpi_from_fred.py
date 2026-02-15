@@ -80,6 +80,16 @@ def build_s3_path(
     return f"{base}/fred/cpi/cpiaucsl_{start_year}_{end_year}_{yyyymmdd}.parquet"
 
 
+def upload_cpi_to_s3(annual_df: pl.DataFrame, s3_path_str: str) -> None:
+    """Upload CPI parquet to S3 at the given path."""
+    storage_options = get_aws_storage_options()
+    s3_path = S3Path(s3_path_str)
+    if not s3_path.parent.exists():
+        s3_path.parent.mkdir(parents=True)
+    annual_df.write_parquet(str(s3_path), storage_options=storage_options)
+    print("Uploaded.")
+
+
 def main() -> None:
     load_dotenv()
     parser = argparse.ArgumentParser(
@@ -129,12 +139,7 @@ def main() -> None:
     print(f"Output path: {s3_path_str}")
 
     if args.upload:
-        storage_options = get_aws_storage_options()
-        s3_path = S3Path(s3_path_str)
-        if not s3_path.parent.exists():
-            s3_path.parent.mkdir(parents=True)
-        annual_df.write_parquet(str(s3_path), storage_options=storage_options)
-        print("Uploaded.")
+        upload_cpi_to_s3(annual_df, s3_path_str)
 
 
 if __name__ == "__main__":

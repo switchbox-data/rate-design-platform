@@ -166,6 +166,33 @@ def expected_hours_for_year(year: int) -> int:
     return (8784 if is_leap else 8760) - 1
 
 
+def upload_utility_loads_to_s3(
+    utility_df: pl.DataFrame,
+    utility_s3_base: str,
+    iso_region: str,
+    utility_name: str,
+    storage_options: dict[str, str],
+) -> None:
+    """Add partition columns and write utility load parquet to S3."""
+    output_df = utility_df.with_columns(
+        [
+            pl.lit(iso_region).alias("region"),
+            pl.col("timestamp").dt.year().alias("year"),
+            pl.col("timestamp").dt.month().alias("month"),
+        ]
+    )
+    output_df.write_parquet(
+        utility_s3_base,
+        compression="zstd",
+        partition_by=["region", "utility", "year", "month"],
+        storage_options=storage_options,
+    )
+    print(
+        "\n✓ Uploaded utility partitioned data under "
+        f"{utility_s3_base}/region={iso_region}/utility={utility_name}/"
+    )
+
+
 def process_all_utilities(
     zone_s3_base: str,
     utility_s3_base: str,
@@ -239,22 +266,12 @@ def process_all_utilities(
         print(utility_df.tail(5))
 
         if upload_to_s3:
-            output_df = utility_df.with_columns(
-                [
-                    pl.lit(iso_region).alias("region"),
-                    pl.col("timestamp").dt.year().alias("year"),
-                    pl.col("timestamp").dt.month().alias("month"),
-                ]
-            )
-            output_df.write_parquet(
+            upload_utility_loads_to_s3(
+                utility_df,
                 utility_s3_base,
-                compression="zstd",
-                partition_by=["region", "utility", "year", "month"],
-                storage_options=storage_options,
-            )
-            print(
-                "\n✓ Uploaded utility partitioned data under "
-                f"{utility_s3_base}/region={iso_region}/utility={utility_name}/"
+                iso_region,
+                utility_name,
+                storage_options,
             )
         else:
             print("\n⚠️  S3 upload disabled (use --upload to enable)")
@@ -396,22 +413,12 @@ def main():
         print(utility_df.head(10))
 
         if args.upload:
-            output_df = utility_df.with_columns(
-                [
-                    pl.lit(config.iso_region).alias("region"),
-                    pl.col("timestamp").dt.year().alias("year"),
-                    pl.col("timestamp").dt.month().alias("month"),
-                ]
-            )
-            output_df.write_parquet(
+            upload_utility_loads_to_s3(
+                utility_df,
                 resolved_utility_s3_base,
-                compression="zstd",
-                partition_by=["region", "utility", "year", "month"],
-                storage_options=storage_options,
-            )
-            print(
-                "\n✓ Uploaded "
-                f"{selected_utility} partitions to {resolved_utility_s3_base}/region={config.iso_region}/"
+                config.iso_region,
+                selected_utility,
+                storage_options,
             )
         else:
             print("\n⚠️  S3 upload disabled (use --upload to enable)")
