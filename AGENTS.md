@@ -160,6 +160,8 @@ This is a scientific computing python codebase. We make heavy use of polars, pre
 
 ## Pull request descriptions
 
+- **Always link the issue**: Include `Closes #<issue>` (e.g. `Closes #185`) in the PR body so the issue is linked and auto-closed when the PR is merged.
+
 Do not duplicate the issue in the PR body. Instead, write a concise description that gives the reviewer enough context to review without having to ask you questions:
 
 - **High-level overview** of what the PR contains (a few sentences).
