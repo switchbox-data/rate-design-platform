@@ -4,7 +4,7 @@ This file orients AI agents (e.g. Cursor) so they can work effectively in this r
 
 ## What this repo is
 
-**rate-design-platform** is [Switchbox's](https://switch.box/) simulation platform for electric rate design, starting with heat pump friendly rates that eliminate cross-subsidies. It's main job is to do CAIRO runs and creates simulation outputs on s3 that are then analyzed by Switchbox's [reports2 repo](https://github.com/switchbox-data/reports2), a repo that contains all our reports in quarto notebook format.
+**rate-design-platform** is [Switchbox's](https://switch.box/) simulation platform for electric rate design, starting with heat pump friendly rates that eliminate cross-subsidies. It's main job is to do CAIRO runs and creates simulation outputs on s3 that are then analyzed by Switchbox's [reports2 repo](https://github.com/switchbox-data/reports2), a repo that contains all our reports in quarto notebook format. The platform centers on running the Bill Alignment Test (BAT) on ResStock building loads and Cambium marginal costs; CAIRO also performs bill calculations.
 
 The main inputs are:
 
@@ -41,10 +41,27 @@ The main outputs are calibrated tariffs (when CAIRO is run in pre-calc mode), cu
 | **`rate_design/`**                  | Package root. Jurisdiction-specific logic and data live under `ny/` and `ri/`, each with `hp_rates/` (heat pump rate scenarios).                                                                                                                                     |
 | **`rate_design/{ny,ri}/hp_rates/`** | Scenario entrypoints (`run_scenario.py`), **Justfiles** (primary task interface), and `data/` (tariff_structure JSON, tariff_map CSV, marginal_costs, resstock). Large artifacts (buildstock raw/processed, cairo_cases) are git-ignored; sync via S3 or keep local. |
 | **`utils/`**                        | Cross-jurisdiction utilities: EIA zone load fetch/aggregation, utility marginal-cost allocation, ResStock metadata (e.g. identify HP customers, heating type), tariff mapping generators, CAIRO helpers. All runnable as CLI or imported by `rate_design`.           |
-| **`docs/`**                         | Notes on domain, software, and data (e.g. rate design, LMI programs, CAIRO, ResStock). See **`docs/README.md`** for an index; update that index when adding or removing docs.                                                                                        |
+| **`context/`**                      | Reference docs and research notes for agents; see **Reference context** below and **`context/README.md`** for what lives where.                                                                                                                                      |
 | **`tests/`**                        | Pytest tests; mirror `utils/` and key `rate_design` behavior.                                                                                                                                                                                                        |
 | **`.devcontainer/`**                | Dev container and install scripts. CI uses runner-native workflow (`just install` then `just check` / `just test`); optional devcontainer for local/DevPod.                                                                                                          |
 | **`infra/`**                        | Terraform and scripts for EC2/dev environment (e.g. `dev-setup`, `dev-teardown`).                                                                                                                                                                                    |
+
+## Reference context
+
+We run BAT on ResStock and Cambium; key reference material lives in `context/` so agents can use it without loading full PDFs or hunting through the repo. Treat these paths as first-class context (like the S3 input/output paths above).
+
+**Conventions:**
+
+- **`context/papers/`** — Academic papers (e.g. Bill Alignment Test). Extracted from PDFs via the pdf-to-markdown command.
+- **`context/docs/`** — Technical documentation (e.g. Cambium, ResStock dataset docs). Extracted from PDFs via the pdf-to-markdown command.
+- **`context/domain/`** — Important research notes on the domain (rate design, LMI programs, policy by state). Written or curated markdown.
+- **`context/tools/`** — Research notes on tools, data, or implementation (e.g. CAIRO, ResStock metadata, how BAT is implemented). Written or curated markdown.
+
+**When working on marginal costs, ResStock metadata/loads, BAT/cross-subsidization, LMI logic, or state-specific programs, read the relevant file(s) in `context/`.** In particular, read **`context/docs/`** and **`context/papers/`** when working on Cambium, ResStock dataset semantics, or the Bill Alignment Test—these are core inputs to the platform.
+
+For the current list of files and when to use each, see **`context/README.md`**.
+
+To add or refresh extracted PDF content: use the **extract-pdf-to-markdown** slash command (`.cursor/commands/extract-pdf-to-markdown.md`) and place output under `context/docs/` or `context/papers/` as appropriate.
 
 ## How to work in this repo
 
@@ -135,10 +152,10 @@ This is a scientific computing python codebase. We make heavy use of polars, pre
 
 ## Conventions agents should follow
 
-1. **Do not add intermediates to docs:** Agent plans, GitHub (or Linear) issue bodies, design drafts, and other working artifacts should not be added under `docs/`. Do not commit issue-body or issue-template markdown files to the repo (not in `docs/`, not in `.github/`). Keep `docs/` for domain, tool, and dataset notes that belong in the index (see `docs/README.md`).
+1. **Do not add intermediates to context:** Agent plans, GitHub (or Linear) issue bodies, design drafts, and other working artifacts should not be added under `context/`. Do not commit issue-body or issue-template markdown files to the repo (not in `context/`, not in `.github/`). `context/` is for reference material only (see `context/README.md`).
 2. **Prefer existing entrypoints**: Add or use `just` recipes and `utils` CLIs rather than one-off scripts at the repo root.
 3. **Respect data boundaries**: Don't assume large data is in git; follow S3/local paths and env (e.g. AWS, `GH_PAT`) documented in Justfiles and CI.
-4. **Update the docs index**: When adding or removing files under `docs/`, update `docs/README.md` so the index stays accurate.
+4. **Update the context index**: When adding or removing files under `context/`, update `context/README.md` so the index stays accurate.
 5. **Type and style**: Use type hints and Ruff; run `just check` before considering a change done.
 
 ## Pull request descriptions
