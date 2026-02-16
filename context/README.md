@@ -26,15 +26,15 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 
 Technical documentation extracted from PDFs (e.g. Cambium, ResStock dataset docs). Add via the **extract-pdf-to-markdown** slash command.
 
-| File (when added) | Use when working on …                                                                  |
-| ----------------- | -------------------------------------------------------------------------------------- |
-| cambium.md        | Cambium marginal costs, generation capacity, bulk transmission, or related parquet use |
-| resstock.md       | ResStock metadata, load conventions, or building/upgrade schema                        |
+| File (when added)  | Use when working on …                                                                    |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| cambium_2024.md    | Cambium 2024 scenarios, marginal costs, metrics, GEA/BA, LRMER/SRMER, methods            |
+| resstock_2024.2.md | ResStock 2024.2 metadata, measure packages, load conventions, or building/upgrade schema |
 
 ## papers/
 
 Academic papers extracted from PDFs (e.g. Bill Alignment Test). Add via the **extract-pdf-to-markdown** slash command.
 
-| File (when added) | Use when working on …                                           |
-| ----------------- | --------------------------------------------------------------- |
-| bat.md            | Bill Alignment Test methodology, cross-subsidization, CAIRO BAT |
+| File (when added)      | Use when working on …                                           |
+| ---------------------- | --------------------------------------------------------------- |
+| bill_alignment_test.md | Bill Alignment Test methodology, cross-subsidization, CAIRO BAT |
