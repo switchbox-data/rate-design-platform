@@ -405,16 +405,10 @@ def main() -> None:
     )
     parser.add_argument("--upgrade", default="00", help="ResStock upgrade ID")
     parser.add_argument(
-        "--inflation-year",
+        "--fpl-year",
         type=int,
         required=True,
-        help="Target dollar year for income (must match FPL guideline year)",
-    )
-    parser.add_argument(
-        "--fpl-guideline-year",
-        type=int,
-        default=None,
-        help="FPL guideline year (default: same as inflation-year)",
+        help="FPL guideline year; income is inflated from 2019 to this year before comparing",
     )
     parser.add_argument(
         "--cpi-s3-path",
@@ -448,14 +442,6 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    fpl_year = (
-        args.fpl_guideline_year
-        if args.fpl_guideline_year is not None
-        else args.inflation_year
-    )
-    if fpl_year != args.inflation_year:
-        parser.error("FPL guideline year must match inflation-year (or omit)")
-
     run_dir = (
         S3Path(args.run_dir) if args.run_dir.startswith("s3://") else Path(args.run_dir)
     )
@@ -465,14 +451,14 @@ def main() -> None:
     opts = _storage_opts()
 
     # 1. Load CPI and compute income-inflation ratio
-    cpi_ratio = _load_cpi_ratio(args.cpi_s3_path, args.inflation_year, opts)
+    cpi_ratio = _load_cpi_ratio(args.cpi_s3_path, args.fpl_year, opts)
 
     # 2. Build per-bldg tier and consumption (metadata → FPL → tier → participation)
     tier_consumption = _build_tier_consumption(
         meta_path,
         util_path,
         args.utility,
-        args.inflation_year,
+        args.fpl_year,
         cpi_ratio,
         args.participation_rate,
         args.participation_mode,

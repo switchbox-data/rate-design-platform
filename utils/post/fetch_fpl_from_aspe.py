@@ -33,7 +33,9 @@ def fetch_threshold(year: int, state: str, household_size: int) -> int:
     # API has returned both "income" and "poverty_threshold" across versions
     value = inner.get("income") or inner.get("poverty_threshold")
     if value is None:
-        raise ValueError(f"No threshold in ASPE response for {year}/{state}/{household_size}: {data}")
+        raise ValueError(
+            f"No threshold in ASPE response for {year}/{state}/{household_size}: {data}"
+        )
     return int(value)
 
 
