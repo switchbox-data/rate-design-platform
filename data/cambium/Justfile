@@ -1,0 +1,67 @@
+# Cambium Data Pipeline
+#
+# Downloads, extracts, NRELCambium data from any year
+# Converts NREL Cambium 2024 data to Parquet format
+#
+# QUICK START:
+#   just prepare    # Full pipeline: download → extract → convert to Parquet
+#
+# INDIVIDUAL STEPS:
+#   just download   # Download Mid-case hourly balancing areas
+#   just unzip      # Extract ZIP files to csv/ directory
+#   just convert    # Convert CSVs to Parquet (partitioned by scenario/t/gea/r)
+#   just upload     # Upload Parquet files to S3
+#
+# INTERACTIVE MODE (explore available files):
+#   just show
+#
+# CLI EXAMPLES:
+#   # Download from a different year
+#   uv run python fetch_cambium_csvs.py --year 2023 --scenario "Mid-case" --resolution "Hourly"
+#
+#   # Download specific files by ID
+#   uv run python fetch_cambium_csvs.py --id 69177 69178
+#
+#   # Download all GEA Regions files
+#   uv run python fetch_cambium_csvs.py --location "GEA Regions"
+#
+# DATA INFO:
+#   - Source: 798 CSV files (2.8 GB), 133 balancing areas × 6 years (2025-2050)
+#   - Output: Parquet (0.86 GB, 3.3x compression), partitioned by scenario/t/gea/r
+#   - Schema: 91 columns (11 metadata + 80 data fields)
+#   - Sorted: by timestamp within each partition
+
+# Show available files interactively
+show:
+    uv run python fetch_cambium_csvs.py
+
+# Download Mid-case hourly balancing areas
+download:
+    uv run python fetch_cambium_csvs.py --scenario "Mid-case" --resolution "Hourly" --location "Balancing Areas"
+
+# Extract downloaded ZIP files to csv/ directory
+unzip:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p csv
+    for zipfile in zips/*.zip; do
+        if [ -f "$zipfile" ]; then
+            echo "Extracting: $(basename $zipfile)"
+            unzip -o "$zipfile" -d csv/
+        fi
+    done
+    echo "✓ Extracted to csv/"
+
+# Convert CSV files to Parquet format (partitioned by scenario/t/gea/r)
+convert:
+    uv run python convert_cambium_csv_to_parquet.py
+
+# Full pipeline: download, extract, convert to Parquet
+prepare:
+    just download
+    just unzip
+    just convert
+
+# Upload Parquet files to S3
+upload:
+    aws s3 sync parquet/ s3://data.sb/nrel/cambium/2024/ --exclude "*" --include "*.parquet"
