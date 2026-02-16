@@ -92,7 +92,3 @@ def main():
         state=args.state,
         upgrade_id=args.upgrade_id,
     )
-
-
-if __name__ == "__main__":
-    main()

@@ -17,8 +17,15 @@ dependencies = [
     "polars",
     "prek>=0.3.2",
     "pyarrow",
+<<<<<<< HEAD
     "pygris>=0.2.1",
     "s3fs>=2026.2.0",
+=======
+    "cloudpathlib>=0.23.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+>>>>>>> origin/main
 ]
 
 [project.urls]
@@ -47,6 +54,7 @@ include = ["rate_design*", "utils*"]
     "data/tariff_structure/*.json",
     "data/tariff_mapping/*.csv",
 ]
+"utils.post" = ["data/*.yaml"]
 
 [tool.uv.sources]
-cairo = { git = "https://github.com/NatLabRockies/CAIRO", rev = "main" }
+cairo = { git = "https://github.com/NatLabRockies/CAIRO", rev = "9b52c91" }
