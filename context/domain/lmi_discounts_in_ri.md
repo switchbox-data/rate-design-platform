@@ -102,4 +102,4 @@ When modeling LIDR+ with a cost-recovery rider (so that total revenue is unchang
 - **Electric:** rider ($/kWh) = total electric discount cost ÷ total non-participant kWh. The rider is added to each non-participant’s electric bill in proportion to their annual kWh (from ResStock metadata).
 - **Gas:** rider ($/therm) = total gas discount cost ÷ total non-participant therms. Gas consumption is taken from ResStock in kWh and converted to therms (1 therm ≈ 29.3 kWh); the rider is added to each non-participant’s gas bill in proportion to their annual therms.
 
-This matches the volumetric cost-recovery approach used in CAIRO’s native LMI logic (see `docs/cairo_lmi_and_bat_analysis.md`).
+This matches the volumetric cost-recovery approach used in CAIRO’s native LMI logic (see `context/tools/cairo_lmi_and_bat_analysis.md`).
