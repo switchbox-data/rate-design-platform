@@ -56,13 +56,13 @@ fetch-cpi series="CPIAUCSL" start_year="2020" end_year="2025":
     --series {{series}} --start-year {{start_year}} --end-year {{end_year}} --upload
 
 # Apply RI LIDR+ discounts to CAIRO bills. Run fetch-cpi first, then pass --cpi-s3-path.
-apply-ri-lmi-discounts run_dir state utility inflation_year cpi_s3_path participation_rate="1.0" rider="false":
+apply-ri-lmi-discounts run_dir state utility fpl_year cpi_s3_path participation_rate="1.0" rider="false":
   uv run python {{project_root}}/utils/post/apply_ri_lmi_discounts_to_bills.py \
     --run-dir "{{run_dir}}" \
     --state {{state}} \
     --utility {{utility}} \
-    --inflation-year {{inflation_year}} \
+    --fpl-year {{fpl_year}} \
     --cpi-s3-path "{{cpi_s3_path}}" \
     --participation-rate {{participation_rate}} \
-    --rider {{rider}} \
+    {{ if rider == "true" { "--rider" } else { "" } }} \
     --upload

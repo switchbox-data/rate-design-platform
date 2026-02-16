@@ -6,9 +6,9 @@ or small collected data where needed.
 
 from __future__ import annotations
 
-import random
 from pathlib import Path
 
+import numpy as np
 import polars as pl
 import yaml
 
@@ -134,13 +134,12 @@ def select_participants_weighted(
             pl.lit(False).alias("participates")
         )
     n = max(1, int(eligible_df.height * rate + 0.5))
-    # Weighted sampling: sample row indices with probability proportional to weight
+    n = min(n, eligible_df.height)
+    # Weighted sampling without replacement so exactly n unique participants are selected
     weights = eligible_df[weight_col].to_numpy()
     weights = weights / weights.sum()
-    rng = random.Random(seed)
-    indices = rng.choices(
-        range(eligible_df.height), weights=weights, k=min(n, eligible_df.height)
-    )
+    rng = np.random.default_rng(seed)
+    indices = rng.choice(eligible_df.height, size=n, replace=False, p=weights)
     participant_ids = set(eligible_df[bldg_id_col].to_list()[i] for i in indices)
     return eligible_df.select(pl.col(bldg_id_col)).with_columns(
         pl.col(bldg_id_col).is_in(list(participant_ids)).alias("participates")
