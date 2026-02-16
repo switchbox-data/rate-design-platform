@@ -22,6 +22,7 @@ dependencies = [
     "cloudpathlib>=0.23.0",
     "pyyaml>=6.0",
     "requests>=2.31.0",
+    "sodapy>=2.2.0",
 ]
 
 [project.urls]

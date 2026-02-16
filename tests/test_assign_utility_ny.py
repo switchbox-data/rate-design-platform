@@ -76,7 +76,7 @@ def test_calculate_utility_probabilities_filter_none_false():
 
 
 def test_calculate_utility_probabilities_handle_municipal():
-    """Municipal Utility: names are rewritten to muni-<lower>."""
+    """Municipal Utility: names are rewritten to muni-<lower> when include_muni=True."""
     puma_overlap = pl.LazyFrame(
         {
             "puma_id": ["00100", "00100"],
@@ -91,6 +91,7 @@ def test_calculate_utility_probabilities_handle_municipal():
         utility_name_map,
         handle_municipal=True,
         filter_none=False,
+        include_municipal=True,
     )
     df = cast(pl.DataFrame, result.collect())
 

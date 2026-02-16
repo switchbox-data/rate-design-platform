@@ -186,7 +186,10 @@ def create_hh_utilities(
 
 
 def read_csv_to_gdf_from_s3(
-    s3_path: S3Path, geometry_col: str = "the_geom", crs: str = "EPSG:4326"
+    s3_path: S3Path,
+    utility_type: str,
+    geometry_col: str = "the_geom",
+    crs: str = "EPSG:4326",
 ) -> gpd.GeoDataFrame:
     """
     Read a CSV file from S3 with WKT geometry and convert to GeoDataFrame.
@@ -210,7 +213,10 @@ def read_csv_to_gdf_from_s3(
 
     # Convert numeric columns that might have been read as strings
     # Skip geometry column and known string columns (like COMP_FULL/utility names)
-    string_columns = {"COMP_FULL", "utility", "state_name", "std_name"}
+    if utility_type == "electric":
+        string_columns = {"comp_full", "utility", "state_name", "std_name"}
+    elif utility_type == "gas":
+        string_columns = {"COMP_FULL", "utility", "state_name", "std_name"}
     for col in df.columns:
         if col != geometry_col and col not in string_columns:
             try:
@@ -229,7 +235,10 @@ def read_csv_to_gdf_from_s3(
     )
 
     gdf = gdf.to_crs(epsg=CONFIGS["state_crs"])
-    gdf = cast(gpd.GeoDataFrame, gdf.rename(columns={"COMP_FULL": "utility"}))
+    if utility_type == "electric":
+        gdf = cast(gpd.GeoDataFrame, gdf.rename(columns={"comp_full": "utility"}))
+    elif utility_type == "gas":
+        gdf = cast(gpd.GeoDataFrame, gdf.rename(columns={"COMP_FULL": "utility"}))
 
     return gdf
 
@@ -530,6 +539,11 @@ def _print_comparison_summary(
             print(f"  Maximum absolute difference: {max_diff:.2f}%")
             print(f"  Average absolute difference: {avg_diff:.2f}%")
             print(f"  Standard deviation of differences: {std_diff:.2f}%")
+            if max_diff > 5.0:
+                print(
+                    "\n  WARNING: Maximum absolute difference exceeds 5%. "
+                    "Prior and posterior distributions may not match well."
+                )
 
     print("\n" + "=" * 80)
     print("PRIOR vs POSTERIOR COMPARISON SUMMARY")
@@ -555,6 +569,7 @@ def _calculate_utility_probabilities(
     utility_name_map: pl.LazyFrame,
     handle_municipal: bool = True,
     filter_none: bool = False,
+    include_municipal: bool = False,
 ) -> pl.LazyFrame:
     """Calculate utility probabilities for each PUMA based on overlap percentages.
 
@@ -563,6 +578,7 @@ def _calculate_utility_probabilities(
         utility_name_map: LazyFrame mapping from state_name to std_name for utilities
         handle_municipal: Whether to transform "Municipal Utility:" names to "muni-" format
         filter_none: Whether to filter out utilities named "none"
+        include_municipal: Whether to include municipal utilities in the utility assignment
 
     Returns:
         Wide-format LazyFrame with puma_id and probability columns for each utility
@@ -607,6 +623,10 @@ def _calculate_utility_probabilities(
 
     # Select relevant columns
     probs = probs.select(["puma_id", "utility", "probability"])
+
+    # Exclude municipal (muni-*) utilities from probabilities if requested
+    if not include_municipal:
+        probs = probs.filter(~pl.col("utility").str.contains("muni-"))
 
     # Filter out "none" utilities if requested
     if filter_none:
@@ -831,10 +851,13 @@ if __name__ == "__main__":
 
     # Load utility polygons (.csv files from S3) to GeoDataFrame
     electric_polygons = read_csv_to_gdf_from_s3(
-        electric_poly_path, geometry_col="the_geom", crs="EPSG:4326"
+        electric_poly_path,
+        utility_type="electric",
+        geometry_col="the_geom",
+        crs="EPSG:4326",
     )
     gas_polygons = read_csv_to_gdf_from_s3(
-        gas_poly_path, geometry_col="the_geom", crs="EPSG:4326"
+        gas_poly_path, utility_type="gas", geometry_col="the_geom", crs="EPSG:4326"
     )
 
     # Load PUMAS using pygris

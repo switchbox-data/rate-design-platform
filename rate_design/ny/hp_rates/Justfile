@@ -10,7 +10,7 @@ download-ny-utility-polygons:
 	just download-ny-gas-utility-polygons
 
 download-ny-electric-utility-polygons:
-	wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/api/views/i7nm-ih89/rows.csv" | aws s3 cp - "{{s3_base}}/gis/utility_boundaries/ny_electric_utilities_$(date +%Y%m%d).csv"
+	wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/resource/awza-4vgu.csv" | aws s3 cp - "{{s3_base}}/gis/utility_boundaries/ny_electric_utilities_`date +%Y%m%d`.csv"
 	just test-ny-electric-utility-polygons-download
 
 download-ny-gas-utility-polygons:
