@@ -1586,6 +1586,7 @@ dependencies = [
     { name = "prek" },
     { name = "pyarrow" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
     { name = "requests" },
 ]
 
@@ -1609,6 +1610,7 @@ requires-dist = [
     { name = "prek", specifier = ">=0.3.2" },
     { name = "pyarrow" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "requests", specifier = ">=2.31.0" },
 ]
 
