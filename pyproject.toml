@@ -9,15 +9,20 @@ license = { text = "MIT" }
 dependencies = [
     "buildstock-fetch>=1.6.1",
     "cairo",
+    "python-dotenv>=1.0.0",
     "cloudpathlib[s3]>=0.23.0",
+    "geopandas>=1.0.0",
     "numpy",
+    "pandas",
     "polars",
     "prek>=0.3.2",
     "pyarrow",
+    "pygris>=0.2.1",
+    "s3fs>=2026.2.0",
     "cloudpathlib>=0.23.0",
     "pyyaml>=6.0",
-    "python-dotenv>=1.0.0",
     "requests>=2.31.0",
+    "sodapy>=2.2.0",
 ]
 
 [project.urls]
