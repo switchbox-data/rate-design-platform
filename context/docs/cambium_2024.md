@@ -1,51 +1,51 @@
 # Cambium 2024 Scenario Descriptions and Documentation
 
-**Source**: cambium_2024.pdf  
-**Pages**: 77 total pages  
-**Date**: April 2025  
-**Author(s)**: Pieter Gagnon, Pedro Andres Sanchez Perez, Julian Florez, James Morris, Marck Llerena Velasquez, and Jordan Eisenman  
-**Author affiliations**: National Renewable Energy Laboratory, 15013 Denver West Parkway, Golden, CO 80401. Suggested citation: Gagnon, Pieter, Pedro Andres Sanchez Perez, Julian Florez, James Morris, Marck Llerena Velasquez, and Jordan Eisenman. 2025. *Cambium 2024 Scenario Descriptions and Documentation*. Golden, CO: National Renewable Energy Laboratory. NREL/TP-6A40-93005. https://www.nrel.gov/docs/fy25osti/93005.pdf.
+**Source**: cambium_2024.pdf\
+**Pages**: 77 total pages\
+**Date**: April 2025\
+**Author(s)**: Pieter Gagnon, Pedro Andres Sanchez Perez, Julian Florez, James Morris, Marck Llerena Velasquez, and Jordan Eisenman\
+**Author affiliations**: National Renewable Energy Laboratory, 15013 Denver West Parkway, Golden, CO 80401. Suggested citation: Gagnon, Pieter, Pedro Andres Sanchez Perez, Julian Florez, James Morris, Marck Llerena Velasquez, and Jordan Eisenman. 2025. _Cambium 2024 Scenario Descriptions and Documentation_. Golden, CO: National Renewable Energy Laboratory. NREL/TP-6A40-93005. https://www.nrel.gov/docs/fy25osti/93005.pdf.
 
 ---
 
 ## List of Abbreviations and Acronyms
 
-| Abbreviation | Meaning |
-| ------------ | -------- |
-| AEO | Annual Energy Outlook |
-| ATB | Annual Technology Baseline |
-| BA | balancing area |
-| CAGR | compound annual growth rate |
-| CARB | California Air Resources Board |
-| CCS | carbon capture and storage |
-| CES | clean energy standard(s) |
-| CO2e | carbon dioxide equivalent |
-| CONE | cost of new entry |
-| CSP | concentrating solar power |
-| dGen | Distributed Generation Market Demand Model |
-| EER | Evolved Energy Research |
-| EIA | U.S. Energy Information Administration |
-| EPA | U.S. Environmental Protection Agency |
-| g | gram |
-| GEA | generation and emission assessment |
-| GW | gigawatt |
-| IPCC | Intergovernmental Panel on Climate Change |
-| IRA | Inflation Reduction Act |
-| kg | kilogram |
-| LRMER | long-run marginal emission rate |
-| MW | megawatt |
-| MWh | megawatt-hour |
-| NGCT | natural gas combustion turbine |
-| NREL | National Renewable Energy Laboratory |
-| PRAS | Probabilistic Resource Assessment Suite |
-| PRM | planning reserve margin |
-| PV | photovoltaics |
-| ReEDS | Regional Energy Deployment System |
-| RPS | renewable portfolio standard(s) |
-| SRMC | short-run marginal costs |
-| SRMER | short-run marginal emission rate |
-| TWh | terawatt-hour |
-| USLCI | U.S. Life Cycle Inventory Database |
+| Abbreviation | Meaning                                    |
+| ------------ | ------------------------------------------ |
+| AEO          | Annual Energy Outlook                      |
+| ATB          | Annual Technology Baseline                 |
+| BA           | balancing area                             |
+| CAGR         | compound annual growth rate                |
+| CARB         | California Air Resources Board             |
+| CCS          | carbon capture and storage                 |
+| CES          | clean energy standard(s)                   |
+| CO2e         | carbon dioxide equivalent                  |
+| CONE         | cost of new entry                          |
+| CSP          | concentrating solar power                  |
+| dGen         | Distributed Generation Market Demand Model |
+| EER          | Evolved Energy Research                    |
+| EIA          | U.S. Energy Information Administration     |
+| EPA          | U.S. Environmental Protection Agency       |
+| g            | gram                                       |
+| GEA          | generation and emission assessment         |
+| GW           | gigawatt                                   |
+| IPCC         | Intergovernmental Panel on Climate Change  |
+| IRA          | Inflation Reduction Act                    |
+| kg           | kilogram                                   |
+| LRMER        | long-run marginal emission rate            |
+| MW           | megawatt                                   |
+| MWh          | megawatt-hour                              |
+| NGCT         | natural gas combustion turbine             |
+| NREL         | National Renewable Energy Laboratory       |
+| PRAS         | Probabilistic Resource Assessment Suite    |
+| PRM          | planning reserve margin                    |
+| PV           | photovoltaics                              |
+| ReEDS        | Regional Energy Deployment System          |
+| RPS          | renewable portfolio standard(s)            |
+| SRMC         | short-run marginal costs                   |
+| SRMER        | short-run marginal emission rate           |
+| TWh          | terawatt-hour                              |
+| USLCI        | U.S. Life Cycle Inventory Database         |
 
 ---
 
@@ -127,7 +127,7 @@ This section highlights the major differences between the 2023 and 2024 Cambium 
 - **General updating of assumptions**: The 2024 Cambium scenarios include a general update of major inputs, such as state and federal policies, technology and fuel costs, and technology performance assumptions. The new inputs are documented in section 3.1 of this report.
 - **Regions p119 and p122 combined**: Prior editions of Cambium had 134 BAs (see Figure 6). As with the 2024 Standard Scenarios, this edition of Cambium has combined p119 and p122 into one region labeled z122. This aggregation was motivated by deficiencies in the manner in which electricity demand and the transmission between the two regions were being resolved.
 - **Updated scenario suite**: Relative to the prior edition, two scenarios that applied a national emissions constraint have been removed from the scenario suite. Two new scenarios have been added (a Low Renewable Energy and Battery Cost With High Natural Gas Prices and a High Renewable Energy and Battery Cost With Low Natural Gas Prices). Scenarios are described in more detail in section 3.
-- **Scenario suite no longer includes scenarios with nascent technologies**: Cambium only represented nascent technologies within the scenarios with national emissions constraints, and this Cambium release does not contain such scenarios. Therefore, the outputs corresponding to nascent technologies have been removed. In this report, *nascent technologies* means generators with carbon capture and storage (CCS), hydrogen combustion turbines, enhanced geothermal technologies, floating offshore wind, and nuclear small modular reactors. Note that the designation of a technology as nascent is not intended to pass judgment on the difficulty or the likelihood of the technology ultimately achieving commercial adoption. Indeed, many of the technologies have high technology readiness levels, and some have operational demonstration plants. Nonetheless, even if a technology is technically viable, there still can be great uncertainty about its future cost and performance as well as a lack of understanding of other considerations relevant to projecting deployment, such as siting preferences and restrictions. Consequently, they are not represented within these scenarios. For readers interested in understanding the potential role of nascent technologies in future grid conditions, we refer to the 2024 Standard Scenarios (Gagnon et al. 2024).
+- **Scenario suite no longer includes scenarios with nascent technologies**: Cambium only represented nascent technologies within the scenarios with national emissions constraints, and this Cambium release does not contain such scenarios. Therefore, the outputs corresponding to nascent technologies have been removed. In this report, _nascent technologies_ means generators with carbon capture and storage (CCS), hydrogen combustion turbines, enhanced geothermal technologies, floating offshore wind, and nuclear small modular reactors. Note that the designation of a technology as nascent is not intended to pass judgment on the difficulty or the likelihood of the technology ultimately achieving commercial adoption. Indeed, many of the technologies have high technology readiness levels, and some have operational demonstration plants. Nonetheless, even if a technology is technically viable, there still can be great uncertainty about its future cost and performance as well as a lack of understanding of other considerations relevant to projecting deployment, such as siting preferences and restrictions. Consequently, they are not represented within these scenarios. For readers interested in understanding the potential role of nascent technologies in future grid conditions, we refer to the 2024 Standard Scenarios (Gagnon et al. 2024).
 - **Near-term deployment restrictions**: The 2022 Cambium release projected a rapid scale-up in the deployment of renewable generators driven by the tax credits in the Inflation Reduction Act (IRA). In practice, significant frictions have been observed (e.g., interconnection queue backlogs, transmission constraints, community opposition, and so forth [Wiser, Nilson, et al. 2024]) that have not historically been explicitly represented within the ReEDS model. Since prior editions, development has occurred to represent or approximate key frictions. Four key developments are: (1) the restriction of generators deployed through 2029 based on what is currently present in interconnection queues (Rand et al. 2024), (2) restrictions of generators deployed through 2026 based on U.S. Energy Information Administration (EIA) 860M planned builds and historical maximum installation rates, (3) cost penalties through 2035 that increase depending on the rate that annual deployments increase by technology, and (4) a time-varying cost adder for wind technologies to approximate the growing evidence of near-term barriers to that technology's deployment not natively represented within ReEDS. These four developments are explained in more detail in section 3.
 - **Interregional friction development**: Historically, Cambium analyses have used the ReEDS model to identify system-wide least-cost solutions with perfect coordination between regions. This omits known frictions, in terms of both grid planning and operation, that exist in practice between regions. Two new developments seek to approximate such frictions. First, there is a net firm capacity import limit, as a percentage of peak load within the model's approximations of North American Electric Reliability Corporation (NERC) regions, initialized based on historical data. Second, there are transmission hurdle rates applied to energy trading between regions if they are not currently part of a common market area. Both frictions are modeled as improving over time, aligned with a current trend toward improving interregional coordination.
 
@@ -162,18 +162,18 @@ This section contains a high-level summary of the input assumptions that vary wi
 
 The scenario settings listed in blue italics correspond to those used in the base set of assumptions.
 
-| Group | Scenario Setting | Notes |
-| ----- | ---------------- | ----- |
-| Electricity Demand Growth | Reference Demand Growth | End-use electricity trajectory reaching 6,509 TWh/year of demand (1.8% CAGR) with conservative assumptions about the impact of demand-side provisions in IRA |
-| | High Demand Growth | End-use electricity trajectory reaching 8,354 TWh/year (2.8% CAGR) |
-| Fuel Prices | Reference Natural Gas Prices | Annual Energy Outlook 2023 (AEO2023) reference |
-| | Low Natural Gas Prices | AEO2023 high oil and gas resource and technology |
-| | High Natural Gas Prices | AEO2023 low oil and gas resource and technology |
-| Electricity Generation Technology Costs and Performance | Mid Technology Cost | 2024 Annual Technology Baseline (ATB) moderate projections |
-| | Low RE and Battery Costs and Advanced Performance | 2024 ATB renewable energy and battery advanced projections |
-| | High RE and Battery Costs and Conservative Performance | 2024 ATB renewable energy and battery conservative projections |
+| Group                                                   | Scenario Setting                                       | Notes                                                                                                                                                        |
+| ------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Electricity Demand Growth                               | Reference Demand Growth                                | End-use electricity trajectory reaching 6,509 TWh/year of demand (1.8% CAGR) with conservative assumptions about the impact of demand-side provisions in IRA |
+|                                                         | High Demand Growth                                     | End-use electricity trajectory reaching 8,354 TWh/year (2.8% CAGR)                                                                                           |
+| Fuel Prices                                             | Reference Natural Gas Prices                           | Annual Energy Outlook 2023 (AEO2023) reference                                                                                                               |
+|                                                         | Low Natural Gas Prices                                 | AEO2023 high oil and gas resource and technology                                                                                                             |
+|                                                         | High Natural Gas Prices                                | AEO2023 low oil and gas resource and technology                                                                                                              |
+| Electricity Generation Technology Costs and Performance | Mid Technology Cost                                    | 2024 Annual Technology Baseline (ATB) moderate projections                                                                                                   |
+|                                                         | Low RE and Battery Costs and Advanced Performance      | 2024 ATB renewable energy and battery advanced projections                                                                                                   |
+|                                                         | High RE and Battery Costs and Conservative Performance | 2024 ATB renewable energy and battery conservative projections                                                                                               |
 
-*Note: Natural gas prices are based on AEO electricity sector natural gas prices but are not identical because of the application of natural gas price elasticities in the modeling. See the Fuel Prices section below for details.*
+_Note: Natural gas prices are based on AEO electricity sector natural gas prices but are not identical because of the application of natural gas price elasticities in the modeling. See the Fuel Prices section below for details._
 
 For details about the structure and assumptions in the models not mentioned here, see the companion Standard Scenarios 2024 report; the documentation for ReEDS (Ho et al. 2021) and dGen (Sigrin et al. 2016); and the in-progress ReEDS documentation wiki (https://nrel.github.io/ReEDS-2.0/model_documentation.html). Both models are publicly available, and inputs are viewable within the model repositories.
 
@@ -223,25 +223,25 @@ Generator lifetimes are shown in Table 2 and Table 3. These lifetimes represent 
 
 **Table 2. Lifetimes of Wind, Solar, Geothermal, and Hydropower Energy Generators and Batteries**
 
-| Technology | Lifetime (Years) | Source |
-| ---------- | ----------------- | ------ |
-| Land-based wind | 30 | Wind Vision (DOE 2015) |
-| Offshore wind | 30 | Wind Vision (DOE 2015) |
-| Solar PV | 30 | SunShot Vision (DOE 2012) |
-| CSP | 30 | SunShot Vision (DOE 2012) |
-| Geothermal | 30 | GeoVision (DOE 2019) |
-| Hydropower | 100 | Hydropower Vision (DOE 2016) |
-| Biopower | 50 | 2021 National Energy Modeling System plant database (EIA 2021) |
-| Battery | 15 | Cole, Frazier, and Augustine (2021) |
+| Technology      | Lifetime (Years) | Source                                                         |
+| --------------- | ---------------- | -------------------------------------------------------------- |
+| Land-based wind | 30               | Wind Vision (DOE 2015)                                         |
+| Offshore wind   | 30               | Wind Vision (DOE 2015)                                         |
+| Solar PV        | 30               | SunShot Vision (DOE 2012)                                      |
+| CSP             | 30               | SunShot Vision (DOE 2012)                                      |
+| Geothermal      | 30               | GeoVision (DOE 2019)                                           |
+| Hydropower      | 100              | Hydropower Vision (DOE 2016)                                   |
+| Biopower        | 50               | 2021 National Energy Modeling System plant database (EIA 2021) |
+| Battery         | 15               | Cole, Frazier, and Augustine (2021)                            |
 
 **Table 3. Lifetimes of Nonrenewable Energy Generators**
 
-| Technology | Lifetime for Units Less Than 100 MW (Years) | Lifetime for Units Greater Than or Equal to 100 MW (Years) |
-| ---------- | ------------------------------------------- | ---------------------------------------------------------- |
-| Natural gas combustion turbine (NGCT) | 50 | 50 |
-| Coal | 65 | 75 |
-| Oil-gas-steam (OGS) | 50 | 75 |
-| Nuclear | 80 | 80 |
+| Technology                            | Lifetime for Units Less Than 100 MW (Years) | Lifetime for Units Greater Than or Equal to 100 MW (Years) |
+| ------------------------------------- | ------------------------------------------- | ---------------------------------------------------------- |
+| Natural gas combustion turbine (NGCT) | 50                                          | 50                                                         |
+| Coal                                  | 65                                          | 75                                                         |
+| Oil-gas-steam (OGS)                   | 50                                          | 75                                                         |
+| Nuclear                               | 80                                          | 80                                                         |
 
 #### Policy/Regulatory Environment
 
@@ -325,18 +325,18 @@ where the relevant distribution loss rate is $\alpha$. Hourly $\alpha$ are given
 
 ### 5.2 Time and Geographic Identifiers
 
-**Metric Family: timestamp**  
-**Metric Names:** timestamp, timestamp_local  
+**Metric Family: timestamp**\
+**Metric Names:** timestamp, timestamp_local
 
 The **timestamp** metric is the time in Eastern Standard Time. The **timestamp_local** variable is the time in the local Standard Time. If no timestamp_local variable is in a file, the data are in Eastern Standard Time. Both timestamp variables are hour-beginning (e.g., 1:00 indicates data for 1:00–2:00). Neither timestamp variable includes the effects of Daylight Savings Time. Every year in a Cambium dataset has 8,760 hours and preserves the 7-day weekday/weekend pattern throughout the full time period. Leap days are omitted in the timestamps during leap years. Every time series starts on a Sunday, regardless of the actual day of the week for January 1 of that year.
 
-**Metric Family: time zone**  
-**Metric Name:** tz  
+**Metric Family: time zone**\
+**Metric Name:** tz
 
 The **tz** variable in the metadata indicates the time zone used for the timestamp_local variable. For regions that contain multiple time zones, the data are reported using the time zone where the majority of the load is located.
 
-**Metric Family: ReEDS model balancing area (BA)**  
-**Metric Name:** r  
+**Metric Family: ReEDS model balancing area (BA)**\
+**Metric Name:** r
 
 The balancing area (**r**) is the finest geographic unit for which Cambium data are reported. There are 133 BAs. In Cambium 2024, p119 and p122 were combined (labeled as z122).
 
@@ -346,8 +346,8 @@ A map of the conterminous United States showing 133 balancing areas (BAs) used a
 
 [→ See original PDF page 23 for visual rendering]
 
-**Metric Family: Cambium generation and emission assessment (GEA) region**  
-**Metric Name:** gea  
+**Metric Family: Cambium generation and emission assessment (GEA) region**\
+**Metric Name:** gea
 
 Cambium's GEA regions are 18 regions covering the contiguous United States (Figure 7). They were selected to approximate significant operational and planning boundaries but do not exactly correspond to many relevant administrative boundaries. Shapefiles, mappings of GEA regions to ZIP codes, and mappings of GEA regions to counties can be obtained in the NREL Scenario Viewer.
 
@@ -422,24 +422,24 @@ Data are reported for technology groups in Cambium (Table 4). The actual number 
 
 **Table 4. Cambium Technologies**
 
-| Technology Name in Cambium Database | Technologies in ReEDS and PLEXOS |
-| ---------------------------------- | -------------------------------- |
-| battery | Electric batteries |
-| biomass | Biopower and landfill gas |
-| canada | Canadian imports |
-| coal | Coal (scrubbed and unscrubbed, integrated gasification combined cycle) |
-| csp | Concentrating solar power (with and without thermal energy storage) |
-| distpv | Behind-the-meter PV |
-| gas-cc | Natural gas combined cycle |
-| gas-ct | Natural gas combustion turbine |
-| geothermal | Geothermal |
-| hydro | Hydropower (existing and undiscovered, dispatchable and nondispatchable) |
-| nuclear | Nuclear (conventional) |
-| o-g-s | Oil-gas-steam |
-| phs | Pumped hydropower storage |
-| upv | Utility-scale and distributed-utility-scale PV |
-| wind-ofs | Offshore wind (fixed-bottom) |
-| wind-ons | Onshore wind |
+| Technology Name in Cambium Database | Technologies in ReEDS and PLEXOS                                         |
+| ----------------------------------- | ------------------------------------------------------------------------ |
+| battery                             | Electric batteries                                                       |
+| biomass                             | Biopower and landfill gas                                                |
+| canada                              | Canadian imports                                                         |
+| coal                                | Coal (scrubbed and unscrubbed, integrated gasification combined cycle)   |
+| csp                                 | Concentrating solar power (with and without thermal energy storage)      |
+| distpv                              | Behind-the-meter PV                                                      |
+| gas-cc                              | Natural gas combined cycle                                               |
+| gas-ct                              | Natural gas combustion turbine                                           |
+| geothermal                          | Geothermal                                                               |
+| hydro                               | Hydropower (existing and undiscovered, dispatchable and nondispatchable) |
+| nuclear                             | Nuclear (conventional)                                                   |
+| o-g-s                               | Oil-gas-steam                                                            |
+| phs                                 | Pumped hydropower storage                                                |
+| upv                                 | Utility-scale and distributed-utility-scale PV                           |
+| wind-ofs                            | Offshore wind (fixed-bottom)                                             |
+| wind-ons                            | Onshore wind                                                             |
 
 ### 6.2 Emissions Factors by Fuel
 
@@ -447,38 +447,38 @@ Cambium emission metrics are calculated using the fuel-specific emissions factor
 
 **Table 5. Emission Factors by Fuel**
 
-| Fuel | Type | Emission | Emission Factor | Units | Source |
-| ---- | ---- | -------- | --------------- | ---- | ------ |
-| Coal | Precombustion | CO2 | 2.94 | kg/MMBtu | USLCI, Bituminous Coal at power plant |
-| Coal | Precombustion | CH4 | 208.26 | g/MMBtu | USLCI |
-| Coal | Precombustion | N2O | 0.05 | g/MMBtu | USLCI |
-| Coal | Combustion | CO2 | 95.52 | kg/MMBtu | EPA 2016, Table A-3, Coal and Coke, Mixed (Electric Power Sector) |
-| Coal | Combustion | CH4 | 11.00 | g/MMBtu | EPA 2016 |
-| Coal | Combustion | N2O | 1.60 | g/MMBtu | EPA 2016 |
-| Natural Gas | Precombustion | CO2 | 6.27 | kg/MMBtu | USLCI, Natural Gas at power plant |
-| Natural Gas | Precombustion | CH4 | 571.6–400.2 | g/MMBtu | Alvarez et al. (2018); Mason and Alper (2021); 571.6 in 2022 decreasing linearly to 400.2 in 2030, constant thereafter |
-| Natural Gas | Precombustion | N2O | 0.02 | g/MMBtu | USLCI |
-| Natural Gas | Combustion | CO2 | 53.06 | kg/MMBtu | EPA 2016, Table A-3, Natural Gas |
-| Natural Gas | Combustion | CH4 | 1.00 | g/MMBtu | EPA 2016 |
-| Natural Gas | Combustion | N2O | 0.10 | g/MMBtu | EPA 2016 |
-| Residual Fuel Oil | Precombustion | CO2 | 9.91 | kg/MMBtu | USLCI at power plant |
-| Residual Fuel Oil | Precombustion | CH4 | 153.45 | g/MMBtu | USLCI |
-| Residual Fuel Oil | Precombustion | N2O | 0.17 | g/MMBtu | USLCI |
-| Residual Fuel Oil | Combustion | CO2 | 75.10 | kg/MMBtu | EPA 2016, Table A-3, Residual Fuel Oil No. 6 |
-| Residual Fuel Oil | Combustion | CH4 | 3.00 | g/MMBtu | EPA 2016 |
-| Residual Fuel Oil | Combustion | N2O | 0.60 | g/MMBtu | EPA 2016 |
-| Uranium | Precombustion | CO2 | 0.84 | kg/MMBtu | USLCI, Uranium at power plant |
-| Uranium | Precombustion | CH4 | 2.10 | g/MMBtu | USLCI |
-| Uranium | Precombustion | N2O | 0.02 | g/MMBtu | USLCI |
-| Uranium | Combustion | CO2 | 0.00 | kg/MMBtu | ATB 2024 |
-| Uranium | Combustion | CH4 | 0.00 | g/MMBtu | - |
-| Uranium | Combustion | N2O | 0.00 | g/MMBtu | - |
-| Biomass | Precombustion | CO2 | 2.46 | kg/MMBtu | CARB 11-307, Table 15 |
-| Biomass | Precombustion | CH4 | 2.94 | g/MMBtu | CARB 11-307 |
-| Biomass | Precombustion | N2O | 0.01 | g/MMBtu | CARB 11-307 |
-| Biomass | Combustion | CO2 | 0.00 | kg/MMBtu | ATB 2024 |
-| Biomass | Combustion | CH4 | 0.00 | g/MMBtu | - |
-| Biomass | Combustion | N2O | 0.00 | g/MMBtu | - |
+| Fuel              | Type          | Emission | Emission Factor | Units    | Source                                                                                                                 |
+| ----------------- | ------------- | -------- | --------------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Coal              | Precombustion | CO2      | 2.94            | kg/MMBtu | USLCI, Bituminous Coal at power plant                                                                                  |
+| Coal              | Precombustion | CH4      | 208.26          | g/MMBtu  | USLCI                                                                                                                  |
+| Coal              | Precombustion | N2O      | 0.05            | g/MMBtu  | USLCI                                                                                                                  |
+| Coal              | Combustion    | CO2      | 95.52           | kg/MMBtu | EPA 2016, Table A-3, Coal and Coke, Mixed (Electric Power Sector)                                                      |
+| Coal              | Combustion    | CH4      | 11.00           | g/MMBtu  | EPA 2016                                                                                                               |
+| Coal              | Combustion    | N2O      | 1.60            | g/MMBtu  | EPA 2016                                                                                                               |
+| Natural Gas       | Precombustion | CO2      | 6.27            | kg/MMBtu | USLCI, Natural Gas at power plant                                                                                      |
+| Natural Gas       | Precombustion | CH4      | 571.6–400.2     | g/MMBtu  | Alvarez et al. (2018); Mason and Alper (2021); 571.6 in 2022 decreasing linearly to 400.2 in 2030, constant thereafter |
+| Natural Gas       | Precombustion | N2O      | 0.02            | g/MMBtu  | USLCI                                                                                                                  |
+| Natural Gas       | Combustion    | CO2      | 53.06           | kg/MMBtu | EPA 2016, Table A-3, Natural Gas                                                                                       |
+| Natural Gas       | Combustion    | CH4      | 1.00            | g/MMBtu  | EPA 2016                                                                                                               |
+| Natural Gas       | Combustion    | N2O      | 0.10            | g/MMBtu  | EPA 2016                                                                                                               |
+| Residual Fuel Oil | Precombustion | CO2      | 9.91            | kg/MMBtu | USLCI at power plant                                                                                                   |
+| Residual Fuel Oil | Precombustion | CH4      | 153.45          | g/MMBtu  | USLCI                                                                                                                  |
+| Residual Fuel Oil | Precombustion | N2O      | 0.17            | g/MMBtu  | USLCI                                                                                                                  |
+| Residual Fuel Oil | Combustion    | CO2      | 75.10           | kg/MMBtu | EPA 2016, Table A-3, Residual Fuel Oil No. 6                                                                           |
+| Residual Fuel Oil | Combustion    | CH4      | 3.00            | g/MMBtu  | EPA 2016                                                                                                               |
+| Residual Fuel Oil | Combustion    | N2O      | 0.60            | g/MMBtu  | EPA 2016                                                                                                               |
+| Uranium           | Precombustion | CO2      | 0.84            | kg/MMBtu | USLCI, Uranium at power plant                                                                                          |
+| Uranium           | Precombustion | CH4      | 2.10            | g/MMBtu  | USLCI                                                                                                                  |
+| Uranium           | Precombustion | N2O      | 0.02            | g/MMBtu  | USLCI                                                                                                                  |
+| Uranium           | Combustion    | CO2      | 0.00            | kg/MMBtu | ATB 2024                                                                                                               |
+| Uranium           | Combustion    | CH4      | 0.00            | g/MMBtu  | -                                                                                                                      |
+| Uranium           | Combustion    | N2O      | 0.00            | g/MMBtu  | -                                                                                                                      |
+| Biomass           | Precombustion | CO2      | 2.46            | kg/MMBtu | CARB 11-307, Table 15                                                                                                  |
+| Biomass           | Precombustion | CH4      | 2.94            | g/MMBtu  | CARB 11-307                                                                                                            |
+| Biomass           | Precombustion | N2O      | 0.01            | g/MMBtu  | CARB 11-307                                                                                                            |
+| Biomass           | Combustion    | CO2      | 0.00            | kg/MMBtu | ATB 2024                                                                                                               |
+| Biomass           | Combustion    | CH4      | 0.00            | g/MMBtu  | -                                                                                                                      |
+| Biomass           | Combustion    | N2O      | 0.00            | g/MMBtu  | -                                                                                                                      |
 
 Sources: USLCI (NREL 2021), EPA 2016, ATB 2024 (NREL 2024), CARB 11-307 (Carreras-Sospedra et al. 2015), Alvarez et al. (2018).
 
@@ -561,12 +561,12 @@ Two panels. Top: the 11th hour shows marginal discharge (battery on margin). Sha
 
 **Table 6. Efficiency Adjustments**
 
-| Anchor Time-Step Behavior | Point Time-Step Behavior | Description | Efficiency Adjustment |
-| ------------------------- | ------------------------- | ----------- | --------------------- |
-| Charging | Charging | Energy-constrained generator reduces charging in anchor and increases charging in point time-step. | 1.0 |
-| Charging | Discharging | Energy-constrained generator reduces charging in anchor and reduces discharging in point time-step. | RTE |
-| Discharging | Charging | Energy-constrained generator increases discharge in anchor and increases charging in point time-step. | 1/RTE |
-| Discharging | Discharging | Energy-constrained generator increases discharge in anchor and reduces discharge in point time-step. | 1.0 |
+| Anchor Time-Step Behavior | Point Time-Step Behavior | Description                                                                                           | Efficiency Adjustment |
+| ------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------- | --------------------- |
+| Charging                  | Charging                 | Energy-constrained generator reduces charging in anchor and increases charging in point time-step.    | 1.0                   |
+| Charging                  | Discharging              | Energy-constrained generator reduces charging in anchor and reduces discharging in point time-step.   | RTE                   |
+| Discharging               | Charging                 | Energy-constrained generator increases discharge in anchor and increases charging in point time-step. | 1/RTE                 |
+| Discharging               | Discharging              | Energy-constrained generator increases discharge in anchor and reduces discharge in point time-step.  | 1.0                   |
 
 RTE = round-trip efficiency of the energy-constrained generator.
 
@@ -577,11 +577,13 @@ Cambium calculates both average and marginal hourly distribution loss rates foll
 For each BA: total annual fixed losses $L_{f,b}$ and variable losses $L_{v,b}$ as a function of annual busbar load consumed for end uses $Q_{b,b}$, no-load loss fraction $\pi$, and annual loss rate $F_b$:
 
 $$L_{f,b} = Q_{b,b} \cdot F_b \cdot \pi$$
+
 $$L_{v,b} = Q_{b,b} \cdot F_b \cdot (1 - \pi)$$
 
 Annual variable loss factor $f_{v,b} = L_{v,b} / Q_{b,b}^2$. Hourly variable losses $L_{v,h} = f_{v,b} \cdot Q_{b,h}^2$. Total hourly losses $L_{t,h} = L_{v,h} + L_{f,b}/8760$. Then:
 
 $$\alpha_h = L_{t,h} / Q_{b,h}$$
+
 $$\mu_h = Q_{b,h} \cdot 2 \cdot f_{v,b}$$
 
 ### 6.8 Calculating Hourly Marginal Capacity Costs
@@ -626,7 +628,7 @@ This report was funded by the DOE Office of Energy Efficiency and Renewable Ener
 
 ## References
 
-Alvarez, Ramón A., Daniel Zavala-Araiza, David R. Lyon, David T. Allen, Zachary R. Barkley, Adam R. Brandt, Kenneth J. Davis, et al. 2018. "Assessment of Methane Emissions from the U.S. Oil and Gas Supply Chain." *Science* 361:186–88. https://doi.org/10.1126/science.aar7204.
+Alvarez, Ramón A., Daniel Zavala-Araiza, David R. Lyon, David T. Allen, Zachary R. Barkley, Adam R. Brandt, Kenneth J. Davis, et al. 2018. "Assessment of Methane Emissions from the U.S. Oil and Gas Supply Chain." _Science_ 361:186–88. https://doi.org/10.1126/science.aar7204.
 
 Bloom, Aaron, Aaron Townsend, David Palchak, Joshua Novacheck, Jack King, Clayton Barrows, Eduardo Ibanez, et al. 2016. "Eastern Renewable Generation Integration Study." NREL/TP-6A20-64472. Golden, CO: National Renewable Energy Laboratory. https://doi.org/10.2172/1318192.
 
@@ -636,9 +638,9 @@ Cole, Wesley, Bethany Frew, Trieu Mai, Yinong Sun, John Bistline, Geoffrey Blanf
 
 Cole, Wesley, Nathaniel Gates, Trieu Mai, Daniel Greer, and Paritosh Das. 2019. "2019 Standard Scenarios Report: A U.S. Electricity Sector Outlook." NREL/TP-6A20-74110. Golden, CO: National Renewable Energy Laboratory. https://doi.org/10.2172/1481848.
 
-Cole, Wesley, Daniel Greer, Jonathan Ho, and Robert Margolis. 2020. "Considerations for Maintaining Resource Adequacy of Electricity Systems with High Penetrations of PV and Storage." *Applied Energy* 279 (December).
+Cole, Wesley, Daniel Greer, Jonathan Ho, and Robert Margolis. 2020. "Considerations for Maintaining Resource Adequacy of Electricity Systems with High Penetrations of PV and Storage." _Applied Energy_ 279 (December).
 
-Cole, Wesley, Kenneth B. Medlock III, and Aditya Jani. 2016. "A View to the Future of Natural Gas and Electricity: An Integrated Modeling Approach." *Energy Economics* 60 (November):486–96. https://doi.org/10.1016/j.eneco.2016.03.005.
+Cole, Wesley, Kenneth B. Medlock III, and Aditya Jani. 2016. "A View to the Future of Natural Gas and Electricity: An Integrated Modeling Approach." _Energy Economics_ 60 (November):486–96. https://doi.org/10.1016/j.eneco.2016.03.005.
 
 DOE. 2012. "SunShot Vision Study." DOE/GO-102012-3037. Washington, D.C.: U.S. Department of Energy. http://www.nrel.gov/docs/fy12osti/47927.pdf.
 
@@ -658,21 +660,21 @@ Energy Exemplar. 2019. "PLEXOS Integrated Energy Model." Energy Exemplar. https:
 
 EPA. 2020. "EGRID 2018 Gross Grid Loss Estimates." Washington, D.C.: EPA. https://www.epa.gov/egrid/download-data.
 
-Frew, Bethany, Wesley Cole, Paul Denholm, Will Frazier, Nina Vincent, and Robert Margolis. 2019. "Sunny with a Chance of Curtailment: Operating the US Grid with Very High Levels of Solar Photovoltaics." *IScience* 21 (November):436447. https://doi.org/10.1016/j.isci.2019.10.017.
+Frew, Bethany, Wesley Cole, Paul Denholm, Will Frazier, Nina Vincent, and Robert Margolis. 2019. "Sunny with a Chance of Curtailment: Operating the US Grid with Very High Levels of Solar Photovoltaics." _IScience_ 21 (November):436447. https://doi.org/10.1016/j.isci.2019.10.017.
 
-Gagnon, Pieter, and Wesley Cole. 2022. "Planning for the Evolution of the Electric Grid with a Long-Run Marginal Emission Rate." *IScience* 25 (3). https://doi.org/10.1016/j.isci.2022.103915.
+Gagnon, Pieter, and Wesley Cole. 2022. "Planning for the Evolution of the Electric Grid with a Long-Run Marginal Emission Rate." _IScience_ 25 (3). https://doi.org/10.1016/j.isci.2022.103915.
 
 Gagnon, Pieter, and Eric O'Shaughnessy. 2024. "Consequential Analysis of the Greenhouse Gas Emissions Impacts of Actions That Influence the Electric Grid: The Theory and Practice of Using Marginal Emissions Rates." NREL/TP-6A40-91580. https://doi.org/10.2172/2481678.
 
 Gagnon, Pieter, An Pham, Wesley Cole, Anne Hamilton, Sarah Awara, Anne Barlas, Maxwell Brown, et al. 2024. "2024 Standard Scenarios Report: A U.S. Electricity Sector Outlook." NREL/TP-6A40-92256. National Renewable Energy Laboratory. https://www.nrel.gov/docs/fy25osti/92256.pdf.
 
-Hale, Elaine, Brady Stoll, and Trieu Mai. 2016. "Capturing the Impact of Storage and Other Flexible Technologies on Electric System Planning." *Renewable Energy* 91.
+Hale, Elaine, Brady Stoll, and Trieu Mai. 2016. "Capturing the Impact of Storage and Other Flexible Technologies on Electric System Planning." _Renewable Energy_ 91.
 
 Haley, Ben, Ryan Jones, Jim Williams, Gabe Kwok, Jamil Farbes, Jeremy Hargreaves, Katie Pickrell, Darcie Bentz, Andrew Waddell, and Emily Leslie. 2022. "Annual Decarbonization Perspective: Carbon Neutral Pathways for the United States 2022." Evolved Energy Research.
 
 Ho, Jonathan, Jonathon Becker, Maxwell Brown, Patrick Brown, Ilya Chernyakhovskiy, Stuart Cohen, Wesley Cole, et al. 2021. "Regional Energy Deployment System (ReEDS) Model Documentation: Version 2020." Golden, CO: National Renewable Energy Laboratory. https://www.nrel.gov/docs/fy21osti/78195.pdf.
 
-Bialek, Janusz. 1996. "Tracing the Flow of Electricity." *IEE Proceedings - Generation, Transmission, and Distribution* 143 (4): 313–20.
+Bialek, Janusz. 1996. "Tracing the Flow of Electricity." _IEE Proceedings - Generation, Transmission, and Distribution_ 143 (4): 313–20.
 
 Mason, Jeff, and Alexandra Alper. 2021. "Biden Asks World Leaders to Cut Methane in Climate Fight." Reuters, September 17, 2021. https://www.reuters.com/business/environment/biden-convenes-world-leaders-discuss-climate-change-ahead-glasgow-summit-2021-09-17/.
 
@@ -696,7 +698,7 @@ Borenstein, Severin, and James Bushnell. 2019. "Do Two Electricity Pricing Wrong
 
 Sigrin, Benjamin, Michael Gleason, Robert Preus, Ian Baring-Gould, and Robert Margolis. 2016. "The Distributed Generation Market Demand Model (DGen): Documentation." NREL/TP-6A20-65231. Golden, CO: National Renewable Energy Laboratory. http://www.nrel.gov/docs/fy16osti/65231.pdf.
 
-Siler-Evans, Kyle, Inês Lima Azevedo, and M. Granger Morgan. 2012. "Marginal Emissions Factors for the U.S. Electricity System." *Environmental Science & Technology* 46 (9): 4742–48. https://doi.org/10.1021/es300145v.
+Siler-Evans, Kyle, Inês Lima Azevedo, and M. Granger Morgan. 2012. "Marginal Emissions Factors for the U.S. Electricity System." _Environmental Science & Technology_ 46 (9): 4742–48. https://doi.org/10.1021/es300145v.
 
 United States Environmental Protection Agency. 2016. "Greenhouse Gas Inventory Guidance: Direct Emissions from Stationary Combustion Sources." United States Environmental Protection Agency. https://www.epa.gov/sites/default/files/2016-03/documents/stationaryemissions_3_2016.pdf.
 
