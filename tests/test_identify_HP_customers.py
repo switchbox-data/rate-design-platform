@@ -1,7 +1,6 @@
 from typing import cast
 
 import polars as pl
-import pytest
 
 from utils.identify_hp_customers import (
     IN_HVAC_COOLING_COLUMN,
@@ -14,10 +13,6 @@ from utils.identify_hp_customers import (
 upgrade_ids = ["00", "01", "02", "03", "04", "05"]
 
 
-@pytest.mark.skipif(
-    os.getenv("GITHUB_ACTIONS") == "true",
-    reason="Skipping in GitHub Actions CI - requires AWS credentials",
-)
 def test_identify_HP_customers():
     for upgrade_id in upgrade_ids:
         # Create test data with 10 rows covering different heating types

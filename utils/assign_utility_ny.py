@@ -402,12 +402,11 @@ def _print_comparison_summary(
 
         # Collect once and reuse for posterior, counts, and assignment stats
         building_filtered_df = cast(pl.DataFrame, building_df_filtered.collect())
-        posterior_df = cast(
-            pl.DataFrame,
+        posterior_df = (
             building_filtered_df.group_by(utility_col)
             .agg(pl.len().alias("count"))
             .with_columns((pl.col("count") / pl.col("count").sum()).alias("proportion"))
-            .sort("proportion", descending=True),
+            .sort("proportion", descending=True)
         )
 
         # Build comparison data (include None/null utilities)
@@ -735,13 +734,14 @@ def assign_utility_ny(
     )
 
     # Runtime check: ensure both LazyFrames have the same number of rows (one collect)
-    counts_df = (
+    counts_df = cast(
+        pl.DataFrame,
         input_metadata.select(pl.lit(1).sum().alias("input_count"))
         .join(
             building_utilities.select(pl.lit(1).sum().alias("building_count")),
             how="cross",
         )
-        .collect()
+        .collect(),
     )
     input_count = cast(int, counts_df["input_count"][0])
     building_utilities_count = cast(int, counts_df["building_count"][0])

@@ -5,10 +5,10 @@ from typing import cast
 import polars as pl
 from cloudpathlib import S3Path
 
-from utils import get_storage_options
+from utils import get_aws_region
 from utils.types import electric_utility
 
-STORAGE_OPTIONS = get_storage_options()
+STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
 
 def map_gas_tariff(

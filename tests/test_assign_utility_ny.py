@@ -19,7 +19,13 @@ def test_calculate_utility_probabilities_basic():
     puma_overlap = pl.LazyFrame(
         {
             "puma_id": ["00100", "00100", "00100", "00200", "00200"],
-            "utility": ["Consolidated Edison", "National Grid", "None", "Consolidated Edison", "NYS Electric and Gas"],
+            "utility": [
+                "Consolidated Edison",
+                "National Grid",
+                "None",
+                "Consolidated Edison",
+                "NYS Electric and Gas",
+            ],
             "pct_overlap": [60.0, 30.0, 10.0, 50.0, 50.0],
         }
     )
@@ -299,18 +305,22 @@ def test_sample_utility_per_building_exact_assignments():
     )
 
     # Electric: every building gets the single utility for its PUMA
-    elec_by_bldg = {row["bldg_id"]: row["sb.electric_utility"] for row in elec.iter_rows(named=True)}
+    elec_by_bldg = {
+        row["bldg_id"]: row["sb.electric_utility"] for row in elec.iter_rows(named=True)
+    }
     assert elec_by_bldg[1] == "coned"
     assert elec_by_bldg[2] == "coned"
     assert elec_by_bldg[3] == "nimo"
     assert elec_by_bldg[4] == "nyseg"
 
     # Gas: only Natural Gas buildings get an assignment; Electric gets null
-    gas_by_bldg = {row["bldg_id"]: row["sb.gas_utility"] for row in gas.iter_rows(named=True)}
-    assert gas_by_bldg[1] == "coned"   # PUMA 00100, Natural Gas
-    assert gas_by_bldg[2] is None       # Electric -> no gas utility
-    assert gas_by_bldg[3] == "nfg"      # PUMA 00200, Natural Gas
-    assert gas_by_bldg[4] == "none"     # PUMA 00300, Natural Gas
+    gas_by_bldg = {
+        row["bldg_id"]: row["sb.gas_utility"] for row in gas.iter_rows(named=True)
+    }
+    assert gas_by_bldg[1] == "coned"  # PUMA 00100, Natural Gas
+    assert gas_by_bldg[2] is None  # Electric -> no gas utility
+    assert gas_by_bldg[3] == "nfg"  # PUMA 00200, Natural Gas
+    assert gas_by_bldg[4] == "none"  # PUMA 00300, Natural Gas
 
 
 def test_sample_utility_per_building_deterministic_with_varying_probs():
@@ -320,7 +330,14 @@ def test_sample_utility_per_building_deterministic_with_varying_probs():
         {
             "bldg_id": [1, 2, 3, 4, 5, 6],
             "puma": ["00100", "00100", "00100", "00200", "00200", "00300"],
-            "heating_fuel": ["Natural Gas", "Natural Gas", "Electric", "Natural Gas", "Natural Gas", "Natural Gas"],
+            "heating_fuel": [
+                "Natural Gas",
+                "Natural Gas",
+                "Electric",
+                "Natural Gas",
+                "Natural Gas",
+                "Natural Gas",
+            ],
         }
     )
     # Complex probability distributions: PUMA 00100 has 4 utilities, 00200 has 3, 00300 has 2
@@ -338,11 +355,14 @@ def test_sample_utility_per_building_deterministic_with_varying_probs():
     )
 
     # Perform assignment directly in test with seed 42 (same logic as _sample_utility_per_building)
-    bldgs_joined = bldgs.join(
-        puma_probs, left_on="puma", right_on="puma_id", how="left"
-    ).collect()
-    bldgs_pd = bldgs_joined.to_pandas().sort_values("bldg_id").reset_index(drop=True)
-    puma_probs_df = puma_probs.collect()
+    bldgs_joined_df = cast(
+        pl.DataFrame,
+        bldgs.join(
+            puma_probs, left_on="puma", right_on="puma_id", how="left"
+        ).collect(),
+    )
+    bldgs_pd = bldgs_joined_df.to_pandas().sort_values("bldg_id").reset_index(drop=True)
+    puma_probs_df = cast(pl.DataFrame, puma_probs.collect())
     utility_cols = sorted([c for c in puma_probs_df.columns if c != "puma_id"])
 
     np.random.seed(42)
@@ -365,6 +385,8 @@ def test_sample_utility_per_building_deterministic_with_varying_probs():
             bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
         ).collect(),
     )
-    actual = {row["bldg_id"]: row["sb.electric_utility"] for row in out.iter_rows(named=True)}
+    actual = {
+        row["bldg_id"]: row["sb.electric_utility"] for row in out.iter_rows(named=True)
+    }
 
     assert actual == expected, f"Expected {expected}, got {actual}"
