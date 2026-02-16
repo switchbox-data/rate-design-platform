@@ -11,12 +11,9 @@ from cairo.rates_tool.systemsimulator import (
     _return_export_compensation_rate,
     _return_revenue_requirement_target,
 )
-from cairo.utils.marginal_costs.marginal_cost_calculator import (
-    _load_cambium_marginal_costs,
-    add_distribution_costs,
-)
+from cairo.utils.marginal_costs.marginal_cost_calculator import add_distribution_costs
 
-from utils.cairo import build_bldg_id_to_load_filepath
+from utils.cairo import build_bldg_id_to_load_filepath, _load_cambium_marginal_costs
 from utils.generate_precalc_mapping import generate_default_precalc_mapping
 
 log = logging.getLogger("rates_analysis").getChild("tests")
@@ -42,7 +39,16 @@ path_resstock_loads = (
     path_resstock / "load_curve_hourly" / f"state={state}" / f"upgrade={upgrade}"
 )
 
-path_cambium_marginal_costs = Path("/data.sb/nrel/cambium/dummy_rie_marginal_costs.csv")
+# Cambium S3 Parquet: Hive-style path built from release, scenario, year (t), GEA region, balancing area (r)
+cambium_release_year = "2024"
+cambium_scenario = "MidCase"
+cambium_t = 2025
+cambium_gea = "ISONE"
+cambium_r = "p133"
+path_cambium_marginal_costs = (
+    f"s3://data.sb/nrel/cambium/{cambium_release_year}/"
+    f"scenario={cambium_scenario}/t={cambium_t}/gea={cambium_gea}/r={cambium_r}/data.parquet"
+)
 
 path_results = Path("/data.sb/switchbox/cairo/ri_default_test_run/")
 # TODO: alex - figure out how cairo is adjusting for inflation and make sure this is consistent with the test scenario parameters
@@ -89,7 +95,6 @@ precalc_mapping = generate_default_precalc_mapping(
     tariff_path=path_config / "tariff_structure" / "tariff_structure_rie_a16.json",
     tariff_key="rie_a16",
 )
-
 
 # read in basic customer-level information and reweight to utility customer count
 customer_metadata = return_buildingstock(

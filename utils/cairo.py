@@ -1,6 +1,112 @@
 """Utility functions for Cairo-related operations."""
 
+from __future__ import annotations
+
+import io
 from pathlib import Path
+
+import pandas as pd
+from cairo.rates_tool import config
+from cairo.rates_tool.loads import __timeshift__
+from cloudpathlib import S3Path
+
+CambiumPathLike = str | Path | S3Path
+
+
+def _normalize_cambium_path(cambium_scenario: CambiumPathLike):  # noqa: ANN201
+    """Return a single path-like (Path or S3Path) for Cambium CSV or Parquet."""
+    if isinstance(cambium_scenario, S3Path):
+        return cambium_scenario
+    if isinstance(cambium_scenario, Path):
+        return cambium_scenario
+    if isinstance(cambium_scenario, str):
+        if cambium_scenario.startswith("s3://"):
+            return S3Path(cambium_scenario)
+        if "/" in cambium_scenario or cambium_scenario.endswith((".csv", ".parquet")):
+            return Path(cambium_scenario)
+        return config.MARGINALCOST_DIR / f"{cambium_scenario}.csv"
+    raise TypeError(
+        f"cambium_scenario must be str, Path, or S3Path; got {type(cambium_scenario)}"
+    )
+
+
+def _load_cambium_marginal_costs(
+    cambium_scenario: CambiumPathLike, target_year: int
+) -> pd.DataFrame:
+    """
+    Load Cambium marginal costs from CSV or Parquet (local or S3). Returns costs in $/kWh.
+
+    Accepts: scenario name (str → CSV under config dir), local path (str or Path),
+    or S3 URI (str or S3Path). Example S3 Parquet:
+    s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+
+    Assumptions (verified against S3 Parquet and repo CSV example_marginal_costs.csv):
+    - CSV: first 5 rows are metadata; row 6 is header; data has columns timestamp,
+      energy_cost_enduse, capacity_cost_enduse. Costs are in $/MWh.
+    - Parquet: columns timestamp (datetime), energy_cost_enduse, capacity_cost_enduse
+      (float). Costs are in $/MWh. Exactly 8760 rows (hourly). No partition columns
+      in the DataFrame (single-file read).
+    - Both: we divide cost columns by 1000 to get $/kWh; then common_year alignment,
+      __timeshift__ to target_year, and tz_localize("EST") so output matches CAIRO.
+    """
+    path = _normalize_cambium_path(cambium_scenario)
+    if not path.exists():
+        raise FileNotFoundError(f"Cambium marginal cost file {path} does not exist")
+
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        if isinstance(path, S3Path):
+            raw = path.read_bytes()
+            df = pd.read_csv(
+                io.BytesIO(raw),
+                skiprows=5,
+                index_col="timestamp",
+                parse_dates=True,
+            )
+        else:
+            df = pd.read_csv(
+                path,
+                skiprows=5,
+                index_col="timestamp",
+                parse_dates=True,
+            )
+    elif suffix == ".parquet":
+        if isinstance(path, S3Path):
+            # Read as bytes and pass BytesIO so PyArrow reads a single file. If we pass
+            # the S3 path (even with explicit S3FileSystem), PyArrow infers a partitioned
+            # dataset from path segments like scenario=MidCase/... and raises
+            # ArrowTypeError when merging partition schemas.
+            raw = path.read_bytes()
+            df = pd.read_parquet(io.BytesIO(raw), engine="pyarrow")
+        else:
+            df = pd.read_parquet(path)
+        if "timestamp" in df.columns and not isinstance(df.index, pd.DatetimeIndex):
+            df = df.set_index("timestamp")
+        if df.index.name != "time":
+            df.index.name = "time"
+    else:
+        raise ValueError(
+            f"Cambium file must be .csv or .parquet; got {path} (suffix {suffix})"
+        )
+
+    keep_cols = {
+        "energy_cost_enduse": "Marginal Energy Costs ($/kWh)",
+        "capacity_cost_enduse": "Marginal Capacity Costs ($/kWh)",
+    }
+    df = df.loc[:, list(keep_cols.keys())].rename(columns=keep_cols)
+    df.loc[:, [c for c in df.columns if "/kWh" in c]] /= 1000  # $/MWh → $/kWh
+
+    common_years = [2017, 2023, 2034, 2045, 2051]
+    year_diff = [abs(y - target_year) for y in common_years]
+    common_year = common_years[year_diff.index(min(year_diff))]
+    df.index = pd.DatetimeIndex(
+        [t.replace(year=common_year) for t in df.index],
+        name="time",
+    )
+    df = __timeshift__(df, target_year)
+    df.index = df.index.tz_localize("EST")
+    df.index.name = "time"
+    return df
 
 
 def build_bldg_id_to_load_filepath(

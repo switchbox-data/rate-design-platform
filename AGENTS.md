@@ -11,7 +11,7 @@ The main inputs are:
 - NREL's ResStock metadata and loads in parquet format stored in s3 at `s3://data.sb/nrel/resstock/`, downloaded with Switchbox's [buildstock-fetch](https://github.com/switchbox-data/buildstock-fetch) library.
   - metadata lives at `s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=<2 char state abbreviation]/upgrade=<0 padded integer>/*.parquet`
   - hourly loads live at `s3://data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=<2 char state abbreviation]/upgrade=<0 padded integer>/<bldg_id>_<upgrade_id>.parquet` and there are typically thousands of loads files
-- NREL's [Cambium dataset](https://docs.nlr.gov/docs/fy25osti/93005.pdf) for marginal energy, generation capacity, and bulk transmission capacity costs, which lives in a parquet file on s3 at `s3://data.sb/nrel/cambium/`
+- NREL's [Cambium dataset](https://docs.nlr.gov/docs/fy25osti/93005.pdf) for marginal energy, generation capacity, and bulk transmission capacity costs. Parquet on S3 at `s3://data.sb/nrel/cambium/` with Hive-style partitions: `{release_year}/scenario={name}/t={year}/gea={region}/r={ba}/data.parquet` (e.g. `2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet` for balancing area p133).
 - Marginal sub-distribution and distribution costs, and hourly allocation logic, drawn from utility-specific PUC filings like MCOS studies.
 - NREL's [CAIRO rate-simulation engine](https://github.com/natlabrockies/cairo/), which implements the Simenone et. al's bill alignment test paper (https://www.sciencedirect.com/science/article/abs/pii/S0957178723000516?via%3Dihub)
 - Electric and gas tariffs in URDB JSON format ([short guide to this format](https://switchbox-data.github.io/tariff_fetch/providers/nrel/), [official docs](https://openei.org/services/doc/rest/util_rates/?version=7)), downloaded with Switchbox's [tariff-fetch](https://github.com/switchbox-data/tariff_fetch) library
@@ -159,6 +159,8 @@ This is a scientific computing python codebase. We make heavy use of polars, pre
 5. **Type and style**: Use type hints and Ruff; run `just check` before considering a change done.
 
 ## Pull request descriptions
+
+- **Always link the issue**: Include `Closes #<issue>` (e.g. `Closes #185`) in the PR body so the issue is linked and auto-closed when the PR is merged.
 
 Do not duplicate the issue in the PR body. Instead, write a concise description that gives the reviewer enough context to review without having to ask you questions:
 
