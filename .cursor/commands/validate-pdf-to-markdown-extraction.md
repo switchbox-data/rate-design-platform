@@ -9,6 +9,8 @@ You are comparing an **existing markdown extract** to its **source PDF** to asse
 
 **Inputs:** The user provides the path to the markdown file (e.g. `context/papers/bill_alignment_test.md`). The source PDF is either provided as a second argument or inferred from the markdown path by replacing the file with the same base name and `.pdf` extension in the same directory (e.g. `context/papers/bill_alignment_test.pdf`). Read both the PDF (or its text representation) and the markdown to perform the comparison.
 
+**Output:** Produce the validation report **only in the chat** (in your response). **Do not** write the report to a file or save it to disk. The user reads the report in the conversation; they can copy or save it themselves if needed.
+
 ---
 
 ## Major Extraction Categories
@@ -154,5 +156,5 @@ Use the following structure. Keep the whole section short (one short paragraph p
 1. **Locate inputs** – Resolve the markdown path from the user’s argument. Resolve the PDF path from the second argument or by same directory + same base name + `.pdf`.
 2. **Read both** – Read the markdown extract in full. Read or sample the PDF (or its text) enough to compare structure, equations, figures, tables, front/back matter, and citations.
 3. **Assess each category** – For each of the 11 categories, assign a verdict (A/B/C/D) and notes using the evaluation guidance above.
-4. **Fill the report** – Output the report using exactly the prescribed format (Overview through Section 6 TL;DR Summary). Section 6 must appear at the end and summarize overall score, document profile (heavy-use categories), qualitative assessment, and what to fix manually vs. via the extract command.
+4. **Output the report in chat** – Reply with the full report using exactly the prescribed format (Overview through Section 6 TL;DR Summary). Do not write the report to a file. Section 6 must appear at the end and summarize overall score, document profile (heavy-use categories), qualitative assessment, and what to fix manually vs. via the extract command.
 5. **Be conservative in Section 5 and in the TL;DR** – Only recommend extraction-command changes that would generalize to other PDFs; leave document-specific fixes to Section 4 and to "Fix manually" in the TL;DR.
