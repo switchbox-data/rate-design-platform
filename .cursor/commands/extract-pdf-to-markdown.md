@@ -9,12 +9,13 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 
 ## Core Principles
 
-1. **Fidelity over brevity**: Preserve every meaningful piece of information
-2. **Structure preservation**: Keep original document hierarchy, sections, subsections
-3. **Formatting in markdown**: Use markdown formatting (bold, italics, code blocks, etc.) to mirror original emphasis
-4. **Impossible content handling**: For diagrams, charts, images—provide detailed textual descriptions inline
-5. **Standalone design**: A reader should be able to work from this markdown alone; the PDF is emergency reference only
-6. **LLM-friendly markers**: Use clear, parseable markers when you must indicate "see PDF for visual"
+1. **Primary audience is LLMs/agents** consuming the markdown as context. Prefer clarity and completeness over brevity: keep equation labels, explicit section structure, and full figure descriptions. Human-friendly rendering is secondary but desirable (e.g. LaTeX for math, proper lists).
+2. **Fidelity over brevity**: Preserve every meaningful piece of information
+3. **Structure preservation**: Keep original document hierarchy, sections, subsections
+4. **Formatting in markdown**: Use markdown formatting (bold, italics, code blocks, etc.) to mirror original emphasis
+5. **Impossible content handling**: For diagrams, charts, images—provide detailed textual descriptions inline
+6. **Standalone design**: A reader should be able to work from this markdown alone; the PDF is emergency reference only
+7. **LLM-friendly markers**: Use clear, parseable markers when you must indicate "see PDF for visual"
 
 ## Extraction Instructions
 
@@ -28,9 +29,9 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 ### Text & Formatting
 
 - **Bold** for emphasis (use `**text**`)
-- _Italics_ for terms, citations, variable names (use `*text*`)
-- `code` for technical terms, variable names, file paths, code snippets
-- Preserve numbered and bulleted lists with correct nesting
+- _Italics_ for terms and citations; for variable names and short math in prose use inline math `$...$` (see Equations below)
+- `code` for technical terms, file paths, code snippets
+- Preserve numbered and bulleted lists with correct nesting. **When the source has an inline numbered list** (e.g. "commissions should 1) … 2) … 5)" or "(1) … (2)" in one paragraph), **convert it to a markdown list** (numbered or bullet) unless that would break the flow of the paragraph.
 - Keep paragraph structure and grouping exactly as in original
 - Convert hyperlinks to markdown format: `[link text](URL)`
 
@@ -41,19 +42,15 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 - If a table is complex/wide, add a description before it explaining its structure
 - Complex tables that don't render cleanly: provide both a prose description and the markdown version
 - Keep alignment indicators if relevant (left, center, right aligned)
+- **Table footnotes**: When the source has footnotes or notes tied to a table (e.g. superscripts in cells, "Notes:" or "Source:" below the table), handle them consistently: either (a) use markdown footnote refs in cells and `[^n]:` definitions below the table, or (b) fold the footnote text into the table caption or a single "Note:" or "Notes:" line immediately below the table. Choose one approach per document and apply it to all tables with footnotes.
 
 ### Equations & Mathematical Content
 
-**For inline formulas**: Use backticks or notation: `E = mc²`
-
-**For block equations**: Use code blocks with math notation
-
-**Handling strategy:**
-
-- Keep equations in original notation (LaTeX, plain text, mathematical symbols)
-- If equation is explained in surrounding text, include that text
-- For critical visual elements: `[EQUATION: describe what it shows]` before/after
-- Example: For the Lorentz force: `[EQUATION: Force on a charged particle in electromagnetic field]` followed by `F = q(E + v × B)`
+- **In running text**: Use **inline math** `$...$` for variable names and short expressions (e.g. $r_i$, $MC_h$, $\epsilon$, $ProposedRate_h$). This keeps math unambiguous for LLMs and renders well for humans.
+- **Display equations**: Use **block math** `$$...$$` with LaTeX. Keep an optional label line above (e.g. `**Equation (1):**`) so the equation is tied to the text.
+- Keep equations in original notation (LaTeX preferred). If equation is explained in surrounding text, include that text.
+- For critical visual elements where the equation is unreadable in the PDF: `[EQUATION: describe what it shows]` before/after the transcribed formula.
+- Reconstruct equations from surrounding prose and equation numbers when the PDF text extraction yields garbled symbols.
 
 ### Diagrams, Charts, Figures, Images
 
@@ -109,10 +106,9 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 
 ### Footnotes & Endnotes
 
-- Convert footnotes to markdown: `[^1]` with `[^1]: content` at bottom
-- Or integrate as inline text: `(Note: ...)`
-- Preserve ALL footnote content—nothing drops
-- Keep numbering/order from original
+- **Locate and preserve every footnote** in the source. Do not drop footnote text, definitions, or URLs. Output each footnote either as a markdown footnote (`[^n]` in body with `[^n]: content` in a **Footnotes** section) or inlined at the reference point; in either case, the full content (including any URLs, citations, or definitions) must appear in the extract.
+- Preserve ALL footnote content—nothing drops. If a footnote reference triggers a linter (e.g. "unused reference definition"), you may **inline the footnote content** into the body at the reference point and remove the footnote definition, provided no content is lost.
+- Keep numbering/order from original (or renumber from 1 if the source uses different numbering).
 
 ### Content You Cannot Fully Extract
 
@@ -136,7 +132,8 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 **Source**: [Original filename]
 **Pages**: [X total pages]
 **Date**: [Publication/modification date if present]
-**Author(s)**: [If applicable]
+**Author(s)**: [Names; if the PDF has superscript numbers, list names with affiliations below]
+**Author affiliations**: Extract from the first page: correspondence author (e.g. "Author for correspondence", email), and each numbered affiliation (institution, address). Omit only if the PDF has no affiliation block.
 
 ---
 
@@ -148,6 +145,8 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 
 [Complete reference list]
 ```
+
+When the source PDF contains them, include short back-matter sections such as **Acknowledgments**, **Funding**, **Author Contributions**, **Data Statement**, **Conflicts of interest**, or similar—preserve their headings and full text.
 
 ### Quality Checklist
 
@@ -185,17 +184,23 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 - Text emphasis (apply markdown)
 - Conceptual diagrams (describe in prose)
 
+## Output filename and location
+
+- **Filename**: The markdown file **must** use the same base name as the PDF, with a `.md` extension. Example: `bill_alignment_test.pdf` → `bill_alignment_test.md`.
+- **Location**: Save under `context/docs/` for technical documentation (e.g. Cambium, ResStock) or `context/papers/` for academic papers (e.g. Bill Alignment Test). Update `context/README.md` when adding or changing files.
+
 ## Process
 
 The PDF file path is provided as: **$ARGUMENTS**
 
-1. Examine PDF structure first (TOC, sections, page count)
-2. Preserve structure exactly in markdown
-3. Extract section by section, applying all rules
+1. Examine PDF structure first (TOC, sections, page count). From the first page, extract author affiliations and correspondence if present.
+2. Preserve structure exactly in markdown (include **Author affiliations** in metadata when available).
+3. Extract section by section, applying all rules (inline math in prose, markdown lists for inline-numbered lists, equation labels).
 4. For visual elements: stop and write detailed description
 5. For complex tables: show prose description + markdown version
 6. Build complete References section
 7. Do final quality check against checklist
 8. Output complete markdown as ready-to-use document
+9. **Save the file** under `context/docs/` or `context/papers/` using the **same base name as the PDF** (e.g. `path/to/foo.pdf` → `context/.../foo.md`). Update `context/README.md` if needed.
 
-**Provide the extracted markdown in full, ready to save to context/ directory and commit.**
+**Provide the extracted markdown in full, ready to save to context/ with the matching filename and commit.**

@@ -57,7 +57,7 @@ We run BAT on ResStock and Cambium; key reference material lives in `context/` s
 - **`context/domain/`** — Important research notes on the domain (rate design, LMI programs, policy by state). Written or curated markdown.
 - **`context/tools/`** — Research notes on tools, data, or implementation (e.g. CAIRO, ResStock metadata, how BAT is implemented). Written or curated markdown.
 
-**When working on marginal costs, ResStock metadata/loads, BAT/cross-subsidization, LMI logic, or state-specific programs, read the relevant file(s) in `context/`.** In particular, read **`context/docs/`** and **`context/papers/`** when working on Cambium, ResStock dataset semantics, or the Bill Alignment Test—these are core inputs to the platform.
+**When working on marginal costs, ResStock metadata/loads, BAT/cross-subsidization, LMI logic, or state-specific programs, read the relevant file(s) in `context/`.** In particular, read **`context/docs/`** and **`context/papers/`** when working on Cambium, ResStock dataset semantics, or the Bill Alignment Test—these are core inputs to the platform. By using those docs, you may know more about the datasets than the team does; **if you see code or assumptions that conflict with the ResStock or Cambium documentation, proactively say so** so we can correct them.
 
 For the current list of files and when to use each, see **`context/README.md`**.
 
