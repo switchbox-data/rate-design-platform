@@ -11,14 +11,11 @@ from cairo.rates_tool.systemsimulator import (
     _return_export_compensation_rate,
     _return_revenue_requirement_target,
 )
-from cairo.utils.marginal_costs.marginal_cost_calculator import (
-    _load_cambium_marginal_costs,
-    add_distribution_costs,
-)
+from cairo.utils.marginal_costs.marginal_cost_calculator import add_distribution_costs
 
 # from tests import constant_tests as const_vars
 # from tests.utils import reweight_customer_metadata
-from utils.cairo import build_bldg_id_to_load_filepath
+from utils.cairo import build_bldg_id_to_load_filepath, _load_cambium_marginal_costs
 from utils.reweight_customer_counts import reweight_customer_counts
 
 log = logging.getLogger("rates_analysis").getChild("tests")
