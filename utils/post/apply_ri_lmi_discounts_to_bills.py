@@ -50,7 +50,7 @@ def _run_dir_bills(run_dir: S3Path | Path, name: str) -> str:
 def _load_cpi_ratio(
     cpi_s3_path: str, inflation_year: int, opts: dict[str, str]
 ) -> float:
-    """Load CPI parquet, filter to base and target years, return ratio for income inflation."""
+    """Load CPI parquet (year, value), filter to base and target years, return ratio for income inflation."""
     cpi_df = (
         pl.scan_parquet(cpi_s3_path, storage_options=opts)
         .filter(pl.col("year").is_in([RESSTOCK_INCOME_DOLLAR_YEAR, inflation_year]))
@@ -63,7 +63,7 @@ def _load_cpi_ratio(
         raise ValueError(
             f"CPI data must contain {RESSTOCK_INCOME_DOLLAR_YEAR} and {inflation_year}"
         )
-    return float(cpi_target["cpi_value"][0]) / float(cpi_2019["cpi_value"][0])
+    return float(cpi_target["value"][0]) / float(cpi_2019["value"][0])
 
 
 def _build_tier_consumption(
@@ -419,7 +419,7 @@ def main() -> None:
     parser.add_argument(
         "--cpi-s3-path",
         required=True,
-        help="S3 path to CPI parquet (year, cpi_value) from fetch_cpi_from_fred.py",
+        help="S3 path to CPI parquet (year, value) from fetch_cpi_from_fred.py (default series CPIAUCSL)",
     )
     parser.add_argument(
         "--participation-rate",
