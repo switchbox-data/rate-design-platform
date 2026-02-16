@@ -42,6 +42,7 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 - If a table is complex/wide, add a description before it explaining its structure
 - Complex tables that don't render cleanly: provide both a prose description and the markdown version
 - Keep alignment indicators if relevant (left, center, right aligned)
+- **Table footnotes**: When the source has footnotes or notes tied to a table (e.g. superscripts in cells, "Notes:" or "Source:" below the table), handle them consistently: either (a) use markdown footnote refs in cells and `[^n]:` definitions below the table, or (b) fold the footnote text into the table caption or a single "Note:" or "Notes:" line immediately below the table. Choose one approach per document and apply it to all tables with footnotes.
 
 ### Equations & Mathematical Content
 
@@ -105,7 +106,7 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 
 ### Footnotes & Endnotes
 
-- Convert footnotes to markdown: `[^1]` with `[^1]: content` at bottom (e.g. in a **Footnotes** section).
+- **Locate and preserve every footnote** in the source. Do not drop footnote text, definitions, or URLs. Output each footnote either as a markdown footnote (`[^n]` in body with `[^n]: content` in a **Footnotes** section) or inlined at the reference point; in either case, the full content (including any URLs, citations, or definitions) must appear in the extract.
 - Preserve ALL footnote content—nothing drops. If a footnote reference triggers a linter (e.g. "unused reference definition"), you may **inline the footnote content** into the body at the reference point and remove the footnote definition, provided no content is lost.
 - Keep numbering/order from original (or renumber from 1 if the source uses different numbering).
 
@@ -144,6 +145,8 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 
 [Complete reference list]
 ```
+
+When the source PDF contains them, include short back-matter sections such as **Acknowledgments**, **Funding**, **Author Contributions**, **Data Statement**, **Conflicts of interest**, or similar—preserve their headings and full text.
 
 ### Quality Checklist
 
