@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """
-Cambium 2024 file downloader - interactive or CLI mode.
+Cambium file downloader - interactive or CLI mode.
+
+Supports multiple release years (--year 2024, 2023, ...). Use --output to write
+ZIPs to a directory that includes the year (e.g. zips/2024) so different years
+don't clobber each other.
 
 Interactive mode:
     uv run python fetch_cambium_csvs.py
 
 CLI mode (for Justfile):
-    uv run python fetch_cambium_csvs.py --id 69177 69178
-    uv run python fetch_cambium_csvs.py --scenario "Mid-case" --resolution "Hourly"
-    uv run python fetch_cambium_csvs.py --all
+    uv run python fetch_cambium_csvs.py --year 2024 --output zips/2024 --id 69177 69178
+    uv run python fetch_cambium_csvs.py --year 2024 --output zips/2024 --scenario "Mid-case" --resolution "Hourly"
+    uv run python fetch_cambium_csvs.py --year 2024 --output zips/2024 --all
 """
 
 import argparse
@@ -126,12 +130,21 @@ def display_files_table(files, year="2024"):
 
 
 def download_files(
-    files_to_download, project_uuid, year="2024", show_cli_command=False
+    files_to_download,
+    project_uuid,
+    year="2024",
+    output_dir=None,
+    show_cli_command=False,
 ):
-    """Download selected files."""
+    """Download selected files to output_dir."""
     if not files_to_download:
         console.print("[yellow]No files to download[/yellow]")
         return
+
+    if output_dir is None:
+        output_dir = Path(f"zips/{year}")
+    else:
+        output_dir = Path(output_dir)
 
     # Show CLI command to reproduce this selection
     if show_cli_command:
@@ -140,7 +153,7 @@ def download_files(
         # Try to generate a readable filter-based command
         if len(files_to_download) == 1:
             f = files_to_download[0]
-            parts = [f"--year {year}"]
+            parts = [f"--year {year}", f"--output {output_dir}"]
             if f["scenario"] != "ALL":
                 parts.append(f'--scenario "{f["scenario"]}"')
             if f["time_resolution"] != "ALL":
@@ -150,16 +163,20 @@ def download_files(
             if f["metric"] != "ALL":
                 parts.append(f'--metric "{f["metric"]}"')
 
-            if len(parts) > 1:  # Has more than just year
+            if len(parts) > 2:  # More than year + output
                 cli_command = f"uv run python fetch_cambium_csvs.py {' '.join(parts)}"
             else:
                 cli_command = (
-                    f"uv run python fetch_cambium_csvs.py --year {year} --id {f['id']}"
+                    f"uv run python fetch_cambium_csvs.py --year {year} --output"
+                    f" {output_dir} --id {f['id']}"
                 )
         else:
             # Multiple files - use IDs
             file_ids = [str(f["id"]) for f in files_to_download]
-            cli_command = f"uv run python fetch_cambium_csvs.py --year {year} --id {' '.join(file_ids)}"
+            cli_command = (
+                f"uv run python fetch_cambium_csvs.py --year {year} --output"
+                f" {output_dir} --id {' '.join(file_ids)}"
+            )
 
         console.print(f"[cyan]{cli_command}[/cyan]\n")
 
@@ -177,8 +194,8 @@ def download_files(
     console.print(f"[green]✓ Got {len(successful)} URL(s)[/green]\n")
 
     # Download files
-    download_dir = Path("zips")
-    download_dir.mkdir(exist_ok=True)
+    download_dir = output_dir
+    download_dir.mkdir(parents=True, exist_ok=True)
 
     for i, file in enumerate(successful, 1):
         filename = f"cambium{year}_{file['id']}_{file['scenario']}_{file['time_resolution']}_{file['location_type']}.zip"
@@ -289,14 +306,19 @@ def interactive_mode(files, project_uuid, year="2024"):
 
     selected_files = [files[i] for i in selected_indices]
     console.print(f"\n[green]Selected {len(selected_files)} file(s)[/green]")
-    download_files(selected_files, project_uuid, year, show_cli_command=True)
+    output_dir = Path(f"zips/{year}")
+    download_files(
+        selected_files, project_uuid, year, output_dir=output_dir, show_cli_command=True
+    )
 
 
 def cli_mode(files, project_uuid, year, args):
     """CLI mode - filter and download based on arguments."""
+    output_dir = Path(args.output) if args.output else Path(f"zips/{year}")
+
     if args.all:
         console.print(f"\n[cyan]Downloading all {len(files)} files...[/cyan]")
-        download_files(files, project_uuid, year)
+        download_files(files, project_uuid, year, output_dir=output_dir)
         return
 
     # Filter files
@@ -317,7 +339,7 @@ def cli_mode(files, project_uuid, year, args):
     console.print(f"\n[cyan]Found {len(filtered)} matching file(s):[/cyan]\n")
     display_files_table(filtered, year)
 
-    download_files(filtered, project_uuid, year)
+    download_files(filtered, project_uuid, year, output_dir=output_dir)
 
 
 def main():
@@ -348,6 +370,12 @@ def main():
         "--location", help="Filter by location type (e.g., 'GEA Regions')"
     )
     parser.add_argument("--all", action="store_true", help="Download all files")
+    parser.add_argument(
+        "--output",
+        "-o",
+        metavar="DIR",
+        help="Output directory for downloaded ZIP files (default: zips/<year>)",
+    )
 
     args = parser.parse_args()
 

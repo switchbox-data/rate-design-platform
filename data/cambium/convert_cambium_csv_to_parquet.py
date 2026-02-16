@@ -883,12 +883,15 @@ def convert_csv_to_parquet(csv_file, schema, output_base_dir):
 
 
 def main():
-    csv_dir = Path("csv/hourly_balancingArea/")
-    output_dir = Path("parquet/")
+    args = _parse_args()
+    csv_dir = Path(args.input)
+    output_dir = Path(args.output)
 
     if not csv_dir.exists():
         print(f"Error: CSV directory not found: {csv_dir}")
-        print("Expected structure: csv/hourly_balancingArea/*.csv")
+        print(
+            "Expected structure: <input_dir>/*.csv (e.g. csv/2024/hourly_balancingArea)"
+        )
         sys.exit(1)
 
     csv_files = sorted(csv_dir.glob("*.csv"))
@@ -950,6 +953,29 @@ def main():
     print(f"Total partitions: {len(partition_dirs)}")
 
     print(f"\n✓ Parquet files written to: {output_dir}")
+
+
+def _parse_args():
+    import argparse
+
+    p = argparse.ArgumentParser(
+        description="Convert Cambium Hourly Balancing Area CSVs to partitioned Parquet"
+    )
+    p.add_argument(
+        "--input",
+        "-i",
+        metavar="DIR",
+        default="csv/hourly_balancingArea",
+        help="Directory containing CSV files (default: csv/hourly_balancingArea)",
+    )
+    p.add_argument(
+        "--output",
+        "-o",
+        metavar="DIR",
+        default="parquet",
+        help="Output directory for partitioned Parquet (default: parquet)",
+    )
+    return p.parse_args()
 
 
 if __name__ == "__main__":
