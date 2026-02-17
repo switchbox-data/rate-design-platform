@@ -1,13 +1,11 @@
 # FRED CPI data pipeline
 #
 # Fetch FRED series (e.g. CPIAUCSL) to local parquet, then optionally upload to S3.
-# Invoked from rate_design/{ny,ri}/hp_rates/Justfile (fetch-cpi delegates here).
 #
 # Usage (standalone, from project root):
 #   just -f data/fred/cpi/Justfile fetch-cpi
 #   just -f data/fred/cpi/Justfile fetch-cpi CPIAUCSL 2020 2025
 #   just -f data/fred/cpi/Justfile upload
-#   just -f data/fred/cpi/Justfile update   # fetch-cpi then upload
 #   just -f data/fred/cpi/Justfile clean    # Remove local parquet/
 
 path_local_repo := `git rev-parse --show-toplevel`
@@ -24,11 +22,6 @@ fetch-cpi series="CPIAUCSL" start_year="2020" end_year="2025":
 # Sync local parquet/ to s3://data.sb/fred/cpi/
 upload:
     aws s3 sync "{{path_local_parquet}}" "{{path_s3_parquet}}"
-
-# Fetch then upload (for rate_design or one-shot refresh)
-update series="CPIAUCSL" start_year="2020" end_year="2025":
-    just fetch-cpi {{series}} {{start_year}} {{end_year}}
-    just upload
 
 # Remove local parquet/
 clean:

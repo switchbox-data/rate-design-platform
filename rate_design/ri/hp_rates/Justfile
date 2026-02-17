@@ -118,13 +118,9 @@ map-gas-rie-default:
   just map-gas-tariff rie 00 {{tariff_maps_dir_ri}}/gas
 
 # -----------------------------------------------------------------------------
-# Post-processing: CPI and RI LIDR+ discounts
+# Post-processing: RI LIDR+ discounts
 # -----------------------------------------------------------------------------
-# Delegates to data/fred/cpi/Justfile (fetch to local parquet then upload to S3).
-fetch-cpi series="CPIAUCSL" start_year="2020" end_year="2025":
-  just -f {{project_root}}/data/fred/cpi/Justfile update {{series}} {{start_year}} {{end_year}}
-
-# Apply RI LIDR+ discounts to CAIRO bills. Run fetch-cpi first, then pass --cpi-s3-path.
+# Apply RI LIDR+ discounts to CAIRO bills. Requires CPI parquet on S3 (e.g. from data/fred/cpi); pass --cpi-s3-path.
 apply-ri-lmi-discounts run_dir state utility fpl_year cpi_s3_path participation_rate="1.0" rider="false":
   uv run python {{project_root}}/utils/post/apply_ri_lmi_discounts_to_bills.py \
     --run-dir "{{run_dir}}" \
