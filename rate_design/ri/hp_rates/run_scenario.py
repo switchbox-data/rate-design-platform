@@ -1,9 +1,16 @@
 """Entrypoint for running RI heat pump rate scenarios - Residential (non-LMI)."""
 
-import json
-import logging
-from pathlib import Path
+from __future__ import annotations
 
+import argparse
+import logging
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+import polars as pl
+import yaml
 from cairo.rates_tool.loads import _return_load, return_buildingstock
 from cairo.rates_tool.systemsimulator import (
     MeetRevenueSufficiencySystemWide,
@@ -11,195 +18,405 @@ from cairo.rates_tool.systemsimulator import (
     _return_export_compensation_rate,
     _return_revenue_requirement_target,
 )
-from cairo.utils.marginal_costs.marginal_cost_calculator import add_distribution_costs
 
-from utils.cairo import build_bldg_id_to_load_filepath, _load_cambium_marginal_costs
+from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.cairo import _load_cambium_marginal_costs, build_bldg_id_to_load_filepath
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
-log.info(".... Beginning RI residential (non-LMI) rate scenario - RIE A-16 tariff")
-
-run_name = "ri_default_test_run"
 # Resolve paths relative to this script so the scenario can be run from any CWD.
-path_project = Path(__file__).resolve().parent
-path_resstock = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
-path_config = path_project / "config"
+PATH_PROJECT = Path(__file__).resolve().parent
+PATH_CONFIG = PATH_PROJECT / "config"
+PATH_RESSTOCK = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
+DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
+DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "run_scenarios.yaml"
 
-state = "RI"
-upgrade = "00"
-path_resstock_metadata = (
-    path_resstock
-    / "metadata"
-    / f"state={state}"
-    / f"upgrade={upgrade}"
-    / "metadata-sb.parquet"
-)
-path_resstock_loads = (
-    path_resstock / "load_curve_hourly" / f"state={state}" / f"upgrade={upgrade}"
-)
 
-# Cambium S3 Parquet: Hive-style path built from release, scenario, year (t), GEA region, balancing area (r)
-cambium_release_year = "2024"
-cambium_scenario = "MidCase"
-cambium_t = 2025
-cambium_gea = "ISONE"
-cambium_r = "p133"
-path_cambium_marginal_costs = (
-    f"s3://data.sb/nrel/cambium/{cambium_release_year}/"
-    f"scenario={cambium_scenario}/t={cambium_t}/gea={cambium_gea}/r={cambium_r}/data.parquet"
-)
+@dataclass(slots=True)
+class ScenarioSettings:
+    """All inputs needed to run one RI scenario."""
 
-path_results = Path("/data.sb/switchbox/cairo/ri_default_test_run/")
-# TODO: alex - figure out how cairo is adjusting for inflation and make sure this is consistent with the test scenario parameters
-test_revenue_requirement_target = 241869601  # $241,869,601
-test_year_run = 2019  # set to analysis year, will be used to set datetime on load curves AND for inflation adjustment target year
-year_dollar_conversion = 2025  # this is a placeholder value that is required but never applied. See dollar_year_conversion._apply_price_inflator() - functionally returns its own input df
-test_solar_pv_compensation = "net_metering"
+    run_name: str
+    run_type: str
+    state: str
+    region: str
+    utility: str
+    path_results: Path
+    path_resstock_metadata: Path
+    path_resstock_loads: Path
+    path_cambium_marginal_costs: str | Path
+    path_tariff_map: Path
+    path_gas_tariff_map: Path
+    tariff_paths: dict[str, Path]
+    gas_tariff_paths: dict[str, Path]
+    precalc_tariff_path: Path
+    precalc_tariff_key: str
+    target_revenue_requirement: float
+    target_customer_count: int
+    test_year_run: int
+    year_dollar_conversion: int
+    process_workers: int
+    solar_pv_compensation: str = "net_metering"
+    delivery_only_rev_req_passed: bool = False
 
-target_customer_count = 451381  # Target customer count for utility territory
 
-# TODO: lee - take the prototype_id's above, and create a (bldg_id, tariff_key) mapping for the prototype_ids, then have path_tariff_map point to the mapping file.
-path_tariff_map = (
-    path_config / "tariff_maps" / "electric" / "dummy_electric_tariff_ri_run_1.csv"
-)
-tariff_map_name = path_tariff_map.stem
-path_gas_tariff_map = (
-    path_config / "tariff_maps" / "gas" / "dummy_gas_tariff_ri_run_1.csv"
-)
+def _parse_int(value: object, field_name: str) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    cleaned = str(value).strip().replace(",", "")
+    if cleaned == "":
+        raise ValueError(f"Missing required field: {field_name}")
+    try:
+        return int(float(cleaned))
+    except ValueError as exc:
+        raise ValueError(f"Invalid integer for {field_name}: {value}") from exc
 
-process_workers = 20
 
-# RIE Residential Tariffs (A-16 for standard residential)
-# Fixed Customer Charge: $6.75/month, Volumetric Distribution Charge: $0.06455/kWh
-tariff_paths = {
-    "rie_a16": path_config / "tariffs" / "electricity" / "rie_a16.json",
-}
-gas_tariff_paths = {
-    "dummy_gas": path_config / "tariffs" / "gas" / "dummy_gas.json",
-}
+def _parse_bool(value: object, field_name: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return bool(value)
+    normalized = str(value).strip().lower()
+    if normalized in {"true", "1", "yes", "y"}:
+        return True
+    if normalized in {"false", "0", "no", "n"}:
+        return False
+    raise ValueError(f"Invalid boolean for {field_name}: {value}")
 
-# Load in and manipulate tariff information as needed for bill calculation
-tariffs_params, tariff_map_df = _initialize_tariffs(
-    tariff_map=path_tariff_map,
-    building_stock_sample=None,
-    tariff_paths=tariff_paths,
-)
 
-# Initialize gas tariffs using the same pattern as electricity
-gas_tariffs_params, gas_tariff_map_df = _initialize_tariffs(
-    tariff_map=path_gas_tariff_map,
-    building_stock_sample=None,
-    tariff_paths=gas_tariff_paths,
-)
+def _resolve_path(value: str, base_dir: Path) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else (base_dir / path)
 
-# Generate precalc mapping from RIE A-16 tariff structure
-# rel_values derived proportionally from rates (normalized to min rate = 1.0)
-precalc_mapping = generate_default_precalc_mapping(
-    tariff_path=path_config / "tariffs" / "electricity" / "rie_a16.json",
-    tariff_key="rie_a16",
-)
 
-# read in basic customer-level information and reweight to utility customer count
-customer_metadata = return_buildingstock(
-    load_scenario=path_resstock_metadata,
-    customer_count=target_customer_count,
-    columns=[
-        "applicability",
-        "postprocess_group.has_hp",
-        "in.vintage_acs",
-        "out.electricity.total.energy_consumption.kwh",
-        "out.natural_gas.total.energy_consumption.kwh",
-    ],
-)
+def _resolve_path_or_uri(value: str, base_dir: Path) -> str | Path:
+    if value.startswith("s3://"):
+        return value
+    return _resolve_path(value, base_dir)
 
-# read in solar PV compensation structure, and which customers have adopted solar PV
-sell_rate = _return_export_compensation_rate(
-    year_run=test_year_run,
-    solar_pv_compensation=test_solar_pv_compensation,
-    solar_pv_export_import_ratio=1.0,
-    tariff_dict=tariffs_params,
-)
 
-bldg_id_to_load_filepath = build_bldg_id_to_load_filepath(
-    path_resstock_loads=path_resstock_loads,
-)
+def _require_mapping(value: Any, field_name: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"Expected mapping for `{field_name}`")
+    return value
 
-# process load directly or find where load stored
-# TODO: Replace with function somewhere in test_utils or similar. Input prototype_ids
-# and return 8760 profiles for each. Prototype ids and tariff. Make sure nice mathematical
-# properties. Maybe constants_tests.py has data needed for this.
-raw_load_elec = _return_load(
-    load_type="electricity",
-    target_year=test_year_run,
-    load_filepath_key=bldg_id_to_load_filepath,
-    force_tz="EST",
-)
-raw_load_gas = _return_load(
-    load_type="gas",
-    target_year=test_year_run,
-    load_filepath_key=bldg_id_to_load_filepath,
-    force_tz="EST",
-)
 
-# calculate and otherwise modify the revenue requirement as needed
-# load bulk power marginal costs in $/kWh (assumed to be static)
-bulk_marginal_costs = _load_cambium_marginal_costs(
-    path_cambium_marginal_costs, test_year_run
-)
-# Load distribution cost parameters from config
-# Sources: AESC 2024 ($69/kW-year), RI Energy Rate Case RY1 NCP data (nc_ratio=1.41)
-with open(path_config / "distribution_cost_params.json") as f:
-    dist_cost_params = json.load(f)
+def _require_value(run: dict[str, Any], field_name: str) -> Any:
+    value = run.get(field_name)
+    if value is None:
+        raise ValueError(f"Missing required field `{field_name}` in run config")
+    return value
 
-# Calculate distribution marginal costs in $/kWh (dynamic based on net load)
-distribution_marginal_costs = add_distribution_costs(
-    raw_load_elec[["electricity_net"]],
-    annual_future_distr_costs=dist_cost_params["annual_future_distr_costs"],
-    distr_peak_hrs=dist_cost_params["distr_peak_hrs"],
-    nc_ratio_baseline=dist_cost_params["nc_ratio_baseline"],
-)
 
-(revenue_requirement, marginal_system_prices, marginal_system_costs, costs_by_type) = (
-    _return_revenue_requirement_target(
+def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
+    with scenario_config.open(encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"Invalid YAML format in {scenario_config}: expected top-level map"
+        )
+    runs = _require_mapping(data.get("runs"), "runs")
+    run = runs.get(run_num)
+    if run is None:
+        run = runs.get(str(run_num))
+    if run is None:
+        raise ValueError(f"Run {run_num} not found in {scenario_config}")
+    return _require_mapping(run, f"runs[{run_num}]")
+
+
+def _build_settings_from_yaml_run(
+    run: dict[str, Any],
+    run_num: int,
+    output_dir: Path,
+    run_name_override: str | None,
+) -> ScenarioSettings:
+    """Build runtime settings from repo YAML scenario config."""
+    state = str(run.get("state", "RI")).upper()
+    region = str(_require_value(run, "region")).lower()
+    utility = str(_require_value(run, "utility")).lower()
+    mode = str(run.get("run_type", "precalc"))
+    upgrade = f"{_parse_int(run.get('upgrade', 0), 'upgrade'):02d}"
+    test_year_run = _parse_int(run.get("test_year_run"), "test_year_run")
+    year_dollar_conversion = _parse_int(
+        run.get("year_dollar_conversion"),
+        "year_dollar_conversion",
+    )
+    process_workers = _parse_int(run.get("process_workers", 20), "process_workers")
+    target_revenue_requirement = float(
+        _parse_int(
+            _require_value(run, "target_revenue_requirement"),
+            "target_revenue_requirement",
+        )
+    )
+    target_customer_count = _parse_int(
+        _require_value(run, "target_customer_count"),
+        "target_customer_count",
+    )
+    solar_pv_compensation = str(run.get("solar_pv_compensation", "net_metering"))
+
+    tariff_paths_raw = _require_mapping(run.get("tariff_paths"), "tariff_paths")
+    tariff_paths = {
+        str(key): _resolve_path(str(path), PATH_CONFIG)
+        for key, path in tariff_paths_raw.items()
+    }
+    gas_tariff_paths_raw = _require_mapping(
+        run.get("gas_tariff_paths"), "gas_tariff_paths"
+    )
+    gas_tariff_paths = {
+        str(key): _resolve_path(str(path), PATH_CONFIG)
+        for key, path in gas_tariff_paths_raw.items()
+    }
+
+    precalc_tariff_key = str(_require_value(run, "precalc_tariff_key"))
+    default_run_name = str(run.get("run_name", f"ri_rie_run_{run_num:02d}"))
+    delivery_only_rev_req_passed = _parse_bool(
+        run.get(
+            "delivery_only_rev_req_passed",
+            "supply_adj" in precalc_tariff_key,
+        ),
+        "delivery_only_rev_req_passed",
+    )
+    return ScenarioSettings(
+        run_name=run_name_override or default_run_name,
+        run_type=mode,
+        state=state,
+        region=region,
+        utility=utility,
+        path_results=output_dir,
+        path_resstock_metadata=PATH_RESSTOCK
+        / "metadata"
+        / f"state={state}"
+        / f"upgrade={upgrade}"
+        / "metadata-sb.parquet",
+        path_resstock_loads=PATH_RESSTOCK
+        / "load_curve_hourly"
+        / f"state={state}"
+        / f"upgrade={upgrade}",
+        path_cambium_marginal_costs=_resolve_path_or_uri(
+            str(_require_value(run, "path_cambium_marginal_costs")),
+            PATH_CONFIG,
+        ),
+        path_tariff_map=_resolve_path(
+            str(_require_value(run, "path_tariff_map")),
+            PATH_CONFIG,
+        ),
+        path_gas_tariff_map=_resolve_path(
+            str(_require_value(run, "path_gas_tariff_map")),
+            PATH_CONFIG,
+        ),
+        tariff_paths=tariff_paths,
+        gas_tariff_paths=gas_tariff_paths,
+        precalc_tariff_path=_resolve_path(
+            str(_require_value(run, "precalc_tariff_path")),
+            PATH_CONFIG,
+        ),
+        precalc_tariff_key=precalc_tariff_key,
+        target_revenue_requirement=target_revenue_requirement,
+        target_customer_count=target_customer_count,
+        test_year_run=test_year_run,
+        year_dollar_conversion=year_dollar_conversion,
+        process_workers=process_workers,
+        solar_pv_compensation=solar_pv_compensation,
+        delivery_only_rev_req_passed=delivery_only_rev_req_passed,
+    )
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=("Run RI heat-pump scenario using YAML config.")
+    )
+    parser.add_argument(
+        "--scenario-config",
+        type=Path,
+        default=DEFAULT_SCENARIO_CONFIG,
+        help=f"Path to YAML scenario config (default: {DEFAULT_SCENARIO_CONFIG}).",
+    )
+    parser.add_argument(
+        "--run-num",
+        type=int,
+        required=True,
+        help="Run number in the YAML `runs` mapping (e.g. 1 or 2).",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=DEFAULT_OUTPUT_DIR,
+        help="Output root dir passed to CAIRO.",
+    )
+    parser.add_argument(
+        "--run-name",
+        help="Optional override for run name.",
+    )
+    args = parser.parse_args()
+    return args
+
+
+def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
+    run = _load_run_from_yaml(args.scenario_config, args.run_num)
+    return _build_settings_from_yaml_run(
+        run=run,
+        run_num=args.run_num,
+        output_dir=args.output_dir,
+        run_name_override=args.run_name,
+    )
+
+
+def run(settings: ScenarioSettings) -> None:
+    log.info(
+        ".... Beginning RI residential (non-LMI) rate scenario simulation: %s",
+        settings.run_name,
+    )
+
+    tariffs_params, tariff_map_df = _initialize_tariffs(
+        tariff_map=settings.path_tariff_map,
+        building_stock_sample=None,
+        tariff_paths=settings.tariff_paths,
+    )
+
+    precalc_mapping = generate_default_precalc_mapping(
+        tariff_path=settings.precalc_tariff_path,
+        tariff_key=settings.precalc_tariff_key,
+    )
+
+    customer_metadata = return_buildingstock(
+        load_scenario=settings.path_resstock_metadata,
+        customer_count=settings.target_customer_count,
+        columns=[
+            "applicability",
+            "postprocess_group.has_hp",
+            "postprocess_group.heating_type",
+            "in.vintage_acs",
+        ],
+    )
+
+    sell_rate = _return_export_compensation_rate(
+        year_run=settings.test_year_run,
+        solar_pv_compensation=settings.solar_pv_compensation,
+        solar_pv_export_import_ratio=1.0,
+        tariff_dict=tariffs_params,
+    )
+
+    bldg_id_to_load_filepath = build_bldg_id_to_load_filepath(
+        path_resstock_loads=settings.path_resstock_loads,
+    )
+
+    raw_load_elec = _return_load(
+        load_type="electricity",
+        target_year=settings.test_year_run,
+        load_filepath_key=bldg_id_to_load_filepath,
+        force_tz="EST",
+    )
+    raw_load_gas = _return_load(
+        load_type="gas",
+        target_year=settings.test_year_run,
+        load_filepath_key=bldg_id_to_load_filepath,
+        force_tz="EST",
+    )
+
+    bulk_marginal_costs = _load_cambium_marginal_costs(
+        settings.path_cambium_marginal_costs,
+        settings.test_year_run,
+    )
+    distribution_mc_root = (
+        "s3://data.sb/switchbox/marginal_costs/"
+        f"{settings.state.lower().strip('/')}/"
+    )
+    distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
+        distribution_mc_root,
+        hive_partitioning=True,
+        storage_options=get_aws_storage_options(),
+    )
+    distribution_mc_scan = distribution_mc_scan.filter(
+        pl.col("region").cast(pl.Utf8) == settings.region
+    ).filter(pl.col("utility").cast(pl.Utf8) == settings.utility).filter(
+        pl.col("year").cast(pl.Utf8) == str(settings.test_year_run)
+    )
+    distribution_mc_df = distribution_mc_scan.collect()
+    distribution_marginal_costs = distribution_mc_df.to_pandas()
+    required_cols = {"timestamp", "mc_total_per_kwh"}
+    missing_cols = required_cols.difference(distribution_marginal_costs.columns)
+    if missing_cols:
+        raise ValueError(
+            "Distribution marginal costs parquet is missing required columns "
+            f"{sorted(required_cols)}. Missing: {sorted(missing_cols)}"
+        )
+    distribution_marginal_costs = distribution_marginal_costs.set_index("timestamp")[
+        "mc_total_per_kwh"
+    ]
+    distribution_marginal_costs.index = pd.DatetimeIndex(
+        distribution_marginal_costs.index
+    ).tz_localize("EST")
+    distribution_marginal_costs.index.name = "time"
+    distribution_marginal_costs.name = "Marginal Distribution Costs ($/kWh)"
+
+    log.info(
+        ".... Loaded distribution marginal costs rows=%s",
+        len(distribution_marginal_costs),
+    )
+
+    (
+        revenue_requirement,
+        marginal_system_prices,
+        marginal_system_costs,
+        costs_by_type,
+    ) = _return_revenue_requirement_target(
         building_load=raw_load_elec,
         sample_weight=customer_metadata[["bldg_id", "weight"]],
-        revenue_requirement_target=test_revenue_requirement_target,
+        revenue_requirement_target=settings.target_revenue_requirement,
         residual_cost=None,
         residual_cost_frac=None,
         bulk_marginal_costs=bulk_marginal_costs,
         distribution_marginal_costs=distribution_marginal_costs,
         low_income_strategy=None,
+        delivery_only_rev_req_passed=settings.delivery_only_rev_req_passed,
     )
-)
 
-bs = MeetRevenueSufficiencySystemWide(
-    run_type="precalc",
-    year_run=test_year_run,
-    year_dollar_conversion=year_dollar_conversion,
-    process_workers=process_workers,
-    run_name=run_name,
-    output_dir=path_results,  # will default to this folder if not pass, mostly testing ability for user to pass arbitrary output directory
-)
+    bs = MeetRevenueSufficiencySystemWide(
+        run_type=settings.run_type,
+        year_run=settings.test_year_run,
+        year_dollar_conversion=settings.year_dollar_conversion,
+        process_workers=settings.process_workers,
+        run_name=settings.run_name,
+        output_dir=settings.path_results,
+    )
 
-# TODO: add (maybe post-processing)module for delivered fuels bills
-bs.simulate(
-    revenue_requirement=revenue_requirement,
-    tariffs_params=tariffs_params,
-    tariff_map=tariff_map_df,
-    precalc_period_mapping=precalc_mapping,
-    customer_metadata=customer_metadata,
-    customer_electricity_load=raw_load_elec,
-    customer_gas_load=raw_load_gas,
-    gas_tariff_map=gas_tariff_map_df,
-    load_cols="total_fuel_electricity",
-    marginal_system_prices=marginal_system_prices,
-    costs_by_type=costs_by_type,
-    solar_pv_compensation=None,
-    sell_rate=sell_rate,
-    low_income_strategy=None,
-    low_income_participation_target=None,
-    low_income_bill_assistance_program=None,
-)
+    bs.simulate(
+        revenue_requirement=revenue_requirement,
+        tariffs_params=tariffs_params,
+        tariff_map=tariff_map_df,
+        precalc_period_mapping=precalc_mapping,
+        customer_metadata=customer_metadata,
+        customer_electricity_load=raw_load_elec,
+        customer_gas_load=raw_load_gas,
+        gas_tariff_map=settings.path_gas_tariff_map,
+        gas_tariff_str_loc=settings.gas_tariff_paths,
+        load_cols="total_fuel_electricity",
+        marginal_system_prices=marginal_system_prices,
+        costs_by_type=costs_by_type,
+        solar_pv_compensation=None,
+        sell_rate=sell_rate,
+        low_income_strategy=None,
+        low_income_participation_target=None,
+        low_income_bill_assistance_program=None,
+    )
 
-log.info(".... Completed RI residential (non-LMI) rate scenario simulation")
+    save_file_loc = getattr(bs, "save_file_loc", None)
+    if save_file_loc is not None:
+        distribution_mc_path = Path(save_file_loc) / "distribution_marginal_costs.csv"
+        distribution_marginal_costs.to_csv(distribution_mc_path, index=True)
+        log.info(".... Saved distribution marginal costs: %s", distribution_mc_path)
+
+    log.info(".... Completed RI residential (non-LMI) rate scenario simulation")
+
+
+def main() -> None:
+    args = _parse_args()
+    settings = _resolve_settings(args)
+    run(settings)
+
+
+if __name__ == "__main__":
+    main()
