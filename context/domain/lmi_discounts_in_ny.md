@@ -241,15 +241,14 @@ Central Hudson is the **only utility where Tier 3 electric-heating credits excee
 
 ### National Fuel Gas (gas only, Western NY)
 
-| Tier | Description        | Gas heat | Gas non-heat | Source                                                                                                                                          |
-| :--- | :----------------- | :------- | :----------- | :---------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | HEAP grant ≤$400   | $1.92    | $1.92        | [NFG EAP page](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
-| 2.1  | HEAP grant \= $435 | $1.92    | $1.92        | [NFG EAP page](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
-| 2.2  | HEAP grant \= $461 | $21.73   | ?            | [NFG EAP page](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
-| 3    | HEAP grant \= $496 | $34.70   | ?            | [NFG EAP page](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
-| 4    | DSS Direct Voucher | $22.14   | ?            | [NFG EAP page](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
+| Tier | Description                        | Gas heat | Gas non-heat | Source                                                                                                                                          |
+| :--- | :--------------------------------- | :------- | :----------- | :---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | HEAP grant ≤$400                   | $1.92    | $1.92        | [NFG EAP page](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
+| 2    | HEAP grant $435 or $461 (see note) | $21.73   | $1.92        | [NFG EAP page](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
+| 3    | HEAP grant \= $496                 | $34.70   | $1.92        | [NFG EAP page](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
+| 4    | DSS Direct Voucher                 | $22.14   | $1.92        | [NFG EAP page](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
 
-National Fuel Gas has the **lowest credits among all utilities**, reflecting lower gas delivery costs in Western New York. Notably, NFG splits Tier 2 into sub-tiers (2.1 and 2.2), giving materially different credits depending on whether the household qualified through the vulnerable-member add-on ($435) versus the income add-on ($461). The company also operates LICAAP, offering discounts up to 70% off the residential rate with matching debt forgiveness.
+National Fuel Gas has the **lowest credits among all utilities**, reflecting lower gas delivery costs in Western New York. Officially, NFG splits Tier 2 into sub-tiers 2.1 (HEAP $435, vulnerable add-on → $1.92) and 2.2 (HEAP $461, income add-on → $21.73). **For platform implementation we use a single Tier 2 credit of $21.73** (the higher value) and do not distinguish 2.1 vs 2.2. The company also operates LICAAP, offering discounts up to 70% off the residential rate with matching debt forgiveness.
 
 ---
 
@@ -297,17 +296,17 @@ For all other electric utilities (NG Upstate, NYSEG, RG\&E, O\&R), non-heating c
 
 ### Gas heating credits ($/month) by utility and tier
 
-| Tier     | Con Ed  | NG KEDNY | NG KEDLI | NG Upstate | NYSEG  | RG\&E  | O\&R   | Cen. Hudson | Nat. Fuel    |
-| :------- | :------ | :------- | :------- | :--------- | :----- | :----- | :----- | :---------- | :----------- |
-| 1        | $135.24 | $77.27   | $63.76   | $3.00      | $3.00  | $3.00  | $9.79  | $28.61      | $1.92        |
-| 2        | $167.01 | $112.97  | $95.52   | $3.00      | $5.83  | $3.00  | $37.52 | $58.58      | $1.92–$21.73 |
-| 3        | $189.83 | $138.67  | $118.33  | $22.49     | $28.64 | $18.14 | $69.42 | $80.22      | $34.70       |
-| 4        | $187.65 | $139.38  | $116.14  | $20.30     | $26.45 | $15.64 | $76.33 | $76.86      | $22.14       |
-| 5 (EEAP) | $135.24 | ?        | ?        | ?          | $3.00  | $3.00  | $9.79  | ?           | ?            |
-| 6 (EEAP) | $44.50  | ?        | ?        | ?          | $3.00  | $3.00  | $23.00 | ?           | ?            |
-| 7 (EEAP) | $1.00   | ?        | ?        | ?          | $1.00  | $1.00  | $1.00  | $1.00       | ?            |
+| Tier     | Con Ed  | NG KEDNY | NG KEDLI | NG Upstate | NYSEG  | RG\&E  | O\&R   | Cen. Hudson | Nat. Fuel |
+| :------- | :------ | :------- | :------- | :--------- | :----- | :----- | :----- | :---------- | :-------- |
+| 1        | $135.24 | $77.27   | $63.76   | $3.00      | $3.00  | $3.00  | $9.79  | $28.61      | $1.92     |
+| 2        | $167.01 | $112.97  | $95.52   | $3.00      | $5.83  | $3.00  | $37.52 | $58.58      | $21.73    |
+| 3        | $189.83 | $138.67  | $118.33  | $22.49     | $28.64 | $18.14 | $69.42 | $80.22      | $34.70    |
+| 4        | $187.65 | $139.38  | $116.14  | $20.30     | $26.45 | $15.64 | $76.33 | $76.86      | $22.14    |
+| 5 (EEAP) | $135.24 | ?        | ?        | ?          | $3.00  | $3.00  | $9.79  | ?           | ?         |
+| 6 (EEAP) | $44.50  | ?        | ?        | ?          | $3.00  | $3.00  | $23.00 | ?           | ?         |
+| 7 (EEAP) | $1.00   | ?        | ?        | ?          | $1.00  | $1.00  | $1.00  | $1.00       | ?         |
 
-Notes: National Fuel Tier 2 shows a range ($1.92–$21.73) because NFG splits Tier 2 into sub-tiers 2.1 ($435 HEAP grant → $1.92) and 2.2 ($461 HEAP grant → $21.73). Gas non-heating credits are uniformly minimal across all utilities ($1.92–$3.00/month at all tiers), so a separate table is not warranted.
+Notes: For National Fuel we use a single Tier 2 credit of $21.73 (we do not distinguish sub-tiers 2.1 vs 2.2). Gas non-heating credits are uniformly minimal across all utilities ($1.92–$3.00/month at all tiers), so a separate table is not warranted.
 
 ### Key takeaways from the combined tables
 
@@ -367,7 +366,7 @@ Three critical tensions define the program's current trajectory. First, the **pa
 
 The table below is designed to be loaded directly into a pandas DataFrame (or equivalent) for programmatic bill calculations. Every row is a unique combination of `utility` and `tier`. The four credit columns (`elec_heat`, `elec_nonheat`, `gas_heat`, `gas_nonheat`) give monthly credit amounts in dollars. Cells show `N/A` where the utility does not provide that service, and `?` where EEAP amounts have not yet been published.
 
-**National Fuel Gas and PSEG Long Island** do not fit this schema cleanly (National Fuel uses sub-tiers and is gas-only with an idiosyncratic structure; PSEG LI is a flat-rate non-PSC program). They appear in separate tables below the main table.
+**National Fuel Gas and PSEG Long Island** appear in separate tables below: NFG is gas-only and we use a single Tier 2 credit ($21.73) instead of sub-tiers 2.1/2.2; PSEG LI is a flat-rate non-PSC program.
 
 ### Main reference table: PSC-regulated IOUs (standard tier structure)
 
@@ -421,17 +420,16 @@ The table below is designed to be loaded directly into a pandas DataFrame (or eq
 | cenhud  | 6    | ?          | ?             | ?         | ?            | 2026-01-13      | [https://highlandscurrent.org/2026/01/27/central-hudson-offers-new-discount/](https://highlandscurrent.org/2026/01/27/central-hudson-offers-new-discount/)                                                                 |
 | cenhud  | 7    | 1.00       | 1.00          | 1.00      | 1.00         | 2026-01-13      | [https://highlandscurrent.org/2026/01/27/central-hudson-offers-new-discount/](https://highlandscurrent.org/2026/01/27/central-hudson-offers-new-discount/)                                                                 |
 
-### National Fuel Gas (gas only, Western NY) — separate table due to sub-tier structure
+### National Fuel Gas (gas only, Western NY) — implementation uses integer tiers
 
-National Fuel splits Tier 2 into sub-tiers keyed to specific HEAP grant amounts, making it incompatible with the standard integer tier column used above. This utility is gas-only.
+National Fuel officially has Tier 2 sub-tiers 2.1 ($435 HEAP → $1.92) and 2.2 ($461 HEAP → $21.73). **We use a single Tier 2 credit of $21.73** and integer tier 1–4, so NFG fits the same schema as other utilities. This utility is gas-only. Gas non-heat uses $1.92 where NFG does not publish a distinct value.
 
-| utility | tier | heap\_grant | gas\_heat | gas\_nonheat | effective\_date | source\_url                                                                                                                                                                                                                                                        |
-| :------ | :--- | :---------- | :-------- | :----------- | :-------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| nfg     | 1    | 400         | 1.92      | 1.92         | 2025-12-01      | [https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
-| nfg     | 2.1  | 435         | 1.92      | 1.92         | 2025-12-01      | [https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
-| nfg     | 2.2  | 461         | 21.73     | ?            | 2025-12-01      | [https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
-| nfg     | 3    | 496         | 34.70     | ?            | 2025-12-01      | [https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
-| nfg     | 4    | N/A         | 22.14     | ?            | 2025-12-01      | [https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
+| utility | tier | gas\_heat | gas\_nonheat | effective\_date | source\_url                                                                                                                                                                                                                                                        |
+| :------ | :--- | :-------- | :----------- | :-------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| nfg     | 1    | 1.92      | 1.92         | 2025-12-01      | [https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
+| nfg     | 2    | 21.73     | 1.92         | 2025-12-01      | [https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
+| nfg     | 3    | 34.70     | 1.92         | 2025-12-01      | [https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
+| nfg     | 4    | 22.14     | 1.92         | 2025-12-01      | [https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/](https://www.nationalfuel.com/utility/payment-assistance-programs/statewide-low-income-program-nys-energy-affordability-program/) |
 
 ### PSEG Long Island — Household Assistance Program (HAP), separate table
 
@@ -443,7 +441,7 @@ PSEG Long Island is a public power authority outside PSC jurisdiction. It uses a
 
 ### Usage notes for dataframe loading
 
-**Column types.** In the main table, `elec_heat`, `elec_nonheat`, `gas_heat`, and `gas_nonheat` should be parsed as nullable floats. Values of `N/A` indicate the utility does not provide that service (the column is structurally inapplicable). Values of `?` indicate the value exists but has not been published; treat as null/NaN for calculations. The `tier` column is an integer (1–7) in the main table and a string in the National Fuel table (to accommodate "2.1" and "2.2").
+**Column types.** In the main table and the NFG table, `tier` is an integer (1–7). `elec_heat`, `elec_nonheat`, `gas_heat`, and `gas_nonheat` should be parsed as nullable floats. Values of `N/A` indicate the utility does not provide that service (the column is structurally inapplicable). Values of `?` indicate the value exists but has not been published; treat as null/NaN for calculations.
 
 **Lookup logic.** To calculate a customer's total monthly EAP credit, filter the table to their `utility` and `tier`, then sum the applicable credit columns. A dual-service customer (e.g., Con Edison electric \+ gas) sums the electric column matching their heating status plus the gas column matching their heating status. A customer served by two different utilities (e.g., PSEG LI electric \+ National Grid KEDNY gas) looks up each utility separately and sums the results.
 

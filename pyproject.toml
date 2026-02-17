@@ -26,6 +26,8 @@ dependencies = [
     "questionary>=2.1.1",
     "rich>=14.3.2",
     "tqdm>=4.67.3",
+    "python-calamine>=0.6.1",
+    "fastexcel>=0.19.0",
 ]
 
 [project.urls]

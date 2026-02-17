@@ -15,6 +15,7 @@ The main inputs are:
 - Marginal sub-distribution and distribution costs, and hourly allocation logic, drawn from utility-specific PUC filings like MCOS studies.
 - NREL's [CAIRO rate-simulation engine](https://github.com/natlabrockies/cairo/), which implements the Simenone et. al's bill alignment test paper (https://www.sciencedirect.com/science/article/abs/pii/S0957178723000516?via%3Dihub)
 - Electric and gas tariffs in URDB JSON format ([short guide to this format](https://switchbox-data.github.io/tariff_fetch/providers/nrel/), [official docs](https://openei.org/services/doc/rest/util_rates/?version=7)), downloaded with Switchbox's [tariff-fetch](https://github.com/switchbox-data/tariff_fetch) library
+- HUD Section 8 Income Limits (area-level AMI and income limits by household size), used for LMI/AMI in rate design. Parquet on S3 at `s3://data.sb/hud/income_limits/` with Hive-style partition `fy={year}/data.parquet` (e.g. fy=2016 … fy=2025). We're harmonized the schema across release years. Fetched and converted via `data/hud/income_limits/` (Justfile: `just prepare`, `just upload`).
 - ISO loads gathered from the EIA API
 
 The main outputs are calibrated tariffs (when CAIRO is run in pre-calc mode), customer-level bills / marginal cost / residual cost allocation / bill alignments, aggregated bill alignment tariffs grouped by post-processing group, and so on. This data lives on s3 at `s3://data.sb/switchbox/cairo/<scenario_name>/<run>/`, and contains the following files:
