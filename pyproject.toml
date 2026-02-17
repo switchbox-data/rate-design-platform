@@ -9,11 +9,23 @@ license = { text = "MIT" }
 dependencies = [
     "buildstock-fetch>=1.6.1",
     "cairo",
+    "python-dotenv>=1.0.0",
     "cloudpathlib[s3]>=0.23.0",
+    "geopandas>=1.0.0",
     "numpy",
+    "pandas",
     "polars",
     "prek>=0.3.2",
     "pyarrow",
+    "pygris>=0.2.1",
+    "s3fs>=2026.2.0",
+    "cloudpathlib>=0.23.0",
+    "pyyaml>=6.0",
+    "requests>=2.31.0",
+    "sodapy>=2.2.0",
+    "questionary>=2.1.1",
+    "rich>=14.3.2",
+    "tqdm>=4.67.3",
 ]
 
 [project.urls]
@@ -42,6 +54,7 @@ include = ["rate_design*", "utils*"]
     "data/tariff_structure/*.json",
     "data/tariff_mapping/*.csv",
 ]
+"utils.post" = ["data/*.yaml"]
 
 [tool.uv.sources]
-cairo = { git = "https://github.com/NatLabRockies/CAIRO", rev = "main" }
+cairo = { git = "https://github.com/NatLabRockies/CAIRO", rev = "9b52c91" }

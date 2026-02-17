@@ -11,14 +11,11 @@ from cairo.rates_tool.systemsimulator import (
     _return_export_compensation_rate,
     _return_revenue_requirement_target,
 )
-from cairo.utils.marginal_costs.marginal_cost_calculator import (
-    _load_cambium_marginal_costs,
-    add_distribution_costs,
-)
+from cairo.utils.marginal_costs.marginal_cost_calculator import add_distribution_costs
 
 # from tests import constant_tests as const_vars
 # from tests.utils import reweight_customer_metadata
-from utils.cairo import build_bldg_id_to_load_filepath
+from utils.cairo import build_bldg_id_to_load_filepath, _load_cambium_marginal_costs
 from utils.reweight_customer_counts import reweight_customer_counts
 
 log = logging.getLogger("rates_analysis").getChild("tests")
@@ -46,7 +43,7 @@ path_cambium_marginal_costs = (
     path_data / "marginal_costs" / "example_marginal_costs.csv"
 )
 path_results = path_project / "results"
-
+# TODO: update this to actually reflect the revenue requirement target for the test scenario, and add any other parameters needed to specify the scenario
 test_revenue_requirement_target = 1000000000
 test_year_run = 2019
 year_dollar_conversion = 2021
@@ -112,7 +109,6 @@ sell_rate = _return_export_compensation_rate(
 
 bldg_id_to_load_filepath = build_bldg_id_to_load_filepath(
     path_resstock_loads=path_resstock_loads,
-    path_resstock=path_resstock,
 )
 
 # process load directly or find where load stored
@@ -140,7 +136,9 @@ bulk_marginal_costs = _load_cambium_marginal_costs(
     path_cambium_marginal_costs, test_year_run
 )
 # calculate distribution marginal costs in $/kWh (dynamic based on net load)
-distribution_marginal_costs = add_distribution_costs(raw_load_elec, test_year_run)
+distribution_marginal_costs = add_distribution_costs(
+    raw_load_elec[["electricity_net"]], test_year_run
+)
 
 (revenue_requirement, marginal_system_prices, marginal_system_costs, costs_by_type) = (
     _return_revenue_requirement_target(

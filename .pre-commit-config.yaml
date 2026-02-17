@@ -11,7 +11,11 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
+      # Exclude .md: dprint's markdown formatter introduces trailing ws when
+      # wrapping at lineWidth and has no trim option, causing an unresolvable loop.
+      # Best practice remains: no trailing ws; we skip md until dprint/plugin supports it.
       - id: trailing-whitespace
+        exclude: \.md$
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-json
@@ -40,7 +44,6 @@ repos:
         language: python
         types: [markdown]
         additional_dependencies: [dprint-py]
-
       - id: ty
         name: ty check
         entry: uv run ty check .

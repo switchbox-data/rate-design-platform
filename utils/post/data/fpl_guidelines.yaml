@@ -1,0 +1,17 @@
+# HHS Federal Poverty Guidelines (annual).
+# Source: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines
+# Fetched via ASPE Poverty Guidelines API.
+# Formula: FPL_threshold = base + (occupants - 1) * increment
+# Values are for the 48 contiguous states and DC.
+
+2024:
+  base: 15060
+  increment: 5380
+
+2025:
+  base: 15650
+  increment: 5500
+
+2026:
+  base: 15960
+  increment: 5680
