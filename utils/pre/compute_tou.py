@@ -15,7 +15,6 @@ system load, this module:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 from pathlib import Path
 
@@ -99,7 +98,9 @@ def find_tou_peak_window(
             best_start = start
 
     peak_hours = sorted((best_start + i) % 24 for i in range(window_hours))
-    log.info("TOU peak window (hours %d–%d): %s", peak_hours[0], peak_hours[-1], peak_hours)
+    log.info(
+        "TOU peak window (hours %d–%d): %s", peak_hours[0], peak_hours[-1], peak_hours
+    )
     return peak_hours
 
 
@@ -186,9 +187,7 @@ def create_tou_tariff(
     peak_hours_set = set(peak_hours)
 
     # 12 months × 24 hours schedule: 0 = off-peak, 1 = peak
-    schedule = [
-        [1 if h in peak_hours_set else 0 for h in range(24)] for _ in range(12)
-    ]
+    schedule = [[1 if h in peak_hours_set else 0 for h in range(24)] for _ in range(12)]
 
     return {
         "items": [
@@ -293,15 +292,16 @@ def main() -> None:
     is_s3 = metadata_base.startswith("s3://")
     storage_opts = get_aws_storage_options() if is_s3 else None
 
-    metadata_path = (
-        f"{metadata_base}/state={args.state}/upgrade={args.upgrade_id}/metadata-sb.parquet"
-    )
-    lf = (
+    metadata_path = f"{metadata_base}/state={args.state}/upgrade={args.upgrade_id}/metadata-sb.parquet"
+    lf: pl.LazyFrame = (
         pl.scan_parquet(metadata_path, storage_options=storage_opts)
         if storage_opts
         else pl.scan_parquet(metadata_path)
     )
-    metadata_pd = lf.select("bldg_id", "postprocess_group.has_hp").collect().to_pandas()
+    metadata_df: pl.DataFrame = lf.select(  # type: ignore[assignment]
+        "bldg_id", "postprocess_group.has_hp"
+    ).collect()
+    metadata_pd = metadata_df.to_pandas()
 
     tariff_map = generate_tou_tariff_map(
         customer_metadata=metadata_pd,
