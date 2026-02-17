@@ -75,7 +75,10 @@ def create_hh_utilities(
     config = config or CONFIGS
 
     utility_name_map = pl.DataFrame(
-        [{"state_name": k, "std_name": v} for k, v in get_ny_open_data_to_std_name().items()]
+        [
+            {"state_name": k, "std_name": v}
+            for k, v in get_ny_open_data_to_std_name().items()
+        ]
     ).lazy()
 
     # Calculate overlap between PUMAs and utilities

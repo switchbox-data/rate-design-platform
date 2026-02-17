@@ -150,7 +150,10 @@ def main() -> None:
 
     eia_to_std = get_eia_utility_id_to_std_name(state_raw)
     map_df = pl.DataFrame(
-        {"utility_id_eia": list(eia_to_std.keys()), "utility_code": list(eia_to_std.values())}
+        {
+            "utility_id_eia": list(eia_to_std.keys()),
+            "utility_code": list(eia_to_std.values()),
+        }
     )
     result = (
         df.group_by("utility_id_eia")

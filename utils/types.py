@@ -2,11 +2,36 @@ from typing import Literal
 
 # std_name from utility_codes. Keep in sync with get_electric_std_names/get_gas_std_names.
 electric_utility = Literal[
-    "bath", "cenhud", "chautauqua", "coned", "nimo", "nyseg", "or", "psegli", "rge", "rie"
+    "bath",
+    "cenhud",
+    "chautauqua",
+    "coned",
+    "nimo",
+    "nyseg",
+    "or",
+    "psegli",
+    "rge",
+    "rie",
 ]
 gas_utility = Literal[
-    "bath", "cenhud", "chautauqua", "coned", "corning", "fillmore", "kedli", "kedny",
-    "nfg", "nimo", "nyseg", "or", "reserve", "rge", "rie", "stlaw", "valley", "woodhull",
+    "bath",
+    "cenhud",
+    "chautauqua",
+    "coned",
+    "corning",
+    "fillmore",
+    "kedli",
+    "kedny",
+    "nfg",
+    "nimo",
+    "nyseg",
+    "or",
+    "reserve",
+    "rge",
+    "rie",
+    "stlaw",
+    "valley",
+    "woodhull",
 ]
 
 

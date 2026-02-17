@@ -17,7 +17,10 @@ from utils.utility_codes import get_ny_open_data_to_std_name
 def _utility_name_map_lazy() -> pl.LazyFrame:
     """Build utility_name_map from central crosswalk (matches assign_utility_ny)."""
     return pl.DataFrame(
-        [{"state_name": k, "std_name": v} for k, v in get_ny_open_data_to_std_name().items()]
+        [
+            {"state_name": k, "std_name": v}
+            for k, v in get_ny_open_data_to_std_name().items()
+        ]
     ).lazy()
 
 
