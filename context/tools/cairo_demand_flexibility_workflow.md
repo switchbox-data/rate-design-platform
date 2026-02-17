@@ -1,4 +1,4 @@
-# CAIRO Demand Flexibility Workflow 
+# CAIRO Demand Flexibility Workflow
 
 ## Scope
 
@@ -8,7 +8,7 @@ Primary code references:
 
 - `cairo/rates_tool/loads.py:563` (`process_residential_hourly_demand_response_shift`, commented)
 - `cairo/rates_tool/loads.py:2091` (`_shift_building_hourly_demand`, commented)
-- `cairo/rates_tool/postprocessing.py:1018` 
+- `cairo/rates_tool/postprocessing.py:1018`
 
 Related upstream load-period assignment logic:
 
@@ -33,7 +33,7 @@ Model short-run customer load shifting under time-varying rates by:
 
 ## 1) Parent: Period-level shift targets
 
-Function: `process_residential_hourly_demand_response_shift(...)`  
+Function: `process_residential_hourly_demand_response_shift(...)`\
 Reference: `cairo/rates_tool/loads.py:563`
 
 Inputs:
@@ -63,8 +63,9 @@ Steps:
 9. Dispatch building-level hourly allocation in parallel via Dask:
    - Calls `_shift_building_hourly_demand(...)` per building
 10. Concatenate outputs:
-   - `shifted_load` (hourly adjusted load)
-   - `demand_elasticity_tracker` (achieved elasticity diagnostics)
+
+- `shifted_load` (hourly adjusted load)
+- `demand_elasticity_tracker` (achieved elasticity diagnostics)
 
 Why this design:
 
@@ -77,7 +78,7 @@ Why this design:
 
 ## 2) Worker: Hourly proportional allocation
 
-Function: `_shift_building_hourly_demand(...)`  
+Function: `_shift_building_hourly_demand(...)`\
 Reference: `cairo/rates_tool/loads.py:2091`
 
 Inputs:
@@ -118,16 +119,16 @@ Why proportional distribution:
 
 The table below focuses on how each input should be derived/set for this module.
 
-| Input | How it is derived / set | Constraints |
-|---|---|---|
-| `hourly_load_df` | Start from raw hourly building load (8760). Map each hour to tariff `energy_period` via tariff schedules (`_apply_time_indicators_and_periods`, `cairo/rates_tool/loads.py:1376`). Ensure `tier` assignment exists for hourly rows (typically from tier/TOU aggregation logic in `loads.py`). | Must include `bldg_id`, `energy_period`, `tier`, `out.electricity.total.energy_consumption`. One building-year of complete hourly data expected. |
-| `rate_structure` | Construct period/tier price table corresponding to the tariff under analysis. For TOU/tier tariffs this should reflect effective prices used for behavior response. | Must include unique `energy_period`, `tier`, `rate` combinations. |
-| `equivalent_flat_tariff` (`P_flat`) | Caller-supplied scalar baseline price. Intended as "equivalent flat rate" comparator. Practical choice: load-weighted average of period prices under baseline consumption. | Must be strictly positive. Current logic requires exactly one period with `rate < P_flat`. |
-| `demand_elasticity` (`epsilon`) | Exogenous behavioral parameter. Typical short-run residential ranges noted in comments: about `-0.1` to `-0.3`. | Usually negative; magnitude controls shift intensity. Constant elasticity assumption. |
-| receiver period | Derived internally as periods where `rate < equivalent_flat_tariff`; asserted to be exactly one row. | Assertion fails if zero or multiple receiving periods. |
-| period-level `load_shift` | Derived internally as `Q_target - Q_orig`. | Enforced zero-sum by assigning receiver period to negative sum of all others. |
-| hourly shift scalar | Derived internally as `Q_hour / Q_period` within each period/tier. | Requires non-zero period totals for stable division. |
-| achieved elasticity tracker | Derived internally from post-shift totals and price ratios. | Diagnostic output; should be compared against input `demand_elasticity`. |
+| Input                               | How it is derived / set                                                                                                                                                                                                                                                                       | Constraints                                                                                                                                      |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `hourly_load_df`                    | Start from raw hourly building load (8760). Map each hour to tariff `energy_period` via tariff schedules (`_apply_time_indicators_and_periods`, `cairo/rates_tool/loads.py:1376`). Ensure `tier` assignment exists for hourly rows (typically from tier/TOU aggregation logic in `loads.py`). | Must include `bldg_id`, `energy_period`, `tier`, `out.electricity.total.energy_consumption`. One building-year of complete hourly data expected. |
+| `rate_structure`                    | Construct period/tier price table corresponding to the tariff under analysis. For TOU/tier tariffs this should reflect effective prices used for behavior response.                                                                                                                           | Must include unique `energy_period`, `tier`, `rate` combinations.                                                                                |
+| `equivalent_flat_tariff` (`P_flat`) | Caller-supplied scalar baseline price. Intended as "equivalent flat rate" comparator. Practical choice: load-weighted average of period prices under baseline consumption.                                                                                                                    | Must be strictly positive. Current logic requires exactly one period with `rate < P_flat`.                                                       |
+| `demand_elasticity` (`epsilon`)     | Exogenous behavioral parameter. Typical short-run residential ranges noted in comments: about `-0.1` to `-0.3`.                                                                                                                                                                               | Usually negative; magnitude controls shift intensity. Constant elasticity assumption.                                                            |
+| receiver period                     | Derived internally as periods where `rate < equivalent_flat_tariff`; asserted to be exactly one row.                                                                                                                                                                                          | Assertion fails if zero or multiple receiving periods.                                                                                           |
+| period-level `load_shift`           | Derived internally as `Q_target - Q_orig`.                                                                                                                                                                                                                                                    | Enforced zero-sum by assigning receiver period to negative sum of all others.                                                                    |
+| hourly shift scalar                 | Derived internally as `Q_hour / Q_period` within each period/tier.                                                                                                                                                                                                                            | Requires non-zero period totals for stable division.                                                                                             |
+| achieved elasticity tracker         | Derived internally from post-shift totals and price ratios.                                                                                                                                                                                                                                   | Diagnostic output; should be compared against input `demand_elasticity`.                                                                         |
 
 ---
 
@@ -181,20 +182,20 @@ For period/tier:
 
 ## Assumptions and Justifications
 
-1. Short-run temporal substitution, not long-run conservation/efficiency.  
-Justification: zero-sum shift design.
+1. Short-run temporal substitution, not long-run conservation/efficiency.\
+   Justification: zero-sum shift design.
 
-2. Constant elasticity across load levels and times.  
-Justification: simple, tractable behavioral model.
+2. Constant elasticity across load levels and times.\
+   Justification: simple, tractable behavioral model.
 
-3. Single receiving period.  
-Justification: avoids ambiguous allocation but can under-represent multi-period shifting behavior.
+3. Single receiving period.\
+   Justification: avoids ambiguous allocation but can under-represent multi-period shifting behavior.
 
-4. Proportional hourly redistribution.  
-Justification: preserves observed shape and avoids arbitrary redistribution.
+4. Proportional hourly redistribution.\
+   Justification: preserves observed shape and avoids arbitrary redistribution.
 
-5. Marginal-cost postprocessing caveat.  
-`postprocessing.py` warns that fixed marginal prices may be inconsistent with rate-responsive loads (`cairo/rates_tool/postprocessing.py:1018`).
+5. Marginal-cost postprocessing caveat.\
+   `postprocessing.py` warns that fixed marginal prices may be inconsistent with rate-responsive loads (`cairo/rates_tool/postprocessing.py:1018`).
 
 ---
 
@@ -218,4 +219,3 @@ Justification: preserves observed shape and avoids arbitrary redistribution.
 2. Receiver-period assertion is restrictive for realistic TOU tariffs.
 3. Debug checks use print statements (`"weait"`, `"wait"`) rather than structured logging/errors.
 4. Interaction with dynamic marginal costs is not integrated.
-
