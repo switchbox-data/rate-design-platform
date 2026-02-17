@@ -1,13 +1,34 @@
-# EIA-861 utility stats (yearly sales from PUDL)
+# EIA-861 electric utility stats (yearly sales and customer counts via PUDL)
 #
-# Print investor-owned utility stats for a state as CSV to stdout.
-# Uses utils.utility_codes for utility_code column.
+# Build IOU stats for all states to local state-partitioned parquet, then
+# optionally upload to S3.
 #
 # Usage (from project root):
-#   just -f data/eia/861/Justfile fetch-utility-stats NY
-#   just -f data/eia/861/Justfile fetch-utility-stats NY > output.csv
+#   just -f data/eia/861/Justfile fetch       # Build all states to electric_utility_stats/
+#   just -f data/eia/861/Justfile update     # fetch then upload to s3://data.sb/eia/861/electric_utility_stats/
+#   just -f data/eia/861/Justfile fetch-state-stats NY   # One state as CSV to stdout (ad-hoc)
+#   just -f data/eia/861/Justfile clean                  # Remove local parquet/
 
-project_root := `git rev-parse --show-toplevel`
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_parquet := path_local_repo + "/data/eia/861/parquet/"
+path_s3_parquet := "s3://data.sb/eia/861/electric_utility_stats/"
 
-fetch-utility-stats state:
-    cd "{{project_root}}" && uv run python "{{project_root}}/data/eia/861/get_utility_stats_from_eia861.py" {{state}}
+# Build IOU stats for all states; write to electric_utility_stats/state=<state>/data.parquet
+fetch:
+    uv run python "{{path_local_repo}}/data/eia/861/fetch_electric_utility_stat_parquets.py" --output-dir "{{path_local_parquet}}"
+    @echo "Wrote {{path_local_parquet}}state=<state>/data.parquet"
+
+# Upload local parquet to S3 (Hive-style partition state=<state>/data.parquet).
+# sync only uploads new or changed files (compares size and mtime); objects already in S3
+# with the same content are skipped. No --delete, so extra objects in S3 are left as-is.
+upload:
+    aws s3 sync "{{path_local_parquet}}" "{{path_s3_parquet}}"
+
+# Print one state's stats as CSV to stdout (no --output-dir)
+fetch-state-stats state:
+    uv run python "{{path_local_repo}}/data/eia/861/fetch_electric_utility_stat_parquets.py" {{state}}
+
+# Remove local parquet/
+clean:
+    rm -rf "{{path_local_parquet}}"
+    @echo "Removed {{path_local_parquet}}"

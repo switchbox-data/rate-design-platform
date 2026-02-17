@@ -20,18 +20,18 @@ Timezone handling:
 
 Usage:
     # Fetch full year NY (API key from .env)
-    python fetch_eia_zone_loads.py --state NY --start-month 2024-01 --end-month 2024-12
+    python fetch_zone_loads_parquet.py --state NY --start-month 2024-01 --end-month 2024-12
 
     # Fetch specific months RI
-    python fetch_eia_zone_loads.py --state RI --start-month 2024-06 --end-month 2024-08
+    python fetch_zone_loads_parquet.py --state RI --start-month 2024-06 --end-month 2024-08
 
     # Override API key
-    python fetch_eia_zone_loads.py --state NY --start-month 2024-01 --end-month 2024-12 --eia-api-key YOUR_KEY
+    python fetch_zone_loads_parquet.py --state NY --start-month 2024-01 --end-month 2024-12 --eia-api-key YOUR_KEY
 
 Note:
     - Script automatically expands month ranges to full month dates (first to last day)
     - Skips months that already exist in S3 (use --force to overwrite)
-    - Uses Polars partitioned writes with storage_options from AWS_DEFAULT_REGION
+    - Writes to local dir; use data/eia/hourly_loads Justfile upload recipe to sync to S3
 """
 
 import argparse
@@ -49,7 +49,6 @@ from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import (
     StateConfig,
-    get_aws_storage_options,
     get_state_config,
 )
 
@@ -594,26 +593,16 @@ def validate_zone_data(
             )
 
 
-def upload_zone_data_to_s3(
+def write_zone_data_local(
     df: pl.DataFrame,
-    s3_base: str,
+    local_base: str | Path,
     iso_region: str,
-    storage_options: dict[str, str],
-    skip_existing: bool = True,
-):
-    """Upload zone load data to S3 with zone/year/month partitioning.
+) -> None:
+    """Write zone load data to local dir with zone/year/month partitioning.
 
-    Args:
-        df: DataFrame with columns timestamp, zone, load_mw, filled
-        s3_base: Base S3 path (e.g., s3://data.sb/eia/hourly_demand/zones)
-        iso_region: ISO partition key (e.g., nyiso or isone)
-        storage_options: Polars S3 storage options containing AWS bucket region
-        skip_existing: If True, skip uploading partitions that already exist
-
-    Output structure:
-        s3://data.sb/eia/hourly_demand/zones/region=nyiso/zone=A/year=2024/month=1/data.parquet
+    Same layout as S3 so upload (aws s3 sync) produces identical structure:
+        <local_base>/region=nyiso/zone=A/year=2024/month=1/data.parquet
     """
-    # Add partition columns for output layout
     df = df.with_columns(
         [
             pl.lit(iso_region).alias("region"),
@@ -621,26 +610,17 @@ def upload_zone_data_to_s3(
             pl.col("timestamp").dt.month().alias("month"),
         ]
     )
-
     partition_count = df.select(["region", "zone", "year", "month"]).n_unique()
     print(
-        f"\nPreparing to write {partition_count:,} partitions "
-        f"({len(df):,} rows) to {s3_base}"
+        f"\nWriting {partition_count:,} partitions ({len(df):,} rows) to {local_base}"
     )
-
-    if skip_existing:
-        print(
-            "\n⚠️  --skip-existing is not enforced with direct partitioned writes. "
-            "Existing partitions may be overwritten."
-        )
-
+    Path(local_base).mkdir(parents=True, exist_ok=True)
     df.write_parquet(
-        s3_base,
+        str(local_base),
         compression="zstd",
         partition_by=["region", "zone", "year", "month"],
-        storage_options=storage_options,
     )
-    print(f"\n✓ Successfully wrote partitioned zone data to {s3_base}")
+    print(f"\n✓ Wrote partitioned zone data to {local_base}")
 
 
 def parse_month_to_date_range(start_month: str, end_month: str) -> tuple[str, str]:
@@ -713,21 +693,11 @@ def main():
         help="EIA API key (optional if set in .env file)",
     )
     parser.add_argument(
-        "--s3-base",
+        "--path-local-zone-parquet",
+        dest="path_local_zone_parquet",
         type=str,
         required=True,
-        help="Base S3 path for uploads (e.g., s3://data.sb/eia/hourly_demand/zones/)",
-    )
-    parser.add_argument(
-        "--skip-existing",
-        action="store_true",
-        default=True,
-        help="Skip uploading partitions that already exist in S3 (default: True)",
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Force upload even if partitions exist (overrides --skip-existing)",
+        help="Local directory for zone parquet output (same partition layout as S3 for later sync)",
     )
 
     args = parser.parse_args()
@@ -742,25 +712,17 @@ def main():
     except ValueError as e:
         parser.error(str(e))
 
-    skip_existing = args.skip_existing and not args.force
-    resolved_s3_base = args.s3_base
-    storage_options = get_aws_storage_options()
+    path_local = args.path_local_zone_parquet
 
     print("=" * 60)
     print("EIA Zonal Load Data Fetch")
     print("=" * 60)
     print(f"State: {config.state}")
-    print(f"Region parent facet: {config.eia_parent} ({config.label})")
-    print(f"S3 region partition: {config.iso_region}")
-
+    print(f"Region partition: {config.iso_region} ({config.label})")
     print(f"Timezone: {config.timezone}")
     print(f"Months requested: {args.start_month} to {args.end_month}")
     print(f"Date range: {start_date} to {end_date} ({config.timezone}, inclusive)")
-    print(
-        "Target S3: "
-        f"{resolved_s3_base}/region={config.iso_region}/zone=X/year=YYYY/month=M/"
-    )
-    print(f"Skip existing: {skip_existing}")
+    print(f"Output: {path_local}/region={config.iso_region}/zone=X/year=YYYY/month=M/")
     print("=" * 60)
 
     # Load API key
@@ -855,22 +817,15 @@ def main():
     print("\nSample data (last 10 rows):")
     print(df.tail(10))
 
-    # Upload to S3
+    # Write to local (upload via Justfile upload recipe)
     print("\n" + "=" * 60)
-    print("UPLOADING TO S3")
+    print("WRITING LOCAL PARQUET")
     print("=" * 60)
-
-    # Upload to S3
-    upload_zone_data_to_s3(
-        df,
-        resolved_s3_base,
-        config.iso_region,
-        storage_options,
-        skip_existing=skip_existing,
-    )
-
+    write_zone_data_local(df, path_local, config.iso_region)
     print("\n" + "=" * 60)
-    print(f"✓ {config.label} zonal load data fetch and upload completed successfully")
+    print(
+        f"✓ {config.label} zonal load data fetch completed (run upload recipe to sync to S3)"
+    )
     print("=" * 60)
 
 

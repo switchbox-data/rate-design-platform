@@ -24,13 +24,17 @@
 start_year := "2017"
 end_year := "2025"
 
+path_local_json := "json/"
+path_local_parquet := "parquet/"
+path_s3_parquet := "s3://data.sb/hud/smi/"
+
 # Fetch SMI from HUD API to json/ (states + fy=<year>/<state>.json)
 fetch:
-    uv run python fetch_hud_smi_json.py --start-year {{start_year}} --end-year {{end_year}} --output json/
+    uv run python fetch_smi_json.py --start-year {{start_year}} --end-year {{end_year}} --output {{path_local_json}}
 
 # Convert json/ to parquet/fy=<year>/data.parquet (AMI-aligned schema)
 convert:
-    uv run python convert_hud_smi_json_to_parquet.py --input json/ --output parquet/
+    uv run python convert_hud_smi_json_to_parquet.py --input {{path_local_json}} --output {{path_local_parquet}}
 
 # Full pipeline: fetch then convert
 prepare:
@@ -39,9 +43,9 @@ prepare:
 
 # Sync parquet/ to s3://data.sb/hud/smi/
 upload:
-    aws s3 sync parquet/ s3://data.sb/hud/smi/ --exclude "*" --include "*.parquet"
+    aws s3 sync {{path_local_parquet}} {{path_s3_parquet}} --exclude "*" --include "*.parquet"
 
 # Remove json/ and parquet/
 clean:
-    rm -rf json parquet
+    rm -rf {{path_local_json}} {{path_local_parquet}}
     echo "✓ Removed json/, parquet/"

@@ -16,9 +16,11 @@
 # Run from repo root: just -f data/census/pums/Justfile <recipe>
 # Paths use justfile_directory() so they work regardless of cwd.
 
-pums_dir := justfile_directory()
-csv_dir := "{{pums_dir}}/csv"
-parquet_dir := "{{pums_dir}}/parquet"
+path_local_base := justfile_directory()
+path_local_zip := "{{path_local_base}}/zips"
+path_local_csv := "{{path_local_base}}/csv"
+path_local_parquet := "{{path_local_base}}/parquet"
+path_s3_parquet := "s3://data.sb/census/pums/"
 
 # Top-level defaults (override on CLI: just survey=acs1 end_year=2024 state=DC fetch)
 survey := "acs5"
@@ -28,16 +30,16 @@ record_type := "both"
 
 # Fetch: download PUMS zips to zips/{{survey}}/{{end_year}}/
 fetch:
-    uv run python {{pums_dir}}/fetch_pums_csvs.py \
+    uv run python {{path_local_base}}/fetch_pums_csvs.py \
         --survey {{survey}} --end-year {{end_year}} --state {{state}} \
-        --record-type {{record_type}} --output-dir {{pums_dir}}/zips
+        --record-type {{record_type}} --output-dir {{path_local_zip}}
 
 # Unzip: extract zips to csv/ (uses same survey, end_year as fetch)
 unzip:
     #!/usr/bin/env bash
     set -euo pipefail
-    ZIP_DIR="{{pums_dir}}/zips/{{survey}}/{{end_year}}"
-    CSV_BASE="{{pums_dir}}/csv/{{survey}}/{{end_year}}"
+    ZIP_DIR="{{path_local_base}}/zips/{{survey}}/{{end_year}}"
+    CSV_BASE="{{path_local_base}}/csv/{{survey}}/{{end_year}}"
     if [ ! -d "$ZIP_DIR" ]; then
         echo "Error: $ZIP_DIR not found. Run 'just fetch' first."
         exit 1
@@ -58,17 +60,17 @@ unzip:
 
 # Convert csv/ tree to parquet/
 convert:
-    uv run python {{pums_dir}}/convert_pums_csv_to_parquet.py \
-        --input-dir {{pums_dir}}/csv --output-dir {{pums_dir}}/parquet
+    uv run python {{path_local_base}}/convert_pums_csv_to_parquet.py \
+        --input-dir {{path_local_csv}} --output-dir {{path_local_parquet}}
 
 # Full pipeline: fetch -> unzip -> convert (uses top-level survey, end_year, state, record_type)
 prepare: fetch unzip convert
 
 # Sync parquet/ to S3 (not exercised in PR)
 upload:
-    aws s3 sync {{pums_dir}}/parquet/ s3://data.sb/census/pums/ --exclude "*" --include "*.parquet"
+    aws s3 sync {{path_local_parquet}}/ {{path_s3_parquet}} --exclude "*" --include "*.parquet"
 
 # Remove zips/, csv/, parquet/ under data/census/pums/
 clean:
-    rm -rf {{pums_dir}}/zips {{pums_dir}}/csv {{pums_dir}}/parquet
+    rm -rf {{path_local_zip}} {{path_local_csv}} {{path_local_parquet}}
     echo "✓ Removed zips/, csv/, parquet/"
