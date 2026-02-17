@@ -25,13 +25,17 @@
 start_year := "2016"
 end_year := "2025"
 
+path_local_xlsx := "xlsx/"
+path_local_parquet := "parquet/"
+path_s3_parquet := "s3://data.sb/hud/ami/"
+
 # Download Section 8 Excel files for start_year..end_year to xlsx/
 fetch:
-    uv run python fetch_ami_xlsx.py --start-year {{start_year}} --end-year {{end_year}} --output xlsx/
+    uv run python fetch_ami_xlsx.py --start-year {{start_year}} --end-year {{end_year}} --output {{path_local_xlsx}}
 
 # Convert xlsx/ to parquet/fy=<year>/data.parquet
 convert:
-    uv run python convert_hud_ami_xlsx_to_parquet.py --input xlsx/ --output parquet/
+    uv run python convert_hud_ami_xlsx_to_parquet.py --input {{path_local_xlsx}} --output {{path_local_parquet}}
 
 # Full pipeline: fetch then convert
 prepare:
@@ -40,9 +44,9 @@ prepare:
 
 # Sync parquet/ to s3://data.sb/hud/ami/
 upload:
-    aws s3 sync parquet/ s3://data.sb/hud/ami/ --exclude "*" --include "*.parquet"
+    aws s3 sync {{path_local_parquet}} {{path_s3_parquet}} --exclude "*" --include "*.parquet"
 
 # Remove xlsx/ and parquet/
 clean:
-    rm -rf xlsx parquet
+    rm -rf {{path_local_xlsx}} {{path_local_parquet}}
     echo "✓ Removed xlsx/, parquet/"

@@ -10,9 +10,9 @@
 # Or with defaults from hp_rates PRE section:
 #   just pre-fetch-zone-data   (from rate_design/ny/hp_rates or ri/hp_rates)
 
-project_root := `git rev-parse --show-toplevel`
-zone_s3_base := "s3://data.sb/eia/hourly_demand/zones/"
-utility_s3_base := "s3://data.sb/eia/hourly_demand/utilities/"
+path_local_repo := `git rev-parse --show-toplevel`
+path_s3_zone_parquet := "s3://data.sb/eia/hourly_demand/zones/"
+path_s3_utility_parquet := "s3://data.sb/eia/hourly_demand/utilities/"
 
 # Fetch zonal load data from EIA API for a state and month range.
 # Pass state, start_month, end_month via environment or as arguments.
@@ -26,11 +26,11 @@ fetch-zone-data state start_month end_month:
         echo "Example: just fetch-zone-data NY 2025-01 2025-12"
         exit 1
     fi
-    uv run python "{{project_root}}/data/eia/hourly_loads/fetch_zone_loads_parquet.py" \
+    uv run python "{{path_local_repo}}/data/eia/hourly_loads/fetch_zone_loads_parquet.py" \
         --state "$s" \
         --start-month "$sm" \
         --end-month "$em" \
-        --s3-base {{zone_s3_base}}
+        --path-s3-zone-parquet {{path_s3_zone_parquet}}
 
 # Aggregate zone loads to utility-level profiles.
 # Pass state, year, utility via environment or as arguments.
@@ -44,10 +44,10 @@ aggregate-utility-loads state year utility:
         echo "Example: just aggregate-utility-loads NY 2025 nyseg"
         exit 1
     fi
-    uv run python "{{project_root}}/data/eia/hourly_loads/aggregate_eia_utility_loads.py" \
+    uv run python "{{path_local_repo}}/data/eia/hourly_loads/aggregate_eia_utility_loads.py" \
         --state "$s" \
         --year "$y" \
         --utility "$u" \
-        --zone-s3-base {{zone_s3_base}} \
-        --utility-s3-base {{utility_s3_base}} \
+        --path-s3-zone-parquet {{path_s3_zone_parquet}} \
+        --path-s3-utility-parquet {{path_s3_utility_parquet}} \
         --upload

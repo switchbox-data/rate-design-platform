@@ -713,10 +713,11 @@ def main():
         help="EIA API key (optional if set in .env file)",
     )
     parser.add_argument(
-        "--s3-base",
+        "--path-s3-zone-parquet",
+        dest="path_s3_zone_parquet",
         type=str,
         required=True,
-        help="Base S3 path for uploads (e.g., s3://data.sb/eia/hourly_demand/zones/)",
+        help="S3 path for zone parquet dataset (e.g., s3://data.sb/eia/hourly_demand/zones/)",
     )
     parser.add_argument(
         "--skip-existing",
@@ -743,7 +744,7 @@ def main():
         parser.error(str(e))
 
     skip_existing = args.skip_existing and not args.force
-    resolved_s3_base = args.s3_base
+    resolved_s3_base = args.path_s3_zone_parquet
     storage_options = get_aws_storage_options()
 
     print("=" * 60)

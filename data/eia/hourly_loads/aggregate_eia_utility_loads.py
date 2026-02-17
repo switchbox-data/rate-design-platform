@@ -316,16 +316,18 @@ def main():
         help="Calendar year to process (e.g., 2024). Must have all 12 months available.",
     )
     parser.add_argument(
-        "--zone-s3-base",
+        "--path-s3-zone-parquet",
+        dest="path_s3_zone_parquet",
         type=str,
         required=True,
-        help="Base S3 path for zonal load inputs (e.g., s3://data.sb/eia/hourly_demand/zones/)",
+        help="S3 path for zonal load parquet inputs (e.g., s3://data.sb/eia/hourly_demand/zones/)",
     )
     parser.add_argument(
-        "--utility-s3-base",
+        "--path-s3-utility-parquet",
+        dest="path_s3_utility_parquet",
         type=str,
         required=True,
-        help="Base S3 path for utility load outputs (e.g., s3://data.sb/eia/hourly_demand/utilities/)",
+        help="S3 path for utility load parquet outputs (e.g., s3://data.sb/eia/hourly_demand/utilities/)",
     )
     parser.add_argument(
         "--upload",
@@ -349,8 +351,8 @@ def main():
             f"Valid values: all, {valid}"
         )
 
-    resolved_zone_s3_base = args.zone_s3_base
-    resolved_utility_s3_base = args.utility_s3_base
+    resolved_zone_s3_base = args.path_s3_zone_parquet
+    resolved_utility_s3_base = args.path_s3_utility_parquet
 
     utility_list = sorted(utility_zone_mapping.keys())
     print("=" * 60)

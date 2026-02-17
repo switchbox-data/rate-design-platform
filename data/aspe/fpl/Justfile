@@ -7,11 +7,11 @@
 #   just -f data/aspe/fpl/Justfile fetch
 #   just -f data/aspe/fpl/Justfile fetch 2020 2025
 
-project_root := `git rev-parse --show-toplevel`
-fpl_output := project_root + "/utils/post/data/fpl_guidelines.yaml"
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_fpl_yaml := path_local_repo + "/utils/post/data/fpl_guidelines.yaml"
 
 # Fetch FPL guidelines for start_year..end_year and write to utils/post/data/fpl_guidelines.yaml
 fetch start_year="2020" end_year="2025":
-    uv run python "{{project_root}}/data/aspe/fpl/fetch_fpl_yaml.py" \
+    uv run python "{{path_local_repo}}/data/aspe/fpl/fetch_fpl_yaml.py" \
         --start-year {{start_year}} --end-year {{end_year}} \
-        --output "{{fpl_output}}"
+        --output "{{path_local_fpl_yaml}}"

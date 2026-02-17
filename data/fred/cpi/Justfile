@@ -9,20 +9,20 @@
 #   just -f data/fred/cpi/Justfile upload
 #   just -f data/fred/cpi/Justfile update   # fetch-cpi then upload
 
-project_root := `git rev-parse --show-toplevel`
-local_parquet_dir := project_root + "/data/fred/cpi/parquet/"
-s3_parquet_dir := "s3://data.sb/fred/cpi/"
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_parquet := path_local_repo + "/data/fred/cpi/parquet/"
+path_s3_parquet := "s3://data.sb/fred/cpi/"
 
 # Fetch FRED CPI series to local parquet. Requires FRED_API_KEY.
 # Writes parquet/<series_lower>_<start>_<end>_<YYYYMMDD>.parquet
 fetch-cpi series="CPIAUCSL" start_year="2020" end_year="2025":
-    uv run python "{{project_root}}/data/fred/cpi/fetch_cpi_parquet.py" \
+    uv run python "{{path_local_repo}}/data/fred/cpi/fetch_cpi_parquet.py" \
         --series {{series}} --start-year {{start_year}} --end-year {{end_year}} \
-        --output "{{local_parquet_dir}}"
+        --output "{{path_local_parquet}}"
 
 # Sync local parquet/ to s3://data.sb/fred/cpi/
 upload:
-    aws s3 sync "{{local_parquet_dir}}" "{{s3_parquet_dir}}"
+    aws s3 sync "{{path_local_parquet}}" "{{path_s3_parquet}}"
 
 # Fetch then upload (for rate_design or one-shot refresh)
 update series="CPIAUCSL" start_year="2020" end_year="2025":

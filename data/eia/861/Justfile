@@ -9,26 +9,26 @@
 #   just -f data/eia/861/Justfile fetch-state-stats NY   # One state as CSV to stdout (ad-hoc)
 #   just -f data/eia/861/Justfile clean                  # Remove local parquet/
 
-project_root := `git rev-parse --show-toplevel`
-local_parquet_dir := project_root + "/data/eia/861/parquet/"
-s3_parquet_dir := "s3://data.sb/eia/861/electric_utility_stats/"
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_parquet := path_local_repo + "/data/eia/861/parquet/"
+path_s3_parquet := "s3://data.sb/eia/861/electric_utility_stats/"
 
 # Build IOU stats for all states; write to electric_utility_stats/state=<state>/data.parquet
 fetch:
-    uv run python "{{project_root}}/data/eia/861/fetch_electric_utility_stat_parquets.py" --output-dir "{{local_parquet_dir}}"
-    @echo "Wrote {{local_parquet_dir}}state=<state>/data.parquet"
+    uv run python "{{path_local_repo}}/data/eia/861/fetch_electric_utility_stat_parquets.py" --output-dir "{{path_local_parquet}}"
+    @echo "Wrote {{path_local_parquet}}state=<state>/data.parquet"
 
 # Upload local parquet to S3 (Hive-style partition state=<state>/data.parquet).
 # sync only uploads new or changed files (compares size and mtime); objects already in S3
 # with the same content are skipped. No --delete, so extra objects in S3 are left as-is.
 upload:
-    aws s3 sync "{{local_parquet_dir}}" "{{s3_parquet_dir}}"
+    aws s3 sync "{{path_local_parquet}}" "{{path_s3_parquet}}"
 
 # Print one state's stats as CSV to stdout (no --output-dir)
 fetch-state-stats state:
-    uv run python "{{project_root}}/data/eia/861/fetch_electric_utility_stat_parquets.py" {{state}}
+    uv run python "{{path_local_repo}}/data/eia/861/fetch_electric_utility_stat_parquets.py" {{state}}
 
 # Remove local parquet/
 clean:
-    rm -rf "{{local_parquet_dir}}"
-    @echo "Removed {{local_parquet_dir}}"
+    rm -rf "{{path_local_parquet}}"
+    @echo "Removed {{path_local_parquet}}"
