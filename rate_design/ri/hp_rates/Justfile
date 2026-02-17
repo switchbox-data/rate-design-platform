@@ -79,6 +79,15 @@ map-electric-nyseg-class-specific-seasonal:
 map-electric-rie-default:
   just map-electric-tariff rie default 1 00 {{tariff_maps_dir_ri}}/electric
 
+# Generate TOU tariff map: HP customers → TOU, non-HP → flat.
+# Requires ResStock metadata on S3 (run resstock-identify-hp-customers first).
+map-electric-tou tou_tariff_key flat_tariff_key upgrade_id="00":
+  uv run python -m utils.pre.compute_tou \
+    --metadata-path "{{path_s3_resstock_metadata}}/state=RI/upgrade={{upgrade_id}}/metadata-sb.parquet" \
+    --tou-tariff-key "{{tou_tariff_key}}" \
+    --flat-tariff-key "{{flat_tariff_key}}" \
+    --output-dir "{{tariff_maps_dir_ri}}/electric"
+
 map-gas-tariff electric_utility upgrade_id output_dir:
   uv run python {{project_root}}/utils/pre/gas_tariff_mapper.py \
     --metadata_path "{{path_s3_resstock_metadata}}" \
