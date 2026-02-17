@@ -137,15 +137,14 @@ fetch-cpi series="CPIAUCSL" start_year="2020" end_year="2025":
   just -f {{project_root}}/data/fred/cpi/Justfile fetch-cpi {{series}} {{start_year}} {{end_year}}
 
 # Add vulnerability columns to metadata-sb.parquet (random placeholder).
-# Run after identify-heating-type. Reads and writes to same metadata-sb path.
-add-vulnerability-columns release="res_2024_amy2018_2" upgrade="00" seed="42":
-  uv run python {{project_root}}/data/resstock/add_vulnerability_columns.py \
-    --input_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=NY/upgrade={{upgrade}}" \
-    --output_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=NY/upgrade={{upgrade}}" \
-    --input_filename "metadata-sb.parquet" \
-    --output_filename "metadata-sb.parquet" \
-    --upgrade_id "{{upgrade}}" \
-    --seed {{seed}}
+# Delegates to data/resstock/Justfile. Safe to re-run (idempotent).
+add-vulnerability-columns:
+  just -f {{project_root}}/data/resstock/Justfile add-vulnerability-columns-all-upgrades NY
+
+# Full NY metadata pipeline: HP → heating type → vulnerability.
+# Pass lmi="false" to skip vulnerability columns.
+prepare-metadata lmi="true":
+  just -f {{project_root}}/data/resstock/Justfile prepare-metadata-ny {{lmi}}
 
 # Apply NY EAP/EEAP discounts to CAIRO bills. Run fetch-cpi first.
 apply-ny-lmi-discounts run_dir utility fpl_year cpi_s3_path participation_rate="1.0" rider="false":

@@ -9,7 +9,7 @@ Covers both RI (LIDR+, FPL-only) and NY (EAP/EEAP, FPL + SMI/AMI).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import polars as pl
@@ -58,6 +58,25 @@ def fpl_pct_expr(income_col: str, threshold_expr: pl.Expr) -> pl.Expr:
 def inflate_income_expr(income_col: str, ratio: float) -> pl.Expr:
     """Polars expression: multiply income by CPI ratio (e.g. CPI_to / CPI_from)."""
     return pl.col(income_col) * pl.lit(ratio)
+
+
+def load_cpi_ratio(
+    cpi_s3_path: str, inflation_year: int, opts: dict[str, str]
+) -> float:
+    """Load CPI parquet (year, value), return ratio for inflating income from 2019 to *inflation_year*."""
+    cpi_df = cast(
+        pl.DataFrame,
+        pl.scan_parquet(cpi_s3_path, storage_options=opts)
+        .filter(pl.col("year").is_in([RESSTOCK_INCOME_DOLLAR_YEAR, inflation_year]))
+        .collect(),
+    )
+    cpi_2019 = cpi_df.filter(pl.col("year") == RESSTOCK_INCOME_DOLLAR_YEAR)
+    cpi_target = cpi_df.filter(pl.col("year") == inflation_year)
+    if cpi_2019.is_empty() or cpi_target.is_empty():
+        raise ValueError(
+            f"CPI data must contain {RESSTOCK_INCOME_DOLLAR_YEAR} and {inflation_year}"
+        )
+    return float(cpi_target["value"][0]) / float(cpi_2019["value"][0])
 
 
 def parse_occupants_expr(occupants_col: str) -> pl.Expr:
@@ -280,11 +299,13 @@ def assign_ny_tier_expr(
     Tier logic (see context/domain/lmi_discounts_in_ny.md):
 
     Traditional EAP (Tiers 1-3):
-      - ≤130% FPL + vulnerable → Tier 3
-      - ≤130% FPL + not vulnerable → Tier 2
-      - 131% FPL to 60% SMI + vulnerable → Tier 2
-      - 131% FPL to 60% SMI + not vulnerable → Tier 1
-      - ≤60% SMI + deliverable fuel (oil/propane) → Tier 1
+      - ≤130% FPL + vulnerable + utility-heated → Tier 3
+      - ≤130% FPL + not vulnerable + utility-heated → Tier 2
+      - 131% FPL to 60% SMI + vulnerable + utility-heated → Tier 2
+      - ≤60% SMI + not otherwise Tier 2/3 → Tier 1
+      Deliverable-fuel households (oil/propane) are capped at Tier 1:
+      their HEAP grant goes to the fuel vendor, not the utility, so
+      HEAP-based Tier 2/3 enrollment is impossible.
     Tier 4 (DSS) is NOT assigned (requires program enrollment data).
 
     EEAP (Tiers 5-7):
@@ -309,26 +330,23 @@ def assign_ny_tier_expr(
     ).fill_null(False)
 
     return (
-        # Tier 3: ≤130% FPL AND vulnerable
-        pl.when((fpl <= 130.0) & vuln)
+        # Tier 3: ≤130% FPL AND vulnerable AND utility-heated (not deliverable fuel)
+        pl.when((fpl <= 130.0) & vuln & ~deliverable_fuel)
         .then(pl.lit(3))
-        # Tier 2: ≤130% FPL, not vulnerable
-        .when(fpl <= 130.0)
+        # Tier 2: ≤130% FPL, not vulnerable, utility-heated
+        .when((fpl <= 130.0) & ~deliverable_fuel)
         .then(pl.lit(2))
-        # Tier 2: 131% FPL to 60% SMI, vulnerable
-        .when((fpl > 130.0) & (smi <= 60.0) & vuln)
+        # Tier 2: 131% FPL to 60% SMI, vulnerable, utility-heated
+        .when((fpl > 130.0) & (smi <= 60.0) & vuln & ~deliverable_fuel)
         .then(pl.lit(2))
-        # Tier 1: 131% FPL to 60% SMI, not vulnerable
-        .when((fpl > 130.0) & (smi <= 60.0))
+        # Tier 1: all remaining ≤60% SMI (including deliverable fuel,
+        # non-vulnerable >130% FPL, etc.)
+        .when(smi <= 60.0)
         .then(pl.lit(1))
-        # Tier 1: ≤60% SMI + deliverable fuel (oil/propane)
-        .when((smi <= 60.0) & deliverable_fuel)
-        .then(pl.lit(1))
-        # EEAP Tier 5: >60% SMI but ≤60% (for AMI territories, caller
-        # sets smi_pct_col to AMI%; for SMI territories this is redundant)
-        # In practice, customers already captured above; this catches
-        # AMI territory customers where AMI% ≤60% but SMI% >60%.
-        # We use a simple ≤60% check on the passed column.
+        # EEAP Tier 5: >60% SMI but ≤60% AMI (for AMI territories, caller
+        # sets smi_pct_col to AMI%; for SMI territories this clause is
+        # unreachable since >60% SMI AND ≤60% SMI is impossible).
+        # Will activate once get_ami_threshold_for_utility() returns real AMI.
         # Tier 6: 60-80% SMI/AMI
         .when((smi > 60.0) & (smi <= 80.0))
         .then(pl.lit(6))

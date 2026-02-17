@@ -19,12 +19,12 @@ from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils.post.lmi_common import (
-    RESSTOCK_INCOME_DOLLAR_YEAR,
     assign_ri_tier_expr,
     discount_fractions_for_ri,
     fpl_pct_expr,
     fpl_threshold_expr,
     inflate_income_expr,
+    load_cpi_ratio,
     load_fpl_guidelines,
     parse_occupants_expr,
     participation_uniform_expr,
@@ -45,25 +45,6 @@ def _storage_opts() -> dict[str, str]:
 
 def _run_dir_bills(run_dir: S3Path | Path, name: str) -> str:
     return str(run_dir / "bills" / name)
-
-
-def _load_cpi_ratio(
-    cpi_s3_path: str, inflation_year: int, opts: dict[str, str]
-) -> float:
-    """Load CPI parquet (year, value), filter to base and target years, return ratio for income inflation."""
-    cpi_df = (
-        pl.scan_parquet(cpi_s3_path, storage_options=opts)
-        .filter(pl.col("year").is_in([RESSTOCK_INCOME_DOLLAR_YEAR, inflation_year]))
-        .collect()
-    )
-    assert isinstance(cpi_df, pl.DataFrame)
-    cpi_2019 = cpi_df.filter(pl.col("year") == RESSTOCK_INCOME_DOLLAR_YEAR)
-    cpi_target = cpi_df.filter(pl.col("year") == inflation_year)
-    if cpi_2019.is_empty() or cpi_target.is_empty():
-        raise ValueError(
-            f"CPI data must contain {RESSTOCK_INCOME_DOLLAR_YEAR} and {inflation_year}"
-        )
-    return float(cpi_target["value"][0]) / float(cpi_2019["value"][0])
 
 
 def _build_tier_consumption(
@@ -451,7 +432,7 @@ def main() -> None:
     opts = _storage_opts()
 
     # 1. Load CPI and compute income-inflation ratio
-    cpi_ratio = _load_cpi_ratio(args.cpi_s3_path, args.fpl_year, opts)
+    cpi_ratio = load_cpi_ratio(args.cpi_s3_path, args.fpl_year, opts)
 
     # 2. Build per-bldg tier and consumption (metadata → FPL → tier → participation)
     tier_consumption = _build_tier_consumption(

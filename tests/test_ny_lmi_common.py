@@ -186,11 +186,11 @@ def test_assign_ny_tier_deliverable_fuel() -> None:
     assert out["tier"].to_list() == [1, 1]
 
 
-def test_assign_ny_tier_deliverable_fuel_explicitly() -> None:
-    """Test that deliverable fuel doesn't override higher-tier assignment."""
+def test_assign_ny_tier_deliverable_fuel_cap() -> None:
+    """Deliverable-fuel households are capped at Tier 1 (HEAP grant goes to fuel vendor)."""
     df = pl.DataFrame(
         {
-            "fpl_pct": [50.0],  # ≤130% FPL + vulnerable → Tier 3
+            "fpl_pct": [50.0],  # would be Tier 3 if utility-heated
             "smi_pct": [30.0],
             "is_vulnerable": [True],
             "heats_with_oil": [True],
@@ -206,5 +206,28 @@ def test_assign_ny_tier_deliverable_fuel_explicitly() -> None:
             "heats_with_propane",
         ).alias("tier")
     )
-    # Even with deliverable fuel, ≤130% FPL + vulnerable → Tier 3 (higher priority)
-    assert out["tier"].to_list() == [3]
+    # Deliverable fuel caps at Tier 1 even if income/vulnerability would qualify higher
+    assert out["tier"].to_list() == [1]
+
+
+def test_assign_ny_tier_deliverable_fuel_all_cases() -> None:
+    """All deliverable-fuel households ≤60% SMI get Tier 1 regardless of FPL/vulnerability."""
+    df = pl.DataFrame(
+        {
+            "fpl_pct": [50.0, 50.0, 140.0, 140.0],
+            "smi_pct": [30.0, 30.0, 50.0, 50.0],
+            "is_vulnerable": [True, False, True, False],
+            "heats_with_oil": [True, False, False, False],
+            "heats_with_propane": [False, True, True, True],
+        }
+    )
+    out = df.with_columns(
+        assign_ny_tier_expr(
+            "fpl_pct",
+            "smi_pct",
+            "is_vulnerable",
+            "heats_with_oil",
+            "heats_with_propane",
+        ).alias("tier")
+    )
+    assert out["tier"].to_list() == [1, 1, 1, 1]
