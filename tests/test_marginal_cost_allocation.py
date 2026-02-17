@@ -13,7 +13,7 @@ import pytest
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.generate_utility_tx_dx_mc import (
+from utils.pre.generate_utility_tx_dx_mc import (
     allocate_costs_to_hours,
     calculate_pop_weights,
     get_marginal_costs_for_year,

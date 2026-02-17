@@ -3,57 +3,108 @@
 # Resolve project root as absolute path using git
 project_root := `git rev-parse --show-toplevel`
 
-# Identify HP customers
-identify-hp-customers release upgrade_ids input_filename output_filename:
-  #!/usr/bin/env bash
-  set -e
-  if [[ "{{release}}" != *"2024"* ]]; then
-    echo "Warning: this task is only verified to work with 2024 releases. It may work with other releases, but has not been tested."
-  fi
-  for upgrade_id in {{upgrade_ids}}; do
-    uv run python {{project_root}}/utils/identify_hp_customers.py \
-      --input_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=RI/upgrade=$upgrade_id" \
-      --output_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=RI/upgrade=$upgrade_id" \
-      --input_filename "{{input_filename}}" \
-      --output_filename "{{output_filename}}" \
-      --upgrade_id "$upgrade_id"
-  done
+# -----------------------------------------------------------------------------
+# PRE: ResStock (delegates to data/resstock/Justfile)
+# -----------------------------------------------------------------------------
+resstock-download:
+  just -f {{project_root}}/data/resstock/Justfile resstock-download RI
 
-identify-hp-customers-all-upgrades-2024-amy2018-2-ri:
-  just identify-hp-customers "res_2024_amy2018_2" "00 01 02 03 04 05" "metadata.parquet" "metadata-sb.parquet"
+resstock-test-download:
+  just -f {{project_root}}/data/resstock/Justfile resstock-test-download RI
 
-# Identify heating type
-identify-heating-type release upgrade_ids input_filename output_filename:
-  #!/usr/bin/env bash
-  set -e
-  if [[ "{{release}}" != *"2024"* ]]; then
-    echo "Warning: this task is only verified to work with 2024 releases. It may work with other releases, but has not been tested."
-  fi
-  for upgrade_id in {{upgrade_ids}}; do
-    uv run python {{project_root}}/utils/identify_heating_type.py \
-      --input_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=RI/upgrade=$upgrade_id" \
-      --output_dir "s3://data.sb/nrel/resstock/{{release}}/metadata/state=RI/upgrade=$upgrade_id" \
-      --input_filename "{{input_filename}}" \
-      --output_filename "{{output_filename}}" \
-      --upgrade_id "$upgrade_id"
-  done
+resstock-identify-hp-customers:
+  just -f {{project_root}}/data/resstock/Justfile resstock-identify-hp-customers RI
 
-identify-heating-type-all-upgrades-2024-amy2018-2-ri:
-  just identify-heating-type "res_2024_amy2018_2" "00 01 02 03 04 05" "metadata.parquet" "metadata-sb.parquet"
+# -----------------------------------------------------------------------------
+# PRE: Tariff mapping (electric and gas)
+# -----------------------------------------------------------------------------
+path_s3_resstock_metadata := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
+tariff_maps_dir_ri := "{{project_root}}/rate_design/ri/hp_rates/config/tariff_maps"
 
-# Identify HP customers and heating type
-identify-hp-customers-and-heating-type-all-upgrades-2024-amy2018-2-ri:
-  just identify-hp-customers "res_2024_amy2018_2" "00 01 02 03 04 05" "metadata.parquet" "metadata-sb.parquet"
-  just identify-heating-type "res_2024_amy2018_2" "00 01 02 03 04 05" "metadata-sb.parquet" "metadata-sb.parquet"
+map-electric-tariff electric_utility SB_scenario_type SB_scenario_year upgrade_id output_dir:
+  uv run python {{project_root}}/utils/pre/electric_tariff_mapper.py \
+    --metadata_path "{{path_s3_resstock_metadata}}" \
+    --state RI \
+    --upgrade_id "{{upgrade_id}}" \
+    --electric_utility "{{electric_utility}}" \
+    --SB_scenario_type "{{SB_scenario_type}}" \
+    --SB_scenario_year "{{SB_scenario_year}}" \
+    --output_dir "{{output_dir}}"
+
+map-electric-coned-default:
+  just map-electric-tariff coned default 1 00 {{tariff_maps_dir_ri}}/electric
+
+map-electric-coned-seasonal:
+  just map-electric-tariff coned seasonal 1 00 {{tariff_maps_dir_ri}}/electric
+
+map-electric-coned-class-specific-seasonal:
+  just map-electric-tariff coned class_specific_seasonal 1 00 {{tariff_maps_dir_ri}}/electric
+
+map-electric-national-grid-default:
+  just map-electric-tariff nimo default 1 00 {{tariff_maps_dir_ri}}/electric
+
+map-electric-national-grid-seasonal:
+  just map-electric-tariff nimo seasonal 1 00 {{tariff_maps_dir_ri}}/electric
+
+map-electric-national-grid-class-specific-seasonal:
+  just map-electric-tariff nimo class_specific_seasonal 1 00 {{tariff_maps_dir_ri}}/electric
+
+map-electric-nyseg-default:
+  just map-electric-tariff nyseg default 1 00 {{tariff_maps_dir_ri}}/electric
+
+map-electric-nyseg-seasonal:
+  just map-electric-tariff nyseg seasonal 1 00 {{tariff_maps_dir_ri}}/electric
+
+map-electric-nyseg-class-specific-seasonal:
+  just map-electric-tariff nyseg class_specific_seasonal 1 00 {{tariff_maps_dir_ri}}/electric
+
+map-electric-rie-default:
+  just map-electric-tariff rie default 1 00 {{tariff_maps_dir_ri}}/electric
+
+map-gas-tariff electric_utility upgrade_id output_dir:
+  uv run python {{project_root}}/utils/pre/gas_tariff_mapper.py \
+    --metadata_path "{{path_s3_resstock_metadata}}" \
+    --state RI \
+    --upgrade_id "{{upgrade_id}}" \
+    --electric_utility "{{electric_utility}}" \
+    --output_dir "{{output_dir}}"
+
+map-gas-coned-default:
+  just map-gas-tariff coned 00 {{tariff_maps_dir_ri}}/gas
+
+map-gas-coned-seasonal:
+  just map-gas-tariff coned 00 {{tariff_maps_dir_ri}}/gas
+
+map-gas-coned-class-specific-seasonal:
+  just map-gas-tariff coned 00 {{tariff_maps_dir_ri}}/gas
+
+map-gas-national-grid-default:
+  just map-gas-tariff nimo 00 {{tariff_maps_dir_ri}}/gas
+
+map-gas-national-grid-seasonal:
+  just map-gas-tariff nimo 00 {{tariff_maps_dir_ri}}/gas
+
+map-gas-national-grid-class-specific-seasonal:
+  just map-gas-tariff nimo 00 {{tariff_maps_dir_ri}}/gas
+
+map-gas-nyseg-default:
+  just map-gas-tariff nyseg 00 {{tariff_maps_dir_ri}}/gas
+
+map-gas-nyseg-seasonal:
+  just map-gas-tariff nyseg 00 {{tariff_maps_dir_ri}}/gas
+
+map-gas-nyseg-class-specific-seasonal:
+  just map-gas-tariff nyseg 00 {{tariff_maps_dir_ri}}/gas
+
+map-gas-rie-default:
+  just map-gas-tariff rie 00 {{tariff_maps_dir_ri}}/gas
 
 # -----------------------------------------------------------------------------
 # Post-processing: CPI and RI LIDR+ discounts
 # -----------------------------------------------------------------------------
-# Fetch a FRED series and upload annual-average parquet to S3. Requires FRED_API_KEY.
-# Default series CPIAUCSL (CPI). Output: s3://data.sb/fred/cpi/<series_lower>_<start>_<end>_<YYYYMMDD>.parquet
+# Delegates to data/fred/cpi/Justfile.
 fetch-cpi series="CPIAUCSL" start_year="2020" end_year="2025":
-  uv run python {{project_root}}/utils/post/fetch_cpi_from_fred.py \
-    --series {{series}} --start-year {{start_year}} --end-year {{end_year}} --upload
+  just -f {{project_root}}/data/fred/cpi/Justfile fetch-cpi {{series}} {{start_year}} {{end_year}}
 
 # Apply RI LIDR+ discounts to CAIRO bills. Run fetch-cpi first, then pass --cpi-s3-path.
 apply-ri-lmi-discounts run_dir state utility fpl_year cpi_s3_path participation_rate="1.0" rider="false":
@@ -65,4 +116,34 @@ apply-ri-lmi-discounts run_dir state utility fpl_year cpi_s3_path participation_
     --cpi-s3-path "{{cpi_s3_path}}" \
     --participation-rate {{participation_rate}} \
     {{ if rider == "true" { "--rider" } else { "" } }} \
+    --upload
+
+# -----------------------------------------------------------------------------
+# PRE: EIA hourly loads and marginal cost allocation (zone fetch, utility aggregate, MC allocation)
+# -----------------------------------------------------------------------------
+pre_state := "RI"
+pre_utility := "rie"
+pre_start_month := "2025-01"
+pre_end_month := "2025-12"
+pre_load_year := "2025"
+pre_mc_year := "2025"
+pre_mc_table_path := project_root + "/rate_design/ri/hp_rates/config/marginal_costs/ri_marginal_costs_2025.csv"
+pre_zone_s3_base := "s3://data.sb/eia/hourly_demand/zones/"
+pre_utility_s3_base := "s3://data.sb/eia/hourly_demand/utilities/"
+pre_mc_output_s3_base := "s3://data.sb/switchbox/marginal_costs/ri/"
+
+create-td-mc-data:
+  just create-td-mc-data-rie
+
+create-td-mc-data-rie:
+  just -f {{project_root}}/data/eia/hourly_loads/Justfile fetch-zone-data {{pre_state}} {{pre_start_month}} {{pre_end_month}}
+  just -f {{project_root}}/data/eia/hourly_loads/Justfile aggregate-utility-loads {{pre_state}} {{pre_load_year}} {{pre_utility}}
+  cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_utility_tx_dx_mc.py \
+    --state {{pre_state}} \
+    --utility {{pre_utility}} \
+    --mc-year {{pre_mc_year}} \
+    --load-year {{pre_load_year}} \
+    --mc-table-path {{pre_mc_table_path}} \
+    --utility-load-s3-base {{pre_utility_s3_base}} \
+    --output-s3-base {{pre_mc_output_s3_base}} \
     --upload

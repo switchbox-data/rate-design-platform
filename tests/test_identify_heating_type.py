@@ -2,7 +2,7 @@ from typing import cast
 
 import polars as pl
 
-from utils.identify_heating_type import (
+from data.resstock.identify_heating_type import (
     IN_HVAC_COLUMN,
     UPGRADE_HVAC_COLUMN,
     identify_heating_type,

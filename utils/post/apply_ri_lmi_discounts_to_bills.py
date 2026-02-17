@@ -17,7 +17,7 @@ import polars as pl
 from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
-from utils.eia_region_config import get_aws_storage_options
+from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils.post.lmi_common import (
     RESSTOCK_INCOME_DOLLAR_YEAR,
     assign_ri_tier_expr,
@@ -413,7 +413,7 @@ def main() -> None:
     parser.add_argument(
         "--cpi-s3-path",
         required=True,
-        help="S3 path to CPI parquet (year, value) from fetch_cpi_from_fred.py (default series CPIAUCSL)",
+        help="S3 path to CPI parquet (year, value) from data/fred/cpi/fetch_cpi_from_fred.py (default series CPIAUCSL)",
     )
     parser.add_argument(
         "--participation-rate",

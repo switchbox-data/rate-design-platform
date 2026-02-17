@@ -7,11 +7,3 @@
 2024:
   base: 15060
   increment: 5380
-
-2025:
-  base: 15650
-  increment: 5500
-
-2026:
-  base: 15960
-  increment: 5680
