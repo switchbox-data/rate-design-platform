@@ -74,6 +74,5 @@ upload:
 
 # Remove intermediate dirs for the current year (zips, csv, parquet)
 clean:
-    rm -rf zips/{{year}} csv/{{year}} parquet/{{year}}
-    rmdir zips csv parquet 2>/dev/null || true
-    echo "✓ Removed zips/{{year}}, csv/{{year}}, parquet/{{year}}"
+    rm -rf zips csv parquet
+    echo "✓ Removed zips/, csv/, parquet/"
