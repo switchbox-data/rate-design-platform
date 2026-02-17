@@ -5,7 +5,6 @@
 # QUICK START:
 #   just prepare                       # All states, both record types (defaults)
 #   just state=NY prepare              # One state (fetch+unzip+convert in one invocation)
-#   just prepare-smoke                 # Last 3 end-years acs1+acs5, state=DC only (no upload)
 #
 # INDIVIDUAL STEPS (override top-level vars: just survey=acs1 end_year=2024 state=DC fetch):
 #   just fetch                         # Download to zips/
@@ -64,23 +63,6 @@ convert:
 
 # Full pipeline: fetch -> unzip -> convert (uses top-level survey, end_year, state, record_type)
 prepare: fetch unzip convert
-
-# Smoke test: last 3 end-years acs1+acs5, state=DC only; then one convert. No upload.
-prepare-smoke:
-    just -f {{pums_dir}}/Justfile survey=acs1 end_year=2022 state=DC fetch
-    just -f {{pums_dir}}/Justfile survey=acs1 end_year=2022 unzip
-    just -f {{pums_dir}}/Justfile survey=acs1 end_year=2023 state=DC fetch
-    just -f {{pums_dir}}/Justfile survey=acs1 end_year=2023 unzip
-    just -f {{pums_dir}}/Justfile survey=acs1 end_year=2024 state=DC fetch
-    just -f {{pums_dir}}/Justfile survey=acs1 end_year=2024 unzip
-    just -f {{pums_dir}}/Justfile survey=acs5 end_year=2021 state=DC fetch
-    just -f {{pums_dir}}/Justfile survey=acs5 end_year=2021 unzip
-    just -f {{pums_dir}}/Justfile survey=acs5 end_year=2022 state=DC fetch
-    just -f {{pums_dir}}/Justfile survey=acs5 end_year=2022 unzip
-    just -f {{pums_dir}}/Justfile survey=acs5 end_year=2023 state=DC fetch
-    just -f {{pums_dir}}/Justfile survey=acs5 end_year=2023 unzip
-    just -f {{pums_dir}}/Justfile convert
-    echo "✓ prepare-smoke done (no upload)"
 
 # Sync parquet/ to S3 (not exercised in PR)
 upload:
