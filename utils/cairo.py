@@ -93,8 +93,23 @@ def _load_cambium_marginal_costs(
         "energy_cost_enduse": "Marginal Energy Costs ($/kWh)",
         "capacity_cost_enduse": "Marginal Capacity Costs ($/kWh)",
     }
+    numeric_input_cols = list(keep_cols.keys())
+    for col in numeric_input_cols:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=numeric_input_cols, how="any")
+    if df.empty:
+        raise ValueError(
+            f"Cambium marginal cost file {path} has no valid numeric rows in required "
+            f"columns: {numeric_input_cols}"
+        )
+
     df = df.loc[:, list(keep_cols.keys())].rename(columns=keep_cols)
     df.loc[:, [c for c in df.columns if "/kWh" in c]] /= 1000  # $/MWh → $/kWh
+
+    df.index = pd.to_datetime(df.index, errors="coerce")
+    df = df.loc[~df.index.isna()].copy()
+    if df.empty:
+        raise ValueError(f"Cambium marginal cost file {path} has no valid timestamps")
 
     common_years = [2017, 2023, 2034, 2045, 2051]
     year_diff = [abs(y - target_year) for y in common_years]
