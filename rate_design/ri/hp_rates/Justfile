@@ -2,13 +2,14 @@
 
 # Resolve project root as absolute path using git
 project_root := `git rev-parse --show-toplevel`
+ri_run_scenario_config := project_root + "/rate_design/ri/hp_rates/config/run_scenarios.yaml"
 
 # -----------------------------------------------------------------------------
 # Run RI scenarios
 # -----------------------------------------------------------------------------
 # Example:
 # just run-scenario 1
-run-scenario run_num output_dir="/data.sb/switchbox/cairo/ri_hp_rates/" scenario_config="{{project_root}}/rate_design/ri/hp_rates/config/run_scenarios.yaml":
+run-scenario run_num output_dir="/data.sb/switchbox/cairo/ri_hp_rates/" scenario_config=ri_run_scenario_config:
   uv run python {{project_root}}/rate_design/ri/hp_rates/run_scenario.py \
     --run-num "{{run_num}}" \
     --scenario-config "{{scenario_config}}" \
