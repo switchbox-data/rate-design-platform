@@ -26,7 +26,7 @@ fetch-zone-data state start_month end_month:
         echo "Example: just fetch-zone-data NY 2025-01 2025-12"
         exit 1
     fi
-    cd "{{project_root}}" && uv run python "{{project_root}}/data/eia/hourly_loads/fetch_eia_zone_loads.py" \
+    uv run python "{{project_root}}/data/eia/hourly_loads/fetch_eia_zone_loads.py" \
         --state "$s" \
         --start-month "$sm" \
         --end-month "$em" \
@@ -44,7 +44,7 @@ aggregate-utility-loads state year utility:
         echo "Example: just aggregate-utility-loads NY 2025 nyseg"
         exit 1
     fi
-    cd "{{project_root}}" && uv run python "{{project_root}}/data/eia/hourly_loads/aggregate_eia_utility_loads.py" \
+    uv run python "{{project_root}}/data/eia/hourly_loads/aggregate_eia_utility_loads.py" \
         --state "$s" \
         --year "$y" \
         --utility "$u" \
