@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import io
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,7 +17,6 @@ from cairo.rates_tool.systemsimulator import (
     _return_export_compensation_rate,
     _return_revenue_requirement_target,
 )
-from cloudpathlib import S3Path
 
 from utils.cairo import _load_cambium_marginal_costs, build_bldg_id_to_load_filepath
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
@@ -230,59 +228,6 @@ def _build_settings_from_yaml_run(
         path_distribution_marginal_costs=path_distribution_marginal_costs,
     )
 
-
-def _calculate_distribution_marginal_costs(
-    settings: ScenarioSettings, raw_load_elec: pd.DataFrame
-) -> pd.DataFrame:
-    """Load hourly distribution marginal costs from a precomputed parquet file (local or S3)."""
-    mc_path = settings.path_distribution_marginal_costs
-    if isinstance(mc_path, str) and mc_path.startswith("s3://"):
-        raw = S3Path(mc_path).read_bytes()
-        dist_df = pd.read_parquet(io.BytesIO(raw), engine="pyarrow")
-    else:
-        dist_df = pd.read_parquet(mc_path)
-
-    if "timestamp" in dist_df.columns:
-        dist_df = dist_df.set_index("timestamp")
-    dist_df.index = pd.to_datetime(dist_df.index, errors="coerce")
-    dist_df = dist_df.loc[~dist_df.index.isna()].copy()
-    dist_df = dist_df.loc[~dist_df.index.duplicated(keep="first")]
-    dist_df = dist_df.sort_index()
-
-    if "Marginal Distribution Costs ($/kWh)" in dist_df.columns:
-        distribution_marginal_costs = dist_df[["Marginal Distribution Costs ($/kWh)"]]
-    elif "mc_dist_per_kwh" in dist_df.columns:
-        distribution_marginal_costs = dist_df[["mc_dist_per_kwh"]].rename(
-            columns={"mc_dist_per_kwh": "Marginal Distribution Costs ($/kWh)"}
-        )
-    else:
-        raise ValueError(
-            "Distribution marginal cost file must include either "
-            "`Marginal Distribution Costs ($/kWh)` or `mc_dist_per_kwh` column. "
-            f"Found columns: {list(dist_df.columns)}"
-        )
-
-    if distribution_marginal_costs.index.tz is None:
-        distribution_marginal_costs.index = distribution_marginal_costs.index.tz_localize(
-            "EST"
-        )
-    else:
-        distribution_marginal_costs.index = distribution_marginal_costs.index.tz_convert(
-            "EST"
-        )
-
-    distribution_marginal_costs = distribution_marginal_costs.reindex(raw_load_elec.index)
-    if distribution_marginal_costs["Marginal Distribution Costs ($/kWh)"].isna().any():
-        missing_rows = distribution_marginal_costs[
-            distribution_marginal_costs["Marginal Distribution Costs ($/kWh)"].isna()
-        ]
-        raise ValueError(
-            "Distribution marginal costs missing for some CAIRO load timestamps. "
-            f"Missing rows: {len(missing_rows)}"
-        )
-    return distribution_marginal_costs
-
-
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=("Run RI heat-pump scenario using YAML config.")
@@ -379,9 +324,8 @@ def run(settings: ScenarioSettings) -> None:
         settings.path_cambium_marginal_costs,
         settings.test_year_run,
     )
-    distribution_marginal_costs = _calculate_distribution_marginal_costs(
-        settings=settings,
-        raw_load_elec=raw_load_elec,
+    distribution_marginal_costs = pd.read_parquet(
+        settings.path_distribution_marginal_costs
     )
 
     (
