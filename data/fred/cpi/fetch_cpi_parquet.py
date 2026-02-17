@@ -1,8 +1,9 @@
-"""Fetch a FRED series and write annual-average values to S3.
+"""Fetch a FRED series and write annual-average values to local parquet (and optionally S3).
 
 Supports any FRED series with monthly observations (e.g. CPIAUCSL for CPI).
-Output path: s3://<s3_base>/fred/cpi/<series_id_lower>_<start>_<end>_<YYYYMMDD>.parquet
+With --output <dir>: writes <dir>/<series_lower>_<start>_<end>_<YYYYMMDD>.parquet.
 Columns: year (int), value (float, annual average for that year).
+Upload via Justfile upload recipe (aws s3 sync).
 
 Requires FRED_API_KEY in environment (e.g. from .env via python-dotenv).
 """
@@ -12,18 +13,15 @@ from __future__ import annotations
 import argparse
 import os
 from datetime import date
+from pathlib import Path
 from urllib.parse import urlencode
 
 import polars as pl
 import requests
-from cloudpathlib import S3Path
 from dotenv import load_dotenv
-
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 
 FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"
 DEFAULT_SERIES = "CPIAUCSL"
-DEFAULT_S3_BASE = "s3://data.sb"
 
 
 def fetch_observations(
@@ -70,34 +68,19 @@ def observations_to_annual_df(observations: list[dict]) -> pl.DataFrame:
     return annual
 
 
-def build_s3_path(
-    s3_base: str,
-    series_id: str,
-    start_year: int,
-    end_year: int,
-    download_date: date,
+def build_filename(
+    series_id: str, start_year: int, end_year: int, download_date: date
 ) -> str:
-    """Return S3 key path: fred/cpi/<series_lower>_<start>_<end>_<YYYYMMDD>.parquet."""
-    base = s3_base.rstrip("/")
+    """Return filename: <series_lower>_<start>_<end>_<YYYYMMDD>.parquet."""
     series_lower = series_id.lower()
     yyyymmdd = download_date.strftime("%Y%m%d")
-    return f"{base}/fred/cpi/{series_lower}_{start_year}_{end_year}_{yyyymmdd}.parquet"
-
-
-def upload_series_to_s3(annual_df: pl.DataFrame, s3_path_str: str) -> None:
-    """Upload series parquet to S3 at the given path."""
-    storage_options = get_aws_storage_options()
-    s3_path = S3Path(s3_path_str)
-    if not s3_path.parent.exists():
-        s3_path.parent.mkdir(parents=True)
-    annual_df.write_parquet(str(s3_path), storage_options=storage_options)
-    print("Uploaded.")
+    return f"{series_lower}_{start_year}_{end_year}_{yyyymmdd}.parquet"
 
 
 def main() -> None:
     load_dotenv()
     parser = argparse.ArgumentParser(
-        description="Fetch a FRED series and write annual-average values to S3."
+        description="Fetch a FRED series and write annual-average values to local parquet."
     )
     parser.add_argument(
         "--series",
@@ -117,14 +100,11 @@ def main() -> None:
         help="Last calendar year to fetch (default: 2025)",
     )
     parser.add_argument(
-        "--s3-base",
-        default=DEFAULT_S3_BASE,
-        help=f"S3 base URL for output (default: {DEFAULT_S3_BASE})",
-    )
-    parser.add_argument(
-        "--upload",
-        action="store_true",
-        help="Upload parquet to S3; otherwise only print path and row count",
+        "--output",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="Write parquet to DIR/<series>_<start>_<end>_<date>.parquet",
     )
     args = parser.parse_args()
 
@@ -140,18 +120,21 @@ def main() -> None:
     )
     annual_df = observations_to_annual_df(observations)
     download_date = date.today()
-    s3_path_str = build_s3_path(
-        args.s3_base, args.series, args.start_year, args.end_year, download_date
+    filename = build_filename(
+        args.series, args.start_year, args.end_year, download_date
     )
 
     print(
         f"Fetched {len(observations)} monthly observations -> {len(annual_df)} annual rows"
     )
     print(f"Series: {args.series}")
-    print(f"Output path: {s3_path_str}")
 
-    if args.upload:
-        upload_series_to_s3(annual_df, s3_path_str)
+    if args.output is not None:
+        out_dir = args.output.resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / filename
+        annual_df.write_parquet(out_path)
+        print(f"Wrote {out_path}")
 
 
 if __name__ == "__main__":
