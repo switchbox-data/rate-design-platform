@@ -222,6 +222,7 @@ UTILITIES: list[UtilityRecord] = [
         "fuels": ["electric", "gas"],
         "display_name": "RIE",
         "ny_open_data_state_names": [],
+        "eia_utility_ids": [13214],  # The Narragansett Electric Co
         "gas_tariff_key": "rie",
         "electric_tariff_key": "rie",
     },
