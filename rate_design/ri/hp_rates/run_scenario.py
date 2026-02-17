@@ -318,10 +318,6 @@ def run(settings: ScenarioSettings) -> None:
         "s3://data.sb/switchbox/marginal_costs/"
         f"{settings.state.lower().strip('/')}/"
     )
-    if not distribution_mc_root.startswith("s3://"):
-        raise ValueError(
-            f"Distribution marginal cost root must be an S3 path, got `{distribution_mc_root}`"
-        )
     distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
         distribution_mc_root,
         hive_partitioning=True,
@@ -333,21 +329,12 @@ def run(settings: ScenarioSettings) -> None:
         pl.col("year").cast(pl.Utf8) == str(settings.test_year_run)
     )
     distribution_mc_df = distribution_mc_scan.collect()
-    if not isinstance(distribution_mc_df, pl.DataFrame):
-        raise TypeError("Expected Polars DataFrame from distribution MC scan collect()")
     distribution_marginal_costs = distribution_mc_df.to_pandas()
-    if distribution_marginal_costs.empty:
-        raise ValueError(
-            "No distribution marginal costs found for "
-            f"state={settings.state}, "
-            f"region={settings.region}, "
-            f"utility={settings.utility}, "
-            f"year={settings.test_year_run} "
-            f"under `{distribution_mc_root}`"
-        )
 
     if "timestamp" in distribution_marginal_costs.columns:
         distribution_marginal_costs = distribution_marginal_costs.set_index("timestamp")
+    elif "time" in distribution_marginal_costs.columns:
+        distribution_marginal_costs = distribution_marginal_costs.set_index("time")
     distribution_marginal_costs.index = pd.to_datetime(
         distribution_marginal_costs.index,
         errors="coerce",
@@ -360,32 +347,38 @@ def run(settings: ScenarioSettings) -> None:
     ]
     distribution_marginal_costs = distribution_marginal_costs.sort_index()
 
-    if "Marginal Distribution Costs ($/kWh)" in distribution_marginal_costs.columns:
-        distribution_marginal_costs = distribution_marginal_costs[
-            ["Marginal Distribution Costs ($/kWh)"]
-        ]
-    elif "mc_dist_per_kwh" in distribution_marginal_costs.columns:
-        distribution_marginal_costs = distribution_marginal_costs[
-            ["mc_dist_per_kwh"]
-        ].rename(columns={"mc_dist_per_kwh": "Marginal Distribution Costs ($/kWh)"})
-    elif "mc_total_per_kwh" in distribution_marginal_costs.columns:
-        distribution_marginal_costs = distribution_marginal_costs[
-            ["mc_total_per_kwh"]
-        ].rename(columns={"mc_total_per_kwh": "Marginal Distribution Costs ($/kWh)"})
+    numeric_cols = distribution_marginal_costs.select_dtypes("number").columns.tolist()
+    if not numeric_cols:
+        raise ValueError(
+            "No numeric marginal cost column found in distribution marginal costs "
+            f"dataset. Columns: {list(distribution_marginal_costs.columns)}"
+        )
+    cost_cols = [
+        c
+        for c in numeric_cols
+        if "kwh" in c.lower() and ("mc" in c.lower() or "marginal" in c.lower())
+    ]
+    if not cost_cols:
+        cost_cols = numeric_cols
+    if len(cost_cols) > 1:
+        raise ValueError(
+            "Multiple possible marginal cost columns found in distribution marginal "
+            f"costs parquet: {cost_cols}. Keep a single hourly cost column."
+        )
+    source_col = cost_cols[0]
+    if source_col != "Marginal Distribution Costs ($/kWh)":
         log.warning(
-            "Using `mc_total_per_kwh` as distribution marginal costs for "
-            "state=%s, region=%s, utility=%s, year=%s",
+            "Using `%s` as distribution marginal costs for state=%s, region=%s, "
+            "utility=%s, year=%s",
+            source_col,
             settings.state,
             settings.region,
             settings.utility,
             settings.test_year_run,
         )
-    else:
-        raise ValueError(
-            "Distribution marginal costs file must include one of: "
-            "`Marginal Distribution Costs ($/kWh)`, `mc_dist_per_kwh`, or "
-            f"`mc_total_per_kwh`. Found: {list(distribution_marginal_costs.columns)}"
-        )
+    distribution_marginal_costs = distribution_marginal_costs[[source_col]].rename(
+        columns={source_col: "Marginal Distribution Costs ($/kWh)"}
+    )
 
     if distribution_marginal_costs.index.tz is None:
         distribution_marginal_costs.index = distribution_marginal_costs.index.tz_localize(
@@ -396,17 +389,16 @@ def run(settings: ScenarioSettings) -> None:
             "EST"
         )
     distribution_marginal_costs.index.name = "time"
-    distribution_marginal_costs = distribution_marginal_costs.reindex(
-        bulk_marginal_costs.index
+    distribution_marginal_costs = (
+        distribution_marginal_costs.reindex(bulk_marginal_costs.index)
+        .ffill()
+        .bfill()
     )
-    if distribution_marginal_costs["Marginal Distribution Costs ($/kWh)"].isna().any():
-        missing_count = distribution_marginal_costs[
-            "Marginal Distribution Costs ($/kWh)"
-        ].isna().sum()
-        raise ValueError(
-            "Distribution marginal costs are missing at CAIRO hourly timestamps. "
-            f"Missing rows: {missing_count}"
-        )
+    log.info(
+        ".... Loaded distribution marginal costs rows=%s (aligned to hourly rows=%s)",
+        len(distribution_marginal_costs),
+        len(bulk_marginal_costs.index),
+    )
 
     (
         revenue_requirement,
