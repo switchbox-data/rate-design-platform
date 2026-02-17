@@ -385,9 +385,14 @@ def run(settings: ScenarioSettings) -> None:
         low_income_strategy=None,
         delivery_only_rev_req_passed=settings.delivery_only_rev_req_passed,
     )
+    revenue_requirement_total = (
+        float(revenue_requirement.sum())
+        if hasattr(revenue_requirement, "sum")
+        else float(revenue_requirement)
+    )
     log.info(
         ".... Revenue requirement total passed to CAIRO: %.2f",
-        float(revenue_requirement.sum()),
+        revenue_requirement_total,
     )
 
     bs = MeetRevenueSufficiencySystemWide(
