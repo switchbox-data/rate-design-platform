@@ -8,7 +8,7 @@ and writes one Parquet file per fiscal year under output/fy={year}/data.parquet.
 
 Use pl.scan_parquet() when reading the output elsewhere for predicate pushdown.
 
-    uv run python convert_income_limit_xlsx_to_parquet.py --input xlsx/ --output parquet/
+    uv run python convert_hud_ami_xlsx_to_parquet.py --input xlsx/ --output parquet/
 """
 
 import argparse

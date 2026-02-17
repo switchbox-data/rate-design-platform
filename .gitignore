@@ -7,8 +7,10 @@ __pycache__/
 
 # Local data and outputs
 # data/
-data/hud/income_limits/xlsx/
-data/hud/income_limits/parquet/
+data/hud/ami/xlsx/
+data/hud/ami/parquet/
+data/hud/smi/json/
+data/hud/smi/parquet/
 rate_design/ny/hp_rates/data/buildstock_raw/
 rate_design/ny/hp_rates/data/buildstock_processed/
 rate_design/ny/hp_rates/data/cairo_cases/

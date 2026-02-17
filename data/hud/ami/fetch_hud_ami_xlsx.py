@@ -5,7 +5,7 @@ Download HUD Section 8 Income Limits Excel files by fiscal year.
 Downloads Section8-FY{yyyy}.xlsx from HUD for each year in [start_year, end_year]
 into the given output directory. Use with the Justfile or run directly:
 
-    uv run python fetch_income_limit_xlsx.py --start-year 2016 --end-year 2025 --output xlsx/
+    uv run python fetch_hud_ami_xlsx.py --start-year 2016 --end-year 2025 --output xlsx/
 """
 
 import argparse
