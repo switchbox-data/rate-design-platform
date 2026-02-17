@@ -362,6 +362,12 @@ def run(settings: ScenarioSettings) -> None:
         ".... Loaded distribution marginal costs rows=%s",
         len(distribution_marginal_costs),
     )
+    log.info(
+        ".... Revenue requirement mode: delivery_only_rev_req_passed=%s "
+        "(base utility target=%.2f)",
+        settings.delivery_only_rev_req_passed,
+        settings.utility_revenue_requirement,
+    )
 
     (
         revenue_requirement,
@@ -378,6 +384,10 @@ def run(settings: ScenarioSettings) -> None:
         distribution_marginal_costs=distribution_marginal_costs,
         low_income_strategy=None,
         delivery_only_rev_req_passed=settings.delivery_only_rev_req_passed,
+    )
+    log.info(
+        ".... Revenue requirement total passed to CAIRO: %.2f",
+        float(revenue_requirement.sum()),
     )
 
     bs = MeetRevenueSufficiencySystemWide(

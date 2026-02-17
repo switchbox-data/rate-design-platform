@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -13,6 +14,7 @@ from cairo.rates_tool.loads import __timeshift__
 from cloudpathlib import S3Path
 
 CambiumPathLike = str | Path | S3Path
+log = logging.getLogger(__name__)
 
 
 def _normalize_cambium_path(cambium_scenario: CambiumPathLike):  # noqa: ANN201
@@ -208,20 +210,56 @@ def _return_revenue_requirement_target_fixed(
         low_income_strategy,
     )
 
+    adjusted_revenue_requirement_target = float(revenue_requirement_target)
+    supply_component = 0.0
     if delivery_only_rev_req_passed:
         supply_component = float(
             base_costs_by_type[["Marginal Energy Costs ($)", "Marginal Capacity Costs ($)"]]
             .sum()
             .sum()
         )
-        revenue_requirement_target += supply_component
+        adjusted_revenue_requirement_target += supply_component
 
-    return cost_funcs._calculate_system_revenue_target(
-        revenue_requirement_target,
+    (
+        revenue_requirement,
+        marginal_system_prices,
+        marginal_system_costs,
+        costs_by_type,
+    ) = cost_funcs._calculate_system_revenue_target(
+        adjusted_revenue_requirement_target,
         bulk_marginal_costs,
         distribution_marginal_costs,
         residual_cost,
         residual_cost_frac,
         hourly_sys_load,
         low_income_strategy,
+    )
+
+    revenue_requirement_total = (
+        float(revenue_requirement.sum())
+        if hasattr(revenue_requirement, "sum")
+        else float(revenue_requirement)
+    )
+    tolerance = max(abs(adjusted_revenue_requirement_target) * 1e-9, 1e-6)
+    if abs(revenue_requirement_total - adjusted_revenue_requirement_target) > tolerance:
+        raise ValueError(
+            "Revenue requirement mismatch in fixed helper: expected "
+            f"{adjusted_revenue_requirement_target}, got {revenue_requirement_total}"
+        )
+
+    log.info(
+        "Revenue requirement target resolved: delivery_only_rev_req_passed=%s "
+        "base_target=%.2f supply_component=%.2f adjusted_target=%.2f returned_total=%.2f",
+        delivery_only_rev_req_passed,
+        float(revenue_requirement_target),
+        supply_component,
+        adjusted_revenue_requirement_target,
+        revenue_requirement_total,
+    )
+
+    return (
+        revenue_requirement,
+        marginal_system_prices,
+        marginal_system_costs,
+        costs_by_type,
     )
