@@ -1,1 +1,167 @@
 # NY heat pump tasks (placeholder).
+
+s3_base := "s3://data.sb"
+# Resolve project root as absolute path using git
+project_root := `git rev-parse --show-toplevel`
+
+# Download NY electric and gas utility polygons from NY Open Data.
+download-ny-utility-polygons:
+	just download-ny-electric-utility-polygons
+	just download-ny-gas-utility-polygons
+
+download-ny-electric-utility-polygons:
+	wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/resource/awza-4vgu.csv" | aws s3 cp - "{{s3_base}}/gis/utility_boundaries/ny_electric_utilities_`date +%Y%m%d`.csv"
+	just test-ny-electric-utility-polygons-download
+
+download-ny-gas-utility-polygons:
+	wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/api/views/i7nm-ih89/rows.csv" | aws s3 cp - "{{s3_base}}/gis/utility_boundaries/ny_gas_utilities_$(date +%Y%m%d).csv"
+	just test-ny-gas-utility-polygons-download
+
+test-ny-electric-utility-polygons-download:
+	aws s3 ls "{{s3_base}}/gis/utility_boundaries/" | grep "ny_electric_utilities_.*\.csv"
+
+test-ny-gas-utility-polygons-download:
+	aws s3 ls "{{s3_base}}/gis/utility_boundaries/" | grep "ny_gas_utilities_.*\.csv"
+
+# Assign electric and gas utilities to ResStock buildings in NY. Delegates to data/resstock/.
+assign-ny-utilities release upgrade:
+	just -f {{project_root}}/data/resstock/Justfile assign-utility-ny {{release}} {{upgrade}} "ny_electric_utilities_20260216.csv" "ny_gas_utilities_20260216.csv"
+
+assign-ny-utilities-amy2018-2:
+	just assign-ny-utilities res_2024_amy2018_2 00
+
+# -----------------------------------------------------------------------------
+# PRE: ResStock (delegates to data/resstock/Justfile)
+# -----------------------------------------------------------------------------
+resstock-download:
+  just -f {{project_root}}/data/resstock/Justfile resstock-download NY
+
+resstock-test-download:
+  just -f {{project_root}}/data/resstock/Justfile resstock-test-download NY
+
+resstock-identify-hp-customers:
+  just -f {{project_root}}/data/resstock/Justfile resstock-identify-hp-customers NY
+
+# -----------------------------------------------------------------------------
+# PRE: Tariff mapping (electric and gas)
+# -----------------------------------------------------------------------------
+path_s3_resstock_metadata := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
+tariff_maps_dir_ny := "{{project_root}}/rate_design/ny/hp_rates/config/tariff_maps"
+config_dir_ny := project_root + "/rate_design/ny/hp_rates/config"
+
+fetch-ny-utility-stats:
+  uv run python {{project_root}}/data/eia/861/get_utility_stats_from_eia861.py NY > {{config_dir_ny}}/ny_electric_utility_stats.csv
+  @echo "Wrote {{config_dir_ny}}/ny_electric_utility_stats.csv"
+
+map-electric-tariff electric_utility SB_scenario_type SB_scenario_year upgrade_id output_dir:
+  uv run python {{project_root}}/utils/pre/electric_tariff_mapper.py \
+    --metadata_path "{{path_s3_resstock_metadata}}" \
+    --state NY \
+    --upgrade_id "{{upgrade_id}}" \
+    --electric_utility "{{electric_utility}}" \
+    --SB_scenario_type "{{SB_scenario_type}}" \
+    --SB_scenario_year "{{SB_scenario_year}}" \
+    --output_dir "{{output_dir}}"
+
+map-electric-coned-default:
+  just map-electric-tariff coned default 1 00 {{tariff_maps_dir_ny}}/electric
+
+map-electric-coned-seasonal:
+  just map-electric-tariff coned seasonal 1 00 {{tariff_maps_dir_ny}}/electric
+
+map-electric-coned-class-specific-seasonal:
+  just map-electric-tariff coned class_specific_seasonal 1 00 {{tariff_maps_dir_ny}}/electric
+
+map-electric-national-grid-default:
+  just map-electric-tariff nimo default 1 00 {{tariff_maps_dir_ny}}/electric
+
+map-electric-national-grid-seasonal:
+  just map-electric-tariff nimo seasonal 1 00 {{tariff_maps_dir_ny}}/electric
+
+map-electric-national-grid-class-specific-seasonal:
+  just map-electric-tariff nimo class_specific_seasonal 1 00 {{tariff_maps_dir_ny}}/electric
+
+map-electric-nyseg-default:
+  just map-electric-tariff nyseg default 1 00 {{tariff_maps_dir_ny}}/electric
+
+map-electric-nyseg-seasonal:
+  just map-electric-tariff nyseg seasonal 1 00 {{tariff_maps_dir_ny}}/electric
+
+map-electric-nyseg-class-specific-seasonal:
+  just map-electric-tariff nyseg class_specific_seasonal 1 00 {{tariff_maps_dir_ny}}/electric
+
+map-gas-tariff electric_utility upgrade_id output_dir:
+  uv run python {{project_root}}/utils/pre/gas_tariff_mapper.py \
+    --metadata_path "{{path_s3_resstock_metadata}}" \
+    --state NY \
+    --upgrade_id "{{upgrade_id}}" \
+    --electric_utility "{{electric_utility}}" \
+    --output_dir "{{output_dir}}"
+
+map-gas-coned-default:
+  just map-gas-tariff coned 00 {{tariff_maps_dir_ny}}/gas
+
+map-gas-coned-seasonal:
+  just map-gas-tariff coned 00 {{tariff_maps_dir_ny}}/gas
+
+map-gas-coned-class-specific-seasonal:
+  just map-gas-tariff coned 00 {{tariff_maps_dir_ny}}/gas
+
+map-gas-national-grid-default:
+  just map-gas-tariff nimo 00 {{tariff_maps_dir_ny}}/gas
+
+map-gas-national-grid-seasonal:
+  just map-gas-tariff nimo 00 {{tariff_maps_dir_ny}}/gas
+
+map-gas-national-grid-class-specific-seasonal:
+  just map-gas-tariff nimo 00 {{tariff_maps_dir_ny}}/gas
+
+map-gas-nyseg-default:
+  just map-gas-tariff nyseg 00 {{tariff_maps_dir_ny}}/gas
+
+map-gas-nyseg-seasonal:
+  just map-gas-tariff nyseg 00 {{tariff_maps_dir_ny}}/gas
+
+map-gas-nyseg-class-specific-seasonal:
+  just map-gas-tariff nyseg 00 {{tariff_maps_dir_ny}}/gas
+
+# -----------------------------------------------------------------------------
+# PRE: EIA hourly loads and marginal cost allocation (zone fetch, utility aggregate, MC allocation)
+# -----------------------------------------------------------------------------
+state := "NY"
+start_month := "2025-01"
+end_month := "2025-12"
+load_year := "2025"
+mc_year := "2026"
+zone_s3_base := "s3://data.sb/eia/hourly_demand/zones/"
+utility_s3_base := "s3://data.sb/eia/hourly_demand/utilities/"
+mc_output_s3_base := "s3://data.sb/switchbox/marginal_costs/ny/"
+
+fetch-zone-data:
+  just -f {{project_root}}/data/eia/hourly_loads/Justfile fetch-zone-data {{state}} {{start_month}} {{end_month}}
+
+create-td-mc-data utility:
+  just -f {{project_root}}/data/eia/hourly_loads/Justfile aggregate-utility-loads {{state}} {{load_year}} {{utility}}
+  cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_utility_tx_dx_mc.py \
+    --state {{state}} \
+    --utility {{utility}} \
+    --mc-year {{mc_year}} \
+    --load-year {{load_year}} \
+    --mc-table-path {{project_root}}/rate_design/ny/hp_rates/config/marginal_costs/ny_marginal_costs_2026_2035.csv \
+    --utility-load-s3-base {{utility_s3_base}} \
+    --output-s3-base {{mc_output_s3_base}} \
+    --upload
+
+create-td-mc-data-all:
+  just create-td-mc-data nyseg
+  just create-td-mc-data rge
+  just create-td-mc-data cenhud
+
+create-td-mc-data-nyseg:
+  just create-td-mc-data nyseg
+
+create-td-mc-data-rge:
+  just create-td-mc-data rge
+
+create-td-mc-data-cenhud:
+  just create-td-mc-data cenhud

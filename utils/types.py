@@ -1,5 +1,39 @@
 from typing import Literal
 
+# std_name from utility_codes. Keep in sync with get_electric_std_names/get_gas_std_names.
+electric_utility = Literal[
+    "bath",
+    "cenhud",
+    "chautauqua",
+    "coned",
+    "nimo",
+    "nyseg",
+    "or",
+    "psegli",
+    "rge",
+    "rie",
+]
+gas_utility = Literal[
+    "bath",
+    "cenhud",
+    "chautauqua",
+    "coned",
+    "corning",
+    "fillmore",
+    "kedli",
+    "kedny",
+    "nfg",
+    "nimo",
+    "nyseg",
+    "or",
+    "reserve",
+    "rge",
+    "rie",
+    "stlaw",
+    "valley",
+    "woodhull",
+]
+
 
 class SBScenario:
     analysis_type: Literal["default", "seasonal", "class_specific_seasonal"]
@@ -17,8 +51,3 @@ class SBScenario:
 
     def __str__(self):
         return f"{self.analysis_type}_{self.analysis_year}"
-
-
-electric_utility = Literal["Coned", "National Grid", "NYSEG"]
-
-gas_utility = Literal["National Grid", "NYSEG", "RIE"]

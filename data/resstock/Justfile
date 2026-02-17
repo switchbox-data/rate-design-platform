@@ -1,0 +1,104 @@
+# ResStock metadata pipeline: download, identify HP customers, heating type, assign utilities (NY).
+#
+# Invoked from rate_design/{ny,ri}/hp_rates/Justfile.
+#
+# Usage (standalone, from project root):
+#   just -f data/resstock/Justfile resstock-download NY
+#   just -f data/resstock/Justfile resstock-download RI
+#   just -f data/resstock/Justfile resstock-test-download NY
+#   just -f data/resstock/Justfile resstock-identify-hp-customers NY
+#   just -f data/resstock/Justfile resstock-identify-hp-customers RI
+#   just -f data/resstock/Justfile assign-utility-ny res_2024_amy2018_2 00
+
+project_root := `git rev-parse --show-toplevel`
+resstock_release := "res_2024_amy2018_2"
+resstock_upgrade_ids := "0 1 2 3 4 5"
+resstock_upgrade_ids_padded := "00 01 02 03 04 05"
+resstock_s3_base := "s3://data.sb/nrel/resstock"
+resstock_output_dir := "/data.sb/nrel/resstock"
+
+# Download ResStock metadata and loads via bsf. Pass state: NY or RI (or both as space-separated).
+resstock-download state:
+    #!/usr/bin/env bash
+    s="{{state}}"
+    if [[ -z "$s" ]]; then
+        echo "Usage: just resstock-download <state>"
+        echo "Example: just resstock-download NY"
+        exit 1
+    fi
+    cd "{{project_root}}" && uv run bsf \
+        --product resstock \
+        --release_year 2024 \
+        --weather_file amy2018 \
+        --release_version 2 \
+        --states $s \
+        --file_type "metadata load_curve_hourly" \
+        --upgrade_id {{resstock_upgrade_ids}} \
+        --output_directory {{resstock_output_dir}} \
+        --sample 0
+
+# Verify ResStock download. Pass state (NY or RI).
+resstock-test-download state:
+    cd "{{project_root}}" && uv run python "{{project_root}}/tests/test_resstock_download_to_s3.py" \
+        --data_path "{{resstock_s3_base}}/" \
+        --release {{resstock_release}} \
+        --state {{state}} \
+        --upgrade_id {{resstock_upgrade_ids_padded}}
+
+# Identify HP customers and heating type for a state. Pass state (NY or RI).
+identify-hp-customers release state upgrade_ids input_filename output_filename:
+    #!/usr/bin/env bash
+    set -e
+    if [[ "{{release}}" != *"2024"* ]]; then
+        echo "Warning: this task is only verified to work with 2024 releases."
+    fi
+    for upgrade_id in {{upgrade_ids}}; do
+        uv run python "{{project_root}}/data/resstock/identify_hp_customers.py" \
+            --input_dir "{{resstock_s3_base}}/{{release}}/metadata/state={{state}}/upgrade=$upgrade_id" \
+            --output_dir "{{resstock_s3_base}}/{{release}}/metadata/state={{state}}/upgrade=$upgrade_id" \
+            --input_filename "{{input_filename}}" \
+            --output_filename "{{output_filename}}" \
+            --upgrade_id "$upgrade_id"
+    done
+
+identify-heating-type release state upgrade_ids input_filename output_filename:
+    #!/usr/bin/env bash
+    set -e
+    if [[ "{{release}}" != *"2024"* ]]; then
+        echo "Warning: this task is only verified to work with 2024 releases."
+    fi
+    for upgrade_id in {{upgrade_ids}}; do
+        uv run python "{{project_root}}/data/resstock/identify_heating_type.py" \
+            --input_dir "{{resstock_s3_base}}/{{release}}/metadata/state={{state}}/upgrade=$upgrade_id" \
+            --output_dir "{{resstock_s3_base}}/{{release}}/metadata/state={{state}}/upgrade=$upgrade_id" \
+            --input_filename "{{input_filename}}" \
+            --output_filename "{{output_filename}}" \
+            --upgrade_id "$upgrade_id"
+    done
+
+identify-hp-customers-all-upgrades state:
+    just identify-hp-customers {{resstock_release}} {{state}} {{resstock_upgrade_ids_padded}} "metadata.parquet" "metadata-sb.parquet"
+
+identify-heating-type-all-upgrades state:
+    just identify-heating-type {{resstock_release}} {{state}} {{resstock_upgrade_ids_padded}} "metadata.parquet" "metadata-sb.parquet"
+
+identify-hp-and-heating-type-all-upgrades state:
+    just identify-hp-customers {{resstock_release}} {{state}} {{resstock_upgrade_ids_padded}} "metadata.parquet" "metadata-sb.parquet"
+    just identify-heating-type {{resstock_release}} {{state}} {{resstock_upgrade_ids_padded}} "metadata-sb.parquet" "metadata-sb.parquet"
+
+# Identify HP customers for a state (shortcut).
+resstock-identify-hp-customers state:
+    just identify-hp-customers-all-upgrades {{state}}
+
+# Assign electric/gas utilities to ResStock buildings (NY only). Run download-ny-utility-polygons first.
+assign-utility-ny release upgrade electric_poly gas_poly:
+    just -f "{{project_root}}/rate_design/ny/hp_rates/Justfile" download-ny-utility-polygons
+    uv run python "{{project_root}}/data/resstock/assign_utility_ny.py" \
+        --input_metadata_dir "{{resstock_s3_base}}/{{release}}/metadata/state=NY/upgrade={{upgrade}}/" \
+        --input_metadata_filename "metadata-sb.parquet" \
+        --output_metadata_dir "{{resstock_s3_base}}/{{release}}/metadata_utility/state=NY/" \
+        --output_utility_assignment_filename "utility_assignment.parquet" \
+        --electric_poly_dir "s3://data.sb/gis/utility_boundaries/" \
+        --gas_poly_dir "s3://data.sb/gis/utility_boundaries/" \
+        --electric_poly_filename "{{electric_poly}}" \
+        --gas_poly_filename "{{gas_poly}}"

@@ -11,13 +11,10 @@ from cairo.rates_tool.systemsimulator import (
     _return_export_compensation_rate,
     _return_revenue_requirement_target,
 )
-from cairo.utils.marginal_costs.marginal_cost_calculator import (
-    _load_cambium_marginal_costs,
-    add_distribution_costs,
-)
+from cairo.utils.marginal_costs.marginal_cost_calculator import add_distribution_costs
 
-from utils.cairo import build_bldg_id_to_load_filepath
-from utils.generate_precalc_mapping import generate_default_precalc_mapping
+from utils.cairo import build_bldg_id_to_load_filepath, _load_cambium_marginal_costs
+from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
@@ -27,7 +24,7 @@ run_name = "ri_default_test_run"
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 path_project = Path(__file__).resolve().parent
 path_resstock = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
-path_config = path_project / "data"
+path_config = path_project / "config"
 
 state = "RI"
 upgrade = "00"
@@ -42,7 +39,9 @@ path_resstock_loads = (
     path_resstock / "load_curve_hourly" / f"state={state}" / f"upgrade={upgrade}"
 )
 
-path_cambium_marginal_costs = Path("/data.sb/nrel/cambium/rie_p133_marginal_costs.csv")
+path_cambium_marginal_costs = (
+    path_config / "marginal_costs" / "rie_p133_marginal_costs.csv"
+)
 
 path_results = Path("/data.sb/switchbox/cairo/ri_default_test_run/")
 # TODO: alex - figure out how cairo is adjusting for inflation and make sure this is consistent with the test scenario parameters
@@ -55,27 +54,26 @@ target_customer_count = 451381  # Target customer count for utility territory
 
 # TODO: lee - take the prototype_id's above, and create a (bldg_id, tariff_key) mapping for the prototype_ids, then have path_tariff_map point to the mapping file.
 path_tariff_map = (
-    path_config / "tariff_map" / "dummy_electric_tariff_ri_supply_adj_run_1.csv"
+    path_config / "tariff_maps" / "electric" / "dummy_electric_tariff_ri_supply_adj_run_1.csv"
 )
 tariff_map_name = path_tariff_map.stem
-path_gas_tariff_map = path_config / "tariff_map" / "rie_gas_tariff_ri_run_1.csv"
+path_gas_tariff_map = (
+    path_config / "tariff_maps" / "gas" / "rie_gas_tariff_ri_run_1.csv"
+)
 
 process_workers = 20
 
 # RIE Residential Tariffs (A-16 for standard residential)
 # Fixed Customer Charge: $6.75/month, Volumetric Distribution Charge: $0.06455/kWh
 tariff_paths = {
-    "rie_a16_supply_adj": path_config
-    / "tariff_structure"
-    / "tariff_structure_rie_a16_supply_adj.json",
-    "rie_a60_supply_adj": path_config
-    / "tariff_structure"
-    / "tariff_structure_rie_a60_supply_adj.json",
+    "rie_a16_supply_adj": path_config / "tariffs" / "electricity" / "rie_a16_supply_adj.json",
+    "rie_a60_supply_adj": path_config / "tariffs" / "electricity" / "rie_a60_supply_adj.json",
 }
 gas_tariff_paths = {
     "rie_residential_non_heating_gas": path_config
-    / "tariff_structure"
-    / "tariff_structure_rie_residential_non_heating_gas.json",
+    / "tariffs"
+    / "gas"
+    / "rie_residential_non_heating_gas.json",
 }
 
 # Load in and manipulate tariff information as needed for bill calculation
@@ -95,12 +93,9 @@ gas_tariffs_params, gas_tariff_map_df = _initialize_tariffs(
 # Generate precalc mapping from RIE A-16 tariff structure
 # rel_values derived proportionally from rates (normalized to min rate = 1.0)
 precalc_mapping = generate_default_precalc_mapping(
-    tariff_path=path_config
-    / "tariff_structure"
-    / "tariff_structure_rie_a16_supply_adj.json",
+    tariff_path=path_config / "tariffs" / "electricity" / "rie_a16_supply_adj.json",
     tariff_key="rie_a16_supply_adj",
 )
-
 
 # read in basic customer-level information and reweight to utility customer count
 customer_metadata = return_buildingstock(

@@ -1,0 +1,47 @@
+# HUD SMI (State Median Income) Data Pipeline
+#
+# Fetches state-level income limits from the HUD API and converts to Parquet
+# with the same canonical schema as AMI (data/hud/ami). Paths: json/ (fetched),
+# parquet/ (fy=<year>/data.parquet). S3: s3://data.sb/hud/smi/
+#
+# QUICK START:
+#   just prepare
+#   just prepare start_year=2018 end_year=2022
+#
+# INDIVIDUAL STEPS:
+#   just fetch      # Call API, write json/states.json and json/fy=<year>/<state>.json
+#   just convert    # Convert json/ to parquet/fy=<year>/data.parquet
+#   just upload     # Sync parquet/ to s3://data.sb/hud/smi/
+#   just clean      # Remove json/ and parquet/
+#
+# DATA INFO:
+#   - Source: HUD API il/statedata/{statecode}?year= (2017–2025)
+#   - Schema: Same as AMI (fy, state_fips, state_abbr, state_name, median_income,
+#     l50_1..l50_8, eli_1..eli_8, l80_1..l80_8; area columns null)
+#   - Partition: fy=<year>/data.parquet
+#   - Requires HUD_API_KEY in env or .env
+
+start_year := "2017"
+end_year := "2025"
+
+# Fetch SMI from HUD API to json/ (states + fy=<year>/<state>.json)
+fetch:
+    uv run python fetch_hud_smi_json.py --start-year {{start_year}} --end-year {{end_year}} --output json/
+
+# Convert json/ to parquet/fy=<year>/data.parquet (AMI-aligned schema)
+convert:
+    uv run python convert_hud_smi_json_to_parquet.py --input json/ --output parquet/
+
+# Full pipeline: fetch then convert
+prepare:
+    just fetch
+    just convert
+
+# Sync parquet/ to s3://data.sb/hud/smi/
+upload:
+    aws s3 sync parquet/ s3://data.sb/hud/smi/ --exclude "*" --include "*.parquet"
+
+# Remove json/ and parquet/
+clean:
+    rm -rf json parquet
+    echo "✓ Removed json/, parquet/"

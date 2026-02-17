@@ -1,0 +1,27 @@
+# FRED CPI and ASPE FPL data pipeline
+#
+# CPI: Fetch FRED series (e.g. CPIAUCSL) and upload annual-average parquet to S3.
+# FPL: Fetch HHS Federal Poverty Guidelines from ASPE API and write to utils/post/data/fpl_guidelines.yaml.
+# Invoked from rate_design/ri/hp_rates/Justfile (fetch-cpi delegates here).
+#
+# Usage (standalone, from project root):
+#   just -f data/fred/cpi/Justfile fetch-cpi
+#   just -f data/fred/cpi/Justfile fetch-cpi CPIAUCSL 2020 2025
+#   just -f data/fred/cpi/Justfile fetch-fpl 2020 2025
+
+project_root := `git rev-parse --show-toplevel`
+fpl_output := project_root + "/utils/post/data/fpl_guidelines.yaml"
+cpi_s3_base := "s3://data.sb"
+
+# Fetch FRED CPI series and upload annual-average parquet to S3. Requires FRED_API_KEY.
+# Output: s3://data.sb/fred/cpi/<series_lower>_<start>_<end>_<YYYYMMDD>.parquet
+fetch-cpi series="CPIAUCSL" start_year="2020" end_year="2025":
+    cd "{{project_root}}" && uv run python "{{project_root}}/data/fred/cpi/fetch_cpi_from_fred.py" \
+        --series {{series}} --start-year {{start_year}} --end-year {{end_year}} \
+        --s3-base {{cpi_s3_base}} --upload
+
+# Fetch HHS FPL guidelines from ASPE and write to utils/post/data/fpl_guidelines.yaml.
+fetch-fpl start_year end_year:
+    cd "{{project_root}}" && uv run python "{{project_root}}/data/fred/cpi/fetch_fpl_from_aspe.py" \
+        --start-year {{start_year}} --end-year {{end_year}} \
+        --output "{{fpl_output}}"

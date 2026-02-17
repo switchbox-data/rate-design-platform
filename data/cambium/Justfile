@@ -1,0 +1,78 @@
+# Cambium Data Pipeline
+#
+# Downloads, extracts, and converts balancing-area-level NREL Cambium data from any year. The year
+# is set below and drives all paths (zips/<year>, csv/<year>, parquet/<year>)
+# and the S3 upload destination s3://data.sb/nrel/cambium/<year>/.
+#
+# QUICK START:
+#   just prepare                    # Full pipeline (year=2024, scenario=Mid-case)
+#   just prepare year=2023          # Full pipeline for Cambium 2023
+#   just prepare scenario=LowRE     # Different scenario
+#
+# INDIVIDUAL STEPS:
+#   just fetch            # Download to zips/<year> (uses year + scenario)
+#   just unzip             # Extract zips/<year> to csv/<year>
+#   just convert           # Convert csv/<year>/hourly_balancingArea to parquet/<year>
+#   just upload            # Sync parquet/<year> to s3://data.sb/nrel/cambium/<year>/
+#   just clean             # Remove zips/<year>, csv/<year>, parquet/<year>
+#
+# INTERACTIVE MODE (explore available files for a year):
+#   just show
+#   just show year=2023
+#
+# DATA INFO:
+#   - Source: 798 CSV files (2.8 GB), 133 balancing areas × 6 years (2025-2050)
+#   - Output: Parquet (0.86 GB, 3.3x compression), partitioned by scenario/t/gea/r
+#   - Schema: 91 columns (11 metadata + 80 data fields)
+#   - Sorted: by timestamp within each partition
+
+# Cambium release year: used for fetch, paths, and S3 upload
+year := "2024"
+# Scenario to download (e.g. Mid-case, LowRE, Reference)
+scenario := "Mid-case"
+
+# Show available Cambium files interactively for the given year. All Cambium CSVs are available for download; fetch only downloads hourly balancing areas.
+show:
+    uv run python fetch_cambium_csvs.py
+
+# Fetch hourly balancing areas for the chosen scenario to zips/<year>
+fetch:
+    uv run python fetch_cambium_csvs.py --year {{year}} --output zips/{{year}} --scenario "{{scenario}}" --resolution "Hourly" --location "Balancing Areas"
+
+# Extract ZIP files from zips/<year> to csv/<year>
+unzip:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    zip_dir="zips/{{year}}"
+    csv_dir="csv/{{year}}"
+    if [ ! -d "$zip_dir" ]; then
+        echo "Error: $zip_dir not found. Run 'just fetch' first."
+        exit 1
+    fi
+    mkdir -p "$csv_dir"
+    for zipfile in "$zip_dir"/*.zip; do
+        if [ -f "$zipfile" ]; then
+            echo "Extracting: $(basename "$zipfile")"
+            unzip -o "$zipfile" -d "$csv_dir/"
+        fi
+    done
+    echo "✓ Extracted to $csv_dir"
+
+# Convert CSV files in csv/<year>/hourly_balancingArea to Parquet in parquet/<year>
+convert:
+    uv run python convert_cambium_csv_to_parquet.py --input csv/{{year}}/hourly_balancingArea --output parquet/{{year}}
+
+# Full pipeline: fetch, extract, convert to Parquet
+prepare:
+    just fetch
+    just unzip
+    just convert
+
+# Upload parquet/<year> to S3 (s3://data.sb/nrel/cambium/<year>/)
+upload:
+    aws s3 sync parquet/{{year}}/ s3://data.sb/nrel/cambium/{{year}}/ --exclude "*" --include "*.parquet"
+
+# Remove intermediate dirs for the current year (zips, csv, parquet)
+clean:
+    rm -rf zips csv parquet
+    echo "✓ Removed zips/, csv/, parquet/"

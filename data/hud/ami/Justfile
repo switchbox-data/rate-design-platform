@@ -1,0 +1,48 @@
+# HUD AMI (Area Median Income) Data Pipeline
+#
+# Downloads HUD Section 8 Income Limits Excel files and converts them to canonical
+# Parquet. Paths: xlsx/ (downloaded xlsx), parquet/ (fy=<year>/data.parquet).
+# S3: s3://data.sb/hud/ami/
+#
+# QUICK START:
+#   just prepare
+#   just prepare start_year=2018 end_year=2022
+#
+# INDIVIDUAL STEPS:
+#   just fetch      # Download Section8-FY*.xlsx to xlsx/
+#   just convert    # Convert xlsx/ to parquet/fy=<year>/data.parquet
+#   just upload     # Sync parquet/ to s3://data.sb/hud/ami/
+#   just clean      # Remove xlsx/ and parquet/
+#
+# DATA INFO:
+#   - Source: https://www.huduser.gov/portal/datasets/il/il{YY}/Section8-FY{YY}.xlsx
+#   - Years: FY2016–FY2025 (10 years)
+#   - Schema: fy, state_fips, state_abbr, state_name, county_fips, county_name, fips,
+#     hud_area_code, hud_area_name, msa, county_town_name, metro, median_income,
+#     l50_1..l50_8, eli_1..eli_8, l80_1..l80_8
+#   - Partition: fy=<year>/data.parquet
+
+start_year := "2016"
+end_year := "2025"
+
+# Download Section 8 Excel files for start_year..end_year to xlsx/
+fetch:
+    uv run python fetch_hud_ami_xlsx.py --start-year {{start_year}} --end-year {{end_year}} --output xlsx/
+
+# Convert xlsx/ to parquet/fy=<year>/data.parquet
+convert:
+    uv run python convert_hud_ami_xlsx_to_parquet.py --input xlsx/ --output parquet/
+
+# Full pipeline: fetch then convert
+prepare:
+    just fetch
+    just convert
+
+# Sync parquet/ to s3://data.sb/hud/income_limits/
+upload:
+    aws s3 sync parquet/ s3://data.sb/hud/ami/ --exclude "*" --include "*.parquet"
+
+# Remove xlsx/ and parquet/
+clean:
+    rm -rf xlsx parquet
+    echo "✓ Removed xlsx/, parquet/"

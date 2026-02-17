@@ -11,15 +11,12 @@ from cairo.rates_tool.systemsimulator import (
     _return_export_compensation_rate,
     _return_revenue_requirement_target,
 )
-from cairo.utils.marginal_costs.marginal_cost_calculator import (
-    _load_cambium_marginal_costs,
-    add_distribution_costs,
-)
+from cairo.utils.marginal_costs.marginal_cost_calculator import add_distribution_costs
 
 # from tests import constant_tests as const_vars
 # from tests.utils import reweight_customer_metadata
-from utils.cairo import build_bldg_id_to_load_filepath
-from utils.reweight_customer_counts import reweight_customer_counts
+from utils.cairo import build_bldg_id_to_load_filepath, _load_cambium_marginal_costs
+from utils.pre.reweight_customer_counts import reweight_customer_counts
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
@@ -36,8 +33,8 @@ prototype_ids = [
 ]
 
 path_project = Path("./rate_design/ny/hp_rates")
-path_data = path_project / "data"
-path_tariff_map = path_data / "tariff_map" / "precalculation_testing.csv"
+path_data = path_project / "config"
+path_tariff_map = path_data / "tariff_maps" / "electric" / "precalculation_testing.csv"
 tariff_map_name = path_tariff_map.stem
 path_resstock = path_data / "resstock"
 path_resstock_metadata = path_resstock / "results_up00.parquet"
@@ -57,20 +54,18 @@ gas_tariff_map_name = "dummy_gas"  # Gas tariff map name for gas bill calculatio
 
 process_workers = 20
 
-tariff_paths = [
-    path_data / "tariffs" / "tariff_1.json",
-    path_data / "tariffs" / "tariff_2.json",
-]
+tariff_paths = {
+    "dummy_electrical_fixed": path_data
+    / "tariffs"
+    / "electricity"
+    / "dummy_electrical_fixed.json",
+}
 
 # load in and manipulate tariff information as needed for bill calculation
-# tariffs_params, tariff_map_df = _initialize_tariffs(
-#    tariff_map=path_tariff_map,
-#    building_stock_sample=prototype_ids,
-#    tariff_paths=tariff_paths,
-# )
 tariffs_params, tariff_map_df = _initialize_tariffs(
     tariff_map=path_tariff_map,
     building_stock_sample=prototype_ids,
+    tariff_paths=tariff_paths,
 )
 
 # TODO: update this depending on the tariff structure

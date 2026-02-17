@@ -4,9 +4,18 @@ import os
 import subprocess
 from pathlib import Path
 
+# Load .env from project root so AWS_REGION, etc. are available to get_aws_region() and others
+_env_path = Path(__file__).resolve().parent.parent / ".env"
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(_env_path)
+except ImportError:
+    pass
+
 
 def get_aws_region(default: str = "us-west-2") -> str:
-    """Return AWS region from env (AWS_REGION / AWS_DEFAULT_REGION) or from AWS config (~/.aws/config) via boto3."""
+    """Return AWS region from env (AWS_REGION / AWS_DEFAULT_REGION), .env, or from AWS config via boto3."""
     region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
     if region:
         return region
