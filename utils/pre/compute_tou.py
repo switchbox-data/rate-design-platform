@@ -161,7 +161,7 @@ def create_tou_tariff(
     peak_hours: list[int],
     peak_offpeak_ratio: float,
     base_rate: float = 0.06,
-    fixed_charge: float = 5.0,
+    fixed_charge: float = 6.75,
     adjustment: float = 0.0,
     utility: str = "GenericUtility",
 ) -> dict:
