@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import polars as pl
 import yaml
 from cairo.rates_tool.loads import _return_load, return_buildingstock
 from cairo.rates_tool.systemsimulator import (
@@ -18,6 +19,7 @@ from cairo.rates_tool.systemsimulator import (
     _return_revenue_requirement_target,
 )
 
+from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils.cairo import _load_cambium_marginal_costs, build_bldg_id_to_load_filepath
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 
@@ -37,6 +39,9 @@ class ScenarioSettings:
 
     run_name: str
     run_type: str
+    state: str
+    region: str
+    utility: str
     path_results: Path
     path_resstock_metadata: Path
     path_resstock_loads: Path
@@ -54,9 +59,6 @@ class ScenarioSettings:
     process_workers: int
     solar_pv_compensation: str = "net_metering"
     delivery_only_rev_req_passed: bool = False
-    path_distribution_marginal_costs: str | Path = (
-        "s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/data.parquet"
-    )
 
 
 def _parse_int(value: object, field_name: str) -> int:
@@ -89,12 +91,6 @@ def _parse_bool(value: object, field_name: str) -> bool:
 def _resolve_path(value: str, base_dir: Path) -> Path:
     path = Path(value)
     return path if path.is_absolute() else (base_dir / path)
-
-
-def _resolve_path_or_uri(value: str, base_dir: Path) -> str | Path:
-    if value.startswith("s3://"):
-        return value
-    return _resolve_path(value, base_dir)
 
 
 def _require_mapping(value: Any, field_name: str) -> dict[str, Any]:
@@ -134,6 +130,8 @@ def _build_settings_from_yaml_run(
 ) -> ScenarioSettings:
     """Build runtime settings from repo YAML scenario config."""
     state = str(run.get("state", "RI")).upper()
+    region = str(_require_value(run, "region")).lower()
+    utility = str(_require_value(run, "utility")).lower()
     mode = str(run.get("run_type", "precalc"))
     upgrade = f"{_parse_int(run.get('upgrade', 0), 'upgrade'):02d}"
     test_year_run = _parse_int(run.get("test_year_run"), "test_year_run")
@@ -176,19 +174,12 @@ def _build_settings_from_yaml_run(
         ),
         "delivery_only_rev_req_passed",
     )
-    path_distribution_marginal_costs = _resolve_path_or_uri(
-        str(
-            run.get(
-                "path_distribution_marginal_costs",
-                "s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/data.parquet",
-            )
-        ),
-        PATH_CONFIG,
-    )
-
     return ScenarioSettings(
         run_name=run_name_override or default_run_name,
         run_type=mode,
+        state=state,
+        region=region,
+        utility=utility,
         path_results=output_dir,
         path_resstock_metadata=PATH_RESSTOCK
         / "metadata"
@@ -225,7 +216,6 @@ def _build_settings_from_yaml_run(
         process_workers=process_workers,
         solar_pv_compensation=solar_pv_compensation,
         delivery_only_rev_req_passed=delivery_only_rev_req_passed,
-        path_distribution_marginal_costs=path_distribution_marginal_costs,
     )
 
 def _parse_args() -> argparse.Namespace:
@@ -324,9 +314,93 @@ def run(settings: ScenarioSettings) -> None:
         settings.path_cambium_marginal_costs,
         settings.test_year_run,
     )
-    distribution_marginal_costs = pd.read_parquet(
-        settings.path_distribution_marginal_costs
+    distribution_mc_root = (
+        "s3://data.sb/switchbox/marginal_costs/"
+        f"{settings.state.lower().strip('/')}/"
     )
+    if not distribution_mc_root.startswith("s3://"):
+        raise ValueError(
+            f"Distribution marginal cost root must be an S3 path, got `{distribution_mc_root}`"
+        )
+    distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
+        distribution_mc_root,
+        hive_partitioning=True,
+        storage_options=get_aws_storage_options(),
+    )
+    distribution_mc_scan = distribution_mc_scan.filter(
+        pl.col("region").cast(pl.Utf8) == settings.region
+    ).filter(pl.col("utility").cast(pl.Utf8) == settings.utility).filter(
+        pl.col("year").cast(pl.Utf8) == str(settings.test_year_run)
+    )
+    distribution_mc_df = distribution_mc_scan.collect()
+    if not isinstance(distribution_mc_df, pl.DataFrame):
+        raise TypeError("Expected Polars DataFrame from distribution MC scan collect()")
+    distribution_marginal_costs = distribution_mc_df.to_pandas()
+    if distribution_marginal_costs.empty:
+        raise ValueError(
+            "No distribution marginal costs found for "
+            f"state={settings.state}, "
+            f"region={settings.region}, "
+            f"utility={settings.utility}, "
+            f"year={settings.test_year_run} "
+            f"under `{distribution_mc_root}`"
+        )
+
+    if "timestamp" in distribution_marginal_costs.columns:
+        distribution_marginal_costs = distribution_marginal_costs.set_index("timestamp")
+    distribution_marginal_costs.index = pd.to_datetime(
+        distribution_marginal_costs.index,
+        errors="coerce",
+    )
+    distribution_marginal_costs = distribution_marginal_costs.loc[
+        ~distribution_marginal_costs.index.isna()
+    ].copy()
+    distribution_marginal_costs = distribution_marginal_costs.sort_index()
+
+    if "Marginal Distribution Costs ($/kWh)" in distribution_marginal_costs.columns:
+        distribution_marginal_costs = distribution_marginal_costs[
+            ["Marginal Distribution Costs ($/kWh)"]
+        ]
+    elif "mc_dist_per_kwh" in distribution_marginal_costs.columns:
+        distribution_marginal_costs = distribution_marginal_costs[
+            ["mc_dist_per_kwh"]
+        ].rename(columns={"mc_dist_per_kwh": "Marginal Distribution Costs ($/kWh)"})
+    elif "mc_total_per_kwh" in distribution_marginal_costs.columns:
+        distribution_marginal_costs = distribution_marginal_costs[
+            ["mc_total_per_kwh"]
+        ].rename(columns={"mc_total_per_kwh": "Marginal Distribution Costs ($/kWh)"})
+        log.warning(
+            "Using `mc_total_per_kwh` as distribution marginal costs for "
+            "state=%s, region=%s, utility=%s, year=%s",
+            settings.state,
+            settings.region,
+            settings.utility,
+            settings.test_year_run,
+        )
+    else:
+        raise ValueError(
+            "Distribution marginal costs file must include one of: "
+            "`Marginal Distribution Costs ($/kWh)`, `mc_dist_per_kwh`, or "
+            f"`mc_total_per_kwh`. Found: {list(distribution_marginal_costs.columns)}"
+        )
+
+    if distribution_marginal_costs.index.tz is None:
+        distribution_marginal_costs.index = distribution_marginal_costs.index.tz_localize(
+            "EST"
+        )
+    else:
+        distribution_marginal_costs.index = distribution_marginal_costs.index.tz_convert(
+            "EST"
+        )
+    distribution_marginal_costs = distribution_marginal_costs.reindex(raw_load_elec.index)
+    if distribution_marginal_costs["Marginal Distribution Costs ($/kWh)"].isna().any():
+        missing_count = distribution_marginal_costs[
+            "Marginal Distribution Costs ($/kWh)"
+        ].isna().sum()
+        raise ValueError(
+            "Distribution marginal costs are missing at CAIRO timestamps. "
+            f"Missing rows: {missing_count}"
+        )
 
     (
         revenue_requirement,
