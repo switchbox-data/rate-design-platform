@@ -20,13 +20,13 @@ Timezone handling:
 
 Usage:
     # Fetch full year NY (API key from .env)
-    python fetch_eia_zone_loads.py --state NY --start-month 2024-01 --end-month 2024-12
+    python fetch_zone_loads_parquet.py --state NY --start-month 2024-01 --end-month 2024-12
 
     # Fetch specific months RI
-    python fetch_eia_zone_loads.py --state RI --start-month 2024-06 --end-month 2024-08
+    python fetch_zone_loads_parquet.py --state RI --start-month 2024-06 --end-month 2024-08
 
     # Override API key
-    python fetch_eia_zone_loads.py --state NY --start-month 2024-01 --end-month 2024-12 --eia-api-key YOUR_KEY
+    python fetch_zone_loads_parquet.py --state NY --start-month 2024-01 --end-month 2024-12 --eia-api-key YOUR_KEY
 
 Note:
     - Script automatically expands month ranges to full month dates (first to last day)

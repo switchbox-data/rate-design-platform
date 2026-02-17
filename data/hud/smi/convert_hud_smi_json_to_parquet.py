@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Convert HUD SMI JSON (from fetch_hud_smi_json.py) to Parquet.
+Convert HUD SMI JSON (from fetch_smi_json.py) to Parquet.
 
 Reads json/states.json and json/fy={year}/*.json. Output schema is a subset of AMI:
 same column names and data types as AMI where they overlap, but only columns SMI

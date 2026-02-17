@@ -27,7 +27,7 @@ end_year := "2025"
 
 # Download Section 8 Excel files for start_year..end_year to xlsx/
 fetch:
-    uv run python fetch_hud_ami_xlsx.py --start-year {{start_year}} --end-year {{end_year}} --output xlsx/
+    uv run python fetch_ami_xlsx.py --start-year {{start_year}} --end-year {{end_year}} --output xlsx/
 
 # Convert xlsx/ to parquet/fy=<year>/data.parquet
 convert:

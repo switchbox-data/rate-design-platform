@@ -23,7 +23,7 @@ Adding a new state
 
    - eia_utility_ids: EIA-861 utility IDs for that utility in this state.
      Look up in EIA-861 data (e.g. Sales table) or use
-     data/eia/861/fetch_eia861_utility_stat_parquets.py to discover IDs.
+     data/eia/861/fetch_electric_utility_stat_parquets.py to discover IDs.
      Enables get_eia_utility_id_to_std_name() and the utility_code column.
 
    - gas_tariff_key / electric_tariff_key: keys used in tariff filenames and

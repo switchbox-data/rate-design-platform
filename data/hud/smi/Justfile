@@ -26,7 +26,7 @@ end_year := "2025"
 
 # Fetch SMI from HUD API to json/ (states + fy=<year>/<state>.json)
 fetch:
-    uv run python fetch_hud_smi_json.py --start-year {{start_year}} --end-year {{end_year}} --output json/
+    uv run python fetch_smi_json.py --start-year {{start_year}} --end-year {{end_year}} --output json/
 
 # Convert json/ to parquet/fy=<year>/data.parquet (AMI-aligned schema)
 convert:

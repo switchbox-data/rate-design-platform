@@ -8,14 +8,14 @@ Two modes:
    output_dir/state=<state>/data.parquet. Use for building local/S3 utility stats.
 
 2. CSV to stdout (single state): pass STATE as positional argument. Writes one state's
-   stats as CSV for ad-hoc use (e.g. just fetch_eia861_utility_stat_parquets.py NY).
+   stats as CSV for ad-hoc use (e.g. just fetch_electric_utility_stat_parquets.py NY).
 
 Uses EIA-861 yearly sales data (PUDL). Filtered to Investor Owned only.
 Uses central utility crosswalk (utils.utility_codes) for utility_code column.
 
 Customer classes are discovered at runtime from the parquet (commercial,
 industrial, other, residential, transportation). Dataset schema and
-customer_class values are validated in tests/test_fetch_eia861_utility_stat_parquets.py.
+customer_class values are validated in tests/test_fetch_electric_utility_stat_parquets.py.
 
 Freshness: Each row has report_date (EIA-861 reporting period). The script uses
 the latest report_date per utility; the parquet has no "file built" date (source:

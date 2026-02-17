@@ -12,6 +12,6 @@ fpl_output := project_root + "/utils/post/data/fpl_guidelines.yaml"
 
 # Fetch FPL guidelines for start_year..end_year and write to utils/post/data/fpl_guidelines.yaml
 fetch start_year="2020" end_year="2025":
-    uv run python "{{project_root}}/data/aspe/fpl/fetch_fpl_from_aspe.py" \
+    uv run python "{{project_root}}/data/aspe/fpl/fetch_fpl_yaml.py" \
         --start-year {{start_year}} --end-year {{end_year}} \
         --output "{{fpl_output}}"

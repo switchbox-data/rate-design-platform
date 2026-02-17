@@ -15,7 +15,7 @@ s3_parquet_dir := "s3://data.sb/eia/861/electric_utility_stats/"
 
 # Build IOU stats for all states; write to electric_utility_stats/state=<state>/data.parquet
 fetch:
-    uv run python "{{project_root}}/data/eia/861/fetch_eia861_utility_stat_parquets.py" --output-dir "{{local_parquet_dir}}"
+    uv run python "{{project_root}}/data/eia/861/fetch_electric_utility_stat_parquets.py" --output-dir "{{local_parquet_dir}}"
     @echo "Wrote {{local_parquet_dir}}state=<state>/data.parquet"
 
 # Upload local parquet to S3 (Hive-style partition state=<state>/data.parquet).
@@ -26,7 +26,7 @@ upload:
 
 # Print one state's stats as CSV to stdout (no --output-dir)
 fetch-state-stats state:
-    uv run python "{{project_root}}/data/eia/861/fetch_eia861_utility_stat_parquets.py" {{state}}
+    uv run python "{{project_root}}/data/eia/861/fetch_electric_utility_stat_parquets.py" {{state}}
 
 # Remove local parquet/
 clean:

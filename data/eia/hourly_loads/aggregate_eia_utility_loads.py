@@ -81,7 +81,7 @@ def load_zone_data(
         raise ValueError(
             f"No zone data found for region={iso_region}, year={year}, zones={zones}. "
             "Fetch zone data first, for example:\n"
-            "  uv run python data/eia/hourly_loads/fetch_eia_zone_loads.py "
+            "  uv run python data/eia/hourly_loads/fetch_zone_loads_parquet.py "
             "--state <NY|RI> "
             f"--start-month {year}-01 --end-month {year}-12 "
             f"--s3-base {s3_base}"
@@ -110,7 +110,7 @@ def load_zone_data(
             f"Cannot proceed with incomplete data. Missing {len(missing_data)} partition(s). "
             f"All 12 months required for calendar year {year}. "
             "Re-run zone fetch to backfill missing partitions:\n"
-            "  uv run python data/eia/hourly_loads/fetch_eia_zone_loads.py "
+            "  uv run python data/eia/hourly_loads/fetch_zone_loads_parquet.py "
             "--state <NY|RI> "
             f"--start-month {year}-01 --end-month {year}-12 "
             f"--s3-base {s3_base}"
