@@ -1,10 +1,17 @@
 # Resolve project root via git (works from any subdirectory in the repo)
 project_root := `git rev-parse --show-toplevel`
 path_s3_resstock_metadata := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
-tariff_map_dir_ri := "{{project_root}}/rate_design/ri/hp_rates/data/tariff_map"
+tariff_map_dir_ri := project_root + "/rate_design/ri/hp_rates/data/tariff_map"
+data_dir_ri := project_root + "/rate_design/ri/hp_rates/data"
+
+# Fetch RI investor-owned utility customer counts from EIA-861, write to ri_electric_utility_stats.csv
+fetch-ri-utility-stats:
+  uv run python {{project_root}}/utils/get_utility_stats_from_eia861.py RI > {{data_dir_ri}}/ri_electric_utility_stats.csv
+  @echo "Wrote {{data_dir_ri}}/ri_electric_utility_stats.csv"
 
 # Usage: just map-electric-tariff [electric_utility] [SB_scenario_type] [SB_scenario_year] [upgrade_id] [output_dir]
 # Example: just map-electric-tariff rie default 1 00 ./rate_design/ri/hp_rates/data/tariff_map
+# electric_utility: std_name (e.g. rie)
 map-electric-tariff electric_utility SB_scenario_type SB_scenario_year upgrade_id output_dir:
   uv run python {{project_root}}/utils/electric_tariff_mapper.py \
     --metadata_path "{{path_s3_resstock_metadata}}" \
@@ -85,7 +92,7 @@ map-gas-nyseg-seasonal:
   just map-gas-tariff nyseg 00 {{tariff_map_dir_ri}}
 
 map-gas-nyseg-class-specific-seasonal:
-  just map-gas-tariff nyseg 00 {{tariff_map_dir_ri}}
+  just map-gas-tariff nyseg class_specific_seasonal 1 00 {{tariff_map_dir_ri}}
 
 map-gas-rie-default:
   just map-gas-tariff rie 00 {{tariff_map_dir_ri}}
