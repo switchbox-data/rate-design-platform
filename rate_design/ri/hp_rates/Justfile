@@ -2,7 +2,7 @@
 
 # Resolve project root as absolute path using git
 project_root := `git rev-parse --show-toplevel`
-ri_run_scenario_config := project_root + "/rate_design/ri/hp_rates/config/run_scenarios.yaml"
+ri_run_scenario_config := project_root + "/rate_design/ri/hp_rates/config/scenarios.yaml"
 
 # -----------------------------------------------------------------------------
 # Run RI scenarios

@@ -30,7 +30,7 @@ PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
 PATH_RESSTOCK = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
 DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
-DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "run_scenarios.yaml"
+DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
 
 
 @dataclass(slots=True)
