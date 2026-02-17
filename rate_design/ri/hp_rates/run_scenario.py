@@ -6,7 +6,7 @@ import argparse
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import polars as pl
@@ -120,9 +120,11 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
             f"Invalid YAML format in {scenario_config}: expected top-level map"
         )
     runs = _require_mapping(data.get("runs"), "runs")
-    run = runs.get(run_num)
+    # Try string key first (YAML keys are typically strings)
+    run = runs.get(str(run_num))
     if run is None:
-        run = runs.get(str(run_num))
+        # Fallback: try int key in case YAML was parsed with int keys
+        run = runs.get(run_num)  # type: ignore[arg-type]
     if run is None:
         raise ValueError(f"Run {run_num} not found in {scenario_config}")
     return _require_mapping(run, f"runs[{run_num}]")
@@ -224,6 +226,7 @@ def _build_settings_from_yaml_run(
         delivery_only_rev_req_passed=delivery_only_rev_req_passed,
     )
 
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=("Run RI heat-pump scenario using YAML config.")
@@ -321,20 +324,19 @@ def run(settings: ScenarioSettings) -> None:
         settings.test_year_run,
     )
     distribution_mc_root = (
-        "s3://data.sb/switchbox/marginal_costs/"
-        f"{settings.state.lower().strip('/')}/"
+        f"s3://data.sb/switchbox/marginal_costs/{settings.state.lower().strip('/')}/"
     )
     distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
         distribution_mc_root,
         hive_partitioning=True,
         storage_options=get_aws_storage_options(),
     )
-    distribution_mc_scan = distribution_mc_scan.filter(
-        pl.col("region").cast(pl.Utf8) == settings.region
-    ).filter(pl.col("utility").cast(pl.Utf8) == settings.utility).filter(
-        pl.col("year").cast(pl.Utf8) == str(settings.test_year_run)
+    distribution_mc_scan = (
+        distribution_mc_scan.filter(pl.col("region").cast(pl.Utf8) == settings.region)
+        .filter(pl.col("utility").cast(pl.Utf8) == settings.utility)
+        .filter(pl.col("year").cast(pl.Utf8) == str(settings.test_year_run))
     )
-    distribution_mc_df = distribution_mc_scan.collect()
+    distribution_mc_df = cast(pl.DataFrame, distribution_mc_scan.collect())
     distribution_marginal_costs = distribution_mc_df.to_pandas()
     required_cols = {"timestamp", "mc_total_per_kwh"}
     missing_cols = required_cols.difference(distribution_marginal_costs.columns)
