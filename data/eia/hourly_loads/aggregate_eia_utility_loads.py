@@ -1,24 +1,13 @@
 """Aggregate state-level zone loads to utility-level profiles.
 
-This script reads zone load data from S3 (partitioned by region/zone/year/month),
-applies zone-to-utility mapping, and creates utility-level aggregated load profiles.
+Reads zone parquet from a local dir (partitioned by region/zone/year/month),
+applies zone-to-utility mapping, and writes utility-level aggregated load to local parquet.
+Upload to S3 via data/eia/hourly_loads Justfile upload recipe.
 
 Operates on complete calendar years only - validates that all 12 months are available.
 
-Input:
-    - s3://data.sb/eia/hourly_demand/zones/region=<iso_region>/zone=X/year=YYYY/month=M/data.parquet
-Output:
-    - s3://data.sb/eia/hourly_demand/utilities/region=<iso_region>/utility=X/year=YYYY/month=M/data.parquet
-
-Usage:
-    # Process single year (inspection only, no upload)
-    python aggregate_eia_utility_loads.py --state NY --year 2024
-
-    # Process and upload to S3
-    python aggregate_eia_utility_loads.py --state RI --year 2024 --upload
-
-    # Process single utility
-    python aggregate_eia_utility_loads.py --state NY --year 2024 --utility nyseg
+Input:  local zone parquet (same layout as S3)
+Output: local utility parquet (same layout as S3 for sync)
 """
 
 import argparse
@@ -27,31 +16,28 @@ import polars as pl
 from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import (
-    get_aws_storage_options,
     get_state_config,
     get_utility_zone_mapping_for_state,
 )
 
 
 def load_zone_data(
-    s3_base: str,
+    zone_base: str,
     iso_region: str,
     year: int,
     zones: list[str],
-    storage_options: dict[str, str],
 ) -> pl.DataFrame:
-    """Load zone load data from S3 for specified zones and year.
+    """Load zone load data from local parquet dir for specified zones and year.
 
     Reads from Hive-style partitioned structure:
     region=<iso_region>/zone=X/year=YYYY/month=M/data.parquet
     Validates that all 12 months are present for each zone before loading.
 
     Args:
-        s3_base: Base S3 path (e.g., s3://data.sb/eia/hourly_demand/zones)
+        zone_base: Local directory with partitioned zone parquet (same layout as S3)
         iso_region: ISO region partition key (e.g., nyiso, isone)
         year: Calendar year (must have all 12 months)
         zones: List of zone identifiers (e.g., ["A", "B", "C"])
-        storage_options: Polars S3 storage options with AWS bucket region
 
     Returns:
         Combined DataFrame with all zone data
@@ -64,10 +50,7 @@ def load_zone_data(
     print("=" * 60)
 
     collected = (
-        pl.scan_parquet(
-            s3_base,
-            storage_options=storage_options,
-        )
+        pl.scan_parquet(zone_base)
         .filter(pl.col("region") == iso_region)
         .filter(pl.col("zone").is_in(zones))
         .filter(pl.col("year") == year)
@@ -80,11 +63,8 @@ def load_zone_data(
     if combined.is_empty():
         raise ValueError(
             f"No zone data found for region={iso_region}, year={year}, zones={zones}. "
-            "Fetch zone data first, for example:\n"
-            "  uv run python data/eia/hourly_loads/fetch_zone_loads_parquet.py "
-            "--state <NY|RI> "
-            f"--start-month {year}-01 --end-month {year}-12 "
-            f"--s3-base {s3_base}"
+            "Fetch zone data first (data/eia/hourly_loads Justfile fetch-zone-data), "
+            f"then ensure {zone_base} contains region={iso_region}/zone=X/year={year}/month=M/."
         )
 
     if "month" not in combined.columns:
@@ -108,12 +88,7 @@ def load_zone_data(
             print(f"  • {item}")
         raise ValueError(
             f"Cannot proceed with incomplete data. Missing {len(missing_data)} partition(s). "
-            f"All 12 months required for calendar year {year}. "
-            "Re-run zone fetch to backfill missing partitions:\n"
-            "  uv run python data/eia/hourly_loads/fetch_zone_loads_parquet.py "
-            "--state <NY|RI> "
-            f"--start-month {year}-01 --end-month {year}-12 "
-            f"--s3-base {s3_base}"
+            f"All 12 months required for calendar year {year}. Re-run fetch-zone-data to backfill."
         )
 
     print(f"✓ Loaded complete zone data for region={iso_region}, year={year}")
@@ -166,14 +141,13 @@ def expected_hours_for_year(year: int) -> int:
     return (8784 if is_leap else 8760) - 1
 
 
-def upload_utility_loads_to_s3(
+def write_utility_loads_local(
     utility_df: pl.DataFrame,
-    utility_s3_base: str,
+    utility_base: str,
     iso_region: str,
     utility_name: str,
-    storage_options: dict[str, str],
 ) -> None:
-    """Add partition columns and write utility load parquet to S3."""
+    """Write utility load parquet to local dir (same layout as S3 for later sync)."""
     output_df = utility_df.with_columns(
         [
             pl.lit(iso_region).alias("region"),
@@ -182,36 +156,31 @@ def upload_utility_loads_to_s3(
         ]
     )
     output_df.write_parquet(
-        utility_s3_base,
+        utility_base,
         compression="zstd",
         partition_by=["region", "utility", "year", "month"],
-        storage_options=storage_options,
     )
     print(
-        "\n✓ Uploaded utility partitioned data under "
-        f"{utility_s3_base}/region={iso_region}/utility={utility_name}/"
+        "\n✓ Wrote utility partitioned data under "
+        f"{utility_base}/region={iso_region}/utility={utility_name}/"
     )
 
 
 def process_all_utilities(
-    zone_s3_base: str,
-    utility_s3_base: str,
+    zone_base: str,
+    utility_base: str,
     iso_region: str,
     year: int,
     utility_zone_mapping: dict[str, list[str]],
-    storage_options: dict[str, str],
-    upload_to_s3: bool = False,
 ):
-    """Process all utilities and create aggregated load profiles for a calendar year.
+    """Process all utilities and write aggregated load profiles to local parquet.
 
     Args:
-        zone_s3_base: Base S3 path for zonal loads
-        utility_s3_base: Base S3 path for utility outputs
+        zone_base: Local path to zone parquet (partitioned)
+        utility_base: Local path for utility parquet output (partitioned)
         iso_region: ISO region partition key (nyiso/isone)
         year: Calendar year to process
         utility_zone_mapping: Utility to zones mapping for selected state
-        storage_options: Polars S3 storage options with AWS bucket region
-        upload_to_s3: If True, upload results to S3. Default False for inspection.
     """
     # Collect all unique zones needed
     all_zones = set()
@@ -222,13 +191,7 @@ def process_all_utilities(
     print(f"Calendar year: {year}")
 
     # Load all zone data once (validates all 12 months present)
-    zone_df = load_zone_data(
-        zone_s3_base,
-        iso_region,
-        year,
-        sorted(all_zones),
-        storage_options,
-    )
+    zone_df = load_zone_data(zone_base, iso_region, year, sorted(all_zones))
 
     print(f"\n{'=' * 60}")
     print(f"Total zone data loaded: {len(zone_df):,} rows")
@@ -265,30 +228,20 @@ def process_all_utilities(
         print("\nSample data (last 5 rows):")
         print(utility_df.tail(5))
 
-        if upload_to_s3:
-            upload_utility_loads_to_s3(
-                utility_df,
-                utility_s3_base,
-                iso_region,
-                utility_name,
-                storage_options,
-            )
-        else:
-            print("\n⚠️  S3 upload disabled (use --upload to enable)")
-
-    if upload_to_s3:
-        print(f"\n{'=' * 60}")
-        print("✓ All utilities processed and uploaded")
-        print(
-            "✓ Output structure: "
-            f"{utility_s3_base}/region={iso_region}/utility=<UTILITY>/year={year}/month=<M>/data.parquet"
+        write_utility_loads_local(
+            utility_df,
+            utility_base,
+            iso_region,
+            utility_name,
         )
-        print(f"{'=' * 60}")
-    else:
-        print(f"\n{'=' * 60}")
-        print("✓ All utilities processed (data inspection complete)")
-        print("⚠️  No data uploaded to S3 (use --upload flag to enable)")
-        print(f"{'=' * 60}")
+
+    print(f"\n{'=' * 60}")
+    print("✓ All utilities processed")
+    print(
+        f"✓ Output: {utility_base}/region={iso_region}/utility=<UTILITY>/year={year}/month=<M>/data.parquet"
+    )
+    print("  (run Justfile upload recipe to sync to S3)")
+    print(f"{'=' * 60}")
 
 
 def main():
@@ -316,30 +269,24 @@ def main():
         help="Calendar year to process (e.g., 2024). Must have all 12 months available.",
     )
     parser.add_argument(
-        "--path-s3-zone-parquet",
-        dest="path_s3_zone_parquet",
+        "--path-local-zone-parquet",
+        dest="path_local_zone_parquet",
         type=str,
         required=True,
-        help="S3 path for zonal load parquet inputs (e.g., s3://data.sb/eia/hourly_demand/zones/)",
+        help="Local directory with zone parquet inputs (partitioned)",
     )
     parser.add_argument(
-        "--path-s3-utility-parquet",
-        dest="path_s3_utility_parquet",
+        "--path-local-utility-parquet",
+        dest="path_local_utility_parquet",
         type=str,
         required=True,
-        help="S3 path for utility load parquet outputs (e.g., s3://data.sb/eia/hourly_demand/utilities/)",
-    )
-    parser.add_argument(
-        "--upload",
-        action="store_true",
-        help="Upload results to S3 (default: False, for data inspection only)",
+        help="Local directory for utility parquet output (partitioned; sync to S3 via Justfile upload)",
     )
 
     args = parser.parse_args()
     load_dotenv()
     config = get_state_config(args.state)
     utility_zone_mapping = get_utility_zone_mapping_for_state(args.state)
-    storage_options = get_aws_storage_options()
     if not utility_zone_mapping:
         parser.error(f"No utility mapping found for state {args.state}")
 
@@ -351,8 +298,8 @@ def main():
             f"Valid values: all, {valid}"
         )
 
-    resolved_zone_s3_base = args.path_s3_zone_parquet
-    resolved_utility_s3_base = args.path_s3_utility_parquet
+    zone_base = args.path_local_zone_parquet
+    utility_base = args.path_local_utility_parquet
 
     utility_list = sorted(utility_zone_mapping.keys())
     print("=" * 60)
@@ -361,10 +308,8 @@ def main():
     print(f"State: {config.state}")
     print(f"Calendar year: {args.year}")
     print(f"ISO region partition: {config.iso_region}")
-    print(f"AWS bucket region: {storage_options.get('region')}")
-    print(f"Zone base path: {resolved_zone_s3_base}")
-    print(f"Utility output base path: {resolved_utility_s3_base}")
-    print(f"Upload to S3: {'Yes' if args.upload else 'No (inspection only)'}")
+    print(f"Zone input: {zone_base}")
+    print(f"Utility output: {utility_base}")
     print(
         "Utilities: "
         f"{selected_utility if selected_utility != 'all' else 'All (' + ', '.join(utility_list) + ')'}"
@@ -373,13 +318,11 @@ def main():
 
     if selected_utility == "all":
         process_all_utilities(
-            resolved_zone_s3_base,
-            resolved_utility_s3_base,
+            zone_base,
+            utility_base,
             config.iso_region,
             args.year,
             utility_zone_mapping,
-            storage_options,
-            args.upload,
         )
     else:
         # Process single utility
@@ -387,13 +330,7 @@ def main():
         print(f"\nProcessing single utility: {selected_utility}")
         print(f"Zones: {zones}")
 
-        zone_df = load_zone_data(
-            resolved_zone_s3_base,
-            config.iso_region,
-            args.year,
-            zones,
-            storage_options,
-        )
+        zone_df = load_zone_data(zone_base, config.iso_region, args.year, zones)
         utility_df = aggregate_utility_load(zone_df, selected_utility, zones)
 
         print(f"\n{'=' * 60}")
@@ -414,16 +351,12 @@ def main():
         print("\nSample data (first 10 rows):")
         print(utility_df.head(10))
 
-        if args.upload:
-            upload_utility_loads_to_s3(
-                utility_df,
-                resolved_utility_s3_base,
-                config.iso_region,
-                selected_utility,
-                storage_options,
-            )
-        else:
-            print("\n⚠️  S3 upload disabled (use --upload to enable)")
+        write_utility_loads_local(
+            utility_df,
+            utility_base,
+            config.iso_region,
+            selected_utility,
+        )
 
 
 if __name__ == "__main__":

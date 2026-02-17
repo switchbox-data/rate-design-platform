@@ -1,21 +1,21 @@
 # EIA hourly zone and utility load data pipeline
 #
-# Fetch zone loads from EIA API and aggregate to utility-level profiles.
-# Invoked from rate_design/{ny,ri}/hp_rates/Justfile PRE section.
+# Fetch zone loads from EIA API and aggregate to utility-level profiles (local parquet).
+# Upload syncs local dirs to S3 (same layout). Data is small; run fetch then aggregate then upload.
 #
-# Usage (standalone, from project root):
-#   just -f data/eia/hourly_loads/Justfile fetch-zone-data
-#   just -f data/eia/hourly_loads/Justfile aggregate-utility-loads
-#
-# Or with defaults from hp_rates PRE section:
-#   just pre-fetch-zone-data   (from rate_design/ny/hp_rates or ri/hp_rates)
+# Usage (from project root):
+#   just -f data/eia/hourly_loads/Justfile fetch-zone-data NY 2025-01 2025-12
+#   just -f data/eia/hourly_loads/Justfile aggregate-utility-loads NY 2025 nyseg
+#   just -f data/eia/hourly_loads/Justfile upload
+#   just -f data/eia/hourly_loads/Justfile clean
 
 path_local_repo := `git rev-parse --show-toplevel`
+path_local_zone_parquet := path_local_repo + "/data/eia/hourly_loads/zone_parquet/"
+path_local_utility_parquet := path_local_repo + "/data/eia/hourly_loads/utility_parquet/"
 path_s3_zone_parquet := "s3://data.sb/eia/hourly_demand/zones/"
 path_s3_utility_parquet := "s3://data.sb/eia/hourly_demand/utilities/"
 
-# Fetch zonal load data from EIA API for a state and month range.
-# Pass state, start_month, end_month via environment or as arguments.
+# Fetch zonal load data from EIA API; write to local parquet.
 fetch-zone-data state start_month end_month:
     #!/usr/bin/env bash
     s="{{state}}"
@@ -30,10 +30,9 @@ fetch-zone-data state start_month end_month:
         --state "$s" \
         --start-month "$sm" \
         --end-month "$em" \
-        --path-s3-zone-parquet {{path_s3_zone_parquet}}
+        --path-local-zone-parquet "{{path_local_zone_parquet}}"
 
-# Aggregate zone loads to utility-level profiles.
-# Pass state, year, utility via environment or as arguments.
+# Aggregate zone loads to utility-level profiles; read/write local parquet.
 aggregate-utility-loads state year utility:
     #!/usr/bin/env bash
     s="{{state}}"
@@ -48,6 +47,16 @@ aggregate-utility-loads state year utility:
         --state "$s" \
         --year "$y" \
         --utility "$u" \
-        --path-s3-zone-parquet {{path_s3_zone_parquet}} \
-        --path-s3-utility-parquet {{path_s3_utility_parquet}} \
-        --upload
+        --path-local-zone-parquet "{{path_local_zone_parquet}}" \
+        --path-local-utility-parquet "{{path_local_utility_parquet}}"
+
+# Sync local zone and utility parquet to S3 (same layout).
+upload:
+    aws s3 sync "{{path_local_zone_parquet}}" "{{path_s3_zone_parquet}}" --exclude "*" --include "*.parquet"
+    aws s3 sync "{{path_local_utility_parquet}}" "{{path_s3_utility_parquet}}" --exclude "*" --include "*.parquet"
+    @echo "Synced zone and utility parquet to S3"
+
+# Remove local parquet dirs.
+clean:
+    rm -rf "{{path_local_zone_parquet}}" "{{path_local_utility_parquet}}"
+    @echo "Removed zone_parquet/, utility_parquet/"
