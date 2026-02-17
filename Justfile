@@ -16,7 +16,7 @@ check:
     echo "🚀 Checking lock file consistency with 'pyproject.toml'"
     uv lock --locked
     echo "🚀 Linting, formatting, and type checking code"
-    prek run -a
+    uv run prek run -a
 
 # Check for obsolete dependencies
 check-deps:
