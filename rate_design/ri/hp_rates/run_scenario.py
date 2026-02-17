@@ -334,6 +334,12 @@ def run(settings: ScenarioSettings) -> None:
         low_income_bill_assistance_program=None,
     )
 
+    save_file_loc = getattr(bs, "save_file_loc", None)
+    if save_file_loc is not None:
+        distribution_mc_path = Path(save_file_loc) / "distribution_marginal_costs.csv"
+        distribution_marginal_costs.to_csv(distribution_mc_path, index=True)
+        log.info(".... Saved distribution marginal costs: %s", distribution_mc_path)
+
     log.info(".... Completed RI residential (non-LMI) rate scenario simulation")
 
 
