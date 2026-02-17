@@ -1,56 +1,80 @@
 runs:
   1:
-    run_name: ri_rie_run1_up00_precalc__flat_a16__delivery
+    run_name: ri_rie_run_01_precalc_delivery_up00_y2025
     run_type: precalc
     state: RI
+    region: isone
     utility: rie
-    upgrade: "00"
-    add_supply_revenue_requirement: false
-    path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=ri/upgrade=00/metadata-sb.parquet
-    path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=ri/upgrade=00/
-    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
-    path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/0000000.parquet
-    path_tariff_maps_electric: tariff_maps/electric/rie_flat_a16_delivery.csv
+    upgrade: 0
+    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_tariff_maps_electric: tariff_maps/electric/dummy_electric_tariff_ri_run_1.csv
+    path_tariff_maps_gas: tariff_maps/gas/rie_gas_tariff_ri_run_1.csv
     path_tariffs_electric:
-      - tariffs/electric/rie_flat_a16_delivery.json
-    path_tariff_maps_gas: tariff_maps/gas/rie.csv
+      rie_a16: tariffs/electric/rie_a16.json
+      rie_a60: tariffs/electric/rie_a60.json
     path_tariffs_gas:
-      - tariffs/gas/rie_heating.json
-      - tariffs/gas/rie_nonheating.json
+      rie_residential_non_heating_gas: tariffs/gas/rie_residential_non_heating_gas.json
     precalc_tariff_path: tariffs/electric/rie_a16.json
     precalc_tariff_key: rie_a16
-    utility_delivery_revenue_requirement: 241869601
+    utility_revenue_requirement: 241869601
     utility_customer_count: 451381
-    path_output: /data.sb/switchbox/cairo/outputs/hp_rates/
     year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 20
     solar_pv_compensation: net_metering
+    delivery_only_rev_req_passed: false
 
   2:
-    run_name: ri_rie_run2_up00_precalc__flat_a16__delivery_supply
+    run_name: ri_rie_run_02_precalc_delivery_supply_up00_y2025
     run_type: precalc
     state: RI
+    region: isone
     utility: rie
-    upgrade: "00"
-    add_supply_revenue_requirement: true
-    path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=ri/upgrade=00/metadata-sb.parquet
-    path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=ri/upgrade=00/
+    upgrade: 0
     path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
-    path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/0000000.parquet
-    path_tariff_maps_electric: tariff_maps/electric/rie_flat_a16_delivery_supply.csv
+    path_tariff_maps_electric: tariff_maps/electric/dummy_electric_tariff_ri_supply_adj_run_1.csv
+    path_tariff_maps_gas: tariff_maps/gas/rie_gas_tariff_ri_run_1.csv
     path_tariffs_electric:
-      - tariffs/electric/rie_flat_a16_delivery_supply.json
-    path_tariff_maps_gas: tariff_maps/gas/rie.csv
+      rie_a16_supply_adj: tariffs/electric/rie_a16_supply_adj.json
+      rie_a60_supply_adj: tariffs/electric/rie_a60_supply_adj.json
     path_tariffs_gas:
-      - tariffs/gas/rie_heating.json
-      - tariffs/gas/rie_nonheating.json
+      rie_residential_non_heating_gas: tariffs/gas/rie_residential_non_heating_gas.json
     precalc_tariff_path: tariffs/electric/rie_a16_supply_adj.json
     precalc_tariff_key: rie_a16_supply_adj
-    utility_delivery_revenue_requirement: 241869601
+    utility_revenue_requirement: 241869601
     utility_customer_count: 451381
-    path_output: /data.sb/switchbox/cairo/outputs/hp_rates/
     year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 20
     solar_pv_compensation: net_metering
+    delivery_only_rev_req_passed: true
+
+  3:
+    run_name: ri_rie_run_03_precalc_tou_hp_up00_y2025
+    run_type: precalc
+    state: RI
+    region: isone
+    utility: rie
+    upgrade: 0
+    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    # path_tariff_maps_electric is generated at runtime by compute_tou
+    path_tariff_maps_gas: tariff_maps/gas/rie_gas_tariff_ri_run_1.csv
+    path_tariffs_electric:
+      rie_a16: tariffs/electric/rie_a16.json
+    path_tariffs_gas:
+      rie_residential_non_heating_gas: tariffs/gas/rie_residential_non_heating_gas.json
+    precalc_tariff_key: rie_tou_hp
+    utility_revenue_requirement: 241869601
+    utility_customer_count: 451381
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 20
+    solar_pv_compensation: net_metering
+    delivery_only_rev_req_passed: false
+    compute_tou:
+      enabled: true
+      tou_tariff_key: rie_tou_hp
+      flat_tariff_key: rie_a16
+      tou_window_hours: 4
+      tou_base_rate: 0.06
+      tou_fixed_charge: 6.75
