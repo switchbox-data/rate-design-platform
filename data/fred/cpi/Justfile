@@ -8,6 +8,7 @@
 #   just -f data/fred/cpi/Justfile fetch-cpi CPIAUCSL 2020 2025
 #   just -f data/fred/cpi/Justfile upload
 #   just -f data/fred/cpi/Justfile update   # fetch-cpi then upload
+#   just -f data/fred/cpi/Justfile clean    # Remove local parquet/
 
 path_local_repo := `git rev-parse --show-toplevel`
 path_local_parquet := path_local_repo + "/data/fred/cpi/parquet/"
@@ -28,3 +29,8 @@ upload:
 update series="CPIAUCSL" start_year="2020" end_year="2025":
     just fetch-cpi {{series}} {{start_year}} {{end_year}}
     just upload
+
+# Remove local parquet/
+clean:
+    rm -rf "{{path_local_parquet}}"
+    @echo "Removed {{path_local_parquet}}"
