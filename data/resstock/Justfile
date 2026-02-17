@@ -90,6 +90,30 @@ identify-hp-and-heating-type-all-upgrades state:
 resstock-identify-hp-customers state:
     just identify-hp-customers-all-upgrades {{state}}
 
+# Add vulnerability columns (random placeholder) to metadata-sb.parquet.
+# Safe to re-run: drops pre-existing vulnerability columns before adding.
+add-vulnerability-columns release state upgrade_ids input_filename output_filename:
+    #!/usr/bin/env bash
+    set -e
+    for upgrade_id in {{upgrade_ids}}; do
+        uv run python "{{project_root}}/data/resstock/add_vulnerability_columns.py" \
+            --input_dir "{{resstock_s3_base}}/{{release}}/metadata/state={{state}}/upgrade=$upgrade_id" \
+            --output_dir "{{resstock_s3_base}}/{{release}}/metadata/state={{state}}/upgrade=$upgrade_id" \
+            --input_filename "{{input_filename}}" \
+            --output_filename "{{output_filename}}" \
+            --upgrade_id "$upgrade_id"
+    done
+
+add-vulnerability-columns-all-upgrades state:
+    just add-vulnerability-columns {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet"
+
+# Full NY metadata pipeline: HP customers → heating type → vulnerability columns.
+# Pass lmi="false" to skip vulnerability (e.g. for runs that don't need LMI discounts).
+prepare-metadata-ny lmi="true":
+    just identify-hp-customers {{resstock_release}} NY "{{resstock_upgrade_ids_padded}}" "metadata.parquet" "metadata-sb.parquet"
+    just identify-heating-type {{resstock_release}} NY "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet"
+    {{ if lmi == "true" { "just add-vulnerability-columns " + resstock_release + " NY \"" + resstock_upgrade_ids_padded + "\" \"metadata-sb.parquet\" \"metadata-sb.parquet\"" } else { "echo 'Skipping vulnerability columns (lmi=false)'" } }}
+
 # Assign electric/gas utilities to ResStock buildings (NY only). Run download-ny-utility-polygons first.
 assign-utility-ny release upgrade electric_poly gas_poly:
     just -f "{{project_root}}/rate_design/ny/hp_rates/Justfile" download-ny-utility-polygons

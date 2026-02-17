@@ -1,0 +1,429 @@
+# NY EAP/EEAP monthly bill credits by utility, tier, and heating status.
+#
+# Source: context/domain/lmi_discounts_in_ny.md (compiled from utility filings
+# and public EAP pages as of February 2026).
+#
+# Utility std_names match utils/utility_codes.py.
+# Credit amounts are $/month. null means value has not been published yet
+# (treat as $0 in calculations; see TODO below).
+#
+# Tier 4 (DSS) is included in the data for completeness but is NOT assigned
+# by the tier-assignment logic (requires program enrollment data we don't have).
+#
+# TODO: Find and fill in missing EEAP Tier 5-7 credit amounts for utilities
+# where they show as null. These were not published at time of research.
+
+# AMI territories: coned, kedny, kedli use Area Median Income for EEAP thresholds.
+# All other utilities use State Median Income.
+ami_territories:
+  - coned
+  - kedny
+  - kedli
+
+# Per-utility credit tables.
+# Each utility has a list of tier entries with elec_heat, elec_nonheat,
+# gas_heat, gas_nonheat credits in $/month.
+# For gas-only utilities, elec_heat and elec_nonheat are null.
+# For electric-only utilities, gas_heat and gas_nonheat are null.
+
+utilities:
+  coned:
+    effective_date: "2026-02-01"
+    tiers:
+      - tier: 1
+        elec_heat: 33.47
+        elec_nonheat: 33.47
+        gas_heat: 135.24
+        gas_nonheat: 3.00
+      - tier: 2
+        elec_heat: 80.58
+        elec_nonheat: 50.66
+        gas_heat: 167.01
+        gas_nonheat: 3.00
+      - tier: 3
+        elec_heat: 126.21
+        elec_nonheat: 73.47
+        gas_heat: 189.83
+        gas_nonheat: 3.00
+      - tier: 4
+        elec_heat: 121.84
+        elec_nonheat: 71.29
+        gas_heat: 187.65
+        gas_nonheat: 3.00
+      - tier: 5
+        elec_heat: 33.47
+        elec_nonheat: 33.47
+        gas_heat: 135.24
+        gas_nonheat: 3.00
+      - tier: 6
+        elec_heat: 3.00
+        elec_nonheat: 3.00
+        gas_heat: 44.50
+        gas_nonheat: 3.00
+      - tier: 7
+        elec_heat: 1.00
+        elec_nonheat: 1.00
+        gas_heat: 1.00
+        gas_nonheat: 1.00
+
+  kedny:
+    effective_date: "2025-12-01"
+    tiers:
+      - tier: 1
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: 77.27
+        gas_nonheat: 1.92
+      - tier: 2
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: 112.97
+        gas_nonheat: 1.92
+      - tier: 3
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: 138.67
+        gas_nonheat: 1.92
+      - tier: 4
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: 139.38
+        gas_nonheat: 1.92
+      # TODO: KEDNY EEAP Tiers 5-7 not yet published
+      - tier: 5
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 6
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 7
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: null
+        gas_nonheat: null
+
+  kedli:
+    effective_date: "2025-12-01"
+    tiers:
+      - tier: 1
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: 63.76
+        gas_nonheat: 3.00
+      - tier: 2
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: 95.52
+        gas_nonheat: 3.00
+      - tier: 3
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: 118.33
+        gas_nonheat: 3.00
+      - tier: 4
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: 116.14
+        gas_nonheat: 3.00
+      # TODO: KEDLI EEAP Tiers 5-7 not yet published
+      - tier: 5
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 6
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 7
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: null
+        gas_nonheat: null
+
+  nimo:
+    effective_date: "2025-12-01"
+    tiers:
+      - tier: 1
+        elec_heat: 22.46
+        elec_nonheat: 22.46
+        gas_heat: 3.00
+        gas_nonheat: 3.00
+      - tier: 2
+        elec_heat: 39.64
+        elec_nonheat: 39.64
+        gas_heat: 3.00
+        gas_nonheat: 3.00
+      - tier: 3
+        elec_heat: 62.45
+        elec_nonheat: 62.45
+        gas_heat: 22.49
+        gas_nonheat: 3.00
+      - tier: 4
+        elec_heat: 60.26
+        elec_nonheat: 60.26
+        gas_heat: 20.30
+        gas_nonheat: 3.00
+      # TODO: NiMo EEAP Tiers 5-7 not yet published
+      - tier: 5
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 6
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 7
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: null
+        gas_nonheat: null
+
+  nyseg:
+    effective_date: "2025-12-01"
+    tiers:
+      - tier: 1
+        elec_heat: 47.26
+        elec_nonheat: 47.26
+        gas_heat: 3.00
+        gas_nonheat: 3.00
+      - tier: 2
+        elec_heat: 67.01
+        elec_nonheat: 67.01
+        gas_heat: 5.83
+        gas_nonheat: 3.00
+      - tier: 3
+        elec_heat: 88.99
+        elec_nonheat: 88.99
+        gas_heat: 28.64
+        gas_nonheat: 3.00
+      - tier: 4
+        elec_heat: 86.16
+        elec_nonheat: 86.16
+        gas_heat: 26.45
+        gas_nonheat: 3.00
+      - tier: 5
+        elec_heat: 47.26
+        elec_nonheat: 47.26
+        gas_heat: 3.00
+        gas_nonheat: 3.00
+      - tier: 6
+        elec_heat: 18.53
+        elec_nonheat: 18.53
+        gas_heat: 3.00
+        gas_nonheat: 3.00
+      - tier: 7
+        elec_heat: 0.80
+        elec_nonheat: 0.80
+        gas_heat: 1.00
+        gas_nonheat: 1.00
+
+  rge:
+    effective_date: "2025-12-01"
+    tiers:
+      - tier: 1
+        elec_heat: 25.04
+        elec_nonheat: 25.04
+        gas_heat: 3.00
+        gas_nonheat: 3.00
+      - tier: 2
+        elec_heat: 42.21
+        elec_nonheat: 42.21
+        gas_heat: 3.00
+        gas_nonheat: 3.00
+      - tier: 3
+        elec_heat: 65.03
+        elec_nonheat: 65.03
+        gas_heat: 18.14
+        gas_nonheat: 3.00
+      - tier: 4
+        elec_heat: 62.84
+        elec_nonheat: 62.84
+        gas_heat: 15.64
+        gas_nonheat: 3.00
+      - tier: 5
+        elec_heat: 25.04
+        elec_nonheat: 25.04
+        gas_heat: 3.00
+        gas_nonheat: 3.00
+      - tier: 6
+        elec_heat: 3.00
+        elec_nonheat: 3.00
+        gas_heat: 3.00
+        gas_nonheat: 3.00
+      - tier: 7
+        elec_heat: 1.00
+        elec_nonheat: 1.00
+        gas_heat: 1.00
+        gas_nonheat: 1.00
+
+  or:
+    effective_date: "2026-01-13"
+    tiers:
+      - tier: 1
+        elec_heat: 76.81
+        elec_nonheat: 76.81
+        gas_heat: 9.79
+        gas_nonheat: 2.40
+      - tier: 2
+        elec_heat: 92.67
+        elec_nonheat: 92.67
+        gas_heat: 37.52
+        gas_nonheat: 2.40
+      - tier: 3
+        elec_heat: 114.52
+        elec_nonheat: 114.52
+        gas_heat: 69.42
+        gas_nonheat: 2.40
+      - tier: 4
+        elec_heat: 111.36
+        elec_nonheat: 111.36
+        gas_heat: 76.33
+        gas_nonheat: 2.40
+      - tier: 5
+        elec_heat: 76.81
+        elec_nonheat: 76.81
+        gas_heat: 9.79
+        gas_nonheat: 2.40
+      - tier: 6
+        elec_heat: 43.44
+        elec_nonheat: 43.44
+        gas_heat: 23.00
+        gas_nonheat: 3.00
+      - tier: 7
+        elec_heat: 1.00
+        elec_nonheat: 1.00
+        gas_heat: 1.00
+        gas_nonheat: 1.00
+
+  cenhud:
+    effective_date: "2024-12-01"
+    tiers:
+      - tier: 1
+        elec_heat: 60.46
+        elec_nonheat: 60.46
+        gas_heat: 28.61
+        gas_nonheat: 3.00
+      - tier: 2
+        elec_heat: 75.84
+        elec_nonheat: 75.84
+        gas_heat: 58.58
+        gas_nonheat: 3.00
+      - tier: 3
+        elec_heat: 110.75
+        elec_nonheat: 97.48
+        gas_heat: 80.22
+        gas_nonheat: 3.00
+      - tier: 4
+        elec_heat: 104.03
+        elec_nonheat: 94.13
+        gas_heat: 76.86
+        gas_nonheat: 3.00
+      # TODO: Central Hudson EEAP Tiers 5-6 not yet published
+      - tier: 5
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 6
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 7
+        elec_heat: 1.00
+        elec_nonheat: 1.00
+        gas_heat: 1.00
+        gas_nonheat: 1.00
+
+  nfg:
+    effective_date: "2025-12-01"
+    tiers:
+      - tier: 1
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: 1.92
+        gas_nonheat: 1.92
+      - tier: 2
+        # Single Tier 2 credit of $21.73 (we do not distinguish sub-tiers 2.1/2.2)
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: 21.73
+        gas_nonheat: 1.92
+      - tier: 3
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: 34.70
+        gas_nonheat: 1.92
+      - tier: 4
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: 22.14
+        gas_nonheat: 1.92
+      # TODO: NFG EEAP Tiers 5-7 not yet published
+      - tier: 5
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 6
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 7
+        elec_heat: null
+        elec_nonheat: null
+        gas_heat: null
+        gas_nonheat: null
+
+  # PSEG Long Island - Household Assistance Program (HAP)
+  # Not PSC-regulated; flat $45/month regardless of tier or heating status.
+  # Electric-only utility (no gas service).
+  psegli:
+    effective_date: "2025-12-01"
+    program: HAP
+    flat_credit: true
+    tiers:
+      - tier: 1
+        elec_heat: 45.00
+        elec_nonheat: 45.00
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 2
+        elec_heat: 45.00
+        elec_nonheat: 45.00
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 3
+        elec_heat: 45.00
+        elec_nonheat: 45.00
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 4
+        elec_heat: 45.00
+        elec_nonheat: 45.00
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 5
+        elec_heat: 45.00
+        elec_nonheat: 45.00
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 6
+        elec_heat: 45.00
+        elec_nonheat: 45.00
+        gas_heat: null
+        gas_nonheat: null
+      - tier: 7
+        elec_heat: 45.00
+        elec_nonheat: 45.00
+        gas_heat: null
+        gas_nonheat: null
