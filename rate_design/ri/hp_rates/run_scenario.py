@@ -52,9 +52,9 @@ class ScenarioSettings:
     path_tariffs_gas: dict[str, Path]
     precalc_tariff_path: Path
     precalc_tariff_key: str
-    target_revenue_requirement: float
-    target_customer_count: int
-    test_year_run: int
+    utility_revenue_requirement: float
+    utility_customer_count: int
+    year_run: int
     year_dollar_conversion: int
     process_workers: int
     solar_pv_compensation: str = "net_metering"
@@ -141,21 +141,21 @@ def _build_settings_from_yaml_run(
     utility = str(_require_value(run, "utility")).lower()
     mode = str(run.get("run_type", "precalc"))
     upgrade = f"{_parse_int(run.get('upgrade', 0), 'upgrade'):02d}"
-    test_year_run = _parse_int(run.get("test_year_run"), "test_year_run")
+    year_run = _parse_int(run.get("year_run"), "year_run")
     year_dollar_conversion = _parse_int(
         run.get("year_dollar_conversion"),
         "year_dollar_conversion",
     )
     process_workers = _parse_int(run.get("process_workers", 20), "process_workers")
-    target_revenue_requirement = float(
+    utility_revenue_requirement = float(
         _parse_int(
-            _require_value(run, "target_revenue_requirement"),
-            "target_revenue_requirement",
+            _require_value(run, "utility_revenue_requirement"),
+            "utility_revenue_requirement",
         )
     )
-    target_customer_count = _parse_int(
-        _require_value(run, "target_customer_count"),
-        "target_customer_count",
+    utility_customer_count = _parse_int(
+        _require_value(run, "utility_customer_count"),
+        "utility_customer_count",
     )
     solar_pv_compensation = str(run.get("solar_pv_compensation", "net_metering"))
 
@@ -218,9 +218,9 @@ def _build_settings_from_yaml_run(
             PATH_CONFIG,
         ),
         precalc_tariff_key=precalc_tariff_key,
-        target_revenue_requirement=target_revenue_requirement,
-        target_customer_count=target_customer_count,
-        test_year_run=test_year_run,
+        utility_revenue_requirement=utility_revenue_requirement,
+        utility_customer_count=utility_customer_count,
+        year_run=year_run,
         year_dollar_conversion=year_dollar_conversion,
         process_workers=process_workers,
         solar_pv_compensation=solar_pv_compensation,
@@ -287,7 +287,7 @@ def run(settings: ScenarioSettings) -> None:
 
     customer_metadata = return_buildingstock(
         load_scenario=settings.path_resstock_metadata,
-        customer_count=settings.target_customer_count,
+        customer_count=settings.utility_customer_count,
         columns=[
             "applicability",
             "postprocess_group.has_hp",
@@ -297,7 +297,7 @@ def run(settings: ScenarioSettings) -> None:
     )
 
     sell_rate = _return_export_compensation_rate(
-        year_run=settings.test_year_run,
+        year_run=settings.year_run,
         solar_pv_compensation=settings.solar_pv_compensation,
         solar_pv_export_import_ratio=1.0,
         tariff_dict=tariffs_params,
@@ -309,20 +309,20 @@ def run(settings: ScenarioSettings) -> None:
 
     raw_load_elec = _return_load(
         load_type="electricity",
-        target_year=settings.test_year_run,
+        target_year=settings.year_run,
         load_filepath_key=bldg_id_to_load_filepath,
         force_tz="EST",
     )
     raw_load_gas = _return_load(
         load_type="gas",
-        target_year=settings.test_year_run,
+        target_year=settings.year_run,
         load_filepath_key=bldg_id_to_load_filepath,
         force_tz="EST",
     )
 
     bulk_marginal_costs = _load_cambium_marginal_costs(
         settings.path_cambium_marginal_costs,
-        settings.test_year_run,
+        settings.year_run,
     )
     distribution_mc_root = (
         f"s3://data.sb/switchbox/marginal_costs/{settings.state.lower().strip('/')}/"
@@ -335,7 +335,7 @@ def run(settings: ScenarioSettings) -> None:
     distribution_mc_scan = (
         distribution_mc_scan.filter(pl.col("region").cast(pl.Utf8) == settings.region)
         .filter(pl.col("utility").cast(pl.Utf8) == settings.utility)
-        .filter(pl.col("year").cast(pl.Utf8) == str(settings.test_year_run))
+        .filter(pl.col("year").cast(pl.Utf8) == str(settings.year_run))
     )
     distribution_mc_df = cast(pl.DataFrame, distribution_mc_scan.collect())
     distribution_marginal_costs = distribution_mc_df.to_pandas()
@@ -368,7 +368,7 @@ def run(settings: ScenarioSettings) -> None:
     ) = _return_revenue_requirement_target(
         building_load=raw_load_elec,
         sample_weight=customer_metadata[["bldg_id", "weight"]],
-        revenue_requirement_target=settings.target_revenue_requirement,
+        revenue_requirement_target=settings.utility_revenue_requirement,
         residual_cost=None,
         residual_cost_frac=None,
         bulk_marginal_costs=bulk_marginal_costs,
@@ -379,7 +379,7 @@ def run(settings: ScenarioSettings) -> None:
 
     bs = MeetRevenueSufficiencySystemWide(
         run_type=settings.run_type,
-        year_run=settings.test_year_run,
+        year_run=settings.year_run,
         year_dollar_conversion=settings.year_dollar_conversion,
         process_workers=settings.process_workers,
         run_name=settings.run_name,
