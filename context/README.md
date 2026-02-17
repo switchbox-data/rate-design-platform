@@ -26,10 +26,18 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 
 Technical documentation extracted from PDFs (e.g. Cambium, ResStock dataset docs). Add via the **extract-pdf-to-markdown** slash command.
 
-| File               | Use when working on …                                                                    |
-| ------------------ | ---------------------------------------------------------------------------------------- |
-| cambium_2024.md    | Cambium 2024 scenarios, marginal costs, metrics, GEA/BA, LRMER/SRMER, methods            |
-| resstock_2024.2.md | ResStock 2024.2 metadata, measure packages, load conventions, or building/upgrade schema |
+| File                                | Use when working on …                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------------------- |
+| cambium_2024.md                     | Cambium 2024 scenarios, marginal costs, metrics, GEA/BA, LRMER/SRMER, methods               |
+| resstock_2024.2.md                  | ResStock 2024.2 metadata, measure packages, load conventions, or building/upgrade schema    |
+| census_pums_acs1_2022_data_dict.txt | ACS 1-year PUMS variable definitions (2022)                                                 |
+| census_pums_acs1_2023_data_dict.txt | ACS 1-year PUMS variable definitions (2023)                                                 |
+| census_pums_ac1_2023_user_guide.md  | ACS 2023 1-year PUMS user guide: file structure, weights, geographies, data dictionary      |
+| census_pums_acs1_2024_data_dict.txt | ACS 1-year PUMS variable definitions (2024)                                                 |
+| census_pums_acs1_2024_user_guide.md | ACS 2024 1-year PUMS user guide: file structure, weights, geographies, data dictionary      |
+| census_pums_acs5_2021_data_dict.txt | ACS 5-year PUMS variable definitions (2017-2021)                                            |
+| census_pums_acs5_2022_data_dict.txt | ACS 5-year PUMS variable definitions (2018-2022)                                            |
+| census_pums_ac5_2023_user_guide.md  | ACS 2019–2023 5-year PUMS user guide: file structure, weights, geographies, data dictionary |
 
 ## papers/
 
