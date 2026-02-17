@@ -38,7 +38,7 @@ prepare:
     just fetch
     just convert
 
-# Sync parquet/ to s3://data.sb/hud/income_limits/
+# Sync parquet/ to s3://data.sb/hud/ami/
 upload:
     aws s3 sync parquet/ s3://data.sb/hud/ami/ --exclude "*" --include "*.parquet"
 
