@@ -92,7 +92,9 @@ def test_build_smi_threshold_column_basic() -> None:
         _build_smi_threshold_column("occ", SMI_THRESHOLDS).alias("thresh")
     )
     for hh_size in range(1, 9):
-        assert out.filter(pl.col("occ") == hh_size)["thresh"][0] == SMI_THRESHOLDS[hh_size]
+        assert (
+            out.filter(pl.col("occ") == hh_size)["thresh"][0] == SMI_THRESHOLDS[hh_size]
+        )
 
 
 def test_build_smi_threshold_column_over_8() -> None:
@@ -119,7 +121,12 @@ def test_apply_discounts_elec_heat(tmp_path: Path) -> None:
     _make_bills_csv(bills_dir / "gas_bills_year_run.csv", [1], 100.0)
 
     tc = _make_tier_consumption(
-        [1], [3], [True], [True], [False], ["kedny"],
+        [1],
+        [3],
+        [True],
+        [True],
+        [False],
+        ["kedny"],
     )
     elec, _gas = _apply_discounts_to_bills(run_dir, tc, "coned", rider=False, opts={})
     elec_df = cast(pl.DataFrame, elec.collect())
@@ -141,7 +148,12 @@ def test_apply_discounts_nonheat(tmp_path: Path) -> None:
     _make_bills_csv(bills_dir / "gas_bills_year_run.csv", [1], 100.0)
 
     tc = _make_tier_consumption(
-        [1], [3], [True], [False], [False], ["kedny"],
+        [1],
+        [3],
+        [True],
+        [False],
+        [False],
+        ["kedny"],
     )
     elec, _gas = _apply_discounts_to_bills(run_dir, tc, "coned", rider=False, opts={})
     elec_df = cast(pl.DataFrame, elec.collect())
@@ -161,7 +173,12 @@ def test_apply_discounts_gas_by_gas_utility(tmp_path: Path) -> None:
 
     # Building heats with gas, served by KEDNY for gas
     tc = _make_tier_consumption(
-        [1], [3], [True], [False], [True], ["kedny"],
+        [1],
+        [3],
+        [True],
+        [False],
+        [True],
+        ["kedny"],
     )
     _elec, gas = _apply_discounts_to_bills(run_dir, tc, "coned", rider=False, opts={})
     gas_df = cast(pl.DataFrame, gas.collect())
@@ -181,7 +198,12 @@ def test_apply_discounts_null_credit(tmp_path: Path) -> None:
     _make_bills_csv(bills_dir / "gas_bills_year_run.csv", [1], 100.0)
 
     tc = _make_tier_consumption(
-        [1], [5], [True], [True], [True], ["nimo"],
+        [1],
+        [5],
+        [True],
+        [True],
+        [True],
+        ["nimo"],
     )
     elec, gas = _apply_discounts_to_bills(run_dir, tc, "nimo", rider=False, opts={})
     elec_df = cast(pl.DataFrame, elec.collect())
@@ -206,7 +228,11 @@ def test_apply_discounts_psegli_flat(tmp_path: Path) -> None:
 
     # Bldg 1: Tier 1 heating; Bldg 2: Tier 3 non-heating. Both should get $45.
     tc = _make_tier_consumption(
-        [1, 2], [1, 3], [True, True], [True, False], [False, False],
+        [1, 2],
+        [1, 3],
+        [True, True],
+        [True, False],
+        [False, False],
         ["psegli", "psegli"],
     )
     elec, _gas = _apply_discounts_to_bills(run_dir, tc, "psegli", rider=False, opts={})
@@ -227,7 +253,12 @@ def test_apply_discounts_tier_zero_no_credit(tmp_path: Path) -> None:
     _make_bills_csv(bills_dir / "gas_bills_year_run.csv", [1], 100.0)
 
     tc = _make_tier_consumption(
-        [1], [0], [False], [True], [True], ["kedny"],
+        [1],
+        [0],
+        [False],
+        [True],
+        [True],
+        ["kedny"],
     )
     elec, gas = _apply_discounts_to_bills(run_dir, tc, "coned", rider=False, opts={})
     elec_df = cast(pl.DataFrame, elec.collect())
@@ -272,7 +303,9 @@ def test_apply_discounts_rider(tmp_path: Path) -> None:
 
     # Participant gets credit subtracted; non-participant gets rider added
     participant_discount = original_annual - float(participant["bill_level"][0])
-    non_participant_surcharge = float(non_participant["bill_level"][0]) - original_annual
+    non_participant_surcharge = (
+        float(non_participant["bill_level"][0]) - original_annual
+    )
 
     # Total discount should equal total rider recovery
     assert participant_discount == pytest.approx(non_participant_surcharge, rel=1e-6)
@@ -286,9 +319,9 @@ def test_apply_discounts_rider(tmp_path: Path) -> None:
 def test_load_cpi_ratio_basic(tmp_path: Path) -> None:
     """CPI ratio = cpi_target / cpi_base."""
     cpi_path = str(tmp_path / "cpi.parquet")
-    pl.DataFrame(
-        {"year": [2019, 2024], "value": [255.0, 310.0]}
-    ).write_parquet(cpi_path)
+    pl.DataFrame({"year": [2019, 2024], "value": [255.0, 310.0]}).write_parquet(
+        cpi_path
+    )
 
     ratio = load_cpi_ratio(cpi_path, 2024, {})
     assert ratio == pytest.approx(310.0 / 255.0)
