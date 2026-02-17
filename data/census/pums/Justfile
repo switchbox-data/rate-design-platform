@@ -1,0 +1,92 @@
+# PUMS Data Pipeline
+#
+# Downloads Census ACS PUMS zips, extracts to CSV, converts to Parquet.
+#
+# QUICK START:
+#   just prepare                       # All states, both record types (defaults)
+#   just state=NY prepare              # One state (fetch+unzip+convert in one invocation)
+#   just prepare-smoke                 # Last 3 end-years acs1+acs5, state=DC only (no upload)
+#
+# INDIVIDUAL STEPS (override top-level vars: just survey=acs1 end_year=2024 state=DC fetch):
+#   just fetch                         # Download to zips/
+#   just unzip                         # Extract zips to csv/
+#   just convert                       # Convert csv/ to parquet/
+#   just upload                        # Sync parquet/ to s3://data.sb/census/pums/
+#   just clean                         # Remove zips/, csv/, parquet/
+#
+# Run from repo root: just -f data/census/pums/Justfile <recipe>
+# Paths use justfile_directory() so they work regardless of cwd.
+
+pums_dir := justfile_directory()
+csv_dir := "{{pums_dir}}/csv"
+parquet_dir := "{{pums_dir}}/parquet"
+
+# Top-level defaults (override on CLI: just survey=acs1 end_year=2024 state=DC fetch)
+survey := "acs5"
+end_year := "2023"
+state := "all"
+record_type := "both"
+
+# Fetch: download PUMS zips to zips/{{survey}}/{{end_year}}/
+fetch:
+    uv run python {{pums_dir}}/fetch_pums_csvs.py \
+        --survey {{survey}} --end-year {{end_year}} --state {{state}} \
+        --record-type {{record_type}} --output-dir {{pums_dir}}/zips
+
+# Unzip: extract zips to csv/ (uses same survey, end_year as fetch)
+unzip:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ZIP_DIR="{{pums_dir}}/zips/{{survey}}/{{end_year}}"
+    CSV_BASE="{{pums_dir}}/csv/{{survey}}/{{end_year}}"
+    if [ ! -d "$ZIP_DIR" ]; then
+        echo "Error: $ZIP_DIR not found. Run 'just fetch' first."
+        exit 1
+    fi
+    for zipfile in "$ZIP_DIR"/*.zip; do
+        if [ ! -f "$zipfile" ]; then continue; fi
+        name=$(basename "$zipfile" .zip)
+        rec_type="person"
+        if [[ "$name" == csv_h* ]]; then rec_type="housing"; fi
+        state_code=$(echo "$name" | sed 's/^csv_[ph]//' | tr 'a-z' 'A-Z')
+        out_dir="$CSV_BASE/$rec_type/state=$state_code"
+        mkdir -p "$out_dir"
+        echo "Extracting: $name -> $out_dir"
+        unzip -o -j "$zipfile" -d "$out_dir"
+        rm -f "$out_dir"/*.pdf
+    done
+    echo "✓ Extracted to $CSV_BASE"
+
+# Convert csv/ tree to parquet/
+convert:
+    uv run python {{pums_dir}}/convert_pums_csv_to_parquet.py \
+        --input-dir {{pums_dir}}/csv --output-dir {{pums_dir}}/parquet
+
+# Full pipeline: fetch -> unzip -> convert (uses top-level survey, end_year, state, record_type)
+prepare: fetch unzip convert
+
+# Smoke test: last 3 end-years acs1+acs5, state=DC only; then one convert. No upload.
+prepare-smoke:
+    just -f {{pums_dir}}/Justfile survey=acs1 end_year=2022 state=DC fetch
+    just -f {{pums_dir}}/Justfile survey=acs1 end_year=2022 unzip
+    just -f {{pums_dir}}/Justfile survey=acs1 end_year=2023 state=DC fetch
+    just -f {{pums_dir}}/Justfile survey=acs1 end_year=2023 unzip
+    just -f {{pums_dir}}/Justfile survey=acs1 end_year=2024 state=DC fetch
+    just -f {{pums_dir}}/Justfile survey=acs1 end_year=2024 unzip
+    just -f {{pums_dir}}/Justfile survey=acs5 end_year=2021 state=DC fetch
+    just -f {{pums_dir}}/Justfile survey=acs5 end_year=2021 unzip
+    just -f {{pums_dir}}/Justfile survey=acs5 end_year=2022 state=DC fetch
+    just -f {{pums_dir}}/Justfile survey=acs5 end_year=2022 unzip
+    just -f {{pums_dir}}/Justfile survey=acs5 end_year=2023 state=DC fetch
+    just -f {{pums_dir}}/Justfile survey=acs5 end_year=2023 unzip
+    just -f {{pums_dir}}/Justfile convert
+    echo "✓ prepare-smoke done (no upload)"
+
+# Sync parquet/ to S3 (not exercised in PR)
+upload:
+    aws s3 sync {{pums_dir}}/parquet/ s3://data.sb/census/pums/ --exclude "*" --include "*.parquet"
+
+# Remove zips/, csv/, parquet/ under data/census/pums/
+clean:
+    rm -rf {{pums_dir}}/zips {{pums_dir}}/csv {{pums_dir}}/parquet
+    echo "✓ Removed zips/, csv/, parquet/"

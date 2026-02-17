@@ -7,6 +7,9 @@ __pycache__/
 
 # Local data and outputs
 # data/
+data/census/pums/zips/
+data/census/pums/csv/
+data/census/pums/parquet/
 rate_design/ny/hp_rates/data/buildstock_raw/
 rate_design/ny/hp_rates/data/buildstock_processed/
 rate_design/ny/hp_rates/data/cairo_cases/

@@ -46,7 +46,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["rate_design*", "utils*"]
+include = ["data*", "rate_design*", "utils*"]
 
 [tool.setuptools.package-data]
 "rate_design.ny.hp_rates" = [
