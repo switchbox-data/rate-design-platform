@@ -67,7 +67,6 @@ electric_utility = cast(ElectricUtility, "coned")
 prototype_ids = _fetch_prototype_ids_by_electric_util(
     electric_utility, utility_assignment
 )
-print(f"Prototype IDs: {prototype_ids}")
 
 tariff_paths = {
     "dummy_electrical_fixed": path_data

@@ -292,9 +292,11 @@ def run(settings: ScenarioSettings) -> None:
         str(PATH_UTILITY_ASSIGNMENT), storage_options=STORAGE_OPTIONS
     )
     prototype_ids = _fetch_prototype_ids_by_electric_util(
-        electric_utility, utility_assignment
+        cast(ElectricUtility, settings.utility), utility_assignment
     )
-    print(f"Prototype IDs: {prototype_ids[0]}")
+    print(
+        f"Prototype IDs: {prototype_ids[0]}"
+    )  # In place just to silence linter error for unused variable.
 
     tariffs_params, tariff_map_df = _initialize_tariffs(
         tariff_map=settings.path_tariff_maps_electric,
