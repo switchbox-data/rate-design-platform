@@ -21,6 +21,8 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import requests
@@ -37,6 +39,9 @@ ACS1_YEAR_MIN = 2013
 ACS1_YEAR_MAX = 2024
 ACS5_YEAR_MIN = 2009
 ACS5_YEAR_MAX = 2023
+
+# Max concurrent zip downloads (keep modest to avoid hammering Census).
+MAX_DOWNLOAD_WORKERS = 6
 
 
 def _survey_to_subdir(survey: str) -> str:
@@ -159,6 +164,16 @@ def _fetch_data_dict(
         )
 
 
+def _download_one(url: str, path: Path, print_lock: threading.Lock) -> None:
+    """Download a single zip from url to path. Raises on failure."""
+    with print_lock:
+        print(f"Downloading: {path.name}")
+    headers = {"User-Agent": USER_AGENT}
+    resp = requests.get(url, headers=headers, timeout=120)
+    resp.raise_for_status()
+    path.write_bytes(resp.content)
+
+
 def fetch_pums_zips(
     survey: str,
     end_year: int,
@@ -171,6 +186,7 @@ def fetch_pums_zips(
     out = output_dir / survey / str(end_year)
     out.mkdir(parents=True, exist_ok=True)
 
+    tasks: list[tuple[str, Path]] = []
     for record_type in record_types:
         for state in states:
             state_lower = state.lower()
@@ -181,10 +197,21 @@ def fetch_pums_zips(
             if path.exists():
                 print(f"Skip (exists): {path.relative_to(output_dir)}")
                 continue
-            print(f"Downloading: {path.name}")
-            resp = requests.get(url, timeout=120)
-            resp.raise_for_status()
-            path.write_bytes(resp.content)
+            tasks.append((url, path))
+
+    if not tasks:
+        print(f"Wrote zips to {out}")
+        return
+
+    print_lock = threading.Lock()
+    with ThreadPoolExecutor(max_workers=MAX_DOWNLOAD_WORKERS) as executor:
+        futures = {
+            executor.submit(_download_one, url, path, print_lock): path
+            for url, path in tasks
+        }
+        for future in as_completed(futures):
+            future.result()
+
     print(f"Wrote zips to {out}")
 
 
