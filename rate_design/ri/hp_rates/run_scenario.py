@@ -355,6 +355,9 @@ def run(settings: ScenarioSettings) -> None:
     distribution_marginal_costs = distribution_marginal_costs.loc[
         ~distribution_marginal_costs.index.isna()
     ].copy()
+    distribution_marginal_costs = distribution_marginal_costs.loc[
+        ~distribution_marginal_costs.index.duplicated(keep="first")
+    ]
     distribution_marginal_costs = distribution_marginal_costs.sort_index()
 
     if "Marginal Distribution Costs ($/kWh)" in distribution_marginal_costs.columns:
@@ -392,13 +395,16 @@ def run(settings: ScenarioSettings) -> None:
         distribution_marginal_costs.index = distribution_marginal_costs.index.tz_convert(
             "EST"
         )
-    distribution_marginal_costs = distribution_marginal_costs.reindex(raw_load_elec.index)
+    distribution_marginal_costs.index.name = "time"
+    distribution_marginal_costs = distribution_marginal_costs.reindex(
+        bulk_marginal_costs.index
+    )
     if distribution_marginal_costs["Marginal Distribution Costs ($/kWh)"].isna().any():
         missing_count = distribution_marginal_costs[
             "Marginal Distribution Costs ($/kWh)"
         ].isna().sum()
         raise ValueError(
-            "Distribution marginal costs are missing at CAIRO timestamps. "
+            "Distribution marginal costs are missing at CAIRO hourly timestamps. "
             f"Missing rows: {missing_count}"
         )
 
