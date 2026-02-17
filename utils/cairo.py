@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pandas as pd
 from cairo.rates_tool import config
+from cairo.rates_tool import loads as load_funcs
+from cairo.rates_tool import system_costs as cost_funcs
 from cairo.rates_tool.loads import __timeshift__
 from cloudpathlib import S3Path
 
@@ -168,3 +170,58 @@ def build_bldg_id_to_load_filepath(
         bldg_id_to_load_filepath[bldg_id] = filepath
 
     return bldg_id_to_load_filepath
+
+
+def _return_revenue_requirement_target_fixed(
+    building_load: pd.DataFrame,
+    sample_weight: pd.DataFrame,
+    revenue_requirement_target: float,
+    residual_cost: float | None,
+    residual_cost_frac: float | None,
+    bulk_marginal_costs: pd.DataFrame,
+    distribution_marginal_costs: pd.DataFrame | pd.Series,
+    low_income_strategy: str | None,
+    delivery_only_rev_req_passed: bool = False,
+) -> tuple[pd.Series, pd.DataFrame, pd.DataFrame, pd.Series]:
+    """
+    CAIRO-compatible revenue target helper with supply top-up fix.
+
+    Fixes the behavior where `delivery_only_rev_req_passed=True` did not affect the
+    returned `revenue_requirement` in upstream CAIRO.
+    """
+    hourly_sys_load = load_funcs.process_residential_hourly_demand(
+        bldg_load=building_load,
+        sample_weights=sample_weight,
+    )
+    (
+        _,
+        _,
+        _,
+        base_costs_by_type,
+    ) = cost_funcs._calculate_system_revenue_target(
+        revenue_requirement_target,
+        bulk_marginal_costs,
+        distribution_marginal_costs,
+        residual_cost,
+        residual_cost_frac,
+        hourly_sys_load,
+        low_income_strategy,
+    )
+
+    if delivery_only_rev_req_passed:
+        supply_component = float(
+            base_costs_by_type[["Marginal Energy Costs ($)", "Marginal Capacity Costs ($)"]]
+            .sum()
+            .sum()
+        )
+        revenue_requirement_target += supply_component
+
+    return cost_funcs._calculate_system_revenue_target(
+        revenue_requirement_target,
+        bulk_marginal_costs,
+        distribution_marginal_costs,
+        residual_cost,
+        residual_cost_frac,
+        hourly_sys_load,
+        low_income_strategy,
+    )
