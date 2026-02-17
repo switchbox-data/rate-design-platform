@@ -9,7 +9,13 @@ ri_run_scenario_config := project_root + "/rate_design/ri/hp_rates/config/run_sc
 # -----------------------------------------------------------------------------
 # Example:
 # just run-scenario 1
-run-scenario run_num output_dir="/data.sb/switchbox/cairo/ri_hp_rates/" scenario_config=ri_run_scenario_config:
+run-scenario run_num scenario_config=ri_run_scenario_config:
+  uv run python {{project_root}}/rate_design/ri/hp_rates/run_scenario.py \
+    --run-num "{{run_num}}" \
+    --scenario-config "{{scenario_config}}"
+
+# Optional output override (if you don't want the YAML output_dir)
+run-scenario-with-output run_num output_dir scenario_config=ri_run_scenario_config:
   uv run python {{project_root}}/rate_design/ri/hp_rates/run_scenario.py \
     --run-num "{{run_num}}" \
     --scenario-config "{{scenario_config}}" \

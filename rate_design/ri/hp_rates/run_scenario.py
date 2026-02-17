@@ -28,7 +28,7 @@ log = logging.getLogger("rates_analysis").getChild("tests")
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
 PATH_RESSTOCK = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
-DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/")
+DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
 DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "run_scenarios.yaml"
 
 
@@ -54,6 +54,7 @@ class ScenarioSettings:
     year_dollar_conversion: int
     process_workers: int
     solar_pv_compensation: str = "net_metering"
+    delivery_only_rev_req_passed: bool = False
 
 
 def _parse_int(value: object, field_name: str) -> int:
@@ -68,6 +69,19 @@ def _parse_int(value: object, field_name: str) -> int:
         return int(float(cleaned))
     except ValueError as exc:
         raise ValueError(f"Invalid integer for {field_name}: {value}") from exc
+
+
+def _parse_bool(value: object, field_name: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return bool(value)
+    normalized = str(value).strip().lower()
+    if normalized in {"true", "1", "yes", "y"}:
+        return True
+    if normalized in {"false", "0", "no", "n"}:
+        return False
+    raise ValueError(f"Invalid boolean for {field_name}: {value}")
 
 
 def _resolve_path(value: str, base_dir: Path) -> Path:
@@ -92,7 +106,9 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
     with scenario_config.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
     if not isinstance(data, dict):
-        raise ValueError(f"Invalid YAML format in {scenario_config}: expected top-level map")
+        raise ValueError(
+            f"Invalid YAML format in {scenario_config}: expected top-level map"
+        )
     runs = _require_mapping(data.get("runs"), "runs")
     run = runs.get(run_num)
     if run is None:
@@ -135,13 +151,23 @@ def _build_settings_from_yaml_run(
         str(key): _resolve_path(str(path), PATH_CONFIG)
         for key, path in tariff_paths_raw.items()
     }
-    gas_tariff_paths_raw = _require_mapping(run.get("gas_tariff_paths"), "gas_tariff_paths")
+    gas_tariff_paths_raw = _require_mapping(
+        run.get("gas_tariff_paths"), "gas_tariff_paths"
+    )
     gas_tariff_paths = {
         str(key): _resolve_path(str(path), PATH_CONFIG)
         for key, path in gas_tariff_paths_raw.items()
     }
 
+    precalc_tariff_key = str(_require_value(run, "precalc_tariff_key"))
     default_run_name = str(run.get("run_name", f"ri_rie_run_{run_num:02d}"))
+    delivery_only_rev_req_passed = _parse_bool(
+        run.get(
+            "delivery_only_rev_req_passed",
+            "supply_adj" in precalc_tariff_key,
+        ),
+        "delivery_only_rev_req_passed",
+    )
 
     return ScenarioSettings(
         run_name=run_name_override or default_run_name,
@@ -174,21 +200,20 @@ def _build_settings_from_yaml_run(
             str(_require_value(run, "precalc_tariff_path")),
             PATH_CONFIG,
         ),
-        precalc_tariff_key=str(_require_value(run, "precalc_tariff_key")),
+        precalc_tariff_key=precalc_tariff_key,
         target_revenue_requirement=target_revenue_requirement,
         target_customer_count=target_customer_count,
         test_year_run=test_year_run,
         year_dollar_conversion=year_dollar_conversion,
         process_workers=process_workers,
         solar_pv_compensation=solar_pv_compensation,
+        delivery_only_rev_req_passed=delivery_only_rev_req_passed,
     )
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Run RI heat-pump scenario using YAML config."
-        )
+        description=("Run RI heat-pump scenario using YAML config.")
     )
     parser.add_argument(
         "--scenario-config",
@@ -224,6 +249,7 @@ def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
         output_dir=args.output_dir,
         run_name_override=args.run_name,
     )
+
 
 def run(settings: ScenarioSettings) -> None:
     log.info(
@@ -291,18 +317,21 @@ def run(settings: ScenarioSettings) -> None:
         nc_ratio_baseline=dist_cost_params["nc_ratio_baseline"],
     )
 
-    (revenue_requirement, marginal_system_prices, marginal_system_costs, costs_by_type) = (
-        _return_revenue_requirement_target(
-            building_load=raw_load_elec,
-            sample_weight=customer_metadata[["bldg_id", "weight"]],
-            revenue_requirement_target=settings.target_revenue_requirement,
-            residual_cost=None,
-            residual_cost_frac=None,
-            bulk_marginal_costs=bulk_marginal_costs,
-            distribution_marginal_costs=distribution_marginal_costs,
-            low_income_strategy=None,
-            delivery_only_rev_req_passed=True,
-        )
+    (
+        revenue_requirement,
+        marginal_system_prices,
+        marginal_system_costs,
+        costs_by_type,
+    ) = _return_revenue_requirement_target(
+        building_load=raw_load_elec,
+        sample_weight=customer_metadata[["bldg_id", "weight"]],
+        revenue_requirement_target=settings.target_revenue_requirement,
+        residual_cost=None,
+        residual_cost_frac=None,
+        bulk_marginal_costs=bulk_marginal_costs,
+        distribution_marginal_costs=distribution_marginal_costs,
+        low_income_strategy=None,
+        delivery_only_rev_req_passed=settings.delivery_only_rev_req_passed,
     )
 
     bs = MeetRevenueSufficiencySystemWide(

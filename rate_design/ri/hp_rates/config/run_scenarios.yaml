@@ -20,6 +20,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 20
     solar_pv_compensation: net_metering
+    delivery_only_rev_req_passed: false
 
   2:
     run_name: ri_rie_run_02_precalc_delivery_supply_up00_y2025
@@ -42,3 +43,4 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 20
     solar_pv_compensation: net_metering
+    delivery_only_rev_req_passed: true
