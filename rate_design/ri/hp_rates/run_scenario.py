@@ -360,6 +360,45 @@ def run(settings: ScenarioSettings) -> None:
         len(distribution_marginal_costs),
     )
 
+    revenue_requirement_target = settings.utility_revenue_requirement
+    delivery_only_rev_req_passed = settings.delivery_only_rev_req_passed
+    if settings.delivery_only_rev_req_passed:
+        (
+            _,
+            _,
+            _,
+            costs_for_adjustment,
+        ) = _return_revenue_requirement_target(
+            building_load=raw_load_elec,
+            sample_weight=customer_metadata[["bldg_id", "weight"]],
+            revenue_requirement_target=settings.utility_revenue_requirement,
+            residual_cost=None,
+            residual_cost_frac=None,
+            bulk_marginal_costs=bulk_marginal_costs,
+            distribution_marginal_costs=distribution_marginal_costs,
+            low_income_strategy=None,
+            delivery_only_rev_req_passed=False,
+        )
+        supply_component = float(
+            costs_for_adjustment[
+                ["Marginal Energy Costs ($)", "Marginal Capacity Costs ($)"]
+            ]
+            .sum()
+            .sum()
+        )
+        revenue_requirement_target = (
+            settings.utility_revenue_requirement + supply_component
+        )
+        # Adjust target here so delivery+supply runs are materially different even
+        # when upstream CAIRO's delivery_only flag path is non-operative.
+        delivery_only_rev_req_passed = False
+        log.info(
+            ".... delivery_only_rev_req_passed enabled; adding supply component "
+            "$%.2f to target revenue requirement (effective target: $%.2f)",
+            supply_component,
+            revenue_requirement_target,
+        )
+
     (
         revenue_requirement,
         marginal_system_prices,
@@ -368,13 +407,13 @@ def run(settings: ScenarioSettings) -> None:
     ) = _return_revenue_requirement_target(
         building_load=raw_load_elec,
         sample_weight=customer_metadata[["bldg_id", "weight"]],
-        revenue_requirement_target=settings.utility_revenue_requirement,
+        revenue_requirement_target=revenue_requirement_target,
         residual_cost=None,
         residual_cost_frac=None,
         bulk_marginal_costs=bulk_marginal_costs,
         distribution_marginal_costs=distribution_marginal_costs,
         low_income_strategy=None,
-        delivery_only_rev_req_passed=settings.delivery_only_rev_req_passed,
+        delivery_only_rev_req_passed=delivery_only_rev_req_passed,
     )
 
     bs = MeetRevenueSufficiencySystemWide(
