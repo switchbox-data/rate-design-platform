@@ -20,7 +20,7 @@ log = logging.getLogger("rates_analysis").getChild("tests")
 
 log.info(".... Beginning RI residential (non-LMI) rate scenario - RIE A-16 tariff")
 
-run_name = "ri_default_rate_supply_run_1"
+run_name = "ri_default_rate_supply_run_2"
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 path_project = Path(__file__).resolve().parent
 path_resstock = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
@@ -169,6 +169,7 @@ distribution_marginal_costs = add_distribution_costs(
         bulk_marginal_costs=bulk_marginal_costs,
         distribution_marginal_costs=distribution_marginal_costs,
         low_income_strategy=None,
+        delivery_only_rev_req_passed=True,
     )
 )
 
