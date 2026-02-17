@@ -57,7 +57,7 @@ process_workers = 20
 tariff_paths = {
     "dummy_electrical_fixed": path_data
     / "tariffs"
-    / "electricity"
+    / "electric"
     / "dummy_electrical_fixed.json",
 }
 

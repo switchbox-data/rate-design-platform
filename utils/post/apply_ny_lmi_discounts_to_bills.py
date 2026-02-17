@@ -1,17 +1,29 @@
-"""Apply RI LIDR+ LMI discounts to CAIRO bill outputs (postprocessing).
+"""Apply NY EAP/EEAP LMI discounts to CAIRO bill outputs (postprocessing).
 
-Reads bills and ResStock metadata from S3, assigns tiers by FPL%, applies
-tiered percentage discounts and optional volumetric cost-recovery rider,
-writes discounted bills with lmi_tier to the run directory.
+Reads bills and ResStock metadata from S3, assigns EAP tiers (0-7) using
+FPL%, SMI%, vulnerability, and heating fuel, then applies per-utility
+fixed monthly credits from the NY EAP credit table.
 
-Uses polars lazy execution; minimal collects for rider totals and weighted
-participation.
+Same four-step structure as the RI script:
+  1. Load CPI and compute income-inflation ratio
+  2. Build per-building tier and participation data
+  3. Apply fixed monthly credits (subtract from each month's bill)
+  4. Write or print outputs
+
+Key differences from RI:
+  - NY uses fixed $/month credits (not percentage discounts)
+  - Credits vary by utility × tier × fuel × heating status
+  - Tier assignment uses FPL + SMI/AMI + vulnerability + deliverable fuel
+  - Multiple gas utilities can serve buildings in one electric utility territory
+
+Uses polars lazy execution; minimal collects for rider totals.
 """
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import cast as typecast
 
 import polars as pl
 from cloudpathlib import S3Path
@@ -19,23 +31,25 @@ from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils.post.lmi_common import (
-    assign_ri_tier_expr,
-    discount_fractions_for_ri,
+    assign_ny_tier_expr,
     fpl_pct_expr,
     fpl_threshold_expr,
+    get_ami_territories,
+    get_ny_eap_credits_df,
     inflate_income_expr,
     load_cpi_ratio,
     load_fpl_guidelines,
+    load_ny_eap_config,
+    load_smi_for_state,
     parse_occupants_expr,
     participation_uniform_expr,
     select_participants_weighted,
+    smi_pct_expr,
+    smi_threshold_by_hh_size,
 )
 
-# Bill CSV: CAIRO writes long format (bldg_id, weight, month, bill_level, dollar_year)
-# month values: Jan, Feb, ..., Dec, Annual
 ANNUAL_MONTH_VALUE = "Annual"
 BLDG_ID_COL = "bldg_id"
-# ResStock gas energy: column is in kWh; convert to therms for rider (1 therm ≈ 29.3 kWh)
 KWH_PER_THERM = 29.3
 
 
@@ -47,10 +61,29 @@ def _run_dir_bills(run_dir: S3Path | Path, name: str) -> str:
     return str(run_dir / "bills" / name)
 
 
+def _build_smi_threshold_column(
+    occupants_col: str,
+    smi_thresholds: dict[int, float],
+) -> pl.Expr:
+    """Build a polars expression that maps occupant count to annual SMI threshold.
+
+    For occupants > 8, uses the 8-person threshold (HUD max).
+    """
+    expr = pl.lit(smi_thresholds.get(8, 0.0))
+    for hh_size in range(8, 0, -1):
+        thresh = smi_thresholds.get(hh_size, 0.0)
+        expr = (
+            pl.when(pl.col(occupants_col) == hh_size)
+            .then(pl.lit(thresh))
+            .otherwise(expr)
+        )
+    return expr
+
+
 def _build_tier_consumption(
     meta_path: str,
     util_path: str,
-    utility: str,
+    electric_utility: str,
     inflation_year: int,
     cpi_ratio: float,
     participation_rate: float,
@@ -58,26 +91,54 @@ def _build_tier_consumption(
     seed: int,
     opts: dict[str, str],
 ) -> pl.LazyFrame:
-    """
-    Load metadata for utility, add FPL/tier/participation, return lazy frame with
-    bldg_id, lmi_tier, participates, elec_kwh, gas_therms (and lmi_tier_raw for joins).
+    """Load metadata for utility, add FPL/SMI/tier/participation.
+
+    Returns lazy frame with bldg_id, lmi_tier, participates,
+    heats_with_electricity, heats_with_natgas, gas_utility, elec_kwh, gas_therms.
     """
     tier_col = "lmi_tier_raw"
     occupants_num = "occupants_num"
     income_inflated = "income_inflated"
     fpl_threshold = "fpl_threshold"
     fpl_pct = "fpl_pct"
+    smi_threshold = "smi_threshold"
+    smi_pct = "smi_pct"
     elec_kwh_col = "out.electricity.total.energy_consumption.kwh"
     gas_kwh_col = "out.natural_gas.total.energy_consumption.kwh"
 
     fpl = load_fpl_guidelines(inflation_year)
+
+    # Load SMI thresholds for NY at 100% (we'll compute %-of-SMI in the expression)
+    ny_eap_config = load_ny_eap_config()
+    ami_territories = get_ami_territories(ny_eap_config)
+
+    # For SMI/AMI threshold: use 100% SMI as the denominator so smi_pct = income/threshold*100
+    # gives us the percentage of SMI directly
+    smi_row = load_smi_for_state("NY", inflation_year, opts)
+    smi_100 = smi_threshold_by_hh_size(smi_row, pct=100.0)
+
+    # TODO: For AMI territories (coned, kedny, kedli), use area-level AMI
+    # instead of state-level SMI. Currently falls back to SMI for all utilities.
+    # This means EEAP thresholds will be conservative (lower) for AMI territories
+    # where true AMI > SMI. See get_ami_threshold_for_utility() in lmi_common.py.
+    if electric_utility in ami_territories:
+        income_thresholds = smi_100  # TODO: replace with AMI thresholds
+    else:
+        income_thresholds = smi_100
+
     meta = pl.scan_parquet(meta_path, storage_options=opts)
     util = pl.scan_parquet(util_path, storage_options=opts, hive_partitioning=True)
+
+    # Filter to buildings served by this electric utility
     meta = meta.join(
-        util.filter(pl.col("electric_utility") == utility).select(BLDG_ID_COL),
+        util.filter(pl.col("electric_utility") == electric_utility).select(
+            BLDG_ID_COL, "gas_utility"
+        ),
         on=BLDG_ID_COL,
         how="inner",
     )
+
+    # Parse occupants, inflate income, compute FPL% and SMI%
     meta = meta.with_columns(parse_occupants_expr("in.occupants").alias(occupants_num))
     meta = meta.with_columns(
         fpl_threshold_expr(occupants_num, fpl["base"], fpl["increment"]).alias(
@@ -92,9 +153,30 @@ def _build_tier_consumption(
     meta = meta.with_columns(
         fpl_pct_expr(income_inflated, pl.col(fpl_threshold)).alias(fpl_pct)
     )
-    meta = meta.with_columns(assign_ri_tier_expr(fpl_pct).alias(tier_col))
+
+    # SMI threshold by household size
+    meta = meta.with_columns(
+        _build_smi_threshold_column(occupants_num, income_thresholds).alias(
+            smi_threshold
+        )
+    )
+    meta = meta.with_columns(
+        smi_pct_expr(income_inflated, smi_threshold).alias(smi_pct)
+    )
+
+    # Filter out vacant units (income = 0, demographics unavailable)
+    meta = meta.filter(pl.col("in.vacancy_status") != "Vacant")
+
+    # Assign tier
+    meta = meta.with_columns(
+        assign_ny_tier_expr(
+            fpl_pct, smi_pct, "is_vulnerable", "heats_with_oil", "heats_with_propane"
+        ).alias(tier_col)
+    )
+
     eligible = pl.col(tier_col) >= 1
 
+    # Participation
     if participation_rate >= 1.0:
         meta = meta.with_columns(eligible.alias("participates"))
     elif participation_mode == "uniform":
@@ -103,13 +185,13 @@ def _build_tier_consumption(
         )
         meta = meta.with_columns(participates.alias("participates"))
     else:
-        eligible_df = (
+        eligible_df = typecast(
+            pl.DataFrame,
             meta.filter(eligible)
             .select(BLDG_ID_COL, fpl_pct, tier_col)
             .with_columns((1.0 / pl.col(fpl_pct).clip(1.0, None)).alias("weight"))
-            .collect()
+            .collect(),
         )
-        assert isinstance(eligible_df, pl.DataFrame)
         part_df = select_participants_weighted(
             eligible_df, participation_rate, seed, "weight", BLDG_ID_COL
         )
@@ -128,28 +210,40 @@ def _build_tier_consumption(
         .alias("lmi_tier")
     )
     meta = meta.with_columns((pl.col(gas_kwh_col) / KWH_PER_THERM).alias("gas_therms"))
+
     return meta.select(
         BLDG_ID_COL,
         "lmi_tier",
         tier_col,
         "participates",
+        "heats_with_electricity",
+        "heats_with_natgas",
+        "gas_utility",
         pl.col(elec_kwh_col).alias("elec_kwh"),
-        pl.col("gas_therms"),
+        "gas_therms",
     )
 
 
 def _apply_discounts_to_bills(
     run_dir: S3Path | Path,
     tier_consumption: pl.LazyFrame,
+    electric_utility: str,
     rider: bool,
     opts: dict[str, str],
 ) -> tuple[pl.LazyFrame, pl.LazyFrame]:
-    """
-    Load elec/gas bill CSVs (long format), join tier/consumption, apply tiered
-    discount and optional rider, drop helper columns. Returns (elec_bills, gas_bills).
+    """Apply NY EAP fixed monthly credits to electric and gas bills.
+
+    For each customer, looks up the credit by:
+      - electric utility (run-level)
+      - gas utility (per-building, from metadata_utility)
+      - tier (from tier assignment)
+      - heating status (heats_with_electricity / heats_with_natgas)
+
+    Subtracts the monthly credit from each month's bill (and Annual = 12× monthly).
     """
     tier_col = "lmi_tier_raw"
     storage = opts if isinstance(run_dir, S3Path) else None
+
     elec_bills = pl.scan_csv(
         _run_dir_bills(run_dir, "elec_bills_year_run.csv"), storage_options=storage
     )
@@ -157,78 +251,129 @@ def _apply_discounts_to_bills(
         _run_dir_bills(run_dir, "gas_bills_year_run.csv"), storage_options=storage
     )
 
-    elec_annual = elec_bills.filter(pl.col("month") == ANNUAL_MONTH_VALUE).select(
-        BLDG_ID_COL, pl.col("bill_level").alias("original_annual_elec")
-    )
-    gas_annual = gas_bills.filter(pl.col("month") == ANNUAL_MONTH_VALUE).select(
-        BLDG_ID_COL, pl.col("bill_level").alias("original_annual_gas")
-    )
     tc = tier_consumption
+
+    # Join tier/heating info to bills
     elec_bills = elec_bills.join(
-        tc.select(BLDG_ID_COL, "lmi_tier", tier_col, "participates", "elec_kwh"),
+        tc.select(
+            BLDG_ID_COL,
+            "lmi_tier",
+            tier_col,
+            "participates",
+            "heats_with_electricity",
+            "elec_kwh",
+        ),
         on=BLDG_ID_COL,
         how="left",
-    ).join(elec_annual, on=BLDG_ID_COL, how="left")
+    )
     gas_bills = gas_bills.join(
-        tc.select(BLDG_ID_COL, "lmi_tier", tier_col, "participates", "gas_therms"),
+        tc.select(
+            BLDG_ID_COL,
+            "lmi_tier",
+            tier_col,
+            "participates",
+            "heats_with_natgas",
+            "gas_utility",
+            "gas_therms",
+        ),
         on=BLDG_ID_COL,
         how="left",
-    ).join(gas_annual, on=BLDG_ID_COL, how="left")
+    )
     elec_bills = elec_bills.with_columns(pl.col("lmi_tier").fill_null(0))
     gas_bills = gas_bills.with_columns(pl.col("lmi_tier").fill_null(0))
 
-    elec_disc, gas_disc = discount_fractions_for_ri()
-    disc_elec_expr = pl.when(pl.col("lmi_tier") == 3).then(
-        pl.col("original_annual_elec") * elec_disc[3]
-    )
-    disc_elec_expr = disc_elec_expr.when(pl.col("lmi_tier") == 2).then(
-        pl.col("original_annual_elec") * elec_disc[2]
-    )
-    disc_elec_expr = disc_elec_expr.when(pl.col("lmi_tier") == 1).then(
-        pl.col("original_annual_elec") * elec_disc[1]
-    )
-    disc_elec_expr = disc_elec_expr.otherwise(0.0)
-    elec_bills = elec_bills.with_columns(disc_elec_expr.alias("discount_elec"))
-    disc_gas_expr = pl.when(pl.col("lmi_tier") == 3).then(
-        pl.col("original_annual_gas") * gas_disc[3]
-    )
-    disc_gas_expr = disc_gas_expr.when(pl.col("lmi_tier") == 2).then(
-        pl.col("original_annual_gas") * gas_disc[2]
-    )
-    disc_gas_expr = disc_gas_expr.when(pl.col("lmi_tier") == 1).then(
-        pl.col("original_annual_gas") * gas_disc[1]
-    )
-    disc_gas_expr = disc_gas_expr.otherwise(0.0)
-    gas_bills = gas_bills.with_columns(disc_gas_expr.alias("discount_gas"))
+    # Load credit table
+    credits_df = get_ny_eap_credits_df()
 
+    # --- Electric credits ---
+    # Look up credit for the electric utility by tier and heating status
+    elec_credits = credits_df.filter(pl.col("utility") == electric_utility).select(
+        pl.col("tier"),
+        pl.col("elec_heat").fill_null(0.0).alias("credit_heat"),
+        pl.col("elec_nonheat").fill_null(0.0).alias("credit_nonheat"),
+    )
+    elec_bills = elec_bills.join(
+        elec_credits.lazy().rename({"tier": "lmi_tier"}),
+        on="lmi_tier",
+        how="left",
+    )
+    # Monthly credit: heat or nonheat based on heats_with_electricity
+    elec_monthly_credit = (
+        pl.when(pl.col("heats_with_electricity").fill_null(False))
+        .then(pl.col("credit_heat").fill_null(0.0))
+        .otherwise(pl.col("credit_nonheat").fill_null(0.0))
+    )
+    # Apply credit: subtract from bill. Annual = 12× monthly credit.
+    elec_credit_amount = (
+        pl.when(pl.col("month") == ANNUAL_MONTH_VALUE)
+        .then(elec_monthly_credit * 12.0)
+        .otherwise(elec_monthly_credit)
+    )
+    # Only apply to participants with tier > 0
+    elec_credit_applied = (
+        pl.when(pl.col("lmi_tier") > 0).then(elec_credit_amount).otherwise(0.0)
+    )
+    elec_bills = elec_bills.with_columns(elec_credit_applied.alias("discount_elec"))
+
+    # --- Gas credits ---
+    # Gas credits depend on the gas utility serving each building (can differ from electric)
+    # Join credit table on gas_utility × tier
+    gas_credit_lookup = credits_df.select(
+        pl.col("utility").alias("gas_utility"),
+        pl.col("tier").alias("lmi_tier"),
+        pl.col("gas_heat").fill_null(0.0).alias("credit_gas_heat"),
+        pl.col("gas_nonheat").fill_null(0.0).alias("credit_gas_nonheat"),
+    )
+    gas_bills = gas_bills.join(
+        gas_credit_lookup.lazy(),
+        on=["gas_utility", "lmi_tier"],
+        how="left",
+    )
+    gas_monthly_credit = (
+        pl.when(pl.col("heats_with_natgas").fill_null(False))
+        .then(pl.col("credit_gas_heat").fill_null(0.0))
+        .otherwise(pl.col("credit_gas_nonheat").fill_null(0.0))
+    )
+    gas_credit_amount = (
+        pl.when(pl.col("month") == ANNUAL_MONTH_VALUE)
+        .then(gas_monthly_credit * 12.0)
+        .otherwise(gas_monthly_credit)
+    )
+    gas_credit_applied = (
+        pl.when(pl.col("lmi_tier") > 0).then(gas_credit_amount).otherwise(0.0)
+    )
+    gas_bills = gas_bills.with_columns(gas_credit_applied.alias("discount_gas"))
+
+    # --- Rider (optional cost recovery) ---
     if rider:
         elec_annual_rows = elec_bills.filter(pl.col("month") == ANNUAL_MONTH_VALUE)
         gas_annual_rows = gas_bills.filter(pl.col("month") == ANNUAL_MONTH_VALUE)
-        elec_totals_df = elec_annual_rows.select(
-            pl.col("discount_elec").sum().alias("total_discount_elec"),
-            pl.when(~pl.col("participates").fill_null(False))
-            .then(pl.col("elec_kwh"))
-            .otherwise(0)
-            .sum()
-            .alias("total_kwh_non"),
-        ).collect()
-        gas_totals_df = gas_annual_rows.select(
-            pl.col("discount_gas").sum().alias("total_discount_gas"),
-            pl.when(~pl.col("participates").fill_null(False))
-            .then(pl.col("gas_therms"))
-            .otherwise(0)
-            .sum()
-            .alias("total_gas_non"),
-        ).collect()
-        assert isinstance(elec_totals_df, pl.DataFrame) and isinstance(
-            gas_totals_df, pl.DataFrame
+        elec_totals_df = typecast(
+            pl.DataFrame,
+            elec_annual_rows.select(
+                pl.col("discount_elec").sum().alias("total_discount_elec"),
+                pl.when(~pl.col("participates").fill_null(False))
+                .then(pl.col("elec_kwh"))
+                .otherwise(0)
+                .sum()
+                .alias("total_kwh_non"),
+            ).collect(),
         )
-        row_elec = elec_totals_df.row(0)
-        row_gas = gas_totals_df.row(0)
-        td_elec = float(row_elec[0] or 0.0)
-        tk_non = float(row_elec[1] or 0.0)
-        td_gas = float(row_gas[0] or 0.0)
-        tg_non = float(row_gas[1] or 0.0)
+        gas_totals_df = typecast(
+            pl.DataFrame,
+            gas_annual_rows.select(
+                pl.col("discount_gas").sum().alias("total_discount_gas"),
+                pl.when(~pl.col("participates").fill_null(False))
+                .then(pl.col("gas_therms"))
+                .otherwise(0)
+                .sum()
+                .alias("total_gas_non"),
+            ).collect(),
+        )
+        td_elec = float(elec_totals_df["total_discount_elec"][0] or 0.0)
+        tk_non = float(elec_totals_df["total_kwh_non"][0] or 0.0)
+        td_gas = float(gas_totals_df["total_discount_gas"][0] or 0.0)
+        tg_non = float(gas_totals_df["total_gas_non"][0] or 0.0)
         rider_per_kwh = (td_elec / tk_non) if tk_non > 0 else 0.0
         rider_per_therm = (td_gas / tg_non) if tg_non > 0 else 0.0
         rider_elec_annual = (
@@ -245,14 +390,7 @@ def _apply_discounts_to_bills(
         rider_elec_annual = pl.lit(0.0)
         rider_gas_annual = pl.lit(0.0)
 
-    mult_elec = pl.when(pl.col("lmi_tier") == 3).then(1.0 - elec_disc[3])
-    mult_elec = mult_elec.when(pl.col("lmi_tier") == 2).then(1.0 - elec_disc[2])
-    mult_elec = mult_elec.when(pl.col("lmi_tier") == 1).then(1.0 - elec_disc[1])
-    mult_elec = mult_elec.otherwise(1.0)
-    mult_gas = pl.when(pl.col("lmi_tier") == 3).then(1.0 - gas_disc[3])
-    mult_gas = mult_gas.when(pl.col("lmi_tier") == 2).then(1.0 - gas_disc[2])
-    mult_gas = mult_gas.when(pl.col("lmi_tier") == 1).then(1.0 - gas_disc[1])
-    mult_gas = mult_gas.otherwise(1.0)
+    # Apply: subtract credit, add rider
     rider_elec_row = (
         pl.when(pl.col("month") == ANNUAL_MONTH_VALUE)
         .then(rider_elec_annual)
@@ -264,19 +402,26 @@ def _apply_discounts_to_bills(
         .otherwise(rider_gas_annual / 12)
     )
     elec_bills = elec_bills.with_columns(
-        (pl.col("bill_level") * mult_elec + rider_elec_row).alias("bill_level")
+        (pl.col("bill_level") - pl.col("discount_elec") + rider_elec_row).alias(
+            "bill_level"
+        )
     )
     gas_bills = gas_bills.with_columns(
-        (pl.col("bill_level") * mult_gas + rider_gas_row).alias("bill_level")
+        (pl.col("bill_level") - pl.col("discount_gas") + rider_gas_row).alias(
+            "bill_level"
+        )
     )
 
+    # Drop helper columns
     drop_elec = [
         c
         for c in [
             "participates",
+            "heats_with_electricity",
             "elec_kwh",
-            "original_annual_elec",
             "discount_elec",
+            "credit_heat",
+            "credit_nonheat",
             tier_col,
         ]
         if c in elec_bills.collect_schema().names()
@@ -285,9 +430,12 @@ def _apply_discounts_to_bills(
         c
         for c in [
             "participates",
+            "heats_with_natgas",
+            "gas_utility",
             "gas_therms",
-            "original_annual_gas",
             "discount_gas",
+            "credit_gas_heat",
+            "credit_gas_nonheat",
             tier_col,
         ]
         if c in gas_bills.collect_schema().names()
@@ -370,37 +518,35 @@ def _write_or_print_outputs(
 def main() -> None:
     load_dotenv()
     parser = argparse.ArgumentParser(
-        description="Apply RI LIDR+ discounts to CAIRO electric and gas bills."
+        description="Apply NY EAP/EEAP discounts to CAIRO electric and gas bills."
     )
     parser.add_argument(
         "--run-dir", required=True, help="S3 path to CAIRO run directory"
     )
-    parser.add_argument("--state", required=True, help="State abbreviation (e.g. RI)")
+    parser.add_argument("--state", required=True, help="State abbreviation (NY)")
     parser.add_argument(
-        "--utility", required=True, help="Electric utility code (e.g. rie)"
+        "--utility", required=True, help="Electric utility std_name (e.g. coned, nimo)"
     )
     parser.add_argument(
-        "--resstock-release",
-        default="res_2024_amy2018_2",
-        help="ResStock release name",
+        "--resstock-release", default="res_2024_amy2018_2", help="ResStock release name"
     )
     parser.add_argument("--upgrade", default="00", help="ResStock upgrade ID")
     parser.add_argument(
         "--fpl-year",
         type=int,
         required=True,
-        help="FPL guideline year; income is inflated from 2019 to this year before comparing",
+        help="FPL/SMI guideline year; income is inflated from 2019 to this year",
     )
     parser.add_argument(
         "--cpi-s3-path",
         required=True,
-        help="S3 path to CPI parquet (year, value) from data/fred/cpi/fetch_cpi_from_fred.py (default series CPIAUCSL)",
+        help="S3 path to CPI parquet (year, value)",
     )
     parser.add_argument(
         "--participation-rate",
         type=float,
         default=1.0,
-        help="Fraction of eligible customers who participate (0–1)",
+        help="Fraction of eligible customers who participate (0-1)",
     )
     parser.add_argument(
         "--participation-mode",
@@ -434,7 +580,7 @@ def main() -> None:
     # 1. Load CPI and compute income-inflation ratio
     cpi_ratio = load_cpi_ratio(args.cpi_s3_path, args.fpl_year, opts)
 
-    # 2. Build per-bldg tier and consumption (metadata → FPL → tier → participation)
+    # 2. Build per-bldg tier and consumption
     tier_consumption = _build_tier_consumption(
         meta_path,
         util_path,
@@ -447,9 +593,9 @@ def main() -> None:
         opts,
     )
 
-    # 3. Load bills, join tier, apply discounts and optional rider
+    # 3. Load bills, join tier, apply fixed monthly credits and optional rider
     elec_bills, gas_bills = _apply_discounts_to_bills(
-        run_dir, tier_consumption, args.rider, opts
+        run_dir, tier_consumption, args.utility, args.rider, opts
     )
 
     # 4. Write outputs (or print paths)

@@ -11,6 +11,9 @@ STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 HP_SUBSTRINGS = ("MSHP", "ASHP", "GSHP")
 ELECTRICITY_SUBSTRING = ("Electricity",)
 FOSSIL_SUBSTRINGS = ("Fuel Oil", "Natural Gas", "Other Fuel", "Propane")
+NATGAS_SUBSTRINGS = ("Natural Gas",)
+FUEL_OIL_SUBSTRINGS = ("Fuel Oil",)
+PROPANE_SUBSTRINGS = ("Propane",)
 
 
 def _col_contains_any(column: str, substrings: tuple[str, ...]) -> pl.Expr:
@@ -92,7 +95,37 @@ def identify_heating_type(metadata: pl.LazyFrame, upgrade_id: str) -> pl.LazyFra
         .otherwise(pl.lit(None))
     )
 
-    return metadata.with_columns(heating_type.alias("postprocess_group.heating_type"))
+    # Boolean heating fuel columns for EAP/LMI discount logic
+    heats_with_electricity = (
+        heating_type_is_hp | heating_type_is_electric_resistance
+    ).fill_null(False)
+
+    if upgrade_id == "00":
+        heats_with_natgas = _col_contains_any(IN_HVAC_COLUMN, NATGAS_SUBSTRINGS)
+        heats_with_oil = _col_contains_any(IN_HVAC_COLUMN, FUEL_OIL_SUBSTRINGS)
+        heats_with_propane = _col_contains_any(IN_HVAC_COLUMN, PROPANE_SUBSTRINGS)
+    else:
+        is_null_up = pl.col(UPGRADE_HVAC_COLUMN).is_null()
+        heats_with_natgas = (
+            _col_contains_any(UPGRADE_HVAC_COLUMN, NATGAS_SUBSTRINGS)
+            | (is_null_up & _col_contains_any(IN_HVAC_COLUMN, NATGAS_SUBSTRINGS))
+        ).fill_null(False)
+        heats_with_oil = (
+            _col_contains_any(UPGRADE_HVAC_COLUMN, FUEL_OIL_SUBSTRINGS)
+            | (is_null_up & _col_contains_any(IN_HVAC_COLUMN, FUEL_OIL_SUBSTRINGS))
+        ).fill_null(False)
+        heats_with_propane = (
+            _col_contains_any(UPGRADE_HVAC_COLUMN, PROPANE_SUBSTRINGS)
+            | (is_null_up & _col_contains_any(IN_HVAC_COLUMN, PROPANE_SUBSTRINGS))
+        ).fill_null(False)
+
+    return metadata.with_columns(
+        heating_type.alias("postprocess_group.heating_type"),
+        heats_with_electricity.alias("heats_with_electricity"),
+        heats_with_natgas.alias("heats_with_natgas"),
+        heats_with_oil.alias("heats_with_oil"),
+        heats_with_propane.alias("heats_with_propane"),
+    )
 
 
 if __name__ == "__main__":
