@@ -13,14 +13,14 @@ from cairo.rates_tool.systemsimulator import (
 )
 from cairo.utils.marginal_costs.marginal_cost_calculator import add_distribution_costs
 
-from utils.cairo import build_bldg_id_to_load_filepath, _load_cambium_marginal_costs
+from utils.cairo import _load_cambium_marginal_costs, build_bldg_id_to_load_filepath
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
 log.info(".... Beginning RI residential (non-LMI) rate scenario - RIE A-16 tariff")
 
-run_name = "ri_default_test_run"
+run_name = "ri_default_rate_supply_run_1"
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 path_project = Path(__file__).resolve().parent
 path_resstock = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
@@ -54,7 +54,10 @@ target_customer_count = 451381  # Target customer count for utility territory
 
 # TODO: lee - take the prototype_id's above, and create a (bldg_id, tariff_key) mapping for the prototype_ids, then have path_tariff_map point to the mapping file.
 path_tariff_map = (
-    path_config / "tariff_maps" / "electric" / "dummy_electric_tariff_ri_supply_adj_run_1.csv"
+    path_config
+    / "tariff_maps"
+    / "electric"
+    / "dummy_electric_tariff_ri_supply_adj_run_1.csv"
 )
 tariff_map_name = path_tariff_map.stem
 path_gas_tariff_map = (
@@ -66,8 +69,14 @@ process_workers = 20
 # RIE Residential Tariffs (A-16 for standard residential)
 # Fixed Customer Charge: $6.75/month, Volumetric Distribution Charge: $0.06455/kWh
 tariff_paths = {
-    "rie_a16_supply_adj": path_config / "tariffs" / "electricity" / "rie_a16_supply_adj.json",
-    "rie_a60_supply_adj": path_config / "tariffs" / "electricity" / "rie_a60_supply_adj.json",
+    "rie_a16_supply_adj": path_config
+    / "tariffs"
+    / "electricity"
+    / "rie_a16_supply_adj.json",
+    "rie_a60_supply_adj": path_config
+    / "tariffs"
+    / "electricity"
+    / "rie_a60_supply_adj.json",
 }
 gas_tariff_paths = {
     "rie_residential_non_heating_gas": path_config
@@ -81,13 +90,6 @@ tariffs_params, tariff_map_df = _initialize_tariffs(
     tariff_map=path_tariff_map,
     building_stock_sample=None,
     tariff_paths=tariff_paths,
-)
-
-# Initialize gas tariffs using the same pattern as electricity
-gas_tariffs_params, gas_tariff_map_df = _initialize_tariffs(
-    tariff_map=path_gas_tariff_map,
-    building_stock_sample=None,
-    tariff_paths=gas_tariff_paths,
 )
 
 # Generate precalc mapping from RIE A-16 tariff structure
@@ -188,7 +190,8 @@ bs.simulate(
     customer_metadata=customer_metadata,
     customer_electricity_load=raw_load_elec,
     customer_gas_load=raw_load_gas,
-    gas_tariff_map=gas_tariff_map_df,
+    gas_tariff_map=path_gas_tariff_map,
+    gas_tariff_str_loc=gas_tariff_paths,
     load_cols="total_fuel_electricity",
     marginal_system_prices=marginal_system_prices,
     costs_by_type=costs_by_type,
