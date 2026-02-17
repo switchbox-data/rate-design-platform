@@ -3,9 +3,9 @@
 # Invoked from rate_design/{ny,ri}/hp_rates/Justfile.
 #
 # Usage (standalone, from project root):
-#   just -f data/resstock/Justfile resstock-download NY
-#   just -f data/resstock/Justfile resstock-download RI
-#   just -f data/resstock/Justfile resstock-test-download NY
+#   just -f data/resstock/Justfile fetch NY
+#   just -f data/resstock/Justfile fetch RI
+#   just -f data/resstock/Justfile test-download NY
 #   just -f data/resstock/Justfile resstock-identify-hp-customers NY
 #   just -f data/resstock/Justfile resstock-identify-hp-customers RI
 #   just -f data/resstock/Justfile assign-utility-ny res_2024_amy2018_2 00
@@ -18,12 +18,12 @@ path_s3_parquet := "s3://data.sb/nrel/resstock"
 path_local_parquet := "/data.sb/nrel/resstock"
 
 # Download ResStock metadata and loads via bsf. Pass state: NY or RI (or both as space-separated).
-resstock-download state:
+fetch state:
     #!/usr/bin/env bash
     s="{{state}}"
     if [[ -z "$s" ]]; then
-        echo "Usage: just resstock-download <state>"
-        echo "Example: just resstock-download NY"
+        echo "Usage: just fetch <state>"
+        echo "Example: just fetch NY"
         exit 1
     fi
     cd "{{path_local_repo}}" && uv run bsf \
@@ -38,7 +38,7 @@ resstock-download state:
         --sample 0
 
 # Verify ResStock download. Pass state (NY or RI).
-resstock-test-download state:
+test-download state:
     cd "{{path_local_repo}}" && uv run python "{{path_local_repo}}/tests/test_resstock_download_to_s3.py" \
         --data_path "{{path_s3_parquet}}/" \
         --release {{resstock_release}} \

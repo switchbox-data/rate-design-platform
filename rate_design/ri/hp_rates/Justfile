@@ -25,10 +25,10 @@ run-scenario-with-output run_num output_dir scenario_config=ri_run_scenario_conf
 # PRE: ResStock (delegates to data/resstock/Justfile)
 # -----------------------------------------------------------------------------
 resstock-download:
-  just -f {{project_root}}/data/resstock/Justfile resstock-download RI
+  just -f {{project_root}}/data/resstock/Justfile fetch RI
 
 resstock-test-download:
-  just -f {{project_root}}/data/resstock/Justfile resstock-test-download RI
+  just -f {{project_root}}/data/resstock/Justfile test-download RI
 
 resstock-identify-hp-customers:
   just -f {{project_root}}/data/resstock/Justfile resstock-identify-hp-customers RI

@@ -34,10 +34,10 @@ assign-ny-utilities-amy2018-2:
 # PRE: ResStock (delegates to data/resstock/Justfile)
 # -----------------------------------------------------------------------------
 resstock-download:
-  just -f {{project_root}}/data/resstock/Justfile resstock-download NY
+  just -f {{project_root}}/data/resstock/Justfile fetch NY
 
 resstock-test-download:
-  just -f {{project_root}}/data/resstock/Justfile resstock-test-download NY
+  just -f {{project_root}}/data/resstock/Justfile test-download NY
 
 resstock-identify-hp-customers:
   just -f {{project_root}}/data/resstock/Justfile resstock-identify-hp-customers NY
