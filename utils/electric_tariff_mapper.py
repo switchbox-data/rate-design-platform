@@ -1,4 +1,5 @@
 import argparse
+import warnings
 from pathlib import Path
 from typing import cast
 
@@ -81,7 +82,9 @@ if __name__ == "__main__":
     parser.add_argument("--state", required=True, help="State code (e.g. RI)")
     parser.add_argument("--upgrade_id", required=True, help="Upgrade id (e.g. 00)")
     parser.add_argument(
-        "--electric_utility", required=True, help="Electric utility (e.g. Coned)"
+        "--electric_utility",
+        required=True,
+        help="Electric utility std_name (e.g. coned, nyseg, nimo)",
     )
     parser.add_argument(
         "--SB_scenario_type",
@@ -98,46 +101,55 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    #########################################################
-    # For now, we will manually add the electric utility name column. Later on, the metadata parquet will be updated to include this column.
-    # Assign first ~1/3 to Coned, next ~1/3 to National Grid, last ~1/3 to NYSEG.
     try:  # If the metadata path is an S3 path, use the S3Path class.
         base_path = S3Path(args.metadata_path)
-        metadata_path = (
-            base_path
-            / f"state={args.state}"
-            / f"upgrade={args.upgrade_id}"
-            / "metadata-sb.parquet"
-        )
-        if not metadata_path.exists():
-            raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
-        # Polars scan_parquet needs a string path; S3Path.as_uri() gives s3:// URL
-        SB_metadata_df = pl.scan_parquet(
-            str(metadata_path), storage_options=STORAGE_OPTIONS
-        )
+        use_s3 = True
     except ValueError:
-        # If the metadata path is a local path, use the Path class.
         base_path = Path(args.metadata_path)
+        use_s3 = False
+
+    # Support metadata_utility path (utility_assignment.parquet) or metadata path (metadata-sb.parquet)
+    if "metadata_utility" in str(args.metadata_path):
+        metadata_path = base_path / f"state={args.state}" / "utility_assignment.parquet"
+    else:
         metadata_path = (
             base_path
             / f"state={args.state}"
             / f"upgrade={args.upgrade_id}"
             / "metadata-sb.parquet"
         )
-        if not metadata_path.exists():
-            raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
-        SB_metadata_df = pl.scan_parquet(str(metadata_path))
 
-    # Add dummy electric utility column (deterministic by bldg_id). Later this column will be pre-existing in the SB metadata parquet.
-    SB_metadata_df_with_electric_utility = SB_metadata_df.with_columns(
-        pl.when(pl.col("bldg_id").hash() % 3 == 0)
-        .then(pl.lit("Coned"))
-        .when(pl.col("bldg_id").hash() % 3 == 1)
-        .then(pl.lit("National Grid"))
-        .otherwise(pl.lit("NYSEG"))
-        .alias("sb.electric_utility")
+    if use_s3 and not metadata_path.exists():
+        raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
+    if not use_s3 and not Path(metadata_path).exists():
+        raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
+
+    storage_opts = STORAGE_OPTIONS if use_s3 else None
+    SB_metadata_df = (
+        pl.scan_parquet(str(metadata_path), storage_options=storage_opts)
+        if storage_opts
+        else pl.scan_parquet(str(metadata_path))
     )
-    #########################################################
+
+    # Use real sb.electric_utility if present; else fall back to synthetic (deprecated)
+    schema_cols = SB_metadata_df.collect_schema().names()
+    if "sb.electric_utility" in schema_cols:
+        SB_metadata_df_with_electric_utility = SB_metadata_df
+    else:
+        warnings.warn(
+            "metadata has no sb.electric_utility column; using synthetic data. "
+            "Run assign_utility_ny and point --metadata_path to metadata_utility for real data.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        SB_metadata_df_with_electric_utility = SB_metadata_df.with_columns(
+            pl.when(pl.col("bldg_id").hash() % 3 == 0)
+            .then(pl.lit("coned"))
+            .when(pl.col("bldg_id").hash() % 3 == 1)
+            .then(pl.lit("nimo"))
+            .otherwise(pl.lit("nyseg"))
+            .alias("sb.electric_utility")
+        )
 
     sb_scenario = SBScenario(args.SB_scenario_type, args.SB_scenario_year)
     electrical_tariff_mapping_df = map_electric_tariff(

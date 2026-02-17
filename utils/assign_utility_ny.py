@@ -17,60 +17,13 @@ from cloudpathlib import S3Path
 from pygris import pumas as get_pumas
 
 from utils import get_aws_region
+from utils.utility_codes import get_ny_open_data_to_std_name
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 CONFIGS: dict = {
     "state_code": "NY",
     "state_fips": "36",
     "state_crs": 2260,  # New York state plane (meters)
-    "utility_name_map": [
-        {
-            "state_name": "Bath Electric Gas and Water",
-            "std_name": "bath",
-        },  # TODO: Don't include in the mapping (i.e. )
-        {"state_name": "Central Hudson Gas and Electric", "std_name": "cenhud"},
-        {
-            "state_name": "Chautauqua Utilities, Inc.",
-            "std_name": "chautauqua",
-        },  # TODO: Don't include in the mapping
-        {"state_name": "Consolidated Edison", "std_name": "coned"},
-        {
-            "state_name": "Corning Natural Gas",
-            "std_name": "corning",
-        },  # TODO: Don't include in the mapping
-        {
-            "state_name": "Fillmore Gas Company",
-            "std_name": "fillmore",
-        },  # TODO: Don't include in the mapping
-        {"state_name": "National Grid - NYC", "std_name": "kedny"},
-        {"state_name": "National Grid - Long Island", "std_name": "kedli"},
-        {"state_name": "National Grid", "std_name": "nimo"},
-        {"state_name": "None", "std_name": "none"},
-        {
-            "state_name": "National Fuel Gas Distribution",
-            "std_name": "nfg",
-        },
-        {"state_name": "NYS Electric and Gas", "std_name": "nyseg"},
-        {"state_name": "Orange and Rockland Utilities", "std_name": "or"},
-        {"state_name": "Long Island Power Authority", "std_name": "psegli"},
-        {
-            "state_name": "Reserve Gas Company",
-            "std_name": "reserve",
-        },  # TODO: Don't include in the mapping. Leave it blank/unassigned, then nearest neighbor to the nearest puma polygon, then assign based on that polygon's assignment probability
-        {"state_name": "Rochester Gas and Electric", "std_name": "rge"},
-        {
-            "state_name": "St. Lawrence Gas",
-            "std_name": "stlaw",
-        },  # TODO: Don't include in the mapping
-        {
-            "state_name": "Valley Energy",
-            "std_name": "valley",
-        },  # TODO: Don't include in the mapping
-        {
-            "state_name": "Woodhull Municipal Gas Company",
-            "std_name": "woodhull",
-        },  # TODO: Don't include in the mapping
-    ],
 }
 
 
@@ -122,8 +75,11 @@ def create_hh_utilities(
     config = config or CONFIGS
 
     utility_name_map = pl.DataFrame(
-        config["utility_name_map"]
-    ).lazy()  # Convert to LazyFrame for consistency
+        [
+            {"state_name": k, "std_name": v}
+            for k, v in get_ny_open_data_to_std_name().items()
+        ]
+    ).lazy()
 
     # Calculate overlap between PUMAs and utilities
     puma_elec_overlap = _calculate_puma_utility_overlap(

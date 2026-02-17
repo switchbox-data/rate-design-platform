@@ -2,7 +2,7 @@
 """Print investor-owned utility stats for a state as CSV to stdout.
 
 Uses EIA-861 yearly sales data (PUDL). Filtered to Investor Owned only.
-Self-contained: no imports from the rate-design-platform package.
+Uses central utility crosswalk (utils.utility_codes) for utility_code column.
 
 Customer classes are discovered at runtime from the parquet (commercial,
 industrial, other, residential, transportation). Dataset schema and
@@ -12,9 +12,10 @@ Freshness: Each row has report_date (EIA-861 reporting period). The script uses
 the latest report_date per utility; the parquet has no "file built" date (source:
 PUDL Catalyst Coop nightly, EIA-861 temporal coverage 2001-2024).
 
-Columns: utility_id_eia, utility_name, business_model, entity_type, report_date,
-total_sales_mwh, total_sales_revenue, then for each customer class
+Columns: utility_id_eia, utility_code, utility_name, business_model, entity_type,
+report_date, total_sales_mwh, total_sales_revenue, then for each customer class
 ({class}_sales_mwh, {class}_sales_revenue, {class}_customers).
+Unmapped EIA IDs have null utility_code.
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ import argparse
 import sys
 
 import polars as pl
+
+from utils.utility_codes import get_eia_utility_id_to_std_name
 
 # EIA-861 yearly sales (PUDL Catalyst Coop nightly)
 CORE_EIA861_YEARLY_SALES_URL = "https://s3.us-west-2.amazonaws.com/pudl.catalyst.coop/nightly/core_eia861__yearly_sales.parquet"
@@ -145,20 +148,29 @@ def main() -> None:
             .alias(f"{c}_customers")
         )
 
+    eia_to_std = get_eia_utility_id_to_std_name(state_raw)
+    map_df = pl.DataFrame(
+        {
+            "utility_id_eia": list(eia_to_std.keys()),
+            "utility_code": list(eia_to_std.values()),
+        }
+    )
     result = (
         df.group_by("utility_id_eia")
         .agg(agg_exprs)
         .sort(["total_sales_mwh", "utility_name"], descending=[True, False])
         .with_columns(pl.col("utility_id_eia").cast(pl.Int64))
+        .join(map_df, on="utility_id_eia", how="left")
     )
 
-    # Column order: id, name, business_model, entity_type, totals, then per-class triplets
+    # Column order: id, utility_code, name, business_model, entity_type, totals, then per-class triplets
     class_cols = []
     for c in customer_classes:
         class_cols.extend([f"{c}_sales_mwh", f"{c}_sales_revenue", f"{c}_customers"])
     result = result.select(
         [
             "utility_id_eia",
+            "utility_code",
             "utility_name",
             "business_model",
             "entity_type",

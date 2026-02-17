@@ -7,11 +7,21 @@ import pandas as pd
 import polars as pl
 
 from utils.assign_utility_ny import (
-    CONFIGS,
     _calculate_prior_distributions,
     _calculate_utility_probabilities,
     _sample_utility_per_building,
 )
+from utils.utility_codes import get_ny_open_data_to_std_name
+
+
+def _utility_name_map_lazy() -> pl.LazyFrame:
+    """Build utility_name_map from central crosswalk (matches assign_utility_ny)."""
+    return pl.DataFrame(
+        [
+            {"state_name": k, "std_name": v}
+            for k, v in get_ny_open_data_to_std_name().items()
+        ]
+    ).lazy()
 
 
 def test_calculate_utility_probabilities_basic():
@@ -29,7 +39,7 @@ def test_calculate_utility_probabilities_basic():
             "pct_overlap": [60.0, 30.0, 10.0, 50.0, 50.0],
         }
     )
-    utility_name_map = pl.LazyFrame(CONFIGS["utility_name_map"])
+    utility_name_map = _utility_name_map_lazy()
 
     result = _calculate_utility_probabilities(
         puma_overlap,
@@ -60,7 +70,7 @@ def test_calculate_utility_probabilities_filter_none_false():
             "pct_overlap": [70.0, 30.0],
         }
     )
-    utility_name_map = pl.LazyFrame(CONFIGS["utility_name_map"])
+    utility_name_map = _utility_name_map_lazy()
 
     result = _calculate_utility_probabilities(
         puma_overlap,
@@ -84,7 +94,7 @@ def test_calculate_utility_probabilities_handle_municipal():
             "pct_overlap": [40.0, 60.0],
         }
     )
-    utility_name_map = pl.LazyFrame(CONFIGS["utility_name_map"])
+    utility_name_map = _utility_name_map_lazy()
 
     result = _calculate_utility_probabilities(
         puma_overlap,

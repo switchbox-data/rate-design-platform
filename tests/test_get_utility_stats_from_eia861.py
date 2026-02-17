@@ -4,6 +4,8 @@ Confirms required columns and customer_class values exist so the script's
 dynamic aggregation is safe. Uses the same parquet URL as the script.
 """
 
+import subprocess
+
 import polars as pl
 
 # Must match utils/get_utility_stats_from_eia861.py
@@ -71,3 +73,38 @@ def test_eia861_yearly_sales_has_investor_owned_data_for_sample_state():
     assert frozenset(classes_in_data) == EXPECTED_CUSTOMER_CLASSES, (
         f"NY IOU data missing some customer classes: got {set(classes_in_data)}"
     )
+
+
+def test_utility_code_column_present_and_mapped():
+    """Script output includes utility_code; known EIA IDs map to expected std_names."""
+    from pathlib import Path
+
+    project_root = Path(__file__).resolve().parent.parent
+    result = subprocess.run(
+        ["uv", "run", "python", "utils/get_utility_stats_from_eia861.py", "NY"],
+        capture_output=True,
+        text=True,
+        cwd=project_root,
+    )
+    assert result.returncode == 0, f"Script failed: {result.stderr}"
+
+    from io import StringIO
+
+    df = pl.read_csv(StringIO(result.stdout))
+    assert "utility_code" in df.columns
+
+    # Known EIA ID -> std_name mappings
+    expected = {
+        4226: "coned",
+        13573: "nimo",
+        13511: "nyseg",
+        16183: "rge",
+        3249: "cenhud",
+        14154: "or",
+    }
+    for eia_id, std_name in expected.items():
+        row = df.filter(pl.col("utility_id_eia") == eia_id)
+        assert not row.is_empty(), f"EIA ID {eia_id} not in output"
+        assert row["utility_code"][0] == std_name, (
+            f"EIA ID {eia_id}: expected utility_code {std_name}, got {row['utility_code'][0]}"
+        )
