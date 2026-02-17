@@ -23,28 +23,6 @@ test-ny-electric-utility-polygons-download:
 test-ny-gas-utility-polygons-download:
 	aws s3 ls "{{s3_base}}/gis/utility_boundaries/" | grep "ny_gas_utilities_.*\.csv"
 
-# Assign electric and gas utilities to ResStock buildings in NY. Delegates to data/resstock/.
-assign-ny-utilities release upgrade:
-	just -f {{project_root}}/data/resstock/Justfile assign-utility-ny {{release}} {{upgrade}} "ny_electric_utilities_20260216.csv" "ny_gas_utilities_20260216.csv"
-
-assign-ny-utilities-amy2018-2:
-	just assign-ny-utilities res_2024_amy2018_2 00
-
-# -----------------------------------------------------------------------------
-# PRE: ResStock (delegates to data/resstock/Justfile)
-# -----------------------------------------------------------------------------
-resstock-download:
-  just -f {{project_root}}/data/resstock/Justfile fetch NY
-
-resstock-test-download:
-  just -f {{project_root}}/data/resstock/Justfile test-download NY
-
-resstock-identify-hp-customers:
-  just -f {{project_root}}/data/resstock/Justfile resstock-identify-hp-customers NY
-
-identify-heating-type-all-upgrades:
-  just -f {{project_root}}/data/resstock/Justfile identify-heating-type-all-upgrades NY
-
 # -----------------------------------------------------------------------------
 # PRE: Tariff mapping (electric and gas)
 # -----------------------------------------------------------------------------
@@ -128,16 +106,6 @@ map-gas-nyseg-class-specific-seasonal:
 # POST: Vulnerability and NY EAP/EEAP discounts
 # -----------------------------------------------------------------------------
 
-# Add vulnerability columns to metadata-sb.parquet (random placeholder).
-# Delegates to data/resstock/Justfile. Safe to re-run (idempotent).
-add-vulnerability-columns:
-  just -f {{project_root}}/data/resstock/Justfile add-vulnerability-columns-all-upgrades NY
-
-# Full NY metadata pipeline: HP → heating type → vulnerability.
-# Pass lmi="false" to skip vulnerability columns.
-prepare-metadata lmi="true":
-  just -f {{project_root}}/data/resstock/Justfile prepare-metadata-ny {{lmi}}
-
 # Apply NY EAP/EEAP discounts to CAIRO bills. Requires CPI parquet on S3 (e.g. from data/fred/cpi); pass --cpi-s3-path.
 apply-ny-lmi-discounts run_dir utility fpl_year cpi_s3_path participation_rate="1.0" rider="false":
   uv run python {{project_root}}/utils/post/apply_ny_lmi_discounts_to_bills.py \
@@ -151,22 +119,15 @@ apply-ny-lmi-discounts run_dir utility fpl_year cpi_s3_path participation_rate="
     --upload
 
 # -----------------------------------------------------------------------------
-# PRE: EIA hourly loads and marginal cost allocation (zone fetch, utility aggregate, MC allocation)
+# PRE: Marginal cost allocation (utility loads and MC table → S3; data assumed on S3)
 # -----------------------------------------------------------------------------
 state := "NY"
-start_month := "2025-01"
-end_month := "2025-12"
 load_year := "2025"
 mc_year := "2026"
-zone_s3_base := "s3://data.sb/eia/hourly_demand/zones/"
 utility_s3_base := "s3://data.sb/eia/hourly_demand/utilities/"
 mc_output_s3_base := "s3://data.sb/switchbox/marginal_costs/ny/"
 
-fetch-zone-data:
-  just -f {{project_root}}/data/eia/hourly_loads/Justfile fetch-zone-data {{state}} {{start_month}} {{end_month}}
-
 create-td-mc-data utility:
-  just -f {{project_root}}/data/eia/hourly_loads/Justfile aggregate-utility-loads {{state}} {{load_year}} {{utility}}
   cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_utility_tx_dx_mc.py \
     --state {{state}} \
     --utility {{utility}} \

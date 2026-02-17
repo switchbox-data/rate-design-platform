@@ -1,8 +1,6 @@
 # ResStock metadata pipeline: download, identify HP customers, heating type, assign utilities (NY).
 #
-# Invoked from rate_design/{ny,ri}/hp_rates/Justfile.
-#
-# Usage (standalone, from project root):
+# Usage (from project root):
 #   just -f data/resstock/Justfile fetch NY
 #   just -f data/resstock/Justfile fetch RI
 #   just -f data/resstock/Justfile test-download NY

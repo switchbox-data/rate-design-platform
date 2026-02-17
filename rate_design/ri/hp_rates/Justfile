@@ -22,18 +22,6 @@ run-scenario-with-output run_num output_dir scenario_config=ri_run_scenario_conf
     --output-dir "{{output_dir}}"
 
 # -----------------------------------------------------------------------------
-# PRE: ResStock (delegates to data/resstock/Justfile)
-# -----------------------------------------------------------------------------
-resstock-download:
-  just -f {{project_root}}/data/resstock/Justfile fetch RI
-
-resstock-test-download:
-  just -f {{project_root}}/data/resstock/Justfile test-download RI
-
-resstock-identify-hp-customers:
-  just -f {{project_root}}/data/resstock/Justfile resstock-identify-hp-customers RI
-
-# -----------------------------------------------------------------------------
 # PRE: Tariff mapping (electric and gas)
 # -----------------------------------------------------------------------------
 path_s3_resstock_metadata := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
@@ -133,25 +121,17 @@ apply-ri-lmi-discounts run_dir state utility fpl_year cpi_s3_path participation_
     --upload
 
 # -----------------------------------------------------------------------------
-# PRE: EIA hourly loads and marginal cost allocation (zone fetch, utility aggregate, MC allocation)
+# PRE: Marginal cost allocation (utility loads and MC table → S3; data assumed on S3)
 # -----------------------------------------------------------------------------
 pre_state := "RI"
 pre_utility := "rie"
-pre_start_month := "2025-01"
-pre_end_month := "2025-12"
 pre_load_year := "2025"
 pre_mc_year := "2025"
 pre_mc_table_path := project_root + "/rate_design/ri/hp_rates/config/marginal_costs/ri_marginal_costs_2025.csv"
-pre_zone_s3_base := "s3://data.sb/eia/hourly_demand/zones/"
 pre_utility_s3_base := "s3://data.sb/eia/hourly_demand/utilities/"
 pre_mc_output_s3_base := "s3://data.sb/switchbox/marginal_costs/ri/"
 
 create-td-mc-data:
-  just create-td-mc-data-rie
-
-create-td-mc-data-rie:
-  just -f {{project_root}}/data/eia/hourly_loads/Justfile fetch-zone-data {{pre_state}} {{pre_start_month}} {{pre_end_month}}
-  just -f {{project_root}}/data/eia/hourly_loads/Justfile aggregate-utility-loads {{pre_state}} {{pre_load_year}} {{pre_utility}}
   cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_utility_tx_dx_mc.py \
     --state {{pre_state}} \
     --utility {{pre_utility}} \

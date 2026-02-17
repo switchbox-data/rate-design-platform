@@ -60,7 +60,3 @@ Scripts live in the same directory as the Justfile that invokes them.
 ## .gitignore
 
 - Ignore local staging dirs (e.g. `data/fred/cpi/parquet/`, `data/eia/861/parquet/`, `data/hud/ami/xlsx/`, `data/hud/ami/parquet/`, `data/census/pums/zips/`, etc.) so they are never committed.
-
-## Invocation from rate_design
-
-- `rate_design/{ny,ri}/hp_rates/Justfile` may delegate to data Justfiles (e.g. `resstock-download` → `just -f {{project_root}}/data/resstock/Justfile fetch NY`). The recipe name in the data Justfile is the canonical one (`fetch`, `test-download`, etc.); the rate_design recipe name can be descriptive for that workflow (`resstock-download`, `resstock-test-download`).
