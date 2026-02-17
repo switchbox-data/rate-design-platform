@@ -212,9 +212,7 @@ def _build_settings_from_yaml_run(
         path_tariff_maps_electric = (
             PATH_CONFIG / "tariff_maps" / "electric" / "placeholder.csv"
         )
-        precalc_tariff_path = (
-            PATH_CONFIG / "tariffs" / "electric" / "placeholder.json"
-        )
+        precalc_tariff_path = PATH_CONFIG / "tariffs" / "electric" / "placeholder.json"
         precalc_tariff_key = compute_tou_cfg.tou_tariff_key
 
         # Include the flat tariff path so non-HP customers still have a tariff.
@@ -451,8 +449,7 @@ def run(settings: ScenarioSettings) -> None:
     if settings.compute_tou.enabled:
         tou_cfg = settings.compute_tou
         log.info(
-            ".... Computing TOU tariff from marginal costs "
-            "(window=%d h, key=%s)",
+            ".... Computing TOU tariff from marginal costs (window=%d h, key=%s)",
             tou_cfg.tou_window_hours,
             tou_cfg.tou_tariff_key,
         )
@@ -526,10 +523,7 @@ def run(settings: ScenarioSettings) -> None:
             and tou_cfg.flat_tariff_key not in settings.path_tariffs_electric
         ):
             flat_path = (
-                PATH_CONFIG
-                / "tariffs"
-                / "electric"
-                / f"{tou_cfg.flat_tariff_key}.json"
+                PATH_CONFIG / "tariffs" / "electric" / f"{tou_cfg.flat_tariff_key}.json"
             )
             if flat_path.exists():
                 settings.path_tariffs_electric[tou_cfg.flat_tariff_key] = flat_path
