@@ -1,7 +1,7 @@
 from typing import Literal
 
 # std_name from utility_codes. Keep in sync with get_electric_std_names/get_gas_std_names.
-electric_utility = Literal[
+ElectricUtility = Literal[
     "bath",
     "cenhud",
     "chautauqua",
@@ -13,7 +13,7 @@ electric_utility = Literal[
     "rge",
     "rie",
 ]
-gas_utility = Literal[
+GasUtility = Literal[
     "bath",
     "cenhud",
     "chautauqua",

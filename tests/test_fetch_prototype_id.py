@@ -6,7 +6,7 @@ import polars as pl
 import pytest
 
 from utils.cairo import _fetch_prototype_ids_by_electric_util
-from utils.types import electric_utility
+from utils.types import ElectricUtility
 
 
 def test_fetch_prototype_ids_single_utility() -> None:
@@ -77,7 +77,7 @@ def test_fetch_prototype_ids_multiple_utilities() -> None:
 
 def test_fetch_prototype_ids_different_utility_values() -> None:
     """Test fetching building IDs for different utility values from the type."""
-    # Test with various utilities from electric_utility Literal type
+    # Test with various utilities from ElectricUtility Literal type
     utilities_to_test = [
         "bath",
         "cenhud",
@@ -92,7 +92,7 @@ def test_fetch_prototype_ids_different_utility_values() -> None:
     ]
 
     for utility_str in utilities_to_test:
-        utility = cast(electric_utility, utility_str)
+        utility = cast(ElectricUtility, utility_str)
         data = {
             "bldg_id": [100, 200, 300],
             "sb.electric_utility": [utility_str, utility_str, utility_str],

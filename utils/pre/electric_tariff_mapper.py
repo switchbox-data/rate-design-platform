@@ -7,14 +7,14 @@ import polars as pl
 from cloudpathlib import S3Path
 
 from utils import get_aws_region
-from utils.types import SBScenario, electric_utility
+from utils.types import SBScenario, ElectricUtility
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
 
 def define_electrical_tariff_key(
     SB_scenario: SBScenario,
-    electric_utility: electric_utility,
+    electric_utility: ElectricUtility,
     has_hp: pl.Expr,
 ) -> pl.Expr:
     if SB_scenario.analysis_type == "default":
@@ -32,7 +32,7 @@ def define_electrical_tariff_key(
 def generate_electrical_tariff_mapping(
     lazy_metadata_has_hp: pl.LazyFrame,
     SB_scenario: SBScenario,
-    electric_utility: electric_utility,
+    electric_utility: ElectricUtility,
 ) -> pl.LazyFrame:
     electrical_tariff_mapping_df = lazy_metadata_has_hp.select(
         pl.col("bldg_id"),
@@ -46,7 +46,7 @@ def generate_electrical_tariff_mapping(
 
 def map_electric_tariff(
     SB_metadata_df: pl.LazyFrame,
-    electric_utility: electric_utility,
+    electric_utility: ElectricUtility,
     SB_scenario: SBScenario,
     state: str,
 ) -> pl.LazyFrame:

@@ -18,19 +18,32 @@ from cairo.rates_tool.systemsimulator import (
     _return_export_compensation_rate,
     _return_revenue_requirement_target,
 )
+from cloudpathlib import S3Path
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.cairo import _load_cambium_marginal_costs, build_bldg_id_to_load_filepath
+from utils import get_aws_region
+from utils.cairo import (
+    _fetch_prototype_ids_by_electric_util,
+    _load_cambium_marginal_costs,
+    build_bldg_id_to_load_filepath,
+)
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
+from utils.types import ElectricUtility
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
+STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
 PATH_RESSTOCK = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
+PATH_UTILITY_ASSIGNMENT = S3Path(
+    "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=RI/"
+    "utility_assignment.parquet"
+)  # TODO: This file doesn't exist yet, we need to create it
 DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
 DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
+electric_utility = cast(ElectricUtility, "rie")
 
 
 @dataclass(slots=True)
@@ -273,6 +286,15 @@ def run(settings: ScenarioSettings) -> None:
         ".... Beginning RI residential (non-LMI) rate scenario simulation: %s",
         settings.run_name,
     )
+
+    # Retrieve prototype IDs for the given electric utility
+    utility_assignment = pl.scan_parquet(
+        str(PATH_UTILITY_ASSIGNMENT), storage_options=STORAGE_OPTIONS
+    )
+    prototype_ids = _fetch_prototype_ids_by_electric_util(
+        electric_utility, utility_assignment
+    )
+    print(f"Prototype IDs: {prototype_ids[0]}")
 
     tariffs_params, tariff_map_df = _initialize_tariffs(
         tariff_map=settings.path_tariff_maps_electric,

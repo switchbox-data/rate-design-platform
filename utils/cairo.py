@@ -12,7 +12,7 @@ from cairo.rates_tool import config
 from cairo.rates_tool.loads import __timeshift__
 from cloudpathlib import S3Path
 
-from utils.types import electric_utility
+from utils.types import ElectricUtility
 
 CambiumPathLike = str | Path | S3Path
 
@@ -175,7 +175,7 @@ def build_bldg_id_to_load_filepath(
 
 
 def _fetch_prototype_ids_by_electric_util(
-    electric_utility: electric_utility, utility_assignment: pl.LazyFrame
+    electric_utility: ElectricUtility, utility_assignment: pl.LazyFrame
 ) -> list[int]:
     """
     Fetch all building ID's assigned to the given electric utility.
