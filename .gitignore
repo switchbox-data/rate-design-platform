@@ -15,9 +15,11 @@ data/census/pums/zips/
 data/census/pums/csv/
 data/census/pums/parquet/
 data/census/pums/data_dict_cache/
-rate_design/ny/hp_rates/data/buildstock_raw/
-rate_design/ny/hp_rates/data/buildstock_processed/
-rate_design/ny/hp_rates/data/cairo_cases/
+rate_design/ny/hp_rates/config/buildstock_raw/
+rate_design/ny/hp_rates/config/buildstock_processed/
+rate_design/ny/hp_rates/config/cairo_cases/
+rate_design/ny/hp_rates/config/resstock/loads/
+rate_design/ny/hp_rates/config/resstock/results_*.parquet
 outputs/
 site/
 
@@ -33,10 +35,13 @@ build/
 *.json
 !dprint.json
 !.markdownlint.json
-!rate_design/ny/hp_rates/data/tariff_structure/**
-!rate_design/ri/hp_rates/data/tariff_structure/**
-!rate_design/ny/hp_rates/data/tariff_map/**
-!rate_design/ri/hp_rates/data/tariff_map/**
+!rate_design/ny/hp_rates/config/tariffs/**
+!rate_design/ri/hp_rates/config/tariffs/**
+!rate_design/ny/hp_rates/config/tariff_maps/**
+!rate_design/ri/hp_rates/config/tariff_maps/**
+!rate_design/ny/hp_rates/config/marginal_costs/**
+!rate_design/ri/hp_rates/config/marginal_costs/**
+!rate_design/ri/hp_rates/config/distribution_cost_params.json
 
 # Terraform state files
 infra/*.tfstate

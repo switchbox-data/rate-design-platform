@@ -12,8 +12,8 @@ import polars as pl
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.aggregate_eia_utility_loads import aggregate_utility_load
-from utils.eia_region_config import get_utility_zone_mapping_for_state
+from data.eia.hourly_loads.aggregate_eia_utility_loads import aggregate_utility_load
+from data.eia.hourly_loads.eia_region_config import get_utility_zone_mapping_for_state
 
 UTILITY_ZONE_MAPPING = get_utility_zone_mapping_for_state("NY")
 

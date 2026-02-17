@@ -1,0 +1,13 @@
+# EIA-861 utility stats (yearly sales from PUDL)
+#
+# Print investor-owned utility stats for a state as CSV to stdout.
+# Uses utils.utility_codes for utility_code column.
+#
+# Usage (from project root):
+#   just -f data/eia/861/Justfile fetch-utility-stats NY
+#   just -f data/eia/861/Justfile fetch-utility-stats NY > output.csv
+
+project_root := `git rev-parse --show-toplevel`
+
+fetch-utility-stats state:
+    cd "{{project_root}}" && uv run python "{{project_root}}/data/eia/861/get_utility_stats_from_eia861.py" {{state}}

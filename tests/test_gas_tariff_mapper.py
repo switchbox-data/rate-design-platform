@@ -4,7 +4,7 @@ from typing import cast
 
 import polars as pl
 
-from utils.gas_tariff_mapper import map_gas_tariff
+from utils.pre.gas_tariff_mapper import map_gas_tariff
 
 
 def test_map_gas_tariff_uses_crosswalk_for_tariff_key():

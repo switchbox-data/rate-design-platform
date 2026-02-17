@@ -4,7 +4,7 @@ from typing import cast
 
 import polars as pl
 
-from utils.electric_tariff_mapper import map_electric_tariff
+from utils.pre.electric_tariff_mapper import map_electric_tariff
 from utils.types import SBScenario
 
 

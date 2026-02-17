@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from utils.generate_precalc_mapping import generate_default_precalc_mapping
+from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 
 
 def _create_temp_tariff_file(tariff_structure: dict) -> Path:

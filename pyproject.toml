@@ -53,8 +53,16 @@ include = ["data*", "rate_design*", "utils*"]
 [tool.setuptools.package-data]
 "rate_design.ny.hp_rates" = [
     "scenarios/*.yaml",
-    "data/tariff_structure/*.json",
-    "data/tariff_mapping/*.csv",
+    "config/tariffs/electricity/*.json",
+    "config/tariffs/gas/*.json",
+    "config/tariff_maps/electric/*.csv",
+    "config/tariff_maps/gas/*.csv",
+]
+"rate_design.ri.hp_rates" = [
+    "config/tariffs/electricity/*.json",
+    "config/tariffs/gas/*.json",
+    "config/tariff_maps/electric/*.csv",
+    "config/tariff_maps/gas/*.csv",
 ]
 "utils.post" = ["data/*.yaml"]
 

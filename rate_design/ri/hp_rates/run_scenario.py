@@ -14,7 +14,7 @@ from cairo.rates_tool.systemsimulator import (
 from cairo.utils.marginal_costs.marginal_cost_calculator import add_distribution_costs
 
 from utils.cairo import build_bldg_id_to_load_filepath, _load_cambium_marginal_costs
-from utils.generate_precalc_mapping import generate_default_precalc_mapping
+from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
@@ -24,7 +24,7 @@ run_name = "ri_default_test_run"
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 path_project = Path(__file__).resolve().parent
 path_resstock = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
-path_config = path_project / "data"
+path_config = path_project / "config"
 
 state = "RI"
 upgrade = "00"
@@ -60,19 +60,23 @@ test_solar_pv_compensation = "net_metering"
 target_customer_count = 451381  # Target customer count for utility territory
 
 # TODO: lee - take the prototype_id's above, and create a (bldg_id, tariff_key) mapping for the prototype_ids, then have path_tariff_map point to the mapping file.
-path_tariff_map = path_config / "tariff_map" / "dummy_electric_tariff_ri_run_1.csv"
+path_tariff_map = (
+    path_config / "tariff_maps" / "electric" / "dummy_electric_tariff_ri_run_1.csv"
+)
 tariff_map_name = path_tariff_map.stem
-path_gas_tariff_map = path_config / "tariff_map" / "dummy_gas_tariff_ri_run_1.csv"
+path_gas_tariff_map = (
+    path_config / "tariff_maps" / "gas" / "dummy_gas_tariff_ri_run_1.csv"
+)
 
 process_workers = 20
 
 # RIE Residential Tariffs (A-16 for standard residential)
 # Fixed Customer Charge: $6.75/month, Volumetric Distribution Charge: $0.06455/kWh
 tariff_paths = {
-    "rie_a16": path_config / "tariff_structure" / "tariff_structure_rie_a16.json",
+    "rie_a16": path_config / "tariffs" / "electricity" / "rie_a16.json",
 }
 gas_tariff_paths = {
-    "dummy_gas": path_config / "tariff_structure" / "tariff_structure_dummy_gas.json",
+    "dummy_gas": path_config / "tariffs" / "gas" / "dummy_gas.json",
 }
 
 # Load in and manipulate tariff information as needed for bill calculation
@@ -92,7 +96,7 @@ gas_tariffs_params, gas_tariff_map_df = _initialize_tariffs(
 # Generate precalc mapping from RIE A-16 tariff structure
 # rel_values derived proportionally from rates (normalized to min rate = 1.0)
 precalc_mapping = generate_default_precalc_mapping(
-    tariff_path=path_config / "tariff_structure" / "tariff_structure_rie_a16.json",
+    tariff_path=path_config / "tariffs" / "electricity" / "rie_a16.json",
     tariff_key="rie_a16",
 )
 
