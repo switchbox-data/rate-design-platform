@@ -6,7 +6,7 @@ This repository is a clean scaffold for rate design analysis, focused on New Yor
 
 - `rate_design/` — package root.
   - `ny/hp_rates/`
-    - `data/` — local inputs/outputs; `buildstock_*` and `cairo_cases/` are git-ignored. Configs under `tariff_structure/` and `tariff_mapping/` stay versioned.
+    - `config/` — local inputs/outputs; `buildstock_*` and `cairo_cases/` are git-ignored. Configs under `tariffs/` (electricity and gas) and `tariff_maps/` (electric and gas) stay versioned.
     - `scenarios/` — YAML configs selecting tariffs/mappings and other simulation parameters.
     - `scripts/` — helpers such as customer selection, tariff builders, and case path helpers.
     - `Justfile` — NY HP-specific recipes (stub).
@@ -16,4 +16,4 @@ This repository is a clean scaffold for rate design analysis, focused on New Yor
 
 ## Notes
 
-- Data under `rate_design/ny/hp_rates/data/` (buildstock raw/processed, cairo cases) should remain local or synced via S3 tooling you add; keep large artifacts out of git.
+- Data under `rate_design/ny/hp_rates/config/` (buildstock raw/processed, cairo cases) should remain local or synced via S3 tooling you add; keep large artifacts out of git.
