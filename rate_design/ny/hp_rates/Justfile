@@ -52,10 +52,6 @@ path_s3_resstock_metadata := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/meta
 tariff_maps_dir_ny := "{{project_root}}/rate_design/ny/hp_rates/config/tariff_maps"
 config_dir_ny := project_root + "/rate_design/ny/hp_rates/config"
 
-fetch-ny-utility-stats:
-  uv run python {{project_root}}/data/eia/861/get_utility_stats_from_eia861.py NY > {{config_dir_ny}}/ny_electric_utility_stats.csv
-  @echo "Wrote {{config_dir_ny}}/ny_electric_utility_stats.csv"
-
 map-electric-tariff electric_utility SB_scenario_type SB_scenario_year upgrade_id output_dir:
   uv run python {{project_root}}/utils/pre/electric_tariff_mapper.py \
     --metadata_path "{{path_s3_resstock_metadata}}" \

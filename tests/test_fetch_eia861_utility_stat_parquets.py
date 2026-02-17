@@ -1,4 +1,4 @@
-"""Validate the EIA-861 yearly sales dataset used by data/eia/861/get_utility_stats_from_eia861.py.
+"""Validate the EIA-861 yearly sales dataset used by data/eia/861/fetch_eia861_utility_stat_parquets.py.
 
 Confirms required columns and customer_class values exist so the script's
 dynamic aggregation is safe. Uses the same parquet URL as the script.
@@ -8,7 +8,7 @@ import subprocess
 
 import polars as pl
 
-# Must match data/eia/861/get_utility_stats_from_eia861.py
+# Must match data/eia/861/fetch_eia861_utility_stat_parquets.py
 CORE_EIA861_YEARLY_SALES_URL = "https://s3.us-west-2.amazonaws.com/pudl.catalyst.coop/nightly/core_eia861__yearly_sales.parquet"
 
 REQUIRED_COLUMNS = frozenset(
@@ -81,7 +81,13 @@ def test_utility_code_column_present_and_mapped():
 
     project_root = Path(__file__).resolve().parent.parent
     result = subprocess.run(
-        ["uv", "run", "python", "data/eia/861/get_utility_stats_from_eia861.py", "NY"],
+        [
+            "uv",
+            "run",
+            "python",
+            "data/eia/861/fetch_eia861_utility_stat_parquets.py",
+            "NY",
+        ],
         capture_output=True,
         text=True,
         cwd=project_root,
