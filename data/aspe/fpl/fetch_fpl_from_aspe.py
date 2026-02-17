@@ -6,7 +6,7 @@ URL pattern: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guide
 For each year the script fetches household sizes 1 and 2 to derive base and increment
 (base = size-1 threshold; increment = size-2 threshold − base), then verifies the
 increment against size 3.  Output is written to utils/post/data/fpl_guidelines.yaml
-when --output is passed (e.g. via Justfile).
+when --output is passed (e.g. via data/aspe/fpl/Justfile).
 """
 
 from __future__ import annotations

@@ -208,6 +208,12 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.output_dir is not None:
+        out_str = str(args.output_dir)
+        if "{{" in out_str or "}}" in out_str:
+            parser.error(
+                f"--output-dir looks like an uninterpolated Just variable: {out_str!r}. "
+                "Use an absolute path (e.g. project_root + '/data/eia/861/parquet/' in the Justfile)."
+            )
         # Build all states to local parquet
         output_dir = args.output_dir.resolve()
         df_all = (
