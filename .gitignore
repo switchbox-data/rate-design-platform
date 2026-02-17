@@ -11,6 +11,10 @@ data/hud/ami/xlsx/
 data/hud/ami/parquet/
 data/hud/smi/json/
 data/hud/smi/parquet/
+data/census/pums/zips/
+data/census/pums/csv/
+data/census/pums/parquet/
+data/census/pums/data_dict_cache/
 rate_design/ny/hp_rates/data/buildstock_raw/
 rate_design/ny/hp_rates/data/buildstock_processed/
 rate_design/ny/hp_rates/data/cairo_cases/
