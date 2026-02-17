@@ -6,7 +6,7 @@ import argparse
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import polars as pl
@@ -46,10 +46,10 @@ class ScenarioSettings:
     path_resstock_metadata: Path
     path_resstock_loads: Path
     path_cambium_marginal_costs: str | Path
-    path_tariff_map: Path
-    path_gas_tariff_map: Path
-    tariff_paths: dict[str, Path]
-    gas_tariff_paths: dict[str, Path]
+    path_tariff_maps_electric: Path
+    path_tariff_maps_gas: Path
+    path_tariffs_electric: dict[str, Path]
+    path_tariffs_gas: dict[str, Path]
     precalc_tariff_path: Path
     precalc_tariff_key: str
     target_revenue_requirement: float
@@ -119,10 +119,11 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
         raise ValueError(
             f"Invalid YAML format in {scenario_config}: expected top-level map"
         )
-    runs = _require_mapping(data.get("runs"), "runs")
-    run = runs.get(run_num)
-    if run is None:
-        run = runs.get(str(run_num))
+    runs = cast(
+        dict[str | int, Any],
+        _require_mapping(data.get("runs"), "runs"),
+    )
+    run = runs.get(run_num) or runs.get(str(run_num))
     if run is None:
         raise ValueError(f"Run {run_num} not found in {scenario_config}")
     return _require_mapping(run, f"runs[{run_num}]")
@@ -158,17 +159,19 @@ def _build_settings_from_yaml_run(
     )
     solar_pv_compensation = str(run.get("solar_pv_compensation", "net_metering"))
 
-    tariff_paths_raw = _require_mapping(run.get("tariff_paths"), "tariff_paths")
-    tariff_paths = {
-        str(key): _resolve_path(str(path), PATH_CONFIG)
-        for key, path in tariff_paths_raw.items()
-    }
-    gas_tariff_paths_raw = _require_mapping(
-        run.get("gas_tariff_paths"), "gas_tariff_paths"
+    path_tariffs_electric_raw = _require_mapping(
+        run.get("path_tariffs_electric"), "path_tariffs_electric"
     )
-    gas_tariff_paths = {
+    path_tariffs_electric = {
         str(key): _resolve_path(str(path), PATH_CONFIG)
-        for key, path in gas_tariff_paths_raw.items()
+        for key, path in path_tariffs_electric_raw.items()
+    }
+    path_tariffs_gas_raw = _require_mapping(
+        run.get("path_tariffs_gas"), "path_tariffs_gas"
+    )
+    path_tariffs_gas = {
+        str(key): _resolve_path(str(path), PATH_CONFIG)
+        for key, path in path_tariffs_gas_raw.items()
     }
 
     precalc_tariff_key = str(_require_value(run, "precalc_tariff_key"))
@@ -200,16 +203,16 @@ def _build_settings_from_yaml_run(
             str(_require_value(run, "path_cambium_marginal_costs")),
             PATH_CONFIG,
         ),
-        path_tariff_map=_resolve_path(
-            str(_require_value(run, "path_tariff_map")),
+        path_tariff_maps_electric=_resolve_path(
+            str(_require_value(run, "path_tariff_maps_electric")),
             PATH_CONFIG,
         ),
-        path_gas_tariff_map=_resolve_path(
-            str(_require_value(run, "path_gas_tariff_map")),
+        path_tariff_maps_gas=_resolve_path(
+            str(_require_value(run, "path_tariff_maps_gas")),
             PATH_CONFIG,
         ),
-        tariff_paths=tariff_paths,
-        gas_tariff_paths=gas_tariff_paths,
+        path_tariffs_electric=path_tariffs_electric,
+        path_tariffs_gas=path_tariffs_gas,
         precalc_tariff_path=_resolve_path(
             str(_require_value(run, "precalc_tariff_path")),
             PATH_CONFIG,
@@ -223,6 +226,7 @@ def _build_settings_from_yaml_run(
         solar_pv_compensation=solar_pv_compensation,
         delivery_only_rev_req_passed=delivery_only_rev_req_passed,
     )
+
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -271,9 +275,9 @@ def run(settings: ScenarioSettings) -> None:
     )
 
     tariffs_params, tariff_map_df = _initialize_tariffs(
-        tariff_map=settings.path_tariff_map,
+        tariff_map=settings.path_tariff_maps_electric,
         building_stock_sample=None,
-        tariff_paths=settings.tariff_paths,
+        tariff_paths=settings.path_tariffs_electric,
     )
 
     precalc_mapping = generate_default_precalc_mapping(
@@ -321,20 +325,19 @@ def run(settings: ScenarioSettings) -> None:
         settings.test_year_run,
     )
     distribution_mc_root = (
-        "s3://data.sb/switchbox/marginal_costs/"
-        f"{settings.state.lower().strip('/')}/"
+        f"s3://data.sb/switchbox/marginal_costs/{settings.state.lower().strip('/')}/"
     )
     distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
         distribution_mc_root,
         hive_partitioning=True,
         storage_options=get_aws_storage_options(),
     )
-    distribution_mc_scan = distribution_mc_scan.filter(
-        pl.col("region").cast(pl.Utf8) == settings.region
-    ).filter(pl.col("utility").cast(pl.Utf8) == settings.utility).filter(
-        pl.col("year").cast(pl.Utf8) == str(settings.test_year_run)
+    distribution_mc_scan = (
+        distribution_mc_scan.filter(pl.col("region").cast(pl.Utf8) == settings.region)
+        .filter(pl.col("utility").cast(pl.Utf8) == settings.utility)
+        .filter(pl.col("year").cast(pl.Utf8) == str(settings.test_year_run))
     )
-    distribution_mc_df = distribution_mc_scan.collect()
+    distribution_mc_df = cast(pl.DataFrame, distribution_mc_scan.collect())
     distribution_marginal_costs = distribution_mc_df.to_pandas()
     required_cols = {"timestamp", "mc_total_per_kwh"}
     missing_cols = required_cols.difference(distribution_marginal_costs.columns)
@@ -391,8 +394,8 @@ def run(settings: ScenarioSettings) -> None:
         customer_metadata=customer_metadata,
         customer_electricity_load=raw_load_elec,
         customer_gas_load=raw_load_gas,
-        gas_tariff_map=settings.path_gas_tariff_map,
-        gas_tariff_str_loc=settings.gas_tariff_paths,
+        gas_tariff_map=settings.path_tariff_maps_gas,
+        gas_tariff_str_loc=settings.path_tariffs_gas,
         load_cols="total_fuel_electricity",
         marginal_system_prices=marginal_system_prices,
         costs_by_type=costs_by_type,
