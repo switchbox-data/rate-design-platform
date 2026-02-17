@@ -2,6 +2,43 @@
 
 Single source of truth: UTILITIES list. All lookup tables are derived.
 Add one record per utility; no duplication across modules.
+
+Adding a new state
+-----------------
+
+1. Add records to UTILITIES (below) for each investor-owned utility in the state.
+   Each record needs:
+   - std_name: short identifier (lowercase, e.g. "xyz")
+   - state: 2-letter state code (e.g. "MA")
+   - fuels: ["electric"], ["gas"], or ["electric", "gas"]
+   - display_name: human-readable name
+
+2. Optional fields by data source:
+
+   - ny_open_data_state_names: names from geometry/polygon data used to assign
+     utility to buildings. For NY this comes from NY Open Data service-territory
+     polygons. For other states, use the names from your state's equivalent
+     source (e.g. PUC filings, service territory shapefiles), or [] if none.
+     Used by assign_utility_<state> and get_ny_open_data_to_std_name().
+
+   - eia_utility_ids: EIA-861 utility IDs for that utility in this state.
+     Look up in EIA-861 data (e.g. Sales table) or use
+     utils/get_utility_stats_from_eia861.py to discover IDs.
+     Enables get_eia_utility_id_to_std_name() and the utility_code column.
+
+   - gas_tariff_key / electric_tariff_key: keys used in tariff filenames and
+     tariff_map CSVs. Must match keys in rate_design/<state>/hp_rates/data/
+     tariff_structure and tariff_map.
+
+3. Create or extend assign_utility_<state>.py to map building locations to
+   std_name, using ny_open_data_state_names (or your state's equivalent) and
+   get_ny_open_data_to_std_name() / a state-specific lookup.
+
+4. Update utils/types.py: add new std_names to ElectricUtility / GasUtility
+   Literals. Keep them in sync with get_electric_std_names() / get_gas_std_names().
+
+5. Add Justfile recipes in rate_design/<state>/hp_rates/data/ for
+   map-electric-tariff and map-gas-tariff using the new std_names.
 """
 
 from __future__ import annotations
