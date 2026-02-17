@@ -6,7 +6,7 @@ runs:
     region: isone
     utility: rie
     upgrade: 0
-    path_cambium_marginal_costs: marginal_costs/dummy_rie_marginal_costs.csv
+    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
     path_tariff_map: tariff_maps/electric/dummy_electric_tariff_ri_run_1.csv
     path_gas_tariff_map: tariff_maps/gas/rie_gas_tariff_ri_run_1.csv
     tariff_paths:
@@ -31,7 +31,7 @@ runs:
     region: isone
     utility: rie
     upgrade: 0
-    path_cambium_marginal_costs: marginal_costs/rie_p133_marginal_costs.csv
+    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
     path_tariff_map: tariff_maps/electric/dummy_electric_tariff_ri_supply_adj_run_1.csv
     path_gas_tariff_map: tariff_maps/gas/rie_gas_tariff_ri_run_1.csv
     tariff_paths:

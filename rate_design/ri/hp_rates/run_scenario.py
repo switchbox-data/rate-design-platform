@@ -45,7 +45,7 @@ class ScenarioSettings:
     path_results: Path
     path_resstock_metadata: Path
     path_resstock_loads: Path
-    path_cambium_marginal_costs: Path
+    path_cambium_marginal_costs: str | Path
     path_tariff_map: Path
     path_gas_tariff_map: Path
     tariff_paths: dict[str, Path]
@@ -91,6 +91,12 @@ def _parse_bool(value: object, field_name: str) -> bool:
 def _resolve_path(value: str, base_dir: Path) -> Path:
     path = Path(value)
     return path if path.is_absolute() else (base_dir / path)
+
+
+def _resolve_path_or_uri(value: str, base_dir: Path) -> str | Path:
+    if value.startswith("s3://"):
+        return value
+    return _resolve_path(value, base_dir)
 
 
 def _require_mapping(value: Any, field_name: str) -> dict[str, Any]:
@@ -190,7 +196,7 @@ def _build_settings_from_yaml_run(
         / "load_curve_hourly"
         / f"state={state}"
         / f"upgrade={upgrade}",
-        path_cambium_marginal_costs=_resolve_path(
+        path_cambium_marginal_costs=_resolve_path_or_uri(
             str(_require_value(run, "path_cambium_marginal_costs")),
             PATH_CONFIG,
         ),
