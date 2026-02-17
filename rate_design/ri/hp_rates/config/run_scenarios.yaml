@@ -21,6 +21,7 @@ runs:
     process_workers: 20
     solar_pv_compensation: net_metering
     delivery_only_rev_req_passed: false
+    path_distribution_marginal_costs: s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/data.parquet
 
   2:
     run_name: ri_rie_run_02_precalc_delivery_supply_up00_y2025
@@ -44,3 +45,4 @@ runs:
     process_workers: 20
     solar_pv_compensation: net_metering
     delivery_only_rev_req_passed: true
+    path_distribution_marginal_costs: s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/data.parquet
