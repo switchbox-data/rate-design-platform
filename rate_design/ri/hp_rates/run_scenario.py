@@ -330,74 +330,25 @@ def run(settings: ScenarioSettings) -> None:
     )
     distribution_mc_df = distribution_mc_scan.collect()
     distribution_marginal_costs = distribution_mc_df.to_pandas()
-
-    if "timestamp" in distribution_marginal_costs.columns:
-        distribution_marginal_costs = distribution_marginal_costs.set_index("timestamp")
-    elif "time" in distribution_marginal_costs.columns:
-        distribution_marginal_costs = distribution_marginal_costs.set_index("time")
-    distribution_marginal_costs.index = pd.to_datetime(
-        distribution_marginal_costs.index,
-        errors="coerce",
-    )
-    distribution_marginal_costs = distribution_marginal_costs.loc[
-        ~distribution_marginal_costs.index.isna()
-    ].copy()
-    distribution_marginal_costs = distribution_marginal_costs.loc[
-        ~distribution_marginal_costs.index.duplicated(keep="first")
-    ]
-    distribution_marginal_costs = distribution_marginal_costs.sort_index()
-
-    numeric_cols = distribution_marginal_costs.select_dtypes("number").columns.tolist()
-    if not numeric_cols:
+    required_cols = {"timestamp", "mc_total_per_kwh"}
+    missing_cols = required_cols.difference(distribution_marginal_costs.columns)
+    if missing_cols:
         raise ValueError(
-            "No numeric marginal cost column found in distribution marginal costs "
-            f"dataset. Columns: {list(distribution_marginal_costs.columns)}"
+            "Distribution marginal costs parquet is missing required columns "
+            f"{sorted(required_cols)}. Missing: {sorted(missing_cols)}"
         )
-    cost_cols = [
-        c
-        for c in numeric_cols
-        if "kwh" in c.lower() and ("mc" in c.lower() or "marginal" in c.lower())
+    distribution_marginal_costs = distribution_marginal_costs.set_index("timestamp")[
+        "mc_total_per_kwh"
     ]
-    if not cost_cols:
-        cost_cols = numeric_cols
-    if len(cost_cols) > 1:
-        raise ValueError(
-            "Multiple possible marginal cost columns found in distribution marginal "
-            f"costs parquet: {cost_cols}. Keep a single hourly cost column."
-        )
-    source_col = cost_cols[0]
-    if source_col != "Marginal Distribution Costs ($/kWh)":
-        log.warning(
-            "Using `%s` as distribution marginal costs for state=%s, region=%s, "
-            "utility=%s, year=%s",
-            source_col,
-            settings.state,
-            settings.region,
-            settings.utility,
-            settings.test_year_run,
-        )
-    distribution_marginal_costs = distribution_marginal_costs[[source_col]].rename(
-        columns={source_col: "Marginal Distribution Costs ($/kWh)"}
-    )
-
-    if distribution_marginal_costs.index.tz is None:
-        distribution_marginal_costs.index = distribution_marginal_costs.index.tz_localize(
-            "EST"
-        )
-    else:
-        distribution_marginal_costs.index = distribution_marginal_costs.index.tz_convert(
-            "EST"
-        )
+    distribution_marginal_costs.index = pd.DatetimeIndex(
+        distribution_marginal_costs.index
+    ).tz_localize("EST")
     distribution_marginal_costs.index.name = "time"
-    distribution_marginal_costs = (
-        distribution_marginal_costs.reindex(bulk_marginal_costs.index)
-        .ffill()
-        .bfill()
-    )
+    distribution_marginal_costs.name = "Marginal Distribution Costs ($/kWh)"
+
     log.info(
-        ".... Loaded distribution marginal costs rows=%s (aligned to hourly rows=%s)",
+        ".... Loaded distribution marginal costs rows=%s",
         len(distribution_marginal_costs),
-        len(bulk_marginal_costs.index),
     )
 
     (
