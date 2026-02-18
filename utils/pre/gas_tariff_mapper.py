@@ -138,7 +138,7 @@ def map_gas_tariff(
     SB_metadata: pl.LazyFrame,
     electric_utility_name: electric_utility,
 ) -> pl.LazyFrame:
-    # Filter metadata by electric utility
+    # Filter metadata by electric utility name
     utility_metadata = SB_metadata.filter(
         pl.col("sb.electric_utility") == electric_utility_name
     )
