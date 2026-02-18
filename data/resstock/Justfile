@@ -30,8 +30,27 @@ fetch state:
         --weather_file amy2018 \
         --release_version 2 \
         --states $s \
-        --file_type "metadata load_curve_hourly" \
-        --upgrade_id {{resstock_upgrade_ids}} \
+        --file_type "metadata load_curve_hourly load_curve_annual" \
+        --upgrade_id "{{resstock_upgrade_ids}}" \
+        --output_directory {{path_local_parquet}} \
+        --sample 0
+
+fetch-load-curve-annual state:
+    #!/usr/bin/env bash
+    s="{{state}}"
+    if [[ -z "$s" ]]; then
+        echo "Usage: just fetch-load-curve-annual <state>"
+        echo "Example: just fetch-load-curve-annual NY"
+        exit 1
+    fi
+    cd "{{path_local_repo}}" && uv run bsf \
+        --product resstock \
+        --release_year 2024 \
+        --weather_file amy2018 \
+        --release_version 2 \
+        --states $s \
+        --file_type "load_curve_annual" \
+        --upgrade_id "{{resstock_upgrade_ids}}" \
         --output_directory {{path_local_parquet}} \
         --sample 0
 
