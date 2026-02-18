@@ -17,7 +17,7 @@ def test_map_gas_tariff_uses_crosswalk_for_tariff_key():
         }
     )
     result = map_gas_tariff(
-        SB_metadata_df=metadata,
+        SB_metadata=metadata,
         electric_utility_name="coned",
     )
     df = cast(pl.DataFrame, result.collect())

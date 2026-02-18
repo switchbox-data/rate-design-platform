@@ -77,14 +77,14 @@ identify-heating-type release state upgrade_ids input_filename output_filename:
     done
 
 identify-hp-customers-all-upgrades state:
-    just identify-hp-customers {{resstock_release}} {{state}} {{resstock_upgrade_ids_padded}} "metadata.parquet" "metadata-sb.parquet"
+    just identify-hp-customers {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata.parquet" "metadata-sb.parquet"
 
 identify-heating-type-all-upgrades state:
-    just identify-heating-type {{resstock_release}} {{state}} {{resstock_upgrade_ids_padded}} "metadata.parquet" "metadata-sb.parquet"
+    just identify-heating-type {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata.parquet" "metadata-sb.parquet"
 
 identify-hp-and-heating-type-all-upgrades state:
-    just identify-hp-customers {{resstock_release}} {{state}} {{resstock_upgrade_ids_padded}} "metadata.parquet" "metadata-sb.parquet"
-    just identify-heating-type {{resstock_release}} {{state}} {{resstock_upgrade_ids_padded}} "metadata-sb.parquet" "metadata-sb.parquet"
+    just identify-hp-customers {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata.parquet" "metadata-sb.parquet"
+    just identify-heating-type {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet"
 
 # Identify HP customers for a state (shortcut).
 resstock-identify-hp-customers state:
