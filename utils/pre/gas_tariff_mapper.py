@@ -8,15 +8,20 @@ from cloudpathlib import S3Path
 
 from utils import get_aws_region
 from utils.types import electric_utility
+from utils.utility_codes import get_std_name_to_gas_tariff_key
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
 
 def _tariff_key_expr() -> pl.Expr:
-    building_type_column = pl.col("in.geometry_building_type_acs")
+    building_type_column = pl.col("in.geometry_building_type_recs")
     stories_column = pl.col("in.geometry_stories_low_rise")
     heats_with_natgas_column = pl.col("heats_with_natgas")
     gas_utility_col = pl.col("sb.gas_utility")
+
+    # Map std_name to gas_tariff_key
+    gas_tariff_key_map = get_std_name_to_gas_tariff_key()
+    gas_tariff_key_col = gas_utility_col.replace(gas_tariff_key_map)
 
     return (
         #### coned ####
@@ -25,20 +30,20 @@ def _tariff_key_expr() -> pl.Expr:
             (gas_utility_col == "coned")
             & building_type_column.str.contains("Single-Family", literal=True)
         )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_sf")]))
+        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_sf")]))
         # coned: Multi-Family high-rise
         .when(
             (gas_utility_col == "coned")
             & building_type_column.str.contains("Multi-Family", literal=True)
             & stories_column.str.contains("4+", literal=True)
         )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_highrise")]))
+        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_mf_highrise")]))
         # coned: Multi-Family low-rise
         .when(
             (gas_utility_col == "coned")
             & building_type_column.str.contains("Multi-Family", literal=True)
         )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_lowrise")]))
+        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_mf_lowrise")]))
         #### coned ####
         #### kedny ####
         # kedny: Single-Family heating with natural gas
@@ -47,20 +52,20 @@ def _tariff_key_expr() -> pl.Expr:
             & building_type_column.str.contains("Single-Family", literal=True)
             & heats_with_natgas_column.eq(True)
         )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_heating")]))
+        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_sf_heating")]))
         # kedny: Single-Family does not heat with natural gas
         .when(
             (gas_utility_col == "kedny")
             & building_type_column.str.contains("Single-Family", literal=True)
             & heats_with_natgas_column.eq(False)
         )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_nonheating")]))
+        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_sf_nonheating")]))
         # kedny: All multi-Family
         .when(
             (gas_utility_col == "kedny")
             & building_type_column.str.contains("Multi-Family", literal=True)
         )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_mf")]))
+        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_mf")]))
         #### kedny ####
         #### kedli ####
         # kedli: Single-Family heating with natural gas
@@ -69,36 +74,36 @@ def _tariff_key_expr() -> pl.Expr:
             & building_type_column.str.contains("Single-Family", literal=True)
             & heats_with_natgas_column.eq(True)
         )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_heating")]))
+        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_sf_heating")]))
         # kedli: Single-Family does not heat with natural gas
         .when(
             (gas_utility_col == "kedli")
             & building_type_column.str.contains("Single-Family", literal=True)
             & heats_with_natgas_column.eq(False)
         )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_nonheating")]))
+        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_sf_nonheating")]))
         # kedli: Multi-Family heating with natural gas
         .when(
             (gas_utility_col == "kedli")
             & building_type_column.str.contains("Multi-Family", literal=True)
             & heats_with_natgas_column.eq(True)
         )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_heating")]))
+        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_mf_heating")]))
         # kedli: Multi-Family does not heat with natural gas
         .when(
             (gas_utility_col == "kedli")
             & building_type_column.str.contains("Multi-Family", literal=True)
             & heats_with_natgas_column.eq(False)
         )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_nonheating")]))
+        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_mf_nonheating")]))
         #### kedli ####
         #### nyseg ####
         # nyseg: Heating with natural gas
         .when((gas_utility_col == "nyseg") & heats_with_natgas_column.eq(True))
-        .then(pl.concat_str([gas_utility_col, pl.lit("_heating")]))
+        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_heating")]))
         # nyseg: Does not heat with natural gas
         .when((gas_utility_col == "nyseg") & heats_with_natgas_column.eq(False))
-        .then(pl.concat_str([gas_utility_col, pl.lit("_nonheating")]))
+        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_nonheating")]))
         #### nyseg ####
         #### nimo | rge | cenhud | or | nfg ####
         .when(
@@ -108,10 +113,10 @@ def _tariff_key_expr() -> pl.Expr:
             | (gas_utility_col == "or")
             | (gas_utility_col == "nfg")
         )
-        .then(pl.concat_str([gas_utility_col, pl.lit("")]))
+        .then(gas_tariff_key_col)
         #### nimo | rge | cenhud | or | nfg ####
-        # Default: Use existing gas tariff name
-        .otherwise(pl.concat_str([gas_utility_col, pl.lit("")]))
+        # Default: Use gas_tariff_key (mapped from std_name)
+        .otherwise(gas_tariff_key_col)
         .fill_null(gas_utility_col)
         .alias("tariff_key")
     )
@@ -136,7 +141,7 @@ def map_gas_tariff(
             pl.col(
                 "bldg_id",
                 "sb.gas_utility",
-                "in.geometry_building_type_acs",
+                "in.geometry_building_type_recs",
                 "in.geometry_stories_low_rise",
                 "heats_with_natgas",
             )
@@ -144,7 +149,7 @@ def map_gas_tariff(
         .with_columns(_tariff_key_expr())
         .drop(
             "sb.gas_utility",
-            "in.geometry_building_type_acs",
+            "in.geometry_building_type_recs",
             "in.geometry_stories_low_rise",
             "heats_with_natgas",
         )
