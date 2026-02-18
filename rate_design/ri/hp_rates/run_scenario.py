@@ -40,6 +40,7 @@ class ScenarioSettings:
     run_type: str
     state: str
     utility: str
+    upgrade: str
     path_output: Path
     path_resstock_metadata: Path
     path_resstock_loads: Path
@@ -85,6 +86,28 @@ def _parse_bool(value: object, field_name: str) -> bool:
     if normalized in {"false", "0", "no", "n"}:
         return False
     raise ValueError(f"Invalid boolean for {field_name}: {value}")
+
+
+def _normalize_upgrade(value: object, width: int = 2) -> str:
+    """Normalize upgrade to a zero-padded string (e.g. 0 or '0' -> '00')."""
+    if value is None:
+        return "0" * width
+    if isinstance(value, int):
+        if value < 0:
+            raise ValueError(f"upgrade must be non-negative; got {value}")
+        return str(value).zfill(width)
+    s = str(value).strip()
+    if s == "":
+        return "0" * width
+    try:
+        n = int(s)
+    except ValueError as exc:
+        raise ValueError(
+            f"upgrade must be an integer or zero-padded string; got {value!r}"
+        ) from exc
+    if n < 0:
+        raise ValueError(f"upgrade must be non-negative; got {value!r}")
+    return str(n).zfill(width)
 
 
 def _resolve_path(value: str, base_dir: Path) -> Path:
@@ -201,6 +224,7 @@ def _build_settings_from_yaml_run(
     """Build runtime settings from repo YAML scenario config."""
     state = str(run.get("state", "RI")).upper()
     utility = str(_require_value(run, "utility")).lower()
+    upgrade = _normalize_upgrade(run.get("upgrade", "00"))
     mode = str(run.get("run_type", "precalc"))
     year_run = _parse_int(run.get("year_run"), "year_run")
     year_dollar_conversion = _parse_int(
@@ -259,6 +283,7 @@ def _build_settings_from_yaml_run(
         run_type=mode,
         state=state,
         utility=utility,
+        upgrade=upgrade,
         path_output=path_output,
         path_resstock_metadata=_resolve_path(
             str(_require_value(run, "path_resstock_metadata")),

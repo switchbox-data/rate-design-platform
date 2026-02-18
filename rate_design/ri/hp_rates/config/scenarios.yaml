@@ -4,7 +4,7 @@ runs:
     run_type: precalc
     state: RI
     utility: rie
-    upgrade: 0
+    upgrade: "00"
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=ri/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=ri/upgrade=00/
     path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
@@ -32,7 +32,7 @@ runs:
     run_type: precalc
     state: RI
     utility: rie
-    upgrade: 0
+    upgrade: "00"
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=ri/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=ri/upgrade=00/
     path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
