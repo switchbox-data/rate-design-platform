@@ -5,6 +5,7 @@ runs:
     state: RI
     utility: rie
     upgrade: "00"
+    add_supply_revenue_requirement: false
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=ri/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=ri/upgrade=00/
     path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
@@ -25,7 +26,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 20
     solar_pv_compensation: net_metering
-    add_supply_revenue_requirement: false
 
   2:
     run_name: ri_rie_run2_up00_precalc__flat_a16__delivery_supply
@@ -33,6 +33,7 @@ runs:
     state: RI
     utility: rie
     upgrade: "00"
+    add_supply_revenue_requirement: true
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=ri/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=ri/upgrade=00/
     path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
@@ -53,4 +54,3 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 20
     solar_pv_compensation: net_metering
-    add_supply_revenue_requirement: true
