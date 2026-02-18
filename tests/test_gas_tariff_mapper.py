@@ -183,6 +183,34 @@ def test_map_gas_tariff_simple_utilities_no_suffix():
     assert "nfg" in tariff_keys
 
 
+def test_map_gas_tariff_rie_heating_conditions():
+    """Test rie mapping based on heating with natural gas."""
+    metadata = pl.LazyFrame(
+        {
+            "bldg_id": [1, 2],
+            "sb.electric_utility": ["rie", "rie"],
+            "sb.gas_utility": ["rie", None],
+            "in.geometry_building_type_recs": [
+                "Single-Family Detached",
+                "Multi-Family with 5+ units",
+            ],
+            "in.geometry_stories_low_rise": ["2", "4+"],
+            "heats_with_natgas": [True, False],
+        }
+    )
+    result = map_gas_tariff(
+        SB_metadata=metadata,
+        electric_utility_name="rie",
+    )
+    df = cast(pl.DataFrame, result.collect())
+    assert df.height == 2
+    tariff_keys = df["tariff_key"].to_list()
+    # rie with heats_with_natgas=True -> rie_nonheating
+    # rie with heats_with_natgas=False -> null_gas_tariff (default/otherwise case)
+    assert "rie_nonheating" in tariff_keys
+    assert "null_gas_tariff" in tariff_keys
+
+
 def test_map_gas_tariff_null_gas_utility():
     """Test that null gas_utility values get assigned to null_gas_tariff."""
     metadata = pl.LazyFrame(

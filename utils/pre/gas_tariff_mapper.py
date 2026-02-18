@@ -105,6 +105,10 @@ def _tariff_key_expr() -> pl.Expr:
         .when((gas_utility_col == "nyseg") & heats_with_natgas_column.eq(False))
         .then(pl.concat_str([gas_tariff_key_col, pl.lit("_nonheating")]))
         #### nyseg ####
+        #### rie ####
+        .when((gas_utility_col == "rie") & heats_with_natgas_column.eq(True))
+        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_nonheating")]))
+        #### rie ####
         #### nimo | rge | cenhud | or | nfg ####
         .when(
             (gas_utility_col == "nimo")
