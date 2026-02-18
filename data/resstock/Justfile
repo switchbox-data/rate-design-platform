@@ -93,15 +93,35 @@ identify-heating-type release state upgrade_ids input_filename output_filename:
             --upgrade_id "$upgrade_id"
     done
 
+identify-natgas-connection release state upgrade_ids input_metadata_filename output_filename:
+    #!/usr/bin/env bash
+    set -e
+    if [[ "{{release}}" != *"2024"* ]]; then
+        echo "Warning: this task is only verified to work with 2024 releases."
+    fi
+    for upgrade_id in {{upgrade_ids}}; do
+        uv run python "{{path_local_repo}}/data/resstock/identify_natgas_connection.py" \
+            --input_metadata_dir "{{path_s3_parquet}}/{{release}}/metadata/state={{state}}/upgrade=$upgrade_id" \
+            --input_load_curve_annual_dir "{{path_s3_parquet}}/{{release}}/load_curve_annual/state={{state}}/upgrade=$upgrade_id" \
+            --output_dir "{{path_s3_parquet}}/{{release}}/metadata/state={{state}}/upgrade=$upgrade_id" \
+            --input_metadata_filename "{{input_metadata_filename}}" \
+            --input_load_curve_annual_filename "{{state}}_upgrade"$upgrade_id"_metadata_and_annual_results.parquet" \
+            --output_filename "{{output_filename}}"
+    done
+
 identify-hp-customers-all-upgrades state:
-    just identify-hp-customers {{resstock_release}} {{state}} {{resstock_upgrade_ids_padded}} "metadata.parquet" "metadata-sb.parquet"
+    just identify-hp-customers {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata.parquet" "metadata-sb.parquet"
 
 identify-heating-type-all-upgrades state:
-    just identify-heating-type {{resstock_release}} {{state}} {{resstock_upgrade_ids_padded}} "metadata.parquet" "metadata-sb.parquet"
+    just identify-heating-type {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata.parquet" "metadata-sb.parquet"
 
-identify-hp-and-heating-type-all-upgrades state:
-    just identify-hp-customers {{resstock_release}} {{state}} {{resstock_upgrade_ids_padded}} "metadata.parquet" "metadata-sb.parquet"
-    just identify-heating-type {{resstock_release}} {{state}} {{resstock_upgrade_ids_padded}} "metadata-sb.parquet" "metadata-sb.parquet"
+identify-natgas-connection-all-upgrades state:
+    just identify-natgas-connection {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata.parquet" "metadata-sb.parquet"
+
+identify-hp-and-heating-type-all-upgrades-and-natgas-connection state:
+    just identify-hp-customers {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata.parquet" "metadata-sb.parquet"
+    just identify-heating-type {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet"
+    just identify-natgas-connection {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet"
 
 # Identify HP customers for a state (shortcut).
 resstock-identify-hp-customers state:
