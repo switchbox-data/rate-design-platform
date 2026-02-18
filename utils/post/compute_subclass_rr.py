@@ -34,7 +34,8 @@ DEFAULT_BAT_METRIC = "BAT_percustomer"
 GROUP_VALUE_COL = "subclass"
 ANNUAL_MONTH_VALUE = "Annual"
 DEFAULT_SEASONAL_OUTPUT_FILENAME = "seasonal_discount_rate_inputs.csv"
-WINTER_MONTHS = (12, 1, 2)
+# Winter season is Oct 1 through Mar 31.
+WINTER_MONTHS = (10, 11, 12, 1, 2, 3)
 ELECTRIC_LOAD_COL = "out.electricity.net.energy_consumption"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SCENARIO_CONFIG_PATH = (
@@ -282,9 +283,9 @@ def compute_hp_seasonal_discount_inputs(
     default_rate = _extract_default_rate_from_tariff_config(tariff_path)
     winter_rate_raw = default_rate - (total_cross_subsidy_hp / winter_kwh)
     winter_rate_hp = winter_rate_raw
-    if winter_rate_hp <= 0:
+    if winter_rate_hp < 0:
         raise ValueError(
-            "Computed winter_rate_hp is non-positive. "
+            "Computed winter_rate_hp is negative. "
             "Check formula inputs: "
             f"default_rate={default_rate}, "
             f"total_cross_subsidy_hp={total_cross_subsidy_hp}, "

@@ -247,10 +247,10 @@ def test_compute_hp_seasonal_discount_inputs(tmp_path: Path) -> None:
     assert out["default_rate"][0] == pytest.approx(0.21)
     # HP ids are 1 and 3 -> BAT_percustomer = 3 + 4 = 7 (weighted by 1 each)
     assert out["total_cross_subsidy_hp"][0] == pytest.approx(7.0)
-    # Winter months only (Jan, Feb, Dec): 10 + 20 + 30 = 60 (weighted by 1 each)
+    # Winter season (Oct-Mar) over this fixture still sums Jan + Feb + Dec = 60.
     assert out["winter_kwh_hp"][0] == pytest.approx(60.0)
     assert out["winter_rate_hp"][0] == pytest.approx(0.21 - (7.0 / 60.0))
-    assert out["winter_months"][0] == "12,1,2"
+    assert out["winter_months"][0] == "10,11,12,1,2,3"
 
 
 def test_compute_hp_seasonal_discount_inputs_applies_weights(tmp_path: Path) -> None:
@@ -308,7 +308,7 @@ def test_compute_hp_seasonal_discount_inputs_raises_when_non_positive_rate(
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="Computed winter_rate_hp is non-positive"):
+    with pytest.raises(ValueError, match="Computed winter_rate_hp is negative"):
         compute_hp_seasonal_discount_inputs(
             run_dir=run_dir,
             resstock_loads_path=loads_dir,

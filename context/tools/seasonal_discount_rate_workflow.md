@@ -13,7 +13,7 @@ summer at the default rate.
 
 ## Winter Definition
 
-Winter is defined explicitly as **December, January, February**.
+Winter is defined explicitly as **October 1 through March 31**.
 
 ## Core Formula (HP only)
 
@@ -76,7 +76,7 @@ just map-electric-rie-seasonal-discount
 - `total_cross_subsidy_hp`
 - `winter_kwh_hp`
 - `winter_rate_hp`
-- `winter_months` (always `12,1,2`)
+- `winter_months` (always `10,11,12,1,2,3`)
 
 Both `total_cross_subsidy_hp` and `winter_kwh_hp` are weighted by
 `customer_metadata.weight`.
