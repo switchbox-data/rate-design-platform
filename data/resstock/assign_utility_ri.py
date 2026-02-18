@@ -83,7 +83,7 @@ if __name__ == "__main__":
         input_metadata=input_metadata,
     )
 
-    # Write back to the same location using sink_parquet
+    # Write back to the output path using sink_parquet
     metadata_with_utility_assignment.sink_parquet(
         str(output_path_s3), compression="zstd", storage_options=STORAGE_OPTIONS
     )
