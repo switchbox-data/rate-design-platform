@@ -115,6 +115,10 @@ def _tariff_key_expr() -> pl.Expr:
         )
         .then(gas_tariff_key_col)
         #### nimo | rge | cenhud | or | nfg ####
+        ### Null value in the gas_utility column gets assigned to "null_gas_tariff" ####
+        .when(gas_utility_col.is_null())
+        .then(pl.lit("null_gas_tariff"))
+        ### Null value in the gas_utility column gets assigned to "null_gas_tariff" ####
         # Default: Use gas_tariff_key (mapped from std_name)
         .otherwise(gas_tariff_key_col)
         .fill_null(gas_utility_col)
