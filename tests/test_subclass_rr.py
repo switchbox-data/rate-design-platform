@@ -34,7 +34,7 @@ def _write_sample_run_dir(tmp_path: Path) -> Path:
     pl.DataFrame(
         {
             "bldg_id": [1, 2, 3, 4],
-            "BAT_percustomer": [10.0, 20.0, 30.0, 40.0],
+            "BAT_percustomer": [3.0, 20.0, 4.0, 40.0],
             "BAT_vol": [1.0, 2.0, 3.0, 4.0],
         }
     ).write_csv(run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv")
@@ -49,10 +49,7 @@ def _write_sample_run_dir(tmp_path: Path) -> Path:
     ).write_csv(run_dir / "customer_metadata.csv")
 
     (run_dir / "tariff_final_config.json").write_text(
-        (
-            '{"items":[{"energyratestructure":[[{"rate":0.2,"adj":0.01,"unit":"kWh"}]],'
-            '"fixedchargefirstmeter":6.75}]}'
-        ),
+        '{"rie_a16":{"ur_ec_tou_mat":[[1,1,1e+38,0,0.21,0.0,0]]}}',
         encoding="utf-8",
     )
     return run_dir
@@ -71,14 +68,14 @@ def _write_sample_resstock_loads_dir(tmp_path: Path) -> Path:
                 "2025-02-01 00:00:00",
                 "2025-12-01 00:00:00",
             ],
-            "total_fuel_electricity": [10.0, 999.0, 20.0, 30.0],
+            "out.electricity.net.energy_consumption": [10.0, 999.0, 20.0, 30.0],
         }
     ).write_parquet(loads_dir / "sample_hp_loads.parquet")
     pl.DataFrame(
         {
             "bldg_id": [2, 4],
             "timestamp": ["2025-01-01 00:00:00", "2025-01-01 00:00:00"],
-            "total_fuel_electricity": [500.0, 600.0],
+            "out.electricity.net.energy_consumption": [500.0, 600.0],
         }
     ).write_parquet(loads_dir / "sample_nonhp_loads.parquet")
     return loads_dir
@@ -92,7 +89,7 @@ def _write_sample_resstock_loads_dir(tmp_path: Path) -> Path:
             "BAT_percustomer",
             {
                 "false": (600.0, 60.0, 540.0),
-                "true": (400.0, 40.0, 360.0),
+                "true": (400.0, 7.0, 393.0),
             },
         ),
         (
@@ -248,12 +245,12 @@ def test_compute_hp_seasonal_discount_inputs(tmp_path: Path) -> None:
     assert out.height == 1
     assert out["subclass"][0] == "true"
     assert out["default_rate"][0] == pytest.approx(0.21)
-    # HP ids are 1 and 3 -> BAT_percustomer = 10 + 30 = 40 (weighted by 1 each)
-    assert out["total_cross_subsidy_hp"][0] == pytest.approx(40.0)
-    # Winter months only (Jan, Feb, Dec): 10 + 20 + 30 = 60 (weighted by 1 each)
+    # HP ids are 1 and 3 -> BAT_percustomer = 3 + 4 = 7 (weighted by 1 each)
+    assert out["total_cross_subsidy_hp"][0] == pytest.approx(7.0)
+    # Winter season (Oct-Mar) over this fixture still sums Jan + Feb + Dec = 60.
     assert out["winter_kwh_hp"][0] == pytest.approx(60.0)
-    assert out["winter_rate_hp"][0] == pytest.approx(0.21 - (40.0 / 60.0))
-    assert out["winter_months"][0] == "12,1,2"
+    assert out["winter_rate_hp"][0] == pytest.approx(0.21 - (7.0 / 60.0))
+    assert out["winter_months"][0] == "10,11,12,1,2,3"
 
 
 def test_compute_hp_seasonal_discount_inputs_applies_weights(tmp_path: Path) -> None:
@@ -274,7 +271,7 @@ def test_compute_hp_seasonal_discount_inputs_applies_weights(tmp_path: Path) -> 
         {"bldg_id": [1, 2], "month": ["Annual", "Annual"], "bill_level": [0.0, 0.0]}
     ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
     (run_dir / "tariff_final_config.json").write_text(
-        '{"items":[{"energyratestructure":[[{"rate":0.2,"adj":0.0,"unit":"kWh"}]],"fixedchargefirstmeter":0.0}]}',
+        '{"rie_a16":{"ur_ec_tou_mat":[[1,1,1e+38,0,0.2,0.0,0]]}}',
         encoding="utf-8",
     )
 
@@ -284,7 +281,7 @@ def test_compute_hp_seasonal_discount_inputs_applies_weights(tmp_path: Path) -> 
         {
             "bldg_id": [1, 2],
             "timestamp": ["2025-01-01 00:00:00", "2025-01-01 00:00:00"],
-            "total_fuel_electricity": [100.0, 100.0],
+            "out.electricity.net.energy_consumption": [100.0, 100.0],
         }
     ).write_parquet(loads_dir / "sample.parquet")
 
@@ -298,6 +295,25 @@ def test_compute_hp_seasonal_discount_inputs_applies_weights(tmp_path: Path) -> 
     # Weighted winter kWh = 100*1 + 100*9 = 1000
     assert out["winter_kwh_hp"][0] == pytest.approx(1000.0)
     assert out["winter_rate_hp"][0] == pytest.approx(0.2 - (100.0 / 1000.0))
+
+
+def test_compute_hp_seasonal_discount_inputs_raises_when_non_positive_rate(
+    tmp_path: Path,
+) -> None:
+    run_dir = _write_sample_run_dir(tmp_path)
+    loads_dir = _write_sample_resstock_loads_dir(tmp_path)
+    # Force very low default rate so formula goes non-positive.
+    (run_dir / "tariff_final_config.json").write_text(
+        '{"rie_a16":{"ur_ec_tou_mat":[[1,1,1e+38,0,0.01,0.0,0]]}}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Computed winter_rate_hp is negative"):
+        compute_hp_seasonal_discount_inputs(
+            run_dir=run_dir,
+            resstock_loads_path=loads_dir,
+            cross_subsidy_col="BAT_percustomer",
+        )
 
 
 def test_write_seasonal_inputs_csv_uses_output_dir_override(tmp_path: Path) -> None:
