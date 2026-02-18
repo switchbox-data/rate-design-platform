@@ -184,7 +184,10 @@ def test_identify_natgas_connection_positive_consumption():
     load_curve_annual = pl.DataFrame(
         {
             "bldg_id": [1, 2],
-            NATGAS_CONSUMPTION_COLUMN: [0.1, 0.0],  # Even tiny positive value should be True
+            NATGAS_CONSUMPTION_COLUMN: [
+                0.1,
+                0.0,
+            ],  # Even tiny positive value should be True
         }
     ).lazy()
 
