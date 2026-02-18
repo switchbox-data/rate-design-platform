@@ -5,7 +5,6 @@ runs:
     state: RI
     utility: rie
     upgrade: 0
-    path_output: /data.sb/switchbox/cairo/outputs/hp_rates/
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=ri/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=ri/upgrade=00/
     path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
@@ -21,6 +20,7 @@ runs:
     precalc_tariff_key: rie_a16
     utility_delivery_revenue_requirement: 241869601
     utility_customer_count: 451381
+    path_output: /data.sb/switchbox/cairo/outputs/hp_rates/
     year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 20
@@ -33,7 +33,6 @@ runs:
     state: RI
     utility: rie
     upgrade: 0
-    path_output: /data.sb/switchbox/cairo/outputs/hp_rates/
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=ri/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=ri/upgrade=00/
     path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
@@ -49,6 +48,7 @@ runs:
     precalc_tariff_key: rie_a16_supply_adj
     utility_delivery_revenue_requirement: 241869601
     utility_customer_count: 451381
+    path_output: /data.sb/switchbox/cairo/outputs/hp_rates/
     year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 20
