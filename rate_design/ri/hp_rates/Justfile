@@ -14,7 +14,7 @@ run-scenario run_num scenario_config=ri_run_scenario_config:
     --run-num "{{run_num}}" \
     --scenario-config "{{scenario_config}}"
 
-# Optional output override (if you don't want the YAML output_dir)
+# Optional: full output path override (else path_output/state/run_name/runtime from YAML)
 run-scenario-with-output run_num output_dir scenario_config=ri_run_scenario_config:
   uv run python {{project_root}}/rate_design/ri/hp_rates/run_scenario.py \
     --run-num "{{run_num}}" \
@@ -22,16 +22,22 @@ run-scenario-with-output run_num output_dir scenario_config=ri_run_scenario_conf
     --output-dir "{{output_dir}}"
 
 # -----------------------------------------------------------------------------
-# PRE: ResStock (delegates to data/resstock/Justfile)
+# Post-processing: subclass revenue requirements from CAIRO BAT outputs
 # -----------------------------------------------------------------------------
-resstock-download:
-  just -f {{project_root}}/data/resstock/Justfile resstock-download RI
+# Always pass the full CAIRO run directory path
+ri_rev_requirement_dir := project_root + "/rate_design/ri/hp_rates/config/rev_requirement"
+ri_differentiated_rev_requirement_yaml := ri_rev_requirement_dir + "/rie_hp_vs_nonhp.yaml"
+ri_default_rev_requirement_yaml := ri_rev_requirement_dir + "/rie.yaml"
 
-resstock-test-download:
-  just -f {{project_root}}/data/resstock/Justfile resstock-test-download RI
-
-resstock-identify-hp-customers:
-  just -f {{project_root}}/data/resstock/Justfile resstock-identify-hp-customers RI
+compute-subclass-rr run_dir run_num="1" scenario_config=ri_run_scenario_config group_col="has_hp" cross_subsidy_col="BAT_percustomer" differentiated_yaml=ri_differentiated_rev_requirement_yaml default_yaml=ri_default_rev_requirement_yaml:
+  uv run python {{project_root}}/utils/post/compute_subclass_rr.py \
+    --run-dir "{{run_dir}}" \
+    --run-num "{{run_num}}" \
+    --scenario-config "{{scenario_config}}" \
+    --group-col "{{group_col}}" \
+    --cross-subsidy-col "{{cross_subsidy_col}}" \
+    --differentiated-yaml-path "{{differentiated_yaml}}" \
+    --default-yaml-path "{{default_yaml}}"
 
 # -----------------------------------------------------------------------------
 # PRE: Tariff mapping (electric and gas)
@@ -96,13 +102,9 @@ map-gas-all-utilities:
   just map-gas-rie
 
 # -----------------------------------------------------------------------------
-# Post-processing: CPI and RI LIDR+ discounts
+# Post-processing: RI LIDR+ discounts
 # -----------------------------------------------------------------------------
-# Delegates to data/fred/cpi/Justfile.
-fetch-cpi series="CPIAUCSL" start_year="2020" end_year="2025":
-  just -f {{project_root}}/data/fred/cpi/Justfile fetch-cpi {{series}} {{start_year}} {{end_year}}
-
-# Apply RI LIDR+ discounts to CAIRO bills. Run fetch-cpi first, then pass --cpi-s3-path.
+# Apply RI LIDR+ discounts to CAIRO bills. Requires CPI parquet on S3 (e.g. from data/fred/cpi); pass --cpi-s3-path.
 apply-ri-lmi-discounts run_dir state utility fpl_year cpi_s3_path participation_rate="1.0" rider="false":
   uv run python {{project_root}}/utils/post/apply_ri_lmi_discounts_to_bills.py \
     --run-dir "{{run_dir}}" \
@@ -115,25 +117,17 @@ apply-ri-lmi-discounts run_dir state utility fpl_year cpi_s3_path participation_
     --upload
 
 # -----------------------------------------------------------------------------
-# PRE: EIA hourly loads and marginal cost allocation (zone fetch, utility aggregate, MC allocation)
+# PRE: Marginal cost allocation (utility loads and MC table → S3; data assumed on S3)
 # -----------------------------------------------------------------------------
 pre_state := "RI"
 pre_utility := "rie"
-pre_start_month := "2025-01"
-pre_end_month := "2025-12"
 pre_load_year := "2025"
 pre_mc_year := "2025"
 pre_mc_table_path := project_root + "/rate_design/ri/hp_rates/config/marginal_costs/ri_marginal_costs_2025.csv"
-pre_zone_s3_base := "s3://data.sb/eia/hourly_demand/zones/"
 pre_utility_s3_base := "s3://data.sb/eia/hourly_demand/utilities/"
 pre_mc_output_s3_base := "s3://data.sb/switchbox/marginal_costs/ri/"
 
 create-td-mc-data:
-  just create-td-mc-data-rie
-
-create-td-mc-data-rie:
-  just -f {{project_root}}/data/eia/hourly_loads/Justfile fetch-zone-data {{pre_state}} {{pre_start_month}} {{pre_end_month}}
-  just -f {{project_root}}/data/eia/hourly_loads/Justfile aggregate-utility-loads {{pre_state}} {{pre_load_year}} {{pre_utility}}
   cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_utility_tx_dx_mc.py \
     --state {{pre_state}} \
     --utility {{pre_utility}} \

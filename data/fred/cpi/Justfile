@@ -1,27 +1,29 @@
-# FRED CPI and ASPE FPL data pipeline
+# FRED CPI data pipeline
 #
-# CPI: Fetch FRED series (e.g. CPIAUCSL) and upload annual-average parquet to S3.
-# FPL: Fetch HHS Federal Poverty Guidelines from ASPE API and write to utils/post/data/fpl_guidelines.yaml.
-# Invoked from rate_design/ri/hp_rates/Justfile (fetch-cpi delegates here).
+# Fetch FRED series (e.g. CPIAUCSL) to local parquet, then optionally upload to S3.
 #
 # Usage (standalone, from project root):
 #   just -f data/fred/cpi/Justfile fetch-cpi
 #   just -f data/fred/cpi/Justfile fetch-cpi CPIAUCSL 2020 2025
-#   just -f data/fred/cpi/Justfile fetch-fpl 2020 2025
+#   just -f data/fred/cpi/Justfile upload
+#   just -f data/fred/cpi/Justfile clean    # Remove local parquet/
 
-project_root := `git rev-parse --show-toplevel`
-fpl_output := project_root + "/utils/post/data/fpl_guidelines.yaml"
-cpi_s3_base := "s3://data.sb"
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_parquet := path_local_repo + "/data/fred/cpi/parquet/"
+path_s3_parquet := "s3://data.sb/fred/cpi/"
 
-# Fetch FRED CPI series and upload annual-average parquet to S3. Requires FRED_API_KEY.
-# Output: s3://data.sb/fred/cpi/<series_lower>_<start>_<end>_<YYYYMMDD>.parquet
+# Fetch FRED CPI series to local parquet. Requires FRED_API_KEY.
+# Writes parquet/<series_lower>_<start>_<end>_<YYYYMMDD>.parquet
 fetch-cpi series="CPIAUCSL" start_year="2020" end_year="2025":
-    cd "{{project_root}}" && uv run python "{{project_root}}/data/fred/cpi/fetch_cpi_from_fred.py" \
+    uv run python "{{path_local_repo}}/data/fred/cpi/fetch_cpi_parquet.py" \
         --series {{series}} --start-year {{start_year}} --end-year {{end_year}} \
-        --s3-base {{cpi_s3_base}} --upload
+        --output "{{path_local_parquet}}"
 
-# Fetch HHS FPL guidelines from ASPE and write to utils/post/data/fpl_guidelines.yaml.
-fetch-fpl start_year end_year:
-    cd "{{project_root}}" && uv run python "{{project_root}}/data/fred/cpi/fetch_fpl_from_aspe.py" \
-        --start-year {{start_year}} --end-year {{end_year}} \
-        --output "{{fpl_output}}"
+# Sync local parquet/ to s3://data.sb/fred/cpi/
+upload:
+    aws s3 sync "{{path_local_parquet}}" "{{path_s3_parquet}}"
+
+# Remove local parquet/
+clean:
+    rm -rf "{{path_local_parquet}}"
+    @echo "Removed {{path_local_parquet}}"

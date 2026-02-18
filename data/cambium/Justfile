@@ -31,20 +31,25 @@ year := "2024"
 # Scenario to download (e.g. Mid-case, LowRE, Reference)
 scenario := "Mid-case"
 
+path_local_zip := "zips/{{year}}"
+path_local_csv := "csv/{{year}}"
+path_local_parquet := "parquet/{{year}}"
+path_s3_parquet := "s3://data.sb/nrel/cambium/{{year}}/"
+
 # Show available Cambium files interactively for the given year. All Cambium CSVs are available for download; fetch only downloads hourly balancing areas.
 show:
     uv run python fetch_cambium_csvs.py
 
 # Fetch hourly balancing areas for the chosen scenario to zips/<year>
 fetch:
-    uv run python fetch_cambium_csvs.py --year {{year}} --output zips/{{year}} --scenario "{{scenario}}" --resolution "Hourly" --location "Balancing Areas"
+    uv run python fetch_cambium_csvs.py --year {{year}} --output {{path_local_zip}} --scenario "{{scenario}}" --resolution "Hourly" --location "Balancing Areas"
 
 # Extract ZIP files from zips/<year> to csv/<year>
 unzip:
     #!/usr/bin/env bash
     set -euo pipefail
-    zip_dir="zips/{{year}}"
-    csv_dir="csv/{{year}}"
+    zip_dir="{{path_local_zip}}"
+    csv_dir="{{path_local_csv}}"
     if [ ! -d "$zip_dir" ]; then
         echo "Error: $zip_dir not found. Run 'just fetch' first."
         exit 1
@@ -60,7 +65,7 @@ unzip:
 
 # Convert CSV files in csv/<year>/hourly_balancingArea to Parquet in parquet/<year>
 convert:
-    uv run python convert_cambium_csv_to_parquet.py --input csv/{{year}}/hourly_balancingArea --output parquet/{{year}}
+    uv run python convert_cambium_csv_to_parquet.py --input {{path_local_csv}}/hourly_balancingArea --output {{path_local_parquet}}
 
 # Full pipeline: fetch, extract, convert to Parquet
 prepare:
@@ -70,7 +75,7 @@ prepare:
 
 # Upload parquet/<year> to S3 (s3://data.sb/nrel/cambium/<year>/)
 upload:
-    aws s3 sync parquet/{{year}}/ s3://data.sb/nrel/cambium/{{year}}/ --exclude "*" --include "*.parquet"
+    aws s3 sync {{path_local_parquet}}/ {{path_s3_parquet}} --exclude "*" --include "*.parquet"
 
 # Remove intermediate dirs for the current year (zips, csv, parquet)
 clean:

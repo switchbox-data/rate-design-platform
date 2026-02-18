@@ -4,6 +4,26 @@
 # Formula: FPL_threshold = base + (occupants - 1) * increment
 # Values are for the 48 contiguous states and DC.
 
+2020:
+  base: 12760
+  increment: 4480
+
+2021:
+  base: 12880
+  increment: 4540
+
+2022:
+  base: 13590
+  increment: 4720
+
+2023:
+  base: 14580
+  increment: 5140
+
 2024:
   base: 15060
   increment: 5380
+
+2025:
+  base: 15650
+  increment: 5500

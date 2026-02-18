@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
 
@@ -28,8 +29,6 @@ log = logging.getLogger("rates_analysis").getChild("tests")
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
-PATH_RESSTOCK = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
-DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
 DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
 
 
@@ -40,25 +39,26 @@ class ScenarioSettings:
     run_name: str
     run_type: str
     state: str
-    region: str
     utility: str
-    path_results: Path
+    upgrade: str
+    path_output: Path
     path_resstock_metadata: Path
     path_resstock_loads: Path
     path_cambium_marginal_costs: str | Path
+    path_td_marginal_costs: str | Path
     path_tariff_maps_electric: Path
     path_tariff_maps_gas: Path
     path_tariffs_electric: dict[str, Path]
     path_tariffs_gas: dict[str, Path]
     precalc_tariff_path: Path
     precalc_tariff_key: str
-    utility_revenue_requirement: float
+    utility_delivery_revenue_requirement: float
     utility_customer_count: int
     year_run: int
     year_dollar_conversion: int
     process_workers: int
     solar_pv_compensation: str = "net_metering"
-    delivery_only_rev_req_passed: bool = False
+    add_supply_revenue_requirement: bool = False
 
 
 def _parse_int(value: object, field_name: str) -> int:
@@ -88,6 +88,28 @@ def _parse_bool(value: object, field_name: str) -> bool:
     raise ValueError(f"Invalid boolean for {field_name}: {value}")
 
 
+def _normalize_upgrade(value: object, width: int = 2) -> str:
+    """Normalize upgrade to a zero-padded string (e.g. 0 or '0' -> '00')."""
+    if value is None:
+        return "0" * width
+    if isinstance(value, int):
+        if value < 0:
+            raise ValueError(f"upgrade must be non-negative; got {value}")
+        return str(value).zfill(width)
+    s = str(value).strip()
+    if s == "":
+        return "0" * width
+    try:
+        n = int(s)
+    except ValueError as exc:
+        raise ValueError(
+            f"upgrade must be an integer or zero-padded string; got {value!r}"
+        ) from exc
+    if n < 0:
+        raise ValueError(f"upgrade must be non-negative; got {value!r}")
+    return str(n).zfill(width)
+
+
 def _resolve_path(value: str, base_dir: Path) -> Path:
     path = Path(value)
     return path if path.is_absolute() else (base_dir / path)
@@ -103,6 +125,71 @@ def _require_mapping(value: Any, field_name: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"Expected mapping for `{field_name}`")
     return value
+
+
+def _tariff_map_keys(path_tariff_map: Path) -> set[str]:
+    """Return the set of tariff_key values in a tariff map CSV (electric or gas)."""
+    df = pl.read_csv(path_tariff_map)
+    if "tariff_key" not in df.columns:
+        raise ValueError(
+            f"Tariff map {path_tariff_map} must have a 'tariff_key' column"
+        )
+    return set(df["tariff_key"].unique().to_list())
+
+
+def _parse_path_tariffs(
+    value: Any,
+    path_tariff_map: Path,
+    base_dir: Path,
+    label: str,
+) -> dict[str, Path]:
+    """Parse path_tariffs (electric or gas) from YAML (list or dict) and reconcile.
+
+    If value is a list of path strings, keys are derived from filename stem (e.g.
+    tariffs/electric/foo.json -> foo). Every tariff_key in the tariff map must
+    have a corresponding entry, and every list entry must appear in the map.
+    """
+    if isinstance(value, list):
+        path_tariffs = {}
+        for item in value:
+            if not isinstance(item, str):
+                raise ValueError(
+                    f"path_tariffs_{label} list must contain path strings; "
+                    f"got {type(item).__name__}"
+                )
+            path = _resolve_path(item, base_dir)
+            key = path.stem
+            if key in path_tariffs:
+                raise ValueError(
+                    f"path_tariffs_{label}: duplicate key '{key}' from paths "
+                    f"{path_tariffs[key]} and {path}"
+                )
+            path_tariffs[key] = path
+    elif isinstance(value, dict):
+        path_tariffs = {
+            str(k): _resolve_path(str(v), base_dir) for k, v in value.items()
+        }
+    else:
+        raise ValueError(
+            f"path_tariffs_{label} must be a list of paths or a key-to-path mapping; "
+            f"got {type(value).__name__}"
+        )
+
+    map_keys = _tariff_map_keys(path_tariff_map)
+    list_keys = set(path_tariffs.keys())
+    only_in_map = map_keys - list_keys
+    only_in_list = list_keys - map_keys
+    if only_in_map:
+        raise ValueError(
+            f"{label.capitalize()} tariff map references tariff_key(s) with no file "
+            f"in path_tariffs_{label}: {sorted(only_in_map)}"
+        )
+    if only_in_list:
+        raise ValueError(
+            f"path_tariffs_{label} includes file(s) not referenced in {label} "
+            f"tariff map: {sorted(only_in_list)}"
+        )
+    return path_tariffs
 
 
 def _require_value(run: dict[str, Any], field_name: str) -> Any:
@@ -132,25 +219,23 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
 def _build_settings_from_yaml_run(
     run: dict[str, Any],
     run_num: int,
-    output_dir: Path,
     run_name_override: str | None,
 ) -> ScenarioSettings:
     """Build runtime settings from repo YAML scenario config."""
     state = str(run.get("state", "RI")).upper()
-    region = str(_require_value(run, "region")).lower()
     utility = str(_require_value(run, "utility")).lower()
+    upgrade = _normalize_upgrade(run.get("upgrade", "00"))
     mode = str(run.get("run_type", "precalc"))
-    upgrade = f"{_parse_int(run.get('upgrade', 0), 'upgrade'):02d}"
     year_run = _parse_int(run.get("year_run"), "year_run")
     year_dollar_conversion = _parse_int(
         run.get("year_dollar_conversion"),
         "year_dollar_conversion",
     )
     process_workers = _parse_int(run.get("process_workers", 20), "process_workers")
-    utility_revenue_requirement = float(
+    utility_delivery_revenue_requirement = float(
         _parse_int(
-            _require_value(run, "utility_revenue_requirement"),
-            "utility_revenue_requirement",
+            _require_value(run, "utility_delivery_revenue_requirement"),
+            "utility_delivery_revenue_requirement",
         )
     )
     utility_customer_count = _parse_int(
@@ -159,58 +244,65 @@ def _build_settings_from_yaml_run(
     )
     solar_pv_compensation = str(run.get("solar_pv_compensation", "net_metering"))
 
-    path_tariffs_electric_raw = _require_mapping(
-        run.get("path_tariffs_electric"), "path_tariffs_electric"
+    path_tariff_maps_electric = _resolve_path(
+        str(_require_value(run, "path_tariff_maps_electric")),
+        PATH_CONFIG,
     )
-    path_tariffs_electric = {
-        str(key): _resolve_path(str(path), PATH_CONFIG)
-        for key, path in path_tariffs_electric_raw.items()
-    }
-    path_tariffs_gas_raw = _require_mapping(
-        run.get("path_tariffs_gas"), "path_tariffs_gas"
+    path_tariffs_electric = _parse_path_tariffs(
+        _require_value(run, "path_tariffs_electric"),
+        path_tariff_maps_electric,
+        PATH_CONFIG,
+        "electric",
     )
-    path_tariffs_gas = {
-        str(key): _resolve_path(str(path), PATH_CONFIG)
-        for key, path in path_tariffs_gas_raw.items()
-    }
+    path_tariff_maps_gas = _resolve_path(
+        str(_require_value(run, "path_tariff_maps_gas")),
+        PATH_CONFIG,
+    )
+    path_tariffs_gas = _parse_path_tariffs(
+        _require_value(run, "path_tariffs_gas"),
+        path_tariff_maps_gas,
+        PATH_CONFIG,
+        "gas",
+    )
 
     precalc_tariff_key = str(_require_value(run, "precalc_tariff_key"))
     default_run_name = str(run.get("run_name", f"ri_rie_run_{run_num:02d}"))
-    delivery_only_rev_req_passed = _parse_bool(
+    add_supply_revenue_requirement = _parse_bool(
         run.get(
-            "delivery_only_rev_req_passed",
+            "add_supply_revenue_requirement",
             "supply_adj" in precalc_tariff_key,
         ),
-        "delivery_only_rev_req_passed",
+        "add_supply_revenue_requirement",
+    )
+    path_output = _resolve_path(
+        str(_require_value(run, "path_output")),
+        PATH_CONFIG,
     )
     return ScenarioSettings(
         run_name=run_name_override or default_run_name,
         run_type=mode,
         state=state,
-        region=region,
         utility=utility,
-        path_results=output_dir,
-        path_resstock_metadata=PATH_RESSTOCK
-        / "metadata"
-        / f"state={state}"
-        / f"upgrade={upgrade}"
-        / "metadata-sb.parquet",
-        path_resstock_loads=PATH_RESSTOCK
-        / "load_curve_hourly"
-        / f"state={state}"
-        / f"upgrade={upgrade}",
+        upgrade=upgrade,
+        path_output=path_output,
+        path_resstock_metadata=_resolve_path(
+            str(_require_value(run, "path_resstock_metadata")),
+            PATH_CONFIG,
+        ),
+        path_resstock_loads=_resolve_path(
+            str(_require_value(run, "path_resstock_loads")),
+            PATH_CONFIG,
+        ),
         path_cambium_marginal_costs=_resolve_path_or_uri(
             str(_require_value(run, "path_cambium_marginal_costs")),
             PATH_CONFIG,
         ),
-        path_tariff_maps_electric=_resolve_path(
-            str(_require_value(run, "path_tariff_maps_electric")),
+        path_td_marginal_costs=_resolve_path_or_uri(
+            str(_require_value(run, "path_td_marginal_costs")),
             PATH_CONFIG,
         ),
-        path_tariff_maps_gas=_resolve_path(
-            str(_require_value(run, "path_tariff_maps_gas")),
-            PATH_CONFIG,
-        ),
+        path_tariff_maps_electric=path_tariff_maps_electric,
+        path_tariff_maps_gas=path_tariff_maps_gas,
         path_tariffs_electric=path_tariffs_electric,
         path_tariffs_gas=path_tariffs_gas,
         precalc_tariff_path=_resolve_path(
@@ -218,13 +310,13 @@ def _build_settings_from_yaml_run(
             PATH_CONFIG,
         ),
         precalc_tariff_key=precalc_tariff_key,
-        utility_revenue_requirement=utility_revenue_requirement,
+        utility_delivery_revenue_requirement=utility_delivery_revenue_requirement,
         utility_customer_count=utility_customer_count,
         year_run=year_run,
         year_dollar_conversion=year_dollar_conversion,
         process_workers=process_workers,
         solar_pv_compensation=solar_pv_compensation,
-        delivery_only_rev_req_passed=delivery_only_rev_req_passed,
+        add_supply_revenue_requirement=add_supply_revenue_requirement,
     )
 
 
@@ -247,8 +339,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=DEFAULT_OUTPUT_DIR,
-        help="Output root dir passed to CAIRO.",
+        default=None,
+        help="Optional override: full output path (else built from path_output/state/run_name/runtime).",
     )
     parser.add_argument(
         "--run-name",
@@ -258,21 +350,33 @@ def _parse_args() -> argparse.Namespace:
     return args
 
 
-def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
+def _resolve_settings(
+    args: argparse.Namespace,
+) -> tuple[ScenarioSettings, Path | None]:
     run = _load_run_from_yaml(args.scenario_config, args.run_num)
-    return _build_settings_from_yaml_run(
+    settings = _build_settings_from_yaml_run(
         run=run,
         run_num=args.run_num,
-        output_dir=args.output_dir,
         run_name_override=args.run_name,
     )
+    return settings, args.output_dir
 
 
-def run(settings: ScenarioSettings) -> None:
+def run(
+    settings: ScenarioSettings,
+    output_dir_override: Path | None = None,
+) -> None:
     log.info(
         ".... Beginning RI residential (non-LMI) rate scenario simulation: %s",
         settings.run_name,
     )
+    if output_dir_override is not None:
+        path_results = output_dir_override
+    else:
+        runtime = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        path_results = (
+            settings.path_output / settings.state.lower() / settings.run_name / runtime
+        )
 
     tariffs_params, tariff_map_df = _initialize_tariffs(
         tariff_map=settings.path_tariff_maps_electric,
@@ -324,19 +428,14 @@ def run(settings: ScenarioSettings) -> None:
         settings.path_cambium_marginal_costs,
         settings.year_run,
     )
-    distribution_mc_root = (
-        f"s3://data.sb/switchbox/marginal_costs/{settings.state.lower().strip('/')}/"
-    )
-    distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
-        distribution_mc_root,
-        hive_partitioning=True,
-        storage_options=get_aws_storage_options(),
-    )
-    distribution_mc_scan = (
-        distribution_mc_scan.filter(pl.col("region").cast(pl.Utf8) == settings.region)
-        .filter(pl.col("utility").cast(pl.Utf8) == settings.utility)
-        .filter(pl.col("year").cast(pl.Utf8) == str(settings.year_run))
-    )
+    path_td = settings.path_td_marginal_costs
+    if str(path_td).startswith("s3://"):
+        distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
+            path_td,
+            storage_options=get_aws_storage_options(),
+        )
+    else:
+        distribution_mc_scan = pl.scan_parquet(path_td)
     distribution_mc_df = cast(pl.DataFrame, distribution_mc_scan.collect())
     distribution_marginal_costs = distribution_mc_df.to_pandas()
     required_cols = {"timestamp", "mc_total_per_kwh"}
@@ -368,13 +467,13 @@ def run(settings: ScenarioSettings) -> None:
     ) = _return_revenue_requirement_target(
         building_load=raw_load_elec,
         sample_weight=customer_metadata[["bldg_id", "weight"]],
-        revenue_requirement_target=settings.utility_revenue_requirement,
+        revenue_requirement_target=settings.utility_delivery_revenue_requirement,
         residual_cost=None,
         residual_cost_frac=None,
         bulk_marginal_costs=bulk_marginal_costs,
         distribution_marginal_costs=distribution_marginal_costs,
         low_income_strategy=None,
-        delivery_only_rev_req_passed=settings.delivery_only_rev_req_passed,
+        delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
     )
 
     bs = MeetRevenueSufficiencySystemWide(
@@ -383,7 +482,7 @@ def run(settings: ScenarioSettings) -> None:
         year_dollar_conversion=settings.year_dollar_conversion,
         process_workers=settings.process_workers,
         run_name=settings.run_name,
-        output_dir=settings.path_results,
+        output_dir=path_results,
     )
 
     bs.simulate(
@@ -417,8 +516,8 @@ def run(settings: ScenarioSettings) -> None:
 
 def main() -> None:
     args = _parse_args()
-    settings = _resolve_settings(args)
-    run(settings)
+    settings, output_dir_override = _resolve_settings(args)
+    run(settings, output_dir_override=output_dir_override)
 
 
 if __name__ == "__main__":
