@@ -106,7 +106,11 @@ def _tariff_key_expr() -> pl.Expr:
         .then(pl.concat_str([gas_tariff_key_col, pl.lit("_nonheating")]))
         #### nyseg ####
         #### rie ####
+        # rie: Heating with natural gas
         .when((gas_utility_col == "rie") & heats_with_natgas_column.eq(True))
+        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_heating")]))
+        # rie: Does not heat with natural gas
+        .when((gas_utility_col == "rie") & heats_with_natgas_column.eq(False))
         .then(pl.concat_str([gas_tariff_key_col, pl.lit("_nonheating")]))
         #### rie ####
         #### nimo | rge | cenhud | or | nfg ####
@@ -352,7 +356,7 @@ if __name__ == "__main__":
             stacklevel=2,
         )
     else:
-        output_filename = f"{args.electric_utility}_gas.csv"
+        output_filename = f"{args.electric_utility}.csv"
         try:
             out_base = S3Path(args.output_dir)
             output_path = out_base / output_filename
