@@ -6,10 +6,11 @@ from pathlib import Path
 
 import polars as pl
 import pytest
+import yaml
 
 from utils.post.compute_subclass_rr import (
-    DEFAULT_OUTPUT_FILENAME,
-    _write_breakdown_csv,
+    _load_default_revenue_requirement,
+    _write_revenue_requirement_yamls,
     compute_subclass_rr,
 )
 
@@ -105,18 +106,56 @@ def test_compute_subclass_rr_missing_annual_rows_raises(tmp_path: Path) -> None:
         compute_subclass_rr(run_dir)
 
 
-def test_write_breakdown_csv_uses_output_dir_override(tmp_path: Path) -> None:
-    run_dir = _write_sample_run_dir(tmp_path)
-    breakdown = compute_subclass_rr(run_dir)
-    output_dir = tmp_path / "out"
-    output_dir.mkdir()
-
-    output_path = _write_breakdown_csv(
-        breakdown,
-        run_dir=run_dir,
-        output_dir=output_dir,
+def test_load_default_revenue_requirement_from_scenario_config(tmp_path: Path) -> None:
+    scenario_config = tmp_path / "scenarios.yaml"
+    scenario_config.write_text(
+        yaml.safe_dump(
+            {
+                "runs": {
+                    1: {
+                        "utility": "rie",
+                        "utility_delivery_revenue_requirement": 241869601,
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
     )
 
-    expected = output_dir / DEFAULT_OUTPUT_FILENAME
-    assert output_path == str(expected)
-    assert expected.exists()
+    utility, rr = _load_default_revenue_requirement(scenario_config, run_num=1)
+    assert utility == "rie"
+    assert rr == pytest.approx(241869601.0)
+
+
+def test_write_revenue_requirement_yamls(tmp_path: Path) -> None:
+    run_dir = _write_sample_run_dir(tmp_path)
+    breakdown = compute_subclass_rr(run_dir)
+    differentiated_yaml = tmp_path / "config/rev_requirement/rie_hp_vs_nonhp.yaml"
+    default_yaml = tmp_path / "config/rev_requirement/rie.yaml"
+
+    out_diff, out_default = _write_revenue_requirement_yamls(
+        breakdown,
+        run_dir=run_dir,
+        group_col="has_hp",
+        cross_subsidy_col="BAT_percustomer",
+        utility="rie",
+        default_revenue_requirement=241869601.0,
+        differentiated_yaml_path=differentiated_yaml,
+        default_yaml_path=default_yaml,
+    )
+
+    assert out_diff == differentiated_yaml
+    assert out_default == default_yaml
+    assert differentiated_yaml.exists()
+    assert default_yaml.exists()
+
+    diff_data = yaml.safe_load(differentiated_yaml.read_text(encoding="utf-8"))
+    assert diff_data["utility"] == "rie"
+    assert diff_data["group_col"] == "has_hp"
+    assert "false" in diff_data["subclass_revenue_requirements"]
+    assert "true" in diff_data["subclass_revenue_requirements"]
+
+    default_data = yaml.safe_load(default_yaml.read_text(encoding="utf-8"))
+    assert default_data["utility"] == "rie"
+    assert default_data["revenue_requirement"] == pytest.approx(241869601.0)

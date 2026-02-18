@@ -25,12 +25,19 @@ run-scenario-with-output run_num output_dir scenario_config=ri_run_scenario_conf
 # Post-processing: subclass revenue requirements from CAIRO BAT outputs
 # -----------------------------------------------------------------------------
 # Always pass the full CAIRO run directory path
-compute-subclass-rr run_dir group_col="has_hp" cross_subsidy_col="BAT_percustomer" output_dir="":
+ri_rev_requirement_dir := project_root + "/rate_design/ri/hp_rates/config/rev_requirement"
+ri_differentiated_rev_requirement_yaml := ri_rev_requirement_dir + "/rie_hp_vs_nonhp.yaml"
+ri_default_rev_requirement_yaml := ri_rev_requirement_dir + "/rie.yaml"
+
+compute-subclass-rr run_dir run_num="1" scenario_config=ri_run_scenario_config group_col="has_hp" cross_subsidy_col="BAT_percustomer" differentiated_yaml=ri_differentiated_rev_requirement_yaml default_yaml=ri_default_rev_requirement_yaml:
   uv run python {{project_root}}/utils/post/compute_subclass_rr.py \
     --run-dir "{{run_dir}}" \
+    --run-num "{{run_num}}" \
+    --scenario-config "{{scenario_config}}" \
     --group-col "{{group_col}}" \
     --cross-subsidy-col "{{cross_subsidy_col}}" \
-    {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }}
+    --differentiated-yaml-path "{{differentiated_yaml}}" \
+    --default-yaml-path "{{default_yaml}}"
 
 # -----------------------------------------------------------------------------
 # PRE: Tariff mapping (electric and gas)
