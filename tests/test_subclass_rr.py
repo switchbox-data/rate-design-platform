@@ -49,10 +49,7 @@ def _write_sample_run_dir(tmp_path: Path) -> Path:
     ).write_csv(run_dir / "customer_metadata.csv")
 
     (run_dir / "tariff_final_config.json").write_text(
-        (
-            '{"items":[{"energyratestructure":[[{"rate":0.2,"adj":0.01,"unit":"kWh"}]],'
-            '"fixedchargefirstmeter":6.75}]}'
-        ),
+        '{"rie_a16":{"ur_ec_tou_mat":[[1,1,1e+38,0,0.21,0.0,0]]}}',
         encoding="utf-8",
     )
     return run_dir
@@ -274,7 +271,7 @@ def test_compute_hp_seasonal_discount_inputs_applies_weights(tmp_path: Path) -> 
         {"bldg_id": [1, 2], "month": ["Annual", "Annual"], "bill_level": [0.0, 0.0]}
     ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
     (run_dir / "tariff_final_config.json").write_text(
-        '{"items":[{"energyratestructure":[[{"rate":0.2,"adj":0.0,"unit":"kWh"}]],"fixedchargefirstmeter":0.0}]}',
+        '{"rie_a16":{"ur_ec_tou_mat":[[1,1,1e+38,0,0.2,0.0,0]]}}',
         encoding="utf-8",
     )
 

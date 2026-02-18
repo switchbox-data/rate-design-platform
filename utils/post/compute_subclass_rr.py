@@ -179,18 +179,35 @@ def _extract_default_rate_from_tariff_config(
     else:
         payload = Path(tariff_final_config_path).read_text(encoding="utf-8")
     tariff = json.loads(payload)
-    items = tariff.get("items", [])
-    if not items:
-        raise ValueError("tariff_final_config.json has no `items`")
-    rate_structure = items[0].get("energyratestructure", [])
-    if not rate_structure or not rate_structure[0]:
-        raise ValueError(
-            "tariff_final_config.json has no period/tier in `energyratestructure`"
-        )
-    tier_0 = rate_structure[0][0]
-    rate = float(tier_0.get("rate", 0.0))
-    adj = float(tier_0.get("adj", 0.0))
-    return rate + adj
+    # Support CAIRO internal tariff shape where top-level key is tariff_key and
+    # rates are in `ur_ec_tou_mat` rows: [period, tier, max_usage, units, buy, sell, adj].
+    if isinstance(tariff, dict) and tariff:
+        first_key = next(iter(tariff))
+        first_tariff = tariff.get(first_key, {})
+        if isinstance(first_tariff, dict) and "ur_ec_tou_mat" in first_tariff:
+            tou_mat = first_tariff.get("ur_ec_tou_mat", [])
+            if not tou_mat:
+                raise ValueError("tariff_final_config.json has empty `ur_ec_tou_mat`")
+            # Pick period=1,tier=1 row when present; otherwise first row.
+            row = next(
+                (
+                    r
+                    for r in tou_mat
+                    if isinstance(r, list)
+                    and len(r) >= 5
+                    and int(r[0]) == 1
+                    and int(r[1]) == 1
+                ),
+                tou_mat[0],
+            )
+            if not isinstance(row, list) or len(row) < 5:
+                raise ValueError("Invalid `ur_ec_tou_mat` row format in tariff config")
+            return float(row[4])
+
+    raise ValueError(
+        "tariff_final_config.json does not match expected CAIRO internal "
+        "`ur_ec_tou_mat` format."
+    )
 
 
 def compute_hp_seasonal_discount_inputs(

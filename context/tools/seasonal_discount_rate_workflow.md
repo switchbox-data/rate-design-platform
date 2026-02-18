@@ -22,7 +22,7 @@ Winter is defined explicitly as **December, January, February**.
 Where:
 
 - `default_rate` comes from `<run_dir>/tariff_final_config.json` first period/tier
-  effective rate (`rate + adj`).
+  buy-rate in CAIRO internal `ur_ec_tou_mat` (period 1, tier 1).
 - `total_cross_subsidy_hp` comes from
   `cross_subsidization/cross_subsidization_BAT_values.csv` for `has_hp=true`.
 - `winter_kwh_hp` is the weighted sum of
