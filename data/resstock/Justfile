@@ -124,3 +124,11 @@ assign-utility-ny release upgrade electric_poly gas_poly:
         --gas_poly_dir "s3://data.sb/gis/utility_boundaries/" \
         --electric_poly_filename "{{electric_poly}}" \
         --gas_poly_filename "{{gas_poly}}"
+
+# Assign electric/gas utilities to ResStock buildings (RI only)
+assign-utility-ri release upgrade:
+    uv run python "{{path_local_repo}}/data/resstock/assign_utility_ri.py" \
+        --input_metadata_dir "{{path_s3_parquet}}/{{release}}/metadata/state=RI/upgrade={{upgrade}}/" \
+        --input_metadata_filename "metadata-sb.parquet" \
+        --output_metadata_dir "{{path_s3_parquet}}/{{release}}/metadata_utility/state=RI/" \
+        --output_utility_assignment_filename "utility_assignment.parquet" \
