@@ -6,7 +6,9 @@
 
 For each subclass:
 
-`revenue_requirement = sum(annual electric target bills) - sum(selected BAT metric)`
+`revenue_requirement = weighted_sum(annual electric target bills) - weighted_sum(selected BAT metric)`
+
+where weights are `customer_metadata.csv.weight`.
 
 The selected BAT metric is read from:
 

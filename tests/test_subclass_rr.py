@@ -39,6 +39,7 @@ def _write_sample_run_dir(tmp_path: Path) -> Path:
     pl.DataFrame(
         {
             "bldg_id": [1, 2, 3, 4],
+            "weight": [1.0, 1.0, 1.0, 1.0],
             "postprocess_group.has_hp": [True, False, True, False],
             "postprocess_group.heating_type": ["hp", "gas", "hp", "resistance"],
         }
@@ -98,9 +99,9 @@ def test_compute_subclass_rr_missing_annual_rows_raises(tmp_path: Path) -> None:
     pl.DataFrame({"bldg_id": [1], "BAT_percustomer": [10.0]}).write_csv(
         run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv"
     )
-    pl.DataFrame({"bldg_id": [1], "postprocess_group.has_hp": [True]}).write_csv(
-        run_dir / "customer_metadata.csv"
-    )
+    pl.DataFrame(
+        {"bldg_id": [1], "weight": [1.0], "postprocess_group.has_hp": [True]}
+    ).write_csv(run_dir / "customer_metadata.csv")
 
     with pytest.raises(ValueError, match="Missing annual target bills"):
         compute_subclass_rr(run_dir)
@@ -126,6 +127,42 @@ def test_load_default_revenue_requirement_from_scenario_config(tmp_path: Path) -
     utility, rr = _load_default_revenue_requirement(scenario_config, run_num=1)
     assert utility == "rie"
     assert rr == pytest.approx(241869601.0)
+
+
+def test_compute_subclass_rr_applies_weights(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    (run_dir / "bills").mkdir(parents=True)
+    (run_dir / "cross_subsidization").mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 1, 2, 2],
+            "month": ["Jan", "Annual", "Jan", "Annual"],
+            "bill_level": [0.0, 100.0, 0.0, 100.0],
+        }
+    ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "BAT_percustomer": [10.0, 10.0],
+        }
+    ).write_csv(run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv")
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "weight": [1.0, 9.0],
+            "postprocess_group.has_hp": [True, False],
+        }
+    ).write_csv(run_dir / "customer_metadata.csv")
+
+    breakdown = compute_subclass_rr(run_dir)
+    hp = breakdown.filter(pl.col("subclass") == "true")
+    nonhp = breakdown.filter(pl.col("subclass") == "false")
+    assert hp["sum_bills"][0] == pytest.approx(100.0)
+    assert hp["sum_cross_subsidy"][0] == pytest.approx(10.0)
+    assert hp["revenue_requirement"][0] == pytest.approx(90.0)
+    assert nonhp["sum_bills"][0] == pytest.approx(900.0)
+    assert nonhp["sum_cross_subsidy"][0] == pytest.approx(90.0)
+    assert nonhp["revenue_requirement"][0] == pytest.approx(810.0)
 
 
 def test_write_revenue_requirement_yamls(tmp_path: Path) -> None:

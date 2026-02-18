@@ -24,6 +24,7 @@ from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 
 # CAIRO output column names
 BLDG_ID_COL = "bldg_id"
+WEIGHT_COL = "weight"
 DEFAULT_GROUP_COL = "has_hp"
 BAT_METRIC_CHOICES = ("BAT_vol", "BAT_peak", "BAT_percustomer")
 DEFAULT_BAT_METRIC = "BAT_percustomer"
@@ -76,6 +77,7 @@ def _load_group_values(
             pl.col(resolved_group_col)
             .cast(pl.String, strict=False)
             .alias(GROUP_VALUE_COL),
+            pl.col(WEIGHT_COL).cast(pl.Float64).alias(WEIGHT_COL),
         )
         .with_columns(pl.col(GROUP_VALUE_COL).fill_null("Unknown"))
         .unique(subset=[BLDG_ID_COL], keep="first")
@@ -161,11 +163,22 @@ def compute_subclass_rr(
         msg = f"Missing cross-subsidy values for {nulls_cs} buildings."
         raise ValueError(msg)
 
+    nulls_weight = joined.filter(pl.col(WEIGHT_COL).is_null()).height
+    if nulls_weight:
+        msg = f"Missing sample weights for {nulls_weight} buildings."
+        raise ValueError(msg)
+
     return (
-        joined.group_by(GROUP_VALUE_COL)
+        joined.with_columns(
+            (pl.col("annual_bill") * pl.col(WEIGHT_COL)).alias("weighted_annual_bill"),
+            (pl.col("cross_subsidy") * pl.col(WEIGHT_COL)).alias(
+                "weighted_cross_subsidy"
+            ),
+        )
+        .group_by(GROUP_VALUE_COL)
         .agg(
-            pl.col("annual_bill").sum().alias("sum_bills"),
-            pl.col("cross_subsidy").sum().alias("sum_cross_subsidy"),
+            pl.col("weighted_annual_bill").sum().alias("sum_bills"),
+            pl.col("weighted_cross_subsidy").sum().alias("sum_cross_subsidy"),
         )
         .with_columns(
             (pl.col("sum_bills") - pl.col("sum_cross_subsidy")).alias(
