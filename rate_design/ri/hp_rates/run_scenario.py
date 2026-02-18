@@ -10,11 +10,9 @@ from pathlib import Path
 from typing import Any, cast
 
 import pandas as pd
-import polars as pl
 import yaml
 from cairo.rates_tool.loads import (
     _return_load,
-    process_residential_hourly_demand,
     return_buildingstock,
 )
 from cairo.rates_tool.systemsimulator import (
@@ -24,15 +22,13 @@ from cairo.rates_tool.systemsimulator import (
     _return_revenue_requirement_target,
 )
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.cairo import _load_cambium_marginal_costs, build_bldg_id_to_load_filepath
-from utils.pre.compute_tou import (
-    combine_marginal_costs,
-    compute_tou_cost_causation_ratio,
-    create_tou_tariff,
-    find_tou_peak_window,
-    generate_tou_tariff_map,
+from utils.cairo import (
+    _load_cambium_marginal_costs,
+    apply_seasonal_demand_response,
+    build_bldg_id_to_load_filepath,
+    load_distribution_marginal_costs,
 )
+from utils.pre.compute_tou import load_season_specs
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 
 log = logging.getLogger("rates_analysis").getChild("tests")
@@ -46,15 +42,26 @@ DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
 
 
 @dataclass(slots=True)
-class ComputeTouConfig:
-    """Optional MC-driven TOU tariff computation."""
+class DemandFlexConfig:
+    """Optional demand-flexibility / load-shifting configuration.
+
+    When enabled, reads the TOU tariff and derivation spec produced by
+    ``derive_seasonal_tou.py``, then shifts HP-customer loads using a
+    constant-elasticity demand-response model *before* the revenue-
+    requirement and billing calculations.
+
+    Fields:
+        tou_tariff_key: Key into ``path_tariffs_electric`` identifying the
+            TOU tariff JSON to read for demand shifting.
+        tou_derivation_path: Path to the derivation spec JSON produced by
+            ``derive_seasonal_tou.py`` (contains per-season peak windows,
+            base rates, and cost-causation ratios).
+    """
 
     enabled: bool = False
+    demand_elasticity: float = -0.1
     tou_tariff_key: str = ""
-    flat_tariff_key: str = ""
-    tou_window_hours: int = 4
-    tou_base_rate: float = 0.06
-    tou_fixed_charge: float = 6.75
+    tou_derivation_path: Path = field(default_factory=Path)
 
 
 @dataclass(slots=True)
@@ -83,7 +90,7 @@ class ScenarioSettings:
     process_workers: int
     solar_pv_compensation: str = "net_metering"
     delivery_only_rev_req_passed: bool = False
-    compute_tou: ComputeTouConfig = field(default_factory=ComputeTouConfig)
+    demand_flex: DemandFlexConfig = field(default_factory=DemandFlexConfig)
 
 
 def _parse_int(value: object, field_name: str) -> int:
@@ -154,20 +161,22 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
     return _require_mapping(run, f"runs[{run_num}]")
 
 
-def _parse_compute_tou_config(run: dict[str, Any]) -> ComputeTouConfig:
-    """Parse the optional ``compute_tou`` block from a run config."""
-    raw = run.get("compute_tou")
+def _parse_demand_flex_config(run: dict[str, Any]) -> DemandFlexConfig:
+    """Parse the optional ``demand_flex`` block from a run config."""
+    raw = run.get("demand_flex")
     if raw is None or not isinstance(raw, dict):
-        return ComputeTouConfig()
-    return ComputeTouConfig(
-        enabled=_parse_bool(raw.get("enabled", False), "compute_tou.enabled"),
+        return DemandFlexConfig()
+
+    derivation_raw = raw.get("tou_derivation_path", "")
+    derivation_path = (
+        _resolve_path(str(derivation_raw), PATH_CONFIG) if derivation_raw else Path()
+    )
+
+    return DemandFlexConfig(
+        enabled=_parse_bool(raw.get("enabled", False), "demand_flex.enabled"),
+        demand_elasticity=float(raw.get("demand_elasticity", -0.1)),
         tou_tariff_key=str(raw.get("tou_tariff_key", "")),
-        flat_tariff_key=str(raw.get("flat_tariff_key", "")),
-        tou_window_hours=_parse_int(
-            raw.get("tou_window_hours", 4), "compute_tou.tou_window_hours"
-        ),
-        tou_base_rate=float(raw.get("tou_base_rate", 0.06)),
-        tou_fixed_charge=float(raw.get("tou_fixed_charge", 6.75)),
+        tou_derivation_path=derivation_path,
     )
 
 
@@ -201,45 +210,24 @@ def _build_settings_from_yaml_run(
     )
     solar_pv_compensation = str(run.get("solar_pv_compensation", "net_metering"))
 
-    compute_tou_cfg = _parse_compute_tou_config(run)
+    demand_flex_cfg = _parse_demand_flex_config(run)
 
-    # When compute_tou is enabled the tariff paths / maps are derived at
-    # runtime so the YAML fields are optional.  We still need placeholder
-    # values so the dataclass can be constructed – they will be overridden
-    # inside run() once the TOU tariff is generated.
-    if compute_tou_cfg.enabled:
-        path_tariffs_electric: dict[str, Path] = {}
-        path_tariff_maps_electric = (
-            PATH_CONFIG / "tariff_maps" / "electric" / "placeholder.csv"
-        )
-        precalc_tariff_path = PATH_CONFIG / "tariffs" / "electric" / "placeholder.json"
-        precalc_tariff_key = compute_tou_cfg.tou_tariff_key
-
-        # Include the flat tariff path so non-HP customers still have a tariff.
-        flat_key = compute_tou_cfg.flat_tariff_key
-        if flat_key:
-            raw_flat_path = run.get("path_tariffs_electric", {}).get(flat_key)
-            if raw_flat_path:
-                path_tariffs_electric[flat_key] = _resolve_path(
-                    str(raw_flat_path), PATH_CONFIG
-                )
-    else:
-        path_tariffs_electric_raw = _require_mapping(
-            run.get("path_tariffs_electric"), "path_tariffs_electric"
-        )
-        path_tariffs_electric = {
-            str(key): _resolve_path(str(path), PATH_CONFIG)
-            for key, path in path_tariffs_electric_raw.items()
-        }
-        path_tariff_maps_electric = _resolve_path(
-            str(_require_value(run, "path_tariff_maps_electric")),
-            PATH_CONFIG,
-        )
-        precalc_tariff_path = _resolve_path(
-            str(_require_value(run, "precalc_tariff_path")),
-            PATH_CONFIG,
-        )
-        precalc_tariff_key = str(_require_value(run, "precalc_tariff_key"))
+    path_tariffs_electric_raw = _require_mapping(
+        run.get("path_tariffs_electric"), "path_tariffs_electric"
+    )
+    path_tariffs_electric = {
+        str(key): _resolve_path(str(path), PATH_CONFIG)
+        for key, path in path_tariffs_electric_raw.items()
+    }
+    path_tariff_maps_electric = _resolve_path(
+        str(_require_value(run, "path_tariff_maps_electric")),
+        PATH_CONFIG,
+    )
+    precalc_tariff_path = _resolve_path(
+        str(_require_value(run, "precalc_tariff_path")),
+        PATH_CONFIG,
+    )
+    precalc_tariff_key = str(_require_value(run, "precalc_tariff_key"))
 
     path_tariffs_gas_raw = _require_mapping(
         run.get("path_tariffs_gas"), "path_tariffs_gas"
@@ -293,7 +281,7 @@ def _build_settings_from_yaml_run(
         process_workers=process_workers,
         solar_pv_compensation=solar_pv_compensation,
         delivery_only_rev_req_passed=delivery_only_rev_req_passed,
-        compute_tou=compute_tou_cfg,
+        demand_flex=demand_flex_cfg,
     )
 
 
@@ -335,51 +323,6 @@ def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
         output_dir=args.output_dir,
         run_name_override=args.run_name,
     )
-
-
-# ---------------------------------------------------------------------------
-# Loading helpers (extracted from run() for clarity)
-# ---------------------------------------------------------------------------
-
-
-def _load_distribution_marginal_costs(
-    state: str,
-    region: str,
-    utility: str,
-    year_run: int,
-) -> pd.Series:
-    """Load distribution marginal costs from S3 and return as a tz-aware Series."""
-    distribution_mc_root = (
-        f"s3://data.sb/switchbox/marginal_costs/{state.lower().strip('/')}/"
-    )
-    distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
-        distribution_mc_root,
-        hive_partitioning=True,
-        storage_options=get_aws_storage_options(),
-    )
-    distribution_mc_scan = (
-        distribution_mc_scan.filter(pl.col("region").cast(pl.Utf8) == region)
-        .filter(pl.col("utility").cast(pl.Utf8) == utility)
-        .filter(pl.col("year").cast(pl.Utf8) == str(year_run))
-    )
-    distribution_mc_df = cast(pl.DataFrame, distribution_mc_scan.collect())
-    distribution_marginal_costs = distribution_mc_df.to_pandas()
-    required_cols = {"timestamp", "mc_total_per_kwh"}
-    missing_cols = required_cols.difference(distribution_marginal_costs.columns)
-    if missing_cols:
-        raise ValueError(
-            "Distribution marginal costs parquet is missing required columns "
-            f"{sorted(required_cols)}. Missing: {sorted(missing_cols)}"
-        )
-    distribution_marginal_costs = distribution_marginal_costs.set_index("timestamp")[
-        "mc_total_per_kwh"
-    ]
-    distribution_marginal_costs.index = pd.DatetimeIndex(
-        distribution_marginal_costs.index
-    ).tz_localize("EST")
-    distribution_marginal_costs.index.name = "time"
-    distribution_marginal_costs.name = "Marginal Distribution Costs ($/kWh)"
-    return distribution_marginal_costs
 
 
 # ---------------------------------------------------------------------------
@@ -430,7 +373,7 @@ def run(settings: ScenarioSettings) -> None:
         settings.year_run,
     )
 
-    distribution_marginal_costs = _load_distribution_marginal_costs(
+    distribution_marginal_costs = load_distribution_marginal_costs(
         state=settings.state,
         region=settings.region,
         utility=settings.utility,
@@ -443,90 +386,69 @@ def run(settings: ScenarioSettings) -> None:
     )
 
     # ------------------------------------------------------------------
-    # Phase 2 (optional): Derive TOU tariff from marginal costs
+    # Phase 2 (optional): Apply demand-response load shifting
     # ------------------------------------------------------------------
+    # When enabled, reads the pre-computed TOU tariff JSON and derivation
+    # spec (produced by derive_seasonal_tou.py) and shifts HP-customer
+    # loads using a constant-elasticity demand-response model.
+    # Shifted load is used for revenue-requirement calculation and billing
+    # so the utility sees the post-demand-response system load profile.
 
-    if settings.compute_tou.enabled:
-        tou_cfg = settings.compute_tou
-        log.info(
-            ".... Computing TOU tariff from marginal costs (window=%d h, key=%s)",
-            tou_cfg.tou_window_hours,
-            tou_cfg.tou_tariff_key,
-        )
+    effective_load_elec = raw_load_elec  # default: no shifting
+    elasticity_tracker = pd.DataFrame()
 
-        # System hourly load (demand-weighted aggregate of building loads)
-        hourly_system_load = process_residential_hourly_demand(
-            bldg_load=raw_load_elec,
-            sample_weights=customer_metadata[["bldg_id", "weight"]],
-        )
+    if settings.demand_flex.enabled:
+        flex = settings.demand_flex
 
-        combined_mc = combine_marginal_costs(
-            bulk_marginal_costs, distribution_marginal_costs
-        )
-
-        peak_hours = find_tou_peak_window(
-            combined_mc=combined_mc,
-            hourly_system_load=hourly_system_load,
-            window_hours=tou_cfg.tou_window_hours,
-        )
-
-        ratio = compute_tou_cost_causation_ratio(
-            combined_mc=combined_mc,
-            hourly_system_load=hourly_system_load,
-            peak_hours=peak_hours,
-        )
-
-        tou_tariff = create_tou_tariff(
-            label=tou_cfg.tou_tariff_key,
-            peak_hours=peak_hours,
-            peak_offpeak_ratio=ratio,
-            base_rate=tou_cfg.tou_base_rate,
-            fixed_charge=tou_cfg.tou_fixed_charge,
-            utility=settings.utility,
-        )
-
-        # Write TOU tariff JSON
-        tou_tariff_path = (
-            PATH_CONFIG / "tariffs" / "electric" / f"{tou_cfg.tou_tariff_key}.json"
-        )
-        tou_tariff_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(tou_tariff_path, "w") as f:
-            json.dump(tou_tariff, f, indent=2)
-        log.info(".... Wrote TOU tariff JSON: %s", tou_tariff_path)
-
-        # Generate tariff map (HP → TOU, non-HP → flat)
-        tou_tariff_map_df = generate_tou_tariff_map(
-            customer_metadata=customer_metadata,
-            tou_tariff_key=tou_cfg.tou_tariff_key,
-            flat_tariff_key=tou_cfg.flat_tariff_key,
-        )
-        tou_map_path = (
-            PATH_CONFIG
-            / "tariff_maps"
-            / "electric"
-            / f"{tou_cfg.tou_tariff_key}_tariff_map.csv"
-        )
-        tou_map_path.parent.mkdir(parents=True, exist_ok=True)
-        tou_tariff_map_df.to_csv(tou_map_path, index=False)
-        log.info(".... Wrote TOU tariff map: %s", tou_map_path)
-
-        # Override settings so downstream code uses the computed tariff
-        settings.path_tariffs_electric[tou_cfg.tou_tariff_key] = tou_tariff_path
-        settings.path_tariff_maps_electric = tou_map_path
-        settings.precalc_tariff_path = tou_tariff_path
-        settings.precalc_tariff_key = tou_cfg.tou_tariff_key
-
-        # Ensure the flat tariff is also in path_tariffs_electric so
-        # _initialize_tariffs can resolve both keys in the tariff map.
-        if (
-            tou_cfg.flat_tariff_key
-            and tou_cfg.flat_tariff_key not in settings.path_tariffs_electric
-        ):
-            flat_path = (
-                PATH_CONFIG / "tariffs" / "electric" / f"{tou_cfg.flat_tariff_key}.json"
+        # Load the TOU tariff JSON
+        tou_tariff_path = settings.path_tariffs_electric.get(flex.tou_tariff_key)
+        if tou_tariff_path is None:
+            raise ValueError(
+                f"demand_flex.tou_tariff_key={flex.tou_tariff_key!r} not found "
+                f"in path_tariffs_electric; make sure the key is listed there"
             )
-            if flat_path.exists():
-                settings.path_tariffs_electric[tou_cfg.flat_tariff_key] = flat_path
+        with open(tou_tariff_path) as f:
+            tou_tariff = json.load(f)
+        log.info(".... Loaded TOU tariff for demand shifting: %s", tou_tariff_path)
+
+        # Load the derivation spec (season windows, base rates, ratios)
+        if not flex.tou_derivation_path or not flex.tou_derivation_path.exists():
+            raise ValueError(
+                f"demand_flex.tou_derivation_path={flex.tou_derivation_path} "
+                "does not exist; run derive_seasonal_tou.py first"
+            )
+        season_specs = load_season_specs(flex.tou_derivation_path)
+        log.info(
+            ".... Loaded derivation spec (%d seasons) from %s",
+            len(season_specs),
+            flex.tou_derivation_path,
+        )
+
+        # Identify HP (TOU) building IDs from customer metadata
+        hp_mask = (
+            customer_metadata["postprocess_group.has_hp"].fillna(False).astype(bool)
+        )
+        tou_bldg_ids: list[int] = customer_metadata.loc[hp_mask, "bldg_id"].tolist()
+
+        log.info(
+            ".... Applying seasonal demand response (elasticity=%.3f) "
+            "to %d TOU buildings",
+            flex.demand_elasticity,
+            len(tou_bldg_ids),
+        )
+
+        effective_load_elec, elasticity_tracker = apply_seasonal_demand_response(
+            raw_load_elec=raw_load_elec,
+            tou_bldg_ids=tou_bldg_ids,
+            tou_tariff=tou_tariff,
+            demand_elasticity=flex.demand_elasticity,
+            season_specs=season_specs,
+        )
+
+        log.info(
+            ".... Demand response complete; %d buildings shifted",
+            len(tou_bldg_ids),
+        )
 
     # ------------------------------------------------------------------
     # Phase 3: Initialize tariffs and system requirements
@@ -556,7 +478,7 @@ def run(settings: ScenarioSettings) -> None:
         marginal_system_costs,
         costs_by_type,
     ) = _return_revenue_requirement_target(
-        building_load=raw_load_elec,
+        building_load=effective_load_elec,
         sample_weight=customer_metadata[["bldg_id", "weight"]],
         revenue_requirement_target=settings.utility_revenue_requirement,
         residual_cost=None,
@@ -586,7 +508,7 @@ def run(settings: ScenarioSettings) -> None:
         tariff_map=tariff_map_df,
         precalc_period_mapping=precalc_mapping,
         customer_metadata=customer_metadata,
-        customer_electricity_load=raw_load_elec,
+        customer_electricity_load=effective_load_elec,
         customer_gas_load=raw_load_gas,
         gas_tariff_map=settings.path_tariff_maps_gas,
         gas_tariff_str_loc=settings.path_tariffs_gas,
@@ -605,6 +527,11 @@ def run(settings: ScenarioSettings) -> None:
         distribution_mc_path = Path(save_file_loc) / "distribution_marginal_costs.csv"
         distribution_marginal_costs.to_csv(distribution_mc_path, index=True)
         log.info(".... Saved distribution marginal costs: %s", distribution_mc_path)
+
+        if settings.demand_flex.enabled:
+            tracker_path = Path(save_file_loc) / "demand_flex_elasticity_tracker.csv"
+            elasticity_tracker.to_csv(tracker_path, index=True)
+            log.info(".... Saved demand-flex elasticity tracker: %s", tracker_path)
 
     log.info(".... Completed RI residential (non-LMI) rate scenario simulation")
 
