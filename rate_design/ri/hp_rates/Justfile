@@ -14,7 +14,7 @@ run-scenario run_num scenario_config=ri_run_scenario_config:
     --run-num "{{run_num}}" \
     --scenario-config "{{scenario_config}}"
 
-# Optional output override (if you don't want the YAML output_dir)
+# Optional: full output path override (else path_output/state/run_name/runtime from YAML)
 run-scenario-with-output run_num output_dir scenario_config=ri_run_scenario_config:
   uv run python {{project_root}}/rate_design/ri/hp_rates/run_scenario.py \
     --run-num "{{run_num}}" \
