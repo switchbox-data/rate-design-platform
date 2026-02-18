@@ -63,7 +63,9 @@ def _load_group_values(
     return (
         metadata.select(
             pl.col(BLDG_ID_COL).cast(pl.Int64),
-            pl.col(resolved_group_col).cast(pl.String, strict=False).alias(GROUP_VALUE_COL),
+            pl.col(resolved_group_col)
+            .cast(pl.String, strict=False)
+            .alias(GROUP_VALUE_COL),
         )
         .with_columns(pl.col(GROUP_VALUE_COL).fill_null("Unknown"))
         .unique(subset=[BLDG_ID_COL], keep="first")
@@ -97,7 +99,9 @@ def _load_cross_subsidy(
 ) -> pl.LazyFrame:
     return (
         pl.scan_csv(
-            _csv_path(run_dir, "cross_subsidization/cross_subsidization_BAT_values.csv"),
+            _csv_path(
+                run_dir, "cross_subsidization/cross_subsidization_BAT_values.csv"
+            ),
             storage_options=storage_options,
         )
         .select(
@@ -212,10 +216,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--output-dir",
-        help=(
-            "Optional output directory override. "
-            "If omitted, writes to --run-dir."
-        ),
+        help=("Optional output directory override. If omitted, writes to --run-dir."),
     )
     args = parser.parse_args()
 
