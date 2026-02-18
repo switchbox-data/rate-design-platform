@@ -37,6 +37,7 @@ resstock-identify-hp-customers:
 # PRE: Tariff mapping (electric and gas)
 # -----------------------------------------------------------------------------
 path_s3_resstock_metadata := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
+path_s3_utility_assignment := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility"
 tariff_maps_dir_ri := "{{project_root}}/rate_design/ri/hp_rates/config/tariff_maps"
 
 map-electric-tariff electric_utility SB_scenario_type SB_scenario_year upgrade_id output_dir:
@@ -82,27 +83,16 @@ map-electric-rie-default:
 map-gas-tariff electric_utility upgrade_id output_dir:
   uv run python {{project_root}}/utils/pre/gas_tariff_mapper.py \
     --metadata_path "{{path_s3_resstock_metadata}}" \
+    --utility_assignment_path "{{path_s3_utility_assignment}}" \
     --state RI \
     --upgrade_id "{{upgrade_id}}" \
     --electric_utility "{{electric_utility}}" \
     --output_dir "{{output_dir}}"
 
-map-gas-coned:
-  just map-gas-tariff coned 00 {{tariff_maps_dir_ri}}/gas
-
-map-gas-national-grid:
-  just map-gas-tariff nimo 00 {{tariff_maps_dir_ri}}/gas
-
-map-gas-nyseg:
-  just map-gas-tariff nyseg 00 {{tariff_maps_dir_ri}}/gas
-
 map-gas-rie:
   just map-gas-tariff rie 00 {{tariff_maps_dir_ri}}/gas
 
 map-gas-all-utilities:
-  just map-gas-coned
-  just map-gas-national-grid
-  just map-gas-nyseg
   just map-gas-rie
 
 # -----------------------------------------------------------------------------
