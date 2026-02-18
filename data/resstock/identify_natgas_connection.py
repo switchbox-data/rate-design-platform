@@ -61,9 +61,7 @@ def identify_natgas_connection(
     # Sanity check: heats_with_natgas=True => must have positive natural gas consumption
     n_violations = cast(
         pl.DataFrame,
-        result.filter(
-            pl.col("heats_with_natgas") & ~pl.col("has_natgas_connection")
-        )
+        result.filter(pl.col("heats_with_natgas") & ~pl.col("has_natgas_connection"))
         .select(pl.len())
         .collect(),
     ).item()
