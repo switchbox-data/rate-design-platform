@@ -28,7 +28,6 @@ log = logging.getLogger("rates_analysis").getChild("tests")
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
-PATH_RESSTOCK = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
 DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
 DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
 
@@ -46,6 +45,7 @@ class ScenarioSettings:
     path_resstock_metadata: Path
     path_resstock_loads: Path
     path_cambium_marginal_costs: str | Path
+    path_td_marginal_costs: str | Path
     path_tariff_maps_electric: Path
     path_tariff_maps_gas: Path
     path_tariffs_electric: dict[str, Path]
@@ -140,7 +140,6 @@ def _build_settings_from_yaml_run(
     region = str(_require_value(run, "region")).lower()
     utility = str(_require_value(run, "utility")).lower()
     mode = str(run.get("run_type", "precalc"))
-    upgrade = f"{_parse_int(run.get('upgrade', 0), 'upgrade'):02d}"
     year_run = _parse_int(run.get("year_run"), "year_run")
     year_dollar_conversion = _parse_int(
         run.get("year_dollar_conversion"),
@@ -190,17 +189,20 @@ def _build_settings_from_yaml_run(
         region=region,
         utility=utility,
         path_results=output_dir,
-        path_resstock_metadata=PATH_RESSTOCK
-        / "metadata"
-        / f"state={state}"
-        / f"upgrade={upgrade}"
-        / "metadata-sb.parquet",
-        path_resstock_loads=PATH_RESSTOCK
-        / "load_curve_hourly"
-        / f"state={state}"
-        / f"upgrade={upgrade}",
+        path_resstock_metadata=_resolve_path(
+            str(_require_value(run, "path_resstock_metadata")),
+            PATH_CONFIG,
+        ),
+        path_resstock_loads=_resolve_path(
+            str(_require_value(run, "path_resstock_loads")),
+            PATH_CONFIG,
+        ),
         path_cambium_marginal_costs=_resolve_path_or_uri(
             str(_require_value(run, "path_cambium_marginal_costs")),
+            PATH_CONFIG,
+        ),
+        path_td_marginal_costs=_resolve_path_or_uri(
+            str(_require_value(run, "path_td_marginal_costs")),
             PATH_CONFIG,
         ),
         path_tariff_maps_electric=_resolve_path(
@@ -324,19 +326,14 @@ def run(settings: ScenarioSettings) -> None:
         settings.path_cambium_marginal_costs,
         settings.year_run,
     )
-    distribution_mc_root = (
-        f"s3://data.sb/switchbox/marginal_costs/{settings.state.lower().strip('/')}/"
-    )
-    distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
-        distribution_mc_root,
-        hive_partitioning=True,
-        storage_options=get_aws_storage_options(),
-    )
-    distribution_mc_scan = (
-        distribution_mc_scan.filter(pl.col("region").cast(pl.Utf8) == settings.region)
-        .filter(pl.col("utility").cast(pl.Utf8) == settings.utility)
-        .filter(pl.col("year").cast(pl.Utf8) == str(settings.year_run))
-    )
+    path_td = settings.path_td_marginal_costs
+    if str(path_td).startswith("s3://"):
+        distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
+            path_td,
+            storage_options=get_aws_storage_options(),
+        )
+    else:
+        distribution_mc_scan = pl.scan_parquet(path_td)
     distribution_mc_df = cast(pl.DataFrame, distribution_mc_scan.collect())
     distribution_marginal_costs = distribution_mc_df.to_pandas()
     required_cols = {"timestamp", "mc_total_per_kwh"}
