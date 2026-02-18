@@ -11,7 +11,7 @@ STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 def assign_utility_ri(input_metadata: pl.LazyFrame) -> pl.LazyFrame:
     """
     Assign electric and gas utilities to ResStock buildings in RI.
-    
+
     - sb.electric_utility: All rows get "rie"
     - sb.gas_utility: Only rows with heats_with_natgas=True get "rie", others get null
     """
@@ -22,7 +22,7 @@ def assign_utility_ri(input_metadata: pl.LazyFrame) -> pl.LazyFrame:
             "Missing required column 'heats_with_natgas'. "
             "Run identify_heating_type first to add this column."
         )
-    
+
     # Drop existing utility columns if they exist (equivalent to ADD COLUMN IF NOT EXISTS)
     input_metadata = input_metadata.drop(
         ["sb.electric_utility", "sb.gas_utility"], strict=False
