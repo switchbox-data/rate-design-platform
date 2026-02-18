@@ -42,6 +42,12 @@ just compute-subclass-rr <run_dir> has_hp BAT_percustomer
 just compute-seasonal-discount-inputs <run_dir> <resstock_loads_path> BAT_percustomer
 ```
 
+Note: this command calls `compute_subclass_rr.py`, which also writes RI revenue
+requirement YAML outputs. In the current Just recipe, `--run-num` is not
+overridden, so it uses the script default (`run_num=1`) for default RR lookup.
+For run-specific RR YAMLs, call `just compute-subclass-rr ...` with explicit
+`run_num` first.
+
 3. Create seasonal tariff JSON (summer fixed at default rate)
 
 ```bash
