@@ -52,13 +52,13 @@ class ScenarioSettings:
     path_tariffs_gas: dict[str, Path]
     precalc_tariff_path: Path
     precalc_tariff_key: str
-    utility_revenue_requirement: float
+    utility_delivery_revenue_requirement: float
     utility_customer_count: int
     year_run: int
     year_dollar_conversion: int
     process_workers: int
     solar_pv_compensation: str = "net_metering"
-    delivery_only_rev_req_passed: bool = False
+    add_supply_revenue_requirement: bool = False
 
 
 def _parse_int(value: object, field_name: str) -> int:
@@ -146,10 +146,10 @@ def _build_settings_from_yaml_run(
         "year_dollar_conversion",
     )
     process_workers = _parse_int(run.get("process_workers", 20), "process_workers")
-    utility_revenue_requirement = float(
+    utility_delivery_revenue_requirement = float(
         _parse_int(
-            _require_value(run, "utility_revenue_requirement"),
-            "utility_revenue_requirement",
+            _require_value(run, "utility_delivery_revenue_requirement"),
+            "utility_delivery_revenue_requirement",
         )
     )
     utility_customer_count = _parse_int(
@@ -175,12 +175,12 @@ def _build_settings_from_yaml_run(
 
     precalc_tariff_key = str(_require_value(run, "precalc_tariff_key"))
     default_run_name = str(run.get("run_name", f"ri_rie_run_{run_num:02d}"))
-    delivery_only_rev_req_passed = _parse_bool(
+    add_supply_revenue_requirement = _parse_bool(
         run.get(
-            "delivery_only_rev_req_passed",
+            "add_supply_revenue_requirement",
             "supply_adj" in precalc_tariff_key,
         ),
-        "delivery_only_rev_req_passed",
+        "add_supply_revenue_requirement",
     )
     return ScenarioSettings(
         run_name=run_name_override or default_run_name,
@@ -220,13 +220,13 @@ def _build_settings_from_yaml_run(
             PATH_CONFIG,
         ),
         precalc_tariff_key=precalc_tariff_key,
-        utility_revenue_requirement=utility_revenue_requirement,
+        utility_delivery_revenue_requirement=utility_delivery_revenue_requirement,
         utility_customer_count=utility_customer_count,
         year_run=year_run,
         year_dollar_conversion=year_dollar_conversion,
         process_workers=process_workers,
         solar_pv_compensation=solar_pv_compensation,
-        delivery_only_rev_req_passed=delivery_only_rev_req_passed,
+        add_supply_revenue_requirement=add_supply_revenue_requirement,
     )
 
 
@@ -365,13 +365,13 @@ def run(settings: ScenarioSettings) -> None:
     ) = _return_revenue_requirement_target(
         building_load=raw_load_elec,
         sample_weight=customer_metadata[["bldg_id", "weight"]],
-        revenue_requirement_target=settings.utility_revenue_requirement,
+        revenue_requirement_target=settings.utility_delivery_revenue_requirement,
         residual_cost=None,
         residual_cost_frac=None,
         bulk_marginal_costs=bulk_marginal_costs,
         distribution_marginal_costs=distribution_marginal_costs,
         low_income_strategy=None,
-        delivery_only_rev_req_passed=settings.delivery_only_rev_req_passed,
+        delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
     )
 
     bs = MeetRevenueSufficiencySystemWide(
