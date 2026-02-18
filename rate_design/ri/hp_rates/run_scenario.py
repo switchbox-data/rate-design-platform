@@ -105,6 +105,71 @@ def _require_mapping(value: Any, field_name: str) -> dict[str, Any]:
     return value
 
 
+def _tariff_map_keys(path_tariff_map: Path) -> set[str]:
+    """Return the set of tariff_key values in a tariff map CSV (electric or gas)."""
+    df = pl.read_csv(path_tariff_map)
+    if "tariff_key" not in df.columns:
+        raise ValueError(
+            f"Tariff map {path_tariff_map} must have a 'tariff_key' column"
+        )
+    return set(df["tariff_key"].unique().to_list())
+
+
+def _parse_path_tariffs(
+    value: Any,
+    path_tariff_map: Path,
+    base_dir: Path,
+    label: str,
+) -> dict[str, Path]:
+    """Parse path_tariffs (electric or gas) from YAML (list or dict) and reconcile.
+
+    If value is a list of path strings, keys are derived from filename stem (e.g.
+    tariffs/electric/foo.json -> foo). Every tariff_key in the tariff map must
+    have a corresponding entry, and every list entry must appear in the map.
+    """
+    if isinstance(value, list):
+        path_tariffs = {}
+        for item in value:
+            if not isinstance(item, str):
+                raise ValueError(
+                    f"path_tariffs_{label} list must contain path strings; "
+                    f"got {type(item).__name__}"
+                )
+            path = _resolve_path(item, base_dir)
+            key = path.stem
+            if key in path_tariffs:
+                raise ValueError(
+                    f"path_tariffs_{label}: duplicate key '{key}' from paths "
+                    f"{path_tariffs[key]} and {path}"
+                )
+            path_tariffs[key] = path
+    elif isinstance(value, dict):
+        path_tariffs = {
+            str(k): _resolve_path(str(v), base_dir) for k, v in value.items()
+        }
+    else:
+        raise ValueError(
+            f"path_tariffs_{label} must be a list of paths or a key-to-path mapping; "
+            f"got {type(value).__name__}"
+        )
+
+    map_keys = _tariff_map_keys(path_tariff_map)
+    list_keys = set(path_tariffs.keys())
+    only_in_map = map_keys - list_keys
+    only_in_list = list_keys - map_keys
+    if only_in_map:
+        raise ValueError(
+            f"{label.capitalize()} tariff map references tariff_key(s) with no file "
+            f"in path_tariffs_{label}: {sorted(only_in_map)}"
+        )
+    if only_in_list:
+        raise ValueError(
+            f"path_tariffs_{label} includes file(s) not referenced in {label} "
+            f"tariff map: {sorted(only_in_list)}"
+        )
+    return path_tariffs
+
+
 def _require_value(run: dict[str, Any], field_name: str) -> Any:
     value = run.get(field_name)
     if value is None:
@@ -157,20 +222,26 @@ def _build_settings_from_yaml_run(
     )
     solar_pv_compensation = str(run.get("solar_pv_compensation", "net_metering"))
 
-    path_tariffs_electric_raw = _require_mapping(
-        run.get("path_tariffs_electric"), "path_tariffs_electric"
+    path_tariff_maps_electric = _resolve_path(
+        str(_require_value(run, "path_tariff_maps_electric")),
+        PATH_CONFIG,
     )
-    path_tariffs_electric = {
-        str(key): _resolve_path(str(path), PATH_CONFIG)
-        for key, path in path_tariffs_electric_raw.items()
-    }
-    path_tariffs_gas_raw = _require_mapping(
-        run.get("path_tariffs_gas"), "path_tariffs_gas"
+    path_tariffs_electric = _parse_path_tariffs(
+        _require_value(run, "path_tariffs_electric"),
+        path_tariff_maps_electric,
+        PATH_CONFIG,
+        "electric",
     )
-    path_tariffs_gas = {
-        str(key): _resolve_path(str(path), PATH_CONFIG)
-        for key, path in path_tariffs_gas_raw.items()
-    }
+    path_tariff_maps_gas = _resolve_path(
+        str(_require_value(run, "path_tariff_maps_gas")),
+        PATH_CONFIG,
+    )
+    path_tariffs_gas = _parse_path_tariffs(
+        _require_value(run, "path_tariffs_gas"),
+        path_tariff_maps_gas,
+        PATH_CONFIG,
+        "gas",
+    )
 
     precalc_tariff_key = str(_require_value(run, "precalc_tariff_key"))
     default_run_name = str(run.get("run_name", f"ri_rie_run_{run_num:02d}"))
@@ -208,14 +279,8 @@ def _build_settings_from_yaml_run(
             str(_require_value(run, "path_td_marginal_costs")),
             PATH_CONFIG,
         ),
-        path_tariff_maps_electric=_resolve_path(
-            str(_require_value(run, "path_tariff_maps_electric")),
-            PATH_CONFIG,
-        ),
-        path_tariff_maps_gas=_resolve_path(
-            str(_require_value(run, "path_tariff_maps_gas")),
-            PATH_CONFIG,
-        ),
+        path_tariff_maps_electric=path_tariff_maps_electric,
+        path_tariff_maps_gas=path_tariff_maps_gas,
         path_tariffs_electric=path_tariffs_electric,
         path_tariffs_gas=path_tariffs_gas,
         precalc_tariff_path=_resolve_path(
