@@ -35,6 +35,7 @@ GROUP_VALUE_COL = "subclass"
 ANNUAL_MONTH_VALUE = "Annual"
 DEFAULT_SEASONAL_OUTPUT_FILENAME = "seasonal_discount_rate_inputs.csv"
 WINTER_MONTHS = (12, 1, 2)
+ELECTRIC_LOAD_COL = "out.electricity.net.energy_consumption"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SCENARIO_CONFIG_PATH = (
     PROJECT_ROOT / "rate_design/ri/hp_rates/config/scenarios.yaml"
@@ -159,6 +160,17 @@ def _scan_loads_parquet(
     return pl.scan_parquet(parquet_glob)
 
 
+def _resolve_electric_load_column(loads: pl.LazyFrame) -> str:
+    schema_cols = loads.collect_schema().names()
+    if ELECTRIC_LOAD_COL in schema_cols:
+        return ELECTRIC_LOAD_COL
+    available_preview = ", ".join(schema_cols[:10])
+    raise ValueError(
+        f"Required electric load column '{ELECTRIC_LOAD_COL}' not found. "
+        f"Available columns (first 10): {available_preview}"
+    )
+
+
 def _extract_default_rate_from_tariff_config(
     tariff_final_config_path: S3Path | Path,
 ) -> float:
@@ -214,6 +226,7 @@ def compute_hp_seasonal_discount_inputs(
 
     hp_weights = hp_cross_subsidy.select(pl.col(BLDG_ID_COL), pl.col(WEIGHT_COL))
     loads = _scan_loads_parquet(resstock_loads_path, storage_options)
+    electric_load_col = _resolve_electric_load_column(loads)
     winter_kwh_hp = (
         loads.join(hp_weights.lazy(), on=BLDG_ID_COL, how="inner")
         .select(
@@ -222,7 +235,7 @@ def compute_hp_seasonal_discount_inputs(
             .cast(pl.String, strict=False)
             .str.to_datetime(strict=False)
             .alias("timestamp"),
-            pl.col("total_fuel_electricity").cast(pl.Float64).alias("demand_kwh"),
+            pl.col(electric_load_col).cast(pl.Float64).alias("demand_kwh"),
             pl.col(WEIGHT_COL).cast(pl.Float64),
         )
         .with_columns(pl.col("timestamp").dt.month().alias("month_num"))

@@ -25,28 +25,28 @@ Where:
   effective rate (`rate + adj`).
 - `total_cross_subsidy_hp` comes from
   `cross_subsidization/cross_subsidization_BAT_values.csv` for `has_hp=true`.
-- `winter_kwh_hp` is the sum of `total_fuel_electricity` across HP customers and
-  winter months from ResStock hourly loads.
+- `winter_kwh_hp` is the weighted sum of
+  `out.electricity.net.energy_consumption` across HP customers and winter months
+  from ResStock hourly loads.
 
 ## CLI / Justfile Flow
 
-1. Compute subclass RR (existing output)
-
-```bash
-just compute-subclass-rr <run_dir> has_hp BAT_percustomer
-```
-
-2. Compute seasonal discount inputs (writes `seasonal_discount_rate_inputs.csv`)
+1. Compute seasonal discount inputs (writes `seasonal_discount_rate_inputs.csv`)
 
 ```bash
 just compute-seasonal-discount-inputs <run_dir> <resstock_loads_path> BAT_percustomer
 ```
 
-Note: this command calls `compute_subclass_rr.py`, which also writes RI revenue
-requirement YAML outputs. In the current Just recipe, `--run-num` is not
-overridden, so it uses the script default (`run_num=1`) for default RR lookup.
-For run-specific RR YAMLs, call `just compute-subclass-rr ...` with explicit
-`run_num` first.
+This command now uses a dedicated utility:
+`utils/post/compute_seasonal_discount_inputs.py`.
+It does **not** run subclass RR aggregation and does **not** write RI revenue
+requirement YAML outputs.
+
+2. (Optional, separate flow) Compute subclass RR + RI revenue requirement YAMLs
+
+```bash
+just compute-subclass-rr <run_dir> 1 <scenario_config> has_hp BAT_percustomer
+```
 
 3. Create seasonal tariff JSON (summer fixed at default rate)
 

@@ -42,11 +42,9 @@ compute-subclass-rr run_dir run_num="1" scenario_config=ri_run_scenario_config g
 
 # Seasonal discount inputs from run outputs + ResStock loads.
 compute-seasonal-discount-inputs run_dir resstock_loads_path cross_subsidy_col="BAT_percustomer" output_dir="":
-  uv run python {{project_root}}/utils/post/compute_subclass_rr.py \
+  uv run python {{project_root}}/utils/post/compute_seasonal_discount_inputs.py \
     --run-dir "{{run_dir}}" \
-    --group-col "has_hp" \
     --cross-subsidy-col "{{cross_subsidy_col}}" \
-    --no-write-revenue-requirement-yamls \
     --resstock-loads-path "{{resstock_loads_path}}" \
     {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }}
 

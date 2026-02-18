@@ -71,14 +71,14 @@ def _write_sample_resstock_loads_dir(tmp_path: Path) -> Path:
                 "2025-02-01 00:00:00",
                 "2025-12-01 00:00:00",
             ],
-            "total_fuel_electricity": [10.0, 999.0, 20.0, 30.0],
+            "out.electricity.net.energy_consumption": [10.0, 999.0, 20.0, 30.0],
         }
     ).write_parquet(loads_dir / "sample_hp_loads.parquet")
     pl.DataFrame(
         {
             "bldg_id": [2, 4],
             "timestamp": ["2025-01-01 00:00:00", "2025-01-01 00:00:00"],
-            "total_fuel_electricity": [500.0, 600.0],
+            "out.electricity.net.energy_consumption": [500.0, 600.0],
         }
     ).write_parquet(loads_dir / "sample_nonhp_loads.parquet")
     return loads_dir
@@ -284,7 +284,7 @@ def test_compute_hp_seasonal_discount_inputs_applies_weights(tmp_path: Path) -> 
         {
             "bldg_id": [1, 2],
             "timestamp": ["2025-01-01 00:00:00", "2025-01-01 00:00:00"],
-            "total_fuel_electricity": [100.0, 100.0],
+            "out.electricity.net.energy_consumption": [100.0, 100.0],
         }
     ).write_parquet(loads_dir / "sample.parquet")
 
