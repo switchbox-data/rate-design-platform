@@ -22,6 +22,34 @@ run-scenario-with-output run_num output_dir scenario_config=ri_run_scenario_conf
     --output-dir "{{output_dir}}"
 
 # -----------------------------------------------------------------------------
+# PRE: Derive seasonal TOU tariff from marginal costs
+# -----------------------------------------------------------------------------
+# Produces tariff JSON, tariff map CSV, and derivation spec JSON under config/.
+# Run this BEFORE run-scenario for runs that use demand_flex (e.g. run 3).
+#
+# Example:
+#   just derive-seasonal-tou rie_seasonal_tou_hp rie_a16
+derive-seasonal-tou tou_tariff_key flat_tariff_key \
+    cambium_path="s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet" \
+    state="RI" region="isone" utility="rie" year="2025" \
+    upgrade="00" customer_count="451381" \
+    summer_months="6,7,8,9" tou_window_hours="4" \
+    tou_base_rate="0.06" tou_fixed_charge="6.75":
+  uv run python -m utils.pre.derive_seasonal_tou \
+    --cambium-path "{{cambium_path}}" \
+    --state "{{state}}" --region "{{region}}" --utility "{{utility}}" --year "{{year}}" \
+    --resstock-metadata-path "/data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state={{state}}/upgrade={{upgrade}}/metadata-sb.parquet" \
+    --resstock-loads-path "/data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state={{state}}/upgrade={{upgrade}}" \
+    --customer-count "{{customer_count}}" \
+    --summer-months "{{summer_months}}" \
+    --tou-window-hours "{{tou_window_hours}}" \
+    --tou-base-rate "{{tou_base_rate}}" \
+    --tou-fixed-charge "{{tou_fixed_charge}}" \
+    --tou-tariff-key "{{tou_tariff_key}}" \
+    --flat-tariff-key "{{flat_tariff_key}}" \
+    --output-dir "{{project_root}}/rate_design/ri/hp_rates/config"
+
+# -----------------------------------------------------------------------------
 # PRE: ResStock (delegates to data/resstock/Justfile)
 # -----------------------------------------------------------------------------
 resstock-download:
