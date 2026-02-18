@@ -12,6 +12,7 @@ Inputs (under --run-dir):
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 from typing import cast
 
@@ -31,9 +32,15 @@ DEFAULT_BAT_METRIC = "BAT_percustomer"
 GROUP_VALUE_COL = "subclass"
 ANNUAL_MONTH_VALUE = "Annual"
 DEFAULT_OUTPUT_FILENAME = "subclass_revenue_requirement.csv"
+DEFAULT_SEASONAL_OUTPUT_FILENAME = "seasonal_discount_rate_inputs.csv"
+WINTER_MONTHS = (12, 1, 2)
 
 
 def _csv_path(run_dir: S3Path | Path, relative: str) -> str:
+    return str(run_dir / relative)
+
+
+def _json_path(run_dir: S3Path | Path, relative: str) -> str:
     return str(run_dir / relative)
 
 
@@ -69,6 +76,18 @@ def _load_group_values(
         )
         .with_columns(pl.col(GROUP_VALUE_COL).fill_null("Unknown"))
         .unique(subset=[BLDG_ID_COL], keep="first")
+    )
+
+
+def _load_metadata_for_group(
+    run_dir: S3Path | Path,
+    group_col: str,
+    storage_options: dict[str, str] | None,
+) -> pl.LazyFrame:
+    return _load_group_values(
+        run_dir=run_dir,
+        group_col=group_col,
+        storage_options=storage_options,
     )
 
 
@@ -110,6 +129,118 @@ def _load_cross_subsidy(
         )
         .group_by(BLDG_ID_COL)
         .agg(pl.col("cross_subsidy").sum())
+    )
+
+
+def _resolve_path_or_s3(path_value: str) -> S3Path | Path:
+    return S3Path(path_value) if path_value.startswith("s3://") else Path(path_value)
+
+
+def _scan_loads_parquet(
+    loads_path: S3Path | Path,
+    storage_options: dict[str, str] | None,
+) -> pl.LazyFrame:
+    base = str(loads_path).rstrip("/")
+    parquet_glob = f"{base}/*.parquet"
+    if isinstance(loads_path, S3Path):
+        return pl.scan_parquet(parquet_glob, storage_options=storage_options)
+    return pl.scan_parquet(parquet_glob)
+
+
+def _extract_default_rate_from_tariff_config(
+    tariff_final_config_path: S3Path | Path,
+) -> float:
+    if isinstance(tariff_final_config_path, S3Path):
+        payload = tariff_final_config_path.read_text()
+    else:
+        payload = Path(tariff_final_config_path).read_text(encoding="utf-8")
+    tariff = json.loads(payload)
+    items = tariff.get("items", [])
+    if not items:
+        raise ValueError("tariff_final_config.json has no `items`")
+    rate_structure = items[0].get("energyratestructure", [])
+    if not rate_structure or not rate_structure[0]:
+        raise ValueError(
+            "tariff_final_config.json has no period/tier in `energyratestructure`"
+        )
+    tier_0 = rate_structure[0][0]
+    rate = float(tier_0.get("rate", 0.0))
+    adj = float(tier_0.get("adj", 0.0))
+    return rate + adj
+
+
+def compute_hp_seasonal_discount_inputs(
+    run_dir: S3Path | Path,
+    resstock_loads_path: S3Path | Path,
+    cross_subsidy_col: str = DEFAULT_BAT_METRIC,
+    storage_options: dict[str, str] | None = None,
+    tariff_final_config_path: S3Path | Path | None = None,
+) -> pl.DataFrame:
+    """Compute HP-only seasonal discount inputs from run outputs + ResStock loads."""
+    metadata = _load_metadata_for_group(
+        run_dir=run_dir,
+        group_col=DEFAULT_GROUP_COL,
+        storage_options=storage_options,
+    )
+    cross_sub = _load_cross_subsidy(run_dir, cross_subsidy_col, storage_options)
+
+    hp_cross_subsidy = (
+        metadata.filter(pl.col(GROUP_VALUE_COL) == "true")
+        .join(cross_sub, on=BLDG_ID_COL, how="left")
+        .collect()
+    )
+    hp_cross_subsidy = cast(pl.DataFrame, hp_cross_subsidy)
+    if hp_cross_subsidy.is_empty():
+        raise ValueError("No HP customers found in customer_metadata.csv.")
+
+    nulls_cs = hp_cross_subsidy.filter(pl.col("cross_subsidy").is_null()).height
+    if nulls_cs:
+        raise ValueError(f"Missing cross-subsidy values for {nulls_cs} HP buildings.")
+
+    hp_ids = hp_cross_subsidy.select(pl.col(BLDG_ID_COL))
+    loads = _scan_loads_parquet(resstock_loads_path, storage_options)
+    winter_kwh_hp = (
+        loads.join(hp_ids.lazy(), on=BLDG_ID_COL, how="inner")
+        .select(
+            pl.col(BLDG_ID_COL).cast(pl.Int64),
+            pl.col("timestamp")
+            .cast(pl.String, strict=False)
+            .str.to_datetime(strict=False)
+            .alias("timestamp"),
+            pl.col("total_fuel_electricity").cast(pl.Float64).alias("demand_kwh"),
+        )
+        .with_columns(pl.col("timestamp").dt.month().alias("month_num"))
+        .filter(pl.col("month_num").is_in(WINTER_MONTHS))
+        .select(pl.col("demand_kwh").sum().alias("winter_kwh_hp"))
+        .collect()
+    )
+    winter_kwh_hp = cast(pl.DataFrame, winter_kwh_hp)
+
+    winter_kwh = float(winter_kwh_hp["winter_kwh_hp"][0] or 0.0)
+    if winter_kwh <= 0:
+        raise ValueError(
+            "Winter kWh for HP customers is zero; cannot compute winter rate."
+        )
+
+    total_cross_subsidy_hp = float(hp_cross_subsidy["cross_subsidy"].sum())
+    tariff_path = (
+        tariff_final_config_path
+        if tariff_final_config_path is not None
+        else (run_dir / "tariff_final_config.json")
+    )
+    default_rate = _extract_default_rate_from_tariff_config(tariff_path)
+    winter_rate_hp = default_rate - (total_cross_subsidy_hp / winter_kwh)
+
+    return pl.DataFrame(
+        {
+            "subclass": ["true"],
+            "cross_subsidy_col": [cross_subsidy_col],
+            "default_rate": [default_rate],
+            "total_cross_subsidy_hp": [total_cross_subsidy_hp],
+            "winter_kwh_hp": [winter_kwh],
+            "winter_rate_hp": [winter_rate_hp],
+            "winter_months": [",".join(str(m) for m in WINTER_MONTHS)],
+        }
     )
 
 
@@ -185,6 +316,25 @@ def _write_breakdown_csv(
     raise ValueError(msg)
 
 
+def _write_seasonal_inputs_csv(
+    seasonal_inputs: pl.DataFrame,
+    run_dir: S3Path | Path,
+    output_dir: S3Path | Path | None = None,
+) -> str:
+    target_dir = output_dir if output_dir is not None else run_dir
+    output_path = str(target_dir / DEFAULT_SEASONAL_OUTPUT_FILENAME)
+    csv_text = seasonal_inputs.write_csv(None)
+    if isinstance(csv_text, str):
+        if isinstance(target_dir, S3Path):
+            S3Path(output_path).write_text(csv_text)
+        else:
+            Path(output_path).write_text(csv_text, encoding="utf-8")
+        return output_path
+
+    msg = "Failed to render seasonal discount input CSV text."
+    raise ValueError(msg)
+
+
 def main() -> None:
     load_dotenv()
     parser = argparse.ArgumentParser(
@@ -218,6 +368,20 @@ def main() -> None:
         "--output-dir",
         help=("Optional output directory override. If omitted, writes to --run-dir."),
     )
+    parser.add_argument(
+        "--resstock-loads-path",
+        help=(
+            "Optional ResStock hourly electric loads directory (local or s3://...). "
+            "If provided, writes seasonal discount inputs for has_hp=true."
+        ),
+    )
+    parser.add_argument(
+        "--tariff-final-config-path",
+        help=(
+            "Optional override for tariff_final_config.json (local or s3://...). "
+            "Defaults to <run-dir>/tariff_final_config.json."
+        ),
+    )
     args = parser.parse_args()
 
     run_dir: S3Path | Path = (
@@ -247,6 +411,28 @@ def main() -> None:
         output_dir=output_dir,
     )
     print(f"Wrote CSV: {output_path}")
+
+    if args.resstock_loads_path:
+        resstock_loads_path = _resolve_path_or_s3(args.resstock_loads_path)
+        tariff_final_config_path = (
+            _resolve_path_or_s3(args.tariff_final_config_path)
+            if args.tariff_final_config_path
+            else None
+        )
+        seasonal_inputs = compute_hp_seasonal_discount_inputs(
+            run_dir=run_dir,
+            resstock_loads_path=resstock_loads_path,
+            cross_subsidy_col=args.cross_subsidy_col,
+            storage_options=storage_options,
+            tariff_final_config_path=tariff_final_config_path,
+        )
+        print(seasonal_inputs)
+        seasonal_output_path = _write_seasonal_inputs_csv(
+            seasonal_inputs=seasonal_inputs,
+            run_dir=run_dir,
+            output_dir=output_dir,
+        )
+        print(f"Wrote seasonal discount inputs CSV: {seasonal_output_path}")
 
 
 if __name__ == "__main__":

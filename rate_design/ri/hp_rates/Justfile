@@ -32,6 +32,26 @@ compute-subclass-rr run_dir group_col="has_hp" cross_subsidy_col="BAT_percustome
     --cross-subsidy-col "{{cross_subsidy_col}}" \
     {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }}
 
+# Compute seasonal discount inputs from run outputs and ResStock hourly loads.
+# Formula (HP only): winter_rate = default_rate - (total_cross_subsidy_hp / winter_kwh_hp),
+# where winter is defined as Dec-Feb.
+compute-seasonal-discount-inputs run_dir resstock_loads_path cross_subsidy_col="BAT_percustomer" output_dir="":
+  uv run python {{project_root}}/utils/post/compute_subclass_rr.py \
+    --run-dir "{{run_dir}}" \
+    --group-col "has_hp" \
+    --cross-subsidy-col "{{cross_subsidy_col}}" \
+    --resstock-loads-path "{{resstock_loads_path}}" \
+    {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }}
+
+# Create a seasonal-discount tariff JSON using seasonal_discount_rate_inputs.csv.
+# Summer rate is fixed to default_rate from tariff_final_config.json.
+create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label output_path:
+  uv run python {{project_root}}/utils/pre/create_seasonal_discount_tariff.py \
+    --base-tariff-json "{{base_tariff_json}}" \
+    --seasonal-inputs-csv "{{seasonal_inputs_csv}}" \
+    --label "{{label}}" \
+    --output-path "{{output_path}}"
+
 # -----------------------------------------------------------------------------
 # PRE: Tariff mapping (electric and gas)
 # -----------------------------------------------------------------------------
