@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
 
@@ -28,7 +29,6 @@ log = logging.getLogger("rates_analysis").getChild("tests")
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
-DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
 DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
 
 
@@ -41,7 +41,7 @@ class ScenarioSettings:
     state: str
     region: str
     utility: str
-    path_results: Path
+    path_output: Path
     path_resstock_metadata: Path
     path_resstock_loads: Path
     path_cambium_marginal_costs: str | Path
@@ -132,7 +132,6 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
 def _build_settings_from_yaml_run(
     run: dict[str, Any],
     run_num: int,
-    output_dir: Path,
     run_name_override: str | None,
 ) -> ScenarioSettings:
     """Build runtime settings from repo YAML scenario config."""
@@ -182,13 +181,17 @@ def _build_settings_from_yaml_run(
         ),
         "add_supply_revenue_requirement",
     )
+    path_output = _resolve_path(
+        str(_require_value(run, "path_output")),
+        PATH_CONFIG,
+    )
     return ScenarioSettings(
         run_name=run_name_override or default_run_name,
         run_type=mode,
         state=state,
         region=region,
         utility=utility,
-        path_results=output_dir,
+        path_output=path_output,
         path_resstock_metadata=_resolve_path(
             str(_require_value(run, "path_resstock_metadata")),
             PATH_CONFIG,
@@ -249,8 +252,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=DEFAULT_OUTPUT_DIR,
-        help="Output root dir passed to CAIRO.",
+        default=None,
+        help="Optional override: full output path (else built from path_output/state/run_name/runtime).",
     )
     parser.add_argument(
         "--run-name",
@@ -260,21 +263,33 @@ def _parse_args() -> argparse.Namespace:
     return args
 
 
-def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
+def _resolve_settings(
+    args: argparse.Namespace,
+) -> tuple[ScenarioSettings, Path | None]:
     run = _load_run_from_yaml(args.scenario_config, args.run_num)
-    return _build_settings_from_yaml_run(
+    settings = _build_settings_from_yaml_run(
         run=run,
         run_num=args.run_num,
-        output_dir=args.output_dir,
         run_name_override=args.run_name,
     )
+    return settings, args.output_dir
 
 
-def run(settings: ScenarioSettings) -> None:
+def run(
+    settings: ScenarioSettings,
+    output_dir_override: Path | None = None,
+) -> None:
     log.info(
         ".... Beginning RI residential (non-LMI) rate scenario simulation: %s",
         settings.run_name,
     )
+    if output_dir_override is not None:
+        path_results = output_dir_override
+    else:
+        runtime = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        path_results = (
+            settings.path_output / settings.state.lower() / settings.run_name / runtime
+        )
 
     tariffs_params, tariff_map_df = _initialize_tariffs(
         tariff_map=settings.path_tariff_maps_electric,
@@ -380,7 +395,7 @@ def run(settings: ScenarioSettings) -> None:
         year_dollar_conversion=settings.year_dollar_conversion,
         process_workers=settings.process_workers,
         run_name=settings.run_name,
-        output_dir=settings.path_results,
+        output_dir=path_results,
     )
 
     bs.simulate(
@@ -414,8 +429,8 @@ def run(settings: ScenarioSettings) -> None:
 
 def main() -> None:
     args = _parse_args()
-    settings = _resolve_settings(args)
-    run(settings)
+    settings, output_dir_override = _resolve_settings(args)
+    run(settings, output_dir_override=output_dir_override)
 
 
 if __name__ == "__main__":
