@@ -192,6 +192,13 @@ def _parse_path_tariffs(
     return path_tariffs
 
 
+def _default_precalc_tariff(path_tariffs_electric: dict[str, Path]) -> tuple[str, Path]:
+    """Choose default precalc tariff from first configured electric tariff."""
+    if not path_tariffs_electric:
+        raise ValueError("path_tariffs_electric must contain at least one tariff")
+    return next(iter(path_tariffs_electric.items()))
+
+
 def _require_value(run: dict[str, Any], field_name: str) -> Any:
     value = run.get(field_name)
     if value is None:
@@ -265,7 +272,30 @@ def _build_settings_from_yaml_run(
         "gas",
     )
 
-    precalc_tariff_key = str(_require_value(run, "precalc_tariff_key"))
+    precalc_tariff_key_raw = run.get("precalc_tariff_key")
+    precalc_tariff_path_raw = run.get("precalc_tariff_path")
+    if precalc_tariff_key_raw is None and precalc_tariff_path_raw is None:
+        precalc_tariff_key, precalc_tariff_path = _default_precalc_tariff(
+            path_tariffs_electric
+        )
+    elif precalc_tariff_path_raw is None:
+        precalc_tariff_key = str(precalc_tariff_key_raw)
+        try:
+            precalc_tariff_path = path_tariffs_electric[precalc_tariff_key]
+        except KeyError as exc:
+            available = sorted(path_tariffs_electric.keys())
+            raise ValueError(
+                "precalc_tariff_key is not in path_tariffs_electric. "
+                f"precalc_tariff_key={precalc_tariff_key!r}, available={available}"
+            ) from exc
+    else:
+        precalc_tariff_path = _resolve_path(str(precalc_tariff_path_raw), PATH_CONFIG)
+        precalc_tariff_key = (
+            str(precalc_tariff_key_raw)
+            if precalc_tariff_key_raw is not None
+            else precalc_tariff_path.stem
+        )
+
     default_run_name = str(run.get("run_name", f"ri_rie_run_{run_num:02d}"))
     add_supply_revenue_requirement = _parse_bool(
         run.get(
@@ -305,10 +335,7 @@ def _build_settings_from_yaml_run(
         path_tariff_maps_gas=path_tariff_maps_gas,
         path_tariffs_electric=path_tariffs_electric,
         path_tariffs_gas=path_tariffs_gas,
-        precalc_tariff_path=_resolve_path(
-            str(_require_value(run, "precalc_tariff_path")),
-            PATH_CONFIG,
-        ),
+        precalc_tariff_path=precalc_tariff_path,
         precalc_tariff_key=precalc_tariff_key,
         utility_delivery_revenue_requirement=utility_delivery_revenue_requirement,
         utility_customer_count=utility_customer_count,
