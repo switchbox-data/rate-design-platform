@@ -118,10 +118,6 @@ identify-heating-type-all-upgrades state:
 identify-natgas-connection-all-upgrades state:
     just identify-natgas-connection {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata.parquet" "metadata-sb.parquet"
 
-identify-hp-and-heating-type-all-upgrades state:
-    just identify-hp-customers {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata.parquet" "metadata-sb.parquet"
-    just identify-heating-type {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet"
-
 identify-hp-and-heating-type-all-upgrades-and-natgas-connection state:
     just identify-hp-customers {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata.parquet" "metadata-sb.parquet"
     just identify-heating-type {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet"
