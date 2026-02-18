@@ -1,7 +1,7 @@
 {
   "items": [
     {
-      "label": "rie_hp_seasonal_calibrated_supply",
+      "label": "rie_hp_seasonal_calibrated",
       "uri": "",
       "sector": "Residential",
       "energyweekdayschedule": [
@@ -635,14 +635,14 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.1102809595142158,
+            "rate": 0.0599938997259963,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.06058930443659911,
+            "rate": 0.014756645462074863,
             "adj": 0.0,
             "unit": "kWh"
           }
@@ -654,7 +654,7 @@
       "minchargeunits": "$/month",
       "utility": "Rhode Island Energy",
       "servicetype": "Bundled",
-      "name": "rie_hp_seasonal_calibrated_supply",
+      "name": "rie_hp_seasonal_calibrated",
       "is_default": false,
       "country": "USA",
       "demandunits": "kW",
