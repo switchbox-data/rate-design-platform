@@ -39,7 +39,6 @@ class ScenarioSettings:
     run_name: str
     run_type: str
     state: str
-    region: str
     utility: str
     path_output: Path
     path_resstock_metadata: Path
@@ -201,7 +200,6 @@ def _build_settings_from_yaml_run(
 ) -> ScenarioSettings:
     """Build runtime settings from repo YAML scenario config."""
     state = str(run.get("state", "RI")).upper()
-    region = str(_require_value(run, "region")).lower()
     utility = str(_require_value(run, "utility")).lower()
     mode = str(run.get("run_type", "precalc"))
     year_run = _parse_int(run.get("year_run"), "year_run")
@@ -260,7 +258,6 @@ def _build_settings_from_yaml_run(
         run_name=run_name_override or default_run_name,
         run_type=mode,
         state=state,
-        region=region,
         utility=utility,
         path_output=path_output,
         path_resstock_metadata=_resolve_path(
