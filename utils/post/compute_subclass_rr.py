@@ -175,7 +175,7 @@ def _write_breakdown_csv(
     output_path = str(target_dir / DEFAULT_OUTPUT_FILENAME)
     csv_text = breakdown.write_csv(None)
     if isinstance(csv_text, str):
-        if isinstance(run_dir, S3Path):
+        if isinstance(target_dir, S3Path):
             S3Path(output_path).write_text(csv_text)
         else:
             Path(output_path).write_text(csv_text, encoding="utf-8")
