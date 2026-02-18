@@ -280,7 +280,17 @@ def compute_hp_seasonal_discount_inputs(
         else (run_dir / "tariff_final_config.json")
     )
     default_rate = _extract_default_rate_from_tariff_config(tariff_path)
-    winter_rate_hp = default_rate - (total_cross_subsidy_hp / winter_kwh)
+    winter_rate_raw = default_rate - (total_cross_subsidy_hp / winter_kwh)
+    winter_rate_hp = winter_rate_raw
+    if winter_rate_hp <= 0:
+        raise ValueError(
+            "Computed winter_rate_hp is non-positive. "
+            "Check formula inputs: "
+            f"default_rate={default_rate}, "
+            f"total_cross_subsidy_hp={total_cross_subsidy_hp}, "
+            f"winter_kwh_hp={winter_kwh}, "
+            f"winter_rate_hp={winter_rate_hp}"
+        )
 
     return pl.DataFrame(
         {
@@ -290,6 +300,7 @@ def compute_hp_seasonal_discount_inputs(
             "total_cross_subsidy_hp": [total_cross_subsidy_hp],
             "winter_kwh_hp": [winter_kwh],
             "winter_rate_hp": [winter_rate_hp],
+            "winter_rate_raw": [winter_rate_raw],
             "winter_months": [",".join(str(m) for m in WINTER_MONTHS)],
         }
     )
