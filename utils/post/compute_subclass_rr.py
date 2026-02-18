@@ -34,7 +34,9 @@ DEFAULT_BAT_METRIC = "BAT_percustomer"
 GROUP_VALUE_COL = "subclass"
 ANNUAL_MONTH_VALUE = "Annual"
 DEFAULT_SEASONAL_OUTPUT_FILENAME = "seasonal_discount_rate_inputs.csv"
-WINTER_MONTHS = (12, 1, 2)
+# Winter season is Oct 1 through Mar 31.
+WINTER_MONTHS = (10, 11, 12, 1, 2, 3)
+ELECTRIC_LOAD_COL = "out.electricity.net.energy_consumption"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SCENARIO_CONFIG_PATH = (
     PROJECT_ROOT / "rate_design/ri/hp_rates/config/scenarios.yaml"
@@ -159,6 +161,17 @@ def _scan_loads_parquet(
     return pl.scan_parquet(parquet_glob)
 
 
+def _resolve_electric_load_column(loads: pl.LazyFrame) -> str:
+    schema_cols = loads.collect_schema().names()
+    if ELECTRIC_LOAD_COL in schema_cols:
+        return ELECTRIC_LOAD_COL
+    available_preview = ", ".join(schema_cols[:10])
+    raise ValueError(
+        f"Required electric load column '{ELECTRIC_LOAD_COL}' not found. "
+        f"Available columns (first 10): {available_preview}"
+    )
+
+
 def _extract_default_rate_from_tariff_config(
     tariff_final_config_path: S3Path | Path,
 ) -> float:
@@ -167,18 +180,35 @@ def _extract_default_rate_from_tariff_config(
     else:
         payload = Path(tariff_final_config_path).read_text(encoding="utf-8")
     tariff = json.loads(payload)
-    items = tariff.get("items", [])
-    if not items:
-        raise ValueError("tariff_final_config.json has no `items`")
-    rate_structure = items[0].get("energyratestructure", [])
-    if not rate_structure or not rate_structure[0]:
-        raise ValueError(
-            "tariff_final_config.json has no period/tier in `energyratestructure`"
-        )
-    tier_0 = rate_structure[0][0]
-    rate = float(tier_0.get("rate", 0.0))
-    adj = float(tier_0.get("adj", 0.0))
-    return rate + adj
+    # Support CAIRO internal tariff shape where top-level key is tariff_key and
+    # rates are in `ur_ec_tou_mat` rows: [period, tier, max_usage, units, buy, sell, adj].
+    if isinstance(tariff, dict) and tariff:
+        first_key = next(iter(tariff))
+        first_tariff = tariff.get(first_key, {})
+        if isinstance(first_tariff, dict) and "ur_ec_tou_mat" in first_tariff:
+            tou_mat = first_tariff.get("ur_ec_tou_mat", [])
+            if not tou_mat:
+                raise ValueError("tariff_final_config.json has empty `ur_ec_tou_mat`")
+            # Pick period=1,tier=1 row when present; otherwise first row.
+            row = next(
+                (
+                    r
+                    for r in tou_mat
+                    if isinstance(r, list)
+                    and len(r) >= 5
+                    and int(r[0]) == 1
+                    and int(r[1]) == 1
+                ),
+                tou_mat[0],
+            )
+            if not isinstance(row, list) or len(row) < 5:
+                raise ValueError("Invalid `ur_ec_tou_mat` row format in tariff config")
+            return float(row[4])
+
+    raise ValueError(
+        "tariff_final_config.json does not match expected CAIRO internal "
+        "`ur_ec_tou_mat` format."
+    )
 
 
 def compute_hp_seasonal_discount_inputs(
@@ -214,6 +244,7 @@ def compute_hp_seasonal_discount_inputs(
 
     hp_weights = hp_cross_subsidy.select(pl.col(BLDG_ID_COL), pl.col(WEIGHT_COL))
     loads = _scan_loads_parquet(resstock_loads_path, storage_options)
+    electric_load_col = _resolve_electric_load_column(loads)
     winter_kwh_hp = (
         loads.join(hp_weights.lazy(), on=BLDG_ID_COL, how="inner")
         .select(
@@ -222,7 +253,7 @@ def compute_hp_seasonal_discount_inputs(
             .cast(pl.String, strict=False)
             .str.to_datetime(strict=False)
             .alias("timestamp"),
-            pl.col("total_fuel_electricity").cast(pl.Float64).alias("demand_kwh"),
+            pl.col(electric_load_col).cast(pl.Float64).alias("demand_kwh"),
             pl.col(WEIGHT_COL).cast(pl.Float64),
         )
         .with_columns(pl.col("timestamp").dt.month().alias("month_num"))
@@ -250,7 +281,17 @@ def compute_hp_seasonal_discount_inputs(
         else (run_dir / "tariff_final_config.json")
     )
     default_rate = _extract_default_rate_from_tariff_config(tariff_path)
-    winter_rate_hp = default_rate - (total_cross_subsidy_hp / winter_kwh)
+    winter_rate_raw = default_rate - (total_cross_subsidy_hp / winter_kwh)
+    winter_rate_hp = winter_rate_raw
+    if winter_rate_hp < 0:
+        raise ValueError(
+            "Computed winter_rate_hp is negative. "
+            "Check formula inputs: "
+            f"default_rate={default_rate}, "
+            f"total_cross_subsidy_hp={total_cross_subsidy_hp}, "
+            f"winter_kwh_hp={winter_kwh}, "
+            f"winter_rate_hp={winter_rate_hp}"
+        )
 
     return pl.DataFrame(
         {
@@ -260,6 +301,7 @@ def compute_hp_seasonal_discount_inputs(
             "total_cross_subsidy_hp": [total_cross_subsidy_hp],
             "winter_kwh_hp": [winter_kwh],
             "winter_rate_hp": [winter_rate_hp],
+            "winter_rate_raw": [winter_rate_raw],
             "winter_months": [",".join(str(m) for m in WINTER_MONTHS)],
         }
     )
@@ -461,6 +503,15 @@ def main() -> None:
         help="Path to write default RIE revenue requirement YAML.",
     )
     parser.add_argument(
+        "--write-revenue-requirement-yamls",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Whether to write differentiated/default revenue requirement YAML outputs "
+            "(default: true)."
+        ),
+    )
+    parser.add_argument(
         "--resstock-loads-path",
         help=(
             "Optional ResStock hourly electric loads directory (local or s3://...). "
@@ -500,22 +551,23 @@ def main() -> None:
     )
     print(breakdown)
 
-    utility, default_revenue_requirement = _load_default_revenue_requirement(
-        scenario_config_path=args.scenario_config,
-        run_num=args.run_num,
-    )
-    differentiated_yaml_path, default_yaml_path = _write_revenue_requirement_yamls(
-        breakdown=breakdown,
-        run_dir=run_dir,
-        group_col=args.group_col,
-        cross_subsidy_col=args.cross_subsidy_col,
-        utility=utility,
-        default_revenue_requirement=default_revenue_requirement,
-        differentiated_yaml_path=args.differentiated_yaml_path,
-        default_yaml_path=args.default_yaml_path,
-    )
-    print(f"Wrote differentiated YAML: {differentiated_yaml_path}")
-    print(f"Wrote default YAML: {default_yaml_path}")
+    if args.write_revenue_requirement_yamls:
+        utility, default_revenue_requirement = _load_default_revenue_requirement(
+            scenario_config_path=args.scenario_config,
+            run_num=args.run_num,
+        )
+        differentiated_yaml_path, default_yaml_path = _write_revenue_requirement_yamls(
+            breakdown=breakdown,
+            run_dir=run_dir,
+            group_col=args.group_col,
+            cross_subsidy_col=args.cross_subsidy_col,
+            utility=utility,
+            default_revenue_requirement=default_revenue_requirement,
+            differentiated_yaml_path=args.differentiated_yaml_path,
+            default_yaml_path=args.default_yaml_path,
+        )
+        print(f"Wrote differentiated YAML: {differentiated_yaml_path}")
+        print(f"Wrote default YAML: {default_yaml_path}")
 
     if args.resstock_loads_path:
         resstock_loads_path = _resolve_path_or_s3(args.resstock_loads_path)

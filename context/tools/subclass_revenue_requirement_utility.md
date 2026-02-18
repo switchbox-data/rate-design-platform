@@ -66,6 +66,11 @@ RI Justfile recipe:
 - `rate_design/ri/hp_rates/Justfile`
   - `compute-subclass-rr` (generic; always pass full run directory path)
 
+Seasonal discount input generation is now intentionally separate:
+
+- `compute-seasonal-discount-inputs` calls
+  `utils/post/compute_seasonal_discount_inputs.py` and does not write RR YAMLs.
+
 Note: if `--group-col` has no dot (for example `has_hp`), the utility first looks for
 that exact column and then falls back to `postprocess_group.<name>`.
 
