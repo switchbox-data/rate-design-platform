@@ -1,21 +1,31 @@
-"""Derive a TOU tariff from marginal-cost data.
+"""Derive seasonal TOU tariffs from marginal-cost data.
 
-Given hourly bulk (Cambium) and distribution marginal costs together with
-system load, this module:
+Provides composable building blocks for rate derivation:
 
-1. Finds the contiguous N-hour peak window with the highest demand-weighted
-   average combined marginal cost across the 24-hour day.
-2. Computes the peak / off-peak cost-causation ratio (demand-weighted MC).
-3. Builds a two-period URDB v7 tariff JSON whose rate ratio equals the
-   cost-causation ratio.
-4. Generates a tariff map that assigns heat-pump customers to the TOU tariff
-   and everyone else to a flat tariff.
+1. **Primitives** — ``find_tou_peak_window``, ``compute_tou_cost_causation_ratio``
+   work on any hourly MC/load slice (full year, single season, etc.).
+2. **Season helpers** — ``Season``, ``season_mask``, ``make_winter_summer_seasons``,
+   ``compute_seasonal_base_rates`` let callers iterate over seasons.
+3. **Tariff builders** — two functions that assemble URDB v7 JSON:
+
+   * ``make_seasonal_tariff`` — N-period seasonal flat (one rate per season).
+   * ``make_seasonal_tou_tariff`` — 2N-period seasonal+TOU (off-peak + peak per
+     season), built from a list of ``SeasonTouSpec``.
+
+4. **Tariff-map helper** — ``generate_tou_tariff_map`` assigns HP customers to the
+   TOU tariff and everyone else to a flat tariff.
+
+The caller (e.g. ``run_scenario.py``) iterates ``for season in seasons`` and
+calls the primitives to derive per-season peak windows and ratios, then passes
+the collected ``SeasonTouSpec`` list to ``make_seasonal_tou_tariff``.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -23,9 +33,110 @@ import pandas as pd
 
 log = logging.getLogger(__name__)
 
+# Default summer months (1-indexed).  June–September is the standard New
+# England utility summer season.
+DEFAULT_SUMMER_MONTHS: list[int] = [6, 7, 8, 9]
+
 
 # ---------------------------------------------------------------------------
-# 1. Peak-window detection
+# Data structures
+# ---------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class Season:
+    """A named season defined by a set of calendar months."""
+
+    name: str
+    months: list[int]  # 1-indexed (January = 1)
+
+
+@dataclass(slots=True)
+class SeasonTouSpec:
+    """Per-season TOU derivation result.
+
+    Produced by the caller after iterating over seasons and calling
+    ``find_tou_peak_window`` + ``compute_tou_cost_causation_ratio`` on each
+    season's MC/load slice.  Consumed by ``make_seasonal_tou_tariff``.
+    """
+
+    season: Season
+    base_rate: float  # off-peak (seasonal flat) rate in $/kWh
+    peak_hours: list[int]  # hour-of-day integers for the TOU peak window
+    peak_offpeak_ratio: float  # peak rate / off-peak rate
+
+
+def save_season_specs(specs: list[SeasonTouSpec], path: Path) -> None:
+    """Serialize a list of :class:`SeasonTouSpec` to a JSON file.
+
+    The output file is consumed by :func:`load_season_specs` (e.g. in
+    ``run_scenario.py`` for the demand-shifting phase).
+    """
+    data = [
+        {
+            "name": s.season.name,
+            "months": s.season.months,
+            "base_rate": s.base_rate,
+            "peak_hours": s.peak_hours,
+            "peak_offpeak_ratio": s.peak_offpeak_ratio,
+        }
+        for s in specs
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_season_specs(path: Path) -> list[SeasonTouSpec]:
+    """Deserialize a derivation JSON produced by :func:`save_season_specs`.
+
+    Returns:
+        List of :class:`SeasonTouSpec` in the same order they were saved.
+    """
+    with open(path) as f:
+        data = json.load(f)
+    return [
+        SeasonTouSpec(
+            season=Season(name=d["name"], months=d["months"]),
+            base_rate=d["base_rate"],
+            peak_hours=d["peak_hours"],
+            peak_offpeak_ratio=d["peak_offpeak_ratio"],
+        )
+        for d in data
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Season helpers
+# ---------------------------------------------------------------------------
+
+
+def season_mask(index: pd.DatetimeIndex, s: Season) -> np.ndarray:
+    """Return a boolean array — ``True`` for timestamps in *s*'s months."""
+    months = np.asarray(index.month)  # type: ignore[union-attr]
+    return np.isin(months, s.months)
+
+
+def make_winter_summer_seasons(
+    summer_months: list[int] | None = None,
+) -> list[Season]:
+    """Return ``[Season("winter", …), Season("summer", …)]``.
+
+    Args:
+        summer_months: 1-indexed month list.  Defaults to
+            ``DEFAULT_SUMMER_MONTHS`` (June–September).
+    """
+    if summer_months is None:
+        summer_months = list(DEFAULT_SUMMER_MONTHS)
+    winter_months = [m for m in range(1, 13) if m not in summer_months]
+    return [
+        Season("winter", winter_months),
+        Season("summer", summer_months),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# 1. Marginal-cost combination
 # ---------------------------------------------------------------------------
 
 
@@ -56,6 +167,12 @@ def combine_marginal_costs(
     return total
 
 
+# ---------------------------------------------------------------------------
+# 2. Peak-window detection & cost-causation ratio (single-responsibility
+#    primitives — work on any slice of the year)
+# ---------------------------------------------------------------------------
+
+
 def find_tou_peak_window(
     combined_mc: pd.Series,
     hourly_system_load: pd.Series,
@@ -64,10 +181,12 @@ def find_tou_peak_window(
     """Find the contiguous *window_hours*-wide block with the highest
     demand-weighted average marginal cost across the 24-hour day.
 
+    This is a **primitive**: it operates on whatever hourly slice is passed
+    in.  For seasonal TOU, callers filter to a single season's hours first.
+
     Args:
-        combined_mc: 8760-row Series of total MC ($/kWh) indexed by time.
-        hourly_system_load: 8760-row Series of system load (kW or kWh)
-            indexed by time.
+        combined_mc: Hourly Series of total MC ($/kWh) indexed by time.
+        hourly_system_load: Matching hourly Series of system load.
         window_hours: Width of the peak window (default 4).
 
     Returns:
@@ -104,11 +223,6 @@ def find_tou_peak_window(
     return peak_hours
 
 
-# ---------------------------------------------------------------------------
-# 2. Cost-causation ratio
-# ---------------------------------------------------------------------------
-
-
 def compute_tou_cost_causation_ratio(
     combined_mc: pd.Series,
     hourly_system_load: pd.Series,
@@ -116,9 +230,12 @@ def compute_tou_cost_causation_ratio(
 ) -> float:
     """Compute the demand-weighted MC ratio: peak / off-peak.
 
+    This is a **primitive**: it operates on whatever hourly slice is passed
+    in.  For seasonal TOU, callers filter to a single season's hours first.
+
     Args:
-        combined_mc: 8760-row total MC series.
-        hourly_system_load: 8760-row system load series.
+        combined_mc: Hourly total MC series.
+        hourly_system_load: Matching hourly system load series.
         peak_hours: Hour-of-day integers defining the peak window.
 
     Returns:
@@ -153,42 +270,190 @@ def compute_tou_cost_causation_ratio(
 
 
 # ---------------------------------------------------------------------------
-# 3. URDB v7 tariff builder
+# 3. Seasonal base-rate derivation
 # ---------------------------------------------------------------------------
 
 
-def create_tou_tariff(
+def compute_seasonal_base_rates(
+    combined_mc: pd.Series,
+    hourly_system_load: pd.Series,
+    seasons: list[Season],
+    base_rate: float,
+) -> dict[str, float]:
+    """Derive a per-season flat rate from demand-weighted MC.
+
+    The ratio of demand-weighted average MC across seasons scales
+    ``base_rate`` so that the load-weighted average of the seasonal rates
+    equals ``base_rate``.
+
+    Args:
+        combined_mc: 8760-row Series of total MC ($/kWh) indexed by time.
+        hourly_system_load: 8760-row Series of system load indexed by time.
+        seasons: List of :class:`Season` objects covering all 12 months.
+        base_rate: Nominal annual average rate ($/kWh); precalc will
+            calibrate the absolute level but the *seasonal ratios* are
+            preserved.
+
+    Returns:
+        ``{season.name: rate}`` for each season.
+    """
+    idx = pd.DatetimeIndex(combined_mc.index)
+    mc_vals = combined_mc.values
+    load_vals = hourly_system_load.values
+
+    # Demand-weighted avg MC per season
+    dw_avgs: dict[str, float] = {}
+    season_loads: dict[str, float] = {}
+    for s in seasons:
+        mask = season_mask(idx, s)
+        mc_s = mc_vals[mask]
+        load_s = load_vals[mask]
+        total_load = float(load_s.sum())
+        if total_load == 0:
+            raise ValueError(f"Load is zero for season '{s.name}'")
+        dw_avgs[s.name] = float((mc_s * load_s).sum() / total_load)
+        season_loads[s.name] = total_load
+
+    # Scale so load-weighted mean of seasonal rates == base_rate
+    total_load = sum(season_loads.values())
+    total_mc = sum(dw_avgs[s.name] * season_loads[s.name] for s in seasons)
+    scale = base_rate * total_load / total_mc if total_mc != 0 else 1.0
+
+    rates: dict[str, float] = {}
+    for s in seasons:
+        rates[s.name] = round(dw_avgs[s.name] * scale, 6)
+        log.info(
+            "Seasonal base rate %s: $%.6f/kWh (dw avg MC=%.6f)",
+            s.name,
+            rates[s.name],
+            dw_avgs[s.name],
+        )
+    return rates
+
+
+# ---------------------------------------------------------------------------
+# 4. URDB v7 tariff builders
+# ---------------------------------------------------------------------------
+
+
+def make_seasonal_tariff(
     label: str,
-    peak_hours: list[int],
-    peak_offpeak_ratio: float,
-    base_rate: float = 0.06,
+    seasons: list[tuple[Season, float]],
     fixed_charge: float = 6.75,
     adjustment: float = 0.0,
     utility: str = "GenericUtility",
 ) -> dict:
-    """Build a two-period URDB v7 tariff JSON.
+    """Build an N-period seasonal flat URDB v7 tariff (no TOU).
 
-    Period 0 = off-peak, period 1 = peak.  The ratio of effective rates
-    (rate + adj) between peak and off-peak equals *peak_offpeak_ratio*.
+    Each season gets one energy-rate period.  Period numbering follows the
+    order of *seasons* (e.g. ``[winter, summer]`` → period 0 = winter,
+    period 1 = summer).
 
     Args:
         label: Tariff label / identifier.
-        peak_hours: Hour-of-day integers (0-23) for the peak period.
-        peak_offpeak_ratio: Peak rate / off-peak rate.
-        base_rate: Off-peak volumetric rate in $/kWh (precalc will calibrate).
+        seasons: ``[(Season, rate), ...]`` — one entry per season with the
+            flat volumetric rate for that season.
         fixed_charge: Fixed monthly charge in $.
-        adjustment: Rate adjustment applied to both periods ($/kWh).
+        adjustment: Rate adjustment applied to all periods ($/kWh).
         utility: Utility name.
 
     Returns:
         Dictionary in URDB v7 ``{"items": [...]}`` format.
     """
-    peak_rate = base_rate * peak_offpeak_ratio
-    peak_hours_set = set(peak_hours)
+    # Build month → period lookup
+    month_to_period: dict[int, int] = {}
+    for period_idx, (s, _rate) in enumerate(seasons):
+        for m in s.months:
+            month_to_period[m] = period_idx
 
-    # 12 months × 24 hours schedule: 0 = off-peak, 1 = peak
-    schedule = [[1 if h in peak_hours_set else 0 for h in range(24)] for _ in range(12)]
+    schedule = [
+        [month_to_period[month_0 + 1] for _h in range(24)] for month_0 in range(12)
+    ]
 
+    rates = [(rate, adjustment) for _s, rate in seasons]
+
+    return _wrap_urdb_tariff(
+        label=label,
+        schedule=schedule,
+        rates=rates,
+        fixed_charge=fixed_charge,
+        utility=utility,
+    )
+
+
+def make_seasonal_tou_tariff(
+    label: str,
+    specs: list[SeasonTouSpec],
+    fixed_charge: float = 6.75,
+    adjustment: float = 0.0,
+    utility: str = "GenericUtility",
+) -> dict:
+    """Build a 2N-period seasonal+TOU URDB v7 tariff.
+
+    For each ``SeasonTouSpec`` at index *i*, two energy-rate periods are
+    created:
+
+    * period ``2·i``   — season off-peak (rate = ``spec.base_rate``)
+    * period ``2·i+1`` — season peak (rate = ``spec.base_rate × ratio``)
+
+    Args:
+        label: Tariff label / identifier.
+        specs: One :class:`SeasonTouSpec` per season, in display order.
+        fixed_charge: Fixed monthly charge in $.
+        adjustment: Rate adjustment applied to all periods ($/kWh).
+        utility: Utility name.
+
+    Returns:
+        Dictionary in URDB v7 ``{"items": [...]}`` format.
+    """
+    # Month → (offpeak_period, peak_hours_set)
+    month_info: dict[int, tuple[int, set[int]]] = {}
+    for i, spec in enumerate(specs):
+        offpeak_period = 2 * i
+        peak_set = set(spec.peak_hours)
+        for m in spec.season.months:
+            month_info[m] = (offpeak_period, peak_set)
+
+    schedule: list[list[int]] = []
+    for month_0 in range(12):
+        month_1 = month_0 + 1
+        offpeak_p, peak_set = month_info[month_1]
+        peak_p = offpeak_p + 1
+        schedule.append([peak_p if h in peak_set else offpeak_p for h in range(24)])
+
+    rates: list[tuple[float, float]] = []
+    for spec in specs:
+        rates.append((spec.base_rate, adjustment))  # off-peak
+        rates.append((spec.base_rate * spec.peak_offpeak_ratio, adjustment))  # peak
+
+    return _wrap_urdb_tariff(
+        label=label,
+        schedule=schedule,
+        rates=rates,
+        fixed_charge=fixed_charge,
+        utility=utility,
+    )
+
+
+def _wrap_urdb_tariff(
+    label: str,
+    schedule: list[list[int]],
+    rates: list[tuple[float, float]],
+    fixed_charge: float,
+    utility: str,
+) -> dict:
+    """Assemble the common URDB v7 JSON envelope.
+
+    Args:
+        label: Tariff label.
+        schedule: 12 × 24 period-index matrix (weekday = weekend).
+        rates: ``[(rate, adj), ...]`` — one entry per period.
+        fixed_charge: Fixed monthly charge in $.
+        utility: Utility name.
+    """
+    rate_structure = [
+        [{"rate": round(rate, 6), "adj": adj, "unit": "kWh"}] for rate, adj in rates
+    ]
     return {
         "items": [
             {
@@ -197,12 +462,7 @@ def create_tou_tariff(
                 "sector": "Residential",
                 "energyweekdayschedule": schedule,
                 "energyweekendschedule": schedule,
-                "energyratestructure": [
-                    # period 0 – off-peak
-                    [{"rate": round(base_rate, 6), "adj": adjustment, "unit": "kWh"}],
-                    # period 1 – peak
-                    [{"rate": round(peak_rate, 6), "adj": adjustment, "unit": "kWh"}],
-                ],
+                "energyratestructure": rate_structure,
                 "fixedchargefirstmeter": fixed_charge,
                 "fixedchargeunits": "$/month",
                 "mincharge": 0.0,
@@ -220,7 +480,7 @@ def create_tou_tariff(
 
 
 # ---------------------------------------------------------------------------
-# 4. Tariff map generator
+# Tariff-map helper
 # ---------------------------------------------------------------------------
 
 
@@ -284,8 +544,6 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     args = _parse_args()
 
-    import polars as pl
-
     from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 
     metadata_base = args.metadata_path
@@ -293,18 +551,14 @@ def main() -> None:
     storage_opts = get_aws_storage_options() if is_s3 else None
 
     metadata_path = f"{metadata_base}/state={args.state}/upgrade={args.upgrade_id}/metadata-sb.parquet"
-    lf: pl.LazyFrame = (
-        pl.scan_parquet(metadata_path, storage_options=storage_opts)
-        if storage_opts
-        else pl.scan_parquet(metadata_path)
-    )
-    metadata_df: pl.DataFrame = lf.select(  # type: ignore[assignment]
-        "bldg_id", "postprocess_group.has_hp"
-    ).collect()
-    metadata_pd = metadata_df.to_pandas()
 
-    tariff_map = generate_tou_tariff_map(
-        customer_metadata=metadata_pd,
+    if is_s3:
+        metadata_df = pd.read_parquet(metadata_path, storage_options=storage_opts)
+    else:
+        metadata_df = pd.read_parquet(metadata_path)
+
+    tariff_map_df = generate_tou_tariff_map(
+        customer_metadata=metadata_df,
         tou_tariff_key=args.tou_tariff_key,
         flat_tariff_key=args.flat_tariff_key,
     )
@@ -312,7 +566,7 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{args.tou_tariff_key}_tariff_map.csv"
-    tariff_map.to_csv(output_path, index=False)
+    tariff_map_df.to_csv(output_path, index=False)
     print(f"Created TOU tariff map: {output_path}")
 
 
