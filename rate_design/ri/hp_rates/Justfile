@@ -78,6 +78,12 @@ map-electric-nyseg-class-specific-seasonal:
 map-electric-rie-default:
   just map-electric-tariff rie default 1 00 {{tariff_maps_dir_ri}}/electric
 
+map-electric-rie-seasonal:
+  just map-electric-tariff rie seasonal 1 00 {{tariff_maps_dir_ri}}/electric
+
+map-electric-rie-seasonal-discount:
+  just map-electric-tariff rie seasonal_discount 1 00 {{tariff_maps_dir_ri}}/electric
+
 map-gas-tariff electric_utility upgrade_id output_dir:
   uv run python {{project_root}}/utils/pre/gas_tariff_mapper.py \
     --metadata_path "{{path_s3_resstock_metadata}}" \
