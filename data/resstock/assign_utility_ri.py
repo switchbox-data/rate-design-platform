@@ -13,13 +13,13 @@ def assign_utility_ri(input_metadata: pl.LazyFrame) -> pl.LazyFrame:
     Assign electric and gas utilities to ResStock buildings in RI.
 
     - sb.electric_utility: All rows get "rie"
-    - sb.gas_utility: Only rows with heats_with_natgas=True get "rie", others get null
+    - sb.gas_utility: Only rows with has_natgas_connection=True get "rie", others get null
     """
-    # Check that heats_with_natgas column exists
+    # Check that has_natgas_connection column exists
     schema_cols = input_metadata.collect_schema().names()
-    if "heats_with_natgas" not in schema_cols:
+    if "has_natgas_connection" not in schema_cols:
         raise ValueError(
-            "Missing required column 'heats_with_natgas'. "
+            "Missing required column 'has_natgas_connection'. "
             "Run identify_heating_type first to add this column."
         )
 
@@ -31,8 +31,8 @@ def assign_utility_ri(input_metadata: pl.LazyFrame) -> pl.LazyFrame:
     return input_metadata.with_columns(
         # All rows get "rie" for electric utility
         pl.lit("rie").alias("sb.electric_utility"),
-        # Only rows with heats_with_natgas=True get "rie" for gas utility, others get null
-        pl.when(pl.col("heats_with_natgas").eq(True))
+        # Only rows with has_natgas_connection=True get "rie" for gas utility, others get null
+        pl.when(pl.col("has_natgas_connection").eq(True))
         .then(pl.lit("rie"))
         .otherwise(None)
         .alias("sb.gas_utility"),
