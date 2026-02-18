@@ -134,7 +134,7 @@ def map_gas_tariff(
     # Check if there are any rows in the filtered dataframe
     test_sample = cast(pl.DataFrame, utility_metadata.head(1).collect())
     if test_sample.is_empty():
-        raise ValueError(f"No rows found for electric utility {electric_utility_name}")
+        return pl.LazyFrame()
 
     gas_tariff_mapping_df = (
         utility_metadata.select(
@@ -331,19 +331,31 @@ if __name__ == "__main__":
         SB_metadata=SB_metadata_with_utilities,
         electric_utility_name=args.electric_utility,
     )
-
-    output_filename = f"{args.electric_utility}_gas.csv"
-    try:
-        out_base = S3Path(args.output_dir)
-        output_path = out_base / output_filename
-        if not output_path.parent.exists():
-            output_path.parent.mkdir(parents=True)
-        gas_tariff_mapping_df.sink_csv(
-            str(output_path), storage_options=STORAGE_OPTIONS
+    # Check if the result has any rows before writing. If there are no rows assigned to the electric utility, empty lazyframe is returned.
+    row_count_df = cast(
+        pl.DataFrame,
+        gas_tariff_mapping_df.select(pl.len()).collect(),
+    )
+    row_count = row_count_df.row(0)[0]
+    if row_count == 0:
+        warnings.warn(
+            f"No rows found for electric utility {args.electric_utility}.",
+            DeprecationWarning,
+            stacklevel=2,
         )
-    except ValueError:
-        out_base = Path(args.output_dir)
-        output_path = out_base / output_filename
-        if not output_path.parent.exists():
-            out_base.mkdir(parents=True, exist_ok=True)
-        gas_tariff_mapping_df.sink_csv(str(output_path))
+    else:
+        output_filename = f"{args.electric_utility}_gas.csv"
+        try:
+            out_base = S3Path(args.output_dir)
+            output_path = out_base / output_filename
+            if not output_path.parent.exists():
+                output_path.parent.mkdir(parents=True)
+            gas_tariff_mapping_df.sink_csv(
+                str(output_path), storage_options=STORAGE_OPTIONS
+            )
+        except ValueError:
+            out_base = Path(args.output_dir)
+            output_path = out_base / output_filename
+            if not output_path.parent.exists():
+                out_base.mkdir(parents=True, exist_ok=True)
+            gas_tariff_mapping_df.sink_csv(str(output_path))

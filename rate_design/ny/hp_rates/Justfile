@@ -103,6 +103,15 @@ map-gas-tariff electric_utility upgrade_id output_dir:
     --electric_utility "{{electric_utility}}" \
     --output_dir "{{output_dir}}"
 
+map-gas-bath:
+  just map-gas-tariff bath 00 {{tariff_maps_dir_ny}}/gas
+
+map-gas-cenhud:
+  just map-gas-tariff cenhud 00 {{tariff_maps_dir_ny}}/gas
+
+map-gas-chautauqua:
+  just map-gas-tariff chautauqua 00 {{tariff_maps_dir_ny}}/gas
+
 map-gas-coned:
   just map-gas-tariff coned 00 {{tariff_maps_dir_ny}}/gas
 
@@ -111,6 +120,26 @@ map-gas-national-grid:
 
 map-gas-nyseg:
   just map-gas-tariff nyseg 00 {{tariff_maps_dir_ny}}/gas
+
+map-gas-or:
+  just map-gas-tariff or 00 {{tariff_maps_dir_ny}}/gas
+
+map-gas-psegli:
+  just map-gas-tariff psegli 00 {{tariff_maps_dir_ny}}/gas
+
+map-gas-rge:
+  just map-gas-tariff rge 00 {{tariff_maps_dir_ny}}/gas
+
+map-gas-all-utilities:
+  just map-gas-bath
+  just map-gas-cenhud
+  just map-gas-chautauqua
+  just map-gas-coned
+  just map-gas-national-grid
+  just map-gas-nyseg
+  just map-gas-or
+  just map-gas-psegli
+  just map-gas-rge
 
 # -----------------------------------------------------------------------------
 # POST: CPI, vulnerability, and NY EAP/EEAP discounts
