@@ -46,6 +46,7 @@ compute-seasonal-discount-inputs run_dir resstock_loads_path cross_subsidy_col="
     --run-dir "{{run_dir}}" \
     --group-col "has_hp" \
     --cross-subsidy-col "{{cross_subsidy_col}}" \
+    --no-write-revenue-requirement-yamls \
     --resstock-loads-path "{{resstock_loads_path}}" \
     {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }}
 

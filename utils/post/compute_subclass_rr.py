@@ -461,6 +461,15 @@ def main() -> None:
         help="Path to write default RIE revenue requirement YAML.",
     )
     parser.add_argument(
+        "--write-revenue-requirement-yamls",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Whether to write differentiated/default revenue requirement YAML outputs "
+            "(default: true)."
+        ),
+    )
+    parser.add_argument(
         "--resstock-loads-path",
         help=(
             "Optional ResStock hourly electric loads directory (local or s3://...). "
@@ -500,22 +509,23 @@ def main() -> None:
     )
     print(breakdown)
 
-    utility, default_revenue_requirement = _load_default_revenue_requirement(
-        scenario_config_path=args.scenario_config,
-        run_num=args.run_num,
-    )
-    differentiated_yaml_path, default_yaml_path = _write_revenue_requirement_yamls(
-        breakdown=breakdown,
-        run_dir=run_dir,
-        group_col=args.group_col,
-        cross_subsidy_col=args.cross_subsidy_col,
-        utility=utility,
-        default_revenue_requirement=default_revenue_requirement,
-        differentiated_yaml_path=args.differentiated_yaml_path,
-        default_yaml_path=args.default_yaml_path,
-    )
-    print(f"Wrote differentiated YAML: {differentiated_yaml_path}")
-    print(f"Wrote default YAML: {default_yaml_path}")
+    if args.write_revenue_requirement_yamls:
+        utility, default_revenue_requirement = _load_default_revenue_requirement(
+            scenario_config_path=args.scenario_config,
+            run_num=args.run_num,
+        )
+        differentiated_yaml_path, default_yaml_path = _write_revenue_requirement_yamls(
+            breakdown=breakdown,
+            run_dir=run_dir,
+            group_col=args.group_col,
+            cross_subsidy_col=args.cross_subsidy_col,
+            utility=utility,
+            default_revenue_requirement=default_revenue_requirement,
+            differentiated_yaml_path=args.differentiated_yaml_path,
+            default_yaml_path=args.default_yaml_path,
+        )
+        print(f"Wrote differentiated YAML: {differentiated_yaml_path}")
+        print(f"Wrote default YAML: {default_yaml_path}")
 
     if args.resstock_loads_path:
         resstock_loads_path = _resolve_path_or_s3(args.resstock_loads_path)
