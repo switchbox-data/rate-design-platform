@@ -6,7 +6,9 @@
 
 For each subclass:
 
-`revenue_requirement = sum(annual electric target bills) - sum(selected BAT metric)`
+`revenue_requirement = weighted_sum(annual electric target bills) - weighted_sum(selected BAT metric)`
+
+where weights are `customer_metadata.csv.weight`.
 
 The selected BAT metric is read from:
 
@@ -51,7 +53,10 @@ Alternative subclass split and BAT metric:
 ```bash
 uv run python utils/post/compute_subclass_rr.py \
   --run-dir "s3://.../<run>/<runtime>" \
-  --output-dir "s3://.../analysis_outputs" \
+  --run-num 1 \
+  --scenario-config "rate_design/ri/hp_rates/config/scenarios.yaml" \
+  --differentiated-yaml-path "rate_design/ri/hp_rates/config/rev_requirement/rie_hp_vs_nonhp.yaml" \
+  --default-yaml-path "rate_design/ri/hp_rates/config/rev_requirement/rie.yaml" \
   --group-col "postprocess_group.heating_type" \
   --cross-subsidy-col "BAT_peak"
 ```
@@ -66,6 +71,10 @@ that exact column and then falls back to `postprocess_group.<name>`.
 
 Output behavior:
 
-- Default output file: `<run-dir>/subclass_revenue_requirement.csv`
-- Optional override: pass `--output-dir` and write to
-  `<output-dir>/subclass_revenue_requirement.csv`
+- Writes differentiated subclass RR YAML:
+  `rate_design/ri/hp_rates/config/rev_requirement/rie_hp_vs_nonhp.yaml`
+- Writes default RIE RR YAML (from `scenarios.yaml.utility_delivery_revenue_requirement`):
+  `rate_design/ri/hp_rates/config/rev_requirement/rie.yaml`
+- Both output paths are overrideable via:
+  - `--differentiated-yaml-path`
+  - `--default-yaml-path`

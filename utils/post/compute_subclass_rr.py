@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import cast
 
 import polars as pl
+import yaml
 from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
@@ -24,6 +25,7 @@ from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 
 # CAIRO output column names
 BLDG_ID_COL = "bldg_id"
+WEIGHT_COL = "weight"
 DEFAULT_GROUP_COL = "has_hp"
 BAT_METRIC_CHOICES = ("BAT_vol", "BAT_peak", "BAT_percustomer")
 DEFAULT_BAT_METRIC = "BAT_percustomer"
@@ -31,9 +33,18 @@ DEFAULT_BAT_METRIC = "BAT_percustomer"
 # Output constants
 GROUP_VALUE_COL = "subclass"
 ANNUAL_MONTH_VALUE = "Annual"
-DEFAULT_OUTPUT_FILENAME = "subclass_revenue_requirement.csv"
 DEFAULT_SEASONAL_OUTPUT_FILENAME = "seasonal_discount_rate_inputs.csv"
 WINTER_MONTHS = (12, 1, 2)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_SCENARIO_CONFIG_PATH = (
+    PROJECT_ROOT / "rate_design/ri/hp_rates/config/scenarios.yaml"
+)
+DEFAULT_DIFFERENTIATED_YAML_PATH = (
+    PROJECT_ROOT / "rate_design/ri/hp_rates/config/rev_requirement/rie_hp_vs_nonhp.yaml"
+)
+DEFAULT_RIE_YAML_PATH = (
+    PROJECT_ROOT / "rate_design/ri/hp_rates/config/rev_requirement/rie.yaml"
+)
 
 
 def _csv_path(run_dir: S3Path | Path, relative: str) -> str:
@@ -73,6 +84,7 @@ def _load_group_values(
             pl.col(resolved_group_col)
             .cast(pl.String, strict=False)
             .alias(GROUP_VALUE_COL),
+            pl.col(WEIGHT_COL).cast(pl.Float64).alias(WEIGHT_COL),
         )
         .with_columns(pl.col(GROUP_VALUE_COL).fill_null("Unknown"))
         .unique(subset=[BLDG_ID_COL], keep="first")
@@ -196,11 +208,14 @@ def compute_hp_seasonal_discount_inputs(
     nulls_cs = hp_cross_subsidy.filter(pl.col("cross_subsidy").is_null()).height
     if nulls_cs:
         raise ValueError(f"Missing cross-subsidy values for {nulls_cs} HP buildings.")
+    nulls_weight = hp_cross_subsidy.filter(pl.col(WEIGHT_COL).is_null()).height
+    if nulls_weight:
+        raise ValueError(f"Missing sample weights for {nulls_weight} HP buildings.")
 
-    hp_ids = hp_cross_subsidy.select(pl.col(BLDG_ID_COL))
+    hp_weights = hp_cross_subsidy.select(pl.col(BLDG_ID_COL), pl.col(WEIGHT_COL))
     loads = _scan_loads_parquet(resstock_loads_path, storage_options)
     winter_kwh_hp = (
-        loads.join(hp_ids.lazy(), on=BLDG_ID_COL, how="inner")
+        loads.join(hp_weights.lazy(), on=BLDG_ID_COL, how="inner")
         .select(
             pl.col(BLDG_ID_COL).cast(pl.Int64),
             pl.col("timestamp")
@@ -208,10 +223,12 @@ def compute_hp_seasonal_discount_inputs(
             .str.to_datetime(strict=False)
             .alias("timestamp"),
             pl.col("total_fuel_electricity").cast(pl.Float64).alias("demand_kwh"),
+            pl.col(WEIGHT_COL).cast(pl.Float64),
         )
         .with_columns(pl.col("timestamp").dt.month().alias("month_num"))
         .filter(pl.col("month_num").is_in(WINTER_MONTHS))
-        .select(pl.col("demand_kwh").sum().alias("winter_kwh_hp"))
+        .with_columns((pl.col("demand_kwh") * pl.col(WEIGHT_COL)).alias("weighted_kwh"))
+        .select(pl.col("weighted_kwh").sum().alias("winter_kwh_hp"))
         .collect()
     )
     winter_kwh_hp = cast(pl.DataFrame, winter_kwh_hp)
@@ -222,7 +239,11 @@ def compute_hp_seasonal_discount_inputs(
             "Winter kWh for HP customers is zero; cannot compute winter rate."
         )
 
-    total_cross_subsidy_hp = float(hp_cross_subsidy["cross_subsidy"].sum())
+    total_cross_subsidy_hp = float(
+        hp_cross_subsidy.select(
+            (pl.col("cross_subsidy") * pl.col(WEIGHT_COL)).sum().alias("weighted_cs")
+        )["weighted_cs"][0]
+    )
     tariff_path = (
         tariff_final_config_path
         if tariff_final_config_path is not None
@@ -282,11 +303,22 @@ def compute_subclass_rr(
         msg = f"Missing cross-subsidy values for {nulls_cs} buildings."
         raise ValueError(msg)
 
+    nulls_weight = joined.filter(pl.col(WEIGHT_COL).is_null()).height
+    if nulls_weight:
+        msg = f"Missing sample weights for {nulls_weight} buildings."
+        raise ValueError(msg)
+
     return (
-        joined.group_by(GROUP_VALUE_COL)
+        joined.with_columns(
+            (pl.col("annual_bill") * pl.col(WEIGHT_COL)).alias("weighted_annual_bill"),
+            (pl.col("cross_subsidy") * pl.col(WEIGHT_COL)).alias(
+                "weighted_cross_subsidy"
+            ),
+        )
+        .group_by(GROUP_VALUE_COL)
         .agg(
-            pl.col("annual_bill").sum().alias("sum_bills"),
-            pl.col("cross_subsidy").sum().alias("sum_cross_subsidy"),
+            pl.col("weighted_annual_bill").sum().alias("sum_bills"),
+            pl.col("weighted_cross_subsidy").sum().alias("sum_cross_subsidy"),
         )
         .with_columns(
             (pl.col("sum_bills") - pl.col("sum_cross_subsidy")).alias(
@@ -297,23 +329,60 @@ def compute_subclass_rr(
     )
 
 
-def _write_breakdown_csv(
+def _load_default_revenue_requirement(
+    scenario_config_path: Path,
+    run_num: int,
+) -> tuple[str, float]:
+    data = yaml.safe_load(scenario_config_path.read_text(encoding="utf-8")) or {}
+    runs = data.get("runs", {})
+    run = runs.get(run_num) or runs.get(str(run_num))
+    if run is None:
+        msg = f"Run {run_num} not found in scenario config: {scenario_config_path}"
+        raise ValueError(msg)
+
+    utility = str(run.get("utility", "rie"))
+    revenue_requirement = float(run["utility_delivery_revenue_requirement"])
+    return utility, revenue_requirement
+
+
+def _write_revenue_requirement_yamls(
     breakdown: pl.DataFrame,
     run_dir: S3Path | Path,
-    output_dir: S3Path | Path | None = None,
-) -> str:
-    target_dir = output_dir if output_dir is not None else run_dir
-    output_path = str(target_dir / DEFAULT_OUTPUT_FILENAME)
-    csv_text = breakdown.write_csv(None)
-    if isinstance(csv_text, str):
-        if isinstance(target_dir, S3Path):
-            S3Path(output_path).write_text(csv_text)
-        else:
-            Path(output_path).write_text(csv_text, encoding="utf-8")
-        return output_path
+    group_col: str,
+    cross_subsidy_col: str,
+    utility: str,
+    default_revenue_requirement: float,
+    differentiated_yaml_path: Path,
+    default_yaml_path: Path,
+) -> tuple[Path, Path]:
+    differentiated_yaml_path.parent.mkdir(parents=True, exist_ok=True)
+    default_yaml_path.parent.mkdir(parents=True, exist_ok=True)
 
-    msg = "Failed to render CSV output text."
-    raise ValueError(msg)
+    differentiated_data = {
+        "utility": utility,
+        "group_col": group_col,
+        "cross_subsidy_col": cross_subsidy_col,
+        "run_dir": str(run_dir),
+        "subclass_revenue_requirements": {
+            str(row["subclass"]): float(row["revenue_requirement"])
+            for row in breakdown.to_dicts()
+        },
+    }
+    default_data = {
+        "utility": utility,
+        "revenue_requirement": float(default_revenue_requirement),
+        "source": "scenarios.yaml.utility_delivery_revenue_requirement",
+    }
+
+    differentiated_yaml_path.write_text(
+        yaml.safe_dump(differentiated_data, sort_keys=False),
+        encoding="utf-8",
+    )
+    default_yaml_path.write_text(
+        yaml.safe_dump(default_data, sort_keys=False),
+        encoding="utf-8",
+    )
+    return differentiated_yaml_path, default_yaml_path
 
 
 def _write_seasonal_inputs_csv(
@@ -365,8 +434,31 @@ def main() -> None:
         help="Month label for annual bill (default: Annual)",
     )
     parser.add_argument(
-        "--output-dir",
-        help=("Optional output directory override. If omitted, writes to --run-dir."),
+        "--scenario-config",
+        type=Path,
+        default=DEFAULT_SCENARIO_CONFIG_PATH,
+        help=(
+            "Path to RI scenarios YAML used to read default utility delivery revenue "
+            "requirement."
+        ),
+    )
+    parser.add_argument(
+        "--run-num",
+        type=int,
+        default=1,
+        help="Run number in scenarios.yaml to read default revenue requirement from.",
+    )
+    parser.add_argument(
+        "--differentiated-yaml-path",
+        type=Path,
+        default=DEFAULT_DIFFERENTIATED_YAML_PATH,
+        help="Path to write differentiated subclass revenue requirements YAML.",
+    )
+    parser.add_argument(
+        "--default-yaml-path",
+        type=Path,
+        default=DEFAULT_RIE_YAML_PATH,
+        help="Path to write default RIE revenue requirement YAML.",
     )
     parser.add_argument(
         "--resstock-loads-path",
@@ -382,18 +474,21 @@ def main() -> None:
             "Defaults to <run-dir>/tariff_final_config.json."
         ),
     )
+    parser.add_argument(
+        "--output-dir",
+        help=(
+            "Optional output directory for seasonal discount CSV. "
+            "If omitted, writes to --run-dir."
+        ),
+    )
     args = parser.parse_args()
 
     run_dir: S3Path | Path = (
         S3Path(args.run_dir) if args.run_dir.startswith("s3://") else Path(args.run_dir)
     )
-    output_dir: S3Path | Path | None = None
-    if args.output_dir:
-        output_dir = (
-            S3Path(args.output_dir)
-            if args.output_dir.startswith("s3://")
-            else Path(args.output_dir)
-        )
+    output_dir: S3Path | Path | None = (
+        _resolve_path_or_s3(args.output_dir) if args.output_dir else None
+    )
     storage_options = get_aws_storage_options() if isinstance(run_dir, S3Path) else None
 
     breakdown = compute_subclass_rr(
@@ -405,12 +500,22 @@ def main() -> None:
     )
     print(breakdown)
 
-    output_path = _write_breakdown_csv(
+    utility, default_revenue_requirement = _load_default_revenue_requirement(
+        scenario_config_path=args.scenario_config,
+        run_num=args.run_num,
+    )
+    differentiated_yaml_path, default_yaml_path = _write_revenue_requirement_yamls(
         breakdown=breakdown,
         run_dir=run_dir,
-        output_dir=output_dir,
+        group_col=args.group_col,
+        cross_subsidy_col=args.cross_subsidy_col,
+        utility=utility,
+        default_revenue_requirement=default_revenue_requirement,
+        differentiated_yaml_path=args.differentiated_yaml_path,
+        default_yaml_path=args.default_yaml_path,
     )
-    print(f"Wrote CSV: {output_path}")
+    print(f"Wrote differentiated YAML: {differentiated_yaml_path}")
+    print(f"Wrote default YAML: {default_yaml_path}")
 
     if args.resstock_loads_path:
         resstock_loads_path = _resolve_path_or_s3(args.resstock_loads_path)

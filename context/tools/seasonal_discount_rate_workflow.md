@@ -30,19 +30,19 @@ Where:
 
 ## CLI / Justfile Flow
 
-1) Compute subclass RR (existing output)
+1. Compute subclass RR (existing output)
 
 ```bash
 just compute-subclass-rr <run_dir> has_hp BAT_percustomer
 ```
 
-2) Compute seasonal discount inputs (writes `seasonal_discount_rate_inputs.csv`)
+2. Compute seasonal discount inputs (writes `seasonal_discount_rate_inputs.csv`)
 
 ```bash
 just compute-seasonal-discount-inputs <run_dir> <resstock_loads_path> BAT_percustomer
 ```
 
-3) Create seasonal tariff JSON (summer fixed at default rate)
+3. Create seasonal tariff JSON (summer fixed at default rate)
 
 ```bash
 just create-seasonal-discount-tariff \
@@ -52,7 +52,7 @@ just create-seasonal-discount-tariff \
   <output_json>
 ```
 
-4) Generate tariff map using existing mapper support (`seasonal_discount`)
+4. Generate tariff map using existing mapper support (`seasonal_discount`)
 
 ```bash
 just map-electric-rie-seasonal-discount
