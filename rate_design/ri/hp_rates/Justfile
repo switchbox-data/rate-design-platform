@@ -59,6 +59,27 @@ create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label outpu
     --label "{{label}}" \
     --output-path "{{output_path}}"
 
+ri_tariffs_electric_dir := project_root + "/rate_design/ri/hp_rates/config/tariffs/electric"
+ri_hp_seasonal_calibrated_tariff := ri_tariffs_electric_dir + "/rie_hp_seasonal_calibrated.json"
+ri_hp_seasonal_calibrated_supply_tariff := ri_tariffs_electric_dir + "/rie_hp_seasonal_calibrated_supply.json"
+
+# Run 1 (delivery-only) seasonal calibrated tariff output.
+create-rie-hp-seasonal-calibrated seasonal_inputs_csv:
+  just create-seasonal-discount-tariff \
+    {{ri_tariffs_electric_dir}}/rie_a16.json \
+    "{{seasonal_inputs_csv}}" \
+    rie_hp_seasonal_calibrated \
+    {{ri_hp_seasonal_calibrated_tariff}}
+
+# Run 2 (delivery+supply) seasonal calibrated tariff output.
+# Use seasonal inputs generated from run 2 when calling this recipe.
+create-rie-hp-seasonal-calibrated-supply seasonal_inputs_csv:
+  just create-seasonal-discount-tariff \
+    {{ri_tariffs_electric_dir}}/rie_a16_supply_adj.json \
+    "{{seasonal_inputs_csv}}" \
+    rie_hp_seasonal_calibrated_supply \
+    {{ri_hp_seasonal_calibrated_supply_tariff}}
+
 # -----------------------------------------------------------------------------
 # PRE: Tariff mapping (electric and gas)
 # -----------------------------------------------------------------------------

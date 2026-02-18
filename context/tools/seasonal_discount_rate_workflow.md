@@ -45,12 +45,14 @@ just compute-seasonal-discount-inputs <run_dir> <resstock_loads_path> BAT_percus
 3. Create seasonal tariff JSON (summer fixed at default rate)
 
 ```bash
-just create-seasonal-discount-tariff \
-  <base_tariff_json> \
-  <seasonal_inputs_csv> \
-  <label> \
-  <output_json>
+just create-rie-hp-seasonal-calibrated <seasonal_inputs_csv>
+just create-rie-hp-seasonal-calibrated-supply <seasonal_inputs_csv_from_run2>
 ```
+
+Output names are fixed to match RI config tariff naming:
+
+- Run 1 (delivery): `rate_design/ri/hp_rates/config/tariffs/electric/rie_hp_seasonal_calibrated.json`
+- Run 2 (delivery + supply): `rate_design/ri/hp_rates/config/tariffs/electric/rie_hp_seasonal_calibrated_supply.json`
 
 4. Generate tariff map using existing mapper support (`seasonal_discount`)
 
@@ -69,3 +71,6 @@ just map-electric-rie-seasonal-discount
 - `winter_kwh_hp`
 - `winter_rate_hp`
 - `winter_months` (always `12,1,2`)
+
+Both `total_cross_subsidy_hp` and `winter_kwh_hp` are weighted by
+`customer_metadata.weight`.
