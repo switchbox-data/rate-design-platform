@@ -22,9 +22,10 @@ run-scenario-with-output run_num output_dir scenario_config=ri_run_scenario_conf
     --output-dir "{{output_dir}}"
 
 # -----------------------------------------------------------------------------
-# Post-processing: subclass revenue requirements from CAIRO BAT outputs
+# Post-processing
 # -----------------------------------------------------------------------------
-# Always pass the full CAIRO run directory path
+
+# Revenue requirement YAML outputs from CAIRO BAT results.
 ri_rev_requirement_dir := project_root + "/rate_design/ri/hp_rates/config/rev_requirement"
 ri_differentiated_rev_requirement_yaml := ri_rev_requirement_dir + "/rie_hp_vs_nonhp.yaml"
 ri_default_rev_requirement_yaml := ri_rev_requirement_dir + "/rie.yaml"
@@ -39,9 +40,7 @@ compute-subclass-rr run_dir run_num="1" scenario_config=ri_run_scenario_config g
     --differentiated-yaml-path "{{differentiated_yaml}}" \
     --default-yaml-path "{{default_yaml}}"
 
-# Compute seasonal discount inputs from run outputs and ResStock hourly loads.
-# Formula (HP only): winter_rate = default_rate - (total_cross_subsidy_hp / winter_kwh_hp),
-# where winter is defined as Dec-Feb.
+# Seasonal discount inputs from run outputs + ResStock loads.
 compute-seasonal-discount-inputs run_dir resstock_loads_path cross_subsidy_col="BAT_percustomer" output_dir="":
   uv run python {{project_root}}/utils/post/compute_subclass_rr.py \
     --run-dir "{{run_dir}}" \
@@ -50,8 +49,7 @@ compute-seasonal-discount-inputs run_dir resstock_loads_path cross_subsidy_col="
     --resstock-loads-path "{{resstock_loads_path}}" \
     {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }}
 
-# Create a seasonal-discount tariff JSON using seasonal_discount_rate_inputs.csv.
-# Summer rate is fixed to default_rate from tariff_final_config.json.
+# Tariff JSON creation from seasonal_discount_rate_inputs.csv.
 create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label output_path:
   uv run python {{project_root}}/utils/pre/create_seasonal_discount_tariff.py \
     --base-tariff-json "{{base_tariff_json}}" \
@@ -63,7 +61,7 @@ ri_tariffs_electric_dir := project_root + "/rate_design/ri/hp_rates/config/tarif
 ri_hp_seasonal_calibrated_tariff := ri_tariffs_electric_dir + "/rie_hp_seasonal_calibrated.json"
 ri_hp_seasonal_calibrated_supply_tariff := ri_tariffs_electric_dir + "/rie_hp_seasonal_calibrated_supply.json"
 
-# Run 1 (delivery-only) seasonal calibrated tariff output.
+# Run 1 (delivery-only) calibrated seasonal tariff.
 create-rie-hp-seasonal-calibrated seasonal_inputs_csv:
   just create-seasonal-discount-tariff \
     {{ri_tariffs_electric_dir}}/rie_a16.json \
@@ -71,8 +69,7 @@ create-rie-hp-seasonal-calibrated seasonal_inputs_csv:
     rie_hp_seasonal_calibrated \
     {{ri_hp_seasonal_calibrated_tariff}}
 
-# Run 2 (delivery+supply) seasonal calibrated tariff output.
-# Use seasonal inputs generated from run 2 when calling this recipe.
+# Run 2 (delivery + supply) calibrated seasonal tariff.
 create-rie-hp-seasonal-calibrated-supply seasonal_inputs_csv:
   just create-seasonal-discount-tariff \
     {{ri_tariffs_electric_dir}}/rie_a16_supply_adj.json \
