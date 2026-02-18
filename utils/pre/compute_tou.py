@@ -6,18 +6,19 @@ Provides composable building blocks for rate derivation:
    work on any hourly MC/load slice (full year, single season, etc.).
 2. **Season helpers** — ``Season``, ``season_mask``, ``make_winter_summer_seasons``,
    ``compute_seasonal_base_rates`` let callers iterate over seasons.
-3. **Tariff builders** — two functions that assemble URDB v7 JSON:
+3. **Tariff builders** — handled by ``utils.pre.create_tariff``:
 
-   * ``make_seasonal_tariff`` — N-period seasonal flat (one rate per season).
-   * ``make_seasonal_tou_tariff`` — 2N-period seasonal+TOU (off-peak + peak per
-     season), built from a list of ``SeasonTouSpec``.
+   * ``create_seasonal_tariff`` — N-period seasonal flat (one rate per season).
+   * ``create_seasonal_tou_tariff`` — 2N-period seasonal+TOU (off-peak + peak per
+    season).
 
 4. **Tariff-map helper** — ``generate_tou_tariff_map`` assigns HP customers to the
    TOU tariff and everyone else to a flat tariff.
 
-The caller (e.g. ``run_scenario.py``) iterates ``for season in seasons`` and
-calls the primitives to derive per-season peak windows and ratios, then passes
-the collected ``SeasonTouSpec`` list to ``make_seasonal_tou_tariff``.
+The caller (e.g. ``run_scenario.py`` or ``derive_seasonal_tou.py``) iterates
+``for season in seasons`` and calls the primitives to derive per-season peak
+windows and ratios, then passes those to tariff constructors from
+``utils.pre.create_tariff``.
 """
 
 from __future__ import annotations
@@ -57,7 +58,8 @@ class SeasonTouSpec:
 
     Produced by the caller after iterating over seasons and calling
     ``find_tou_peak_window`` + ``compute_tou_cost_causation_ratio`` on each
-    season's MC/load slice.  Consumed by ``make_seasonal_tou_tariff``.
+    season's MC/load slice. Consumed by tariff constructors in
+    ``utils.pre.create_tariff``.
     """
 
     season: Season
@@ -329,154 +331,6 @@ def compute_seasonal_base_rates(
             dw_avgs[s.name],
         )
     return rates
-
-
-# ---------------------------------------------------------------------------
-# 4. URDB v7 tariff builders
-# ---------------------------------------------------------------------------
-
-
-def make_seasonal_tariff(
-    label: str,
-    seasons: list[tuple[Season, float]],
-    fixed_charge: float = 6.75,
-    adjustment: float = 0.0,
-    utility: str = "GenericUtility",
-) -> dict:
-    """Build an N-period seasonal flat URDB v7 tariff (no TOU).
-
-    Each season gets one energy-rate period.  Period numbering follows the
-    order of *seasons* (e.g. ``[winter, summer]`` → period 0 = winter,
-    period 1 = summer).
-
-    Args:
-        label: Tariff label / identifier.
-        seasons: ``[(Season, rate), ...]`` — one entry per season with the
-            flat volumetric rate for that season.
-        fixed_charge: Fixed monthly charge in $.
-        adjustment: Rate adjustment applied to all periods ($/kWh).
-        utility: Utility name.
-
-    Returns:
-        Dictionary in URDB v7 ``{"items": [...]}`` format.
-    """
-    # Build month → period lookup
-    month_to_period: dict[int, int] = {}
-    for period_idx, (s, _rate) in enumerate(seasons):
-        for m in s.months:
-            month_to_period[m] = period_idx
-
-    schedule = [
-        [month_to_period[month_0 + 1] for _h in range(24)] for month_0 in range(12)
-    ]
-
-    rates = [(rate, adjustment) for _s, rate in seasons]
-
-    return _wrap_urdb_tariff(
-        label=label,
-        schedule=schedule,
-        rates=rates,
-        fixed_charge=fixed_charge,
-        utility=utility,
-    )
-
-
-def make_seasonal_tou_tariff(
-    label: str,
-    specs: list[SeasonTouSpec],
-    fixed_charge: float = 6.75,
-    adjustment: float = 0.0,
-    utility: str = "GenericUtility",
-) -> dict:
-    """Build a 2N-period seasonal+TOU URDB v7 tariff.
-
-    For each ``SeasonTouSpec`` at index *i*, two energy-rate periods are
-    created:
-
-    * period ``2·i``   — season off-peak (rate = ``spec.base_rate``)
-    * period ``2·i+1`` — season peak (rate = ``spec.base_rate × ratio``)
-
-    Args:
-        label: Tariff label / identifier.
-        specs: One :class:`SeasonTouSpec` per season, in display order.
-        fixed_charge: Fixed monthly charge in $.
-        adjustment: Rate adjustment applied to all periods ($/kWh).
-        utility: Utility name.
-
-    Returns:
-        Dictionary in URDB v7 ``{"items": [...]}`` format.
-    """
-    # Month → (offpeak_period, peak_hours_set)
-    month_info: dict[int, tuple[int, set[int]]] = {}
-    for i, spec in enumerate(specs):
-        offpeak_period = 2 * i
-        peak_set = set(spec.peak_hours)
-        for m in spec.season.months:
-            month_info[m] = (offpeak_period, peak_set)
-
-    schedule: list[list[int]] = []
-    for month_0 in range(12):
-        month_1 = month_0 + 1
-        offpeak_p, peak_set = month_info[month_1]
-        peak_p = offpeak_p + 1
-        schedule.append([peak_p if h in peak_set else offpeak_p for h in range(24)])
-
-    rates: list[tuple[float, float]] = []
-    for spec in specs:
-        rates.append((spec.base_rate, adjustment))  # off-peak
-        rates.append((spec.base_rate * spec.peak_offpeak_ratio, adjustment))  # peak
-
-    return _wrap_urdb_tariff(
-        label=label,
-        schedule=schedule,
-        rates=rates,
-        fixed_charge=fixed_charge,
-        utility=utility,
-    )
-
-
-def _wrap_urdb_tariff(
-    label: str,
-    schedule: list[list[int]],
-    rates: list[tuple[float, float]],
-    fixed_charge: float,
-    utility: str,
-) -> dict:
-    """Assemble the common URDB v7 JSON envelope.
-
-    Args:
-        label: Tariff label.
-        schedule: 12 × 24 period-index matrix (weekday = weekend).
-        rates: ``[(rate, adj), ...]`` — one entry per period.
-        fixed_charge: Fixed monthly charge in $.
-        utility: Utility name.
-    """
-    rate_structure = [
-        [{"rate": round(rate, 6), "adj": adj, "unit": "kWh"}] for rate, adj in rates
-    ]
-    return {
-        "items": [
-            {
-                "label": label,
-                "uri": "",
-                "sector": "Residential",
-                "energyweekdayschedule": schedule,
-                "energyweekendschedule": schedule,
-                "energyratestructure": rate_structure,
-                "fixedchargefirstmeter": fixed_charge,
-                "fixedchargeunits": "$/month",
-                "mincharge": 0.0,
-                "minchargeunits": "$/month",
-                "utility": utility,
-                "servicetype": "Bundled",
-                "name": label,
-                "is_default": False,
-                "country": "USA",
-                "demandunits": "kW",
-                "demandrateunit": "kW",
-            }
-        ]
-    }
 
 
 # ---------------------------------------------------------------------------

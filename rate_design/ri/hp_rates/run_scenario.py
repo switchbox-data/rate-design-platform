@@ -9,8 +9,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
-import pandas as pd
-import polars as pl
 import yaml
 from cairo.rates_tool.loads import (
     _return_load,
@@ -24,12 +22,15 @@ from cairo.rates_tool.systemsimulator import (
     _return_revenue_requirement_target,
 )
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.cairo import _load_cambium_marginal_costs, build_bldg_id_to_load_filepath
+from utils.cairo import (
+    _load_cambium_marginal_costs,
+    build_bldg_id_to_load_filepath,
+    load_distribution_marginal_costs,
+)
+from utils.pre.create_tariff import create_tou_tariff
 from utils.pre.compute_tou import (
     combine_marginal_costs,
     compute_tou_cost_causation_ratio,
-    create_tou_tariff,
     find_tou_peak_window,
     generate_tou_tariff_map,
 )
@@ -46,8 +47,8 @@ DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
 
 
 @dataclass(slots=True)
-class ComputeTouConfig:
-    """Optional MC-driven TOU tariff computation."""
+class TouDerivationConfig:
+    """Optional MC-driven TOU tariff derivation."""
 
     enabled: bool = False
     tou_tariff_key: str = ""
@@ -83,7 +84,7 @@ class ScenarioSettings:
     process_workers: int
     solar_pv_compensation: str = "net_metering"
     delivery_only_rev_req_passed: bool = False
-    compute_tou: ComputeTouConfig = field(default_factory=ComputeTouConfig)
+    tou_derivation: TouDerivationConfig = field(default_factory=TouDerivationConfig)
 
 
 def _parse_int(value: object, field_name: str) -> int:
@@ -154,17 +155,17 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
     return _require_mapping(run, f"runs[{run_num}]")
 
 
-def _parse_compute_tou_config(run: dict[str, Any]) -> ComputeTouConfig:
-    """Parse the optional ``compute_tou`` block from a run config."""
-    raw = run.get("compute_tou")
+def _parse_tou_derivation_config(run: dict[str, Any]) -> TouDerivationConfig:
+    """Parse the optional ``tou_derivation`` block from a run config."""
+    raw = run.get("tou_derivation")
     if raw is None or not isinstance(raw, dict):
-        return ComputeTouConfig()
-    return ComputeTouConfig(
-        enabled=_parse_bool(raw.get("enabled", False), "compute_tou.enabled"),
+        return TouDerivationConfig()
+    return TouDerivationConfig(
+        enabled=_parse_bool(raw.get("enabled", False), "tou_derivation.enabled"),
         tou_tariff_key=str(raw.get("tou_tariff_key", "")),
         flat_tariff_key=str(raw.get("flat_tariff_key", "")),
         tou_window_hours=_parse_int(
-            raw.get("tou_window_hours", 4), "compute_tou.tou_window_hours"
+            raw.get("tou_window_hours", 4), "tou_derivation.tou_window_hours"
         ),
         tou_base_rate=float(raw.get("tou_base_rate", 0.06)),
         tou_fixed_charge=float(raw.get("tou_fixed_charge", 6.75)),
@@ -201,22 +202,22 @@ def _build_settings_from_yaml_run(
     )
     solar_pv_compensation = str(run.get("solar_pv_compensation", "net_metering"))
 
-    compute_tou_cfg = _parse_compute_tou_config(run)
+    tou_derivation_cfg = _parse_tou_derivation_config(run)
 
-    # When compute_tou is enabled the tariff paths / maps are derived at
+    # When tou_derivation is enabled the tariff paths / maps are derived at
     # runtime so the YAML fields are optional.  We still need placeholder
     # values so the dataclass can be constructed – they will be overridden
     # inside run() once the TOU tariff is generated.
-    if compute_tou_cfg.enabled:
+    if tou_derivation_cfg.enabled:
         path_tariffs_electric: dict[str, Path] = {}
         path_tariff_maps_electric = (
             PATH_CONFIG / "tariff_maps" / "electric" / "placeholder.csv"
         )
         precalc_tariff_path = PATH_CONFIG / "tariffs" / "electric" / "placeholder.json"
-        precalc_tariff_key = compute_tou_cfg.tou_tariff_key
+        precalc_tariff_key = tou_derivation_cfg.tou_tariff_key
 
         # Include the flat tariff path so non-HP customers still have a tariff.
-        flat_key = compute_tou_cfg.flat_tariff_key
+        flat_key = tou_derivation_cfg.flat_tariff_key
         if flat_key:
             raw_flat_path = run.get("path_tariffs_electric", {}).get(flat_key)
             if raw_flat_path:
@@ -293,7 +294,7 @@ def _build_settings_from_yaml_run(
         process_workers=process_workers,
         solar_pv_compensation=solar_pv_compensation,
         delivery_only_rev_req_passed=delivery_only_rev_req_passed,
-        compute_tou=compute_tou_cfg,
+        tou_derivation=tou_derivation_cfg,
     )
 
 
@@ -335,51 +336,6 @@ def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
         output_dir=args.output_dir,
         run_name_override=args.run_name,
     )
-
-
-# ---------------------------------------------------------------------------
-# Loading helpers (extracted from run() for clarity)
-# ---------------------------------------------------------------------------
-
-
-def _load_distribution_marginal_costs(
-    state: str,
-    region: str,
-    utility: str,
-    year_run: int,
-) -> pd.Series:
-    """Load distribution marginal costs from S3 and return as a tz-aware Series."""
-    distribution_mc_root = (
-        f"s3://data.sb/switchbox/marginal_costs/{state.lower().strip('/')}/"
-    )
-    distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
-        distribution_mc_root,
-        hive_partitioning=True,
-        storage_options=get_aws_storage_options(),
-    )
-    distribution_mc_scan = (
-        distribution_mc_scan.filter(pl.col("region").cast(pl.Utf8) == region)
-        .filter(pl.col("utility").cast(pl.Utf8) == utility)
-        .filter(pl.col("year").cast(pl.Utf8) == str(year_run))
-    )
-    distribution_mc_df = cast(pl.DataFrame, distribution_mc_scan.collect())
-    distribution_marginal_costs = distribution_mc_df.to_pandas()
-    required_cols = {"timestamp", "mc_total_per_kwh"}
-    missing_cols = required_cols.difference(distribution_marginal_costs.columns)
-    if missing_cols:
-        raise ValueError(
-            "Distribution marginal costs parquet is missing required columns "
-            f"{sorted(required_cols)}. Missing: {sorted(missing_cols)}"
-        )
-    distribution_marginal_costs = distribution_marginal_costs.set_index("timestamp")[
-        "mc_total_per_kwh"
-    ]
-    distribution_marginal_costs.index = pd.DatetimeIndex(
-        distribution_marginal_costs.index
-    ).tz_localize("EST")
-    distribution_marginal_costs.index.name = "time"
-    distribution_marginal_costs.name = "Marginal Distribution Costs ($/kWh)"
-    return distribution_marginal_costs
 
 
 # ---------------------------------------------------------------------------
@@ -430,7 +386,7 @@ def run(settings: ScenarioSettings) -> None:
         settings.year_run,
     )
 
-    distribution_marginal_costs = _load_distribution_marginal_costs(
+    distribution_marginal_costs = load_distribution_marginal_costs(
         state=settings.state,
         region=settings.region,
         utility=settings.utility,
@@ -446,8 +402,8 @@ def run(settings: ScenarioSettings) -> None:
     # Phase 2 (optional): Derive TOU tariff from marginal costs
     # ------------------------------------------------------------------
 
-    if settings.compute_tou.enabled:
-        tou_cfg = settings.compute_tou
+    if settings.tou_derivation.enabled:
+        tou_cfg = settings.tou_derivation
         log.info(
             ".... Computing TOU tariff from marginal costs (window=%d h, key=%s)",
             tou_cfg.tou_window_hours,

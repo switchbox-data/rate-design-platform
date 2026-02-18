@@ -29,7 +29,6 @@ Or directly::
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 from pathlib import Path
 
@@ -46,17 +45,20 @@ from utils.cairo import (
     load_distribution_marginal_costs,
 )
 from utils.pre.compute_tou import (
-    DEFAULT_SUMMER_MONTHS,
     SeasonTouSpec,
     combine_marginal_costs,
     compute_seasonal_base_rates,
     compute_tou_cost_causation_ratio,
     find_tou_peak_window,
     generate_tou_tariff_map,
-    make_seasonal_tou_tariff,
     make_winter_summer_seasons,
     save_season_specs,
     season_mask,
+)
+from utils.pre.create_tariff import (
+    SeasonalTouTariffSpec,
+    create_seasonal_tou_tariff,
+    write_tariff_json,
 )
 
 log = logging.getLogger(__name__)
@@ -145,9 +147,17 @@ def derive_seasonal_tou(
             )
         )
 
-    tou_tariff = make_seasonal_tou_tariff(
+    tou_tariff = create_seasonal_tou_tariff(
         label=tou_tariff_key,
-        specs=season_specs,
+        specs=[
+            SeasonalTouTariffSpec(
+                months=spec.season.months,
+                base_rate=spec.base_rate,
+                peak_hours=spec.peak_hours,
+                peak_offpeak_ratio=spec.peak_offpeak_ratio,
+            )
+            for spec in season_specs
+        ],
         fixed_charge=tou_fixed_charge,
         utility=utility,
     )
@@ -262,7 +272,9 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(name)s %(levelname)s: %(message)s"
+    )
     args = _parse_args()
 
     summer_months = [int(m) for m in args.summer_months.split(",")]
@@ -334,8 +346,7 @@ def main() -> None:
     # -- 3. Write outputs ----------------------------------------------------
     tariff_path = output_dir / "tariffs" / "electric" / f"{args.tou_tariff_key}.json"
     tariff_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(tariff_path, "w") as f:
-        json.dump(tou_tariff, f, indent=2)
+    write_tariff_json(tou_tariff, tariff_path)
     log.info("Wrote TOU tariff JSON: %s", tariff_path)
 
     map_path = (

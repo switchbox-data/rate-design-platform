@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from utils.pre.create_tariff import (
+    SeasonalTouTariffSpec,
     WINTER_MONTHS,
     create_default_flat_tariff,
     create_seasonal_rate,
+    create_seasonal_tou_tariff,
+    create_tou_tariff,
 )
 
 
@@ -57,3 +60,47 @@ def test_create_seasonal_rate_sets_winter_summer_periods() -> None:
     assert feb_period == (1 if 2 in WINTER_MONTHS else 0)
     assert jul_period == 0
     assert dec_period == (1 if 12 in WINTER_MONTHS else 0)
+
+
+def test_create_tou_tariff_has_two_periods() -> None:
+    tou = create_tou_tariff(
+        label="rie_tou_hp",
+        peak_hours=[16, 17, 18, 19],
+        peak_offpeak_ratio=1.5,
+        base_rate=0.1,
+        fixed_charge=6.75,
+    )
+    item = tou["items"][0]
+    assert len(item["energyratestructure"]) == 2
+    assert item["energyratestructure"][0][0]["rate"] == 0.1
+    assert item["energyratestructure"][1][0]["rate"] == 0.15
+    assert item["energyweekdayschedule"][0][16] == 1
+    assert item["energyweekdayschedule"][0][8] == 0
+
+
+def test_create_seasonal_tou_tariff_has_four_periods() -> None:
+    winter = SeasonalTouTariffSpec(
+        months=[1, 2, 3, 4, 5, 10, 11, 12],
+        base_rate=0.08,
+        peak_hours=[17, 18, 19, 20],
+        peak_offpeak_ratio=1.6,
+    )
+    summer = SeasonalTouTariffSpec(
+        months=[6, 7, 8, 9],
+        base_rate=0.06,
+        peak_hours=[14, 15, 16, 17],
+        peak_offpeak_ratio=1.4,
+    )
+    tariff = create_seasonal_tou_tariff(
+        label="rie_seasonal_tou_hp",
+        specs=[winter, summer],
+        fixed_charge=6.75,
+    )
+    item = tariff["items"][0]
+    assert len(item["energyratestructure"]) == 4
+    # January (index 0) uses winter off-peak period 0 and winter peak period 1.
+    assert item["energyweekdayschedule"][0][10] == 0
+    assert item["energyweekdayschedule"][0][18] == 1
+    # July (index 6) uses summer off-peak period 2 and summer peak period 3.
+    assert item["energyweekdayschedule"][6][10] == 2
+    assert item["energyweekdayschedule"][6][15] == 3

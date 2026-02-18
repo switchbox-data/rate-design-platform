@@ -6,9 +6,12 @@ import io
 from pathlib import Path
 
 import pandas as pd
+import polars as pl
 from cairo.rates_tool import config
 from cairo.rates_tool.loads import __timeshift__
 from cloudpathlib import S3Path
+
+from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 
 CambiumPathLike = str | Path | S3Path
 
@@ -168,3 +171,43 @@ def build_bldg_id_to_load_filepath(
         bldg_id_to_load_filepath[bldg_id] = filepath
 
     return bldg_id_to_load_filepath
+
+
+def load_distribution_marginal_costs(
+    state: str,
+    region: str,
+    utility: str,
+    year_run: int,
+) -> pd.Series:
+    """Load distribution marginal costs from S3 and return a tz-aware Series."""
+    distribution_mc_root = (
+        f"s3://data.sb/switchbox/marginal_costs/{state.lower().strip('/')}/"
+    )
+    distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
+        distribution_mc_root,
+        hive_partitioning=True,
+        storage_options=get_aws_storage_options(),
+    )
+    distribution_mc_scan = (
+        distribution_mc_scan.filter(pl.col("region").cast(pl.Utf8) == region)
+        .filter(pl.col("utility").cast(pl.Utf8) == utility)
+        .filter(pl.col("year").cast(pl.Utf8) == str(year_run))
+    )
+    distribution_mc_df = distribution_mc_scan.collect()
+    distribution_marginal_costs = distribution_mc_df.to_pandas()
+    required_cols = {"timestamp", "mc_total_per_kwh"}
+    missing_cols = required_cols.difference(distribution_marginal_costs.columns)
+    if missing_cols:
+        raise ValueError(
+            "Distribution marginal costs parquet is missing required columns "
+            f"{sorted(required_cols)}. Missing: {sorted(missing_cols)}"
+        )
+    distribution_marginal_costs = distribution_marginal_costs.set_index("timestamp")[
+        "mc_total_per_kwh"
+    ]
+    distribution_marginal_costs.index = pd.DatetimeIndex(
+        distribution_marginal_costs.index
+    ).tz_localize("EST")
+    distribution_marginal_costs.index.name = "time"
+    distribution_marginal_costs.name = "Marginal Distribution Costs ($/kWh)"
+    return distribution_marginal_costs

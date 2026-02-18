@@ -10,7 +10,7 @@ from typing import Any
 import polars as pl
 from cloudpathlib import S3Path
 
-from utils.pre.create_tariff import create_seasonal_rate
+from utils.pre.create_tariff import create_seasonal_rate, write_tariff_json
 
 
 def _resolve_path(path_value: str) -> S3Path | Path:
@@ -30,13 +30,11 @@ def _read_csv(path: S3Path | Path) -> pl.DataFrame:
 
 
 def _write_json(path: S3Path | Path, payload: dict[str, Any]) -> str:
-    text = json.dumps(payload, indent=2)
     if isinstance(path, S3Path):
-        path.write_text(text)
+        path.write_text(json.dumps(payload, indent=2))
         return str(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-    return str(path)
+    written = write_tariff_json(payload, path)
+    return str(written)
 
 
 def main() -> None:
