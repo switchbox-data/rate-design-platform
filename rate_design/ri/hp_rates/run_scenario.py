@@ -124,48 +124,32 @@ def _parse_path_tariffs(
     path_tariff_map: Path,
     base_dir: Path,
     label: str,
-    *,
-    allow_dict: bool = False,
 ) -> dict[str, Path]:
-    """Parse path_tariffs from YAML and reconcile with tariff map.
+    """Parse path_tariffs_electric from YAML (list only) and reconcile with map.
 
-    Electric: value must be a list of path strings; keys are derived from
-    filename stem (e.g. tariffs/electric/foo.json -> foo).
-    Gas (when not using directory): value may be list or dict; dict only if
-    allow_dict=True.
-    Every tariff_key in the map must have an entry, and every list/dict entry
-    must appear in the map.
+    Value must be a list of path strings; keys are derived from filename stem
+    (e.g. tariffs/electric/foo.json -> foo). Every tariff_key in the map must
+    have an entry, and every list entry must appear in the map.
     """
-    if isinstance(value, list):
-        path_tariffs = {}
-        for item in value:
-            if not isinstance(item, str):
-                raise ValueError(
-                    f"path_tariffs_{label} list must contain path strings; "
-                    f"got {type(item).__name__}"
-                )
-            path = _resolve_path(item, base_dir)
-            key = path.stem
-            if key in path_tariffs:
-                raise ValueError(
-                    f"path_tariffs_{label}: duplicate key '{key}' from paths "
-                    f"{path_tariffs[key]} and {path}"
-                )
-            path_tariffs[key] = path
-    elif isinstance(value, dict):
-        if not allow_dict:
-            raise ValueError(
-                f"path_tariffs_{label} must be a list of paths; dict not allowed"
-            )
-        path_tariffs = {
-            str(k): _resolve_path(str(v), base_dir) for k, v in value.items()
-        }
-    else:
+    if not isinstance(value, list):
         raise ValueError(
-            f"path_tariffs_{label} must be a list of paths"
-            + (" or a key-to-path mapping" if allow_dict else "")
-            + f"; got {type(value).__name__}"
+            f"path_tariffs_{label} must be a list of paths; got {type(value).__name__}"
         )
+    path_tariffs = {}
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError(
+                f"path_tariffs_{label} list must contain path strings; "
+                f"got {type(item).__name__}"
+            )
+        path = _resolve_path(item, base_dir)
+        key = path.stem
+        if key in path_tariffs:
+            raise ValueError(
+                f"path_tariffs_{label}: duplicate key '{key}' from paths "
+                f"{path_tariffs[key]} and {path}"
+            )
+        path_tariffs[key] = path
 
     map_keys = _tariff_map_keys(path_tariff_map)
     list_keys = set(path_tariffs.keys())
@@ -189,29 +173,31 @@ def _parse_path_tariffs_gas(
     path_tariff_map: Path,
     base_dir: Path,
 ) -> dict[str, Path]:
-    """Parse path_tariffs_gas from YAML. Supports directory or list/dict.
+    """Parse path_tariffs_gas from YAML: must be a directory path (string).
 
-    If value is a string (directory path), unique tariff_key values are read from
-    the gas tariff map and each must have a file at directory/tariff_key.json.
-    Otherwise delegates to _parse_path_tariffs (list or dict).
+    Unique tariff_key values are read from the gas tariff map; each must have
+    a file at directory/tariff_key.json.
     """
-    if isinstance(value, str):
-        path_dir = _resolve_path(value, base_dir)
-        if not path_dir.is_dir():
-            raise ValueError(
-                f"path_tariffs_gas is a directory path but not a directory: {path_dir}"
-            )
-        map_keys = _tariff_map_keys(path_tariff_map)
-        path_tariffs = {k: path_dir / f"{k}.json" for k in map_keys}
-        missing = [k for k, p in path_tariffs.items() if not p.is_file()]
-        if missing:
-            raise ValueError(
-                "Gas tariff map references tariff_key(s) with no file under "
-                f"{path_dir}: {sorted(missing)}. "
-                f"Expected e.g. {path_dir / 'tariff_key.json'}"
-            )
-        return path_tariffs
-    return _parse_path_tariffs(value, path_tariff_map, base_dir, "gas", allow_dict=True)
+    if not isinstance(value, str):
+        raise ValueError(
+            "path_tariffs_gas must be a directory path (string) containing "
+            f"gas tariff JSONs named <tariff_key>.json; got {type(value).__name__}"
+        )
+    path_dir = _resolve_path(value, base_dir)
+    if not path_dir.is_dir():
+        raise ValueError(
+            f"path_tariffs_gas is a directory path but not a directory: {path_dir}"
+        )
+    map_keys = _tariff_map_keys(path_tariff_map)
+    path_tariffs = {k: path_dir / f"{k}.json" for k in map_keys}
+    missing = [k for k, p in path_tariffs.items() if not p.is_file()]
+    if missing:
+        raise ValueError(
+            "Gas tariff map references tariff_key(s) with no file under "
+            f"{path_dir}: {sorted(missing)}. "
+            f"Expected e.g. {path_dir / 'tariff_key.json'}"
+        )
+    return path_tariffs
 
 
 def _default_precalc_tariff(path_tariffs_electric: dict[str, Path]) -> tuple[str, Path]:
