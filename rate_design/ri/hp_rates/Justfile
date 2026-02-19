@@ -83,6 +83,29 @@ create-rie-hp-seasonal-calibrated-supply seasonal_inputs_csv:
     {{ri_hp_seasonal_calibrated_supply_tariff}}
 
 # -----------------------------------------------------------------------------
+# PRE: TOU tariff derivation
+# -----------------------------------------------------------------------------
+# Derive seasonal TOU tariff + map + derivation spec for RI.
+# Uses local ResStock mounts under /data.sb and writes under config/.
+create-seasonal-tou tou_tariff_key="rie_hp_seasonalTOU" flat_tariff_key="rie_a16" upgrade_id="00" year="2025" tou_window_hours="4" tou_base_rate="0.06" tou_fixed_charge="6.75" summer_months="6,7,8,9":
+  uv run python {{project_root}}/utils/pre/derive_seasonal_tou.py \
+    --cambium-path "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t={{year}}/gea=ISONE/r=p133/data.parquet" \
+    --state RI \
+    --region isone \
+    --utility rie \
+    --year "{{year}}" \
+    --resstock-metadata-path "/data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade={{upgrade_id}}/metadata-sb.parquet" \
+    --resstock-loads-path "/data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=RI/upgrade={{upgrade_id}}" \
+    --customer-count 451381 \
+    --summer-months "{{summer_months}}" \
+    --tou-window-hours "{{tou_window_hours}}" \
+    --tou-base-rate "{{tou_base_rate}}" \
+    --tou-fixed-charge "{{tou_fixed_charge}}" \
+    --tou-tariff-key "{{tou_tariff_key}}" \
+    --flat-tariff-key "{{flat_tariff_key}}" \
+    --output-dir "{{project_root}}/rate_design/ri/hp_rates/config"
+
+# -----------------------------------------------------------------------------
 # PRE: Tariff mapping (electric and gas)
 # -----------------------------------------------------------------------------
 path_s3_resstock_metadata := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
