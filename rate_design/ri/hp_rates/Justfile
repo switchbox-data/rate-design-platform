@@ -58,6 +58,15 @@ create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label outpu
     --periods-yaml "{{periods_yaml}}" \
     --output-path "{{output_path}}"
 
+# Promote calibrated tariff from run output:
+# reads <run_dir>/tariff_final_config.json, converts CAIRO-native format to URDB,
+# and writes <tariff_key>_calibrated.json under config/tariffs/electric.
+copy-calibrated-tariff-from-run run_dir state output_dir="":
+  uv run python -m utils.pre.copy_calibrated_tariff_from_run \
+    --run-dir "{{run_dir}}" \
+    --state "{{state}}" \
+    {{ if output_dir != "" { "--destination-dir \"" + output_dir + "\"" } else { "" } }}
+
 ri_tariffs_electric_dir := project_root + "/rate_design/ri/hp_rates/config/tariffs/electric"
 ri_hp_seasonal_calibrated_tariff := ri_tariffs_electric_dir + "/rie_hp_seasonal_calibrated.json"
 ri_hp_seasonal_calibrated_supply_tariff := ri_tariffs_electric_dir + "/rie_hp_seasonal_calibrated_supply.json"

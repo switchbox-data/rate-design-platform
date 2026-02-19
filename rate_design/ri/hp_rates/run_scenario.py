@@ -26,6 +26,10 @@ from utils.cairo import (
     build_bldg_id_to_load_filepath,
     load_distribution_marginal_costs,
 )
+from utils.pre.tariff_naming import (
+    build_run_name,
+    derive_tariff_key_from_electric_tariff_filename,
+)
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 
 log = logging.getLogger("rates_analysis").getChild("tests")
@@ -215,6 +219,7 @@ def _build_settings_from_yaml_run(
     state = str(run.get("state", "RI")).upper()
     utility = str(_require_value(run, "utility")).lower()
     mode = str(run.get("run_type", "precalc"))
+    upgrade = f"{_parse_int(run.get('upgrade', 0), 'upgrade'):02d}"
     year_run = _parse_int(run.get("year_run"), "year_run")
     year_dollar_conversion = _parse_int(
         run.get("year_dollar_conversion"),
@@ -278,7 +283,6 @@ def _build_settings_from_yaml_run(
             else precalc_tariff_path.stem
         )
 
-    default_run_name = str(run.get("run_name", f"ri_rie_run_{run_num:02d}"))
     add_supply_revenue_requirement = _parse_bool(
         run.get(
             "add_supply_revenue_requirement",
@@ -286,8 +290,22 @@ def _build_settings_from_yaml_run(
         ),
         "add_supply_revenue_requirement",
     )
+    supply = _parse_bool(run.get("supply", add_supply_revenue_requirement), "supply")
+    tariff_key_from_filename = derive_tariff_key_from_electric_tariff_filename(
+        precalc_tariff_path
+    )
+    generated_run_name = build_run_name(
+        state=state,
+        utility=utility,
+        run_num=run_num,
+        run_type=mode,
+        tariff_key=tariff_key_from_filename,
+        supply=supply,
+        upgrade=upgrade,
+        year_run=year_run,
+    )
     return ScenarioSettings(
-        run_name=run_name_override or default_run_name,
+        run_name=run_name_override or generated_run_name,
         run_type=mode,
         state=state,
         utility=utility,
