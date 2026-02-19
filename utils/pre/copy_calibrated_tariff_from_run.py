@@ -118,7 +118,9 @@ def _convert_tou_matrix_to_urdb(
             "adj": adj,
             "unit": CAIRO_TO_URDB_UNIT[units],
         }
-        if not math.isclose(max_usage, CAIRO_MAX_USAGE_SENTINEL, rel_tol=0.0, abs_tol=1e-6):
+        if not math.isclose(
+            max_usage, CAIRO_MAX_USAGE_SENTINEL, rel_tol=0.0, abs_tol=1e-6
+        ):
             entry["max"] = max_usage
         if not math.isclose(sell, 0.0, rel_tol=0.0, abs_tol=1e-9):
             entry["sell"] = sell
@@ -246,7 +248,9 @@ def copy_calibrated_tariff_from_run_dir(
     urdb_payload = _convert_cairo_payload_to_urdb(cairo_payload, tariff_key=tariff_key)
 
     target_dir = (
-        destination_dir if destination_dir is not None else _default_destination_dir(state)
+        destination_dir
+        if destination_dir is not None
+        else _default_destination_dir(state)
     )
     output_path = target_dir / f"{tariff_key}_calibrated.json"
     return _write_json(output_path, urdb_payload)
