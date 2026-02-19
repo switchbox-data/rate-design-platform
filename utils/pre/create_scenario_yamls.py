@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 
 from utils import get_project_root
 
+
 # Cached OAuth token path; reuse to avoid browser prompt on every run.
 # Use standard gspread config dir so it works regardless of project root / cwd.
 def _gspread_token_path() -> Path:
@@ -26,6 +27,7 @@ def _gspread_token_path() -> Path:
     else:
         base = Path.home() / ".config"
     return base / "gspread" / "authorized_user_rate_design.json"
+
 
 DEFAULT_SHEET_ID = "14naAchDw95hom88a9tdw4Y8DVxfqhx948x2UbBPujuI"
 
@@ -71,6 +73,7 @@ def _parse_bool(value: object) -> bool:
 
 def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     """Convert one sheet row to a run dict for YAML."""
+
     def get(key: str, default: str | None = None) -> str:
         normalized = _normalize_header(key)
         for h in headers:
@@ -146,7 +149,9 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     return run
 
 
-def _get_worksheet(gc: gspread.Client, sheet_id: str, name: str | None, index: int | None):  # noqa: ANN001
+def _get_worksheet(
+    gc: gspread.Client, sheet_id: str, name: str | None, index: int | None
+):  # noqa: ANN001
     """Open spreadsheet and return worksheet by name or index."""
     sh = gc.open_by_key(sheet_id)
     if name is not None:
@@ -179,8 +184,12 @@ def run(
             "client_id": client_id,
             "client_secret": client_secret,
             "project_id": os.getenv("G_PROJECT_ID", ""),
-            "auth_uri": os.getenv("G_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
-            "token_uri": os.getenv("G_TOKEN_URI", "https://oauth2.googleapis.com/token"),
+            "auth_uri": os.getenv(
+                "G_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"
+            ),
+            "token_uri": os.getenv(
+                "G_TOKEN_URI", "https://oauth2.googleapis.com/token"
+            ),
             "redirect_uris": ["http://localhost"],
         }
     }
