@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import polars as pl
@@ -193,7 +194,7 @@ def load_distribution_marginal_costs(
         .filter(pl.col("utility").cast(pl.Utf8) == utility)
         .filter(pl.col("year").cast(pl.Utf8) == str(year_run))
     )
-    distribution_mc_df = distribution_mc_scan.collect()
+    distribution_mc_df = cast(pl.DataFrame, distribution_mc_scan.collect())
     distribution_marginal_costs = distribution_mc_df.to_pandas()
     required_cols = {"timestamp", "mc_total_per_kwh"}
     missing_cols = required_cols.difference(distribution_marginal_costs.columns)
