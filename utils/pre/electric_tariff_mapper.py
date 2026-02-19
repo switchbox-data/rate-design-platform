@@ -14,6 +14,49 @@ from utils.types import electric_utility
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
 
+def _parse_tuple_value(raw: str | bool | int) -> str | bool | int:
+    """Coerce a value from JSON (often string) to bool, int, or str in that order."""
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, int):
+        return raw
+    s = str(raw).strip()
+    if s == "True":
+        return True
+    if s == "False":
+        return False
+    try:
+        return int(s)
+    except ValueError:
+        pass
+    return s
+
+
+def _parse_group_to_tariff_key(
+    raw: dict[str, str],
+) -> dict[tuple[str | bool | int, ...], str]:
+    """Parse JSON group_to_tariff_key: keys are tuple strings, values are coerced bool/int/str."""
+    result: dict[tuple[str | bool | int, ...], str] = {}
+    for k, v in raw.items():
+        parsed_tuple = ast.literal_eval(k)
+        if not isinstance(parsed_tuple, tuple):
+            raise TypeError(
+                f"Expected tuple key, got {type(parsed_tuple).__name__}: {k!r}"
+            )
+        key = tuple(_parse_tuple_value(x) for x in parsed_tuple)
+        result[key] = v
+    return result
+
+
+def _eq_for_key_value(col_name: str, value: str | bool | int) -> pl.Expr:
+    """Build (col == value) with column cast to match value type so comparison is correct."""
+    if isinstance(value, bool):
+        return pl.col(col_name).cast(pl.Boolean) == pl.lit(value)
+    if isinstance(value, int):
+        return pl.col(col_name).cast(pl.Int64) == pl.lit(value)
+    return pl.col(col_name).cast(pl.Utf8) == pl.lit(value)
+
+
 def define_electrical_tariff_key(
     electrical_utility_name: electric_utility,
     grouping_cols: list[str],
@@ -33,10 +76,14 @@ def define_electrical_tariff_key(
     # Build when/then from the end so first key in dict is checked first
     expr: pl.Expr = pl.lit(None).cast(pl.Utf8)
     for key_tuple, tariff_key in reversed(list(group_to_tariff_key.items())):
-        cond = pl.col(grouping_cols[0]) == key_tuple[0]
+        cond = _eq_for_key_value(grouping_cols[0], key_tuple[0])
         for i in range(1, len(grouping_cols)):
-            cond = cond & (pl.col(grouping_cols[i]) == key_tuple[i])
-        expr = pl.when(cond).then(pl.lit(f"{electrical_utility_name}_{tariff_key}"))
+            cond = cond & _eq_for_key_value(grouping_cols[i], key_tuple[i])
+        expr = (
+            pl.when(cond)
+            .then(pl.lit(f"{electrical_utility_name}_{tariff_key}"))
+            .otherwise(expr)
+        )
     return expr
 
 
@@ -287,12 +334,8 @@ if __name__ == "__main__":
         )
     run_config = electrical_tariff_key_map[args.run_name]
     grouping_cols: list[str] = run_config["grouping_cols"]
-    # JSON keys are strings; parse to tuple for group_to_tariff_key (values may be str/bool/int)
     raw_group_to_tariff_key: dict[str, str] = run_config["group_to_tariff_key"]
-    group_to_tariff_key: dict[tuple[str | bool | int, ...], str] = {
-        cast(tuple[str | bool | int, ...], ast.literal_eval(k)): v
-        for k, v in raw_group_to_tariff_key.items()
-    }
+    group_to_tariff_key = _parse_group_to_tariff_key(raw_group_to_tariff_key)
     electrical_tariff_mapping_df = map_electric_tariff(
         SB_metadata_df=SB_metadata_with_utilities,
         electric_utility=args.electric_utility,

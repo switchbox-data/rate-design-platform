@@ -145,10 +145,10 @@ map-electric-rie-run2:
   just map-electric-tariff rie 00 ri_rie_run2_up00_precalc_supply__flat__n100 {{tariff_maps_dir_ri}}/electric
 
 map-electric-rie-run3:
-  just map-electric-tariff rie 00 ri_rie_run3_up02_default__flat__n100 {{tariff_maps_dir_ri}}/electric
+  just map-electric-tariff rie 02 ri_rie_run3_up02_default__flat__n100 {{tariff_maps_dir_ri}}/electric
 
 map-electric-rie-run4:
-  just map-electric-tariff rie 00 ri_rie_run4_up02_default_supply__flat__n100 {{tariff_maps_dir_ri}}/electric
+  just map-electric-tariff rie 02 ri_rie_run4_up02_default_supply__flat__n100 {{tariff_maps_dir_ri}}/electric
 
 map-electric-rie-run5:
   just map-electric-tariff rie 00 ri_rie_run5_up00_precalc__hp_seasonal_vs_flat__n100 {{tariff_maps_dir_ri}}/electric
@@ -157,10 +157,10 @@ map-electric-rie-run6:
   just map-electric-tariff rie 00 ri_rie_run6_up00_precalc_supply__hp_seasonal_vs_flat__n100 {{tariff_maps_dir_ri}}/electric
 
 map-electric-rie-run7:
-  just map-electric-tariff rie 00 ri_rie_run7_up02_default__hp_seasonal__n100 {{tariff_maps_dir_ri}}/electric
+  just map-electric-tariff rie 02 ri_rie_run7_up02_default__hp_seasonal__n100 {{tariff_maps_dir_ri}}/electric
 
 map-electric-rie-run8:
-  just map-electric-tariff rie 00 ri_rie_run8_up02_default_supply__hp_seasonal__n100 {{tariff_maps_dir_ri}}/electric
+  just map-electric-tariff rie 02 ri_rie_run8_up02_default_supply__hp_seasonal__n100 {{tariff_maps_dir_ri}}/electric
 
 map-electric-rie-run9:
   just map-electric-tariff rie 00 ri_rie_run9_up00_precalc__hp_seasonalTOU_vs_flat__n100 {{tariff_maps_dir_ri}}/electric
@@ -169,10 +169,10 @@ map-electric-rie-run10:
   just map-electric-tariff rie 00 ri_rie_run10_up00_precalc_supply__hp_seasonalTOU_vs_flat__n100 {{tariff_maps_dir_ri}}/electric
 
 map-electric-rie-run11:
-  just map-electric-tariff rie 00 ri_rie_run11_up02_default__hp_seasonalTOU__n100 {{tariff_maps_dir_ri}}/electric
+  just map-electric-tariff rie 02 ri_rie_run11_up02_default__hp_seasonalTOU__n100 {{tariff_maps_dir_ri}}/electric
 
 map-electric-rie-run12:
-  just map-electric-tariff rie 00 ri_rie_run12_up02_default_supply__hp_seasonalTOU__n100 {{tariff_maps_dir_ri}}/electric
+  just map-electric-tariff rie 02 ri_rie_run12_up02_default_supply__hp_seasonalTOU__n100 {{tariff_maps_dir_ri}}/electric
 
 map-electric-rie-run13:
   just map-electric-tariff rie 00 ri_rie_run13_up00_precalc__hp_seasonalTOU_flex_vs_flat__n100 {{tariff_maps_dir_ri}}/electric
@@ -181,10 +181,10 @@ map-electric-rie-run14:
   just map-electric-tariff rie 00 ri_rie_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_flat__n100 {{tariff_maps_dir_ri}}/electric
 
 map-electric-rie-run15:
-  just map-electric-tariff rie 00 ri_rie_run15_up02_default__hp_seasonalTOU_flex__n100 {{tariff_maps_dir_ri}}/electric
+  just map-electric-tariff rie 02 ri_rie_run15_up02_default__hp_seasonalTOU_flex__n100 {{tariff_maps_dir_ri}}/electric
 
 map-electric-rie-run16:
-  just map-electric-tariff rie 00 ri_rie_run16_up02_default_supply__hp_seasonalTOU_flex__n100 {{tariff_maps_dir_ri}}/electric
+  just map-electric-tariff rie 02 ri_rie_run16_up02_default_supply__hp_seasonalTOU_flex__n100 {{tariff_maps_dir_ri}}/electric
 
 
 # Generate TOU tariff map: HP customers -> TOU, non-HP -> flat.
