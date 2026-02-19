@@ -174,6 +174,36 @@ def _parse_path_tariffs(
     return path_tariffs
 
 
+def _parse_path_tariffs_gas(
+    value: Any,
+    path_tariff_map: Path,
+    base_dir: Path,
+) -> dict[str, Path]:
+    """Parse path_tariffs_gas from YAML. Supports directory or list/dict.
+
+    If value is a string (directory path), unique tariff_key values are read from
+    the gas tariff map and each must have a file at directory/tariff_key.json.
+    Otherwise delegates to _parse_path_tariffs (list or dict).
+    """
+    if isinstance(value, str):
+        path_dir = _resolve_path(value, base_dir)
+        if not path_dir.is_dir():
+            raise ValueError(
+                f"path_tariffs_gas is a directory path but not a directory: {path_dir}"
+            )
+        map_keys = _tariff_map_keys(path_tariff_map)
+        path_tariffs = {k: path_dir / f"{k}.json" for k in map_keys}
+        missing = [k for k, p in path_tariffs.items() if not p.is_file()]
+        if missing:
+            raise ValueError(
+                "Gas tariff map references tariff_key(s) with no file under "
+                f"{path_dir}: {sorted(missing)}. "
+                f"Expected e.g. {path_dir / 'tariff_key.json'}"
+            )
+        return path_tariffs
+    return _parse_path_tariffs(value, path_tariff_map, base_dir, "gas")
+
+
 def _default_precalc_tariff(path_tariffs_electric: dict[str, Path]) -> tuple[str, Path]:
     """Choose default precalc tariff from first configured electric tariff."""
     if not path_tariffs_electric:
@@ -247,11 +277,10 @@ def _build_settings_from_yaml_run(
         str(_require_value(run, "path_tariff_maps_gas")),
         PATH_CONFIG,
     )
-    path_tariffs_gas = _parse_path_tariffs(
+    path_tariffs_gas = _parse_path_tariffs_gas(
         _require_value(run, "path_tariffs_gas"),
         path_tariff_maps_gas,
         PATH_CONFIG,
-        "gas",
     )
 
     precalc_tariff_key_raw = run.get("precalc_tariff_key")
