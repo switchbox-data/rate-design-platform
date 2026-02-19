@@ -124,12 +124,17 @@ def _parse_path_tariffs(
     path_tariff_map: Path,
     base_dir: Path,
     label: str,
+    *,
+    allow_dict: bool = False,
 ) -> dict[str, Path]:
-    """Parse path_tariffs (electric or gas) from YAML (list or dict) and reconcile.
+    """Parse path_tariffs from YAML and reconcile with tariff map.
 
-    If value is a list of path strings, keys are derived from filename stem (e.g.
-    tariffs/electric/foo.json -> foo). Every tariff_key in the tariff map must
-    have a corresponding entry, and every list entry must appear in the map.
+    Electric: value must be a list of path strings; keys are derived from
+    filename stem (e.g. tariffs/electric/foo.json -> foo).
+    Gas (when not using directory): value may be list or dict; dict only if
+    allow_dict=True.
+    Every tariff_key in the map must have an entry, and every list/dict entry
+    must appear in the map.
     """
     if isinstance(value, list):
         path_tariffs = {}
@@ -148,13 +153,18 @@ def _parse_path_tariffs(
                 )
             path_tariffs[key] = path
     elif isinstance(value, dict):
+        if not allow_dict:
+            raise ValueError(
+                f"path_tariffs_{label} must be a list of paths; dict not allowed"
+            )
         path_tariffs = {
             str(k): _resolve_path(str(v), base_dir) for k, v in value.items()
         }
     else:
         raise ValueError(
-            f"path_tariffs_{label} must be a list of paths or a key-to-path mapping; "
-            f"got {type(value).__name__}"
+            f"path_tariffs_{label} must be a list of paths"
+            + (" or a key-to-path mapping" if allow_dict else "")
+            + f"; got {type(value).__name__}"
         )
 
     map_keys = _tariff_map_keys(path_tariff_map)
@@ -201,7 +211,7 @@ def _parse_path_tariffs_gas(
                 f"Expected e.g. {path_dir / 'tariff_key.json'}"
             )
         return path_tariffs
-    return _parse_path_tariffs(value, path_tariff_map, base_dir, "gas")
+    return _parse_path_tariffs(value, path_tariff_map, base_dir, "gas", allow_dict=True)
 
 
 def _default_precalc_tariff(path_tariffs_electric: dict[str, Path]) -> tuple[str, Path]:
