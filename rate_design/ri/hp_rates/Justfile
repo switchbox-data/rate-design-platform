@@ -227,3 +227,12 @@ create-td-mc-data-rie:
     --utility-load-s3-base {{pre_utility_s3_base}} \
     --output-s3-base {{pre_mc_output_s3_base}} \
     --upload
+
+# =============================================================================
+# Create scenario YAMLs from Google Sheets
+# =============================================================================
+
+# Create scenario YAMLs from the Runs & Charts Google Sheet (requires G_* env and browser auth)
+# Writes rate_design/<state>/hp_rates/config/scenarios_<utility>.yaml per utility
+create-scenario-yamls dry_run="":
+    uv run python {{project_root}}/utils/pre/create_scenario_yamls.py {{ dry_run }}
