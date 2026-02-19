@@ -22,6 +22,11 @@ from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.pre.season_config import (
+    DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS,
+    get_utility_periods_yaml_path,
+    load_winter_months_from_periods,
+)
 
 # CAIRO output column names
 BLDG_ID_COL = "bldg_id"
@@ -34,8 +39,6 @@ DEFAULT_BAT_METRIC = "BAT_percustomer"
 GROUP_VALUE_COL = "subclass"
 ANNUAL_MONTH_VALUE = "Annual"
 DEFAULT_SEASONAL_OUTPUT_FILENAME = "seasonal_discount_rate_inputs.csv"
-# Winter season is Oct 1 through Mar 31.
-WINTER_MONTHS = (10, 11, 12, 1, 2, 3)
 ELECTRIC_LOAD_COL = "out.electricity.net.energy_consumption"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SCENARIO_CONFIG_PATH = (
@@ -47,6 +50,31 @@ DEFAULT_DIFFERENTIATED_YAML_PATH = (
 DEFAULT_RIE_YAML_PATH = (
     PROJECT_ROOT / "rate_design/ri/hp_rates/config/rev_requirement/rie.yaml"
 )
+
+
+def _resolve_winter_months(
+    *,
+    state: str,
+    utility: str,
+    periods_yaml_path: Path | None = None,
+) -> tuple[int, ...]:
+    resolved_periods_path = (
+        periods_yaml_path
+        if periods_yaml_path is not None
+        else get_utility_periods_yaml_path(
+            project_root=PROJECT_ROOT,
+            state=state,
+            utility=utility,
+        )
+    )
+    if resolved_periods_path.exists():
+        return tuple(
+            load_winter_months_from_periods(
+                resolved_periods_path,
+                default_winter_months=DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS,
+            )
+        )
+    return tuple(DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS)
 
 
 def _csv_path(run_dir: S3Path | Path, relative: str) -> str:
@@ -217,8 +245,14 @@ def compute_hp_seasonal_discount_inputs(
     cross_subsidy_col: str = DEFAULT_BAT_METRIC,
     storage_options: dict[str, str] | None = None,
     tariff_final_config_path: S3Path | Path | None = None,
+    winter_months: tuple[int, ...] | None = None,
 ) -> pl.DataFrame:
     """Compute HP-only seasonal discount inputs from run outputs + ResStock loads."""
+    resolved_winter_months = (
+        winter_months
+        if winter_months is not None
+        else tuple(DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS)
+    )
     metadata = _load_metadata_for_group(
         run_dir=run_dir,
         group_col=DEFAULT_GROUP_COL,
@@ -257,7 +291,7 @@ def compute_hp_seasonal_discount_inputs(
             pl.col(WEIGHT_COL).cast(pl.Float64),
         )
         .with_columns(pl.col("timestamp").dt.month().alias("month_num"))
-        .filter(pl.col("month_num").is_in(WINTER_MONTHS))
+        .filter(pl.col("month_num").is_in(resolved_winter_months))
         .with_columns((pl.col("demand_kwh") * pl.col(WEIGHT_COL)).alias("weighted_kwh"))
         .select(pl.col("weighted_kwh").sum().alias("winter_kwh_hp"))
         .collect()
@@ -302,7 +336,7 @@ def compute_hp_seasonal_discount_inputs(
             "winter_kwh_hp": [winter_kwh],
             "winter_rate_hp": [winter_rate_hp],
             "winter_rate_raw": [winter_rate_raw],
-            "winter_months": [",".join(str(m) for m in WINTER_MONTHS)],
+            "winter_months": [",".join(str(m) for m in resolved_winter_months)],
         }
     )
 
@@ -371,17 +405,27 @@ def compute_subclass_rr(
     )
 
 
-def _load_default_revenue_requirement(
+def _load_run_from_scenario_config(
     scenario_config_path: Path,
     run_num: int,
-) -> tuple[str, float]:
+) -> dict[str, object]:
     data = yaml.safe_load(scenario_config_path.read_text(encoding="utf-8")) or {}
     runs = data.get("runs", {})
     run = runs.get(run_num) or runs.get(str(run_num))
     if run is None:
         msg = f"Run {run_num} not found in scenario config: {scenario_config_path}"
         raise ValueError(msg)
+    if not isinstance(run, dict):
+        msg = f"Run {run_num} is not a mapping in scenario config: {scenario_config_path}"
+        raise ValueError(msg)
+    return cast(dict[str, object], run)
 
+
+def _load_default_revenue_requirement(
+    scenario_config_path: Path,
+    run_num: int,
+) -> tuple[str, float]:
+    run = _load_run_from_scenario_config(scenario_config_path, run_num)
     utility = str(run.get("utility", "rie"))
     revenue_requirement = float(run["utility_delivery_revenue_requirement"])
     return utility, revenue_requirement
@@ -532,6 +576,14 @@ def main() -> None:
             "If omitted, writes to --run-dir."
         ),
     )
+    parser.add_argument(
+        "--periods-yaml",
+        type=Path,
+        help=(
+            "Optional override for utility periods YAML path. "
+            "If omitted, resolves from scenario run state+utility."
+        ),
+    )
     args = parser.parse_args()
 
     run_dir: S3Path | Path = (
@@ -570,6 +622,14 @@ def main() -> None:
         print(f"Wrote default YAML: {default_yaml_path}")
 
     if args.resstock_loads_path:
+        run_cfg = _load_run_from_scenario_config(args.scenario_config, args.run_num)
+        run_state = str(run_cfg.get("state", "RI"))
+        run_utility = str(run_cfg.get("utility", "rie"))
+        winter_months = _resolve_winter_months(
+            state=run_state,
+            utility=run_utility,
+            periods_yaml_path=args.periods_yaml,
+        )
         resstock_loads_path = _resolve_path_or_s3(args.resstock_loads_path)
         tariff_final_config_path = (
             _resolve_path_or_s3(args.tariff_final_config_path)
@@ -582,6 +642,7 @@ def main() -> None:
             cross_subsidy_col=args.cross_subsidy_col,
             storage_options=storage_options,
             tariff_final_config_path=tariff_final_config_path,
+            winter_months=winter_months,
         )
         print(seasonal_inputs)
         seasonal_output_path = _write_seasonal_inputs_csv(

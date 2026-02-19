@@ -34,6 +34,13 @@ from utils.pre.compute_tou import (
     find_tou_peak_window,
     generate_tou_tariff_map,
 )
+from utils.pre.season_config import (
+    DEFAULT_TOU_WINTER_MONTHS,
+    get_utility_periods_yaml_path,
+    load_tou_window_hours_from_periods,
+    load_winter_months_from_periods,
+    parse_months_arg,
+)
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 
 log = logging.getLogger("rates_analysis").getChild("tests")
@@ -41,6 +48,7 @@ log = logging.getLogger("rates_analysis").getChild("tests")
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
+PROJECT_ROOT = PATH_PROJECT.parents[2]
 PATH_RESSTOCK = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
 DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
 DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
@@ -56,6 +64,7 @@ class TouDerivationConfig:
     tou_window_hours: int = 4
     tou_base_rate: float = 0.06
     tou_fixed_charge: float = 6.75
+    winter_months: list[int] | None = None
 
 
 @dataclass(slots=True)
@@ -155,20 +164,56 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
     return _require_mapping(run, f"runs[{run_num}]")
 
 
-def _parse_tou_derivation_config(run: dict[str, Any]) -> TouDerivationConfig:
+def _parse_tou_derivation_config(
+    run: dict[str, Any],
+    *,
+    state: str,
+    utility: str,
+) -> TouDerivationConfig:
     """Parse the optional ``tou_derivation`` block from a run config."""
+    periods_yaml_path = get_utility_periods_yaml_path(
+        project_root=PROJECT_ROOT,
+        state=state,
+        utility=utility,
+    )
+    default_winter_months: list[int] = list(DEFAULT_TOU_WINTER_MONTHS)
+    default_tou_window_hours = 4
+    if periods_yaml_path.exists():
+        default_winter_months = load_winter_months_from_periods(
+            periods_yaml_path,
+            default_winter_months=DEFAULT_TOU_WINTER_MONTHS,
+        )
+        default_tou_window_hours = load_tou_window_hours_from_periods(
+            periods_yaml_path,
+            default_tou_window_hours=default_tou_window_hours,
+        )
+
     raw = run.get("tou_derivation")
     if raw is None or not isinstance(raw, dict):
         return TouDerivationConfig()
+    raw_winter_months = raw.get("winter_months")
+    if isinstance(raw_winter_months, str):
+        winter_months = parse_months_arg(raw_winter_months)
+    elif isinstance(raw_winter_months, list):
+        winter_months = [int(month) for month in raw_winter_months]
+    elif raw_winter_months is None:
+        winter_months = default_winter_months
+    else:
+        raise ValueError(
+            "Invalid tou_derivation.winter_months; expected list[int] or comma-separated string"
+        )
+
     return TouDerivationConfig(
         enabled=_parse_bool(raw.get("enabled", False), "tou_derivation.enabled"),
         tou_tariff_key=str(raw.get("tou_tariff_key", "")),
         flat_tariff_key=str(raw.get("flat_tariff_key", "")),
         tou_window_hours=_parse_int(
-            raw.get("tou_window_hours", 4), "tou_derivation.tou_window_hours"
+            raw.get("tou_window_hours", default_tou_window_hours),
+            "tou_derivation.tou_window_hours",
         ),
         tou_base_rate=float(raw.get("tou_base_rate", 0.06)),
         tou_fixed_charge=float(raw.get("tou_fixed_charge", 6.75)),
+        winter_months=winter_months,
     )
 
 
@@ -202,7 +247,11 @@ def _build_settings_from_yaml_run(
     )
     solar_pv_compensation = str(run.get("solar_pv_compensation", "net_metering"))
 
-    tou_derivation_cfg = _parse_tou_derivation_config(run)
+    tou_derivation_cfg = _parse_tou_derivation_config(
+        run,
+        state=state,
+        utility=utility,
+    )
 
     # When tou_derivation is enabled the tariff paths / maps are derived at
     # runtime so the YAML fields are optional.  We still need placeholder

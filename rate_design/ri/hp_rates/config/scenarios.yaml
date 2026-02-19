@@ -75,6 +75,5 @@ runs:
       enabled: true
       tou_tariff_key: rie_tou_hp
       flat_tariff_key: rie_a16
-      tou_window_hours: 4
       tou_base_rate: 0.06
       tou_fixed_charge: 6.75
