@@ -296,13 +296,15 @@ def run(settings: ScenarioSettings) -> None:
     prototype_ids = _fetch_prototype_ids_by_electric_util(
         cast(ElectricUtility, settings.utility), utility_assignment
     )
-    print(
-        f"Prototype IDs: {prototype_ids[0]}"
-    )  # In place just to silence linter error for unused variable.
+    log.info(
+        ".... Loaded %s prototype IDs for utility %s",
+        len(prototype_ids),
+        settings.utility,
+    )
 
     tariffs_params, tariff_map_df = _initialize_tariffs(
         tariff_map=settings.path_tariff_maps_electric,
-        building_stock_sample=None,
+        building_stock_sample=prototype_ids,
         tariff_paths=settings.path_tariffs_electric,
     )
 
@@ -313,6 +315,7 @@ def run(settings: ScenarioSettings) -> None:
 
     customer_metadata = return_buildingstock(
         load_scenario=settings.path_resstock_metadata,
+        building_stock_sample=prototype_ids,
         customer_count=settings.utility_customer_count,
         columns=[
             "applicability",
@@ -331,17 +334,20 @@ def run(settings: ScenarioSettings) -> None:
 
     bldg_id_to_load_filepath = build_bldg_id_to_load_filepath(
         path_resstock_loads=settings.path_resstock_loads,
+        building_ids=prototype_ids,
     )
 
     raw_load_elec = _return_load(
         load_type="electricity",
         target_year=settings.year_run,
+        building_stock_sample=prototype_ids,
         load_filepath_key=bldg_id_to_load_filepath,
         force_tz="EST",
     )
     raw_load_gas = _return_load(
         load_type="gas",
         target_year=settings.year_run,
+        building_stock_sample=prototype_ids,
         load_filepath_key=bldg_id_to_load_filepath,
         force_tz="EST",
     )
@@ -408,6 +414,7 @@ def run(settings: ScenarioSettings) -> None:
         year_run=settings.year_run,
         year_dollar_conversion=settings.year_dollar_conversion,
         process_workers=settings.process_workers,
+        building_stock_sample=prototype_ids,
         run_name=settings.run_name,
         output_dir=settings.path_results,
     )
