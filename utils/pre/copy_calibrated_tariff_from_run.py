@@ -25,6 +25,7 @@ CAIRO_TO_URDB_UNIT = {
     2: "kWh daily",
     3: "kWh/kW daily",
 }
+# Matches CAIRO URDBv7_to_ElectricityRates handling.
 METERING_RULES = {
     0: "Net Metering",
     2: "Net Billing Instantaneous",
@@ -166,6 +167,7 @@ def _to_urdb_tariff(
         "uri": "",
         "sector": "Residential",
         "servicetype": "Bundled",
+        "dgrules": "Net Metering",
         "utility": "GenericUtility",
         "country": "USA",
         "energyweekdayschedule": weekday,
@@ -188,8 +190,7 @@ def _to_urdb_tariff(
         item["minchargeunits"] = "$/year"
     if "ur_metering_option" in cairo_tariff:
         metering = _to_int(cairo_tariff["ur_metering_option"], "ur_metering_option")
-        if metering in METERING_RULES:
-            item["dgrules"] = METERING_RULES[metering]
+        item["dgrules"] = METERING_RULES.get(metering, "Net Metering")
     return {"items": [item]}
 
 
