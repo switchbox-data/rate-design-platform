@@ -175,25 +175,17 @@ def build_bldg_id_to_load_filepath(
 
 
 def load_distribution_marginal_costs(
-    state: str,
-    region: str,
-    utility: str,
-    year_run: int,
+    path: str | Path,
 ) -> pd.Series:
-    """Load distribution marginal costs from S3 and return a tz-aware Series."""
-    distribution_mc_root = (
-        f"s3://data.sb/switchbox/marginal_costs/{state.lower().strip('/')}/"
-    )
-    distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
-        distribution_mc_root,
-        hive_partitioning=True,
-        storage_options=get_aws_storage_options(),
-    )
-    distribution_mc_scan = (
-        distribution_mc_scan.filter(pl.col("region").cast(pl.Utf8) == region)
-        .filter(pl.col("utility").cast(pl.Utf8) == utility)
-        .filter(pl.col("year").cast(pl.Utf8) == str(year_run))
-    )
+    """Load distribution marginal costs from a parquet path and return a tz-aware Series."""
+    path_str = str(path)
+    if path_str.startswith("s3://"):
+        distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
+            path_str,
+            storage_options=get_aws_storage_options(),
+        )
+    else:
+        distribution_mc_scan = pl.scan_parquet(path_str)
     distribution_mc_df = cast(pl.DataFrame, distribution_mc_scan.collect())
     distribution_marginal_costs = distribution_mc_df.to_pandas()
     required_cols = {"timestamp", "mc_total_per_kwh"}

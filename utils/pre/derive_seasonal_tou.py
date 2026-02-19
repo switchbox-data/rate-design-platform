@@ -15,7 +15,8 @@ Usage (via Justfile)::
 
     just derive-seasonal-tou \\
         --cambium-path s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet \\
-        --state RI --region isone --utility rie --year 2025 \\
+        --state RI --utility rie --year 2025 \\
+        --path-td-marginal-costs s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/0000000.parquet \\
         --resstock-metadata-path /data.sb/nrel/resstock/.../metadata-sb.parquet \\
         --resstock-loads-path   /data.sb/nrel/resstock/.../load_curve_hourly/state=RI/upgrade=00 \\
         --customer-count 451381 \\
@@ -201,20 +202,20 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument("--state", required=True, help="State code (e.g. RI).")
     p.add_argument(
-        "--region",
-        required=True,
-        help="ISO region for distribution MC (e.g. isone).",
-    )
-    p.add_argument(
         "--utility",
         required=True,
-        help="Utility short name for distribution MC (e.g. rie).",
+        help="Utility short name (e.g. rie).",
     )
     p.add_argument(
         "--year",
         type=int,
         required=True,
         help="Target year for marginal cost data.",
+    )
+    p.add_argument(
+        "--path-td-marginal-costs",
+        required=True,
+        help="Path (local or s3://) to T&D marginal cost parquet.",
     )
 
     # -- ResStock inputs (for system load + tariff map) ----------------------
@@ -354,18 +355,10 @@ def main() -> None:
     bulk_mc = _load_cambium_marginal_costs(args.cambium_path, args.year)
 
     log.info(
-        "Loading distribution marginal costs (state=%s, region=%s, utility=%s, year=%d)",
-        args.state,
-        args.region,
-        args.utility,
-        args.year,
+        "Loading distribution marginal costs from %s",
+        args.path_td_marginal_costs,
     )
-    dist_mc = load_distribution_marginal_costs(
-        state=args.state,
-        region=args.region,
-        utility=args.utility,
-        year_run=args.year,
-    )
+    dist_mc = load_distribution_marginal_costs(args.path_td_marginal_costs)
 
     log.info("Loading ResStock metadata from %s", args.resstock_metadata_path)
     customer_metadata = return_buildingstock(
