@@ -5,7 +5,6 @@ from typing import cast
 import polars as pl
 
 from utils.pre.electric_tariff_mapper import map_electric_tariff
-from utils.types import SBScenario
 
 
 def test_map_electric_tariff_filters_by_std_name():
@@ -17,12 +16,11 @@ def test_map_electric_tariff_filters_by_std_name():
             "postprocess_group.has_hp": [True, False, True, False],
         }
     )
-    sb_scenario = SBScenario("default", 1)
     result = map_electric_tariff(
         SB_metadata_df=metadata,
         electric_utility="coned",
-        SB_scenario=sb_scenario,
-        state="NY",
+        grouping_cols=["default"],
+        group_to_tariff_key={("default",): "default"},
     )
     df = cast(pl.DataFrame, result.collect())
     assert df.height == 2
@@ -31,7 +29,7 @@ def test_map_electric_tariff_filters_by_std_name():
 
 
 def test_map_electric_tariff_tariff_key_format():
-    """tariff_key uses std_name and scenario."""
+    """tariff_key uses std_name and mapping from grouping_cols."""
     metadata = pl.LazyFrame(
         {
             "bldg_id": [1],
@@ -39,19 +37,18 @@ def test_map_electric_tariff_tariff_key_format():
             "postprocess_group.has_hp": [True],
         }
     )
-    sb_scenario = SBScenario("seasonal", 1)
     result = map_electric_tariff(
         SB_metadata_df=metadata,
         electric_utility="nyseg",
-        SB_scenario=sb_scenario,
-        state="NY",
+        grouping_cols=["postprocess_group.has_hp"],
+        group_to_tariff_key={(True,): "seasonal_1_HP.csv"},
     )
     df = cast(pl.DataFrame, result.collect())
     assert df["tariff_key"][0] == "nyseg_seasonal_1_HP.csv"
 
 
 def test_map_electric_tariff_seasonal_discount_tariff_key_format():
-    """seasonal_discount uses HP/flat split keys for mapping."""
+    """Grouping by has_hp produces HP vs flat tariff keys."""
     metadata = pl.LazyFrame(
         {
             "bldg_id": [1, 2],
@@ -59,12 +56,14 @@ def test_map_electric_tariff_seasonal_discount_tariff_key_format():
             "postprocess_group.has_hp": [True, False],
         }
     )
-    sb_scenario = SBScenario("seasonal_discount", 1)
     result = map_electric_tariff(
         SB_metadata_df=metadata,
         electric_utility="nyseg",
-        SB_scenario=sb_scenario,
-        state="NY",
+        grouping_cols=["postprocess_group.has_hp"],
+        group_to_tariff_key={
+            (True,): "seasonal_discount_1_HP.csv",
+            (False,): "seasonal_discount_1_flat.csv",
+        },
     )
     df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
     assert df["tariff_key"].to_list() == [

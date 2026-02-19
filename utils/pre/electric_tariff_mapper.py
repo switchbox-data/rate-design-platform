@@ -1,4 +1,6 @@
 import argparse
+import ast
+import json
 import warnings
 from pathlib import Path
 from typing import cast
@@ -7,74 +9,87 @@ import polars as pl
 from cloudpathlib import S3Path
 
 from utils import get_aws_region
-from utils.types import SBScenario, electric_utility
+from utils.types import electric_utility
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
 
 def define_electrical_tariff_key(
-    SB_scenario: SBScenario,
-    electric_utility: electric_utility,
-    has_hp: pl.Expr,
+    electrical_utility_name: electric_utility,
+    grouping_cols: list[str],
+    group_to_tariff_key: dict[tuple[str | bool | int, ...], str],
 ) -> pl.Expr:
-    if SB_scenario.analysis_type == "default":
-        return pl.lit(f"{electric_utility}_{SB_scenario}_default")
-    elif SB_scenario.analysis_type in [
-        "seasonal",
-        "seasonal_discount",
-        "class_specific_seasonal",
-    ]:
-        return (
-            pl.when(has_hp)
-            .then(pl.lit(f"{electric_utility}_{SB_scenario}_HP.csv"))
-            .otherwise(pl.lit(f"{electric_utility}_{SB_scenario}_flat.csv"))
-        )
-    else:
-        raise ValueError(f"Invalid SB scenario: {SB_scenario}")
+    """Build a Polars expression that maps each row's grouping-col values to a tariff key string.
+
+    grouping_cols: column names in the frame (e.g. ["postprocess_group.has_hp", "heats_with_natgas"]).
+    group_to_tariff_key: map from (value_per_col, ...) to tariff key, e.g. {(True, False): "no_HP_natgas_flat"}.
+    """
+
+    # If default, everyone gets the same default tariff key.
+    if grouping_cols == ["default"]:
+        default_tariff_key = group_to_tariff_key[("default",)]
+        return pl.lit(f"{electrical_utility_name}_{default_tariff_key}")
+
+    # Build when/then from the end so first key in dict is checked first
+    expr: pl.Expr = pl.lit(None).cast(pl.Utf8)
+    for key_tuple, tariff_key in reversed(list(group_to_tariff_key.items())):
+        cond = pl.col(grouping_cols[0]) == key_tuple[0]
+        for i in range(1, len(grouping_cols)):
+            cond = cond & (pl.col(grouping_cols[i]) == key_tuple[i])
+        expr = pl.when(cond).then(pl.lit(f"{electrical_utility_name}_{tariff_key}"))
+    return expr
 
 
 def generate_electrical_tariff_mapping(
-    lazy_metadata_has_hp: pl.LazyFrame,
-    SB_scenario: SBScenario,
+    metadata: pl.LazyFrame,
+    grouping_cols: list[str],
+    group_to_tariff_key: dict[tuple[str | bool | int, ...], str],
     electric_utility: electric_utility,
 ) -> pl.LazyFrame:
-    electrical_tariff_mapping_df = lazy_metadata_has_hp.select(
+    """Build a LazyFrame with bldg_id and tariff_key from metadata and the group→tariff mapping."""
+    electrical_tariff_mapping_df = metadata.select(
         pl.col("bldg_id"),
         define_electrical_tariff_key(
-            SB_scenario, electric_utility, pl.col("postprocess_group.has_hp")
+            electric_utility, grouping_cols, group_to_tariff_key
         ).alias("tariff_key"),
     )
-
     return electrical_tariff_mapping_df
 
 
 def map_electric_tariff(
     SB_metadata_df: pl.LazyFrame,
     electric_utility: electric_utility,
-    SB_scenario: SBScenario,
-    state: str,
+    grouping_cols: list[str],
+    group_to_tariff_key: dict[tuple[str | bool | int, ...], str],
 ) -> pl.LazyFrame:
     utility_metadata_df = SB_metadata_df.filter(
         pl.col("sb.electric_utility") == electric_utility
     )
 
-    metadata_has_hp = utility_metadata_df.select(
-        pl.col("bldg_id", "postprocess_group.has_hp")
-    )
-
-    # Check if there are any rows in the filtered dataframe
-    test_sample = cast(pl.DataFrame, metadata_has_hp.head(1).collect())
-    if test_sample.is_empty():
-        raise ValueError(f"No rows found for electric utility {electric_utility}")
+    if grouping_cols != ["default"]:
+        metadata_with_grouping_cols = utility_metadata_df.select(
+            pl.col(*grouping_cols, "bldg_id")
+        )
+        # Check if there are any rows in the filtered dataframe
+        test_sample = cast(pl.DataFrame, metadata_with_grouping_cols.head(1).collect())
+        if test_sample.is_empty():
+            raise ValueError(f"No rows found for electric utility {electric_utility}")
+    else:
+        metadata_with_grouping_cols = utility_metadata_df.select(pl.col("bldg_id"))
 
     electrical_tariff_mapping_df = generate_electrical_tariff_mapping(
-        metadata_has_hp, SB_scenario, electric_utility
+        metadata_with_grouping_cols,
+        grouping_cols,
+        group_to_tariff_key,
+        electric_utility,
     )
 
     return electrical_tariff_mapping_df
 
 
 if __name__ == "__main__":
+    warnings.simplefilter("always", DeprecationWarning)
+
     parser = argparse.ArgumentParser(
         description="Utility to help assign electricity tariffs to utility customers."
     )
@@ -83,23 +98,27 @@ if __name__ == "__main__":
         required=True,
         help="Absolute or s3 path to ResStock metadata",
     )
+    parser.add_argument(
+        "--utility_assignment_path",
+        required=True,
+        help="Absolute or s3 path to ResStock utility assignment",
+    )
     parser.add_argument("--state", required=True, help="State code (e.g. RI)")
     parser.add_argument("--upgrade_id", required=True, help="Upgrade id (e.g. 00)")
+    parser.add_argument(
+        "--electrical_tariff_key_map_path",
+        required=True,
+        help="Path to electrical tariff key map JSON file (e.g. utils/pre/electrical_tariff_key_map.json)",
+    )
+    parser.add_argument(
+        "--run_name",
+        required=True,
+        help="Run name (e.g. ri_rie_run1_up00_precalc__flat__n100)",
+    )
     parser.add_argument(
         "--electric_utility",
         required=True,
         help="Electric utility std_name (e.g. coned, nyseg, nimo)",
-    )
-    parser.add_argument(
-        "--SB_scenario_type",
-        required=True,
-        help=(
-            "SB scenario type "
-            "(e.g. default, seasonal, seasonal_discount, class_specific_seasonal)"
-        ),
-    )
-    parser.add_argument(
-        "--SB_scenario_year", required=True, help="SB scenario year (e.g. 1 , 2, 3)"
     )
     parser.add_argument(
         "--output_dir",
@@ -110,64 +129,180 @@ if __name__ == "__main__":
 
     try:  # If the metadata path is an S3 path, use the S3Path class.
         base_path = S3Path(args.metadata_path)
-        use_s3 = True
+        use_s3_metadata = True
     except ValueError:
         base_path = Path(args.metadata_path)
-        use_s3 = False
+        use_s3_metadata = False
+
+    try:  # If the utility assignment path is an S3 path, use the S3Path class.
+        utility_assignment_base_path = S3Path(args.utility_assignment_path)
+        use_s3_utility_assignment = True
+    except ValueError:
+        utility_assignment_base_path = Path(args.utility_assignment_path)
+        use_s3_utility_assignment = False
 
     # Support metadata_utility path (utility_assignment.parquet) or metadata path (metadata-sb.parquet)
-    if "metadata_utility" in str(args.metadata_path):
-        metadata_path = base_path / f"state={args.state}" / "utility_assignment.parquet"
+    if "metadata_utility" in str(args.utility_assignment_path):
+        utility_assignment_path = (
+            utility_assignment_base_path
+            / f"state={args.state}"
+            / "utility_assignment.parquet"
+        )
     else:
-        metadata_path = (
-            base_path
+        utility_assignment_path = (
+            utility_assignment_base_path
             / f"state={args.state}"
             / f"upgrade={args.upgrade_id}"
             / "metadata-sb.parquet"
         )
-
-    if use_s3 and not metadata_path.exists():
-        raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
-    if not use_s3 and not Path(metadata_path).exists():
-        raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
-
-    storage_opts = STORAGE_OPTIONS if use_s3 else None
-    SB_metadata_df = (
-        pl.scan_parquet(str(metadata_path), storage_options=storage_opts)
-        if storage_opts
-        else pl.scan_parquet(str(metadata_path))
+    metadata_path = (
+        base_path
+        / f"state={args.state}"
+        / f"upgrade={args.upgrade_id}"
+        / "metadata-sb.parquet"
     )
 
-    # Use real sb.electric_utility if present; else fall back to synthetic (deprecated)
-    schema_cols = SB_metadata_df.collect_schema().names()
-    if "sb.electric_utility" in schema_cols:
-        SB_metadata_df_with_electric_utility = SB_metadata_df
+    if use_s3_metadata and not metadata_path.exists():
+        raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
+    if not use_s3_metadata and not Path(metadata_path).exists():
+        raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
+    if use_s3_utility_assignment and not utility_assignment_path.exists():
+        raise FileNotFoundError(
+            f"Utility assignment path {utility_assignment_path} does not exist"
+        )
+    if not use_s3_utility_assignment and not Path(utility_assignment_path).exists():
+        raise FileNotFoundError(
+            f"Utility assignment path {utility_assignment_path} does not exist"
+        )
+
+    storage_opts_metadata = STORAGE_OPTIONS if use_s3_metadata else None
+    storage_opts_utility_assignment = (
+        STORAGE_OPTIONS if use_s3_utility_assignment else None
+    )
+    SB_metadata = (
+        pl.scan_parquet(str(metadata_path), storage_options=storage_opts_metadata)
+        if storage_opts_metadata
+        else pl.scan_parquet(str(metadata_path))
+    )
+    utility_assignment = (
+        pl.scan_parquet(
+            str(utility_assignment_path),
+            storage_options=storage_opts_utility_assignment,
+        )
+        if storage_opts_utility_assignment
+        else pl.scan_parquet(str(utility_assignment_path))
+    )
+
+    # Use real sb.electric_utility and sb.gas_utility if present; else fall back to synthetic (deprecated)
+    utility_assignment_schema_cols = utility_assignment.collect_schema().names()
+    if (
+        "sb.electric_utility" in utility_assignment_schema_cols
+        and "sb.gas_utility" in utility_assignment_schema_cols
+    ):
+        # Check that both LazyFrames have the same bldg_id values (anti-join to avoid materializing full id lists)
+        meta_bldg = SB_metadata.select("bldg_id").unique()
+        util_bldg = utility_assignment.select("bldg_id").unique()
+        in_meta_not_util = cast(
+            pl.DataFrame,
+            meta_bldg.join(util_bldg, on="bldg_id", how="anti").collect(),
+        )
+        in_util_not_meta = cast(
+            pl.DataFrame,
+            util_bldg.join(meta_bldg, on="bldg_id", how="anti").collect(),
+        )
+        if in_meta_not_util.height > 0 or in_util_not_meta.height > 0:
+            meta_count = cast(
+                pl.DataFrame,
+                SB_metadata.select(pl.col("bldg_id").n_unique().alias("n")).collect(),
+            )["n"][0]
+            util_count = cast(
+                pl.DataFrame,
+                utility_assignment.select(
+                    pl.col("bldg_id").n_unique().alias("n")
+                ).collect(),
+            )["n"][0]
+            raise ValueError(
+                f"bldg_id mismatch between metadata and utility_assignment:\n"
+                f"  Metadata has {meta_count} unique bldg_ids\n"
+                f"  Utility assignment has {util_count} unique bldg_ids"
+            )
+
+        # Inner join ensures one-to-one matching; will fail if bldg_ids don't match
+        SB_metadata_with_utilities = SB_metadata.join(
+            utility_assignment.select(
+                "bldg_id", "sb.electric_utility", "sb.gas_utility"
+            ),
+            on="bldg_id",
+            how="inner",
+        )
+
+        # Verify join preserved all rows (catches duplicates or other issues)
+        metadata_count_df = cast(
+            pl.DataFrame,
+            SB_metadata.select(pl.len()).collect(),
+        )
+        metadata_count = metadata_count_df.row(0)[0]
+
+        joined_count_df = cast(
+            pl.DataFrame,
+            SB_metadata_with_utilities.select(pl.len()).collect(),
+        )
+        joined_count = joined_count_df.row(0)[0]
+        if metadata_count != joined_count:
+            raise ValueError(
+                f"Join failed: metadata has {metadata_count} rows but inner join produced {joined_count} rows. "
+                f"This indicates duplicate bldg_ids or non-matching values."
+            )
     else:
         warnings.warn(
-            "metadata has no sb.electric_utility column; using synthetic data. "
+            "metadata has no sb.electric_utility/sb.gas_utility columns; using synthetic data. "
             "Run assign_utility_ny (data/resstock/) and point --metadata_path to metadata_utility for real data.",
             DeprecationWarning,
             stacklevel=2,
         )
-        SB_metadata_df_with_electric_utility = SB_metadata_df.with_columns(
+        SB_metadata_with_utilities = SB_metadata.with_columns(
             pl.when(pl.col("bldg_id").hash() % 3 == 0)
             .then(pl.lit("coned"))
             .when(pl.col("bldg_id").hash() % 3 == 1)
             .then(pl.lit("nimo"))
             .otherwise(pl.lit("nyseg"))
-            .alias("sb.electric_utility")
+            .alias("sb.electric_utility"),
+            pl.when((pl.col("bldg_id").hash() % 2) == 0)
+            .then(pl.lit("nimo"))
+            .otherwise(pl.lit("nyseg"))
+            .alias("sb.gas_utility"),
         )
 
-    sb_scenario = SBScenario(args.SB_scenario_type, args.SB_scenario_year)
+    # Read in electrical tariff key map JSON file and group-tariff key mapping.
+    if not Path(args.electrical_tariff_key_map_path).exists():
+        raise FileNotFoundError(
+            f"Electrical tariff key map path {args.electrical_tariff_key_map_path} does not exist"
+        )
+    with open(args.electrical_tariff_key_map_path, "r") as f:
+        electrical_tariff_key_map = json.load(f)
+    if args.run_name not in electrical_tariff_key_map:
+        raise KeyError(
+            f"Run name {args.run_name!r} not found in electrical tariff key map. "
+            f"Available runs: {list(electrical_tariff_key_map.keys())}"
+        )
+    run_config = electrical_tariff_key_map[args.run_name]
+    grouping_cols: list[str] = run_config["grouping_cols"]
+    # JSON keys are strings; parse to tuple for group_to_tariff_key (values may be str/bool/int)
+    raw_group_to_tariff_key: dict[str, str] = run_config["group_to_tariff_key"]
+    group_to_tariff_key: dict[tuple[str | bool | int, ...], str] = {
+        cast(tuple[str | bool | int, ...], ast.literal_eval(k)): v
+        for k, v in raw_group_to_tariff_key.items()
+    }
     electrical_tariff_mapping_df = map_electric_tariff(
-        SB_metadata_df=SB_metadata_df_with_electric_utility,
+        SB_metadata_df=SB_metadata_with_utilities,
         electric_utility=args.electric_utility,
-        SB_scenario=sb_scenario,
-        state=args.state,
+        grouping_cols=grouping_cols,
+        group_to_tariff_key=group_to_tariff_key,
     )
+    output_filename = run_config["output_filename"]
     try:
         base_path = S3Path(args.output_dir)
-        output_path = base_path / f"{args.electric_utility}_{sb_scenario}.csv"
+        output_path = base_path / output_filename
         if not output_path.parent.exists():
             output_path.parent.mkdir(parents=True)
         electrical_tariff_mapping_df.sink_csv(
@@ -175,7 +310,7 @@ if __name__ == "__main__":
         )
     except ValueError:
         base_path = Path(args.output_dir)
-        output_path = base_path / f"{args.electric_utility}_{sb_scenario}.csv"
+        output_path = base_path / output_filename
         if not output_path.parent.exists():
             output_path.parent.mkdir(parents=True)
         electrical_tariff_mapping_df.sink_csv(str(output_path))
