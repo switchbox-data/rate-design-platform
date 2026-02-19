@@ -7,6 +7,7 @@ runs:
     utility: rie
     upgrade: 0
     path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=RI/utility_assignment.parquet
     path_tariff_maps_electric: tariff_maps/electric/dummy_electric_tariff_ri_run_1.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_gas_tariff_ri_run_1.csv
     path_tariffs_electric:
@@ -32,6 +33,7 @@ runs:
     utility: rie
     upgrade: 0
     path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=RI/utility_assignment.parquet
     path_tariff_maps_electric: tariff_maps/electric/dummy_electric_tariff_ri_supply_adj_run_1.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_gas_tariff_ri_run_1.csv
     path_tariffs_electric:

@@ -18,8 +18,6 @@ from cairo.rates_tool.systemsimulator import (
     _return_export_compensation_rate,
     _return_revenue_requirement_target,
 )
-from cloudpathlib import S3Path
-
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils import get_aws_region
 from utils.cairo import (
@@ -37,13 +35,8 @@ STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
 PATH_RESSTOCK = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
-PATH_UTILITY_ASSIGNMENT = S3Path(
-    "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=RI/"
-    "utility_assignment.parquet"
-)  # TODO: This file doesn't exist yet, we need to create it
 DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
 DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
-electric_utility = cast(ElectricUtility, "rie")
 
 
 @dataclass(slots=True)
@@ -58,6 +51,7 @@ class ScenarioSettings:
     path_results: Path
     path_resstock_metadata: Path
     path_resstock_loads: Path
+    path_utility_assignment: str | Path
     path_cambium_marginal_costs: str | Path
     path_tariff_maps_electric: Path
     path_tariff_maps_gas: Path
@@ -212,6 +206,10 @@ def _build_settings_from_yaml_run(
         / "load_curve_hourly"
         / f"state={state}"
         / f"upgrade={upgrade}",
+        path_utility_assignment=_resolve_path_or_uri(
+            str(_require_value(run, "path_utility_assignment")),
+            PATH_CONFIG,
+        ),
         path_cambium_marginal_costs=_resolve_path_or_uri(
             str(_require_value(run, "path_cambium_marginal_costs")),
             PATH_CONFIG,
@@ -288,9 +286,13 @@ def run(settings: ScenarioSettings) -> None:
     )
 
     # Retrieve prototype IDs for the given electric utility
-    utility_assignment = pl.scan_parquet(
-        str(PATH_UTILITY_ASSIGNMENT), storage_options=STORAGE_OPTIONS
+    path_ua = settings.path_utility_assignment
+    storage_opts = (
+        STORAGE_OPTIONS
+        if isinstance(path_ua, str) and path_ua.startswith("s3://")
+        else None
     )
+    utility_assignment = pl.scan_parquet(str(path_ua), storage_options=storage_opts)
     prototype_ids = _fetch_prototype_ids_by_electric_util(
         cast(ElectricUtility, settings.utility), utility_assignment
     )
