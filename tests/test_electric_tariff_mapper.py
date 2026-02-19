@@ -48,3 +48,26 @@ def test_map_electric_tariff_tariff_key_format():
     )
     df = cast(pl.DataFrame, result.collect())
     assert df["tariff_key"][0] == "nyseg_seasonal_1_HP.csv"
+
+
+def test_map_electric_tariff_seasonal_discount_tariff_key_format():
+    """seasonal_discount uses HP/flat split keys for mapping."""
+    metadata = pl.LazyFrame(
+        {
+            "bldg_id": [1, 2],
+            "sb.electric_utility": ["nyseg", "nyseg"],
+            "postprocess_group.has_hp": [True, False],
+        }
+    )
+    sb_scenario = SBScenario("seasonal_discount", 1)
+    result = map_electric_tariff(
+        SB_metadata_df=metadata,
+        electric_utility="nyseg",
+        SB_scenario=sb_scenario,
+        state="NY",
+    )
+    df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
+    assert df["tariff_key"].to_list() == [
+        "nyseg_seasonal_discount_1_HP.csv",
+        "nyseg_seasonal_discount_1_flat.csv",
+    ]

@@ -22,9 +22,10 @@ run-scenario-with-output run_num output_dir scenario_config=ri_run_scenario_conf
     --output-dir "{{output_dir}}"
 
 # -----------------------------------------------------------------------------
-# Post-processing: subclass revenue requirements from CAIRO BAT outputs
+# Post-processing
 # -----------------------------------------------------------------------------
-# Always pass the full CAIRO run directory path
+
+# Revenue requirement YAML outputs from CAIRO BAT results.
 ri_rev_requirement_dir := project_root + "/rate_design/ri/hp_rates/config/rev_requirement"
 ri_differentiated_rev_requirement_yaml := ri_rev_requirement_dir + "/rie_hp_vs_nonhp.yaml"
 ri_default_rev_requirement_yaml := ri_rev_requirement_dir + "/rie.yaml"
@@ -38,6 +39,42 @@ compute-subclass-rr run_dir run_num="1" scenario_config=ri_run_scenario_config g
     --cross-subsidy-col "{{cross_subsidy_col}}" \
     --differentiated-yaml-path "{{differentiated_yaml}}" \
     --default-yaml-path "{{default_yaml}}"
+
+# Seasonal discount inputs from run outputs + ResStock loads.
+compute-seasonal-discount-inputs run_dir resstock_loads_path cross_subsidy_col="BAT_percustomer" output_dir="":
+  uv run python {{project_root}}/utils/post/compute_seasonal_discount_inputs.py \
+    --run-dir "{{run_dir}}" \
+    --cross-subsidy-col "{{cross_subsidy_col}}" \
+    --resstock-loads-path "{{resstock_loads_path}}" \
+    {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }}
+
+# Tariff JSON creation from seasonal_discount_rate_inputs.csv.
+create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label output_path:
+  uv run python {{project_root}}/utils/pre/create_seasonal_discount_tariff.py \
+    --base-tariff-json "{{base_tariff_json}}" \
+    --seasonal-inputs-csv "{{seasonal_inputs_csv}}" \
+    --label "{{label}}" \
+    --output-path "{{output_path}}"
+
+ri_tariffs_electric_dir := project_root + "/rate_design/ri/hp_rates/config/tariffs/electric"
+ri_hp_seasonal_calibrated_tariff := ri_tariffs_electric_dir + "/rie_hp_seasonal_calibrated.json"
+ri_hp_seasonal_calibrated_supply_tariff := ri_tariffs_electric_dir + "/rie_hp_seasonal_calibrated_supply.json"
+
+# Run 1 (delivery-only) calibrated seasonal tariff.
+create-rie-hp-seasonal-calibrated seasonal_inputs_csv:
+  just create-seasonal-discount-tariff \
+    {{ri_tariffs_electric_dir}}/rie_a16.json \
+    "{{seasonal_inputs_csv}}" \
+    rie_hp_seasonal_calibrated \
+    {{ri_hp_seasonal_calibrated_tariff}}
+
+# Run 2 (delivery + supply) calibrated seasonal tariff.
+create-rie-hp-seasonal-calibrated-supply seasonal_inputs_csv:
+  just create-seasonal-discount-tariff \
+    {{ri_tariffs_electric_dir}}/rie_a16_supply_adj.json \
+    "{{seasonal_inputs_csv}}" \
+    rie_hp_seasonal_calibrated_supply \
+    {{ri_hp_seasonal_calibrated_supply_tariff}}
 
 # -----------------------------------------------------------------------------
 # PRE: Tariff mapping (electric and gas)
@@ -85,6 +122,12 @@ map-electric-nyseg-class-specific-seasonal:
 
 map-electric-rie-default:
   just map-electric-tariff rie default 1 00 {{tariff_maps_dir_ri}}/electric
+
+map-electric-rie-seasonal:
+  just map-electric-tariff rie seasonal 1 00 {{tariff_maps_dir_ri}}/electric
+
+map-electric-rie-seasonal-discount:
+  just map-electric-tariff rie seasonal_discount 1 00 {{tariff_maps_dir_ri}}/electric
 
 map-gas-tariff electric_utility upgrade_id output_dir:
   uv run python {{project_root}}/utils/pre/gas_tariff_mapper.py \

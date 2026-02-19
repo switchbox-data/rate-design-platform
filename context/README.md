@@ -21,6 +21,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 - `cairo_demand_flexibility_workflow.md`: CAIRO demand-flexibility workflow, CLI steps, and run/output expectations
 - `resstock_lmi_metadata_guide.md`: ResStock 2024.2 parquet metadata columns for LMI tier assignment, FPL/SMI, and income
 - `subclass_revenue_requirement_utility.md`: `compute_subclass_rr.py` behavior, BAT metric options, required inputs, and CLI/Just usage
+- `seasonal_discount_rate_workflow.md`: RI seasonal discount workflow from subclass BAT outputs + winter kWh to tariff/map generation
 
 ## docs/
 
