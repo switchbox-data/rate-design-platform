@@ -13,7 +13,6 @@ from utils.pre.electric_tariff_mapper import (
     map_electric_tariff,
 )
 
-
 # --- _parse_tuple_value ---
 
 
@@ -131,17 +130,17 @@ def test_define_electrical_tariff_key_two_cols():
     expr = define_electrical_tariff_key(
         "rie",
         ["has_hp", "category"],
-        {(True, "residential"): "hp_res", (False, "residential"): "flat_res"},
+        {(True, "residential"): "hp_res", (False, "commercial"): "flat_com"},
     )
     df = pl.LazyFrame(
         {
             "bldg_id": [1, 2],
             "has_hp": [True, False],
-            "category": ["residential", "residential"],
+            "category": ["residential", "commercial"],
         }
     ).select(pl.col("bldg_id"), expr.alias("tariff_key"))
     result = cast(pl.DataFrame, df.collect()).sort("bldg_id")
-    assert result["tariff_key"].to_list() == ["rie_hp_res", "rie_flat_res"]
+    assert result["tariff_key"].to_list() == ["rie_hp_res", "rie_flat_com"]
 
 
 def test_define_electrical_tariff_key_unmatched_gets_null():
