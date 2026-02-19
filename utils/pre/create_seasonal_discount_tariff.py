@@ -10,7 +10,13 @@ from typing import Any
 import polars as pl
 from cloudpathlib import S3Path
 
-from utils.pre.create_tariff import create_seasonal_rate
+from utils.pre.create_tariff import create_seasonal_rate, write_tariff_json
+from utils.pre.season_config import (
+    DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS,
+    load_winter_months_from_periods,
+    parse_months_arg,
+    resolve_winter_summer_months,
+)
 
 
 def _resolve_path(path_value: str) -> S3Path | Path:
@@ -30,13 +36,11 @@ def _read_csv(path: S3Path | Path) -> pl.DataFrame:
 
 
 def _write_json(path: S3Path | Path, payload: dict[str, Any]) -> str:
-    text = json.dumps(payload, indent=2)
     if isinstance(path, S3Path):
-        path.write_text(text)
+        path.write_text(json.dumps(payload, indent=2))
         return str(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-    return str(path)
+    written = write_tariff_json(payload, path)
+    return str(written)
 
 
 def main() -> None:
@@ -66,6 +70,22 @@ def main() -> None:
         required=True,
         help="Output path for created tariff JSON (local or s3://...).",
     )
+    parser.add_argument(
+        "--winter-months",
+        default=None,
+        help=(
+            "Comma-separated 1-indexed winter months. "
+            "When omitted, defaults to the tariff constructor fallback."
+        ),
+    )
+    parser.add_argument(
+        "--periods-yaml",
+        default=None,
+        help=(
+            "Optional periods YAML containing `winter_months`. "
+            "Used when --winter-months is omitted."
+        ),
+    )
     args = parser.parse_args()
 
     base_tariff_path = _resolve_path(args.base_tariff_json)
@@ -80,12 +100,24 @@ def main() -> None:
     row = seasonal_inputs.row(0, named=True)
     summer_rate = float(row["default_rate"])
     winter_rate = float(row["winter_rate_hp"])
+    winter_months = parse_months_arg(args.winter_months) if args.winter_months else None
+    periods_winter: list[int] | None = None
+    if winter_months is None and args.periods_yaml:
+        periods_winter = load_winter_months_from_periods(
+            Path(args.periods_yaml),
+            default_winter_months=DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS,
+        )
+    normalized_winter_months, _ = resolve_winter_summer_months(
+        winter_months if winter_months is not None else periods_winter,
+        default_winter_months=DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS,
+    )
 
     seasonal_tariff = create_seasonal_rate(
         base_tariff=base_tariff,
         label=args.label,
         winter_rate=winter_rate,
         summer_rate=summer_rate,
+        winter_months=normalized_winter_months,
     )
     written_path = _write_json(output_path, seasonal_tariff)
     print(f"Created seasonal-discount tariff file: {written_path}")

@@ -10,7 +10,7 @@ import yaml
 
 from utils.post.compute_subclass_rr import (
     DEFAULT_SEASONAL_OUTPUT_FILENAME,
-    _load_default_revenue_requirement,
+    _load_run_fields,
     _write_revenue_requirement_yamls,
     _write_seasonal_inputs_csv,
     compute_hp_seasonal_discount_inputs,
@@ -141,13 +141,14 @@ def test_compute_subclass_rr_missing_annual_rows_raises(tmp_path: Path) -> None:
         compute_subclass_rr(run_dir)
 
 
-def test_load_default_revenue_requirement_from_scenario_config(tmp_path: Path) -> None:
+def test_load_run_fields_from_scenario_config(tmp_path: Path) -> None:
     scenario_config = tmp_path / "scenarios.yaml"
     scenario_config.write_text(
         yaml.safe_dump(
             {
                 "runs": {
                     1: {
+                        "state": "RI",
                         "utility": "rie",
                         "utility_delivery_revenue_requirement": 241869601,
                     }
@@ -158,7 +159,8 @@ def test_load_default_revenue_requirement_from_scenario_config(tmp_path: Path) -
         encoding="utf-8",
     )
 
-    utility, rr = _load_default_revenue_requirement(scenario_config, run_num=1)
+    state, utility, rr = _load_run_fields(scenario_config, run_num=1)
+    assert state == "RI"
     assert utility == "rie"
     assert rr == pytest.approx(241869601.0)
 
