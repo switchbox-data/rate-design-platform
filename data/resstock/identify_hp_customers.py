@@ -22,6 +22,9 @@ def _col_contains_any(column: str, substrings: tuple[str, ...]) -> pl.Expr:
 
 def identify_hp_customers(metadata: pl.LazyFrame, upgrade_id: str) -> pl.LazyFrame:
     """Add postprocess_group.has_hp column: True where building has heat pump."""
+    # Remove postprocess_group.has_hp column if it exists
+    metadata = metadata.drop("postprocess_group.has_hp", strict=False)
+    # Add postprocess_group.has_hp column
     if upgrade_id == "00":
         hvac_cooling_is_hp = _col_contains_any(IN_HVAC_COOLING_COLUMN, HP_SUBSTRINGS)
         hvac_heating_is_hp = _col_contains_any(IN_HVAC_HEATING_COLUMN, HP_SUBSTRINGS)

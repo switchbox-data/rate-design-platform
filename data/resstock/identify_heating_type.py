@@ -25,6 +25,9 @@ def _col_contains_any(column: str, substrings: tuple[str, ...]) -> pl.Expr:
 
 def identify_heating_type(metadata: pl.LazyFrame, upgrade_id: str) -> pl.LazyFrame:
     """Add postprocess_group.heating_type: 'heat_pump', 'electrical_resistance', 'fossil_fuel', or 'none'."""
+    # Remove postprocess_group.heating_type column if it exists
+    metadata = metadata.drop("postprocess_group.heating_type", strict=False)
+    # Add postprocess_group.heating_type column
     # Identify heat pumps (has "ASHP", "MSHP", or "GSHP" in the column value)
     if upgrade_id == "00":
         heating_type_is_hp = _col_contains_any(IN_HVAC_COLUMN, HP_SUBSTRINGS)

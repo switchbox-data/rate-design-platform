@@ -5,14 +5,15 @@ from __future__ import annotations
 import argparse
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
 
-import pandas as pd
 import polars as pl
 import yaml
-from cairo.rates_tool.loads import _return_load, return_buildingstock
+from cairo.rates_tool.loads import (
+    _return_load,
+    return_buildingstock,
+)
 from cairo.rates_tool.systemsimulator import (
     MeetRevenueSufficiencySystemWide,
     _initialize_tariffs,
@@ -20,8 +21,11 @@ from cairo.rates_tool.systemsimulator import (
     _return_revenue_requirement_target,
 )
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.cairo import _load_cambium_marginal_costs, build_bldg_id_to_load_filepath
+from utils.cairo import (
+    _load_cambium_marginal_costs,
+    build_bldg_id_to_load_filepath,
+    load_distribution_marginal_costs,
+)
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 
 log = logging.getLogger("rates_analysis").getChild("tests")
@@ -29,6 +33,7 @@ log = logging.getLogger("rates_analysis").getChild("tests")
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
+DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
 DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
 
 
@@ -40,8 +45,7 @@ class ScenarioSettings:
     run_type: str
     state: str
     utility: str
-    upgrade: str
-    path_output: Path
+    path_results: Path
     path_resstock_metadata: Path
     path_resstock_loads: Path
     path_cambium_marginal_costs: str | Path
@@ -86,28 +90,6 @@ def _parse_bool(value: object, field_name: str) -> bool:
     if normalized in {"false", "0", "no", "n"}:
         return False
     raise ValueError(f"Invalid boolean for {field_name}: {value}")
-
-
-def _normalize_upgrade(value: object, width: int = 2) -> str:
-    """Normalize upgrade to a zero-padded string (e.g. 0 or '0' -> '00')."""
-    if value is None:
-        return "0" * width
-    if isinstance(value, int):
-        if value < 0:
-            raise ValueError(f"upgrade must be non-negative; got {value}")
-        return str(value).zfill(width)
-    s = str(value).strip()
-    if s == "":
-        return "0" * width
-    try:
-        n = int(s)
-    except ValueError as exc:
-        raise ValueError(
-            f"upgrade must be an integer or zero-padded string; got {value!r}"
-        ) from exc
-    if n < 0:
-        raise ValueError(f"upgrade must be non-negative; got {value!r}")
-    return str(n).zfill(width)
 
 
 def _resolve_path(value: str, base_dir: Path) -> Path:
@@ -192,6 +174,13 @@ def _parse_path_tariffs(
     return path_tariffs
 
 
+def _default_precalc_tariff(path_tariffs_electric: dict[str, Path]) -> tuple[str, Path]:
+    """Choose default precalc tariff from first configured electric tariff."""
+    if not path_tariffs_electric:
+        raise ValueError("path_tariffs_electric must contain at least one tariff")
+    return next(iter(path_tariffs_electric.items()))
+
+
 def _require_value(run: dict[str, Any], field_name: str) -> Any:
     value = run.get(field_name)
     if value is None:
@@ -219,12 +208,12 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
 def _build_settings_from_yaml_run(
     run: dict[str, Any],
     run_num: int,
+    output_dir: Path,
     run_name_override: str | None,
 ) -> ScenarioSettings:
     """Build runtime settings from repo YAML scenario config."""
     state = str(run.get("state", "RI")).upper()
     utility = str(_require_value(run, "utility")).lower()
-    upgrade = _normalize_upgrade(run.get("upgrade", "00"))
     mode = str(run.get("run_type", "precalc"))
     year_run = _parse_int(run.get("year_run"), "year_run")
     year_dollar_conversion = _parse_int(
@@ -265,7 +254,30 @@ def _build_settings_from_yaml_run(
         "gas",
     )
 
-    precalc_tariff_key = str(_require_value(run, "precalc_tariff_key"))
+    precalc_tariff_key_raw = run.get("precalc_tariff_key")
+    precalc_tariff_path_raw = run.get("precalc_tariff_path")
+    if precalc_tariff_key_raw is None and precalc_tariff_path_raw is None:
+        precalc_tariff_key, precalc_tariff_path = _default_precalc_tariff(
+            path_tariffs_electric
+        )
+    elif precalc_tariff_path_raw is None:
+        precalc_tariff_key = str(precalc_tariff_key_raw)
+        try:
+            precalc_tariff_path = path_tariffs_electric[precalc_tariff_key]
+        except KeyError as exc:
+            available = sorted(path_tariffs_electric.keys())
+            raise ValueError(
+                "precalc_tariff_key is not in path_tariffs_electric. "
+                f"precalc_tariff_key={precalc_tariff_key!r}, available={available}"
+            ) from exc
+    else:
+        precalc_tariff_path = _resolve_path(str(precalc_tariff_path_raw), PATH_CONFIG)
+        precalc_tariff_key = (
+            str(precalc_tariff_key_raw)
+            if precalc_tariff_key_raw is not None
+            else precalc_tariff_path.stem
+        )
+
     default_run_name = str(run.get("run_name", f"ri_rie_run_{run_num:02d}"))
     add_supply_revenue_requirement = _parse_bool(
         run.get(
@@ -274,17 +286,12 @@ def _build_settings_from_yaml_run(
         ),
         "add_supply_revenue_requirement",
     )
-    path_output = _resolve_path(
-        str(_require_value(run, "path_output")),
-        PATH_CONFIG,
-    )
     return ScenarioSettings(
         run_name=run_name_override or default_run_name,
         run_type=mode,
         state=state,
         utility=utility,
-        upgrade=upgrade,
-        path_output=path_output,
+        path_results=output_dir,
         path_resstock_metadata=_resolve_path(
             str(_require_value(run, "path_resstock_metadata")),
             PATH_CONFIG,
@@ -305,10 +312,7 @@ def _build_settings_from_yaml_run(
         path_tariff_maps_gas=path_tariff_maps_gas,
         path_tariffs_electric=path_tariffs_electric,
         path_tariffs_gas=path_tariffs_gas,
-        precalc_tariff_path=_resolve_path(
-            str(_require_value(run, "precalc_tariff_path")),
-            PATH_CONFIG,
-        ),
+        precalc_tariff_path=precalc_tariff_path,
         precalc_tariff_key=precalc_tariff_key,
         utility_delivery_revenue_requirement=utility_delivery_revenue_requirement,
         utility_customer_count=utility_customer_count,
@@ -339,8 +343,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=None,
-        help="Optional override: full output path (else built from path_output/state/run_name/runtime).",
+        default=DEFAULT_OUTPUT_DIR,
+        help="Output root dir passed to CAIRO.",
     )
     parser.add_argument(
         "--run-name",
@@ -350,44 +354,30 @@ def _parse_args() -> argparse.Namespace:
     return args
 
 
-def _resolve_settings(
-    args: argparse.Namespace,
-) -> tuple[ScenarioSettings, Path | None]:
+def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
     run = _load_run_from_yaml(args.scenario_config, args.run_num)
-    settings = _build_settings_from_yaml_run(
+    return _build_settings_from_yaml_run(
         run=run,
         run_num=args.run_num,
+        output_dir=args.output_dir,
         run_name_override=args.run_name,
     )
-    return settings, args.output_dir
 
 
-def run(
-    settings: ScenarioSettings,
-    output_dir_override: Path | None = None,
-) -> None:
+# ---------------------------------------------------------------------------
+# Main run
+# ---------------------------------------------------------------------------
+
+
+def run(settings: ScenarioSettings) -> None:
     log.info(
         ".... Beginning RI residential (non-LMI) rate scenario simulation: %s",
         settings.run_name,
     )
-    if output_dir_override is not None:
-        path_results = output_dir_override
-    else:
-        runtime = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        path_results = (
-            settings.path_output / settings.state.lower() / settings.run_name / runtime
-        )
 
-    tariffs_params, tariff_map_df = _initialize_tariffs(
-        tariff_map=settings.path_tariff_maps_electric,
-        building_stock_sample=None,
-        tariff_paths=settings.path_tariffs_electric,
-    )
-
-    precalc_mapping = generate_default_precalc_mapping(
-        tariff_path=settings.precalc_tariff_path,
-        tariff_key=settings.precalc_tariff_key,
-    )
+    # ------------------------------------------------------------------
+    # Phase 1: Load data (customer metadata, building loads, marginal costs)
+    # ------------------------------------------------------------------
 
     customer_metadata = return_buildingstock(
         load_scenario=settings.path_resstock_metadata,
@@ -398,13 +388,6 @@ def run(
             "postprocess_group.heating_type",
             "in.vintage_acs",
         ],
-    )
-
-    sell_rate = _return_export_compensation_rate(
-        year_run=settings.year_run,
-        solar_pv_compensation=settings.solar_pv_compensation,
-        solar_pv_export_import_ratio=1.0,
-        tariff_dict=tariffs_params,
     )
 
     bldg_id_to_load_filepath = build_bldg_id_to_load_filepath(
@@ -428,35 +411,36 @@ def run(
         settings.path_cambium_marginal_costs,
         settings.year_run,
     )
-    path_td = settings.path_td_marginal_costs
-    if str(path_td).startswith("s3://"):
-        distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
-            path_td,
-            storage_options=get_aws_storage_options(),
-        )
-    else:
-        distribution_mc_scan = pl.scan_parquet(path_td)
-    distribution_mc_df = cast(pl.DataFrame, distribution_mc_scan.collect())
-    distribution_marginal_costs = distribution_mc_df.to_pandas()
-    required_cols = {"timestamp", "mc_total_per_kwh"}
-    missing_cols = required_cols.difference(distribution_marginal_costs.columns)
-    if missing_cols:
-        raise ValueError(
-            "Distribution marginal costs parquet is missing required columns "
-            f"{sorted(required_cols)}. Missing: {sorted(missing_cols)}"
-        )
-    distribution_marginal_costs = distribution_marginal_costs.set_index("timestamp")[
-        "mc_total_per_kwh"
-    ]
-    distribution_marginal_costs.index = pd.DatetimeIndex(
-        distribution_marginal_costs.index
-    ).tz_localize("EST")
-    distribution_marginal_costs.index.name = "time"
-    distribution_marginal_costs.name = "Marginal Distribution Costs ($/kWh)"
+
+    distribution_marginal_costs = load_distribution_marginal_costs(
+        settings.path_td_marginal_costs,
+    )
 
     log.info(
         ".... Loaded distribution marginal costs rows=%s",
         len(distribution_marginal_costs),
+    )
+
+    # ------------------------------------------------------------------
+    # Phase 2: Initialize tariffs and system requirements
+    # ------------------------------------------------------------------
+
+    tariffs_params, tariff_map_df = _initialize_tariffs(
+        tariff_map=settings.path_tariff_maps_electric,
+        building_stock_sample=None,
+        tariff_paths=settings.path_tariffs_electric,
+    )
+
+    precalc_mapping = generate_default_precalc_mapping(
+        tariff_path=settings.precalc_tariff_path,
+        tariff_key=settings.precalc_tariff_key,
+    )
+
+    sell_rate = _return_export_compensation_rate(
+        year_run=settings.year_run,
+        solar_pv_compensation=settings.solar_pv_compensation,
+        solar_pv_export_import_ratio=1.0,
+        tariff_dict=tariffs_params,
     )
 
     (
@@ -476,13 +460,17 @@ def run(
         delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
     )
 
+    # ------------------------------------------------------------------
+    # Phase 3: Run CAIRO simulation
+    # ------------------------------------------------------------------
+
     bs = MeetRevenueSufficiencySystemWide(
         run_type=settings.run_type,
         year_run=settings.year_run,
         year_dollar_conversion=settings.year_dollar_conversion,
         process_workers=settings.process_workers,
         run_name=settings.run_name,
-        output_dir=path_results,
+        output_dir=settings.path_results,
     )
 
     bs.simulate(
@@ -516,8 +504,8 @@ def run(
 
 def main() -> None:
     args = _parse_args()
-    settings, output_dir_override = _resolve_settings(args)
-    run(settings, output_dir_override=output_dir_override)
+    settings = _resolve_settings(args)
+    run(settings)
 
 
 if __name__ == "__main__":
