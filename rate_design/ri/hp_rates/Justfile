@@ -77,6 +77,11 @@ create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label outpu
     --label "{{label}}" \
     --output-path "{{output_path}}"
 
+# Copy calibrated tariff_final_config.json from an RI run directory into config tariffs.
+copy-calibrated-tariff-from-run run_dir:
+  uv run python -m utils.pre.copy_calibrated_tariff_from_run \
+    --run-dir "{{run_dir}}"
+
 ri_tariffs_electric_dir := project_root + "/rate_design/ri/hp_rates/config/tariffs/electric"
 ri_hp_seasonal_calibrated_tariff := ri_tariffs_electric_dir + "/rie_hp_seasonal_calibrated.json"
 ri_hp_seasonal_calibrated_supply_tariff := ri_tariffs_electric_dir + "/rie_hp_seasonal_calibrated_supply.json"

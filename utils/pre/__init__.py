@@ -1,1 +1,1 @@
-"""Preprocessing utilities: tariff mapping, precalc mapping, reweighting, flat tariff creation."""
+"""Preprocessing utilities for tariff generation, mapping, and naming workflows."""

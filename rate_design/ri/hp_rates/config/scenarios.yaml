@@ -1,6 +1,5 @@
 runs:
   1:
-    run_name: ri_rie_run_01_precalc_delivery_up00_y2025
     run_type: precalc
     state: RI
     region: isone
@@ -16,7 +15,7 @@ runs:
       rie_residential_non_heating_gas: tariffs/gas/rie_residential_non_heating_gas.json
     precalc_tariff_path: tariffs/electric/rie_a16.json
     precalc_tariff_key: rie_a16
-    utility_revenue_requirement: 241869601
+    utility_delivery_revenue_requirement: 241869601
     utility_customer_count: 451381
     year_run: 2025
     year_dollar_conversion: 2025
@@ -25,7 +24,6 @@ runs:
     delivery_only_rev_req_passed: false
 
   2:
-    run_name: ri_rie_run_02_precalc_delivery_supply_up00_y2025
     run_type: precalc
     state: RI
     region: isone
@@ -41,7 +39,7 @@ runs:
       rie_residential_non_heating_gas: tariffs/gas/rie_residential_non_heating_gas.json
     precalc_tariff_path: tariffs/electric/rie_a16_supply_adj.json
     precalc_tariff_key: rie_a16_supply_adj
-    utility_revenue_requirement: 241869601
+    utility_delivery_revenue_requirement: 241869601
     utility_customer_count: 451381
     year_run: 2025
     year_dollar_conversion: 2025
@@ -53,12 +51,11 @@ runs:
   # Run  just derive-seasonal-tou ...  first to produce the tariff JSON,
   # tariff map, and derivation spec under config/.
   3:
-    run_name: ri_rie_run_03_precalc_seasonal_tou_hp_up00_y2025
     run_type: precalc
     state: RI
     region: isone
     utility: rie
-    upgrade: 0
+    upgrade: 2
     path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
     path_tariff_maps_electric: tariff_maps/electric/rie_seasonal_tou_hp_tariff_map.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_gas_tariff_ri_run_1.csv
@@ -69,7 +66,7 @@ runs:
       rie_residential_non_heating_gas: tariffs/gas/rie_residential_non_heating_gas.json
     precalc_tariff_path: tariffs/electric/rie_seasonal_tou_hp.json
     precalc_tariff_key: rie_seasonal_tou_hp
-    utility_revenue_requirement: 241869601
+    utility_delivery_revenue_requirement: 241869601
     utility_customer_count: 451381
     year_run: 2025
     year_dollar_conversion: 2025

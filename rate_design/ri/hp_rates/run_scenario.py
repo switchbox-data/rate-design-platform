@@ -30,6 +30,10 @@ from utils.cairo import (
 )
 from utils.pre.compute_tou import load_season_specs
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
+from utils.pre.tariff_naming import (
+    build_ri_run_name,
+    derive_tariff_key_from_electric_tariff_filename,
+)
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
@@ -83,7 +87,7 @@ class ScenarioSettings:
     path_tariffs_gas: dict[str, Path]
     precalc_tariff_path: Path
     precalc_tariff_key: str
-    utility_revenue_requirement: float
+    utility_delivery_revenue_requirement: float
     utility_customer_count: int
     year_run: int
     year_dollar_conversion: int
@@ -198,12 +202,13 @@ def _build_settings_from_yaml_run(
         "year_dollar_conversion",
     )
     process_workers = _parse_int(run.get("process_workers", 20), "process_workers")
-    utility_revenue_requirement = float(
-        _parse_int(
-            _require_value(run, "utility_revenue_requirement"),
-            "utility_revenue_requirement",
-        )
-    )
+    rr_value = run.get("utility_delivery_revenue_requirement")
+    rr_field = "utility_delivery_revenue_requirement"
+    if rr_value is None:
+        # Backward-compatible fallback for older configs.
+        rr_value = _require_value(run, "utility_revenue_requirement")
+        rr_field = "utility_revenue_requirement"
+    utility_delivery_revenue_requirement = float(_parse_int(rr_value, rr_field))
     utility_customer_count = _parse_int(
         _require_value(run, "utility_customer_count"),
         "utility_customer_count",
@@ -227,6 +232,9 @@ def _build_settings_from_yaml_run(
         str(_require_value(run, "precalc_tariff_path")),
         PATH_CONFIG,
     )
+    tariff_key_from_filename = derive_tariff_key_from_electric_tariff_filename(
+        precalc_tariff_path
+    )
     precalc_tariff_key = str(_require_value(run, "precalc_tariff_key"))
 
     path_tariffs_gas_raw = _require_mapping(
@@ -237,7 +245,15 @@ def _build_settings_from_yaml_run(
         for key, path in path_tariffs_gas_raw.items()
     }
 
-    default_run_name = str(run.get("run_name", f"ri_rie_run_{run_num:02d}"))
+    generated_run_name = build_ri_run_name(
+        state=state,
+        utility=utility,
+        run_num=run_num,
+        run_type=mode,
+        tariff_key=tariff_key_from_filename,
+        upgrade=upgrade,
+        year_run=year_run,
+    )
     delivery_only_rev_req_passed = _parse_bool(
         run.get(
             "delivery_only_rev_req_passed",
@@ -246,7 +262,7 @@ def _build_settings_from_yaml_run(
         "delivery_only_rev_req_passed",
     )
     return ScenarioSettings(
-        run_name=run_name_override or default_run_name,
+        run_name=run_name_override or generated_run_name,
         run_type=mode,
         state=state,
         region=region,
@@ -274,7 +290,7 @@ def _build_settings_from_yaml_run(
         path_tariffs_gas=path_tariffs_gas,
         precalc_tariff_path=precalc_tariff_path,
         precalc_tariff_key=precalc_tariff_key,
-        utility_revenue_requirement=utility_revenue_requirement,
+        utility_delivery_revenue_requirement=utility_delivery_revenue_requirement,
         utility_customer_count=utility_customer_count,
         year_run=year_run,
         year_dollar_conversion=year_dollar_conversion,
@@ -480,7 +496,7 @@ def run(settings: ScenarioSettings) -> None:
     ) = _return_revenue_requirement_target(
         building_load=effective_load_elec,
         sample_weight=customer_metadata[["bldg_id", "weight"]],
-        revenue_requirement_target=settings.utility_revenue_requirement,
+        revenue_requirement_target=settings.utility_delivery_revenue_requirement,
         residual_cost=None,
         residual_cost_frac=None,
         bulk_marginal_costs=bulk_marginal_costs,
