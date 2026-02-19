@@ -60,6 +60,14 @@ from utils.pre.create_tariff import (
     create_seasonal_tou_tariff,
     write_tariff_json,
 )
+from utils.pre.season_config import (
+    DEFAULT_TOU_WINTER_MONTHS,
+    get_utility_periods_yaml_path,
+    load_tou_window_hours_from_periods,
+    load_winter_months_from_periods,
+    parse_months_arg,
+    resolve_winter_summer_months,
+)
 
 log = logging.getLogger(__name__)
 
@@ -75,7 +83,7 @@ def derive_seasonal_tou(
     hourly_system_load: pd.Series,
     customer_metadata: pd.DataFrame,
     *,
-    summer_months: list[int] | None = None,
+    winter_months: list[int] | None = None,
     tou_window_hours: int = 4,
     tou_base_rate: float = 0.06,
     tou_fixed_charge: float = 6.75,
@@ -97,7 +105,8 @@ def derive_seasonal_tou(
             for demand-weighting.
         customer_metadata: ResStock metadata with ``bldg_id`` and
             ``postprocess_group.has_hp`` columns.
-        summer_months: 1-indexed months defining summer (default June–Sep).
+        winter_months: 1-indexed months defining winter. Summer months are
+            derived as the complement.
         tou_window_hours: Width of the peak window in hours.
         tou_base_rate: Nominal base rate ($/kWh) — seasonal ratios are
             preserved but precalc will calibrate the absolute level.
@@ -118,7 +127,7 @@ def derive_seasonal_tou(
         bulk_marginal_costs, distribution_marginal_costs
     )
 
-    seasons = make_winter_summer_seasons(summer_months)
+    seasons = make_winter_summer_seasons(winter_months)
     season_rates = compute_seasonal_base_rates(
         combined_mc, hourly_system_load, seasons, tou_base_rate
     )
@@ -228,12 +237,26 @@ def _parse_args() -> argparse.Namespace:
 
     # -- TOU derivation parameters -------------------------------------------
     p.add_argument(
-        "--summer-months",
-        default="6,7,8,9",
-        help="Comma-separated 1-indexed summer months (default: 6,7,8,9).",
+        "--winter-months",
+        default=None,
+        help=(
+            "Comma-separated 1-indexed winter months "
+            "(default: 1,2,3,4,5,10,11,12)."
+        ),
     )
     p.add_argument(
-        "--tou-window-hours", type=int, default=4, help="Peak window width (default 4)."
+        "--summer-months",
+        default=None,
+        help=(
+            "Deprecated: comma-separated summer months. "
+            "If both are provided, --winter-months takes precedence."
+        ),
+    )
+    p.add_argument(
+        "--tou-window-hours",
+        type=int,
+        default=None,
+        help="Peak window width in hours. Falls back to periods YAML or 4.",
     )
     p.add_argument(
         "--tou-base-rate",
@@ -267,6 +290,15 @@ def _parse_args() -> argparse.Namespace:
         help="Output directory (tariffs/electric, tariff_maps/electric, "
         "tou_derivation subdirs will be created).",
     )
+    p.add_argument(
+        "--periods-yaml",
+        default=None,
+        help=(
+            "Optional periods YAML containing `winter_months` and "
+            "`tou_window_hours`. When omitted, resolves "
+            "rate_design/<state>/hp_rates/config/periods/<utility>.yaml."
+        ),
+    )
 
     return p.parse_args()
 
@@ -277,7 +309,44 @@ def main() -> None:
     )
     args = _parse_args()
 
-    summer_months = [int(m) for m in args.summer_months.split(",")]
+    project_root = Path(__file__).resolve().parents[2]
+    periods_yaml_path = (
+        Path(args.periods_yaml)
+        if args.periods_yaml
+        else get_utility_periods_yaml_path(
+            project_root=project_root,
+            state=args.state,
+            utility=args.utility,
+        )
+    )
+
+    default_winter_months = list(DEFAULT_TOU_WINTER_MONTHS)
+    default_tou_window_hours = 4
+    if periods_yaml_path.exists():
+        default_winter_months = load_winter_months_from_periods(
+            periods_yaml_path,
+            default_winter_months=DEFAULT_TOU_WINTER_MONTHS,
+        )
+        default_tou_window_hours = load_tou_window_hours_from_periods(
+            periods_yaml_path,
+            default_tou_window_hours=default_tou_window_hours,
+        )
+
+    if args.summer_months:
+        summer_months = parse_months_arg(args.summer_months)
+        fallback_winter = [month for month in range(1, 13) if month not in summer_months]
+    else:
+        fallback_winter = default_winter_months
+
+    winter_months, summer_months = resolve_winter_summer_months(
+        parse_months_arg(args.winter_months) if args.winter_months else None,
+        default_winter_months=fallback_winter,
+    )
+    tou_window_hours = (
+        args.tou_window_hours
+        if args.tou_window_hours is not None
+        else default_tou_window_hours
+    )
     output_dir = Path(args.output_dir)
 
     # -- 1. Load data --------------------------------------------------------
@@ -324,9 +393,10 @@ def main() -> None:
 
     # -- 2. Derive seasonal TOU ----------------------------------------------
     log.info(
-        "Deriving seasonal TOU (summer=%s, window=%d h, base_rate=%.4f)",
+        "Deriving seasonal TOU (winter=%s, summer=%s, window=%d h, base_rate=%.4f)",
+        winter_months,
         summer_months,
-        args.tou_window_hours,
+        tou_window_hours,
         args.tou_base_rate,
     )
     tou_tariff, tariff_map_df, season_specs = derive_seasonal_tou(
@@ -334,8 +404,8 @@ def main() -> None:
         distribution_marginal_costs=dist_mc,
         hourly_system_load=hourly_system_load,
         customer_metadata=customer_metadata,
-        summer_months=summer_months,
-        tou_window_hours=args.tou_window_hours,
+        winter_months=winter_months,
+        tou_window_hours=tou_window_hours,
         tou_base_rate=args.tou_base_rate,
         tou_fixed_charge=args.tou_fixed_charge,
         tou_tariff_key=args.tou_tariff_key,

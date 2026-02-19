@@ -32,12 +32,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from utils.pre.season_config import (
+    DEFAULT_TOU_WINTER_MONTHS,
+    resolve_winter_summer_months,
+)
+
 log = logging.getLogger(__name__)
-
-# Default summer months (1-indexed).  June–September is the standard New
-# England utility summer season.
-DEFAULT_SUMMER_MONTHS: list[int] = [6, 7, 8, 9]
-
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -120,17 +120,18 @@ def season_mask(index: pd.DatetimeIndex, s: Season) -> np.ndarray:
 
 
 def make_winter_summer_seasons(
-    summer_months: list[int] | None = None,
+    winter_months: list[int] | None = None,
 ) -> list[Season]:
     """Return ``[Season("winter", …), Season("summer", …)]``.
 
     Args:
-        summer_months: 1-indexed month list.  Defaults to
-            ``DEFAULT_SUMMER_MONTHS`` (June–September).
+        winter_months: 1-indexed month list. Defaults to the winter
+            complement of legacy TOU summer months (June-September).
     """
-    if summer_months is None:
-        summer_months = list(DEFAULT_SUMMER_MONTHS)
-    winter_months = [m for m in range(1, 13) if m not in summer_months]
+    winter_months, summer_months = resolve_winter_summer_months(
+        winter_months,
+        default_winter_months=DEFAULT_TOU_WINTER_MONTHS,
+    )
     return [
         Season("winter", winter_months),
         Season("summer", summer_months),

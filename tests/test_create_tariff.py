@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from utils.pre.create_tariff import (
     SeasonalTouTariffSpec,
-    WINTER_MONTHS,
     create_default_flat_tariff,
     create_seasonal_rate,
     create_seasonal_tou_tariff,
@@ -42,6 +41,7 @@ def test_create_seasonal_rate_sets_winter_summer_periods() -> None:
         label="seasonal_discount",
         winter_rate=0.12,
         summer_rate=0.2,
+        winter_months=[1, 2, 3, 10, 11, 12],
     )
     item = seasonal["items"][0]
     assert item["label"] == "seasonal_discount"
@@ -56,10 +56,10 @@ def test_create_seasonal_rate_sets_winter_summer_periods() -> None:
     feb_period = item["energyweekdayschedule"][1][0]
     jul_period = item["energyweekdayschedule"][6][0]
     dec_period = item["energyweekdayschedule"][11][0]
-    assert jan_period == (1 if 1 in WINTER_MONTHS else 0)
-    assert feb_period == (1 if 2 in WINTER_MONTHS else 0)
+    assert jan_period == 1
+    assert feb_period == 1
     assert jul_period == 0
-    assert dec_period == (1 if 12 in WINTER_MONTHS else 0)
+    assert dec_period == 1
 
 
 def test_create_tou_tariff_has_two_periods() -> None:

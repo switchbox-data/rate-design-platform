@@ -7,7 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-WINTER_MONTHS = {12, 1, 2}
+from utils.pre.season_config import (
+    DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS,
+    resolve_winter_summer_months,
+)
 
 
 @dataclass(slots=True)
@@ -97,12 +100,13 @@ def create_tou_tariff(
     )
 
 
-def _seasonal_schedule() -> list[list[int]]:
+def _seasonal_schedule(winter_months: list[int]) -> list[list[int]]:
     # URDB schedules are 12 months x 24 hours, period index per hour.
-    # We reserve period=1 for winter (Dec-Feb) and period=0 for non-winter.
+    # We reserve period=1 for winter and period=0 for summer (complement).
+    winter_set = set(winter_months)
     schedule: list[list[int]] = []
     for month_num in range(1, 13):
-        period = 1 if month_num in WINTER_MONTHS else 0
+        period = 1 if month_num in winter_set else 0
         schedule.append([period] * 24)
     return schedule
 
@@ -113,17 +117,23 @@ def create_seasonal_rate(
     label: str,
     winter_rate: float,
     summer_rate: float,
+    winter_months: list[int] | None = None,
 ) -> dict[str, Any]:
     """Create a 2-period seasonal tariff from a base tariff template."""
     if "items" not in base_tariff or not base_tariff["items"]:
         raise ValueError("Base tariff must contain at least one item in `items`.")
 
+    normalized_winter_months, _ = resolve_winter_summer_months(
+        winter_months,
+        default_winter_months=DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS,
+    )
+
     new_tariff = json.loads(json.dumps(base_tariff))
     item = new_tariff["items"][0]
     item["label"] = label
     item["name"] = label
-    item["energyweekdayschedule"] = _seasonal_schedule()
-    item["energyweekendschedule"] = _seasonal_schedule()
+    item["energyweekdayschedule"] = _seasonal_schedule(normalized_winter_months)
+    item["energyweekendschedule"] = _seasonal_schedule(normalized_winter_months)
     item["energyratestructure"] = [
         [{"rate": float(summer_rate), "adj": 0.0, "unit": "kWh"}],
         [{"rate": float(winter_rate), "adj": 0.0, "unit": "kWh"}],
