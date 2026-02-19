@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import logging
+import random
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -66,6 +68,7 @@ class ScenarioSettings:
     process_workers: int
     solar_pv_compensation: str = "net_metering"
     delivery_only_rev_req_passed: bool = False
+    sample_size: int | None = None
 
 
 def _parse_int(value: object, field_name: str) -> int:
@@ -93,6 +96,28 @@ def _parse_bool(value: object, field_name: str) -> bool:
     if normalized in {"false", "0", "no", "n"}:
         return False
     raise ValueError(f"Invalid boolean for {field_name}: {value}")
+
+
+def apply_prototype_sample(
+    prototype_ids: list[int],
+    sample_size: int | None,
+    *,
+    rng: random.Random | None = None,
+) -> list[int]:
+    """Optionally take a uniform random sample of prototype IDs.
+
+    When sample_size is None, returns prototype_ids unchanged.
+    When sample_size is set, returns a random sample of that size without replacement.
+    Raises ValueError if sample_size exceeds the number of prototype IDs.
+    """
+    if sample_size is None:
+        return prototype_ids
+    if sample_size > len(prototype_ids):
+        raise ValueError(
+            f"sample_size {sample_size} exceeds number of prototype IDs ({len(prototype_ids)})"
+        )
+    gen = rng if rng is not None else random
+    return gen.sample(prototype_ids, sample_size)
 
 
 def _resolve_path(value: str, base_dir: Path) -> Path:
@@ -190,6 +215,9 @@ def _build_settings_from_yaml_run(
         ),
         "delivery_only_rev_req_passed",
     )
+    sample_size = (
+        _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
+    )
     return ScenarioSettings(
         run_name=run_name_override or default_run_name,
         run_type=mode,
@@ -236,6 +264,7 @@ def _build_settings_from_yaml_run(
         process_workers=process_workers,
         solar_pv_compensation=solar_pv_compensation,
         delivery_only_rev_req_passed=delivery_only_rev_req_passed,
+        sample_size=sample_size,
     )
 
 
@@ -301,6 +330,18 @@ def run(settings: ScenarioSettings) -> None:
         len(prototype_ids),
         settings.utility,
     )
+
+    if settings.sample_size is not None:
+        try:
+            prototype_ids = apply_prototype_sample(prototype_ids, settings.sample_size)
+        except ValueError as e:
+            log.warning("%s; exiting.", e)
+            sys.exit(1)
+        log.info(
+            ".... Sampled %s prototype IDs (sample_size=%s)",
+            len(prototype_ids),
+            settings.sample_size,
+        )
 
     tariffs_params, tariff_map_df = _initialize_tariffs(
         tariff_map=settings.path_tariff_maps_electric,
