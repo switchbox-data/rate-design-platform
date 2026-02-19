@@ -129,37 +129,31 @@ def _parse_path_tariffs(
     base_dir: Path,
     label: str,
 ) -> dict[str, Path]:
-    """Parse path_tariffs (electric or gas) from YAML (list or dict) and reconcile.
+    """Parse path_tariffs_electric from YAML (list only) and reconcile with map.
 
-    If value is a list of path strings, keys are derived from filename stem (e.g.
-    tariffs/electric/foo.json -> foo). Every tariff_key in the tariff map must
-    have a corresponding entry, and every list entry must appear in the map.
+    Value must be a list of path strings; keys are derived from filename stem
+    (e.g. tariffs/electric/foo.json -> foo). Every tariff_key in the map must
+    have an entry, and every list entry must appear in the map.
     """
-    if isinstance(value, list):
-        path_tariffs = {}
-        for item in value:
-            if not isinstance(item, str):
-                raise ValueError(
-                    f"path_tariffs_{label} list must contain path strings; "
-                    f"got {type(item).__name__}"
-                )
-            path = _resolve_path(item, base_dir)
-            key = path.stem
-            if key in path_tariffs:
-                raise ValueError(
-                    f"path_tariffs_{label}: duplicate key '{key}' from paths "
-                    f"{path_tariffs[key]} and {path}"
-                )
-            path_tariffs[key] = path
-    elif isinstance(value, dict):
-        path_tariffs = {
-            str(k): _resolve_path(str(v), base_dir) for k, v in value.items()
-        }
-    else:
+    if not isinstance(value, list):
         raise ValueError(
-            f"path_tariffs_{label} must be a list of paths or a key-to-path mapping; "
-            f"got {type(value).__name__}"
+            f"path_tariffs_{label} must be a list of paths; got {type(value).__name__}"
         )
+    path_tariffs = {}
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError(
+                f"path_tariffs_{label} list must contain path strings; "
+                f"got {type(item).__name__}"
+            )
+        path = _resolve_path(item, base_dir)
+        key = path.stem
+        if key in path_tariffs:
+            raise ValueError(
+                f"path_tariffs_{label}: duplicate key '{key}' from paths "
+                f"{path_tariffs[key]} and {path}"
+            )
+        path_tariffs[key] = path
 
     map_keys = _tariff_map_keys(path_tariff_map)
     list_keys = set(path_tariffs.keys())
@@ -174,6 +168,38 @@ def _parse_path_tariffs(
         raise ValueError(
             f"path_tariffs_{label} includes file(s) not referenced in {label} "
             f"tariff map: {sorted(only_in_list)}"
+        )
+    return path_tariffs
+
+
+def _parse_path_tariffs_gas(
+    value: Any,
+    path_tariff_map: Path,
+    base_dir: Path,
+) -> dict[str, Path]:
+    """Parse path_tariffs_gas from YAML: must be a directory path (string).
+
+    Unique tariff_key values are read from the gas tariff map; each must have
+    a file at directory/tariff_key.json.
+    """
+    if not isinstance(value, str):
+        raise ValueError(
+            "path_tariffs_gas must be a directory path (string) containing "
+            f"gas tariff JSONs named <tariff_key>.json; got {type(value).__name__}"
+        )
+    path_dir = _resolve_path(value, base_dir)
+    if not path_dir.is_dir():
+        raise ValueError(
+            f"path_tariffs_gas is a directory path but not a directory: {path_dir}"
+        )
+    map_keys = _tariff_map_keys(path_tariff_map)
+    path_tariffs = {k: path_dir / f"{k}.json" for k in map_keys}
+    missing = [k for k, p in path_tariffs.items() if not p.is_file()]
+    if missing:
+        raise ValueError(
+            "Gas tariff map references tariff_key(s) with no file under "
+            f"{path_dir}: {sorted(missing)}. "
+            f"Expected e.g. {path_dir / 'tariff_key.json'}"
         )
     return path_tariffs
 
@@ -252,11 +278,10 @@ def _build_settings_from_yaml_run(
         str(_require_value(run, "path_tariff_maps_gas")),
         PATH_CONFIG,
     )
-    path_tariffs_gas = _parse_path_tariffs(
+    path_tariffs_gas = _parse_path_tariffs_gas(
         _require_value(run, "path_tariffs_gas"),
         path_tariff_maps_gas,
         PATH_CONFIG,
-        "gas",
     )
 
     precalc_tariff_key_raw = run.get("precalc_tariff_key")
