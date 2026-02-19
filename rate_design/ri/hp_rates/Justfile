@@ -22,20 +22,14 @@ run-scenario-with-output run_num output_dir scenario_config=ri_run_scenario_conf
     --output-dir "{{output_dir}}"
 
 # -----------------------------------------------------------------------------
-# PRE: ResStock (delegates to data/resstock/Justfile)
+# Post-processing
 # -----------------------------------------------------------------------------
-resstock-download:
-  just -f {{project_root}}/data/resstock/Justfile resstock-download RI
 
-resstock-test-download:
-  just -f {{project_root}}/data/resstock/Justfile resstock-test-download RI
-
-resstock-identify-hp-customers:
-  just -f {{project_root}}/data/resstock/Justfile resstock-identify-hp-customers RI
-
-ri_default_rev_requirement_yaml := project_root + "/rate_design/ri/hp_rates/config/rev_requirement/rie.yaml"
-ri_differentiated_rev_requirement_yaml := project_root + "/rate_design/ri/hp_rates/config/rev_requirement/rie_hp_vs_nonhp.yaml"
+# Revenue requirement YAML outputs from CAIRO BAT results.
 ri_periods_yaml := project_root + "/rate_design/ri/hp_rates/config/periods/rie.yaml"
+ri_rev_requirement_dir := project_root + "/rate_design/ri/hp_rates/config/rev_requirement"
+ri_default_rev_requirement_yaml := ri_rev_requirement_dir + "/rie.yaml"
+ri_differentiated_rev_requirement_yaml := ri_rev_requirement_dir + "/rie_hp_vs_nonhp.yaml"
 
 compute-subclass-rr run_dir run_num="1" scenario_config=ri_run_scenario_config group_col="has_hp" cross_subsidy_col="BAT_percustomer" differentiated_yaml=ri_differentiated_rev_requirement_yaml default_yaml=ri_default_rev_requirement_yaml:
   uv run python {{project_root}}/utils/post/compute_subclass_rr.py \
@@ -89,13 +83,15 @@ create-rie-hp-seasonal-calibrated-supply seasonal_inputs_csv:
 # -----------------------------------------------------------------------------
 # Derive seasonal TOU tariff + map + derivation spec for RI.
 # Uses local ResStock mounts under /data.sb and writes under config/.
-create-seasonal-tou tou_tariff_key="rie_hp_seasonalTOU" flat_tariff_key="rie_a16" upgrade_id="00" year="2025" tou_base_rate="0.06" tou_fixed_charge="6.75" periods_yaml=ri_periods_yaml:
+ri_td_mc_path := "s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/0000000.parquet"
+
+create-seasonal-tou tou_tariff_key="rie_hp_seasonalTOU" flat_tariff_key="rie_a16" upgrade_id="00" year="2025" tou_base_rate="0.06" tou_fixed_charge="6.75" periods_yaml=ri_periods_yaml td_mc_path=ri_td_mc_path:
   uv run python {{project_root}}/utils/pre/derive_seasonal_tou.py \
     --cambium-path "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t={{year}}/gea=ISONE/r=p133/data.parquet" \
     --state RI \
-    --region isone \
     --utility rie \
     --year "{{year}}" \
+    --path-td-marginal-costs "{{td_mc_path}}" \
     --resstock-metadata-path "/data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade={{upgrade_id}}/metadata-sb.parquet" \
     --resstock-loads-path "/data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=RI/upgrade={{upgrade_id}}" \
     --customer-count 451381 \
@@ -110,7 +106,8 @@ create-seasonal-tou tou_tariff_key="rie_hp_seasonalTOU" flat_tariff_key="rie_a16
 # PRE: Tariff mapping (electric and gas)
 # -----------------------------------------------------------------------------
 path_s3_resstock_metadata := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
-tariff_maps_dir_ri := "{{project_root}}/rate_design/ri/hp_rates/config/tariff_maps"
+path_s3_utility_assignment := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility"
+tariff_maps_dir_ri := project_root + "/rate_design/ri/hp_rates/config/tariff_maps"
 
 map-electric-tariff electric_utility SB_scenario_type SB_scenario_year upgrade_id output_dir:
   uv run python {{project_root}}/utils/pre/electric_tariff_mapper.py \
@@ -161,43 +158,26 @@ map-electric-hp-tou tou_tariff_key flat_tariff_key upgrade_id="00":
     --flat-tariff-key "{{flat_tariff_key}}" \
     --output-dir "{{tariff_maps_dir_ri}}/electric"
 
+map-electric-rie-seasonal:
+  just map-electric-tariff rie seasonal 1 00 {{tariff_maps_dir_ri}}/electric
+
+map-electric-rie-seasonal-discount:
+  just map-electric-tariff rie seasonal_discount 1 00 {{tariff_maps_dir_ri}}/electric
+
 map-gas-tariff electric_utility upgrade_id output_dir:
   uv run python {{project_root}}/utils/pre/gas_tariff_mapper.py \
     --metadata_path "{{path_s3_resstock_metadata}}" \
+    --utility_assignment_path "{{path_s3_utility_assignment}}" \
     --state RI \
     --upgrade_id "{{upgrade_id}}" \
     --electric_utility "{{electric_utility}}" \
     --output_dir "{{output_dir}}"
 
-map-gas-coned-default:
-  just map-gas-tariff coned 00 {{tariff_maps_dir_ri}}/gas
-
-map-gas-coned-seasonal:
-  just map-gas-tariff coned 00 {{tariff_maps_dir_ri}}/gas
-
-map-gas-coned-class-specific-seasonal:
-  just map-gas-tariff coned 00 {{tariff_maps_dir_ri}}/gas
-
-map-gas-national-grid-default:
-  just map-gas-tariff nimo 00 {{tariff_maps_dir_ri}}/gas
-
-map-gas-national-grid-seasonal:
-  just map-gas-tariff nimo 00 {{tariff_maps_dir_ri}}/gas
-
-map-gas-national-grid-class-specific-seasonal:
-  just map-gas-tariff nimo 00 {{tariff_maps_dir_ri}}/gas
-
-map-gas-nyseg-default:
-  just map-gas-tariff nyseg 00 {{tariff_maps_dir_ri}}/gas
-
-map-gas-nyseg-seasonal:
-  just map-gas-tariff nyseg 00 {{tariff_maps_dir_ri}}/gas
-
-map-gas-nyseg-class-specific-seasonal:
-  just map-gas-tariff nyseg 00 {{tariff_maps_dir_ri}}/gas
-
-map-gas-rie-default:
+map-gas-rie:
   just map-gas-tariff rie 00 {{tariff_maps_dir_ri}}/gas
+
+map-gas-all-utilities:
+  just map-gas-rie
 
 # -----------------------------------------------------------------------------
 # Post-processing: CPI and RI LIDR+ discounts

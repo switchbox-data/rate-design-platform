@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import argparse
-import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+import polars as pl
 import yaml
 from cairo.rates_tool.loads import (
     _return_load,
-    process_residential_hourly_demand,
     return_buildingstock,
 )
 from cairo.rates_tool.systemsimulator import (
@@ -27,20 +26,6 @@ from utils.cairo import (
     build_bldg_id_to_load_filepath,
     load_distribution_marginal_costs,
 )
-from utils.pre.create_tariff import create_tou_tariff
-from utils.pre.compute_tou import (
-    combine_marginal_costs,
-    compute_tou_cost_causation_ratio,
-    find_tou_peak_window,
-    generate_tou_tariff_map,
-)
-from utils.pre.season_config import (
-    DEFAULT_TOU_WINTER_MONTHS,
-    get_utility_periods_yaml_path,
-    load_tou_window_hours_from_periods,
-    load_winter_months_from_periods,
-    parse_months_arg,
-)
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 
 log = logging.getLogger("rates_analysis").getChild("tests")
@@ -48,23 +33,8 @@ log = logging.getLogger("rates_analysis").getChild("tests")
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
-PROJECT_ROOT = PATH_PROJECT.parents[2]
-PATH_RESSTOCK = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
 DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
 DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
-
-
-@dataclass(slots=True)
-class TouDerivationConfig:
-    """Optional MC-driven TOU tariff derivation."""
-
-    enabled: bool = False
-    tou_tariff_key: str = ""
-    flat_tariff_key: str = ""
-    tou_window_hours: int = 4
-    tou_base_rate: float = 0.06
-    tou_fixed_charge: float = 6.75
-    winter_months: list[int] | None = None
 
 
 @dataclass(slots=True)
@@ -74,26 +44,25 @@ class ScenarioSettings:
     run_name: str
     run_type: str
     state: str
-    region: str
     utility: str
     path_results: Path
     path_resstock_metadata: Path
     path_resstock_loads: Path
     path_cambium_marginal_costs: str | Path
+    path_td_marginal_costs: str | Path
     path_tariff_maps_electric: Path
     path_tariff_maps_gas: Path
     path_tariffs_electric: dict[str, Path]
     path_tariffs_gas: dict[str, Path]
     precalc_tariff_path: Path
     precalc_tariff_key: str
-    utility_revenue_requirement: float
+    utility_delivery_revenue_requirement: float
     utility_customer_count: int
     year_run: int
     year_dollar_conversion: int
     process_workers: int
     solar_pv_compensation: str = "net_metering"
-    delivery_only_rev_req_passed: bool = False
-    tou_derivation: TouDerivationConfig = field(default_factory=TouDerivationConfig)
+    add_supply_revenue_requirement: bool = False
 
 
 def _parse_int(value: object, field_name: str) -> int:
@@ -140,6 +109,78 @@ def _require_mapping(value: Any, field_name: str) -> dict[str, Any]:
     return value
 
 
+def _tariff_map_keys(path_tariff_map: Path) -> set[str]:
+    """Return the set of tariff_key values in a tariff map CSV (electric or gas)."""
+    df = pl.read_csv(path_tariff_map)
+    if "tariff_key" not in df.columns:
+        raise ValueError(
+            f"Tariff map {path_tariff_map} must have a 'tariff_key' column"
+        )
+    return set(df["tariff_key"].unique().to_list())
+
+
+def _parse_path_tariffs(
+    value: Any,
+    path_tariff_map: Path,
+    base_dir: Path,
+    label: str,
+) -> dict[str, Path]:
+    """Parse path_tariffs (electric or gas) from YAML (list or dict) and reconcile.
+
+    If value is a list of path strings, keys are derived from filename stem (e.g.
+    tariffs/electric/foo.json -> foo). Every tariff_key in the tariff map must
+    have a corresponding entry, and every list entry must appear in the map.
+    """
+    if isinstance(value, list):
+        path_tariffs = {}
+        for item in value:
+            if not isinstance(item, str):
+                raise ValueError(
+                    f"path_tariffs_{label} list must contain path strings; "
+                    f"got {type(item).__name__}"
+                )
+            path = _resolve_path(item, base_dir)
+            key = path.stem
+            if key in path_tariffs:
+                raise ValueError(
+                    f"path_tariffs_{label}: duplicate key '{key}' from paths "
+                    f"{path_tariffs[key]} and {path}"
+                )
+            path_tariffs[key] = path
+    elif isinstance(value, dict):
+        path_tariffs = {
+            str(k): _resolve_path(str(v), base_dir) for k, v in value.items()
+        }
+    else:
+        raise ValueError(
+            f"path_tariffs_{label} must be a list of paths or a key-to-path mapping; "
+            f"got {type(value).__name__}"
+        )
+
+    map_keys = _tariff_map_keys(path_tariff_map)
+    list_keys = set(path_tariffs.keys())
+    only_in_map = map_keys - list_keys
+    only_in_list = list_keys - map_keys
+    if only_in_map:
+        raise ValueError(
+            f"{label.capitalize()} tariff map references tariff_key(s) with no file "
+            f"in path_tariffs_{label}: {sorted(only_in_map)}"
+        )
+    if only_in_list:
+        raise ValueError(
+            f"path_tariffs_{label} includes file(s) not referenced in {label} "
+            f"tariff map: {sorted(only_in_list)}"
+        )
+    return path_tariffs
+
+
+def _default_precalc_tariff(path_tariffs_electric: dict[str, Path]) -> tuple[str, Path]:
+    """Choose default precalc tariff from first configured electric tariff."""
+    if not path_tariffs_electric:
+        raise ValueError("path_tariffs_electric must contain at least one tariff")
+    return next(iter(path_tariffs_electric.items()))
+
+
 def _require_value(run: dict[str, Any], field_name: str) -> Any:
     value = run.get(field_name)
     if value is None:
@@ -164,59 +205,6 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
     return _require_mapping(run, f"runs[{run_num}]")
 
 
-def _parse_tou_derivation_config(
-    run: dict[str, Any],
-    *,
-    state: str,
-    utility: str,
-) -> TouDerivationConfig:
-    """Parse the optional ``tou_derivation`` block from a run config."""
-    periods_yaml_path = get_utility_periods_yaml_path(
-        project_root=PROJECT_ROOT,
-        state=state,
-        utility=utility,
-    )
-    default_winter_months: list[int] = list(DEFAULT_TOU_WINTER_MONTHS)
-    default_tou_window_hours = 4
-    if periods_yaml_path.exists():
-        default_winter_months = load_winter_months_from_periods(
-            periods_yaml_path,
-            default_winter_months=DEFAULT_TOU_WINTER_MONTHS,
-        )
-        default_tou_window_hours = load_tou_window_hours_from_periods(
-            periods_yaml_path,
-            default_tou_window_hours=default_tou_window_hours,
-        )
-
-    raw = run.get("tou_derivation")
-    if raw is None or not isinstance(raw, dict):
-        return TouDerivationConfig()
-    raw_winter_months = raw.get("winter_months")
-    if isinstance(raw_winter_months, str):
-        winter_months = parse_months_arg(raw_winter_months)
-    elif isinstance(raw_winter_months, list):
-        winter_months = [int(month) for month in raw_winter_months]
-    elif raw_winter_months is None:
-        winter_months = default_winter_months
-    else:
-        raise ValueError(
-            "Invalid tou_derivation.winter_months; expected list[int] or comma-separated string"
-        )
-
-    return TouDerivationConfig(
-        enabled=_parse_bool(raw.get("enabled", False), "tou_derivation.enabled"),
-        tou_tariff_key=str(raw.get("tou_tariff_key", "")),
-        flat_tariff_key=str(raw.get("flat_tariff_key", "")),
-        tou_window_hours=_parse_int(
-            raw.get("tou_window_hours", default_tou_window_hours),
-            "tou_derivation.tou_window_hours",
-        ),
-        tou_base_rate=float(raw.get("tou_base_rate", 0.06)),
-        tou_fixed_charge=float(raw.get("tou_fixed_charge", 6.75)),
-        winter_months=winter_months,
-    )
-
-
 def _build_settings_from_yaml_run(
     run: dict[str, Any],
     run_num: int,
@@ -225,20 +213,18 @@ def _build_settings_from_yaml_run(
 ) -> ScenarioSettings:
     """Build runtime settings from repo YAML scenario config."""
     state = str(run.get("state", "RI")).upper()
-    region = str(_require_value(run, "region")).lower()
     utility = str(_require_value(run, "utility")).lower()
     mode = str(run.get("run_type", "precalc"))
-    upgrade = f"{_parse_int(run.get('upgrade', 0), 'upgrade'):02d}"
     year_run = _parse_int(run.get("year_run"), "year_run")
     year_dollar_conversion = _parse_int(
         run.get("year_dollar_conversion"),
         "year_dollar_conversion",
     )
     process_workers = _parse_int(run.get("process_workers", 20), "process_workers")
-    utility_revenue_requirement = float(
+    utility_delivery_revenue_requirement = float(
         _parse_int(
-            _require_value(run, "utility_revenue_requirement"),
-            "utility_revenue_requirement",
+            _require_value(run, "utility_delivery_revenue_requirement"),
+            "utility_delivery_revenue_requirement",
         )
     )
     utility_customer_count = _parse_int(
@@ -247,103 +233,94 @@ def _build_settings_from_yaml_run(
     )
     solar_pv_compensation = str(run.get("solar_pv_compensation", "net_metering"))
 
-    tou_derivation_cfg = _parse_tou_derivation_config(
-        run,
-        state=state,
-        utility=utility,
+    path_tariff_maps_electric = _resolve_path(
+        str(_require_value(run, "path_tariff_maps_electric")),
+        PATH_CONFIG,
+    )
+    path_tariffs_electric = _parse_path_tariffs(
+        _require_value(run, "path_tariffs_electric"),
+        path_tariff_maps_electric,
+        PATH_CONFIG,
+        "electric",
+    )
+    path_tariff_maps_gas = _resolve_path(
+        str(_require_value(run, "path_tariff_maps_gas")),
+        PATH_CONFIG,
+    )
+    path_tariffs_gas = _parse_path_tariffs(
+        _require_value(run, "path_tariffs_gas"),
+        path_tariff_maps_gas,
+        PATH_CONFIG,
+        "gas",
     )
 
-    # When tou_derivation is enabled the tariff paths / maps are derived at
-    # runtime so the YAML fields are optional.  We still need placeholder
-    # values so the dataclass can be constructed – they will be overridden
-    # inside run() once the TOU tariff is generated.
-    if tou_derivation_cfg.enabled:
-        path_tariffs_electric: dict[str, Path] = {}
-        path_tariff_maps_electric = (
-            PATH_CONFIG / "tariff_maps" / "electric" / "placeholder.csv"
+    precalc_tariff_key_raw = run.get("precalc_tariff_key")
+    precalc_tariff_path_raw = run.get("precalc_tariff_path")
+    if precalc_tariff_key_raw is None and precalc_tariff_path_raw is None:
+        precalc_tariff_key, precalc_tariff_path = _default_precalc_tariff(
+            path_tariffs_electric
         )
-        precalc_tariff_path = PATH_CONFIG / "tariffs" / "electric" / "placeholder.json"
-        precalc_tariff_key = tou_derivation_cfg.tou_tariff_key
-
-        # Include the flat tariff path so non-HP customers still have a tariff.
-        flat_key = tou_derivation_cfg.flat_tariff_key
-        if flat_key:
-            raw_flat_path = run.get("path_tariffs_electric", {}).get(flat_key)
-            if raw_flat_path:
-                path_tariffs_electric[flat_key] = _resolve_path(
-                    str(raw_flat_path), PATH_CONFIG
-                )
+    elif precalc_tariff_path_raw is None:
+        precalc_tariff_key = str(precalc_tariff_key_raw)
+        try:
+            precalc_tariff_path = path_tariffs_electric[precalc_tariff_key]
+        except KeyError as exc:
+            available = sorted(path_tariffs_electric.keys())
+            raise ValueError(
+                "precalc_tariff_key is not in path_tariffs_electric. "
+                f"precalc_tariff_key={precalc_tariff_key!r}, available={available}"
+            ) from exc
     else:
-        path_tariffs_electric_raw = _require_mapping(
-            run.get("path_tariffs_electric"), "path_tariffs_electric"
+        precalc_tariff_path = _resolve_path(str(precalc_tariff_path_raw), PATH_CONFIG)
+        precalc_tariff_key = (
+            str(precalc_tariff_key_raw)
+            if precalc_tariff_key_raw is not None
+            else precalc_tariff_path.stem
         )
-        path_tariffs_electric = {
-            str(key): _resolve_path(str(path), PATH_CONFIG)
-            for key, path in path_tariffs_electric_raw.items()
-        }
-        path_tariff_maps_electric = _resolve_path(
-            str(_require_value(run, "path_tariff_maps_electric")),
-            PATH_CONFIG,
-        )
-        precalc_tariff_path = _resolve_path(
-            str(_require_value(run, "precalc_tariff_path")),
-            PATH_CONFIG,
-        )
-        precalc_tariff_key = str(_require_value(run, "precalc_tariff_key"))
-
-    path_tariffs_gas_raw = _require_mapping(
-        run.get("path_tariffs_gas"), "path_tariffs_gas"
-    )
-    path_tariffs_gas = {
-        str(key): _resolve_path(str(path), PATH_CONFIG)
-        for key, path in path_tariffs_gas_raw.items()
-    }
 
     default_run_name = str(run.get("run_name", f"ri_rie_run_{run_num:02d}"))
-    delivery_only_rev_req_passed = _parse_bool(
+    add_supply_revenue_requirement = _parse_bool(
         run.get(
-            "delivery_only_rev_req_passed",
+            "add_supply_revenue_requirement",
             "supply_adj" in precalc_tariff_key,
         ),
-        "delivery_only_rev_req_passed",
+        "add_supply_revenue_requirement",
     )
     return ScenarioSettings(
         run_name=run_name_override or default_run_name,
         run_type=mode,
         state=state,
-        region=region,
         utility=utility,
         path_results=output_dir,
-        path_resstock_metadata=PATH_RESSTOCK
-        / "metadata"
-        / f"state={state}"
-        / f"upgrade={upgrade}"
-        / "metadata-sb.parquet",
-        path_resstock_loads=PATH_RESSTOCK
-        / "load_curve_hourly"
-        / f"state={state}"
-        / f"upgrade={upgrade}",
+        path_resstock_metadata=_resolve_path(
+            str(_require_value(run, "path_resstock_metadata")),
+            PATH_CONFIG,
+        ),
+        path_resstock_loads=_resolve_path(
+            str(_require_value(run, "path_resstock_loads")),
+            PATH_CONFIG,
+        ),
         path_cambium_marginal_costs=_resolve_path_or_uri(
             str(_require_value(run, "path_cambium_marginal_costs")),
             PATH_CONFIG,
         ),
-        path_tariff_maps_electric=path_tariff_maps_electric,
-        path_tariff_maps_gas=_resolve_path(
-            str(_require_value(run, "path_tariff_maps_gas")),
+        path_td_marginal_costs=_resolve_path_or_uri(
+            str(_require_value(run, "path_td_marginal_costs")),
             PATH_CONFIG,
         ),
+        path_tariff_maps_electric=path_tariff_maps_electric,
+        path_tariff_maps_gas=path_tariff_maps_gas,
         path_tariffs_electric=path_tariffs_electric,
         path_tariffs_gas=path_tariffs_gas,
         precalc_tariff_path=precalc_tariff_path,
         precalc_tariff_key=precalc_tariff_key,
-        utility_revenue_requirement=utility_revenue_requirement,
+        utility_delivery_revenue_requirement=utility_delivery_revenue_requirement,
         utility_customer_count=utility_customer_count,
         year_run=year_run,
         year_dollar_conversion=year_dollar_conversion,
         process_workers=process_workers,
         solar_pv_compensation=solar_pv_compensation,
-        delivery_only_rev_req_passed=delivery_only_rev_req_passed,
-        tou_derivation=tou_derivation_cfg,
+        add_supply_revenue_requirement=add_supply_revenue_requirement,
     )
 
 
@@ -436,10 +413,7 @@ def run(settings: ScenarioSettings) -> None:
     )
 
     distribution_marginal_costs = load_distribution_marginal_costs(
-        state=settings.state,
-        region=settings.region,
-        utility=settings.utility,
-        year_run=settings.year_run,
+        settings.path_td_marginal_costs,
     )
 
     log.info(
@@ -448,93 +422,7 @@ def run(settings: ScenarioSettings) -> None:
     )
 
     # ------------------------------------------------------------------
-    # Phase 2 (optional): Derive TOU tariff from marginal costs
-    # ------------------------------------------------------------------
-
-    if settings.tou_derivation.enabled:
-        tou_cfg = settings.tou_derivation
-        log.info(
-            ".... Computing TOU tariff from marginal costs (window=%d h, key=%s)",
-            tou_cfg.tou_window_hours,
-            tou_cfg.tou_tariff_key,
-        )
-
-        # System hourly load (demand-weighted aggregate of building loads)
-        hourly_system_load = process_residential_hourly_demand(
-            bldg_load=raw_load_elec,
-            sample_weights=customer_metadata[["bldg_id", "weight"]],
-        )
-
-        combined_mc = combine_marginal_costs(
-            bulk_marginal_costs, distribution_marginal_costs
-        )
-
-        peak_hours = find_tou_peak_window(
-            combined_mc=combined_mc,
-            hourly_system_load=hourly_system_load,
-            window_hours=tou_cfg.tou_window_hours,
-        )
-
-        ratio = compute_tou_cost_causation_ratio(
-            combined_mc=combined_mc,
-            hourly_system_load=hourly_system_load,
-            peak_hours=peak_hours,
-        )
-
-        tou_tariff = create_tou_tariff(
-            label=tou_cfg.tou_tariff_key,
-            peak_hours=peak_hours,
-            peak_offpeak_ratio=ratio,
-            base_rate=tou_cfg.tou_base_rate,
-            fixed_charge=tou_cfg.tou_fixed_charge,
-            utility=settings.utility,
-        )
-
-        # Write TOU tariff JSON
-        tou_tariff_path = (
-            PATH_CONFIG / "tariffs" / "electric" / f"{tou_cfg.tou_tariff_key}.json"
-        )
-        tou_tariff_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(tou_tariff_path, "w") as f:
-            json.dump(tou_tariff, f, indent=2)
-        log.info(".... Wrote TOU tariff JSON: %s", tou_tariff_path)
-
-        # Generate tariff map (HP → TOU, non-HP → flat)
-        tou_tariff_map_df = generate_tou_tariff_map(
-            customer_metadata=customer_metadata,
-            tou_tariff_key=tou_cfg.tou_tariff_key,
-            flat_tariff_key=tou_cfg.flat_tariff_key,
-        )
-        tou_map_path = (
-            PATH_CONFIG
-            / "tariff_maps"
-            / "electric"
-            / f"{tou_cfg.tou_tariff_key}_tariff_map.csv"
-        )
-        tou_map_path.parent.mkdir(parents=True, exist_ok=True)
-        tou_tariff_map_df.to_csv(tou_map_path, index=False)
-        log.info(".... Wrote TOU tariff map: %s", tou_map_path)
-
-        # Override settings so downstream code uses the computed tariff
-        settings.path_tariffs_electric[tou_cfg.tou_tariff_key] = tou_tariff_path
-        settings.path_tariff_maps_electric = tou_map_path
-        settings.precalc_tariff_path = tou_tariff_path
-        settings.precalc_tariff_key = tou_cfg.tou_tariff_key
-
-        # Ensure the flat tariff is also in path_tariffs_electric so
-        # _initialize_tariffs can resolve both keys in the tariff map.
-        if (
-            tou_cfg.flat_tariff_key
-            and tou_cfg.flat_tariff_key not in settings.path_tariffs_electric
-        ):
-            flat_path = (
-                PATH_CONFIG / "tariffs" / "electric" / f"{tou_cfg.flat_tariff_key}.json"
-            )
-            if flat_path.exists():
-                settings.path_tariffs_electric[tou_cfg.flat_tariff_key] = flat_path
-
-    # ------------------------------------------------------------------
-    # Phase 3: Initialize tariffs and system requirements
+    # Phase 2: Initialize tariffs and system requirements
     # ------------------------------------------------------------------
 
     tariffs_params, tariff_map_df = _initialize_tariffs(
@@ -563,17 +451,17 @@ def run(settings: ScenarioSettings) -> None:
     ) = _return_revenue_requirement_target(
         building_load=raw_load_elec,
         sample_weight=customer_metadata[["bldg_id", "weight"]],
-        revenue_requirement_target=settings.utility_revenue_requirement,
+        revenue_requirement_target=settings.utility_delivery_revenue_requirement,
         residual_cost=None,
         residual_cost_frac=None,
         bulk_marginal_costs=bulk_marginal_costs,
         distribution_marginal_costs=distribution_marginal_costs,
         low_income_strategy=None,
-        delivery_only_rev_req_passed=settings.delivery_only_rev_req_passed,
+        delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
     )
 
     # ------------------------------------------------------------------
-    # Phase 4: Run CAIRO simulation
+    # Phase 3: Run CAIRO simulation
     # ------------------------------------------------------------------
 
     bs = MeetRevenueSufficiencySystemWide(

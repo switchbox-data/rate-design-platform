@@ -421,14 +421,25 @@ def _load_run_from_scenario_config(
     return cast(dict[str, object], run)
 
 
-def _load_default_revenue_requirement(
+def _load_run_fields(
     scenario_config_path: Path,
     run_num: int,
-) -> tuple[str, float]:
+) -> tuple[str, str, float]:
+    """Read state, utility, and delivery revenue requirement from a scenario run.
+
+    Raises KeyError if any required field is missing.
+    """
     run = _load_run_from_scenario_config(scenario_config_path, run_num)
-    utility = str(run.get("utility", "rie"))
+    for field in ("state", "utility", "utility_delivery_revenue_requirement"):
+        if field not in run:
+            raise KeyError(
+                f"Run {run_num} in {scenario_config_path} is missing "
+                f"required field '{field}'"
+            )
+    state = str(run["state"]).upper()
+    utility = str(run["utility"]).lower()
     revenue_requirement = float(run["utility_delivery_revenue_requirement"])
-    return utility, revenue_requirement
+    return state, utility, revenue_requirement
 
 
 def _write_revenue_requirement_yamls(
@@ -581,7 +592,7 @@ def main() -> None:
         type=Path,
         help=(
             "Optional override for utility periods YAML path. "
-            "If omitted, resolves from scenario run state+utility."
+            "If omitted, resolves from state and utility in the scenario config."
         ),
     )
     args = parser.parse_args()
@@ -603,17 +614,18 @@ def main() -> None:
     )
     print(breakdown)
 
+    run_state, run_utility, default_revenue_requirement = _load_run_fields(
+        scenario_config_path=args.scenario_config,
+        run_num=args.run_num,
+    )
+
     if args.write_revenue_requirement_yamls:
-        utility, default_revenue_requirement = _load_default_revenue_requirement(
-            scenario_config_path=args.scenario_config,
-            run_num=args.run_num,
-        )
         differentiated_yaml_path, default_yaml_path = _write_revenue_requirement_yamls(
             breakdown=breakdown,
             run_dir=run_dir,
             group_col=args.group_col,
             cross_subsidy_col=args.cross_subsidy_col,
-            utility=utility,
+            utility=run_utility,
             default_revenue_requirement=default_revenue_requirement,
             differentiated_yaml_path=args.differentiated_yaml_path,
             default_yaml_path=args.default_yaml_path,
@@ -622,9 +634,6 @@ def main() -> None:
         print(f"Wrote default YAML: {default_yaml_path}")
 
     if args.resstock_loads_path:
-        run_cfg = _load_run_from_scenario_config(args.scenario_config, args.run_num)
-        run_state = str(run_cfg.get("state", "RI"))
-        run_utility = str(run_cfg.get("utility", "rie"))
         winter_months = _resolve_winter_months(
             state=run_state,
             utility=run_utility,
