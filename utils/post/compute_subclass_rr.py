@@ -416,7 +416,9 @@ def _load_run_from_scenario_config(
         msg = f"Run {run_num} not found in scenario config: {scenario_config_path}"
         raise ValueError(msg)
     if not isinstance(run, dict):
-        msg = f"Run {run_num} is not a mapping in scenario config: {scenario_config_path}"
+        msg = (
+            f"Run {run_num} is not a mapping in scenario config: {scenario_config_path}"
+        )
         raise ValueError(msg)
     return cast(dict[str, object], run)
 
@@ -438,7 +440,8 @@ def _load_run_fields(
             )
     state = str(run["state"]).upper()
     utility = str(run["utility"]).lower()
-    revenue_requirement = float(run["utility_delivery_revenue_requirement"])
+    raw_rr = run["utility_delivery_revenue_requirement"]
+    revenue_requirement = float(cast(float | int | str, raw_rr))
     return state, utility, revenue_requirement
 
 

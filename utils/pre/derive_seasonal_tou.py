@@ -240,10 +240,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--winter-months",
         default=None,
-        help=(
-            "Comma-separated 1-indexed winter months "
-            "(default: 1,2,3,4,5,10,11,12)."
-        ),
+        help=("Comma-separated 1-indexed winter months (default: 1,2,3,4,5,10,11,12)."),
     )
     p.add_argument(
         "--summer-months",
@@ -335,7 +332,9 @@ def main() -> None:
 
     if args.summer_months:
         summer_months = parse_months_arg(args.summer_months)
-        fallback_winter = [month for month in range(1, 13) if month not in summer_months]
+        fallback_winter = [
+            month for month in range(1, 13) if month not in summer_months
+        ]
     else:
         fallback_winter = default_winter_months
 

@@ -52,4 +52,3 @@ runs:
     process_workers: 20
     solar_pv_compensation: net_metering
     add_supply_revenue_requirement: true
-

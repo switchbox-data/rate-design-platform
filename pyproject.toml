@@ -66,5 +66,8 @@ include = ["data*", "rate_design*", "utils*"]
 ]
 "utils.post" = ["data/*.yaml"]
 
+[tool.ty.src]
+exclude = [".cache/"]
+
 [tool.uv.sources]
 cairo = { git = "https://github.com/NatLabRockies/CAIRO", rev = "main" }
