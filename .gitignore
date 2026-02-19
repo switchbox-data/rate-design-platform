@@ -40,6 +40,7 @@ build/
 *.json
 !dprint.json
 !.markdownlint.json
+!utils/pre/electrical_tariff_key_map.json
 !rate_design/ny/hp_rates/config/tariffs/**
 !rate_design/ri/hp_rates/config/tariffs/**
 !rate_design/ny/hp_rates/config/tariff_maps/**

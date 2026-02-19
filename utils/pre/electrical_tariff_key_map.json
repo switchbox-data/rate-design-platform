@@ -1,0 +1,152 @@
+{
+  "ri_rie_run1_up00_precalc__flat__n100": {
+    "grouping_cols": [
+      "default"
+    ],
+    "group_to_tariff_key": {
+      "('default',)": "flat"
+    },
+    "output_filename": "rie_flat.csv"
+  },
+  "ri_rie_run2_up00_precalc_supply__flat__n100": {
+    "grouping_cols": [
+      "default"
+    ],
+    "group_to_tariff_key": {
+      "('default',)": "flat_supply"
+    },
+    "output_filename": "rie_flat_supply.csv"
+  },
+  "ri_rie_run3_up02_default__flat__n100": {
+    "grouping_cols": [
+      "default"
+    ],
+    "group_to_tariff_key": {
+      "('default',)": "flat_calibrated"
+    },
+    "output_filename": "rie_flat_calibrated.csv"
+  },
+  "ri_rie_run4_up02_default_supply__flat__n100": {
+    "grouping_cols": [
+      "default"
+    ],
+    "group_to_tariff_key": {
+      "('default',)": "flat_supply_calibrated"
+    },
+    "output_filename": "rie_flat_calibrated_supply.csv"
+  },
+  "ri_rie_run5_up00_precalc__hp_seasonal_vs_flat__n100": {
+    "grouping_cols": [
+      "postprocess_group.has_hp"
+    ],
+    "group_to_tariff_key": {
+      "('True',)": "hp_seasonal",
+      "('False',)": "flat"
+    },
+    "output_filename": "rie_hp_seasonal_vs_flat.csv"
+  },
+  "ri_rie_run6_up00_precalc_supply__hp_seasonal_vs_flat__n100": {
+    "grouping_cols": [
+      "postprocess_group.has_hp"
+    ],
+    "group_to_tariff_key": {
+      "('True',)": "hp_seasonal_supply",
+      "('False',)": "flat_supply"
+    },
+    "output_filename": "rie_hp_seasonal_vs_flat_supply.csv"
+  },
+  "ri_rie_run7_up02_default__hp_seasonal__n100": {
+    "grouping_cols": [
+      "default"
+    ],
+    "group_to_tariff_key": {
+      "('default',)": "hp_seasonal_calibrated"
+    },
+    "output_filename": "rie_hp_seasonal_calibrated.csv"
+  },
+  "ri_rie_run8_up02_default_supply__hp_seasonal__n100": {
+    "grouping_cols": [
+      "default"
+    ],
+    "group_to_tariff_key": {
+      "('default',)": "hp_seasonal_supply_calibrated"
+    },
+    "output_filename": "rie_hp_seasonal_calibrated_supply.csv"
+  },
+  "ri_rie_run9_up00_precalc__hp_seasonalTOU_vs_flat__n100": {
+    "grouping_cols": [
+      "postprocess_group.has_hp"
+    ],
+    "group_to_tariff_key": {
+      "('True',)": "hp_seasonalTOU",
+      "('False',)": "flat"
+    },
+    "output_filename": "rie_hp_seasonalTOU_vs_flat.csv"
+  },
+  "ri_rie_run10_up00_precalc_supply__hp_seasonalTOU_vs_flat__n100": {
+    "grouping_cols": [
+      "postprocess_group.has_hp"
+    ],
+    "group_to_tariff_key": {
+      "('True',)": "hp_seasonalTOU_supply",
+      "('False',)": "flat_supply"
+    },
+    "output_filename": "rie_hp_seasonalTOU_vs_flat_supply.csv"
+  },
+  "ri_rie_run11_up02_default__hp_seasonalTOU__n100": {
+    "grouping_cols": [
+      "default"
+    ],
+    "group_to_tariff_key": {
+      "('default',)": "hp_seasonalTOU_calibrated"
+    },
+    "output_filename": "rie_hp_seasonalTOU_calibrated.csv"
+  },
+  "ri_rie_run12_up02_default_supply__hp_seasonalTOU__n100": {
+    "grouping_cols": [
+      "default"
+    ],
+    "group_to_tariff_key": {
+      "('default',)": "hp_seasonalTOU_supply_calibrated"
+    },
+    "output_filename": "rie_hp_seasonalTOU_calibrated_supply.csv"
+  },
+  "ri_rie_run13_up00_precalc__hp_seasonalTOU_flex_vs_flat__n100": {
+    "grouping_cols": [
+      "postprocess_group.has_hp"
+    ],
+    "group_to_tariff_key": {
+      "('True',)": "hp_seasonalTOU_flex",
+      "('False',)": "flat"
+    },
+    "output_filename": "rie_hp_seasonalTOU_flex_vs_flat.csv"
+  },
+  "ri_rie_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_flat__n100": {
+    "grouping_cols": [
+      "postprocess_group.has_hp"
+    ],
+    "group_to_tariff_key": {
+      "('True',)": "hp_seasonalTOU_flex_supply",
+      "('False',)": "flat_supply"
+    },
+    "output_filename": "rie_hp_seasonalTOU_flex_vs_flat_supply.csv"
+  },
+  "ri_rie_run15_up02_default__hp_seasonalTOU_flex__n100": {
+    "grouping_cols": [
+      "default"
+    ],
+    "group_to_tariff_key": {
+      "('default',)": "hp_seasonalTOU_flex_calibrated"
+    },
+    "output_filename": "rie_hp_seasonalTOU_flex_calibrated.csv"
+  },
+  "ri_rie_run16_up02_default_supply__hp_seasonalTOU_flex__n100": {
+    "grouping_cols": [
+      "default"
+    ],
+    "group_to_tariff_key": {
+      "('default',)": "hp_seasonalTOU_flex_supply_calibrated"
+    },
+    "output_filename": "rie_hp_seasonalTOU_flex_calibrated_supply.csv"
+  }
+}
