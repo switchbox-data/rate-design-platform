@@ -36,6 +36,20 @@ def test_apply_prototype_sample_subset_deterministic_with_rng() -> None:
     assert len(a) == 3
 
 
+def test_apply_prototype_sample_zero_raises() -> None:
+    """sample_size=0 raises ValueError (must be positive)."""
+    ids = [1, 2, 3]
+    with pytest.raises(ValueError, match="sample_size must be positive, got 0"):
+        apply_prototype_sample(ids, 0)
+
+
+def test_apply_prototype_sample_negative_raises() -> None:
+    """Negative sample_size raises ValueError."""
+    ids = [1, 2, 3]
+    with pytest.raises(ValueError, match="sample_size must be positive, got -1"):
+        apply_prototype_sample(ids, -1)
+
+
 def test_apply_prototype_sample_exceeds_raises() -> None:
     """When sample_size exceeds number of prototype IDs, raise ValueError."""
     ids = [1, 2, 3, 4, 5]

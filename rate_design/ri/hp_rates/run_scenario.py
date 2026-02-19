@@ -108,10 +108,12 @@ def apply_prototype_sample(
 
     When sample_size is None, returns prototype_ids unchanged.
     When sample_size is set, returns a random sample of that size without replacement.
-    Raises ValueError if sample_size exceeds the number of prototype IDs.
+    Raises ValueError if sample_size is not positive or exceeds the number of prototype IDs.
     """
     if sample_size is None:
         return prototype_ids
+    if sample_size <= 0:
+        raise ValueError(f"sample_size must be positive, got {sample_size}")
     if sample_size > len(prototype_ids):
         raise ValueError(
             f"sample_size {sample_size} exceeds number of prototype IDs ({len(prototype_ids)})"
@@ -326,7 +328,7 @@ def run(settings: ScenarioSettings) -> None:
         cast(ElectricUtility, settings.utility), utility_assignment
     )
     log.info(
-        ".... Loaded %s prototype IDs for utility %s",
+        ".... Found %s bldgs for utility %s",
         len(prototype_ids),
         settings.utility,
     )
@@ -338,7 +340,7 @@ def run(settings: ScenarioSettings) -> None:
             log.warning("%s; exiting.", e)
             sys.exit(1)
         log.info(
-            ".... Sampled %s prototype IDs (sample_size=%s)",
+            ".... Selected a sample of %s of these for simulation (sample_size=%s)",
             len(prototype_ids),
             settings.sample_size,
         )
