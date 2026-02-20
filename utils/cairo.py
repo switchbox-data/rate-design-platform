@@ -343,7 +343,8 @@ def _load_iso_marginal_costs(
         if len(marginal_df.index) != 8760:
             raise ValueError("ISO marginal cost index normalization did not produce 8760 rows")
 
-    marginal_df.index = pd.DatetimeIndex(marginal_df.index).tz_localize("EST")
+    if marginal_df.index.tz is None:
+        marginal_df.index = pd.DatetimeIndex(marginal_df.index).tz_localize("EST")
     marginal_df.index.name = "time"
     return marginal_df
 
@@ -460,22 +461,17 @@ def _extract_isone_regional_data(
         parse_dates=True,
     )
 
-    sheet["Hr_End"] = pd.to_numeric(sheet["Hr_End"], errors="coerce") - 1
-    # Drop rows where Hr_End is NaN (e.g. DST spring-forward "02X" placeholder)
-    n_before = len(sheet)
-    sheet = sheet.dropna(subset=["Hr_End"])
-    n_dropped = n_before - len(sheet)
-    if n_dropped:
-        log.debug(
-            "Dropped %d non-numeric Hr_End rows (e.g. DST '02X') from %s sheet",
-            n_dropped,
-            region_name,
-        )
-    sheet.index = pd.to_datetime(sheet.index)
-    sheet.index = [
-        sheet.index[i] + pd.Timedelta(hours=int(v))
-        for i, v in enumerate(sheet["Hr_End"])
-    ]
+    # The workbook uses Eastern Prevailing Time (with DST) and marks the
+    # fall-back repeated hour as "02X".  Rather than parsing those timestamps
+    # (which creates duplicates), we assign a clean EST 8760 index positionally.
+    # The data is already in chronological order with exactly 8760 rows.
+    est_index = pd.date_range(
+        start=f"{year_focus}-01-01",
+        periods=len(sheet),
+        freq="h",
+        tz="EST",
+    )
+    sheet.index = est_index
 
     isone_loads = sheet[["RT_Demand"]].rename(
         columns={"RT_Demand": f"{region_name}_Demand"}
@@ -580,14 +576,14 @@ def _extract_ancillary_prices(year_focus: int, xl: pd.ExcelFile) -> pd.Series:
         index_col="Date",
         parse_dates=True,
     )
-    sheet["Hr_End"] = pd.to_numeric(sheet["Hr_End"], errors="coerce") - 1
-    # Drop rows where Hr_End is NaN (e.g. DST spring-forward "02X" placeholder)
-    sheet = sheet.dropna(subset=["Hr_End"])
-    sheet.index = pd.to_datetime(sheet.index)
-    sheet.index = [
-        sheet.index[i] + pd.Timedelta(hours=int(v))
-        for i, v in enumerate(sheet["Hr_End"])
-    ]
+    # Assign clean EST 8760 index (same rationale as _extract_isone_regional_data)
+    est_index = pd.date_range(
+        start=f"{year_focus}-01-01",
+        periods=len(sheet),
+        freq="h",
+        tz="EST",
+    )
+    sheet.index = est_index
 
     ancillary_prices = sheet[["Reg_Service_Price", "Reg_Capacity_Price"]].copy()
     ancillary_prices["Total_ancillary"] = ancillary_prices.sum(axis=1)
