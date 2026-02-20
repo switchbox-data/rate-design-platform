@@ -235,6 +235,8 @@ create-td-mc-data-rie:
     --mc-table-path {{pre_mc_table_path}} \
     --utility-load-s3-base {{pre_utility_s3_base}} \
     --output-s3-base {{pre_mc_output_s3_base}} \
+    --upstream-hours 100 \
+    --dist-hours 100 \
     --upload
 
 # =============================================================================
