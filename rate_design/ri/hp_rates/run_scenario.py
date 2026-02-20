@@ -12,6 +12,7 @@ import polars as pl
 import yaml
 from cairo.rates_tool.loads import (
     _return_load,
+    process_residential_hourly_demand,
     return_buildingstock,
 )
 from cairo.rates_tool.systemsimulator import (
@@ -487,6 +488,36 @@ def run(settings: ScenarioSettings) -> None:
         tariff_dict=tariffs_params,
     )
 
+    # When a delivery-only revenue requirement is passed, we need to add
+    # estimated supply costs (energy + capacity) *before* calling CAIRO's
+    # _return_revenue_requirement_target.  CAIRO's internal assertion
+    # (residual > 0) fires before the post-hoc top-up in
+    # delivery_only_rev_req_passed can execute, so the full RR must be
+    # assembled here.
+    rr_target = settings.utility_delivery_revenue_requirement
+    if settings.add_supply_revenue_requirement:
+        hourly_sys_load = process_residential_hourly_demand(
+            bldg_load=raw_load_elec,
+            sample_weights=customer_metadata[["bldg_id", "weight"]],
+        )
+        supply_cols = [
+            "Marginal Energy Costs ($/kWh)",
+            "Marginal Capacity Costs ($/kWh)",
+        ]
+        supply_mc_total = (
+            bulk_marginal_costs[supply_cols]
+            .sum(axis=1)
+            .mul(hourly_sys_load)
+            .sum()
+        )
+        rr_target += supply_mc_total
+        log.info(
+            ".... Delivery-only RR $%s + supply MC $%s → full RR $%s",
+            f"{settings.utility_delivery_revenue_requirement:,.0f}",
+            f"{supply_mc_total:,.0f}",
+            f"{rr_target:,.0f}",
+        )
+
     (
         revenue_requirement,
         marginal_system_prices,
@@ -495,13 +526,13 @@ def run(settings: ScenarioSettings) -> None:
     ) = _return_revenue_requirement_target(
         building_load=raw_load_elec,
         sample_weight=customer_metadata[["bldg_id", "weight"]],
-        revenue_requirement_target=settings.utility_delivery_revenue_requirement,
+        revenue_requirement_target=rr_target,
         residual_cost=None,
         residual_cost_frac=None,
         bulk_marginal_costs=bulk_marginal_costs,
         distribution_marginal_costs=distribution_marginal_costs,
         low_income_strategy=None,
-        delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
+        delivery_only_rev_req_passed=False,
     )
 
     # ------------------------------------------------------------------
