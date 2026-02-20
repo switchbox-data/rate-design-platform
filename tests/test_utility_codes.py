@@ -2,7 +2,7 @@
 
 from typing import get_args
 
-from utils.types import electric_utility, gas_utility
+from utils.types import ElectricUtility, GasUtility
 from utils.utility_codes import (
     UTILITIES,
     get_all_std_names,
@@ -114,12 +114,12 @@ def test_std_name_to_display_name():
 
 
 def test_types_literal_in_sync_with_utility_codes():
-    """utils.types electric_utility and gas_utility Literals include all from utility_codes."""
-    electric_from_types = set(get_args(electric_utility))
-    gas_from_types = set(get_args(gas_utility))
+    """utils.types ElectricUtility and GasUtility Literals include all from utility_codes."""
+    electric_from_types = set(get_args(ElectricUtility))
+    gas_from_types = set(get_args(GasUtility))
     assert set(get_electric_std_names()) <= electric_from_types, (
-        f"types.electric_utility missing: {set(get_electric_std_names()) - electric_from_types}"
+        f"types.ElectricUtility missing: {set(get_electric_std_names()) - electric_from_types}"
     )
     assert set(get_gas_std_names()) <= gas_from_types, (
-        f"types.gas_utility missing: {set(get_gas_std_names()) - gas_from_types}"
+        f"types.GasUtility missing: {set(get_gas_std_names()) - gas_from_types}"
     )

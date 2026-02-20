@@ -66,6 +66,18 @@ Output names are fixed to match RI config tariff naming:
 just map-electric-rie-seasonal-discount
 ```
 
+5. Promote calibrated tariff from a run output back into config tariffs
+
+```bash
+just copy-calibrated-tariff-from-run <run_dir> <state>
+```
+
+This recipe reads `<run_dir>/tariff_final_config.json`, parses `tariff_key` from
+the run directory name, converts CAIRO-native tariff fields (`ur_ec_*`,
+`ur_ec_tou_mat`) into URDB `items[0]` format, and writes:
+
+- `rate_design/<state>/hp_rates/config/tariffs/electric/<tariff_key>_calibrated.json`
+
 ## Expected Seasonal Inputs CSV
 
 `seasonal_discount_rate_inputs.csv` includes:

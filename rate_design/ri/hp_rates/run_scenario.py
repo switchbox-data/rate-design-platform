@@ -4,31 +4,41 @@ from __future__ import annotations
 
 import argparse
 import logging
+import random
+import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
 
-import pandas as pd
 import polars as pl
 import yaml
-from cairo.rates_tool.loads import _return_load, return_buildingstock
+from cairo.rates_tool.loads import (
+    _return_load,
+    return_buildingstock,
+)
 from cairo.rates_tool.systemsimulator import (
     MeetRevenueSufficiencySystemWide,
     _initialize_tariffs,
     _return_export_compensation_rate,
     _return_revenue_requirement_target,
 )
-
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.cairo import _load_cambium_marginal_costs, build_bldg_id_to_load_filepath
+from utils import get_aws_region
+from utils.cairo import (
+    _fetch_prototype_ids_by_electric_util,
+    _load_cambium_marginal_costs,
+    build_bldg_id_to_load_filepath,
+    load_distribution_marginal_costs,
+)
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
+from utils.types import ElectricUtility
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
+STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
+DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
 DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
 
 
@@ -40,10 +50,10 @@ class ScenarioSettings:
     run_type: str
     state: str
     utility: str
-    upgrade: str
-    path_output: Path
+    path_results: Path
     path_resstock_metadata: Path
     path_resstock_loads: Path
+    path_utility_assignment: str | Path
     path_cambium_marginal_costs: str | Path
     path_td_marginal_costs: str | Path
     path_tariff_maps_electric: Path
@@ -59,6 +69,7 @@ class ScenarioSettings:
     process_workers: int
     solar_pv_compensation: str = "net_metering"
     add_supply_revenue_requirement: bool = False
+    sample_size: int | None = None
 
 
 def _parse_int(value: object, field_name: str) -> int:
@@ -88,26 +99,28 @@ def _parse_bool(value: object, field_name: str) -> bool:
     raise ValueError(f"Invalid boolean for {field_name}: {value}")
 
 
-def _normalize_upgrade(value: object, width: int = 2) -> str:
-    """Normalize upgrade to a zero-padded string (e.g. 0 or '0' -> '00')."""
-    if value is None:
-        return "0" * width
-    if isinstance(value, int):
-        if value < 0:
-            raise ValueError(f"upgrade must be non-negative; got {value}")
-        return str(value).zfill(width)
-    s = str(value).strip()
-    if s == "":
-        return "0" * width
-    try:
-        n = int(s)
-    except ValueError as exc:
+def apply_prototype_sample(
+    prototype_ids: list[int],
+    sample_size: int | None,
+    *,
+    rng: random.Random | None = None,
+) -> list[int]:
+    """Optionally take a uniform random sample of prototype IDs.
+
+    When sample_size is None, returns prototype_ids unchanged.
+    When sample_size is set, returns a random sample of that size without replacement.
+    Raises ValueError if sample_size is not positive or exceeds the number of prototype IDs.
+    """
+    if sample_size is None:
+        return prototype_ids
+    if sample_size <= 0:
+        raise ValueError(f"sample_size must be positive, got {sample_size}")
+    if sample_size > len(prototype_ids):
         raise ValueError(
-            f"upgrade must be an integer or zero-padded string; got {value!r}"
-        ) from exc
-    if n < 0:
-        raise ValueError(f"upgrade must be non-negative; got {value!r}")
-    return str(n).zfill(width)
+            f"sample_size {sample_size} exceeds number of prototype IDs ({len(prototype_ids)})"
+        )
+    gen = rng if rng is not None else random
+    return gen.sample(prototype_ids, sample_size)
 
 
 def _resolve_path(value: str, base_dir: Path) -> Path:
@@ -143,37 +156,31 @@ def _parse_path_tariffs(
     base_dir: Path,
     label: str,
 ) -> dict[str, Path]:
-    """Parse path_tariffs (electric or gas) from YAML (list or dict) and reconcile.
+    """Parse path_tariffs_electric from YAML (list only) and reconcile with map.
 
-    If value is a list of path strings, keys are derived from filename stem (e.g.
-    tariffs/electric/foo.json -> foo). Every tariff_key in the tariff map must
-    have a corresponding entry, and every list entry must appear in the map.
+    Value must be a list of path strings; keys are derived from filename stem
+    (e.g. tariffs/electric/foo.json -> foo). Every tariff_key in the map must
+    have an entry, and every list entry must appear in the map.
     """
-    if isinstance(value, list):
-        path_tariffs = {}
-        for item in value:
-            if not isinstance(item, str):
-                raise ValueError(
-                    f"path_tariffs_{label} list must contain path strings; "
-                    f"got {type(item).__name__}"
-                )
-            path = _resolve_path(item, base_dir)
-            key = path.stem
-            if key in path_tariffs:
-                raise ValueError(
-                    f"path_tariffs_{label}: duplicate key '{key}' from paths "
-                    f"{path_tariffs[key]} and {path}"
-                )
-            path_tariffs[key] = path
-    elif isinstance(value, dict):
-        path_tariffs = {
-            str(k): _resolve_path(str(v), base_dir) for k, v in value.items()
-        }
-    else:
+    if not isinstance(value, list):
         raise ValueError(
-            f"path_tariffs_{label} must be a list of paths or a key-to-path mapping; "
-            f"got {type(value).__name__}"
+            f"path_tariffs_{label} must be a list of paths; got {type(value).__name__}"
         )
+    path_tariffs = {}
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError(
+                f"path_tariffs_{label} list must contain path strings; "
+                f"got {type(item).__name__}"
+            )
+        path = _resolve_path(item, base_dir)
+        key = path.stem
+        if key in path_tariffs:
+            raise ValueError(
+                f"path_tariffs_{label}: duplicate key '{key}' from paths "
+                f"{path_tariffs[key]} and {path}"
+            )
+        path_tariffs[key] = path
 
     map_keys = _tariff_map_keys(path_tariff_map)
     list_keys = set(path_tariffs.keys())
@@ -188,6 +195,38 @@ def _parse_path_tariffs(
         raise ValueError(
             f"path_tariffs_{label} includes file(s) not referenced in {label} "
             f"tariff map: {sorted(only_in_list)}"
+        )
+    return path_tariffs
+
+
+def _parse_path_tariffs_gas(
+    value: Any,
+    path_tariff_map: Path,
+    base_dir: Path,
+) -> dict[str, Path]:
+    """Parse path_tariffs_gas from YAML: must be a directory path (string).
+
+    Unique tariff_key values are read from the gas tariff map; each must have
+    a file at directory/tariff_key.json.
+    """
+    if not isinstance(value, str):
+        raise ValueError(
+            "path_tariffs_gas must be a directory path (string) containing "
+            f"gas tariff JSONs named <tariff_key>.json; got {type(value).__name__}"
+        )
+    path_dir = _resolve_path(value, base_dir)
+    if not path_dir.is_dir():
+        raise ValueError(
+            f"path_tariffs_gas is a directory path but not a directory: {path_dir}"
+        )
+    map_keys = _tariff_map_keys(path_tariff_map)
+    path_tariffs = {k: path_dir / f"{k}.json" for k in map_keys}
+    missing = [k for k, p in path_tariffs.items() if not p.is_file()]
+    if missing:
+        raise ValueError(
+            "Gas tariff map references tariff_key(s) with no file under "
+            f"{path_dir}: {sorted(missing)}. "
+            f"Expected e.g. {path_dir / 'tariff_key.json'}"
         )
     return path_tariffs
 
@@ -226,12 +265,12 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
 def _build_settings_from_yaml_run(
     run: dict[str, Any],
     run_num: int,
+    output_dir: Path,
     run_name_override: str | None,
 ) -> ScenarioSettings:
     """Build runtime settings from repo YAML scenario config."""
     state = str(run.get("state", "RI")).upper()
     utility = str(_require_value(run, "utility")).lower()
-    upgrade = _normalize_upgrade(run.get("upgrade", "00"))
     mode = str(run.get("run_type", "precalc"))
     year_run = _parse_int(run.get("year_run"), "year_run")
     year_dollar_conversion = _parse_int(
@@ -265,11 +304,10 @@ def _build_settings_from_yaml_run(
         str(_require_value(run, "path_tariff_maps_gas")),
         PATH_CONFIG,
     )
-    path_tariffs_gas = _parse_path_tariffs(
+    path_tariffs_gas = _parse_path_tariffs_gas(
         _require_value(run, "path_tariffs_gas"),
         path_tariff_maps_gas,
         PATH_CONFIG,
-        "gas",
     )
 
     precalc_tariff_key_raw = run.get("precalc_tariff_key")
@@ -296,25 +334,24 @@ def _build_settings_from_yaml_run(
             else precalc_tariff_path.stem
         )
 
-    default_run_name = str(run.get("run_name", f"ri_rie_run_{run_num:02d}"))
     add_supply_revenue_requirement = _parse_bool(
-        run.get(
-            "add_supply_revenue_requirement",
-            "supply_adj" in precalc_tariff_key,
-        ),
+        run.get("add_supply_revenue_requirement", False),
         "add_supply_revenue_requirement",
     )
-    path_output = _resolve_path(
-        str(_require_value(run, "path_output")),
-        PATH_CONFIG,
+    sample_size = (
+        _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
     )
+    run_name = run_name_override or run.get("run_name") or f"run_{run_num}"
     return ScenarioSettings(
-        run_name=run_name_override or default_run_name,
+        run_name=run_name,
         run_type=mode,
         state=state,
         utility=utility,
-        upgrade=upgrade,
-        path_output=path_output,
+        path_results=output_dir,
+        path_utility_assignment=_resolve_path_or_uri(
+            str(_require_value(run, "path_utility_assignment")),
+            PATH_CONFIG,
+        ),
         path_resstock_metadata=_resolve_path(
             str(_require_value(run, "path_resstock_metadata")),
             PATH_CONFIG,
@@ -343,6 +380,7 @@ def _build_settings_from_yaml_run(
         year_dollar_conversion=year_dollar_conversion,
         process_workers=process_workers,
         solar_pv_compensation=solar_pv_compensation,
+        sample_size=sample_size,
         add_supply_revenue_requirement=add_supply_revenue_requirement,
     )
 
@@ -366,8 +404,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=None,
-        help="Optional override: full output path (else built from path_output/state/run_name/runtime).",
+        default=DEFAULT_OUTPUT_DIR,
+        help="Output root dir passed to CAIRO.",
     )
     parser.add_argument(
         "--run-name",
@@ -377,37 +415,75 @@ def _parse_args() -> argparse.Namespace:
     return args
 
 
-def _resolve_settings(
-    args: argparse.Namespace,
-) -> tuple[ScenarioSettings, Path | None]:
+def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
     run = _load_run_from_yaml(args.scenario_config, args.run_num)
-    settings = _build_settings_from_yaml_run(
+    return _build_settings_from_yaml_run(
         run=run,
         run_num=args.run_num,
+        output_dir=args.output_dir,
         run_name_override=args.run_name,
     )
-    return settings, args.output_dir
 
 
-def run(
-    settings: ScenarioSettings,
-    output_dir_override: Path | None = None,
-) -> None:
+# ---------------------------------------------------------------------------
+# Main run
+# ---------------------------------------------------------------------------
+
+
+def _load_prototype_ids_for_run(
+    path_utility_assignment: str | Path,
+    utility: str,
+    sample_size: int | None,
+) -> list[int]:
+    """Load utility assignment, fetch prototype IDs for the utility, optionally sample."""
+    path_ua = path_utility_assignment
+    storage_opts = (
+        STORAGE_OPTIONS
+        if isinstance(path_ua, str) and path_ua.startswith("s3://")
+        else None
+    )
+    utility_assignment = pl.scan_parquet(str(path_ua), storage_options=storage_opts)
+    prototype_ids = _fetch_prototype_ids_by_electric_util(
+        cast(ElectricUtility, utility), utility_assignment
+    )
+    log.info(
+        ".... Found %s bldgs for utility %s",
+        len(prototype_ids),
+        utility,
+    )
+    if sample_size is not None:
+        try:
+            prototype_ids = apply_prototype_sample(prototype_ids, sample_size)
+        except ValueError as e:
+            log.warning("%s; exiting.", e)
+            sys.exit(1)
+        log.info(
+            ".... Selected a sample of %s of these for simulation (sample_size=%s)",
+            len(prototype_ids),
+            sample_size,
+        )
+    return prototype_ids
+
+
+def run(settings: ScenarioSettings) -> None:
     log.info(
         ".... Beginning RI residential (non-LMI) rate scenario simulation: %s",
         settings.run_name,
     )
-    if output_dir_override is not None:
-        path_results = output_dir_override
-    else:
-        runtime = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        path_results = (
-            settings.path_output / settings.state.lower() / settings.run_name / runtime
-        )
+
+    # ------------------------------------------------------------------
+    # Phase 1: Retrieve prototype IDs, tariffs, customer metadata, loads
+    # ------------------------------------------------------------------
+
+    prototype_ids = _load_prototype_ids_for_run(
+        settings.path_utility_assignment,
+        settings.utility,
+        settings.sample_size,
+    )
 
     tariffs_params, tariff_map_df = _initialize_tariffs(
         tariff_map=settings.path_tariff_maps_electric,
-        building_stock_sample=None,
+        building_stock_sample=prototype_ids,
         tariff_paths=settings.path_tariffs_electric,
     )
 
@@ -418,6 +494,7 @@ def run(
 
     customer_metadata = return_buildingstock(
         load_scenario=settings.path_resstock_metadata,
+        building_stock_sample=prototype_ids,
         customer_count=settings.utility_customer_count,
         columns=[
             "applicability",
@@ -427,63 +504,49 @@ def run(
         ],
     )
 
-    sell_rate = _return_export_compensation_rate(
-        year_run=settings.year_run,
-        solar_pv_compensation=settings.solar_pv_compensation,
-        solar_pv_export_import_ratio=1.0,
-        tariff_dict=tariffs_params,
-    )
-
     bldg_id_to_load_filepath = build_bldg_id_to_load_filepath(
         path_resstock_loads=settings.path_resstock_loads,
+        building_ids=prototype_ids,
     )
 
     raw_load_elec = _return_load(
         load_type="electricity",
         target_year=settings.year_run,
+        building_stock_sample=prototype_ids,
         load_filepath_key=bldg_id_to_load_filepath,
         force_tz="EST",
     )
     raw_load_gas = _return_load(
         load_type="gas",
         target_year=settings.year_run,
+        building_stock_sample=prototype_ids,
         load_filepath_key=bldg_id_to_load_filepath,
         force_tz="EST",
     )
+
+    # ------------------------------------------------------------------
+    # Phase 2: Load marginal costs and calculate revenuerequirements
+    # ------------------------------------------------------------------
 
     bulk_marginal_costs = _load_cambium_marginal_costs(
         settings.path_cambium_marginal_costs,
         settings.year_run,
     )
-    path_td = settings.path_td_marginal_costs
-    if str(path_td).startswith("s3://"):
-        distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
-            path_td,
-            storage_options=get_aws_storage_options(),
-        )
-    else:
-        distribution_mc_scan = pl.scan_parquet(path_td)
-    distribution_mc_df = cast(pl.DataFrame, distribution_mc_scan.collect())
-    distribution_marginal_costs = distribution_mc_df.to_pandas()
-    required_cols = {"timestamp", "mc_total_per_kwh"}
-    missing_cols = required_cols.difference(distribution_marginal_costs.columns)
-    if missing_cols:
-        raise ValueError(
-            "Distribution marginal costs parquet is missing required columns "
-            f"{sorted(required_cols)}. Missing: {sorted(missing_cols)}"
-        )
-    distribution_marginal_costs = distribution_marginal_costs.set_index("timestamp")[
-        "mc_total_per_kwh"
-    ]
-    distribution_marginal_costs.index = pd.DatetimeIndex(
-        distribution_marginal_costs.index
-    ).tz_localize("EST")
-    distribution_marginal_costs.index.name = "time"
-    distribution_marginal_costs.name = "Marginal Distribution Costs ($/kWh)"
+
+    distribution_marginal_costs = load_distribution_marginal_costs(
+        settings.path_td_marginal_costs,
+    )
 
     log.info(
         ".... Loaded distribution marginal costs rows=%s",
         len(distribution_marginal_costs),
+    )
+
+    sell_rate = _return_export_compensation_rate(
+        year_run=settings.year_run,
+        solar_pv_compensation=settings.solar_pv_compensation,
+        solar_pv_export_import_ratio=1.0,
+        tariff_dict=tariffs_params,
     )
 
     (
@@ -503,13 +566,18 @@ def run(
         delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
     )
 
+    # ------------------------------------------------------------------
+    # Phase 3: Run CAIRO simulation
+    # ------------------------------------------------------------------
+
     bs = MeetRevenueSufficiencySystemWide(
         run_type=settings.run_type,
         year_run=settings.year_run,
         year_dollar_conversion=settings.year_dollar_conversion,
         process_workers=settings.process_workers,
+        building_stock_sample=prototype_ids,
         run_name=settings.run_name,
-        output_dir=path_results,
+        output_dir=settings.path_results,
     )
 
     bs.simulate(
@@ -543,8 +611,8 @@ def run(
 
 def main() -> None:
     args = _parse_args()
-    settings, output_dir_override = _resolve_settings(args)
-    run(settings, output_dir_override=output_dir_override)
+    settings = _resolve_settings(args)
+    run(settings)
 
 
 if __name__ == "__main__":

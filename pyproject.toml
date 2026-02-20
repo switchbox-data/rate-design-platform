@@ -9,6 +9,8 @@ license = { text = "MIT" }
 dependencies = [
     "buildstock-fetch>=1.6.1",
     "cairo",
+    "google-auth>=2.0.0",
+    "gspread>=6.0.0",
     "python-dotenv>=1.0.0",
     "cloudpathlib[s3]>=0.23.0",
     "geopandas>=1.0.0",
@@ -65,6 +67,9 @@ include = ["data*", "rate_design*", "utils*"]
     "config/tariff_maps/gas/*.csv",
 ]
 "utils.post" = ["data/*.yaml"]
+
+[tool.ty.src]
+exclude = [".cache/"]
 
 [tool.uv.sources]
 cairo = { git = "https://github.com/NatLabRockies/CAIRO", rev = "main" }

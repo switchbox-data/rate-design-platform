@@ -8,7 +8,7 @@ import polars as pl
 from cloudpathlib import S3Path
 
 from utils import get_aws_region
-from utils.types import electric_utility
+from utils.types import ElectricUtility
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
@@ -165,7 +165,7 @@ def _tariff_key_expr() -> pl.Expr:
 
 def map_gas_tariff(
     SB_metadata: pl.LazyFrame,
-    electric_utility_name: electric_utility,
+    electric_utility_name: ElectricUtility,
 ) -> pl.LazyFrame:
     # Filter metadata by electric utility name
     utility_metadata = SB_metadata.filter(

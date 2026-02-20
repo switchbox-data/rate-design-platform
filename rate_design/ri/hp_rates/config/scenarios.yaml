@@ -1,39 +1,40 @@
 runs:
   1:
-    run_name: ri_rie_run1_up00_precalc__flat_a16__delivery
     run_type: precalc
     state: RI
+    region: isone
     utility: rie
+    path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=RI/utility_assignment.parquet
     upgrade: "00"
-    add_supply_revenue_requirement: false
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=ri/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=ri/upgrade=00/
     path_cambium_marginal_costs: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/0000000.parquet
     path_tariff_maps_electric: tariff_maps/electric/rie_flat_a16.csv
     path_tariffs_electric:
-      - tariffs/electric/rie_flat_a16_delivery.json
+      - tariffs/electric/rie_a16.json
+      - tariffs/electric/rie_a60.json
     path_tariff_maps_gas: tariff_maps/gas/rie.csv
-    path_tariffs_gas:
-      - tariffs/gas/rie_heating.json
-      - tariffs/gas/rie_nonheating.json
+    path_tariffs_gas: tariffs/gas
     precalc_tariff_path: tariffs/electric/rie_a16.json
     precalc_tariff_key: rie_a16
     utility_delivery_revenue_requirement: 241869601
     utility_customer_count: 451381
-    path_output: /data.sb/switchbox/cairo/outputs/hp_rates/
     year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 20
     solar_pv_compensation: net_metering
+    supply: false
+    add_supply_revenue_requirement: false
 
   2:
-    run_name: ri_rie_run2_up00_precalc__flat_a16_supply
     run_type: precalc
     state: RI
+    region: isone
     utility: rie
-    upgrade: "00"
-    add_supply_revenue_requirement: true
+    upgrade: 0
+    sample_size: 100
+    path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=RI/utility_assignment.parquet
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=ri/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=ri/upgrade=00/
     path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
@@ -42,13 +43,12 @@ runs:
     path_tariffs_electric:
       - tariffs/electric/rie_flat_a16_supply.json
     path_tariff_maps_gas: tariff_maps/gas/rie.csv
-    path_tariffs_gas:
-      - tariffs/gas/rie_heating.json
-      - tariffs/gas/rie_nonheating.json
+    path_tariffs_gas: tariffs/gas
     utility_delivery_revenue_requirement: 241869601
     utility_customer_count: 451381
-    path_output: /data.sb/switchbox/cairo/outputs/hp_rates/
     year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 20
     solar_pv_compensation: net_metering
+    supply: true
+    add_supply_revenue_requirement: true
