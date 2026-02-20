@@ -52,20 +52,20 @@ def _tariff_key_expr() -> pl.Expr:
             & building_type_column.str.contains("Single-Family", literal=True)
             & heats_with_natgas_column.eq(True)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_sf_heating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_heating")]))
         # kedny: Single-Family does not heat with natural gas
         .when(
             (gas_utility_col == "kedny")
             & building_type_column.str.contains("Single-Family", literal=True)
             & heats_with_natgas_column.eq(False)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_sf_nonheating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_nonheating")]))
         # kedny: All multi-Family
         .when(
             (gas_utility_col == "kedny")
             & building_type_column.str.contains("Multi-Family", literal=True)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_mf")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_mf")]))
         #### kedny ####
         #### kedli ####
         # kedli: Single-Family heating with natural gas
@@ -74,28 +74,28 @@ def _tariff_key_expr() -> pl.Expr:
             & building_type_column.str.contains("Single-Family", literal=True)
             & heats_with_natgas_column.eq(True)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_sf_heating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_heating")]))
         # kedli: Single-Family does not heat with natural gas
         .when(
             (gas_utility_col == "kedli")
             & building_type_column.str.contains("Single-Family", literal=True)
             & heats_with_natgas_column.eq(False)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_sf_nonheating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_nonheating")]))
         # kedli: Multi-Family heating with natural gas
         .when(
             (gas_utility_col == "kedli")
             & building_type_column.str.contains("Multi-Family", literal=True)
             & heats_with_natgas_column.eq(True)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_mf_heating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_heating")]))
         # kedli: Multi-Family does not heat with natural gas
         .when(
             (gas_utility_col == "kedli")
             & building_type_column.str.contains("Multi-Family", literal=True)
             & heats_with_natgas_column.eq(False)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_mf_nonheating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_nonheating")]))
         #### kedli ####
         #### nyseg ####
         # nyseg: Heating with natural gas
@@ -121,14 +121,14 @@ def _tariff_key_expr() -> pl.Expr:
             | (gas_utility_col == "or")
             | (gas_utility_col == "nfg")
         )
-        .then(gas_tariff_key_col)
+        .then(gas_utility_col)
         #### nimo | rge | cenhud | or | nfg ####
         ### Null value in the gas_utility column gets assigned to "null_gas_tariff" ####
         .when(gas_utility_col.is_null())
         .then(pl.lit("null_gas_tariff"))
         ### Null value in the gas_utility column gets assigned to "null_gas_tariff" ####
-        # Default: Use gas_tariff_key (mapped from std_name)
-        .otherwise(gas_tariff_key_col)
+        # Default: Use utility code (std_name) so we never output legacy gas_tariff_key like national_grid
+        .otherwise(gas_utility_col)
         .fill_null(gas_utility_col)
         .alias("tariff_key")
     )

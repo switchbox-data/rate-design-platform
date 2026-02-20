@@ -29,9 +29,9 @@ def test_map_gas_tariff_uses_crosswalk_for_tariff_key():
     )
     df = cast(pl.DataFrame, result.collect())
     assert df.height == 3
-    # nimo -> national_grid, nyseg -> nyseg, coned -> coned
+    # nimo -> nimo (utility code), nyseg -> nyseg_heating, coned -> coned_mf_highrise
     tariff_keys = df["tariff_key"].to_list()
-    assert "national_grid" in tariff_keys
+    assert "nimo" in tariff_keys
     assert "nyseg_heating" in tariff_keys
     assert "coned_mf_highrise" in tariff_keys
 
@@ -87,10 +87,10 @@ def test_map_gas_tariff_kedny_heating_conditions():
     df = cast(pl.DataFrame, result.collect())
     assert df.height == 3
     tariff_keys = df["tariff_key"].to_list()
-    # kedny maps to national_grid
-    assert "national_grid_sf_heating" in tariff_keys
-    assert "national_grid_sf_nonheating" in tariff_keys
-    assert "national_grid_mf" in tariff_keys
+    # kedny keeps utility code
+    assert "kedny_sf_heating" in tariff_keys
+    assert "kedny_sf_nonheating" in tariff_keys
+    assert "kedny_mf" in tariff_keys
 
 
 def test_map_gas_tariff_kedli_all_conditions():
@@ -117,11 +117,11 @@ def test_map_gas_tariff_kedli_all_conditions():
     df = cast(pl.DataFrame, result.collect())
     assert df.height == 4
     tariff_keys = df["tariff_key"].to_list()
-    # kedli maps to national_grid
-    assert "national_grid_sf_heating" in tariff_keys
-    assert "national_grid_sf_nonheating" in tariff_keys
-    assert "national_grid_mf_heating" in tariff_keys
-    assert "national_grid_mf_nonheating" in tariff_keys
+    # kedli keeps utility code
+    assert "kedli_sf_heating" in tariff_keys
+    assert "kedli_sf_nonheating" in tariff_keys
+    assert "kedli_mf_heating" in tariff_keys
+    assert "kedli_mf_nonheating" in tariff_keys
 
 
 def test_map_gas_tariff_nyseg_heating_conditions():
@@ -175,8 +175,8 @@ def test_map_gas_tariff_simple_utilities_no_suffix():
     df = cast(pl.DataFrame, result.collect())
     assert df.height == 5
     tariff_keys = df["tariff_key"].to_list()
-    # nimo -> national_grid, others stay the same
-    assert "national_grid" in tariff_keys
+    # All use utility code (std_name)
+    assert "nimo" in tariff_keys
     assert "rge" in tariff_keys
     assert "cenhud" in tariff_keys
     assert "or" in tariff_keys
