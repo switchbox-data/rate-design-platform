@@ -20,6 +20,8 @@ from cloudpathlib import S3Path
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 
 CambiumPathLike = str | Path | S3Path
+WorkbookSource = Path | io.BytesIO
+"""A local file path or in-memory buffer that ``pd.read_excel`` can consume."""
 _CAIRO_MULTITARIFF_WORKAROUND_APPLIED = False
 log = logging.getLogger("rates_analysis").getChild("utils.cairo")
 
@@ -201,17 +203,35 @@ def _load_cambium_marginal_costs(
     return df
 
 
-def _normalize_iso_market_path(analysis_year: int, market_data_path: str | Path | None) -> Path:
-    """Resolve ISO market workbook path, defaulting to CAIRO marginal cost directory."""
+def _normalize_iso_market_path(
+    analysis_year: int, market_data_path: str | Path | None
+) -> Path | io.BytesIO:
+    """Resolve ISO market workbook path, defaulting to CAIRO marginal cost directory.
+
+    For S3 URIs the workbook is downloaded into an in-memory BytesIO buffer so
+    that ``pd.read_excel`` (which cannot read S3 directly) can consume it.
+    """
     if market_data_path is None:
-        path = config.MARGINALCOST_DIR / f"{analysis_year}_smd_hourly.xlsx"
+        path: Path | S3Path = config.MARGINALCOST_DIR / f"{analysis_year}_smd_hourly.xlsx"
+    elif isinstance(market_data_path, Path):
+        path = market_data_path
+    elif isinstance(market_data_path, str) and market_data_path.startswith("s3://"):
+        s3_path = S3Path(market_data_path)
+        if not s3_path.exists():
+            raise FileNotFoundError(f"ISO market workbook does not exist on S3: {s3_path}")
+        log.info("Downloading ISO market workbook from %s", s3_path)
+        buf = io.BytesIO(s3_path.read_bytes())
+        buf.name = s3_path.name  # type: ignore[attr-defined]  # helps openpyxl/pd identify filetype
+        return buf
     else:
-        path = Path(market_data_path)
+        path = Path(str(market_data_path))
+
     if not path.exists():
         raise FileNotFoundError(f"ISO market workbook does not exist: {path}")
-    if path.suffix.lower() != ".xlsx":
+    suffix = path.suffix.lower() if isinstance(path, Path) else PurePath(str(path)).suffix.lower()
+    if suffix != ".xlsx":
         raise ValueError(f"ISO market workbook must be an .xlsx file: {path}")
-    return path
+    return path  # type: ignore[return-value]
 
 
 def _load_isone_fca_segments(
@@ -291,10 +311,10 @@ def _load_iso_marginal_costs(
     market_data_path: str | Path | None = None,
 ) -> pd.DataFrame:
     """Load ISO-NE hourly marginal energy + capacity costs in $/kWh."""
-    workbook_path = _normalize_iso_market_path(analysis_year, market_data_path)
+    workbook_src = _normalize_iso_market_path(analysis_year, market_data_path)
     lmp_df, cap_df, ancillary_df = _return_full_isone_costs(
         year_focus=analysis_year,
-        workbook_path=workbook_path,
+        workbook_path=workbook_src,
     )
 
     energy_df = pd.DataFrame(
@@ -328,9 +348,16 @@ def _load_iso_marginal_costs(
     return marginal_df
 
 
+def _open_workbook(source: WorkbookSource) -> pd.ExcelFile:
+    """Open an Excel workbook from a local path or BytesIO buffer."""
+    if isinstance(source, io.BytesIO):
+        source.seek(0)
+    return pd.ExcelFile(source)
+
+
 def _return_full_isone_costs(
     year_focus: int,
-    workbook_path: Path,
+    workbook_path: WorkbookSource,
     region: str = "RI",
 ) -> tuple[pd.Series, pd.Series, pd.Series]:
     """Read ISO-NE market workbook and return (LMP, capacity, ancillary) series.
@@ -339,50 +366,49 @@ def _return_full_isone_costs(
     ----------
     year_focus : int
         Analysis year.
-    workbook_path : Path
-        Path to the ``{year}_smd_hourly.xlsx`` workbook.
+    workbook_path : WorkbookSource
+        Path or in-memory buffer for the ``{year}_smd_hourly.xlsx`` workbook.
     region : str
         Sheet name to read for energy LMP/demand data. Defaults to ``"RI"``
         so that RI-specific zonal LMPs are used directly.  Falls back to the
         legacy SEMA/WCMA/NEMA load-weighted average if the requested sheet
         is not in the workbook.
     """
-    # Check whether the requested sheet exists in the workbook
-    xl = pd.ExcelFile(workbook_path)
+    # Open once; all downstream functions reuse this ExcelFile handle.
+    xl = _open_workbook(workbook_path)
     if region in xl.sheet_names:
         lmp_df = _extract_regional_lmp(
             year_focus=year_focus,
             region_name=region,
-            workbook_path=workbook_path,
+            xl=xl,
         )
     else:
         log.warning(
-            "Sheet '%s' not found in %s; falling back to load-weighted "
+            "Sheet '%s' not found in workbook; falling back to load-weighted "
             "SEMA/WCMA/NEMA LMP",
             region,
-            workbook_path,
         )
         loads_df, prices_df = _return_prices_and_load_by_region(
             year_focus=year_focus,
-            workbook_path=workbook_path,
+            xl=xl,
         )
         lmp_df = _return_ISONE_lmps(loads_df, prices_df)
 
-    cap_df = _return_ISONE_capacity_prices(year_focus, workbook_path=workbook_path)
-    ancillary_df = _extract_ancillary_prices(year_focus, workbook_path=workbook_path)
+    cap_df = _return_ISONE_capacity_prices(year_focus, xl=xl)
+    ancillary_df = _extract_ancillary_prices(year_focus, xl=xl)
     return lmp_df, cap_df, ancillary_df
 
 
 def _extract_regional_lmp(
     year_focus: int,
     region_name: str,
-    workbook_path: Path,
+    xl: pd.ExcelFile,
 ) -> pd.Series:
     """Read a single region sheet and return RT_LMP as a Series."""
     loads_df, prices_df = _extract_isone_regional_data(
         year_focus=year_focus,
         region_name=region_name,
-        workbook_path=workbook_path,
+        xl=xl,
     )
     # Return just the LMP column as a plain Series (no region prefix)
     return prices_df.squeeze().rename("weighted_LMP")
@@ -390,7 +416,7 @@ def _extract_regional_lmp(
 
 def _return_prices_and_load_by_region(
     year_focus: int,
-    workbook_path: Path,
+    xl: pd.ExcelFile,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return regional load and LMP data for SEMA/WCMA/NEMA (legacy fallback)."""
     load_frames: list[pd.DataFrame] = []
@@ -399,7 +425,7 @@ def _return_prices_and_load_by_region(
         region_loads, region_prices = _extract_isone_regional_data(
             year_focus=year_focus,
             region_name=region,
-            workbook_path=workbook_path,
+            xl=xl,
         )
         load_frames.append(region_loads)
         price_frames.append(region_prices)
@@ -418,7 +444,7 @@ def _return_prices_and_load_by_region(
 def _extract_isone_regional_data(
     year_focus: int,
     region_name: str,
-    workbook_path: Path,
+    xl: pd.ExcelFile,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Extract hourly demand/LMP series from an ISO-NE region sheet."""
     valid_regions = {"SEMA", "WCMA", "NEMA", "ISO NE CA", "RI", "CT", "ME", "NH", "VT"}
@@ -428,7 +454,7 @@ def _extract_isone_regional_data(
         )
 
     sheet = pd.read_excel(
-        workbook_path,
+        xl,
         sheet_name=region_name,
         index_col="Date",
         parse_dates=True,
@@ -487,7 +513,7 @@ def _return_ISONE_lmps(  # noqa: N802
 
 def _return_ISONE_capacity_prices(  # noqa: N802
     year_focus: int,
-    workbook_path: Path,
+    xl: pd.ExcelFile,
 ) -> pd.Series:
     """Calculate ISO-NE capacity marginal costs ($/MWh), allocated to peak hours."""
     fca_segments, source_url = _load_isone_fca_segments(year_focus)
@@ -512,7 +538,7 @@ def _return_ISONE_capacity_prices(  # noqa: N802
     loads_df, _ = _extract_isone_regional_data(
         year_focus=year_focus,
         region_name="ISO NE CA",
-        workbook_path=workbook_path,
+        xl=xl,
     )
     loads_df = loads_df.rename(columns={"ISO NE CA_Demand": "Total_Demand"})
 
@@ -546,10 +572,10 @@ def _return_ISONE_capacity_prices(  # noqa: N802
     return cap_costs.squeeze()
 
 
-def _extract_ancillary_prices(year_focus: int, workbook_path: Path) -> pd.Series:
+def _extract_ancillary_prices(year_focus: int, xl: pd.ExcelFile) -> pd.Series:
     """Return ISO-NE ancillary prices (reg service + reg capacity) in $/MWh."""
     sheet = pd.read_excel(
-        workbook_path,
+        xl,
         sheet_name="ISO NE CA",
         index_col="Date",
         parse_dates=True,
