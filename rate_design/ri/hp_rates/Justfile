@@ -2,23 +2,22 @@
 
 # Resolve project root as absolute path using git
 project_root := `git rev-parse --show-toplevel`
-ri_run_scenario_config := project_root + "/rate_design/ri/hp_rates/config/scenarios/scenarios_rie.yaml"
 
 # -----------------------------------------------------------------------------
 # Run RI scenarios
 # -----------------------------------------------------------------------------
 # Example:
-# just run-scenario 1
-run-scenario run_num scenario_config=ri_run_scenario_config:
+# just run-scenario 1 utility="rie"
+run-scenario run_num utility:
   uv run python {{project_root}}/rate_design/ri/hp_rates/run_scenario.py \
     --run-num "{{run_num}}" \
-    --scenario-config "{{scenario_config}}"
+    --utility "{{utility}}"
 
 # Optional output override (if you don't want the YAML output_dir)
-run-scenario-with-output run_num output_dir scenario_config=ri_run_scenario_config:
+run-scenario-with-output run_num output_dir utility:
   uv run python {{project_root}}/rate_design/ri/hp_rates/run_scenario.py \
     --run-num "{{run_num}}" \
-    --scenario-config "{{scenario_config}}" \
+    --utility "{{utility}}" \
     --output-dir "{{output_dir}}"
 
 # -----------------------------------------------------------------------------
@@ -31,7 +30,7 @@ ri_rev_requirement_dir := project_root + "/rate_design/ri/hp_rates/config/rev_re
 ri_default_rev_requirement_yaml := ri_rev_requirement_dir + "/rie.yaml"
 ri_differentiated_rev_requirement_yaml := ri_rev_requirement_dir + "/rie_hp_vs_nonhp.yaml"
 
-compute-subclass-rr run_dir run_num="1" scenario_config=ri_run_scenario_config group_col="has_hp" cross_subsidy_col="BAT_percustomer" differentiated_yaml=ri_differentiated_rev_requirement_yaml default_yaml=ri_default_rev_requirement_yaml:
+compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" cross_subsidy_col="BAT_percustomer" differentiated_yaml=ri_differentiated_rev_requirement_yaml default_yaml=ri_default_rev_requirement_yaml:
   uv run python {{project_root}}/utils/post/compute_subclass_rr.py \
     --run-dir "{{run_dir}}" \
     --run-num "{{run_num}}" \
@@ -86,6 +85,18 @@ create-rie-hp-seasonal-calibrated-supply seasonal_inputs_csv:
     "{{seasonal_inputs_csv}}" \
     rie_hp_seasonal_calibrated_supply \
     {{ri_hp_seasonal_calibrated_supply_tariff}}
+
+# -----------------------------------------------------------------------------
+# PRE: FLAT tariff derivation
+# -----------------------------------------------------------------------------
+# Create flat and flat_supply tariff and write to config/tariffs/electric/
+create-rie-flat-tariff:
+  uv run python {{project_root}}/utils/pre/create_flat_tariff.py \
+    --default-tariff-json "{{ri_tariffs_electric_dir}}/rie_a16.json" \
+    --supply-default-tariff-json "{{ri_tariffs_electric_dir}}/rie_a16_supply.json" \
+    --flat-label "rie_flat" \
+    --flat-supply-label "rie_flat_supply" \
+    --output-dir "{{ri_tariffs_electric_dir}}"
 
 # -----------------------------------------------------------------------------
 # PRE: TOU tariff derivation
@@ -235,6 +246,8 @@ create-td-mc-data-rie:
     --mc-table-path {{pre_mc_table_path}} \
     --utility-load-s3-base {{pre_utility_s3_base}} \
     --output-s3-base {{pre_mc_output_s3_base}} \
+    --upstream-hours 100 \
+    --dist-hours 100 \
     --upload
 
 # =============================================================================
