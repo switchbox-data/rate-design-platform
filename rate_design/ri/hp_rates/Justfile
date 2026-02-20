@@ -245,3 +245,19 @@ create-td-mc-data-rie:
 # Writes rate_design/<state>/hp_rates/config/scenarios_<utility>.yaml per utility
 create-scenario-yamls:
     uv run python {{project_root}}/utils/pre/create_scenario_yamls.py
+
+# =============================================================================
+# PRE: Write electric tariff map CSVs from scenario YAMLs
+# =============================================================================
+
+# Write electric tariff map CSVs for all runs in a single scenario file (pre-step; run before run_scenario)
+write-tariff-maps scenario_config:
+    uv run python {{project_root}}/utils/pre/write_tariff_maps_from_scenario.py \
+        --scenario-config "{{scenario_config}}"
+
+# Write electric tariff map CSVs for every scenario YAML in config/scenarios/
+write-tariff-maps-all:
+    for f in {{project_root}}/rate_design/ri/hp_rates/config/scenarios/*.yaml; do \
+        uv run python {{project_root}}/utils/pre/write_tariff_maps_from_scenario.py \
+            --scenario-config "$f"; \
+    done

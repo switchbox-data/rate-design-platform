@@ -198,21 +198,21 @@ def _parse_path_tariffs(
     base_dir: Path,
     label: str,
 ) -> dict[str, Path]:
-    """Parse path_tariffs_electric from YAML (list only) and reconcile with map.
+    """Parse path_tariffs_electric from YAML (dict key -> path) and reconcile with map.
 
-    Value must be a list of path strings; keys are derived from filename stem
-    (e.g. tariffs/electric/foo.json -> foo). Every tariff_key in the map must
-    have an entry, and every list entry must appear in the map.
+    Value must be a dict mapping keys to path strings; keys used for the tariff map
+    are derived from filename stem (e.g. tariffs/electric/foo.json -> foo). Every
+    tariff_key in the map must have an entry, and every path must appear in the map.
     """
-    if not isinstance(value, list):
+    if not isinstance(value, dict):
         raise ValueError(
-            f"path_tariffs_{label} must be a list of paths; got {type(value).__name__}"
+            f"path_tariffs_{label} must be a dict of key -> path; got {type(value).__name__}"
         )
     path_tariffs = {}
-    for item in value:
+    for item in value.values():
         if not isinstance(item, str):
             raise ValueError(
-                f"path_tariffs_{label} list must contain path strings; "
+                f"path_tariffs_{label} dict values must be path strings; "
                 f"got {type(item).__name__}"
             )
         path = _resolve_path(item, base_dir)
