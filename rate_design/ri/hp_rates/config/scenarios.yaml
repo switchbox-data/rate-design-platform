@@ -1,6 +1,5 @@
 runs:
   1:
-    run_name: ri_rie_run1_up00_precalc__flat__n100
     run_type: precalc
     state: RI
     region: isone
@@ -25,10 +24,10 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 20
     solar_pv_compensation: net_metering
+    supply: false
     add_supply_revenue_requirement: false
 
   2:
-    run_name: ri_rie_run2_up00_precalc_supply__flat__n100
     run_type: precalc
     state: RI
     region: isone
@@ -51,4 +50,5 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 20
     solar_pv_compensation: net_metering
+    supply: true
     add_supply_revenue_requirement: true

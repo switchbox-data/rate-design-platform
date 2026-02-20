@@ -334,19 +334,16 @@ def _build_settings_from_yaml_run(
             else precalc_tariff_path.stem
         )
 
-    default_run_name = str(run.get("run_name", f"ri_rie_run_{run_num:02d}"))
     add_supply_revenue_requirement = _parse_bool(
-        run.get(
-            "add_supply_revenue_requirement",
-            "supply_adj" in precalc_tariff_key,
-        ),
+        run.get("add_supply_revenue_requirement", False),
         "add_supply_revenue_requirement",
     )
     sample_size = (
         _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
     )
+    run_name = run_name_override or run.get("run_name") or f"run_{run_num}"
     return ScenarioSettings(
-        run_name=run_name_override or default_run_name,
+        run_name=run_name,
         run_type=mode,
         state=state,
         utility=utility,
