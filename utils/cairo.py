@@ -367,10 +367,7 @@ def _build_period_shift_targets(
         (targets["rate"] / equivalent_flat_tariff) ** demand_elasticity
     )
     targets["load_shift"] = targets["Q_target"] - targets["Q_orig"]
-    # --- Energy conservation (zero-sum shifting) ---
-    # Load shifted away from non-receiver (donor) periods is redirected
-    # to the receiver period so that total energy is preserved within
-    # each building.  The receiver is the lowest-rate period by default.
+    # Zero-sum: receiver period absorbs the negated sum of donor shifts.
     recv_period = (
         int(targets.loc[targets["rate"].idxmin(), "energy_period"])
         if receiver_period is None
@@ -556,10 +553,7 @@ def apply_runtime_tou_demand_response(
     if not tou_bldg_ids:
         return raw_load_elec.copy(), pd.DataFrame()
 
-    # --- TOU-only scoping ---
-    # Only buildings mapped to the TOU tariff (via tariff_map_df) are
-    # eligible for demand-response shifting.  All other buildings pass
-    # through unchanged in the returned DataFrame.
+    # Only TOU-assigned buildings are shifted; others pass through unchanged.
     bldg_level = raw_load_elec.index.get_level_values("bldg_id")
     tou_mask = bldg_level.isin(set(tou_bldg_ids))
     if not tou_mask.any():
@@ -579,14 +573,9 @@ def apply_runtime_tou_demand_response(
     tou_df = tou_df.merge(period_df, on="time", how="left")
     tou_df["month"] = tou_df["time"].dt.month
 
-    # --- Seasonal orchestration ---
-    # Demand response is applied per-season so that period-to-period
-    # price ratios and energy conservation constraints are evaluated
-    # within each seasonal slice independently.  If explicit season_specs
-    # are provided (from a TOU derivation YAML), those define the month
-    # groupings.  Otherwise, seasons are inferred from the tariff's own
-    # month→period mapping.  When no seasonal structure exists (flat or
-    # non-seasonal TOU), the full year is treated as a single group.
+    # Shift per-season so energy conservation holds within each slice.
+    # Season groups come from explicit specs, tariff-inferred months, or
+    # fall back to full-year as a single group.
     shifted_chunks: list[pd.DataFrame] = []
     trackers: list[pd.DataFrame] = []
     season_groups: list[dict[str, object]] = []
@@ -633,11 +622,7 @@ def apply_runtime_tou_demand_response(
             shifted_chunks.append(shifted_year)
             trackers.append(tracker)
 
-    # --- Merge shifted TOU rows back into full 8760 load ---
-    # Only the TOU-assigned buildings' rows are overwritten; every other
-    # building retains its original load profile.  The shifting is
-    # energy-conserving within each season (zero-sum by construction in
-    # process_residential_hourly_demand_response_shift).
+    # Merge shifted TOU rows back; non-TOU buildings are untouched.
     shifted_load_elec = raw_load_elec.copy()
     if shifted_chunks:
         shifted = pd.concat(shifted_chunks, ignore_index=True).set_index(

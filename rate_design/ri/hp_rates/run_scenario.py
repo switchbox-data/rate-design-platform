@@ -607,10 +607,8 @@ def run(settings: ScenarioSettings) -> None:
     # ------------------------------------------------------------------
     # Load marginal costs (needed before demand-flex and revenue calc)
     # ------------------------------------------------------------------
-    # Marginal prices ($/kWh) are exogenous inputs from Cambium (energy +
-    # gen capacity + bulk transmission) and utility-specific distribution MC.
-    # They do NOT change when customers shift load; what changes is the
-    # total marginal cost ($ = load_h * price_h summed over hours).
+    # MC prices are exogenous (Cambium + distribution); load shifting
+    # changes total MC dollars, not the prices themselves.
 
     bulk_marginal_costs = _load_cambium_marginal_costs(
         settings.path_cambium_marginal_costs,
@@ -634,35 +632,13 @@ def run(settings: ScenarioSettings) -> None:
     )
 
     # ------------------------------------------------------------------
-    # Phase 1.5 (optional): Runtime demand shifting for TOU customers
+    # Demand-flex two-pass recalibration (Phase 1a → 1.5 → 2)
     # ------------------------------------------------------------------
-    # When demand_flex is enabled, three additional steps happen:
-    #
-    #   Phase 1a  – Freeze the residual from original (pre-shift) loads.
-    #               Residual = full_RR - MC(original), where full_RR
-    #               includes any supply top-up.  This represents embedded
-    #               infrastructure costs that do not change when customers
-    #               shift load in response to TOU price signals.
-    #
-    #   Phase 1.5 – Apply TOU demand-response load shifting.  Only
-    #               bldg_ids assigned to the TOU tariff are modified;
-    #               all other buildings pass through unchanged.
-    #               (cf. CAIRO core deprecated equivalents:
-    #                loads.py:658  process_residential_hourly_demand_response_shift
-    #                loads.py:2219 _shift_building_hourly_demand)
-    #
-    #   Phase 2   – Recompute the revenue requirement against the shifted
-    #               loads while holding the residual fixed:
-    #               new_RR = MC(shifted) + frozen_residual.
-    #               This ensures rates are calibrated to recover the actual
-    #               marginal cost of serving post-shift demand plus the
-    #               unchanged embedded costs.
-    #
-    # The resulting costs_by_type flows to CAIRO's postprocessor for BAT
-    # residual allocation (postprocessing.py:1018 warns about fixed
-    # marginal prices with load-responsive demand; the prices here are
-    # exogenous so the math is consistent, but the total marginal cost $
-    # correctly reflects the shifted load shape).
+    # When demand_flex is enabled:
+    #   1a  — freeze residual from original loads (full_RR - MC_orig)
+    #   1.5 — shift TOU-assigned bldg_ids only
+    #   2   — recompute RR = MC_shifted + frozen_residual
+    # See context/tools/cairo_demand_flexibility_workflow.md for details.
     effective_load_elec = raw_load_elec
     elasticity_tracker = pd.DataFrame()
     if settings.demand_flex.enabled:
@@ -687,8 +663,6 @@ def run(settings: ScenarioSettings) -> None:
             raise ValueError(
                 "Electric tariff map must include 'bldg_id' and 'tariff_key' columns"
             )
-        # Only buildings assigned to the TOU tariff participate in
-        # demand-response shifting.  Non-TOU buildings are unaffected.
         tou_rows = tariff_map_df[tariff_map_df["tariff_key"] == flex.tou_tariff_key]
         tou_bldg_ids = cast(list[int], tou_rows["bldg_id"].astype(int).tolist())
         season_specs = None
@@ -702,20 +676,9 @@ def run(settings: ScenarioSettings) -> None:
                     flex.tou_derivation_path,
                 )
 
-        # -- Phase 1a: Freeze residual from original (pre-shift) loads --
-        # Compute the full revenue requirement from original loads, including
-        # the supply top-up when add_supply_revenue_requirement is set.
-        # The frozen residual = full_RR - Total_MC(original).  This
-        # represents embedded/sunk costs (infrastructure, debt service,
-        # etc.) that do not change when customers shift load.
-        #
-        # When add_supply_revenue_requirement is False, Cambium bulk MCs
-        # are zero, so Total MC is distribution-only and the residual
-        # equals delivery_RR - dist_MC.  When True, real Cambium supply
-        # MCs are included, the wrapper tops up the returned RR by
-        # supply MC, and the frozen residual = (delivery_RR + supply_MC)
-        # - (supply_MC + dist_MC) = delivery_RR - dist_MC.  Either way,
-        # the same code path works.
+        # -- Phase 1a: freeze residual from original loads --
+        # frozen_residual = full_RR_orig - MC_orig (embedded costs,
+        # invariant to short-run demand shifting).
         log.info(".... Phase 1a: computing frozen residual from original loads")
         (
             full_rr_orig,
@@ -733,11 +696,8 @@ def run(settings: ScenarioSettings) -> None:
             low_income_strategy=None,
             delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
         )
-        # frozen_residual is derived from the FULL topped-up RR (not from
-        # costs_by_type, which only reflects the delivery-only residual).
-        # This bakes in the supply top-up so Phase 2 needs no further
-        # adjustment — MCs already include whatever supply + distribution
-        # components are active for this scenario.
+        # Use the full topped-up RR (not costs_by_type's delivery-only
+        # residual) so the supply top-up is baked in for Phase 2.
         total_mc_orig = float(costs_by_type_orig["Total Marginal Costs ($)"])
         frozen_residual: float = float(full_rr_orig) - total_mc_orig
         log.info(
@@ -748,7 +708,7 @@ def run(settings: ScenarioSettings) -> None:
             total_mc_orig,
         )
 
-        # -- Phase 1.5: Apply demand-response load shifting --
+        # -- Phase 1.5: shift TOU customers --
         log.info(
             ".... Phase 1.5: applying runtime demand response to %d TOU customers "
             "using tariff %s",
@@ -763,17 +723,9 @@ def run(settings: ScenarioSettings) -> None:
             season_specs=season_specs,
         )
 
-        # -- Phase 2: Recompute RR from shifted loads + frozen residual --
-        # Pass residual_cost=frozen_residual (not revenue_requirement_target)
-        # so _calculate_system_revenue_target computes:
-        #   Total MC ($)         = sum_h(shifted_sys_load_h * MC_price_h)
-        #   Residual Costs ($)   = frozen_residual   (unchanged)
-        #   Total System Costs   = Total MC + Residual  →  this is the new RR
-        #
-        # Because frozen_residual was computed from the FULL topped-up RR
-        # in Phase 1a, the supply component is already baked in.  No
-        # delivery_only_rev_req_passed adjustment is needed here.
-        # The new RR is then used by bs.simulate / precalc to top-up rates.
+        # -- Phase 2: new_RR = MC_shifted + frozen_residual --
+        # Supply top-up is already in frozen_residual; no delivery_only
+        # adjustment needed here.
         log.info(".... Phase 2: recomputing RR with shifted loads + frozen residual")
         (
             _rr_shifted,
@@ -791,9 +743,6 @@ def run(settings: ScenarioSettings) -> None:
             low_income_strategy=None,
             delivery_only_rev_req_passed=False,
         )
-        # _rr_shifted is None (revenue_requirement_target was None), so
-        # derive the effective RR from costs_by_type.  This equals
-        # MC_shifted + frozen_residual — the complete recalibrated RR.
         revenue_requirement = float(costs_by_type["Total System Costs ($)"])
         log.info(
             ".... Recalibrated RR=$%.2f  (MC_shifted=$%.2f + frozen_residual=$%.2f)",
@@ -824,27 +773,9 @@ def run(settings: ScenarioSettings) -> None:
     # ------------------------------------------------------------------
     # Phase 3: Run CAIRO simulation
     # ------------------------------------------------------------------
-    # bs.simulate does two main things:
-    #
-    #   1. Tariff recalibration (precalc mode):
-    #      _return_preaggregated_load → process_building_demand_by_period
-    #      aggregates effective_load_elec by tariff period, then
-    #      _precalc_customer_rates calibrates energy charges so bills
-    #      from the (possibly shifted) load profile meet revenue_requirement.
-    #      (see system_revenues.py:_precalc_customer_rates)
-    #
-    #   2. Postprocessing / BAT:
-    #      _save_scenario_results passes effective_load_elec as
-    #      "raw_hourly_load" to _return_cross_subsidization_metrics,
-    #      which uses it together with marginal_system_prices and
-    #      costs_by_type to compute per-customer:
-    #        - marginal cost allocation  (shifted_load × MC_prices)
-    #        - residual cost allocation   (volumetric / peak / per-customer
-    #          share of costs_by_type["Residual Costs ($)"])
-    #        - BAT = bill - (marginal_alloc + residual_alloc)
-    #      Because costs_by_type carries the frozen residual and the
-    #      shifted-load marginal totals, the BAT decomposition is
-    #      consistent with the two-pass revenue requirement.
+    # Precalc calibrates rates to meet revenue_requirement; BAT
+    # postprocessing uses costs_by_type (frozen residual + shifted MC)
+    # for residual allocation.  See context doc for full data flow.
 
     bs = MeetRevenueSufficiencySystemWide(
         run_type=settings.run_type,

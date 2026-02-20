@@ -2,13 +2,11 @@
 
 ## Scope
 
-This document summarizes the demand-flexibility (price-response) workflow in CAIRO.
+This document summarizes the demand-flexibility (price-response) workflow in CAIRO, including the two-pass revenue requirement recalibration used when demand shifting is enabled.
 
 ## Current repo implementation
 
-The core CAIRO functions above are still useful as design references, but this
-repo now includes an active runtime implementation in `utils/cairo.py` with the
-same parent/worker naming:
+The core CAIRO demand-response functions are commented out in `cairo/rates_tool/loads.py` (see code references below). This repo has an active runtime implementation in `utils/cairo.py` with the same parent/worker naming:
 
 - `process_residential_hourly_demand_response_shift(...)`
 - `_shift_building_hourly_demand(...)`
@@ -19,22 +17,96 @@ The runtime wrapper supports both:
 - full-year TOU shifting, and
 - seasonal+TOU shifting (run per season slice, then merge back to 8760).
 
-Equivalent flat tariff is computed endogenously by default for each active
-slice using class demand weights:
+Equivalent flat tariff is computed endogenously by default for each active slice using class demand weights:
 
 `P_flat = sum_t(Q_t * P_t) / sum_t(Q_t)`
 
+The scenario entrypoint is `rate_design/ri/hp_rates/run_scenario.py`, which orchestrates load shifting, revenue requirement recalibration, and the CAIRO simulation.
+
 Primary code references:
 
-- `cairo/rates_tool/loads.py:563` (`process_residential_hourly_demand_response_shift`, commented)
-- `cairo/rates_tool/loads.py:2091` (`_shift_building_hourly_demand`, commented)
-- `cairo/rates_tool/postprocessing.py:1018`
+- `cairo/rates_tool/loads.py:563` (`process_residential_hourly_demand_response_shift`, commented out)
+- `cairo/rates_tool/loads.py:2091` (`_shift_building_hourly_demand`, commented out)
+- `cairo/rates_tool/postprocessing.py:1018` (marginal-cost caveat warning)
 
 Related upstream load-period assignment logic:
 
 - `cairo/rates_tool/loads.py:1376` (`_apply_time_indicators_and_periods`)
 - `cairo/rates_tool/loads.py:1462` (`_energy_charge_aggregation`)
 - `cairo/rates_tool/loads.py:1707` (`_tou_or_tier_energy_charge_aggregation`)
+
+---
+
+## Two-Pass Revenue Requirement Recalibration
+
+When demand flexibility is enabled, a naive single-pass RR calculation with shifted loads would let the residual absorb the MC change from load shifting. Since the residual represents embedded infrastructure costs (debt service, O&M, return on equity, etc.) that don't change with short-run demand response, this is incorrect.
+
+The solution is a two-pass workflow:
+
+```mermaid
+flowchart TD
+    subgraph phase1 ["Phase 1: Load data"]
+        A[raw_load_elec]
+    end
+
+    subgraph mc ["Load marginal costs"]
+        A --> MC["bulk_marginal_costs (Cambium)\ndistribution_marginal_costs"]
+    end
+
+    subgraph phase1a ["Phase 1a: Freeze residual from original loads"]
+        A --> B["_return_revenue_requirement_target(\n  raw_load_elec,\n  revenue_requirement_target=delivery_RR,\n  delivery_only_rev_req_passed=add_supply)"]
+        B --> C["frozen_residual = full_RR_orig − Total_MC_orig"]
+    end
+
+    subgraph phase1b ["Phase 1.5: Demand shifting (TOU customers only)"]
+        A --> D["apply_runtime_tou_demand_response(\n  raw_load_elec, tou_bldg_ids, ...)"]
+        D --> E[effective_load_elec]
+    end
+
+    subgraph phase2 ["Phase 2: Recalibrate RR with frozen residual"]
+        E --> F["_return_revenue_requirement_target(\n  effective_load_elec,\n  residual_cost=frozen_residual,\n  revenue_requirement_target=None)"]
+        C --> F
+        MC --> F
+        F --> G["costs_by_type:\n  MC from shifted load + frozen residual"]
+        F --> H["revenue_requirement =\n  costs_by_type['Total System Costs ($)']"]
+    end
+
+    subgraph phase3 ["Phase 3: CAIRO simulate"]
+        E --> I["bs.simulate(\n  customer_electricity_load=effective_load_elec,\n  revenue_requirement=new_RR,\n  costs_by_type=costs_by_type)"]
+        H --> I
+        G --> I
+        I --> J["precalc calibrates rates to meet new_RR\nBAT uses costs_by_type for residual allocation"]
+    end
+```
+
+### Key details
+
+**Phase 1a — Freeze residual from original loads:**
+
+- Call `_return_revenue_requirement_target` with `raw_load_elec` and the input delivery RR.
+- Pass `delivery_only_rev_req_passed=settings.add_supply_revenue_requirement` so the returned `full_rr_orig` includes any supply MC top-up.
+- Compute `frozen_residual = full_rr_orig - Total_MC_orig`. This derives the residual from the *full* topped-up RR, not from `costs_by_type["Residual Costs ($)"]` (which only reflects the delivery-only residual before the supply add-on).
+- When `add_supply_revenue_requirement` is False, Cambium bulk MCs are zero, so this reduces to `delivery_RR - dist_MC`. When True, real Cambium MCs are used and the wrapper tops up the RR, but the frozen residual still equals `delivery_RR - dist_MC` by cancellation.
+
+**Phase 1.5 — Apply demand-response load shifting:**
+
+- Only `bldg_ids` assigned to the TOU tariff are shifted; all others pass through unchanged.
+- Shifting is energy-conserving (zero-sum within each season).
+- Seasonal orchestration: shifting runs per-season slice using explicit `season_specs` or tariff-inferred month groupings.
+
+**Phase 2 — Recompute RR with shifted loads + frozen residual:**
+
+- Call `_return_revenue_requirement_target` with `effective_load_elec`, `residual_cost=frozen_residual`, and `revenue_requirement_target=None`.
+- `delivery_only_rev_req_passed=False` because the supply component is already baked into `frozen_residual`.
+- The returned `costs_by_type` has correct MC/residual decomposition: `Total System Costs = MC_shifted + frozen_residual`.
+- `revenue_requirement = costs_by_type["Total System Costs ($)"]` — this is the new RR passed to `bs.simulate`.
+
+**Phase 3 — CAIRO simulate:**
+
+- Precalc calibrates rate charges so bills from the shifted load profile meet `revenue_requirement`.
+- BAT postprocessing uses `effective_load_elec` as `raw_hourly_load` together with `marginal_system_prices` and `costs_by_type` to compute per-customer marginal cost allocation, residual allocation, and bill alignment.
+
+**No-flex path:** When `demand_flex.enabled` is False, the single-pass call `_return_revenue_requirement_target(raw_load_elec, revenue_requirement_target=delivery_RR)` is unchanged.
 
 ---
 
@@ -198,6 +270,12 @@ For period/tier:
 
 (Implementation uses `log10`, which is equivalent for ratio-of-logs.)
 
+### D) Two-pass revenue requirement
+
+- `frozen_residual = full_RR_orig - MC_orig` (from original loads)
+- `new_RR = MC_shifted + frozen_residual`
+- Algebraically: `new_RR = full_RR_orig + (MC_shifted - MC_orig) = full_RR_orig + delta_MC`
+
 ---
 
 ## Assumptions and Justifications
@@ -214,8 +292,11 @@ For period/tier:
 4. Proportional hourly redistribution.\
    Justification: preserves observed shape and avoids arbitrary redistribution.
 
-5. Marginal-cost postprocessing caveat.\
-   `postprocessing.py` warns that fixed marginal prices may be inconsistent with rate-responsive loads (`cairo/rates_tool/postprocessing.py:1018`).
+5. Marginal prices are exogenous.\
+   `postprocessing.py:1018` warns that fixed marginal prices may be inconsistent with rate-responsive loads. In this workflow the MC prices (Cambium + distribution) are exogenous inputs that don't change with load shifting — only total MC dollars change. The two-pass recalibration ensures the RR and `costs_by_type` are consistent with the shifted load shape.
+
+6. Residual costs are invariant to short-run demand response.\
+   The residual (embedded infrastructure, debt service, O&M) is frozen from original loads. Only the marginal component of the RR adjusts to reflect load shifting.
 
 ---
 
@@ -235,6 +316,5 @@ For period/tier:
 
 ## Known Gaps / Caveats
 
-1. CAIRO's upstream implementation remains commented out in core CAIRO.
-2. This repo uses a local runtime wrapper path in `rate_design/ri/hp_rates/run_scenario.py`.
-3. Interaction with fully endogenous marginal-cost feedback loops is still limited.
+1. CAIRO's upstream demand-response implementation remains commented out in core CAIRO (`loads.py`).
+2. Interaction with fully endogenous marginal-cost feedback loops is still limited (prices are treated as exogenous).
