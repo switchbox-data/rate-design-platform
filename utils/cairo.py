@@ -14,8 +14,8 @@ from cairo.rates_tool import config
 from cairo.rates_tool.loads import __timeshift__
 from cloudpathlib import S3Path
 
-from utils.types import ElectricUtility
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.types import ElectricUtility
 
 CambiumPathLike = str | Path | S3Path
 log = logging.getLogger(__name__)
@@ -238,7 +238,11 @@ def load_distribution_marginal_costs(
 
 
 def extract_tou_period_rates(tou_tariff: dict) -> pd.DataFrame:
-    """Extract period-level energy rates from a URDB v7 tariff JSON."""
+    """Extract period-level TOU rates from a URDB-style tariff.
+
+    Returns one row per `(energy_period, tier)` with the effective volumetric
+    price (`rate + adj`), so downstream shifting can ignore tariff JSON shape.
+    """
     tariff_item = tou_tariff["items"][0]
     rate_structure = tariff_item["energyratestructure"]
     rows: list[dict[str, object]] = []
@@ -259,7 +263,7 @@ def assign_hourly_periods(
     hourly_index: pd.DatetimeIndex,
     tou_tariff: dict,
 ) -> pd.Series:
-    """Map each timestamp to its TOU energy period using URDB schedules."""
+    """Map each timestamp to TOU `energy_period` using weekday/weekend schedules."""
     tariff_item = tou_tariff["items"][0]
     weekday_schedule = np.array(tariff_item["energyweekdayschedule"])
     weekend_schedule = np.array(tariff_item["energyweekendschedule"])
@@ -275,7 +279,11 @@ def assign_hourly_periods(
 
 
 def _build_period_consumption(hourly_df: pd.DataFrame) -> pd.DataFrame:
-    """Return one row per (bldg_id, energy_period) with baseline period load."""
+    """Aggregate baseline consumption by building and tariff period.
+
+    Missing `(bldg_id, energy_period)` combinations are filled with zeros so
+    elasticity math can be applied uniformly across buildings.
+    """
     observed_periods = sorted(hourly_df["energy_period"].dropna().unique())
     bldg_ids = pd.Index(hourly_df["bldg_id"].unique(), name="bldg_id")
     scaffold = pd.MultiIndex.from_product(
@@ -295,7 +303,13 @@ def _compute_equivalent_flat_tariff(
     period_consumption: pd.DataFrame,
     period_rate: pd.Series,
 ) -> float:
-    """Compute endogenous equivalent flat rate for the customer class slice."""
+    """Compute endogenous equivalent flat rate for one customer-class slice.
+
+    Formula:
+        sum_t(Q_t * P_t) / sum_t(Q_t)
+
+    where `t` is tariff period within the active slice (season or full-year).
+    """
     rates = period_rate.rename("rate").reset_index()
     class_period = (
         period_consumption.groupby("energy_period", as_index=False)["Q_orig"].sum()
@@ -313,7 +327,11 @@ def _build_period_shift_targets(
     equivalent_flat_tariff: float,
     receiver_period: int | None,
 ) -> pd.DataFrame:
-    """Build per-building period shift targets under constant elasticity."""
+    """Build period-level shift targets under constant elasticity.
+
+    This computes `Q_target` and `load_shift` by building/period, then enforces
+    zero-sum temporal shifting by assigning the residual to a receiver period.
+    """
     targets = period_consumption.merge(
         period_rate.rename("rate").reset_index(), on="energy_period", how="left"
     )
@@ -343,7 +361,12 @@ def _shift_building_hourly_demand(
     period_targets: pd.DataFrame,
     equivalent_flat_tariff: float,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """CAIRO-style worker: allocate period shifts to hours for one building."""
+    """CAIRO-style worker: allocate period shifts to hourly rows for one building.
+
+    Period-level `load_shift` is distributed proportionally to each hour's share
+    of baseline period demand. Returns shifted hourly rows plus achieved
+    elasticity diagnostics by period.
+    """
     shifted = bldg_hourly_df.merge(
         period_targets[["energy_period", "Q_orig", "load_shift", "rate"]],
         on="energy_period",
@@ -381,7 +404,14 @@ def process_residential_hourly_demand_response_shift(
     equivalent_flat_tariff: float | None = None,
     receiver_period: int | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """CAIRO-style parent: period targets + per-building hourly redistribution."""
+    """CAIRO-style parent function for demand-response load shifting.
+
+    Steps:
+    1) Build baseline period consumption.
+    2) Compute equivalent flat tariff (endogenous unless provided).
+    3) Build period-level shift targets.
+    4) Shift hourly load building-by-building.
+    """
     if hourly_load_df.empty:
         return hourly_load_df.copy(), pd.DataFrame()
 
@@ -420,7 +450,11 @@ def process_residential_hourly_demand_response_shift(
 def _infer_season_groups_from_tariff(
     period_map: pd.Series,
 ) -> list[dict[str, object]]:
-    """Infer seasonal month groups from month->period assignments."""
+    """Infer season groups from month-specific period signatures in the tariff.
+
+    If all months share the same period signature, returns `[]` to indicate
+    full-year treatment.
+    """
     month_periods = (
         period_map.to_frame(name="energy_period")
         .assign(month=lambda frame: frame.index.month)
@@ -455,7 +489,12 @@ def apply_runtime_tou_demand_response(
     demand_elasticity: float,
     season_specs: list | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Apply runtime demand response for TOU cohort (full-year or seasonal wrapper)."""
+    """Apply runtime TOU demand response to the assigned TOU customer cohort.
+
+    - If seasonal groups are provided/inferred, runs the core shift per slice
+      and merges results back into an 8760 profile.
+    - Otherwise, runs one full-year shift.
+    """
     if not tou_bldg_ids:
         return raw_load_elec.copy(), pd.DataFrame()
 
@@ -490,6 +529,8 @@ def apply_runtime_tou_demand_response(
                 }
             )
     else:
+        # For seasonal+TOU tariffs without explicit derivation specs, infer
+        # month groups directly from tariff month->period structure.
         season_groups = _infer_season_groups_from_tariff(period_map)
 
     if season_groups:
@@ -523,7 +564,10 @@ def apply_runtime_tou_demand_response(
 
     shifted_load_elec = raw_load_elec.copy()
     if shifted_chunks:
-        shifted = pd.concat(shifted_chunks, ignore_index=True).set_index(["bldg_id", "time"])
+        # Seasonal/full-year shifted chunks overwrite TOU cohort rows only.
+        shifted = pd.concat(shifted_chunks, ignore_index=True).set_index(
+            ["bldg_id", "time"]
+        )
         shifted = shifted.sort_index()
         shifted_load_elec.loc[shifted.index, "electricity_net"] = shifted[
             "shifted_net"
