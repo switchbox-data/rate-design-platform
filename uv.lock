@@ -322,7 +322,7 @@ wheels = [
 [[package]]
 name = "cairo"
 version = "0.1.0"
-source = { git = "https://github.com/NatLabRockies/CAIRO?rev=main#38a4a9dca5f7f987488689e8dcc2a13fc5f6b53a" }
+source = { git = "https://github.com/NatLabRockies/CAIRO?rev=main#7a5fd5832e4ffdd643e88e423e01ff8b10d1b75d" }
 dependencies = [
     { name = "boto3" },
     { name = "botocore" },

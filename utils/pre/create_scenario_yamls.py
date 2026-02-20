@@ -45,7 +45,6 @@ def _path_tariffs_to_dict(comma_separated: str) -> dict[str, str]:
 
     Supports:
         - key: path  e.g. all: tariffs/electric/rie_flat_supply_calibrated.json
-        - path only  (uses filename stem as key for backward compatibility)
     """
     if not str(comma_separated).strip():
         return {}
@@ -63,8 +62,10 @@ def _path_tariffs_to_dict(comma_separated: str) -> dict[str, str]:
                     f"path_tariffs segment must be 'key: path', got {part!r}"
                 )
         else:
-            path_str = part
-            key = Path(path_str).stem
+            raise ValueError(
+                "path_tariffs segment must be 'key: path'; "
+                f"bare path is not allowed: {part!r}"
+            )
         if key in out:
             raise ValueError(
                 f"path_tariffs duplicate key {key!r} from {out[key]!r} and {path_str!r}"
@@ -76,48 +77,77 @@ def _path_tariffs_to_dict(comma_separated: str) -> dict[str, str]:
 def _parse_bool(value: object) -> bool:
     if isinstance(value, bool):
         return value
-    if isinstance(value, (int, float)):
-        return bool(value)
+    if isinstance(value, int):
+        if value in (0, 1):
+            return bool(value)
+        raise ValueError(f"Invalid boolean integer {value!r}; expected 0 or 1")
+    if isinstance(value, float):
+        if value in (0.0, 1.0):
+            return bool(int(value))
+        raise ValueError(f"Invalid boolean float {value!r}; expected 0.0 or 1.0")
     s = str(value).strip().upper()
     if s in ("TRUE", "1", "YES", "Y"):
         return True
     if s in ("FALSE", "0", "NO", "N"):
         return False
-    return False
+    raise ValueError(
+        f"Invalid boolean value {value!r}; expected one of "
+        "TRUE/FALSE, 1/0, YES/NO, Y/N."
+    )
 
 
 def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     """Convert one sheet row to a run dict for YAML."""
 
-    def get(key: str, default: str | None = None) -> str:
+    norm_to_header: dict[str, str] = {}
+    for h in headers:
+        norm = _normalize_header(h)
+        if norm in norm_to_header:
+            raise ValueError(
+                f"Duplicate normalized header {norm!r} from "
+                f"{norm_to_header[norm]!r} and {h!r}"
+            )
+        norm_to_header[norm] = h
+
+    def get(key: str) -> str:
         normalized = _normalize_header(key)
-        for h in headers:
-            if _normalize_header(h) == normalized:
-                val = row.get(h, "")
-                return str(val).strip() if val else (default or "")
-        return default or ""
+        header = norm_to_header.get(normalized)
+        if header is None:
+            raise ValueError(f"Required column missing: {key!r}")
+        val = row.get(header, "")
+        return str(val).strip() if val else ""
+
+    def require_non_empty(key: str) -> str:
+        value = get(key)
+        if not value:
+            raise ValueError(f"Required value is blank for {key!r}")
+        return value
+
+    def parse_required_int(key: str) -> int:
+        value = require_non_empty(key)
+        try:
+            return int(value)
+        except ValueError as exc:
+            raise ValueError(f"{key!r} must be an integer, got {value!r}") from exc
+
+    def parse_required_float(key: str) -> float:
+        value = require_non_empty(key)
+        try:
+            return float(value)
+        except ValueError as exc:
+            raise ValueError(f"{key!r} must be a float, got {value!r}") from exc
 
     run: dict[str, object] = {}
 
-    run_name = get("run_name")
-    if run_name:
-        run["run_name"] = run_name
+    run["run_name"] = get("run_name")
 
-    state = get("state")
-    if state:
-        run["state"] = state.upper()
+    run["state"] = get("state").upper()
 
-    utility = get("utility")
-    if utility:
-        run["utility"] = utility.lower()
+    run["utility"] = get("utility").lower()
 
-    run_type = get("run_type")
-    if run_type:
-        run["run_type"] = run_type
+    run["run_type"] = get("run_type")
 
-    upgrade = get("upgrade")
-    if upgrade:
-        run["upgrade"] = upgrade
+    run["upgrade"] = get("upgrade")
 
     for key in (
         "path_tariff_maps_electric",
@@ -130,50 +160,65 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         "path_tariffs_gas",
         "path_outputs",
     ):
-        v = get(key)
-        if v:
-            run[key] = v
+        run[key] = get(key)
 
-    path_tariffs_elec = get("path_tariffs_electric")
-    if path_tariffs_elec:
-        run["path_tariffs_electric"] = _path_tariffs_to_dict(path_tariffs_elec)
+    run["path_tariffs_electric"] = _path_tariffs_to_dict(
+        require_non_empty("path_tariffs_electric")
+    )
 
-    rr = get("utility_delivery_revenue_requirement")
-    if rr:
-        run["utility_delivery_revenue_requirement"] = rr
+    run["utility_delivery_revenue_requirement"] = get(
+        "utility_delivery_revenue_requirement"
+    )
 
-    add_supply = get("add_supply_revenue_requirement")
-    if add_supply:
-        run["add_supply_revenue_requirement"] = _parse_bool(add_supply)
+    run["add_supply_revenue_requirement"] = _parse_bool(
+        require_non_empty("add_supply_revenue_requirement")
+    )
 
-    ucc = get("path_electric_utility_stats")
-    if ucc:
-        run["path_electric_utility_stats"] = ucc
+    run["path_electric_utility_stats"] = get("path_electric_utility_stats")
 
-    solar = get("solar_pv_compensation")
-    run["solar_pv_compensation"] = solar or "net_metering"
+    run["solar_pv_compensation"] = require_non_empty("solar_pv_compensation")
 
-    year_run = get("year_run")
-    run["year_run"] = int(year_run) if year_run.isdigit() else 2025
+    run["year_run"] = parse_required_int("year_run")
 
-    year_dollar = get("year_dollar_conversion")
-    run["year_dollar_conversion"] = int(year_dollar) if year_dollar.isdigit() else 2025
+    run["year_dollar_conversion"] = parse_required_int("year_dollar_conversion")
 
-    workers = get("process_workers")
-    run["process_workers"] = int(workers) if workers.isdigit() else 20
+    run["process_workers"] = parse_required_int("process_workers")
 
     sample_size = get("sample_size")
     if sample_size:
-        run["sample_size"] = int(sample_size) if sample_size.isdigit() else sample_size
-
-    elasticity = get("elasticity")
-    if elasticity:
         try:
-            run["elasticity"] = float(elasticity)
+            run["sample_size"] = int(sample_size)
         except ValueError:
-            run["elasticity"] = elasticity
+            run["sample_size"] = sample_size
+
+    run["elasticity"] = parse_required_float("elasticity")
 
     return run
+
+
+def _insert_blank_lines_between_runs(yaml_str: str) -> str:
+    """Insert a blank line before run keys 2+, not before the first run key."""
+    lines = yaml_str.splitlines()
+    out: list[str] = []
+    seen_run_key = False
+    for line in lines:
+        stripped = line.strip()
+        is_run_key = line.startswith("  ") and stripped.endswith(":") and stripped[
+            :-1
+        ].isdigit()
+        if is_run_key and seen_run_key and (not out or out[-1] != ""):
+            out.append("")
+        if is_run_key:
+            seen_run_key = True
+        out.append(line)
+    return "\n".join(out) + ("\n" if yaml_str.endswith("\n") else "")
+
+
+def _cell_to_str(value: object) -> str:
+    """Convert sheet cell to string while preserving numeric zeros."""
+    if value is None:
+        return ""
+    return str(value).strip()
 
 
 def _get_worksheet(
@@ -249,10 +294,11 @@ def run(
 
     raw_headers = list(all_rows[0].keys()) if all_rows else []
     headers = [str(h) for h in raw_headers]
-    # Build row list as list of dicts with original header keys
+    # Build row list as list of dicts with original header keys.
+    # Preserve numeric zeros (0/0.0) instead of treating them as blank.
     rows_as_dicts: list[dict[str, str]] = []
     for row in all_rows:
-        rows_as_dicts.append({str(k): str(v or "").strip() for k, v in row.items()})
+        rows_as_dicts.append({str(k): _cell_to_str(v) for k, v in row.items()})
 
     # Normalized header -> original header
     norm_to_header: dict[str, str] = {}
@@ -335,8 +381,7 @@ def run(
             sort_keys=False,
             allow_unicode=True,
         )
-        # Insert blank line before each run key for readability
-        yaml_str = re.sub(r"\n(  \d+:)", r"\n\n\1", yaml_str)
+        yaml_str = _insert_blank_lines_between_runs(yaml_str)
         out_path.write_text(yaml_str, encoding="utf-8")
         print(f"Wrote {out_path} ({len(runs)} runs)")
 

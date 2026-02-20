@@ -1,0 +1,52 @@
+runs:
+  1:
+    run_name: ri_rie_run1_up00_precalc__flat__n100
+    state: RI
+    utility: rie
+    run_type: precalc
+    upgrade: '0'
+    path_tariff_maps_electric: tariff_maps/electric/rie_flat.csv
+    path_tariff_maps_gas: tariff_maps/gas/rie_gas_tariff_ri_run_1.csv
+    path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=RI/upgrade=00/
+    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
+    path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/00000000.parquet
+    path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=RI/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run1_up00_precalc__flat__n100
+    path_tariffs_electric:
+      all: tariffs/electric/rie_flat.json
+    utility_delivery_revenue_requirement: rev_requirement/rie.yaml
+    add_supply_revenue_requirement: false
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 20
+    elasticity: 0.0
+
+  2:
+    run_name: ri_rie_run2_up00_precalc_supply__flat__n100
+    state: RI
+    utility: rie
+    run_type: precalc
+    upgrade: '0'
+    path_tariff_maps_electric: tariff_maps/electric/rie_flat_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/rie_gas_tariff_ri_run_1.csv
+    path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=RI/upgrade=00/
+    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/00000000.parquet
+    path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=RI/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run2_up00_precalc_supply__flat__n100
+    path_tariffs_electric:
+      all: tariffs/electric/rie_flat_supply.json
+    utility_delivery_revenue_requirement: rev_requirement/rie.yaml
+    add_supply_revenue_requirement: true
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 20
+    elasticity: 0.0
