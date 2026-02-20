@@ -43,6 +43,11 @@ PATH_CONFIG = PATH_PROJECT / "config"
 PATH_SCENARIOS = PATH_CONFIG / "scenarios"
 DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
 
+SUBCLASS_TO_ALIAS: dict[str, str] = {
+    "true": "hp",
+    "false": "non-hp",
+}
+
 
 def _scenario_config_from_utility(utility: str) -> Path:
     return PATH_SCENARIOS / f"scenarios_{utility}.yaml"
@@ -66,7 +71,7 @@ class ScenarioSettings:
     path_tariff_maps_gas: Path
     path_tariffs_electric: dict[str, Path]
     path_tariffs_gas: dict[str, Path]
-    utility_delivery_revenue_requirement: float
+    utility_delivery_revenue_requirement: float | dict[str, float]
     path_electric_utility_stats: str | Path
     year_run: int
     year_dollar_conversion: int
@@ -291,8 +296,66 @@ def _require_value(run: dict[str, Any], field_name: str) -> Any:
     return value
 
 
-def _parse_utility_revenue_requirement(value: Any, base_dir: Path) -> float:
-    """Parse utility_delivery_revenue_requirement from a YAML path only."""
+def _parse_single_revenue_requirement(rr_data: dict[str, Any]) -> float:
+    """Extract a scalar revenue_requirement from the YAML mapping."""
+    return _parse_float(rr_data["revenue_requirement"], "revenue_requirement")
+
+
+def _parse_subclass_revenue_requirement(
+    rr_data: dict[str, Any],
+    raw_path_tariffs_electric: dict[str, Any],
+    base_dir: Path,
+) -> dict[str, float]:
+    """Map subclass revenue requirements to tariff keys.
+
+    Subclass YAML keys ('true'/'false') are mapped via SUBCLASS_TO_ALIAS to
+    the raw YAML aliases ('hp'/'non-hp'), then resolved to tariff keys (file
+    stems like 'rie_hp_seasonal') using the path strings.
+    """
+    subclass_rr = rr_data.get("subclass_revenue_requirements")
+    if not isinstance(subclass_rr, dict) or not subclass_rr:
+        raise ValueError(
+            "subclass_revenue_requirements must be a non-empty mapping"
+        )
+
+    alias_to_tariff_key = {
+        alias: _resolve_path(str(path_str), base_dir).stem
+        for alias, path_str in raw_path_tariffs_electric.items()
+    }
+
+    result: dict[str, float] = {}
+    for group_val, amount in subclass_rr.items():
+        alias = SUBCLASS_TO_ALIAS.get(str(group_val))
+        if alias is None:
+            raise ValueError(
+                f"Unknown subclass group value {group_val!r}; "
+                f"expected one of {sorted(SUBCLASS_TO_ALIAS)}"
+            )
+        tariff_key = alias_to_tariff_key.get(alias)
+        if tariff_key is None:
+            raise ValueError(
+                f"Subclass {group_val!r} maps to alias {alias!r} but "
+                f"path_tariffs_electric has no alias {alias!r} "
+                f"(available: {sorted(alias_to_tariff_key)})"
+            )
+        result[tariff_key] = _parse_float(
+            amount, f"subclass_revenue_requirements[{group_val}]"
+        )
+
+    return result
+
+
+def _parse_utility_revenue_requirement(
+    value: Any,
+    base_dir: Path,
+    raw_path_tariffs_electric: dict[str, Any],
+) -> float | dict[str, float]:
+    """Parse utility_delivery_revenue_requirement from a YAML path.
+
+    Returns a single float for single-RR YAMLs, or a dict keyed by tariff_key
+    for subclass-RR YAMLs.  raw_path_tariffs_electric is the original YAML dict
+    (alias -> path string) before alias-to-stem conversion.
+    """
     if not isinstance(value, str):
         raise ValueError(
             "utility_delivery_revenue_requirement must be a YAML path string "
@@ -315,20 +378,12 @@ def _parse_utility_revenue_requirement(value: Any, base_dir: Path) -> float:
             "Revenue requirement YAML must be a mapping; "
             f"got {type(rr_data).__name__} in {path}"
         )
+
     if "revenue_requirement" in rr_data:
-        return _parse_float(rr_data["revenue_requirement"], "revenue_requirement")
-    subclass_rr = rr_data.get("subclass_revenue_requirements")
-    if isinstance(subclass_rr, dict):
-        if not subclass_rr:
-            raise ValueError(
-                f"subclass_revenue_requirements is empty in {path}; "
-                "cannot derive utility delivery revenue requirement."
-            )
-        return float(
-            sum(
-                _parse_float(v, "subclass_revenue_requirements value")
-                for v in subclass_rr.values()
-            )
+        return _parse_single_revenue_requirement(rr_data)
+    if "subclass_revenue_requirements" in rr_data:
+        return _parse_subclass_revenue_requirement(
+            rr_data, raw_path_tariffs_electric, base_dir
         )
     raise ValueError(
         f"{path} must contain 'revenue_requirement' or "
@@ -371,10 +426,6 @@ def _build_settings_from_yaml_run(
     process_workers = _parse_int(
         _require_value(run, "process_workers"), "process_workers"
     )
-    utility_delivery_revenue_requirement = _parse_utility_revenue_requirement(
-        _require_value(run, "utility_delivery_revenue_requirement"),
-        PATH_CONFIG,
-    )
     path_electric_utility_stats = _resolve_path_or_uri(
         str(_require_value(run, "path_electric_utility_stats")),
         PATH_CONFIG,
@@ -385,11 +436,17 @@ def _build_settings_from_yaml_run(
         str(_require_value(run, "path_tariff_maps_electric")),
         PATH_CONFIG,
     )
+    raw_path_tariffs_electric = _require_value(run, "path_tariffs_electric")
     path_tariffs_electric = _parse_path_tariffs(
-        _require_value(run, "path_tariffs_electric"),
+        raw_path_tariffs_electric,
         path_tariff_maps_electric,
         PATH_CONFIG,
         "electric",
+    )
+    utility_delivery_revenue_requirement = _parse_utility_revenue_requirement(
+        _require_value(run, "utility_delivery_revenue_requirement"),
+        PATH_CONFIG,
+        raw_path_tariffs_electric,
     )
     path_tariff_maps_gas = _resolve_path(
         str(_require_value(run, "path_tariff_maps_gas")),
@@ -650,15 +707,25 @@ def run(settings: ScenarioSettings) -> None:
         tariff_dict=tariffs_params,
     )
 
+    rr_setting = settings.utility_delivery_revenue_requirement
+    if isinstance(rr_setting, dict):
+        rr_total = sum(rr_setting.values())
+        rr_ratios: dict[str, float] | None = {
+            k: v / rr_total for k, v in rr_setting.items()
+        }
+    else:
+        rr_total = rr_setting
+        rr_ratios = None
+
     (
-        revenue_requirement,
+        revenue_requirement_raw,
         marginal_system_prices,
         marginal_system_costs,
         costs_by_type,
     ) = _return_revenue_requirement_target(
         building_load=raw_load_elec,
         sample_weight=customer_metadata[["bldg_id", "weight"]],
-        revenue_requirement_target=settings.utility_delivery_revenue_requirement,
+        revenue_requirement_target=rr_total,
         residual_cost=None,
         residual_cost_frac=None,
         bulk_marginal_costs=bulk_marginal_costs,
@@ -666,6 +733,13 @@ def run(settings: ScenarioSettings) -> None:
         low_income_strategy=None,
         delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
     )
+
+    if rr_ratios is not None:
+        revenue_requirement = {
+            k: v * revenue_requirement_raw for k, v in rr_ratios.items()
+        }
+    else:
+        revenue_requirement = revenue_requirement_raw
 
     # ------------------------------------------------------------------
     # Phase 3: Run CAIRO simulation
