@@ -9,6 +9,8 @@ license = { text = "MIT" }
 dependencies = [
     "buildstock-fetch>=1.6.1",
     "cairo",
+    "google-auth>=2.0.0",
+    "gspread>=6.0.0",
     "python-dotenv>=1.0.0",
     "cloudpathlib[s3]>=0.23.0",
     "geopandas>=1.0.0",
