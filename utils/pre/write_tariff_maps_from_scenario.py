@@ -27,17 +27,28 @@ from typing import Any, cast
 import polars as pl
 import yaml
 
-from utils import get_aws_region
+from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils.pre.electric_tariff_mapper import generate_tariff_map_from_scenario_keys
 
+_S3_OPTS = get_aws_storage_options()
 
-def _storage_options(path: str) -> dict[str, str] | None:
-    return {"aws_region": get_aws_region()} if path.startswith("s3://") else None
+
+def _to_uri(path: str) -> tuple[str, dict[str, str] | None]:
+    """Normalize path to a URI and return matching storage options.
+
+    Handles both ``s3://`` URIs and the ``/data.sb/`` local-mount convention
+    (translated to ``s3://data.sb/`` for Polars).
+    """
+    if path.startswith("s3://"):
+        return path, _S3_OPTS
+    if path.startswith("/data.sb/"):
+        return "s3://" + path.lstrip("/"), _S3_OPTS
+    return path, None
 
 
 def _scan(path: str) -> pl.LazyFrame:
-    opts = _storage_options(path)
-    return pl.scan_parquet(path, storage_options=opts) if opts else pl.scan_parquet(path)
+    uri, opts = _to_uri(path)
+    return pl.scan_parquet(uri, storage_options=opts) if opts else pl.scan_parquet(uri)
 
 
 def _process_run(
@@ -64,8 +75,8 @@ def _process_run(
     utility: str = run["utility"]
 
     def _resolve(val: str) -> str:
-        """Return val unchanged if s3 URL, else resolve relative to config_dir."""
-        if val.startswith("s3://"):
+        """Return val unchanged if S3 URI or /data.sb/ mount path, else resolve relative to config_dir."""
+        if val.startswith("s3://") or val.startswith("/data.sb/"):
             return val
         p = Path(val)
         return str(p if p.is_absolute() else config_dir / p)
