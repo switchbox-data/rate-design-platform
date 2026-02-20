@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import io
+import logging
 from pathlib import Path
 from typing import cast
 
+import numpy as np
 import pandas as pd
 import polars as pl
 from cairo.rates_tool import config
@@ -16,6 +18,7 @@ from utils.types import ElectricUtility
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 
 CambiumPathLike = str | Path | S3Path
+log = logging.getLogger(__name__)
 
 
 def _normalize_cambium_path(cambium_scenario: CambiumPathLike):  # noqa: ANN201
@@ -232,3 +235,283 @@ def load_distribution_marginal_costs(
     distribution_marginal_costs.index.name = "time"
     distribution_marginal_costs.name = "Marginal Distribution Costs ($/kWh)"
     return distribution_marginal_costs
+
+
+def extract_tou_period_rates(tou_tariff: dict) -> pd.DataFrame:
+    """Extract period-level energy rates from a URDB v7 tariff JSON."""
+    tariff_item = tou_tariff["items"][0]
+    rate_structure = tariff_item["energyratestructure"]
+    rows: list[dict[str, object]] = []
+    for period_idx, tiers in enumerate(rate_structure):
+        for tier_idx, tier_data in enumerate(tiers):
+            rate = float(tier_data["rate"]) + float(tier_data.get("adj", 0.0))
+            rows.append(
+                {
+                    "energy_period": period_idx,
+                    "tier": tier_idx + 1,
+                    "rate": rate,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def assign_hourly_periods(
+    hourly_index: pd.DatetimeIndex,
+    tou_tariff: dict,
+) -> pd.Series:
+    """Map each timestamp to its TOU energy period using URDB schedules."""
+    tariff_item = tou_tariff["items"][0]
+    weekday_schedule = np.array(tariff_item["energyweekdayschedule"])
+    weekend_schedule = np.array(tariff_item["energyweekendschedule"])
+
+    months = np.asarray(hourly_index.month) - 1
+    hours = np.asarray(hourly_index.hour)
+    is_weekday = np.asarray(hourly_index.dayofweek) < 5
+
+    periods = np.where(
+        is_weekday, weekday_schedule[months, hours], weekend_schedule[months, hours]
+    )
+    return pd.Series(periods, index=hourly_index, name="energy_period", dtype=int)
+
+
+def _apply_period_shift_core(
+    hourly_df: pd.DataFrame,
+    period_rate: pd.Series,
+    demand_elasticity: float,
+    equivalent_flat_rate: float,
+    receiver_period: int | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Core load-shifting engine over a single timeslice."""
+    if hourly_df.empty:
+        return hourly_df.copy(), pd.DataFrame()
+
+    df = hourly_df.copy()
+    observed_periods = sorted(df["energy_period"].unique())
+    bldg_ids = pd.Index(df["bldg_id"].unique(), name="bldg_id")
+    period_idx = pd.Index(observed_periods, name="energy_period")
+    scaffold = pd.MultiIndex.from_product(
+        [bldg_ids, period_idx], names=["bldg_id", "energy_period"]
+    )
+
+    period_consumption = (
+        df.groupby(["bldg_id", "energy_period"])["electricity_net"]
+        .sum()
+        .reindex(scaffold, fill_value=0.0)
+        .rename("Q_orig")
+        .reset_index()
+    )
+    period_rates = period_rate.loc[observed_periods].rename("rate").reset_index()
+    period_consumption = period_consumption.merge(period_rates, on="energy_period")
+    period_consumption["Q_target"] = period_consumption["Q_orig"] * (
+        (period_consumption["rate"] / equivalent_flat_rate) ** demand_elasticity
+    )
+    period_consumption["load_shift"] = (
+        period_consumption["Q_target"] - period_consumption["Q_orig"]
+    )
+
+    recv_period = (
+        int(period_rates.loc[period_rates["rate"].idxmin(), "energy_period"])
+        if receiver_period is None
+        else receiver_period
+    )
+    donor_mask = period_consumption["energy_period"] != recv_period
+    donor_shift = period_consumption.loc[donor_mask].groupby("bldg_id")[
+        "load_shift"
+    ].sum()
+    receiver_mask = period_consumption["energy_period"] == recv_period
+    period_consumption.loc[receiver_mask, "load_shift"] = (
+        period_consumption.loc[receiver_mask, "bldg_id"].map(-donor_shift).fillna(0.0)
+    )
+
+    df = df.merge(
+        period_consumption[["bldg_id", "energy_period", "Q_orig", "load_shift"]],
+        on=["bldg_id", "energy_period"],
+        how="left",
+    )
+    df["hour_share"] = np.where(
+        df["Q_orig"].abs() > 0,
+        df["electricity_net"] / df["Q_orig"],
+        0.0,
+    )
+    df["hourly_shift"] = df["load_shift"].fillna(0.0) * df["hour_share"]
+    df["shifted_net"] = df["electricity_net"] + df["hourly_shift"]
+
+    tracker = df.groupby(["bldg_id", "energy_period"], as_index=False).agg(
+        Q_new=("shifted_net", "sum")
+    )
+    tracker = tracker.merge(
+        period_consumption[["bldg_id", "energy_period", "Q_orig", "rate"]],
+        on=["bldg_id", "energy_period"],
+        how="left",
+    )
+    valid = (
+        (tracker["Q_new"] > 0)
+        & (tracker["Q_orig"] > 0)
+        & (tracker["rate"] != equivalent_flat_rate)
+    )
+    tracker["epsilon"] = np.nan
+    tracker.loc[valid, "epsilon"] = np.log(
+        tracker.loc[valid, "Q_new"] / tracker.loc[valid, "Q_orig"]
+    ) / np.log(tracker.loc[valid, "rate"] / equivalent_flat_rate)
+
+    return df, tracker
+
+
+def _infer_season_groups_from_tariff(
+    period_map: pd.Series, period_rate: pd.Series
+) -> list[dict[str, object]]:
+    """Infer seasonal month groups from month->period assignments."""
+    month_periods = (
+        period_map.to_frame(name="energy_period")
+        .assign(month=lambda frame: frame.index.month)
+        .groupby("month")["energy_period"]
+        .unique()
+        .apply(lambda values: tuple(sorted(int(v) for v in values)))
+    )
+    grouped: dict[tuple[int, ...], list[int]] = {}
+    for month, period_tuple in month_periods.items():
+        grouped.setdefault(period_tuple, []).append(int(month))
+    if len(grouped) <= 1:
+        return []
+
+    groups: list[dict[str, object]] = []
+    ordered_groups = sorted(grouped.items(), key=lambda item: min(item[1]))
+    for idx, (periods, months) in enumerate(ordered_groups):
+        if not periods:
+            continue
+        base_rate = min(float(period_rate.loc[p]) for p in periods)
+        groups.append(
+            {
+                "name": f"season_{idx + 1}",
+                "months": sorted(months),
+                "base_rate": base_rate,
+            }
+        )
+    return groups
+
+
+def apply_runtime_tou_demand_response(
+    raw_load_elec: pd.DataFrame,
+    tou_bldg_ids: list[int],
+    tou_tariff: dict,
+    demand_elasticity: float,
+    season_specs: list | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Apply runtime demand response for TOU cohort (full-year or seasonal wrapper)."""
+    if not tou_bldg_ids:
+        return raw_load_elec.copy(), pd.DataFrame()
+
+    bldg_level = raw_load_elec.index.get_level_values("bldg_id")
+    tou_mask = bldg_level.isin(set(tou_bldg_ids))
+    if not tou_mask.any():
+        log.warning("No TOU buildings found in load data; skipping demand response.")
+        return raw_load_elec.copy(), pd.DataFrame()
+
+    rate_df = extract_tou_period_rates(tou_tariff)
+    period_rate = rate_df.groupby("energy_period")["rate"].first()
+    time_idx = pd.DatetimeIndex(
+        raw_load_elec.index.get_level_values("time").unique().sort_values()
+    )
+    period_map = assign_hourly_periods(time_idx, tou_tariff)
+
+    tou_df = raw_load_elec.loc[tou_mask, ["electricity_net"]].copy().reset_index()
+    period_df = period_map.reset_index()
+    period_df.columns = ["time", "energy_period"]
+    tou_df = tou_df.merge(period_df, on="time", how="left")
+    tou_df["month"] = tou_df["time"].dt.month
+
+    shifted_chunks: list[pd.DataFrame] = []
+    trackers: list[pd.DataFrame] = []
+    season_groups: list[dict[str, object]] = []
+    if season_specs:
+        for spec in season_specs:
+            season_groups.append(
+                {
+                    "name": str(spec.season.name),
+                    "months": list(spec.season.months),
+                    "base_rate": float(spec.base_rate),
+                }
+            )
+    else:
+        season_groups = _infer_season_groups_from_tariff(period_map, period_rate)
+
+    if season_groups:
+        for season_group in season_groups:
+            season_name = str(season_group["name"])
+            season_months = set(cast(list[int], season_group["months"]))
+            base_rate = float(season_group["base_rate"])
+            season_df = tou_df[tou_df["month"].isin(season_months)].copy()
+            if season_df.empty:
+                continue
+            season_periods = sorted(season_df["energy_period"].dropna().unique())
+            if not season_periods:
+                continue
+            receiver_period = int(
+                min(
+                    season_periods,
+                    key=lambda period: abs(float(period_rate.loc[period]) - base_rate),
+                )
+            )
+            shifted_season, tracker = _apply_period_shift_core(
+                season_df,
+                period_rate=period_rate,
+                demand_elasticity=demand_elasticity,
+                equivalent_flat_rate=base_rate,
+                receiver_period=receiver_period,
+            )
+            tracker["season"] = season_name
+            shifted_chunks.append(shifted_season)
+            trackers.append(tracker)
+    else:
+        observed_periods = sorted(tou_df["energy_period"].dropna().unique())
+        if observed_periods:
+            receiver_period = int(
+                min(observed_periods, key=lambda period: float(period_rate.loc[period]))
+            )
+            equivalent_flat = float(period_rate.loc[receiver_period])
+            shifted_year, tracker = _apply_period_shift_core(
+                tou_df,
+                period_rate=period_rate,
+                demand_elasticity=demand_elasticity,
+                equivalent_flat_rate=equivalent_flat,
+                receiver_period=receiver_period,
+            )
+            tracker["season"] = "all_year"
+            shifted_chunks.append(shifted_year)
+            trackers.append(tracker)
+
+    shifted_load_elec = raw_load_elec.copy()
+    if shifted_chunks:
+        shifted = pd.concat(shifted_chunks, ignore_index=True).set_index(["bldg_id", "time"])
+        shifted = shifted.sort_index()
+        shifted_load_elec.loc[shifted.index, "electricity_net"] = shifted[
+            "shifted_net"
+        ].to_numpy()
+        if "load_data" in shifted_load_elec.columns:
+            shifted_load_elec.loc[shifted.index, "load_data"] = (
+                shifted_load_elec.loc[shifted.index, "load_data"]
+                + shifted["hourly_shift"].to_numpy()
+            )
+
+    if trackers:
+        tracker_df = pd.concat(trackers, ignore_index=True)
+        tracker_df["period_label"] = tracker_df.apply(
+            lambda row: f"{row['season']}_period_{int(row['energy_period'])}", axis=1
+        )
+        elasticity_tracker = tracker_df.pivot(
+            index="bldg_id", columns="period_label", values="epsilon"
+        )
+    else:
+        elasticity_tracker = pd.DataFrame()
+
+    original_total = raw_load_elec.loc[tou_mask, "electricity_net"].sum()
+    shifted_total = shifted_load_elec.loc[tou_mask, "electricity_net"].sum()
+    log.info(
+        "Runtime demand response complete: bldgs=%d, elasticity=%.3f, original=%.0f, shifted=%.0f, diff=%.2f",
+        len(tou_bldg_ids),
+        demand_elasticity,
+        original_total,
+        shifted_total,
+        shifted_total - original_total,
+    )
+    return shifted_load_elec, elasticity_tracker
