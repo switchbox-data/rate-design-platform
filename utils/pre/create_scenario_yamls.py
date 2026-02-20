@@ -41,20 +41,35 @@ def _normalize_header(name: str) -> str:
 
 
 def _path_tariffs_to_dict(comma_separated: str) -> dict[str, str]:
-    """Convert comma-separated paths to dict keyed by filename stem."""
+    """Convert 'key: path' pairs (comma-separated) to dict.
+
+    Supports:
+        - key: path  e.g. all: tariffs/electric/rie_flat_supply_calibrated.json
+        - path only  (uses filename stem as key for backward compatibility)
+    """
     if not str(comma_separated).strip():
         return {}
     out: dict[str, str] = {}
     for part in str(comma_separated).split(","):
-        path_str = part.strip()
-        if not path_str:
+        part = part.strip()
+        if not part:
             continue
-        stem = Path(path_str).stem
-        if stem in out:
+        if ":" in part:
+            key, path_str = part.split(":", 1)
+            key = key.strip()
+            path_str = path_str.strip()
+            if not key or not path_str:
+                raise ValueError(
+                    f"path_tariffs segment must be 'key: path', got {part!r}"
+                )
+        else:
+            path_str = part
+            key = Path(path_str).stem
+        if key in out:
             raise ValueError(
-                f"path_tariffs duplicate stem {stem!r} from {out[stem]!r} and {path_str!r}"
+                f"path_tariffs duplicate key {key!r} from {out[key]!r} and {path_str!r}"
             )
-        out[stem] = path_str
+        out[key] = path_str
     return out
 
 
@@ -131,9 +146,9 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     if add_supply:
         run["add_supply_revenue_requirement"] = _parse_bool(add_supply)
 
-    ucc = get("utility_customer_count")
+    ucc = get("path_electric_utility_stats")
     if ucc:
-        run["utility_customer_count"] = ucc
+        run["path_electric_utility_stats"] = ucc
 
     solar = get("solar_pv_compensation")
     run["solar_pv_compensation"] = solar or "net_metering"
@@ -308,6 +323,7 @@ def run(
             / state.lower()
             / "hp_rates"
             / "config"
+            / "scenarios"
             / f"scenarios_{utility}.yaml"
         )
 
