@@ -4,6 +4,7 @@ runs:
     state: RI
     region: isone
     utility: rie
+    path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=RI/utility_assignment.parquet
     upgrade: "00"
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=ri/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=ri/upgrade=00/
@@ -32,6 +33,8 @@ runs:
     region: isone
     utility: rie
     upgrade: 0
+    sample_size: 100
+    path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=RI/utility_assignment.parquet
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=ri/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=ri/upgrade=00/
     path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet

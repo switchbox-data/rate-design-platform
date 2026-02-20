@@ -12,6 +12,7 @@ from cairo.rates_tool import config
 from cairo.rates_tool.loads import __timeshift__
 from cloudpathlib import S3Path
 
+from utils.types import ElectricUtility
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 
 CambiumPathLike = str | Path | S3Path
@@ -172,6 +173,33 @@ def build_bldg_id_to_load_filepath(
         bldg_id_to_load_filepath[bldg_id] = filepath
 
     return bldg_id_to_load_filepath
+
+
+def _fetch_prototype_ids_by_electric_util(
+    electric_utility: ElectricUtility, utility_assignment: pl.LazyFrame
+) -> list[int]:
+    """
+    Fetch all building ID's assigned to the given electric utility.
+
+    Args:
+        electric_utility: The electric utility to fetch prototype IDs for.
+        utility_assignment: The utility assignment LazyFrame.
+
+    Returns:
+        A list of building IDs assigned to the given electric utility.
+    """
+    if "sb.electric_utility" not in utility_assignment.collect_schema().names():
+        raise ValueError("sb.electric_utility column not found in utility assignment")
+    utility_assignment = utility_assignment.filter(
+        pl.col("sb.electric_utility") == electric_utility
+    )
+    bldg_ids = cast(
+        pl.DataFrame,
+        utility_assignment.select("bldg_id").collect(),
+    )
+    if bldg_ids.height == 0:
+        raise ValueError(f"No buildings assigned to {electric_utility}")
+    return cast(list[int], bldg_ids["bldg_id"].to_list())
 
 
 def load_distribution_marginal_costs(
