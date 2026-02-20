@@ -1,8 +1,9 @@
 """Copy calibrated tariff from a run directory into state tariff config.
 
-CAIRO writes ``tariff_final_config.json`` in its internal PySAM-oriented shape.
-This utility converts that payload into URDB ``items`` format and saves it as
-``<tariff_key>_calibrated.json`` under the state electric tariffs directory.
+CAIRO writes ``tariff_final_config.json`` in its internal PySAM-oriented shape
+(with one top-level key per tariff). This utility converts each tariff in that
+payload into URDB ``items`` format and saves one ``<tariff_key>_calibrated.json``
+per tariff key under the state electric tariffs directory.
 """
 
 from __future__ import annotations
@@ -16,7 +17,6 @@ from typing import Any
 from cloudpathlib import S3Path
 
 from utils import get_project_root
-from utils.pre.tariff_naming import parse_tariff_key_from_run_name
 
 CAIRO_MAX_USAGE_SENTINEL = 1e38
 CAIRO_TO_URDB_UNIT = {
@@ -207,6 +207,43 @@ def _extract_cairo_tariff(payload: dict[str, Any], tariff_key: str) -> dict[str,
     )
 
 
+def _tariff_keys_and_payloads(
+    payload: dict[str, Any],
+) -> list[tuple[str, dict[str, Any]]]:
+    """Return (tariff_key, payload) for each tariff in tariff_final_config.json.
+
+    Handles (1) CAIRO shape: top-level keys are tariff keys, values are CAIRO
+    tariff dicts; (2) already URDB shape: payload has "items", one entry uses
+    first item's label as the key.
+    """
+    if not payload:
+        raise ValueError("tariff_final_config.json is empty")
+
+    if "items" in payload:
+        items = payload["items"]
+        if not isinstance(items, list) or not items:
+            raise ValueError(
+                "tariff_final_config.json has 'items' but it is not a non-empty list"
+            )
+        first = items[0]
+        if isinstance(first, dict) and "label" in first:
+            return [(str(first["label"]), payload)]
+        if isinstance(first, dict) and "name" in first:
+            return [(str(first["name"]), payload)]
+        return [("calibrated", payload)]
+
+    result: list[tuple[str, dict[str, Any]]] = []
+    for key, value in payload.items():
+        if isinstance(value, dict):
+            result.append((key, {key: value}))
+    if not result:
+        raise ValueError(
+            "No tariff keys found in tariff_final_config.json "
+            "(expected top-level keys with dict values or URDB 'items')"
+        )
+    return result
+
+
 def _convert_cairo_payload_to_urdb(
     payload: dict[str, Any],
     *,
@@ -239,29 +276,34 @@ def copy_calibrated_tariff_from_run_dir(
     *,
     state: str,
     destination_dir: Path | None = None,
-) -> Path:
-    """Convert and copy calibrated tariff from ``run_dir`` into config tariffs."""
-    run_name = run_dir.name
-    tariff_key = parse_tariff_key_from_run_name(run_name)
+) -> list[Path]:
+    """Convert and copy each calibrated tariff from ``run_dir`` into config tariffs.
 
+    Reads ``tariff_final_config.json`` and writes one ``<tariff_key>_calibrated.json``
+    per tariff key in that file.
+    """
     tariff_final_config_path = run_dir / "tariff_final_config.json"
-    cairo_payload = _read_json(tariff_final_config_path)
-    urdb_payload = _convert_cairo_payload_to_urdb(cairo_payload, tariff_key=tariff_key)
-
+    payload = _read_json(tariff_final_config_path)
     target_dir = (
         destination_dir
         if destination_dir is not None
         else _default_destination_dir(state)
     )
-    output_path = target_dir / f"{tariff_key}_calibrated.json"
-    return _write_json(output_path, urdb_payload)
+    written: list[Path] = []
+    for tariff_key, sub_payload in _tariff_keys_and_payloads(payload):
+        urdb_payload = _convert_cairo_payload_to_urdb(
+            sub_payload, tariff_key=tariff_key
+        )
+        output_path = target_dir / f"{tariff_key}_calibrated.json"
+        written.append(_write_json(output_path, urdb_payload))
+    return written
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Copy <run_dir>/tariff_final_config.json into state tariff config as "
-            "<tariff_key>_calibrated.json using the RI run-directory naming convention."
+            "Copy each tariff in <run_dir>/tariff_final_config.json into state "
+            "tariff config as <tariff_key>_calibrated.json (one file per tariff key)."
         )
     )
     parser.add_argument(
@@ -278,7 +320,7 @@ def main() -> None:
         "--destination-dir",
         default="",
         help=(
-            "Optional local directory override for output tariff file. "
+            "Optional local directory override for output tariff files. "
             "Defaults to rate_design/<state>/hp_rates/config/tariffs/electric."
         ),
     )
@@ -286,12 +328,13 @@ def main() -> None:
 
     run_dir = _resolve_path_or_s3(args.run_dir)
     destination_dir = Path(args.destination_dir) if args.destination_dir else None
-    output_path = copy_calibrated_tariff_from_run_dir(
+    written = copy_calibrated_tariff_from_run_dir(
         run_dir,
         state=args.state,
         destination_dir=destination_dir,
     )
-    print(f"Copied calibrated tariff to: {output_path}")
+    for path in written:
+        print(f"Copied calibrated tariff to: {path}")
 
 
 if __name__ == "__main__":

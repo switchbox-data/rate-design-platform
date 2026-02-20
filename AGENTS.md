@@ -22,20 +22,20 @@ The main inputs are:
 
 The main outputs are calibrated tariffs (when CAIRO is run in pre-calc mode), customer-level bills / marginal cost / residual cost allocation / bill alignments, aggregated bill alignment tariffs grouped by post-processing group, and so on. This data lives on s3 at `s3://data.sb/switchbox/cairo/<scenario_name>/<run>/`, and contains the following files:
 
-| Path                                                   | Purpose                                                                                   |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| bill_assistance_metrics.csv                            | Metrics for bill assistance programs (e.g., LMI customer impacts)                         |
-| bills/                                                 | Customer-level bill calculations                                                          |
-| bills/comb_bills_year_run.csv                          | Annual combined (electric + gas) bills under the proposed rate structure                  |
-| bills/comb_bills_year_target.csv                       | Annual combined (electric + gas) bills under the baseline/target rate structure           |
-| bills/elec_bills_year_run.csv                          | Annual electric-only bills under the proposed rate structure                              |
-| bills/elec_bills_year_target.csv                       | Annual electric-only bills under the baseline/target rate structure                       |
-| bills/gas_bills_year_run.csv                           | Annual gas-only bills under the proposed rate structure                                   |
-| bills/gas_bills_year_target.csv                        | Annual gas-only bills under the baseline/target rate structure                            |
-| cross_subsidization/                                   | Bill Alignment Test (BAT) results                                                         |
-| cross_subsidization/cross_subsidization_BAT_values.csv | Customer-level bill alignment metrics showing marginal cost recovery and cross-subsidies  |
-| customer_metadata.csv                                  | ResStock building metadata (heating type, location, demographics, etc.) for each customer |
-| tariff_final_config.json                               | Final calibrated tariff structure in URDB JSON format                                     |
+| Path                                                   | Purpose                                                                                                                                                           |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| bill_assistance_metrics.csv                            | Metrics for bill assistance programs (e.g., LMI customer impacts)                                                                                                 |
+| bills/                                                 | Customer-level bill calculations                                                                                                                                  |
+| bills/comb_bills_year_run.csv                          | Annual combined (electric + gas) bills under the proposed rate structure                                                                                          |
+| bills/comb_bills_year_target.csv                       | Annual combined (electric + gas) bills under the baseline/target rate structure                                                                                   |
+| bills/elec_bills_year_run.csv                          | Annual electric-only bills under the proposed rate structure                                                                                                      |
+| bills/elec_bills_year_target.csv                       | Annual electric-only bills under the baseline/target rate structure                                                                                               |
+| bills/gas_bills_year_run.csv                           | Annual gas-only bills under the proposed rate structure                                                                                                           |
+| bills/gas_bills_year_target.csv                        | Annual gas-only bills under the baseline/target rate structure                                                                                                    |
+| cross_subsidization/                                   | Bill Alignment Test (BAT) results                                                                                                                                 |
+| cross_subsidization/cross_subsidization_BAT_values.csv | Customer-level bill alignment metrics showing marginal cost recovery and cross-subsidies                                                                          |
+| customer_metadata.csv                                  | ResStock building metadata (heating type, location, demographics, etc.) for each customer                                                                         |
+| tariff_final_config.json                               | Final calibrated tariff structure (CAIRO internal shape; one key per tariff). Copy utility writes one \<key\>_calibrated.json per key to config/tariffs/electric. |
 
 ## Layout
 
