@@ -125,11 +125,13 @@ def test_calculate_prior_distributions_sums_to_one():
             "none": [0.0, 1.0],
         }
     )
+    # Gas prior is weighted by has_natgas_connection (3 with connection: bldgs 1,2,4)
     puma_and_heating_fuel = pl.LazyFrame(
         {
             "bldg_id": [1, 2, 3, 4],
             "puma": ["00100", "00100", "00200", "00200"],
             "heating_fuel": ["Natural Gas", "Natural Gas", "Electric", "Natural Gas"],
+            "has_natgas_connection": [True, True, False, True],
         }
     )
 
@@ -140,20 +142,21 @@ def test_calculate_prior_distributions_sums_to_one():
     assert abs(sum(elec_prior.values()) - 1.0) < 1e-9
     assert abs(sum(gas_prior.values()) - 1.0) < 1e-9
     assert "coned" in elec_prior and "nimo" in elec_prior
-    # Gas: 3 buildings with Natural Gas; 2 in 00100 (coned), 1 in 00200 (none)
+    # Gas: 3 buildings with has_natgas_connection; 2 in 00100 (coned), 1 in 00200 (none)
     assert "coned" in gas_prior and "none" in gas_prior
 
 
-def test_calculate_prior_distributions_gas_only_natural_gas_buildings():
-    """Gas prior is weighted only by buildings with heating_fuel == Natural Gas."""
+def test_calculate_prior_distributions_gas_only_has_natgas_connection():
+    """Gas prior is weighted only by buildings with has_natgas_connection."""
     puma_elec_probs = pl.LazyFrame({"puma_id": ["00100"], "coned": [1.0]})
     puma_gas_probs = pl.LazyFrame({"puma_id": ["00100"], "coned": [1.0]})
-    # Only one building and it has Natural Gas
+    # Only one building and it has a gas connection
     puma_and_heating_fuel = pl.LazyFrame(
         {
             "bldg_id": [1],
             "puma": ["00100"],
             "heating_fuel": ["Natural Gas"],
+            "has_natgas_connection": [True],
         }
     )
 
@@ -162,12 +165,13 @@ def test_calculate_prior_distributions_gas_only_natural_gas_buildings():
     )
     assert gas_prior == {"coned": 1.0}
 
-    # No gas buildings -> gas_prior empty or only zeros; total gas bldgs = 0 so weighted_prob is 0
+    # No buildings with gas connection -> gas_prior empty; total gas bldgs = 0 so weighted_prob is 0
     puma_and_heating_fuel_no_gas = pl.LazyFrame(
         {
             "bldg_id": [1],
             "puma": ["00100"],
             "heating_fuel": ["Electric"],
+            "has_natgas_connection": [False],
         }
     )
     _, gas_prior_no_gas = _calculate_prior_distributions(
@@ -217,12 +221,13 @@ def test_sample_utility_per_building_deterministic():
 
 
 def test_sample_utility_per_building_only_when_fuel():
-    """With only_when_fuel='Natural Gas', non-gas buildings get null utility."""
+    """With only_when_fuel='Natural Gas', buildings without has_natgas_connection get null utility."""
     bldgs = pl.LazyFrame(
         {
             "bldg_id": [1, 2],
             "puma": ["00100", "00100"],
             "heating_fuel": ["Natural Gas", "Electric"],
+            "has_natgas_connection": [True, False],
         }
     )
     puma_probs = pl.LazyFrame(
@@ -243,7 +248,7 @@ def test_sample_utility_per_building_only_when_fuel():
     )
 
     assert out.columns == ["bldg_id", "sb.gas_utility"]
-    # Building 1 (Natural Gas) gets a utility; building 2 (Electric) gets null
+    # Building 1 (has_natgas_connection) gets a utility; building 2 (no connection) gets null
     assigned = out.filter(pl.col("sb.gas_utility").is_not_null())
     unassigned = out.filter(pl.col("sb.gas_utility").is_null())
     assert assigned.height == 1 and unassigned.height == 1
@@ -277,12 +282,14 @@ def test_sample_utility_per_building_all_zero_probs_returns_none():
 
 def test_sample_utility_per_building_exact_assignments():
     """With deterministic probs (1.0 per PUMA) and seed 42, exact bldg_id -> electric/gas is asserted."""
-    # Each PUMA has a single utility with prob 1.0 so assignment is deterministic
+    # Each PUMA has a single utility with prob 1.0 so assignment is deterministic.
+    # Gas assignment uses has_natgas_connection (bldg 2 has no connection -> null).
     bldgs = pl.LazyFrame(
         {
             "bldg_id": [1, 2, 3, 4],
             "puma": ["00100", "00100", "00200", "00300"],
             "heating_fuel": ["Natural Gas", "Electric", "Natural Gas", "Natural Gas"],
+            "has_natgas_connection": [True, False, True, True],
         }
     )
     puma_elec = pl.LazyFrame(
@@ -324,14 +331,14 @@ def test_sample_utility_per_building_exact_assignments():
     assert elec_by_bldg[3] == "nimo"
     assert elec_by_bldg[4] == "nyseg"
 
-    # Gas: only Natural Gas buildings get an assignment; Electric gets null
+    # Gas: only buildings with has_natgas_connection get an assignment
     gas_by_bldg = {
         row["bldg_id"]: row["sb.gas_utility"] for row in gas.iter_rows(named=True)
     }
-    assert gas_by_bldg[1] == "coned"  # PUMA 00100, Natural Gas
-    assert gas_by_bldg[2] is None  # Electric -> no gas utility
-    assert gas_by_bldg[3] == "nfg"  # PUMA 00200, Natural Gas
-    assert gas_by_bldg[4] == "none"  # PUMA 00300, Natural Gas
+    assert gas_by_bldg[1] == "coned"  # PUMA 00100, has_natgas_connection
+    assert gas_by_bldg[2] is None  # no gas connection -> no gas utility
+    assert gas_by_bldg[3] == "nfg"  # PUMA 00200, has_natgas_connection
+    assert gas_by_bldg[4] == "none"  # PUMA 00300, has_natgas_connection
 
 
 def test_sample_utility_per_building_deterministic_with_varying_probs():
