@@ -55,6 +55,7 @@ def _process_run(
     run_id: int | str,
     run: dict[str, Any],
     config_dir: Path,
+    path_config: Path,
 ) -> None:
     missing = [
         k
@@ -108,7 +109,7 @@ def _process_run(
 
     result = generate_tariff_map_from_scenario_keys(path_tariffs_electric, bldg_data)
 
-    out_path = config_dir / run["path_tariff_maps_electric"]
+    out_path = path_config / run["path_tariff_maps_electric"]
     out_path.parent.mkdir(parents=True, exist_ok=True)
     result.write_csv(out_path)
     print(f"  run {run_id}: wrote {out_path} ({len(result)} rows)")
@@ -116,6 +117,7 @@ def _process_run(
 
 def main(scenario_config: Path) -> None:
     config_dir = scenario_config.resolve().parent
+    path_config = config_dir.parent  # scenarios/ lives inside config/; tariff maps are relative to config/
 
     with scenario_config.open(encoding="utf-8") as fh:
         scenario = yaml.safe_load(fh)
@@ -129,7 +131,7 @@ def main(scenario_config: Path) -> None:
     errors: list[tuple[int | str, Exception]] = []
     for run_id, run in runs.items():
         try:
-            _process_run(run_id, run, config_dir)
+            _process_run(run_id, run, config_dir, path_config)
         except Exception as exc:  # noqa: BLE001
             print(f"  run {run_id}: ERROR — {exc}", file=sys.stderr)
             errors.append((run_id, exc))
