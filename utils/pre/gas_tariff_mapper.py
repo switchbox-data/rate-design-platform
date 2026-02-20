@@ -8,7 +8,6 @@ from cloudpathlib import S3Path
 
 from utils import get_aws_region
 from utils.types import electric_utility
-from utils.utility_codes import get_std_name_to_gas_tariff_key
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
@@ -19,10 +18,6 @@ def _tariff_key_expr() -> pl.Expr:
     heats_with_natgas_column = pl.col("heats_with_natgas")
     gas_utility_col = pl.col("sb.gas_utility")
 
-    # Map std_name to gas_tariff_key
-    gas_tariff_key_map = get_std_name_to_gas_tariff_key()
-    gas_tariff_key_col = gas_utility_col.replace(gas_tariff_key_map)
-
     return (
         #### coned ####
         # coned: Single-Family
@@ -30,20 +25,20 @@ def _tariff_key_expr() -> pl.Expr:
             (gas_utility_col == "coned")
             & building_type_column.str.contains("Single-Family", literal=True)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_sf")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_sf")]))
         # coned: Multi-Family high-rise
         .when(
             (gas_utility_col == "coned")
             & building_type_column.str.contains("Multi-Family", literal=True)
             & stories_column.str.contains("4+", literal=True)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_mf_highrise")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_highrise")]))
         # coned: Multi-Family low-rise
         .when(
             (gas_utility_col == "coned")
             & building_type_column.str.contains("Multi-Family", literal=True)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_mf_lowrise")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_lowrise")]))
         #### coned ####
         #### kedny ####
         # kedny: Single-Family heating with natural gas
@@ -100,18 +95,18 @@ def _tariff_key_expr() -> pl.Expr:
         #### nyseg ####
         # nyseg: Heating with natural gas
         .when((gas_utility_col == "nyseg") & heats_with_natgas_column.eq(True))
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_heating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_heating")]))
         # nyseg: Does not heat with natural gas
         .when((gas_utility_col == "nyseg") & heats_with_natgas_column.eq(False))
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_nonheating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_nonheating")]))
         #### nyseg ####
         #### rie ####
         # rie: Heating with natural gas
         .when((gas_utility_col == "rie") & heats_with_natgas_column.eq(True))
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_heating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_heating")]))
         # rie: Does not heat with natural gas
         .when((gas_utility_col == "rie") & heats_with_natgas_column.eq(False))
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_nonheating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_nonheating")]))
         #### rie ####
         #### nimo | rge | cenhud | or | nfg ####
         .when(
@@ -127,7 +122,7 @@ def _tariff_key_expr() -> pl.Expr:
         .when(gas_utility_col.is_null())
         .then(pl.lit("null_gas_tariff"))
         ### Null value in the gas_utility column gets assigned to "null_gas_tariff" ####
-        # Default: Use utility code (std_name) so we never output legacy gas_tariff_key like national_grid
+        # Default: passthrough utility code for any other gas utility
         .otherwise(gas_utility_col)
         .fill_null(gas_utility_col)
         .alias("tariff_key")
