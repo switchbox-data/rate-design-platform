@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 
 
 def _normalize_cambium_path(cambium_scenario: CambiumPathLike):  # noqa: ANN201
-    """Normalize Cambium input into a concrete local/S3 path object."""
+    """Return a single path-like (Path or S3Path) for Cambium CSV or Parquet."""
     if isinstance(cambium_scenario, S3Path):
         return cambium_scenario
     if isinstance(cambium_scenario, Path):
@@ -41,14 +41,21 @@ def _normalize_cambium_path(cambium_scenario: CambiumPathLike):  # noqa: ANN201
 def _load_cambium_marginal_costs(
     cambium_scenario: CambiumPathLike, target_year: int
 ) -> pd.DataFrame:
-    """Load Cambium marginal costs from CSV/Parquet and return CAIRO-shaped $/kWh.
+    """
+    Load Cambium marginal costs from CSV or Parquet (local or S3). Returns costs in $/kWh.
 
-    The function accepts local paths, S3 paths, or a scenario alias and then:
-    - parses source data (CSV or Parquet),
-    - keeps energy/capacity end-use columns,
-    - converts $/MWh to $/kWh,
-    - aligns to target year with `__timeshift__`,
-    - returns an EST-localized hourly index named `time`.
+    Accepts: scenario name (str → CSV under config dir), local path (str or Path),
+    or S3 URI (str or S3Path). Example S3 Parquet:
+    s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+
+    Assumptions (verified against S3 Parquet and repo CSV example_marginal_costs.csv):
+    - CSV: first 5 rows are metadata; row 6 is header; data has columns timestamp,
+      energy_cost_enduse, capacity_cost_enduse. Costs are in $/MWh.
+    - Parquet: columns timestamp (datetime), energy_cost_enduse, capacity_cost_enduse
+      (float). Costs are in $/MWh. Exactly 8760 rows (hourly). No partition columns
+      in the DataFrame (single-file read).
+    - Both: we divide cost columns by 1000 to get $/kWh; then common_year alignment,
+      __timeshift__ to target_year, and tz_localize("EST") so output matches CAIRO.
     """
     path = _normalize_cambium_path(cambium_scenario)
     if not path.exists():
@@ -130,7 +137,22 @@ def build_bldg_id_to_load_filepath(
     building_ids: list[int] | None = None,
     return_path_base: Path | None = None,
 ) -> dict[int, Path]:
-    """Build a `bldg_id -> load parquet path` mapping from a load directory."""
+    """
+    Build a dictionary mapping building IDs to their load file paths.
+
+    Args:
+        path_resstock_loads: Directory containing parquet load files to scan
+        building_ids: Optional list of building IDs to include. If None, includes all.
+        return_path_base: Base directory for returned paths.
+            If None, returns actual file paths from path_resstock_loads.
+            If Path, returns paths as return_path_base / filename.
+
+    Returns:
+        Dictionary mapping building ID (int) to full file path (Path)
+
+    Raises:
+        FileNotFoundError: If path_resstock_loads does not exist
+    """
     if not path_resstock_loads.exists():
         raise FileNotFoundError(f"Load directory not found: {path_resstock_loads}")
 
@@ -159,7 +181,16 @@ def build_bldg_id_to_load_filepath(
 def _fetch_prototype_ids_by_electric_util(
     electric_utility: ElectricUtility, utility_assignment: pl.LazyFrame
 ) -> list[int]:
-    """Return building IDs assigned to a given electric utility."""
+    """
+    Fetch all building ID's assigned to the given electric utility.
+
+    Args:
+        electric_utility: The electric utility to fetch prototype IDs for.
+        utility_assignment: The utility assignment LazyFrame.
+
+    Returns:
+        A list of building IDs assigned to the given electric utility.
+    """
     if "sb.electric_utility" not in utility_assignment.collect_schema().names():
         raise ValueError("sb.electric_utility column not found in utility assignment")
     utility_assignment = utility_assignment.filter(
@@ -177,7 +208,7 @@ def _fetch_prototype_ids_by_electric_util(
 def load_distribution_marginal_costs(
     path: str | Path,
 ) -> pd.Series:
-    """Load distribution marginal costs and return EST-indexed $/kWh series."""
+    """Load distribution marginal costs from a parquet path and return a tz-aware Series."""
     path_str = str(path)
     if path_str.startswith("s3://"):
         distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
@@ -209,8 +240,14 @@ def load_distribution_marginal_costs(
 def extract_tou_period_rates(tou_tariff: dict) -> pd.DataFrame:
     """Extract period-level TOU rates from a URDB-style tariff.
 
-    Returns one row per `(energy_period, tier)` with the effective volumetric
-    price (`rate + adj`), so downstream shifting can ignore tariff JSON shape.
+    Args:
+        tou_tariff: URDB v7 tariff dictionary with `energyratestructure`.
+
+    Returns:
+        DataFrame with columns:
+        - `energy_period` (int)
+        - `tier` (1-based int)
+        - `rate` ($/kWh, including `adj`)
     """
     tariff_item = tou_tariff["items"][0]
     rate_structure = tariff_item["energyratestructure"]
@@ -232,7 +269,15 @@ def assign_hourly_periods(
     hourly_index: pd.DatetimeIndex,
     tou_tariff: dict,
 ) -> pd.Series:
-    """Map each timestamp to TOU `energy_period` using weekday/weekend schedules."""
+    """Map hourly timestamps to TOU `energy_period` values.
+
+    Args:
+        hourly_index: Hourly DatetimeIndex (typically one full year).
+        tou_tariff: URDB v7 tariff dictionary with weekday/weekend schedules.
+
+    Returns:
+        Series indexed by `hourly_index` containing integer `energy_period`.
+    """
     tariff_item = tou_tariff["items"][0]
     weekday_schedule = np.array(tariff_item["energyweekdayschedule"])
     weekend_schedule = np.array(tariff_item["energyweekendschedule"])
@@ -250,8 +295,12 @@ def assign_hourly_periods(
 def _build_period_consumption(hourly_df: pd.DataFrame) -> pd.DataFrame:
     """Aggregate baseline consumption by building and tariff period.
 
-    Missing `(bldg_id, energy_period)` combinations are filled with zeros so
-    elasticity math can be applied uniformly across buildings.
+    Args:
+        hourly_df: DataFrame with `bldg_id`, `energy_period`, `electricity_net`.
+
+    Returns:
+        DataFrame with one row per `(bldg_id, energy_period)` and `Q_orig`.
+        Missing period combinations are zero-filled for stable downstream math.
     """
     observed_periods = sorted(hourly_df["energy_period"].dropna().unique())
     bldg_ids = pd.Index(hourly_df["bldg_id"].unique(), name="bldg_id")
@@ -274,10 +323,13 @@ def _compute_equivalent_flat_tariff(
 ) -> float:
     """Compute endogenous equivalent flat rate for one customer-class slice.
 
-    Formula:
-        sum_t(Q_t * P_t) / sum_t(Q_t)
+    Args:
+        period_consumption: Building-period baseline demand with `Q_orig`.
+        period_rate: Series mapping `energy_period -> rate`.
 
-    where `t` is tariff period within the active slice (season or full-year).
+    Returns:
+        Endogenous flat comparator price for the active customer slice:
+        `sum_t(Q_t * P_t) / sum_t(Q_t)`.
     """
     rates = period_rate.rename("rate").reset_index()
     class_period = (
@@ -298,8 +350,15 @@ def _build_period_shift_targets(
 ) -> pd.DataFrame:
     """Build period-level shift targets under constant elasticity.
 
-    This computes `Q_target` and `load_shift` by building/period, then enforces
-    zero-sum temporal shifting by assigning the residual to a receiver period.
+    Args:
+        period_consumption: Building-period demand with `Q_orig`.
+        period_rate: Series mapping `energy_period -> rate`.
+        demand_elasticity: Constant demand elasticity parameter.
+        equivalent_flat_tariff: Comparator flat rate for elasticity response.
+        receiver_period: Optional sink period; if omitted, lowest-rate period used.
+
+    Returns:
+        DataFrame with per-building/period target demand and `load_shift`.
     """
     targets = period_consumption.merge(
         period_rate.rename("rate").reset_index(), on="energy_period", how="left"
@@ -308,6 +367,10 @@ def _build_period_shift_targets(
         (targets["rate"] / equivalent_flat_tariff) ** demand_elasticity
     )
     targets["load_shift"] = targets["Q_target"] - targets["Q_orig"]
+    # --- Energy conservation (zero-sum shifting) ---
+    # Load shifted away from non-receiver (donor) periods is redirected
+    # to the receiver period so that total energy is preserved within
+    # each building.  The receiver is the lowest-rate period by default.
     recv_period = (
         int(targets.loc[targets["rate"].idxmin(), "energy_period"])
         if receiver_period is None
@@ -332,9 +395,15 @@ def _shift_building_hourly_demand(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """CAIRO-style worker: allocate period shifts to hourly rows for one building.
 
-    Period-level `load_shift` is distributed proportionally to each hour's share
-    of baseline period demand. Returns shifted hourly rows plus achieved
-    elasticity diagnostics by period.
+    Args:
+        bldg_hourly_df: One building's hourly load rows with `energy_period`.
+        period_targets: Building-level period shift targets.
+        equivalent_flat_tariff: Comparator flat rate used in elasticity math.
+
+    Returns:
+        Tuple of:
+        - shifted hourly DataFrame (`shifted_net`, `hourly_shift`)
+        - period-level elasticity tracker DataFrame
     """
     shifted = bldg_hourly_df.merge(
         period_targets[["energy_period", "Q_orig", "load_shift", "rate"]],
@@ -375,11 +444,19 @@ def process_residential_hourly_demand_response_shift(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """CAIRO-style parent function for demand-response load shifting.
 
-    Steps:
-    1) Build baseline period consumption.
-    2) Compute equivalent flat tariff (endogenous unless provided).
-    3) Build period-level shift targets.
-    4) Shift hourly load building-by-building.
+    Args:
+        hourly_load_df: Hourly TOU-cohort load with `bldg_id`, `energy_period`,
+            and `electricity_net`.
+        period_rate: Series mapping `energy_period -> rate`.
+        demand_elasticity: Constant demand elasticity parameter.
+        equivalent_flat_tariff: Optional comparator flat rate. If omitted,
+            computed endogenously from the active slice.
+        receiver_period: Optional sink period for zero-sum balancing.
+
+    Returns:
+        Tuple of:
+        - shifted hourly DataFrame for the slice
+        - period-level elasticity tracker DataFrame
     """
     if hourly_load_df.empty:
         return hourly_load_df.copy(), pd.DataFrame()
@@ -421,8 +498,12 @@ def _infer_season_groups_from_tariff(
 ) -> list[dict[str, object]]:
     """Infer season groups from month-specific period signatures in the tariff.
 
-    If all months share the same period signature, returns `[]` to indicate
-    full-year treatment.
+    Args:
+        period_map: Series indexed by time with integer `energy_period`.
+
+    Returns:
+        List of season group dictionaries (`name`, `months`). Returns an empty
+        list when tariff structure is effectively full-year.
     """
     month_periods = (
         period_map.to_frame(name="energy_period")
@@ -460,13 +541,25 @@ def apply_runtime_tou_demand_response(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Apply runtime TOU demand response to the assigned TOU customer cohort.
 
-    - If seasonal groups are provided/inferred, runs the core shift per slice
-      and merges results back into an 8760 profile.
-    - Otherwise, runs one full-year shift.
+    Args:
+        raw_load_elec: Full electric load DataFrame indexed by `(bldg_id, time)`.
+        tou_bldg_ids: Building IDs assigned to the TOU tariff.
+        tou_tariff: URDB v7 tariff dictionary.
+        demand_elasticity: Constant demand elasticity parameter.
+        season_specs: Optional season definitions for seasonal slicing.
+
+    Returns:
+        Tuple of:
+        - full shifted load DataFrame (`raw_load_elec` shape preserved)
+        - pivoted elasticity tracker DataFrame by building
     """
     if not tou_bldg_ids:
         return raw_load_elec.copy(), pd.DataFrame()
 
+    # --- TOU-only scoping ---
+    # Only buildings mapped to the TOU tariff (via tariff_map_df) are
+    # eligible for demand-response shifting.  All other buildings pass
+    # through unchanged in the returned DataFrame.
     bldg_level = raw_load_elec.index.get_level_values("bldg_id")
     tou_mask = bldg_level.isin(set(tou_bldg_ids))
     if not tou_mask.any():
@@ -486,6 +579,14 @@ def apply_runtime_tou_demand_response(
     tou_df = tou_df.merge(period_df, on="time", how="left")
     tou_df["month"] = tou_df["time"].dt.month
 
+    # --- Seasonal orchestration ---
+    # Demand response is applied per-season so that period-to-period
+    # price ratios and energy conservation constraints are evaluated
+    # within each seasonal slice independently.  If explicit season_specs
+    # are provided (from a TOU derivation YAML), those define the month
+    # groupings.  Otherwise, seasons are inferred from the tariff's own
+    # month→period mapping.  When no seasonal structure exists (flat or
+    # non-seasonal TOU), the full year is treated as a single group.
     shifted_chunks: list[pd.DataFrame] = []
     trackers: list[pd.DataFrame] = []
     season_groups: list[dict[str, object]] = []
@@ -521,6 +622,7 @@ def apply_runtime_tou_demand_response(
             shifted_chunks.append(shifted_season)
             trackers.append(tracker)
     else:
+        # Non-seasonal tariff: shift across the full year as one group.
         if not tou_df["energy_period"].dropna().empty:
             shifted_year, tracker = process_residential_hourly_demand_response_shift(
                 hourly_load_df=tou_df,
@@ -531,9 +633,13 @@ def apply_runtime_tou_demand_response(
             shifted_chunks.append(shifted_year)
             trackers.append(tracker)
 
+    # --- Merge shifted TOU rows back into full 8760 load ---
+    # Only the TOU-assigned buildings' rows are overwritten; every other
+    # building retains its original load profile.  The shifting is
+    # energy-conserving within each season (zero-sum by construction in
+    # process_residential_hourly_demand_response_shift).
     shifted_load_elec = raw_load_elec.copy()
     if shifted_chunks:
-        # Seasonal/full-year shifted chunks overwrite TOU cohort rows only.
         shifted = pd.concat(shifted_chunks, ignore_index=True).set_index(
             ["bldg_id", "time"]
         )

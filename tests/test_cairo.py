@@ -127,9 +127,9 @@ def test_runtime_demand_response_shifts_only_tou_customers() -> None:
     assert shifted.loc[1, "electricity_net"].sum() == pytest.approx(
         raw.loc[1, "electricity_net"].sum()
     )
-    periods = assign_hourly_periods(
-        pd.DatetimeIndex(raw.loc[1].index), tariff
-    ).rename("energy_period")
+    periods = assign_hourly_periods(pd.DatetimeIndex(raw.loc[1].index), tariff).rename(
+        "energy_period"
+    )
     before = (
         raw.loc[1]
         .assign(energy_period=periods.values)
@@ -162,7 +162,9 @@ def test_runtime_demand_response_infers_seasonal_wrapper() -> None:
         season_specs=None,
     )
 
-    assert shifted["electricity_net"].sum() == pytest.approx(raw["electricity_net"].sum())
+    assert shifted["electricity_net"].sum() == pytest.approx(
+        raw["electricity_net"].sum()
+    )
     assert not tracker.empty
     assert any(col.startswith("season_1_period_") for col in tracker.columns)
     assert any(col.startswith("season_2_period_") for col in tracker.columns)

@@ -167,10 +167,6 @@ map-electric-hp-tou tou_tariff_key flat_tariff_key upgrade_id="00":
     --flat-tariff-key "{{flat_tariff_key}}" \
     --output-dir "{{tariff_maps_dir_ri}}/electric"
 
-# Back-compatible alias.
-map-electric-tou tou_tariff_key flat_tariff_key upgrade_id="00":
-  just map-electric-hp-tou "{{tou_tariff_key}}" "{{flat_tariff_key}}" "{{upgrade_id}}"
-
 map-electric-rie-seasonal:
   just map-electric-tariff rie seasonal 1 00 {{tariff_maps_dir_ri}}/electric
 
