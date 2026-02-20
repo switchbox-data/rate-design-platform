@@ -85,7 +85,7 @@ flowchart TD
 
 - Call `_return_revenue_requirement_target` with `raw_load_elec` and the input delivery RR.
 - Pass `delivery_only_rev_req_passed=settings.add_supply_revenue_requirement` so the returned `full_rr_orig` includes any supply MC top-up.
-- Compute `frozen_residual = full_rr_orig - Total_MC_orig`. This derives the residual from the *full* topped-up RR, not from `costs_by_type["Residual Costs ($)"]` (which only reflects the delivery-only residual before the supply add-on).
+- Compute `frozen_residual = full_rr_orig - Total_MC_orig`. This derives the residual from the _full_ topped-up RR, not from `costs_by_type["Residual Costs ($)"]` (which only reflects the delivery-only residual before the supply add-on).
 - When `add_supply_revenue_requirement` is False, Cambium bulk MCs are zero, so this reduces to `delivery_RR - dist_MC`. When True, real Cambium MCs are used and the wrapper tops up the RR, but the frozen residual still equals `delivery_RR - dist_MC` by cancellation.
 
 **Phase 1.5 — Apply demand-response load shifting:**

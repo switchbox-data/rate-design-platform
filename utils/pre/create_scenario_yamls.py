@@ -203,9 +203,9 @@ def _insert_blank_lines_between_runs(yaml_str: str) -> str:
     seen_run_key = False
     for line in lines:
         stripped = line.strip()
-        is_run_key = line.startswith("  ") and stripped.endswith(":") and stripped[
-            :-1
-        ].isdigit()
+        is_run_key = (
+            line.startswith("  ") and stripped.endswith(":") and stripped[:-1].isdigit()
+        )
         if is_run_key and seen_run_key and (not out or out[-1] != ""):
             out.append("")
         if is_run_key:

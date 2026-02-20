@@ -163,8 +163,7 @@ def _parse_bool(value: object, field_name: str) -> bool:
     if isinstance(value, bool):
         return value
     raise ValueError(
-        f"Invalid boolean for {field_name}: {value!r}. "
-        "Use unquoted YAML true/false."
+        f"Invalid boolean for {field_name}: {value!r}. Use unquoted YAML true/false."
     )
 
 
@@ -354,8 +353,7 @@ def _parse_utility_revenue_requirement(value: Any, base_dir: Path) -> float:
             )
         )
     raise ValueError(
-        f"{path} must contain 'revenue_requirement' or "
-        "'subclass_revenue_requirements'."
+        f"{path} must contain 'revenue_requirement' or 'subclass_revenue_requirements'."
     )
 
 
@@ -525,10 +523,7 @@ def _parse_args() -> argparse.Namespace:
         "--scenario-config",
         type=Path,
         default=None,
-        help=(
-            "Path to YAML scenario config. "
-            "Required unless --utility is provided."
-        ),
+        help=("Path to YAML scenario config. Required unless --utility is provided."),
     )
     parser.add_argument(
         "--utility",
@@ -591,7 +586,7 @@ def _load_prototype_ids_for_run(
     if sample_size is None:
         log.info("No sample size provided. Run with all buildings")
         return None
-        
+
     path_ua = path_utility_assignment
     storage_opts = (
         STORAGE_OPTIONS

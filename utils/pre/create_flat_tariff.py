@@ -72,8 +72,15 @@ def _write_template_outputs(
     return written_flat, written_supply
 
 
-def _validate_cli_mode(parser: argparse.ArgumentParser, args: argparse.Namespace) -> str:
-    legacy_args = [args.label, args.volumetric_rate, args.fixed_charge, args.output_path]
+def _validate_cli_mode(
+    parser: argparse.ArgumentParser, args: argparse.Namespace
+) -> str:
+    legacy_args = [
+        args.label,
+        args.volumetric_rate,
+        args.fixed_charge,
+        args.output_path,
+    ]
     template_args = [
         args.default_tariff_json,
         args.supply_default_tariff_json,
@@ -207,6 +214,7 @@ def main() -> None:
         output_dir=args.output_dir,
     )
     print(f"Created tariff files: {written_flat}, {written_supply}")
+
 
 if __name__ == "__main__":
     main()
