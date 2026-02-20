@@ -555,10 +555,7 @@ def _load_prototype_ids_for_run(
     sample_size: int | None,
 ) -> list[int]:
     """Load utility assignment, fetch prototype IDs for the utility, optionally sample."""
-    if sample_size is None:
-        log.info("No sample size provided. Run with all buildings")
-        return None
-        
+
     path_ua = path_utility_assignment
     storage_opts = (
         STORAGE_OPTIONS
