@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import logging
+import random
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -20,16 +22,19 @@ from cairo.rates_tool.systemsimulator import (
     _return_export_compensation_rate,
     _return_revenue_requirement_target,
 )
-
+from utils import get_aws_region
 from utils.cairo import (
+    _fetch_prototype_ids_by_electric_util,
     _load_cambium_marginal_costs,
     build_bldg_id_to_load_filepath,
     load_distribution_marginal_costs,
 )
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
+from utils.types import ElectricUtility
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
+STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
@@ -48,6 +53,7 @@ class ScenarioSettings:
     path_results: Path
     path_resstock_metadata: Path
     path_resstock_loads: Path
+    path_utility_assignment: str | Path
     path_cambium_marginal_costs: str | Path
     path_td_marginal_costs: str | Path
     path_tariff_maps_electric: Path
@@ -63,6 +69,7 @@ class ScenarioSettings:
     process_workers: int
     solar_pv_compensation: str = "net_metering"
     add_supply_revenue_requirement: bool = False
+    sample_size: int | None = None
 
 
 def _parse_int(value: object, field_name: str) -> int:
@@ -90,6 +97,30 @@ def _parse_bool(value: object, field_name: str) -> bool:
     if normalized in {"false", "0", "no", "n"}:
         return False
     raise ValueError(f"Invalid boolean for {field_name}: {value}")
+
+
+def apply_prototype_sample(
+    prototype_ids: list[int],
+    sample_size: int | None,
+    *,
+    rng: random.Random | None = None,
+) -> list[int]:
+    """Optionally take a uniform random sample of prototype IDs.
+
+    When sample_size is None, returns prototype_ids unchanged.
+    When sample_size is set, returns a random sample of that size without replacement.
+    Raises ValueError if sample_size is not positive or exceeds the number of prototype IDs.
+    """
+    if sample_size is None:
+        return prototype_ids
+    if sample_size <= 0:
+        raise ValueError(f"sample_size must be positive, got {sample_size}")
+    if sample_size > len(prototype_ids):
+        raise ValueError(
+            f"sample_size {sample_size} exceeds number of prototype IDs ({len(prototype_ids)})"
+        )
+    gen = rng if rng is not None else random
+    return gen.sample(prototype_ids, sample_size)
 
 
 def _resolve_path(value: str, base_dir: Path) -> Path:
@@ -311,12 +342,19 @@ def _build_settings_from_yaml_run(
         ),
         "add_supply_revenue_requirement",
     )
+    sample_size = (
+        _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
+    )
     return ScenarioSettings(
         run_name=run_name_override or default_run_name,
         run_type=mode,
         state=state,
         utility=utility,
         path_results=output_dir,
+        path_utility_assignment=_resolve_path_or_uri(
+            str(_require_value(run, "path_utility_assignment")),
+            PATH_CONFIG,
+        ),
         path_resstock_metadata=_resolve_path(
             str(_require_value(run, "path_resstock_metadata")),
             PATH_CONFIG,
@@ -345,6 +383,7 @@ def _build_settings_from_yaml_run(
         year_dollar_conversion=year_dollar_conversion,
         process_workers=process_workers,
         solar_pv_compensation=solar_pv_compensation,
+        sample_size=sample_size,
         add_supply_revenue_requirement=add_supply_revenue_requirement,
     )
 
@@ -394,6 +433,41 @@ def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
 # ---------------------------------------------------------------------------
 
 
+def _load_prototype_ids_for_run(
+    path_utility_assignment: str | Path,
+    utility: str,
+    sample_size: int | None,
+) -> list[int]:
+    """Load utility assignment, fetch prototype IDs for the utility, optionally sample."""
+    path_ua = path_utility_assignment
+    storage_opts = (
+        STORAGE_OPTIONS
+        if isinstance(path_ua, str) and path_ua.startswith("s3://")
+        else None
+    )
+    utility_assignment = pl.scan_parquet(str(path_ua), storage_options=storage_opts)
+    prototype_ids = _fetch_prototype_ids_by_electric_util(
+        cast(ElectricUtility, utility), utility_assignment
+    )
+    log.info(
+        ".... Found %s bldgs for utility %s",
+        len(prototype_ids),
+        utility,
+    )
+    if sample_size is not None:
+        try:
+            prototype_ids = apply_prototype_sample(prototype_ids, sample_size)
+        except ValueError as e:
+            log.warning("%s; exiting.", e)
+            sys.exit(1)
+        log.info(
+            ".... Selected a sample of %s of these for simulation (sample_size=%s)",
+            len(prototype_ids),
+            sample_size,
+        )
+    return prototype_ids
+
+
 def run(settings: ScenarioSettings) -> None:
     log.info(
         ".... Beginning RI residential (non-LMI) rate scenario simulation: %s",
@@ -401,11 +475,29 @@ def run(settings: ScenarioSettings) -> None:
     )
 
     # ------------------------------------------------------------------
-    # Phase 1: Load data (customer metadata, building loads, marginal costs)
+    # Phase 1: Retrieve prototype IDs, tariffs, customer metadata, loads
     # ------------------------------------------------------------------
+
+    prototype_ids = _load_prototype_ids_for_run(
+        settings.path_utility_assignment,
+        settings.utility,
+        settings.sample_size,
+    )
+
+    tariffs_params, tariff_map_df = _initialize_tariffs(
+        tariff_map=settings.path_tariff_maps_electric,
+        building_stock_sample=prototype_ids,
+        tariff_paths=settings.path_tariffs_electric,
+    )
+
+    precalc_mapping = generate_default_precalc_mapping(
+        tariff_path=settings.precalc_tariff_path,
+        tariff_key=settings.precalc_tariff_key,
+    )
 
     customer_metadata = return_buildingstock(
         load_scenario=settings.path_resstock_metadata,
+        building_stock_sample=prototype_ids,
         customer_count=settings.utility_customer_count,
         columns=[
             "applicability",
@@ -417,20 +509,27 @@ def run(settings: ScenarioSettings) -> None:
 
     bldg_id_to_load_filepath = build_bldg_id_to_load_filepath(
         path_resstock_loads=settings.path_resstock_loads,
+        building_ids=prototype_ids,
     )
 
     raw_load_elec = _return_load(
         load_type="electricity",
         target_year=settings.year_run,
+        building_stock_sample=prototype_ids,
         load_filepath_key=bldg_id_to_load_filepath,
         force_tz="EST",
     )
     raw_load_gas = _return_load(
         load_type="gas",
         target_year=settings.year_run,
+        building_stock_sample=prototype_ids,
         load_filepath_key=bldg_id_to_load_filepath,
         force_tz="EST",
     )
+
+    # ------------------------------------------------------------------
+    # Phase 2: Load marginal costs and calculate revenuerequirements
+    # ------------------------------------------------------------------
 
     bulk_marginal_costs = _load_cambium_marginal_costs(
         settings.path_cambium_marginal_costs,
@@ -444,21 +543,6 @@ def run(settings: ScenarioSettings) -> None:
     log.info(
         ".... Loaded distribution marginal costs rows=%s",
         len(distribution_marginal_costs),
-    )
-
-    # ------------------------------------------------------------------
-    # Phase 2: Initialize tariffs and system requirements
-    # ------------------------------------------------------------------
-
-    tariffs_params, tariff_map_df = _initialize_tariffs(
-        tariff_map=settings.path_tariff_maps_electric,
-        building_stock_sample=None,
-        tariff_paths=settings.path_tariffs_electric,
-    )
-
-    precalc_mapping = generate_default_precalc_mapping(
-        tariff_path=settings.precalc_tariff_path,
-        tariff_key=settings.precalc_tariff_key,
     )
 
     sell_rate = _return_export_compensation_rate(
@@ -494,6 +578,7 @@ def run(settings: ScenarioSettings) -> None:
         year_run=settings.year_run,
         year_dollar_conversion=settings.year_dollar_conversion,
         process_workers=settings.process_workers,
+        building_stock_sample=prototype_ids,
         run_name=settings.run_name,
         output_dir=settings.path_results,
     )

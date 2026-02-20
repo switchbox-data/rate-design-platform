@@ -2,8 +2,10 @@
 
 import logging
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
+import polars as pl
 from cairo.rates_tool.loads import _return_load, return_buildingstock
 from cairo.rates_tool.systemsimulator import (
     MeetRevenueSufficiencySystemWide,
@@ -12,11 +14,18 @@ from cairo.rates_tool.systemsimulator import (
     _return_revenue_requirement_target,
 )
 from cairo.utils.marginal_costs.marginal_cost_calculator import add_distribution_costs
+from cloudpathlib import S3Path
 
 # from tests import constant_tests as const_vars
 # from tests.utils import reweight_customer_metadata
-from utils.cairo import build_bldg_id_to_load_filepath, _load_cambium_marginal_costs
+from utils import get_aws_region
+from utils.cairo import (
+    _fetch_prototype_ids_by_electric_util,
+    _load_cambium_marginal_costs,
+    build_bldg_id_to_load_filepath,
+)
 from utils.pre.reweight_customer_counts import reweight_customer_counts
+from utils.types import ElectricUtility
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
@@ -24,14 +33,7 @@ log.info(
     ".... Beginning basic test of functions - run full simulation: Dummy - Precalculation"
 )
 
-prototype_ids = [
-    3837,
-    8510,
-    20961,
-    29041,
-    44581,
-]
-
+STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 path_project = Path("./rate_design/ny/hp_rates")
 path_data = path_project / "config"
 path_tariff_map = path_data / "tariff_maps" / "electric" / "precalculation_testing.csv"
@@ -39,6 +41,10 @@ tariff_map_name = path_tariff_map.stem
 path_resstock = path_data / "resstock"
 path_resstock_metadata = path_resstock / "results_up00.parquet"
 path_resstock_loads = path_resstock / "loads"
+path_utility_assignment = S3Path(
+    "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/"
+    "utility_assignment.parquet"
+)
 path_cambium_marginal_costs = (
     path_data / "marginal_costs" / "example_marginal_costs.csv"
 )
@@ -53,6 +59,14 @@ target_customer_count = 3650  # Target customer count for utility territory
 gas_tariff_map_name = "dummy_gas"  # Gas tariff map name for gas bill calculation
 
 process_workers = 20
+
+utility_assignment = pl.scan_parquet(
+    str(path_utility_assignment), storage_options=STORAGE_OPTIONS
+)
+electric_utility = cast(ElectricUtility, "coned")
+prototype_ids = _fetch_prototype_ids_by_electric_util(
+    electric_utility, utility_assignment
+)
 
 tariff_paths = {
     "dummy_electrical_fixed": path_data
