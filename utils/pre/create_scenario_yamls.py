@@ -146,6 +146,10 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     workers = get("process_workers")
     run["process_workers"] = int(workers) if workers.isdigit() else 20
 
+    sample_size = get("sample_size")
+    if sample_size:
+        run["sample_size"] = int(sample_size) if sample_size.isdigit() else sample_size
+
     return run
 
 
