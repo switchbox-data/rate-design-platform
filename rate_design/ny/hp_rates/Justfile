@@ -166,6 +166,17 @@ create-td-mc-data-cenhud:
   just create-td-mc-data cenhud
 
 # =============================================================================
+# Create scenario YAMLs from Google Sheets
+# =============================================================================
+
+# Create scenario YAMLs from the Runs & Charts Google Sheet (requires G_* env and browser auth)
+# Writes rate_design/<state>/hp_rates/config/scenarios_<utility>.yaml per utility
+create-scenario-yamls:
+    uv run python {{project_root}}/utils/pre/create_scenario_yamls.py
+
+# 
+
+# =============================================================================
 # PRE: Write electric tariff map CSVs from scenario YAMLs
 # =============================================================================
 
@@ -174,9 +185,9 @@ write-tariff-maps scenario_config:
   uv run python {{project_root}}/utils/pre/write_tariff_maps_from_scenario.py \
     --scenario-config "{{scenario_config}}"
 
-# Write electric tariff map CSVs for every utility scenario YAML in scenarios/
+# Write electric tariff map CSVs for every utility scenario YAML in config/scenarios/
 write-tariff-maps-all:
-  for f in {{project_root}}/rate_design/ny/hp_rates/scenarios/scenarios_*.yaml; do \
+  for f in {{project_root}}/rate_design/ny/hp_rates/config/scenarios/scenarios_*.yaml; do \
     uv run python {{project_root}}/utils/pre/write_tariff_maps_from_scenario.py \
       --scenario-config "$f"; \
   done
