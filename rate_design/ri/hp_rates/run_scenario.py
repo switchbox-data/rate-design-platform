@@ -39,8 +39,12 @@ STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
+PATH_SCENARIOS = PATH_CONFIG / "scenarios"
 DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
-DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
+
+
+def _scenario_config_from_utility(utility: str) -> Path:
+    return PATH_SCENARIOS / f"scenarios_{utility}.yaml"
 
 
 @dataclass(slots=True)
@@ -128,17 +132,25 @@ def _parse_int(value: object, field_name: str) -> int:
         raise ValueError(f"Invalid integer for {field_name}: {value}") from exc
 
 
+def _parse_float(value: object, field_name: str) -> float:
+    if isinstance(value, int | float):
+        return float(value)
+    cleaned = str(value).strip().replace(",", "")
+    if cleaned == "":
+        raise ValueError(f"Missing required field: {field_name}")
+    try:
+        return float(cleaned)
+    except ValueError as exc:
+        raise ValueError(f"Invalid float for {field_name}: {value}") from exc
+
+
 def _parse_bool(value: object, field_name: str) -> bool:
     if isinstance(value, bool):
         return value
-    if isinstance(value, int):
-        return bool(value)
-    normalized = str(value).strip().lower()
-    if normalized in {"true", "1", "yes", "y"}:
-        return True
-    if normalized in {"false", "0", "no", "n"}:
-        return False
-    raise ValueError(f"Invalid boolean for {field_name}: {value}")
+    raise ValueError(
+        f"Invalid boolean for {field_name}: {value!r}. "
+        "Use unquoted YAML true/false."
+    )
 
 
 def apply_prototype_sample(
@@ -287,6 +299,51 @@ def _require_value(run: dict[str, Any], field_name: str) -> Any:
     return value
 
 
+def _parse_utility_revenue_requirement(value: Any, base_dir: Path) -> float:
+    """Parse utility_delivery_revenue_requirement from a YAML path only."""
+    if not isinstance(value, str):
+        raise ValueError(
+            "utility_delivery_revenue_requirement must be a YAML path string "
+            f"(.yaml/.yml), got {type(value).__name__}"
+        )
+    raw = value.strip()
+    if raw == "":
+        raise ValueError("Missing required field: utility_delivery_revenue_requirement")
+    if not (raw.endswith(".yaml") or raw.endswith(".yml")):
+        raise ValueError(
+            "utility_delivery_revenue_requirement must be a YAML file path "
+            f"(.yaml/.yml), got {value!r}"
+        )
+
+    path = _resolve_path(raw, base_dir)
+    with path.open(encoding="utf-8") as f:
+        rr_data = yaml.safe_load(f)
+    if not isinstance(rr_data, dict):
+        raise ValueError(
+            "Revenue requirement YAML must be a mapping; "
+            f"got {type(rr_data).__name__} in {path}"
+        )
+    if "revenue_requirement" in rr_data:
+        return _parse_float(rr_data["revenue_requirement"], "revenue_requirement")
+    subclass_rr = rr_data.get("subclass_revenue_requirements")
+    if isinstance(subclass_rr, dict):
+        if not subclass_rr:
+            raise ValueError(
+                f"subclass_revenue_requirements is empty in {path}; "
+                "cannot derive utility delivery revenue requirement."
+            )
+        return float(
+            sum(
+                _parse_float(v, "subclass_revenue_requirements value")
+                for v in subclass_rr.values()
+            )
+        )
+    raise ValueError(
+        f"{path} must contain 'revenue_requirement' or "
+        "'subclass_revenue_requirements'."
+    )
+
+
 def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
     with scenario_config.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
@@ -314,23 +371,23 @@ def _build_settings_from_yaml_run(
     state = str(run.get("state", "RI")).upper()
     utility = str(_require_value(run, "utility")).lower()
     mode = str(run.get("run_type", "precalc"))
-    year_run = _parse_int(run.get("year_run"), "year_run")
+    year_run = _parse_int(_require_value(run, "year_run"), "year_run")
     year_dollar_conversion = _parse_int(
-        run.get("year_dollar_conversion"),
+        _require_value(run, "year_dollar_conversion"),
         "year_dollar_conversion",
     )
-    process_workers = _parse_int(run.get("process_workers", 20), "process_workers")
-    utility_delivery_revenue_requirement = float(
-        _parse_int(
-            _require_value(run, "utility_delivery_revenue_requirement"),
-            "utility_delivery_revenue_requirement",
-        )
+    process_workers = _parse_int(
+        _require_value(run, "process_workers"), "process_workers"
+    )
+    utility_delivery_revenue_requirement = _parse_utility_revenue_requirement(
+        _require_value(run, "utility_delivery_revenue_requirement"),
+        PATH_CONFIG,
     )
     path_electric_utility_stats = _resolve_path_or_uri(
         str(_require_value(run, "path_electric_utility_stats")),
         PATH_CONFIG,
     )
-    solar_pv_compensation = str(run.get("solar_pv_compensation", "net_metering"))
+    solar_pv_compensation = str(_require_value(run, "solar_pv_compensation"))
 
     path_tariff_maps_electric = _resolve_path(
         str(_require_value(run, "path_tariff_maps_electric")),
@@ -377,7 +434,7 @@ def _build_settings_from_yaml_run(
         )
 
     add_supply_revenue_requirement = _parse_bool(
-        run.get("add_supply_revenue_requirement", False),
+        _require_value(run, "add_supply_revenue_requirement"),
         "add_supply_revenue_requirement",
     )
     sample_size = (
@@ -434,8 +491,21 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--scenario-config",
         type=Path,
-        default=DEFAULT_SCENARIO_CONFIG,
-        help=f"Path to YAML scenario config (default: {DEFAULT_SCENARIO_CONFIG}).",
+        default=None,
+        help=(
+            "Path to YAML scenario config. "
+            "Required unless --utility is provided."
+        ),
+    )
+    parser.add_argument(
+        "--utility",
+        type=str,
+        default=None,
+        help=(
+            "Utility code used to derive scenario config as "
+            "config/scenarios/scenarios_<utility>.yaml. "
+            "Required unless --scenario-config is provided."
+        ),
     )
     parser.add_argument(
         "--run-num",
@@ -454,11 +524,18 @@ def _parse_args() -> argparse.Namespace:
         help="Optional override for run name.",
     )
     args = parser.parse_args()
+    if args.scenario_config is None and args.utility is None:
+        parser.error("Provide either --scenario-config or --utility.")
     return args
 
 
 def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
-    run = _load_run_from_yaml(args.scenario_config, args.run_num)
+    scenario_config = args.scenario_config
+    if scenario_config is None:
+        if args.utility is None:
+            raise ValueError("Provide either --scenario-config or --utility.")
+        scenario_config = _scenario_config_from_utility(args.utility.lower())
+    run = _load_run_from_yaml(scenario_config, args.run_num)
     return _build_settings_from_yaml_run(
         run=run,
         run_num=args.run_num,
@@ -478,6 +555,10 @@ def _load_prototype_ids_for_run(
     sample_size: int | None,
 ) -> list[int]:
     """Load utility assignment, fetch prototype IDs for the utility, optionally sample."""
+    if sample_size is None:
+        log.info("No sample size provided. Run with all buildings")
+        return None
+        
     path_ua = path_utility_assignment
     storage_opts = (
         STORAGE_OPTIONS
