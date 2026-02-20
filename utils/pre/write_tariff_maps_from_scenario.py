@@ -59,8 +59,13 @@ def _process_run(
 ) -> None:
     missing = [
         k
-        for k in ("path_tariffs_electric", "path_tariff_maps_electric", "utility",
-                  "path_utility_assignment", "path_resstock_metadata")
+        for k in (
+            "path_tariffs_electric",
+            "path_tariff_maps_electric",
+            "utility",
+            "path_utility_assignment",
+            "path_resstock_metadata",
+        )
         if k not in run
     ]
     if missing:
@@ -103,8 +108,7 @@ def _process_run(
 
     if bldg_data.is_empty():
         raise ValueError(
-            f"Run {run_id}: no buildings found for utility '{utility}' "
-            f"in {path_ua}"
+            f"Run {run_id}: no buildings found for utility '{utility}' in {path_ua}"
         )
 
     result = generate_tariff_map_from_scenario_keys(path_tariffs_electric, bldg_data)
@@ -117,7 +121,9 @@ def _process_run(
 
 def main(scenario_config: Path) -> None:
     config_dir = scenario_config.resolve().parent
-    path_config = config_dir.parent  # scenarios/ lives inside config/; tariff maps are relative to config/
+    path_config = (
+        config_dir.parent
+    )  # scenarios/ lives inside config/; tariff maps are relative to config/
 
     with scenario_config.open(encoding="utf-8") as fh:
         scenario = yaml.safe_load(fh)
