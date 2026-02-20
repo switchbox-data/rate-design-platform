@@ -2,7 +2,7 @@
 
 # Resolve project root as absolute path using git
 project_root := `git rev-parse --show-toplevel`
-ri_run_scenario_config := project_root + "/rate_design/ri/hp_rates/config/scenarios.yaml"
+ri_run_scenario_config := project_root + "/rate_design/ri/hp_rates/config/scenarios/scenarios_rie.yaml"
 
 # -----------------------------------------------------------------------------
 # Run RI scenarios
@@ -57,6 +57,15 @@ create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label outpu
     --label "{{label}}" \
     --periods-yaml "{{periods_yaml}}" \
     --output-path "{{output_path}}"
+
+# Promote calibrated tariffs from run output:
+# reads <run_dir>/tariff_final_config.json, converts each tariff to URDB format,
+# and writes one <tariff_key>_calibrated.json per key under config/tariffs/electric.
+copy-calibrated-tariff-from-run run_dir state output_dir="":
+  uv run python -m utils.pre.copy_calibrated_tariff_from_run \
+    --run-dir "{{run_dir}}" \
+    --state "{{state}}" \
+    {{ if output_dir != "" { "--destination-dir \"" + output_dir + "\"" } else { "" } }}
 
 ri_tariffs_electric_dir := project_root + "/rate_design/ri/hp_rates/config/tariffs/electric"
 ri_hp_seasonal_calibrated_tariff := ri_tariffs_electric_dir + "/rie_hp_seasonal_calibrated.json"
@@ -227,3 +236,28 @@ create-td-mc-data-rie:
     --utility-load-s3-base {{pre_utility_s3_base}} \
     --output-s3-base {{pre_mc_output_s3_base}} \
     --upload
+
+# =============================================================================
+# Create scenario YAMLs from Google Sheets
+# =============================================================================
+
+# Create scenario YAMLs from the Runs & Charts Google Sheet (requires G_* env and browser auth)
+# Writes rate_design/<state>/hp_rates/config/scenarios_<utility>.yaml per utility
+create-scenario-yamls:
+    uv run python {{project_root}}/utils/pre/create_scenario_yamls.py
+
+# =============================================================================
+# PRE: Write electric tariff map CSVs from scenario YAMLs
+# =============================================================================
+
+# Write electric tariff map CSVs for all runs in a single scenario file (pre-step; run before run_scenario)
+write-tariff-maps scenario_config:
+    uv run python {{project_root}}/utils/pre/write_tariff_maps_from_scenario.py \
+        --scenario-config "{{scenario_config}}"
+
+# Write electric tariff map CSVs for every scenario YAML in config/scenarios/
+write-tariff-maps-all:
+    for f in {{project_root}}/rate_design/ri/hp_rates/config/scenarios/*.yaml; do \
+        uv run python {{project_root}}/utils/pre/write_tariff_maps_from_scenario.py \
+            --scenario-config "$f"; \
+    done

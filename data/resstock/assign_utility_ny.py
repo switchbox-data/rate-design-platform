@@ -33,13 +33,20 @@ def _select_puma_and_heating_fuel_metadata(metadata: pl.LazyFrame) -> pl.LazyFra
     Select puma and heating fuel metadata from a LazyFrame.
 
     Expects columns bldg_id, in.puma, in.heating_fuel. Returns LazyFrame with
-    bldg_id, puma, heating_fuel.
+    bldg_id, puma, heating_fuel, has_natgas_connection.
     """
+
+    if "has_natgas_connection" not in metadata.collect_schema().names():
+        raise ValueError(
+            "Missing required column 'has_natgas_connection'. "
+            "Run identify_natgas_connection first to add this column."
+        )
 
     result = metadata.select(
         pl.col("bldg_id"),
         pl.col("in.puma").str.slice(-5).alias("puma"),
         pl.col("in.heating_fuel").alias("heating_fuel"),
+        pl.col("has_natgas_connection").alias("has_natgas_connection"),
     )
 
     return result
@@ -294,7 +301,7 @@ def _calculate_prior_distributions(
             elec_prior_weighted[util] = weighted_prob
 
     # Gas: Calculate weighted average probability (only for Natural Gas buildings)
-    gas_bldgs = puma_and_heating_fuel.filter(pl.col("heating_fuel") == "Natural Gas")
+    gas_bldgs = puma_and_heating_fuel.filter(pl.col("has_natgas_connection"))
     gas_puma_counts = gas_bldgs.group_by("puma").agg(pl.len().alias("count")).collect()
     puma_gas_probs_df = cast(pl.DataFrame, puma_gas_probs.collect())
     gas_prior = cast(
@@ -360,11 +367,18 @@ def _print_comparison_summary(
         """
         # Filter buildings by fuel type if specified (for gas utilities)
         if filter_fuel_type is not None:
-            building_df_filtered = building_df.join(
-                puma_and_heating_fuel.select("bldg_id", "heating_fuel"),
-                on="bldg_id",
-                how="left",
-            ).filter(pl.col("heating_fuel") == filter_fuel_type)
+            if filter_fuel_type == "Natural Gas":
+                building_df_filtered = building_df.join(
+                    puma_and_heating_fuel.select("bldg_id", "has_natgas_connection"),
+                    on="bldg_id",
+                    how="left",
+                ).filter(pl.col("has_natgas_connection"))
+            else:
+                building_df_filtered = building_df.join(
+                    puma_and_heating_fuel.select("bldg_id", "heating_fuel"),
+                    on="bldg_id",
+                    how="left",
+                ).filter(pl.col("heating_fuel") == filter_fuel_type)
         else:
             building_df_filtered = building_df
 
@@ -614,7 +628,8 @@ def _sample_utility_per_building(
         bldgs: LazyFrame with bldg_id, puma, heating_fuel
         puma_probs: Wide-format LazyFrame with puma_id and probability columns for each utility
         utility_col_name: Name for the output utility column
-        only_when_fuel: If provided, only sample when heating_fuel matches this value
+        only_when_fuel: If provided, only sample when heating_fuel matches this value.
+            If only_when_fuel == "Natural Gas", assign all bldg_ids that have has_natgas_connection==True
 
     Returns:
         LazyFrame with bldg_id and the sampled utility column
@@ -642,9 +657,12 @@ def _sample_utility_per_building(
     def sample_utility(row) -> str | None:
         """Sample one utility based on probability distribution."""
         if only_when_fuel is not None:
-            # For gas: only sample if heating_fuel matches
-            if row["heating_fuel"] != only_when_fuel:
-                return None
+            if only_when_fuel == "Natural Gas":
+                if not row["has_natgas_connection"]:
+                    return None
+            else:
+                if row["heating_fuel"] != only_when_fuel:
+                    return None
 
         # Get probabilities for this row and convert to numeric (float)
         probs = pd.to_numeric(row[utility_cols].values, errors="coerce").astype(float)

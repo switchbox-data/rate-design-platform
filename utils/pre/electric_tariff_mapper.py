@@ -7,14 +7,14 @@ import polars as pl
 from cloudpathlib import S3Path
 
 from utils import get_aws_region
-from utils.types import SBScenario, electric_utility
+from utils.types import SBScenario, ElectricUtility
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
 
 def define_electrical_tariff_key(
     SB_scenario: SBScenario,
-    electric_utility: electric_utility,
+    electric_utility: ElectricUtility,
     has_hp: pl.Expr,
 ) -> pl.Expr:
     if SB_scenario.analysis_type == "default":
@@ -36,7 +36,7 @@ def define_electrical_tariff_key(
 def generate_electrical_tariff_mapping(
     lazy_metadata_has_hp: pl.LazyFrame,
     SB_scenario: SBScenario,
-    electric_utility: electric_utility,
+    electric_utility: ElectricUtility,
 ) -> pl.LazyFrame:
     electrical_tariff_mapping_df = lazy_metadata_has_hp.select(
         pl.col("bldg_id"),
@@ -50,7 +50,7 @@ def generate_electrical_tariff_mapping(
 
 def map_electric_tariff(
     SB_metadata_df: pl.LazyFrame,
-    electric_utility: electric_utility,
+    electric_utility: ElectricUtility,
     SB_scenario: SBScenario,
     state: str,
 ) -> pl.LazyFrame:
@@ -72,6 +72,50 @@ def map_electric_tariff(
     )
 
     return electrical_tariff_mapping_df
+
+
+def generate_tariff_map_from_scenario_keys(
+    path_tariffs_electric: dict[str, str],
+    bldg_data: pl.DataFrame,
+) -> pl.DataFrame:
+    """Build a bldg_id→tariff_key mapping from keyed path_tariffs_electric.
+
+    Args:
+        path_tariffs_electric: Dict mapping YAML selector keys to tariff path strings.
+            Supported key sets:
+              - ``{"all": "<path>"}`` — every building gets the stem of that path.
+              - ``{"hp": "<path>", "non-hp": "<path>"}`` — HP buildings get the hp
+                stem, non-HP buildings get the non-hp stem.
+        bldg_data: DataFrame with columns ``bldg_id`` (int) and
+            ``postprocess_group.has_hp`` (bool).
+
+    Returns:
+        DataFrame with columns ``bldg_id`` and ``tariff_key``.
+
+    Raises:
+        ValueError: If the key set is not ``{"all"}`` or ``{"hp", "non-hp"}``.
+    """
+    keys = set(path_tariffs_electric.keys())
+    stems = {k: Path(v).stem for k, v in path_tariffs_electric.items()}
+
+    if keys == {"all"}:
+        return bldg_data.select(
+            pl.col("bldg_id"),
+            pl.lit(stems["all"]).alias("tariff_key"),
+        )
+    elif keys == {"hp", "non-hp"}:
+        return bldg_data.select(
+            pl.col("bldg_id"),
+            pl.when(pl.col("postprocess_group.has_hp"))
+            .then(pl.lit(stems["hp"]))
+            .otherwise(pl.lit(stems["non-hp"]))
+            .alias("tariff_key"),
+        )
+    else:
+        raise ValueError(
+            f"path_tariffs_electric keys must be {{'all'}} or {{'hp', 'non-hp'}}; "
+            f"got {sorted(keys)}"
+        )
 
 
 if __name__ == "__main__":

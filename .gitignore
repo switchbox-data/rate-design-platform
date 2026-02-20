@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .DS_Store
+dev_no_commit.py
 
 # Local data and outputs
 # data/
@@ -56,5 +57,6 @@ infra/.terraform.lock.hcl
 
 .secrets
 .env
+.gspread_authorized_user.json
 
 CLAUDE.md

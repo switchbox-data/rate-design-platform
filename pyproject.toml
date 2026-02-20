@@ -9,6 +9,8 @@ license = { text = "MIT" }
 dependencies = [
     "buildstock-fetch>=1.6.1",
     "cairo",
+    "google-auth>=2.0.0",
+    "gspread>=6.0.0",
     "python-dotenv>=1.0.0",
     "cloudpathlib[s3]>=0.23.0",
     "geopandas>=1.0.0",
@@ -28,6 +30,7 @@ dependencies = [
     "tqdm>=4.67.3",
     "python-calamine>=0.6.1",
     "fastexcel>=0.19.0",
+    "tariff-fetch>=0.1",
 ]
 
 [project.urls]
