@@ -99,7 +99,7 @@ def test_utility_code_column_present_and_mapped():
     df = pl.read_csv(StringIO(result.stdout))
     assert "utility_code" in df.columns
 
-    # Known EIA ID -> std_name mappings
+    # Known EIA ID -> std_name mappings (IOU + State e.g. LIPA)
     expected = {
         4226: "coned",
         13573: "nimo",
@@ -107,6 +107,7 @@ def test_utility_code_column_present_and_mapped():
         16183: "rge",
         3249: "cenhud",
         14154: "or",
+        11171: "psegli",  # Long Island Power Authority (State)
     }
     for eia_id, std_name in expected.items():
         row = df.filter(pl.col("utility_id_eia") == eia_id)

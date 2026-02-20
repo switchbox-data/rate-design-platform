@@ -10,8 +10,9 @@ Two modes:
 2. CSV to stdout (single state): pass STATE as positional argument. Writes one state's
    stats as CSV for ad-hoc use (e.g. just fetch_electric_utility_stat_parquets.py NY).
 
-Uses EIA-861 yearly sales data (PUDL). Filtered to Investor Owned only.
-Uses central utility crosswalk (utils.utility_codes) for utility_code column.
+Uses EIA-861 yearly sales data (PUDL). Filtered to Investor Owned and State
+(e.g. LIPA) so that utilities like psegli appear. Uses central utility crosswalk
+(utils.utility_codes) for utility_code column.
 
 Customer classes are discovered at runtime from the parquet (commercial,
 industrial, other, residential, transportation). Dataset schema and
@@ -216,9 +217,10 @@ def main() -> None:
             )
         # Build all states to local parquet
         output_dir = args.output_dir.resolve()
+        entity_allowed = pl.col("entity_type").is_in(["Investor Owned", "State"])
         df_all = (
             pl.read_parquet(CORE_EIA861_YEARLY_SALES_URL)
-            .filter(pl.col("entity_type") == "Investor Owned")
+            .filter(entity_allowed)
             .filter(
                 pl.col("report_date")
                 == pl.col("report_date").max().over(["utility_id_eia", "state"])
@@ -240,10 +242,11 @@ def main() -> None:
     if state_raw.lower() not in VALID_STATE_CODES:
         parser.error(f"Invalid state '{args.state}'. Use a two-letter US state or DC.")
 
+    entity_allowed = pl.col("entity_type").is_in(["Investor Owned", "State"])
     df = (
         pl.read_parquet(CORE_EIA861_YEARLY_SALES_URL)
         .filter(pl.col("state") == state_raw)
-        .filter(pl.col("entity_type") == "Investor Owned")
+        .filter(entity_allowed)
         .filter(
             pl.col("report_date") == pl.col("report_date").max().over("utility_id_eia")
         )
