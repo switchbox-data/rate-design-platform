@@ -36,7 +36,6 @@ STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
-PATH_RESSTOCK = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/")
 DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
 DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
 
@@ -51,7 +50,7 @@ class ScenarioSettings:
     region: str
     utility: str
     path_results: Path
-    path_resstock_metadata: Path
+    path_resstock_metadata: str | Path
     path_resstock_loads: Path
     path_utility_assignment: str | Path
     path_cambium_marginal_costs: str | Path
@@ -174,7 +173,6 @@ def _build_settings_from_yaml_run(
     region = str(_require_value(run, "region")).lower()
     utility = str(_require_value(run, "utility")).lower()
     mode = str(run.get("run_type", "precalc"))
-    upgrade = f"{_parse_int(run.get('upgrade', 0), 'upgrade'):02d}"
     year_run = _parse_int(run.get("year_run"), "year_run")
     year_dollar_conversion = _parse_int(
         run.get("year_dollar_conversion"),
@@ -220,6 +218,14 @@ def _build_settings_from_yaml_run(
     sample_size = (
         _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
     )
+    path_resstock_metadata = _resolve_path_or_uri(
+        str(_require_value(run, "path_resstock_metadata")),
+        PATH_CONFIG,
+    )
+    path_resstock_loads = _resolve_path(
+        str(_require_value(run, "path_resstock_loads")),
+        PATH_CONFIG,
+    )
     return ScenarioSettings(
         run_name=run_name_override or default_run_name,
         run_type=mode,
@@ -227,15 +233,8 @@ def _build_settings_from_yaml_run(
         region=region,
         utility=utility,
         path_results=output_dir,
-        path_resstock_metadata=PATH_RESSTOCK
-        / "metadata"
-        / f"state={state}"
-        / f"upgrade={upgrade}"
-        / "metadata-sb.parquet",
-        path_resstock_loads=PATH_RESSTOCK
-        / "load_curve_hourly"
-        / f"state={state}"
-        / f"upgrade={upgrade}",
+        path_resstock_metadata=path_resstock_metadata,
+        path_resstock_loads=path_resstock_loads,
         path_utility_assignment=_resolve_path_or_uri(
             str(_require_value(run, "path_utility_assignment")),
             PATH_CONFIG,
