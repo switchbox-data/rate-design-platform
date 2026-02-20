@@ -1,0 +1,82 @@
+# ISO-NE Forward Capacity Market assumptions for RI (Southeast New England zone)
+# used by utils.cairo::_return_ISONE_capacity_prices to convert $/kW-month and
+# capacity supply obligation MW into annual capacity costs allocated to peak hours.
+#
+# RI is in the Southeast New England (SENE) capacity zone.
+# We use SENE clearing prices with RI-specific CSOs (not system-wide or full
+# SENE zone) so the total capacity cost pool reflects what RI ratepayers
+# actually pay. The peak-hour allocation still uses ISO NE CA system load
+# shape (the workbook's "ISO NE CA" sheet).
+#
+# Note on price concept: we use the raw FCA clearing price, NOT the FCM
+# effective charge rate. The effective charge rate includes adjustments for
+# multi-year rate locks, winter IPR, self-supply variance, HQICC, and ARA
+# reconfigurations — those adjustments do not belong in a marginal cost signal.
+#
+# Sources:
+#   FCA clearing prices (FCA 15 SENE: $3.980, FCA 16 SENE: $2.639):
+#     https://www.iso-ne.com/static-assets/documents/2018/05/fca-results-report.pdf
+#   RI capacity supply obligations (from 2024 CELT Report, Table 4.1):
+#     rate_design/ri/hp_rates/config/marginal_costs/2024_celt_report.xlsx
+#   SENE capacity load obligation cross-check:
+#     https://www.iso-ne.com/static-assets/documents/2022/06/fcm_cost_allocation_forecast_ccp_2025-2026_draft.pdf
+
+source:
+  fca_results_report: https://www.iso-ne.com/static-assets/documents/2018/05/fca-results-report.pdf
+  celt_report: rate_design/ri/hp_rates/config/marginal_costs/2024_celt_report.xlsx
+  ccp_2025_2026_forecast: https://www.iso-ne.com/static-assets/documents/2022/06/fcm_cost_allocation_forecast_ccp_2025-2026_draft.pdf
+
+years:
+  2020:
+    notes: |
+      Legacy CAIRO assumptions retained for backward compatibility.
+      System-wide Rest-of-Pool values from FCA 10/11.
+    capacity_zone: rest_of_pool
+    segments:
+      - label: fca10
+        months: 6
+        payment_rate_per_kw_month: 7.030
+        capacity_supply_obligation_mw: 35567
+      - label: fca11
+        months: 6
+        payment_rate_per_kw_month: 5.297
+        capacity_supply_obligation_mw: 35835
+
+  2025:
+    notes: |
+      Calendar-year 2025 spans two commitment periods:
+        Jan–May 2025  → CCP 2024-2025 (FCA 15)
+        Jun–Dec 2025  → CCP 2025-2026 (FCA 16)
+
+      RI is in the Southeast New England (SENE) capacity zone.
+
+      FCA clearing prices (from fca-results-report.pdf):
+        FCA 15 SENE: $3.980/kW-month
+        FCA 16 SENE: $2.639/kW-month
+
+      RI capacity supply obligations (from 2024 CELT Report, Table 4.1):
+        FCA 15: summer 2,158.971 MW / winter 2,194.808 MW
+        FCA 16: summer 2,251.117 MW / winter 2,238.267 MW
+      We use the winter CSO as a conservative estimate (winter is the binding
+      constraint for heat-pump-heavy load profiles).
+
+      For reference, full SENE zone (RI + SEMA):
+        FCA 15: summer 7,250.090 MW / winter 7,467.855 MW
+        FCA 16: summer 7,809.319 MW / winter 7,922.089 MW
+    capacity_zone: southeast_new_england
+    segments:
+      # CCP 2024-2025 overlap with calendar year 2025 (Jan 1 – May 31)
+      - label: fca15_jan_to_may
+        months: 5
+        # FCA 15 SENE clearing price (from fca-results-report.pdf)
+        payment_rate_per_kw_month: 3.980
+        # RI winter CSO (from 2024 CELT Report Table 4.1, FCA 15)
+        capacity_supply_obligation_mw: 2194.808
+
+      # CCP 2025-2026 overlap with calendar year 2025 (Jun 1 – Dec 31)
+      - label: fca16_jun_to_dec
+        months: 7
+        # FCA 16 SENE clearing price (from fca-results-report.pdf)
+        payment_rate_per_kw_month: 2.639
+        # RI winter CSO (from 2024 CELT Report Table 4.1, FCA 16)
+        capacity_supply_obligation_mw: 2238.267

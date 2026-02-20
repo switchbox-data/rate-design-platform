@@ -25,6 +25,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 | resstock_lmi_metadata_guide.md          | ResStock 2024.2 parquet metadata: columns for LMI tier assignment, FPL/SMI, income            |
 | subclass_revenue_requirement_utility.md | `compute_subclass_rr.py` behavior, BAT metric options, required inputs, and CLI/Just usage    |
 | seasonal_discount_rate_workflow.md      | RI seasonal discount workflow from subclass BAT outputs + winter kWh to tariff/map generation |
+| isone_marginal_cost_analysis.md        | ISO-NE SMD marginal cost loader, FCA capacity assumptions, Cambium vs ISO-NE comparison       |
 
 ## docs/
 

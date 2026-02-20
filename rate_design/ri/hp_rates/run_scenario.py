@@ -23,6 +23,7 @@ from cairo.rates_tool.systemsimulator import (
 
 from utils.cairo import (
     _load_cambium_marginal_costs,
+    _load_iso_marginal_costs,
     build_bldg_id_to_load_filepath,
     enable_cairo_multitariff_mapping_workaround,
     load_distribution_marginal_costs,
@@ -390,6 +391,12 @@ def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
     )
 
 
+def _is_iso_smd_supply_mc_source(path: str | Path) -> bool:
+    """Return True when path points to an ISO SMD workbook used for supply MCs."""
+    path_str = str(path).lower()
+    return path_str.endswith(".xlsx") and "smd" in Path(path_str).name
+
+
 # ---------------------------------------------------------------------------
 # Main run
 # ---------------------------------------------------------------------------
@@ -434,10 +441,20 @@ def run(settings: ScenarioSettings) -> None:
         force_tz="EST",
     )
 
-    bulk_marginal_costs = _load_cambium_marginal_costs(
-        settings.path_cambium_marginal_costs,
-        settings.year_run,
-    )
+    if _is_iso_smd_supply_mc_source(settings.path_cambium_marginal_costs):
+        log.info(
+            ".... Using ISO SMD supply marginal cost loader for %s",
+            settings.path_cambium_marginal_costs,
+        )
+        bulk_marginal_costs = _load_iso_marginal_costs(
+            analysis_year=settings.year_run,
+            market_data_path=settings.path_cambium_marginal_costs,
+        )
+    else:
+        bulk_marginal_costs = _load_cambium_marginal_costs(
+            settings.path_cambium_marginal_costs,
+            settings.year_run,
+        )
 
     distribution_marginal_costs = load_distribution_marginal_costs(
         settings.path_td_marginal_costs,

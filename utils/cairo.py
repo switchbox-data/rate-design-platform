@@ -5,11 +5,14 @@ from __future__ import annotations
 import io
 import logging
 from copy import deepcopy
+from functools import reduce
 from pathlib import Path, PurePath
 from typing import cast
 
+import numpy as np
 import pandas as pd
 import polars as pl
+import yaml
 from cairo.rates_tool import config
 from cairo.rates_tool.loads import __timeshift__
 from cloudpathlib import S3Path
@@ -196,6 +199,373 @@ def _load_cambium_marginal_costs(
     df.index = df.index.tz_localize("EST")
     df.index.name = "time"
     return df
+
+
+def _normalize_iso_market_path(analysis_year: int, market_data_path: str | Path | None) -> Path:
+    """Resolve ISO market workbook path, defaulting to CAIRO marginal cost directory."""
+    if market_data_path is None:
+        path = config.MARGINALCOST_DIR / f"{analysis_year}_smd_hourly.xlsx"
+    else:
+        path = Path(market_data_path)
+    if not path.exists():
+        raise FileNotFoundError(f"ISO market workbook does not exist: {path}")
+    if path.suffix.lower() != ".xlsx":
+        raise ValueError(f"ISO market workbook must be an .xlsx file: {path}")
+    return path
+
+
+def _load_isone_fca_segments(
+    year_focus: int,
+) -> tuple[list[dict[str, float]], str | None]:
+    """Load ISO-NE FCA assumptions for a given year from YAML config."""
+    assumptions_path = (
+        Path(__file__).resolve().parents[1]
+        / "rate_design"
+        / "ri"
+        / "hp_rates"
+        / "config"
+        / "marginal_costs"
+        / "isone_fca_assumptions.yaml"
+    )
+    if not assumptions_path.exists():
+        raise FileNotFoundError(
+            "Missing ISO-NE FCA assumptions file: " f"{assumptions_path}"
+        )
+
+    with assumptions_path.open(encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict):
+        raise ValueError(f"Invalid YAML format in {assumptions_path}")
+
+    years = data.get("years")
+    if not isinstance(years, dict):
+        raise ValueError(f"`years` mapping missing in {assumptions_path}")
+
+    year_data = years.get(year_focus) or years.get(str(year_focus))
+    if not isinstance(year_data, dict):
+        raise ValueError(
+            f"No ISO-NE FCA assumptions configured for year_focus={year_focus} "
+            f"in {assumptions_path}"
+        )
+
+    raw_segments = year_data.get("segments")
+    if not isinstance(raw_segments, list) or not raw_segments:
+        raise ValueError(
+            f"`segments` missing/empty for year_focus={year_focus} in {assumptions_path}"
+        )
+
+    segments: list[dict[str, float]] = []
+    for raw in raw_segments:
+        if not isinstance(raw, dict):
+            raise ValueError(
+                f"Invalid segment entry for year_focus={year_focus}: {raw!r}"
+            )
+        try:
+            months = float(raw["months"])
+            payment_rate = float(raw["payment_rate_per_kw_month"])
+            cso_mw = float(raw["capacity_supply_obligation_mw"])
+        except KeyError as exc:
+            raise ValueError(
+                "Each segment must include `months`, `payment_rate_per_kw_month`, "
+                f"and `capacity_supply_obligation_mw` (year_focus={year_focus})"
+            ) from exc
+        segments.append(
+            {
+                "months": months,
+                "payment_rate_per_kw_month": payment_rate,
+                "capacity_supply_obligation_mw": cso_mw,
+            }
+        )
+
+    source_url: str | None = None
+    source = data.get("source")
+    if isinstance(source, dict):
+        primary = source.get("primary")
+        if isinstance(primary, str):
+            source_url = primary
+    return segments, source_url
+
+
+def _load_iso_marginal_costs(
+    analysis_year: int,
+    market_data_path: str | Path | None = None,
+) -> pd.DataFrame:
+    """Load ISO-NE hourly marginal energy + capacity costs in $/kWh."""
+    workbook_path = _normalize_iso_market_path(analysis_year, market_data_path)
+    lmp_df, cap_df, ancillary_df = _return_full_isone_costs(
+        year_focus=analysis_year,
+        workbook_path=workbook_path,
+    )
+
+    energy_df = pd.DataFrame(
+        pd.merge(lmp_df, ancillary_df, left_index=True, right_index=True).sum(axis=1),
+        columns=["Marginal Energy Costs ($/kWh)"],
+    )
+    energy_df /= 1000
+
+    capacity_df = pd.DataFrame(
+        cap_df.values,
+        index=cap_df.index,
+        columns=["Marginal Capacity Costs ($/kWh)"],
+    )
+    capacity_df /= 1000
+
+    marginal_df = pd.merge(energy_df, capacity_df, left_index=True, right_index=True)
+
+    if marginal_df.index[0].is_leap_year and len(marginal_df.index) == 8784:
+        new_index = marginal_df.loc[
+            ~((marginal_df.index.month == 2) & (marginal_df.index.day == 29))
+        ].index
+        marginal_df = marginal_df.loc[
+            ~((marginal_df.index.month == 12) & (marginal_df.index.day == 31))
+        ]
+        marginal_df.index = new_index
+        if len(marginal_df.index) != 8760:
+            raise ValueError("ISO marginal cost index normalization did not produce 8760 rows")
+
+    marginal_df.index = pd.DatetimeIndex(marginal_df.index).tz_localize("EST")
+    marginal_df.index.name = "time"
+    return marginal_df
+
+
+def _return_full_isone_costs(
+    year_focus: int,
+    workbook_path: Path,
+    region: str = "RI",
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Read ISO-NE market workbook and return (LMP, capacity, ancillary) series.
+
+    Parameters
+    ----------
+    year_focus : int
+        Analysis year.
+    workbook_path : Path
+        Path to the ``{year}_smd_hourly.xlsx`` workbook.
+    region : str
+        Sheet name to read for energy LMP/demand data. Defaults to ``"RI"``
+        so that RI-specific zonal LMPs are used directly.  Falls back to the
+        legacy SEMA/WCMA/NEMA load-weighted average if the requested sheet
+        is not in the workbook.
+    """
+    # Check whether the requested sheet exists in the workbook
+    xl = pd.ExcelFile(workbook_path)
+    if region in xl.sheet_names:
+        lmp_df = _extract_regional_lmp(
+            year_focus=year_focus,
+            region_name=region,
+            workbook_path=workbook_path,
+        )
+    else:
+        log.warning(
+            "Sheet '%s' not found in %s; falling back to load-weighted "
+            "SEMA/WCMA/NEMA LMP",
+            region,
+            workbook_path,
+        )
+        loads_df, prices_df = _return_prices_and_load_by_region(
+            year_focus=year_focus,
+            workbook_path=workbook_path,
+        )
+        lmp_df = _return_ISONE_lmps(loads_df, prices_df)
+
+    cap_df = _return_ISONE_capacity_prices(year_focus, workbook_path=workbook_path)
+    ancillary_df = _extract_ancillary_prices(year_focus, workbook_path=workbook_path)
+    return lmp_df, cap_df, ancillary_df
+
+
+def _extract_regional_lmp(
+    year_focus: int,
+    region_name: str,
+    workbook_path: Path,
+) -> pd.Series:
+    """Read a single region sheet and return RT_LMP as a Series."""
+    loads_df, prices_df = _extract_isone_regional_data(
+        year_focus=year_focus,
+        region_name=region_name,
+        workbook_path=workbook_path,
+    )
+    # Return just the LMP column as a plain Series (no region prefix)
+    return prices_df.squeeze().rename("weighted_LMP")
+
+
+def _return_prices_and_load_by_region(
+    year_focus: int,
+    workbook_path: Path,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return regional load and LMP data for SEMA/WCMA/NEMA (legacy fallback)."""
+    load_frames: list[pd.DataFrame] = []
+    price_frames: list[pd.DataFrame] = []
+    for region in ["SEMA", "WCMA", "NEMA"]:
+        region_loads, region_prices = _extract_isone_regional_data(
+            year_focus=year_focus,
+            region_name=region,
+            workbook_path=workbook_path,
+        )
+        load_frames.append(region_loads)
+        price_frames.append(region_prices)
+
+    loads_df = reduce(
+        lambda left, right: pd.merge(left, right, right_index=True, left_index=True),
+        load_frames,
+    )
+    prices_df = reduce(
+        lambda left, right: pd.merge(left, right, right_index=True, left_index=True),
+        price_frames,
+    )
+    return loads_df, prices_df
+
+
+def _extract_isone_regional_data(
+    year_focus: int,
+    region_name: str,
+    workbook_path: Path,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Extract hourly demand/LMP series from an ISO-NE region sheet."""
+    valid_regions = {"SEMA", "WCMA", "NEMA", "ISO NE CA", "RI", "CT", "ME", "NH", "VT"}
+    if region_name not in valid_regions:
+        raise ValueError(
+            f"region_name must be one of {sorted(valid_regions)}"
+        )
+
+    sheet = pd.read_excel(
+        workbook_path,
+        sheet_name=region_name,
+        index_col="Date",
+        parse_dates=True,
+    )
+
+    sheet["Hr_End"] = pd.to_numeric(sheet["Hr_End"], errors="coerce") - 1
+    # Drop rows where Hr_End is NaN (e.g. DST spring-forward "02X" placeholder)
+    n_before = len(sheet)
+    sheet = sheet.dropna(subset=["Hr_End"])
+    n_dropped = n_before - len(sheet)
+    if n_dropped:
+        log.debug(
+            "Dropped %d non-numeric Hr_End rows (e.g. DST '02X') from %s sheet",
+            n_dropped,
+            region_name,
+        )
+    sheet.index = pd.to_datetime(sheet.index)
+    sheet.index = [
+        sheet.index[i] + pd.Timedelta(hours=int(v))
+        for i, v in enumerate(sheet["Hr_End"])
+    ]
+
+    isone_loads = sheet[["RT_Demand"]].rename(
+        columns={"RT_Demand": f"{region_name}_Demand"}
+    )
+    isone_prices = sheet[["RT_LMP"]].rename(columns={"RT_LMP": f"{region_name}_LMP"})
+    return isone_loads, isone_prices
+
+
+def _return_ISONE_lmps(  # noqa: N802
+    loads_df: pd.DataFrame, prices_df: pd.DataFrame
+) -> pd.Series:
+    """Calculate load-weighted ISO-NE LMP across SEMA/WCMA/NEMA."""
+    isone_lmp_df = pd.merge(loads_df, prices_df, right_index=True, left_index=True)
+    isone_lmp_df["Total_Demand"] = isone_lmp_df[
+        ["SEMA_Demand", "WCMA_Demand", "NEMA_Demand"]
+    ].sum(axis=1)
+    isone_lmp_df[["SEMA_weight", "WCMA_weight", "NEMA_weight"]] = isone_lmp_df[
+        ["SEMA_Demand", "WCMA_Demand", "NEMA_Demand"]
+    ].divide(isone_lmp_df["Total_Demand"], axis=0)
+
+    isone_lmp_df["SEMA_weighted_LMP"] = isone_lmp_df["SEMA_LMP"].mul(
+        isone_lmp_df["SEMA_weight"], axis=0
+    )
+    isone_lmp_df["WCMA_weighted_LMP"] = isone_lmp_df["WCMA_LMP"].mul(
+        isone_lmp_df["WCMA_weight"], axis=0
+    )
+    isone_lmp_df["NEMA_weighted_LMP"] = isone_lmp_df["NEMA_LMP"].mul(
+        isone_lmp_df["NEMA_weight"], axis=0
+    )
+    isone_lmp_df["weighted_LMP"] = isone_lmp_df[
+        ["SEMA_weighted_LMP", "WCMA_weighted_LMP", "NEMA_weighted_LMP"]
+    ].sum(axis=1)
+    return isone_lmp_df["weighted_LMP"]
+
+
+def _return_ISONE_capacity_prices(  # noqa: N802
+    year_focus: int,
+    workbook_path: Path,
+) -> pd.Series:
+    """Calculate ISO-NE capacity marginal costs ($/MWh), allocated to peak hours."""
+    fca_segments, source_url = _load_isone_fca_segments(year_focus)
+    if source_url is not None:
+        log.info(
+            "Using ISO-NE FCA assumptions for year %s from %s",
+            year_focus,
+            source_url,
+        )
+
+    # Annualized by market-year overlap (6 months each).
+    fca_annual_costs = np.sum(
+        [
+            segment["capacity_supply_obligation_mw"]
+            * 1000
+            * segment["payment_rate_per_kw_month"]
+            * segment["months"]
+            for segment in fca_segments
+        ]
+    )
+
+    loads_df, _ = _extract_isone_regional_data(
+        year_focus=year_focus,
+        region_name="ISO NE CA",
+        workbook_path=workbook_path,
+    )
+    loads_df = loads_df.rename(columns={"ISO NE CA_Demand": "Total_Demand"})
+
+    mw_capacity_thresh = float(
+        min(
+            loads_df["Total_Demand"].nlargest(101).min(),
+            loads_df["Total_Demand"].max() * 0.95,
+        )
+    )
+
+    exceed_thresh = loads_df["Total_Demand"].loc[
+        loads_df["Total_Demand"] >= mw_capacity_thresh
+    ]
+    load_above = (exceed_thresh - mw_capacity_thresh).clip(lower=0)
+    load_above_ratio = load_above / load_above.sum()
+
+    cap_costs_df = pd.DataFrame(
+        {"demand_ratio": load_above_ratio.values},
+        index=exceed_thresh.index,
+    )
+    cap_costs_df["price_per_hour"] = fca_annual_costs * cap_costs_df["demand_ratio"]
+    cap_costs_df["price_per_mwh"] = cap_costs_df["price_per_hour"].divide(
+        exceed_thresh, axis=0
+    )
+
+    filler_df = pd.DataFrame(
+        {"price_per_mwh": [0.0] * (len(loads_df.index) - len(cap_costs_df.index))},
+        index=loads_df.loc[~loads_df.index.isin(cap_costs_df.index)].index,
+    )
+    cap_costs = pd.concat([cap_costs_df[["price_per_mwh"]], filler_df]).sort_index()
+    return cap_costs.squeeze()
+
+
+def _extract_ancillary_prices(year_focus: int, workbook_path: Path) -> pd.Series:
+    """Return ISO-NE ancillary prices (reg service + reg capacity) in $/MWh."""
+    sheet = pd.read_excel(
+        workbook_path,
+        sheet_name="ISO NE CA",
+        index_col="Date",
+        parse_dates=True,
+    )
+    sheet["Hr_End"] = pd.to_numeric(sheet["Hr_End"], errors="coerce") - 1
+    # Drop rows where Hr_End is NaN (e.g. DST spring-forward "02X" placeholder)
+    sheet = sheet.dropna(subset=["Hr_End"])
+    sheet.index = pd.to_datetime(sheet.index)
+    sheet.index = [
+        sheet.index[i] + pd.Timedelta(hours=int(v))
+        for i, v in enumerate(sheet["Hr_End"])
+    ]
+
+    ancillary_prices = sheet[["Reg_Service_Price", "Reg_Capacity_Price"]].copy()
+    ancillary_prices["Total_ancillary"] = ancillary_prices.sum(axis=1)
+    return ancillary_prices["Total_ancillary"]
 
 
 def build_bldg_id_to_load_filepath(
