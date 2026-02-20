@@ -178,7 +178,6 @@ def run(
     worksheet_name: str | None = None,
     worksheet_index: int | None = None,
     output_dir: Path | None = None,
-    dry_run: bool = False,
 ) -> None:
     """Fetch sheet, group by (state, utility), write scenario YAMLs."""
     load_dotenv()
@@ -312,11 +311,6 @@ def run(
             / f"scenarios_{utility}.yaml"
         )
 
-        if dry_run:
-            print(f"Would write {len(runs)} runs to {out_path}")
-            print(f"  First run keys: {list(runs[min(runs)].keys())}")
-            continue
-
         out_path.parent.mkdir(parents=True, exist_ok=True)
         payload = {"runs": runs}
         yaml_str = yaml.dump(
@@ -355,11 +349,6 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Output root directory (default: project root).",
     )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print what would be written, do not write files.",
-    )
     return parser.parse_args()
 
 
@@ -370,7 +359,6 @@ def main() -> None:
         worksheet_name=args.sheet_name,
         worksheet_index=args.worksheet_index,
         output_dir=args.output_dir,
-        dry_run=args.dry_run,
     )
 
 

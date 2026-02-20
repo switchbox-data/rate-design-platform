@@ -234,5 +234,5 @@ create-td-mc-data-rie:
 
 # Create scenario YAMLs from the Runs & Charts Google Sheet (requires G_* env and browser auth)
 # Writes rate_design/<state>/hp_rates/config/scenarios_<utility>.yaml per utility
-create-scenario-yamls dry_run="":
-    uv run python {{project_root}}/utils/pre/create_scenario_yamls.py {{ dry_run }}
+create-scenario-yamls:
+    uv run python {{project_root}}/utils/pre/create_scenario_yamls.py
