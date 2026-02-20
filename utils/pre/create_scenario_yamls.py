@@ -113,6 +113,7 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         "path_td_marginal_costs",
         "path_utility_assignment",
         "path_tariffs_gas",
+        "path_outputs",
     ):
         v = get(key)
         if v:
@@ -149,6 +150,13 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     sample_size = get("sample_size")
     if sample_size:
         run["sample_size"] = int(sample_size) if sample_size.isdigit() else sample_size
+
+    elasticity = get("elasticity")
+    if elasticity:
+        try:
+            run["elasticity"] = float(elasticity)
+        except ValueError:
+            run["elasticity"] = elasticity
 
     return run
 
