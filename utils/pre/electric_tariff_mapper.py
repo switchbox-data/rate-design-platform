@@ -19,7 +19,11 @@ def define_electrical_tariff_key(
 ) -> pl.Expr:
     if SB_scenario.analysis_type == "default":
         return pl.lit(f"{electric_utility}_{SB_scenario}_default")
-    elif SB_scenario.analysis_type in ["seasonal", "class_specific_seasonal"]:
+    elif SB_scenario.analysis_type in [
+        "seasonal",
+        "seasonal_discount",
+        "class_specific_seasonal",
+    ]:
         return (
             pl.when(has_hp)
             .then(pl.lit(f"{electric_utility}_{SB_scenario}_HP.csv"))
@@ -89,7 +93,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--SB_scenario_type",
         required=True,
-        help="SB scenario type (e.g. default, seasonal, class_specific_seasonal)",
+        help=(
+            "SB scenario type "
+            "(e.g. default, seasonal, seasonal_discount, class_specific_seasonal)"
+        ),
     )
     parser.add_argument(
         "--SB_scenario_year", required=True, help="SB scenario year (e.g. 1 , 2, 3)"

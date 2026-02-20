@@ -394,7 +394,7 @@ def main() -> None:
     parser.add_argument(
         "--cpi-s3-path",
         required=True,
-        help="S3 path to CPI parquet (year, value) from data/fred/cpi/fetch_cpi_from_fred.py (default series CPIAUCSL)",
+        help="S3 path to CPI parquet (year, value) from data/fred/cpi/fetch_cpi_parquet.py (default series CPIAUCSL)",
     )
     parser.add_argument(
         "--participation-rate",

@@ -11,7 +11,7 @@ Minimizes API calls by caching; re-run convert only after fetch. Skips existing
 JSON files so you can re-run after 429 (rate limit) to fill gaps. Requires
 HUD_API_KEY in the environment or .env.
 
-    uv run python fetch_hud_smi_json.py --start-year 2017 --end-year 2025 --output json/
+    uv run python fetch_smi_json.py --start-year 2017 --end-year 2025 --output json/
 """
 
 from __future__ import annotations
