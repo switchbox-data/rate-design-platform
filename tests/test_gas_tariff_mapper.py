@@ -237,3 +237,31 @@ def test_map_gas_tariff_null_gas_utility():
     tariff_keys = df["tariff_key"].to_list()
     assert "null_gas_tariff" in tariff_keys
     assert "coned_sf" in tariff_keys
+
+
+def test_map_gas_tariff_small_utilities_become_null():
+    """Small utilities (bath, chautauqua, corning, fillmore, reserve, stlaw) map to null_gas_tariff."""
+    metadata = pl.LazyFrame(
+        {
+            "bldg_id": [1, 2, 3],
+            "sb.electric_utility": ["nyseg", "nyseg", "nyseg"],
+            "sb.gas_utility": ["bath", "corning", "nyseg"],
+            "in.geometry_building_type_recs": [
+                "Single-Family Detached",
+                "Multi-Family with 2 - 4 Units",
+                "Single-Family Detached",
+            ],
+            "in.geometry_stories_low_rise": ["2", "2", "2"],
+            "heats_with_natgas": [True, True, True],
+        }
+    )
+    result = map_gas_tariff(
+        SB_metadata=metadata,
+        electric_utility_name="nyseg",
+    )
+    df = cast(pl.DataFrame, result.collect())
+    assert df.height == 3
+    keys = df.sort("bldg_id")["tariff_key"].to_list()
+    assert keys[0] == "null_gas_tariff"  # bath
+    assert keys[1] == "null_gas_tariff"  # corning
+    assert keys[2] == "nyseg_heating"  # nyseg
