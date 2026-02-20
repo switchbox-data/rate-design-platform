@@ -22,6 +22,7 @@ from cairo.rates_tool.systemsimulator import (
     _return_export_compensation_rate,
     _return_revenue_requirement_target,
 )
+
 from utils import get_aws_region
 from utils.cairo import (
     _fetch_prototype_ids_by_electric_util,
@@ -63,13 +64,54 @@ class ScenarioSettings:
     precalc_tariff_path: Path
     precalc_tariff_key: str
     utility_delivery_revenue_requirement: float
-    utility_customer_count: int
+    path_electric_utility_stats: str | Path
     year_run: int
     year_dollar_conversion: int
     process_workers: int
     solar_pv_compensation: str = "net_metering"
     add_supply_revenue_requirement: bool = False
     sample_size: int | None = None
+
+
+def get_residential_customer_count_from_utility_stats(
+    path: str | Path,
+    utility: str,
+    *,
+    storage_options: dict[str, str] | None = None,
+) -> int:
+    """Read EIA-861 utility stats parquet and return residential customer count for the utility.
+
+    The parquet is state-partitioned (e.g. state=NY/data.parquet) with columns
+    utility_code and residential_customers. Filters for utility_code == utility
+    (the YAML utility field, e.g. 'coned', 'rie') and returns the single row's
+    residential_customers value.
+
+    Raises:
+        ValueError: If path has no row for that utility, or more than one row.
+    """
+    path_str = str(path)
+    opts = storage_options if path_str.startswith("s3://") else None
+    lf = (
+        pl.scan_parquet(path_str, storage_options=opts)
+        .filter(pl.col("utility_code") == utility)
+        .select("residential_customers")
+    )
+    df = cast(pl.DataFrame, lf.collect())
+    if df.height == 0:
+        raise ValueError(
+            f"No row with utility_code={utility!r} in {path_str}. "
+            "Check path_electric_utility_stats and utility in the scenario YAML."
+        )
+    if df.height > 1:
+        raise ValueError(
+            f"Expected one row for utility_code={utility!r} in {path_str}, got {df.height}"
+        )
+    value = df.item(0, 0)
+    if value is None:
+        raise ValueError(
+            f"residential_customers is null for utility_code={utility!r} in {path_str}"
+        )
+    return int(value)
 
 
 def _parse_int(value: object, field_name: str) -> int:
@@ -284,9 +326,9 @@ def _build_settings_from_yaml_run(
             "utility_delivery_revenue_requirement",
         )
     )
-    utility_customer_count = _parse_int(
-        _require_value(run, "utility_customer_count"),
-        "utility_customer_count",
+    path_electric_utility_stats = _resolve_path_or_uri(
+        str(_require_value(run, "path_electric_utility_stats")),
+        PATH_CONFIG,
     )
     solar_pv_compensation = str(run.get("solar_pv_compensation", "net_metering"))
 
@@ -375,7 +417,7 @@ def _build_settings_from_yaml_run(
         precalc_tariff_path=precalc_tariff_path,
         precalc_tariff_key=precalc_tariff_key,
         utility_delivery_revenue_requirement=utility_delivery_revenue_requirement,
-        utility_customer_count=utility_customer_count,
+        path_electric_utility_stats=path_electric_utility_stats,
         year_run=year_run,
         year_dollar_conversion=year_dollar_conversion,
         process_workers=process_workers,
@@ -492,10 +534,15 @@ def run(settings: ScenarioSettings) -> None:
         tariff_key=settings.precalc_tariff_key,
     )
 
+    customer_count = get_residential_customer_count_from_utility_stats(
+        settings.path_electric_utility_stats,
+        settings.utility,
+        storage_options=STORAGE_OPTIONS,
+    )
     customer_metadata = return_buildingstock(
         load_scenario=settings.path_resstock_metadata,
         building_stock_sample=prototype_ids,
-        customer_count=settings.utility_customer_count,
+        customer_count=customer_count,
         columns=[
             "applicability",
             "postprocess_group.has_hp",
