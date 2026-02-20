@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+import pandas as pd
 import polars as pl
 import yaml
 from cairo.rates_tool.loads import (
@@ -65,8 +66,6 @@ class ScenarioSettings:
     path_tariff_maps_gas: Path
     path_tariffs_electric: dict[str, Path]
     path_tariffs_gas: dict[str, Path]
-    precalc_tariff_path: Path
-    precalc_tariff_key: str
     utility_delivery_revenue_requirement: float
     path_electric_utility_stats: str | Path
     year_run: int
@@ -285,13 +284,6 @@ def _parse_path_tariffs_gas(
     return path_tariffs
 
 
-def _default_precalc_tariff(path_tariffs_electric: dict[str, Path]) -> tuple[str, Path]:
-    """Choose default precalc tariff from first configured electric tariff."""
-    if not path_tariffs_electric:
-        raise ValueError("path_tariffs_electric must contain at least one tariff")
-    return next(iter(path_tariffs_electric.items()))
-
-
 def _require_value(run: dict[str, Any], field_name: str) -> Any:
     value = run.get(field_name)
     if value is None:
@@ -409,30 +401,6 @@ def _build_settings_from_yaml_run(
         PATH_CONFIG,
     )
 
-    precalc_tariff_key_raw = run.get("precalc_tariff_key")
-    precalc_tariff_path_raw = run.get("precalc_tariff_path")
-    if precalc_tariff_key_raw is None and precalc_tariff_path_raw is None:
-        precalc_tariff_key, precalc_tariff_path = _default_precalc_tariff(
-            path_tariffs_electric
-        )
-    elif precalc_tariff_path_raw is None:
-        precalc_tariff_key = str(precalc_tariff_key_raw)
-        try:
-            precalc_tariff_path = path_tariffs_electric[precalc_tariff_key]
-        except KeyError as exc:
-            available = sorted(path_tariffs_electric.keys())
-            raise ValueError(
-                "precalc_tariff_key is not in path_tariffs_electric. "
-                f"precalc_tariff_key={precalc_tariff_key!r}, available={available}"
-            ) from exc
-    else:
-        precalc_tariff_path = _resolve_path(str(precalc_tariff_path_raw), PATH_CONFIG)
-        precalc_tariff_key = (
-            str(precalc_tariff_key_raw)
-            if precalc_tariff_key_raw is not None
-            else precalc_tariff_path.stem
-        )
-
     add_supply_revenue_requirement = _parse_bool(
         _require_value(run, "add_supply_revenue_requirement"),
         "add_supply_revenue_requirement",
@@ -471,8 +439,6 @@ def _build_settings_from_yaml_run(
         path_tariff_maps_gas=path_tariff_maps_gas,
         path_tariffs_electric=path_tariffs_electric,
         path_tariffs_gas=path_tariffs_gas,
-        precalc_tariff_path=precalc_tariff_path,
-        precalc_tariff_key=precalc_tariff_key,
         utility_delivery_revenue_requirement=utility_delivery_revenue_requirement,
         path_electric_utility_stats=path_electric_utility_stats,
         year_run=year_run,
@@ -585,6 +551,19 @@ def _load_prototype_ids_for_run(
     return prototype_ids
 
 
+def _build_precalc_period_mapping(
+    path_tariffs_electric: dict[str, Path],
+) -> pd.DataFrame:
+    """Build precalc mapping by concatenating all configured electric tariffs."""
+    if not path_tariffs_electric:
+        raise ValueError("path_tariffs_electric must contain at least one tariff")
+    precalc_parts = [
+        generate_default_precalc_mapping(tariff_path=tariff_path, tariff_key=tariff_key)
+        for tariff_key, tariff_path in path_tariffs_electric.items()
+    ]
+    return pd.concat(precalc_parts, ignore_index=True)
+
+
 def run(settings: ScenarioSettings) -> None:
     log.info(
         ".... Beginning RI residential (non-LMI) rate scenario simulation: %s",
@@ -607,10 +586,7 @@ def run(settings: ScenarioSettings) -> None:
         tariff_paths=settings.path_tariffs_electric,
     )
 
-    precalc_mapping = generate_default_precalc_mapping(
-        tariff_path=settings.precalc_tariff_path,
-        tariff_key=settings.precalc_tariff_key,
-    )
+    precalc_mapping = _build_precalc_period_mapping(settings.path_tariffs_electric)
 
     customer_count = get_residential_customer_count_from_utility_stats(
         settings.path_electric_utility_stats,
