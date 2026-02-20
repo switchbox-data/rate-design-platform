@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 
 
 def _normalize_cambium_path(cambium_scenario: CambiumPathLike):  # noqa: ANN201
-    """Return a single path-like (Path or S3Path) for Cambium CSV or Parquet."""
+    """Normalize Cambium input into a concrete local/S3 path object."""
     if isinstance(cambium_scenario, S3Path):
         return cambium_scenario
     if isinstance(cambium_scenario, Path):
@@ -41,21 +41,14 @@ def _normalize_cambium_path(cambium_scenario: CambiumPathLike):  # noqa: ANN201
 def _load_cambium_marginal_costs(
     cambium_scenario: CambiumPathLike, target_year: int
 ) -> pd.DataFrame:
-    """
-    Load Cambium marginal costs from CSV or Parquet (local or S3). Returns costs in $/kWh.
+    """Load Cambium marginal costs from CSV/Parquet and return CAIRO-shaped $/kWh.
 
-    Accepts: scenario name (str → CSV under config dir), local path (str or Path),
-    or S3 URI (str or S3Path). Example S3 Parquet:
-    s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
-
-    Assumptions (verified against S3 Parquet and repo CSV example_marginal_costs.csv):
-    - CSV: first 5 rows are metadata; row 6 is header; data has columns timestamp,
-      energy_cost_enduse, capacity_cost_enduse. Costs are in $/MWh.
-    - Parquet: columns timestamp (datetime), energy_cost_enduse, capacity_cost_enduse
-      (float). Costs are in $/MWh. Exactly 8760 rows (hourly). No partition columns
-      in the DataFrame (single-file read).
-    - Both: we divide cost columns by 1000 to get $/kWh; then common_year alignment,
-      __timeshift__ to target_year, and tz_localize("EST") so output matches CAIRO.
+    The function accepts local paths, S3 paths, or a scenario alias and then:
+    - parses source data (CSV or Parquet),
+    - keeps energy/capacity end-use columns,
+    - converts $/MWh to $/kWh,
+    - aligns to target year with `__timeshift__`,
+    - returns an EST-localized hourly index named `time`.
     """
     path = _normalize_cambium_path(cambium_scenario)
     if not path.exists():
@@ -137,22 +130,7 @@ def build_bldg_id_to_load_filepath(
     building_ids: list[int] | None = None,
     return_path_base: Path | None = None,
 ) -> dict[int, Path]:
-    """
-    Build a dictionary mapping building IDs to their load file paths.
-
-    Args:
-        path_resstock_loads: Directory containing parquet load files to scan
-        building_ids: Optional list of building IDs to include. If None, includes all.
-        return_path_base: Base directory for returned paths.
-            If None, returns actual file paths from path_resstock_loads.
-            If Path, returns paths as return_path_base / filename.
-
-    Returns:
-        Dictionary mapping building ID (int) to full file path (Path)
-
-    Raises:
-        FileNotFoundError: If path_resstock_loads does not exist
-    """
+    """Build a `bldg_id -> load parquet path` mapping from a load directory."""
     if not path_resstock_loads.exists():
         raise FileNotFoundError(f"Load directory not found: {path_resstock_loads}")
 
@@ -181,16 +159,7 @@ def build_bldg_id_to_load_filepath(
 def _fetch_prototype_ids_by_electric_util(
     electric_utility: ElectricUtility, utility_assignment: pl.LazyFrame
 ) -> list[int]:
-    """
-    Fetch all building ID's assigned to the given electric utility.
-
-    Args:
-        electric_utility: The electric utility to fetch prototype IDs for.
-        utility_assignment: The utility assignment LazyFrame.
-
-    Returns:
-        A list of building IDs assigned to the given electric utility.
-    """
+    """Return building IDs assigned to a given electric utility."""
     if "sb.electric_utility" not in utility_assignment.collect_schema().names():
         raise ValueError("sb.electric_utility column not found in utility assignment")
     utility_assignment = utility_assignment.filter(
@@ -208,7 +177,7 @@ def _fetch_prototype_ids_by_electric_util(
 def load_distribution_marginal_costs(
     path: str | Path,
 ) -> pd.Series:
-    """Load distribution marginal costs from a parquet path and return a tz-aware Series."""
+    """Load distribution marginal costs and return EST-indexed $/kWh series."""
     path_str = str(path)
     if path_str.startswith("s3://"):
         distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
