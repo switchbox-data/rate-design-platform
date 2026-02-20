@@ -1,4 +1,5 @@
 import argparse
+import logging
 import warnings
 from pathlib import Path
 from typing import cast
@@ -8,9 +9,36 @@ from cloudpathlib import S3Path
 
 from utils import get_aws_region
 from utils.types import ElectricUtility
-from utils.utility_codes import get_std_name_to_gas_tariff_key
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
+
+# Small gas utilities (bath, chautauqua, corning, fillmore, reserve, stlaw) we do not
+# model: no tariffs, exclude from analysis. We handle them here in the mapper by
+# assigning null_gas_tariff rather than changing utility assignment (e.g. re-running
+# assign_utility_ny to exclude or reassign them), which is simpler and avoids touching
+# polygon/overlap logic. CAIRO then uses the null tariff for these buildings.
+SMALL_GAS_UTILITIES = frozenset(
+    {"bath", "chautauqua", "corning", "fillmore", "reserve", "stlaw"}
+)
+# Gas utilities we expect in assignment (IOUs we model + small + electric-only that may appear).
+# If we see any other gas_utility value, we log a warning so new polygon data or new utilities
+# don't slip through unnoticed.
+EXPECTED_GAS_UTILITIES = SMALL_GAS_UTILITIES | {
+    "coned",
+    "kedny",
+    "kedli",
+    "nimo",
+    "nyseg",
+    "rie",
+    "rge",
+    "cenhud",
+    "or",
+    "nfg",
+    "psegli",
+    "none",
+}
+
+log = logging.getLogger(__name__)
 
 
 def _tariff_key_expr() -> pl.Expr:
@@ -19,10 +47,6 @@ def _tariff_key_expr() -> pl.Expr:
     heats_with_natgas_column = pl.col("heats_with_natgas")
     gas_utility_col = pl.col("sb.gas_utility")
 
-    # Map std_name to gas_tariff_key
-    gas_tariff_key_map = get_std_name_to_gas_tariff_key()
-    gas_tariff_key_col = gas_utility_col.replace(gas_tariff_key_map)
-
     return (
         #### coned ####
         # coned: Single-Family
@@ -30,20 +54,20 @@ def _tariff_key_expr() -> pl.Expr:
             (gas_utility_col == "coned")
             & building_type_column.str.contains("Single-Family", literal=True)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_sf")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_sf")]))
         # coned: Multi-Family high-rise
         .when(
             (gas_utility_col == "coned")
             & building_type_column.str.contains("Multi-Family", literal=True)
             & stories_column.str.contains("4+", literal=True)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_mf_highrise")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_highrise")]))
         # coned: Multi-Family low-rise
         .when(
             (gas_utility_col == "coned")
             & building_type_column.str.contains("Multi-Family", literal=True)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_mf_lowrise")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_lowrise")]))
         #### coned ####
         #### kedny ####
         # kedny: Single-Family heating with natural gas
@@ -52,20 +76,20 @@ def _tariff_key_expr() -> pl.Expr:
             & building_type_column.str.contains("Single-Family", literal=True)
             & heats_with_natgas_column.eq(True)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_sf_heating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_heating")]))
         # kedny: Single-Family does not heat with natural gas
         .when(
             (gas_utility_col == "kedny")
             & building_type_column.str.contains("Single-Family", literal=True)
             & heats_with_natgas_column.eq(False)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_sf_nonheating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_nonheating")]))
         # kedny: All multi-Family
         .when(
             (gas_utility_col == "kedny")
             & building_type_column.str.contains("Multi-Family", literal=True)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_mf")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_mf")]))
         #### kedny ####
         #### kedli ####
         # kedli: Single-Family heating with natural gas
@@ -74,44 +98,44 @@ def _tariff_key_expr() -> pl.Expr:
             & building_type_column.str.contains("Single-Family", literal=True)
             & heats_with_natgas_column.eq(True)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_sf_heating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_heating")]))
         # kedli: Single-Family does not heat with natural gas
         .when(
             (gas_utility_col == "kedli")
             & building_type_column.str.contains("Single-Family", literal=True)
             & heats_with_natgas_column.eq(False)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_sf_nonheating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_nonheating")]))
         # kedli: Multi-Family heating with natural gas
         .when(
             (gas_utility_col == "kedli")
             & building_type_column.str.contains("Multi-Family", literal=True)
             & heats_with_natgas_column.eq(True)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_mf_heating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_heating")]))
         # kedli: Multi-Family does not heat with natural gas
         .when(
             (gas_utility_col == "kedli")
             & building_type_column.str.contains("Multi-Family", literal=True)
             & heats_with_natgas_column.eq(False)
         )
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_mf_nonheating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_nonheating")]))
         #### kedli ####
         #### nyseg ####
         # nyseg: Heating with natural gas
         .when((gas_utility_col == "nyseg") & heats_with_natgas_column.eq(True))
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_heating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_heating")]))
         # nyseg: Does not heat with natural gas
         .when((gas_utility_col == "nyseg") & heats_with_natgas_column.eq(False))
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_nonheating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_nonheating")]))
         #### nyseg ####
         #### rie ####
         # rie: Heating with natural gas
         .when((gas_utility_col == "rie") & heats_with_natgas_column.eq(True))
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_heating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_heating")]))
         # rie: Does not heat with natural gas
         .when((gas_utility_col == "rie") & heats_with_natgas_column.eq(False))
-        .then(pl.concat_str([gas_tariff_key_col, pl.lit("_nonheating")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_nonheating")]))
         #### rie ####
         #### nimo | rge | cenhud | or | nfg ####
         .when(
@@ -121,14 +145,19 @@ def _tariff_key_expr() -> pl.Expr:
             | (gas_utility_col == "or")
             | (gas_utility_col == "nfg")
         )
-        .then(gas_tariff_key_col)
+        .then(gas_utility_col)
         #### nimo | rge | cenhud | or | nfg ####
         ### Null value in the gas_utility column gets assigned to "null_gas_tariff" ####
         .when(gas_utility_col.is_null())
         .then(pl.lit("null_gas_tariff"))
         ### Null value in the gas_utility column gets assigned to "null_gas_tariff" ####
-        # Default: Use gas_tariff_key (mapped from std_name)
-        .otherwise(gas_tariff_key_col)
+        ### Small utilities (bath, chautauqua, corning, fillmore, reserve, stlaw): no tariffs, ###
+        ### exclude from analysis; assign null_gas_tariff so we don't need placeholder tariffs. ###
+        .when(gas_utility_col.is_in(list(SMALL_GAS_UTILITIES)))
+        .then(pl.lit("null_gas_tariff"))
+        ### Small utilities ###
+        # Default: passthrough utility code for any other gas utility
+        .otherwise(gas_utility_col)
         .fill_null(gas_utility_col)
         .alias("tariff_key")
     )
@@ -147,6 +176,22 @@ def map_gas_tariff(
     test_sample = cast(pl.DataFrame, utility_metadata.head(1).collect())
     if test_sample.is_empty():
         return pl.LazyFrame()
+
+    # Log if we see any gas_utility not in expected set (IOUs + small + none/psegli)
+    distinct_gas = cast(
+        pl.DataFrame,
+        utility_metadata.select("sb.gas_utility").unique().collect(),
+    )
+    for row in distinct_gas.iter_rows(named=True):
+        val = row["sb.gas_utility"]
+        if val is not None and val not in EXPECTED_GAS_UTILITIES:
+            log.warning(
+                "Gas tariff mapper saw unexpected gas_utility %r (electric_utility=%s); "
+                "expected only IOUs we model, small utilities (bath/chautauqua/corning/fillmore/reserve/stlaw), "
+                "or none/psegli.",
+                val,
+                electric_utility_name,
+            )
 
     gas_tariff_mapping_df = (
         utility_metadata.select(
@@ -171,7 +216,7 @@ def map_gas_tariff(
 
 
 if __name__ == "__main__":
-    # Print warnings
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     warnings.simplefilter("always", DeprecationWarning)
     parser = argparse.ArgumentParser(
         description="Utility to help assign gas tariffs to utility customers."
