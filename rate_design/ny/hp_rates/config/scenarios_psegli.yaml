@@ -18,7 +18,7 @@ runs:
       psegli_flat: tariffs/electric/psegli_flat.json
     utility_delivery_revenue_requirement: rev_requirement/psegli.yaml
     add_supply_revenue_requirement: false
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -43,7 +43,7 @@ runs:
       psegli_flat_supply: tariffs/electric/psegli_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/psegli.yaml
     add_supply_revenue_requirement: true
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -69,7 +69,7 @@ runs:
       psegli_flat_calibrated: tariffs/electric/psegli_flat_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/psegli_large_number.yaml
     add_supply_revenue_requirement: false
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -95,7 +95,7 @@ runs:
       psegli_flat_supply_calibrated: tariffs/electric/psegli_flat_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/psegli_large_number.yaml
     add_supply_revenue_requirement: true
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -121,7 +121,7 @@ runs:
       psegli_flat: tariffs/electric/psegli_flat.json
     utility_delivery_revenue_requirement: rev_requirement/psegli_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: false
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -147,7 +147,7 @@ runs:
       psegli_flat_supply: tariffs/electric/psegli_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/psegli_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: true
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -173,7 +173,7 @@ runs:
       psegli_hp_seasonal_calibrated: tariffs/electric/psegli_hp_seasonal_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/psegli_large_number.yaml
     add_supply_revenue_requirement: false
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -199,7 +199,7 @@ runs:
       psegli_hp_seasonal_supply_calibrated: tariffs/electric/psegli_hp_seasonal_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/psegli_large_number.yaml
     add_supply_revenue_requirement: true
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -225,7 +225,7 @@ runs:
       psegli_flat: tariffs/electric/psegli_flat.json
     utility_delivery_revenue_requirement: rev_requirement/psegli_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: false
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -251,7 +251,7 @@ runs:
       psegli_flat_supply: tariffs/electric/psegli_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/psegli_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: true
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -277,7 +277,7 @@ runs:
       psegli_hp_seasonalTOU_calibrated: tariffs/electric/psegli_hp_seasonalTOU_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/psegli_large_number.yaml
     add_supply_revenue_requirement: false
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -303,7 +303,7 @@ runs:
       psegli_hp_seasonalTOU_supply_calibrated: tariffs/electric/psegli_hp_seasonalTOU_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/psegli_large_number.yaml
     add_supply_revenue_requirement: true
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -329,7 +329,7 @@ runs:
       psegli_flat: tariffs/electric/psegli_flat.json
     utility_delivery_revenue_requirement: rev_requirement/psegli_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: false
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -355,7 +355,7 @@ runs:
       psegli_flat_supply: tariffs/electric/psegli_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/psegli_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: true
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -381,7 +381,7 @@ runs:
       psegli_hp_seasonalTOU_flex_calibrated: tariffs/electric/psegli_hp_seasonalTOU_flex_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/psegli_large_number.yaml
     add_supply_revenue_requirement: false
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -408,7 +408,7 @@ runs:
       psegli_hp_seasonalTOU_flex_supply_calibrated: tariffs/electric/psegli_hp_seasonalTOU_flex_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/psegli_large_number.yaml
     add_supply_revenue_requirement: true
-    utility_customer_count: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
