@@ -335,6 +335,11 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 20
     sample_size: 100
+    demand_flex:
+      enabled: true
+      demand_elasticity: -0.1
+      tou_tariff_key: rie_hp_seasonalTOU_flex
+      tou_derivation_path: tou_derivation/rie_hp_seasonalTOU_derivation.json
 
   14:
     run_name: ri_rie_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_flat__n100
@@ -361,6 +366,11 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 20
     sample_size: 100
+    demand_flex:
+      enabled: true
+      demand_elasticity: -0.1
+      tou_tariff_key: rie_hp_seasonalTOU_flex_supply
+      tou_derivation_path: tou_derivation/rie_hp_seasonalTOU_derivation.json
 
   15:
     run_name: ri_rie_run15_up02_default__hp_seasonalTOU_flex__n100
@@ -387,7 +397,11 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 20
     sample_size: 100
-    elasticity: -0.1
+    demand_flex:
+      enabled: true
+      demand_elasticity: -0.1
+      tou_tariff_key: rie_hp_seasonalTOU_flex_calibrated
+      tou_derivation_path: tou_derivation/rie_hp_seasonalTOU_derivation.json
 
   16:
     run_name: ri_rie_run16_up02_default_supply__hp_seasonalTOU_flex__n100
@@ -414,4 +428,8 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 20
     sample_size: 100
-    elasticity: -0.1
+    demand_flex:
+      enabled: true
+      demand_elasticity: -0.1
+      tou_tariff_key: rie_hp_seasonalTOU_flex_supply_calibrated
+      tou_derivation_path: tou_derivation/rie_hp_seasonalTOU_derivation.json

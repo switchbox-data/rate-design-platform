@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import random
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
+import pandas as pd
 import polars as pl
 import yaml
 from cairo.rates_tool.loads import (
@@ -27,9 +29,11 @@ from utils import get_aws_region
 from utils.cairo import (
     _fetch_prototype_ids_by_electric_util,
     _load_cambium_marginal_costs,
+    apply_runtime_tou_demand_response,
     build_bldg_id_to_load_filepath,
     load_distribution_marginal_costs,
 )
+from utils.pre.compute_tou import load_season_specs
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 from utils.types import ElectricUtility
 
@@ -40,7 +44,17 @@ STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
 DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
-DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
+DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios" / "scenarios_rie.yaml"
+
+
+@dataclass(slots=True)
+class DemandFlexConfig:
+    """Optional runtime demand-flexibility configuration."""
+
+    enabled: bool = False
+    demand_elasticity: float = -0.1
+    tou_tariff_key: str = ""
+    tou_derivation_path: Path = field(default_factory=Path)
 
 
 @dataclass(slots=True)
@@ -71,6 +85,7 @@ class ScenarioSettings:
     solar_pv_compensation: str = "net_metering"
     add_supply_revenue_requirement: bool = False
     sample_size: int | None = None
+    demand_flex: DemandFlexConfig = field(default_factory=DemandFlexConfig)
 
 
 def get_residential_customer_count_from_utility_stats(
@@ -304,6 +319,22 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
     return _require_mapping(run, f"runs[{run_num}]")
 
 
+def _parse_demand_flex_config(run: dict[str, Any]) -> DemandFlexConfig:
+    raw = run.get("demand_flex")
+    if raw is None or not isinstance(raw, dict):
+        return DemandFlexConfig()
+    derivation_raw = raw.get("tou_derivation_path", "")
+    derivation_path = (
+        _resolve_path(str(derivation_raw), PATH_CONFIG) if derivation_raw else Path()
+    )
+    return DemandFlexConfig(
+        enabled=_parse_bool(raw.get("enabled", False), "demand_flex.enabled"),
+        demand_elasticity=float(raw.get("demand_elasticity", -0.1)),
+        tou_tariff_key=str(raw.get("tou_tariff_key", "")),
+        tou_derivation_path=derivation_path,
+    )
+
+
 def _build_settings_from_yaml_run(
     run: dict[str, Any],
     run_num: int,
@@ -380,6 +411,7 @@ def _build_settings_from_yaml_run(
         run.get("add_supply_revenue_requirement", False),
         "add_supply_revenue_requirement",
     )
+    demand_flex = _parse_demand_flex_config(run)
     sample_size = (
         _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
     )
@@ -424,6 +456,7 @@ def _build_settings_from_yaml_run(
         solar_pv_compensation=solar_pv_compensation,
         sample_size=sample_size,
         add_supply_revenue_requirement=add_supply_revenue_requirement,
+        demand_flex=demand_flex,
     )
 
 
@@ -572,6 +605,56 @@ def run(settings: ScenarioSettings) -> None:
     )
 
     # ------------------------------------------------------------------
+    # Phase 1.5 (optional): Runtime demand shifting for TOU customers
+    # ------------------------------------------------------------------
+    effective_load_elec = raw_load_elec
+    elasticity_tracker = pd.DataFrame()
+    if settings.demand_flex.enabled:
+        flex = settings.demand_flex
+        if not flex.tou_tariff_key:
+            raise ValueError(
+                "demand_flex.enabled is true but demand_flex.tou_tariff_key is empty"
+            )
+        tou_tariff_path = settings.path_tariffs_electric.get(flex.tou_tariff_key)
+        if tou_tariff_path is None:
+            raise ValueError(
+                f"demand_flex.tou_tariff_key={flex.tou_tariff_key!r} not found in "
+                f"path_tariffs_electric keys={sorted(settings.path_tariffs_electric)}"
+            )
+        with open(tou_tariff_path) as f:
+            tou_tariff = json.load(f)
+
+        if "bldg_id" not in tariff_map_df.columns or "tariff_key" not in tariff_map_df.columns:
+            raise ValueError(
+                "Electric tariff map must include 'bldg_id' and 'tariff_key' columns"
+            )
+        tou_rows = tariff_map_df[tariff_map_df["tariff_key"] == flex.tou_tariff_key]
+        tou_bldg_ids = cast(list[int], tou_rows["bldg_id"].astype(int).tolist())
+        season_specs = None
+        if flex.tou_derivation_path:
+            if flex.tou_derivation_path.exists():
+                season_specs = load_season_specs(flex.tou_derivation_path)
+            else:
+                log.warning(
+                    ".... demand_flex.tou_derivation_path not found (%s); "
+                    "falling back to tariff-inferred seasonal grouping",
+                    flex.tou_derivation_path,
+                )
+
+        log.info(
+            ".... Applying runtime demand response to %d TOU customers using tariff %s",
+            len(tou_bldg_ids),
+            flex.tou_tariff_key,
+        )
+        effective_load_elec, elasticity_tracker = apply_runtime_tou_demand_response(
+            raw_load_elec=raw_load_elec,
+            tou_bldg_ids=tou_bldg_ids,
+            tou_tariff=tou_tariff,
+            demand_elasticity=flex.demand_elasticity,
+            season_specs=season_specs,
+        )
+
+    # ------------------------------------------------------------------
     # Phase 2: Load marginal costs and calculate revenuerequirements
     # ------------------------------------------------------------------
 
@@ -602,7 +685,7 @@ def run(settings: ScenarioSettings) -> None:
         marginal_system_costs,
         costs_by_type,
     ) = _return_revenue_requirement_target(
-        building_load=raw_load_elec,
+        building_load=effective_load_elec,
         sample_weight=customer_metadata[["bldg_id", "weight"]],
         revenue_requirement_target=settings.utility_delivery_revenue_requirement,
         residual_cost=None,
@@ -633,7 +716,7 @@ def run(settings: ScenarioSettings) -> None:
         tariff_map=tariff_map_df,
         precalc_period_mapping=precalc_mapping,
         customer_metadata=customer_metadata,
-        customer_electricity_load=raw_load_elec,
+        customer_electricity_load=effective_load_elec,
         customer_gas_load=raw_load_gas,
         gas_tariff_map=settings.path_tariff_maps_gas,
         gas_tariff_str_loc=settings.path_tariffs_gas,
@@ -652,6 +735,10 @@ def run(settings: ScenarioSettings) -> None:
         distribution_mc_path = Path(save_file_loc) / "distribution_marginal_costs.csv"
         distribution_marginal_costs.to_csv(distribution_mc_path, index=True)
         log.info(".... Saved distribution marginal costs: %s", distribution_mc_path)
+        if settings.demand_flex.enabled:
+            tracker_path = Path(save_file_loc) / "demand_flex_elasticity_tracker.csv"
+            elasticity_tracker.to_csv(tracker_path, index=True)
+            log.info(".... Saved demand-flex elasticity tracker: %s", tracker_path)
 
     log.info(".... Completed RI residential (non-LMI) rate scenario simulation")
 
