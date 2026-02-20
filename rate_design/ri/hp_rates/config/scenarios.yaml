@@ -9,7 +9,7 @@ runs:
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=RI/upgrade=00/
     path_cambium_marginal_costs: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
-    path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/0000000.parquet
+    path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/00000000.parquet
     path_tariff_maps_electric: tariff_maps/electric/rie_flat_a16.csv
     path_tariffs_electric:
       - tariffs/electric/rie_a16.json
@@ -35,7 +35,7 @@ runs:
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=RI/upgrade=00/
     path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
-    path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/0000000.parquet
+    path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/00000000.parquet
     path_tariff_maps_electric: tariff_maps/electric/rie_flat_a16_supply.csv
     path_tariffs_electric:
       - tariffs/electric/rie_flat_a16_supply.json

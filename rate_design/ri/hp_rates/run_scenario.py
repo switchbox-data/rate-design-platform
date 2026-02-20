@@ -24,6 +24,7 @@ from cairo.rates_tool.systemsimulator import (
 from utils.cairo import (
     _load_cambium_marginal_costs,
     build_bldg_id_to_load_filepath,
+    enable_cairo_multitariff_mapping_workaround,
     load_distribution_marginal_costs,
 )
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
@@ -395,6 +396,7 @@ def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
 
 
 def run(settings: ScenarioSettings) -> None:
+    enable_cairo_multitariff_mapping_workaround()
     log.info(
         ".... Beginning RI residential (non-LMI) rate scenario simulation: %s",
         settings.run_name,

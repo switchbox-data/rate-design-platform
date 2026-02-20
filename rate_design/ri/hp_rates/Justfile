@@ -83,7 +83,7 @@ create-rie-hp-seasonal-calibrated-supply seasonal_inputs_csv:
 # -----------------------------------------------------------------------------
 # Derive seasonal TOU tariff + map + derivation spec for RI.
 # Uses local ResStock mounts under /data.sb and writes under config/.
-ri_td_mc_path := "s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/0000000.parquet"
+ri_td_mc_path := "s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/00000000.parquet"
 
 create-seasonal-tou tou_tariff_key="rie_hp_seasonalTOU" flat_tariff_key="rie_a16" upgrade_id="00" year="2025" tou_base_rate="0.06" tou_fixed_charge="6.75" periods_yaml=ri_periods_yaml td_mc_path=ri_td_mc_path:
   uv run python {{project_root}}/utils/pre/derive_seasonal_tou.py \

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import io
-from pathlib import Path
+import logging
+from copy import deepcopy
+from pathlib import Path, PurePath
 from typing import cast
 
 import pandas as pd
@@ -15,6 +17,74 @@ from cloudpathlib import S3Path
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 
 CambiumPathLike = str | Path | S3Path
+_CAIRO_MULTITARIFF_WORKAROUND_APPLIED = False
+log = logging.getLogger("rates_analysis").getChild("utils.cairo")
+
+
+def enable_cairo_multitariff_mapping_workaround() -> None:
+    """Patch CAIRO to support multi-tariff mappings with preinitialized tariff dicts.
+
+    CAIRO currently re-initializes tariffs from disk when more than one tariff key is
+    present in a map, even when a ready-to-use `tariff_base` dict is already passed.
+    In some code paths (notably gas post-processing), this drops explicit path mapping
+    and fails with "tariff path build failed".
+
+    This workaround reuses the provided `tariff_base` values directly when:
+    - `tariff_base` is a dict with more than one key, and
+    - keys referenced by `tariff_map` are all present in `tariff_base`.
+    """
+
+    global _CAIRO_MULTITARIFF_WORKAROUND_APPLIED
+    if _CAIRO_MULTITARIFF_WORKAROUND_APPLIED:
+        return
+
+    from cairo.rates_tool import tariffs as tariff_funcs
+
+    original_load_base_tariffs = tariff_funcs._load_base_tariffs
+
+    def _patched_load_base_tariffs(
+        tariff_base: dict[str, dict],
+        tariff_map: str | PurePath | pd.DataFrame | None,
+        prototype_ids: list[int] | None = None,
+    ) -> tuple[dict[int, str], dict[str, dict]]:
+        should_try_workaround = (
+            isinstance(tariff_base, dict)
+            and len(tariff_base.keys()) > 1
+            and tariff_map is not None
+        )
+        if not should_try_workaround:
+            return original_load_base_tariffs(tariff_base, tariff_map, prototype_ids)
+
+        if isinstance(tariff_map, (str, PurePath)):
+            tariff_map_df = tariff_funcs.__load_tariff_maps__(tariff_map)
+        else:
+            if not isinstance(tariff_map, pd.DataFrame):
+                return original_load_base_tariffs(
+                    tariff_base, tariff_map, prototype_ids
+                )
+            tariff_map_df = tariff_map
+            if "bldg_id" in tariff_map_df.columns:
+                tariff_map_df = tariff_map_df.set_index("bldg_id")
+            elif tariff_map_df.index.name != "bldg_id":
+                return original_load_base_tariffs(
+                    tariff_base, tariff_map, prototype_ids
+                )
+
+        if "tariff_key" not in tariff_map_df.columns:
+            return original_load_base_tariffs(tariff_base, tariff_map, prototype_ids)
+
+        prototype_tariff_map = tariff_map_df["tariff_key"].to_dict()
+        unique_tariffs = set(prototype_tariff_map.values())
+        if not unique_tariffs.issubset(set(tariff_base.keys())):
+            return original_load_base_tariffs(tariff_base, tariff_map, prototype_ids)
+
+        # Reuse already initialized tariff dicts instead of reloading by default path.
+        tariff_dict = {k: deepcopy(tariff_base[k]) for k in unique_tariffs}
+        return prototype_tariff_map, tariff_dict
+
+    tariff_funcs._load_base_tariffs = _patched_load_base_tariffs
+    _CAIRO_MULTITARIFF_WORKAROUND_APPLIED = True
+    log.info(".... Enabled CAIRO multi-tariff mapping workaround")
 
 
 def _normalize_cambium_path(cambium_scenario: CambiumPathLike):  # noqa: ANN201
