@@ -20,6 +20,11 @@ run-scenario-with-output run_num output_dir utility:
     --utility "{{utility}}" \
     --output-dir "{{output_dir}}"
 
+run-scenario-max run_num:
+  uv run python {{project_root}}/rate_design/ri/hp_rates/run_scenario.py \
+    --run-num "{{run_num}}" \
+    --scenario-config "{{project_root}}"/rate_design/ri/hp_rates/config/scenarios/scenarios_rie_max.yaml
+
 # -----------------------------------------------------------------------------
 # Post-processing
 # -----------------------------------------------------------------------------
