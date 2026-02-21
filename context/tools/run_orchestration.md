@@ -13,11 +13,11 @@ unattended.
 
 Three layers work together:
 
-| Layer | Path | Role |
-| --- | --- | --- |
-| Generic recipes | `utils/Justfile` | Reusable pre/post-processing recipes with no state-specific paths. RI Justfile delegates here. |
-| RI orchestration | `rate_design/ri/hp_rates/Justfile` | Defines `run-1` … `run-12`, `global-pre`, and `run-all-sequential`. Binds RI-specific paths and wires the dependency chain. |
-| Output resolver | `utils/runtime/latest_run_output.sh` | Shell script that finds the most recent CAIRO output directory for a given run on S3. |
+| Layer            | Path                                 | Role                                                                                                                        |
+| ---------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| Generic recipes  | `utils/Justfile`                     | Reusable pre/post-processing recipes with no state-specific paths. RI Justfile delegates here.                              |
+| RI orchestration | `rate_design/ri/hp_rates/Justfile`   | Defines `run-1` … `run-12`, `global-pre`, and `run-all-sequential`. Binds RI-specific paths and wires the dependency chain. |
+| Output resolver  | `utils/runtime/latest_run_output.sh` | Shell script that finds the most recent CAIRO output directory for a given run on S3.                                       |
 
 ## Dependency chain
 
