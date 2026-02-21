@@ -328,5 +328,3 @@ def compute_seasonal_base_rates(
             dw_avgs[s.name],
         )
     return rates
-
-

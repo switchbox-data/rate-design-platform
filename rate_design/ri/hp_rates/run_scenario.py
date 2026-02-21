@@ -152,8 +152,7 @@ def _parse_bool(value: object, field_name: str) -> bool:
     if isinstance(value, bool):
         return value
     raise ValueError(
-        f"Invalid boolean for {field_name}: {value!r}. "
-        "Use unquoted YAML true/false."
+        f"Invalid boolean for {field_name}: {value!r}. Use unquoted YAML true/false."
     )
 
 
@@ -314,9 +313,7 @@ def _parse_subclass_revenue_requirement(
     """
     subclass_rr = rr_data.get("subclass_revenue_requirements")
     if not isinstance(subclass_rr, dict) or not subclass_rr:
-        raise ValueError(
-            "subclass_revenue_requirements must be a non-empty mapping"
-        )
+        raise ValueError("subclass_revenue_requirements must be a non-empty mapping")
 
     alias_to_tariff_key = {
         alias: _resolve_path(str(path_str), base_dir).stem
@@ -386,8 +383,7 @@ def _parse_utility_revenue_requirement(
             rr_data, raw_path_tariffs_electric, base_dir
         )
     raise ValueError(
-        f"{path} must contain 'revenue_requirement' or "
-        "'subclass_revenue_requirements'."
+        f"{path} must contain 'revenue_requirement' or 'subclass_revenue_requirements'."
     )
 
 
@@ -515,10 +511,7 @@ def _parse_args() -> argparse.Namespace:
         "--scenario-config",
         type=Path,
         default=None,
-        help=(
-            "Path to YAML scenario config. "
-            "Required unless --utility is provided."
-        ),
+        help=("Path to YAML scenario config. Required unless --utility is provided."),
     )
     parser.add_argument(
         "--utility",
