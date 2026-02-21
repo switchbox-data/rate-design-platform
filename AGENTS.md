@@ -106,6 +106,23 @@ Match existing style: Ruff for formatting/lint, **ty** for type checking, dprint
 - Filenames: lowercase with underscores, end with `_YYYYMMDD` (download date)
 - Use lazy evaluation (polars `scan_parquet` / arrow `open_dataset`) and filter before collecting
 
+## Best practices for working with data (for agents and contributors)
+
+### Polars
+
+- **Prefer LazyFrame:** Use `scan_parquet` and lazy operations; only materialize (e.g. `.collect()` or `read_parquet`) when the operation cannot be done lazily (e.g. control flow that depends on data, or a library that requires a DataFrame).
+- **LazyFrame vs DataFrame:** Only `LazyFrame` has `.collect()`. A `DataFrame` from `read_parquet`, `.collect()`, or `df.join()` does not—calling `.collect()` on it will raise. Use `.group_by().agg()` on a DataFrame directly; no `.collect()`.
+- **Joins:** With default `coalesce=True`, Polars keeps only the **left** join key column and drops the right. If you need both key columns in the result, use `coalesce=False` in the join; otherwise select/alias from the left key as needed.
+
+### S3 and parquet
+
+- **Prefer a single path for scan_parquet:** Pass the hive-partition root (or directory) to `pl.scan_parquet(path, ...)` so Polars reads the dataset as one logical table; do not pre-list files with s3fs just to pass a list of paths unless you have confirmed the row identity or grouping is not in the data (e.g. only in the path).
+
+### Data and S3
+
+- **Always inspect the data before coding.** When writing code that reads from S3 (or any data source), open the actual dataset—e.g. read one parquet and print schema and a few rows (`df.schema`, `df.head()`)—instead of assuming column names, presence of IDs, or file layout. Do not infer schema or row identity from file paths or other code alone.
+- **Check context/docs first.** Before assuming a dataset's structure, look in `context/docs/` for data dictionaries, dataset docs, or release notes (e.g. ResStock, Cambium, EIA, PUMS). Use that as the source of truth; if docs and data disagree, note it.
+
 ## Dependencies
 
 - `uv add <package>` (updates pyproject.toml + uv.lock); never use `pip install
