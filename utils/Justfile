@@ -7,7 +7,7 @@ project_root := `git rev-parse --show-toplevel`
 # -----------------------------------------------------------------------------
 
 # Create scenario YAMLs from the Runs & Charts Google Sheet (requires G_* env and browser auth)
-# Writes rate_design/<state>/hp_rates/config/scenarios_<utility>.yaml per utility in your reference sheet. 
+# Writes rate_design/<state>/hp_rates/config/scenarios_<utility>.yaml per utility in your reference sheet.
 create-scenario-yamls:
     uv run python {{project_root}}/utils/pre/create_scenario_yamls.py
 
@@ -96,4 +96,3 @@ create-seasonal-tou cambium_path state utility year td_mc_path resstock_metadata
     --tou-tariff-key "{{tou_tariff_key}}" \
     --output-dir "{{output_dir}}" \
     {{ if periods_yaml != "" { "--periods-yaml \"" + periods_yaml + "\"" } else { "" } }}
-

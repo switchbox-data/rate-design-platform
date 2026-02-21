@@ -236,6 +236,7 @@ run-3:
     #!/usr/bin/env bash
     set -euo pipefail
     run1_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 1)
+    echo ">> run-3: resolved run-1 output → ${run1_dir}" >&2
     just copy-calibrated-tariff-from-run "${run1_dir}" ri
     just run-scenario 3 rie
 
@@ -244,6 +245,7 @@ run-4:
     #!/usr/bin/env bash
     set -euo pipefail
     run2_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 2)
+    echo ">> run-4: resolved run-2 output → ${run2_dir}" >&2
     just copy-calibrated-tariff-from-run "${run2_dir}" ri
     just run-scenario 4 rie
 
@@ -253,6 +255,7 @@ run-5:
     #!/usr/bin/env bash
     set -euo pipefail
     run1_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 1)
+    echo ">> run-5: resolved run-1 output → ${run1_dir}" >&2
     just compute-seasonal-discount-inputs "${run1_dir}" "{{resstock_loads_00}}"
     just create-seasonal-discount-tariff \
         "{{ri_tariffs_electric_dir}}/rie_flat_calibrated.json" \
@@ -267,6 +270,7 @@ run-6:
     #!/usr/bin/env bash
     set -euo pipefail
     run2_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 2)
+    echo ">> run-6: resolved run-2 output → ${run2_dir}" >&2
     just compute-seasonal-discount-inputs "${run2_dir}" "{{resstock_loads_00}}"
     just create-seasonal-discount-tariff \
         "{{ri_tariffs_electric_dir}}/rie_flat_supply_calibrated.json" \
@@ -280,6 +284,7 @@ run-7:
     #!/usr/bin/env bash
     set -euo pipefail
     run5_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 5)
+    echo ">> run-7: resolved run-5 output → ${run5_dir}" >&2
     just copy-calibrated-tariff-from-run "${run5_dir}" ri
     just run-scenario 7 rie
 
@@ -288,6 +293,7 @@ run-8:
     #!/usr/bin/env bash
     set -euo pipefail
     run6_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 6)
+    echo ">> run-8: resolved run-6 output → ${run6_dir}" >&2
     just copy-calibrated-tariff-from-run "${run6_dir}" ri
     just run-scenario 8 rie
 
@@ -306,6 +312,7 @@ run-11:
     #!/usr/bin/env bash
     set -euo pipefail
     run9_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 9)
+    echo ">> run-11: resolved run-9 output → ${run9_dir}" >&2
     just copy-calibrated-tariff-from-run "${run9_dir}" ri
     just run-scenario 11 rie
 
@@ -314,6 +321,7 @@ run-12:
     #!/usr/bin/env bash
     set -euo pipefail
     run10_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 10)
+    echo ">> run-12: resolved run-10 output → ${run10_dir}" >&2
     just copy-calibrated-tariff-from-run "${run10_dir}" ri
     just run-scenario 12 rie
 
