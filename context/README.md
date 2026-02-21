@@ -26,6 +26,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 | subclass_revenue_requirement_utility.md | `compute_subclass_rr.py` behavior, BAT metric options, required inputs, and CLI/Just usage    |
 | seasonal_discount_rate_workflow.md      | RI seasonal discount workflow from subclass BAT outputs + winter kWh to tariff/map generation |
 | cairo_performance_analysis.md           | CAIRO execution profile, compute bottlenecks, parallelism status, and speedup opportunities   |
+| run_orchestration.md                    | RI runs 1–12 orchestration: Justfile dependency chain, `latest_run_output.sh`, design decisions |
 
 ## docs/
 
