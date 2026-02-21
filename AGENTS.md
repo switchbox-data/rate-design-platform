@@ -79,6 +79,10 @@ To add or refresh extracted PDF content: use the **extract-pdf-to-markdown** sla
 - **Data**: Versioned inputs are under `rate_design/.../config/tariffs/electric/` and `.../tariffs/gas/` (JSON) and `.../config/tariff_maps/electric/` and `.../config/tariff_maps/gas/` (CSV). Don’t commit large buildstock or CAIRO case outputs; use `.gitignore` and S3/local paths as in existing Justfiles.
 - **AWS authentication**: we rely heavily on reading and writing data to s3. We use short-lived AWS SOO config; if it must be refreshed, use `just aws` in the root.
 
+## Best practices for Justfiles
+
+- **Path variables**: Any Just variable that holds a file or directory path should be named with a `path_` prefix (e.g. `path_project_root`, `path_output_dir`, `path_rateacuity_yaml`). This makes it clear which variables are paths and keeps naming consistent across Justfiles.
+
 ## Computing contexts
 
 - Data scientists' laptops, usually Macs with Apple Silicon
