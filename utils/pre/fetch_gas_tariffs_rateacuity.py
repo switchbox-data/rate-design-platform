@@ -194,7 +194,7 @@ def fetch_gas_urdb(
                     "Matched (will fetch):",
                     *([f"  - {s!r}" for s in matched] if matched else ["  (none)"]),
                     "",
-                    "Not found (update rateacuity_tariffs.yaml or check Rate Acuity):",
+                    "Not found (update rateacuity_tariffs.yaml to match the Schedules currently available on Rate Acuity):",
                     *[f"  - {s!r}" for s in missing],
                     "",
                     "Schedules currently available for this utility:",
