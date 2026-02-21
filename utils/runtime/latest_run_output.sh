@@ -54,12 +54,12 @@ s3_parent="${parent_dir/#\/data.sb\//s3://data.sb/}"
 # List matching directories, sort lexicographically (timestamps sort naturally),
 # take the last (most recent) one.
 match=$(
-  aws s3 ls "$s3_parent" 2>/dev/null \
-    | grep -F "PRE" \
-    | awk '{print $NF}' \
-    | grep -F "${run_name}" \
-    | sort \
-    | tail -1
+  aws s3 ls "$s3_parent" 2>/dev/null |
+    grep -F "PRE" |
+    awk '{print $NF}' |
+    grep -F "${run_name}" |
+    sort |
+    tail -1
 ) || true
 
 if [[ -z "$match" ]]; then
