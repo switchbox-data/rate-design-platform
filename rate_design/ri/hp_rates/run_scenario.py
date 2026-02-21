@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+import pandas as pd
 import polars as pl
 import yaml
 from cairo.rates_tool.loads import (
@@ -39,8 +40,17 @@ STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 # Resolve paths relative to this script so the scenario can be run from any CWD.
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
+PATH_SCENARIOS = PATH_CONFIG / "scenarios"
 DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
-DEFAULT_SCENARIO_CONFIG = PATH_CONFIG / "scenarios.yaml"
+
+SUBCLASS_TO_ALIAS: dict[str, str] = {
+    "true": "hp",
+    "false": "non-hp",
+}
+
+
+def _scenario_config_from_utility(utility: str) -> Path:
+    return PATH_SCENARIOS / f"scenarios_{utility}.yaml"
 
 
 @dataclass(slots=True)
@@ -61,9 +71,7 @@ class ScenarioSettings:
     path_tariff_maps_gas: Path
     path_tariffs_electric: dict[str, Path]
     path_tariffs_gas: dict[str, Path]
-    precalc_tariff_path: Path
-    precalc_tariff_key: str
-    utility_delivery_revenue_requirement: float
+    utility_delivery_revenue_requirement: float | dict[str, float]
     path_electric_utility_stats: str | Path
     year_run: int
     year_dollar_conversion: int
@@ -128,17 +136,24 @@ def _parse_int(value: object, field_name: str) -> int:
         raise ValueError(f"Invalid integer for {field_name}: {value}") from exc
 
 
+def _parse_float(value: object, field_name: str) -> float:
+    if isinstance(value, int | float):
+        return float(value)
+    cleaned = str(value).strip().replace(",", "")
+    if cleaned == "":
+        raise ValueError(f"Missing required field: {field_name}")
+    try:
+        return float(cleaned)
+    except ValueError as exc:
+        raise ValueError(f"Invalid float for {field_name}: {value}") from exc
+
+
 def _parse_bool(value: object, field_name: str) -> bool:
     if isinstance(value, bool):
         return value
-    if isinstance(value, int):
-        return bool(value)
-    normalized = str(value).strip().lower()
-    if normalized in {"true", "1", "yes", "y"}:
-        return True
-    if normalized in {"false", "0", "no", "n"}:
-        return False
-    raise ValueError(f"Invalid boolean for {field_name}: {value}")
+    raise ValueError(
+        f"Invalid boolean for {field_name}: {value!r}. Use unquoted YAML true/false."
+    )
 
 
 def apply_prototype_sample(
@@ -273,18 +288,103 @@ def _parse_path_tariffs_gas(
     return path_tariffs
 
 
-def _default_precalc_tariff(path_tariffs_electric: dict[str, Path]) -> tuple[str, Path]:
-    """Choose default precalc tariff from first configured electric tariff."""
-    if not path_tariffs_electric:
-        raise ValueError("path_tariffs_electric must contain at least one tariff")
-    return next(iter(path_tariffs_electric.items()))
-
-
 def _require_value(run: dict[str, Any], field_name: str) -> Any:
     value = run.get(field_name)
     if value is None:
         raise ValueError(f"Missing required field `{field_name}` in run config")
     return value
+
+
+def _parse_single_revenue_requirement(rr_data: dict[str, Any]) -> float:
+    """Extract a scalar revenue_requirement from the YAML mapping."""
+    return _parse_float(rr_data["revenue_requirement"], "revenue_requirement")
+
+
+def _parse_subclass_revenue_requirement(
+    rr_data: dict[str, Any],
+    raw_path_tariffs_electric: dict[str, Any],
+    base_dir: Path,
+) -> dict[str, float]:
+    """Map subclass revenue requirements to tariff keys.
+
+    Subclass YAML keys ('true'/'false') are mapped via SUBCLASS_TO_ALIAS to
+    the raw YAML aliases ('hp'/'non-hp'), then resolved to tariff keys (file
+    stems like 'rie_hp_seasonal') using the path strings.
+    """
+    subclass_rr = rr_data.get("subclass_revenue_requirements")
+    if not isinstance(subclass_rr, dict) or not subclass_rr:
+        raise ValueError("subclass_revenue_requirements must be a non-empty mapping")
+
+    alias_to_tariff_key = {
+        alias: _resolve_path(str(path_str), base_dir).stem
+        for alias, path_str in raw_path_tariffs_electric.items()
+    }
+
+    result: dict[str, float] = {}
+    for group_val, amount in subclass_rr.items():
+        alias = SUBCLASS_TO_ALIAS.get(str(group_val))
+        if alias is None:
+            raise ValueError(
+                f"Unknown subclass group value {group_val!r}; "
+                f"expected one of {sorted(SUBCLASS_TO_ALIAS)}"
+            )
+        tariff_key = alias_to_tariff_key.get(alias)
+        if tariff_key is None:
+            raise ValueError(
+                f"Subclass {group_val!r} maps to alias {alias!r} but "
+                f"path_tariffs_electric has no alias {alias!r} "
+                f"(available: {sorted(alias_to_tariff_key)})"
+            )
+        result[tariff_key] = _parse_float(
+            amount, f"subclass_revenue_requirements[{group_val}]"
+        )
+
+    return result
+
+
+def _parse_utility_revenue_requirement(
+    value: Any,
+    base_dir: Path,
+    raw_path_tariffs_electric: dict[str, Any],
+) -> float | dict[str, float]:
+    """Parse utility_delivery_revenue_requirement from a YAML path.
+
+    Returns a single float for single-RR YAMLs, or a dict keyed by tariff_key
+    for subclass-RR YAMLs.  raw_path_tariffs_electric is the original YAML dict
+    (alias -> path string) before alias-to-stem conversion.
+    """
+    if not isinstance(value, str):
+        raise ValueError(
+            "utility_delivery_revenue_requirement must be a YAML path string "
+            f"(.yaml/.yml), got {type(value).__name__}"
+        )
+    raw = value.strip()
+    if raw == "":
+        raise ValueError("Missing required field: utility_delivery_revenue_requirement")
+    if not (raw.endswith(".yaml") or raw.endswith(".yml")):
+        raise ValueError(
+            "utility_delivery_revenue_requirement must be a YAML file path "
+            f"(.yaml/.yml), got {value!r}"
+        )
+
+    path = _resolve_path(raw, base_dir)
+    with path.open(encoding="utf-8") as f:
+        rr_data = yaml.safe_load(f)
+    if not isinstance(rr_data, dict):
+        raise ValueError(
+            "Revenue requirement YAML must be a mapping; "
+            f"got {type(rr_data).__name__} in {path}"
+        )
+
+    if "revenue_requirement" in rr_data:
+        return _parse_single_revenue_requirement(rr_data)
+    if "subclass_revenue_requirements" in rr_data:
+        return _parse_subclass_revenue_requirement(
+            rr_data, raw_path_tariffs_electric, base_dir
+        )
+    raise ValueError(
+        f"{path} must contain 'revenue_requirement' or 'subclass_revenue_requirements'."
+    )
 
 
 def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
@@ -314,33 +414,35 @@ def _build_settings_from_yaml_run(
     state = str(run.get("state", "RI")).upper()
     utility = str(_require_value(run, "utility")).lower()
     mode = str(run.get("run_type", "precalc"))
-    year_run = _parse_int(run.get("year_run"), "year_run")
+    year_run = _parse_int(_require_value(run, "year_run"), "year_run")
     year_dollar_conversion = _parse_int(
-        run.get("year_dollar_conversion"),
+        _require_value(run, "year_dollar_conversion"),
         "year_dollar_conversion",
     )
-    process_workers = _parse_int(run.get("process_workers", 20), "process_workers")
-    utility_delivery_revenue_requirement = float(
-        _parse_int(
-            _require_value(run, "utility_delivery_revenue_requirement"),
-            "utility_delivery_revenue_requirement",
-        )
+    process_workers = _parse_int(
+        _require_value(run, "process_workers"), "process_workers"
     )
     path_electric_utility_stats = _resolve_path_or_uri(
         str(_require_value(run, "path_electric_utility_stats")),
         PATH_CONFIG,
     )
-    solar_pv_compensation = str(run.get("solar_pv_compensation", "net_metering"))
+    solar_pv_compensation = str(_require_value(run, "solar_pv_compensation"))
 
     path_tariff_maps_electric = _resolve_path(
         str(_require_value(run, "path_tariff_maps_electric")),
         PATH_CONFIG,
     )
+    raw_path_tariffs_electric = _require_value(run, "path_tariffs_electric")
     path_tariffs_electric = _parse_path_tariffs(
-        _require_value(run, "path_tariffs_electric"),
+        raw_path_tariffs_electric,
         path_tariff_maps_electric,
         PATH_CONFIG,
         "electric",
+    )
+    utility_delivery_revenue_requirement = _parse_utility_revenue_requirement(
+        _require_value(run, "utility_delivery_revenue_requirement"),
+        PATH_CONFIG,
+        raw_path_tariffs_electric,
     )
     path_tariff_maps_gas = _resolve_path(
         str(_require_value(run, "path_tariff_maps_gas")),
@@ -352,32 +454,8 @@ def _build_settings_from_yaml_run(
         PATH_CONFIG,
     )
 
-    precalc_tariff_key_raw = run.get("precalc_tariff_key")
-    precalc_tariff_path_raw = run.get("precalc_tariff_path")
-    if precalc_tariff_key_raw is None and precalc_tariff_path_raw is None:
-        precalc_tariff_key, precalc_tariff_path = _default_precalc_tariff(
-            path_tariffs_electric
-        )
-    elif precalc_tariff_path_raw is None:
-        precalc_tariff_key = str(precalc_tariff_key_raw)
-        try:
-            precalc_tariff_path = path_tariffs_electric[precalc_tariff_key]
-        except KeyError as exc:
-            available = sorted(path_tariffs_electric.keys())
-            raise ValueError(
-                "precalc_tariff_key is not in path_tariffs_electric. "
-                f"precalc_tariff_key={precalc_tariff_key!r}, available={available}"
-            ) from exc
-    else:
-        precalc_tariff_path = _resolve_path(str(precalc_tariff_path_raw), PATH_CONFIG)
-        precalc_tariff_key = (
-            str(precalc_tariff_key_raw)
-            if precalc_tariff_key_raw is not None
-            else precalc_tariff_path.stem
-        )
-
     add_supply_revenue_requirement = _parse_bool(
-        run.get("add_supply_revenue_requirement", False),
+        _require_value(run, "add_supply_revenue_requirement"),
         "add_supply_revenue_requirement",
     )
     sample_size = (
@@ -414,8 +492,6 @@ def _build_settings_from_yaml_run(
         path_tariff_maps_gas=path_tariff_maps_gas,
         path_tariffs_electric=path_tariffs_electric,
         path_tariffs_gas=path_tariffs_gas,
-        precalc_tariff_path=precalc_tariff_path,
-        precalc_tariff_key=precalc_tariff_key,
         utility_delivery_revenue_requirement=utility_delivery_revenue_requirement,
         path_electric_utility_stats=path_electric_utility_stats,
         year_run=year_run,
@@ -434,8 +510,18 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--scenario-config",
         type=Path,
-        default=DEFAULT_SCENARIO_CONFIG,
-        help=f"Path to YAML scenario config (default: {DEFAULT_SCENARIO_CONFIG}).",
+        default=None,
+        help=("Path to YAML scenario config. Required unless --utility is provided."),
+    )
+    parser.add_argument(
+        "--utility",
+        type=str,
+        default=None,
+        help=(
+            "Utility code used to derive scenario config as "
+            "config/scenarios/scenarios_<utility>.yaml. "
+            "Required unless --scenario-config is provided."
+        ),
     )
     parser.add_argument(
         "--run-num",
@@ -454,11 +540,18 @@ def _parse_args() -> argparse.Namespace:
         help="Optional override for run name.",
     )
     args = parser.parse_args()
+    if args.scenario_config is None and args.utility is None:
+        parser.error("Provide either --scenario-config or --utility.")
     return args
 
 
 def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
-    run = _load_run_from_yaml(args.scenario_config, args.run_num)
+    scenario_config = args.scenario_config
+    if scenario_config is None:
+        if args.utility is None:
+            raise ValueError("Provide either --scenario-config or --utility.")
+        scenario_config = _scenario_config_from_utility(args.utility.lower())
+    run = _load_run_from_yaml(scenario_config, args.run_num)
     return _build_settings_from_yaml_run(
         run=run,
         run_num=args.run_num,
@@ -478,6 +571,7 @@ def _load_prototype_ids_for_run(
     sample_size: int | None,
 ) -> list[int]:
     """Load utility assignment, fetch prototype IDs for the utility, optionally sample."""
+
     path_ua = path_utility_assignment
     storage_opts = (
         STORAGE_OPTIONS
@@ -507,6 +601,19 @@ def _load_prototype_ids_for_run(
     return prototype_ids
 
 
+def _build_precalc_period_mapping(
+    path_tariffs_electric: dict[str, Path],
+) -> pd.DataFrame:
+    """Build precalc mapping by concatenating all configured electric tariffs."""
+    if not path_tariffs_electric:
+        raise ValueError("path_tariffs_electric must contain at least one tariff")
+    precalc_parts = [
+        generate_default_precalc_mapping(tariff_path=tariff_path, tariff_key=tariff_key)
+        for tariff_key, tariff_path in path_tariffs_electric.items()
+    ]
+    return pd.concat(precalc_parts, ignore_index=True)
+
+
 def run(settings: ScenarioSettings) -> None:
     log.info(
         ".... Beginning RI residential (non-LMI) rate scenario simulation: %s",
@@ -529,10 +636,7 @@ def run(settings: ScenarioSettings) -> None:
         tariff_paths=settings.path_tariffs_electric,
     )
 
-    precalc_mapping = generate_default_precalc_mapping(
-        tariff_path=settings.precalc_tariff_path,
-        tariff_key=settings.precalc_tariff_key,
-    )
+    precalc_mapping = _build_precalc_period_mapping(settings.path_tariffs_electric)
 
     customer_count = get_residential_customer_count_from_utility_stats(
         settings.path_electric_utility_stats,
@@ -596,15 +700,25 @@ def run(settings: ScenarioSettings) -> None:
         tariff_dict=tariffs_params,
     )
 
+    rr_setting = settings.utility_delivery_revenue_requirement
+    if isinstance(rr_setting, dict):
+        rr_total = sum(rr_setting.values())
+        rr_ratios: dict[str, float] | None = {
+            k: v / rr_total for k, v in rr_setting.items()
+        }
+    else:
+        rr_total = rr_setting
+        rr_ratios = None
+
     (
-        revenue_requirement,
+        revenue_requirement_raw,
         marginal_system_prices,
         marginal_system_costs,
         costs_by_type,
     ) = _return_revenue_requirement_target(
         building_load=raw_load_elec,
         sample_weight=customer_metadata[["bldg_id", "weight"]],
-        revenue_requirement_target=settings.utility_delivery_revenue_requirement,
+        revenue_requirement_target=rr_total,
         residual_cost=None,
         residual_cost_frac=None,
         bulk_marginal_costs=bulk_marginal_costs,
@@ -612,6 +726,13 @@ def run(settings: ScenarioSettings) -> None:
         low_income_strategy=None,
         delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
     )
+
+    if rr_ratios is not None:
+        revenue_requirement = {
+            k: v * revenue_requirement_raw for k, v in rr_ratios.items()
+        }
+    else:
+        revenue_requirement = revenue_requirement_raw
 
     # ------------------------------------------------------------------
     # Phase 3: Run CAIRO simulation

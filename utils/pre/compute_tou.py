@@ -12,9 +12,6 @@ Provides composable building blocks for rate derivation:
    * ``create_seasonal_tou_tariff`` — 2N-period seasonal+TOU (off-peak + peak per
     season).
 
-4. **Tariff-map helper** — ``generate_tou_tariff_map`` assigns HP customers to the
-   TOU tariff and everyone else to a flat tariff.
-
 The caller (e.g. ``run_scenario.py`` or ``derive_seasonal_tou.py``) iterates
 ``for season in seasons`` and calls the primitives to derive per-season peak
 windows and ratios, then passes those to tariff constructors from
@@ -23,7 +20,6 @@ windows and ratios, then passes those to tariff constructors from
 
 from __future__ import annotations
 
-import argparse
 import json
 import logging
 from dataclasses import dataclass
@@ -332,98 +328,3 @@ def compute_seasonal_base_rates(
             dw_avgs[s.name],
         )
     return rates
-
-
-# ---------------------------------------------------------------------------
-# Tariff-map helper
-# ---------------------------------------------------------------------------
-
-
-def generate_tou_tariff_map(
-    customer_metadata: pd.DataFrame,
-    tou_tariff_key: str,
-    flat_tariff_key: str,
-) -> pd.DataFrame:
-    """Assign HP customers to the TOU tariff and everyone else to flat.
-
-    Args:
-        customer_metadata: DataFrame with ``bldg_id`` and
-            ``postprocess_group.has_hp`` columns.
-        tou_tariff_key: Tariff key for heat-pump customers.
-        flat_tariff_key: Tariff key for non-HP customers.
-
-    Returns:
-        DataFrame with columns ``bldg_id``, ``tariff_key``.
-    """
-    has_hp = customer_metadata["postprocess_group.has_hp"].fillna(False).astype(bool)
-    tariff_key = has_hp.map({True: tou_tariff_key, False: flat_tariff_key})
-    return pd.DataFrame(
-        {"bldg_id": customer_metadata["bldg_id"], "tariff_key": tariff_key}
-    )
-
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
-
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Generate a TOU tariff map from ResStock metadata."
-    )
-    parser.add_argument(
-        "--metadata-path",
-        required=True,
-        help="Path (local or s3://) to ResStock metadata parquet.",
-    )
-    parser.add_argument("--state", required=True, help="State code (e.g. RI).")
-    parser.add_argument("--upgrade-id", default="00", help="Upgrade id (e.g. 00).")
-    parser.add_argument(
-        "--tou-tariff-key",
-        required=True,
-        help="Tariff key for HP customers (e.g. rie_tou_mc).",
-    )
-    parser.add_argument(
-        "--flat-tariff-key",
-        required=True,
-        help="Tariff key for non-HP customers (e.g. rie_a16).",
-    )
-    parser.add_argument(
-        "--output-dir",
-        required=True,
-        help="Output directory for the tariff map CSV.",
-    )
-    return parser.parse_args()
-
-
-def main() -> None:
-    args = _parse_args()
-
-    from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-
-    metadata_base = args.metadata_path
-    is_s3 = metadata_base.startswith("s3://")
-    storage_opts = get_aws_storage_options() if is_s3 else None
-
-    metadata_path = f"{metadata_base}/state={args.state}/upgrade={args.upgrade_id}/metadata-sb.parquet"
-
-    if is_s3:
-        metadata_df = pd.read_parquet(metadata_path, storage_options=storage_opts)
-    else:
-        metadata_df = pd.read_parquet(metadata_path)
-
-    tariff_map_df = generate_tou_tariff_map(
-        customer_metadata=metadata_df,
-        tou_tariff_key=args.tou_tariff_key,
-        flat_tariff_key=args.flat_tariff_key,
-    )
-
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{args.tou_tariff_key}_tariff_map.csv"
-    tariff_map_df.to_csv(output_path, index=False)
-    print(f"Created TOU tariff map: {output_path}")
-
-
-if __name__ == "__main__":
-    main()

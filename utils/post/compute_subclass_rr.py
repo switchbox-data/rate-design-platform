@@ -468,20 +468,15 @@ def _write_revenue_requirement_yamls(
             for row in breakdown.to_dicts()
         },
     }
-    default_data = {
-        "utility": utility,
-        "revenue_requirement": float(default_revenue_requirement),
-        "source": "scenarios.yaml.utility_delivery_revenue_requirement",
-    }
-
     differentiated_yaml_path.write_text(
         yaml.safe_dump(differentiated_data, sort_keys=False),
         encoding="utf-8",
     )
-    default_yaml_path.write_text(
-        yaml.safe_dump(default_data, sort_keys=False),
-        encoding="utf-8",
-    )
+    # TODO: need to create data.sb/switchbox/revenue_requirements/{state}/revenue_requirement.csv as new source. yaml ref is circular
+    # default_yaml_path.write_text(
+    #     yaml.safe_dump(default_data, sort_keys=False),
+    #     encoding="utf-8",
+    # )
     return differentiated_yaml_path, default_yaml_path
 
 
