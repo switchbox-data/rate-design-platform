@@ -4,11 +4,11 @@ Reference for choosing and using sources for **Day-Ahead Market LBMP - Zonal** (
 
 ## Options overview
 
-| Source | How it gets data | Bulk historical | Rate limits | Output format |
-|--------|------------------|-----------------|-------------|---------------|
-| **NYISO MIS (direct ZIP)** | One HTTP GET per month per market from mis.nyiso.com | Yes | No | CSV inside ZIP → you convert to parquet |
-| **gridstatus** | Python API; fetches from NYISO (daily CSVs or similar per request) | Many requests → colleagues report rate limits | Yes for large ranges | pandas DataFrame |
-| **NYISOToolkit** | Same monthly ZIPs as MIS (one request per month) | Yes | No | Pickle / optional CSV in library storage |
+| Source                     | How it gets data                                                   | Bulk historical                               | Rate limits          | Output format                            |
+| -------------------------- | ------------------------------------------------------------------ | --------------------------------------------- | -------------------- | ---------------------------------------- |
+| **NYISO MIS (direct ZIP)** | One HTTP GET per month per market from mis.nyiso.com               | Yes                                           | No                   | CSV inside ZIP → you convert to parquet  |
+| **gridstatus**             | Python API; fetches from NYISO (daily CSVs or similar per request) | Many requests → colleagues report rate limits | Yes for large ranges | pandas DataFrame                         |
+| **NYISOToolkit**           | Same monthly ZIPs as MIS (one request per month)                   | Yes                                           | No                   | Pickle / optional CSV in library storage |
 
 **Recommendation for “free, bulk, minimal cleaning, reliable, S3 parquet”:** Use **NYISO MIS monthly ZIPs** (direct or via your own script). Same data as NYISOToolkit; no dependency and no rate limits. gridstatus is better for ad hoc or small date ranges, not full-year bulk.
 
@@ -41,14 +41,14 @@ Day-ahead and real-time zonal CSVs share the same column idea; real-time has 5�
 
 Canonical columns (verified 2000–2024; same for DAM and RT):
 
-| Column | Description |
-|--------|-------------|
-| Time Stamp | Interval start (Eastern) |
-| Name | Zone name (e.g. CAPITL, CENTRAL, DUNWOD, GENESE, HUD VL, LONGIL, MHK VL, MILLWD, NORTH, WEST) |
-| PTID | Zone PTID (numeric) |
-| LBMP ($/MWHr) | Locational marginal price ($/MWh) |
-| Marginal Cost Losses ($/MWHr) | Loss component ($/MWh) |
-| Marginal Cost Congestion ($/MWHr) | Congestion component ($/MWh) |
+| Column                            | Description                                                                                   |
+| --------------------------------- | --------------------------------------------------------------------------------------------- |
+| Time Stamp                        | Interval start (Eastern)                                                                      |
+| Name                              | Zone name (e.g. CAPITL, CENTRAL, DUNWOD, GENESE, HUD VL, LONGIL, MHK VL, MILLWD, NORTH, WEST) |
+| PTID                              | Zone PTID (numeric)                                                                           |
+| LBMP ($/MWHr)                     | Locational marginal price ($/MWh)                                                             |
+| Marginal Cost Losses ($/MWHr)     | Loss component ($/MWh)                                                                        |
+| Marginal Cost Congestion ($/MWHr) | Congestion component ($/MWh)                                                                  |
 
 ### Data sample (conceptual — one hour, two zones)
 
@@ -76,14 +76,14 @@ So: long/tidy table, one row per (timestamp, zone), with LBMP and components. Yo
 
 gridstatus standardizes LMP across ISOs. You typically get a table with time, location identifier, and LMP (and sometimes energy/loss/congestion). Columns are often named along these lines:
 
-| Column (typical) | Description |
-|-------------------|-------------|
-| Time              | Interval start (often timezone-aware) |
-| Location          | Zone or node id (e.g. zone name or PTID) |
-| LMP               | Locational marginal price ($/MWh) |
-| (optional) Energy | Energy component |
-| (optional) Loss   | Loss component |
-| (optional) Congestion | Congestion component |
+| Column (typical)      | Description                              |
+| --------------------- | ---------------------------------------- |
+| Time                  | Interval start (often timezone-aware)    |
+| Location              | Zone or node id (e.g. zone name or PTID) |
+| LMP                   | Locational marginal price ($/MWh)        |
+| (optional) Energy     | Energy component                         |
+| (optional) Loss       | Loss component                           |
+| (optional) Congestion | Congestion component                     |
 
 ### Data sample (conceptual)
 
@@ -130,10 +130,10 @@ For `lbmp_rt_5m` the index is 5‑minute; the library can resample to hourly. So
 
 ## Summary table (data shape)
 
-| Source        | Shape        | Time resolution (zonal) | Zone as column? | Best for |
-|---------------|-------------|-------------------------|------------------|----------|
-| NYISO MIS ZIP | Long (row per time × zone) | DAM: hourly; RT: 5‑min | No (Name column) | Bulk S3 parquet, full control |
-| gridstatus    | Long (row per time × location) | Depends on market (hourly / 5‑min / 15‑min) | No (Location column) | Ad hoc, small ranges |
-| NYISOToolkit  | Wide (zones as columns) | DAM: hourly; RT: 5‑min (resamplable) | Yes | Quick Python one-liners, same ZIP data |
+| Source        | Shape                          | Time resolution (zonal)                     | Zone as column?      | Best for                               |
+| ------------- | ------------------------------ | ------------------------------------------- | -------------------- | -------------------------------------- |
+| NYISO MIS ZIP | Long (row per time × zone)     | DAM: hourly; RT: 5‑min                      | No (Name column)     | Bulk S3 parquet, full control          |
+| gridstatus    | Long (row per time × location) | Depends on market (hourly / 5‑min / 15‑min) | No (Location column) | Ad hoc, small ranges                   |
+| NYISOToolkit  | Wide (zones as columns)        | DAM: hourly; RT: 5‑min (resamplable)        | Yes                  | Quick Python one-liners, same ZIP data |
 
 For building a single, reliable S3 parquet dataset over many years with minimal cleaning and no rate limits, use **NYISO MIS monthly ZIPs** (direct or your own script); optionally reference NYISOToolkit’s [dataset_url_map](https://github.com/m4rz910/NYISOToolkit/blob/master/nyisotoolkit/nyisodata/dataset_url_map.yml) and [nyisodata.py](https://github.com/m4rz910/NYISOToolkit/blob/master/nyisotoolkit/nyisodata/nyisodata.py) for CSV structure and parsing details.
