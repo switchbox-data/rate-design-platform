@@ -41,8 +41,6 @@ STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
 PATH_SCENARIOS = PATH_CONFIG / "scenarios"
-DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
-
 SUBCLASS_TO_ALIAS: dict[str, str] = {
     "true": "hp",
     "false": "non-hp",
@@ -404,10 +402,33 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
     return _require_mapping(run, f"runs[{run_num}]")
 
 
+def _resolve_output_dir(
+    run: dict[str, Any],
+    run_num: int,
+    output_dir_override: Path | None,
+) -> Path:
+    """Determine the CAIRO output root directory.
+
+    When *output_dir_override* is provided (CLI ``--output-dir``), it wins.
+    Otherwise ``path_outputs`` from the YAML run dict is required:
+    CAIRO creates ``{output_dir}/{timestamp}_{run_name}/``, so we pass
+    ``parent(path_outputs)`` as the output root.
+    """
+    if output_dir_override is not None:
+        return output_dir_override
+    path_outputs_raw = run.get("path_outputs")
+    if not path_outputs_raw:
+        raise ValueError(
+            f"runs[{run_num}] is missing required key 'path_outputs' "
+            "and no --output-dir was provided on the CLI."
+        )
+    return Path(str(path_outputs_raw)).parent
+
+
 def _build_settings_from_yaml_run(
     run: dict[str, Any],
     run_num: int,
-    output_dir: Path,
+    output_dir_override: Path | None,
     run_name_override: str | None,
 ) -> ScenarioSettings:
     """Build runtime settings from repo YAML scenario config."""
@@ -461,6 +482,7 @@ def _build_settings_from_yaml_run(
     sample_size = (
         _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
     )
+    output_dir = _resolve_output_dir(run, run_num, output_dir_override)
     run_name = run_name_override or run.get("run_name") or f"run_{run_num}"
     return ScenarioSettings(
         run_name=run_name,
@@ -532,8 +554,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=DEFAULT_OUTPUT_DIR,
-        help="Output root dir passed to CAIRO.",
+        default=None,
+        help=(
+            "Output root dir passed to CAIRO. When omitted, uses "
+            "parent(path_outputs) from the scenario YAML."
+        ),
     )
     parser.add_argument(
         "--run-name",
@@ -555,7 +580,7 @@ def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
     return _build_settings_from_yaml_run(
         run=run,
         run_num=args.run_num,
-        output_dir=args.output_dir,
+        output_dir_override=args.output_dir,
         run_name_override=args.run_name,
     )
 
@@ -588,8 +613,9 @@ def _load_prototype_ids_for_run(
         utility,
     )
     if sample_size is not None:
+        rng = random.Random(42)
         try:
-            prototype_ids = apply_prototype_sample(prototype_ids, sample_size)
+            prototype_ids = apply_prototype_sample(prototype_ids, sample_size, rng=rng)
         except ValueError as e:
             log.warning("%s; exiting.", e)
             sys.exit(1)
