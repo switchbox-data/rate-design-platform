@@ -13,7 +13,9 @@ import argparse
 import json
 from pathlib import Path
 
-from utils.pre.ny_gas_tariff_mapping import match_tariff_key as match_tariff_key_ny
+from utils.pre.rateacuity_tariff_to_gas_tariff_key import (
+    match_tariff_key as match_tariff_key_ny,
+)
 from utils.pre.ri_gas_tariff_mapping import match_tariff_key as match_tariff_key_ri
 
 

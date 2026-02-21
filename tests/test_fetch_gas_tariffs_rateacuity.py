@@ -3,7 +3,9 @@
 import pytest
 
 from utils.pre.fetch_gas_tariffs_rateacuity import _resolve_utility
-from utils.pre.ny_gas_tariff_mapping import match_tariff_key as match_tariff_key_ny
+from utils.pre.rateacuity_tariff_to_gas_tariff_key import (
+    match_tariff_key as match_tariff_key_ny,
+)
 from utils.pre.ri_gas_tariff_mapping import match_tariff_key as match_tariff_key_ri
 from utils.utility_codes import get_rate_acuity_utility_names, get_utilities_for_state
 
