@@ -4,7 +4,3 @@ rateacuity_yaml_ny := project_root + "/rate_design/ny/hp_rates/config/tariffs/ga
 # Fetch all NY gas tariffs from Rate Acuity; writes <tariff_key>.json into config/tariffs/gas.
 fetch-gas-ny:
 	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/fetch_gas_tariffs_rateacuity.py "{{rateacuity_yaml_ny}}" "{{tariffs_gas_dir_ny}}"
-
-# Convert existing staging dir (rateacuity_*.json or *.urdb.*.json) to tariff_key files. For fresh fetch use fetch-gas-ny.
-extract-gas-tariffs-ny staging_path output_path:
-	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/install_ny_gas_tariffs_from_staging.py "{{staging_path}}" --yaml "{{rateacuity_yaml_ny}}" --output-dir "{{output_path}}"

@@ -4,7 +4,3 @@ rateacuity_yaml_ri := project_root + "/rate_design/ri/hp_rates/config/tariffs/ga
 # Fetch all RI gas tariffs from Rate Acuity; writes <tariff_key>.json into config/tariffs/gas.
 fetch-gas-ri:
 	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/fetch_gas_tariffs_rateacuity.py "{{rateacuity_yaml_ri}}" "{{tariffs_gas_dir_ri}}"
-
-# Convert existing staging dir (rateacuity_*.json or *.urdb.*.json) to tariff_key files. For fresh fetch use fetch-gas-ri.
-extract-gas-tariffs-ri staging_path output_path:
-	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/install_ny_gas_tariffs_from_staging.py "{{staging_path}}" --yaml "{{rateacuity_yaml_ri}}" --output-dir "{{output_path}}"
