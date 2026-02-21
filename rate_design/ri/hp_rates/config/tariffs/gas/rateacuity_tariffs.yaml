@@ -3,5 +3,5 @@
 # Update schedule name values when Rate Acuity names change.
 state: RI
 rie:
-  rie_nonheating: "Non-Heating"
-  rie_heating: "Heating"
+  rie_nonheating: "10-RESIDENTIAL NON-HEATING---"
+  rie_heating: "12-RESIDENTIAL HEATING---"
