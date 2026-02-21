@@ -80,6 +80,16 @@ create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label outpu
     --periods-yaml "{{periods_yaml}}" \
     --output-path "{{output_path}}"
 
+# Create gas tariff map for a given electric utility.
+create-gas-tariff-map metadata_path utility_assignment_path state electric_utility upgrade_id output_dir:
+  uv run python {{project_root}}/utils/pre/gas_tariff_mapper.py \
+    --metadata_path "{{metadata_path}}" \
+    --utility_assignment_path "{{utility_assignment_path}}" \
+    --state "{{state}}" \
+    --upgrade_id "{{upgrade_id}}" \
+    --electric_utility "{{electric_utility}}" \
+    --output_dir "{{output_dir}}"
+
 # Derive seasonal TOU tariff + derivation spec.
 create-seasonal-tou cambium_path state utility year td_mc_path resstock_metadata_path resstock_loads_path customer_count tou_tariff_key output_dir periods_yaml="" tou_base_rate="0.06" tou_fixed_charge="6.75":
   uv run python {{project_root}}/utils/pre/derive_seasonal_tou.py \

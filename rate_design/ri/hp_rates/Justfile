@@ -61,24 +61,6 @@ copy-calibrated-tariff-from-run run_dir state output_dir="":
     "{{output_dir}}"
 
 ri_tariffs_electric_dir := project_root + "/rate_design/ri/hp_rates/config/tariffs/electric"
-ri_hp_seasonal_calibrated_tariff := ri_tariffs_electric_dir + "/rie_hp_seasonal_calibrated.json"
-ri_hp_seasonal_calibrated_supply_tariff := ri_tariffs_electric_dir + "/rie_hp_seasonal_calibrated_supply.json"
-
-# Run 1 (delivery-only) calibrated seasonal tariff.
-create-rie-hp-seasonal-calibrated seasonal_inputs_csv:
-  just create-seasonal-discount-tariff \
-    {{ri_tariffs_electric_dir}}/rie_a16.json \
-    "{{seasonal_inputs_csv}}" \
-    rie_hp_seasonal_calibrated \
-    {{ri_hp_seasonal_calibrated_tariff}}
-
-# Run 2 (delivery + supply) calibrated seasonal tariff.
-create-rie-hp-seasonal-calibrated-supply seasonal_inputs_csv:
-  just create-seasonal-discount-tariff \
-    {{ri_tariffs_electric_dir}}/rie_a16_supply_adj.json \
-    "{{seasonal_inputs_csv}}" \
-    rie_hp_seasonal_calibrated_supply \
-    {{ri_hp_seasonal_calibrated_supply_tariff}}
 
 # -----------------------------------------------------------------------------
 # PRE: FLAT tariff derivation
@@ -121,29 +103,30 @@ create-seasonal-tou tou_tariff_key="rie_hp_seasonalTOU" upgrade_id="00" year="20
 path_s3_resstock_metadata := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
 path_s3_utility_assignment := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility"
 tariff_maps_dir_ri := project_root + "/rate_design/ri/hp_rates/config/tariff_maps"
+ri_scenarios_dir := project_root + "/rate_design/ri/hp_rates/config/scenarios"
 
+create-electric-tariff-maps-all:
+    just -f {{project_root}}/utils/Justfile write-tariff-maps-all "{{ri_scenarios_dir}}"
 
-map-gas-tariff electric_utility upgrade_id output_dir:
-  uv run python {{project_root}}/utils/pre/gas_tariff_mapper.py \
-    --metadata_path "{{path_s3_resstock_metadata}}" \
-    --utility_assignment_path "{{path_s3_utility_assignment}}" \
-    --state RI \
-    --upgrade_id "{{upgrade_id}}" \
-    --electric_utility "{{electric_utility}}" \
-    --output_dir "{{output_dir}}"
+create-gas-tariff-map electric_utility upgrade_id output_dir:
+  just -f {{project_root}}/utils/Justfile create-gas-tariff-map \
+    "{{path_s3_resstock_metadata}}" \
+    "{{path_s3_utility_assignment}}" \
+    "RI" \
+    "{{electric_utility}}" \
+    "{{upgrade_id}}" \
+    "{{output_dir}}"
 
-map-gas-rie:
-  just map-gas-tariff rie 00 {{tariff_maps_dir_ri}}/gas
+create-gas-tariff-map-rie:
+  just create-gas-tariff-map rie 00 {{tariff_maps_dir_ri}}/gas
 
-map-gas-all-utilities:
-  just map-gas-rie
+create-gas-tariff-maps-all:
+  just create-gas-tariff-map-rie
 
 # -----------------------------------------------------------------------------
 # Post-processing: CPI and RI LIDR+ discounts
 # -----------------------------------------------------------------------------
-# Delegates to data/fred/cpi/Justfile.
-fetch-cpi series="CPIAUCSL" start_year="2020" end_year="2025":
-  just -f {{project_root}}/data/fred/cpi/Justfile fetch-cpi {{series}} {{start_year}} {{end_year}}
+
 
 # Apply RI LIDR+ discounts to CAIRO bills. Run fetch-cpi first, then pass --cpi-s3-path.
 apply-ri-lmi-discounts run_dir state utility fpl_year cpi_s3_path participation_rate="1.0" rider="false":
@@ -177,7 +160,7 @@ create-td-mc-data:
 create-td-mc-data-rie:
   just -f {{project_root}}/data/eia/hourly_loads/Justfile fetch-zone-data {{pre_state}} {{pre_start_month}} {{pre_end_month}}
   just -f {{project_root}}/data/eia/hourly_loads/Justfile aggregate-utility-loads {{pre_state}} {{pre_load_year}} {{pre_utility}}
-  cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_utility_tx_dx_mc.py \
+  uv run python {{project_root}}/utils/pre/generate_utility_tx_dx_mc.py \
     --state {{pre_state}} \
     --utility {{pre_utility}} \
     --mc-year {{pre_mc_year}} \
@@ -197,19 +180,6 @@ create-scenario-yamls:
     just -f {{project_root}}/utils/Justfile create-scenario-yamls
 
 # =============================================================================
-# PRE: Write electric tariff map CSVs from scenario YAMLs
-# =============================================================================
-
-write-tariff-maps scenario_config:
-    just -f {{project_root}}/utils/Justfile write-tariff-maps "{{scenario_config}}"
-
-ri_scenarios_dir := project_root + "/rate_design/ri/hp_rates/config/scenarios"
-
-write-tariff-maps-all:
-    just -f {{project_root}}/utils/Justfile write-tariff-maps-all "{{ri_scenarios_dir}}"
-
-
-# =============================================================================
 # Orchestrated runs 1–12 (PRE + RUN for each)
 # =============================================================================
 
@@ -218,14 +188,23 @@ latest_output := project_root + "/utils/scripts/latest_run_output.sh"
 resstock_loads_00 := "/data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=RI/upgrade=00"
 
 # One-time global pre-processing (scenario YAMLs + tariff maps).
-global-pre:
+all-pre:
     just create-scenario-yamls
-    just write-tariff-maps-all
+    just create-electric-tariff-maps-all
 
 # Run 1: precalc flat, delivery
 run-1:
     just create-rie-flat-tariff
     just run-scenario 1 rie
+
+# Compute differentiated revenue requirements from run-1 BAT output.
+# Produces rie_hp_vs_nonhp.yaml needed by runs 5, 6, 9, 10 (2-tariff precalc runs).
+compute-rev-requirements:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run1_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 1)
+    echo ">> compute-rev-requirements: resolved run-1 output → ${run1_dir}" >&2
+    just compute-subclass-rr "${run1_dir}" "{{ri_scenario_config}}"
 
 # Run 2: precalc flat, supply (flat_supply.json exists from run-1 PRE)
 run-2:
@@ -329,6 +308,7 @@ run-12:
 run-all-sequential:
     just global-pre
     just run-1
+    just compute-rev-requirements
     just run-2
     just run-3
     just run-4

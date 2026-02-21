@@ -26,9 +26,13 @@ supply. Within each tariff tier the pattern is: **precalc → calibrate →
 precalc-with-new-tariff → calibrate-with-new-tariff**.
 
 ```text
-global-pre  (create-scenario-yamls, write-tariff-maps-all)
+global-pre  (create-scenario-yamls, create-electric-tariff-maps-all)
   │
   ├─ run-1  (precalc flat, delivery)
+  │    │
+  │    ├─ compute-rev-requirements  ← computes rie_hp_vs_nonhp.yaml from run-1 BAT output
+  │    │    (needed by runs 5, 6, 9, 10 — all 2-tariff precalc runs)
+  │    │
   │    ├─ run-3  (default flat calibrated, delivery)  ← copies calibrated tariff from run-1
   │    └─ run-5  (precalc hp_seasonal vs flat)         ← seasonal discount inputs from run-1
   │         └─ run-7  (default hp_seasonal calibrated) ← copies calibrated tariff from run-5
