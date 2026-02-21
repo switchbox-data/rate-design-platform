@@ -2,20 +2,20 @@
 
 This document describes known data-quality issues in the converted NYISO Day-Ahead and Real-Time zonal LBMP parquet (source: NYISO MIS monthly ZIPs). It is intended for data scientists and analysts so they can decide whether to apply additional cleaning or filtering for their use case.
 
-**Dataset:** Zone-level LBMP (Locational Marginal Price) and components (marginal cost losses, marginal cost congestion).  
-**Partitioning:** `zone=Z/year=YYYY/month=MM` under `day_ahead/zones/` and `real_time/zones/`.  
+**Dataset:** Zone-level LBMP (Locational Marginal Price) and components (marginal cost losses, marginal cost congestion).\
+**Partitioning:** `zone=Z/year=YYYY/month=MM` under `day_ahead/zones/` and `real_time/zones/`.\
 **Validation:** The pipeline runs `validate_lbmp_zonal_parquet.py` after convert; that script checks schema, nulls, row counts, uniqueness, zone set, and value ranges. Many partitions fail one or more of these checks due to the issues below—all of which originate in the **source CSVs** or in **Eastern-time DST (daylight saving time)** behavior.
 
 ---
 
 ## 1. Overview of issue types
 
-| Issue type | Series | Cause | Need to clean? |
-|------------|--------|--------|-----------------|
-| Row count mismatch | Day-ahead, Real-time | DST, missing/extra intervals in source, partial months | Depends on use case |
-| Duplicate timestamps | Day-ahead, Real-time | DST “fall back” hour (two 01:00 Eastern) | Yes if you need unique (interval, zone) |
-| LBMP outside [-500, 2000] $/MWh | Both | Real price spikes or negative prices | Usually no (real data) |
-| Congestion outside [-999, 999999] | Both | Real congestion components | Usually no (real data) |
+| Issue type                        | Series               | Cause                                                  | Need to clean?                          |
+| --------------------------------- | -------------------- | ------------------------------------------------------ | --------------------------------------- |
+| Row count mismatch                | Day-ahead, Real-time | DST, missing/extra intervals in source, partial months | Depends on use case                     |
+| Duplicate timestamps              | Day-ahead, Real-time | DST “fall back” hour (two 01:00 Eastern)               | Yes if you need unique (interval, zone) |
+| LBMP outside [-500, 2000] $/MWh   | Both                 | Real price spikes or negative prices                   | Usually no (real data)                  |
+| Congestion outside [-999, 999999] | Both                 | Real congestion components                             | Usually no (real data)                  |
 
 The validator uses fixed “expected” row counts and value bounds; the tables below explain **when** and **why** the data deviate so you can judge impact.
 
@@ -23,7 +23,7 @@ The validator uses fixed “expected” row counts and value bounds; the tables 
 
 ## 2. Day-ahead market (hourly)
 
-**Expected:** One row per hour in the month, in Eastern time.  
+**Expected:** One row per hour in the month, in Eastern time.\
 Expected count = `days_in_month × 24` (e.g. 744 for 31 days, 720 for 30 days).
 
 ### 2.1 Row count: one hour short (e.g. 719 vs 720, 743 vs 744)
@@ -37,7 +37,7 @@ Expected count = `days_in_month × 24` (e.g. 744 for 31 days, 720 for 30 days).
 
 **Cause:** Source reflects Eastern clock hours. After “spring forward” there is no 02:00–03:00 hour for that day, so the total for the month is one row short.
 
-**Do you need to clean?**  
+**Do you need to clean?**\
 If you need exactly 24 rows per day for every day (e.g. for a naive 24×N matrix), you may want to insert a row for the missing hour (e.g. with null or interpolated price). For many analyses (e.g. average LBMP, total cost over the month), using the rows that exist is fine.
 
 ### 2.2 Row count: one hour extra (e.g. 745 vs 744, 721 vs 720)
@@ -49,9 +49,9 @@ If you need exactly 24 rows per day for every day (e.g. for a naive 24×N matrix
 - **745 vs 744:** 31-day **October** (e.g. 2002–2005, …). October has “fall back”: 01:00–02:00 occurs twice (EDT then EST). So there are two distinct timestamps that both show as 01:00 Eastern in the source (or the source has 25 hours for that day). 31×24 + 1 = 745.
 - **721 vs 720:** 30-day **November** (e.g. 2010, 2011, 2016, 2017, 2018, 2020). Same DST fall-back: one extra 01:00 hour. 30×24 + 1 = 721.
 
-**Cause:** Eastern time is ambiguous during the repeated hour. The source includes both intervals; we parse with `ambiguous="earliest"` for *parsing*, but we do not drop the duplicate clock-hour row, so both intervals remain.
+**Cause:** Eastern time is ambiguous during the repeated hour. The source includes both intervals; we parse with `ambiguous="earliest"` for _parsing_, but we do not drop the duplicate clock-hour row, so both intervals remain.
 
-**Do you need to clean?**  
+**Do you need to clean?**\
 If you need a unique time index (one row per `interval_start_est` per zone), you must deduplicate. Common approaches: keep the first occurrence of the repeated hour, or the last, or average; document the choice. For aggregations (e.g. sum or average over the month), the extra row is correct—both intervals actually occurred.
 
 ### 2.3 Uniqueness: duplicate `interval_start_est`
@@ -62,14 +62,14 @@ If you need a unique time index (one row per `interval_start_est` per zone), you
 
 **Cause:** In the source, the repeated hour may be represented as two rows with the same timestamp string, or as two timestamps that both map to the same Eastern clock time. Our converter does not deduplicate.
 
-**Do you need to clean?**  
+**Do you need to clean?**\
 Yes, if your analysis assumes a unique `(interval_start_est, zone)` (e.g. for joins or time-series models). Deduplicate by `interval_start_est` (and zone) and choose which row to keep (first, last, or average LBMP). If you only care about totals or averages over the month, you can leave as-is.
 
 ---
 
 ## 3. Real-time market (5-minute intervals)
 
-**Expected:** One row per 5-minute interval in the month, Eastern time.  
+**Expected:** One row per 5-minute interval in the month, Eastern time.\
 Expected count = `days_in_month × 24 × 12` (e.g. 8928 for 31 days, 8640 for 30 days).
 
 ### 3.1 Row count variation
@@ -84,7 +84,7 @@ Expected count = `days_in_month × 24 × 12` (e.g. 8928 for 31 days, 8640 for 30
 2. **Partial months:** The most recent month in the pipeline may be incomplete (e.g. 5841 for December 2025 if the ZIP was published mid-month). Same for the first available month in 2000 if the source started mid-month.
 3. **Source quirks:** Occasional missing or duplicate 5-min files in the monthly ZIP, or extra/missing rows in a daily CSV, can shift counts.
 
-**Do you need to clean?**  
+**Do you need to clean?**\
 If you need a strict regular 5-min grid (e.g. for regression or alignment with other 5-min series), you may want to: (1) restrict to complete months (e.g. exclude the latest month), and (2) for DST months, either accept the off-by-12 (or similar) or build a canonical 5-min grid and left-join/fill. For many uses (e.g. average RT price by hour or month), using the rows that exist is acceptable.
 
 ### 3.2 Uniqueness
@@ -93,7 +93,7 @@ If you need a strict regular 5-min grid (e.g. for regression or alignment with o
 
 **When it occurs:** In real-time, the repeated hour has 12 intervals that occur “twice” in clock time (e.g. 01:00, 01:05, …, 01:55). So you can get up to 12 duplicate timestamps per zone in that hour.
 
-**Do you need to clean?**  
+**Do you need to clean?**\
 Same as §2.3: deduplicate if you require a unique (interval, zone); otherwise you can keep for aggregation.
 
 ---
@@ -102,8 +102,8 @@ Same as §2.3: deduplicate if you require a unique (interval, zone); otherwise y
 
 The validator flags values outside these bounds:
 
-- **lbmp_usd_per_mwh:** [-500, 2000] $/MWh  
-- **marginal_cost_losses_usd_per_mwh**, **marginal_cost_congestion_usd_per_mwh:** [-999, 999999] $/MWh  
+- **lbmp_usd_per_mwh:** [-500, 2000] $/MWh
+- **marginal_cost_losses_usd_per_mwh**, **marginal_cost_congestion_usd_per_mwh:** [-999, 999999] $/MWh
 
 ### 4.1 LBMP above 2000 $/MWh or below -500 $/MWh
 
@@ -113,7 +113,7 @@ The validator flags values outside these bounds:
 
 **Cause:** Real market outcomes. NYISO can have short-duration price spikes (e.g. scarcity, congestion) and negative prices (e.g. oversupply, renewables). The validator bounds are conservative; they are not data errors.
 
-**Do you need to clean?**  
+**Do you need to clean?**\
 Usually **no**. These are valid LBMPs. If your use case assumes prices in a narrow band (e.g. for visualization or simple models), you can cap/winsorize or filter; otherwise keep as-is.
 
 ### 4.2 Congestion (or losses) outside [-999, 999999]
@@ -124,7 +124,7 @@ Usually **no**. These are valid LBMPs. If your use case assumes prices in a narr
 
 **Cause:** Real congestion components. The validator’s bounds are very wide; this check mainly catches sentinel or corrupt values. Values slightly outside are still typically valid.
 
-**Do you need to clean?**  
+**Do you need to clean?**\
 Generally **no** unless you see obvious corruption (e.g. 1e9 or constant -999). For analysis, use the values as-is or apply domain-specific caps if required.
 
 ---
