@@ -221,17 +221,13 @@ def test_write_revenue_requirement_yamls(tmp_path: Path) -> None:
     assert out_diff == differentiated_yaml
     assert out_default == default_yaml
     assert differentiated_yaml.exists()
-    assert default_yaml.exists()
+    assert not default_yaml.exists()
 
     diff_data = yaml.safe_load(differentiated_yaml.read_text(encoding="utf-8"))
     assert diff_data["utility"] == "rie"
     assert diff_data["group_col"] == "has_hp"
     assert "false" in diff_data["subclass_revenue_requirements"]
     assert "true" in diff_data["subclass_revenue_requirements"]
-
-    default_data = yaml.safe_load(default_yaml.read_text(encoding="utf-8"))
-    assert default_data["utility"] == "rie"
-    assert default_data["revenue_requirement"] == pytest.approx(241869601.0)
 
 
 def test_compute_hp_seasonal_discount_inputs(tmp_path: Path) -> None:
