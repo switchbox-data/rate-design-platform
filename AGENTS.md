@@ -82,6 +82,11 @@ To add or refresh extracted PDF content: use the **extract-pdf-to-markdown** sla
 ## Best practices for Justfiles
 
 - **Path variables**: Any Just variable that holds a file or directory path should be named with a `path_` prefix (e.g. `path_project_root`, `path_output_dir`, `path_rateacuity_yaml`). This makes it clear which variables are paths and keeps naming consistent across Justfiles.
+- **Recipe args and script args**: Parameter names in a Just recipe should match the script’s CLI argument names they are wired to (e.g. recipe `path_yaml` and `path_output_dir` → script `--yaml` and `--output-dir`). Use the same naming convention (path_ prefix for paths) in both so the wiring is obvious.
+
+## Best practices for Python scripts (CLI)
+
+- **Path arguments**: CLI arguments that are file or directory paths should use a `path_` prefix in the argparse name (e.g. `path_yaml`, `path_output_dir`), or a long option that makes the path explicit (e.g. `--output-dir`). When the script is invoked from a Justfile, use the same names as the Just variables (path_…) so recipe and script stay in sync.
 
 ## Computing contexts
 
