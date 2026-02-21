@@ -13,12 +13,6 @@ run-scenario run_num utility:
     --run-num "{{run_num}}" \
     --utility "{{utility}}"
 
-# Optional output override (if you don't want the YAML output_dir)
-run-scenario-with-output run_num output_dir utility:
-  uv run python {{project_root}}/rate_design/ri/hp_rates/run_scenario.py \
-    --run-num "{{run_num}}" \
-    --utility "{{utility}}" \
-    --output-dir "{{output_dir}}"
 
 # -----------------------------------------------------------------------------
 # Post-processing
@@ -31,40 +25,40 @@ ri_default_rev_requirement_yaml := ri_rev_requirement_dir + "/rie.yaml"
 ri_differentiated_rev_requirement_yaml := ri_rev_requirement_dir + "/rie_hp_vs_nonhp.yaml"
 
 compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" cross_subsidy_col="BAT_percustomer" differentiated_yaml=ri_differentiated_rev_requirement_yaml default_yaml=ri_default_rev_requirement_yaml:
-  uv run python {{project_root}}/utils/post/compute_subclass_rr.py \
-    --run-dir "{{run_dir}}" \
-    --run-num "{{run_num}}" \
-    --scenario-config "{{scenario_config}}" \
-    --group-col "{{group_col}}" \
-    --cross-subsidy-col "{{cross_subsidy_col}}" \
-    --differentiated-yaml-path "{{differentiated_yaml}}" \
-    --default-yaml-path "{{default_yaml}}"
+  just -f {{project_root}}/utils/Justfile compute-subclass-rr \
+    "{{run_dir}}" \
+    "{{scenario_config}}" \
+    "{{differentiated_yaml}}" \
+    "{{default_yaml}}" \
+    "{{run_num}}" \
+    "{{group_col}}" \
+    "{{cross_subsidy_col}}"
 
 # Seasonal discount inputs from run outputs + ResStock loads.
 compute-seasonal-discount-inputs run_dir resstock_loads_path cross_subsidy_col="BAT_percustomer" output_dir="":
-  uv run python {{project_root}}/utils/post/compute_seasonal_discount_inputs.py \
-    --run-dir "{{run_dir}}" \
-    --cross-subsidy-col "{{cross_subsidy_col}}" \
-    --resstock-loads-path "{{resstock_loads_path}}" \
-    {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }}
+  just -f {{project_root}}/utils/Justfile compute-seasonal-discount-inputs \
+    "{{run_dir}}" \
+    "{{resstock_loads_path}}" \
+    "{{cross_subsidy_col}}" \
+    "{{output_dir}}"
 
 # Tariff JSON creation from seasonal_discount_rate_inputs.csv.
 create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label output_path periods_yaml=ri_periods_yaml:
-  uv run python {{project_root}}/utils/pre/create_seasonal_discount_tariff.py \
-    --base-tariff-json "{{base_tariff_json}}" \
-    --seasonal-inputs-csv "{{seasonal_inputs_csv}}" \
-    --label "{{label}}" \
-    --periods-yaml "{{periods_yaml}}" \
-    --output-path "{{output_path}}"
+  just -f {{project_root}}/utils/Justfile create-seasonal-discount-tariff \
+    "{{base_tariff_json}}" \
+    "{{seasonal_inputs_csv}}" \
+    "{{label}}" \
+    "{{output_path}}" \
+    "{{periods_yaml}}"
 
 # Promote calibrated tariffs from run output:
 # reads <run_dir>/tariff_final_config.json, converts each tariff to URDB format,
 # and writes one <tariff_key>_calibrated.json per key under config/tariffs/electric.
 copy-calibrated-tariff-from-run run_dir state output_dir="":
-  uv run python -m utils.pre.copy_calibrated_tariff_from_run \
-    --run-dir "{{run_dir}}" \
-    --state "{{state}}" \
-    {{ if output_dir != "" { "--destination-dir \"" + output_dir + "\"" } else { "" } }}
+  just -f {{project_root}}/utils/Justfile copy-calibrated-tariff-from-run \
+    "{{run_dir}}" \
+    "{{state}}" \
+    "{{output_dir}}"
 
 ri_tariffs_electric_dir := project_root + "/rate_design/ri/hp_rates/config/tariffs/electric"
 ri_hp_seasonal_calibrated_tariff := ri_tariffs_electric_dir + "/rie_hp_seasonal_calibrated.json"
@@ -91,12 +85,12 @@ create-rie-hp-seasonal-calibrated-supply seasonal_inputs_csv:
 # -----------------------------------------------------------------------------
 # Create flat and flat_supply tariff and write to config/tariffs/electric/
 create-rie-flat-tariff:
-  uv run python {{project_root}}/utils/pre/create_flat_tariff.py \
-    --default-tariff-json "{{ri_tariffs_electric_dir}}/rie_a16.json" \
-    --supply-default-tariff-json "{{ri_tariffs_electric_dir}}/rie_a16_supply.json" \
-    --flat-label "rie_flat" \
-    --flat-supply-label "rie_flat_supply" \
-    --output-dir "{{ri_tariffs_electric_dir}}"
+  just -f {{project_root}}/utils/Justfile create-flat-tariff \
+    "{{ri_tariffs_electric_dir}}/rie_a16.json" \
+    "{{ri_tariffs_electric_dir}}/rie_a16_supply.json" \
+    "rie_flat" \
+    "rie_flat_supply" \
+    "{{ri_tariffs_electric_dir}}"
 
 # -----------------------------------------------------------------------------
 # PRE: TOU tariff derivation
@@ -106,20 +100,20 @@ create-rie-flat-tariff:
 ri_td_mc_path := "s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/00000000.parquet"
 
 create-seasonal-tou tou_tariff_key="rie_hp_seasonalTOU" upgrade_id="00" year="2025" tou_base_rate="0.06" tou_fixed_charge="6.75" periods_yaml=ri_periods_yaml td_mc_path=ri_td_mc_path:
-  uv run python {{project_root}}/utils/pre/derive_seasonal_tou.py \
-    --cambium-path "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t={{year}}/gea=ISONE/r=p133/data.parquet" \
-    --state RI \
-    --utility rie \
-    --year "{{year}}" \
-    --path-td-marginal-costs "{{td_mc_path}}" \
-    --resstock-metadata-path "/data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade={{upgrade_id}}/metadata-sb.parquet" \
-    --resstock-loads-path "/data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=RI/upgrade={{upgrade_id}}" \
-    --customer-count 451381 \
-    --tou-base-rate "{{tou_base_rate}}" \
-    --tou-fixed-charge "{{tou_fixed_charge}}" \
-    --periods-yaml "{{periods_yaml}}" \
-    --tou-tariff-key "{{tou_tariff_key}}" \
-    --output-dir "{{project_root}}/rate_design/ri/hp_rates/config"
+  just -f {{project_root}}/utils/Justfile create-seasonal-tou \
+    "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t={{year}}/gea=ISONE/r=p133/data.parquet" \
+    "RI" \
+    "rie" \
+    "{{year}}" \
+    "{{td_mc_path}}" \
+    "/data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade={{upgrade_id}}/metadata-sb.parquet" \
+    "/data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=RI/upgrade={{upgrade_id}}" \
+    "451381" \
+    "{{tou_tariff_key}}" \
+    "{{project_root}}/rate_design/ri/hp_rates/config" \
+    "{{periods_yaml}}" \
+    "{{tou_base_rate}}" \
+    "{{tou_fixed_charge}}"
 
 # -----------------------------------------------------------------------------
 # PRE: Tariff mapping (electric and gas)
@@ -128,22 +122,6 @@ path_s3_resstock_metadata := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/meta
 path_s3_utility_assignment := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility"
 tariff_maps_dir_ri := project_root + "/rate_design/ri/hp_rates/config/tariff_maps"
 
-map-electric-tariff electric_utility SB_scenario_type SB_scenario_year upgrade_id output_dir:
-  uv run python {{project_root}}/utils/pre/electric_tariff_mapper.py \
-    --metadata_path "{{path_s3_resstock_metadata}}" \
-    --state RI \
-    --upgrade_id "{{upgrade_id}}" \
-    --electric_utility "{{electric_utility}}" \
-    --SB_scenario_type "{{SB_scenario_type}}" \
-    --SB_scenario_year "{{SB_scenario_year}}" \
-    --output_dir "{{output_dir}}"
-
-
-map-electric-rie-seasonal:
-  just map-electric-tariff rie seasonal 1 00 {{tariff_maps_dir_ri}}/electric
-
-map-electric-rie-seasonal-discount:
-  just map-electric-tariff rie seasonal_discount 1 00 {{tariff_maps_dir_ri}}/electric
 
 map-gas-tariff electric_utility upgrade_id output_dir:
   uv run python {{project_root}}/utils/pre/gas_tariff_mapper.py \
@@ -215,27 +193,142 @@ create-td-mc-data-rie:
 # Create scenario YAMLs from Google Sheets
 # =============================================================================
 
-# Create scenario YAMLs from the Runs & Charts Google Sheet (requires G_* env and browser auth)
-# Writes rate_design/<state>/hp_rates/config/scenarios_<utility>.yaml per utility
 create-scenario-yamls:
-    uv run python {{project_root}}/utils/pre/create_scenario_yamls.py
+    just -f {{project_root}}/utils/Justfile create-scenario-yamls
 
 # =============================================================================
 # PRE: Write electric tariff map CSVs from scenario YAMLs
 # =============================================================================
 
-# Write electric tariff map CSVs for all runs in a single scenario file (pre-step; run before run_scenario)
 write-tariff-maps scenario_config:
-    uv run python {{project_root}}/utils/pre/write_tariff_maps_from_scenario.py \
-        --scenario-config "{{scenario_config}}"
+    just -f {{project_root}}/utils/Justfile write-tariff-maps "{{scenario_config}}"
 
-# Write electric tariff map CSVs for every scenario YAML in config/scenarios/
+ri_scenarios_dir := project_root + "/rate_design/ri/hp_rates/config/scenarios"
+
 write-tariff-maps-all:
-    for f in {{project_root}}/rate_design/ri/hp_rates/config/scenarios/*.yaml; do \
-        uv run python {{project_root}}/utils/pre/write_tariff_maps_from_scenario.py \
-            --scenario-config "$f"; \
-    done
+    just -f {{project_root}}/utils/Justfile write-tariff-maps-all "{{ri_scenarios_dir}}"
 
 
-####
-# ACTUAL RUNS
+# =============================================================================
+# Orchestrated runs 1–12 (PRE + RUN for each)
+# =============================================================================
+
+ri_scenario_config := project_root + "/rate_design/ri/hp_rates/config/scenarios/scenarios_rie.yaml"
+latest_output := project_root + "/utils/scripts/latest_run_output.sh"
+resstock_loads_00 := "/data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=RI/upgrade=00"
+
+# One-time global pre-processing (scenario YAMLs + tariff maps).
+global-pre:
+    just create-scenario-yamls
+    just write-tariff-maps-all
+
+# Run 1: precalc flat, delivery
+run-1:
+    just create-rie-flat-tariff
+    just run-scenario 1 rie
+
+# Run 2: precalc flat, supply (flat_supply.json exists from run-1 PRE)
+run-2:
+    just run-scenario 2 rie
+
+# Run 3: default flat calibrated, delivery (needs run 1 output)
+run-3:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run1_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 1)
+    just copy-calibrated-tariff-from-run "${run1_dir}" ri
+    just run-scenario 3 rie
+
+# Run 4: default flat calibrated, supply (needs run 2 output)
+run-4:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run2_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 2)
+    just copy-calibrated-tariff-from-run "${run2_dir}" ri
+    just run-scenario 4 rie
+
+# Run 5: precalc hp_seasonal vs flat, delivery
+# Derives rie_hp_seasonal.json from run 1 seasonal inputs + rie_flat_calibrated.json base.
+run-5:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run1_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 1)
+    just compute-seasonal-discount-inputs "${run1_dir}" "{{resstock_loads_00}}"
+    just create-seasonal-discount-tariff \
+        "{{ri_tariffs_electric_dir}}/rie_flat_calibrated.json" \
+        "${run1_dir}seasonal_discount_rate_inputs.csv" \
+        rie_hp_seasonal \
+        "{{ri_tariffs_electric_dir}}/rie_hp_seasonal.json"
+    just run-scenario 5 rie
+
+# Run 6: precalc hp_seasonal vs flat, supply
+# Derives rie_hp_seasonal_supply.json from run 2 seasonal inputs + rie_flat_supply_calibrated.json base.
+run-6:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run2_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 2)
+    just compute-seasonal-discount-inputs "${run2_dir}" "{{resstock_loads_00}}"
+    just create-seasonal-discount-tariff \
+        "{{ri_tariffs_electric_dir}}/rie_flat_supply_calibrated.json" \
+        "${run2_dir}seasonal_discount_rate_inputs.csv" \
+        rie_hp_seasonal_supply \
+        "{{ri_tariffs_electric_dir}}/rie_hp_seasonal_supply.json"
+    just run-scenario 6 rie
+
+# Run 7: default hp_seasonal calibrated, delivery (needs run 5 output)
+run-7:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run5_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 5)
+    just copy-calibrated-tariff-from-run "${run5_dir}" ri
+    just run-scenario 7 rie
+
+# Run 8: default hp_seasonal calibrated, supply (needs run 6 output)
+run-8:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run6_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 6)
+    just copy-calibrated-tariff-from-run "${run6_dir}" ri
+    just run-scenario 8 rie
+
+# Run 9: precalc hp_seasonalTOU vs flat, delivery
+run-9:
+    just create-seasonal-tou rie_hp_seasonalTOU
+    just run-scenario 9 rie
+
+# Run 10: precalc hp_seasonalTOU vs flat, supply
+run-10:
+    just create-seasonal-tou rie_hp_seasonalTOU_supply
+    just run-scenario 10 rie
+
+# Run 11: default hp_seasonalTOU calibrated, delivery (needs run 9 output)
+run-11:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run9_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 9)
+    just copy-calibrated-tariff-from-run "${run9_dir}" ri
+    just run-scenario 11 rie
+
+# Run 12: default hp_seasonalTOU calibrated, supply (needs run 10 output)
+run-12:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run10_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 10)
+    just copy-calibrated-tariff-from-run "${run10_dir}" ri
+    just run-scenario 12 rie
+
+# Master recipe: all 12 runs in dependency order.
+run-all-sequential:
+    just global-pre
+    just run-1
+    just run-2
+    just run-3
+    just run-4
+    just run-5
+    just run-6
+    just run-7
+    just run-8
+    just run-9
+    just run-10
+    just run-11
+    just run-12
