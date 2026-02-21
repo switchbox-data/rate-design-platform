@@ -1,0 +1,66 @@
+# NYISO zonal LBMP pipeline (Day-Ahead and Real-Time)
+#
+# Fetch monthly ZIPs from mis.nyiso.com, convert to zone/year/month partitioned Parquet,
+# validate, then upload to S3 (manual).
+#
+# Run from repo root: just -f data/nyiso/lbmp/Justfile <recipe>
+# Or from this dir: just -f Justfile <recipe>
+
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_base := justfile_directory()
+path_local_zip := path_local_base + "/zips"
+path_local_parquet := path_local_base + "/parquet"
+path_s3_day_ahead := "s3://data.sb/nyiso/lbmp/day_ahead/zones/"
+path_s3_real_time := "s3://data.sb/nyiso/lbmp/real_time/zones/"
+
+# Defaults (override: just start=2020-01 end=2024-12 workers=16 fetch)
+start := "2000-01"
+end := ""
+series := "both"
+workers := "8"
+
+# Fetch: download ZIPs to zips/day_ahead/ and zips/real_time/ (parallel, default 8 workers)
+fetch:
+    uv run python "{{path_local_base}}/fetch_lbmp_zonal_zips.py" --start "{{start}}" --series "{{series}}" --path-local-zip "{{path_local_zip}}" --end "{{end}}" --workers "{{workers}}"
+
+# Convert: zips -> parquet (zone=Z/year=YYYY/month=MM per series)
+convert:
+    uv run python "{{path_local_base}}/convert_lbmp_zonal_zips_to_parquet.py" \
+        --path-local-zip "{{path_local_zip}}" \
+        --path-local-parquet "{{path_local_parquet}}"
+
+# Convert only a month range (for update)
+convert-range start end:
+    uv run python "{{path_local_base}}/convert_lbmp_zonal_zips_to_parquet.py" \
+        --path-local-zip "{{path_local_zip}}" \
+        --path-local-parquet "{{path_local_parquet}}" \
+        --start "{{start}}" --end "{{end}}"
+
+# Validate: run QA on local parquet (schema, nulls, row counts, zones, etc.)
+validate:
+    uv run python "{{path_local_base}}/validate_lbmp_zonal_parquet.py" \
+        --path-local-parquet "{{path_local_parquet}}"
+
+# Prepare: fetch + convert + validate (no upload)
+prepare: fetch convert validate
+
+# Upload: sync local parquet to S3 (manual step).
+# Local layout is parquet/day_ahead/zone=Z/... (no "zones" subdir); dest is .../day_ahead/zones/
+# so S3 ends up as .../day_ahead/zones/zone=Z/... (single "zones" in path).
+upload:
+    aws s3 sync "{{path_local_parquet}}/day_ahead/" "{{path_s3_day_ahead}}" --exclude "*" --include "*.parquet"
+    aws s3 sync "{{path_local_parquet}}/real_time/" "{{path_s3_real_time}}" --exclude "*" --include "*.parquet"
+    echo "✓ Uploaded day_ahead and real_time to S3"
+
+# Update: discover latest month on S3, fetch+convert new months only (no upload)
+update:
+    uv run python "{{path_local_base}}/update_nyiso_lbmp_to_latest.py" \
+        --path-local-zip "{{path_local_zip}}" \
+        --path-local-parquet "{{path_local_parquet}}" \
+        --path-s3-day-ahead "{{path_s3_day_ahead}}" \
+        --path-s3-real-time "{{path_s3_real_time}}"
+
+# Clean: remove zips and parquet
+clean:
+    rm -rf "{{path_local_zip}}" "{{path_local_parquet}}"
+    echo "✓ Removed zips/ and parquet/"
