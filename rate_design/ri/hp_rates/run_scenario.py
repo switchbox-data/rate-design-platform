@@ -613,8 +613,9 @@ def _load_prototype_ids_for_run(
         utility,
     )
     if sample_size is not None:
+        rng = random.Random(42)
         try:
-            prototype_ids = apply_prototype_sample(prototype_ids, sample_size)
+            prototype_ids = apply_prototype_sample(prototype_ids, sample_size, rng=rng)
         except ValueError as e:
             log.warning("%s; exiting.", e)
             sys.exit(1)
