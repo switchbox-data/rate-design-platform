@@ -57,9 +57,7 @@ def main() -> None:
     if mismatches:
         banner = "\U0001f6a8" * 3  # 🚨🚨🚨
         print(f"\n{banner}  CONFIG MISMATCH  {banner}", file=sys.stderr)
-        print(
-            "Justfile variables do not match scenario YAML:", file=sys.stderr
-        )
+        print("Justfile variables do not match scenario YAML:", file=sys.stderr)
         for m in mismatches:
             print(m, file=sys.stderr)
         print(file=sys.stderr)

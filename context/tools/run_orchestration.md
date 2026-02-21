@@ -14,11 +14,11 @@ unattended.
 The Justfile is parameterized in three tiers so it can be reused across
 states and utilities without copy-paste:
 
-| Tier | What                  | Examples                                                        |
-| ---- | --------------------- | --------------------------------------------------------------- |
-| 1    | Identity (env vars)   | `state`, `utility` via `env_var_or_default('STATE', 'ri')`      |
-| 2    | Utility-specific cfg  | `region`, `cambium_ba`, `customer_count`, `default_tariff`, ... |
-| 3    | Derived paths         | `path_scenario_config`, `path_cambium`, `path_td_mc`, ...       |
+| Tier | What                 | Examples                                                        |
+| ---- | -------------------- | --------------------------------------------------------------- |
+| 1    | Identity (env vars)  | `state`, `utility` via `env_var_or_default('STATE', 'ri')`      |
+| 2    | Utility-specific cfg | `region`, `cambium_ba`, `customer_count`, `default_tariff`, ... |
+| 3    | Derived paths        | `path_scenario_config`, `path_cambium`, `path_td_mc`, ...       |
 
 To replicate for a new utility, change the Tier 1 + 2 values at the top of
 the file. All Tier 3 paths are computed automatically.
@@ -46,7 +46,7 @@ all-pre  (create-scenario-yamls, create-electric-tariff-maps-all, validate-confi
   +-- run-1  (precalc flat, delivery)
   |    |
   |    +-- compute-rev-requirements  <- computes differentiated rev requirement YAML from run-1 BAT output
-  |    |    (needed by runs 5, 6, 9, 10 -- all 2-tariff precalc runs)
+  |    |    (needed by runs 5, 6, 9, 10 -- all multi-tariff precalc runs)
   |    |
   |    +-- run-3  (default flat calibrated, delivery)  <- copies calibrated tariff from run-1
   |    +-- run-5  (precalc hp_seasonal vs flat)         <- seasonal discount inputs from run-1
@@ -103,13 +103,14 @@ From `rate_design/ri/hp_rates/`:
 
 ```bash
 # Full pipeline
+# Just the pre-processing + validation
+just all-pre
+
+# Runs 1-12 in sequential order
 just run-all-sequential
 
 # Individual run (after its dependencies have completed)
 just run-5
-
-# Just the pre-processing + validation
-just all-pre
 ```
 
 ## Monitoring
