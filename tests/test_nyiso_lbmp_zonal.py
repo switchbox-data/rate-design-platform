@@ -31,14 +31,28 @@ from data.nyiso.lbmp.validate_lbmp_zonal_parquet import (
 
 
 def test_normalize_header_strip_and_typo() -> None:
-    raw = ["Time Stamp", "Name", "PTID", "LBMP ($/MWHr)", "Marginal Cost Losses ($/MWHr)", 'Marginal Cost Congestion ($/MWH"']
+    raw = [
+        "Time Stamp",
+        "Name",
+        "PTID",
+        "LBMP ($/MWHr)",
+        "Marginal Cost Losses ($/MWHr)",
+        'Marginal Cost Congestion ($/MWH"',
+    ]
     out = normalize_header(raw)
     assert out[-1] == "Marginal Cost Congestion ($/MWHr)"
     assert out[0] == "Time Stamp"
 
 
 def test_normalize_header_strip_r() -> None:
-    raw = ["Time Stamp\r", "Name", "PTID", "LBMP ($/MWHr)", "Marginal Cost Losses ($/MWHr)", "Marginal Cost Congestion ($/MWHr)"]
+    raw = [
+        "Time Stamp\r",
+        "Name",
+        "PTID",
+        "LBMP ($/MWHr)",
+        "Marginal Cost Losses ($/MWHr)",
+        "Marginal Cost Congestion ($/MWHr)",
+    ]
     out = normalize_header(raw)
     assert out[0] == "Time Stamp"
 
@@ -56,14 +70,16 @@ def test_read_csv_from_bytes_minimal() -> None:
 
 
 def test_parse_timestamp_and_types() -> None:
-    df = pl.DataFrame({
-        "interval_start_est": ["01/15/2024 00:00:00", "01/15/2024 01:00:00"],
-        "zone": ["CAPITL", "CAPITL"],
-        "ptid": ["61757", "61757"],
-        "lbmp_usd_per_mwh": ["28.5", "24.3"],
-        "marginal_cost_losses_usd_per_mwh": ["0.82", "0.71"],
-        "marginal_cost_congestion_usd_per_mwh": ["1.20", "0.88"],
-    })
+    df = pl.DataFrame(
+        {
+            "interval_start_est": ["01/15/2024 00:00:00", "01/15/2024 01:00:00"],
+            "zone": ["CAPITL", "CAPITL"],
+            "ptid": ["61757", "61757"],
+            "lbmp_usd_per_mwh": ["28.5", "24.3"],
+            "marginal_cost_losses_usd_per_mwh": ["0.82", "0.71"],
+            "marginal_cost_congestion_usd_per_mwh": ["1.20", "0.88"],
+        }
+    )
     out = parse_timestamp_and_types(df)
     assert out.schema["interval_start_est"] == pl.Datetime("us", "America/New_York")
     assert out.schema["ptid"] == pl.Int32
@@ -93,7 +109,7 @@ def test_month_range() -> None:
 def test_last_complete_month_is_yyyy_mm() -> None:
     s = _last_complete_month()
     assert len(s) == 7 and s[4] == "-"
-    y, m = int(s[:4]), int(s[5:7])
+    _, m = int(s[:4]), int(s[5:7])
     assert 1 <= m <= 12
 
 
@@ -109,27 +125,33 @@ def test_expected_rows_real_time() -> None:
 
 
 def test_check_schema_ok() -> None:
-    df = pl.DataFrame({
-        "interval_start_est": pl.Series([datetime(2024, 1, 1)]).cast(pl.Datetime("us", "America/New_York")),
-        "zone": ["CAPITL"],
-        "ptid": [61757],
-        "lbmp_usd_per_mwh": [28.5],
-        "marginal_cost_losses_usd_per_mwh": [0.82],
-        "marginal_cost_congestion_usd_per_mwh": [1.2],
-    }).cast({"ptid": pl.Int32})
+    df = pl.DataFrame(
+        {
+            "interval_start_est": pl.Series([datetime(2024, 1, 1)]).cast(
+                pl.Datetime("us", "America/New_York")
+            ),
+            "zone": ["CAPITL"],
+            "ptid": [61757],
+            "lbmp_usd_per_mwh": [28.5],
+            "marginal_cost_losses_usd_per_mwh": [0.82],
+            "marginal_cost_congestion_usd_per_mwh": [1.2],
+        }
+    ).cast({"ptid": pl.Int32})
     errs = check_schema(df)
     assert errs == [], errs
 
 
 def test_check_schema_rejects_wrong_types() -> None:
-    df = pl.DataFrame({
-        "interval_start_est": ["2024-01-01 00:00:00"],
-        "zone": ["CAPITL"],
-        "ptid": ["61757"],
-        "lbmp_usd_per_mwh": [28.5],
-        "marginal_cost_losses_usd_per_mwh": [0.82],
-        "marginal_cost_congestion_usd_per_mwh": [1.2],
-    })
+    df = pl.DataFrame(
+        {
+            "interval_start_est": ["2024-01-01 00:00:00"],
+            "zone": ["CAPITL"],
+            "ptid": ["61757"],
+            "lbmp_usd_per_mwh": [28.5],
+            "marginal_cost_losses_usd_per_mwh": [0.82],
+            "marginal_cost_congestion_usd_per_mwh": [1.2],
+        }
+    )
     errs = check_schema(df)
     assert any("ptid" in e for e in errs or [])
 

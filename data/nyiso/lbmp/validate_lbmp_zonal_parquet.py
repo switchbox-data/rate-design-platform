@@ -113,6 +113,8 @@ def check_missing_values(df: pl.DataFrame) -> list[str]:
         nan_count = df[c].null_count()
         if inf_count:
             errs.append(f"Inf in {c}: {inf_count}")
+        if nan_count:
+            errs.append(f"NaN in {c}: {nan_count}")
         # Sentinel-like values
         if (df[c] < -999).any() or (df[c] > 999999).any():
             errs.append(f"Plausible range: {c} has values outside [-999, 999999]")
