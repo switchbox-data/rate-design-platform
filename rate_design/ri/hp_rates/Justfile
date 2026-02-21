@@ -98,8 +98,9 @@ create-rie-flat-tariff:
 # Derive seasonal TOU tariff + derivation spec for RI.
 # Uses local ResStock mounts under /data.sb and writes under config/.
 ri_td_mc_path := "s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/00000000.parquet"
+ri_flat_calibrated_tariff := ri_tariffs_electric_dir + "/rie_flat_calibrated.json"
 
-create-seasonal-tou tou_tariff_key="rie_hp_seasonalTOU" upgrade_id="00" year="2025" tou_base_rate="0.06" tou_fixed_charge="6.75" periods_yaml=ri_periods_yaml td_mc_path=ri_td_mc_path:
+create-seasonal-tou tou_tariff_key="rie_hp_seasonalTOU" upgrade_id="00" year="2025" reference_tariff=ri_flat_calibrated_tariff periods_yaml=ri_periods_yaml td_mc_path=ri_td_mc_path:
   just -f {{project_root}}/utils/Justfile create-seasonal-tou \
     "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t={{year}}/gea=ISONE/r=p133/data.parquet" \
     "RI" \
@@ -112,8 +113,7 @@ create-seasonal-tou tou_tariff_key="rie_hp_seasonalTOU" upgrade_id="00" year="20
     "{{tou_tariff_key}}" \
     "{{project_root}}/rate_design/ri/hp_rates/config" \
     "{{periods_yaml}}" \
-    "{{tou_base_rate}}" \
-    "{{tou_fixed_charge}}"
+    "{{reference_tariff}}"
 
 # -----------------------------------------------------------------------------
 # PRE: Tariff mapping (electric and gas)
@@ -214,7 +214,7 @@ write-tariff-maps-all:
 # =============================================================================
 
 ri_scenario_config := project_root + "/rate_design/ri/hp_rates/config/scenarios/scenarios_rie.yaml"
-latest_output := project_root + "/utils/scripts/latest_run_output.sh"
+latest_output := project_root + "/utils/runtime/latest_run_output.sh"
 resstock_loads_00 := "/data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=RI/upgrade=00"
 
 # One-time global pre-processing (scenario YAMLs + tariff maps).
@@ -298,13 +298,31 @@ run-8:
     just run-scenario 8 rie
 
 # Run 9: precalc hp_seasonalTOU vs flat, delivery
+# Depends on run-1 calibrated tariff (rie_flat_calibrated.json).
 run-9:
-    just create-seasonal-tou rie_hp_seasonalTOU
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ref_tariff="{{ri_tariffs_electric_dir}}/rie_flat_calibrated.json"
+    if [ ! -f "${ref_tariff}" ]; then
+        run1_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 1)
+        echo ">> run-9: calibrated tariff missing, copying from run-1 → ${run1_dir}" >&2
+        just copy-calibrated-tariff-from-run "${run1_dir}" ri
+    fi
+    just create-seasonal-tou rie_hp_seasonalTOU 00 2025 "${ref_tariff}"
     just run-scenario 9 rie
 
 # Run 10: precalc hp_seasonalTOU vs flat, supply
+# Depends on run-2 calibrated tariff (rie_flat_supply_calibrated.json).
 run-10:
-    just create-seasonal-tou rie_hp_seasonalTOU_supply
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ref_tariff="{{ri_tariffs_electric_dir}}/rie_flat_supply_calibrated.json"
+    if [ ! -f "${ref_tariff}" ]; then
+        run2_dir=$(bash "{{latest_output}}" "{{ri_scenario_config}}" 2)
+        echo ">> run-10: calibrated supply tariff missing, copying from run-2 → ${run2_dir}" >&2
+        just copy-calibrated-tariff-from-run "${run2_dir}" ri
+    fi
+    just create-seasonal-tou rie_hp_seasonalTOU_supply 00 2025 "${ref_tariff}"
     just run-scenario 10 rie
 
 # Run 11: default hp_seasonalTOU calibrated, delivery (needs run 9 output)

@@ -81,7 +81,7 @@ create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label outpu
     --output-path "{{output_path}}"
 
 # Derive seasonal TOU tariff + derivation spec.
-create-seasonal-tou cambium_path state utility year td_mc_path resstock_metadata_path resstock_loads_path customer_count tou_tariff_key output_dir periods_yaml="" tou_base_rate="0.06" tou_fixed_charge="6.75":
+create-seasonal-tou cambium_path state utility year td_mc_path resstock_metadata_path resstock_loads_path customer_count tou_tariff_key output_dir periods_yaml="" reference_tariff="":
   uv run python {{project_root}}/utils/pre/derive_seasonal_tou.py \
     --cambium-path "{{cambium_path}}" \
     --state "{{state}}" \
@@ -91,8 +91,7 @@ create-seasonal-tou cambium_path state utility year td_mc_path resstock_metadata
     --resstock-metadata-path "{{resstock_metadata_path}}" \
     --resstock-loads-path "{{resstock_loads_path}}" \
     --customer-count "{{customer_count}}" \
-    --tou-base-rate "{{tou_base_rate}}" \
-    --tou-fixed-charge "{{tou_fixed_charge}}" \
     --tou-tariff-key "{{tou_tariff_key}}" \
     --output-dir "{{output_dir}}" \
-    {{ if periods_yaml != "" { "--periods-yaml \"" + periods_yaml + "\"" } else { "" } }}
+    {{ if periods_yaml != "" { "--periods-yaml \"" + periods_yaml + "\"" } else { "" } }} \
+    {{ if reference_tariff != "" { "--reference-tariff \"" + reference_tariff + "\"" } else { "" } }}

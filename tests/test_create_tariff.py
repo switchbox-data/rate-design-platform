@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
+import pytest
+
 from utils.pre.create_tariff import (
     SeasonalTouTariffSpec,
     create_default_flat_tariff,
     create_seasonal_rate,
     create_seasonal_tou_tariff,
     create_tou_tariff,
+    extract_base_rate_and_fixed_charge,
 )
 
 
@@ -104,3 +110,62 @@ def test_create_seasonal_tou_tariff_has_four_periods() -> None:
     # July (index 6) uses summer off-peak period 2 and summer peak period 3.
     assert item["energyweekdayschedule"][6][10] == 2
     assert item["energyweekdayschedule"][6][15] == 3
+
+
+# ---------------------------------------------------------------------------
+# extract_base_rate_and_fixed_charge
+# ---------------------------------------------------------------------------
+
+
+def _write_tariff(tmp_path: Path, tariff: dict) -> Path:
+    p = tmp_path / "tariff.json"
+    p.write_text(json.dumps(tariff))
+    return p
+
+
+def test_extract_from_flat_tariff(tmp_path: Path) -> None:
+    tariff = create_default_flat_tariff(
+        label="flat", volumetric_rate=0.12, fixed_charge=8.50
+    )
+    path = _write_tariff(tmp_path, tariff)
+    base_rate, fixed_charge = extract_base_rate_and_fixed_charge(path)
+    assert base_rate == pytest.approx(0.12)
+    assert fixed_charge == pytest.approx(8.50)
+
+
+def test_extract_from_multi_period_tariff(tmp_path: Path) -> None:
+    tou = create_tou_tariff(
+        label="tou",
+        peak_hours=[16, 17, 18, 19],
+        peak_offpeak_ratio=2.0,
+        base_rate=0.10,
+        fixed_charge=6.75,
+    )
+    path = _write_tariff(tmp_path, tou)
+    base_rate, fixed_charge = extract_base_rate_and_fixed_charge(path)
+    # periods: 0.10 (off-peak), 0.20 (peak) -> avg 0.15
+    assert base_rate == pytest.approx(0.15)
+    assert fixed_charge == pytest.approx(6.75)
+
+
+def test_extract_raises_on_missing_rate_structure(tmp_path: Path) -> None:
+    tariff = {"items": [{"fixedchargefirstmeter": 5.0}]}
+    path = _write_tariff(tmp_path, tariff)
+    with pytest.raises(ValueError, match="energyratestructure"):
+        extract_base_rate_and_fixed_charge(path)
+
+
+def test_extract_raises_on_missing_fixed_charge(tmp_path: Path) -> None:
+    tariff = {
+        "items": [{"energyratestructure": [[{"rate": 0.1, "adj": 0.0, "unit": "kWh"}]]}]
+    }
+    path = _write_tariff(tmp_path, tariff)
+    with pytest.raises(ValueError, match="fixedchargefirstmeter"):
+        extract_base_rate_and_fixed_charge(path)
+
+
+def test_extract_raises_on_empty_items(tmp_path: Path) -> None:
+    tariff = {"items": []}
+    path = _write_tariff(tmp_path, tariff)
+    with pytest.raises(ValueError, match="items"):
+        extract_base_rate_and_fixed_charge(path)

@@ -29,20 +29,18 @@ precalc-with-new-tariff → calibrate-with-new-tariff**.
 global-pre  (create-scenario-yamls, write-tariff-maps-all)
   │
   ├─ run-1  (precalc flat, delivery)
-  │    ├─ run-3  (default flat calibrated, delivery)  ← copies calibrated tariff from run-1
-  │    └─ run-5  (precalc hp_seasonal vs flat)         ← seasonal discount inputs from run-1
-  │         └─ run-7  (default hp_seasonal calibrated) ← copies calibrated tariff from run-5
+  │    ├─ run-3  (default flat calibrated, delivery)    ← copies calibrated tariff from run-1
+  │    ├─ run-5  (precalc hp_seasonal vs flat)           ← seasonal discount inputs from run-1
+  │    │    └─ run-7  (default hp_seasonal calibrated)   ← copies calibrated tariff from run-5
+  │    └─ run-9  (precalc hp_seasonalTOU vs flat)        ← uses run-1 calibrated tariff as reference
+  │         └─ run-11 (default hp_seasonalTOU calibrated) ← copies calibrated tariff from run-9
   │
-  ├─ run-2  (precalc flat, supply)
-  │    ├─ run-4  (default flat calibrated, supply)     ← copies calibrated tariff from run-2
-  │    └─ run-6  (precalc hp_seasonal vs flat, supply) ← seasonal discount inputs from run-2
-  │         └─ run-8  (default hp_seasonal calibrated, supply) ← copies from run-6
-  │
-  ├─ run-9  (precalc hp_seasonalTOU vs flat, delivery)  ← derives TOU tariff from marginal costs
-  │    └─ run-11 (default hp_seasonalTOU calibrated)     ← copies calibrated tariff from run-9
-  │
-  └─ run-10 (precalc hp_seasonalTOU vs flat, supply)     ← derives TOU tariff from marginal costs
-       └─ run-12 (default hp_seasonalTOU calibrated, supply) ← copies from run-10
+  └─ run-2  (precalc flat, supply)
+       ├─ run-4  (default flat calibrated, supply)       ← copies calibrated tariff from run-2
+       ├─ run-6  (precalc hp_seasonal vs flat, supply)   ← seasonal discount inputs from run-2
+       │    └─ run-8  (default hp_seasonal calibrated, supply) ← copies from run-6
+       └─ run-10 (precalc hp_seasonalTOU vs flat, supply) ← uses run-2 calibrated tariff as reference
+            └─ run-12 (default hp_seasonalTOU calibrated, supply) ← copies from run-10
 ```
 
 ## How `latest_run_output.sh` works
