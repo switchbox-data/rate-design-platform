@@ -238,8 +238,6 @@ write-tariff-maps-all:
     done
 
 
-# Gas tariff fetch (Rate Acuity); fetch writes <tariff_key>.json directly.
-import "Justfile.tasks"
-
+# Gas tariff fetch: just -f rate_design/ri/hp_rates/config/tariffs/gas/Justfile fetch-gas
 ####
 # ACTUAL RUNS

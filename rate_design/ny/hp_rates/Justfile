@@ -193,5 +193,4 @@ write-tariff-maps-all:
       --scenario-config "$f"; \
   done
 
-# Gas tariff fetch (Rate Acuity) and extract from staging → tariff_key JSON
-import "Justfile.tasks"
+# Gas tariff fetch: just -f rate_design/ny/hp_rates/config/tariffs/gas/Justfile fetch-gas

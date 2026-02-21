@@ -1,6 +1,0 @@
-# Uses project_root and tariffs_gas_dir_ny from the including Justfile.
-rateacuity_yaml_ny := project_root + "/rate_design/ny/hp_rates/config/tariffs/gas/rateacuity_tariffs.yaml"
-
-# Fetch all NY gas tariffs from Rate Acuity; writes <tariff_key>.json into config/tariffs/gas.
-fetch-gas-ny:
-	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/fetch_gas_tariffs_rateacuity.py "{{rateacuity_yaml_ny}}" "{{tariffs_gas_dir_ny}}"
