@@ -15,6 +15,11 @@ GAS_URDB_TO_TARIFF_KEY_NY = [
         r"ON HOLD-1-RESIDENTIAL AND RELIGIOUS FIRM SALES",
         "coned_sf",
     ),
+    (
+        "Consolidated Edison",
+        r"1-RESIDENTIAL AND RELIGIOUS FIRM SALES SERVICE",
+        "coned_sf",
+    ),
     ("Consolidated Edison", r"Dwelling Units <=4", "coned_mf_lowrise"),
     ("Consolidated Edison", r"Dwelling Units > 4", "coned_mf_highrise"),
     ("Brooklyn Union", r"1A-RESIDENTIAL NON-HEATING", "kedny_sf_nonheating"),

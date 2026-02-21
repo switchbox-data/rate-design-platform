@@ -268,6 +268,7 @@ UTILITIES: list[UtilityRecord] = [
         "gas_tariff_key": "rie",
         "electric_tariff_key": "rie",
         "rate_acuity_utility_names": [
+            "Rhode Island Energy (formally National Grid)",
             "The Narragansett Electric Company",
             "Narragansett Electric",
             "RI Energy",

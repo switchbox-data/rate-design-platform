@@ -1,5 +1,4 @@
-project_root := `git rev-parse --show-toplevel`
-tariffs_gas_dir_ny := project_root + "/rate_design/ny/hp_rates/config/tariffs/gas"
+# Uses project_root and tariffs_gas_dir_ny from the including Justfile.
 
 # Fetch gas URDB from Rate Acuity for one utility; writes rateacuity_ny_<utility>.json (array of rates).
 # Run extract-gas-tariffs-ny <staging_dir> <output_dir> to produce <tariff_key>.json for the pipeline.

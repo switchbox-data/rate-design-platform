@@ -22,6 +22,7 @@ FAKE_UTILITIES_NY = [
 ]
 
 FAKE_UTILITIES_RI = [
+    "Rhode Island Energy (formally National Grid)",
     "The Narragansett Electric Company",
 ]
 
@@ -46,10 +47,10 @@ def test_resolve_utility_shortcode_ny(shortcode: str, expected_match: str) -> No
 
 
 def test_resolve_utility_shortcode_ri() -> None:
-    """RI rie shortcode resolves when Narragansett is in the dropdown."""
-    assert (
-        _resolve_utility("RI", FAKE_UTILITIES_RI, "rie")
-        == "The Narragansett Electric Company"
+    """RI rie shortcode resolves when RI Energy (or Narragansett) is in the dropdown."""
+    assert _resolve_utility("RI", FAKE_UTILITIES_RI, "rie") in (
+        "Rhode Island Energy (formally National Grid)",
+        "The Narragansett Electric Company",
     )
 
 
