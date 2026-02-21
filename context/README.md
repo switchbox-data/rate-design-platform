@@ -27,6 +27,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 | seasonal_discount_rate_workflow.md      | RI seasonal discount workflow from subclass BAT outputs + winter kWh to tariff/map generation |
 | cairo_performance_analysis.md           | CAIRO execution profile, compute bottlenecks, parallelism status, and speedup opportunities   |
 | run_orchestration.md                    | RI runs 1–12 orchestration: Justfile dependency chain, `latest_run_output.sh`, design decisions |
+| nyiso_lbmp_zonal_data_sources.md        | NYISO Day-Ahead/Real-Time zonal LBMP: MIS ZIP vs gridstatus vs NYISOToolkit; data samples     |
 
 ## docs/
 
