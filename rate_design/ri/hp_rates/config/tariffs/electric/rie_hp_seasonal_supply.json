@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "rie_hp_seasonal",
-      "name": "rie_hp_seasonal",
+      "label": "rie_hp_seasonal_supply",
+      "name": "rie_hp_seasonal_supply",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,14 +640,14 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.021485705039935594,
+            "rate": 0.11167019280861455,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.03961964009364124,
+            "rate": 0.06505880956876502,
             "adj": 0.0,
             "unit": "kWh"
           }
