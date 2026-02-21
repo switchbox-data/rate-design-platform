@@ -101,11 +101,11 @@ create-rie-flat-tariff:
 # -----------------------------------------------------------------------------
 # PRE: TOU tariff derivation
 # -----------------------------------------------------------------------------
-# Derive seasonal TOU tariff + map + derivation spec for RI.
+# Derive seasonal TOU tariff + derivation spec for RI.
 # Uses local ResStock mounts under /data.sb and writes under config/.
-ri_td_mc_path := "s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/0000000.parquet"
+ri_td_mc_path := "s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/00000000.parquet"
 
-create-seasonal-tou tou_tariff_key="rie_hp_seasonalTOU" flat_tariff_key="rie_a16" upgrade_id="00" year="2025" tou_base_rate="0.06" tou_fixed_charge="6.75" periods_yaml=ri_periods_yaml td_mc_path=ri_td_mc_path:
+create-seasonal-tou tou_tariff_key="rie_hp_seasonalTOU" upgrade_id="00" year="2025" tou_base_rate="0.06" tou_fixed_charge="6.75" periods_yaml=ri_periods_yaml td_mc_path=ri_td_mc_path:
   uv run python {{project_root}}/utils/pre/derive_seasonal_tou.py \
     --cambium-path "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t={{year}}/gea=ISONE/r=p133/data.parquet" \
     --state RI \
@@ -119,7 +119,6 @@ create-seasonal-tou tou_tariff_key="rie_hp_seasonalTOU" flat_tariff_key="rie_a16
     --tou-fixed-charge "{{tou_fixed_charge}}" \
     --periods-yaml "{{periods_yaml}}" \
     --tou-tariff-key "{{tou_tariff_key}}" \
-    --flat-tariff-key "{{flat_tariff_key}}" \
     --output-dir "{{project_root}}/rate_design/ri/hp_rates/config"
 
 # -----------------------------------------------------------------------------
@@ -139,44 +138,6 @@ map-electric-tariff electric_utility SB_scenario_type SB_scenario_year upgrade_i
     --SB_scenario_year "{{SB_scenario_year}}" \
     --output_dir "{{output_dir}}"
 
-map-electric-coned-default:
-  just map-electric-tariff coned default 1 00 {{tariff_maps_dir_ri}}/electric
-
-map-electric-coned-seasonal:
-  just map-electric-tariff coned seasonal 1 00 {{tariff_maps_dir_ri}}/electric
-
-map-electric-coned-class-specific-seasonal:
-  just map-electric-tariff coned class_specific_seasonal 1 00 {{tariff_maps_dir_ri}}/electric
-
-map-electric-national-grid-default:
-  just map-electric-tariff nimo default 1 00 {{tariff_maps_dir_ri}}/electric
-
-map-electric-national-grid-seasonal:
-  just map-electric-tariff nimo seasonal 1 00 {{tariff_maps_dir_ri}}/electric
-
-map-electric-national-grid-class-specific-seasonal:
-  just map-electric-tariff nimo class_specific_seasonal 1 00 {{tariff_maps_dir_ri}}/electric
-
-map-electric-nyseg-default:
-  just map-electric-tariff nyseg default 1 00 {{tariff_maps_dir_ri}}/electric
-
-map-electric-nyseg-seasonal:
-  just map-electric-tariff nyseg seasonal 1 00 {{tariff_maps_dir_ri}}/electric
-
-map-electric-nyseg-class-specific-seasonal:
-  just map-electric-tariff nyseg class_specific_seasonal 1 00 {{tariff_maps_dir_ri}}/electric
-
-map-electric-rie-default:
-  just map-electric-tariff rie default 1 00 {{tariff_maps_dir_ri}}/electric
-
-# Generate TOU tariff map: HP customers -> TOU, non-HP -> flat.
-# Requires ResStock metadata on S3 (run resstock-identify-hp-customers first).
-map-electric-hp-tou tou_tariff_key flat_tariff_key upgrade_id="00":
-  uv run python -m utils.pre.compute_tou \
-    --metadata-path "{{path_s3_resstock_metadata}}/state=RI/upgrade={{upgrade_id}}/metadata-sb.parquet" \
-    --tou-tariff-key "{{tou_tariff_key}}" \
-    --flat-tariff-key "{{flat_tariff_key}}" \
-    --output-dir "{{tariff_maps_dir_ri}}/electric"
 
 map-electric-rie-seasonal:
   just map-electric-tariff rie seasonal 1 00 {{tariff_maps_dir_ri}}/electric
@@ -274,3 +235,7 @@ write-tariff-maps-all:
         uv run python {{project_root}}/utils/pre/write_tariff_maps_from_scenario.py \
             --scenario-config "$f"; \
     done
+
+
+####
+# ACTUAL RUNS
