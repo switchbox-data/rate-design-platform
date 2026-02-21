@@ -1,9 +1,10 @@
-"""Tests for gas Rate Acuity fetch script (shortcode resolution only; no live browser)."""
+"""Tests for gas Rate Acuity fetch script (shortcode resolution and YAML config; no live browser)."""
+
+from pathlib import Path
 
 import pytest
 
-from utils.pre.fetch_gas_tariffs_rateacuity import _resolve_utility
-from utils.pre.rateacuity_tariff_to_gas_tariff_key import match_tariff_key
+from utils.pre.fetch_gas_tariffs_rateacuity import _resolve_utility, load_config
 from utils.utility_codes import get_rate_acuity_utility_names, get_utilities_for_state
 
 
@@ -76,27 +77,32 @@ def test_resolve_utility_candidates_from_utility_codes_exist_in_fake_list() -> N
         assert resolved in FAKE_UTILITIES_NY, f"{std_name} resolved to {resolved!r}"
 
 
-def test_match_tariff_key_ny() -> None:
-    """match_tariff_key returns coned_sf for NY ConEd residential firm sales."""
-    got = match_tariff_key(
-        "Consolidated Edison Company of New York",
-        "ON HOLD-1-RESIDENTIAL AND RELIGIOUS FIRM SALES",
-        "NY",
+def test_load_config_ny() -> None:
+    """load_config returns NY and utility keys from the NY rateacuity_tariffs.yaml."""
+    project_root = Path(__file__).resolve().parents[1]
+    yaml_path = (
+        project_root
+        / "rate_design/ny/hp_rates/config/tariffs/gas/rateacuity_tariffs.yaml"
     )
-    assert got == "coned_sf"
-
-
-def test_match_tariff_key_ri_heating() -> None:
-    """match_tariff_key returns rie_heating for RI heating schedule."""
-    got = match_tariff_key(
-        "The Narragansett Electric Company", "Residential Heating", "RI"
+    state, utilities = load_config(yaml_path)
+    assert state == "NY"
+    assert "coned" in utilities
+    assert (
+        utilities["coned"]["coned_sf"]
+        == "1-RESIDENTIAL AND RELIGIOUS FIRM SALES SERVICE"
     )
-    assert got == "rie_heating"
+    assert "rie" not in utilities
 
 
-def test_match_tariff_key_ri_nonheating() -> None:
-    """match_tariff_key returns rie_nonheating for RI non-heating schedule."""
-    got = match_tariff_key(
-        "The Narragansett Electric Company", "Residential Non-Heating", "RI"
+def test_load_config_ri() -> None:
+    """load_config returns RI and rie with heating/nonheating from the RI rateacuity_tariffs.yaml."""
+    project_root = Path(__file__).resolve().parents[1]
+    yaml_path = (
+        project_root
+        / "rate_design/ri/hp_rates/config/tariffs/gas/rateacuity_tariffs.yaml"
     )
-    assert got == "rie_nonheating"
+    state, utilities = load_config(yaml_path)
+    assert state == "RI"
+    assert "rie" in utilities and len(utilities) == 1
+    assert utilities["rie"]["rie_nonheating"] == "Non-Heating"
+    assert utilities["rie"]["rie_heating"] == "Heating"

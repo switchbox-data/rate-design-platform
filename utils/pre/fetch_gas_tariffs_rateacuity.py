@@ -1,12 +1,10 @@
 """
-Fetch gas tariffs from Rate Acuity (URDB) non-interactively for any state.
+Fetch gas tariffs from Rate Acuity (URDB) using a state-specific YAML config.
 
-Uses tariff_fetch's rateacuity and urdb APIs. --state and --utility (std_name from
-utils/utility_codes.py) select the utility; Rate Acuity dropdown names come from
-utility_codes.rate_acuity_utility_names. Writes one JSON per tariff_key to
---output-dir (e.g. coned_sf.json, rie_heating.json); tariff_key comes from
-utils/pre/rateacuity_tariff_to_gas_tariff_key.py. Rates that do not match a
-mapping are skipped.
+Reads rateacuity_tariffs.yaml (utility_shortcode -> tariff_key -> exact schedule name).
+Resolves shortcodes to Rate Acuity names via utils/utility_codes.py. Validates all
+schedule names against the Rate Acuity dropdown before downloading; writes one
+<tariff_key>.json per entry to the output directory.
 
 Requires RATEACUITY_USERNAME and RATEACUITY_PASSWORD in the environment.
 """
@@ -14,7 +12,6 @@ Requires RATEACUITY_USERNAME and RATEACUITY_PASSWORD in the environment.
 from __future__ import annotations
 
 import argparse
-from typing import cast
 import json
 import logging
 import os
@@ -23,6 +20,7 @@ from datetime import date
 from pathlib import Path
 from statistics import mean
 
+import yaml
 from tariff_fetch.rateacuity import LoginState, create_context
 from tariff_fetch.urdb.rateacuity_history_gas import build_urdb
 from tariff_fetch.urdb.rateacuity_history_gas.history_data import (
@@ -31,7 +29,6 @@ from tariff_fetch.urdb.rateacuity_history_gas.history_data import (
     Row,
 )
 
-from utils.pre.rateacuity_tariff_to_gas_tariff_key import match_tariff_key
 from utils.utility_codes import get_rate_acuity_utility_names, get_utilities_for_state
 
 # Load .env from project root (same as utils/__init__.py)
@@ -45,7 +42,7 @@ log = logging.getLogger(__name__)
 
 
 def _get_rateacuity_credentials() -> tuple[str, str]:
-    """Return (username, password) from env. tariff_fetch does not read env; its CLI does, but we run non-interactively."""
+    """Return (username, password) from env."""
     username = os.environ.get("RATEACUITY_USERNAME")
     password = os.environ.get("RATEACUITY_PASSWORD")
     if not username or not password:
@@ -91,8 +88,28 @@ def _get_percentage_columns(
     ]
 
 
+def load_config(yaml_path: Path) -> tuple[str, dict[str, dict[str, str]]]:
+    """Load rateacuity_tariffs.yaml; return (state, { utility_shortcode: { tariff_key: schedule_name } })."""
+    data = yaml.safe_load(yaml_path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{yaml_path}: expected a YAML mapping")
+    state = data.get("state")
+    if not state or not isinstance(state, str):
+        raise ValueError(f"{yaml_path}: top-level 'state' (e.g. NY, RI) is required")
+    state_upper = state.upper()
+    utilities = {k: v for k, v in data.items() if k != "state" and isinstance(v, dict)}
+    for u, tariffs in utilities.items():
+        if not all(
+            isinstance(tk, str) and isinstance(sn, str) for tk, sn in tariffs.items()
+        ):
+            raise ValueError(
+                f"{yaml_path}: under {u!r} expect tariff_key -> schedule name strings"
+            )
+    return state_upper, utilities
+
+
 def list_utilities(state: str) -> list[str]:
-    """Log in, select state, return utility names from the gas history dropdown (for mapping QA)."""
+    """Log in, select state, return utility names from the gas history dropdown."""
     username, password = _get_rateacuity_credentials()
     with create_context() as context:
         scraping_state = (
@@ -106,27 +123,30 @@ def list_utilities(state: str) -> list[str]:
 
 
 def fetch_gas_urdb(
-    state: str,
-    year: int,
-    utility: str,
-    tariffs: list[str] | None,
+    yaml_path: Path,
     output_dir: Path,
     *,
+    year: int = 2025,
     apply_percentages: bool = False,
 ) -> None:
-    """Fetch gas URDB rates for one utility and write one JSON per tariff_key into output_dir."""
-    username, password = _get_rateacuity_credentials()
-    state_upper = state.upper()
+    """Load YAML config and fetch all listed gas tariffs; write <tariff_key>.json to output_dir."""
+    log.info("Loading config from %s", yaml_path)
+    state_upper, utilities_config = load_config(yaml_path)
+    total_tariffs = sum(len(m) for m in utilities_config.values())
+    log.info(
+        "Config: state=%s, %d utilit(ies), %d tariff(s) to fetch",
+        state_upper,
+        len(utilities_config),
+        total_tariffs,
+    )
     valid_std = get_utilities_for_state(state_upper, "gas")
-    if utility not in valid_std:
-        raise ValueError(
-            f"Utility {utility!r} is not a gas utility for {state}. "
-            f"Valid std_names: {valid_std}"
-        )
 
     output_dir = output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     written: list[tuple[str, Path]] = []
+
+    username, password = _get_rateacuity_credentials()
+    log.info("Logging in to Rate Acuity and opening gas history...")
 
     with create_context() as context:
         scraping_state = (
@@ -136,79 +156,109 @@ def fetch_gas_urdb(
             .history()
             .select_state(state_upper)
         )
-        utilities = [u for u in scraping_state.get_utilities() if u]
-        selected_utility = _resolve_utility(state_upper, utilities, utility)
-        scraping_state = scraping_state.select_utility(selected_utility)
-        all_schedules = [s for s in scraping_state.get_schedules() if s]
-        to_fetch = tariffs if tariffs else all_schedules
-        if not to_fetch:
-            raise ValueError(f"No tariffs to fetch for utility {selected_utility}")
+        dropdown_utilities = [u for u in scraping_state.get_utilities() if u]
+        log.info(
+            "Selected state %s; found %d utilit(ies) in dropdown",
+            state_upper,
+            len(dropdown_utilities),
+        )
 
-        for tariff in to_fetch:
-            if tariff not in all_schedules:
-                log.warning(
-                    "Tariff %r not in schedule list; skipping. Available: %s",
-                    tariff,
-                    all_schedules[:8],
+        for utility_shortcode, tariff_map in utilities_config.items():
+            if utility_shortcode not in valid_std:
+                raise ValueError(
+                    f"Utility {utility_shortcode!r} in YAML is not a gas utility for {state_upper}. "
+                    f"Valid std_names: {valid_std}"
                 )
-                continue
-            log.info("Fetching %s", tariff)
-            report = (
-                scraping_state.select_schedule(tariff)
-                .set_enddate(date(year, 12, 1))
-                .set_number_of_comparisons(12)
-                .set_frequency(1)
+            log.info("Looking up utility %r -> Rate Acuity name...", utility_shortcode)
+            selected_utility = _resolve_utility(
+                state_upper, dropdown_utilities, utility_shortcode
             )
-            df = report.as_dataframe()
-            hd = HistoryData(df)
-            validation_errors = hd.validate_rows()
-            if validation_errors:
-                for err in validation_errors:
-                    log.warning("Validation: %s", err.row)
-            rows = list(hd.rows())
-            pct_columns = _get_percentage_columns(rows)
-            apply_pct = apply_percentages and bool(pct_columns)
-            urdb = build_urdb(rows, apply_pct)
-            urdb["utility"] = selected_utility
-            urdb["name"] = tariff
-            tariff_key = match_tariff_key(selected_utility, tariff, state_upper)
-            if not tariff_key:
-                log.debug(
-                    "No tariff_key mapping for %r / %r; skipping",
-                    selected_utility,
-                    tariff,
+            log.info("Utility %r: selected %r", utility_shortcode, selected_utility)
+            scraping_state = scraping_state.select_utility(selected_utility)
+            all_schedules = [s for s in scraping_state.get_schedules() if s]
+            schedule_names = list(tariff_map.values())
+            log.info(
+                "Utility %r: found %d schedule(s) in dropdown; validating %d tariff(s) from YAML",
+                utility_shortcode,
+                len(all_schedules),
+                len(tariff_map),
+            )
+
+            # Validate all schedule names exist before downloading any for this utility.
+            missing = [s for s in schedule_names if s not in all_schedules]
+            if missing:
+                matched = [s for s in schedule_names if s in all_schedules]
+                lines = [
+                    f"Some schedule names in YAML are not in the Rate Acuity list for {selected_utility!r}.",
+                    "",
+                    "Matched (will fetch):",
+                    *([f"  - {s!r}" for s in matched] if matched else ["  (none)"]),
+                    "",
+                    "Not found (update rateacuity_tariffs.yaml or check Rate Acuity):",
+                    *[f"  - {s!r}" for s in missing],
+                    "",
+                    "Schedules currently available for this utility:",
+                    *[f"  - {s!r}" for s in all_schedules],
+                ]
+                raise ValueError("\n".join(lines))
+
+            for idx, (tariff_key, schedule_name) in enumerate(tariff_map.items(), 1):
+                log.info(
+                    "Downloading tariff %d/%d for %r: %s -> %s",
+                    idx,
+                    len(tariff_map),
+                    utility_shortcode,
+                    schedule_name,
+                    tariff_key,
                 )
+                report = (
+                    scraping_state.select_schedule(schedule_name)
+                    .set_enddate(date(year, 12, 1))  # type: ignore[union-attr]
+                    .set_number_of_comparisons(12)
+                    .set_frequency(1)
+                )
+                df = report.as_dataframe()
+                log.info("Converting %s to URDB...", tariff_key)
+                hd = HistoryData(df)
+                validation_errors = hd.validate_rows()
+                if validation_errors:
+                    for err in validation_errors:
+                        log.warning("Validation: %s", err.row)
+                rows = list(hd.rows())
+                pct_columns = _get_percentage_columns(rows)
+                apply_pct = apply_percentages and bool(pct_columns)
+                urdb = build_urdb(rows, apply_pct)
+                urdb["utility"] = selected_utility
+                urdb["name"] = schedule_name
+                out_path = output_dir / f"{tariff_key}.json"
+                out_path.write_text(json.dumps(urdb, indent=2))
+                written.append((tariff_key, out_path))
+                log.info("Wrote %s -> %s", tariff_key, out_path)
+
                 scraping_state = (
                     report.back_to_selections()
                     .history()
                     .select_state(state_upper)
                     .select_utility(selected_utility)
                 )
-                continue
-            out_path = output_dir / f"{tariff_key}.json"
-            out_path.write_text(json.dumps(cast(dict[str, object], urdb), indent=2))
-            written.append((tariff_key, out_path))
-            log.info("Wrote %s -> %s", tariff_key, out_path)
 
-            scraping_state = (
-                report.back_to_selections()
-                .history()
-                .select_state(state_upper)
-                .select_utility(selected_utility)
-            )
-
-    log.info("Wrote %d tariff_key file(s) to %s", len(written), output_dir)
+    log.info("Done: wrote %d tariff file(s) to %s", len(written), output_dir)
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     parser = argparse.ArgumentParser(
-        description="Fetch gas tariffs from Rate Acuity (URDB) non-interactively for any state."
+        description="Fetch gas tariffs from Rate Acuity using a state rateacuity_tariffs.yaml."
     )
     parser.add_argument(
-        "--state",
-        required=True,
-        help="Two-letter state (e.g. NY, RI). --utility must be a gas std_name from utils/utility_codes for this state.",
+        "yaml_path",
+        type=Path,
+        help="Path to rateacuity_tariffs.yaml (state + utility_shortcode -> tariff_key -> schedule name).",
+    )
+    parser.add_argument(
+        "output_dir",
+        type=Path,
+        help="Output directory for <tariff_key>.json files (e.g. config/tariffs/gas).",
     )
     parser.add_argument(
         "--year",
@@ -219,22 +269,7 @@ def main() -> None:
     parser.add_argument(
         "--list-utilities",
         action="store_true",
-        help="Print utility names from Rate Acuity for --state and exit (use to verify mapping)",
-    )
-    parser.add_argument(
-        "--utility",
-        help="std_name from utils/utility_codes (e.g. coned, rie), or exact Rate Acuity name",
-    )
-    parser.add_argument(
-        "--tariffs",
-        nargs="*",
-        default=None,
-        help="Tariff/schedule names to fetch; if omitted, fetch all schedules for the utility",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        help="Output directory for <tariff_key>.json files (e.g. config/tariffs/gas); required when fetching",
+        help="Ignore YAML; print Rate Acuity utility names for the state in YAML and exit.",
     )
     parser.add_argument(
         "--apply-percentages",
@@ -242,20 +277,21 @@ def main() -> None:
         help="Apply percentage columns when present (default: false)",
     )
     args = parser.parse_args()
+
     if args.list_utilities:
-        for u in list_utilities(args.state):
+        state, _ = load_config(args.yaml_path)
+        for u in list_utilities(state):
             print(u)
         return
-    if not args.utility:
-        parser.error("--utility is required unless --list-utilities is set")
-    if not args.output_dir:
-        parser.error("--output-dir is required for fetch")
+
+    args.yaml_path = args.yaml_path.resolve()
+    if not args.yaml_path.is_file():
+        raise SystemExit(f"YAML file not found: {args.yaml_path}")
+
     fetch_gas_urdb(
-        state=args.state,
+        args.yaml_path,
+        args.output_dir,
         year=args.year,
-        utility=args.utility,
-        tariffs=args.tariffs,
-        output_dir=args.output_dir,
         apply_percentages=args.apply_percentages,
     )
 

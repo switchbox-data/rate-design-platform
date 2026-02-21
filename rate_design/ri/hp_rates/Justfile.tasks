@@ -1,10 +1,10 @@
 # Uses project_root and tariffs_gas_dir_ri from the including Justfile.
+rateacuity_yaml_ri := project_root + "/rate_design/ri/hp_rates/config/tariffs/gas/rateacuity_tariffs.yaml"
 
-# Fetch gas URDB from Rate Acuity for RI (utility rie); writes <tariff_key>.json (e.g. rie_heating.json, rie_nonheating.json) into output-dir.
-# For existing staging dirs only: extract-gas-tariffs-ri <staging_dir> <output_dir>.
-fetch-gas-rie:
-	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/fetch_gas_tariffs_rateacuity.py --state RI --year 2025 --utility rie --output-dir "{{tariffs_gas_dir_ri}}"
+# Fetch all RI gas tariffs from Rate Acuity; writes <tariff_key>.json into config/tariffs/gas.
+fetch-gas-ri:
+	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/fetch_gas_tariffs_rateacuity.py "{{rateacuity_yaml_ri}}" "{{tariffs_gas_dir_ri}}"
 
-# Convert existing staging dir (rateacuity_*.json or *.urdb.*.json) to tariff_key files. For fresh fetch use fetch-gas-rie.
+# Convert existing staging dir (rateacuity_*.json or *.urdb.*.json) to tariff_key files. For fresh fetch use fetch-gas-ri.
 extract-gas-tariffs-ri staging_path output_path:
-	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/install_ny_gas_tariffs_from_staging.py "{{staging_path}}" --state RI --output-dir "{{output_path}}"
+	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/install_ny_gas_tariffs_from_staging.py "{{staging_path}}" --yaml "{{rateacuity_yaml_ri}}" --output-dir "{{output_path}}"

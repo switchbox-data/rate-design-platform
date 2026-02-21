@@ -1,37 +1,10 @@
 # Uses project_root and tariffs_gas_dir_ny from the including Justfile.
+rateacuity_yaml_ny := project_root + "/rate_design/ny/hp_rates/config/tariffs/gas/rateacuity_tariffs.yaml"
 
-# Fetch gas URDB from Rate Acuity for one utility; writes <tariff_key>.json files (e.g. coned_sf.json) into output-dir.
-# For existing staging dirs only: extract-gas-tariffs-ny <staging_dir> <output_dir>.
-_fetch-gas-tariffs-ny-rateacuity utility_shortcode:
-	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/fetch_gas_tariffs_rateacuity.py --state NY --year 2025 --utility "{{utility_shortcode}}" --output-dir "{{tariffs_gas_dir_ny}}"
+# Fetch all NY gas tariffs from Rate Acuity; writes <tariff_key>.json into config/tariffs/gas.
+fetch-gas-ny:
+	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/fetch_gas_tariffs_rateacuity.py "{{rateacuity_yaml_ny}}" "{{tariffs_gas_dir_ny}}"
 
-fetch-gas-coned:
-	just _fetch-gas-tariffs-ny-rateacuity coned
-
-fetch-gas-kedny:
-	just _fetch-gas-tariffs-ny-rateacuity kedny
-
-fetch-gas-kedli:
-	just _fetch-gas-tariffs-ny-rateacuity kedli
-
-fetch-gas-nyseg:
-	just _fetch-gas-tariffs-ny-rateacuity nyseg
-
-fetch-gas-nimo:
-	just _fetch-gas-tariffs-ny-rateacuity nimo
-
-fetch-gas-rge:
-	just _fetch-gas-tariffs-ny-rateacuity rge
-
-fetch-gas-cenhud:
-	just _fetch-gas-tariffs-ny-rateacuity cenhud
-
-fetch-gas-or:
-	just _fetch-gas-tariffs-ny-rateacuity or
-
-fetch-gas-nfg:
-	just _fetch-gas-tariffs-ny-rateacuity nfg
-
-# Convert existing staging dir (rateacuity_*.json or *.urdb.*.json) to tariff_key files. For fresh fetch use fetch-gas-<utility>.
+# Convert existing staging dir (rateacuity_*.json or *.urdb.*.json) to tariff_key files. For fresh fetch use fetch-gas-ny.
 extract-gas-tariffs-ny staging_path output_path:
-	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/install_ny_gas_tariffs_from_staging.py "{{staging_path}}" --state NY --output-dir "{{output_path}}"
+	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/install_ny_gas_tariffs_from_staging.py "{{staging_path}}" --yaml "{{rateacuity_yaml_ny}}" --output-dir "{{output_path}}"

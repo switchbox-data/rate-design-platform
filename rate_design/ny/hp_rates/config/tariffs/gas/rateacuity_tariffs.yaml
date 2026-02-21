@@ -1,0 +1,30 @@
+# Rate Acuity gas schedule names by utility shortcode (std_name).
+# Pass this file to fetch_gas_tariffs_rateacuity.py to fetch all NY gas tariffs.
+# Update schedule name values when Rate Acuity names change.
+state: NY
+cenhud:
+  cenhud: "SC 1-RESIDENCE DELIVERY RATE"
+coned:
+  coned_sf: "1-RESIDENTIAL AND RELIGIOUS FIRM SALES SERVICE"
+  coned_mf_lowrise: "Dwelling Units <=4"
+  coned_mf_highrise: "Dwelling Units > 4"
+kedli:
+  kedli_sf_nonheating: "1-RESIDENTIAL SERVICE-1A - Non-Heating"
+  kedli_sf_heating: "1-RESIDENTIAL SERVICE-1B - Heating"
+  kedli_mf_nonheating: "3-MULTIPLE-DWELLING SERVICE-3A - Non-Heating"
+  kedli_mf_heating: "3-MULTIPLE-DWELLING SERVICE-3B - Heating"
+kedny:
+  kedny_sf_nonheating: "1A-RESIDENTIAL NON-HEATING"
+  kedny_sf_heating: "1B-RESIDENTIAL HEATING"
+  kedny_mf: "3-HEATING AND/OR WATER HEATING AND COOKING MULTI-FAMILY"
+nfg:
+  nfg: "1-RESIDENTIAL - Customers Purchasing Gas from National Fuel"
+nimo:
+  nimo: "1-RESIDENTIAL DELIVERY"
+nyseg:
+  nyseg_nonheating: "PSC 87 - Non-Heating"
+  nyseg_heating: "PSC 87 - Heating--"
+or:
+  or: "SERVICE CLASSIFICATION 1-Residential"
+rge:
+  rge: "1-GENERAL SERVICE - Residential"
