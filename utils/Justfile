@@ -1,0 +1,98 @@
+# Resolve project root as absolute path using git
+project_root := `git rev-parse --show-toplevel`
+
+
+# -----------------------------------------------------------------------------
+# Global - must be run before any other recipes
+# -----------------------------------------------------------------------------
+
+# Create scenario YAMLs from the Runs & Charts Google Sheet (requires G_* env and browser auth)
+# Writes rate_design/<state>/hp_rates/config/scenarios_<utility>.yaml per utility in your reference sheet.
+create-scenario-yamls:
+    uv run python {{project_root}}/utils/pre/create_scenario_yamls.py
+
+
+# Write electric tariff map CSVs for all runs in a single scenario file (pre-step; run before run_scenario)
+write-tariff-maps scenario_config:
+    uv run python {{project_root}}/utils/pre/write_tariff_maps_from_scenario.py \
+        --scenario-config "{{scenario_config}}"
+
+# Write electric tariff map CSVs for every scenario YAML in a scenarios directory.
+write-tariff-maps-all scenarios_dir:
+    for f in "{{scenarios_dir}}"/*.yaml; do \
+        uv run python {{project_root}}/utils/pre/write_tariff_maps_from_scenario.py \
+            --scenario-config "$f"; \
+    done
+
+
+# -----------------------------------------------------------------------------
+# Post-processing
+# -----------------------------------------------------------------------------
+
+# Revenue requirement YAML outputs from CAIRO BAT results.
+compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yaml_path run_num="1" group_col="has_hp" cross_subsidy_col="BAT_percustomer":
+  uv run python {{project_root}}/utils/post/compute_subclass_rr.py \
+    --run-dir "{{run_dir}}" \
+    --run-num "{{run_num}}" \
+    --scenario-config "{{scenario_config}}" \
+    --group-col "{{group_col}}" \
+    --cross-subsidy-col "{{cross_subsidy_col}}" \
+    --differentiated-yaml-path "{{differentiated_yaml_path}}" \
+    --default-yaml-path "{{default_yaml_path}}"
+
+# Seasonal discount inputs from run outputs + ResStock loads.
+compute-seasonal-discount-inputs run_dir resstock_loads_path cross_subsidy_col="BAT_percustomer" output_dir="":
+  uv run python {{project_root}}/utils/post/compute_seasonal_discount_inputs.py \
+    --run-dir "{{run_dir}}" \
+    --cross-subsidy-col "{{cross_subsidy_col}}" \
+    --resstock-loads-path "{{resstock_loads_path}}" \
+    {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }}
+
+# -----------------------------------------------------------------------------
+# Pre-processing
+# -----------------------------------------------------------------------------
+# Create flat and flat_supply tariffs from default tariffs.
+create-flat-tariff default_tariff_json supply_default_tariff_json flat_label flat_supply_label output_dir:
+  uv run python {{project_root}}/utils/pre/create_flat_tariff.py \
+    --default-tariff-json "{{default_tariff_json}}" \
+    --supply-default-tariff-json "{{supply_default_tariff_json}}" \
+    --flat-label "{{flat_label}}" \
+    --flat-supply-label "{{flat_supply_label}}" \
+    --output-dir "{{output_dir}}"
+
+# Promote calibrated tariffs from run output:
+# reads <run_dir>/tariff_final_config.json, converts each tariff to URDB format,
+# and writes one <tariff_key>_calibrated.json per key under a destination directory.
+copy-calibrated-tariff-from-run run_dir state output_dir="":
+  uv run python -m utils.pre.copy_calibrated_tariff_from_run \
+    --run-dir "{{run_dir}}" \
+    --state "{{state}}" \
+    {{ if output_dir != "" { "--destination-dir \"" + output_dir + "\"" } else { "" } }}
+
+
+
+# Tariff JSON creation from seasonal_discount_rate_inputs.csv.
+create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label output_path periods_yaml:
+  uv run python {{project_root}}/utils/pre/create_seasonal_discount_tariff.py \
+    --base-tariff-json "{{base_tariff_json}}" \
+    --seasonal-inputs-csv "{{seasonal_inputs_csv}}" \
+    --label "{{label}}" \
+    --periods-yaml "{{periods_yaml}}" \
+    --output-path "{{output_path}}"
+
+# Derive seasonal TOU tariff + derivation spec.
+create-seasonal-tou cambium_path state utility year td_mc_path resstock_metadata_path resstock_loads_path customer_count tou_tariff_key output_dir periods_yaml="" tou_base_rate="0.06" tou_fixed_charge="6.75":
+  uv run python {{project_root}}/utils/pre/derive_seasonal_tou.py \
+    --cambium-path "{{cambium_path}}" \
+    --state "{{state}}" \
+    --utility "{{utility}}" \
+    --year "{{year}}" \
+    --path-td-marginal-costs "{{td_mc_path}}" \
+    --resstock-metadata-path "{{resstock_metadata_path}}" \
+    --resstock-loads-path "{{resstock_loads_path}}" \
+    --customer-count "{{customer_count}}" \
+    --tou-base-rate "{{tou_base_rate}}" \
+    --tou-fixed-charge "{{tou_fixed_charge}}" \
+    --tou-tariff-key "{{tou_tariff_key}}" \
+    --output-dir "{{output_dir}}" \
+    {{ if periods_yaml != "" { "--periods-yaml \"" + periods_yaml + "\"" } else { "" } }}
