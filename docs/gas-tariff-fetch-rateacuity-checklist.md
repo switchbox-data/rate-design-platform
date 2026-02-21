@@ -50,7 +50,7 @@ uv run python utils/pre/fetch_gas_tariffs_rateacuity.py --state RI --utility rie
 uv run python utils/pre/install_ny_gas_tariffs_from_staging.py /tmp/gas_staging_ri --state RI --output-dir /tmp/gas_out_ri
 ```
 
-- Confirm `rateacuity_RI_rie.json` and then `rie_heating.json` / `rie_nonheating.json` (or whatever the RI mapping produces). Adjust `utils/pre/ri_gas_tariff_mapping.py` or `rate_acuity_utility_names` for rie if needed.
+- Confirm `rateacuity_RI_rie.json` and then `rie_heating.json` / `rie_nonheating.json` (or whatever the RI mapping produces). Adjust `utils/pre/rateacuity_tariff_to_gas_tariff_key.py` or `rate_acuity_utility_names` for rie if needed.
 
 ## 5. Justfile flow (NY)
 
@@ -67,11 +67,11 @@ From `rate_design/ny/hp_rates/`:
 
 ## 6. Things to fix if they break
 
-| Symptom                                             | Likely fix                                                                                                                                                                                           |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| "Utility X not found for state Y"                   | Update `rate_acuity_utility_names` for that utility in `utils/utility_codes.py` to match `--list-utilities` output.                                                                                  |
-| Fetch succeeds but install writes no (or few) files | Rate names from Rate Acuity don't match the patterns in `rateacuity_tariff_to_gas_tariff_key.py` or `ri_gas_tariff_mapping.py`. Add or relax (utility substring, rate name regex) → tariff_key rows. |
-| Browser / login errors                              | Ensure RATEACUITY_USERNAME and RATEACUITY_PASSWORD are set; run on a machine where the tariff-fetch browser flow can run.                                                                            |
+| Symptom                                             | Likely fix                                                                                                                                                             |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Utility X not found for state Y"                   | Update `rate_acuity_utility_names` for that utility in `utils/utility_codes.py` to match `--list-utilities` output.                                                    |
+| Fetch succeeds but install writes no (or few) files | Rate names from Rate Acuity don't match the patterns in `rateacuity_tariff_to_gas_tariff_key.py`. Add or relax (utility substring, rate name regex) → tariff_key rows. |
+| Browser / login errors                              | Ensure RATEACUITY_USERNAME and RATEACUITY_PASSWORD are set; run on a machine where the tariff-fetch browser flow can run.                                              |
 
 ## 7. After verification
 

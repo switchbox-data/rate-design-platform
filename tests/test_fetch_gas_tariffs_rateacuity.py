@@ -3,10 +3,7 @@
 import pytest
 
 from utils.pre.fetch_gas_tariffs_rateacuity import _resolve_utility
-from utils.pre.rateacuity_tariff_to_gas_tariff_key import (
-    match_tariff_key as match_tariff_key_ny,
-)
-from utils.pre.ri_gas_tariff_mapping import match_tariff_key as match_tariff_key_ri
+from utils.pre.rateacuity_tariff_to_gas_tariff_key import match_tariff_key
 from utils.utility_codes import get_rate_acuity_utility_names, get_utilities_for_state
 
 
@@ -81,24 +78,25 @@ def test_resolve_utility_candidates_from_utility_codes_exist_in_fake_list() -> N
 
 def test_match_tariff_key_ny() -> None:
     """match_tariff_key returns coned_sf for NY ConEd residential firm sales."""
-    got = match_tariff_key_ny(
+    got = match_tariff_key(
         "Consolidated Edison Company of New York",
         "ON HOLD-1-RESIDENTIAL AND RELIGIOUS FIRM SALES",
+        "NY",
     )
     assert got == "coned_sf"
 
 
 def test_match_tariff_key_ri_heating() -> None:
     """match_tariff_key returns rie_heating for RI heating schedule."""
-    got = match_tariff_key_ri(
-        "The Narragansett Electric Company", "Residential Heating"
+    got = match_tariff_key(
+        "The Narragansett Electric Company", "Residential Heating", "RI"
     )
     assert got == "rie_heating"
 
 
 def test_match_tariff_key_ri_nonheating() -> None:
     """match_tariff_key returns rie_nonheating for RI non-heating schedule."""
-    got = match_tariff_key_ri(
-        "The Narragansett Electric Company", "Residential Non-Heating"
+    got = match_tariff_key(
+        "The Narragansett Electric Company", "Residential Non-Heating", "RI"
     )
     assert got == "rie_nonheating"

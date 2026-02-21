@@ -1,5 +1,5 @@
 """
-Rate Acuity gas (utility, rate name) → tariff_key for NY.
+Rate Acuity gas (utility, rate name) → tariff_key by state (NY, RI).
 
 Used by fetch_gas_tariffs_rateacuity.py and install_ny_gas_tariffs_from_staging.py.
 """
@@ -50,10 +50,25 @@ GAS_URDB_TO_TARIFF_KEY_NY = [
     ("National Fuel Gas", r"1-RESIDENTIAL.*Customers Purchasing", "nfg"),
 ]
 
+# (utility substring, rate name regex) → tariff_key. Order matters (non-heating before heating).
+GAS_URDB_TO_TARIFF_KEY_RI = [
+    ("Narragansett", r"non.heating|Non-Heating|non heating", "rie_nonheating"),
+    ("Narragansett", r"heating|Heating", "rie_heating"),
+    ("RI Energy", r"non.heating|Non-Heating|non heating", "rie_nonheating"),
+    ("RI Energy", r"heating|Heating", "rie_heating"),
+]
 
-def match_tariff_key(utility: str, name: str) -> str | None:
-    """Return tariff_key for (utility, rate name) in NY, or None if no mapping."""
-    for util_pattern, name_pattern, tariff_key in GAS_URDB_TO_TARIFF_KEY_NY:
+
+def match_tariff_key(utility: str, name: str, state: str) -> str | None:
+    """Return tariff_key for (utility, rate name) in the given state, or None if no mapping."""
+    state_upper = state.upper()
+    if state_upper == "NY":
+        table = GAS_URDB_TO_TARIFF_KEY_NY
+    elif state_upper == "RI":
+        table = GAS_URDB_TO_TARIFF_KEY_RI
+    else:
+        return None
+    for util_pattern, name_pattern, tariff_key in table:
         if util_pattern not in utility:
             continue
         if re.search(name_pattern, name, re.IGNORECASE | re.DOTALL):

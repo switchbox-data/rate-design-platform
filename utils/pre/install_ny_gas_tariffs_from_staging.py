@@ -13,10 +13,7 @@ import argparse
 import json
 from pathlib import Path
 
-from utils.pre.rateacuity_tariff_to_gas_tariff_key import (
-    match_tariff_key as match_tariff_key_ny,
-)
-from utils.pre.ri_gas_tariff_mapping import match_tariff_key as match_tariff_key_ri
+from utils.pre.rateacuity_tariff_to_gas_tariff_key import match_tariff_key
 
 
 def install_from_file(
@@ -32,11 +29,7 @@ def install_from_file(
     for rate in data:
         utility = rate.get("utility") or ""
         name = rate.get("name") or ""
-        tariff_key = (
-            match_tariff_key_ny(utility, name)
-            if state_upper == "NY"
-            else match_tariff_key_ri(utility, name)
-        )
+        tariff_key = match_tariff_key(utility, name, state_upper)
         if not tariff_key:
             continue
         out_path = output_dir / f"{tariff_key}.json"
