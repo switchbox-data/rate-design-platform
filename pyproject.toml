@@ -73,4 +73,4 @@ include = ["data*", "rate_design*", "utils*"]
 exclude = [".cache/"]
 
 [tool.uv.sources]
-cairo = { git = "https://github.com/NatLabRockies/CAIRO", rev = "main" }
+cairo = { git = "https://github.com/switchbox-data/CAIRO", rev = "sz/multiple-gas-tariffs" }
