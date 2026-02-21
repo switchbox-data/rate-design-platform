@@ -52,7 +52,7 @@ path_s3_utility_loads               := "s3://data.sb/eia/hourly_demand/utilities
 path_default_tariff                 := path_tariffs_electric / default_tariff
 path_default_supply_tariff          := path_tariffs_electric / default_tariff_supply
 tou_tariff_key                      := utility + "_hp_seasonalTOU"
-latest_output                       := path_repo / "utils/runtime/latest_run_output.sh"
+latest_output                       := path_repo / "utils/midrun/latest_run_output.sh"
 
 # =============================================================================
 # VALIDATION

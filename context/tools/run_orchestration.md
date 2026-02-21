@@ -27,12 +27,12 @@ the file. All Tier 3 paths are computed automatically.
 
 Three layers work together:
 
-| Layer            | Path                                 | Role                                                                                                                  |
-| ---------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| Generic recipes  | `utils/Justfile`                     | Reusable pre/post-processing recipes with no state-specific paths. RI Justfile delegates here.                        |
-| RI orchestration | `rate_design/ri/hp_rates/Justfile`   | Defines `run-1` ... `run-12`, `all-pre`, and `run-all-sequential`. Binds utility-specific config and wires the chain. |
-| Output resolver  | `utils/runtime/latest_run_output.sh` | Shell script that finds the most recent CAIRO output directory for a given run on S3.                                 |
-| Config validator | `utils/pre/validate_config.py`       | Checks Justfile vars against scenario YAML values. Warn-only by default, `--strict` exits non-zero for CI.            |
+| Layer            | Path                                | Role                                                                                                                  |
+| ---------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Generic recipes  | `utils/Justfile`                    | Reusable pre/midrun recipes with no state-specific paths. RI Justfile delegates here.                                 |
+| RI orchestration | `rate_design/ri/hp_rates/Justfile`  | Defines `run-1` ... `run-12`, `all-pre`, and `run-all-sequential`. Binds utility-specific config and wires the chain. |
+| Output resolver  | `utils/midrun/latest_run_output.sh` | Shell script that finds the most recent CAIRO output directory for a given run on S3.                                 |
+| Config validator | `utils/pre/validate_config.py`      | Checks Justfile vars against scenario YAML values. Warn-only by default, `--strict` exits non-zero for CI.            |
 
 ## Dependency chain
 
@@ -139,6 +139,15 @@ is parsed.
 are parameterized and reusable across jurisdictions (RI, NY, etc.). The RI
 Justfile delegates with `just -f utils/Justfile <recipe> <args>`, keeping
 state-specific paths out of the generic layer.
+
+**`utils/` directory mirrors run phases.** `utils/pre/` holds scripts that run
+before any CAIRO run (tariff creation, scenario YAML generation, marginal cost
+allocation). `utils/midrun/` holds scripts that run between runs and consume
+earlier run outputs (calibrated tariff promotion, subclass revenue requirements,
+seasonal discount derivation). `utils/post/` holds scripts that run after all
+runs complete (LMI discount application). `utils/midrun/` also holds the
+`latest_run_output.sh` shell helper for resolving predecessor output
+directories between runs.
 
 **Tiered parameterization.** Identity (Tier 1) and utility config (Tier 2) are
 defined at the top of the Justfile. All paths (Tier 3) are derived from them
