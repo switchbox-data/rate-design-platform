@@ -53,6 +53,12 @@ Scripts live in the same directory as the Justfile that invokes them.
 - Prefer CLI argument names that match the Just variables (e.g. `--path-s3-zone-parquet`, `--path-local-parquet`) so the Justfile and script stay aligned.
 - **Safeguard**: If a script accepts an output directory (e.g. `--output-dir`), reject values that look like uninterpolated Just (e.g. contain `{{` or `}}`) so we never write into a literal `{{path_local_parquet}}` directory.
 
+## Parallelism
+
+- **Fetch and convert in parallel when possible** (e.g. many independent URLs or many files to convert). Use a thread pool or process pool so full-range runs finish in reasonable time.
+- Prefer a configurable concurrency limit (e.g. `--workers N`) so runs can be tuned for the host and to avoid overloading the source or disk.
+- For reference implementations in this repo, see e.g. `data/nyiso/lbmp/fetch_lbmp_zonal_zips.py` (parallel fetch via `concurrent.futures.ThreadPoolExecutor`).
+
 ## One dataset per directory
 
 - One pipeline per dataset (or logical product). Do not duplicate; e.g. HUD Section 8 income limits live in `data/hud/ami/` only.
