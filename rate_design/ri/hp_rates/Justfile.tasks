@@ -1,0 +1,14 @@
+# RI HP tasks (separate from main Justfile to avoid merge conflicts).
+# Run from repo root: just -f rate_design/ri/hp_rates/Justfile.tasks <recipe>
+# Gas tariffs for ri_hp_rates (RI Energy); writes to config/tariffs/gas for scenarios.
+
+project_root := `git rev-parse --show-toplevel`
+tariffs_gas_dir_ri := project_root + "/rate_design/ri/hp_rates/config/tariffs/gas"
+
+# Non-interactive Rate Acuity gas URDB fetch for RI; writes rie_heating.json, rie_nonheating.json into config/tariffs/gas.
+fetch-gas-rie:
+	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/fetch_gas_tariffs_rateacuity.py --state RI --year 2025 --utility rie --output-dir "{{tariffs_gas_dir_ri}}"
+
+# Extract from staging dir (e.g. old CLI output) to output path. For fresh fetch use fetch-gas-rie.
+extract-gas-tariffs-ri staging_path output_path:
+	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/install_ny_gas_tariffs_from_staging.py "{{staging_path}}" --state RI --output-dir "{{output_path}}"
