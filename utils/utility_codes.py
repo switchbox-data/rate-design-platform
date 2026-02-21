@@ -30,6 +30,11 @@ Adding a new state
     tariff_map CSVs. Must match keys in rate_design/<state>/hp_rates/config/
     tariffs (electricity/ and gas/) and tariff_maps (electric/ and gas/).
 
+   - rate_acuity_utility_names: names as they appear in the Rate Acuity gas
+    history dropdown (one or more candidates). Used by fetch_gas_tariffs_rateacuity
+    to resolve std_name to the exact dropdown string. Only set for utilities
+    whose gas tariffs are fetched from Rate Acuity.
+
 3. Create or extend assign_utility_<state> in data/resstock/ to map building
    locations to std_name, using ny_open_data_state_names (or your state's
    equivalent) and get_ny_open_data_to_std_name() / a state-specific lookup.
@@ -57,6 +62,7 @@ class UtilityRecord(TypedDict, total=False):
     eia_utility_ids: list[int]
     gas_tariff_key: str
     electric_tariff_key: str
+    rate_acuity_utility_names: list[str]
 
 
 # Single list - user adds one record per utility
@@ -77,6 +83,10 @@ UTILITIES: list[UtilityRecord] = [
         "eia_utility_ids": [3249],
         "gas_tariff_key": "cenhud",
         "electric_tariff_key": "cenhud",
+        "rate_acuity_utility_names": [
+            "Central Hudson Gas & Electric",
+            "Central Hudson",
+        ],
     },
     {
         "std_name": "chautauqua",
@@ -94,6 +104,10 @@ UTILITIES: list[UtilityRecord] = [
         "eia_utility_ids": [4226],
         "gas_tariff_key": "coned",
         "electric_tariff_key": "coned",
+        "rate_acuity_utility_names": [
+            "Consolidated Edison",
+            "Consolidated Edison Company of New York",
+        ],
     },
     {
         "std_name": "corning",
@@ -116,6 +130,10 @@ UTILITIES: list[UtilityRecord] = [
         "display_name": "National Grid - NYC",
         "ny_open_data_state_names": ["National Grid - NYC"],
         "gas_tariff_key": "national_grid",
+        "rate_acuity_utility_names": [
+            "The Brooklyn Union Gas Company",
+            "Brooklyn Union",
+        ],
     },
     {
         "std_name": "kedli",
@@ -124,6 +142,7 @@ UTILITIES: list[UtilityRecord] = [
         "display_name": "National Grid - Long Island",
         "ny_open_data_state_names": ["National Grid - Long Island"],
         "gas_tariff_key": "national_grid",
+        "rate_acuity_utility_names": ["Keyspan Gas East", "KeySpan Gas East"],
     },
     {
         "std_name": "nimo",
@@ -134,6 +153,11 @@ UTILITIES: list[UtilityRecord] = [
         "eia_utility_ids": [13573],  # Niagara Mohawk Power Corp.
         "gas_tariff_key": "national_grid",
         "electric_tariff_key": "nimo",
+        "rate_acuity_utility_names": [
+            "Niagara Mohawk Power Corporation",
+            "Niagara Mohawk",
+            "National Grid",
+        ],
     },
     {
         "std_name": "none",
@@ -149,6 +173,10 @@ UTILITIES: list[UtilityRecord] = [
         "display_name": "National Fuel Gas",
         "ny_open_data_state_names": ["National Fuel Gas Distribution"],
         "gas_tariff_key": "nfg",
+        "rate_acuity_utility_names": [
+            "National Fuel Gas",
+            "National Fuel Gas Distribution",
+        ],
     },
     {
         "std_name": "nyseg",
@@ -159,6 +187,7 @@ UTILITIES: list[UtilityRecord] = [
         "eia_utility_ids": [13511],
         "gas_tariff_key": "nyseg",
         "electric_tariff_key": "nyseg",
+        "rate_acuity_utility_names": ["New York State Electric & Gas", "NYSEG"],
     },
     {
         "std_name": "or",
@@ -169,6 +198,11 @@ UTILITIES: list[UtilityRecord] = [
         "eia_utility_ids": [14154],
         "gas_tariff_key": "or",
         "electric_tariff_key": "or",
+        "rate_acuity_utility_names": [
+            "Orange and Rockland Utilities",
+            "Orange and Rockland",
+            "O&R",
+        ],
     },
     {
         "std_name": "psegli",
@@ -197,6 +231,11 @@ UTILITIES: list[UtilityRecord] = [
         "eia_utility_ids": [16183],
         "gas_tariff_key": "rge",
         "electric_tariff_key": "rge",
+        "rate_acuity_utility_names": [
+            "Rochester Gas and Electric",
+            "Rochester Gas and Electric Corporation",
+            "RG&E",
+        ],
     },
     {
         "std_name": "stlaw",
@@ -228,8 +267,33 @@ UTILITIES: list[UtilityRecord] = [
         "eia_utility_ids": [13214],  # The Narragansett Electric Co
         "gas_tariff_key": "rie",
         "electric_tariff_key": "rie",
+        "rate_acuity_utility_names": [
+            "The Narragansett Electric Company",
+            "Narragansett Electric",
+            "RI Energy",
+            "RIE",
+        ],
     },
 ]
+
+
+def get_rate_acuity_utility_names(state: str, std_name: str) -> list[str]:
+    """Return Rate Acuity dropdown candidate names for a utility. Used by fetch_gas_tariffs_rateacuity."""
+    state_upper = state.upper()
+    for u in UTILITIES:
+        if u.get("state") != state_upper or u["std_name"] != std_name:
+            continue
+        names = u.get("rate_acuity_utility_names")
+        if not names:
+            raise ValueError(
+                f"No rate_acuity_utility_names for {std_name!r} in {state}. "
+                "Add rate_acuity_utility_names to that utility in utils/utility_codes.py."
+            )
+        return names
+    raise ValueError(
+        f"Utility {std_name!r} not found for state {state}. "
+        f"Valid gas std_names: {get_utilities_for_state(state_upper, 'gas')}"
+    )
 
 
 def get_ny_open_data_to_std_name() -> dict[str, str]:

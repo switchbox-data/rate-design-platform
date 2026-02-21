@@ -1,0 +1,38 @@
+project_root := `git rev-parse --show-toplevel`
+tariffs_gas_dir_ny := project_root + "/rate_design/ny/hp_rates/config/tariffs/gas"
+
+# Fetch gas URDB from Rate Acuity for one utility; writes rateacuity_ny_<utility>.json (array of rates).
+# Run extract-gas-tariffs-ny <staging_dir> <output_dir> to produce <tariff_key>.json for the pipeline.
+_fetch-gas-tariffs-ny-rateacuity utility_shortcode:
+	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/fetch_gas_tariffs_rateacuity.py --state NY --year 2025 --utility "{{utility_shortcode}}" --output-dir "{{tariffs_gas_dir_ny}}"
+
+fetch-gas-coned:
+	just _fetch-gas-tariffs-ny-rateacuity coned
+
+fetch-gas-kedny:
+	just _fetch-gas-tariffs-ny-rateacuity kedny
+
+fetch-gas-kedli:
+	just _fetch-gas-tariffs-ny-rateacuity kedli
+
+fetch-gas-nyseg:
+	just _fetch-gas-tariffs-ny-rateacuity nyseg
+
+fetch-gas-nimo:
+	just _fetch-gas-tariffs-ny-rateacuity nimo
+
+fetch-gas-rge:
+	just _fetch-gas-tariffs-ny-rateacuity rge
+
+fetch-gas-cenhud:
+	just _fetch-gas-tariffs-ny-rateacuity cenhud
+
+fetch-gas-or:
+	just _fetch-gas-tariffs-ny-rateacuity or
+
+fetch-gas-nfg:
+	just _fetch-gas-tariffs-ny-rateacuity nfg
+
+# Extract from staging dir (e.g. old CLI output) to output path. For fresh fetch use fetch-gas-<utility>.
+extract-gas-tariffs-ny staging_path output_path:
+	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/install_ny_gas_tariffs_from_staging.py "{{staging_path}}" --state NY --output-dir "{{output_path}}"
