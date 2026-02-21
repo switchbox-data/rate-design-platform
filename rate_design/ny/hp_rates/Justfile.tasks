@@ -1,7 +1,7 @@
 # Uses project_root and tariffs_gas_dir_ny from the including Justfile.
 
-# Fetch gas URDB from Rate Acuity for one utility; writes rateacuity_ny_<utility>.json (array of rates).
-# Run extract-gas-tariffs-ny <staging_dir> <output_dir> to produce <tariff_key>.json for the pipeline.
+# Fetch gas URDB from Rate Acuity for one utility; writes <tariff_key>.json files (e.g. coned_sf.json) into output-dir.
+# For existing staging dirs only: extract-gas-tariffs-ny <staging_dir> <output_dir>.
 _fetch-gas-tariffs-ny-rateacuity utility_shortcode:
 	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/fetch_gas_tariffs_rateacuity.py --state NY --year 2025 --utility "{{utility_shortcode}}" --output-dir "{{tariffs_gas_dir_ny}}"
 
@@ -32,6 +32,6 @@ fetch-gas-or:
 fetch-gas-nfg:
 	just _fetch-gas-tariffs-ny-rateacuity nfg
 
-# Extract from staging dir (e.g. old CLI output) to output path. For fresh fetch use fetch-gas-<utility>.
+# Convert existing staging dir (rateacuity_*.json or *.urdb.*.json) to tariff_key files. For fresh fetch use fetch-gas-<utility>.
 extract-gas-tariffs-ny staging_path output_path:
 	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/install_ny_gas_tariffs_from_staging.py "{{staging_path}}" --state NY --output-dir "{{output_path}}"

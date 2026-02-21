@@ -127,6 +127,7 @@ create-seasonal-tou tou_tariff_key="rie_hp_seasonalTOU" upgrade_id="00" year="20
 path_s3_resstock_metadata := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
 path_s3_utility_assignment := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility"
 tariff_maps_dir_ri := project_root + "/rate_design/ri/hp_rates/config/tariff_maps"
+tariffs_gas_dir_ri := project_root + "/rate_design/ri/hp_rates/config/tariffs/gas"
 
 map-electric-tariff electric_utility SB_scenario_type SB_scenario_year upgrade_id output_dir:
   uv run python {{project_root}}/utils/pre/electric_tariff_mapper.py \
@@ -236,6 +237,9 @@ write-tariff-maps-all:
             --scenario-config "$f"; \
     done
 
+
+# Gas tariff fetch (Rate Acuity); fetch writes <tariff_key>.json directly.
+import "Justfile.tasks"
 
 ####
 # ACTUAL RUNS

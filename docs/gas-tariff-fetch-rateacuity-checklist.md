@@ -21,57 +21,48 @@ uv run python utils/pre/fetch_gas_tariffs_rateacuity.py --state RI --list-utilit
 
 ## 2. Run a single-utility fetch (smoke test)
 
-Pick one utility and run the fetch into a staging directory:
+Pick one utility and run the fetch; it writes one JSON per tariff_key (e.g. `coned_sf.json`, `coned_mf_lowrise.json`) into `--output-dir`:
 
 ```bash
-mkdir -p /tmp/gas_staging
-uv run python utils/pre/fetch_gas_tariffs_rateacuity.py --state NY --utility coned --output-dir /tmp/gas_staging
+mkdir -p /tmp/gas_out
+uv run python utils/pre/fetch_gas_tariffs_rateacuity.py --state NY --utility coned --output-dir /tmp/gas_out
 ```
 
 - Confirm no interactive prompts and no errors.
-- Confirm output file exists: `rateacuity_NY_coned.json` and is a JSON array of rate objects (each with `utility`, `name`, and URDB fields).
+- Confirm expected tariff_key files exist (e.g. for ConEd: `coned_sf.json`, `coned_mf_lowrise.json`, `coned_mf_highrise.json` if those schedules were fetched). Rates that do not match a mapping in `rateacuity_tariff_to_gas_tariff_key.py` are skipped.
 
-## 3. Run install (staging → tariff_key files)
+## 3. Convert existing staging (optional)
 
-From the same staging dir, run the install script to produce `tariff_key`.json files:
+If you have an existing directory of `rateacuity_*.json` or `*.urdb.*.json` (e.g. from an old run or tariff_fetch CLI), you can convert it to tariff_key files without re-fetching:
 
 ```bash
 uv run python utils/pre/install_ny_gas_tariffs_from_staging.py /tmp/gas_staging --state NY --output-dir /tmp/gas_out
 ```
-
-- Confirm that expected tariff_key files are written (e.g. for ConEd: `coned_sf.json`, `coned_mf_lowrise.json`, `coned_mf_highrise.json` if those rates were in the fetch). If some rates are missing, the NY mapping in `utils/pre/rateacuity_tariff_to_gas_tariff_key.py` may need new (utility substring, rate name pattern) → tariff_key entries.
 
 ## 4. RI smoke test (optional)
 
 If RI gas is in scope:
 
 ```bash
-uv run python utils/pre/fetch_gas_tariffs_rateacuity.py --state RI --utility rie --output-dir /tmp/gas_staging_ri
-uv run python utils/pre/install_ny_gas_tariffs_from_staging.py /tmp/gas_staging_ri --state RI --output-dir /tmp/gas_out_ri
+uv run python utils/pre/fetch_gas_tariffs_rateacuity.py --state RI --utility rie --output-dir /tmp/gas_out_ri
 ```
 
-- Confirm `rateacuity_RI_rie.json` and then `rie_heating.json` / `rie_nonheating.json` (or whatever the RI mapping produces). Adjust `utils/pre/rateacuity_tariff_to_gas_tariff_key.py` or `rate_acuity_utility_names` for rie if needed.
+- Confirm `rie_heating.json` and `rie_nonheating.json` (or whatever the RI mapping produces). Adjust `utils/pre/rateacuity_tariff_to_gas_tariff_key.py` or `rate_acuity_utility_names` for rie if needed.
 
 ## 5. Justfile flow (NY)
 
 From `rate_design/ny/hp_rates/`:
 
-- `just fetch-gas-coned` (or another utility) → writes `rateacuity_NY_coned.json` into the configured gas dir (`config/tariffs/gas/`; see `Justfile.tasks`).
-- Then run the extract recipe with that dir as staging and the same (or desired) output dir to get final `tariff_key`.json files:
-
-  ```bash
-  just extract-gas-tariffs-ny rate_design/ny/hp_rates/config/tariffs/gas /path/to/output
-  ```
-
-  Or use the same dir for both if you want tariff_key files written alongside the raw fetch files.
+- `just fetch-gas-coned` (or another utility) → writes tariff_key JSON files (e.g. `coned_sf.json`, `coned_mf_lowrise.json`) directly into the configured gas dir (`config/tariffs/gas/`; see `Justfile.tasks`). No separate extract step needed for a fresh fetch.
+- To convert an existing staging dir (e.g. old `rateacuity_*.json` files) to tariff_key files, use `just extract-gas-tariffs-ny <staging_path> <output_path>`.
 
 ## 6. Things to fix if they break
 
-| Symptom                                             | Likely fix                                                                                                                                                             |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| "Utility X not found for state Y"                   | Update `rate_acuity_utility_names` for that utility in `utils/utility_codes.py` to match `--list-utilities` output.                                                    |
-| Fetch succeeds but install writes no (or few) files | Rate names from Rate Acuity don't match the patterns in `rateacuity_tariff_to_gas_tariff_key.py`. Add or relax (utility substring, rate name regex) → tariff_key rows. |
-| Browser / login errors                              | Ensure RATEACUITY_USERNAME and RATEACUITY_PASSWORD are set; run on a machine where the tariff-fetch browser flow can run.                                              |
+| Symptom                                   | Likely fix                                                                                                                                                             |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Utility X not found for state Y"         | Update `rate_acuity_utility_names` for that utility in `utils/utility_codes.py` to match `--list-utilities` output.                                                    |
+| Fetch writes no (or few) tariff_key files | Rate names from Rate Acuity don't match the patterns in `rateacuity_tariff_to_gas_tariff_key.py`. Add or relax (utility substring, rate name regex) → tariff_key rows. |
+| Browser / login errors                    | Ensure RATEACUITY_USERNAME and RATEACUITY_PASSWORD are set; run on a machine where the tariff-fetch browser flow can run.                                              |
 
 ## 7. After verification
 

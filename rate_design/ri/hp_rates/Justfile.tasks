@@ -1,14 +1,10 @@
-# RI HP tasks (separate from main Justfile to avoid merge conflicts).
-# Run from repo root: just -f rate_design/ri/hp_rates/Justfile.tasks <recipe>
-# Gas tariffs for ri_hp_rates (RI Energy); writes to config/tariffs/gas for scenarios.
+# Uses project_root and tariffs_gas_dir_ri from the including Justfile.
 
-project_root := `git rev-parse --show-toplevel`
-tariffs_gas_dir_ri := project_root + "/rate_design/ri/hp_rates/config/tariffs/gas"
-
-# Non-interactive Rate Acuity gas URDB fetch for RI; writes rie_heating.json, rie_nonheating.json into config/tariffs/gas.
+# Fetch gas URDB from Rate Acuity for RI (utility rie); writes <tariff_key>.json (e.g. rie_heating.json, rie_nonheating.json) into output-dir.
+# For existing staging dirs only: extract-gas-tariffs-ri <staging_dir> <output_dir>.
 fetch-gas-rie:
 	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/fetch_gas_tariffs_rateacuity.py --state RI --year 2025 --utility rie --output-dir "{{tariffs_gas_dir_ri}}"
 
-# Extract from staging dir (e.g. old CLI output) to output path. For fresh fetch use fetch-gas-rie.
+# Convert existing staging dir (rateacuity_*.json or *.urdb.*.json) to tariff_key files. For fresh fetch use fetch-gas-rie.
 extract-gas-tariffs-ri staging_path output_path:
 	uv run --directory "{{project_root}}" python {{project_root}}/utils/pre/install_ny_gas_tariffs_from_staging.py "{{staging_path}}" --state RI --output-dir "{{output_path}}"

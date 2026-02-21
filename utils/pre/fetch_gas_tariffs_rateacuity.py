@@ -3,9 +3,10 @@ Fetch gas tariffs from Rate Acuity (URDB) non-interactively for any state.
 
 Uses tariff_fetch's rateacuity and urdb APIs. --state and --utility (std_name from
 utils/utility_codes.py) select the utility; Rate Acuity dropdown names come from
-utility_codes.rate_acuity_utility_names. Writes one JSON per utility (array of
-rates) to --output-dir as rateacuity_{state}_{std_name}.json. Use the install
-script with --state to map those to tariff_key-named files for the pipeline.
+utility_codes.rate_acuity_utility_names. Writes one JSON per tariff_key to
+--output-dir (e.g. coned_sf.json, rie_heating.json); tariff_key comes from
+utils/pre/rateacuity_tariff_to_gas_tariff_key.py. Rates that do not match a
+mapping are skipped.
 
 Requires RATEACUITY_USERNAME and RATEACUITY_PASSWORD in the environment.
 """
@@ -30,6 +31,7 @@ from tariff_fetch.urdb.rateacuity_history_gas.history_data import (
     Row,
 )
 
+from utils.pre.rateacuity_tariff_to_gas_tariff_key import match_tariff_key
 from utils.utility_codes import get_rate_acuity_utility_names, get_utilities_for_state
 
 # Load .env from project root (same as utils/__init__.py)
@@ -40,6 +42,17 @@ if _env_path.exists():
     load_dotenv(_env_path)
 
 log = logging.getLogger(__name__)
+
+
+def _get_rateacuity_credentials() -> tuple[str, str]:
+    """Return (username, password) from env. tariff_fetch does not read env; its CLI does, but we run non-interactively."""
+    username = os.environ.get("RATEACUITY_USERNAME")
+    password = os.environ.get("RATEACUITY_PASSWORD")
+    if not username or not password:
+        raise RuntimeError(
+            "Set RATEACUITY_USERNAME and RATEACUITY_PASSWORD in the environment"
+        )
+    return (username, password)
 
 
 def _resolve_utility(state: str, utilities: list[str], std_name: str) -> str:
@@ -80,12 +93,7 @@ def _get_percentage_columns(
 
 def list_utilities(state: str) -> list[str]:
     """Log in, select state, return utility names from the gas history dropdown (for mapping QA)."""
-    username = os.environ.get("RATEACUITY_USERNAME")
-    password = os.environ.get("RATEACUITY_PASSWORD")
-    if not username or not password:
-        raise RuntimeError(
-            "Set RATEACUITY_USERNAME and RATEACUITY_PASSWORD in the environment"
-        )
+    username, password = _get_rateacuity_credentials()
     with create_context() as context:
         scraping_state = (
             LoginState(context)
@@ -106,14 +114,8 @@ def fetch_gas_urdb(
     *,
     apply_percentages: bool = False,
 ) -> None:
-    """Fetch gas URDB rates for one utility and write one JSON (array of rates) into output_dir."""
-    username = os.environ.get("RATEACUITY_USERNAME")
-    password = os.environ.get("RATEACUITY_PASSWORD")
-    if not username or not password:
-        raise RuntimeError(
-            "Set RATEACUITY_USERNAME and RATEACUITY_PASSWORD in the environment"
-        )
-
+    """Fetch gas URDB rates for one utility and write one JSON per tariff_key into output_dir."""
+    username, password = _get_rateacuity_credentials()
     state_upper = state.upper()
     valid_std = get_utilities_for_state(state_upper, "gas")
     if utility not in valid_std:
@@ -124,7 +126,7 @@ def fetch_gas_urdb(
 
     output_dir = output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-    rates: list[dict[str, object]] = []
+    written: list[tuple[str, Path]] = []
 
     with create_context() as context:
         scraping_state = (
@@ -169,7 +171,24 @@ def fetch_gas_urdb(
             urdb = build_urdb(rows, apply_pct)
             urdb["utility"] = selected_utility
             urdb["name"] = tariff
-            rates.append(cast(dict[str, object], urdb))
+            tariff_key = match_tariff_key(selected_utility, tariff, state_upper)
+            if not tariff_key:
+                log.debug(
+                    "No tariff_key mapping for %r / %r; skipping",
+                    selected_utility,
+                    tariff,
+                )
+                scraping_state = (
+                    report.back_to_selections()
+                    .history()
+                    .select_state(state_upper)
+                    .select_utility(selected_utility)
+                )
+                continue
+            out_path = output_dir / f"{tariff_key}.json"
+            out_path.write_text(json.dumps(cast(dict[str, object], urdb), indent=2))
+            written.append((tariff_key, out_path))
+            log.info("Wrote %s -> %s", tariff_key, out_path)
 
             scraping_state = (
                 report.back_to_selections()
@@ -178,9 +197,7 @@ def fetch_gas_urdb(
                 .select_utility(selected_utility)
             )
 
-    out_path = output_dir / f"rateacuity_{state_upper}_{utility}.json"
-    out_path.write_text(json.dumps(rates, indent=2))
-    log.info("Wrote %d rate(s) to %s", len(rates), out_path)
+    log.info("Wrote %d tariff_key file(s) to %s", len(written), output_dir)
 
 
 def main() -> None:

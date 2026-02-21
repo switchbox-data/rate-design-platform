@@ -1,10 +1,11 @@
 """
-Install gas tariffs from Rate Acuity URDB staging output into config/tariffs/gas.
+Convert Rate Acuity URDB staging output to tariff_key JSON files.
 
 Reads JSON file(s) from a staging directory (array of URDB rates from
-tariff_fetch.cli_gas --urdb or other exports). Maps each rate to tariff_key
-using --state and writes one JSON per tariff. For one-step fetch+write use
-fetch_gas_tariffs_rateacuity.py with --state and --output-dir.
+tariff_fetch.cli_gas --urdb or legacy rateacuity_*.json). Maps each rate to
+tariff_key using --state and writes one JSON per tariff. For a fresh fetch
+that writes tariff_key files directly, use fetch_gas_tariffs_rateacuity.py
+instead; this script is for converting existing staging dirs only.
 """
 
 from __future__ import annotations
