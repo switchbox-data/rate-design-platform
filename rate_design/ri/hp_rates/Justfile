@@ -30,6 +30,8 @@ path_repo                           := `git rev-parse --show-toplevel`
 path_project                        := path_repo / "rate_design" / state / "hp_rates"
 path_config                         := path_project / "config"
 path_tariffs_electric               := path_config / "tariffs/electric"
+path_tariffs_gas                    := path_config / "tariffs/gas"
+path_rateacuity_yaml                := path_tariffs_gas / "rateacuity_tariffs.yaml"
 path_scenarios                      := path_config / "scenarios"
 path_scenario_config                := path_scenarios / "scenarios_" + utility + ".yaml"
 path_periods_yaml                   := path_config / "periods" / utility + ".yaml"
@@ -84,6 +86,9 @@ create-electric-tariff-maps-all:
     just -f {{path_repo}}/utils/Justfile write-tariff-maps-all "{{path_scenarios}}"
 
 # Gas tariff maps.
+fetch-gas-tariffs:
+  uv run python {{path_repo}}/utils/pre/fetch_gas_tariffs_rateacuity.py "{{path_rateacuity_yaml}}" "{{path_tariffs_gas}}"
+
 create-gas-tariff-map electric_utility upgrade_id output_dir:
   just -f {{path_repo}}/utils/Justfile create-gas-tariff-map \
     "{{path_s3_resstock_metadata}}" \

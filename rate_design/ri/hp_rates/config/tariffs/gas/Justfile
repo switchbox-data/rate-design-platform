@@ -1,9 +1,0 @@
-# Standalone Justfile for RI gas tariff fetch. Run from repo root:
-#   just -f rate_design/ri/hp_rates/config/tariffs/gas/Justfile fetch-gas
-path_project_root := `git rev-parse --show-toplevel`
-path_output_dir := path_project_root + "/rate_design/ri/hp_rates/config/tariffs/gas"
-path_rateacuity_yaml := path_project_root + "/rate_design/ri/hp_rates/config/tariffs/gas/rateacuity_tariffs.yaml"
-
-# Fetch all RI gas tariffs from Rate Acuity; writes <tariff_key>.json here.
-fetch-gas:
-	uv run --directory "{{path_project_root}}" python {{path_project_root}}/utils/pre/fetch_gas_tariffs_rateacuity.py "{{path_rateacuity_yaml}}" "{{path_output_dir}}"
