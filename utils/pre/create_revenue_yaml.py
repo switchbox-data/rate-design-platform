@@ -121,7 +121,9 @@ def create_revenue_yaml(
             f"utility={utility_norm!r}, year={year_norm!r}; found {len(matching_rows)}."
         )
 
-    revenue_requirement = _parse_revenue_requirement(matching_rows[0][resolved_revenue_col])
+    revenue_requirement = _parse_revenue_requirement(
+        matching_rows[0][resolved_revenue_col]
+    )
     payload = {
         "utility": utility_norm,
         "revenue_requirement": revenue_requirement,
@@ -132,7 +134,9 @@ def create_revenue_yaml(
         ),
     }
     path_output_yaml.parent.mkdir(parents=True, exist_ok=True)
-    path_output_yaml.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    path_output_yaml.write_text(
+        yaml.safe_dump(payload, sort_keys=False), encoding="utf-8"
+    )
     return path_output_yaml
 
 

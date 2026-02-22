@@ -49,7 +49,9 @@ def test_create_revenue_yaml_requires_exact_revenue_column_name(tmp_path: Path) 
         rows=[{"utility": "rie", "year": 2025, "revenue-requirement": 23456.0}],
     )
 
-    with pytest.raises(ValueError, match="Missing required column 'revenue_requirement'"):
+    with pytest.raises(
+        ValueError, match="Missing required column 'revenue_requirement'"
+    ):
         create_revenue_yaml(
             path_revenue_csv=str(path_csv),
             path_output_yaml=tmp_path / "rie.yaml",
@@ -66,7 +68,9 @@ def test_create_revenue_yaml_raises_when_no_match(tmp_path: Path) -> None:
         rows=[{"utility": "rie", "year": 2024, "revenue_requirement": 100.0}],
     )
 
-    with pytest.raises(ValueError, match="Expected exactly one revenue requirement row"):
+    with pytest.raises(
+        ValueError, match="Expected exactly one revenue requirement row"
+    ):
         create_revenue_yaml(
             path_revenue_csv=str(path_csv),
             path_output_yaml=tmp_path / "rie.yaml",
@@ -86,7 +90,9 @@ def test_create_revenue_yaml_raises_when_multiple_matches(tmp_path: Path) -> Non
         ],
     )
 
-    with pytest.raises(ValueError, match="Expected exactly one revenue requirement row"):
+    with pytest.raises(
+        ValueError, match="Expected exactly one revenue requirement row"
+    ):
         create_revenue_yaml(
             path_revenue_csv=str(path_csv),
             path_output_yaml=tmp_path / "rie.yaml",
