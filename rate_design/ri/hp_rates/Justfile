@@ -48,7 +48,7 @@ path_cambium                        := "s3://data.sb/nrel/cambium/2024/scenario=
 path_mc_table                       := path_config / "marginal_costs" / state + "_marginal_costs_" + year + ".csv"
 path_s3_mc_output                   := "s3://data.sb/switchbox/marginal_costs/" + state + "/"
 path_s3_utility_loads               := "s3://data.sb/eia/hourly_demand/utilities/"
-path_electric_utility_stats         := "s3://data.sb/eia/861/electric_utility_stats/state=" + state_upper + "/data.parquet"
+path_electric_utility_stats         := "s3://data.sb/eia/861/electric_utility_stats/year=2024/state=" + state_upper + "/data.parquet"
 path_default_tariff                 := path_tariffs_electric / default_tariff
 path_default_supply_tariff          := path_tariffs_electric / default_tariff_supply
 tou_tariff_key                      := utility + "_hp_seasonalTOU"
