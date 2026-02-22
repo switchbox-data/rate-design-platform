@@ -12,9 +12,11 @@ Requires RATEACUITY_USERNAME and RATEACUITY_PASSWORD in the environment.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import logging
 import os
+import re
 from collections.abc import Collection
 from datetime import date
 from pathlib import Path
@@ -72,6 +74,26 @@ def _resolve_utility(state: str, utilities: list[str], std_name: str) -> str:
         f"Utility {std_name!r} not found for {state}. Candidates: {candidates!r}; "
         f"dropdown: {utilities[:5]!r}{'...' if len(utilities) > 5 else ''}"
     )
+
+
+def _reraise_with_formatted_options(e: ValueError) -> None:
+    """Re-raise ValueError with 'Available options' list formatted as newline-separated lines."""
+    msg = str(e)
+    if "Available options are:" not in msg:
+        raise
+    prefix = "Available options are:"
+    idx = msg.index(prefix) + len(prefix)
+    rest = msg[idx:].strip()
+    match = re.match(r"^(\[.*\])\s*$", rest, re.DOTALL)
+    if match:
+        try:
+            options = ast.literal_eval(match.group(1))
+            opts_text = "\n".join(f"  - {o!r}" for o in options)
+            new_msg = msg[: msg.index(prefix)] + prefix + "\n" + opts_text
+            raise ValueError(new_msg) from e
+        except (ValueError, SyntaxError):
+            pass
+    raise
 
 
 def _get_percentage_columns(
@@ -174,8 +196,15 @@ def fetch_gas_urdb(
                 state_upper, dropdown_utilities, utility_shortcode
             )
             log.info("Utility %r: selected %r", utility_shortcode, selected_utility)
-            scraping_state = scraping_state.select_utility(selected_utility)
-            all_schedules = [s for s in scraping_state.get_schedules() if s]
+            try:
+                scraping_state = scraping_state.select_utility(selected_utility)
+            except ValueError as e:
+                _reraise_with_formatted_options(e)
+            all_schedules = [
+                s
+                for s in scraping_state.get_schedules()  # type: ignore[union-attr]
+                if s
+            ]
             schedule_names = list(tariff_map.values())
             log.info(
                 "Utility %r: found %d schedule(s) in dropdown; validating %d tariff(s) from YAML",
@@ -212,8 +241,8 @@ def fetch_gas_urdb(
                     tariff_key,
                 )
                 report = (
-                    scraping_state.select_schedule(schedule_name)
-                    .set_enddate(date(year, 12, 1))  # type: ignore[union-attr]
+                    scraping_state.select_schedule(schedule_name)  # type: ignore[union-attr]
+                    .set_enddate(date(year, 12, 1))
                     .set_number_of_comparisons(12)
                     .set_frequency(1)
                 )
@@ -235,11 +264,9 @@ def fetch_gas_urdb(
                 written.append((tariff_key, out_path))
                 log.info("Wrote %s -> %s", tariff_key, out_path)
 
+                # Return to state-only so next utility iteration sees the utility dropdown, not schedules.
                 scraping_state = (
-                    report.back_to_selections()
-                    .history()
-                    .select_state(state_upper)
-                    .select_utility(selected_utility)
+                    report.back_to_selections().history().select_state(state_upper)
                 )
 
     log.info("Done: wrote %d tariff file(s) to %s", len(written), output_dir)
