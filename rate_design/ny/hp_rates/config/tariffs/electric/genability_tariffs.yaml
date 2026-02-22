@@ -1,0 +1,13 @@
+# Genability/Arcadia default electric tariffs by utility (std_name).
+# Pass this file to fetch_electric_tariffs_genability.py with --state NY.
+# Each utility lists tariff_key -> identifier. Identifier can be:
+#   - "default"   : residential default tariff (RESIDENTIAL + DEFAULT in Arcadia)
+#   - <integer>   : masterTariffId (use that tariff)
+#   - "<name>"    : tariff name to match (first substring match in LSE's tariff list)
+cenhud: default
+coned: default
+nimo: default
+nyseg: default
+or: default
+psegli: default
+rge: default

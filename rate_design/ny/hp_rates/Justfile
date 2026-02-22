@@ -194,3 +194,4 @@ write-tariff-maps-all:
   done
 
 # Gas tariff fetch: just -f rate_design/ny/hp_rates/config/tariffs/gas/Justfile fetch-gas
+# Electric Genability tariff fetch: just -f rate_design/ny/hp_rates/config/tariffs/electric/Justfile fetch-genability
