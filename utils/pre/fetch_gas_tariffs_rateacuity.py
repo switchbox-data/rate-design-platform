@@ -88,7 +88,7 @@ def _reraise_with_formatted_options(e: ValueError) -> None:
     if match:
         try:
             options = ast.literal_eval(match.group(1))
-            opts_text = "\n".join(f"  - {o!r}" for o in options)
+            opts_text = "\n".join(f"  - {o!r}" for o in sorted(options))
             new_msg = msg[: msg.index(prefix)] + prefix + "\n" + opts_text
             raise ValueError(new_msg) from e
         except (ValueError, SyntaxError):
@@ -226,8 +226,8 @@ def fetch_gas_urdb(
                     "Not found (update rateacuity_tariffs.yaml to match the Schedules currently available on Rate Acuity):",
                     *[f"  - {s!r}" for s in missing],
                     "",
-                    "Schedules currently available for this utility:",
-                    *[f"  - {s!r}" for s in all_schedules],
+                    "Schedules currently available for this utility (alphabetical):",
+                    *[f"  - {s!r}" for s in sorted(all_schedules)],
                 ]
                 raise ValueError("\n".join(lines))
 
@@ -248,6 +248,8 @@ def fetch_gas_urdb(
                 )
                 df = report.as_dataframe()
                 csv_path = output_dir / f"{tariff_key}.csv"
+                if csv_path.exists():
+                    log.info("Overwriting existing %s", csv_path)
                 df.write_csv(csv_path)
                 log.info("Wrote raw CSV %s", csv_path)
                 log.info("Converting %s to URDB...", tariff_key)
@@ -269,10 +271,13 @@ def fetch_gas_urdb(
                 written.append((tariff_key, out_path))
                 log.info("Wrote %s -> %s", tariff_key, out_path)
 
-                # Return to state-only so next utility iteration sees the utility dropdown, not schedules.
+                # After this schedule: if more schedules for this utility, return to schedule dropdown;
+                # if last schedule for this utility, return to state-only so next utility sees utility dropdown.
                 scraping_state = (
                     report.back_to_selections().history().select_state(state_upper)
                 )
+                if idx < len(tariff_map):
+                    scraping_state = scraping_state.select_utility(selected_utility)
 
     log.info("Done: wrote %d tariff file(s) to %s", len(written), output_dir)
 
