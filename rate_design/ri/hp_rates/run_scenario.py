@@ -6,6 +6,8 @@ import argparse
 import logging
 import random
 import sys
+
+import dask
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -605,6 +607,10 @@ def run(settings: ScenarioSettings) -> None:
         ".... Beginning RI residential (non-LMI) rate scenario simulation: %s",
         settings.run_name,
     )
+
+    # Use process scheduler so CAIRO's dask.delayed stages run on multiple cores.
+    # See context/tools/cairo_performance_analysis.md and RDP-129.
+    dask.config.set(scheduler="processes", num_workers=settings.process_workers)
 
     # ------------------------------------------------------------------
     # Phase 1: Retrieve prototype IDs, tariffs, customer metadata, loads
