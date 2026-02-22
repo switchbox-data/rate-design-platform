@@ -308,7 +308,7 @@ bldg_id,tariff_key
 536269,null_gas_tariff
 492183,kedli_sf_heating
 505820,kedli_mf_heating
-505886,kedny_mf
+505886,kedny_mf_heating
 505909,kedli_sf_heating
 507148,null_gas_tariff
 510100,kedli_sf_heating
@@ -1132,7 +1132,7 @@ bldg_id,tariff_key
 120782,kedli_sf_heating
 130614,null_gas_tariff
 136250,null_gas_tariff
-5668,kedny_mf
+5668,kedny_mf_heating
 6155,kedli_mf_heating
 6937,null_gas_tariff
 12007,kedli_mf_heating
@@ -1326,7 +1326,7 @@ bldg_id,tariff_key
 8210,kedli_sf_heating
 12122,kedli_sf_nonheating
 26141,null_gas_tariff
-38914,kedny_mf
+38914,kedny_mf_heating
 45963,kedli_sf_heating
 54552,null_gas_tariff
 26466,kedli_mf_heating
@@ -1632,7 +1632,7 @@ bldg_id,tariff_key
 57705,kedli_sf_heating
 63186,null_gas_tariff
 7069,null_gas_tariff
-39602,kedny_mf
+39602,kedny_mf_heating
 47227,kedli_mf_nonheating
 47452,null_gas_tariff
 48314,kedli_sf_heating
@@ -2295,7 +2295,7 @@ bldg_id,tariff_key
 204588,kedli_sf_heating
 138093,kedli_sf_nonheating
 149728,kedli_sf_heating
-169340,kedny_mf
+169340,kedny_mf_heating
 173084,kedli_sf_heating
 176039,kedli_sf_heating
 195512,null_gas_tariff
@@ -2471,7 +2471,7 @@ bldg_id,tariff_key
 186455,kedli_sf_heating
 145225,kedli_sf_nonheating
 147711,kedli_sf_heating
-152394,kedny_mf
+152394,kedny_mf_heating
 161111,null_gas_tariff
 162265,kedli_sf_heating
 164842,null_gas_tariff
@@ -2542,7 +2542,7 @@ bldg_id,tariff_key
 175107,kedli_mf_heating
 193989,null_gas_tariff
 199986,null_gas_tariff
-202980,kedny_mf
+202980,kedny_mf_heating
 136348,kedli_sf_nonheating
 157671,null_gas_tariff
 158504,kedli_sf_heating
@@ -2738,7 +2738,7 @@ bldg_id,tariff_key
 200182,kedli_mf_heating
 200761,kedli_sf_heating
 204583,kedli_sf_heating
-143506,kedny_mf
+143506,kedny_mf_heating
 171695,kedli_sf_heating
 190091,null_gas_tariff
 200478,kedli_sf_heating
@@ -2949,7 +2949,7 @@ bldg_id,tariff_key
 380448,kedli_sf_nonheating
 383461,kedli_sf_heating
 389147,null_gas_tariff
-407459,kedny_mf
+407459,kedny_mf_heating
 345411,kedli_sf_heating
 355854,null_gas_tariff
 358177,null_gas_tariff
@@ -3074,7 +3074,7 @@ bldg_id,tariff_key
 406414,kedli_sf_nonheating
 345247,kedli_mf_heating
 351128,kedli_sf_heating
-352197,kedny_mf
+352197,kedny_mf_heating
 353474,kedli_sf_heating
 355826,kedli_sf_heating
 362369,kedli_sf_nonheating
@@ -3116,7 +3116,7 @@ bldg_id,tariff_key
 358089,kedli_mf_heating
 359765,kedli_sf_heating
 361097,kedli_mf_nonheating
-372294,kedny_mf
+372294,kedny_mf_heating
 374268,null_gas_tariff
 408336,kedli_sf_heating
 343061,kedli_sf_heating
@@ -3547,7 +3547,7 @@ bldg_id,tariff_key
 217161,kedli_sf_heating
 217249,null_gas_tariff
 217616,kedli_sf_heating
-224939,kedny_mf
+224939,kedny_mf_heating
 226427,kedli_sf_heating
 239424,null_gas_tariff
 246866,null_gas_tariff
@@ -4060,7 +4060,7 @@ bldg_id,tariff_key
 314201,kedli_mf_heating
 317237,kedli_mf_heating
 336241,kedli_mf_heating
-336303,kedny_mf
+336303,kedny_mf_heating
 337382,kedli_sf_heating
 341987,null_gas_tariff
 278772,kedli_mf_heating
@@ -4139,7 +4139,7 @@ bldg_id,tariff_key
 306957,kedli_mf_heating
 307978,kedli_sf_heating
 336092,kedli_sf_nonheating
-282817,kedny_mf
+282817,kedny_mf_heating
 299671,kedli_sf_heating
 302974,null_gas_tariff
 317324,null_gas_tariff
@@ -4174,7 +4174,7 @@ bldg_id,tariff_key
 322465,kedli_sf_heating
 278660,kedli_sf_heating
 301692,null_gas_tariff
-312267,kedny_mf
+312267,kedny_mf_heating
 330714,kedli_sf_heating
 334088,kedli_sf_heating
 341745,kedli_sf_heating
@@ -4304,7 +4304,7 @@ bldg_id,tariff_key
 313784,null_gas_tariff
 320037,kedli_mf_heating
 320837,kedli_sf_nonheating
-334912,kedny_mf
+334912,kedny_mf_heating
 338586,kedli_sf_heating
 282421,kedli_mf_heating
 282437,kedli_mf_nonheating
