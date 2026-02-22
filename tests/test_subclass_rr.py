@@ -8,7 +8,7 @@ import polars as pl
 import pytest
 import yaml
 
-from utils.post.compute_subclass_rr import (
+from utils.mid.compute_subclass_rr import (
     DEFAULT_SEASONAL_OUTPUT_FILENAME,
     _load_run_fields,
     _write_revenue_requirement_yamls,

@@ -25,6 +25,7 @@ from cairo.rates_tool.systemsimulator import (
 )
 
 from utils import get_aws_region
+from utils.mid.data_parsing import get_residential_customer_count_from_utility_stats
 from utils.cairo import (
     _fetch_prototype_ids_by_electric_util,
     _load_cambium_marginal_costs,
@@ -41,8 +42,6 @@ STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 PATH_PROJECT = Path(__file__).resolve().parent
 PATH_CONFIG = PATH_PROJECT / "config"
 PATH_SCENARIOS = PATH_CONFIG / "scenarios"
-DEFAULT_OUTPUT_DIR = Path("/data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs")
-
 SUBCLASS_TO_ALIAS: dict[str, str] = {
     "true": "hp",
     "false": "non-hp",
@@ -79,47 +78,6 @@ class ScenarioSettings:
     solar_pv_compensation: str = "net_metering"
     add_supply_revenue_requirement: bool = False
     sample_size: int | None = None
-
-
-def get_residential_customer_count_from_utility_stats(
-    path: str | Path,
-    utility: str,
-    *,
-    storage_options: dict[str, str] | None = None,
-) -> int:
-    """Read EIA-861 utility stats parquet and return residential customer count for the utility.
-
-    The parquet is state-partitioned (e.g. state=NY/data.parquet) with columns
-    utility_code and residential_customers. Filters for utility_code == utility
-    (the YAML utility field, e.g. 'coned', 'rie') and returns the single row's
-    residential_customers value.
-
-    Raises:
-        ValueError: If path has no row for that utility, or more than one row.
-    """
-    path_str = str(path)
-    opts = storage_options if path_str.startswith("s3://") else None
-    lf = (
-        pl.scan_parquet(path_str, storage_options=opts)
-        .filter(pl.col("utility_code") == utility)
-        .select("residential_customers")
-    )
-    df = cast(pl.DataFrame, lf.collect())
-    if df.height == 0:
-        raise ValueError(
-            f"No row with utility_code={utility!r} in {path_str}. "
-            "Check path_electric_utility_stats and utility in the scenario YAML."
-        )
-    if df.height > 1:
-        raise ValueError(
-            f"Expected one row for utility_code={utility!r} in {path_str}, got {df.height}"
-        )
-    value = df.item(0, 0)
-    if value is None:
-        raise ValueError(
-            f"residential_customers is null for utility_code={utility!r} in {path_str}"
-        )
-    return int(value)
 
 
 def _parse_int(value: object, field_name: str) -> int:
@@ -404,10 +362,33 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
     return _require_mapping(run, f"runs[{run_num}]")
 
 
+def _resolve_output_dir(
+    run: dict[str, Any],
+    run_num: int,
+    output_dir_override: Path | None,
+) -> Path:
+    """Determine the CAIRO output root directory.
+
+    When *output_dir_override* is provided (CLI ``--output-dir``), it wins.
+    Otherwise ``path_outputs`` from the YAML run dict is required:
+    CAIRO creates ``{output_dir}/{timestamp}_{run_name}/``, so we pass
+    ``parent(path_outputs)`` as the output root.
+    """
+    if output_dir_override is not None:
+        return output_dir_override
+    path_outputs_raw = run.get("path_outputs")
+    if not path_outputs_raw:
+        raise ValueError(
+            f"runs[{run_num}] is missing required key 'path_outputs' "
+            "and no --output-dir was provided on the CLI."
+        )
+    return Path(str(path_outputs_raw)).parent
+
+
 def _build_settings_from_yaml_run(
     run: dict[str, Any],
     run_num: int,
-    output_dir: Path,
+    output_dir_override: Path | None,
     run_name_override: str | None,
 ) -> ScenarioSettings:
     """Build runtime settings from repo YAML scenario config."""
@@ -461,6 +442,7 @@ def _build_settings_from_yaml_run(
     sample_size = (
         _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
     )
+    output_dir = _resolve_output_dir(run, run_num, output_dir_override)
     run_name = run_name_override or run.get("run_name") or f"run_{run_num}"
     return ScenarioSettings(
         run_name=run_name,
@@ -532,8 +514,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=DEFAULT_OUTPUT_DIR,
-        help="Output root dir passed to CAIRO.",
+        default=None,
+        help=(
+            "Output root dir passed to CAIRO. When omitted, uses "
+            "parent(path_outputs) from the scenario YAML."
+        ),
     )
     parser.add_argument(
         "--run-name",
@@ -555,7 +540,7 @@ def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
     return _build_settings_from_yaml_run(
         run=run,
         run_num=args.run_num,
-        output_dir=args.output_dir,
+        output_dir_override=args.output_dir,
         run_name_override=args.run_name,
     )
 
@@ -588,8 +573,9 @@ def _load_prototype_ids_for_run(
         utility,
     )
     if sample_size is not None:
+        rng = random.Random(42)
         try:
-            prototype_ids = apply_prototype_sample(prototype_ids, sample_size)
+            prototype_ids = apply_prototype_sample(prototype_ids, sample_size, rng=rng)
         except ValueError as e:
             log.warning("%s; exiting.", e)
             sys.exit(1)

@@ -64,6 +64,40 @@ def load_tariff_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def extract_base_rate_and_fixed_charge(tariff_path: Path) -> tuple[float, float]:
+    """Extract the volumetric base rate and fixed charge from a URDB v7 tariff.
+
+    For single-period (flat) tariffs the base rate is the lone energy rate.
+    For multi-period tariffs the base rate is the simple average across all
+    periods (first tier of each period).
+
+    Returns:
+        ``(base_rate, fixed_charge)`` in $/kWh and $/month respectively.
+    """
+    tariff = load_tariff_json(tariff_path)
+    items = tariff.get("items")
+    if not isinstance(items, list) or not items:
+        raise ValueError(
+            f"Tariff at {tariff_path} must contain a non-empty 'items' list."
+        )
+    item = items[0]
+
+    rate_structure = item.get("energyratestructure")
+    if not isinstance(rate_structure, list) or not rate_structure:
+        raise ValueError(
+            f"Tariff at {tariff_path} must contain a non-empty 'energyratestructure'."
+        )
+
+    rates = [period[0]["rate"] for period in rate_structure]
+    base_rate = sum(rates) / len(rates)
+
+    fixed_charge = item.get("fixedchargefirstmeter")
+    if fixed_charge is None:
+        raise ValueError(f"Tariff at {tariff_path} is missing 'fixedchargefirstmeter'.")
+
+    return float(base_rate), float(fixed_charge)
+
+
 def write_tariff_json(tariff: dict[str, Any], output_path: Path) -> Path:
     """Write a tariff JSON file to disk."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
