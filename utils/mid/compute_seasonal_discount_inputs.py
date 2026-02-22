@@ -9,7 +9,7 @@ from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.post.compute_subclass_rr import (
+from utils.mid.compute_subclass_rr import (
     DEFAULT_BAT_METRIC,
     DEFAULT_SEASONAL_OUTPUT_FILENAME,
     _resolve_path_or_s3,

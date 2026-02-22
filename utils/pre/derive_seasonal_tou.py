@@ -18,7 +18,7 @@ Usage (via Justfile)::
         --path-td-marginal-costs s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/0000000.parquet \\
         --resstock-metadata-path /data.sb/nrel/resstock/.../metadata-sb.parquet \\
         --resstock-loads-path   /data.sb/nrel/resstock/.../load_curve_hourly/state=RI/upgrade=00 \\
-        --customer-count 451381 \\
+        --path-electric-utility-stats s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet \\
         --reference-tariff config/tariffs/electric/rie_flat_calibrated.json \\
         --tou-tariff-key rie_seasonal_tou_hp
 
@@ -40,11 +40,13 @@ from cairo.rates_tool.loads import (
     return_buildingstock,
 )
 
+from utils import get_aws_region
 from utils.cairo import (
     _load_cambium_marginal_costs,
     build_bldg_id_to_load_filepath,
     load_distribution_marginal_costs,
 )
+from utils.mid.data_parsing import get_residential_customer_count_from_utility_stats
 from utils.pre.compute_tou import (
     SeasonTouSpec,
     combine_marginal_costs,
@@ -218,10 +220,9 @@ def _parse_args() -> argparse.Namespace:
         help="Directory containing per-building load parquet files.",
     )
     p.add_argument(
-        "--customer-count",
-        type=int,
+        "--path-electric-utility-stats",
         required=True,
-        help="Utility customer count for metadata weighting.",
+        help="Path (local or s3://) to EIA-861 utility stats parquet for customer count lookup.",
     )
 
     # -- TOU derivation parameters -------------------------------------------
@@ -376,10 +377,23 @@ def main() -> None:
     )
     dist_mc = load_distribution_marginal_costs(args.path_td_marginal_costs)
 
+    log.info(
+        "Looking up residential customer count from %s for utility=%s",
+        args.path_electric_utility_stats,
+        args.utility,
+    )
+    storage_options = {"aws_region": get_aws_region()}
+    customer_count = get_residential_customer_count_from_utility_stats(
+        args.path_electric_utility_stats,
+        args.utility,
+        storage_options=storage_options,
+    )
+    log.info("Residential customer count: %d", customer_count)
+
     log.info("Loading ResStock metadata from %s", args.resstock_metadata_path)
     customer_metadata = return_buildingstock(
         load_scenario=Path(args.resstock_metadata_path),
-        customer_count=args.customer_count,
+        customer_count=customer_count,
         columns=["applicability", "postprocess_group.has_hp"],
     )
 
