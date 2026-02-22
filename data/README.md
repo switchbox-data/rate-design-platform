@@ -63,6 +63,10 @@ Scripts live in the same directory as the Justfile that invokes them.
 
 - One pipeline per dataset (or logical product). Do not duplicate; e.g. HUD Section 8 income limits live in `data/hud/ami/` only.
 
+## S3 partition layouts (notable)
+
+- **EIA-861 electric utility stats** (`data/eia/861/`): Output is at `s3://data.sb/eia/861/electric_utility_stats/` with Hive-style partitions **`year=<year>/state=<state>/data.parquet`**. Downstream consumers must point at a specific year, e.g. `year=2024/state=NY/data.parquet` (not `state=NY/data.parquet`).
+
 ## .gitignore
 
 - Ignore local staging dirs (e.g. `data/fred/cpi/parquet/`, `data/eia/861/parquet/`, `data/hud/ami/xlsx/`, `data/hud/ami/parquet/`, `data/census/pums/zips/`, etc.) so they are never committed.

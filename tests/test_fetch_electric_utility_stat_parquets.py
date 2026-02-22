@@ -1,15 +1,18 @@
 """Validate the EIA-861 yearly sales dataset used by data/eia/861/fetch_electric_utility_stat_parquets.py.
 
 Confirms required columns and customer_class values exist so the script's
-dynamic aggregation is safe. Uses the same parquet URL as the script.
+dynamic aggregation is safe. Uses the same parquet URL as the script (stable release).
 """
 
 import subprocess
+from io import StringIO
+from pathlib import Path
 
 import polars as pl
+from polars.testing import assert_frame_equal
 
-# Must match data/eia/861/fetch_electric_utility_stat_parquets.py
-CORE_EIA861_YEARLY_SALES_URL = "https://s3.us-west-2.amazonaws.com/pudl.catalyst.coop/nightly/core_eia861__yearly_sales.parquet"
+# Must match PUDL_STABLE_VERSION in data/eia/861/fetch_electric_utility_stat_parquets.py
+CORE_EIA861_YEARLY_SALES_URL = "https://s3.us-west-2.amazonaws.com/pudl.catalyst.coop/v2026.2.0/core_eia861__yearly_sales.parquet"
 
 REQUIRED_COLUMNS = frozenset(
     {
@@ -94,8 +97,6 @@ def test_utility_code_column_present_and_mapped():
     )
     assert result.returncode == 0, f"Script failed: {result.stderr}"
 
-    from io import StringIO
-
     df = pl.read_csv(StringIO(result.stdout))
     assert "utility_code" in df.columns
 
@@ -115,3 +116,50 @@ def test_utility_code_column_present_and_mapped():
         assert row["utility_code"][0] == std_name, (
             f"EIA ID {eia_id}: expected utility_code {std_name}, got {row['utility_code'][0]}"
         )
+
+
+def test_partitioned_parquet_matches_single_state_csv(tmp_path: Path):
+    """Partitioned parquet (year=YYYY/state=NY/data.parquet) matches single-state CSV for NY for that year."""
+    project_root = Path(__file__).resolve().parent.parent
+    # Build partitioned parquet (all years, all states)
+    run = subprocess.run(
+        [
+            "uv",
+            "run",
+            "python",
+            "data/eia/861/fetch_electric_utility_stat_parquets.py",
+            "--output-dir",
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=project_root,
+    )
+    assert run.returncode == 0, f"Parquet build failed: {run.stderr}"
+    # Compare one partition: latest year available for NY (e.g. 2024)
+    parquet_path = tmp_path / "year=2024" / "state=NY" / "data.parquet"
+    assert parquet_path.exists(), f"Expected {parquet_path}"
+    # Single-state CSV (all years)
+    run_csv = subprocess.run(
+        [
+            "uv",
+            "run",
+            "python",
+            "data/eia/861/fetch_electric_utility_stat_parquets.py",
+            "NY",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=project_root,
+    )
+    assert run_csv.returncode == 0, f"CSV run failed: {run_csv.stderr}"
+    df_parquet = (
+        pl.read_parquet(parquet_path).drop("year", "state").sort("utility_id_eia")
+    )
+    df_csv = (
+        pl.read_csv(StringIO(run_csv.stdout))
+        .filter(pl.col("year") == 2024)
+        .drop("year")
+        .sort("utility_id_eia")
+    )
+    assert_frame_equal(df_parquet, df_csv, check_dtypes=False)

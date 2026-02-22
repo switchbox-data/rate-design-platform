@@ -1,11 +1,11 @@
 # EIA-861 electric utility stats (yearly sales and customer counts via PUDL)
 #
-# Build IOU stats for all states to local state-partitioned parquet, then
+# Build utility stats for all states and years to local parquet (year- and state-partitioned), then
 # optionally upload to S3.
 #
 # Usage (from project root):
-#   just -f data/eia/861/Justfile fetch       # Build all states to electric_utility_stats/
-#   just -f data/eia/861/Justfile update     # fetch then upload to s3://data.sb/eia/861/electric_utility_stats/
+#   just -f data/eia/861/Justfile fetch       # Build all years/states to parquet/
+#   just -f data/eia/861/Justfile update      # fetch then upload to s3://data.sb/eia/861/electric_utility_stats/
 #   just -f data/eia/861/Justfile fetch-state-stats NY   # One state as CSV to stdout (ad-hoc)
 #   just -f data/eia/861/Justfile clean                  # Remove local parquet/
 
@@ -13,12 +13,12 @@ path_local_repo := `git rev-parse --show-toplevel`
 path_local_parquet := path_local_repo + "/data/eia/861/parquet/"
 path_s3_parquet := "s3://data.sb/eia/861/electric_utility_stats/"
 
-# Build IOU stats for all states; write to electric_utility_stats/state=<state>/data.parquet
+# Build utility stats for all states and years; write to year=<year>/state=<state>/data.parquet
 fetch:
     uv run python "{{path_local_repo}}/data/eia/861/fetch_electric_utility_stat_parquets.py" --output-dir "{{path_local_parquet}}"
-    @echo "Wrote {{path_local_parquet}}state=<state>/data.parquet"
+    @echo "Wrote {{path_local_parquet}}year=<year>/state=<state>/data.parquet"
 
-# Upload local parquet to S3 (Hive-style partition state=<state>/data.parquet).
+# Upload local parquet to S3 (Hive-style partitions year=<year>/state=<state>/data.parquet).
 # sync only uploads new or changed files (compares size and mtime); objects already in S3
 # with the same content are skipped. No --delete, so extra objects in S3 are left as-is.
 upload:
