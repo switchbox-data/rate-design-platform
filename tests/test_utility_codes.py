@@ -2,6 +2,8 @@
 
 from typing import get_args
 
+import pytest
+
 from utils.types import ElectricUtility, GasUtility
 from utils.utility_codes import (
     UTILITIES,
@@ -10,6 +12,7 @@ from utils.utility_codes import (
     get_electric_std_names,
     get_gas_std_names,
     get_ny_open_data_to_std_name,
+    get_rate_acuity_utility_names,
     get_std_name_to_gas_tariff_key,
     std_name_to_display_name,
 )
@@ -37,6 +40,20 @@ def test_get_eia_utility_id_to_std_name_ny():
     assert mapping[16183] == "rge"
     assert mapping[3249] == "cenhud"
     assert mapping[14154] == "or"
+
+
+def test_get_rate_acuity_utility_names():
+    """Rate Acuity dropdown names come from utility_codes for NY and RI."""
+    coned = get_rate_acuity_utility_names("NY", "coned")
+    assert "Consolidated Edison Company of New York" in coned
+    rie = get_rate_acuity_utility_names("RI", "rie")
+    assert "The Narragansett Electric Company" in rie
+
+
+def test_get_rate_acuity_utility_names_unknown_raises():
+    """Unknown std_name or state raises ValueError."""
+    with pytest.raises(ValueError, match="not found"):
+        get_rate_acuity_utility_names("NY", "unknown_code")
 
 
 def test_get_std_name_to_gas_tariff_key():

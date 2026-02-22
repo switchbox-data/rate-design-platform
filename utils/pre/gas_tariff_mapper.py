@@ -84,12 +84,12 @@ def _tariff_key_expr() -> pl.Expr:
             & heats_with_natgas_column.eq(False)
         )
         .then(pl.concat_str([gas_utility_col, pl.lit("_sf_nonheating")]))
-        # kedny: All multi-Family
+        # kedny: All multi-Family (heating rate)
         .when(
             (gas_utility_col == "kedny")
             & building_type_column.str.contains("Multi-Family", literal=True)
         )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_mf")]))
+        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_heating")]))
         #### kedny ####
         #### kedli ####
         # kedli: Single-Family heating with natural gas
