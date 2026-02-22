@@ -441,7 +441,13 @@ def _load_run_fields(
     state = str(run["state"]).upper()
     utility = str(run["utility"]).lower()
     raw_rr = run["utility_delivery_revenue_requirement"]
-    revenue_requirement = float(cast(float | int | str, raw_rr))
+    if isinstance(raw_rr, str) and raw_rr.endswith(".yaml"):
+        rr_path = scenario_config_path.parent.parent / raw_rr
+        with open(rr_path) as f:
+            rr_data = yaml.safe_load(f)
+        revenue_requirement = float(rr_data["revenue_requirement"])
+    else:
+        revenue_requirement = float(cast(float | int | str, raw_rr))
     return state, utility, revenue_requirement
 
 

@@ -1,0 +1,59 @@
+rate,effective_date,season,start,end,determinant,charge_type,location,rate_determinant,1/1/2025,2/1/2025,3/1/2025,4/1/2025,5/1/2025,6/1/2025,7/1/2025,8/1/2025,9/1/2025,10/1/2025,11/1/2025,12/1/2025
+delivery adjustment charge,01/01/2026,,,,,,,per ccf,0.023694,0.023694,0.023694,0.022496,0.022496,0.022496,0.016586,0.016586,0.011239,0.053063,0.053063,0.053063
+gas supply charge,02/01/2026,,,,,,,per ccf,0.300091,0.30618,0.434117,0.530398,0.395469,0.424636,0.447059,0.426773,0.290707,0.261901,0.338365,0.416468
+merchant function charge,02/01/2026,,,,,,,per ccf,0.028669,0.028803,0.031611,0.033725,0.030763,0.031403,0.033885,0.03344,0.030453,0.029821,0.031499,0.033214
+regulatory tracking charge,01/01/2026,,,,,,,per ccf,-0.022486,-0.022486,-0.022486,-0.022486,-0.022486,-0.022486,-0.022486,-0.022486,-0.022486,0.021269,0.021269,0.021269
+base rate,10/01/2025,,401.0,5000.0,cubic feet,,,per ccf,0.373922,0.463912,0.463912,0.463912,0.463912,0.463912,0.463912,0.463912,0.463912,0.463912,0.472358,0.472358
+base rate,10/01/2025,,5001.0,,cubic feet,,,per ccf,0.102181,0.142134,0.142134,0.142134,0.142134,0.142134,0.142134,0.142134,0.142134,0.142134,0.15058,0.15058
+base rate,10/01/2025,,,400.0,cubic feet,,,per month,15.54,19.5,19.5,19.5,19.5,19.5,19.5,19.5,19.5,19.5,21.0,21.0
+revenue tax surcharge,05/01/2017,,,,,,city of batavia,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,city of buffalo,percent,3.093,3.093,3.093,3.093,3.093,3.093,3.093,3.093,3.093,3.093,3.093,3.093
+revenue tax surcharge,05/01/2017,,,,,,city of dunkirk,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,city of hornell,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,city of lackawanna,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,city of jamestown,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,city of niagara falls,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,city of north tonawanda,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,city of olean,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,city of salamanca,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,city of tonawanda,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of akron,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of alden,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of alfred,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of almond,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of angola,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of arcade,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of arkport,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of attica,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of blasdell,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of canisteo,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of cattaraugus,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of celoron,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of corfu,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of delevan,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of depew,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of east aurora,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of farnham,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of forestville,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of fredonia,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of gowanda,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of hamburg,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of honeoye falls,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of kenmore,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of lancaster,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of lewiston,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of little valley,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of north collins,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of north hornell,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of oakfield,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of orchard park,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2021,,,,,,village of portville,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of silver creek,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of silver spring,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of sinclairville,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of sloan,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of springville,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of wellsville,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of westfield,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of williamsville,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01
+revenue tax surcharge,05/01/2017,,,,,,village of youngstown,percent,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01

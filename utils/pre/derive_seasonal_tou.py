@@ -18,7 +18,8 @@ Usage (via Justfile)::
         --path-td-marginal-costs s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/0000000.parquet \\
         --resstock-metadata-path /data.sb/nrel/resstock/.../metadata-sb.parquet \\
         --resstock-loads-path   /data.sb/nrel/resstock/.../load_curve_hourly/state=RI/upgrade=00 \\
-        --customer-count 451381 \\
+        --path-electric-utility-stats s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet \\
+        --reference-tariff config/tariffs/electric/rie_flat_calibrated.json \\
         --tou-tariff-key rie_seasonal_tou_hp
 
 Or directly::
@@ -39,11 +40,13 @@ from cairo.rates_tool.loads import (
     return_buildingstock,
 )
 
+from utils import get_aws_region
 from utils.cairo import (
     _load_cambium_marginal_costs,
     build_bldg_id_to_load_filepath,
     load_distribution_marginal_costs,
 )
+from utils.mid.data_parsing import get_residential_customer_count_from_utility_stats
 from utils.pre.compute_tou import (
     SeasonTouSpec,
     combine_marginal_costs,
@@ -57,6 +60,7 @@ from utils.pre.compute_tou import (
 from utils.pre.create_tariff import (
     SeasonalTouTariffSpec,
     create_seasonal_tou_tariff,
+    extract_base_rate_and_fixed_charge,
     write_tariff_json,
 )
 from utils.pre.season_config import (
@@ -216,10 +220,9 @@ def _parse_args() -> argparse.Namespace:
         help="Directory containing per-building load parquet files.",
     )
     p.add_argument(
-        "--customer-count",
-        type=int,
+        "--path-electric-utility-stats",
         required=True,
-        help="Utility customer count for metadata weighting.",
+        help="Path (local or s3://) to EIA-861 utility stats parquet for customer count lookup.",
     )
 
     # -- TOU derivation parameters -------------------------------------------
@@ -243,16 +246,25 @@ def _parse_args() -> argparse.Namespace:
         help="Peak window width in hours. Falls back to periods YAML or 4.",
     )
     p.add_argument(
+        "--reference-tariff",
+        default=None,
+        help=(
+            "Path to a URDB v7 tariff JSON from which base rate and fixed "
+            "charge are inferred. Overridden by explicit --tou-base-rate / "
+            "--tou-fixed-charge when both are provided."
+        ),
+    )
+    p.add_argument(
         "--tou-base-rate",
         type=float,
-        default=0.06,
-        help="Nominal base rate $/kWh (default 0.06).",
+        default=None,
+        help="Nominal base rate $/kWh. Overrides value from --reference-tariff.",
     )
     p.add_argument(
         "--tou-fixed-charge",
         type=float,
-        default=6.75,
-        help="Fixed monthly charge $ (default 6.75).",
+        default=None,
+        help="Fixed monthly charge $. Overrides value from --reference-tariff.",
     )
 
     # -- Tariff keys ---------------------------------------------------------
@@ -328,6 +340,33 @@ def main() -> None:
     )
     output_dir = Path(args.output_dir)
 
+    # -- Resolve base rate and fixed charge ----------------------------------
+    ref_base_rate: float | None = None
+    ref_fixed_charge: float | None = None
+    if args.reference_tariff is not None:
+        ref_base_rate, ref_fixed_charge = extract_base_rate_and_fixed_charge(
+            Path(args.reference_tariff)
+        )
+        log.info(
+            "Reference tariff %s: base_rate=%.6f, fixed_charge=%.2f",
+            args.reference_tariff,
+            ref_base_rate,
+            ref_fixed_charge,
+        )
+
+    tou_base_rate = (
+        args.tou_base_rate if args.tou_base_rate is not None else ref_base_rate
+    )
+    tou_fixed_charge = (
+        args.tou_fixed_charge if args.tou_fixed_charge is not None else ref_fixed_charge
+    )
+
+    if tou_base_rate is None or tou_fixed_charge is None:
+        raise SystemExit(
+            "Either --reference-tariff or both --tou-base-rate and "
+            "--tou-fixed-charge must be provided."
+        )
+
     # -- 1. Load data --------------------------------------------------------
     log.info("Loading Cambium bulk marginal costs from %s", args.cambium_path)
     bulk_mc = _load_cambium_marginal_costs(args.cambium_path, args.year)
@@ -338,10 +377,23 @@ def main() -> None:
     )
     dist_mc = load_distribution_marginal_costs(args.path_td_marginal_costs)
 
+    log.info(
+        "Looking up residential customer count from %s for utility=%s",
+        args.path_electric_utility_stats,
+        args.utility,
+    )
+    storage_options = {"aws_region": get_aws_region()}
+    customer_count = get_residential_customer_count_from_utility_stats(
+        args.path_electric_utility_stats,
+        args.utility,
+        storage_options=storage_options,
+    )
+    log.info("Residential customer count: %d", customer_count)
+
     log.info("Loading ResStock metadata from %s", args.resstock_metadata_path)
     customer_metadata = return_buildingstock(
         load_scenario=Path(args.resstock_metadata_path),
-        customer_count=args.customer_count,
+        customer_count=customer_count,
         columns=["applicability", "postprocess_group.has_hp"],
     )
 
@@ -368,7 +420,7 @@ def main() -> None:
         winter_months,
         summer_months,
         tou_window_hours,
-        args.tou_base_rate,
+        tou_base_rate,
     )
     tou_tariff, season_specs = derive_seasonal_tou(
         bulk_marginal_costs=bulk_mc,
@@ -376,8 +428,8 @@ def main() -> None:
         hourly_system_load=hourly_system_load,
         winter_months=winter_months,
         tou_window_hours=tou_window_hours,
-        tou_base_rate=args.tou_base_rate,
-        tou_fixed_charge=args.tou_fixed_charge,
+        tou_base_rate=tou_base_rate,
+        tou_fixed_charge=tou_fixed_charge,
         tou_tariff_key=args.tou_tariff_key,
         utility=args.utility,
     )

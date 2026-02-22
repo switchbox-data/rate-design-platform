@@ -6,7 +6,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from rate_design.ri.hp_rates.run_scenario import (
+from utils.mid.data_parsing import (
     get_residential_customer_count_from_utility_stats,
 )
 

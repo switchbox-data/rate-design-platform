@@ -1,0 +1,7 @@
+# Rate Acuity gas schedule names by utility shortcode (std_name).
+# Pass this file to fetch_gas_tariffs_rateacuity.py to fetch all RI gas tariffs.
+# Update schedule name values when Rate Acuity names change.
+state: RI
+rie:
+  rie_nonheating: "10-RESIDENTIAL NON-HEATING---"
+  rie_heating: "12-RESIDENTIAL HEATING---"
