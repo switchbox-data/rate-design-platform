@@ -3,7 +3,7 @@
 # Update schedule name values when Rate Acuity names change.
 state: NY
 cenhud:
-  cenhud: "SC 1-RESIDENCE DELIVERY RATE"
+  cenhud: "SC 1-RESIDENCE DELIVERY RATE---"
 coned:
   coned_sf: "1-RESIDENTIAL AND RELIGIOUS FIRM SALES SERVICE"
   coned_mf_lowrise: "Dwelling Units <=4"
