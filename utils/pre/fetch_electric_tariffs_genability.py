@@ -7,7 +7,7 @@ Identifier can be:
   - "default" : residential default tariff (RESIDENTIAL + DEFAULT in Arcadia)
   - <integer> : masterTariffId (use that tariff)
   - "<name>"  : tariff name to match (first match in LSE's tariff list)
-Writes one <tariff_key>.json per entry to the output directory (Genability/Arcadia JSON).
+Writes one <utility>_<identifier>.json per entry (e.g. rie_default.json) to the output directory (Genability/Arcadia JSON).
 
 Requires ARCADIA_APP_ID and ARCADIA_APP_KEY in the environment.
 """
@@ -200,12 +200,30 @@ def load_config(yaml_path: Path) -> dict[str, dict[str, str | int]]:
     return utilities
 
 
+def _filename_stem(tariff_key: str, identifier: str | int) -> str:
+    """Return the output filename stem: <tariff_key>_<identifier>, e.g. rie_default."""
+    if isinstance(identifier, int):
+        return f"{tariff_key}_{identifier}"
+    ident_str = str(identifier).strip().lower()
+    if ident_str == "default":
+        return f"{tariff_key}_default"
+    # Tariff name substring: slugify for filename
+    slug = (
+        "".join(c if c.isalnum() or c in "._-" else "_" for c in identifier)
+        .strip("_")
+        .lower()
+    )
+    if not slug:
+        slug = "default"
+    return f"{tariff_key}_{slug}"
+
+
 def fetch_genability_tariffs(
     yaml_path: Path,
     output_dir: Path,
     state: str,
 ) -> None:
-    """Load YAML config and fetch all listed Genability tariffs; write <tariff_key>.json to output_dir."""
+    """Load YAML config and fetch all listed Genability tariffs; write <utility>_<identifier>.json to output_dir."""
     log.info("Loading config from %s", yaml_path)
     state_upper = state.upper()
     utilities_config = load_config(yaml_path)
@@ -256,7 +274,8 @@ def fetch_genability_tariffs(
                 raise ValueError(
                     f"masterTariffId {master_tariff_id} returned no tariff data"
                 )
-            out_path = output_dir / f"{tariff_key}.json"
+            stem = _filename_stem(tariff_key, identifier)
+            out_path = output_dir / f"{stem}.json"
             out_path.write_text(json.dumps(results, indent=2))
             log.info("Wrote %s", out_path)
 
@@ -273,7 +292,7 @@ def main() -> None:
     parser.add_argument(
         "path_output_dir",
         type=Path,
-        help="Output directory for <tariff_key>.json files",
+        help="Output directory for <utility>_<identifier>.json files (e.g. rie_default.json)",
     )
     parser.add_argument(
         "--state",
