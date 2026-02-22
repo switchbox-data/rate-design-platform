@@ -8,10 +8,14 @@ See **AGENTS.md → Reference context** for conventions (what goes in `papers/`,
 
 Research notes on the domain: rate design, LMI programs, policy by state.
 
-| File                   | Purpose                                                    |
-| ---------------------- | ---------------------------------------------------------- |
-| lmi_discounts_in_ny.md | NY utility low-income discount programs (e.g. EAP, EEAP)   |
-| lmi_discounts_in_ri.md | RI utility low-income programs (RIE rates, LIDR+ proposal) |
+| File                                 | Purpose                                                                                                                                                                                                                                                                       |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| gas_heating_rates_in_ny.md           | NY gas heating rate structures and tariff landscape                                                                                                                                                                                                                           |
+| lmi_discounts_in_ny.md               | NY utility low-income discount programs (e.g. EAP, EEAP)                                                                                                                                                                                                                      |
+| lmi_discounts_in_ri.md               | RI utility low-income programs (RIE rates, LIDR+ proposal)                                                                                                                                                                                                                    |
+| coned_el1_charges_in_bat.md          | Every ConEd EL1 charge evaluated for BAT/bill calc inclusion and HP cross-subsidy: summary table, charges in rev req, charges outside rev req that create a cross-subsidy (with SBC conceptual intro), and charges with no cross-subsidy (MSC decomposed into sub-components) |
+| bat_reasoning_stress_test.md         | Formal reconstruction and econ-seminar-style stress-test of the BAT framework: marginal costs, residual allocation, the three allocators, cross-subsidy definitions (BAT vs strict economic), standalone vs incremental cost                                                  |
+| coned_el1_lookups_effective_dates.md | Arcadia Lookups API: one record per effective period (from/to), not per month; ConEd applies these charges monthly; we expand lookups to one row per month                                                                                                                    |
 
 ## tools/
 
@@ -29,6 +33,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 | cairo_performance_analysis.md            | CAIRO execution profile, compute bottlenecks, parallelism status, and speedup opportunities          |
 | cairo_parallelize_two_undasked_stages.md | Handoff: parallelize process_residential_hourly_demand and BAT in CAIRO via chunk + dask.delayed     |
 | cairo_parallelism_and_workers.md         | How to think about parallelism: infra instance, worker count, series vs parallel tracks              |
+| cairo_elastic_cluster.md                 | Elastic Dask cluster: why (many runs), options (dask-cloudprovider etc.), CAIRO + platform changes   |
 | run_orchestration.md                     | RI runs 1–12 orchestration: Justfile dependency chain, `latest_run_output.sh`, design decisions      |
 | nyiso_lbmp_zonal_data_sources.md         | NYISO Day-Ahead/Real-Time zonal LBMP: MIS ZIP vs gridstatus vs NYISOToolkit; data samples            |
 
