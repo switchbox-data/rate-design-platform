@@ -247,6 +247,9 @@ def fetch_gas_urdb(
                     .set_frequency(1)
                 )
                 df = report.as_dataframe()
+                csv_path = output_dir / f"{tariff_key}.csv"
+                df.write_csv(csv_path)
+                log.info("Wrote raw CSV %s", csv_path)
                 log.info("Converting %s to URDB...", tariff_key)
                 hd = HistoryData(df)
                 validation_errors = hd.validate_rows()
