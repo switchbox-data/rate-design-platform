@@ -1,9 +1,11 @@
 """Tests for gas tariff mapper."""
 
+from pathlib import Path
 from typing import cast
 
 import polars as pl
 
+from utils.pre.fetch_gas_tariffs_rateacuity import load_config
 from utils.pre.gas_tariff_mapper import map_gas_tariff
 
 
@@ -19,7 +21,6 @@ def test_map_gas_tariff_uses_crosswalk_for_tariff_key():
                 "Single-Family Detached",
                 "Multi-Family with 2 - 4 Units",
             ],
-            "in.geometry_stories_low_rise": ["2", "2", "4+"],
             "heats_with_natgas": [True, True, True],
         }
     )
@@ -29,15 +30,15 @@ def test_map_gas_tariff_uses_crosswalk_for_tariff_key():
     )
     df = cast(pl.DataFrame, result.collect())
     assert df.height == 3
-    # nimo -> nimo (utility code), nyseg -> nyseg_heating, coned -> coned_mf_highrise
+    # nimo -> nimo, nyseg -> nyseg_heating, coned MF 2-4 + heating -> coned_sf_heating (SF = 1-4 units)
     tariff_keys = df["tariff_key"].to_list()
     assert "nimo" in tariff_keys
     assert "nyseg_heating" in tariff_keys
-    assert "coned_mf_highrise" in tariff_keys
+    assert "coned_sf_heating" in tariff_keys
 
 
 def test_map_gas_tariff_coned_building_types():
-    """Test coned mapping for different building types."""
+    """Test coned mapping: non-heating, SF heating, MF heating."""
     metadata = pl.LazyFrame(
         {
             "bldg_id": [1, 2, 3],
@@ -48,8 +49,7 @@ def test_map_gas_tariff_coned_building_types():
                 "Multi-Family with 5+ units",
                 "Multi-Family with 2 - 4 Units",
             ],
-            "in.geometry_stories_low_rise": ["2", "4+", "2"],
-            "heats_with_natgas": [True, True, True],
+            "heats_with_natgas": [False, True, True],
         }
     )
     result = map_gas_tariff(
@@ -59,13 +59,13 @@ def test_map_gas_tariff_coned_building_types():
     df = cast(pl.DataFrame, result.collect())
     assert df.height == 3
     tariff_keys = df["tariff_key"].to_list()
-    assert "coned_sf" in tariff_keys
-    assert "coned_mf_highrise" in tariff_keys
-    assert "coned_mf_lowrise" in tariff_keys
+    assert "coned_nonheating" in tariff_keys
+    assert "coned_sf_heating" in tariff_keys
+    assert "coned_mf_heating" in tariff_keys
 
 
 def test_map_gas_tariff_kedny_heating_conditions():
-    """Test kedny mapping based on heating with natural gas."""
+    """Test kedny mapping: SF heating/non-heating; MF gets single rate."""
     metadata = pl.LazyFrame(
         {
             "bldg_id": [1, 2, 3],
@@ -76,7 +76,6 @@ def test_map_gas_tariff_kedny_heating_conditions():
                 "Single-Family Attached",
                 "Multi-Family with 5+ units",
             ],
-            "in.geometry_stories_low_rise": ["2", "2", "4+"],
             "heats_with_natgas": [True, False, True],
         }
     )
@@ -87,14 +86,13 @@ def test_map_gas_tariff_kedny_heating_conditions():
     df = cast(pl.DataFrame, result.collect())
     assert df.height == 3
     tariff_keys = df["tariff_key"].to_list()
-    # kedny: SF by heating/nonheating; MF with heats_with_natgas -> kedny_mf_heating
     assert "kedny_sf_heating" in tariff_keys
     assert "kedny_sf_nonheating" in tariff_keys
-    assert "kedny_mf_heating" in tariff_keys
+    assert "kedny_mf" in tariff_keys
 
 
 def test_map_gas_tariff_kedli_all_conditions():
-    """Test kedli mapping for all building type and heating combinations."""
+    """Test kedli mapping: SF heating/non-heating; MF (5+) gets single rate."""
     metadata = pl.LazyFrame(
         {
             "bldg_id": [1, 2, 3, 4],
@@ -106,7 +104,6 @@ def test_map_gas_tariff_kedli_all_conditions():
                 "Multi-Family with 2 - 4 Units",
                 "Multi-Family with 5+ units",
             ],
-            "in.geometry_stories_low_rise": ["2", "2", "2", "4+"],
             "heats_with_natgas": [True, False, True, False],
         }
     )
@@ -117,11 +114,9 @@ def test_map_gas_tariff_kedli_all_conditions():
     df = cast(pl.DataFrame, result.collect())
     assert df.height == 4
     tariff_keys = df["tariff_key"].to_list()
-    # kedli keeps utility code
     assert "kedli_sf_heating" in tariff_keys
     assert "kedli_sf_nonheating" in tariff_keys
-    assert "kedli_mf_heating" in tariff_keys
-    assert "kedli_mf_nonheating" in tariff_keys
+    assert "kedli_mf" in tariff_keys
 
 
 def test_map_gas_tariff_nyseg_heating_conditions():
@@ -135,7 +130,6 @@ def test_map_gas_tariff_nyseg_heating_conditions():
                 "Single-Family Detached",
                 "Multi-Family with 5+ units",
             ],
-            "in.geometry_stories_low_rise": ["2", "4+"],
             "heats_with_natgas": [True, False],
         }
     )
@@ -164,7 +158,6 @@ def test_map_gas_tariff_simple_utilities_no_suffix():
                 "Multi-Family with 5+ units",
                 "Single-Family Detached",
             ],
-            "in.geometry_stories_low_rise": ["2", "4+", "2", "4+", "2"],
             "heats_with_natgas": [True, False, True, True, False],
         }
     )
@@ -195,7 +188,6 @@ def test_map_gas_tariff_rie_heating_conditions():
                 "Single-Family Detached",
                 "Multi-Family with 5+ units",
             ],
-            "in.geometry_stories_low_rise": ["2", "2", "4+"],
             "heats_with_natgas": [True, False, False],
         }
     )
@@ -224,7 +216,6 @@ def test_map_gas_tariff_null_gas_utility():
                 "Single-Family Detached",
                 "Single-Family Detached",
             ],
-            "in.geometry_stories_low_rise": ["2", "2"],
             "heats_with_natgas": [True, True],
         }
     )
@@ -236,7 +227,7 @@ def test_map_gas_tariff_null_gas_utility():
     assert df.height == 2
     tariff_keys = df["tariff_key"].to_list()
     assert "null_gas_tariff" in tariff_keys
-    assert "coned_sf" in tariff_keys
+    assert "coned_sf_heating" in tariff_keys
 
 
 def test_map_gas_tariff_small_utilities_become_null():
@@ -251,7 +242,6 @@ def test_map_gas_tariff_small_utilities_become_null():
                 "Multi-Family with 2 - 4 Units",
                 "Single-Family Detached",
             ],
-            "in.geometry_stories_low_rise": ["2", "2", "2"],
             "heats_with_natgas": [True, True, True],
         }
     )
@@ -265,3 +255,84 @@ def test_map_gas_tariff_small_utilities_become_null():
     assert keys[0] == "null_gas_tariff"  # bath
     assert keys[1] == "null_gas_tariff"  # corning
     assert keys[2] == "nyseg_heating"  # nyseg
+
+
+def test_map_gas_tariff_ny_keys_match_yaml() -> None:
+    """Every tariff_key produced by the mapper for NY utilities exists in rateacuity_tariffs.yaml."""
+    project_root = Path(__file__).resolve().parents[1]
+    yaml_path = (
+        project_root
+        / "rate_design/ny/hp_rates/config/tariffs/gas/rateacuity_tariffs.yaml"
+    )
+    _state, utilities = load_config(yaml_path)
+    valid_tariff_keys = {
+        tk for _u, tariffs in utilities.items() for tk in tariffs.keys()
+    }
+    # null_gas_tariff is assigned by mapper for small utilities / null gas_utility; not in YAML
+    valid_tariff_keys.add("null_gas_tariff")
+
+    # Fixture that hits coned, kedli, kedny in all variants plus other NY gas utilities
+    metadata = pl.LazyFrame(
+        {
+            "bldg_id": list(range(14)),
+            "sb.electric_utility": ["coned"] * 7 + ["coned"] * 7,
+            "sb.gas_utility": [
+                "coned",
+                "coned",
+                "coned",
+                "kedli",
+                "kedli",
+                "kedli",
+                "kedny",
+                "kedny",
+                "kedny",
+                "nimo",
+                "nyseg",
+                "nyseg",
+                "cenhud",
+                "rge",
+            ],
+            "in.geometry_building_type_recs": [
+                "Single-Family Detached",
+                "Single-Family Detached",
+                "Multi-Family with 5+ units",
+                "Single-Family Detached",
+                "Single-Family Detached",
+                "Multi-Family with 5+ units",
+                "Single-Family Detached",
+                "Single-Family Detached",
+                "Multi-Family with 5+ units",
+                "Single-Family Detached",
+                "Single-Family Detached",
+                "Single-Family Detached",
+                "Single-Family Detached",
+                "Single-Family Detached",
+            ],
+            "heats_with_natgas": [
+                False,
+                True,
+                True,
+                True,
+                False,
+                True,
+                True,
+                False,
+                True,
+                True,
+                True,
+                False,
+                True,
+                False,
+            ],
+        }
+    )
+    result = map_gas_tariff(
+        SB_metadata=metadata,
+        electric_utility_name="coned",
+    )
+    df = cast(pl.DataFrame, result.collect())
+    produced_keys = set(df["tariff_key"].to_list())
+    missing = produced_keys - valid_tariff_keys
+    assert not missing, (
+        f"Mapper produced tariff_key(s) not in NY rateacuity_tariffs.yaml: {missing}"
+    )

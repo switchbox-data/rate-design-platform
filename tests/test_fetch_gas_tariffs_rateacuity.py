@@ -87,11 +87,54 @@ def test_load_config_ny() -> None:
     state, utilities = load_config(yaml_path)
     assert state == "NY"
     assert "coned" in utilities
-    assert (
-        utilities["coned"]["coned_sf"]
-        == "1-RESIDENTIAL AND RELIGIOUS FIRM SALES SERVICE"
+    assert utilities["coned"]["coned_nonheating"] == (
+        "1-RESIDENTIAL AND RELIGIOUS FIRM SALES SERVICE---"
     )
     assert "rie" not in utilities
+
+
+def test_load_config_ny_coned_kedli_kedny_structure() -> None:
+    """NY YAML has correct tariff keys and schedule names for ConEd, KEDLI, KEDNY."""
+    project_root = Path(__file__).resolve().parents[1]
+    yaml_path = (
+        project_root
+        / "rate_design/ny/hp_rates/config/tariffs/gas/rateacuity_tariffs.yaml"
+    )
+    _state, utilities = load_config(yaml_path)
+
+    # ConEd: single non-heating rate; separate heating rates for SF vs MF
+    assert set(utilities["coned"].keys()) == {
+        "coned_nonheating",
+        "coned_sf_heating",
+        "coned_mf_heating",
+    }
+    assert (
+        "1-RESIDENTIAL AND RELIGIOUS FIRM SALES SERVICE"
+        in utilities["coned"]["coned_nonheating"]
+    )
+    assert "HEATING FIRM SALES SERVICE" in utilities["coned"]["coned_sf_heating"]
+    assert "Dwelling Units <=4" in utilities["coned"]["coned_sf_heating"]
+    assert "Dwelling Units > 4" in utilities["coned"]["coned_mf_heating"]
+
+    # KEDLI: SF heating/non-heating; single MF rate
+    assert set(utilities["kedli"].keys()) == {
+        "kedli_sf_nonheating",
+        "kedli_sf_heating",
+        "kedli_mf",
+    }
+    assert "1A - Non-Heating" in utilities["kedli"]["kedli_sf_nonheating"]
+    assert "1B - Heating" in utilities["kedli"]["kedli_sf_heating"]
+    assert "MULTIPLE-DWELLING" in utilities["kedli"]["kedli_mf"]
+
+    # KEDNY: same pattern as KEDLI
+    assert set(utilities["kedny"].keys()) == {
+        "kedny_sf_nonheating",
+        "kedny_sf_heating",
+        "kedny_mf",
+    }
+    assert "NON-HEATING" in utilities["kedny"]["kedny_sf_nonheating"]
+    assert "HEATING" in utilities["kedny"]["kedny_sf_heating"]
+    assert "MULTI-FAMILY" in utilities["kedny"]["kedny_mf"]
 
 
 def test_load_config_ri() -> None:
@@ -104,5 +147,5 @@ def test_load_config_ri() -> None:
     state, utilities = load_config(yaml_path)
     assert state == "RI"
     assert "rie" in utilities and len(utilities) == 1
-    assert utilities["rie"]["rie_nonheating"] == "Non-Heating"
-    assert utilities["rie"]["rie_heating"] == "Heating"
+    assert utilities["rie"]["rie_nonheating"] == "10-RESIDENTIAL NON-HEATING---"
+    assert utilities["rie"]["rie_heating"] == "12-RESIDENTIAL HEATING---"

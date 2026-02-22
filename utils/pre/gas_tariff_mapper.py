@@ -43,91 +43,45 @@ log = logging.getLogger(__name__)
 
 def _tariff_key_expr() -> pl.Expr:
     building_type_column = pl.col("in.geometry_building_type_recs")
-    stories_column = pl.col("in.geometry_stories_low_rise")
+    # MF = 5+ dwelling units; SF = everything else (1-4 units)
+    is_mf = building_type_column.str.contains("5+", literal=True)
     heats_with_natgas_column = pl.col("heats_with_natgas")
     gas_utility_col = pl.col("sb.gas_utility")
 
     return (
         #### coned ####
-        # coned: Single-Family
-        pl.when(
-            (gas_utility_col == "coned")
-            & building_type_column.str.contains("Single-Family", literal=True)
-        )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_sf")]))
-        # coned: Multi-Family high-rise
-        .when(
-            (gas_utility_col == "coned")
-            & building_type_column.str.contains("Multi-Family", literal=True)
-            & stories_column.str.contains("4+", literal=True)
-        )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_highrise")]))
-        # coned: Multi-Family low-rise
-        .when(
-            (gas_utility_col == "coned")
-            & building_type_column.str.contains("Multi-Family", literal=True)
-        )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_lowrise")]))
+        # coned: single non-heating rate; separate heating rates for SF vs MF
+        # Non-heating (any building type)
+        pl.when((gas_utility_col == "coned") & heats_with_natgas_column.eq(False))
+        .then(pl.lit("coned_nonheating"))
+        # Heating + SF (1-4 units)
+        .when((gas_utility_col == "coned") & heats_with_natgas_column.eq(True) & ~is_mf)
+        .then(pl.lit("coned_sf_heating"))
+        # Heating + MF (5+ units)
+        .when((gas_utility_col == "coned") & heats_with_natgas_column.eq(True) & is_mf)
+        .then(pl.lit("coned_mf_heating"))
         #### coned ####
         #### kedny ####
-        # kedny: Single-Family heating with natural gas
+        # kedny: SF gets heating/non-heating; MF gets single rate
+        .when((gas_utility_col == "kedny") & is_mf)
+        .then(pl.lit("kedny_mf"))
+        .when((gas_utility_col == "kedny") & ~is_mf & heats_with_natgas_column.eq(True))
+        .then(pl.lit("kedny_sf_heating"))
         .when(
-            (gas_utility_col == "kedny")
-            & building_type_column.str.contains("Single-Family", literal=True)
-            & heats_with_natgas_column.eq(True)
+            (gas_utility_col == "kedny") & ~is_mf & heats_with_natgas_column.eq(False)
         )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_heating")]))
-        # kedny: Single-Family does not heat with natural gas
-        .when(
-            (gas_utility_col == "kedny")
-            & building_type_column.str.contains("Single-Family", literal=True)
-            & heats_with_natgas_column.eq(False)
-        )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_nonheating")]))
-        # kedny: Multi-Family heating with natural gas
-        .when(
-            (gas_utility_col == "kedny")
-            & building_type_column.str.contains("Multi-Family", literal=True)
-            & heats_with_natgas_column.eq(True)
-        )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_heating")]))
-        # kedny: Multi-Family does not heat with natural gas
-        .when(
-            (gas_utility_col == "kedny")
-            & building_type_column.str.contains("Multi-Family", literal=True)
-            & heats_with_natgas_column.eq(False)
-        )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_nonheating")]))
+        .then(pl.lit("kedny_sf_nonheating"))
         #### kedny ####
         #### kedli ####
-        # kedli: Single-Family heating with natural gas
+        # kedli: same as kedny — SF gets heating/non-heating; MF gets single rate
+        .when((gas_utility_col == "kedli") & is_mf)
+        .then(pl.lit("kedli_mf"))
+        .when((gas_utility_col == "kedli") & ~is_mf & heats_with_natgas_column.eq(True))
+        .then(pl.lit("kedli_sf_heating"))
         .when(
-            (gas_utility_col == "kedli")
-            & building_type_column.str.contains("Single-Family", literal=True)
-            & heats_with_natgas_column.eq(True)
+            (gas_utility_col == "kedli") & ~is_mf & heats_with_natgas_column.eq(False)
         )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_heating")]))
-        # kedli: Single-Family does not heat with natural gas
-        .when(
-            (gas_utility_col == "kedli")
-            & building_type_column.str.contains("Single-Family", literal=True)
-            & heats_with_natgas_column.eq(False)
-        )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_sf_nonheating")]))
-        # kedli: Multi-Family heating with natural gas
-        .when(
-            (gas_utility_col == "kedli")
-            & building_type_column.str.contains("Multi-Family", literal=True)
-            & heats_with_natgas_column.eq(True)
-        )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_heating")]))
-        # kedli: Multi-Family does not heat with natural gas
-        .when(
-            (gas_utility_col == "kedli")
-            & building_type_column.str.contains("Multi-Family", literal=True)
-            & heats_with_natgas_column.eq(False)
-        )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_mf_nonheating")]))
+        .then(pl.lit("kedli_sf_nonheating"))
         #### kedli ####
         #### nyseg ####
         # nyseg: Heating with natural gas
@@ -207,7 +161,6 @@ def map_gas_tariff(
                 "bldg_id",
                 "sb.gas_utility",
                 "in.geometry_building_type_recs",
-                "in.geometry_stories_low_rise",
                 "heats_with_natgas",
             )
         )
@@ -215,7 +168,6 @@ def map_gas_tariff(
         .drop(
             "sb.gas_utility",
             "in.geometry_building_type_recs",
-            "in.geometry_stories_low_rise",
             "heats_with_natgas",
         )
     )
