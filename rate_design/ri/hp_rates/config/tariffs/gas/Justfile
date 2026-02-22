@@ -6,4 +6,4 @@ path_rateacuity_yaml := path_project_root + "/rate_design/ri/hp_rates/config/tar
 
 # Fetch all RI gas tariffs from Rate Acuity; writes <tariff_key>.json here.
 fetch-gas:
-	uv run --directory "{{path_project_root}}" python {{path_project_root}}/utils/pre/fetch_gas_tariffs_rateacuity.py "{{path_rateacuity_yaml}}" "{{path_output_dir}}"
+	uv run python {{path_project_root}}/utils/pre/fetch_gas_tariffs_rateacuity.py "{{path_rateacuity_yaml}}" "{{path_output_dir}}"
