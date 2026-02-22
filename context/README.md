@@ -29,6 +29,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 | cairo_performance_analysis.md            | CAIRO execution profile, compute bottlenecks, parallelism status, and speedup opportunities          |
 | cairo_parallelize_two_undasked_stages.md | Handoff: parallelize process_residential_hourly_demand and BAT in CAIRO via chunk + dask.delayed     |
 | cairo_parallelism_and_workers.md         | How to think about parallelism: infra instance, worker count, series vs parallel tracks              |
+| cairo_elastic_cluster.md                 | Elastic Dask cluster: why (many runs), options (dask-cloudprovider etc.), CAIRO + platform changes   |
 | run_orchestration.md                     | RI runs 1–12 orchestration: Justfile dependency chain, `latest_run_output.sh`, design decisions      |
 | nyiso_lbmp_zonal_data_sources.md         | NYISO Day-Ahead/Real-Time zonal LBMP: MIS ZIP vs gridstatus vs NYISOToolkit; data samples            |
 
