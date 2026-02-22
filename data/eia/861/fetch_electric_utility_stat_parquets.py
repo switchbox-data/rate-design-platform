@@ -1,30 +1,26 @@
 #!/usr/bin/env python3
-"""Build investor-owned utility stats from EIA-861 yearly sales (PUDL).
+"""Build utility stats from EIA-861 yearly sales (PUDL).
 
 Two modes:
 
-1. Parquet output (all states): pass --output-dir. Reads EIA-861 once, aggregates
-   IOUs per state, adds a state column, and writes state-partitioned parquet under
-   output_dir/state=<state>/data.parquet. Use for building local/S3 utility stats.
+1. Parquet output (all states, all years): pass --output-dir. Reads EIA-861 once,
+   aggregates per (utility, state, report year), and writes parquet partitioned by
+   year and state under output_dir/year=<year>/state=<state>/ using Polars partition_by.
 
 2. CSV to stdout (single state): pass STATE as positional argument. Writes one state's
-   stats as CSV for ad-hoc use (e.g. just fetch_electric_utility_stat_parquets.py NY).
+   stats (all years) as CSV for ad-hoc use.
 
-Uses EIA-861 yearly sales data (PUDL). Filtered to Investor Owned and State
-(e.g. LIPA) so that utilities like psegli appear. Uses central utility crosswalk
-(utils.utility_codes) for utility_code column.
+All entity types are included (no filter). Uses central utility crosswalk
+(utils.utility_codes) for utility_code column where available.
 
-Customer classes are discovered at runtime from the parquet (commercial,
-industrial, other, residential, transportation). Dataset schema and
-customer_class values are validated in tests/test_fetch_electric_utility_stat_parquets.py.
+Customer classes are fixed (commercial, industrial, other, residential, transportation)
+to allow a fully lazy pipeline; dataset is validated in tests to match.
 
-Freshness: Each row has report_date (EIA-861 reporting period). The script uses
-the latest report_date per utility; the parquet has no "file built" date (source:
-PUDL Catalyst Coop nightly, EIA-861 temporal coverage 2001-2024).
+Source: PUDL Catalyst Coop stable release (see PUDL_STABLE_VERSION; EIA-861 coverage 2001-2024).
 
-Columns: state (when writing parquet), utility_id_eia, utility_code, utility_name,
+Columns: year, state (when writing parquet), utility_id_eia, utility_code, utility_name,
 business_model, entity_type, report_date, total_sales_mwh, total_sales_revenue,
-then for each customer class ({class}_sales_mwh, {class}_sales_revenue, {class}_customers).
+then per customer class ({class}_sales_mwh, {class}_sales_revenue, {class}_customers).
 Unmapped EIA IDs have null utility_code.
 """
 
@@ -33,13 +29,15 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import cast
 
 import polars as pl
 
 from utils.utility_codes import get_eia_utility_id_to_std_name
 
-# EIA-861 yearly sales (PUDL Catalyst Coop nightly)
-CORE_EIA861_YEARLY_SALES_URL = "https://s3.us-west-2.amazonaws.com/pudl.catalyst.coop/nightly/core_eia861__yearly_sales.parquet"
+# EIA-861 yearly sales (PUDL Catalyst Coop stable release; see https://github.com/catalyst-cooperative/pudl/releases)
+PUDL_STABLE_VERSION = "v2026.2.0"
+CORE_EIA861_YEARLY_SALES_URL = f"https://s3.us-west-2.amazonaws.com/pudl.catalyst.coop/{PUDL_STABLE_VERSION}/core_eia861__yearly_sales.parquet"
 
 VALID_STATE_CODES = frozenset(
     {
@@ -97,18 +95,40 @@ VALID_STATE_CODES = frozenset(
     }
 )
 
+# Fixed order for lazy aggregation and column output; must match dataset (validated in tests).
+CUSTOMER_CLASSES_ORDERED = (
+    "commercial",
+    "industrial",
+    "other",
+    "residential",
+    "transportation",
+)
 
-def _aggregate_one_state(df: pl.DataFrame, state_raw: str) -> pl.DataFrame:
-    """Aggregate IOU stats for one state. df must already be filtered to that state."""
-    customer_classes = (
-        df.select("customer_class")
-        .unique()
-        .sort("customer_class")
-        .to_series()
-        .to_list()
-    )
 
-    agg_exprs = [
+def _utility_code_map_df() -> pl.DataFrame:
+    """(utility_id_eia, state) -> utility_code for all states with EIA mappings."""
+    rows: list[dict[str, int | str]] = []
+    for state_key in sorted(VALID_STATE_CODES):
+        state_raw = state_key.upper()
+        eia_to_std = get_eia_utility_id_to_std_name(state_raw)
+        for eia_id, std_name in eia_to_std.items():
+            rows.append(
+                {"utility_id_eia": eia_id, "state": state_raw, "utility_code": std_name}
+            )
+    if not rows:
+        return pl.DataFrame(
+            schema={
+                "utility_id_eia": pl.Int64,
+                "state": pl.Utf8,
+                "utility_code": pl.Utf8,
+            }
+        )
+    return pl.DataFrame(rows)
+
+
+def _aggregation_exprs() -> list[pl.Expr]:
+    """Aggregation expressions for group_by(utility_id_eia, state)."""
+    agg_exprs: list[pl.Expr] = [
         pl.col("utility_name_eia").last().alias("utility_name"),
         pl.col("business_model").last().alias("business_model"),
         pl.col("entity_type").last().alias("entity_type"),
@@ -116,7 +136,7 @@ def _aggregate_one_state(df: pl.DataFrame, state_raw: str) -> pl.DataFrame:
         pl.col("sales_mwh").sum().alias("total_sales_mwh"),
         pl.col("sales_revenue").sum().alias("total_sales_revenue"),
     ]
-    for c in customer_classes:
+    for c in CUSTOMER_CLASSES_ORDERED:
         agg_exprs.append(
             pl.col("sales_mwh")
             .filter(pl.col("customer_class") == c)
@@ -135,56 +155,48 @@ def _aggregate_one_state(df: pl.DataFrame, state_raw: str) -> pl.DataFrame:
             .sum()
             .alias(f"{c}_customers")
         )
+    return agg_exprs
 
-    eia_to_std = get_eia_utility_id_to_std_name(state_raw)
-    if eia_to_std:
-        map_df = pl.DataFrame(
-            {
-                "utility_id_eia": list(eia_to_std.keys()),
-                "utility_code": list(eia_to_std.values()),
-            }
-        )
-    else:
-        map_df = pl.DataFrame(
-            schema={"utility_id_eia": pl.Int64, "utility_code": pl.Utf8}
-        )
-    result = (
-        df.group_by("utility_id_eia")
-        .agg(agg_exprs)
-        .sort(["total_sales_mwh", "utility_name"], descending=[True, False])
-        .with_columns(pl.col("utility_id_eia").cast(pl.Int64))
-        .join(map_df, on="utility_id_eia", how="left")
-    )
 
+def _output_columns() -> list[str]:
+    """Final column order: year, state (partition cols), then rest."""
     class_cols = []
-    for c in customer_classes:
+    for c in CUSTOMER_CLASSES_ORDERED:
         class_cols.extend([f"{c}_sales_mwh", f"{c}_sales_revenue", f"{c}_customers"])
-    result = result.select(
-        [
-            "utility_id_eia",
-            "utility_code",
-            "utility_name",
-            "business_model",
-            "entity_type",
-            "report_date",
-            "total_sales_mwh",
-            "total_sales_revenue",
-        ]
-        + class_cols
+    return [
+        "year",
+        "state",
+        "utility_id_eia",
+        "utility_code",
+        "utility_name",
+        "business_model",
+        "entity_type",
+        "report_date",
+        "total_sales_mwh",
+        "total_sales_revenue",
+    ] + class_cols
+
+
+def _base_lazy() -> pl.LazyFrame:
+    """Scan EIA-861 and add report year; no entity-type or latest-date filter."""
+    return pl.scan_parquet(CORE_EIA861_YEARLY_SALES_URL).with_columns(
+        pl.col("report_date").dt.year().alias("year")
     )
-    return result
 
 
-def _write_one_state_parquet(
-    result: pl.DataFrame, state_raw: str, output_dir: Path
-) -> None:
-    """Add state column and write result to output_dir/state=<state>/data.parquet."""
-    result = result.with_columns(pl.lit(state_raw).alias("state"))
-    # Column order: state first, then rest
-    result = result.select(["state", *[c for c in result.columns if c != "state"]])
-    partition_dir = output_dir / f"state={state_raw}"
-    partition_dir.mkdir(parents=True, exist_ok=True)
-    result.write_parquet(partition_dir / "data.parquet")
+def _aggregated_lazy(lf: pl.LazyFrame, utility_code_map: pl.DataFrame) -> pl.LazyFrame:
+    """Aggregate to one row per (utility_id_eia, state, year), join utility_code, select output columns."""
+    map_lf = utility_code_map.lazy()
+    return (
+        lf.group_by("utility_id_eia", "state", "year")
+        .agg(_aggregation_exprs())
+        .sort(
+            ["year", "total_sales_mwh", "utility_name"], descending=[False, True, False]
+        )
+        .with_columns(pl.col("utility_id_eia").cast(pl.Int64))
+        .join(map_lf, on=["utility_id_eia", "state"], how="left")
+        .select(_output_columns())
+    )
 
 
 def main() -> None:
@@ -204,7 +216,7 @@ def main() -> None:
         type=Path,
         default=None,
         metavar="DIR",
-        help="Write state-partitioned parquet here (state=<state>/data.parquet). Builds all states.",
+        help="Write parquet here (year=<year>/state=<state>/). Builds all states and years.",
     )
     args = parser.parse_args()
 
@@ -215,24 +227,22 @@ def main() -> None:
                 f"--output-dir looks like an uninterpolated Just variable: {out_str!r}. "
                 "Use an absolute path (e.g. project_root + '/data/eia/861/parquet/' in the Justfile)."
             )
-        # Build all states to local parquet
         output_dir = args.output_dir.resolve()
-        entity_allowed = pl.col("entity_type").is_in(["Investor Owned", "State"])
-        df_all = (
-            pl.read_parquet(CORE_EIA861_YEARLY_SALES_URL)
-            .filter(entity_allowed)
-            .filter(
-                pl.col("report_date")
-                == pl.col("report_date").max().over(["utility_id_eia", "state"])
-            )
+        utility_code_map = _utility_code_map_df()
+        # Lazy pipeline; single collect then native partition write.
+        # Polars writes 00000000.parquet per partition; rename to data.parquet for downstream.
+        result = cast(
+            pl.DataFrame,
+            _aggregated_lazy(_base_lazy(), utility_code_map).collect(),
         )
-        for state_key in sorted(VALID_STATE_CODES):
-            state_raw = state_key.upper()
-            df_state = df_all.filter(pl.col("state") == state_raw)
-            if df_state.is_empty():
-                continue
-            result = _aggregate_one_state(df_state, state_raw)
-            _write_one_state_parquet(result, state_raw, output_dir)
+        result.write_parquet(output_dir, partition_by=["year", "state"], mkdir=True)
+        for year_dir in output_dir.iterdir():
+            if year_dir.is_dir():
+                for state_dir in year_dir.iterdir():
+                    if state_dir.is_dir():
+                        default_file = state_dir / "00000000.parquet"
+                        if default_file.exists():
+                            default_file.rename(state_dir / "data.parquet")
         return
 
     # Single-state CSV to stdout (backward compat)
@@ -242,17 +252,16 @@ def main() -> None:
     if state_raw.lower() not in VALID_STATE_CODES:
         parser.error(f"Invalid state '{args.state}'. Use a two-letter US state or DC.")
 
-    entity_allowed = pl.col("entity_type").is_in(["Investor Owned", "State"])
-    df = (
-        pl.read_parquet(CORE_EIA861_YEARLY_SALES_URL)
-        .filter(pl.col("state") == state_raw)
-        .filter(entity_allowed)
-        .filter(
-            pl.col("report_date") == pl.col("report_date").max().over("utility_id_eia")
-        )
+    utility_code_map = _utility_code_map_df()
+    result = cast(
+        pl.DataFrame,
+        _aggregated_lazy(
+            _base_lazy().filter(pl.col("state") == state_raw),
+            utility_code_map,
+        ).collect(),
     )
-    result = _aggregate_one_state(df, state_raw)
-    result.write_csv(sys.stdout)
+    # CSV: drop state (partition col); keep year.
+    result.select([c for c in result.columns if c != "state"]).write_csv(sys.stdout)
 
 
 if __name__ == "__main__":

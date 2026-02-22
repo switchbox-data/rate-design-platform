@@ -87,10 +87,10 @@ def test_map_gas_tariff_kedny_heating_conditions():
     df = cast(pl.DataFrame, result.collect())
     assert df.height == 3
     tariff_keys = df["tariff_key"].to_list()
-    # kedny keeps utility code
+    # kedny: SF by heating/nonheating; MF with heats_with_natgas -> kedny_mf_heating
     assert "kedny_sf_heating" in tariff_keys
     assert "kedny_sf_nonheating" in tariff_keys
-    assert "kedny_mf" in tariff_keys
+    assert "kedny_mf_heating" in tariff_keys
 
 
 def test_map_gas_tariff_kedli_all_conditions():
