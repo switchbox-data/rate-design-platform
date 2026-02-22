@@ -1,0 +1,1299 @@
+[
+  {
+    "tariffId": 3531707,
+    "masterTariffId": 3439408,
+    "tariffCode": "194",
+    "tariffName": "Residential",
+    "tariffBookName": "Residential",
+    "lseId": 200,
+    "lseName": "PSEG Long Island",
+    "lseCode": "PSEGLI",
+    "serviceType": "ELECTRICITY",
+    "priorTariffId": 3493559,
+    "tariffType": "DEFAULT",
+    "customerClass": "RESIDENTIAL",
+    "privacy": "PUBLIC",
+    "customerCount": 420341,
+    "customerLikelihood": 100.0,
+    "customerCountSource": "Genability Estimate",
+    "territoryId": 215,
+    "effectiveDate": "2026-01-01",
+    "endDate": null,
+    "closedDate": null,
+    "effectiveOnRule": "TARIFF_EFFECTIVE_DATE",
+    "timeZone": "US/Eastern",
+    "billingPeriod": "MONTHLY",
+    "currency": "USD",
+    "chargeTypes": "FIXED_PRICE,CONSUMPTION_BASED,QUANTITY,MINIMUM",
+    "chargePeriod": "DAILY",
+    "minMonthlyConsumption": null,
+    "maxMonthlyConsumption": null,
+    "minMonthlyDemand": null,
+    "maxMonthlyDemand": null,
+    "hasTimeOfUseRates": true,
+    "hasTieredRates": false,
+    "hasContractedRates": true,
+    "hasTariffApplicability": false,
+    "hasRateApplicability": false,
+    "hasNetMetering": true,
+    "isActive": true,
+    "properties": [
+      {
+        "keyName": "consumption",
+        "quantityKey": null,
+        "period": "ON_PEAK",
+        "displayName": "Consumption (kWh)",
+        "family": "load",
+        "keyspace": "electricity",
+        "description": "Quantity in kWh of load that is used for a period of time",
+        "dataType": "DECIMAL",
+        "propertyTypes": "RATE_CRITERIA",
+        "operator": null,
+        "isDefault": false
+      },
+      {
+        "keyName": "consumption",
+        "quantityKey": null,
+        "period": "OFF_PEAK",
+        "displayName": "Consumption (kWh)",
+        "family": "load",
+        "keyspace": "electricity",
+        "description": "Quantity in kWh of load that is used for a period of time",
+        "dataType": "DECIMAL",
+        "propertyTypes": "RATE_CRITERIA",
+        "operator": null,
+        "isDefault": false
+      },
+      {
+        "keyName": "systemSize",
+        "quantityKey": null,
+        "displayName": "System Size",
+        "family": "system",
+        "keyspace": "solarPV",
+        "description": "Nameplate capacity (kW).",
+        "dataType": "DECIMAL",
+        "propertyTypes": "RATE_CRITERIA",
+        "operator": "=",
+        "propertyValue": "0",
+        "quantityUnit": "kW",
+        "isDefault": true
+      },
+      {
+        "keyName": "territoryId",
+        "quantityKey": null,
+        "displayName": "Territory",
+        "family": "billing",
+        "keyspace": "electricity",
+        "description": "Rate Baseline Region",
+        "dataType": "CHOICE",
+        "propertyTypes": "RATE_CRITERIA",
+        "operator": null,
+        "choices": [
+          {
+            "displayValue": "Outside Suffolk County",
+            "value": "3711",
+            "dataValue": "3711",
+            "likelihood": null
+          },
+          {
+            "displayValue": "Suffolk County",
+            "value": "3567",
+            "dataValue": "3567",
+            "likelihood": null
+          }
+        ],
+        "quantityUnit": "",
+        "isDefault": false
+      },
+      {
+        "keyName": "chargeClass",
+        "quantityKey": null,
+        "displayName": "Charge Class Type",
+        "family": "service",
+        "keyspace": "electricity",
+        "description": "The tariff has rates with the following charge class.",
+        "dataType": "CHOICE",
+        "propertyTypes": "SERVICE_TERMS",
+        "operator": "=",
+        "propertyValue": "DISTRIBUTION,SUPPLY,CONTRACTED",
+        "choices": [
+          {
+            "displayValue": "Transmission",
+            "value": "1",
+            "dataValue": "1",
+            "likelihood": null
+          },
+          {
+            "displayValue": "Distribution",
+            "value": "2",
+            "dataValue": "2",
+            "likelihood": null
+          },
+          {
+            "displayValue": "Supply",
+            "value": "4",
+            "dataValue": "4",
+            "likelihood": null
+          },
+          {
+            "displayValue": "Tax",
+            "value": "8",
+            "dataValue": "8",
+            "likelihood": null
+          },
+          {
+            "displayValue": "Other",
+            "value": "16",
+            "dataValue": "16",
+            "likelihood": null
+          },
+          {
+            "displayValue": "Contracted",
+            "value": "32",
+            "dataValue": "32",
+            "likelihood": null
+          }
+        ],
+        "isDefault": false
+      }
+    ],
+    "rates": [
+      {
+        "tariffRateId": 20850767,
+        "masterTariffRateId": 19741935,
+        "tariffId": 3531707,
+        "tariffSequenceNumber": 25,
+        "tariffBookSequenceNumber": 1,
+        "rateGroupName": "Service Charge",
+        "tariffBookRateGroupName": "Service Charge",
+        "rateName": "Service Charge",
+        "tariffBookRateName": "Service Charge",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "FIXED_PRICE",
+        "chargeClass": "DISTRIBUTION",
+        "chargePeriod": "DAILY",
+        "transactionType": "BUY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15846877,
+            "tariffRateId": 20850767,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.56,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850768,
+        "masterTariffRateId": 19741936,
+        "tariffId": 3531707,
+        "tariffSequenceNumber": 26,
+        "tariffBookSequenceNumber": 1,
+        "rateGroupName": "Energy Charge",
+        "tariffBookRateGroupName": "Energy Charge",
+        "rateName": "Energy Charge - Summer Peak",
+        "tariffBookRateName": "Energy Charge - Summer Peak",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "season": {
+          "seasonId": 169,
+          "lseId": 200,
+          "seasonGroupId": 1,
+          "seasonName": "Summer",
+          "seasonFromMonth": 6,
+          "seasonFromDay": 1,
+          "seasonToMonth": 9,
+          "seasonToDay": 30
+        },
+        "timeOfUse": {
+          "touId": 66332,
+          "touGroupId": 32,
+          "lseId": 200,
+          "touName": "On-Peak",
+          "calendarId": null,
+          "isDynamic": false,
+          "season": null,
+          "touType": "ON_PEAK",
+          "touPeriods": [
+            {
+              "touPeriodId": 90212,
+              "touId": 66332,
+              "fromDayOfWeek": 0,
+              "fromHour": 15,
+              "fromMinute": 0,
+              "toDayOfWeek": 4,
+              "toHour": 19,
+              "toMinute": 0,
+              "calendarId": null
+            }
+          ],
+          "privacy": "PUBLIC"
+        },
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": "DISTRIBUTION",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "NET",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15846878,
+            "tariffRateId": 20850768,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.2217,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850769,
+        "masterTariffRateId": 19741937,
+        "tariffId": 3531707,
+        "tariffSequenceNumber": 26,
+        "tariffBookSequenceNumber": 2,
+        "rateGroupName": "Energy Charge",
+        "tariffBookRateGroupName": "Energy Charge",
+        "rateName": "Energy Charge - Summer Off-Peak",
+        "tariffBookRateName": "Energy Charge - Summer Off-Peak",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "season": {
+          "seasonId": 169,
+          "lseId": 200,
+          "seasonGroupId": 1,
+          "seasonName": "Summer",
+          "seasonFromMonth": 6,
+          "seasonFromDay": 1,
+          "seasonToMonth": 9,
+          "seasonToDay": 30
+        },
+        "timeOfUse": {
+          "touId": 66333,
+          "touGroupId": 32,
+          "lseId": 200,
+          "touName": "Off-Peak",
+          "calendarId": 61,
+          "isDynamic": false,
+          "season": null,
+          "touType": "OFF_PEAK",
+          "touPeriods": [
+            {
+              "touPeriodId": 90213,
+              "touId": 66333,
+              "fromDayOfWeek": 0,
+              "fromHour": 19,
+              "fromMinute": 0,
+              "toDayOfWeek": 4,
+              "toHour": 15,
+              "toMinute": 0,
+              "calendarId": null
+            },
+            {
+              "touPeriodId": 90214,
+              "touId": 66333,
+              "fromDayOfWeek": 5,
+              "fromHour": 0,
+              "fromMinute": 0,
+              "toDayOfWeek": 6,
+              "toHour": 0,
+              "toMinute": 0,
+              "calendarId": null
+            }
+          ],
+          "privacy": "PUBLIC"
+        },
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": "DISTRIBUTION",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "NET",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15846879,
+            "tariffRateId": 20850769,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.1093,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850770,
+        "masterTariffRateId": 19741938,
+        "tariffId": 3531707,
+        "tariffSequenceNumber": 26,
+        "tariffBookSequenceNumber": 3,
+        "rateGroupName": "Energy Charge",
+        "tariffBookRateGroupName": "Energy Charge",
+        "rateName": "Energy Charge - Winter Peak",
+        "tariffBookRateName": "Energy Charge - Winter Peak",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "season": {
+          "seasonId": 170,
+          "lseId": 200,
+          "seasonGroupId": 1,
+          "seasonName": "Winter",
+          "seasonFromMonth": 10,
+          "seasonFromDay": 1,
+          "seasonToMonth": 5,
+          "seasonToDay": 31
+        },
+        "timeOfUse": {
+          "touId": 66332,
+          "touGroupId": 32,
+          "lseId": 200,
+          "touName": "On-Peak",
+          "calendarId": null,
+          "isDynamic": false,
+          "season": null,
+          "touType": "ON_PEAK",
+          "touPeriods": [
+            {
+              "touPeriodId": 90212,
+              "touId": 66332,
+              "fromDayOfWeek": 0,
+              "fromHour": 15,
+              "fromMinute": 0,
+              "toDayOfWeek": 4,
+              "toHour": 19,
+              "toMinute": 0,
+              "calendarId": null
+            }
+          ],
+          "privacy": "PUBLIC"
+        },
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": "DISTRIBUTION",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "NET",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15846880,
+            "tariffRateId": 20850770,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.1885,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850771,
+        "masterTariffRateId": 19741939,
+        "tariffId": 3531707,
+        "tariffSequenceNumber": 26,
+        "tariffBookSequenceNumber": 4,
+        "rateGroupName": "Energy Charge",
+        "tariffBookRateGroupName": "Energy Charge",
+        "rateName": "Energy Charge - Winter Off-Peak",
+        "tariffBookRateName": "Energy Charge - Winter Off-Peak",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "season": {
+          "seasonId": 170,
+          "lseId": 200,
+          "seasonGroupId": 1,
+          "seasonName": "Winter",
+          "seasonFromMonth": 10,
+          "seasonFromDay": 1,
+          "seasonToMonth": 5,
+          "seasonToDay": 31
+        },
+        "timeOfUse": {
+          "touId": 66333,
+          "touGroupId": 32,
+          "lseId": 200,
+          "touName": "Off-Peak",
+          "calendarId": 61,
+          "isDynamic": false,
+          "season": null,
+          "touType": "OFF_PEAK",
+          "touPeriods": [
+            {
+              "touPeriodId": 90213,
+              "touId": 66333,
+              "fromDayOfWeek": 0,
+              "fromHour": 19,
+              "fromMinute": 0,
+              "toDayOfWeek": 4,
+              "toHour": 15,
+              "toMinute": 0,
+              "calendarId": null
+            },
+            {
+              "touPeriodId": 90214,
+              "touId": 66333,
+              "fromDayOfWeek": 5,
+              "fromHour": 0,
+              "fromMinute": 0,
+              "toDayOfWeek": 6,
+              "toHour": 0,
+              "toMinute": 0,
+              "calendarId": null
+            }
+          ],
+          "privacy": "PUBLIC"
+        },
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": "DISTRIBUTION",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "NET",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15846881,
+            "tariffRateId": 20850771,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.0929,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850772,
+        "masterTariffRateId": 19741941,
+        "tariffId": 3531707,
+        "tariffSequenceNumber": 27,
+        "tariffBookSequenceNumber": 1,
+        "rateGroupName": "Shoreham Property Tax (SPT) Settlement Factors",
+        "tariffBookRateGroupName": "Shoreham Property Tax (SPT) Settlement Factors",
+        "rateName": "Shoreham Property Tax (SPT) Settlement Factors",
+        "tariffBookRateName": "Shoreham Property Tax (SPT) Settlement Factors",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "territory": {
+          "territoryId": 3567,
+          "territoryName": "Suffolk County",
+          "lseId": 200,
+          "lseName": "PSEG Long Island",
+          "parentTerritoryId": 215,
+          "usageType": "TARIFF",
+          "itemTypes": "COUNTY",
+          "deregRes": false,
+          "deregCandi": false,
+          "centerPoint": {
+            "latitude": 40.85844968141593,
+            "longitude": -72.9153500353982
+          },
+          "countryCode": "US"
+        },
+        "chargeType": "QUANTITY",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "BUY",
+        "variableRateKey": "shorehamPropertyTaxSettlementFactorSuffolkCounty",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15846882,
+            "tariffRateId": 20850772,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.0,
+            "rateUnit": "PERCENTAGE",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850773,
+        "masterTariffRateId": 19741942,
+        "tariffId": 3531707,
+        "tariffSequenceNumber": 27,
+        "tariffBookSequenceNumber": 2,
+        "rateGroupName": "Shoreham Property Tax (SPT) Settlement Factors",
+        "tariffBookRateGroupName": "Shoreham Property Tax (SPT) Settlement Factors",
+        "rateName": "Shoreham Property Tax (SPT) Settlement Factors",
+        "tariffBookRateName": "Shoreham Property Tax (SPT) Settlement Factors",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "territory": {
+          "territoryId": 3711,
+          "territoryName": "Outside Suffolk County",
+          "lseId": 200,
+          "lseName": "PSEG Long Island",
+          "parentTerritoryId": 215,
+          "usageType": "TARIFF",
+          "itemTypes": "ZIPCODE",
+          "deregRes": false,
+          "deregCandi": false,
+          "centerPoint": {
+            "latitude": 40.731263942307685,
+            "longitude": -73.63244464423077
+          },
+          "countryCode": "US"
+        },
+        "chargeType": "QUANTITY",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "BUY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15846883,
+            "tariffRateId": 20850773,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.0,
+            "rateUnit": "PERCENTAGE",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850774,
+        "masterTariffRateId": 19741943,
+        "tariffId": 3531707,
+        "tariffSequenceNumber": 28,
+        "tariffBookSequenceNumber": 1,
+        "rateGroupName": "Distributed Energy Resources Cost Recovery Rate",
+        "tariffBookRateGroupName": "Distributed Energy Resources Cost Recovery Rate",
+        "rateName": "Distributed Energy Resources Cost Recovery Rate",
+        "tariffBookRateName": "Distributed Energy Resources Cost Recovery Rate",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "NET",
+        "variableRateKey": "distributedEnergyResourcesCostRecoveryRateSmall",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15846884,
+            "tariffRateId": 20850774,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850775,
+        "masterTariffRateId": 19741944,
+        "tariffId": 3531707,
+        "tariffSequenceNumber": 29,
+        "tariffBookSequenceNumber": 1,
+        "rateGroupName": "New York State Assessment",
+        "tariffBookRateGroupName": "New York State Assessment",
+        "rateName": "New York State Assessment",
+        "tariffBookRateName": "New York State Assessment",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "QUANTITY",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "BUY",
+        "variableRateKey": "newYorkStateAssessment",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15846885,
+            "tariffRateId": 20850775,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.0,
+            "rateUnit": "PERCENTAGE",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850776,
+        "masterTariffRateId": 19741945,
+        "tariffId": 3531707,
+        "tariffSequenceNumber": 30,
+        "tariffBookSequenceNumber": 1,
+        "rateGroupName": "Revenue Decoupling Mechanism",
+        "tariffBookRateGroupName": "Revenue Decoupling Mechanism",
+        "rateName": "Revenue Decoupling Mechanism",
+        "tariffBookRateName": "Revenue Decoupling Mechanism",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "QUANTITY",
+        "chargeClass": "DISTRIBUTION",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "BUY",
+        "variableRateKey": "revenueDecouplingMechanismResidential200",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15846886,
+            "tariffRateId": 20850776,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.0,
+            "rateUnit": "PERCENTAGE",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850777,
+        "masterTariffRateId": 19741946,
+        "tariffId": 3531707,
+        "tariffSequenceNumber": 31,
+        "tariffBookSequenceNumber": 1,
+        "rateGroupName": "Securitization Offset Charge",
+        "tariffBookRateGroupName": "Securitization Offset Charge",
+        "rateName": "Securitization Offset Charge",
+        "tariffBookRateName": "Securitization Offset Charge",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": "SUPPLY,CONTRACTED",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "NET",
+        "variableRateKey": "securitizationOffsetCharge",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15846887,
+            "tariffRateId": 20850777,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850778,
+        "masterTariffRateId": 19757845,
+        "tariffId": 3531707,
+        "tariffSequenceNumber": 32,
+        "tariffBookSequenceNumber": 1,
+        "rateGroupName": "Securitization Charge",
+        "tariffBookRateGroupName": "Securitization Offset Charge",
+        "rateName": "Securitization Charge",
+        "tariffBookRateName": "Securitization Offset Charge",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": "SUPPLY,CONTRACTED",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "NET",
+        "variableRateKey": "securitizationCharge200",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15846888,
+            "tariffRateId": 20850778,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850779,
+        "masterTariffRateId": 19741947,
+        "tariffId": 3531707,
+        "tariffSequenceNumber": 33,
+        "tariffBookSequenceNumber": 1,
+        "rateGroupName": "Delivery Service Adjustment",
+        "tariffBookRateGroupName": "Delivery Service Adjustment",
+        "rateName": "Delivery Service Adjustment",
+        "tariffBookRateName": "Delivery Service Adjustment",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "QUANTITY",
+        "chargeClass": "DISTRIBUTION",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "BUY",
+        "variableRateKey": "deliveryServiceAdjustment200",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15846889,
+            "tariffRateId": 20850779,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.0,
+            "rateUnit": "PERCENTAGE",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850780,
+        "masterTariffRateId": 19741948,
+        "tariffId": 3531707,
+        "tariffSequenceNumber": 34,
+        "tariffBookSequenceNumber": 1,
+        "rateGroupName": "Minimum",
+        "tariffBookRateGroupName": "Minimum",
+        "rateName": "Minimum",
+        "tariffBookRateName": "Minimum",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "MINIMUM",
+        "chargePeriod": "DAILY",
+        "transactionType": "BUY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15846890,
+            "tariffRateId": 20850780,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.56,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850781,
+        "masterTariffRateId": 19741949,
+        "tariffId": 3531707,
+        "riderId": 764,
+        "tariffSequenceNumber": 35,
+        "tariffBookSequenceNumber": 1,
+        "rateGroupName": "Increase in Rates and  Charges to Recover Pilot Payments - Residential",
+        "tariffBookRateGroupName": "Increase in Rates and  Charges to Recover Pilot Payments - Residential",
+        "rateName": "Increase in Rates and  Charges to Recover Pilot Payments - Residential",
+        "tariffBookRateName": "Increase in Rates and  Charges to Recover Pilot Payments - Residential",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "transactionType": "BUY",
+        "rateBands": [],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850782,
+        "masterTariffRateId": 19741950,
+        "tariffId": 3531707,
+        "riderId": 3399169,
+        "tariffSequenceNumber": 36,
+        "tariffBookSequenceNumber": 1,
+        "rateGroupName": "Costumer Benefit Contribution - Residential",
+        "tariffBookRateGroupName": "Costumer Benefit Contribution - Residential",
+        "rateName": "Costumer Benefit Contribution - Residential",
+        "tariffBookRateName": "Costumer Benefit Contribution - Residential",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "transactionType": "BUY",
+        "rateBands": [],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850783,
+        "masterTariffRateId": 19741951,
+        "tariffId": 3531707,
+        "riderId": 3426799,
+        "tariffSequenceNumber": 37,
+        "tariffBookSequenceNumber": 1,
+        "rateGroupName": "Merchant Function Charge - Residential",
+        "tariffBookRateGroupName": "Merchant Function Charge - Residential",
+        "rateName": "Merchant Function Charge - Residential",
+        "tariffBookRateName": "Merchant Function Charge - Residential",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "transactionType": "BUY",
+        "rateBands": [],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20850784,
+        "masterTariffRateId": 19753996,
+        "tariffId": 3531707,
+        "riderId": 3440884,
+        "tariffSequenceNumber": 38,
+        "tariffBookSequenceNumber": 1,
+        "rateGroupName": "Power Supply Charge - 194",
+        "tariffBookRateGroupName": "Power Supply Charge - 194",
+        "rateName": "Power Supply Charge - 194",
+        "tariffBookRateName": "Power Supply Charge - 194",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "transactionType": "BUY",
+        "rateBands": [],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 17165509,
+        "masterTariffRateId": null,
+        "tariffId": 3531707,
+        "riderTariffId": 3179224,
+        "tariffSequenceNumber": 35,
+        "tariffBookSequenceNumber": 0,
+        "rateGroupName": "Rates and Charges to Recover Pilot Payments",
+        "tariffBookRateGroupName": "Rates and Charges to Recover Pilot Payments",
+        "rateName": "Rate for Cities and Incorporated Villages - Commodity",
+        "tariffBookRateName": "Rate for Cities and Incorporated Villages - Commodity",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "QUANTITY",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "BUY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 10466262,
+            "tariffRateId": 17165509,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 1.1404,
+            "rateUnit": "PERCENTAGE",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 17165508,
+        "masterTariffRateId": null,
+        "tariffId": 3531707,
+        "riderTariffId": 3179224,
+        "tariffSequenceNumber": 35,
+        "tariffBookSequenceNumber": 1,
+        "rateGroupName": "Rates and Charges to Recover Pilot Payments",
+        "tariffBookRateGroupName": "Rates and Charges to Recover Pilot Payments",
+        "rateName": "Rate for Cities and Incorporated Villages - Transportation",
+        "tariffBookRateName": "Rate for Cities and Incorporated Villages - Transportation",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "QUANTITY",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "BUY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 10466261,
+            "tariffRateId": 17165508,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 3.5921,
+            "rateUnit": "PERCENTAGE",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20837514,
+        "masterTariffRateId": 19242497,
+        "tariffId": 3531707,
+        "riderTariffId": 3530952,
+        "tariffSequenceNumber": 36,
+        "tariffBookSequenceNumber": 2,
+        "rateGroupName": "Costumer Benefit Contribution",
+        "tariffBookRateGroupName": "Costumer Benefit Contribution",
+        "rateName": "Costumer Benefit Contribution",
+        "tariffBookRateName": "Costumer Benefit Contribution",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "QUANTITY",
+        "chargePeriod": "DAILY",
+        "transactionType": "BUY",
+        "quantityKey": "systemSize",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15825953,
+            "tariffRateId": 20837514,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.0372,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20851245,
+        "masterTariffRateId": 19599272,
+        "tariffId": 3531707,
+        "riderTariffId": 3531742,
+        "tariffSequenceNumber": 37,
+        "tariffBookSequenceNumber": 2,
+        "rateGroupName": "Merchant Function Charge",
+        "tariffBookRateGroupName": "Merchant Function Charge",
+        "rateName": "Merchant Function Charge",
+        "tariffBookRateName": "Merchant Function Charge",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": "SUPPLY",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "NET",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15847400,
+            "tariffRateId": 20851245,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.001764,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20912744,
+        "masterTariffRateId": 19753914,
+        "tariffId": 3531707,
+        "riderTariffId": 3537665,
+        "tariffSequenceNumber": 38,
+        "tariffBookSequenceNumber": 2,
+        "rateGroupName": "Power Supply Charge",
+        "tariffBookRateGroupName": "Power Supply Charge",
+        "rateName": "Power Supply Charge - Summer Peak",
+        "tariffBookRateName": "Power Supply Charge",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "season": {
+          "seasonId": 169,
+          "lseId": 200,
+          "seasonGroupId": 1,
+          "seasonName": "Summer",
+          "seasonFromMonth": 6,
+          "seasonFromDay": 1,
+          "seasonToMonth": 9,
+          "seasonToDay": 30
+        },
+        "timeOfUse": {
+          "touId": 66332,
+          "touGroupId": 32,
+          "lseId": 200,
+          "touName": "On-Peak",
+          "calendarId": null,
+          "isDynamic": false,
+          "season": null,
+          "touType": "ON_PEAK",
+          "touPeriods": [
+            {
+              "touPeriodId": 90212,
+              "touId": 66332,
+              "fromDayOfWeek": 0,
+              "fromHour": 15,
+              "fromMinute": 0,
+              "toDayOfWeek": 4,
+              "toHour": 19,
+              "toMinute": 0,
+              "calendarId": null
+            }
+          ],
+          "privacy": "PUBLIC"
+        },
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": "SUPPLY,CONTRACTED",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "NET",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15927328,
+            "tariffRateId": 20912744,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.286622,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20912745,
+        "masterTariffRateId": 19753987,
+        "tariffId": 3531707,
+        "riderTariffId": 3537665,
+        "tariffSequenceNumber": 38,
+        "tariffBookSequenceNumber": 3,
+        "rateGroupName": "Power Supply Charge",
+        "tariffBookRateGroupName": "Power Supply Charge",
+        "rateName": "Power Supply Charge - Summer Off-Peak",
+        "tariffBookRateName": "Power Supply Charge",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "season": {
+          "seasonId": 169,
+          "lseId": 200,
+          "seasonGroupId": 1,
+          "seasonName": "Summer",
+          "seasonFromMonth": 6,
+          "seasonFromDay": 1,
+          "seasonToMonth": 9,
+          "seasonToDay": 30
+        },
+        "timeOfUse": {
+          "touId": 66333,
+          "touGroupId": 32,
+          "lseId": 200,
+          "touName": "Off-Peak",
+          "calendarId": 61,
+          "isDynamic": false,
+          "season": null,
+          "touType": "OFF_PEAK",
+          "touPeriods": [
+            {
+              "touPeriodId": 90213,
+              "touId": 66333,
+              "fromDayOfWeek": 0,
+              "fromHour": 19,
+              "fromMinute": 0,
+              "toDayOfWeek": 4,
+              "toHour": 15,
+              "toMinute": 0,
+              "calendarId": null
+            },
+            {
+              "touPeriodId": 90214,
+              "touId": 66333,
+              "fromDayOfWeek": 5,
+              "fromHour": 0,
+              "fromMinute": 0,
+              "toDayOfWeek": 6,
+              "toHour": 0,
+              "toMinute": 0,
+              "calendarId": null
+            }
+          ],
+          "privacy": "PUBLIC"
+        },
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": "SUPPLY,CONTRACTED",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "NET",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15927329,
+            "tariffRateId": 20912745,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.121967,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20912746,
+        "masterTariffRateId": 19753988,
+        "tariffId": 3531707,
+        "riderTariffId": 3537665,
+        "tariffSequenceNumber": 38,
+        "tariffBookSequenceNumber": 4,
+        "rateGroupName": "Power Supply Charge",
+        "tariffBookRateGroupName": "Power Supply Charge",
+        "rateName": "Power Supply Charge - Winter On-Peak",
+        "tariffBookRateName": "Power Supply Charge",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "season": {
+          "seasonId": 170,
+          "lseId": 200,
+          "seasonGroupId": 1,
+          "seasonName": "Winter",
+          "seasonFromMonth": 10,
+          "seasonFromDay": 1,
+          "seasonToMonth": 5,
+          "seasonToDay": 31
+        },
+        "timeOfUse": {
+          "touId": 66332,
+          "touGroupId": 32,
+          "lseId": 200,
+          "touName": "On-Peak",
+          "calendarId": null,
+          "isDynamic": false,
+          "season": null,
+          "touType": "ON_PEAK",
+          "touPeriods": [
+            {
+              "touPeriodId": 90212,
+              "touId": 66332,
+              "fromDayOfWeek": 0,
+              "fromHour": 15,
+              "fromMinute": 0,
+              "toDayOfWeek": 4,
+              "toHour": 19,
+              "toMinute": 0,
+              "calendarId": null
+            }
+          ],
+          "privacy": "PUBLIC"
+        },
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": "SUPPLY,CONTRACTED",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "NET",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15927330,
+            "tariffRateId": 20912746,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.313587,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      },
+      {
+        "tariffRateId": 20912747,
+        "masterTariffRateId": 19753989,
+        "tariffId": 3531707,
+        "riderTariffId": 3537665,
+        "tariffSequenceNumber": 38,
+        "tariffBookSequenceNumber": 5,
+        "rateGroupName": "Power Supply Charge",
+        "tariffBookRateGroupName": "Power Supply Charge",
+        "rateName": "Power Supply Charge - Winter Off-Peak",
+        "tariffBookRateName": "Power Supply Charge",
+        "fromDateTime": "2026-01-01T00:00:00-05:00",
+        "toDateTime": null,
+        "season": {
+          "seasonId": 170,
+          "lseId": 200,
+          "seasonGroupId": 1,
+          "seasonName": "Winter",
+          "seasonFromMonth": 10,
+          "seasonFromDay": 1,
+          "seasonToMonth": 5,
+          "seasonToDay": 31
+        },
+        "timeOfUse": {
+          "touId": 66333,
+          "touGroupId": 32,
+          "lseId": 200,
+          "touName": "Off-Peak",
+          "calendarId": 61,
+          "isDynamic": false,
+          "season": null,
+          "touType": "OFF_PEAK",
+          "touPeriods": [
+            {
+              "touPeriodId": 90213,
+              "touId": 66333,
+              "fromDayOfWeek": 0,
+              "fromHour": 19,
+              "fromMinute": 0,
+              "toDayOfWeek": 4,
+              "toHour": 15,
+              "toMinute": 0,
+              "calendarId": null
+            },
+            {
+              "touPeriodId": 90214,
+              "touId": 66333,
+              "fromDayOfWeek": 5,
+              "fromHour": 0,
+              "fromMinute": 0,
+              "toDayOfWeek": 6,
+              "toHour": 0,
+              "toMinute": 0,
+              "calendarId": null
+            }
+          ],
+          "privacy": "PUBLIC"
+        },
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": "SUPPLY,CONTRACTED",
+        "chargePeriod": "MONTHLY",
+        "transactionType": "NET",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15927331,
+            "tariffRateId": 20912747,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "rateAmount": 0.121967,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false,
+            "prevUpperLimit": null
+          }
+        ],
+        "hasApplicabilityFormula": false
+      }
+    ]
+  }
+]
