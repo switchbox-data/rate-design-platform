@@ -79,15 +79,6 @@ To add or refresh extracted PDF content: use the **extract-pdf-to-markdown** sla
 - **Data**: Versioned inputs are under `rate_design/.../config/tariffs/electric/` and `.../tariffs/gas/` (JSON) and `.../config/tariff_maps/electric/` and `.../config/tariff_maps/gas/` (CSV). Don’t commit large buildstock or CAIRO case outputs; use `.gitignore` and S3/local paths as in existing Justfiles.
 - **AWS authentication**: we rely heavily on reading and writing data to s3. We use short-lived AWS SOO config; if it must be refreshed, use `just aws` in the root.
 
-## Best practices for Justfiles
-
-- **Path variables**: Any Just variable that holds a file or directory path should be named with a `path_` prefix (e.g. `path_project_root`, `path_output_dir`, `path_rateacuity_yaml`). This makes it clear which variables are paths and keeps naming consistent across Justfiles.
-- **Recipe args and script args**: Parameter names in a Just recipe should match the script’s CLI argument names they are wired to (e.g. recipe `path_yaml` and `path_output_dir` → script `--yaml` and `--output-dir`). Use the same naming convention (path_ prefix for paths) in both so the wiring is obvious.
-
-## Best practices for Python scripts (CLI)
-
-- **Path arguments**: CLI arguments that are file or directory paths should use a `path_` prefix in the argparse name (e.g. `path_yaml`, `path_output_dir`), or a long option that makes the path explicit (e.g. `--output-dir`). When the script is invoked from a Justfile, use the same names as the Just variables (path_…) so recipe and script stay in sync.
-
 ## Computing contexts
 
 - Data scientists' laptops, usually Macs with Apple Silicon
@@ -115,16 +106,22 @@ Match existing style: Ruff for formatting/lint, **ty** for type checking, dprint
 - Filenames: lowercase with underscores, end with `_YYYYMMDD` (download date)
 - Use lazy evaluation (polars `scan_parquet` / arrow `open_dataset`) and filter before collecting
 
-## Best practices for working with data (for agents and contributors)
+## Best practices
 
-### Polars
+### Justfiles
+
+- **Path variables**: Any Just variable that holds a file or directory path should be named with a `path_` prefix (e.g. `path_project_root`, `path_output_dir`, `path_rateacuity_yaml`). This makes it clear which variables are paths and keeps naming consistent across Justfiles.
+- **Recipe args and script args**: Parameter names in a Just recipe should match the script’s CLI argument names they are wired to (e.g. recipe `path_yaml` and `path_output_dir` → script `--yaml` and `--output-dir`). Use the same naming convention (path_ prefix for paths) in both so the wiring is obvious.
+
+### Python scripts (CLI)
+
+- **Path arguments**: CLI arguments that are file or directory paths should use a `path_` prefix in the argparse name (e.g. `path_yaml`, `path_output_dir`), or a long option that makes the path explicit (e.g. `--output-dir`). When the script is invoked from a Justfile, use the same names as the Just variables (path_…) so recipe and script stay in sync.
+
+### Polars and parquet
 
 - **Prefer LazyFrame:** Use `scan_parquet` and lazy operations; only materialize (e.g. `.collect()` or `read_parquet`) when the operation cannot be done lazily (e.g. control flow that depends on data, or a library that requires a DataFrame).
 - **LazyFrame vs DataFrame:** Only `LazyFrame` has `.collect()`. A `DataFrame` from `read_parquet`, `.collect()`, or `df.join()` does not—calling `.collect()` on it will raise. Use `.group_by().agg()` on a DataFrame directly; no `.collect()`.
 - **Joins:** With default `coalesce=True`, Polars keeps only the **left** join key column and drops the right. If you need both key columns in the result, use `coalesce=False` in the join; otherwise select/alias from the left key as needed.
-
-### S3 and parquet
-
 - **Prefer a single path for scan_parquet:** Pass the hive-partition root (or directory) to `pl.scan_parquet(path, ...)` so Polars reads the dataset as one logical table; do not pre-list files with s3fs just to pass a list of paths unless you have confirmed the row identity or grouping is not in the data (e.g. only in the path).
 
 ### Data and S3
