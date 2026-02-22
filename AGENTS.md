@@ -170,7 +170,7 @@ This is a scientific computing python codebase. We make heavy use of polars, pre
 
 ## Pull request descriptions
 
-- **Always link the issue**: Include `Closes #<issue>` (e.g. `Closes #185`) in the PR body so the issue is linked and auto-closed when the PR is merged.
+- **Always close the GitHub issue**: Include `Closes #<number>` in the PR body so the **GitHub** issue is auto-closed when the PR is merged. Use the GitHub issue number, not the Linear issue identifier (e.g. use `Closes #263`, not `Closes RDP-126`). When work was tracked in Linear, look up the corresponding GitHub issue (e.g. `gh issue list` or the synced issue in the repo) and put that number in `Closes #<number>`.
 
 Do not duplicate the issue in the PR body. Instead, write a concise description that gives the reviewer enough context to review without having to ask you questions:
 
