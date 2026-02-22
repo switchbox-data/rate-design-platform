@@ -119,9 +119,9 @@ def test_utility_code_column_present_and_mapped():
 
 
 def test_partitioned_parquet_matches_single_state_csv(tmp_path: Path):
-    """Partitioned parquet output (state=NY/data.parquet) matches single-state CSV for NY."""
+    """Partitioned parquet (year=YYYY/state=NY/data.parquet) matches single-state CSV for NY for that year."""
     project_root = Path(__file__).resolve().parent.parent
-    # Build partitioned parquet
+    # Build partitioned parquet (all years, all states)
     run = subprocess.run(
         [
             "uv",
@@ -136,9 +136,10 @@ def test_partitioned_parquet_matches_single_state_csv(tmp_path: Path):
         cwd=project_root,
     )
     assert run.returncode == 0, f"Parquet build failed: {run.stderr}"
-    parquet_path = tmp_path / "state=NY" / "data.parquet"
+    # Compare one partition: latest year available for NY (e.g. 2024)
+    parquet_path = tmp_path / "year=2024" / "state=NY" / "data.parquet"
     assert parquet_path.exists(), f"Expected {parquet_path}"
-    # Single-state CSV
+    # Single-state CSV (all years)
     run_csv = subprocess.run(
         [
             "uv",
@@ -152,7 +153,13 @@ def test_partitioned_parquet_matches_single_state_csv(tmp_path: Path):
         cwd=project_root,
     )
     assert run_csv.returncode == 0, f"CSV run failed: {run_csv.stderr}"
-    df_parquet = pl.read_parquet(parquet_path).drop("state").sort("utility_id_eia")
-    df_csv = pl.read_csv(StringIO(run_csv.stdout)).sort("utility_id_eia")
-    # CSV has different dtypes (string, float64); parquet has Categorical, Date, Float32. Compare values only.
+    df_parquet = (
+        pl.read_parquet(parquet_path).drop("year", "state").sort("utility_id_eia")
+    )
+    df_csv = (
+        pl.read_csv(StringIO(run_csv.stdout))
+        .filter(pl.col("year") == 2024)
+        .drop("year")
+        .sort("utility_id_eia")
+    )
     assert_frame_equal(df_parquet, df_csv, check_dtypes=False)
