@@ -5,18 +5,17 @@ state: NY
 cenhud:
   cenhud: "SC 1-RESIDENCE DELIVERY RATE---"
 coned:
-  coned_sf: "1-RESIDENTIAL AND RELIGIOUS FIRM SALES SERVICE---"
-  coned_mf_lowrise: "3-RESIDENTIAL AND RELIGIOUS - HEATING FIRM SALES SERVICE-Dwelling Units <=4--"
-  coned_mf_highrise: "3-RESIDENTIAL AND RELIGIOUS - HEATING FIRM SALES SERVICE-Dwelling Units > 4--"
+  coned_nonheating: "1-RESIDENTIAL AND RELIGIOUS FIRM SALES SERVICE---"
+  coned_sf_heating: "3-RESIDENTIAL AND RELIGIOUS - HEATING FIRM SALES SERVICE-Dwelling Units <=4--"
+  coned_mf_heating: "3-RESIDENTIAL AND RELIGIOUS - HEATING FIRM SALES SERVICE-Dwelling Units > 4--"
 kedli:
   kedli_sf_nonheating: "1-RESIDENTIAL SERVICE-1A - Non-Heating--"
   kedli_sf_heating: "1-RESIDENTIAL SERVICE-1B - Heating--"
-  kedli_mf_nonheating: "3-MULTIPLE-DWELLING SERVICE-3A - Non-Heating--"
-  kedli_mf_heating: "3-MULTIPLE-DWELLING SERVICE-3B - Heating--"
+  kedli_mf: "3-MULTIPLE-DWELLING SERVICE-3A - Non-Heating--"
 kedny:
   kedny_sf_nonheating: "1A-RESIDENTIAL NON-HEATING SERVICE---"
   kedny_sf_heating: "1B-RESIDENTIAL HEATING SERVICE---"
-  kedny_mf_heating: "3-HEATING AND/OR WATER HEATING SERVICE (MULTI-FAMILY BUILDINGS)---"
+  kedny_mf: "3-HEATING AND/OR WATER HEATING SERVICE (MULTI-FAMILY BUILDINGS)---"
 nfg:
   nfg: "1-RESIDENTIAL-Customers Purchasing Gas Supply from Company--"
 nimo:
