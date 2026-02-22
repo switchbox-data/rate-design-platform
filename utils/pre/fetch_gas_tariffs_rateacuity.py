@@ -260,6 +260,8 @@ def fetch_gas_urdb(
                 urdb["utility"] = selected_utility
                 urdb["name"] = schedule_name
                 out_path = output_dir / f"{tariff_key}.json"
+                if out_path.exists():
+                    log.info("Overwriting existing %s", out_path)
                 out_path.write_text(json.dumps(urdb, indent=2))
                 written.append((tariff_key, out_path))
                 log.info("Wrote %s -> %s", tariff_key, out_path)
