@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from utils.midrun.copy_calibrated_tariff_from_run import (
+from utils.mid.copy_calibrated_tariff_from_run import (
     copy_calibrated_tariff_from_run_dir,
     _tariff_keys_and_payloads,
 )

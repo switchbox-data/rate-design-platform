@@ -14,11 +14,11 @@ unattended.
 The Justfile is parameterized in three tiers so it can be reused across
 states and utilities without copy-paste:
 
-| Tier | What                 | Examples                                                        |
-| ---- | -------------------- | --------------------------------------------------------------- |
-| 1    | Identity (env vars)  | `state`, `utility` via `env_var_or_default('STATE', 'ri')`      |
-| 2    | Utility-specific cfg | `region`, `cambium_ba`, `customer_count`, `default_tariff`, ... |
-| 3    | Derived paths        | `path_scenario_config`, `path_cambium`, `path_td_mc`, ...       |
+| Tier | What                 | Examples                                                   |
+| ---- | -------------------- | ---------------------------------------------------------- |
+| 1    | Identity (env vars)  | `state`, `utility` via `env_var_or_default('STATE', 'ri')` |
+| 2    | Utility-specific cfg | `region`, `cambium_ba`, `default_tariff`, ...              |
+| 3    | Derived paths        | `path_scenario_config`, `path_cambium`, `path_td_mc`, ...  |
 
 To replicate for a new utility, change the Tier 1 + 2 values at the top of
 the file. All Tier 3 paths are computed automatically.
@@ -27,12 +27,12 @@ the file. All Tier 3 paths are computed automatically.
 
 Three layers work together:
 
-| Layer            | Path                                | Role                                                                                                                  |
-| ---------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Generic recipes  | `utils/Justfile`                    | Reusable pre/midrun recipes with no state-specific paths. RI Justfile delegates here.                                 |
-| RI orchestration | `rate_design/ri/hp_rates/Justfile`  | Defines `run-1` ... `run-12`, `all-pre`, and `run-all-sequential`. Binds utility-specific config and wires the chain. |
-| Output resolver  | `utils/midrun/latest_run_output.sh` | Shell script that finds the most recent CAIRO output directory for a given run on S3.                                 |
-| Config validator | `utils/pre/validate_config.py`      | Checks Justfile vars against scenario YAML values. Warn-only by default, `--strict` exits non-zero for CI.            |
+| Layer            | Path                               | Role                                                                                                                  |
+| ---------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Generic recipes  | `utils/Justfile`                   | Reusable pre/mid recipes with no state-specific paths. RI Justfile delegates here.                                    |
+| RI orchestration | `rate_design/ri/hp_rates/Justfile` | Defines `run-1` ... `run-12`, `all-pre`, and `run-all-sequential`. Binds utility-specific config and wires the chain. |
+| Output resolver  | `utils/mid/latest_run_output.sh`   | Shell script that finds the most recent CAIRO output directory for a given run on S3.                                 |
+| Config validator | `utils/pre/validate_config.py`     | Checks Justfile vars against scenario YAML values. Warn-only by default, `--strict` exits non-zero for CI.            |
 
 ## Dependency chain
 
@@ -42,26 +42,24 @@ precalc-with-new-tariff -> calibrate-with-new-tariff**.
 
 ```text
 all-pre  (create-scenario-yamls, create-electric-tariff-maps-all, validate-config)
-  |
-  +-- run-1  (precalc flat, delivery)
-  |    |
-  |    +-- compute-rev-requirements  <- computes differentiated rev requirement YAML from run-1 BAT output
-  |    |    (needed by runs 5, 6, 9, 10 -- all multi-tariff precalc runs)
-  |    |
-  |    +-- run-3  (default flat calibrated, delivery)  <- copies calibrated tariff from run-1
-  |    +-- run-5  (precalc hp_seasonal vs flat)         <- seasonal discount inputs from run-1
-  |         +-- run-7  (default hp_seasonal calibrated) <- copies calibrated tariff from run-5
-  |
-  +-- run-2  (precalc flat, supply)
-  |    +-- run-4  (default flat calibrated, supply)     <- copies calibrated tariff from run-2
-  |    +-- run-6  (precalc hp_seasonal vs flat, supply) <- seasonal discount inputs from run-2
-  |         +-- run-8  (default hp_seasonal calibrated, supply) <- copies from run-6
-  |
-  +-- run-9  (precalc hp_seasonalTOU vs flat, delivery)  <- derives TOU tariff from marginal costs
-  |    +-- run-11 (default hp_seasonalTOU calibrated)     <- copies calibrated tariff from run-9
-  |
-  +-- run-10 (precalc hp_seasonalTOU vs flat, supply)     <- derives TOU tariff from marginal costs
-       +-- run-12 (default hp_seasonalTOU calibrated, supply) <- copies from run-10
+  │
+  ├─ run-1  (precalc flat, delivery)
+  │    │
+  │    ├─ compute-rev-requirements  ← computes differentiated rev requirement YAML from run-1 BAT output
+  │    │    (needed by runs 5, 6, 9, 10 -- all multi-tariff precalc runs)
+  │    │
+  │    ├─ run-3  (default flat calibrated, delivery)    ← copies calibrated tariff from run-1
+  │    ├─ run-5  (precalc hp_seasonal vs flat)           ← seasonal discount inputs from run-1
+  │    │    └─ run-7  (default hp_seasonal calibrated)   ← copies calibrated tariff from run-5
+  │    └─ run-9  (precalc hp_seasonalTOU vs flat)        ← uses run-1 calibrated tariff as reference
+  │         └─ run-11 (default hp_seasonalTOU calibrated) ← copies calibrated tariff from run-9
+  │
+  └─ run-2  (precalc flat, supply)
+       ├─ run-4  (default flat calibrated, supply)       ← copies calibrated tariff from run-2
+       ├─ run-6  (precalc hp_seasonal vs flat, supply)   ← seasonal discount inputs from run-2
+       │    └─ run-8  (default hp_seasonal calibrated, supply) ← copies from run-6
+       └─ run-10 (precalc hp_seasonalTOU vs flat, supply) ← uses run-2 calibrated tariff as reference
+            └─ run-12 (default hp_seasonalTOU calibrated, supply) ← copies from run-10
 ```
 
 ## How `latest_run_output.sh` works
@@ -92,7 +90,8 @@ avoiding staleness.
 Compares Justfile top-level variables against canonical values in the scenario
 YAML (run 1 for most fields, run 2 for the Cambium path since delivery runs
 use `zero_marginal_costs.csv`). Checked fields: `state`, `utility`, `upgrade`,
-`year`, `path_td_mc`, `path_cambium`.
+`year`, `path_td_mc`, `path_cambium`, `path_electric_utility_stats`,
+`path_resstock_loads`.
 
 Runs as part of `all-pre` so mismatches are caught before any CAIRO run starts.
 For CI, call `just validate-config strict` to exit non-zero on mismatch.
@@ -142,10 +141,10 @@ state-specific paths out of the generic layer.
 
 **`utils/` directory mirrors run phases.** `utils/pre/` holds scripts that run
 before any CAIRO run (tariff creation, scenario YAML generation, marginal cost
-allocation). `utils/midrun/` holds scripts that run between runs and consume
+allocation). `utils/mid/` holds scripts that run between runs and consume
 earlier run outputs (calibrated tariff promotion, subclass revenue requirements,
 seasonal discount derivation). `utils/post/` holds scripts that run after all
-runs complete (LMI discount application). `utils/midrun/` also holds the
+runs complete (LMI discount application). `utils/mid/` also holds the
 `latest_run_output.sh` shell helper for resolving predecessor output
 directories between runs.
 
@@ -154,6 +153,12 @@ defined at the top of the Justfile. All paths (Tier 3) are derived from them
 via Just string composition. This avoids scattered hardcoded values and makes
 it possible to replicate the entire orchestration for a new utility by changing
 only the top section.
+
+**Reference tariff for TOU derivation.** Runs 9 and 10 derive seasonal TOU
+tariffs using a calibrated flat tariff as reference (from runs 1 and 2
+respectively). The `--reference-tariff` flag on `derive_seasonal_tou.py`
+extracts the base rate and fixed charge from this tariff rather than using
+hardcoded defaults.
 
 **Sequential execution.** Delivery runs (odd) and supply runs (even) are
 independent and could theoretically run in parallel. For now the pipeline runs

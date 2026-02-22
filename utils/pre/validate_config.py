@@ -23,6 +23,8 @@ def main() -> None:
     parser.add_argument("--year", required=True)
     parser.add_argument("--path-td-mc", required=True)
     parser.add_argument("--path-cambium", required=True)
+    parser.add_argument("--path-electric-utility-stats", required=True)
+    parser.add_argument("--path-resstock-loads", required=True)
     parser.add_argument("--strict", action="store_true")
     args = parser.parse_args()
 
@@ -38,6 +40,16 @@ def main() -> None:
         ("upgrade", args.upgrade, str(run1.get("upgrade", "")).zfill(2)),
         ("year", args.year, str(run1.get("year_run", ""))),
         ("path_td_mc", args.path_td_mc, str(run1.get("path_td_marginal_costs", ""))),
+        (
+            "path_electric_utility_stats",
+            args.path_electric_utility_stats,
+            str(run1.get("path_electric_utility_stats", "")),
+        ),
+        (
+            "path_resstock_loads",
+            args.path_resstock_loads.rstrip("/"),
+            str(run1.get("path_resstock_loads", "")).rstrip("/"),
+        ),
     ]
 
     if run2:

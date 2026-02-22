@@ -43,7 +43,9 @@ create-gas-tariff-map metadata_path utility_assignment_path state electric_utili
     --output_dir "{{output_dir}}"
 
 # Derive seasonal TOU tariff + derivation spec.
-create-seasonal-tou cambium_path state utility year td_mc_path resstock_metadata_path resstock_loads_path customer_count tou_tariff_key output_dir periods_yaml="" tou_base_rate="0.06" tou_fixed_charge="6.75":
+# reference_tariff: optional path to a calibrated tariff JSON; when provided,
+# base rate and fixed charge are extracted from it instead of using defaults.
+create-seasonal-tou cambium_path state utility year td_mc_path resstock_metadata_path resstock_loads_path path_electric_utility_stats tou_tariff_key output_dir periods_yaml="" reference_tariff="":
   uv run python {{project_root}}/utils/pre/derive_seasonal_tou.py \
     --cambium-path "{{cambium_path}}" \
     --state "{{state}}" \
@@ -52,12 +54,11 @@ create-seasonal-tou cambium_path state utility year td_mc_path resstock_metadata
     --path-td-marginal-costs "{{td_mc_path}}" \
     --resstock-metadata-path "{{resstock_metadata_path}}" \
     --resstock-loads-path "{{resstock_loads_path}}" \
-    --customer-count "{{customer_count}}" \
-    --tou-base-rate "{{tou_base_rate}}" \
-    --tou-fixed-charge "{{tou_fixed_charge}}" \
+    --path-electric-utility-stats "{{path_electric_utility_stats}}" \
     --tou-tariff-key "{{tou_tariff_key}}" \
     --output-dir "{{output_dir}}" \
-    {{ if periods_yaml != "" { "--periods-yaml \"" + periods_yaml + "\"" } else { "" } }}
+    {{ if periods_yaml != "" { "--periods-yaml \"" + periods_yaml + "\"" } else { "" } }} \
+    {{ if reference_tariff != "" { "--reference-tariff \"" + reference_tariff + "\"" } else { "" } }}
 
 
 # =============================================================================
@@ -66,7 +67,7 @@ create-seasonal-tou cambium_path state utility year td_mc_path resstock_metadata
 
 # Revenue requirement YAML outputs from CAIRO BAT results.
 compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yaml_path run_num="1" group_col="has_hp" cross_subsidy_col="BAT_percustomer":
-  uv run python {{project_root}}/utils/midrun/compute_subclass_rr.py \
+  uv run python {{project_root}}/utils/mid/compute_subclass_rr.py \
     --run-dir "{{run_dir}}" \
     --run-num "{{run_num}}" \
     --scenario-config "{{scenario_config}}" \
@@ -77,7 +78,7 @@ compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yam
 
 # Seasonal discount inputs from run outputs + ResStock loads.
 compute-seasonal-discount-inputs run_dir resstock_loads_path cross_subsidy_col="BAT_percustomer" output_dir="":
-  uv run python {{project_root}}/utils/midrun/compute_seasonal_discount_inputs.py \
+  uv run python {{project_root}}/utils/mid/compute_seasonal_discount_inputs.py \
     --run-dir "{{run_dir}}" \
     --cross-subsidy-col "{{cross_subsidy_col}}" \
     --resstock-loads-path "{{resstock_loads_path}}" \
@@ -85,7 +86,7 @@ compute-seasonal-discount-inputs run_dir resstock_loads_path cross_subsidy_col="
 
 # Tariff JSON creation from seasonal_discount_rate_inputs.csv.
 create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label output_path periods_yaml:
-  uv run python {{project_root}}/utils/midrun/create_seasonal_discount_tariff.py \
+  uv run python {{project_root}}/utils/mid/create_seasonal_discount_tariff.py \
     --base-tariff-json "{{base_tariff_json}}" \
     --seasonal-inputs-csv "{{seasonal_inputs_csv}}" \
     --label "{{label}}" \
@@ -96,7 +97,7 @@ create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label outpu
 # reads <run_dir>/tariff_final_config.json, converts each tariff to URDB format,
 # and writes one <tariff_key>_calibrated.json per key under a destination directory.
 copy-calibrated-tariff-from-run run_dir state output_dir="":
-  uv run python -m utils.midrun.copy_calibrated_tariff_from_run \
+  uv run python -m utils.mid.copy_calibrated_tariff_from_run \
     --run-dir "{{run_dir}}" \
     --state "{{state}}" \
     {{ if output_dir != "" { "--destination-dir \"" + output_dir + "\"" } else { "" } }}
