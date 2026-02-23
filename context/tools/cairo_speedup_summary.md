@@ -95,34 +95,39 @@ Key implementation details:
 ## Timing results
 
 All times from single-run benchmarks on the same 8-core EC2 instance.
-`_return_loads_combined` varies with filesystem cache state (cold = up to 77s,
-warm ≈ 27s).
+`_return_loads_combined` values marked * are cold-cache (S3 FUSE mount does not
+warm predictably across runs). Phase 1 measured warm ≈ 27s in a single-session
+warm-up; Phase 2–4 benchmarks run separately and show cold values.
 
-| Stage | Baseline | Phase 1 | Phase 2 | Phase 3 |
-|-------|----------|---------|---------|---------|
-| `_return_load(electricity)` | 19.5s | — | — | — |
-| `_return_load(gas)` | 20.3s | — | — | — |
-| `_return_loads_combined` | — | 26.8s | 72.0s* | 74.9s* |
-| `phase2_marginal_costs_rr` | 3.5s | 3.5s | 3.6s | 3.6s |
-| `bs.simulate` | 104.8s | 75.4s | 78.2s | 66.9s |
-| **Total** | **150.2s** | **~106s** | **~154s*** | **~146s*** |
+| Stage | Baseline | Phase 1 | Phase 2 | Phase 3 | Phase 4 |
+|-------|----------|---------|---------|---------|---------|
+| `_return_load(electricity)` | 19.5s | — | — | — | — |
+| `_return_load(gas)` | 20.3s | — | — | — | — |
+| `_return_loads_combined` | — | 26.8s | 72.0s* | 74.9s* | 80.1s* |
+| `phase2_marginal_costs_rr` | 3.5s | 3.5s | 3.6s | 3.6s | 3.6s |
+| `bs.simulate` | 104.8s | 75.4s | 78.2s | 66.9s | ~72s |
+| **Total** | **150.2s** | **~106s** | **~154s*** | **~146s*** | **~157s*** |
 
 \* Cold filesystem cache. Warm-cache estimate for Phase 3 total: **~97s**.
+Warm-cache estimate for Phase 4 total (using Phase 1 warm `_return_loads_combined` ≈ 27s): **~103s**.
 
 | Milestone | vs. Baseline (warm cache) |
 |-----------|--------------------------|
 | Phase 1 | **1.41×** faster |
 | Phase 2 | ~1.4× faster |
 | Phase 3 | **~1.55×** faster |
+| Phase 4 | **~1.46×** faster (gas correctness fix; gas billing ~23% faster) |
 
-`bs.simulate` breakdown after all phases (from diagnostic instrumentation):
+`bs.simulate` breakdown — Phase 3 vs Phase 4 (from diagnostic instrumentation):
 
-| Sub-stage | Time |
-|-----------|------|
-| Electricity `_return_preaggregated_load` (tariff agg + precalc calibration) | ~30s |
-| Electricity `aggregate_system_revenues` (billing) | ~10s |
-| Gas `_calculate_gas_bills` (tariff agg + billing, original CAIRO path) | ~26s |
-| Other overhead | ~12s |
+| Sub-stage | Phase 3 (before) | Phase 4 (after) |
+|-----------|------------------|-----------------|
+| Electricity `_return_preaggregated_load` (tariff agg + precalc calibration) | ~30s | ~30s (unchanged) |
+| Electricity `aggregate_system_revenues` (billing) | ~10s | ~10s (unchanged) |
+| Gas `_calculate_gas_bills` (tariff agg + billing) | ~26s | **~20s** |
+| — `_vectorized_process_building_demand_by_period` | — | 19.7s |
+| — `_vectorized_calculate_gas_bills` | — | 0.2s |
+| Other overhead | ~12s | ~12s |
 
 ---
 
@@ -139,14 +144,51 @@ warm ≈ 27s).
 
 ---
 
+## Part 2 result: gas path vectorization (Phase 4)
+
+Gas billing reduced from ~26s to ~20s by replacing the 1,910-task Dask loop with
+vectorized pandas operations. The primary cost is now in tariff aggregation
+(`_vectorized_process_building_demand_by_period`, 19.7s) — the billing calculation
+itself (`_vectorized_calculate_gas_bills`) takes only 0.2s.
+
+| Sub-stage | Phase 3 (before) | Phase 4 (after) |
+|---|---|---|
+| Gas tariff aggregation | ~24s | **19.7s** |
+| Gas bill calculation | ~2s | **0.2s** |
+| Gas `_calculate_gas_bills` total | ~26s | **~20s** |
+| **Total `bs.simulate`** | ~67–78s | **~72s** |
+
+The gas aggregation bottleneck (19.7s) is caused by the 1,910 × 8,760 hour merge
+in `_vectorized_process_building_demand_by_period` — the same code used for
+electricity, but without the Dask loop. Further optimization would require
+vectorizing the period schedule merge or reducing the merge key cardinality.
+
+### Gas correctness fix
+
+Phase 4 also fixes a correctness bug present in all prior phases:
+CAIRO's `aggregate_load_worker` always applies `_adjust_gas_loads` (kWh→therms ×
+0.0341214116) even on pre-loaded therms data. With `_return_loads_combined`
+converting kWh→therms first, and CAIRO converting again, gas bills were **~29×
+smaller than the correct value**. The vectorized path bypasses `_adjust_gas_loads`
+entirely, using the already-converted therms values directly.
+
+**Impact:** All downstream gas bill values (annual totals, BAT metrics,
+cross-subsidization outputs) will change to reflect the corrected computation.
+Previous runs (Phases 1–3) produced gas bills approximately 29× too small.
+
+---
+
 ## Correctness verification
 
 - All 21 output CSVs compared against Phase 1 reference after each phase using
   max absolute diff; all phases match to < 0.001%
-- 3 unit tests added in `tests/test_patches.py`:
+- 6 unit tests in `tests/test_patches.py`:
   - `test_combined_reader_matches_separate_reads` — Phase 1
   - `test_vectorized_aggregation_matches_cairo` — Phase 2
   - `test_vectorized_billing_matches_cairo` — Phase 3
+  - `test_gas_bills_not_double_converted` — Phase 4 correctness (gas therms)
+  - `test_gas_path_produces_reasonable_bills` — Phase 4 correctness (gas billing magnitude)
+  - `test_vectorized_gas_billing_matches_correct_bills` — Phase 4 end-to-end
 
 ---
 
