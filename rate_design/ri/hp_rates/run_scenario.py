@@ -627,7 +627,12 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         else min(settings.process_workers, os.cpu_count() or 1)
     )
     dask.config.set(scheduler="processes", num_workers=_effective_workers)
-    log.info("TIMING workers: %d (yaml=%d, cpu_count=%d)", _effective_workers, settings.process_workers, os.cpu_count() or 1)
+    log.info(
+        "TIMING workers: %d (yaml=%d, cpu_count=%d)",
+        _effective_workers,
+        settings.process_workers,
+        os.cpu_count() or 1,
+    )
 
     # Phase 1 ---------------------------------------------------------------
     t0 = time.perf_counter()
