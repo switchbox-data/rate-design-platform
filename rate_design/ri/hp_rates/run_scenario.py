@@ -41,7 +41,6 @@ from utils.cairo import (
 from utils.pre.compute_tou import (
     SeasonTouSpec,
     combine_marginal_costs,
-    compute_seasonal_base_rates,
     compute_tou_cost_causation_ratio,
     load_season_specs,
     season_mask,
@@ -96,6 +95,7 @@ class ScenarioSettings:
     add_supply_revenue_requirement: bool = False
     sample_size: int | None = None
     elasticity: float = 0.0
+    path_tou_supply_mc: str | Path | None = None
 
 
 def _parse_int(value: object, field_name: str) -> int:
@@ -491,6 +491,11 @@ def _build_settings_from_yaml_run(
     sample_size = (
         _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
     )
+    path_tou_supply_mc: str | Path | None = None
+    if "path_tou_supply_mc" in run:
+        path_tou_supply_mc = _resolve_path_or_uri(
+            str(run["path_tou_supply_mc"]), PATH_CONFIG
+        )
     output_dir = _resolve_output_dir(run, run_num, output_dir_override)
     run_name = run_name_override or run.get("run_name") or f"run_{run_num}"
     return ScenarioSettings(
@@ -532,6 +537,7 @@ def _build_settings_from_yaml_run(
         sample_size=sample_size,
         add_supply_revenue_requirement=add_supply_revenue_requirement,
         elasticity=elasticity,
+        path_tou_supply_mc=path_tou_supply_mc,
     )
 
 
@@ -669,40 +675,79 @@ def _recompute_tou_precalc_mapping(
     Non-TOU tariff entries in the mapping are left unchanged.
     """
     # 1. Aggregate shifted building loads to system-level hourly demand.
-    shifted_system_load = process_residential_hourly_demand(
+    shifted_system_load_raw = process_residential_hourly_demand(
         bldg_load=effective_load_elec,
         sample_weights=customer_metadata[["bldg_id", "weight"]],
     )
 
     # 2. Combine bulk + distribution MCs into a single $/kWh series.
-    combined_mc = combine_marginal_costs(
+    combined_mc_raw = combine_marginal_costs(
         bulk_marginal_costs, distribution_marginal_costs
     )
 
+    # Align indices: MC and load may have different timezone representations.
+    # Reindex load onto MC's DatetimeIndex so pandas operations align.
+    mc_index = pd.DatetimeIndex(combined_mc_raw.index)
+    combined_mc = pd.Series(
+        combined_mc_raw.values, index=mc_index, name="total_mc_per_kwh"
+    )
+    shifted_system_load = pd.Series(
+        shifted_system_load_raw.values[: len(mc_index)],
+        index=mc_index,
+        name="system_load",
+    )
+
     updated = precalc_mapping.copy()
-    mc_index = pd.DatetimeIndex(combined_mc.index)
 
     for tou_key, specs in tou_season_specs.items():
-        seasons = [spec.season for spec in specs]
-
         # Use original base_rate as nominal level; precalc calibrates the
         # absolute level, so only the *ratios* between periods matter.
         avg_base_rate = sum(spec.base_rate for spec in specs) / len(specs)
 
-        # Recompute seasonal base rates (inter-season ratio) with shifted load.
-        new_season_rates = compute_seasonal_base_rates(
-            combined_mc, shifted_system_load, seasons, avg_base_rate
-        )
-
-        # Recompute peak/off-peak ratios (intra-season ratio) with shifted load.
+        # Recompute per-season demand-weighted MC and peak/off-peak ratios.
+        # If a season has zero MC (e.g. delivery-only run with no dist MC in
+        # winter), keep the original ratio/base_rate from the derivation spec.
+        new_season_rates: dict[str, float] = {}
         new_ratios: dict[str, float] = {}
+
         for spec in specs:
             mask = season_mask(mc_index, spec.season)
-            new_ratios[spec.season.name] = compute_tou_cost_causation_ratio(
-                combined_mc[mask],
-                shifted_system_load[mask],
-                spec.peak_hours,
-            )
+            mc_season = combined_mc[mask]
+            load_season = shifted_system_load[mask]
+
+            season_mc_total = float((mc_season * load_season).sum())
+            if abs(season_mc_total) < 1e-12:
+                # Zero MC in this season → no cost-causation signal.
+                # Use flat ratio (1.0) and unit base rate so precalc
+                # treats peak and off-peak identically for this season.
+                log.info(
+                    ".... Season %s has zero MC; using flat ratio 1.0",
+                    spec.season.name,
+                )
+                new_season_rates[spec.season.name] = 1.0
+                new_ratios[spec.season.name] = 1.0
+            else:
+                total_load = float(load_season.sum())
+                dw_avg = season_mc_total / total_load if total_load > 0 else 0.0
+                new_season_rates[spec.season.name] = dw_avg
+                new_ratios[spec.season.name] = compute_tou_cost_causation_ratio(
+                    mc_season,
+                    load_season,
+                    spec.peak_hours,
+                )
+
+        # Scale seasonal rates so their load-weighted average equals
+        # avg_base_rate (preserves inter-season ratios from MC weights).
+        total_load_all = float(shifted_system_load.sum())
+        raw_weighted = sum(
+            new_season_rates[spec.season.name]
+            * float(shifted_system_load[season_mask(mc_index, spec.season)].sum())
+            for spec in specs
+        )
+        scale = (
+            avg_base_rate * total_load_all / raw_weighted if raw_weighted != 0 else 1.0
+        )
+        new_season_rates = {k: v * scale for k, v in new_season_rates.items()}
 
         # Build new per-period rates.  Period order matches
         # create_seasonal_tou_tariff: [offpeak_s1, peak_s1, offpeak_s2, peak_s2, …]
@@ -948,7 +993,29 @@ def run(settings: ScenarioSettings) -> None:
         # peak/off-peak cost-causation ratios must be updated before CAIRO
         # calibrates.  This ensures the tariff rate *structure* (not just the
         # level) reflects the post-flex MC responsibility.
-        if tou_season_specs:
+        #
+        # Only for precalc runs: default runs use a pre-calibrated tariff
+        # and have no revenue-neutrality constraint to recalibrate.
+        #
+        # For delivery-only precalc runs the scenario's Cambium file is
+        # zeros; the *real* supply MC for cost-causation is provided via
+        # the optional ``path_tou_supply_mc`` field.
+        if tou_season_specs and settings.run_type == "precalc":
+            # Load the real supply MC for cost-causation ratio computation.
+            if settings.path_tou_supply_mc is not None:
+                tou_bulk_mc = _load_cambium_marginal_costs(
+                    settings.path_tou_supply_mc, settings.year_run
+                )
+                log.info(
+                    ".... Phase 1.75: using real supply MC from %s",
+                    settings.path_tou_supply_mc,
+                )
+            else:
+                tou_bulk_mc = bulk_marginal_costs
+                log.info(
+                    ".... Phase 1.75: using scenario bulk MC (no path_tou_supply_mc)"
+                )
+
             log.info(
                 ".... Phase 1.75: recomputing TOU precalc mapping from shifted load"
             )
@@ -956,7 +1023,7 @@ def run(settings: ScenarioSettings) -> None:
                 precalc_mapping=precalc_mapping,
                 effective_load_elec=effective_load_elec,
                 customer_metadata=customer_metadata,
-                bulk_marginal_costs=bulk_marginal_costs,
+                bulk_marginal_costs=tou_bulk_mc,
                 distribution_marginal_costs=distribution_marginal_costs,
                 tou_season_specs=tou_season_specs,
             )
@@ -1008,11 +1075,37 @@ def run(settings: ScenarioSettings) -> None:
             delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
         )
 
-    # Apply subclass RR split if configured (works for both flex and non-flex).
-    if rr_ratios is not None:
-        revenue_requirement: float | dict[str, float] = {
-            k: v * revenue_requirement_raw for k, v in rr_ratios.items()
-        }
+    # Apply subclass RR split if configured.
+    if rr_ratios is not None and isinstance(rr_setting, dict):
+        if demand_flex_enabled:
+            # Only TOU subclasses shifted load → only they absorb the RR
+            # decrease.  Non-shifted subclasses keep their original RR.
+            non_shifted_rr = sum(
+                v for k, v in rr_setting.items() if k not in tou_tariff_keys
+            )
+            shifted_rr_total = revenue_requirement_raw - non_shifted_rr
+            # Split among TOU subclasses proportionally (if more than one).
+            tou_original_total = sum(
+                v for k, v in rr_setting.items() if k in tou_tariff_keys
+            )
+            revenue_requirement: float | dict[str, float] = {}
+            for k, v in rr_setting.items():
+                if k in tou_tariff_keys:
+                    revenue_requirement[k] = (
+                        shifted_rr_total * (v / tou_original_total)
+                        if tou_original_total > 0
+                        else shifted_rr_total
+                    )
+                else:
+                    revenue_requirement[k] = v  # unchanged
+            log.info(
+                ".... Subclass RR (demand-flex): %s",
+                {k: f"${v:,.0f}" for k, v in revenue_requirement.items()},
+            )
+        else:
+            revenue_requirement = {
+                k: v * revenue_requirement_raw for k, v in rr_ratios.items()
+            }
     else:
         revenue_requirement = revenue_requirement_raw
 

@@ -340,6 +340,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: -0.1
+    path_tou_supply_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
   14:
     run_name: ri_rie_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_flat
     state: RI
