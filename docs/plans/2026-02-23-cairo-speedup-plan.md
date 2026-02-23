@@ -1,6 +1,26 @@
 # CAIRO Speedup Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **For Claude:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` to execute this plan.
+> Dispatch one subagent per phase (0, 1, 2, 3). Review between phases. Each subagent gets its phase tasks only plus the Orientation section. Do NOT skip the review gate between phases — output correctness must be verified before proceeding.
+
+## How to start (after context clear)
+
+1. Open a fresh session in this repo
+2. Say: **"Execute the CAIRO speedup plan at `docs/plans/2026-02-23-cairo-speedup-plan.md`, subagent-driven, starting with Phase 0"**
+3. Claude will invoke `superpowers:subagent-driven-development` and dispatch Phase 0
+4. After Phase 0 completes, review the timing log at `context/tools/cairo_speedup_log.md`, then say **"proceed with Phase 1"**
+5. Repeat through Phase 3
+
+## Review gates
+
+| After phase | What to check before proceeding |
+|-------------|----------------------------------|
+| Phase 0 | `context/tools/cairo_speedup_log.md` has baseline timings; `run_scenario.py` has TIMING log lines |
+| Phase 1 | Output CSVs for run 2 match pre-patch baseline; `_return_loads_combined` timing < combined original reads |
+| Phase 2 | Output CSVs for run 2 match; `bs.simulate` timing improved; all 3 unit tests pass |
+| Phase 3 | Output CSVs for runs 1 and 2 match; total time ≥ 3× faster than baseline |
+
+---
 
 **Goal:** Achieve 5–10× speedup on `just run-scenario N` for RI heat-pump rates via monkey-patches in the platform layer, without modifying the CAIRO package.
 
