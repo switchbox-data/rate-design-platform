@@ -164,3 +164,10 @@ hardcoded defaults.
 independent and could theoretically run in parallel. For now the pipeline runs
 sequentially via `run-all-sequential` for simplicity and debuggability.
 Parallelization is a future improvement.
+
+**Parallel tracks.** `run-all-parallel-tracks` runs delivery and supply runs as concurrent
+pairs (6 waves of 2), each pair using half the available CPUs. This beats the sequential
+strategy when T4/T8 < 1.8 (see `cairo_parallelism_and_workers.md` for measured ratio).
+File conflicts: none — each wave pair writes to distinct tariff files and timestamped S3
+output directories. The `compute-rev-requirements` step remains serial between wave 1 and
+wave 3 (it reads run-1 output and is fast; runs 5/6 depend on it).

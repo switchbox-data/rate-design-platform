@@ -348,6 +348,59 @@ run-all-sequential:
     just run-11
     just run-12
 
+# Run all 12 scenarios as 6 delivery/supply waves in parallel.
+# Each wave runs the odd (delivery) and even (supply) run concurrently, each with
+# half the available CPUs. Requires --num-workers support in run_scenario.py.
+# Use when T4/T8 ratio r < 1.8 (measured in cairo_parallelism_and_workers.md).
+run-all-parallel-tracks:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    WORKERS=$(( $(nproc) / 2 ))
+    [ "$WORKERS" -lt 1 ] && WORKERS=1
+    export RDP_NUM_WORKERS="$WORKERS"
+    echo ">> run-all-parallel-tracks: ${WORKERS} workers/track on $(nproc) total vCPUs" >&2
+
+    # Wave 1: run-1 (delivery) and run-2 (supply) are independent precalc runs
+    just run-1 & PID1=$!
+    just run-2 & PID2=$!
+    wait $PID1 || { echo "ERROR: run-1 failed" >&2; exit 1; }
+    wait $PID2 || { echo "ERROR: run-2 failed" >&2; exit 1; }
+
+    # compute-rev-requirements uses run-1 BAT output; needed by runs 5, 6, 9, 10
+    just compute-rev-requirements
+
+    # Wave 2: run-3 (copies calibrated tariff from run-1) and run-4 (from run-2)
+    just run-3 & PID3=$!
+    just run-4 & PID4=$!
+    wait $PID3 || { echo "ERROR: run-3 failed" >&2; exit 1; }
+    wait $PID4 || { echo "ERROR: run-4 failed" >&2; exit 1; }
+
+    # Wave 3: run-5 (delivery hp_seasonal) and run-6 (supply hp_seasonal)
+    just run-5 & PID5=$!
+    just run-6 & PID6=$!
+    wait $PID5 || { echo "ERROR: run-5 failed" >&2; exit 1; }
+    wait $PID6 || { echo "ERROR: run-6 failed" >&2; exit 1; }
+
+    # Wave 4
+    just run-7 & PID7=$!
+    just run-8 & PID8=$!
+    wait $PID7 || { echo "ERROR: run-7 failed" >&2; exit 1; }
+    wait $PID8 || { echo "ERROR: run-8 failed" >&2; exit 1; }
+
+    # Wave 5: run-9 (delivery TOU) and run-10 (supply TOU)
+    just run-9 & PID9=$!
+    just run-10 & PID10=$!
+    wait $PID9 || { echo "ERROR: run-9 failed" >&2; exit 1; }
+    wait $PID10 || { echo "ERROR: run-10 failed" >&2; exit 1; }
+
+    # Wave 6
+    just run-11 & PID11=$!
+    just run-12 & PID12=$!
+    wait $PID11 || { echo "ERROR: run-11 failed" >&2; exit 1; }
+    wait $PID12 || { echo "ERROR: run-12 failed" >&2; exit 1; }
+
+    echo ">> run-all-parallel-tracks: all 12 runs complete" >&2
+
 # =============================================================================
 # POST: after all runs are completed
 # =============================================================================
