@@ -158,3 +158,250 @@ def _return_loads_combined(
     gas["load_data"] = df["out.natural_gas.total.energy_consumption"] * _GAS_KWH_TO_THERM
 
     return elec, gas
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: vectorized tariff aggregation
+# ---------------------------------------------------------------------------
+
+def _vectorized_process_building_demand_by_period(
+    target_year: int,
+    load_col_key: str,
+    prototype_ids: list[int],
+    tariff_base: dict,
+    tariff_map,
+    prepassed_load: pd.DataFrame,
+    solar_pv_compensation=None,
+):
+    """
+    Vectorized replacement for cairo.rates_tool.loads.process_building_demand_by_period.
+
+    Handles flat and time-of-use tariffs (covers all 12 RI runs, which are all flat or TOU
+    with ur_tou_tier_comb_type=0 and ur_dc_enable=0).
+    Tiered/combined tariffs fall back to CAIRO's original implementation.
+
+    Returns
+    -------
+    (agg_load, agg_solar) with identical structure to CAIRO's process_building_demand_by_period:
+        agg_load:  Index=['bldg_id'], columns=['month','period','tier','grid_cons',
+                   'load_data','charge_type','tariff']
+        agg_solar: Index=['bldg_id'], columns=['month','period','tier','net_exports',
+                   'self_cons','pv_generation','charge_type','tariff']
+    """
+    from cairo.rates_tool.loads import (
+        _return_energy_charge_aggregation_method,
+        extract_energy_charge_map,
+        _calculate_pv_load_columns,
+    )
+    from cairo.rates_tool import tariffs as tariff_funcs
+    # Use the saved-before-patching original to avoid infinite recursion.
+    _orig_pbdbp = _orig_process_building_demand_by_period
+
+    # Gas loads: fall back to CAIRO's original implementation.
+    # CAIRO's aggregate_load_worker always calls _load_worker → _adjust_gas_loads,
+    # which converts kWh→therms even on pre-loaded therms data (a consistent
+    # double-conversion that we must replicate to match Phase 1 output exactly).
+    # Gas billing is not the performance bottleneck, so we don't need to vectorize it.
+    if load_col_key == "total_fuel_gas":
+        return _orig_pbdbp(
+            target_year=target_year,
+            load_col_key=load_col_key,
+            prototype_ids=prototype_ids,
+            tariff_base=tariff_base,
+            tariff_map=tariff_map,
+            prepassed_load=prepassed_load,
+            solar_pv_compensation=solar_pv_compensation,
+        )
+
+    # Use CAIRO's _load_base_tariffs to get the prototype->tariff mapping and
+    # the converted tariff dicts (deep copies already in PySAM format)
+    tariff_map_dict, tariff_dicts = tariff_funcs._load_base_tariffs(
+        tariff_base=tariff_base, tariff_map=tariff_map, prototype_ids=prototype_ids
+    )
+
+    # Classify each tariff once
+    tier_tou_check = {
+        k: _return_energy_charge_aggregation_method(v) for k, v in tariff_dicts.items()
+    }
+
+    # Fall back to CAIRO for any tiered or combined tariff
+    has_tiered_or_combined = any(
+        v in ("tiered", "combined") for v in tier_tou_check.values()
+    )
+    if has_tiered_or_combined:
+        return _orig_pbdbp(
+            target_year=target_year,
+            load_col_key=load_col_key,
+            prototype_ids=prototype_ids,
+            tariff_base=tariff_base,
+            tariff_map=tariff_map,
+            prepassed_load=prepassed_load,
+            solar_pv_compensation=solar_pv_compensation,
+        )
+
+    # --- Vectorized path for flat / time-of-use tariffs ---
+    #
+    # prepassed_load has MultiIndex [bldg_id, time] and columns:
+    #   electricity: ['load_data', 'pv_generation', 'electricity_net']
+    #   gas:         ['load_data']
+    #
+    # For electricity with no solar (all RI buildings), _calculate_pv_load_columns
+    # renames electricity_net -> grid_cons, keeps load_data and pv_generation.
+    # avail_load_cols = ['grid_cons', 'load_data']
+    # avail_pv_cols   = ['net_exports', 'self_cons', 'pv_generation']
+    #   but only pv_generation will be present (no net_exports/self_cons unless solar)
+
+    # 1. Prepare a flat (non-indexed) DataFrame with all buildings
+    all_loads = prepassed_load.reset_index()  # columns: bldg_id, time, load_data, ...
+
+    # 2. Apply pv sign correction (same logic as aggregate_load_worker)
+    if load_col_key == "total_fuel_gas":
+        all_loads["pv_generation"] = 0.0
+    if "pv_generation" in all_loads.columns:
+        all_loads["pv_generation"] = all_loads["pv_generation"].abs()
+    elif "net_exports" in all_loads.columns:
+        all_loads["net_exports"] = all_loads["net_exports"].abs()
+
+    # 3. Derive grid_cons etc. via _calculate_pv_load_columns (operates per-building)
+    #    For electricity_net present (no solar): electricity_net -> grid_cons
+    #    For buildings with pv_generation: grid_cons = load_data - pv_generation
+    #    We can do this vectorized since it's column arithmetic.
+    if "electricity_net" in all_loads.columns:
+        all_loads["grid_cons"] = all_loads["electricity_net"].clip(lower=0)
+        all_loads = all_loads.drop(columns=["electricity_net"])
+    if "pv_generation" in all_loads.columns and "grid_cons" not in all_loads.columns:
+        all_loads["grid_cons"] = all_loads["load_data"] - all_loads["pv_generation"]
+    if "pv_generation" in all_loads.columns and "grid_cons" in all_loads.columns:
+        # net_exports = max(0, pv_generation - load_data); self_cons = min(pv_gen, load_data)
+        all_loads["net_exports"] = (
+            all_loads["pv_generation"] - all_loads["load_data"]
+        ).clip(lower=0.0)
+        all_loads["self_cons"] = all_loads["pv_generation"].clip(upper=all_loads["load_data"])
+
+    avail_load_cols = [c for c in ["grid_cons", "load_data"] if c in all_loads.columns]
+    avail_pv_cols = [
+        c for c in ["net_exports", "self_cons", "pv_generation"] if c in all_loads.columns
+    ]
+
+    # 4. Add datetime indicators (same as _add_datetime_indicators)
+    all_loads["month"] = all_loads["time"].dt.month
+    all_loads["hour"] = all_loads["time"].dt.hour
+    all_loads["day_type"] = (all_loads["time"].dt.weekday < 5).map(
+        {True: "weekday", False: "weekend"}
+    )
+
+    # 5. Per tariff: merge period schedule, groupby, assemble result
+    energy_parts: list[pd.DataFrame] = []
+    solar_parts: list[pd.DataFrame] = []
+
+    # Build reverse map: tariff_key -> list of bldg_ids
+    tariff_to_bldgs: dict[str, list[int]] = {}
+    for bid in prototype_ids:
+        tk = tariff_map_dict[bid]
+        tariff_to_bldgs.setdefault(tk, []).append(bid)
+
+    for tariff_key, bldg_ids_for_tariff in tariff_to_bldgs.items():
+        td = tariff_dicts[tariff_key]
+
+        # Get the period schedule for this tariff
+        charge_period_map = tariff_funcs._charge_period_mapping(td)
+
+        # Extract tier info (flat/TOU: one tier per period)
+        energy_charge_usage_map = extract_energy_charge_map(td)
+
+        # Subset to buildings for this tariff
+        bldg_mask = all_loads["bldg_id"].isin(bldg_ids_for_tariff)
+        loads_sub = all_loads.loc[bldg_mask].copy()
+
+        # Merge period assignment
+        loads_sub = loads_sub.merge(
+            charge_period_map,
+            on=["month", "hour", "day_type"],
+            how="left",
+        )
+
+        # Merge tier info (flat/TOU path: merge on period only)
+        loads_sub = loads_sub.merge(
+            energy_charge_usage_map,
+            on=["period"],
+            how="left",
+        )
+
+        # Aggregate: sum by [bldg_id, month, period, tier]
+        agg_cols = avail_load_cols + avail_pv_cols
+        full_agg = loads_sub.groupby(
+            ["bldg_id", "month", "period", "tier"], as_index=False
+        )[agg_cols].sum()
+        full_agg["tariff"] = tariff_key
+
+        # Energy charge: drop PV columns (matches CAIRO's _energy_charge_aggregation behavior)
+        energy_agg = full_agg.drop(columns=avail_pv_cols, errors="ignore").copy()
+        energy_agg["charge_type"] = "energy_charge"
+        energy_parts.append(energy_agg)
+
+        # Solar aggregation (net_metering / None): PV columns kept, load cols dropped,
+        # filter to rows where pv_generation > 0 (matches _solar_compensation_aggregation)
+        solar_agg = full_agg.drop(columns=avail_load_cols, errors="ignore").copy()
+        solar_agg["charge_type"] = "solar_compensation"
+        if "pv_generation" in avail_pv_cols:
+            solar_agg = solar_agg.loc[solar_agg["pv_generation"] > 0.0]
+        elif "net_exports" in avail_pv_cols:
+            solar_agg = solar_agg.loc[solar_agg["net_exports"] > 0.0]
+        solar_parts.append(solar_agg)
+
+    # 6. Concatenate energy parts
+    all_energy = pd.concat(energy_parts, ignore_index=True)
+
+    # 7. Build demand charge rows (ur_dc_enable=0 for all RI tariffs → NaN rows, then filled to 0)
+    #    Matches CAIRO's _demand_charge_aggregation output: columns are month, period, tier,
+    #    grid_cons, charge_type — load_data added as NaN for concat compatibility.
+    demand_rows = []
+    for bid in prototype_ids:
+        tk = tariff_map_dict[bid]
+        for month in range(1, 13):
+            demand_rows.append({
+                "bldg_id": bid,
+                "month": month,
+                "period": np.nan,
+                "tier": np.nan,
+                "grid_cons": np.nan,
+                "charge_type": "demand_charge",
+                "tariff": tk,
+            })
+    demand_df = pd.DataFrame(demand_rows)
+    # Add any other load cols that are in all_energy but not yet in demand_df
+    for col in avail_load_cols:
+        if col not in demand_df.columns:
+            demand_df[col] = np.nan
+    # Do NOT add PV cols to demand_df — energy charge rows don't have them
+
+    # 8. Combine energy + demand, fillna(0.0) as CAIRO does
+    combined = pd.concat([all_energy, demand_df], ignore_index=True).fillna(0.0)
+
+    # 9. Set index to bldg_id
+    combined = combined.set_index("bldg_id")
+
+    # 10. Assemble agg_solar
+    all_solar = pd.concat(solar_parts, ignore_index=True) if solar_parts else pd.DataFrame(
+        columns=["bldg_id", "month", "period", "tier"] + avail_pv_cols + ["charge_type", "tariff"]
+    )
+    # Add any missing pv columns to solar df
+    for col in ["net_exports", "self_cons", "pv_generation"]:
+        if col not in all_solar.columns:
+            all_solar[col] = np.nan
+    # Set index
+    all_solar = all_solar.set_index("bldg_id")
+
+    return combined, all_solar
+
+
+# ---------------------------------------------------------------------------
+# Apply monkey-patches
+# ---------------------------------------------------------------------------
+import cairo.rates_tool.loads as _cairo_loads
+
+# Save the original BEFORE replacing, so fallback calls inside
+# _vectorized_process_building_demand_by_period don't recurse into the patch.
+_orig_process_building_demand_by_period = _cairo_loads.process_building_demand_by_period
+
+_cairo_loads.process_building_demand_by_period = _vectorized_process_building_demand_by_period
