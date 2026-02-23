@@ -106,7 +106,7 @@ warm-up; Phase 2–4 benchmarks run separately and show cold values.
 | `_return_loads_combined` | — | 26.8s | 72.0s* | 74.9s* | 80.1s* |
 | `phase2_marginal_costs_rr` | 3.5s | 3.5s | 3.6s | 3.6s | 3.6s |
 | `bs.simulate` | 104.8s | 75.4s | 78.2s | 66.9s | ~72s |
-| **Total** | **150.2s** | **~106s** | **~154s*** | **~146s*** | **~157s*** |
+| **Total** | **150.2s** | **~106s** | **~154s*** | **~146s*** | **~156s*** |
 
 \* Cold filesystem cache. Warm-cache estimate for Phase 3 total: **~97s**.
 Warm-cache estimate for Phase 4 total (using Phase 1 warm `_return_loads_combined` ≈ 27s): **~103s**.
@@ -116,7 +116,7 @@ Warm-cache estimate for Phase 4 total (using Phase 1 warm `_return_loads_combine
 | Phase 1 | **1.41×** faster |
 | Phase 2 | ~1.4× faster |
 | Phase 3 | **~1.55×** faster |
-| Phase 4 | **~1.46×** faster (gas correctness fix; gas billing ~23% faster) |
+| Phase 4 | **~1.46×** faster (gas correctness fix; gas billing ~23% faster; Phase 4 slightly below Phase 3 because cold-cache `_return_loads_combined` variance dominates and gas bills are now correct, not the previous wrong-but-faster result) |
 
 `bs.simulate` breakdown — Phase 3 vs Phase 4 (from diagnostic instrumentation):
 
@@ -169,7 +169,7 @@ Phase 4 also fixes a correctness bug present in all prior phases:
 CAIRO's `aggregate_load_worker` always applies `_adjust_gas_loads` (kWh→therms ×
 0.0341214116) even on pre-loaded therms data. With `_return_loads_combined`
 converting kWh→therms first, and CAIRO converting again, gas bills were **~29×
-smaller than the correct value**. The vectorized path bypasses `_adjust_gas_loads`
+smaller than the correct value** (1 / 0.0341214116 ≈ 29.3×). The vectorized path bypasses `_adjust_gas_loads`
 entirely, using the already-converted therms values directly.
 
 **Impact:** All downstream gas bill values (annual totals, BAT metrics,
@@ -180,8 +180,10 @@ Previous runs (Phases 1–3) produced gas bills approximately 29× too small.
 
 ## Correctness verification
 
-- All 21 output CSVs compared against Phase 1 reference after each phase using
-  max absolute diff; all phases match to < 0.001%
+- All 21 electricity output CSVs compared against Phase 1 reference after each phase
+  using max absolute diff; Phases 1–3 match to < 0.001%. Phase 4 gas outputs differ
+  intentionally (correctness fix — previous runs had gas bills ~29× too small); gas
+  unit tests verify the corrected values.
 - 6 unit tests in `tests/test_patches.py`:
   - `test_combined_reader_matches_separate_reads` — Phase 1
   - `test_vectorized_aggregation_matches_cairo` — Phase 2
@@ -196,12 +198,12 @@ Previous runs (Phases 1–3) produced gas bills approximately 29× too small.
 
 The two largest remaining costs are both constrained by CAIRO internals:
 
-**Gas tariff aggregation + billing (~26s)**
-CAIRO's `aggregate_load_worker` always applies `_adjust_gas_loads` (kWh→therms)
-even on pre-loaded therms data. The vectorized path cannot replicate this
-double-conversion without breaking outputs, so gas stays on the original
-1,910-task Dask loop. Fixing this would require a change inside CAIRO itself
-(e.g., a flag to skip the conversion when data is pre-loaded as therms).
+**Gas tariff aggregation + billing (~20s after Phase 4)**
+Phase 4 vectorized the gas path, removing the 1,910-task Dask loop. The
+remaining ~20s is dominated by the 1,910 × 8,760 hour merge in
+`_vectorized_process_building_demand_by_period` (19.7s) — the same merge used
+for electricity. Eliminating this would require exposing a pre-aggregated load
+API inside CAIRO or restructuring the period schedule merge.
 
 **Electricity `_return_preaggregated_load` (~30s)**
 This function handles tariff aggregation plus precalc rate calibration. The
