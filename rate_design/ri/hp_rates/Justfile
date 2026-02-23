@@ -360,9 +360,12 @@ run-all-parallel-tracks:
     export RDP_NUM_WORKERS="$WORKERS"
     echo ">> run-all-parallel-tracks: ${WORKERS} workers/track on $(nproc) total vCPUs" >&2
 
-    # Wave 1: run-1 (delivery) and run-2 (supply) are independent precalc runs
-    just run-1 & PID1=$!
-    just run-2 & PID2=$!
+    # Pre-Wave 1: create shared flat tariff files (run-1's PRE step, needed by run-2)
+    just create-flat-tariff
+
+    # Wave 1: run-1 (delivery) and run-2 (supply) scenario steps, now truly concurrent
+    just run-scenario 1 & PID1=$!
+    just run-scenario 2 & PID2=$!
     wait $PID1 || { echo "ERROR: run-1 failed" >&2; exit 1; }
     wait $PID2 || { echo "ERROR: run-2 failed" >&2; exit 1; }
 
@@ -381,7 +384,7 @@ run-all-parallel-tracks:
     wait $PID5 || { echo "ERROR: run-5 failed" >&2; exit 1; }
     wait $PID6 || { echo "ERROR: run-6 failed" >&2; exit 1; }
 
-    # Wave 4
+    # Wave 4: run-7 (default hp_seasonal calibrated, delivery) and run-8 (default hp_seasonal calibrated, supply)
     just run-7 & PID7=$!
     just run-8 & PID8=$!
     wait $PID7 || { echo "ERROR: run-7 failed" >&2; exit 1; }
@@ -393,7 +396,7 @@ run-all-parallel-tracks:
     wait $PID9 || { echo "ERROR: run-9 failed" >&2; exit 1; }
     wait $PID10 || { echo "ERROR: run-10 failed" >&2; exit 1; }
 
-    # Wave 6
+    # Wave 6: run-11 (default hp_seasonalTOU calibrated, delivery) and run-12 (default hp_seasonalTOU calibrated, supply)
     just run-11 & PID11=$!
     just run-12 & PID12=$!
     wait $PID11 || { echo "ERROR: run-11 failed" >&2; exit 1; }
