@@ -6,6 +6,7 @@ import argparse
 import logging
 import random
 import sys
+import time
 
 import dask
 from dataclasses import dataclass
@@ -608,28 +609,30 @@ def run(settings: ScenarioSettings) -> None:
         settings.run_name,
     )
 
-    # Use process scheduler so CAIRO's dask.delayed stages run on multiple cores.
-    # See context/tools/cairo_performance_analysis.md and RDP-129.
     dask.config.set(scheduler="processes", num_workers=settings.process_workers)
 
-    # ------------------------------------------------------------------
-    # Phase 1: Retrieve prototype IDs, tariffs, customer metadata, loads
-    # ------------------------------------------------------------------
-
+    # Phase 1 ---------------------------------------------------------------
+    t0 = time.perf_counter()
     prototype_ids = _load_prototype_ids_for_run(
         settings.path_utility_assignment,
         settings.utility,
         settings.sample_size,
     )
+    log.info("TIMING _load_prototype_ids_for_run: %.1fs", time.perf_counter() - t0)
 
+    t0 = time.perf_counter()
     tariffs_params, tariff_map_df = _initialize_tariffs(
         tariff_map=settings.path_tariff_maps_electric,
         building_stock_sample=prototype_ids,
         tariff_paths=settings.path_tariffs_electric,
     )
+    log.info("TIMING _initialize_tariffs: %.1fs", time.perf_counter() - t0)
 
+    t0 = time.perf_counter()
     precalc_mapping = _build_precalc_period_mapping(settings.path_tariffs_electric)
+    log.info("TIMING _build_precalc_period_mapping: %.1fs", time.perf_counter() - t0)
 
+    t0 = time.perf_counter()
     customer_count = get_residential_customer_count_from_utility_stats(
         settings.path_electric_utility_stats,
         settings.utility,
@@ -646,12 +649,16 @@ def run(settings: ScenarioSettings) -> None:
             "in.vintage_acs",
         ],
     )
+    log.info("TIMING return_buildingstock: %.1fs", time.perf_counter() - t0)
 
+    t0 = time.perf_counter()
     bldg_id_to_load_filepath = build_bldg_id_to_load_filepath(
         path_resstock_loads=settings.path_resstock_loads,
         building_ids=prototype_ids,
     )
+    log.info("TIMING build_bldg_id_to_load_filepath: %.1fs", time.perf_counter() - t0)
 
+    t0 = time.perf_counter()
     raw_load_elec = _return_load(
         load_type="electricity",
         target_year=settings.year_run,
@@ -659,6 +666,9 @@ def run(settings: ScenarioSettings) -> None:
         load_filepath_key=bldg_id_to_load_filepath,
         force_tz="EST",
     )
+    log.info("TIMING _return_load(electricity): %.1fs", time.perf_counter() - t0)
+
+    t0 = time.perf_counter()
     raw_load_gas = _return_load(
         load_type="gas",
         target_year=settings.year_run,
@@ -666,32 +676,27 @@ def run(settings: ScenarioSettings) -> None:
         load_filepath_key=bldg_id_to_load_filepath,
         force_tz="EST",
     )
+    log.info("TIMING _return_load(gas): %.1fs", time.perf_counter() - t0)
 
-    # ------------------------------------------------------------------
-    # Phase 2: Load marginal costs and calculate revenuerequirements
-    # ------------------------------------------------------------------
-
+    # Phase 2 ---------------------------------------------------------------
+    t0 = time.perf_counter()
     bulk_marginal_costs = _load_cambium_marginal_costs(
         settings.path_cambium_marginal_costs,
         settings.year_run,
     )
-
     distribution_marginal_costs = load_distribution_marginal_costs(
         settings.path_td_marginal_costs,
     )
-
     log.info(
         ".... Loaded distribution marginal costs rows=%s",
         len(distribution_marginal_costs),
     )
-
     sell_rate = _return_export_compensation_rate(
         year_run=settings.year_run,
         solar_pv_compensation=settings.solar_pv_compensation,
         solar_pv_export_import_ratio=1.0,
         tariff_dict=tariffs_params,
     )
-
     rr_setting = settings.utility_delivery_revenue_requirement
     if isinstance(rr_setting, dict):
         rr_total = sum(rr_setting.values())
@@ -701,7 +706,6 @@ def run(settings: ScenarioSettings) -> None:
     else:
         rr_total = rr_setting
         rr_ratios = None
-
     (
         revenue_requirement_raw,
         marginal_system_prices,
@@ -718,18 +722,16 @@ def run(settings: ScenarioSettings) -> None:
         low_income_strategy=None,
         delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
     )
-
     if rr_ratios is not None:
         revenue_requirement = {
             k: v * revenue_requirement_raw for k, v in rr_ratios.items()
         }
     else:
         revenue_requirement = revenue_requirement_raw
+    log.info("TIMING phase2_marginal_costs_rr: %.1fs", time.perf_counter() - t0)
 
-    # ------------------------------------------------------------------
-    # Phase 3: Run CAIRO simulation
-    # ------------------------------------------------------------------
-
+    # Phase 3 ---------------------------------------------------------------
+    t0 = time.perf_counter()
     bs = MeetRevenueSufficiencySystemWide(
         run_type=settings.run_type,
         year_run=settings.year_run,
@@ -739,7 +741,6 @@ def run(settings: ScenarioSettings) -> None:
         run_name=settings.run_name,
         output_dir=settings.path_results,
     )
-
     bs.simulate(
         revenue_requirement=revenue_requirement,
         tariffs_params=tariffs_params,
@@ -759,6 +760,7 @@ def run(settings: ScenarioSettings) -> None:
         low_income_participation_target=None,
         low_income_bill_assistance_program=None,
     )
+    log.info("TIMING bs.simulate: %.1fs", time.perf_counter() - t0)
 
     save_file_loc = getattr(bs, "save_file_loc", None)
     if save_file_loc is not None:
@@ -770,6 +772,11 @@ def run(settings: ScenarioSettings) -> None:
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        datefmt="%H:%M:%S",
+    )
     args = _parse_args()
     settings = _resolve_settings(args)
     run(settings)
