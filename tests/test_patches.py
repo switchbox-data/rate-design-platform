@@ -279,3 +279,57 @@ def test_gas_path_produces_reasonable_bills(sample_filepaths):
         f"January gas load {jan_load:.2f} therms is suspiciously small -- "
         f"double-conversion likely (expected 30-150 therms)"
     )
+
+
+def test_vectorized_gas_billing_matches_correct_bills(sample_filepaths):
+    """Vectorized gas billing produces reasonable monthly bills.
+
+    Verifies _vectorized_calculate_gas_bills produces annual bills in the
+    expected range for RI residential buildings after the double-conversion fix.
+    """
+    import dask
+    from rate_design.ri.hp_rates.patches import (
+        _return_loads_combined,
+        _vectorized_process_building_demand_by_period,
+        _vectorized_calculate_gas_bills,
+    )
+    from cairo.rates_tool.tariffs import get_default_tariff_structures
+
+    bldg_ids = list(sample_filepaths.keys())[:3]
+
+    _, gas = _return_loads_combined(
+        target_year=2025, building_ids=bldg_ids,
+        load_filepath_key=sample_filepaths, force_tz="EST",
+    )
+
+    gas_tariff_dir = Path(__file__).resolve().parent.parent / "rate_design/ri/hp_rates/config/tariffs/gas"
+    gas_tariff_files = [f for f in gas_tariff_dir.glob("*.json") if "null" not in f.name]
+    if not gas_tariff_files:
+        pytest.skip("No non-null gas tariff files found")
+
+    tariff_file = gas_tariff_files[0]
+    tariff_key = tariff_file.stem
+    tariff_base_raw = {tariff_key: __import__("json").loads(tariff_file.read_text())}
+    tariff_base = get_default_tariff_structures(tariff_base_raw, {tariff_key: tariff_file})
+    tariff_map = pd.DataFrame({"bldg_id": bldg_ids, "tariff_key": tariff_key})
+
+    dask.config.set(scheduler="synchronous")
+    agg_gas, _ = _vectorized_process_building_demand_by_period(
+        target_year=2025, load_col_key="total_fuel_gas",
+        prototype_ids=bldg_ids, tariff_base=tariff_base,
+        tariff_map=tariff_map, prepassed_load=gas, solar_pv_compensation=None,
+    )
+
+    new_bills = _vectorized_calculate_gas_bills(
+        aggregated_gas_load=agg_gas,
+        prototype_ids=bldg_ids,
+        gas_tariff_base=tariff_base,
+        gas_tariff_map=tariff_map,
+    )
+
+    assert set(new_bills.index) == set(bldg_ids)
+    assert "Annual" in new_bills.columns
+    annual_bills = new_bills["Annual"]
+    # RI residential annual gas bill: ~$100-$3000
+    assert (annual_bills > 50).all(), f"Bills too low: {annual_bills.to_dict()}"
+    assert (annual_bills < 10000).all(), f"Bills too high: {annual_bills.to_dict()}"

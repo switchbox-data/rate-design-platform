@@ -552,6 +552,125 @@ def _vectorized_run_system_revenues(
 
 
 # ---------------------------------------------------------------------------
+# Phase 4b: vectorized gas bill calculation
+# ---------------------------------------------------------------------------
+
+def _vectorized_calculate_gas_bills(
+    aggregated_gas_load: pd.DataFrame,
+    prototype_ids: list,
+    gas_tariff_base: dict,
+    gas_tariff_map,
+) -> pd.DataFrame:
+    """
+    Vectorized gas bill calculation — replaces the per-building Dask loop in
+    cairo.rates_tool.system_revenues.run_system_revenues for gas.
+
+    Follows the same pattern as _vectorized_run_system_revenues but operates on
+    gas aggregated load (therms). Fixed charge is added per building per month;
+    result is pivoted to wide [Jan...Dec, Annual] format with index=bldg_id.
+
+    Parameters
+    ----------
+    aggregated_gas_load : DataFrame
+        Output of _vectorized_process_building_demand_by_period for gas.
+        Index=bldg_id, columns=[month, period, tier, load_data, tariff, charge_type].
+        energy_charge rows carry consumption in therms.
+    prototype_ids : list
+        Ordered list of bldg_ids.
+    gas_tariff_base : dict
+        tariff_key -> PySAM-format tariff dict (from get_default_tariff_structures).
+        Keys used: ur_ec_tou_mat, ur_monthly_fixed_charge, ur_monthly_min_charge.
+    gas_tariff_map : DataFrame
+        Must have columns [bldg_id, tariff_key].
+
+    Returns
+    -------
+    DataFrame
+        Index=bldg_id, columns=[Jan, Feb, ..., Dec, Annual].  Same structure as
+        CAIRO's aggregate_system_revenues returns for customer_gas_bills_monthly.
+    """
+    import cairo.rates_tool.lookups as lookups
+    from cairo.rates_tool import tariffs as tariff_funcs
+
+    # Resolve tariff_map_dict: {bldg_id: tariff_key}
+    if isinstance(gas_tariff_map, pd.DataFrame):
+        tariff_map_df = gas_tariff_map
+    else:
+        raise TypeError(f"gas_tariff_map must be a DataFrame, got {type(gas_tariff_map)}")
+
+    tariff_map_dict, tariff_dicts = tariff_funcs._load_base_tariffs(
+        tariff_base=gas_tariff_base, tariff_map=tariff_map_df, prototype_ids=prototype_ids
+    )
+
+    # Build a rate lookup DataFrame from ur_ec_tou_mat across all tariffs.
+    # ur_ec_tou_mat rows: (period, tier, max_usage, max_usage_units, rate, adjustments, ...)
+    # Effective rate = rate + adjustments (matching CAIRO's calculate_energy_charges).
+    rate_rows = []
+    for tariff_key, td in tariff_dicts.items():
+        tou_mat = td.get("ur_ec_tou_mat", [])
+        for row in tou_mat:
+            rate_rows.append({
+                "tariff": tariff_key,
+                "period": float(row[0]),
+                "tier": float(row[1]),
+                "rate": float(row[4]) + float(row[5]),  # rate + adjustments
+            })
+    rate_lookup = pd.DataFrame(rate_rows)
+
+    # Filter to energy_charge rows; reset_index to bring bldg_id into columns
+    energy_rows = aggregated_gas_load[
+        aggregated_gas_load["charge_type"] == "energy_charge"
+    ].copy()
+    energy_rows = energy_rows.reset_index()  # bldg_id now a column
+
+    # Merge rates on [tariff, period, tier]
+    energy_rows = energy_rows.merge(rate_lookup, on=["tariff", "period", "tier"], how="left")
+
+    # Gas consumption is in load_data (therms); no grid_cons column
+    energy_rows["costs"] = energy_rows["load_data"] * energy_rows["rate"]
+
+    # Sum energy costs by (bldg_id, month)
+    monthly_energy = (
+        energy_rows.groupby(["bldg_id", "month"], as_index=False)["costs"].sum()
+    )
+
+    # Pivot to wide format: rows=bldg_id, columns=month (1..12)
+    monthly_wide = monthly_energy.pivot(index="bldg_id", columns="month", values="costs")
+    # Ensure all 12 months present
+    for m in range(1, 13):
+        if m not in monthly_wide.columns:
+            monthly_wide[m] = 0.0
+    monthly_wide = monthly_wide[[m for m in range(1, 13)]]
+
+    # Vectorized fixed charge addition + min_charge per building
+    for bldg_id in prototype_ids:
+        tk = tariff_map_dict[bldg_id]
+        td = tariff_dicts[tk]
+        fixed = td.get("ur_monthly_fixed_charge", 0.0) or 0.0
+        min_ch = td.get("ur_monthly_min_charge", 0.0) or 0.0
+
+        if bldg_id not in monthly_wide.index:
+            monthly_wide.loc[bldg_id, :] = 0.0
+
+        monthly_wide.loc[bldg_id, :] += fixed
+
+        if min_ch > 0.0:
+            monthly_wide.loc[bldg_id, :] = monthly_wide.loc[bldg_id, :].clip(lower=min_ch)
+
+    # Reorder to match prototype_ids order
+    monthly_wide = monthly_wide.reindex(prototype_ids)
+
+    # Rename columns 1..12 to month abbreviations and add Annual
+    monthly_wide.columns = lookups.months
+    monthly_wide["Annual"] = monthly_wide.sum(axis=1)
+
+    # Clear the index name (CAIRO's output has index.names=[None])
+    monthly_wide.index.name = None
+
+    return monthly_wide
+
+
+# ---------------------------------------------------------------------------
 # Apply monkey-patches
 # ---------------------------------------------------------------------------
 import cairo.rates_tool.loads as _cairo_loads
@@ -569,3 +688,93 @@ import cairo.rates_tool.system_revenues as _cairo_sysrev
 _orig_run_system_revenues = _cairo_sysrev.run_system_revenues
 
 _cairo_sysrev.run_system_revenues = _vectorized_run_system_revenues
+
+# ---------------------------------------------------------------------------
+# Phase 4b: monkey-patch _calculate_gas_bills on MeetRevenueSufficiencySystemWide
+# ---------------------------------------------------------------------------
+import logging as _logging
+import cairo.rates_tool.systemsimulator as _cairo_sim
+import cairo.rates_tool.lookups as _cairo_sim_lookups
+
+# Import _initialize_tariffs from systemsimulator (module-level function)
+_cairo_initialize_tariffs = _cairo_sim._initialize_tariffs
+
+_orig_calculate_gas_bills = _cairo_sim.MeetRevenueSufficiencySystemWide._calculate_gas_bills
+
+
+def _patched_calculate_gas_bills(
+    self,
+    prototype_ids,
+    raw_load,
+    target_year,
+    customer_metadata,
+    gas_tariff_map,
+    gas_tariff_str_loc=None,
+    gas_tariff_year=None,
+):
+    """Vectorized replacement for _calculate_gas_bills.
+
+    Aggregates gas load using the vectorized path (bypasses aggregate_load_worker
+    and CAIRO's _adjust_gas_loads double-conversion), then computes bills using
+    _vectorized_calculate_gas_bills.
+
+    Falls back to the original CAIRO implementation on any exception.
+    """
+    try:
+        # Use _initialize_tariffs (same as the original) to get PySAM tariff dicts
+        # and a normalized tariff_map DataFrame.
+        # gas_tariff_map: Path to CSV (or DataFrame)
+        # gas_tariff_str_loc: dict[str, Path] (tariff_key -> JSON path)
+        params_grid_gas, tariff_map_df = _cairo_initialize_tariffs(
+            tariff_map=gas_tariff_map,
+            building_stock_sample=prototype_ids,
+            tariff_paths=gas_tariff_str_loc,
+        )
+
+        # raw_load is the output of _return_loads_combined gas side:
+        # MultiIndex [bldg_id, time], column ['load_data'] in therms.
+        # _vectorized_process_building_demand_by_period handles gas correctly
+        # (bypasses CAIRO's double-conversion via aggregate_load_worker).
+        agg_gas, _ = _vectorized_process_building_demand_by_period(
+            target_year=target_year,
+            load_col_key="total_fuel_gas",
+            prototype_ids=prototype_ids,
+            tariff_base=params_grid_gas,
+            tariff_map=tariff_map_df,
+            prepassed_load=raw_load,
+            solar_pv_compensation=None,
+        )
+
+        gas_bills = _vectorized_calculate_gas_bills(
+            aggregated_gas_load=agg_gas,
+            prototype_ids=prototype_ids,
+            gas_tariff_base=params_grid_gas,
+            gas_tariff_map=tariff_map_df,
+        )
+
+        # Postprocessing expects a 'weight' column (same as aggregate_system_revenues adds
+        # via customer_break_down_revenues.join(customer_metadata["weight"])).
+        gas_bills = gas_bills.join(
+            customer_metadata.set_index("bldg_id")["weight"],
+            how="left",
+        )
+
+        return gas_bills
+
+    except Exception:
+        _logging.getLogger("rates_analysis").warning(
+            "Vectorized gas billing failed, falling back to CAIRO", exc_info=True
+        )
+        return _orig_calculate_gas_bills(
+            self,
+            prototype_ids=prototype_ids,
+            raw_load=raw_load,
+            target_year=target_year,
+            customer_metadata=customer_metadata,
+            gas_tariff_map=gas_tariff_map,
+            gas_tariff_str_loc=gas_tariff_str_loc,
+            gas_tariff_year=gas_tariff_year or _cairo_sim_lookups.gas_tariff_year,
+        )
+
+
+_cairo_sim.MeetRevenueSufficiencySystemWide._calculate_gas_bills = _patched_calculate_gas_bills
