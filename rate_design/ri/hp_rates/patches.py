@@ -12,7 +12,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 import pyarrow.dataset as pad
+import pyarrow.parquet as pq
 
 # Columns to read from each parquet file in one pass
 _ELEC_RAW_COLS = [
@@ -56,8 +58,13 @@ def _return_loads_combined(
     present_ids = [bid for bid in building_ids if bid in load_filepath_key]
     paths = [str(load_filepath_key[bid]) for bid in present_ids]
 
-    # 2. Batch read: all files, only the columns we need, in one pass
-    ds = pad.dataset(paths, format="parquet")
+    # 2. Batch read: all files, only the columns we need, in one pass.
+    # Unify schemas across files so that files with minor schema differences
+    # (e.g. extra metadata or reordered fields) are read safely.
+    # PyArrow 23 does not support unify_schemas= on dataset(); we achieve the
+    # same effect by passing an explicit unified schema.
+    unified_schema = pa.unify_schemas([pq.read_schema(p) for p in paths])
+    ds = pad.dataset(paths, format="parquet", schema=unified_schema)
     table = ds.to_table(columns=_ALL_COLS)
     df = table.to_pandas()
 
@@ -84,6 +91,13 @@ def _return_loads_combined(
         # This matches CAIRO __timeshift__: pd.concat([data.iloc[N:], data.iloc[:N]])
         # which equals np.roll(data, -N, axis=0).
         n_rows = len(df)
+        assert n_rows % 8760 == 0, (
+            f"Expected all buildings to have 8760 rows, but total row count {n_rows} "
+            f"is not divisible by 8760. Check for leap-year or sub-hourly parquet files."
+        )
+        assert n_rows // 8760 == len(present_ids), (
+            f"Row count implies {n_rows // 8760} buildings but {len(present_ids)} IDs were requested."
+        )
         n_bldgs = n_rows // 8760
         arr = df[data_col_names].values.reshape(n_bldgs, 8760, len(data_col_names))
         arr = np.roll(arr, -offset_hours, axis=1)
@@ -93,6 +107,11 @@ def _return_loads_combined(
     #    Since all source timestamps are in source_year (no leap-year complication between
     #    non-leap source and non-leap target), adding (Jan 1 target - Jan 1 source) gives
     #    the same result as ts.replace(year=target_year) for every hour.
+    # NOTE: CAIRO's __timeshift__ skips year replacement when weekday_diff == 0
+    # (i.e., when source and target year start on the same weekday). We always
+    # replace the year here because the Timedelta offset already handles the
+    # no-shift case (offset_hours=0 leaves data unchanged). For the current RI
+    # runs (2018→2025, offset=48h), this divergence is not triggered.
     year_offset = pd.Timestamp(f"{target_year}-01-01") - pd.Timestamp(f"{source_year}-01-01")
     df["time"] = df["timestamp"] + year_offset
     df = df.drop(columns=["timestamp"])

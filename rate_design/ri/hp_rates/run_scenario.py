@@ -17,7 +17,6 @@ import pandas as pd
 import polars as pl
 import yaml
 from cairo.rates_tool.loads import (
-    _return_load,
     return_buildingstock,
 )
 from cairo.rates_tool.systemsimulator import (
