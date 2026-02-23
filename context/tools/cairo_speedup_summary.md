@@ -185,3 +185,169 @@ Further meaningful speedup beyond ~1.5× would most likely require:
 | `context/tools/cairo_speedup_log.md` | Benchmark log updated after each phase |
 | `docs/plans/2026-02-23-cairo-speedup-design.md` | Design doc |
 | `docs/plans/2026-02-23-cairo-speedup-plan.md` | Implementation plan |
+
+---
+
+## Gas path internals (discovered 2026-02-23)
+
+`_calculate_gas_bills` signature:
+```python
+def _calculate_gas_bills(
+    self,
+    prototype_ids,
+    raw_load,
+    target_year,
+    customer_metadata,
+    gas_tariff_map,
+    gas_tariff_str_loc=None,
+    gas_tariff_year=lookups.gas_tariff_year,
+):
+```
+
+Called from: `MeetRevenueSufficiencySystemWide.simulate()`, lines 245-257, inside
+the guard `if customer_gas_load is not None`. Arguments passed:
+
+```python
+self.gas_customer_bills_monthly = self._calculate_gas_bills(
+    prototype_ids=prototype_ids,
+    raw_load=customer_gas_load,
+    target_year=self.year_run,
+    customer_metadata=customer_metadata,
+    gas_tariff_map=gas_tariff_map,
+    gas_tariff_str_loc=gas_tariff_str_loc,
+)
+```
+
+Class: `MeetRevenueSufficiencySystemWide` (no base class beyond `object`; it is
+the only class in this hierarchy). MRO:
+`[MeetRevenueSufficiencySystemWide, object]`.
+Gas-related methods on the class: `['_calculate_gas_bills']` (the only one).
+
+**Inputs:**
+
+`raw_load` is the `customer_gas_load` DataFrame passed into `simulate()`.
+Inside `_calculate_gas_bills`, there is a branch check:
+
+```python
+if "load_data" in raw_load.columns:
+    raw_load_gas = raw_load          # already processed (load_data column present)
+else:
+    raw_load_gas = load_funcs._return_load(load_type="gas", target_year=target_year)
+```
+
+When the RI patches are active, the caller passes a pre-processed DataFrame (from
+`_return_loads_combined`) that **already has a `load_data` column and already
+contains therms values**. The function detects this and skips `_return_load`.
+
+However, it then passes `raw_load_gas` straight into `_return_preaggregated_load`
+(the module-level helper, not a method), which unconditionally calls
+`load_funcs.process_building_demand_by_period`. That function calls
+`aggregate_load_worker` per building (Dask), which calls `_load_worker`, which
+calls `_adjust_gas_loads` — applying the kWh→therms factor `0.0341214116`
+**a second time** on data that is already in therms. This is the double-conversion
+bug noted in the patches.
+
+**Returns:**
+
+`customer_gas_bills_monthly` — a wide DataFrame returned by
+`revenue_funcs.aggregate_system_revenues`. Rows are indexed by `bldg_id`;
+columns are month names (`Jan`, `Feb`, …, `Dec`) plus `Annual`. This is the same
+shape as the electricity `customer_bills_monthly` produced by the same
+`aggregate_system_revenues` call in `simulate()`.
+
+**Gas tariff fields used:**
+
+The gas JSON tariffs use the standard OPENEI/RateAcuity rate structure fields:
+- `energyratestructure`: list-of-list of dicts with `"rate"` ($/kWh in the JSON;
+  CAIRO interprets in kWh units even for gas since the data arrives as kWh before
+  `_adjust_gas_loads` converts to therms)
+- `energyweekdayschedule` / `energyweekendschedule`: 12×24 period index matrices
+- `fixedchargefirstmeter`: fixed monthly charge in $/month
+- `fixedchargeunits`: `"$/month"`
+- `mincharge` / `minchargeunits`: minimum bill (0.0 for all RI tariffs)
+
+There is **no** `ur_monthly_fixed_charge` field (that is NREL URdb naming). The
+RateAcuity JSONs use `fixedchargefirstmeter`. CAIRO maps between these internally
+via its tariff parsing layer.
+
+**Does `_calculate_gas_bills` call `process_building_demand_by_period` internally?**
+
+**Yes — indirectly.** The call chain is:
+
+```
+_calculate_gas_bills
+  └─ _return_preaggregated_load          (module-level helper)
+       └─ load_funcs.process_building_demand_by_period
+            └─ aggregate_load_worker     (per-building Dask tasks × N buildings)
+                 └─ _load_worker
+                      └─ _adjust_gas_loads   ← kWh→therms × 0.0341214116
+```
+
+`_calculate_gas_bills` does **not** call `process_building_demand_by_period`
+directly; it calls `_return_preaggregated_load` (line 469), which calls
+`process_building_demand_by_period` (line 714 of systemsimulator.py). There is
+no way to bypass `_adjust_gas_loads` without monkey-patching either
+`_return_preaggregated_load` or `_calculate_gas_bills` itself.
+
+**Gas tariff JSON structure (`rate_design/ri/hp_rates/config/tariffs/gas/`):**
+
+Three files: `rie_heating.json`, `rie_nonheating.json`, `null_gas_tariff.json`.
+
+Key fields (shared structure):
+
+```json
+{
+  "items": [{
+    "label": "rie_heating",
+    "name": "12-RESIDENTIAL HEATING---",
+    "utility": "Rhode Island Energy (formally National Grid)",
+    "sector": "Residential",
+    "servicetype": "Bundled",
+    "fixedchargefirstmeter": 14.79,
+    "fixedchargeunits": "$/month",
+    "mincharge": 0.0,
+    "minchargeunits": "$/month",
+    "demandunits": "kW",
+    "energyratestructure": [
+      [{"rate": 0.084092, "unit": "kWh"}],
+      [{"rate": 0.076706, "unit": "kWh"}],
+      [{"rate": 0.081833, "unit": "kWh"}]
+    ],
+    "energyweekdayschedule": [...],  // 12×24 period index, mostly 2 (flat), Oct-Nov = 0, Nov-Dec = 1
+    "energyweekendschedule": [...]   // same structure
+  }]
+}
+```
+
+`rie_nonheating.json` has the same structure with rates `[0.049116, 0.061823,
+0.059563]` and `fixedchargefirstmeter: 14.79`.
+
+`null_gas_tariff.json` has all-zero rates and `fixedchargefirstmeter: 0.0` (used
+for buildings without a gas connection).
+
+**Notes for vectorization (Task 2.4 — `_vectorized_calculate_gas_bills`):**
+
+1. The double-conversion bug must be fixed before a vectorized gas billing path
+   will produce correct results. The fix is to pass already-therms data in a way
+   that bypasses `_adjust_gas_loads` (Task 2.3).
+
+2. Gas tariffs use the same `energyratestructure` + schedule JSON format as
+   electricity, so the vectorized aggregation logic from Phase 2 can be reused
+   with `load_cols="total_fuel_gas"` and the gas tariff params.
+
+3. `_calculate_gas_bills` always runs with `run_type="default"` (no revenue
+   sufficiency optimization), so there is no precalc calibration step to handle —
+   simpler than the electricity path.
+
+4. `aggregate_system_revenues` is called with `solar_pv_compensation=None` and
+   `solar_compensation_df=None`, so no solar compensation branch is exercised on
+   the gas side. Phase 3's vectorized billing logic can be applied directly.
+
+5. The return value must match the wide DataFrame format (month columns Jan–Dec +
+   Annual, indexed by `bldg_id`) that `simulate()` assigns to
+   `self.gas_customer_bills_monthly`.
+
+6. The `gas_tariff_year` parameter (defaulting to `lookups.gas_tariff_year`) and
+   the price-escalation block (currently fully commented out) can be ignored for
+   vectorization — the commented-out escalation code is dead and the tariff year
+   does not affect the billing path.
