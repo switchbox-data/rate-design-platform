@@ -139,3 +139,50 @@ def test_vectorized_aggregation_matches_cairo(sample_filepaths):
             rtol=1e-4,
             check_names=False,
         )
+
+
+def test_vectorized_billing_matches_cairo(sample_filepaths):
+    """_vectorized_run_system_revenues returns same bills as CAIRO."""
+    from cairo.rates_tool import loads as _cairo_loads_orig
+    from cairo.rates_tool.tariffs import get_default_tariff_structures
+    from cairo.rates_tool.system_revenues import run_system_revenues
+    from rate_design.ri.hp_rates.patches import _vectorized_run_system_revenues
+
+    tariff_path = Path(__file__).resolve().parent.parent / "rate_design/ri/hp_rates/config/tariffs/electric/rie_flat.json"
+    if not tariff_path.exists():
+        pytest.skip("rie_flat.json not found")
+
+    # Load tariff in PySAM format (same as the real run uses via _initialize_tariffs)
+    tariff_base = get_default_tariff_structures(["rie_flat"], {"rie_flat": tariff_path})
+    bldg_ids = list(sample_filepaths.keys())
+    tariff_map = pd.DataFrame({"bldg_id": bldg_ids, "tariff_key": "rie_flat"})
+
+    raw = _cairo_loads_orig._return_load(
+        load_type="electricity", target_year=2025, building_stock_sample=bldg_ids,
+        load_filepath_key=sample_filepaths, force_tz="EST",
+    )
+    # Use the original (pre-patch) process_building_demand_by_period for clean agg_load
+    from rate_design.ri.hp_rates.patches import _orig_process_building_demand_by_period
+    agg_load, agg_solar = _orig_process_building_demand_by_period(
+        target_year=2025, load_col_key="total_fuel_electricity",
+        prototype_ids=bldg_ids, tariff_base=tariff_base,
+        tariff_map=tariff_map, prepassed_load=raw, solar_pv_compensation=None,
+    )
+
+    ref_bills = run_system_revenues(
+        aggregated_load=agg_load, aggregated_solar=agg_solar,
+        solar_compensation_df=None, prototype_ids=bldg_ids,
+        tariff_config=tariff_base, tariff_strategy=tariff_map,
+    )
+    new_bills = _vectorized_run_system_revenues(
+        aggregated_load=agg_load, aggregated_solar=agg_solar,
+        solar_compensation_df=None, prototype_ids=bldg_ids,
+        tariff_config=tariff_base, tariff_strategy=tariff_map,
+    )
+
+    pd.testing.assert_frame_equal(
+        ref_bills.sort_index(),
+        new_bills.sort_index(),
+        check_exact=False,
+        rtol=1e-4,
+    )

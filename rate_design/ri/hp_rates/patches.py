@@ -396,6 +396,159 @@ def _vectorized_process_building_demand_by_period(
 
 
 # ---------------------------------------------------------------------------
+# Phase 3: vectorized bill calculation
+# ---------------------------------------------------------------------------
+
+def _vectorized_run_system_revenues(
+    aggregated_load: pd.DataFrame,
+    aggregated_solar,
+    solar_compensation_df,
+    solar_compensation_style=None,
+    process_agg_load: bool = True,
+    prototype_ids=None,
+    tariff_config=None,
+    tariff_strategy=None,
+):
+    """
+    Vectorized replacement for cairo.rates_tool.system_revenues.run_system_revenues.
+
+    Replaces the 1,910-task Dask loop (one dask.delayed per building) with a single
+    vectorized pandas pass that:
+      1. Joins energy charge rates onto aggregated_load
+      2. Sums costs by (bldg_id, month) in one groupby
+      3. Adds fixed charges ($/month) vectorized across all buildings
+      4. Applies min_charge per month if needed
+      5. Pivots to the wide month-column format CAIRO returns
+
+    Handles flat and TOU tariffs (all RI runs). Falls back to original CAIRO
+    implementation for demand charges or solar compensation.
+    """
+    import cairo.rates_tool.lookups as lookups
+    from cairo.rates_tool import tariffs as tariff_funcs
+    # Reference saved at module level before monkey-patch to avoid recursion.
+    _orig_rsr = _orig_run_system_revenues
+
+    tariff_map_dict, tariff_dicts = tariff_funcs._load_base_tariffs(
+        tariff_base=tariff_config, tariff_map=tariff_strategy, prototype_ids=prototype_ids
+    )
+
+    # Normalize solar_compensation_df the same way CAIRO does
+    if solar_compensation_df is None:
+        solar_compensation_df_norm = {k: None for k in set(tariff_map_dict.values())}
+    else:
+        solar_compensation_df_norm = solar_compensation_df
+
+    # Check for features requiring fallback
+    has_demand = any(td.get("ur_dc_enable", 0) == 1 for td in tariff_dicts.values())
+    has_solar = any(v is not None for v in solar_compensation_df_norm.values())
+
+    if has_demand or has_solar:
+        return _orig_rsr(
+            aggregated_load=aggregated_load,
+            aggregated_solar=aggregated_solar,
+            solar_compensation_df=solar_compensation_df,
+            solar_compensation_style=solar_compensation_style,
+            process_agg_load=process_agg_load,
+            prototype_ids=prototype_ids,
+            tariff_config=tariff_config,
+            tariff_strategy=tariff_strategy,
+        )
+
+    # Build a rate lookup DataFrame from ur_ec_tou_mat across all tariffs.
+    # ur_ec_tou_mat rows are tuples: (period, tier, max_usage, max_usage_units, rate, adjustments[, sell_rate])
+    # Effective rate = rate + adjustments (same as calculate_energy_charges in CAIRO).
+    rate_rows = []
+    for tariff_key, td in tariff_dicts.items():
+        for row in td["ur_ec_tou_mat"]:
+            rate_rows.append({
+                "tariff": tariff_key,
+                "period": float(row[0]),
+                "tier": float(row[1]),
+                "rate": float(row[4]) + float(row[5]),  # rate + adjustments
+            })
+    rate_lookup = pd.DataFrame(rate_rows)
+
+    # Process agg_load the same way CAIRO does in run_system_revenues.
+    # When process_agg_load=True, CAIRO does:
+    #   agg_load_df = aggregated_load.loc[prototype_id]  (single building slice)
+    # and passes it to return_monthly_bills_year1, which calls
+    # calculate_energy_charges(agg_load_df, td) — which filters to charge_type=="energy_charge"
+    # and merges on [period, tier], then sums to get costs per month.
+    #
+    # We replicate this in bulk: filter energy_charge rows, merge rates, multiply.
+
+    if not process_agg_load:
+        # Non-standard path — fall back to CAIRO
+        return _orig_rsr(
+            aggregated_load=aggregated_load,
+            aggregated_solar=aggregated_solar,
+            solar_compensation_df=solar_compensation_df,
+            solar_compensation_style=solar_compensation_style,
+            process_agg_load=process_agg_load,
+            prototype_ids=prototype_ids,
+            tariff_config=tariff_config,
+            tariff_strategy=tariff_strategy,
+        )
+
+    # --- Vectorized energy charge calculation ---
+    # Filter to energy_charge rows only
+    energy_rows = aggregated_load[aggregated_load["charge_type"] == "energy_charge"].copy()
+    energy_rows = energy_rows.reset_index()  # bring bldg_id into columns
+
+    # Merge energy rates (by tariff + period + tier)
+    energy_rows = energy_rows.merge(rate_lookup, on=["tariff", "period", "tier"], how="left")
+    energy_rows["costs"] = energy_rows["grid_cons"] * energy_rows["rate"]
+
+    # Sum energy costs by (bldg_id, month)
+    monthly_energy = (
+        energy_rows.groupby(["bldg_id", "month"], as_index=False)["costs"].sum()
+    )
+
+    # Pivot to wide format: rows=bldg_id, columns=month (1..12)
+    monthly_wide = monthly_energy.pivot(index="bldg_id", columns="month", values="costs")
+    # Ensure all 12 months are present
+    for m in range(1, 13):
+        if m not in monthly_wide.columns:
+            monthly_wide[m] = 0.0
+    monthly_wide = monthly_wide[[m for m in range(1, 13)]]
+
+    # --- Vectorized fixed charge addition ---
+    # fixed_charge = ur_monthly_fixed_charge per month per building
+    # min_charge = ur_monthly_min_charge per month (applied per month after fixed+energy)
+    for bldg_id in prototype_ids:
+        tk = tariff_map_dict[bldg_id]
+        td = tariff_dicts[tk]
+        fixed = td.get("ur_monthly_fixed_charge", 0.0) or 0.0
+        min_ch = td.get("ur_monthly_min_charge", 0.0) or 0.0
+
+        if bldg_id not in monthly_wide.index:
+            # Building had zero load — fill all months with fixed/min
+            monthly_wide.loc[bldg_id, :] = 0.0
+
+        # Add fixed charge to each month
+        monthly_wide.loc[bldg_id, :] += fixed
+
+        # Apply min_charge: bill = max(bill, min_charge) per month
+        # CAIRO checks: any(fixed_df["min_charge"] > -1e38) — 0.0 > -1e38 is True,
+        # but for min_charge=0.0 the max() has no effect on positive bills.
+        # We still apply it for correctness.
+        if min_ch > 0.0:
+            monthly_wide.loc[bldg_id, :] = monthly_wide.loc[bldg_id, :].clip(lower=min_ch)
+
+    # Reorder to match prototype_ids order (CAIRO preserves insertion order)
+    monthly_wide = monthly_wide.reindex(prototype_ids)
+
+    # --- Rename columns from 1..12 to month abbreviations and add Annual ---
+    monthly_wide.columns = lookups.months
+    monthly_wide["Annual"] = monthly_wide.sum(axis=1)
+
+    # Clear the index name (CAIRO's output has index.names=[None])
+    monthly_wide.index.name = None
+
+    return monthly_wide
+
+
+# ---------------------------------------------------------------------------
 # Apply monkey-patches
 # ---------------------------------------------------------------------------
 import cairo.rates_tool.loads as _cairo_loads
@@ -405,3 +558,11 @@ import cairo.rates_tool.loads as _cairo_loads
 _orig_process_building_demand_by_period = _cairo_loads.process_building_demand_by_period
 
 _cairo_loads.process_building_demand_by_period = _vectorized_process_building_demand_by_period
+
+import cairo.rates_tool.system_revenues as _cairo_sysrev
+
+# Save the original BEFORE replacing, so fallback calls inside
+# _vectorized_run_system_revenues don't recurse into the patch.
+_orig_run_system_revenues = _cairo_sysrev.run_system_revenues
+
+_cairo_sysrev.run_system_revenues = _vectorized_run_system_revenues
