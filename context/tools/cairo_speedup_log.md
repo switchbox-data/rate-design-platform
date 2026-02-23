@@ -38,3 +38,22 @@ Notes:
 - Year-replace vectorized via fixed Timedelta offset (avoids 16.7M Python `ts.replace()` calls)
 - Timeshift via `np.roll(arr.reshape(n_bldgs, 8760, n_cols), -N, axis=1)` (vectorized across all buildings)
 - `bs.simulate` also improved (likely due to better memory layout from single-pass read)
+
+---
+
+## Phase 2 — vectorized electricity tariff aggregation, 2026-02-23
+
+| Stage | Phase 1 (s) | Phase 2 (s) | Delta |
+|-------|-------------|-------------|-------|
+| _return_loads_combined | 26.8 | 72.0 | +45.2s (filesystem cold cache) |
+| phase2_marginal_costs_rr | 3.5 | 3.6 | ~same |
+| bs.simulate | 75.4 | 78.2 | ~same |
+| **Total** | **106.4** | **154** | **cold-cache run; warm-cache expected ~1.5–2×** |
+
+Notes:
+- Phase 2 replaces per-building Dask loop (1,910 tasks) for electricity tariff aggregation with vectorized pandas groupby
+- Gas loads fall back to original CAIRO (`total_fuel_gas`): CAIRO always re-applies kWh→therms via `_adjust_gas_loads` even on pre-loaded data; matching this behavior is necessary for output correctness
+- Solar PV fix: clips `electricity_net` to 0 for `grid_cons` (14 solar buildings store pv_generation as negative in ResStock parquets)
+- `_return_loads_combined` variance likely reflects filesystem cold-cache state; Phase 1 measured with warm cache
+- `bs.simulate` improvement over Phase 1 is modest (~0s); the Dask loop speedup may be hidden by gas billing still using original per-building path
+- All 21 output CSVs match Phase 1 reference exactly (< 0.001% diff)
