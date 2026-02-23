@@ -126,6 +126,8 @@ Patches: Phase 1/2/3 applied
 **Ratio r = T4/T8 = 0.87**
 
 Interpretation:
+- If r ≥ 1.8: series with 8 workers is efficient; parallel tracks provide little benefit (overhead of two concurrent runs isn't worth it).
+- If r < 1.8: parallel tracks (two runs × 4 workers) reduce total pipeline wall-time.
 - r = 0.87 < 1.0: 4 workers is **faster** than 8 workers on this workload. 8 workers is actually slower — likely due to I/O contention, memory bandwidth saturation, or Dask scheduling overhead at high worker counts overwhelming the gains from additional parallelism.
 - Because r < 1.8, parallel tracks (two runs × 4 workers) reduce total pipeline wall-time relative to series with 8 workers.
   - Total series (8 workers):    12 × 172s = 2064s
