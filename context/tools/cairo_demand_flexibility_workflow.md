@@ -63,6 +63,12 @@ flowchart TD
         D --> E[effective_load_elec]
     end
 
+    subgraph phase175 ["Phase 1.75: Recompute TOU cost-causation ratios"]
+        E --> CC["_recompute_tou_precalc_mapping(\n  shifted system load,\n  combined MCs, season_specs)"]
+        MC --> CC
+        CC --> PM["updated precalc_mapping\n(new peak/off-peak rel_values)"]
+    end
+
     subgraph phase2 ["Phase 2: Recalibrate RR with frozen residual"]
         E --> F["_return_revenue_requirement_target(\n  effective_load_elec,\n  residual_cost=frozen_residual,\n  revenue_requirement_target=None)"]
         C --> F
@@ -72,10 +78,11 @@ flowchart TD
     end
 
     subgraph phase3 ["Phase 3: CAIRO simulate"]
-        E --> I["bs.simulate(\n  customer_electricity_load=effective_load_elec,\n  revenue_requirement=new_RR,\n  costs_by_type=costs_by_type)"]
+        E --> I["bs.simulate(\n  customer_electricity_load=effective_load_elec,\n  revenue_requirement=new_RR,\n  precalc_period_mapping=updated,\n  costs_by_type=costs_by_type)"]
         H --> I
         G --> I
-        I --> J["precalc calibrates rates to meet new_RR\nBAT uses costs_by_type for residual allocation"]
+        PM --> I
+        I --> J["precalc calibrates rates to meet new_RR\nusing updated rate structure\nBAT uses costs_by_type for residual allocation"]
     end
 ```
 
@@ -94,6 +101,13 @@ flowchart TD
 - Shifting is energy-conserving (zero-sum within each season).
 - Seasonal orchestration: shifting runs per-season slice using explicit `season_specs` or tariff-inferred month groupings.
 
+**Phase 1.75 — Recompute TOU cost-causation ratios from shifted load:**
+
+- The load shift changes the demand-weighted marginal cost profile, so the peak/off-peak cost-causation ratios change.
+- `_recompute_tou_precalc_mapping` aggregates the shifted building loads to system-level hourly demand, then recomputes per-season `compute_tou_cost_causation_ratio` and `compute_seasonal_base_rates` using the shifted system load.
+- The precalc_period_mapping `rel_values` are updated in-place for each TOU tariff. Non-TOU entries are unchanged.
+- This ensures CAIRO's precalc calibrates the tariff _structure_ (rate ratios between periods), not just the _level_ (uniform scalar), to reflect post-flex MC responsibility. Without this step, CAIRO would apply a uniform scalar to the original rate ratios, which can cause all period rates to increase even when total RR decreases — because the revenue-weighted load shift exceeds the MC savings.
+
 **Phase 2 — Recompute RR with shifted loads + frozen residual:**
 
 - Call `_return_revenue_requirement_target` with `effective_load_elec`, `residual_cost=frozen_residual`, and `revenue_requirement_target=None`.
@@ -103,7 +117,7 @@ flowchart TD
 
 **Phase 3 — CAIRO simulate:**
 
-- Precalc calibrates rate charges so bills from the shifted load profile meet `revenue_requirement`.
+- Precalc calibrates rate charges so bills from the shifted load profile meet `revenue_requirement`, using the updated `precalc_period_mapping` whose rel_values reflect post-flex MC responsibility.
 - BAT postprocessing uses `effective_load_elec` as `raw_hourly_load` together with `marginal_system_prices` and `costs_by_type` to compute per-customer marginal cost allocation, residual allocation, and bill alignment.
 
 **No-flex path:** When `demand_flex_enabled` is False (elasticity == 0), the single-pass call `_return_revenue_requirement_target(raw_load_elec, revenue_requirement_target=delivery_RR)` is unchanged.

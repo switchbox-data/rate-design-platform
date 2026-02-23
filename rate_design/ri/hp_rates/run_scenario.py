@@ -19,6 +19,7 @@ import polars as pl
 import yaml
 from cairo.rates_tool.loads import (
     _return_load,
+    process_residential_hourly_demand,
     return_buildingstock,
 )
 from cairo.rates_tool.systemsimulator import (
@@ -37,7 +38,14 @@ from utils.cairo import (
     build_bldg_id_to_load_filepath,
     load_distribution_marginal_costs,
 )
-from utils.pre.compute_tou import load_season_specs
+from utils.pre.compute_tou import (
+    SeasonTouSpec,
+    combine_marginal_costs,
+    compute_seasonal_base_rates,
+    compute_tou_cost_causation_ratio,
+    load_season_specs,
+    season_mask,
+)
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 from utils.types import ElectricUtility
 
@@ -642,6 +650,89 @@ def _build_precalc_period_mapping(
     return pd.concat(precalc_parts, ignore_index=True)
 
 
+def _recompute_tou_precalc_mapping(
+    precalc_mapping: pd.DataFrame,
+    effective_load_elec: pd.DataFrame,
+    customer_metadata: pd.DataFrame,
+    bulk_marginal_costs: pd.DataFrame,
+    distribution_marginal_costs: pd.Series,
+    tou_season_specs: dict[str, list[SeasonTouSpec]],
+) -> pd.DataFrame:
+    """Recompute precalc rel_values for TOU tariffs using shifted-load MC weights.
+
+    After demand flex shifts load from peak to off-peak, the demand-weighted
+    marginal cost profile changes.  This function recomputes the per-season
+    peak/off-peak cost-causation ratios and seasonal base rates from the
+    *shifted* system load, then updates the precalc_mapping rel_values so
+    that CAIRO calibrates rate ratios that reflect post-flex MC responsibility.
+
+    Non-TOU tariff entries in the mapping are left unchanged.
+    """
+    # 1. Aggregate shifted building loads to system-level hourly demand.
+    shifted_system_load = process_residential_hourly_demand(
+        bldg_load=effective_load_elec,
+        sample_weights=customer_metadata[["bldg_id", "weight"]],
+    )
+
+    # 2. Combine bulk + distribution MCs into a single $/kWh series.
+    combined_mc = combine_marginal_costs(
+        bulk_marginal_costs, distribution_marginal_costs
+    )
+
+    updated = precalc_mapping.copy()
+    mc_index = pd.DatetimeIndex(combined_mc.index)
+
+    for tou_key, specs in tou_season_specs.items():
+        seasons = [spec.season for spec in specs]
+
+        # Use original base_rate as nominal level; precalc calibrates the
+        # absolute level, so only the *ratios* between periods matter.
+        avg_base_rate = sum(spec.base_rate for spec in specs) / len(specs)
+
+        # Recompute seasonal base rates (inter-season ratio) with shifted load.
+        new_season_rates = compute_seasonal_base_rates(
+            combined_mc, shifted_system_load, seasons, avg_base_rate
+        )
+
+        # Recompute peak/off-peak ratios (intra-season ratio) with shifted load.
+        new_ratios: dict[str, float] = {}
+        for spec in specs:
+            mask = season_mask(mc_index, spec.season)
+            new_ratios[spec.season.name] = compute_tou_cost_causation_ratio(
+                combined_mc[mask],
+                shifted_system_load[mask],
+                spec.peak_hours,
+            )
+
+        # Build new per-period rates.  Period order matches
+        # create_seasonal_tou_tariff: [offpeak_s1, peak_s1, offpeak_s2, peak_s2, …]
+        new_rates: list[float] = []
+        for spec in specs:
+            offpeak = new_season_rates[spec.season.name]
+            peak = offpeak * new_ratios[spec.season.name]
+            new_rates.append(offpeak)
+            new_rates.append(peak)
+
+        min_rate = min(new_rates) if new_rates else 1.0
+
+        # Update rel_values for this tariff (1-based period indexing).
+        tariff_mask = updated["tariff"] == tou_key
+        for period_idx, rate in enumerate(new_rates, start=1):
+            period_mask = tariff_mask & (updated["period"] == period_idx)
+            updated.loc[period_mask, "rel_value"] = round(rate / min_rate, 4)
+
+        log.info(
+            ".... Recomputed TOU precalc mapping for %s: "
+            "ratios=%s, rates=%s, rel_values=%s",
+            tou_key,
+            {k: round(v, 4) for k, v in new_ratios.items()},
+            [round(r, 6) for r in new_rates],
+            [round(r / min_rate, 4) for r in new_rates],
+        )
+
+    return updated
+
+
 def run(settings: ScenarioSettings) -> None:
     log.info(
         ".... Beginning RI residential (non-LMI) rate scenario simulation: %s",
@@ -818,6 +909,7 @@ def run(settings: ScenarioSettings) -> None:
         )
 
         # -- Phase 1.5: shift TOU customers (per TOU tariff) --
+        tou_season_specs: dict[str, list[SeasonTouSpec]] = {}
         for tou_key in tou_tariff_keys:
             tou_tariff_path = settings.path_tariffs_electric[tou_key]
             with open(tou_tariff_path) as f:
@@ -831,6 +923,7 @@ def run(settings: ScenarioSettings) -> None:
             season_specs = None
             if derivation_path is not None:
                 season_specs = load_season_specs(derivation_path)
+                tou_season_specs[tou_key] = season_specs
                 log.info(".... Using TOU derivation spec: %s", derivation_path.name)
 
             log.info(
@@ -849,6 +942,24 @@ def run(settings: ScenarioSettings) -> None:
                 elasticity_tracker = tracker
             else:
                 elasticity_tracker = pd.concat([elasticity_tracker, tracker], axis=0)
+
+        # -- Phase 1.75: recompute TOU cost-causation ratios from shifted load --
+        # The load shift changes the demand-weighted MC profile, so the
+        # peak/off-peak cost-causation ratios must be updated before CAIRO
+        # calibrates.  This ensures the tariff rate *structure* (not just the
+        # level) reflects the post-flex MC responsibility.
+        if tou_season_specs:
+            log.info(
+                ".... Phase 1.75: recomputing TOU precalc mapping from shifted load"
+            )
+            precalc_mapping = _recompute_tou_precalc_mapping(
+                precalc_mapping=precalc_mapping,
+                effective_load_elec=effective_load_elec,
+                customer_metadata=customer_metadata,
+                bulk_marginal_costs=bulk_marginal_costs,
+                distribution_marginal_costs=distribution_marginal_costs,
+                tou_season_specs=tou_season_specs,
+            )
 
         # -- Phase 2: new_RR = MC_shifted + frozen_residual --
         # Supply top-up is already in frozen_residual; no delivery_only
@@ -908,9 +1019,8 @@ def run(settings: ScenarioSettings) -> None:
     # ------------------------------------------------------------------
     # Phase 3: Run CAIRO simulation
     # ------------------------------------------------------------------
-    # Precalc calibrates rates to meet revenue_requirement; BAT
-    # postprocessing uses costs_by_type (frozen residual + shifted MC)
-    # for residual allocation.  See context doc for full data flow.
+    # Precalc calibrates rates against shifted loads so the resulting
+    # tariff recovers the (lower) RR from the demand-flex load profile.
 
     bs = MeetRevenueSufficiencySystemWide(
         run_type=settings.run_type,
