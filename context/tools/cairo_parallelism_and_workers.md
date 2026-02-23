@@ -111,3 +111,25 @@ Re-run the timing if you change instance type, building count, or CAIRO version.
 | **16+ vCPUs**                    | Two parallel tracks with N workers each (2N ≤ vCPUs) for clear win without relying on diminishing returns.                                                                    |
 
 Related: **`context/tools/cairo_performance_analysis.md`** (which stages use Dask, scheduler fix), **`context/tools/run_orchestration.md`** (dependency chain and Justfile).
+
+## Measured scaling on m7i.2xlarge (2026-02-23)
+
+Machine: m7i.2xlarge (8 vCPUs)
+Run: run-1, utility rie, 1,910 buildings, warm filesystem cache
+Patches: Phase 1/2/3 applied
+
+| Workers | Wall time |
+|---------|-----------|
+| 8 | 172s |
+| 4 | 149s |
+
+**Ratio r = T4/T8 = 0.87**
+
+Interpretation:
+- r = 0.87 < 1.0: 4 workers is **faster** than 8 workers on this workload. 8 workers is actually slower — likely due to I/O contention, memory bandwidth saturation, or Dask scheduling overhead at high worker counts overwhelming the gains from additional parallelism.
+- Because r < 1.8, parallel tracks (two runs × 4 workers) reduce total pipeline wall-time relative to series with 8 workers.
+  - Total series (8 workers):    12 × 172s = 2064s
+  - Total 2-tracks (4 workers):   6 × 149s = 894s  (~57% faster)
+- Note: r < 1 also means even a single-track run with 4 workers is faster per-run than 8 workers. The parallel-tracks gain is additive on top of that.
+
+Decision: **parallel-tracks** (two runs × 4 workers each) based on r = 0.87. 4 workers is the sweet spot on m7i.2xlarge for this workload; 8 workers oversubscribes the I/O or memory bandwidth and regresses.
