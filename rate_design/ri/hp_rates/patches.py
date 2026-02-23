@@ -245,27 +245,24 @@ def _vectorized_process_building_demand_by_period(
     # 1. Prepare a flat (non-indexed) DataFrame with all buildings
     all_loads = prepassed_load.reset_index()  # columns: bldg_id, time, load_data, ...
 
-    # Gas: no pv columns, no electricity_net; the only load column is load_data (therms)
-    if is_gas:
-        all_loads["grid_cons"] = all_loads["load_data"]
-
-    # 2. Apply pv sign correction (same logic as aggregate_load_worker) — electricity only
+    # 2. Apply pv sign correction and derive grid_cons — electricity only
+    #    Gas has no pv columns and no electricity_net; load_data (therms) is the only column.
     if not is_gas:
         if "pv_generation" in all_loads.columns:
             all_loads["pv_generation"] = all_loads["pv_generation"].abs()
         elif "net_exports" in all_loads.columns:
             all_loads["net_exports"] = all_loads["net_exports"].abs()
 
-    # 3. Derive grid_cons etc. via _calculate_pv_load_columns (operates per-building)
-    #    For electricity_net present (no solar): electricity_net -> grid_cons
-    #    For buildings with pv_generation: grid_cons = load_data - pv_generation
-    #    We can do this vectorized since it's column arithmetic.
-    if "electricity_net" in all_loads.columns:
-        all_loads["grid_cons"] = all_loads["electricity_net"].clip(lower=0)
-        all_loads = all_loads.drop(columns=["electricity_net"])
-    if "pv_generation" in all_loads.columns and "grid_cons" not in all_loads.columns:
-        all_loads["grid_cons"] = all_loads["load_data"] - all_loads["pv_generation"]
-    if "pv_generation" in all_loads.columns and "grid_cons" in all_loads.columns:
+        # 3. Derive grid_cons etc. via _calculate_pv_load_columns (operates per-building)
+        #    For electricity_net present (no solar): electricity_net -> grid_cons
+        #    For buildings with pv_generation: grid_cons = load_data - pv_generation
+        #    We can do this vectorized since it's column arithmetic.
+        if "electricity_net" in all_loads.columns:
+            all_loads["grid_cons"] = all_loads["electricity_net"].clip(lower=0)
+            all_loads = all_loads.drop(columns=["electricity_net"])
+        if "pv_generation" in all_loads.columns and "grid_cons" not in all_loads.columns:
+            all_loads["grid_cons"] = all_loads["load_data"] - all_loads["pv_generation"]
+    if not is_gas and "pv_generation" in all_loads.columns and "grid_cons" in all_loads.columns:
         # net_exports = max(0, pv_generation - load_data); self_cons = min(pv_gen, load_data)
         all_loads["net_exports"] = (
             all_loads["pv_generation"] - all_loads["load_data"]
