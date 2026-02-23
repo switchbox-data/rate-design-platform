@@ -832,9 +832,7 @@ def run(settings: ScenarioSettings) -> None:
             season_specs = None
             if derivation_path is not None:
                 season_specs = load_season_specs(derivation_path)
-                log.info(
-                    ".... Using TOU derivation spec: %s", derivation_path.name
-                )
+                log.info(".... Using TOU derivation spec: %s", derivation_path.name)
 
             log.info(
                 ".... Phase 1.5: applying demand response to %d bldgs on tariff %s",
@@ -851,9 +849,7 @@ def run(settings: ScenarioSettings) -> None:
             if elasticity_tracker.empty:
                 elasticity_tracker = tracker
             else:
-                elasticity_tracker = pd.concat(
-                    [elasticity_tracker, tracker], axis=0
-                )
+                elasticity_tracker = pd.concat([elasticity_tracker, tracker], axis=0)
 
         # -- Phase 2: new_RR = MC_shifted + frozen_residual --
         # Supply top-up is already in frozen_residual; no delivery_only
