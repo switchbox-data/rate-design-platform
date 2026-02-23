@@ -234,7 +234,6 @@ def test_gas_path_produces_reasonable_bills(sample_filepaths):
     RI residential gas: ~$50-$200/month in heating season, ~$10-$30 in summer.
     Double-converted bills would be ~$2-$7/month (too small).
     """
-    import json
     import dask
     from cairo.rates_tool.loads import _return_load, process_building_demand_by_period
     from cairo.rates_tool.tariffs import get_default_tariff_structures
