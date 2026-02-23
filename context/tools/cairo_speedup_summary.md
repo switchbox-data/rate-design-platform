@@ -313,7 +313,7 @@ Key fields (shared structure):
       [{"rate": 0.076706, "unit": "kWh"}],
       [{"rate": 0.081833, "unit": "kWh"}]
     ],
-    "energyweekdayschedule": [...],  // 12×24 period index, mostly 2 (flat), Oct-Nov = 0, Nov-Dec = 1
+    "energyweekdayschedule": [...],  // 12×24 period index, Jan-Mar = 2, Apr-Oct = 0, Nov-Dec = 1
     "energyweekendschedule": [...]   // same structure
   }]
 }
