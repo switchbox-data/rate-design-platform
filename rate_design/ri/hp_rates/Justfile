@@ -390,7 +390,7 @@ run-all-parallel-tracks:
     wait $PID7 || { echo "ERROR: run-7 failed" >&2; exit 1; }
     wait $PID8 || { echo "ERROR: run-8 failed" >&2; exit 1; }
 
-    # Wave 5: run-9 (delivery TOU) and run-10 (supply TOU)
+    # Wave 5: run-9 (delivery TOU) and run-10 (supply TOU); also depend on compute-rev-requirements
     just run-9 & PID9=$!
     just run-10 & PID10=$!
     wait $PID9 || { echo "ERROR: run-9 failed" >&2; exit 1; }
