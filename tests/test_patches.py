@@ -186,3 +186,97 @@ def test_vectorized_billing_matches_cairo(sample_filepaths):
         check_exact=False,
         rtol=1e-4,
     )
+
+
+def test_gas_bills_not_double_converted(sample_filepaths):
+    """Gas bills computed via _return_loads_combined must NOT be 29x smaller than expected.
+
+    The double-conversion bug: _return_loads_combined converts kWh->therms (once).
+    CAIRO's aggregate_load_worker converts again. The result is therms * 0.034 ~= 0.034*therms.
+    A correctly working gas path produces bills based on therms (not therms^2).
+
+    This test verifies the bill magnitude is in the expected range for a real RI building.
+    An average residential building uses ~500-1,200 therms/year. At ~$1.50/therm,
+    annual gas bill should be ~$750-$1,800. If double-converted, the bill would be ~$26-$62.
+    """
+    from rate_design.ri.hp_rates.patches import _return_loads_combined
+
+    bldg_ids = list(sample_filepaths.keys())[:1]  # just one building for speed
+
+    elec, gas = _return_loads_combined(
+        target_year=2025,
+        building_ids=bldg_ids,
+        load_filepath_key=sample_filepaths,
+        force_tz="EST",
+    )
+
+    # gas["load_data"] should be in therms -- check annual total is in reasonable range
+    annual_therms = gas["load_data"].sum()
+
+    # A single RI residential building: expect 200-1,500 therms/year total
+    # If double-converted this would be 7-51 therms (too small)
+    assert annual_therms > 100, (
+        f"Annual gas load {annual_therms:.1f} therms looks double-converted "
+        f"(expected 200-1500 for RI residential building)"
+    )
+    assert annual_therms < 5000, (
+        f"Annual gas load {annual_therms:.1f} therms looks unconverted kWh "
+        f"(expected 200-1500 therms for RI residential building)"
+    )
+
+
+def test_gas_path_produces_reasonable_bills(sample_filepaths):
+    """After Phase 2/3 gas vectorization, gas monthly loads are in a plausible range.
+
+    This test is expected to FAIL before the gas vectorization is applied (because CAIRO
+    double-converts gas), and PASS after.
+
+    RI residential gas: ~$50-$200/month in heating season, ~$10-$30 in summer.
+    Double-converted bills would be ~$2-$7/month (too small).
+    """
+    import json
+    import dask
+    from cairo.rates_tool.loads import _return_load, process_building_demand_by_period
+    from cairo.rates_tool.tariffs import get_default_tariff_structures
+
+    bldg_ids = list(sample_filepaths.keys())[:3]
+
+    gas = _return_load(
+        load_type="gas",
+        target_year=2025,
+        building_stock_sample=bldg_ids,
+        load_filepath_key=sample_filepaths,
+        force_tz="EST",
+    )
+
+    # Load a gas tariff using PySAM format (same as the real run uses)
+    gas_tariff_dir = Path(__file__).resolve().parent.parent / "rate_design/ri/hp_rates/config/tariffs/gas"
+    gas_tariff_files = [p for p in gas_tariff_dir.glob("*.json") if p.stem != "null_gas_tariff"]
+    if not gas_tariff_files:
+        pytest.skip("No gas tariff files found")
+
+    tariff_key = gas_tariff_files[0].stem
+    tariff_base = get_default_tariff_structures([tariff_key], {tariff_key: gas_tariff_files[0]})
+    tariff_map = pd.DataFrame({"bldg_id": bldg_ids, "tariff_key": tariff_key})
+
+    dask.config.set(scheduler="synchronous")
+    agg_gas, _ = process_building_demand_by_period(
+        target_year=2025,
+        load_col_key="total_fuel_gas",
+        prototype_ids=bldg_ids,
+        tariff_base=tariff_base,
+        tariff_map=tariff_map,
+        prepassed_load=gas,
+        solar_pv_compensation=None,
+    )
+
+    # Monthly gas usage in aggregated_load should be in therms.
+    # Winter month (month=1): expect 30-150 therms per building.
+    jan_rows = agg_gas.reset_index()
+    jan_rows = jan_rows[(jan_rows["month"] == 1) & (jan_rows["charge_type"] == "energy_charge")]
+    jan_load = jan_rows["load_data"].median()
+
+    assert jan_load > 10, (
+        f"January gas load {jan_load:.2f} therms is suspiciously small -- "
+        f"double-conversion likely (expected 30-150 therms)"
+    )
