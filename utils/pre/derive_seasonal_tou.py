@@ -1,11 +1,10 @@
-"""Derive a seasonal TOU tariff, tariff map, and derivation spec from marginal costs.
+"""Derive a seasonal TOU tariff and derivation spec from marginal costs.
 
 Standalone script that loads bulk (Cambium) and distribution marginal costs,
 computes seasonal TOU peak windows and cost-causation ratios, and writes:
 
 1. **URDB v7 tariff JSON** — ready for CAIRO ``_initialize_tariffs``.
-2. **Tariff map CSV** — HP customers → TOU tariff, everyone else → flat.
-3. **Derivation spec JSON** — per-season peak windows, base rates, and
+2. **Derivation spec JSON** — per-season peak windows, base rates, and
    cost-causation ratios, consumed by ``run_scenario.py`` for demand shifting.
 
 The load-shifting step stays in ``run_scenario.py`` (Phase 2.5).  This script
@@ -19,8 +18,9 @@ Usage (via Justfile)::
         --path-td-marginal-costs s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/0000000.parquet \\
         --resstock-metadata-path /data.sb/nrel/resstock/.../metadata-sb.parquet \\
         --resstock-loads-path   /data.sb/nrel/resstock/.../load_curve_hourly/state=RI/upgrade=00 \\
-        --customer-count 451381 \\
-        --tou-tariff-key rie_seasonal_tou_hp --flat-tariff-key rie_a16
+        --path-electric-utility-stats s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet \\
+        --reference-tariff config/tariffs/electric/rie_flat_calibrated.json \\
+        --tou-tariff-key rie_seasonal_tou_hp
 
 Or directly::
 
@@ -40,18 +40,19 @@ from cairo.rates_tool.loads import (
     return_buildingstock,
 )
 
+from utils import get_aws_region
 from utils.cairo import (
     _load_cambium_marginal_costs,
     build_bldg_id_to_load_filepath,
     load_distribution_marginal_costs,
 )
+from utils.mid.data_parsing import get_residential_customer_count_from_utility_stats
 from utils.pre.compute_tou import (
     SeasonTouSpec,
     combine_marginal_costs,
     compute_seasonal_base_rates,
     compute_tou_cost_causation_ratio,
     find_tou_peak_window,
-    generate_tou_tariff_map,
     make_winter_summer_seasons,
     save_season_specs,
     season_mask,
@@ -59,6 +60,7 @@ from utils.pre.compute_tou import (
 from utils.pre.create_tariff import (
     SeasonalTouTariffSpec,
     create_seasonal_tou_tariff,
+    extract_base_rate_and_fixed_charge,
     write_tariff_json,
 )
 from utils.pre.season_config import (
@@ -82,20 +84,18 @@ def derive_seasonal_tou(
     bulk_marginal_costs: pd.DataFrame,
     distribution_marginal_costs: pd.Series,
     hourly_system_load: pd.Series,
-    customer_metadata: pd.DataFrame,
     *,
     winter_months: list[int] | None = None,
     tou_window_hours: int = 4,
     tou_base_rate: float = 0.06,
     tou_fixed_charge: float = 6.75,
     tou_tariff_key: str = "seasonal_tou_hp",
-    flat_tariff_key: str = "flat",
     utility: str = "GenericUtility",
-) -> tuple[dict, pd.DataFrame, list[SeasonTouSpec]]:
+) -> tuple[dict, list[SeasonTouSpec]]:
     """Derive a seasonal TOU tariff from marginal costs and system load.
 
     This is the pure-computation core — it takes pre-loaded data and
-    returns the tariff, tariff map, and per-season derivation specs.
+    returns the tariff and per-season derivation specs.
 
     Args:
         bulk_marginal_costs: Cambium energy + capacity MCs ($/kWh),
@@ -104,8 +104,6 @@ def derive_seasonal_tou(
             indexed by time.
         hourly_system_load: Hourly aggregate system load (kW or kWh)
             for demand-weighting.
-        customer_metadata: ResStock metadata with ``bldg_id`` and
-            ``postprocess_group.has_hp`` columns.
         winter_months: 1-indexed months defining winter. Summer months are
             derived as the complement.
         tou_window_hours: Width of the peak window in hours.
@@ -113,14 +111,12 @@ def derive_seasonal_tou(
             preserved but precalc will calibrate the absolute level.
         tou_fixed_charge: Fixed monthly charge ($).
         tou_tariff_key: Tariff key for HP customers.
-        flat_tariff_key: Tariff key for non-HP customers.
         utility: Utility name for the tariff label.
 
     Returns:
-        ``(tou_tariff, tariff_map_df, season_specs)`` where:
+        ``(tou_tariff, season_specs)`` where:
 
         - *tou_tariff* is a URDB v7 dict ready to write as JSON.
-        - *tariff_map_df* is a ``bldg_id, tariff_key`` DataFrame.
         - *season_specs* is a list of :class:`SeasonTouSpec` for
           downstream demand shifting.
     """
@@ -172,13 +168,7 @@ def derive_seasonal_tou(
         utility=utility,
     )
 
-    tariff_map_df = generate_tou_tariff_map(
-        customer_metadata=customer_metadata,
-        tou_tariff_key=tou_tariff_key,
-        flat_tariff_key=flat_tariff_key,
-    )
-
-    return tou_tariff, tariff_map_df, season_specs
+    return tou_tariff, season_specs
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +180,7 @@ def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description=(
             "Derive a seasonal TOU tariff from Cambium + distribution marginal "
-            "costs.  Writes tariff JSON, tariff map CSV, and derivation spec JSON."
+            "costs.  Writes tariff JSON and derivation spec JSON."
         ),
     )
 
@@ -218,7 +208,7 @@ def _parse_args() -> argparse.Namespace:
         help="Path (local or s3://) to T&D marginal cost parquet.",
     )
 
-    # -- ResStock inputs (for system load + tariff map) ----------------------
+    # -- ResStock inputs (for system load weighting) --------------------------
     p.add_argument(
         "--resstock-metadata-path",
         required=True,
@@ -230,10 +220,9 @@ def _parse_args() -> argparse.Namespace:
         help="Directory containing per-building load parquet files.",
     )
     p.add_argument(
-        "--customer-count",
-        type=int,
+        "--path-electric-utility-stats",
         required=True,
-        help="Utility customer count for metadata weighting.",
+        help="Path (local or s3://) to EIA-861 utility stats parquet for customer count lookup.",
     )
 
     # -- TOU derivation parameters -------------------------------------------
@@ -257,16 +246,25 @@ def _parse_args() -> argparse.Namespace:
         help="Peak window width in hours. Falls back to periods YAML or 4.",
     )
     p.add_argument(
+        "--reference-tariff",
+        default=None,
+        help=(
+            "Path to a URDB v7 tariff JSON from which base rate and fixed "
+            "charge are inferred. Overridden by explicit --tou-base-rate / "
+            "--tou-fixed-charge when both are provided."
+        ),
+    )
+    p.add_argument(
         "--tou-base-rate",
         type=float,
-        default=0.06,
-        help="Nominal base rate $/kWh (default 0.06).",
+        default=None,
+        help="Nominal base rate $/kWh. Overrides value from --reference-tariff.",
     )
     p.add_argument(
         "--tou-fixed-charge",
         type=float,
-        default=6.75,
-        help="Fixed monthly charge $ (default 6.75).",
+        default=None,
+        help="Fixed monthly charge $. Overrides value from --reference-tariff.",
     )
 
     # -- Tariff keys ---------------------------------------------------------
@@ -275,18 +273,11 @@ def _parse_args() -> argparse.Namespace:
         required=True,
         help="Tariff key for HP customers (e.g. rie_seasonal_tou_hp).",
     )
-    p.add_argument(
-        "--flat-tariff-key",
-        required=True,
-        help="Tariff key for non-HP customers (e.g. rie_a16).",
-    )
-
     # -- Output --------------------------------------------------------------
     p.add_argument(
         "--output-dir",
         required=True,
-        help="Output directory (tariffs/electric, tariff_maps/electric, "
-        "tou_derivation subdirs will be created).",
+        help="Output directory (tariffs/electric and tou_derivation subdirs will be created).",
     )
     p.add_argument(
         "--periods-yaml",
@@ -349,6 +340,33 @@ def main() -> None:
     )
     output_dir = Path(args.output_dir)
 
+    # -- Resolve base rate and fixed charge ----------------------------------
+    ref_base_rate: float | None = None
+    ref_fixed_charge: float | None = None
+    if args.reference_tariff is not None:
+        ref_base_rate, ref_fixed_charge = extract_base_rate_and_fixed_charge(
+            Path(args.reference_tariff)
+        )
+        log.info(
+            "Reference tariff %s: base_rate=%.6f, fixed_charge=%.2f",
+            args.reference_tariff,
+            ref_base_rate,
+            ref_fixed_charge,
+        )
+
+    tou_base_rate = (
+        args.tou_base_rate if args.tou_base_rate is not None else ref_base_rate
+    )
+    tou_fixed_charge = (
+        args.tou_fixed_charge if args.tou_fixed_charge is not None else ref_fixed_charge
+    )
+
+    if tou_base_rate is None or tou_fixed_charge is None:
+        raise SystemExit(
+            "Either --reference-tariff or both --tou-base-rate and "
+            "--tou-fixed-charge must be provided."
+        )
+
     # -- 1. Load data --------------------------------------------------------
     log.info("Loading Cambium bulk marginal costs from %s", args.cambium_path)
     bulk_mc = _load_cambium_marginal_costs(args.cambium_path, args.year)
@@ -359,10 +377,23 @@ def main() -> None:
     )
     dist_mc = load_distribution_marginal_costs(args.path_td_marginal_costs)
 
+    log.info(
+        "Looking up residential customer count from %s for utility=%s",
+        args.path_electric_utility_stats,
+        args.utility,
+    )
+    storage_options = {"aws_region": get_aws_region()}
+    customer_count = get_residential_customer_count_from_utility_stats(
+        args.path_electric_utility_stats,
+        args.utility,
+        storage_options=storage_options,
+    )
+    log.info("Residential customer count: %d", customer_count)
+
     log.info("Loading ResStock metadata from %s", args.resstock_metadata_path)
     customer_metadata = return_buildingstock(
         load_scenario=Path(args.resstock_metadata_path),
-        customer_count=args.customer_count,
+        customer_count=customer_count,
         columns=["applicability", "postprocess_group.has_hp"],
     )
 
@@ -389,19 +420,17 @@ def main() -> None:
         winter_months,
         summer_months,
         tou_window_hours,
-        args.tou_base_rate,
+        tou_base_rate,
     )
-    tou_tariff, tariff_map_df, season_specs = derive_seasonal_tou(
+    tou_tariff, season_specs = derive_seasonal_tou(
         bulk_marginal_costs=bulk_mc,
         distribution_marginal_costs=dist_mc,
         hourly_system_load=hourly_system_load,
-        customer_metadata=customer_metadata,
         winter_months=winter_months,
         tou_window_hours=tou_window_hours,
-        tou_base_rate=args.tou_base_rate,
-        tou_fixed_charge=args.tou_fixed_charge,
+        tou_base_rate=tou_base_rate,
+        tou_fixed_charge=tou_fixed_charge,
         tou_tariff_key=args.tou_tariff_key,
-        flat_tariff_key=args.flat_tariff_key,
         utility=args.utility,
     )
 
@@ -410,16 +439,6 @@ def main() -> None:
     tariff_path.parent.mkdir(parents=True, exist_ok=True)
     write_tariff_json(tou_tariff, tariff_path)
     log.info("Wrote TOU tariff JSON: %s", tariff_path)
-
-    map_path = (
-        output_dir
-        / "tariff_maps"
-        / "electric"
-        / f"{args.tou_tariff_key}_tariff_map.csv"
-    )
-    map_path.parent.mkdir(parents=True, exist_ok=True)
-    tariff_map_df.to_csv(map_path, index=False)
-    log.info("Wrote tariff map CSV: %s", map_path)
 
     derivation_path = (
         output_dir / "tou_derivation" / f"{args.tou_tariff_key}_derivation.json"

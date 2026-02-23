@@ -282,9 +282,9 @@ def assign_hourly_periods(
     weekday_schedule = np.array(tariff_item["energyweekdayschedule"])
     weekend_schedule = np.array(tariff_item["energyweekendschedule"])
 
-    months = np.asarray(hourly_index.month) - 1
-    hours = np.asarray(hourly_index.hour)
-    is_weekday = np.asarray(hourly_index.dayofweek) < 5
+    months = np.asarray(hourly_index.month) - 1  # type: ignore[attr-defined]
+    hours = np.asarray(hourly_index.hour)  # type: ignore[attr-defined]
+    is_weekday = np.asarray(hourly_index.dayofweek) < 5  # type: ignore[attr-defined]
 
     periods = np.where(
         is_weekday, weekday_schedule[months, hours], weekend_schedule[months, hours]
@@ -511,7 +511,8 @@ def _infer_season_groups_from_tariff(
     )
     grouped: dict[tuple[int, ...], list[int]] = {}
     for month, period_tuple in month_periods.items():
-        grouped.setdefault(period_tuple, []).append(int(month))
+        key = cast(tuple[int, ...], period_tuple)
+        grouped.setdefault(key, []).append(int(cast(int, month)))
     if len(grouped) <= 1:
         return []
 
@@ -561,7 +562,7 @@ def apply_runtime_tou_demand_response(
         return raw_load_elec.copy(), pd.DataFrame()
 
     rate_df = extract_tou_period_rates(tou_tariff)
-    period_rate = rate_df.groupby("energy_period")["rate"].first()
+    period_rate = cast(pd.Series, rate_df.groupby("energy_period")["rate"].first())
     time_idx = pd.DatetimeIndex(
         raw_load_elec.index.get_level_values("time").unique().sort_values()
     )

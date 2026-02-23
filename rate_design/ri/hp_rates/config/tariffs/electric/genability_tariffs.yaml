@@ -1,0 +1,4 @@
+# Genability/Arcadia default electric tariffs by utility (std_name).
+# Pass this file to fetch_electric_tariffs_genability.py with --state RI.
+# Identifier: "default" | masterTariffId (int) | "tariff name" (substring match).
+rie: default

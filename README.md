@@ -1,19 +1,39 @@
 # rate-design-platform
 
-This repository is a clean scaffold for rate design analysis, focused on New York State. It provides a structured starting point for implementing rate design logic, data handling, and testing. For old ochre sims code see the [ochre-sims-rate-design](https://github.com/switchbox-data/rate-design-platform-archive) repository.
+[![Build status](https://img.shields.io/github/actions/workflow/status/switchbox-data/rate-design-platform/ci-runner-native.yml?branch=main)](https://github.com/switchbox-data/rate-design-platform/actions/workflows/ci-runner-native.yml?query=branch%3Amain)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/switchbox-data/rate-design-platform)](https://github.com/switchbox-data/rate-design-platform)
+[![License](https://img.shields.io/github/license/switchbox-data/rate-design-platform)](https://github.com/switchbox-data/rate-design-platform)
 
-## Layout
+Simulation platform for electric rate design (heat-pump-friendly rates, Bill Alignment Test). Runs [CAIRO](https://github.com/natlabrockies/cairo) on ResStock building loads and Cambium marginal costs; outputs calibrated tariffs, customer bills, and BAT results to S3 for use in [reports2](https://github.com/switchbox-data/reports2). Covers New York and Rhode Island.
 
-- `rate_design/` — package root.
-  - `ny/hp_rates/`
-    - `config/` — local inputs/outputs; `buildstock_*` and `cairo_cases/` are git-ignored. Configs under `tariffs/` (electricity and gas) and `tariff_maps/` (electric and gas) stay versioned.
-    - `scenarios/` — YAML configs selecting tariffs/mappings and other simulation parameters.
-    - `scripts/` — helpers such as customer selection, tariff builders, and case path helpers.
-    - `Justfile` — NY HP-specific recipes (stub).
-  - `ny/ev_rates/` — stubbed EV structure (data, scenarios, scripts, Justfile).
-- `utils/` — cross-jurisdiction utilities (buildstock IO, S3 sync, conversions).
-- `tests/` — placeholder test files to expand alongside code.
+## Where things are
 
-## Notes
+| Path               | Purpose                                                                                                                                                                                                                        |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`rate_design/`** | Jurisdiction-specific logic. `ny/hp_rates/` and `ri/hp_rates/` each have a **Justfile** (main task interface), `config/` (tariffs, tariff_maps, marginal_costs, scenarios), and scenario entrypoints (e.g. `run_scenario.py`). |
+| **`data/`**        | Data pipelines: fetch, convert, and upload datasets (Cambium, ResStock, EIA, HUD, FRED, etc.) to S3. Each subdir has its own Justfile.                                                                                         |
+| **`utils/`**       | Shared code by phase: `pre/` (tariff mapping, scenario YAMLs, marginal costs), `mid/` (post-CAIRO steps), `post/` (e.g. LMI discounts).                                                                                        |
+| **`context/`**     | Reference docs and papers (BAT, Cambium, ResStock, CAIRO).                                                                                                                                                                     |
+| **`tests/`**       | Pytest tests.                                                                                                                                                                                                                  |
+| **`infra/`**       | Terraform and scripts for EC2/dev.                                                                                                                                                                                             |
 
-- Data under `rate_design/ny/hp_rates/config/` (buildstock raw/processed, cairo cases) should remain local or synced via S3 tooling you add; keep large artifacts out of git.
+Large inputs/outputs (buildstock, CAIRO cases) are gitignored; sync via S3 or keep local. See **AGENTS.md** for detailed layout and S3 paths.
+
+## Install
+
+From the repo root:
+
+```bash
+just install
+```
+
+Uses **uv** for Python (see `pyproject.toml`). CAIRO is a private Git dependency; set `GH_PAT` for clone. Optional env vars (e.g. `ARCADIA_APP_ID`, `HUD_API_KEY`, `EIA_API_KEY`) are in `.env.example`—copy to `.env` and fill as needed. For AWS (S3), run `just aws` to refresh SSO when needed.
+
+## Run sims
+
+Use **Just** from the jurisdiction directory. Examples:
+
+- **RI:** `cd rate_design/ri/hp_rates && just run-scenario 1` (and other run numbers; see that Justfile).
+- **NY:** Pre-steps in `rate_design/ny/hp_rates/Justfile`: create scenario YAMLs, write tariff maps, create marginal-cost data; then run the scenario (see recipes and `run_scenario.py` there).
+
+Root Justfile: `just check` (lint/format/typecheck), `just test` (pytest). For full task list, run `just` in the root or in a jurisdiction folder.

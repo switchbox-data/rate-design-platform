@@ -30,6 +30,7 @@ path_s3_resstock_metadata := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/meta
 path_s3_utility_assignment := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility"
 tariff_maps_dir_ny := project_root + "/rate_design/ny/hp_rates/config/tariff_maps"
 config_dir_ny := project_root + "/rate_design/ny/hp_rates/config"
+tariffs_gas_dir_ny := project_root + "/rate_design/ny/hp_rates/config/tariffs/gas"
 
 map-electric-tariff electric_utility SB_scenario_type SB_scenario_year upgrade_id output_dir:
   uv run python {{project_root}}/utils/pre/electric_tariff_mapper.py \
@@ -191,3 +192,6 @@ write-tariff-maps-all:
     uv run python {{project_root}}/utils/pre/write_tariff_maps_from_scenario.py \
       --scenario-config "$f"; \
   done
+
+# Gas tariff fetch: just -f rate_design/ny/hp_rates/config/tariffs/gas/Justfile fetch-gas
+# Electric Genability tariff fetch: just -f rate_design/ny/hp_rates/config/tariffs/electric/Justfile fetch-genability
