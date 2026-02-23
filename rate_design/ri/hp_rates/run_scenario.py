@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import random
 import sys
 import time
@@ -527,6 +528,17 @@ def _parse_args() -> argparse.Namespace:
         "--run-name",
         help="Optional override for run name.",
     )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=None,
+        dest="num_workers",
+        help=(
+            "Number of Dask process workers. When provided, overrides process_workers "
+            "from the scenario YAML. When omitted, uses "
+            "min(process_workers, os.cpu_count())."
+        ),
+    )
     args = parser.parse_args()
     if args.scenario_config is None and args.utility is None:
         parser.error("Provide either --scenario-config or --utility.")
@@ -603,13 +615,19 @@ def _build_precalc_period_mapping(
     return pd.concat(precalc_parts, ignore_index=True)
 
 
-def run(settings: ScenarioSettings) -> None:
+def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
     log.info(
         ".... Beginning RI residential (non-LMI) rate scenario simulation: %s",
         settings.run_name,
     )
 
-    dask.config.set(scheduler="processes", num_workers=settings.process_workers)
+    _effective_workers = (
+        num_workers
+        if num_workers is not None
+        else min(settings.process_workers, os.cpu_count() or 1)
+    )
+    dask.config.set(scheduler="processes", num_workers=_effective_workers)
+    log.info("TIMING workers: %d (yaml=%d, cpu_count=%d)", _effective_workers, settings.process_workers, os.cpu_count() or 1)
 
     # Phase 1 ---------------------------------------------------------------
     t0 = time.perf_counter()
@@ -768,7 +786,7 @@ def main() -> None:
     )
     args = _parse_args()
     settings = _resolve_settings(args)
-    run(settings)
+    run(settings, num_workers=args.num_workers)
 
 
 if __name__ == "__main__":
