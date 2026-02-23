@@ -18,7 +18,7 @@ runs:
       all: tariffs/electric/rie_flat.json
     utility_delivery_revenue_requirement: rev_requirement/rie.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -45,7 +45,7 @@ runs:
       all: tariffs/electric/rie_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/rie.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -72,7 +72,7 @@ runs:
       all: tariffs/electric/rie_flat_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -99,7 +99,7 @@ runs:
       all: tariffs/electric/rie_flat_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -127,7 +127,7 @@ runs:
       non-hp: tariffs/electric/rie_flat.json
     utility_delivery_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -155,7 +155,7 @@ runs:
       non-hp: tariffs/electric/rie_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -182,7 +182,7 @@ runs:
       all: tariffs/electric/rie_hp_seasonal_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -209,7 +209,7 @@ runs:
       all: tariffs/electric/rie_hp_seasonal_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -237,7 +237,7 @@ runs:
       non-hp: tariffs/electric/rie_flat.json
     utility_delivery_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -265,7 +265,7 @@ runs:
       non-hp: tariffs/electric/rie_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -292,7 +292,7 @@ runs:
       all: tariffs/electric/rie_hp_seasonalTOU_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -319,7 +319,7 @@ runs:
       all: tariffs/electric/rie_hp_seasonalTOU_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -347,7 +347,7 @@ runs:
       non-hp: tariffs/electric/rie_flat.json
     utility_delivery_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -380,7 +380,7 @@ runs:
       non-hp: tariffs/electric/rie_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -412,7 +412,7 @@ runs:
       all: tariffs/electric/rie_hp_seasonalTOU_flex_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
@@ -443,7 +443,7 @@ runs:
       all: tariffs/electric/rie_hp_seasonalTOU_flex_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2023/state=RI/data.parquet
     solar_pv_compensation: net_metering
     year_run: 2025
     year_dollar_conversion: 2025
