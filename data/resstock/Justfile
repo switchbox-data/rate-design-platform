@@ -62,6 +62,21 @@ test-download state:
         --state {{state}} \
         --upgrade_id {{resstock_upgrade_ids_padded}}
 
+
+# Copy resstock data from one release to another.
+copy-resstock-data release_from release_to state upgrade_ids file_types:
+	uv run python "{{path_local_repo}}/utils/pre/copy_resstock_data.py" \
+		--data_path "{{path_s3_parquet}}" \
+		--release_from "{{release_from}}" \
+		--release_to "{{release_to}}" \
+		--state "{{state}}" \
+		--upgrade_ids "{{upgrade_ids}}" \
+		--file_types "{{file_types}}"
+
+copy-resstock-data-2024-amy2018-2-NY upgrade_ids="00 01 02 03 04 05":
+	just copy-resstock-data res_2024_amy2018_2 res_2024_amy2018_2_sb NY "{{upgrade_ids}}" "metadata load_curve_hourly load_curve_annual"
+
+
 # Identify HP customers and heating type for a state. Pass state (NY or RI).
 identify-hp-customers release state upgrade_ids input_filename output_filename:
     #!/usr/bin/env bash
