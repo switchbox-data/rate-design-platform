@@ -24,6 +24,7 @@ dependencies = [
     "cloudpathlib>=0.23.0",
     "pyyaml>=6.0",
     "requests>=2.31.0",
+    "scikit-learn>=1.0.0",
     "sodapy>=2.2.0",
     "questionary>=2.1.1",
     "rich>=14.3.2",

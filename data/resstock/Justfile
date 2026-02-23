@@ -73,9 +73,11 @@ copy-resstock-data release_from release_to state upgrade_ids file_types:
 		--upgrade_ids "{{upgrade_ids}}" \
 		--file_types "{{file_types}}"
 
-copy-resstock-data-2024-amy2018-2-NY upgrade_ids="00 01 02 03 04 05":
+copy-resstock-data-2024-amy2018-2-NY upgrade_ids:
 	just copy-resstock-data res_2024_amy2018_2 res_2024_amy2018_2_sb NY "{{upgrade_ids}}" "metadata load_curve_hourly load_curve_annual"
 
+copy-resstock-data-2024-amy2018-2-RI upgrade_ids:
+	just copy-resstock-data res_2024_amy2018_2 res_2024_amy2018_2_sb RI "{{upgrade_ids}}" "metadata load_curve_hourly load_curve_annual"
 
 # Identify HP customers and heating type for a state. Pass state (NY or RI).
 identify-hp-customers release state upgrade_ids input_filename output_filename:
