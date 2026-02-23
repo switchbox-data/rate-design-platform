@@ -324,6 +324,54 @@ run-12:
     just copy-calibrated-tariff-from-run "${run10_dir}"
     just run-scenario 12
 
+# Run 13: precalc hp_seasonalTOU_flex vs flat, delivery
+# Depends on run-1 calibrated tariff as reference for TOU price levels.
+# Uses the same TOU derivation as run-9; the _flex tariff is identical
+# structurally — demand-flex behaviour comes from nonzero elasticity at runtime.
+run-13:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ref_tariff="{{path_tariffs_electric}}/{{utility}}_flat_calibrated.json"
+    if [ ! -f "${ref_tariff}" ]; then
+        run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
+        echo ">> run-13: calibrated tariff missing, copying from run-1 → ${run1_dir}" >&2
+        just copy-calibrated-tariff-from-run "${run1_dir}"
+    fi
+    just create-seasonal-tou {{tou_tariff_key}}_flex "${ref_tariff}"
+    just run-scenario 13
+
+# Run 14: precalc hp_seasonalTOU_flex vs flat, supply
+# Depends on run-2 calibrated supply tariff as reference for TOU price levels.
+run-14:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ref_tariff="{{path_tariffs_electric}}/{{utility}}_flat_supply_calibrated.json"
+    if [ ! -f "${ref_tariff}" ]; then
+        run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
+        echo ">> run-14: calibrated supply tariff missing, copying from run-2 → ${run2_dir}" >&2
+        just copy-calibrated-tariff-from-run "${run2_dir}"
+    fi
+    just create-seasonal-tou {{tou_tariff_key}}_flex_supply "${ref_tariff}"
+    just run-scenario 14
+
+# Run 15: default hp_seasonalTOU_flex calibrated, delivery (needs run 13 output)
+run-15:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run13_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 13)
+    echo ">> run-15: resolved run-13 output → ${run13_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run13_dir}"
+    just run-scenario 15
+
+# Run 16: default hp_seasonalTOU_flex calibrated, supply (needs run 14 output)
+run-16:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run14_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 14)
+    echo ">> run-16: resolved run-14 output → ${run14_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run14_dir}"
+    just run-scenario 16
+
 # Master recipe: all 12 runs in dependency order.
 
 # One-time pre-processing (scenario YAMLs + tariff maps). Validate config checks select inputs in Justfile match scenario YAML.
