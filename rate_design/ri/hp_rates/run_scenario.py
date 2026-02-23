@@ -37,6 +37,7 @@ from utils.cairo import (
 )
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 from utils.types import ElectricUtility
+from rate_design.ri.hp_rates.patches import _return_loads_combined
 
 log = logging.getLogger("rates_analysis").getChild("tests")
 
@@ -659,24 +660,13 @@ def run(settings: ScenarioSettings) -> None:
     log.info("TIMING build_bldg_id_to_load_filepath: %.1fs", time.perf_counter() - t0)
 
     t0 = time.perf_counter()
-    raw_load_elec = _return_load(
-        load_type="electricity",
+    raw_load_elec, raw_load_gas = _return_loads_combined(
         target_year=settings.year_run,
-        building_stock_sample=prototype_ids,
+        building_ids=prototype_ids,
         load_filepath_key=bldg_id_to_load_filepath,
         force_tz="EST",
     )
-    log.info("TIMING _return_load(electricity): %.1fs", time.perf_counter() - t0)
-
-    t0 = time.perf_counter()
-    raw_load_gas = _return_load(
-        load_type="gas",
-        target_year=settings.year_run,
-        building_stock_sample=prototype_ids,
-        load_filepath_key=bldg_id_to_load_filepath,
-        force_tz="EST",
-    )
-    log.info("TIMING _return_load(gas): %.1fs", time.perf_counter() - t0)
+    log.info("TIMING _return_loads_combined: %.1fs", time.perf_counter() - t0)
 
     # Phase 2 ---------------------------------------------------------------
     t0 = time.perf_counter()

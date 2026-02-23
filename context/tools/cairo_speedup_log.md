@@ -20,3 +20,21 @@ Baseline: ~2.5 min/run before any patches
 | phase2_marginal_costs_rr | 3.5 |
 | bs.simulate | 104.8 |
 | **Total** | **150.2** |
+
+---
+
+## Phase 1 — combined batch reader, 2026-02-23
+
+| Stage | Baseline (s) | Phase 1 (s) | Delta |
+|-------|-------------|-------------|-------|
+| _return_load(electricity) | 19.5 | — | — |
+| _return_load(gas) | 20.3 | — | — |
+| _return_loads_combined | — | 26.8 | saves 13.0s vs two separate reads |
+| bs.simulate | 104.8 | 75.4 | -29.4s |
+| **Total** | **150.2** | **106.4** | **-43.8s (1.41x faster)** |
+
+Notes:
+- `_return_loads_combined` reads all 1,910 parquet files in one PyArrow batch pass
+- Year-replace vectorized via fixed Timedelta offset (avoids 16.7M Python `ts.replace()` calls)
+- Timeshift via `np.roll(arr.reshape(n_bldgs, 8760, n_cols), -N, axis=1)` (vectorized across all buildings)
+- `bs.simulate` also improved (likely due to better memory layout from single-pass read)
