@@ -135,3 +135,10 @@ Interpretation:
 - Note: r < 1 also means even a single-track run with 4 workers is faster per-run than 8 workers. The parallel-tracks gain is additive on top of that.
 
 Decision: **parallel-tracks** (two runs × 4 workers each) based on r = 0.87. 4 workers is the sweet spot on m7i.2xlarge for this workload; 8 workers oversubscribes the I/O or memory bandwidth and regresses.
+
+### Full pipeline comparison (2026-02-23)
+
+| Strategy | Wall time | vs sequential |
+|---|---|---|
+| `run-all-sequential` (8 workers) | 1917s (31m 57s) | 1.0× |
+| `run-all-parallel-tracks` (4 workers/track) | 1100s (18m 20s) | 1.74× |
