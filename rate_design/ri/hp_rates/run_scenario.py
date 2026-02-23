@@ -8,8 +8,10 @@ import logging
 import random
 import sys
 
+import re
+
 import dask
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -57,14 +59,7 @@ def _scenario_config_from_utility(utility: str) -> Path:
     return PATH_SCENARIOS / f"scenarios_{utility}.yaml"
 
 
-@dataclass(slots=True)
-class DemandFlexConfig:
-    """Optional runtime demand-flexibility configuration."""
-
-    enabled: bool = False
-    demand_elasticity: float = -0.1
-    tou_tariff_key: str = ""
-    tou_derivation_path: Path = field(default_factory=Path)
+PATH_TOU_DERIVATION = PATH_CONFIG / "tou_derivation"
 
 
 @dataclass(slots=True)
@@ -93,7 +88,7 @@ class ScenarioSettings:
     solar_pv_compensation: str = "net_metering"
     add_supply_revenue_requirement: bool = False
     sample_size: int | None = None
-    demand_flex: DemandFlexConfig = field(default_factory=DemandFlexConfig)
+    elasticity: float = 0.0
 
 
 def _parse_int(value: object, field_name: str) -> int:
@@ -401,20 +396,34 @@ def _resolve_output_dir(
     return Path(str(path_outputs_raw)).parent
 
 
-def _parse_demand_flex_config(run: dict[str, Any]) -> DemandFlexConfig:
-    raw = run.get("demand_flex")
-    if raw is None or not isinstance(raw, dict):
-        return DemandFlexConfig()
-    derivation_raw = raw.get("tou_derivation_path", "")
-    derivation_path = (
-        _resolve_path(str(derivation_raw), PATH_CONFIG) if derivation_raw else Path()
-    )
-    return DemandFlexConfig(
-        enabled=_parse_bool(raw.get("enabled", False), "demand_flex.enabled"),
-        demand_elasticity=float(raw.get("demand_elasticity", -0.1)),
-        tou_tariff_key=str(raw.get("tou_tariff_key", "")),
-        tou_derivation_path=derivation_path,
-    )
+def _is_diurnal_tou(tariff_path: Path) -> bool:
+    """Return True if the URDB tariff has rate variation within any day (diurnal TOU).
+
+    A tariff is diurnal TOU when any row (month) in energyweekdayschedule or
+    energyweekendschedule has more than one distinct period value — meaning the
+    rate changes within a single day.
+    """
+    with open(tariff_path) as f:
+        data = json.load(f)
+    item = data["items"][0]
+    for sched_key in ("energyweekdayschedule", "energyweekendschedule"):
+        for row in item.get(sched_key, []):
+            if len(set(row)) > 1:
+                return True
+    return False
+
+
+def _find_tou_derivation_path(tariff_key: str) -> Path | None:
+    """Find the TOU derivation JSON for a tariff key, if one exists.
+
+    Convention: strip ``_calibrated`` and ``_flex`` suffixes from the tariff key
+    to get the base TOU name, then look for
+    ``config/tou_derivation/{base}_derivation.json``.
+    """
+    base = re.sub(r"_(calibrated|flex)", "", tariff_key)
+    base = re.sub(r"__+", "_", base).strip("_")
+    candidate = PATH_TOU_DERIVATION / f"{base}_derivation.json"
+    return candidate if candidate.exists() else None
 
 
 def _build_settings_from_yaml_run(
@@ -471,7 +480,7 @@ def _build_settings_from_yaml_run(
         _require_value(run, "add_supply_revenue_requirement"),
         "add_supply_revenue_requirement",
     )
-    demand_flex = _parse_demand_flex_config(run)
+    elasticity = _parse_float(run.get("elasticity", 0.0), "elasticity")
     sample_size = (
         _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
     )
@@ -515,7 +524,7 @@ def _build_settings_from_yaml_run(
         solar_pv_compensation=solar_pv_compensation,
         sample_size=sample_size,
         add_supply_revenue_requirement=add_supply_revenue_requirement,
-        demand_flex=demand_flex,
+        elasticity=elasticity,
     )
 
 
@@ -742,27 +751,34 @@ def run(settings: ScenarioSettings) -> None:
     # ------------------------------------------------------------------
     # Demand-flex two-pass recalibration (Phase 1a → 1.5 → 2)
     # ------------------------------------------------------------------
-    # When demand_flex is enabled:
-    #   1a  — freeze residual from original loads (full_RR - MC_orig)
-    #   1.5 — shift TOU-assigned bldg_ids only
-    #   2   — recompute RR = MC_shifted + frozen_residual
+    # When elasticity != 0, demand flex is enabled.  TOU tariffs are
+    # auto-detected by checking which tariff JSONs have within-day rate
+    # variation (diurnal TOU).  Demand response is applied separately
+    # per TOU tariff to its mapped building IDs.
     # See context/tools/cairo_demand_flexibility_workflow.md for details.
+    demand_flex_enabled = settings.elasticity != 0.0
     effective_load_elec = raw_load_elec
     elasticity_tracker = pd.DataFrame()
-    if settings.demand_flex.enabled:
-        flex = settings.demand_flex
-        if not flex.tou_tariff_key:
+
+    if demand_flex_enabled:
+        # Identify which tariffs are diurnal TOU
+        tou_tariff_keys = [
+            key
+            for key, path in settings.path_tariffs_electric.items()
+            if _is_diurnal_tou(path)
+        ]
+        if not tou_tariff_keys:
             raise ValueError(
-                "demand_flex.enabled is true but demand_flex.tou_tariff_key is empty"
+                f"elasticity={settings.elasticity} (demand flex enabled) but no "
+                f"diurnal TOU tariffs found in path_tariffs_electric "
+                f"keys={sorted(settings.path_tariffs_electric)}"
             )
-        tou_tariff_path = settings.path_tariffs_electric.get(flex.tou_tariff_key)
-        if tou_tariff_path is None:
-            raise ValueError(
-                f"demand_flex.tou_tariff_key={flex.tou_tariff_key!r} not found in "
-                f"path_tariffs_electric keys={sorted(settings.path_tariffs_electric)}"
-            )
-        with open(tou_tariff_path) as f:
-            tou_tariff = json.load(f)
+        log.info(
+            ".... Demand flex enabled (elasticity=%.4f); detected %d TOU tariff(s): %s",
+            settings.elasticity,
+            len(tou_tariff_keys),
+            tou_tariff_keys,
+        )
 
         if (
             "bldg_id" not in tariff_map_df.columns
@@ -771,18 +787,6 @@ def run(settings: ScenarioSettings) -> None:
             raise ValueError(
                 "Electric tariff map must include 'bldg_id' and 'tariff_key' columns"
             )
-        tou_rows = tariff_map_df[tariff_map_df["tariff_key"] == flex.tou_tariff_key]
-        tou_bldg_ids = cast(list[int], tou_rows["bldg_id"].astype(int).tolist())
-        season_specs = None
-        if flex.tou_derivation_path:
-            if flex.tou_derivation_path.exists():
-                season_specs = load_season_specs(flex.tou_derivation_path)
-            else:
-                log.warning(
-                    ".... demand_flex.tou_derivation_path not found (%s); "
-                    "falling back to tariff-inferred seasonal grouping",
-                    flex.tou_derivation_path,
-                )
 
         # -- Phase 1a: freeze residual from original loads --
         # frozen_residual = full_RR_orig - MC_orig (embedded costs,
@@ -804,8 +808,6 @@ def run(settings: ScenarioSettings) -> None:
             low_income_strategy=None,
             delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
         )
-        # Use the full topped-up RR (not costs_by_type's delivery-only
-        # residual) so the supply top-up is baked in for Phase 2.
         total_mc_orig = float(costs_by_type_orig["Total Marginal Costs ($)"])
         frozen_residual: float = float(full_rr_orig) - total_mc_orig
         log.info(
@@ -816,20 +818,42 @@ def run(settings: ScenarioSettings) -> None:
             total_mc_orig,
         )
 
-        # -- Phase 1.5: shift TOU customers --
-        log.info(
-            ".... Phase 1.5: applying runtime demand response to %d TOU customers "
-            "using tariff %s",
-            len(tou_bldg_ids),
-            flex.tou_tariff_key,
-        )
-        effective_load_elec, elasticity_tracker = apply_runtime_tou_demand_response(
-            raw_load_elec=raw_load_elec,
-            tou_bldg_ids=tou_bldg_ids,
-            tou_tariff=tou_tariff,
-            demand_elasticity=flex.demand_elasticity,
-            season_specs=season_specs,
-        )
+        # -- Phase 1.5: shift TOU customers (per TOU tariff) --
+        for tou_key in tou_tariff_keys:
+            tou_tariff_path = settings.path_tariffs_electric[tou_key]
+            with open(tou_tariff_path) as f:
+                tou_tariff = json.load(f)
+
+            tou_rows = tariff_map_df[tariff_map_df["tariff_key"] == tou_key]
+            tou_bldg_ids = cast(list[int], tou_rows["bldg_id"].astype(int).tolist())
+
+            # Look for a derivation spec for season-aware shifting
+            derivation_path = _find_tou_derivation_path(tou_key)
+            season_specs = None
+            if derivation_path is not None:
+                season_specs = load_season_specs(derivation_path)
+                log.info(
+                    ".... Using TOU derivation spec: %s", derivation_path.name
+                )
+
+            log.info(
+                ".... Phase 1.5: applying demand response to %d bldgs on tariff %s",
+                len(tou_bldg_ids),
+                tou_key,
+            )
+            effective_load_elec, tracker = apply_runtime_tou_demand_response(
+                raw_load_elec=effective_load_elec,
+                tou_bldg_ids=tou_bldg_ids,
+                tou_tariff=tou_tariff,
+                demand_elasticity=settings.elasticity,
+                season_specs=season_specs,
+            )
+            if elasticity_tracker.empty:
+                elasticity_tracker = tracker
+            else:
+                elasticity_tracker = pd.concat(
+                    [elasticity_tracker, tracker], axis=0
+                )
 
         # -- Phase 2: new_RR = MC_shifted + frozen_residual --
         # Supply top-up is already in frozen_residual; no delivery_only
@@ -928,7 +952,7 @@ def run(settings: ScenarioSettings) -> None:
         distribution_mc_path = Path(save_file_loc) / "distribution_marginal_costs.csv"
         distribution_marginal_costs.to_csv(distribution_mc_path, index=True)
         log.info(".... Saved distribution marginal costs: %s", distribution_mc_path)
-        if settings.demand_flex.enabled:
+        if demand_flex_enabled:
             tracker_path = Path(save_file_loc) / "demand_flex_elasticity_tracker.csv"
             elasticity_tracker.to_csv(tracker_path, index=True)
             log.info(".... Saved demand-flex elasticity tracker: %s", tracker_path)
