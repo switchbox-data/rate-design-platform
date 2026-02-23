@@ -106,7 +106,7 @@ flowchart TD
 - Precalc calibrates rate charges so bills from the shifted load profile meet `revenue_requirement`.
 - BAT postprocessing uses `effective_load_elec` as `raw_hourly_load` together with `marginal_system_prices` and `costs_by_type` to compute per-customer marginal cost allocation, residual allocation, and bill alignment.
 
-**No-flex path:** When `demand_flex.enabled` is False, the single-pass call `_return_revenue_requirement_target(raw_load_elec, revenue_requirement_target=delivery_RR)` is unchanged.
+**No-flex path:** When `demand_flex_enabled` is False (elasticity == 0), the single-pass call `_return_revenue_requirement_target(raw_load_elec, revenue_requirement_target=delivery_RR)` is unchanged.
 
 ---
 

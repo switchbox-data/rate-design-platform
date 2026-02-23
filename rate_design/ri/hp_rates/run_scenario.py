@@ -6,9 +6,8 @@ import argparse
 import json
 import logging
 import random
-import sys
-
 import re
+import sys
 
 import dask
 from dataclasses import dataclass
