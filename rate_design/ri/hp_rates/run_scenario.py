@@ -19,7 +19,6 @@ import polars as pl
 import yaml
 from cairo.rates_tool.loads import (
     _return_load,
-    process_residential_hourly_demand,
     return_buildingstock,
 )
 from cairo.rates_tool.systemsimulator import (
@@ -658,8 +657,7 @@ def _build_precalc_period_mapping(
 
 def _recompute_tou_precalc_mapping(
     precalc_mapping: pd.DataFrame,
-    effective_load_elec: pd.DataFrame,
-    customer_metadata: pd.DataFrame,
+    shifted_system_load_raw: pd.Series,
     bulk_marginal_costs: pd.DataFrame,
     distribution_marginal_costs: pd.Series,
     tou_season_specs: dict[str, list[SeasonTouSpec]],
@@ -673,14 +671,12 @@ def _recompute_tou_precalc_mapping(
     that CAIRO calibrates rate ratios that reflect post-flex MC responsibility.
 
     Non-TOU tariff entries in the mapping are left unchanged.
-    """
-    # 1. Aggregate shifted building loads to system-level hourly demand.
-    shifted_system_load_raw = process_residential_hourly_demand(
-        bldg_load=effective_load_elec,
-        sample_weights=customer_metadata[["bldg_id", "weight"]],
-    )
 
-    # 2. Combine bulk + distribution MCs into a single $/kWh series.
+    Args:
+        shifted_system_load_raw: Pre-aggregated system-level hourly demand
+            (weight × kWh summed across buildings, indexed by time).
+    """
+    # Combine bulk + distribution MCs into a single $/kWh series.
     combined_mc_raw = combine_marginal_costs(
         bulk_marginal_costs, distribution_marginal_costs
     )
@@ -1019,10 +1015,21 @@ def run(settings: ScenarioSettings) -> None:
             log.info(
                 ".... Phase 1.75: recomputing TOU precalc mapping from shifted load"
             )
+            # Aggregate shifted building loads to system-level hourly demand
+            # once, rather than passing raw building loads into
+            # _recompute_tou_precalc_mapping (which would copy + merge again).
+            sample_weights = customer_metadata[["bldg_id", "weight"]]
+            shifted_weighted = effective_load_elec.reset_index().merge(
+                sample_weights, on="bldg_id"
+            )
+            shifted_weighted["electricity_net"] *= shifted_weighted["weight"]
+            shifted_system_load = shifted_weighted.groupby("time")[
+                "electricity_net"
+            ].sum()
+
             precalc_mapping = _recompute_tou_precalc_mapping(
                 precalc_mapping=precalc_mapping,
-                effective_load_elec=effective_load_elec,
-                customer_metadata=customer_metadata,
+                shifted_system_load_raw=shifted_system_load,
                 bulk_marginal_costs=tou_bulk_mc,
                 distribution_marginal_costs=distribution_marginal_costs,
                 tou_season_specs=tou_season_specs,
