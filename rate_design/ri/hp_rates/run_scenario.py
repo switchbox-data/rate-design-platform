@@ -1076,43 +1076,78 @@ def run(settings: ScenarioSettings) -> None:
         )
 
     # Apply subclass RR split if configured.
+    # Compute per-subclass supply MC so each subclass's RR reflects
+    # its own marginal cost responsibility.  Without this, the delivery
+    # ratios would be applied to the topped-up total, mis-allocating
+    # supply MC between subclasses with different load profiles.
     if rr_ratios is not None and isinstance(rr_setting, dict):
+        subclass_supply_mc: dict[str, float] = {}
+        if settings.add_supply_revenue_requirement:
+            supply_cols = [
+                c
+                for c in bulk_marginal_costs.columns
+                if "Energy" in c or "Capacity" in c
+            ]
+            supply_mc_prices = bulk_marginal_costs[supply_cols].sum(axis=1)
+
+            # Pre-merge weights into load once to avoid redundant
+            # copy + merge inside process_residential_hourly_demand
+            # per subclass (N_buildings × 8760 rows each time).
+            weighted_load = raw_load_elec.reset_index().merge(
+                customer_metadata[["bldg_id", "weight"]], on="bldg_id"
+            )
+            weighted_load["weighted_kwh"] = (
+                weighted_load["electricity_net"] * weighted_load["weight"]
+            )
+
+            for tariff_key in rr_setting:
+                subclass_bldg_ids = set(
+                    tariff_map_df.loc[
+                        tariff_map_df["tariff_key"] == tariff_key, "bldg_id"
+                    ]
+                )
+                sub = weighted_load[weighted_load["bldg_id"].isin(subclass_bldg_ids)]
+                subclass_sys_load = sub.groupby("time")["weighted_kwh"].sum()
+                subclass_supply_mc[tariff_key] = float(
+                    supply_mc_prices.mul(subclass_sys_load).sum()
+                )
+            log.info(
+                ".... Per-subclass supply MC: %s",
+                {k: f"${v:,.0f}" for k, v in subclass_supply_mc.items()},
+            )
+
+        # Each subclass's baseline = delivery_RR_k + own supply MC
+        subclass_baseline: dict[str, float] = {
+            k: v + subclass_supply_mc.get(k, 0.0) for k, v in rr_setting.items()
+        }
+
         if demand_flex_enabled:
             # Only TOU subclasses shifted load → only they absorb the RR
-            # change.  Non-shifted subclasses keep their *no-flex baseline*
-            # RR — which is the original (pre-flex) total RR times the
-            # subclass ratio.  Using ``full_rr_orig`` (from Phase 1a) rather
-            # than the YAML delivery-only dollar values ensures that supply
-            # runs get the correct supply-level baseline for non-TOU classes.
+            # change.  Non-shifted subclasses keep their baseline.
             non_shifted_rr = sum(
-                rr_ratios[k] * full_rr_orig
-                for k in rr_setting
-                if k not in tou_tariff_keys
+                subclass_baseline[k] for k in rr_setting if k not in tou_tariff_keys
             )
             shifted_rr_total = revenue_requirement_raw - non_shifted_rr
             # Split among TOU subclasses proportionally (if more than one).
-            tou_original_total = sum(
-                rr_ratios[k] * full_rr_orig for k in rr_setting if k in tou_tariff_keys
+            tou_baseline_total = sum(
+                subclass_baseline[k] for k in rr_setting if k in tou_tariff_keys
             )
             revenue_requirement: float | dict[str, float] = {}
             for k in rr_setting:
-                baseline_k = rr_ratios[k] * full_rr_orig
                 if k in tou_tariff_keys:
                     revenue_requirement[k] = (
-                        shifted_rr_total * (baseline_k / tou_original_total)
-                        if tou_original_total > 0
+                        shifted_rr_total * (subclass_baseline[k] / tou_baseline_total)
+                        if tou_baseline_total > 0
                         else shifted_rr_total
                     )
                 else:
-                    revenue_requirement[k] = baseline_k  # no-flex baseline
+                    revenue_requirement[k] = subclass_baseline[k]
             log.info(
                 ".... Subclass RR (demand-flex): %s",
                 {k: f"${v:,.0f}" for k, v in revenue_requirement.items()},
             )
         else:
-            revenue_requirement = {
-                k: v * revenue_requirement_raw for k, v in rr_ratios.items()
-            }
+            revenue_requirement = subclass_baseline
     else:
         revenue_requirement = revenue_requirement_raw
 
