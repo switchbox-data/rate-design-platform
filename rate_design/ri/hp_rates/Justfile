@@ -43,7 +43,7 @@ revenue_utility_col                 := "utility"
 revenue_year_col                    := "year"
 path_tariff_maps                    := path_config / "tariff_maps"
 path_td_mc                          := "s3://data.sb/switchbox/marginal_costs/" + state + "/region=" + region + "/utility=" + utility + "/year=" + year + "/00000000.parquet"
-path_resstock_base                  := "/data.sb/nrel/resstock/res_2024_amy2018_2"
+path_resstock_base                  := "s3://data.sb/nrel/resstock/res_2024_amy2018_2"
 path_s3_resstock_metadata           := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
 path_s3_utility_assignment          := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility"
 path_resstock_loads_00              := path_resstock_base + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
@@ -135,7 +135,8 @@ create-seasonal-tou key=tou_tariff_key reference_tariff="":
     "{{year}}" \
     "{{path_td_mc}}" \
     "{{path_resstock_base}}/metadata/state={{state_upper}}/upgrade={{upgrade}}/metadata-sb.parquet" \
-    "{{path_resstock_loads_00}}" \
+    "{{path_resstock_base}}" \
+    "{{upgrade}}" \
     "{{path_electric_utility_stats}}" \
     "{{key}}" \
     "{{path_config}}" \
@@ -175,10 +176,12 @@ compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" cross
     "{{cross_subsidy_col}}"
 
 # Seasonal discount inputs from run outputs + ResStock loads.
-compute-seasonal-discount-inputs run_dir resstock_loads_path cross_subsidy_col="BAT_percustomer" output_dir="":
+compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="":
   just -f {{path_repo}}/utils/Justfile compute-seasonal-discount-inputs \
     "{{run_dir}}" \
-    "{{resstock_loads_path}}" \
+    "{{resstock_base}}" \
+    "{{state_upper}}" \
+    "{{upgrade}}" \
     "{{cross_subsidy_col}}" \
     "{{output_dir}}"
 
@@ -250,7 +253,7 @@ run-5:
     set -euo pipefail
     run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
     echo ">> run-5: resolved run-1 output → ${run1_dir}" >&2
-    just compute-seasonal-discount-inputs "${run1_dir}" "{{path_resstock_loads_00}}"
+    just compute-seasonal-discount-inputs "${run1_dir}" "{{path_resstock_base}}" "{{state_upper}}" "{{upgrade}}"
     just create-seasonal-discount-tariff \
         "{{path_tariffs_electric}}/{{utility}}_flat_calibrated.json" \
         "${run1_dir}seasonal_discount_rate_inputs.csv" \
@@ -265,7 +268,7 @@ run-6:
     set -euo pipefail
     run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
     echo ">> run-6: resolved run-2 output → ${run2_dir}" >&2
-    just compute-seasonal-discount-inputs "${run2_dir}" "{{path_resstock_loads_00}}"
+    just compute-seasonal-discount-inputs "${run2_dir}" "{{path_resstock_base}}" "{{state_upper}}" "{{upgrade}}"
     just create-seasonal-discount-tariff \
         "{{path_tariffs_electric}}/{{utility}}_flat_supply_calibrated.json" \
         "${run2_dir}seasonal_discount_rate_inputs.csv" \
