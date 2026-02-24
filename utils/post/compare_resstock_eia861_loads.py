@@ -25,7 +25,9 @@ WEIGHT_COL = "weight"
 # Annual parquet: one row per bldg, column = annual electricity kWh
 ANNUAL_ELECTRICITY_COL = "out.electricity.total.energy_consumption.kwh"
 RESSTOCK_TOTAL_KWH = "resstock_total_kwh"
+RESSTOCK_CUSTOMERS = "resstock_customers"
 EIA_RESIDENTIAL_KWH = "eia_residential_kwh"
+EIA_RESIDENTIAL_CUSTOMERS = "eia_residential_customers"
 MWH_TO_KWH = 1000
 
 DEFAULT_RESSTOCK_RELEASE = "res_2024_amy2018_2"
@@ -114,21 +116,23 @@ def _load_resstock_total_kwh_per_utility_from_annual(
         (pl.col("annual_kwh") * pl.col(WEIGHT_COL)).alias("weighted_kwh")
     )
     out = joined.group_by(ELECTRIC_UTILITY_COL).agg(
-        pl.col("weighted_kwh").sum().alias(RESSTOCK_TOTAL_KWH)
+        pl.col("weighted_kwh").sum().alias(RESSTOCK_TOTAL_KWH),
+        pl.col(WEIGHT_COL).sum().alias(RESSTOCK_CUSTOMERS),
     )
     return out
 
 
-def _load_eia861_residential_kwh(
+def _load_eia861_residential(
     path_eia861: str, storage_options: dict[str, str] | None
 ) -> pl.DataFrame:
-    """Load EIA-861 state parquet and convert residential_sales_mwh to kWh."""
+    """Load EIA-861 state parquet: residential sales (kWh) and customer counts."""
     opts = storage_options if _is_s3(path_eia861) else None
     out = (
         pl.scan_parquet(path_eia861, storage_options=opts)
         .select(
             pl.col("utility_code"),
             (pl.col("residential_sales_mwh") * MWH_TO_KWH).alias(EIA_RESIDENTIAL_KWH),
+            pl.col("residential_customers").alias(EIA_RESIDENTIAL_CUSTOMERS),
         )
         .collect()
     )
@@ -142,14 +146,14 @@ def compare_resstock_eia861(
     storage_options: dict[str, str] | None = None,
     load_column: str | None = None,
 ) -> pl.DataFrame:
-    """Compute comparison table: utility_code, resstock_total_kwh, eia_residential_kwh, ratio, pct_diff."""
+    """Compute comparison table with kWh and customer count metrics per utility."""
     resstock = _load_resstock_total_kwh_per_utility_from_annual(
         path_annual,
         path_utility_assignment,
         storage_options=storage_options,
         electricity_column_override=load_column,
     )
-    eia = _load_eia861_residential_kwh(path_eia861, storage_options)
+    eia = _load_eia861_residential(path_eia861, storage_options)
 
     comparison = resstock.join(
         eia,
@@ -160,12 +164,22 @@ def compare_resstock_eia861(
         pl.col(ELECTRIC_UTILITY_COL).alias("utility_code"),
         pl.col(RESSTOCK_TOTAL_KWH),
         pl.col(EIA_RESIDENTIAL_KWH),
-        (pl.col(RESSTOCK_TOTAL_KWH) / pl.col(EIA_RESIDENTIAL_KWH)).alias("ratio"),
+        (pl.col(RESSTOCK_TOTAL_KWH) / pl.col(EIA_RESIDENTIAL_KWH)).alias("kwh_ratio"),
         (
             (pl.col(RESSTOCK_TOTAL_KWH) - pl.col(EIA_RESIDENTIAL_KWH))
             / pl.col(EIA_RESIDENTIAL_KWH)
             * 100
-        ).alias("pct_diff"),
+        ).alias("kwh_pct_diff"),
+        pl.col(RESSTOCK_CUSTOMERS),
+        pl.col(EIA_RESIDENTIAL_CUSTOMERS),
+        (pl.col(RESSTOCK_CUSTOMERS) / pl.col(EIA_RESIDENTIAL_CUSTOMERS)).alias(
+            "customers_ratio"
+        ),
+        (
+            (pl.col(RESSTOCK_CUSTOMERS) - pl.col(EIA_RESIDENTIAL_CUSTOMERS))
+            / pl.col(EIA_RESIDENTIAL_CUSTOMERS)
+            * 100
+        ).alias("customers_pct_diff"),
     )
     return comparison
 

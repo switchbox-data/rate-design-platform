@@ -7,9 +7,11 @@ import pytest
 
 from utils.post.compare_resstock_eia861_loads import (
     ANNUAL_ELECTRICITY_COL,
-    compare_resstock_eia861,
+    EIA_RESIDENTIAL_CUSTOMERS,
     EIA_RESIDENTIAL_KWH,
+    RESSTOCK_CUSTOMERS,
     RESSTOCK_TOTAL_KWH,
+    compare_resstock_eia861,
 )
 
 
@@ -42,6 +44,7 @@ def test_compare_resstock_eia861_columns_and_ratio(tmp_path: Path) -> None:
         {
             "utility_code": ["rie", "other_util"],
             "residential_sales_mwh": [4.0, 2.0],
+            "residential_customers": [100.0, 50.0],
         }
     )
     path_eia = tmp_path / "eia861.parquet"
@@ -59,21 +62,31 @@ def test_compare_resstock_eia861_columns_and_ratio(tmp_path: Path) -> None:
         "utility_code",
         RESSTOCK_TOTAL_KWH,
         EIA_RESIDENTIAL_KWH,
-        "ratio",
-        "pct_diff",
+        "kwh_ratio",
+        "kwh_pct_diff",
+        RESSTOCK_CUSTOMERS,
+        EIA_RESIDENTIAL_CUSTOMERS,
+        "customers_ratio",
+        "customers_pct_diff",
     ]
 
     rie_row = result.filter(pl.col("utility_code") == "rie").to_dicts()[0]
     assert rie_row[RESSTOCK_TOTAL_KWH] == 5000.0  # 1000*1 + 2000*2
     assert rie_row[EIA_RESIDENTIAL_KWH] == 4000.0
-    assert rie_row["ratio"] == pytest.approx(1.25)
-    assert rie_row["pct_diff"] == pytest.approx(25.0)
+    assert rie_row["kwh_ratio"] == pytest.approx(1.25)
+    assert rie_row["kwh_pct_diff"] == pytest.approx(25.0)
+    assert rie_row[RESSTOCK_CUSTOMERS] == 3.0  # weight 1 + 2
+    assert rie_row[EIA_RESIDENTIAL_CUSTOMERS] == 100.0
+    assert rie_row["customers_ratio"] == pytest.approx(0.03)
+    assert rie_row["customers_pct_diff"] == pytest.approx(-97.0)
 
     other_row = result.filter(pl.col("utility_code") == "other_util").to_dicts()[0]
     assert other_row[RESSTOCK_TOTAL_KWH] == 3000.0
     assert other_row[EIA_RESIDENTIAL_KWH] == 2000.0
-    assert other_row["ratio"] == pytest.approx(1.5)
-    assert other_row["pct_diff"] == pytest.approx(50.0)
+    assert other_row["kwh_ratio"] == pytest.approx(1.5)
+    assert other_row["kwh_pct_diff"] == pytest.approx(50.0)
+    assert other_row[RESSTOCK_CUSTOMERS] == 1.0  # weight 1
+    assert other_row[EIA_RESIDENTIAL_CUSTOMERS] == 50.0
 
 
 def test_compare_resstock_eia861_load_column_override(tmp_path: Path) -> None:
@@ -94,7 +107,11 @@ def test_compare_resstock_eia861_load_column_override(tmp_path: Path) -> None:
     )
     path_eia = tmp_path / "eia861.parquet"
     pl.DataFrame(
-        {"utility_code": ["rie"], "residential_sales_mwh": [0.3]}
+        {
+            "utility_code": ["rie"],
+            "residential_sales_mwh": [0.3],
+            "residential_customers": [10.0],
+        }
     ).write_parquet(path_eia)
 
     result = compare_resstock_eia861(
@@ -122,7 +139,11 @@ def test_compare_resstock_eia861_missing_electricity_column_raises(
     )
     path_eia = tmp_path / "eia861.parquet"
     pl.DataFrame(
-        {"utility_code": ["rie"], "residential_sales_mwh": [1.0]}
+        {
+            "utility_code": ["rie"],
+            "residential_sales_mwh": [1.0],
+            "residential_customers": [10.0],
+        }
     ).write_parquet(path_eia)
 
     with pytest.raises(ValueError, match="missing column"):
@@ -152,7 +173,11 @@ def test_compare_resstock_eia861_missing_sb_electric_utility_raises(
     ua.write_parquet(path_ua)
     path_eia = tmp_path / "eia861.parquet"
     pl.DataFrame(
-        {"utility_code": ["rie"], "residential_sales_mwh": [1.0]}
+        {
+            "utility_code": ["rie"],
+            "residential_sales_mwh": [1.0],
+            "residential_customers": [10.0],
+        }
     ).write_parquet(path_eia)
 
     with pytest.raises(ValueError, match="sb.electric_utility"):
@@ -180,7 +205,11 @@ def test_compare_resstock_eia861_missing_weight_raises(tmp_path: Path) -> None:
     )
     path_eia = tmp_path / "eia861.parquet"
     pl.DataFrame(
-        {"utility_code": ["rie"], "residential_sales_mwh": [1.0]}
+        {
+            "utility_code": ["rie"],
+            "residential_sales_mwh": [1.0],
+            "residential_customers": [10.0],
+        }
     ).write_parquet(path_eia)
 
     with pytest.raises(ValueError, match="weight"):
