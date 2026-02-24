@@ -8,7 +8,7 @@
 
 - **ResStock source:** Single parquet per state/upgrade:\
   `s3://data.sb/nrel/resstock/<release>/load_curve_annual/state=<state>/upgrade=<upgrade>/<state>_upgrade<upgrade>_metadata_and_annual_results.parquet`\
-  Columns used: `bldg_id`, **`out.electricity.total.energy_consumption.kwh`** (annual electricity kWh), **`weight`** (sample weight).
+  Columns used: `bldg_id`, `**out.electricity.total.energy_consumption.kwh`** (annual electricity kWh), `**weight**` (sample weight).
 - **Utility assignment:**\
   `s3://data.sb/nrel/resstock/<release>/metadata_utility/state=<state>/utility_assignment.parquet`\
   Must include `bldg_id` and `sb.electric_utility`.
@@ -112,7 +112,7 @@ Possible reasons ResStock weighted totals are often above EIA-861 residential (r
 | **EIA-861 under-reporting or misclassification**            | Low–Medium   | Residential could be under-reported or miscoded; would inflate ratio. Less likely to explain the pattern across utilities unless reporting quality varies.                                                                                  |
 | **End-use scope (e.g. net metering, PV)**                   | Low–Medium   | ResStock is site total electricity; EIA is delivered sales. Net metering/PV can cause small differences; unlikely to explain 20–80% gaps alone.                                                                                             |
 
-**Data sources to check:** EIA column used is **`residential_sales_mwh`** (× 1000 → kWh). ResStock weights are the **`weight`** column in the load_curve_annual parquet (per-building sample weight), not a per-utility multiplier.
+**Data sources to check:** EIA column used is `**residential_sales_mwh`** (× 1000 → kWh). ResStock weights are the `**weight**` column in the load_curve_annual parquet (per-building sample weight), not a per-utility multiplier.
 
 ## EIA-861 / PUDL source and report year
 
@@ -121,7 +121,7 @@ Our EIA-861 numbers come from the **year- and state-partitioned parquet** produc
 ### Layout and which year we use
 
 - **S3 layout:** `s3://data.sb/eia/861/electric_utility_stats/year=<year>/state=<state>/data.parquet`. The fetch script writes **all report years** (e.g. 2001–2024) so each year is a separate partition.
-- **This comparison:** The compare script defaults to **`--eia-year 2018`** so EIA-861 residential sales match the **ResStock AMY 2018** weather year. Use `--eia-year` to compare against another report year, or `--path-eia861` to point at a specific file.
+- **This comparison:** The compare script defaults to `**--eia-year 2018`** so EIA-861 residential sales match the **ResStock AMY 2018** weather year. Use `--eia-year` to compare against another report year, or `--path-eia861` to point at a specific file.
 - **Source URL (stable):**\
   `https://s3.us-west-2.amazonaws.com/pudl.catalyst.coop/v2026.2.0/core_eia861__yearly_sales.parquet`\
   (see `PUDL_STABLE_VERSION` in the fetch script). PUDL EIA-861 coverage is **2001–2024** ([PUDL docs](https://catalystcoop-pudl.readthedocs.io/en/latest/data_sources/eia861.html)).
