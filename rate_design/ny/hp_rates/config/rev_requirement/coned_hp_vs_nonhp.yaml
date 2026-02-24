@@ -1,0 +1,7 @@
+utility: coned
+group_col: has_hp
+cross_subsidy_col: BAT_percustomer
+run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/20260224_213236_ny_coned_run1_up00_precalc__flat__n100/
+subclass_revenue_requirements:
+  'false': 18008658092.37018
+  'true': 538576849.4163599
