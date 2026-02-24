@@ -27,7 +27,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 | File                                     | Purpose                                                                                              |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | cairo_lmi_and_bat_analysis.md            | CAIRO LMI parameters, discount mechanisms, and how the Bill Alignment Test (BAT) works               |
-| cairo_demand_flexibility_workflow.md     | CAIRO demand-flexibility workflow, CLI steps, and run/output expectations                            |
+| cairo_demand_flexibility_workflow.md     | CAIRO demand-flexibility workflow, two-pass RR recalibration, and data flow                          |
 | compare_resstock_eia861_loads.md         | ResStock hourly load vs EIA-861 residential sales comparison: script usage, defaults, interpretation |
 | compute_tou_from_marginal_costs.md       | MC-driven TOU tariff derivation: peak-window finder, cost-causation ratio, URDB JSON                 |
 | resstock_lmi_metadata_guide.md           | ResStock 2024.2 parquet metadata: columns for LMI tier assignment, FPL/SMI, income                   |
@@ -38,7 +38,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 | cairo_parallelize_two_undasked_stages.md | Handoff: parallelize process_residential_hourly_demand and BAT in CAIRO via chunk + dask.delayed     |
 | cairo_parallelism_and_workers.md         | How to think about parallelism: infra instance, worker count, series vs parallel tracks              |
 | cairo_elastic_cluster.md                 | Elastic Dask cluster: why (many runs), options (dask-cloudprovider etc.), CAIRO + platform changes   |
-| run_orchestration.md                     | RI runs 1–12 orchestration: Justfile dependency chain, `latest_run_output.sh`, design decisions      |
+| run_orchestration.md                     | RI runs 1–16 orchestration: Justfile dependency chain, demand flex (runs 13-16), design decisions    |
 | nyiso_lbmp_zonal_data_sources.md         | NYISO Day-Ahead/Real-Time zonal LBMP: MIS ZIP vs gridstatus vs NYISOToolkit; data samples            |
 
 ## docs/

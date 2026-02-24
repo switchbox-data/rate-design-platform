@@ -117,6 +117,14 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         val = row.get(header, "")
         return str(val).strip() if val else ""
 
+    def get_optional(key: str) -> str:
+        normalized = _normalize_header(key)
+        header = norm_to_header.get(normalized)
+        if header is None:
+            return ""
+        val = row.get(header, "")
+        return str(val).strip() if val else ""
+
     def require_non_empty(key: str) -> str:
         value = get(key)
         if not value:
@@ -175,6 +183,10 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     )
 
     run["path_electric_utility_stats"] = get("path_electric_utility_stats")
+
+    path_tou_supply_mc = get_optional("path_tou_supply_mc")
+    if path_tou_supply_mc:
+        run["path_tou_supply_mc"] = path_tou_supply_mc
 
     run["solar_pv_compensation"] = require_non_empty("solar_pv_compensation")
 
