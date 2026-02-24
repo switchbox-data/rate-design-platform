@@ -374,7 +374,7 @@ run-16:
     just copy-calibrated-tariff-from-run "${run14_dir}"
     just run-scenario 16
 
-# Master recipe: all 12 runs in dependency order.
+# Master recipe: all 16 runs in dependency order.
 
 # One-time pre-processing (scenario YAMLs + tariff maps). Validate config checks select inputs in Justfile match scenario YAML.
 all-pre:
