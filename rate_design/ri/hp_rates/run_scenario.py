@@ -17,6 +17,7 @@ import polars as pl
 import yaml
 from cairo.rates_tool.loads import (
     _return_load,
+    process_residential_hourly_demand,
     return_buildingstock,
 )
 from cairo.rates_tool.systemsimulator import (
@@ -719,9 +720,40 @@ def run(settings: ScenarioSettings) -> None:
         delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
     )
 
-    if rr_ratios is not None:
-        revenue_requirement = {
-            k: v * revenue_requirement_raw for k, v in rr_ratios.items()
+    if rr_ratios is not None and isinstance(rr_setting, dict):
+        # Compute per-subclass supply MC so each subclass's RR reflects
+        # its own marginal cost responsibility.  Without this, the delivery
+        # ratios would be applied to the topped-up total, mis-allocating
+        # supply MC between subclasses with different load profiles.
+        subclass_supply_mc: dict[str, float] = {}
+        if settings.add_supply_revenue_requirement:
+            supply_cols = [
+                c
+                for c in bulk_marginal_costs.columns
+                if "Energy" in c or "Capacity" in c
+            ]
+            supply_mc_prices = bulk_marginal_costs[supply_cols].sum(axis=1)
+            for tariff_key in rr_setting:
+                subclass_bldg_ids = tariff_map_df.loc[
+                    tariff_map_df["tariff_key"] == tariff_key, "bldg_id"
+                ].tolist()
+                subclass_load = raw_load_elec[
+                    raw_load_elec["bldg_id"].isin(subclass_bldg_ids)
+                ]
+                subclass_sys_load = process_residential_hourly_demand(
+                    bldg_load=subclass_load,
+                    sample_weights=customer_metadata[["bldg_id", "weight"]],
+                )
+                subclass_supply_mc[tariff_key] = float(
+                    supply_mc_prices.mul(subclass_sys_load).sum()
+                )
+            log.info(
+                ".... Per-subclass supply MC: %s",
+                {k: f"${v:,.0f}" for k, v in subclass_supply_mc.items()},
+            )
+
+        revenue_requirement: float | dict[str, float] = {
+            k: v + subclass_supply_mc.get(k, 0.0) for k, v in rr_setting.items()
         }
     else:
         revenue_requirement = revenue_requirement_raw
