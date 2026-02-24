@@ -57,7 +57,7 @@ all-pre  (create-scenario-yamls, create-electric-tariff-maps-all, validate-confi
   │    │    └─ run-7  (default hp_seasonal calibrated)   ← copies calibrated tariff from run-5
   │    ├─ run-9  (precalc hp_seasonalTOU vs flat)        ← uses run-1 calibrated tariff as reference
   │    │    └─ run-11 (default hp_seasonalTOU calibrated) ← copies calibrated tariff from run-9
-  │    └─ run-13 (precalc hp_seasonalTOU_flex vs flat, e=-0.1) ← uses run-1 calibrated tariff as reference
+  │    └─ run-13 (precalc hp_seasonalTOU_flex vs flat, e=-0.1) ← copies TOU tariff from run-9
   │         └─ run-15 (default hp_seasonalTOU_flex calibrated, e=-0.1) ← copies calibrated tariff from run-13
   │
   └─ run-2  (precalc flat, supply)
@@ -66,7 +66,7 @@ all-pre  (create-scenario-yamls, create-electric-tariff-maps-all, validate-confi
        │    └─ run-8  (default hp_seasonal calibrated, supply) ← copies from run-6
        ├─ run-10 (precalc hp_seasonalTOU vs flat, supply) ← uses run-2 calibrated tariff as reference
        │    └─ run-12 (default hp_seasonalTOU calibrated, supply) ← copies from run-10
-       └─ run-14 (precalc hp_seasonalTOU_flex vs flat, supply, e=-0.1) ← uses run-2 calibrated tariff as reference
+       └─ run-14 (precalc hp_seasonalTOU_flex vs flat, supply, e=-0.1) ← copies TOU supply tariff from run-10
             └─ run-16 (default hp_seasonalTOU_flex calibrated, supply, e=-0.1) ← copies from run-14
 ```
 
@@ -94,9 +94,8 @@ When `elasticity != 0`, the scenario runner:
 
 For full details see `context/tools/cairo_demand_flexibility_workflow.md`.
 
-**Note:** `run-all-sequential` currently covers runs 1-12 only. Runs 13-16
-must be run individually (e.g. `just run-13`, `just run-14`, etc.) after
-runs 1 and 2 have completed, or the recipe can be extended to include them.
+`run-all-sequential` now executes runs 1-16 in order, including the demand-flex
+runs.
 
 ## How `latest_run_output.sh` works
 
@@ -140,10 +139,10 @@ From `rate_design/ri/hp_rates/`:
 # Just the pre-processing + validation
 just all-pre
 
-# Runs 1-12 in sequential order
+# Runs 1-16 in sequential order
 just run-all-sequential
 
-# Demand-flex runs (after runs 1 and 2 have completed)
+# Demand-flex runs (already included in run-all-sequential)
 just run-13
 just run-14
 just run-15
@@ -195,12 +194,12 @@ via Just string composition. This avoids scattered hardcoded values and makes
 it possible to replicate the entire orchestration for a new utility by changing
 only the top section.
 
-**Reference tariff for TOU derivation.** Runs 9, 10, 13, and 14 derive
-seasonal TOU tariffs using a calibrated flat tariff as reference (from runs 1
-and 2 respectively). The `--reference-tariff` flag on `derive_seasonal_tou.py`
+**Reference tariff for TOU derivation.** Runs 9 and 10 derive seasonal TOU
+tariffs using calibrated flat tariffs as references (from runs 1 and 2
+respectively). The `--reference-tariff` flag on `derive_seasonal_tou.py`
 extracts the base rate and fixed charge from this tariff rather than using
-hardcoded defaults. The `_flex` tariffs use the same derivation as the
-non-flex `_seasonalTOU` tariffs; the only difference is the tariff key name.
+hardcoded defaults. Runs 13 and 14 do not re-derive TOU; they copy the run-9
+and run-10 TOU tariffs to `_flex` tariff filenames.
 
 **Demand-flex tariff identity.** The `_flex` tariffs are structurally identical
 to their `_seasonalTOU` counterparts. Demand-flex behavior is triggered

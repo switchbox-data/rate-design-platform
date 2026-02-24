@@ -325,33 +325,35 @@ run-12:
     just run-scenario 12
 
 # Run 13: precalc hp_seasonalTOU_flex vs flat, delivery
-# Depends on run-1 calibrated tariff as reference for TOU price levels.
-# Uses the same TOU derivation as run-9; the _flex tariff is identical
-# structurally — demand-flex behaviour comes from nonzero elasticity at runtime.
+# Reuses run-9 TOU tariff shape; _flex differs only by runtime elasticity.
 run-13:
     #!/usr/bin/env bash
     set -euo pipefail
-    ref_tariff="{{path_tariffs_electric}}/{{utility}}_flat_calibrated.json"
-    if [ ! -f "${ref_tariff}" ]; then
-        run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
-        echo ">> run-13: calibrated tariff missing, copying from run-1 → ${run1_dir}" >&2
-        just copy-calibrated-tariff-from-run "${run1_dir}"
+    source_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}.json"
+    target_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}_flex.json"
+    if [ ! -f "${source_tou}" ]; then
+        echo ">> run-13: missing source TOU tariff: ${source_tou}" >&2
+        echo ">> run-13: run run-9 first to generate it." >&2
+        exit 1
     fi
-    just create-seasonal-tou {{tou_tariff_key}}_flex "${ref_tariff}"
+    cp "${source_tou}" "${target_tou}"
+    echo ">> run-13: copied ${source_tou} -> ${target_tou}" >&2
     just run-scenario 13
 
 # Run 14: precalc hp_seasonalTOU_flex vs flat, supply
-# Depends on run-2 calibrated supply tariff as reference for TOU price levels.
+# Reuses run-10 TOU supply tariff shape; _flex differs only by runtime elasticity.
 run-14:
     #!/usr/bin/env bash
     set -euo pipefail
-    ref_tariff="{{path_tariffs_electric}}/{{utility}}_flat_supply_calibrated.json"
-    if [ ! -f "${ref_tariff}" ]; then
-        run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
-        echo ">> run-14: calibrated supply tariff missing, copying from run-2 → ${run2_dir}" >&2
-        just copy-calibrated-tariff-from-run "${run2_dir}"
+    source_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}_supply.json"
+    target_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}_flex_supply.json"
+    if [ ! -f "${source_tou}" ]; then
+        echo ">> run-14: missing source TOU supply tariff: ${source_tou}" >&2
+        echo ">> run-14: run run-10 first to generate it." >&2
+        exit 1
     fi
-    just create-seasonal-tou {{tou_tariff_key}}_flex_supply "${ref_tariff}"
+    cp "${source_tou}" "${target_tou}"
+    echo ">> run-14: copied ${source_tou} -> ${target_tou}" >&2
     just run-scenario 14
 
 # Run 15: default hp_seasonalTOU_flex calibrated, delivery (needs run 13 output)
@@ -394,6 +396,10 @@ run-all-sequential:
     just run-10
     just run-11
     just run-12
+    just run-13
+    just run-14
+    just run-15
+    just run-16
 
 # =============================================================================
 # POST: after all runs are completed
