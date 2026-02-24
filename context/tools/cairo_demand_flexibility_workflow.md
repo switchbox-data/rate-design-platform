@@ -125,7 +125,7 @@ flowchart TD
 **Phase 2.5 — Subclass RR allocation:**
 
 - When subclass RR ratios are configured (multi-tariff runs like HP TOU + non-HP flat):
-  - **With demand flex:** Non-TOU subclasses (e.g. flat) keep their original RR from `rr_setting` — they didn't shift load so their cost responsibility is unchanged. The TOU subclass(es) absorb the entire RR change: `TOU_RR = revenue_requirement_raw - sum(non-TOU original RRs)`. If multiple TOU subclasses exist, the TOU portion is split proportionally by their original ratios.
+  - **With demand flex:** Non-TOU subclasses (e.g. flat) keep their **no-flex baseline** RR: `baseline_k = rr_ratios[k] × full_rr_orig` (from Phase 1a). Using `full_rr_orig` rather than the YAML delivery-only dollar values ensures supply runs get the correct supply-level baseline for non-TOU classes. The TOU subclass(es) absorb the entire RR change: `TOU_RR = revenue_requirement_raw - sum(non-TOU baselines)`. If multiple TOU subclasses exist, the TOU portion is split proportionally by their baselines.
   - **Without demand flex:** The original ratios are applied to `revenue_requirement_raw` as before.
 - This ensures the RR decrease from demand flex accrues entirely to the customer class that shifted — the HP class benefits from their flexibility while flat-rate customers are held harmless.
 
@@ -308,9 +308,10 @@ For period/tier:
 
 With subclass RR configured (e.g. HP TOU + non-HP flat):
 
-- `RR_nonTOU = original_RR_nonTOU` (fixed — these customers didn't shift)
+- `baseline_k = rr_ratios[k] × full_RR_orig` (no-flex baseline from Phase 1a, works for both delivery and supply)
+- `RR_nonTOU = sum(baseline_k for k not in TOU)` (fixed — these customers didn't shift)
 - `RR_TOU = new_RR_system - RR_nonTOU` (TOU class absorbs the full change)
-- If multiple TOU subclasses: `RR_TOU_k = RR_TOU * (original_k / sum(original_TOU))`
+- If multiple TOU subclasses: `RR_TOU_k = RR_TOU * (baseline_k / sum(baseline_TOU))`
 
 ---
 

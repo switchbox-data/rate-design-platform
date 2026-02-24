@@ -1079,25 +1079,32 @@ def run(settings: ScenarioSettings) -> None:
     if rr_ratios is not None and isinstance(rr_setting, dict):
         if demand_flex_enabled:
             # Only TOU subclasses shifted load → only they absorb the RR
-            # decrease.  Non-shifted subclasses keep their original RR.
+            # change.  Non-shifted subclasses keep their *no-flex baseline*
+            # RR — which is the original (pre-flex) total RR times the
+            # subclass ratio.  Using ``full_rr_orig`` (from Phase 1a) rather
+            # than the YAML delivery-only dollar values ensures that supply
+            # runs get the correct supply-level baseline for non-TOU classes.
             non_shifted_rr = sum(
-                v for k, v in rr_setting.items() if k not in tou_tariff_keys
+                rr_ratios[k] * full_rr_orig
+                for k in rr_setting
+                if k not in tou_tariff_keys
             )
             shifted_rr_total = revenue_requirement_raw - non_shifted_rr
             # Split among TOU subclasses proportionally (if more than one).
             tou_original_total = sum(
-                v for k, v in rr_setting.items() if k in tou_tariff_keys
+                rr_ratios[k] * full_rr_orig for k in rr_setting if k in tou_tariff_keys
             )
             revenue_requirement: float | dict[str, float] = {}
-            for k, v in rr_setting.items():
+            for k in rr_setting:
+                baseline_k = rr_ratios[k] * full_rr_orig
                 if k in tou_tariff_keys:
                     revenue_requirement[k] = (
-                        shifted_rr_total * (v / tou_original_total)
+                        shifted_rr_total * (baseline_k / tou_original_total)
                         if tou_original_total > 0
                         else shifted_rr_total
                     )
                 else:
-                    revenue_requirement[k] = v  # unchanged
+                    revenue_requirement[k] = baseline_k  # no-flex baseline
             log.info(
                 ".... Subclass RR (demand-flex): %s",
                 {k: f"${v:,.0f}" for k, v in revenue_requirement.items()},
