@@ -32,7 +32,9 @@ def _base_row() -> dict[str, str]:
 
 def test_row_to_run_includes_path_tou_supply_mc_when_populated() -> None:
     row = _base_row()
-    row["path_tou_supply_mc"] = "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet"
+    row["path_tou_supply_mc"] = (
+        "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet"
+    )
     headers = list(row.keys())
 
     run = _row_to_run(row, headers)
