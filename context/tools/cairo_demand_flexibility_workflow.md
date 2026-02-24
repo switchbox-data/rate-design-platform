@@ -63,8 +63,8 @@ flowchart TD
         D --> E[effective_load_elec]
     end
 
-    subgraph phase175 ["Phase 1.75: Recompute TOU cost-causation ratios"]
-        E --> CC["_recompute_tou_precalc_mapping(\n  shifted system load,\n  combined MCs, season_specs)"]
+    subgraph phase175 ["Phase 1.75: Recompute TOU cost-causation ratios (precalc only)"]
+        E --> CC["_recompute_tou_precalc_mapping(\n  shifted system load,\n  real supply MC + dist MC, season_specs)"]
         MC --> CC
         CC --> PM["updated precalc_mapping\n(new peak/off-peak rel_values)"]
     end
@@ -74,15 +74,19 @@ flowchart TD
         C --> F
         MC --> F
         F --> G["costs_by_type:\n  MC from shifted load + frozen residual"]
-        F --> H["revenue_requirement =\n  costs_by_type['Total System Costs ($)']"]
+        F --> H["revenue_requirement_raw =\n  costs_by_type['Total System Costs ($)']"]
+    end
+
+    subgraph phase25 ["Phase 2.5: Subclass RR allocation"]
+        H --> RR["Non-TOU subclass RR = original (fixed)\nTOU subclass RR = new_RR − non-TOU total"]
     end
 
     subgraph phase3 ["Phase 3: CAIRO simulate"]
-        E --> I["bs.simulate(\n  customer_electricity_load=effective_load_elec,\n  revenue_requirement=new_RR,\n  precalc_period_mapping=updated,\n  costs_by_type=costs_by_type)"]
-        H --> I
+        E --> I["bs.simulate(\n  customer_electricity_load=effective_load_elec,\n  revenue_requirement=subclass_RR,\n  precalc_period_mapping=updated,\n  costs_by_type=costs_by_type)"]
+        RR --> I
         G --> I
         PM --> I
-        I --> J["precalc calibrates rates to meet new_RR\nusing updated rate structure\nBAT uses costs_by_type for residual allocation"]
+        I --> J["precalc calibrates rates to meet subclass_RR\nusing updated rate structure\nBAT uses costs_by_type for residual allocation"]
     end
 ```
 
@@ -101,10 +105,13 @@ flowchart TD
 - Shifting is energy-conserving (zero-sum within each season).
 - Seasonal orchestration: shifting runs per-season slice using explicit `season_specs` or tariff-inferred month groupings.
 
-**Phase 1.75 — Recompute TOU cost-causation ratios from shifted load:**
+**Phase 1.75 — Recompute TOU cost-causation ratios from shifted load (precalc only):**
 
+- **Only runs when `run_type == "precalc"`**. Default runs use a pre-calibrated tariff and have no revenue-neutrality constraint to recalibrate — they only apply demand shifting.
 - The load shift changes the demand-weighted marginal cost profile, so the peak/off-peak cost-causation ratios change.
 - `_recompute_tou_precalc_mapping` aggregates the shifted building loads to system-level hourly demand, then recomputes per-season `compute_tou_cost_causation_ratio` and `compute_seasonal_base_rates` using the shifted system load.
+- **Supply MC source:** For delivery-only precalc runs the scenario's Cambium file may be zeros. The optional YAML field `path_tou_supply_mc` points to the real Cambium parquet; if set, that MC is loaded and combined with distribution MC for cost-causation computation. If unset, `bulk_marginal_costs` (the scenario's Cambium) is used directly — this works for supply runs where the Cambium file is already real.
+- For seasons where the combined MC (supply + distribution) is zero everywhere (e.g. winter when distribution capacity costs are allocated only to summer peak hours), the original `base_rate` and `peak_offpeak_ratio` from the TOU derivation spec are preserved.
 - The precalc_period_mapping `rel_values` are updated in-place for each TOU tariff. Non-TOU entries are unchanged.
 - This ensures CAIRO's precalc calibrates the tariff _structure_ (rate ratios between periods), not just the _level_ (uniform scalar), to reflect post-flex MC responsibility. Without this step, CAIRO would apply a uniform scalar to the original rate ratios, which can cause all period rates to increase even when total RR decreases — because the revenue-weighted load shift exceeds the MC savings.
 
@@ -113,14 +120,21 @@ flowchart TD
 - Call `_return_revenue_requirement_target` with `effective_load_elec`, `residual_cost=frozen_residual`, and `revenue_requirement_target=None`.
 - `delivery_only_rev_req_passed=False` because the supply component is already baked into `frozen_residual`.
 - The returned `costs_by_type` has correct MC/residual decomposition: `Total System Costs = MC_shifted + frozen_residual`.
-- `revenue_requirement = costs_by_type["Total System Costs ($)"]` — this is the new RR passed to `bs.simulate`.
+- `revenue_requirement_raw = costs_by_type["Total System Costs ($)"]` — this is the system-wide recalibrated RR.
+
+**Phase 2.5 — Subclass RR allocation:**
+
+- When subclass RR ratios are configured (multi-tariff runs like HP TOU + non-HP flat):
+  - **With demand flex:** Non-TOU subclasses (e.g. flat) keep their original RR from `rr_setting` — they didn't shift load so their cost responsibility is unchanged. The TOU subclass(es) absorb the entire RR change: `TOU_RR = revenue_requirement_raw - sum(non-TOU original RRs)`. If multiple TOU subclasses exist, the TOU portion is split proportionally by their original ratios.
+  - **Without demand flex:** The original ratios are applied to `revenue_requirement_raw` as before.
+- This ensures the RR decrease from demand flex accrues entirely to the customer class that shifted — the HP class benefits from their flexibility while flat-rate customers are held harmless.
 
 **Phase 3 — CAIRO simulate:**
 
-- Precalc calibrates rate charges so bills from the shifted load profile meet `revenue_requirement`, using the updated `precalc_period_mapping` whose rel_values reflect post-flex MC responsibility.
+- Precalc calibrates rate charges so bills from the shifted load profile meet the per-subclass `revenue_requirement`, using the updated `precalc_period_mapping` whose rel_values reflect post-flex MC responsibility.
 - BAT postprocessing uses `effective_load_elec` as `raw_hourly_load` together with `marginal_system_prices` and `costs_by_type` to compute per-customer marginal cost allocation, residual allocation, and bill alignment.
 
-**No-flex path:** When `demand_flex_enabled` is False (elasticity == 0), the single-pass call `_return_revenue_requirement_target(raw_load_elec, revenue_requirement_target=delivery_RR)` is unchanged.
+**No-flex path:** When `demand_flex_enabled` is False (elasticity == 0), the single-pass call `_return_revenue_requirement_target(raw_load_elec, revenue_requirement_target=delivery_RR)` is unchanged, and the standard subclass ratio split applies.
 
 ---
 
@@ -284,11 +298,19 @@ For period/tier:
 
 (Implementation uses `log10`, which is equivalent for ratio-of-logs.)
 
-### D) Two-pass revenue requirement
+### D) Revenue requirement recalibration
 
 - `frozen_residual = full_RR_orig - MC_orig` (from original loads)
-- `new_RR = MC_shifted + frozen_residual`
-- Algebraically: `new_RR = full_RR_orig + (MC_shifted - MC_orig) = full_RR_orig + delta_MC`
+- `new_RR_system = MC_shifted + frozen_residual`
+- Algebraically: `new_RR_system = full_RR_orig + (MC_shifted - MC_orig) = full_RR_orig + delta_MC`
+
+### E) Subclass RR allocation (demand flex)
+
+With subclass RR configured (e.g. HP TOU + non-HP flat):
+
+- `RR_nonTOU = original_RR_nonTOU` (fixed — these customers didn't shift)
+- `RR_TOU = new_RR_system - RR_nonTOU` (TOU class absorbs the full change)
+- If multiple TOU subclasses: `RR_TOU_k = RR_TOU * (original_k / sum(original_TOU))`
 
 ---
 
