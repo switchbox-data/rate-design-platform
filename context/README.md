@@ -19,6 +19,7 @@ Research notes on the domain: rate design, LMI programs, policy by state.
 | bat_reasoning_stress_test.md         | Formal reconstruction and econ-seminar-style stress-test of the BAT framework: marginal costs, residual allocation, the three allocators, cross-subsidy definitions (BAT vs strict economic), standalone vs incremental cost                                                                                               |
 | coned_el1_charges_in_bat.md          | **Superseded by `ny_residential_charges_in_bat.md`** — original ConEd-only analysis, kept for reference                                                                                                                                                                                                                    |
 | coned_el1_lookups_effective_dates.md | Arcadia Lookups API: one record per effective period (from/to), not per month; ConEd applies these charges monthly; we expand lookups to one row per month                                                                                                                                                                 |
+| ny_mcos_studies_comparison.md        | Cross-utility comparison of all six NY 2025 MCOS studies: methodology, system-wide diluted/undiluted tables, component taxonomy mapping (physical hierarchy → cost-center labels), bulk vs local TX scrub, reassessment of bulk TX MC gap                                                                                  |
 
 ## tools/
 
