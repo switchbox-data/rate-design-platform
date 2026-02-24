@@ -1,4 +1,7 @@
-"""Entrypoint for running RI heat pump rate scenarios - Residential (non-LMI)."""
+"""Entrypoint for running RI heat pump rate scenarios - Residential (non-LMI).
+
+See Linear RDP-136 for delivery/supply revenue-requirement top-up work.
+"""
 
 from __future__ import annotations
 
