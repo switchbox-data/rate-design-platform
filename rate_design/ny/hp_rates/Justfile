@@ -47,10 +47,10 @@ revenue_year_col                    := "year"
 path_tariff_maps                    := path_config / "tariff_maps"
 # TODO: replace cenhud placeholder with per-utility MC data once generated
 path_td_mc                          := "s3://data.sb/switchbox/marginal_costs/" + state + "/region=" + region + "/utility=cenhud/year=" + mc_year + "/00000000.parquet"
-path_resstock_base                  := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/"
-path_s3_resstock_metadata           := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
-path_s3_utility_assignment          := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility"
-path_resstock_loads_00              := path_resstock_base + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
+path_resstock_release               := "/ebs/data/nrel/resstock/res_2024_amy2018_2"
+path_resstock_metadata              := path_resstock_release + "/metadata"
+path_utility_assignment             := path_resstock_release + "/metadata_utility/state=" + state_upper + "/utility_assignment.parquet"
+path_resstock_loads_00              := path_resstock_release + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
 # TODO: replace RI placeholder with correct NY Cambium BA once confirmed
 path_cambium                        := "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet"
 path_mc_table                       := env_var_or_default('MC_TABLE', path_config / "marginal_costs" / "ny_marginal_costs_2026_2035.csv")
@@ -124,8 +124,8 @@ create-seasonal-tou key=tou_tariff_key reference_tariff="":
 
 create-gas-tariff-map electric_utility upgrade_id output_dir:
   just -f {{path_repo}}/utils/Justfile create-gas-tariff-map \
-    "{{path_s3_resstock_metadata}}" \
-    "{{path_s3_utility_assignment}}" \
+    "{{path_resstock_release}}" \
+    "{{path_utility_assignment}}" \
     "{{state_upper}}" \
     "{{electric_utility}}" \
     "{{upgrade_id}}" \
@@ -373,7 +373,7 @@ run-all-utilities-sequential:
 
 map-electric-tariff electric_utility SB_scenario_type SB_scenario_year upgrade_id output_dir:
   uv run python {{path_repo}}/utils/pre/electric_tariff_mapper.py \
-    --metadata_path "{{path_s3_resstock_metadata}}" \
+    --metadata_path "{{path_resstock_release}}" \
     --state {{state_upper}} \
     --upgrade_id "{{upgrade_id}}" \
     --electric_utility "{{electric_utility}}" \
