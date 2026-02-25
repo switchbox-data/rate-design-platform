@@ -21,6 +21,11 @@ CambiumPathLike = str | Path | S3Path
 log = logging.getLogger(__name__)
 
 
+def _is_cambium_path(path: CambiumPathLike) -> bool:
+    """Check if a path is a Cambium file path (contains 'cambium' in the path string)."""
+    return "cambium" in str(path).lower()
+
+
 def _normalize_cambium_path(cambium_scenario: CambiumPathLike):  # noqa: ANN201
     """Return a single path-like (Path or S3Path) for Cambium CSV or Parquet."""
     if isinstance(cambium_scenario, S3Path):
@@ -296,7 +301,11 @@ def _load_supply_marginal_costs(
     """
     Load supply marginal costs from separate energy and capacity files, or fallback to combined Cambium file.
 
-    If both energy_path and capacity_path are provided, loads them separately and combines.
+    If both energy_path and capacity_path are provided:
+    - If either path contains "cambium", treat it as a Cambium file (combined energy+capacity)
+      and use _load_cambium_marginal_costs with the cambium path.
+    - Otherwise, load them separately and combine.
+    
     If only one is provided, raises ValueError.
     If both are None, raises ValueError (caller should use _load_cambium_marginal_costs instead).
 
@@ -305,8 +314,10 @@ def _load_supply_marginal_costs(
     - Marginal Capacity Costs ($/kWh)
 
     Args:
-        energy_path: Path to energy MC parquet (or None).
-        capacity_path: Path to capacity MC parquet (or None).
+        energy_path: Path to energy MC parquet (or None). If path contains "cambium", 
+                     treated as combined Cambium file.
+        capacity_path: Path to capacity MC parquet (or None). If path contains "cambium",
+                       treated as combined Cambium file.
         target_year: Target year for timeshifting.
 
     Returns:
@@ -322,6 +333,17 @@ def _load_supply_marginal_costs(
     if capacity_path is None:
         raise ValueError("capacity_path is required when using separate supply MC files")
 
+    # Check if either path contains "cambium" - if so, treat as Cambium file (backward compatibility)
+    if _is_cambium_path(energy_path) or _is_cambium_path(capacity_path):
+        # Use the cambium path (prefer energy_path if both contain cambium, otherwise use the one that does)
+        cambium_path = energy_path if _is_cambium_path(energy_path) else capacity_path
+        log.info(
+            "Detected Cambium path in supply MC: %s. Using _load_cambium_marginal_costs for backward compatibility.",
+            cambium_path
+        )
+        return _load_cambium_marginal_costs(cambium_path, target_year)
+
+    # Both paths are separate files (not Cambium)
     energy_df = _load_supply_energy_mc(energy_path, target_year)
     capacity_df = _load_supply_capacity_mc(capacity_path, target_year)
 

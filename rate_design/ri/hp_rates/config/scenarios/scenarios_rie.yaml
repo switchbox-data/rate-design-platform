@@ -14,6 +14,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run1_up00_precalc__flat
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       all: tariffs/electric/rie_flat.json
     utility_delivery_revenue_requirement: rev_requirement/rie.yaml
@@ -40,6 +42,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run2_up00_precalc_supply__flat
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       all: tariffs/electric/rie_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/rie.yaml
@@ -66,6 +70,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run3_up02_default__flat
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       all: tariffs/electric/rie_flat_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml
@@ -92,6 +98,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run4_up02_default_supply__flat
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       all: tariffs/electric/rie_flat_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml
@@ -118,6 +126,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run5_up00_precalc__hp_seasonal_vs_flat
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonal.json
       non-hp: tariffs/electric/rie_flat.json
@@ -145,6 +155,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run6_up00_precalc_supply__hp_seasonal_vs_flat
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonal_supply.json
       non-hp: tariffs/electric/rie_flat_supply.json
@@ -172,6 +184,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run7_up02_default__hp_seasonal
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       all: tariffs/electric/rie_hp_seasonal_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml
@@ -198,6 +212,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run8_up02_default_supply__hp_seasonal
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       all: tariffs/electric/rie_hp_seasonal_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml
@@ -224,6 +240,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run9_up00_precalc__hp_seasonalTOU_vs_flat
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonalTOU.json
       non-hp: tariffs/electric/rie_flat.json
@@ -251,6 +269,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run10_up00_precalc_supply__hp_seasonalTOU_vs_flat
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonalTOU_supply.json
       non-hp: tariffs/electric/rie_flat_supply.json
@@ -278,6 +298,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run11_up02_default__hp_seasonalTOU
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       all: tariffs/electric/rie_hp_seasonalTOU_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml
@@ -304,6 +326,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run12_up02_default_supply__hp_seasonalTOU
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       all: tariffs/electric/rie_hp_seasonalTOU_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml
@@ -330,6 +354,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run13_up00_precalc__hp_seasonalTOU_flex_vs_flat
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonalTOU_flex.json
       non-hp: tariffs/electric/rie_flat.json
@@ -358,6 +384,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_flat
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonalTOU_flex_supply.json
       non-hp: tariffs/electric/rie_flat_supply.json
@@ -386,6 +414,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run15_up02_default__hp_seasonalTOU_flex
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       all: tariffs/electric/rie_hp_seasonalTOU_flex_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml
@@ -412,6 +442,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/ri_rie_run16_up02_default_supply__hp_seasonalTOU_flex
     path_supply_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_supply_energy_mc: ''
+    path_supply_capacity_mc: ''
     path_tariffs_electric:
       all: tariffs/electric/rie_hp_seasonalTOU_flex_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/rie_large_number.yaml

@@ -1048,6 +1048,8 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         if tou_season_specs and settings.run_type == "precalc":
             # Load the real supply MC for cost-causation ratio computation.
             if settings.path_tou_supply_mc is not None:
+                # Use the same loader as main supply MC loading.
+                # _load_cambium_marginal_costs handles both Cambium files and other formats.
                 tou_bulk_mc = _load_cambium_marginal_costs(
                     settings.path_tou_supply_mc, settings.year_run
                 )
