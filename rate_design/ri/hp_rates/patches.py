@@ -8,6 +8,7 @@ Import this module at the top of run_scenario.py (after all other imports):
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -33,6 +34,8 @@ _ALL_COLS = list(dict.fromkeys(_ELEC_RAW_COLS + _GAS_RAW_COLS))  # deduplicated,
 # kWh -> therms conversion factor (from CAIRO _adjust_gas_loads docstring)
 _GAS_KWH_TO_THERM = 0.0341214116
 
+log = logging.getLogger("rates_analysis").getChild("patches")
+
 
 def _return_loads_combined(
     target_year: int,
@@ -54,6 +57,13 @@ def _return_loads_combined(
         Electricity: columns ['load_data', 'pv_generation', 'electricity_net']
         Gas: columns ['load_data'] (units: therms)
     """
+    log.info(
+        "PATCH_CALL _return_loads_combined target_year=%s buildings=%s force_tz=%s",
+        target_year,
+        len(building_ids),
+        force_tz,
+    )
+
     # 1. Collect file paths in building_ids order (preserves determinism)
     present_ids = [bid for bid in building_ids if bid in load_filepath_key]
     paths = [str(load_filepath_key[bid]) for bid in present_ids]
@@ -203,6 +213,12 @@ def _vectorized_process_building_demand_by_period(
     # otherwise convert therms to therms×0.034 (a bug present in the original CAIRO path).
     # This is intentional: gas bills will now be correct (not doubly-scaled).
     is_gas = load_col_key == "total_fuel_gas"
+    log.info(
+        "PATCH_CALL _vectorized_process_building_demand_by_period load_col_key=%s buildings=%s is_gas=%s",
+        load_col_key,
+        len(prototype_ids),
+        is_gas,
+    )
 
     # Use CAIRO's _load_base_tariffs to get the prototype->tariff mapping and
     # the converted tariff dicts (deep copies already in PySAM format)
@@ -220,6 +236,9 @@ def _vectorized_process_building_demand_by_period(
         v in ("tiered", "combined") for v in tier_tou_check.values()
     )
     if has_tiered_or_combined:
+        log.info(
+            "PATCH_FALLBACK _vectorized_process_building_demand_by_period reason=tiered_or_combined"
+        )
         return _orig_pbdbp(
             target_year=target_year,
             load_col_key=load_col_key,
@@ -428,6 +447,11 @@ def _vectorized_run_system_revenues(
     from cairo.rates_tool import tariffs as tariff_funcs
     # Reference saved at module level before monkey-patch to avoid recursion.
     _orig_rsr = _orig_run_system_revenues
+    log.info(
+        "PATCH_CALL _vectorized_run_system_revenues process_agg_load=%s buildings=%s",
+        process_agg_load,
+        len(prototype_ids) if prototype_ids is not None else 0,
+    )
 
     tariff_map_dict, tariff_dicts = tariff_funcs._load_base_tariffs(
         tariff_base=tariff_config, tariff_map=tariff_strategy, prototype_ids=prototype_ids
@@ -444,6 +468,11 @@ def _vectorized_run_system_revenues(
     has_solar = any(v is not None for v in solar_compensation_df_norm.values())
 
     if has_demand or has_solar:
+        log.info(
+            "PATCH_FALLBACK _vectorized_run_system_revenues reason=unsupported_features has_demand=%s has_solar=%s",
+            has_demand,
+            has_solar,
+        )
         return _orig_rsr(
             aggregated_load=aggregated_load,
             aggregated_solar=aggregated_solar,
@@ -480,6 +509,9 @@ def _vectorized_run_system_revenues(
 
     if not process_agg_load:
         # Non-standard path — fall back to CAIRO
+        log.info(
+            "PATCH_FALLBACK _vectorized_run_system_revenues reason=process_agg_load_false"
+        )
         return _orig_rsr(
             aggregated_load=aggregated_load,
             aggregated_solar=aggregated_solar,
@@ -680,6 +712,10 @@ import cairo.rates_tool.loads as _cairo_loads
 _orig_process_building_demand_by_period = _cairo_loads.process_building_demand_by_period
 
 _cairo_loads.process_building_demand_by_period = _vectorized_process_building_demand_by_period
+log.info(
+    "PATCH_APPLIED cairo.rates_tool.loads.process_building_demand_by_period -> %s",
+    _vectorized_process_building_demand_by_period.__name__,
+)
 
 import cairo.rates_tool.system_revenues as _cairo_sysrev
 
@@ -688,6 +724,10 @@ import cairo.rates_tool.system_revenues as _cairo_sysrev
 _orig_run_system_revenues = _cairo_sysrev.run_system_revenues
 
 _cairo_sysrev.run_system_revenues = _vectorized_run_system_revenues
+log.info(
+    "PATCH_APPLIED cairo.rates_tool.system_revenues.run_system_revenues -> %s",
+    _vectorized_run_system_revenues.__name__,
+)
 
 # ---------------------------------------------------------------------------
 # Phase 4b: monkey-patch _calculate_gas_bills on MeetRevenueSufficiencySystemWide
@@ -720,6 +760,11 @@ def _patched_calculate_gas_bills(
 
     Falls back to the original CAIRO implementation on any exception.
     """
+    log.info(
+        "PATCH_CALL _patched_calculate_gas_bills target_year=%s buildings=%s",
+        target_year,
+        len(prototype_ids),
+    )
     try:
         # Use _initialize_tariffs (same as the original) to get PySAM tariff dicts
         # and a normalized tariff_map DataFrame.
@@ -778,3 +823,7 @@ def _patched_calculate_gas_bills(
 
 
 _cairo_sim.MeetRevenueSufficiencySystemWide._calculate_gas_bills = _patched_calculate_gas_bills
+log.info(
+    "PATCH_APPLIED MeetRevenueSufficiencySystemWide._calculate_gas_bills -> %s",
+    _patched_calculate_gas_bills.__name__,
+)
