@@ -129,7 +129,7 @@ create-flat-tariff:
 # reference_tariff: path to a calibrated tariff JSON whose base rate and fixed
 # charge are extracted to set TOU price levels. When empty, derive_seasonal_tou
 # falls back to its built-in defaults.
-create-seasonal-tou key=tou_tariff_key reference_tariff="":
+create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
   just -f {{path_repo}}/utils/Justfile create-seasonal-tou \
     "{{path_cambium}}" \
     "{{state_upper}}" \
@@ -143,7 +143,8 @@ create-seasonal-tou key=tou_tariff_key reference_tariff="":
     "{{key}}" \
     "{{path_config}}" \
     "{{path_periods_yaml}}" \
-    "{{reference_tariff}}"
+    "{{reference_tariff}}" \
+    "{{run_dir}}"
 
 # Marginal cost allocation (state-specific).
 create-td-mc-data:
@@ -404,16 +405,16 @@ all-pre:
     just validate-config
 
 run-all-sequential:
-    # just run-1
-    # just compute-rev-requirements
-    # just run-2
-    # just run-3
-    # just run-4
-    # just run-5
-    # just run-6
-    # just run-7
-    # just run-8
-    # just run-9
+    just run-1
+    just compute-rev-requirements
+    just run-2
+    just run-3
+    just run-4
+    just run-5
+    just run-6
+    just run-7
+    just run-8
+    just run-9
     just run-10
     just run-11
     just run-12

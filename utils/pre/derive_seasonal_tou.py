@@ -37,6 +37,7 @@ import pandas as pd
 import polars as pl
 from cairo.rates_tool.loads import return_buildingstock
 
+from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils import get_aws_region
 from utils.loads import (
     ELECTRIC_LOAD_COL,
@@ -308,6 +309,17 @@ def _parse_args() -> argparse.Namespace:
             "rate_design/<state>/hp_rates/config/periods/<utility>.yaml."
         ),
     )
+    p.add_argument(
+        "--run-dir",
+        default=None,
+        help=(
+            "Optional path (local or s3://) to a CAIRO output directory. "
+            "When provided, building IDs are read from "
+            "run_dir/customer_metadata.csv and passed as building_stock_sample "
+            "to return_buildingstock, restricting the TOU derivation to the "
+            "exact customer set from that run."
+        ),
+    )
 
     return p.parse_args()
 
@@ -410,17 +422,28 @@ def main() -> None:
     )
     log.info("Residential customer count: %d", customer_count)
 
+    building_stock_sample: list[int] | None = None
+    if args.run_dir:
+        run_dir_path = args.run_dir.rstrip("/")
+        cm_path = f"{run_dir_path}/customer_metadata.csv"
+        log.info("Reading building IDs from %s", cm_path)
+        csv_opts = get_aws_storage_options() if cm_path.startswith("s3://") else None
+        run_bldg_ids = pl.read_csv(
+            cm_path, columns=["bldg_id"], storage_options=csv_opts
+        )["bldg_id"].to_list()
+        building_stock_sample = run_bldg_ids
+        log.info("Restricting to %d buildings from run output", len(run_bldg_ids))
+
     log.info("Loading ResStock metadata from %s", args.resstock_metadata_path)
     customer_metadata = return_buildingstock(
         load_scenario=Path(args.resstock_metadata_path),
         customer_count=customer_count,
         columns=["applicability", "postprocess_group.has_hp"],
+        building_stock_sample=building_stock_sample,
     )
 
     building_ids = customer_metadata["bldg_id"].tolist()
-    weights_df = pl.from_pandas(
-        customer_metadata[["bldg_id", "weight"]].copy()
-    )
+    weights_df = pl.from_pandas(customer_metadata[["bldg_id", "weight"]].copy())
     log.info(
         "Scanning ResStock loads (base=%s, state=%s, upgrade=%s, n_buildings=%d)",
         args.resstock_base,

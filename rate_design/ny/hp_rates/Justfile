@@ -22,14 +22,14 @@ utility     := env_var_or_default('UTILITY', 'nyseg')
 # Just pass UTILITY=<name> to switch utilities:
 #   UTILITY=coned just run-1
 
-region            := env_var_or_default('REGION', 'nyiso')
-year              := env_var_or_default('YEAR', '2026')
-mc_year           := env_var_or_default('MC_YEAR', '2026')
-upgrade           := env_var_or_default('UPGRADE', '00')
+region                := env_var_or_default('REGION', 'nyiso')
+year                  := env_var_or_default('YEAR', '2026')
+mc_year               := env_var_or_default('MC_YEAR', '2026')
+upgrade               := env_var_or_default('UPGRADE', '00')
 default_tariff        := env_var_or_default('DEFAULT_TARIFF', utility + '_default.json')
 default_tariff_supply := env_var_or_default('DEFAULT_TARIFF_SUPPLY', utility + '_default.json')
-upstream_hours    := env_var_or_default('UPSTREAM_HOURS', '100')
-dist_hours        := env_var_or_default('DIST_HOURS', '100')
+upstream_hours        := env_var_or_default('UPSTREAM_HOURS', '100')
+dist_hours            := env_var_or_default('DIST_HOURS', '100')
 
 # =============================================================================
 # Tier 3: Derived paths (all computed from Tier 1 + 2)
@@ -112,7 +112,7 @@ create-flat-tariff:
     "{{utility}}_flat_supply" \
     "{{path_tariffs_electric}}"
 
-create-seasonal-tou key=tou_tariff_key reference_tariff="":
+create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
   just -f {{path_repo}}/utils/Justfile create-seasonal-tou \
     "{{path_cambium}}" \
     "{{state_upper}}" \
@@ -126,7 +126,8 @@ create-seasonal-tou key=tou_tariff_key reference_tariff="":
     "{{key}}" \
     "{{path_config}}" \
     "{{path_periods_yaml}}" \
-    "{{reference_tariff}}"
+    "{{reference_tariff}}" \
+    "{{run_dir}}"
 
 create-gas-tariff-map electric_utility upgrade_id output_dir:
   just -f {{path_repo}}/utils/Justfile create-gas-tariff-map \
@@ -248,7 +249,7 @@ run-5:
     just compute-seasonal-discount-inputs "${run1_dir}" "{{path_resstock_release}}" "{{state_upper}}" "{{upgrade}}"
     just create-seasonal-discount-tariff \
         "{{path_tariffs_electric}}/{{utility}}_flat_calibrated.json" \
-        "${run1_dir}seasonal_discount_rate_inputs.csv" \
+        "${run1_dir}/seasonal_discount_rate_inputs.csv" \
         {{utility}}_hp_seasonal \
         "{{path_tariffs_electric}}/{{utility}}_hp_seasonal.json"
     just run-scenario 5
@@ -262,7 +263,7 @@ run-6:
     just compute-seasonal-discount-inputs "${run2_dir}" "{{path_resstock_release}}" "{{state_upper}}" "{{upgrade}}"
     just create-seasonal-discount-tariff \
         "{{path_tariffs_electric}}/{{utility}}_flat_supply_calibrated.json" \
-        "${run2_dir}seasonal_discount_rate_inputs.csv" \
+        "${run2_dir}/seasonal_discount_rate_inputs.csv" \
         {{utility}}_hp_seasonal_supply \
         "{{path_tariffs_electric}}/{{utility}}_hp_seasonal_supply.json"
     just run-scenario 6
@@ -286,29 +287,33 @@ run-8:
     just run-scenario 8
 
 # Run 9: precalc hp_seasonalTOU vs flat, delivery
+# Uses run-1 output for calibrated tariff (reference) and run-dir (building list/weights).
 run-9:
     #!/usr/bin/env bash
     set -euo pipefail
+    run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
+    echo ">> run-9: run-1 output → ${run1_dir}" >&2
     ref_tariff="{{path_tariffs_electric}}/{{utility}}_flat_calibrated.json"
     if [ ! -f "${ref_tariff}" ]; then
-        run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
-        echo ">> run-9: calibrated tariff missing, copying from run-1 → ${run1_dir}" >&2
+        echo ">> run-9: calibrated tariff missing, copying from run-1" >&2
         just copy-calibrated-tariff-from-run "${run1_dir}"
     fi
-    just create-seasonal-tou {{tou_tariff_key}} "${ref_tariff}"
+    just create-seasonal-tou {{tou_tariff_key}} "${ref_tariff}" "${run1_dir}"
     just run-scenario 9
 
 # Run 10: precalc hp_seasonalTOU vs flat, supply
+# Uses run-2 output for calibrated tariff (reference) and run-dir (building list/weights).
 run-10:
     #!/usr/bin/env bash
     set -euo pipefail
+    run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
+    echo ">> run-10: run-2 output → ${run2_dir}" >&2
     ref_tariff="{{path_tariffs_electric}}/{{utility}}_flat_supply_calibrated.json"
     if [ ! -f "${ref_tariff}" ]; then
-        run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
-        echo ">> run-10: calibrated supply tariff missing, copying from run-2 → ${run2_dir}" >&2
+        echo ">> run-10: calibrated supply tariff missing, copying from run-2" >&2
         just copy-calibrated-tariff-from-run "${run2_dir}"
     fi
-    just create-seasonal-tou {{tou_tariff_key}}_supply "${ref_tariff}"
+    just create-seasonal-tou {{tou_tariff_key}}_supply "${ref_tariff}" "${run2_dir}"
     just run-scenario 10
 
 # Run 11: default hp_seasonalTOU calibrated, delivery (needs run 9 output)
@@ -328,6 +333,56 @@ run-12:
     echo ">> run-12: resolved run-10 output → ${run10_dir}" >&2
     just copy-calibrated-tariff-from-run "${run10_dir}"
     just run-scenario 12
+
+# Run 13: precalc hp_seasonalTOU_flex vs flat, delivery
+# Reuses run-9 TOU tariff shape; _flex differs only by runtime elasticity.
+run-13:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}.json"
+    target_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}_flex.json"
+    if [ ! -f "${source_tou}" ]; then
+        echo ">> run-13: missing source TOU tariff: ${source_tou}" >&2
+        echo ">> run-13: run run-9 first to generate it." >&2
+        exit 1
+    fi
+    cp "${source_tou}" "${target_tou}"
+    echo ">> run-13: copied ${source_tou} -> ${target_tou}" >&2
+    just run-scenario 13
+
+# Run 14: precalc hp_seasonalTOU_flex vs flat, supply
+# Reuses run-10 TOU supply tariff shape; _flex differs only by runtime elasticity.
+run-14:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}_supply.json"
+    target_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}_flex_supply.json"
+    if [ ! -f "${source_tou}" ]; then
+        echo ">> run-14: missing source TOU supply tariff: ${source_tou}" >&2
+        echo ">> run-14: run run-10 first to generate it." >&2
+        exit 1
+    fi
+    cp "${source_tou}" "${target_tou}"
+    echo ">> run-14: copied ${source_tou} -> ${target_tou}" >&2
+    just run-scenario 14
+
+# Run 15: default hp_seasonalTOU_flex calibrated, delivery (needs run 13 output)
+run-15:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run13_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 13)
+    echo ">> run-15: resolved run-13 output -> ${run13_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run13_dir}"
+    just run-scenario 15
+
+# Run 16: default hp_seasonalTOU_flex calibrated, supply (needs run 14 output)
+run-16:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run14_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 14)
+    echo ">> run-16: resolved run-14 output -> ${run14_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run14_dir}"
+    just run-scenario 16
 
 # =============================================================================
 # MASTER: orchestration entrypoints
@@ -354,6 +409,10 @@ run-all-sequential:
     just run-10
     just run-11
     just run-12
+    just run-13
+    just run-14
+    just run-15
+    just run-16
 
 # Run all 7 utilities sequentially.
 run-all-utilities-sequential:

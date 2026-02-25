@@ -24,7 +24,7 @@ def _normalize_data_path(p: str) -> str:
     """
     p = p.rstrip("/")
     if p.startswith("s3://"):
-        return p[len("s3://"):]
+        return p[len("s3://") :]
     if p.startswith("/"):
         return p.lstrip("/")
     return p
@@ -77,9 +77,7 @@ def main() -> None:
             (
                 "path_cambium",
                 _normalize_data_path(args.path_cambium),
-                _normalize_data_path(
-                    str(run2.get("path_cambium_marginal_costs", ""))
-                ),
+                _normalize_data_path(str(run2.get("path_cambium_marginal_costs", ""))),
             )
         )
 
