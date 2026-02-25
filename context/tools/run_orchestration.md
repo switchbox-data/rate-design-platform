@@ -208,6 +208,13 @@ structure difference. This keeps tariff creation simple and isolates the
 behavioral modeling in the scenario runner.
 
 **Sequential execution.** Delivery runs (odd) and supply runs (even) are
-independent and could theoretically run in parallel. For now the pipeline runs
-sequentially via `run-all-sequential` for simplicity and debuggability.
-Parallelization is a future improvement.
+independent and could theoretically run in parallel. `run-all-sequential` runs them
+serially for simplicity and debuggability. Use `run-all-parallel-tracks` for faster
+end-to-end wall time (see Parallel tracks below).
+
+**Parallel tracks.** `run-all-parallel-tracks` runs delivery and supply runs as concurrent
+pairs (6 waves of 2), each pair using half the available CPUs. This beats the sequential
+strategy when T4/T8 < 1.8 (see `cairo_parallelism_and_workers.md` for measured ratio).
+File conflicts: none — each wave pair writes to distinct tariff files and timestamped S3
+output directories. The `compute-rev-requirements` step remains serial between wave 1 and
+wave 2 (it reads run-1 output and is fast; runs 5, 6, 9, and 10 all depend on it).
