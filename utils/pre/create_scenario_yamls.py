@@ -14,10 +14,9 @@ Note on path_supply_marginal_costs column:
     For RI runs, continue using Cambium paths:
         s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
     
-    Use an Excel formula in the path_supply_marginal_costs column to automatically
-    set the path based on add_supply_revenue_requirement and utility.
+    Use Excel formulas in the Google Sheet to automatically set paths:
     
-    Example formula (adjust column references as needed):
+    path_supply_marginal_costs formula (adjust column references as needed):
     =IF(AND($B18="NY", E18="X"), 
         "s3://data.sb/switchbox/marginal_costs/ny/supply/utility=" & LOWER($C18) & "/year=2025/data.parquet",
         "s3://data.sb/nrel/cambium/zero_marginal_costs.csv")
@@ -25,6 +24,16 @@ Note on path_supply_marginal_costs column:
     Where:
     - $B18 is the state column (NY)
     - E18 is the add_supply_revenue_requirement column (X = TRUE)
+    - $C18 is the utility column
+    
+    path_tou_supply_mc formula (for runs where num = 13 or 14):
+    =IF(AND($B18="NY", OR($A18=13, $A18=14)),
+        "s3://data.sb/switchbox/marginal_costs/ny/supply/utility=" & LOWER($C18) & "/year=2025/data.parquet",
+        "")
+    
+    Where:
+    - $A18 is the num column (run number)
+    - $B18 is the state column (NY)
     - $C18 is the utility column
     
     After updating the Google Sheet, run: just create-scenario-yamls
