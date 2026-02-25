@@ -84,6 +84,15 @@ UTILITY_SERVICE_AREAS: dict[str, list[UtilityServiceArea]] = {
     "nimo": [
         {"state": "NY", "zones": ["A", "B", "C", "D", "E", "F"]},
     ],
+    "coned": [
+        {"state": "NY", "zones": ["H", "I", "J"]},
+    ],
+    "or": [
+        {"state": "NY", "zones": ["G"]},
+    ],
+    "psegli": [
+        {"state": "NY", "zones": ["K"]},
+    ],
     "rie": [
         {"state": "RI", "zones": ["RI"]},
     ],
