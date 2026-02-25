@@ -125,6 +125,20 @@ def derive_seasonal_tou(
         bulk_marginal_costs, distribution_marginal_costs
     )
 
+    # Align load index to MC index so multiply in find_tou_peak_window is 1:1 (MC is
+    # target_year e.g. 2025; ResStock load may be a different year).
+    if not hourly_system_load.index.equals(combined_mc.index):
+        if len(hourly_system_load) == len(combined_mc):
+            hourly_system_load = pd.Series(
+                hourly_system_load.values,
+                index=combined_mc.index,
+                name=hourly_system_load.name,
+            )
+        else:
+            hourly_system_load = hourly_system_load.reindex(
+                combined_mc.index, method="ffill"
+            )
+
     seasons = make_winter_summer_seasons(winter_months)
     season_rates = compute_seasonal_base_rates(
         combined_mc, hourly_system_load, seasons, tou_base_rate

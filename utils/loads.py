@@ -7,6 +7,7 @@ specific building IDs for alignment with CAIRO sample runs.
 
 from __future__ import annotations
 
+import pandas as pd
 import polars as pl
 
 # Load column used for hourly electric consumption (ResStock schema)
@@ -15,6 +16,9 @@ ELECTRIC_LOAD_COL = "out.electricity.net.energy_consumption"
 # ResStock load_curve_hourly layout: .../load_curve_hourly/state=XX/upgrade=YY/*.parquet
 LOAD_CURVE_HOURLY_SUBDIR = "load_curve_hourly/"
 BLDG_ID_COL = "bldg_id"
+
+# Timezone used for hourly load index; must match marginal cost data (see utils/cairo.py).
+HOURLY_LOAD_TZ = "EST"
 
 
 def scan_resstock_loads(
@@ -62,11 +66,8 @@ def scan_resstock_loads(
     lf = lf.filter(
         pl.col("state") == str(state),
         pl.col("upgrade") == str(upgrade),
+        pl.col("bldg_id").is_in(building_ids),
     )
-
-    if building_ids is not None and len(building_ids) > 0:
-        lf = lf.filter(pl.col(BLDG_ID_COL).is_in([int(bid) for bid in building_ids]))
-
     return lf
 
 
@@ -78,14 +79,13 @@ def hourly_system_load_from_resstock(
     timestamp_col: str = "timestamp",
     bldg_id_col: str = BLDG_ID_COL,
     weight_col: str = "weight",
-) -> "pd.Series":
+) -> pd.Series:
     """Compute weighted hourly system load (one value per hour) from loads and weights.
 
     Joins loads with weights on bldg_id, multiplies load by weight, and sums by
-    timestamp. Returns a pandas Series indexed by datetime for use in TOU derivation.
+    timestamp. Returns a pandas Series indexed by datetime (tz-aware EST, matching
+    marginal cost data) for use in TOU derivation.
     """
-    import pandas as pd
-
     weights_lf = weights.select(
         pl.col(bldg_id_col).cast(pl.Int64),
         pl.col(weight_col).cast(pl.Float64),
@@ -113,4 +113,7 @@ def hourly_system_load_from_resstock(
     series = df["load"].to_pandas()
     series.index = index
     series.index.name = "time"
+    # Match marginal cost index (EST) so TOU derivation can align load with MC.
+    if series.index.tz is None:
+        series.index = series.index.tz_localize(HOURLY_LOAD_TZ, ambiguous="infer")
     return series
