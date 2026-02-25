@@ -18,6 +18,7 @@ data/census/pums/parquet/
 data/census/pums/data_dict_cache/
 data/eia/861/electric_utility_stats/
 data/eia/861/parquet/
+data/eia/heating_fuel_prices/parquet/
 data/eia/hourly_loads/zone_parquet/
 data/eia/hourly_loads/utility_parquet/
 data/fred/cpi/parquet/

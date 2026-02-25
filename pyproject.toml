@@ -43,6 +43,7 @@ dev = [
     "ty>=0.0.1a21",
     "deptry>=0.20.0",
     "ipykernel>=7.1.0",
+    "plotnine>=0.14.0",
 ]
 
 [build-system]

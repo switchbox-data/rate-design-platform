@@ -235,7 +235,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-
   10:
     run_name: ri_rie_run10_up00_precalc_supply__hp_seasonalTOU_vs_flat
     state: RI
@@ -341,7 +340,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: -0.1
-
   14:
     run_name: ri_rie_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_flat
     state: RI
@@ -368,7 +366,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: -0.1
-
   15:
     run_name: ri_rie_run15_up02_default__hp_seasonalTOU_flex
     state: RI
@@ -394,7 +391,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: -0.1
-
   16:
     run_name: ri_rie_run16_up02_default_supply__hp_seasonalTOU_flex
     state: RI
