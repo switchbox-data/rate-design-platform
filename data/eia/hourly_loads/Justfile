@@ -6,6 +6,8 @@
 # Usage (from project root):
 #   just -f data/eia/hourly_loads/Justfile fetch-zone-data NY 2025-01 2025-12
 #   just -f data/eia/hourly_loads/Justfile aggregate-utility-loads NY 2025 nyseg
+#   just -f data/eia/hourly_loads/Justfile aggregate-all-utility-loads NY 2025
+#   just -f data/eia/hourly_loads/Justfile download
 #   just -f data/eia/hourly_loads/Justfile upload
 #   just -f data/eia/hourly_loads/Justfile clean
 
@@ -49,6 +51,29 @@ aggregate-utility-loads state year utility:
         --utility "$u" \
         --path-local-zone-parquet "{{path_local_zone_parquet}}" \
         --path-local-utility-parquet "{{path_local_utility_parquet}}"
+
+# Aggregate zone loads for ALL utilities in a state; read/write local parquet.
+aggregate-all-utility-loads state year:
+    #!/usr/bin/env bash
+    s="{{state}}"
+    y="{{year}}"
+    if [[ -z "$s" || -z "$y" ]]; then
+        echo "Usage: just aggregate-all-utility-loads <state> <year>"
+        echo "Example: just aggregate-all-utility-loads NY 2025"
+        exit 1
+    fi
+    uv run python "{{path_local_repo}}/data/eia/hourly_loads/aggregate_eia_utility_loads.py" \
+        --state "$s" \
+        --year "$y" \
+        --utility all \
+        --path-local-zone-parquet "{{path_local_zone_parquet}}" \
+        --path-local-utility-parquet "{{path_local_utility_parquet}}"
+
+# Download zone and utility parquet from S3 to local (inverse of upload).
+download:
+    aws s3 sync "{{path_s3_zone_parquet}}" "{{path_local_zone_parquet}}" --exclude "*" --include "*.parquet"
+    aws s3 sync "{{path_s3_utility_parquet}}" "{{path_local_utility_parquet}}" --exclude "*" --include "*.parquet"
+    @echo "Synced zone and utility parquet from S3 to local"
 
 # Sync local zone and utility parquet to S3 (same layout).
 upload:
