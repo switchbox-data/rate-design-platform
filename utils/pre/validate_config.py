@@ -14,6 +14,22 @@ from pathlib import Path
 import yaml
 
 
+def _normalize_data_path(p: str) -> str:
+    """Normalize ``s3://data.sb/...`` and ``/data.sb/...`` to a common form.
+
+    Justfile variables use ``s3://`` for native S3 access while scenario YAMLs
+    use the FUSE mount (``/data.sb/``) because CAIRO requires local paths.
+    Stripping the transport prefix lets us compare the logical path regardless
+    of access method.
+    """
+    p = p.rstrip("/")
+    if p.startswith("s3://"):
+        return p[len("s3://") :]
+    if p.startswith("/"):
+        return p.lstrip("/")
+    return p
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scenario-config", required=True, type=Path)
@@ -39,16 +55,20 @@ def main() -> None:
         ("utility", args.utility, str(run1.get("utility", ""))),
         ("upgrade", args.upgrade, str(run1.get("upgrade", "")).zfill(2)),
         ("year", args.year, str(run1.get("year_run", ""))),
-        ("path_td_mc", args.path_td_mc, str(run1.get("path_td_marginal_costs", ""))),
+        (
+            "path_td_mc",
+            _normalize_data_path(args.path_td_mc),
+            _normalize_data_path(str(run1.get("path_td_marginal_costs", ""))),
+        ),
         (
             "path_electric_utility_stats",
-            args.path_electric_utility_stats,
-            str(run1.get("path_electric_utility_stats", "")),
+            _normalize_data_path(args.path_electric_utility_stats),
+            _normalize_data_path(str(run1.get("path_electric_utility_stats", ""))),
         ),
         (
             "path_resstock_loads",
-            args.path_resstock_loads.rstrip("/"),
-            str(run1.get("path_resstock_loads", "")).rstrip("/"),
+            _normalize_data_path(args.path_resstock_loads),
+            _normalize_data_path(str(run1.get("path_resstock_loads", ""))),
         ),
     ]
 
@@ -56,8 +76,8 @@ def main() -> None:
         checks.append(
             (
                 "path_cambium",
-                args.path_cambium,
-                str(run2.get("path_cambium_marginal_costs", "")),
+                _normalize_data_path(args.path_cambium),
+                _normalize_data_path(str(run2.get("path_cambium_marginal_costs", ""))),
             )
         )
 

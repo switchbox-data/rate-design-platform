@@ -1,0 +1,3 @@
+utility: rge
+revenue_requirement: 1000000000.0
+source: placeholder -- replace with actual revenue requirement from s3://data.sb/switchbox/revenue_requirements/ny/revenue_requirements.csv

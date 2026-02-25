@@ -34,16 +34,18 @@ import logging
 from pathlib import Path
 
 import pandas as pd
-from cairo.rates_tool.loads import (
-    _return_load,
-    process_residential_hourly_demand,
-    return_buildingstock,
-)
+import polars as pl
+from cairo.rates_tool.loads import return_buildingstock
 
+from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils import get_aws_region
+from utils.loads import (
+    ELECTRIC_LOAD_COL,
+    hourly_system_load_from_resstock,
+    scan_resstock_loads,
+)
 from utils.cairo import (
     _load_cambium_marginal_costs,
-    build_bldg_id_to_load_filepath,
     load_distribution_marginal_costs,
 )
 from utils.mid.data_parsing import get_residential_customer_count_from_utility_stats
@@ -123,6 +125,20 @@ def derive_seasonal_tou(
     combined_mc = combine_marginal_costs(
         bulk_marginal_costs, distribution_marginal_costs
     )
+
+    # Align load index to MC index so multiply in find_tou_peak_window is 1:1 (MC is
+    # target_year e.g. 2025; ResStock load may be a different year).
+    if not hourly_system_load.index.equals(combined_mc.index):
+        if len(hourly_system_load) == len(combined_mc):
+            hourly_system_load = pd.Series(
+                hourly_system_load.values,
+                index=combined_mc.index,
+                name=hourly_system_load.name,
+            )
+        else:
+            hourly_system_load = hourly_system_load.reindex(
+                combined_mc.index, method="ffill"
+            )
 
     seasons = make_winter_summer_seasons(winter_months)
     season_rates = compute_seasonal_base_rates(
@@ -215,9 +231,14 @@ def _parse_args() -> argparse.Namespace:
         help="Path to ResStock metadata parquet (metadata-sb.parquet).",
     )
     p.add_argument(
-        "--resstock-loads-path",
+        "--resstock-base",
         required=True,
-        help="Directory containing per-building load parquet files.",
+        help="Base path to ResStock release (e.g. s3://.../res_2024_amy2018_2).",
+    )
+    p.add_argument(
+        "--upgrade",
+        default="00",
+        help="Upgrade partition for loads (e.g. 00).",
     )
     p.add_argument(
         "--path-electric-utility-stats",
@@ -286,6 +307,17 @@ def _parse_args() -> argparse.Namespace:
             "Optional periods YAML containing `winter_months` and "
             "`tou_window_hours`. When omitted, resolves "
             "rate_design/<state>/hp_rates/config/periods/<utility>.yaml."
+        ),
+    )
+    p.add_argument(
+        "--run-dir",
+        default=None,
+        help=(
+            "Optional path (local or s3://) to a CAIRO output directory. "
+            "When provided, building IDs are read from "
+            "run_dir/customer_metadata.csv and passed as building_stock_sample "
+            "to return_buildingstock, restricting the TOU derivation to the "
+            "exact customer set from that run."
         ),
     )
 
@@ -390,28 +422,47 @@ def main() -> None:
     )
     log.info("Residential customer count: %d", customer_count)
 
+    building_stock_sample: list[int] | None = None
+    if args.run_dir:
+        run_dir_path = args.run_dir.rstrip("/")
+        cm_path = f"{run_dir_path}/customer_metadata.csv"
+        log.info("Reading building IDs from %s", cm_path)
+        csv_opts = get_aws_storage_options() if cm_path.startswith("s3://") else None
+        run_bldg_ids = pl.read_csv(
+            cm_path, columns=["bldg_id"], storage_options=csv_opts
+        )["bldg_id"].to_list()
+        building_stock_sample = run_bldg_ids
+        log.info("Restricting to %d buildings from run output", len(run_bldg_ids))
+
     log.info("Loading ResStock metadata from %s", args.resstock_metadata_path)
     customer_metadata = return_buildingstock(
         load_scenario=Path(args.resstock_metadata_path),
         customer_count=customer_count,
         columns=["applicability", "postprocess_group.has_hp"],
+        building_stock_sample=building_stock_sample,
     )
 
-    log.info("Loading building loads from %s", args.resstock_loads_path)
-    bldg_id_to_load_filepath = build_bldg_id_to_load_filepath(
-        path_resstock_loads=Path(args.resstock_loads_path),
+    building_ids = customer_metadata["bldg_id"].tolist()
+    weights_df = pl.from_pandas(customer_metadata[["bldg_id", "weight"]].copy())
+    log.info(
+        "Scanning ResStock loads (base=%s, state=%s, upgrade=%s, n_buildings=%d)",
+        args.resstock_base,
+        args.state,
+        args.upgrade,
+        len(building_ids),
     )
-    raw_load_elec = _return_load(
-        load_type="electricity",
-        target_year=args.year,
-        load_filepath_key=bldg_id_to_load_filepath,
-        force_tz="EST",
+    loads_lf = scan_resstock_loads(
+        args.resstock_base,
+        args.state,
+        args.upgrade,
+        building_ids=building_ids,
+        storage_options=storage_options,
     )
-
     log.info("Computing system load from building loads")
-    hourly_system_load = process_residential_hourly_demand(
-        bldg_load=raw_load_elec,
-        sample_weights=customer_metadata[["bldg_id", "weight"]],
+    hourly_system_load = hourly_system_load_from_resstock(
+        loads_lf,
+        weights_df,
+        load_col=ELECTRIC_LOAD_COL,
     )
 
     # -- 2. Derive seasonal TOU ----------------------------------------------

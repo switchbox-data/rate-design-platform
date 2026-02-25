@@ -1,0 +1,4 @@
+utility: nyseg
+revenue_requirement: 999999999.0
+source: s3://data.sb/switchbox/revenue_requirements/ny/revenue_requirements_dummy.csv:revenue_requirement
+  (utility_col=utility, year_col=year, utility=nyseg, year=2026)
