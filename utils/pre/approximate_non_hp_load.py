@@ -5,25 +5,38 @@ from typing import cast
 import numpy as np
 import polars as pl
 from cloudpathlib import S3Path
-from sklearn.neighbors import NearestNeighbors
 
 from utils import get_aws_region
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
-BLDG_TYPE_COLUMN = pl.col("in.geometry_building_type_height")
-STORIES_COLUMN = pl.col("in.geometry_story_bin")
+BLDG_TYPE_COLUMN = "in.geometry_building_type_height"
+STORIES_COLUMN = "in.geometry_story_bin"
 WEATHER_FILE_CITY_COLUMN = "in.weather_file_city"
+HAS_HP_COLUMN = "postprocess_group.has_hp"
 
 # Columns in load_curve_hourly parquet to use for KNN (8760-point feature vector).
 COOLING_LOAD_COLUMN = "out.load.cooling.energy_delivered.kbtu"
 HEATING_LOAD_COLUMN = "out.load.heating.energy_delivered.kbtu"
 
+HEATING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS = (
+    "out.electricity.heating.energy_consumption",
+    "out.electricity.heating.energy_consumption_intensity",
+)
+COOLING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS = (
+    "out.electricity.cooling.energy_consumption",
+    "out.electricity.cooling.energy_consumption_intensity",
+)
+TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS = (
+    "out.electricity.total.energy_consumption",
+    "out.electricity.total.energy_consumption_intensity",
+)
+
 
 def _identify_non_hp_mf_highrise(metadata: pl.LazyFrame) -> pl.LazyFrame:
     is_non_hp_mf_highrise = (
-        ~pl.col("postprocess_group.has_hp")
-        & BLDG_TYPE_COLUMN.str.contains("Multifamily", literal=True)
-        & STORIES_COLUMN.str.contains("8+", literal=True)
+        ~pl.col(HAS_HP_COLUMN)
+        & pl.col(BLDG_TYPE_COLUMN).str.contains("Multifamily", literal=True)
+        & pl.col(STORIES_COLUMN).str.contains("8+", literal=True)
     )
     return metadata.filter(is_non_hp_mf_highrise).select(
         "bldg_id", WEATHER_FILE_CITY_COLUMN
@@ -44,181 +57,132 @@ def _extract_weather_station_ids(
 
 
 def group_by_weather_station_id(
-    metadata: pl.LazyFrame, non_hp_mf_highrise_bldg_ids: pl.LazyFrame
+    metadata: pl.LazyFrame
 ) -> dict[str, list[int]]:
     """
     Group non-HP MF highrise bldg_ids by weather_station_id.
     Single lazy pipeline: semi-join metadata to restrict to those bldg_ids, then group_by/agg; one collect.
     """
-    df = cast(
-        pl.DataFrame,
-        metadata.join(non_hp_mf_highrise_bldg_ids, on="bldg_id", how="semi")
-        .select(WEATHER_FILE_CITY_COLUMN, "bldg_id")
-        .group_by(WEATHER_FILE_CITY_COLUMN)
-        .agg(pl.col("bldg_id"))
-        .collect(),
-    )
-    return dict(zip(df[WEATHER_FILE_CITY_COLUMN], df["bldg_id"]))
+    unique_weather_station_ids = metadata.select(WEATHER_FILE_CITY_COLUMN).unique().collect()[WEATHER_FILE_CITY_COLUMN].to_list()
+    return {weather_station_id: metadata.filter(pl.col(WEATHER_FILE_CITY_COLUMN) == weather_station_id).select("bldg_id").collect()["bldg_id"].to_list() for weather_station_id in unique_weather_station_ids}
 
 
 def _load_one_curve(
-    base_path: str,
+    load_curve_hourly_dir: S3Path,
     bldg_id: int,
-    c1: str,
-    c2: str,
+    upgrade_id: str,
 ) -> tuple[int, np.ndarray] | None:
     """Load one parquet, compute summed column; returns (bldg_id, vec) or None."""
-    path = f"{base_path.rstrip('/')}/{bldg_id}-0.parquet"
+    path = (
+        load_curve_hourly_dir
+        / f"{bldg_id}-{int(upgrade_id)}.parquet"
+    )
     try:
-        lf = pl.scan_parquet(path, storage_options=STORAGE_OPTIONS)
-    except Exception:
-        return None
+        lf = pl.scan_parquet(str(path), storage_options=STORAGE_OPTIONS)
+    except Exception as e:
+        raise ValueError(f"Failed to load load curve for bldg_id: {bldg_id} from {path}")
     schema = lf.collect_schema()
-    if c1 not in schema.names() or c2 not in schema.names():
-        return None
+    if COOLING_LOAD_COLUMN not in schema.names() or HEATING_LOAD_COLUMN not in schema.names():
+        raise ValueError(f"Load curve for bldg_id: {bldg_id} from {path} is missing required columns: {COOLING_LOAD_COLUMN} and {HEATING_LOAD_COLUMN}")
     df = cast(
         pl.DataFrame,
-        lf.with_columns((pl.col(c1) + pl.col(c2)).alias("_summed"))
+        lf.with_columns((pl.col(COOLING_LOAD_COLUMN) + pl.col(HEATING_LOAD_COLUMN)).alias("_summed"))
         .select("_summed")
         .collect(),
     )
     vec = df["_summed"].to_numpy().astype(np.float64, copy=False)
     if len(vec) != 8760:
-        return None
+        raise ValueError(f"Load curve for bldg_id: {bldg_id} from {path} has incorrect length: {len(vec)}")
     return (bldg_id, vec)
 
 
-def _load_curves_for_bldg_ids(
-    load_curve_hourly_dir: S3Path | Path | str,
+def _load_all_load_curves_for_bldg_ids(
+    load_curve_hourly_dir: S3Path,
     upgrade_id: str,
     bldg_ids: list[int],
-    *,
-    cols: tuple[str, str] = (COOLING_LOAD_COLUMN, HEATING_LOAD_COLUMN),
-    max_workers: int = 128,
-) -> tuple[np.ndarray, list[int]]:
-    """
-    Load hourly load curves for the given bldg_ids only (one parquet per bldg).
-    Reads parquets in parallel; extracts the two columns, sums them element-wise (8760 rows),
-    and returns (summed, bldg_ids) where summed has shape (len(bldg_ids), 8760) mapped to each bldg_id.
-    """
-    base_path = str(load_curve_hourly_dir)
-    c1, c2 = cols
-    summed_rows: list[np.ndarray] = []
-    valid_ids: list[int] = []
+    max_workers: int = 256,
+) -> dict[int, np.ndarray]:
+    """Load load curves for the given bldg_ids. Returns bldg_id -> 8760-point array."""
+    bldg_id_to_load_curve: dict[int, np.ndarray] = {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(_load_one_curve, base_path, bldg_id, c1, c2): bldg_id
+            executor.submit(_load_one_curve, load_curve_hourly_dir, bldg_id, upgrade_id): bldg_id
             for bldg_id in bldg_ids
         }
         for future in as_completed(futures):
             result = future.result()
             if result is not None:
                 bldg_id, vec = result
-                valid_ids.append(bldg_id)
-                summed_rows.append(vec)
-            print(
-                f"Read bldg_id: {bldg_id} with shape: {vec.shape} cumulative read ids: {len(valid_ids)} out of {len(bldg_ids)}"
-            )
-    if not summed_rows:
-        return np.array([]).reshape(0, 8760), []
-    return np.stack(summed_rows), valid_ids
-
+                bldg_id_to_load_curve[bldg_id] = vec
+    return bldg_id_to_load_curve
 
 def _rmse_8760(x: np.ndarray, y: np.ndarray) -> float:
     """RMSE between two 8760-point load curves: sqrt(mean((x - y)^2))."""
     return float(np.sqrt(np.mean((x - y) ** 2)))
 
-
-def _k_nearest_same_weather(
-    target_load_curve: np.ndarray,
-    candidate_bldg_ids: list[int],
-    candidate_load_curves: np.ndarray,
-    k: int,
-) -> tuple[list[int], np.ndarray]:
-    """
-    Find k nearest neighbors of the target by smallest RMSE over 8760-point load curves.
-    Expects pre-loaded curves: target_load_curve (8760,), candidate_load_curves (n, 8760)
-    with candidate_bldg_ids length n. Returns (k_nearest_bldg_ids, k_rmse_values).
-    """
-    if candidate_load_curves.shape[0] == 0 or k <= 0:
-        return [], np.array([])
-    k = min(k, candidate_load_curves.shape[0])
-    nn = NearestNeighbors(n_neighbors=k, metric=_rmse_8760, algorithm="brute")
-    nn.fit(candidate_load_curves)
-    target_vec = np.asarray(target_load_curve, dtype=np.float64).reshape(1, -1)
-    distances, indices = nn.kneighbors(target_vec)
-    k_nearest_ids = [candidate_bldg_ids[i] for i in indices[0]]
-    return k_nearest_ids, distances[0]
-
-
 def _approximate_non_hp_load(
     metadata: pl.LazyFrame,
-    non_hp_mf_highrise_bldg_ids: pl.LazyFrame,
+    non_hp_mf_highrise_bldg_metadata: pl.LazyFrame,
     load_curve_hourly_dir: S3Path,
     upgrade_id: str,
     *,
     k: int = 5,
+    max_workers: int = 256,
 ) -> dict[int, list[int]]:
-    """For each non-HP MF highrise bldg, find k nearest same-weather bldgs via sklearn KNN on load curves."""
-    bldg_ids_df = cast(pl.DataFrame, non_hp_mf_highrise_bldg_ids.collect())
-    bldg_ids = bldg_ids_df["bldg_id"].to_list()
-    weather_station_ids = _extract_weather_station_ids(metadata, bldg_ids)
-    unique_weather_station_ids = list(set(weather_station_ids))
-    print(f"unique_weather_station_ids: {unique_weather_station_ids}")
+    """For each non-HP MF highrise bldg, find k nearest same-weather bldgs by lowest RMSE on load curves.
+    Returns non_hp_bldg_id -> [k nearest neighbor bldg_ids].
+    """
+    weather_station_bldg_id_map_non_hp = group_by_weather_station_id(
+        non_hp_mf_highrise_bldg_metadata
+    )
     weather_station_bldg_id_map = group_by_weather_station_id(
-        metadata, non_hp_mf_highrise_bldg_ids
+        metadata
     )
-    print(weather_station_bldg_id_map)
-    print("Total number of bldg_ids: ", len(bldg_ids))
-    print(
-        "Total number of mapped bldg_ids: ",
-        sum(len(bldg_ids) for bldg_ids in weather_station_bldg_id_map.values()),
-    )
-
     k_nearest_bldg_id_map: dict[int, list[int]] = {}
-    load_columns = (COOLING_LOAD_COLUMN, HEATING_LOAD_COLUMN)
-    for weather_station_id, station_bldg_ids in weather_station_bldg_id_map.items():
-        candidate_df = cast(
-            pl.DataFrame,
-            metadata.filter(
-                pl.col(WEATHER_FILE_CITY_COLUMN).eq(weather_station_id)
-                & ~pl.col("bldg_id").is_in(station_bldg_ids)
-            )
-            .select("bldg_id")
-            .collect(),
-        )
-        candidate_bldg_ids = candidate_df["bldg_id"].to_list()
-        # Load curves once for all buildings at this weather station
-        all_ids = list(station_bldg_ids) + candidate_bldg_ids
-        summed, loaded_ids = _load_curves_for_bldg_ids(
+    for weather_station, station_bldg_ids in weather_station_bldg_id_map_non_hp.items():
+        # Neighbors = all bldgs at this station except the non-HP ones we're finding neighbors for.
+        neighbor_bldg_ids = [
+            x for x in weather_station_bldg_id_map[weather_station]
+            if x not in station_bldg_ids
+        ]
+        non_hp_load_curves = _load_all_load_curves_for_bldg_ids(
             load_curve_hourly_dir,
             upgrade_id,
-            all_ids,
-            cols=load_columns,
+            station_bldg_ids,
+            max_workers=max_workers,
         )
-        if summed.shape[0] == 0:
-            continue
-        # Index by bldg_id for lookups
-        id_to_idx = {bid: i for i, bid in enumerate(loaded_ids)}
-        candidate_set = set(candidate_bldg_ids)
-        candidate_indices = [
-            i for i, bid in enumerate(loaded_ids) if bid in candidate_set
-        ]
-        candidate_load_curves = summed[candidate_indices]
-        candidate_ids_for_knn = [loaded_ids[i] for i in candidate_indices]
-        for target_bldg_id in station_bldg_ids:
-            if target_bldg_id not in id_to_idx:
-                continue
-            target_load_curve = summed[id_to_idx[target_bldg_id]]
-            k_nearest_bldg_ids, _ = _k_nearest_same_weather(
-                target_load_curve,
-                candidate_ids_for_knn,
-                candidate_load_curves,
-                k=k,
-            )
-            k_nearest_bldg_id_map[target_bldg_id] = k_nearest_bldg_ids
-        print(f"k_nearest_bldg_id_map: {k_nearest_bldg_id_map}")
+        # Download load curves for each neighbor (in parallel).
+        neighbor_load_curves: dict[int, np.ndarray] = {}
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_load_one_curve, load_curve_hourly_dir, bldg_id, upgrade_id): bldg_id
+                for bldg_id in neighbor_bldg_ids
+            }
+            for i, future in enumerate(as_completed(futures)):
+                result = future.result()
+                if result is not None:
+                    bldg_id, vec = result
+                    neighbor_load_curves[bldg_id] = vec
+                # For each non-HP station bldg, compute RMSE to each neighbor; iteratively keep only top k (lowest RMSE).
+                for station_bldg_id in station_bldg_ids:
+                    if station_bldg_id not in non_hp_load_curves:
+                        continue
+                    station_vec = non_hp_load_curves[station_bldg_id]
+                    top_k: list[tuple[float, int]] = []  # (rmse, neighbor_id), at most k elements
+                    for neighbor_id in neighbor_load_curves:
+                        rmse = _rmse_8760(station_vec, neighbor_load_curves[neighbor_id])
+                        if len(top_k) < k:
+                            top_k.append((rmse, neighbor_id))
+                            # Keep sorted by rmse so worst is last
+                            top_k.sort(key=lambda p: p[0])
+                        else:
+                            if rmse < top_k[-1][0]:
+                                top_k[-1] = (rmse, neighbor_id)
+                                top_k.sort(key=lambda p: p[0])
+                    k_nearest_bldg_id_map[station_bldg_id] = [neighbor_id for _, neighbor_id in top_k]
+                print(f"Processed {i+1} of {len(neighbor_bldg_ids)} neighbor bldgs for weather station {weather_station}")
     return k_nearest_bldg_id_map
+                    
 
 
 def _validate_yes_hp_mf_highrise_load(
@@ -227,32 +191,36 @@ def _validate_yes_hp_mf_highrise_load(
     approximated_yes_hp_mf_highrise_bldg_ids: dict[int, list[int]],
 ) -> None:
     """Validate the approximated yes-HP MF highrise load curves."""
-    load_columns = (COOLING_LOAD_COLUMN, HEATING_LOAD_COLUMN)
     for bldg_id, k_nearest_bldg_ids in approximated_yes_hp_mf_highrise_bldg_ids.items():
-        summed_all, loaded_ids = _load_curves_for_bldg_ids(
+        real_load_curve_vec = _load_one_curve(
             load_curve_hourly_dir,
+            bldg_id,
             upgrade_id,
-            [bldg_id] + k_nearest_bldg_ids,
-            cols=load_columns,
-        )
-        if summed_all.shape[0] == 0:
-            continue
-        id_to_idx = {bid: i for i, bid in enumerate(loaded_ids)}
-        if bldg_id not in id_to_idx:
-            continue
-        real_load_curve = summed_all[id_to_idx[bldg_id]]
-        k_nearest_indices = [
-            id_to_idx[bid] for bid in k_nearest_bldg_ids if bid in id_to_idx
-        ]
-        if not k_nearest_indices:
-            continue
-        approximated_load_curve = np.mean(summed_all[k_nearest_indices], axis=0)
-        print(
-            f"RMSE between approximated and real load curves: {_rmse_8760(approximated_load_curve, real_load_curve)}"
-        )
-        print(
-            f"Max absolute difference between approximated and real load curves: {np.max(np.abs(approximated_load_curve - real_load_curve))}"
-        )
+        )[1]
+        average_neighbor_load_curves = np.zeros(8760)
+        count = 0
+
+        # save comparison results
+        rmse_results = []
+        peak_difference_results = []
+        for neighbor_id in k_nearest_bldg_ids:
+            neighbor_load_curve_vec = _load_one_curve(
+                load_curve_hourly_dir,
+                neighbor_id,
+                upgrade_id,
+            )[1]
+            average_neighbor_load_curves += neighbor_load_curve_vec
+            count += 1
+        average_neighbor_load_curves /= count
+        rmse = _rmse_8760(real_load_curve_vec, average_neighbor_load_curves)
+        peak_difference = np.abs(np.max(real_load_curve_vec) - np.max(average_neighbor_load_curves))
+        rmse_results.append(rmse)
+        peak_difference_results.append(peak_difference)
+    print(f"Mean RMSE: {np.mean(rmse_results)}")
+    print(f"Median RMSE: {np.median(rmse_results)}")
+    print(f"Mean peak difference: {np.mean(peak_difference_results)}")
+    print(f"Median peak difference: {np.median(peak_difference_results)}")
+
 
 
 if __name__ == "__main__":
@@ -276,8 +244,8 @@ if __name__ == "__main__":
         metadata.filter(
             (
                 pl.col("postprocess_group.has_hp")
-                & BLDG_TYPE_COLUMN.str.contains("Multifamily", literal=True)
-                & STORIES_COLUMN.str.contains("8+", literal=True)
+                & pl.col(BLDG_TYPE_COLUMN).str.contains("Multifamily", literal=True)
+                & pl.col(STORIES_COLUMN).str.contains("8+", literal=True)
             )
         )
         .select("bldg_id", WEATHER_FILE_CITY_COLUMN)
@@ -285,25 +253,24 @@ if __name__ == "__main__":
     )
 
     # Load curve hourly files live under upgrade=00 with filenames {bldg_id}-0.parquet
-    load_curve_upgrade = "00"
     load_curve_hourly_dir = (
         path_s3
         / release
         / "load_curve_hourly"
         / f"state={state}"
-        / f"upgrade={load_curve_upgrade}"
+        / f"upgrade={upgrade_id}"
     )
     approximated_yes_hp_mf_highrise_bldg_ids = _approximate_non_hp_load(
         metadata,
         yes_hp_mf_highrise_bldg_ids,
         load_curve_hourly_dir,
-        load_curve_upgrade,
+        upgrade_id,
         k=1,
     )
     print(approximated_yes_hp_mf_highrise_bldg_ids)
     _validate_yes_hp_mf_highrise_load(
         load_curve_hourly_dir,
-        load_curve_upgrade,
+        upgrade_id,
         approximated_yes_hp_mf_highrise_bldg_ids,
     )
 
