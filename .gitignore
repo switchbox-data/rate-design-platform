@@ -22,6 +22,7 @@ data/eia/heating_fuel_prices/parquet/
 data/eia/hourly_loads/zone_parquet/
 data/eia/hourly_loads/utility_parquet/
 data/fred/cpi/parquet/
+data/nyiso/icap/parquet/
 data/nyiso/lbmp/zips/
 data/nyiso/lbmp/parquet/
 rate_design/ny/hp_rates/config/buildstock_raw/
