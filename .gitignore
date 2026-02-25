@@ -62,5 +62,6 @@ infra/.terraform.lock.hcl
 .secrets
 .env
 .gspread_authorized_user.json
+utils/pre/update_sheet_formulas.py
 
 CLAUDE.md
