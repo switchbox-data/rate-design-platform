@@ -1,0 +1,175 @@
+utility: rie
+master_tariff_id: 859
+start_month: 2025-01
+end_month: 2025-12
+charges:
+  o_m_reconciliation_factor:
+    tariff_rate_id: 20870465
+    master_charge: O&M Reconciliation Factor
+    decision: exclude
+    monthly_rates:
+      2025-01: 0.0001
+      2025-02: 0.0001
+      2025-03: 0.0001
+      2025-04: 0.0001
+      2025-05: 0.0001
+      2025-06: 0.0001
+      2025-07: 0.0001
+      2025-08: 0.0001
+      2025-09: 0.0001
+      2025-10: 4.0e-05
+      2025-11: 4.0e-05
+      2025-12: 4.0e-05
+  capex_reconciliation_factor:
+    tariff_rate_id: 20870467
+    master_charge: CapEx Reconciliation Factor
+    decision: exclude
+    monthly_rates:
+      2025-01: 0.0001
+      2025-02: 0.0001
+      2025-03: 0.0001
+      2025-04: 0.0001
+      2025-05: 0.0001
+      2025-06: 0.0001
+      2025-07: 0.0001
+      2025-08: 0.0001
+      2025-09: 0.0001
+      2025-10: 0.00094
+      2025-11: 0.00094
+      2025-12: 0.00094
+  rdm_adjustment_factor:
+    tariff_rate_id: 20870468
+    master_charge: RDM Adjustment Factor
+    decision: exclude
+    monthly_rates:
+      2025-01: 0.00123
+      2025-02: 0.00123
+      2025-03: 0.00123
+      2025-04: 0.00123
+      2025-05: 0.00123
+      2025-06: 0.00123
+      2025-07: -0.00272
+      2025-08: -0.00272
+      2025-09: -0.00272
+      2025-10: -0.00272
+      2025-11: -0.00272
+      2025-12: -0.00272
+  storm_fund_replenishment_factor:
+    tariff_rate_id: 20870470
+    master_charge: Storm Fund Replenishment Factor
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.00788
+      2025-02: 0.00788
+      2025-03: 0.00788
+      2025-04: 0.00788
+      2025-05: 0.00788
+      2025-06: 0.00788
+      2025-07: 0.00788
+      2025-08: 0.00788
+      2025-09: 0.00788
+      2025-10: 0.00788
+      2025-11: 0.00788
+      2025-12: 0.00788
+  arrearage_management_adjustment_factor:
+    tariff_rate_id: 20870471
+    master_charge: Arrearage Management Adjustment Factor
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 9.0e-05
+      2025-02: 9.0e-05
+      2025-03: 9.0e-05
+      2025-04: 9.0e-05
+      2025-05: 9.0e-05
+      2025-06: 9.0e-05
+      2025-07: 6.0e-05
+      2025-08: 6.0e-05
+      2025-09: 6.0e-05
+      2025-10: 6.0e-05
+      2025-11: 6.0e-05
+      2025-12: 6.0e-05
+  net_metering_charge:
+    tariff_rate_id: 20870475
+    master_charge: Net Metering Charge
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.01253
+      2025-02: 0.01253
+      2025-03: 0.01253
+      2025-04: 0.01457
+      2025-05: 0.01457
+      2025-06: 0.01457
+      2025-07: 0.01457
+      2025-08: 0.01457
+      2025-09: 0.01457
+      2025-10: 0.01457
+      2025-11: 0.01457
+      2025-12: 0.01457
+  long_term_contracting_charge:
+    tariff_rate_id: 20870476
+    master_charge: Long Term Contracting Charge
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.01092
+      2025-02: 0.01092
+      2025-03: 0.01092
+      2025-04: 0.00656
+      2025-05: 0.00656
+      2025-06: 0.00656
+      2025-07: 0.00656
+      2025-08: 0.00656
+      2025-09: 0.00656
+      2025-10: 0.00656
+      2025-11: 0.00656
+      2025-12: 0.00656
+  energy_efficiency_programs_charge:
+    tariff_rate_id: 20870481
+    master_charge: Energy Efficiency Programs Charge
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.01098
+      2025-02: 0.01098
+      2025-03: 0.01098
+      2025-04: 0.01098
+      2025-05: 0.01098
+      2025-06: 0.01098
+      2025-07: 0.01098
+      2025-08: 0.01098
+      2025-09: 0.01098
+      2025-10: 0.01098
+      2025-11: 0.01098
+      2025-12: 0.01098
+  standard_offer_service_charge:
+    tariff_rate_id: 20870482
+    master_charge: Standard Offer Service Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.15187
+      2025-02: 0.15187
+      2025-03: 0.15187
+      2025-04: 0.08607
+      2025-05: 0.08607
+      2025-06: 0.08607
+      2025-07: 0.08607
+      2025-08: 0.08607
+      2025-09: 0.08607
+      2025-10: 0.13309
+      2025-11: 0.13309
+      2025-12: 0.13309
+  renewable_standard_energy_charge:
+    tariff_rate_id: 20870484
+    master_charge: Renewable Standard Energy Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.012
+      2025-02: 0.012
+      2025-03: 0.012
+      2025-04: 0.01461
+      2025-05: 0.01461
+      2025-06: 0.01461
+      2025-07: 0.01461
+      2025-08: 0.01461
+      2025-09: 0.01461
+      2025-10: 0.01461
+      2025-11: 0.01461
+      2025-12: 0.01461
