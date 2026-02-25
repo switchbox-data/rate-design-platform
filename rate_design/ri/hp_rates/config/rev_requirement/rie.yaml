@@ -1,3 +1,31 @@
 utility: rie
-revenue_requirement: 241869601.0
-source: scenarios.yaml.utility_delivery_revenue_requirement
+delivery_revenue_requirement_from_rate_case: 241869601.0
+delivery_revenue_requirement_topups: 123021601.47
+supply_revenue_requirement_topups: 387840086.7
+total_delivery_revenue_requirement: 364891202.47
+total_delivery_and_supply_revenue_requirement: 752731289.17
+total_residential_kwh: 3027334912.0
+eia_year: 2024
+delivery_top_ups:
+  storm_fund_replenishment_factor:
+    avg_monthly_rate: 0.00788
+    total_budget: 23855399.11
+  arrearage_management_adjustment_factor:
+    avg_monthly_rate: 7.48767e-05
+    total_budget: 226676.89
+  net_metering_charge:
+    avg_monthly_rate: 0.0140669863
+    total_budget: 42585478.74
+  long_term_contracting_charge:
+    avg_monthly_rate: 0.0076350685
+    total_budget: 23113909.4
+  energy_efficiency_programs_charge:
+    avg_monthly_rate: 0.01098
+    total_budget: 33240137.33
+supply_top_ups:
+  standard_offer_service_charge:
+    avg_monthly_rate: 0.114146274
+    total_budget: 345559000.27
+  renewable_standard_energy_charge:
+    avg_monthly_rate: 0.0139664384
+    total_budget: 42281086.43

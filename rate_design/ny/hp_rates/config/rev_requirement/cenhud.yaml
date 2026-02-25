@@ -1,0 +1,28 @@
+utility: cenhud
+delivery_revenue_requirement_from_rate_case: 1000000000.0
+delivery_revenue_requirement_topups: 21805621.03
+supply_revenue_requirement_topups: 216049433.47
+total_delivery_revenue_requirement: 1021805621.03
+total_delivery_and_supply_revenue_requirement: 1237855054.5
+total_residential_kwh: 2167787008.0
+eia_year: 2024
+delivery_top_ups:
+  central_hudson_misc_charges:
+    avg_monthly_rate: 0.005209726
+    total_budget: 11293576.38
+  system_benefits_charge:
+    avg_monthly_rate: 0.0048492055
+    total_budget: 10512044.65
+supply_top_ups:
+  merchant_function_charge_1:
+    avg_monthly_rate: 0.0003140548
+    total_budget: 680803.9
+  merchant_function_charge_2:
+    avg_monthly_rate: 0.0024610959
+    total_budget: 5335131.7
+  merchant_function_charge_3:
+    avg_monthly_rate: 0.0009067671
+    total_budget: 1965677.99
+  supply_commodity_bundled:
+    avg_monthly_rate: 0.0959816712
+    total_budget: 208067819.88
