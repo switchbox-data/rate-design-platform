@@ -668,7 +668,6 @@ def _build_precalc_period_mapping(
     return pd.concat(precalc_parts, ignore_index=True)
 
 
-
 def _recompute_tou_precalc_mapping(
     precalc_mapping: pd.DataFrame,
     shifted_system_load_raw: pd.Series,
@@ -786,6 +785,7 @@ def _recompute_tou_precalc_mapping(
         )
 
     return updated
+
 
 def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
     log.info(
