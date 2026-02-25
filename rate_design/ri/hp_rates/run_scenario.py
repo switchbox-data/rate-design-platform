@@ -82,9 +82,6 @@ class ScenarioSettings:
     path_resstock_metadata: Path
     path_resstock_loads: Path
     path_utility_assignment: str | Path
-    path_supply_marginal_costs: str | Path | None = None
-    path_supply_energy_mc: str | Path | None = None
-    path_supply_capacity_mc: str | Path | None = None
     path_td_marginal_costs: str | Path
     path_tariff_maps_electric: Path
     path_tariff_maps_gas: Path
@@ -95,6 +92,9 @@ class ScenarioSettings:
     year_run: int
     year_dollar_conversion: int
     process_workers: int
+    path_supply_marginal_costs: str | Path | None = None
+    path_supply_energy_mc: str | Path | None = None
+    path_supply_capacity_mc: str | Path | None = None
     solar_pv_compensation: str = "net_metering"
     add_supply_revenue_requirement: bool = False
     sample_size: int | None = None
