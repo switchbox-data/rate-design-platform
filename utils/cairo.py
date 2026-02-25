@@ -132,6 +132,222 @@ def _load_cambium_marginal_costs(
     return df
 
 
+def _load_supply_energy_mc(
+    energy_path: CambiumPathLike, target_year: int
+) -> pd.DataFrame:
+    """
+    Load supply energy marginal costs (LBMP) from parquet (local or S3). Returns costs in $/kWh.
+
+    Accepts: local path (str or Path) or S3 URI (str or S3Path).
+    Example S3 Parquet:
+    s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nyseg/year=2025/data.parquet
+
+    Assumptions:
+    - Parquet: columns timestamp (datetime), energy_cost_enduse (float).
+      Costs are in $/MWh. Exactly 8760 rows (hourly).
+    - We divide by 1000 to get $/kWh; then common_year alignment,
+      __timeshift__ to target_year, and tz_localize("EST") so output matches CAIRO.
+    """
+    path = _normalize_cambium_path(energy_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Supply energy MC file {path} does not exist")
+
+    if path.suffix.lower() != ".parquet":
+        raise ValueError(
+            f"Supply energy MC file must be .parquet; got {path} (suffix {path.suffix})"
+        )
+
+    if isinstance(path, S3Path):
+        # Read as bytes and pass BytesIO so PyArrow reads a single file
+        raw = path.read_bytes()
+        df = pd.read_parquet(io.BytesIO(raw), engine="pyarrow")
+    else:
+        df = pd.read_parquet(path)
+
+    if "timestamp" in df.columns and not isinstance(df.index, pd.DatetimeIndex):
+        df = df.set_index("timestamp")
+    if df.index.name != "time":
+        df.index.name = "time"
+
+    # Keep only energy column
+    if "energy_cost_enduse" not in df.columns:
+        raise ValueError(
+            f"Supply energy MC file {path} missing required column: energy_cost_enduse"
+        )
+
+    df = df.loc[:, ["energy_cost_enduse"]].copy()
+    df["energy_cost_enduse"] = pd.to_numeric(df["energy_cost_enduse"], errors="coerce")
+    df = df.dropna(subset=["energy_cost_enduse"], how="any")
+
+    if df.empty:
+        raise ValueError(
+            f"Supply energy MC file {path} has no valid numeric rows in energy_cost_enduse"
+        )
+
+    # Rename to match CAIRO convention
+    df = df.rename(columns={"energy_cost_enduse": "Marginal Energy Costs ($/kWh)"})
+    df.loc[:, "Marginal Energy Costs ($/kWh)"] /= 1000  # $/MWh → $/kWh
+
+    df.index = pd.to_datetime(df.index, errors="coerce")
+    df = df.loc[~df.index.isna()].copy()
+    if df.empty:
+        raise ValueError(f"Supply energy MC file {path} has no valid timestamps")
+
+    # Align to common_year (first year in index) and timeshift to target_year
+    common_year = df.index[0].year
+    if common_year != target_year:
+        df = __timeshift__(df, common_year, target_year)
+
+    # Set timezone to EST (CAIRO convention)
+    if df.index.tz is None:
+        df.index = df.index.tz_localize("EST")
+    else:
+        df.index = df.index.tz_convert("EST")
+    df.index.name = "time"
+
+    return df
+
+
+def _load_supply_capacity_mc(
+    capacity_path: CambiumPathLike, target_year: int
+) -> pd.DataFrame:
+    """
+    Load supply capacity marginal costs (ICAP) from parquet (local or S3). Returns costs in $/kWh.
+
+    Accepts: local path (str or Path) or S3 URI (str or S3Path).
+    Example S3 Parquet:
+    s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2025/data.parquet
+
+    Assumptions:
+    - Parquet: columns timestamp (datetime), capacity_cost_enduse (float).
+      Costs are in $/MWh. Exactly 8760 rows (hourly).
+    - We divide by 1000 to get $/kWh; then common_year alignment,
+      __timeshift__ to target_year, and tz_localize("EST") so output matches CAIRO.
+    """
+    path = _normalize_cambium_path(capacity_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Supply capacity MC file {path} does not exist")
+
+    if path.suffix.lower() != ".parquet":
+        raise ValueError(
+            f"Supply capacity MC file must be .parquet; got {path} (suffix {path.suffix})"
+        )
+
+    if isinstance(path, S3Path):
+        # Read as bytes and pass BytesIO so PyArrow reads a single file
+        raw = path.read_bytes()
+        df = pd.read_parquet(io.BytesIO(raw), engine="pyarrow")
+    else:
+        df = pd.read_parquet(path)
+
+    if "timestamp" in df.columns and not isinstance(df.index, pd.DatetimeIndex):
+        df = df.set_index("timestamp")
+    if df.index.name != "time":
+        df.index.name = "time"
+
+    # Keep only capacity column
+    if "capacity_cost_enduse" not in df.columns:
+        raise ValueError(
+            f"Supply capacity MC file {path} missing required column: capacity_cost_enduse"
+        )
+
+    df = df.loc[:, ["capacity_cost_enduse"]].copy()
+    df["capacity_cost_enduse"] = pd.to_numeric(
+        df["capacity_cost_enduse"], errors="coerce"
+    )
+    df = df.dropna(subset=["capacity_cost_enduse"], how="any")
+
+    if df.empty:
+        raise ValueError(
+            f"Supply capacity MC file {path} has no valid numeric rows in capacity_cost_enduse"
+        )
+
+    # Rename to match CAIRO convention
+    df = df.rename(
+        columns={"capacity_cost_enduse": "Marginal Capacity Costs ($/kWh)"}
+    )
+    df.loc[:, "Marginal Capacity Costs ($/kWh)"] /= 1000  # $/MWh → $/kWh
+
+    df.index = pd.to_datetime(df.index, errors="coerce")
+    df = df.loc[~df.index.isna()].copy()
+    if df.empty:
+        raise ValueError(f"Supply capacity MC file {path} has no valid timestamps")
+
+    # Align to common_year (first year in index) and timeshift to target_year
+    common_year = df.index[0].year
+    if common_year != target_year:
+        df = __timeshift__(df, common_year, target_year)
+
+    # Set timezone to EST (CAIRO convention)
+    if df.index.tz is None:
+        df.index = df.index.tz_localize("EST")
+    else:
+        df.index = df.index.tz_convert("EST")
+    df.index.name = "time"
+
+    return df
+
+
+def _load_supply_marginal_costs(
+    energy_path: CambiumPathLike | None,
+    capacity_path: CambiumPathLike | None,
+    target_year: int,
+) -> pd.DataFrame:
+    """
+    Load supply marginal costs from separate energy and capacity files, or fallback to combined Cambium file.
+
+    If both energy_path and capacity_path are provided, loads them separately and combines.
+    If only one is provided, raises ValueError.
+    If both are None, raises ValueError (caller should use _load_cambium_marginal_costs instead).
+
+    Returns DataFrame with columns matching CAIRO convention:
+    - Marginal Energy Costs ($/kWh)
+    - Marginal Capacity Costs ($/kWh)
+
+    Args:
+        energy_path: Path to energy MC parquet (or None).
+        capacity_path: Path to capacity MC parquet (or None).
+        target_year: Target year for timeshifting.
+
+    Returns:
+        Combined DataFrame with both energy and capacity costs.
+    """
+    if energy_path is None and capacity_path is None:
+        raise ValueError(
+            "Both energy_path and capacity_path are None. "
+            "Use _load_cambium_marginal_costs for combined files."
+        )
+    if energy_path is None:
+        raise ValueError("energy_path is required when using separate supply MC files")
+    if capacity_path is None:
+        raise ValueError("capacity_path is required when using separate supply MC files")
+
+    energy_df = _load_supply_energy_mc(energy_path, target_year)
+    capacity_df = _load_supply_capacity_mc(capacity_path, target_year)
+
+    # Combine on index (should align perfectly as both are 8760 rows)
+    combined = pd.concat([energy_df, capacity_df], axis=1)
+
+    if len(combined) != 8760:
+        raise ValueError(
+            f"Combined supply MC has {len(combined)} rows, expected 8760"
+        )
+
+    return combined
+
+    common_years = [2017, 2023, 2034, 2045, 2051]
+    year_diff = [abs(y - target_year) for y in common_years]
+    common_year = common_years[year_diff.index(min(year_diff))]
+    df.index = pd.DatetimeIndex(
+        [t.replace(year=common_year) for t in df.index],
+        name="time",
+    )
+    df = __timeshift__(df, target_year)
+    df.index = df.index.tz_localize("EST")
+    df.index.name = "time"
+    return df
+
+
 def build_bldg_id_to_load_filepath(
     path_resstock_loads: Path,
     building_ids: list[int] | None = None,

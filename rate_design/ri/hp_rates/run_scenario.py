@@ -34,6 +34,7 @@ from utils.mid.data_parsing import get_residential_customer_count_from_utility_s
 from utils.cairo import (
     _fetch_prototype_ids_by_electric_util,
     _load_cambium_marginal_costs,
+    _load_supply_marginal_costs,
     apply_runtime_tou_demand_response,
     build_bldg_id_to_load_filepath,
     load_distribution_marginal_costs,
@@ -81,7 +82,9 @@ class ScenarioSettings:
     path_resstock_metadata: Path
     path_resstock_loads: Path
     path_utility_assignment: str | Path
-    path_supply_marginal_costs: str | Path
+    path_supply_marginal_costs: str | Path | None = None
+    path_supply_energy_mc: str | Path | None = None
+    path_supply_capacity_mc: str | Path | None = None
     path_td_marginal_costs: str | Path
     path_tariff_maps_electric: Path
     path_tariff_maps_gas: Path
@@ -518,9 +521,20 @@ def _build_settings_from_yaml_run(
             PATH_CONFIG,
         ),
         path_supply_marginal_costs=_resolve_path_or_uri(
-            str(_require_value(run, "path_supply_marginal_costs")),
-            PATH_CONFIG,
-        ),
+            str(run.get("path_supply_marginal_costs", "")), PATH_CONFIG
+        )
+        if run.get("path_supply_marginal_costs")
+        else None,
+        path_supply_energy_mc=_resolve_path_or_uri(
+            str(run.get("path_supply_energy_mc", "")), PATH_CONFIG
+        )
+        if run.get("path_supply_energy_mc")
+        else None,
+        path_supply_capacity_mc=_resolve_path_or_uri(
+            str(run.get("path_supply_capacity_mc", "")), PATH_CONFIG
+        )
+        if run.get("path_supply_capacity_mc")
+        else None,
         path_td_marginal_costs=_resolve_path_or_uri(
             str(_require_value(run, "path_td_marginal_costs")),
             PATH_CONFIG,
@@ -870,10 +884,23 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
     # MC prices are exogenous (Cambium + distribution); load shifting
     # changes total MC dollars, not the prices themselves.
 
-    bulk_marginal_costs = _load_cambium_marginal_costs(
-        settings.path_supply_marginal_costs,
-        settings.year_run,
-    )
+    # Load supply MCs: use separate energy/capacity files if provided, else fallback to combined
+    if settings.path_supply_energy_mc and settings.path_supply_capacity_mc:
+        bulk_marginal_costs = _load_supply_marginal_costs(
+            settings.path_supply_energy_mc,
+            settings.path_supply_capacity_mc,
+            settings.year_run,
+        )
+    elif settings.path_supply_marginal_costs:
+        bulk_marginal_costs = _load_cambium_marginal_costs(
+            settings.path_supply_marginal_costs,
+            settings.year_run,
+        )
+    else:
+        raise ValueError(
+            "Must provide either path_supply_marginal_costs (combined) or "
+            "both path_supply_energy_mc and path_supply_capacity_mc (separate)"
+        )
     distribution_marginal_costs = load_distribution_marginal_costs(
         settings.path_td_marginal_costs,
     )

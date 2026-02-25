@@ -16,19 +16,30 @@ Note on path_supply_marginal_costs column:
     
     Use Excel formulas in the Google Sheet to automatically set paths:
     
-    path_supply_marginal_costs formula (adjust column references as needed):
+    For NY supply runs, use separate energy and capacity paths:
+    
+    path_supply_energy_mc formula:
     =IF(AND($B18="NY", E18="X"), 
-        "s3://data.sb/switchbox/marginal_costs/ny/supply/utility=" & LOWER($C18) & "/year=2025/data.parquet",
-        "s3://data.sb/nrel/cambium/zero_marginal_costs.csv")
+        "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" & LOWER($C18) & "/year=2025/data.parquet",
+        IF($B18="NY", "s3://data.sb/nrel/cambium/zero_marginal_costs.csv", ""))
+    
+    path_supply_capacity_mc formula:
+    =IF(AND($B18="NY", E18="X"), 
+        "s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=" & LOWER($C18) & "/year=2025/data.parquet",
+        IF($B18="NY", "s3://data.sb/nrel/cambium/zero_marginal_costs.csv", ""))
     
     Where:
     - $B18 is the state column (NY)
     - E18 is the add_supply_revenue_requirement column (X = TRUE)
     - $C18 is the utility column
     
+    For backward compatibility, path_supply_marginal_costs can still be used for combined files
+    (RI runs or legacy NY runs). If both path_supply_energy_mc and path_supply_capacity_mc
+    are provided, they take precedence over path_supply_marginal_costs.
+    
     path_tou_supply_mc formula (for runs where num = 13 or 14):
     =IF(AND($B18="NY", OR($A18=13, $A18=14)),
-        "s3://data.sb/switchbox/marginal_costs/ny/supply/utility=" & LOWER($C18) & "/year=2025/data.parquet",
+        "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" & LOWER($C18) & "/year=2025/data.parquet",
         "")
     
     Where:
@@ -209,14 +220,22 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         run["path_supply_marginal_costs"] = get("path_supply_marginal_costs")
     except ValueError:
         # Fallback to old column name for backward compatibility
-        run["path_supply_marginal_costs"] = get("path_cambium_marginal_costs")
+        try:
+            run["path_supply_marginal_costs"] = get("path_cambium_marginal_costs")
+        except ValueError:
+            # Allow None if neither exists (when using separate energy/capacity paths)
+            run["path_supply_marginal_costs"] = None
     
-    # Handle path_supply_marginal_costs with backward compatibility for path_cambium_marginal_costs
+    # Handle separate energy and capacity paths (optional)
     try:
-        run["path_supply_marginal_costs"] = get("path_supply_marginal_costs")
+        run["path_supply_energy_mc"] = get_optional("path_supply_energy_mc")
     except ValueError:
-        # Fallback to old column name for backward compatibility
-        run["path_supply_marginal_costs"] = get("path_cambium_marginal_costs")
+        run["path_supply_energy_mc"] = None
+    
+    try:
+        run["path_supply_capacity_mc"] = get_optional("path_supply_capacity_mc")
+    except ValueError:
+        run["path_supply_capacity_mc"] = None
 
     run["path_tariffs_electric"] = _path_tariffs_to_dict(
         require_non_empty("path_tariffs_electric")

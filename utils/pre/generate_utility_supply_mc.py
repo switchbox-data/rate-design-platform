@@ -17,10 +17,11 @@ Input data:
     - Utility zone mapping CSV (utility → LBMP zone, ICAP locality, capacity_weight):
         s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv
 
-Output:
-    s3://data.sb/switchbox/marginal_costs/ny/supply/utility={utility}/year={YYYY}/data.parquet
-    Schema: timestamp (datetime), energy_cost_enduse ($/MWh), capacity_cost_enduse ($/MWh)
-    This matches the Cambium parquet schema consumed by _load_cambium_marginal_costs().
+Output (two separate files):
+    Energy: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility={utility}/year={YYYY}/data.parquet
+        Schema: timestamp (datetime), energy_cost_enduse ($/MWh), 8760 rows
+    Capacity: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility={utility}/year={YYYY}/data.parquet
+        Schema: timestamp (datetime), capacity_cost_enduse ($/MWh), 8760 rows
 
 Usage:
     # Inspect results (no upload)
@@ -700,42 +701,178 @@ def assemble_output(
     return output
 
 
-def save_output(
-    output_df: pl.DataFrame,
+def prepare_energy_output(
+    energy_df: pl.DataFrame,
+    year: int,
+) -> pl.DataFrame:
+    """Prepare energy MC DataFrame for saving (8760 rows, timestamp + energy_cost_enduse).
+
+    Args:
+        energy_df: Energy MC (timestamp, energy_cost_enduse in $/MWh).
+        year: Target year.
+
+    Returns:
+        DataFrame with 8760 rows: timestamp, energy_cost_enduse ($/MWh).
+    """
+    # Build reference 8760 index
+    ref_8760 = build_cairo_8760_timestamps(year)
+
+    # Truncate timestamps to hour
+    energy_hourly = energy_df.with_columns(
+        pl.col("timestamp").dt.truncate("1h").alias("timestamp")
+    )
+
+    # Deduplicate (in case of DST overlaps) → take mean
+    energy_hourly = (
+        energy_hourly.group_by("timestamp")
+        .agg(pl.col("energy_cost_enduse").mean())
+        .sort("timestamp")
+    )
+
+    # Join onto reference index
+    output = ref_8760.join(energy_hourly, on="timestamp", how="left")
+
+    # Fill missing with 0
+    output = output.with_columns(
+        pl.col("energy_cost_enduse").fill_null(0.0).alias("energy_cost_enduse"),
+    )
+
+    output = output.select("timestamp", "energy_cost_enduse")
+
+    if output.height != 8760:
+        raise ValueError(f"Energy output has {output.height} rows, expected 8760")
+
+    if output.filter(pl.col("energy_cost_enduse").is_null()).height > 0:
+        raise ValueError("Energy output has nulls")
+
+    return output
+
+
+def prepare_capacity_output(
+    capacity_df: pl.DataFrame,
+    year: int,
+) -> pl.DataFrame:
+    """Prepare capacity MC DataFrame for saving (8760 rows, timestamp + capacity_cost_enduse).
+
+    Args:
+        capacity_df: Capacity MC (timestamp, capacity_cost_per_kw in $/kW).
+        year: Target year.
+
+    Returns:
+        DataFrame with 8760 rows: timestamp, capacity_cost_enduse ($/MWh).
+    """
+    # Build reference 8760 index
+    ref_8760 = build_cairo_8760_timestamps(year)
+
+    # Truncate timestamps to hour
+    capacity_hourly = capacity_df.with_columns(
+        pl.col("timestamp").dt.truncate("1h").alias("timestamp")
+    )
+
+    # Deduplicate (in case of DST overlaps) → take mean
+    capacity_hourly = (
+        capacity_hourly.group_by("timestamp")
+        .agg(pl.col("capacity_cost_per_kw").mean())
+        .sort("timestamp")
+    )
+
+    # Join onto reference index
+    output = ref_8760.join(capacity_hourly, on="timestamp", how="left")
+
+    # Fill missing with 0 and convert to $/MWh
+    output = output.with_columns(
+        (pl.col("capacity_cost_per_kw").fill_null(0.0) * 1000.0).alias(
+            "capacity_cost_enduse"
+        ),
+    )
+
+    output = output.select("timestamp", "capacity_cost_enduse")
+
+    if output.height != 8760:
+        raise ValueError(f"Capacity output has {output.height} rows, expected 8760")
+
+    if output.filter(pl.col("capacity_cost_enduse").is_null()).height > 0:
+        raise ValueError("Capacity output has nulls")
+
+    return output
+
+
+def save_energy_output(
+    energy_df: pl.DataFrame,
     utility: str,
     year: int,
     output_s3_base: str,
     storage_options: dict[str, str],
 ) -> None:
-    """Write output parquet to S3 with Hive-style partitioning.
+    """Write energy MC parquet to S3 with Hive-style partitioning.
 
-    Path: {output_s3_base}/utility={utility}/year={year}/data.parquet
+    Path: {output_s3_base}/energy/utility={utility}/year={year}/data.parquet
 
     Args:
-        output_df: Final 8760-row DataFrame.
+        energy_df: Energy MC DataFrame (timestamp, energy_cost_enduse).
         utility: Utility name.
         year: Target year.
         output_s3_base: S3 base path.
         storage_options: AWS storage options.
     """
     output_s3_base = output_s3_base.rstrip("/") + "/"
+    energy_base = output_s3_base + "energy/"
 
     # Add partition columns for write
-    partitioned = output_df.with_columns(
+    partitioned = energy_df.with_columns(
         pl.lit(utility).alias("utility"),
         pl.lit(year).alias("year"),
     )
 
     partitioned.write_parquet(
-        output_s3_base,
+        energy_base,
         partition_by=["utility", "year"],
         storage_options=storage_options,
     )
 
-    output_path = f"{output_s3_base}utility={utility}/year={year}/data.parquet"
-    print(f"\n✓ Saved to {output_path}")
-    print(f"  Rows: {len(output_df):,}")
-    print(f"  Columns: {', '.join(output_df.columns)}")
+    output_path = f"{energy_base}utility={utility}/year={year}/data.parquet"
+    print(f"\n✓ Saved energy MC to {output_path}")
+    print(f"  Rows: {len(energy_df):,}")
+    print(f"  Columns: {', '.join(energy_df.columns)}")
+
+
+def save_capacity_output(
+    capacity_df: pl.DataFrame,
+    utility: str,
+    year: int,
+    output_s3_base: str,
+    storage_options: dict[str, str],
+) -> None:
+    """Write capacity MC parquet to S3 with Hive-style partitioning.
+
+    Path: {output_s3_base}/capacity/utility={utility}/year={year}/data.parquet
+
+    Args:
+        capacity_df: Capacity MC DataFrame (timestamp, capacity_cost_enduse).
+        utility: Utility name.
+        year: Target year.
+        output_s3_base: S3 base path.
+        storage_options: AWS storage options.
+    """
+    output_s3_base = output_s3_base.rstrip("/") + "/"
+    capacity_base = output_s3_base + "capacity/"
+
+    # Add partition columns for write
+    partitioned = capacity_df.with_columns(
+        pl.lit(utility).alias("utility"),
+        pl.lit(year).alias("year"),
+    )
+
+    partitioned.write_parquet(
+        capacity_base,
+        partition_by=["utility", "year"],
+        storage_options=storage_options,
+    )
+
+    output_path = f"{capacity_base}utility={utility}/year={year}/data.parquet"
+    print(f"\n✓ Saved capacity MC to {output_path}")
+    print(f"  Rows: {len(capacity_df):,}")
+    print(f"  Columns: {', '.join(capacity_df.columns)}")
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -906,25 +1043,31 @@ def main() -> None:
     # Validate capacity allocation
     validate_capacity_allocation(capacity_df, icap_prices)
 
-    # ── 4. Assemble output ───────────────────────────────────────────────
-    print("\n── Output Assembly ──")
-    output = assemble_output(energy_df, capacity_df, price_year)
+    # ── 4. Prepare separate outputs ──────────────────────────────────────
+    print("\n── Output Preparation ──")
+    energy_output = prepare_energy_output(energy_df, price_year)
+    capacity_output = prepare_capacity_output(capacity_df, price_year)
 
-    # Display sample
+    # Display samples
     print("\n" + "=" * 60)
     print("SAMPLE: Top 10 hours by capacity cost")
     print("=" * 60)
-    sample = output.sort("capacity_cost_enduse", descending=True).head(10)
+    sample = capacity_output.sort("capacity_cost_enduse", descending=True).head(10)
     print(sample)
 
     print("\nSAMPLE: Top 10 hours by energy cost")
     print("=" * 60)
-    sample = output.sort("energy_cost_enduse", descending=True).head(10)
+    sample = energy_output.sort("energy_cost_enduse", descending=True).head(10)
     print(sample)
 
     # ── 5. Save ──────────────────────────────────────────────────────────
     if args.upload:
-        save_output(output, utility, price_year, args.output_s3_base, storage_options)
+        save_energy_output(
+            energy_output, utility, price_year, args.output_s3_base, storage_options
+        )
+        save_capacity_output(
+            capacity_output, utility, price_year, args.output_s3_base, storage_options
+        )
         print("\n" + "=" * 60)
         print("✓ Supply marginal cost generation completed and uploaded")
         print("=" * 60)
