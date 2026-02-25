@@ -210,6 +210,13 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     except ValueError:
         # Fallback to old column name for backward compatibility
         run["path_supply_marginal_costs"] = get("path_cambium_marginal_costs")
+    
+    # Handle path_supply_marginal_costs with backward compatibility for path_cambium_marginal_costs
+    try:
+        run["path_supply_marginal_costs"] = get("path_supply_marginal_costs")
+    except ValueError:
+        # Fallback to old column name for backward compatibility
+        run["path_supply_marginal_costs"] = get("path_cambium_marginal_costs")
 
     run["path_tariffs_electric"] = _path_tariffs_to_dict(
         require_non_empty("path_tariffs_electric")
