@@ -165,6 +165,50 @@ def test_load_run_fields_from_scenario_config(tmp_path: Path) -> None:
     assert rr == pytest.approx(241869601.0)
 
 
+def test_load_run_fields_from_yaml_path_new_schema(tmp_path: Path) -> None:
+    """When scenario points to a YAML file with new schema, _load_run_fields reads total_delivery_revenue_requirement."""
+    # _load_run_fields resolves rr_path as scenario_config_path.parent.parent / raw_rr
+    # (scenario config lives at config/scenarios/scenarios.yaml, so parent.parent = config)
+    config_dir = tmp_path / "config"
+    rev_dir = config_dir / "rev_requirement"
+    rev_dir.mkdir(parents=True)
+    rr_yaml = rev_dir / "rie.yaml"
+    rr_yaml.write_text(
+        yaml.safe_dump(
+            {
+                "utility": "rie",
+                "total_delivery_revenue_requirement": 364891202.47,
+                "total_delivery_and_supply_revenue_requirement": 752731289.17,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    scenarios_dir = config_dir / "scenarios"
+    scenarios_dir.mkdir(parents=True)
+    scenario_config = scenarios_dir / "scenarios.yaml"
+    scenario_config.write_text(
+        yaml.safe_dump(
+            {
+                "runs": {
+                    1: {
+                        "state": "RI",
+                        "utility": "rie",
+                        "utility_delivery_revenue_requirement": "rev_requirement/rie.yaml",
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    state, utility, rr = _load_run_fields(scenario_config, run_num=1)
+    assert state == "RI"
+    assert utility == "rie"
+    assert rr == pytest.approx(364891202.47)
+
+
 def test_compute_subclass_rr_applies_weights(tmp_path: Path) -> None:
     run_dir = tmp_path / "run"
     (run_dir / "bills").mkdir(parents=True)
