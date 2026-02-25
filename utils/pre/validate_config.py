@@ -73,11 +73,15 @@ def main() -> None:
     ]
 
     if run2:
+        # Support both path_supply_marginal_costs (new) and path_cambium_marginal_costs (backward compatibility)
+        supply_mc_path = run2.get("path_supply_marginal_costs") or run2.get(
+            "path_cambium_marginal_costs", ""
+        )
         checks.append(
             (
                 "path_cambium",
                 _normalize_data_path(args.path_cambium),
-                _normalize_data_path(str(run2.get("path_cambium_marginal_costs", ""))),
+                _normalize_data_path(str(supply_mc_path)),
             )
         )
 

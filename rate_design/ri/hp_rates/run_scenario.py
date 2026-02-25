@@ -34,6 +34,7 @@ from utils.mid.data_parsing import get_residential_customer_count_from_utility_s
 from utils.cairo import (
     _fetch_prototype_ids_by_electric_util,
     _load_cambium_marginal_costs,
+    _load_supply_marginal_costs,
     apply_runtime_tou_demand_response,
     build_bldg_id_to_load_filepath,
     load_distribution_marginal_costs,
@@ -81,7 +82,6 @@ class ScenarioSettings:
     path_resstock_metadata: Path
     path_resstock_loads: Path
     path_utility_assignment: str | Path
-    path_cambium_marginal_costs: str | Path
     path_td_marginal_costs: str | Path
     path_tariff_maps_electric: Path
     path_tariff_maps_gas: Path
@@ -92,6 +92,9 @@ class ScenarioSettings:
     year_run: int
     year_dollar_conversion: int
     process_workers: int
+    path_supply_marginal_costs: str | Path | None = None
+    path_supply_energy_mc: str | Path | None = None
+    path_supply_capacity_mc: str | Path | None = None
     solar_pv_compensation: str = "net_metering"
     add_supply_revenue_requirement: bool = False
     sample_size: int | None = None
@@ -517,10 +520,21 @@ def _build_settings_from_yaml_run(
             str(_require_value(run, "path_resstock_loads")),
             PATH_CONFIG,
         ),
-        path_cambium_marginal_costs=_resolve_path_or_uri(
-            str(_require_value(run, "path_cambium_marginal_costs")),
-            PATH_CONFIG,
-        ),
+        path_supply_marginal_costs=_resolve_path_or_uri(
+            str(run.get("path_supply_marginal_costs", "")), PATH_CONFIG
+        )
+        if run.get("path_supply_marginal_costs")
+        else None,
+        path_supply_energy_mc=_resolve_path_or_uri(
+            str(run.get("path_supply_energy_mc", "")), PATH_CONFIG
+        )
+        if run.get("path_supply_energy_mc")
+        else None,
+        path_supply_capacity_mc=_resolve_path_or_uri(
+            str(run.get("path_supply_capacity_mc", "")), PATH_CONFIG
+        )
+        if run.get("path_supply_capacity_mc")
+        else None,
         path_td_marginal_costs=_resolve_path_or_uri(
             str(_require_value(run, "path_td_marginal_costs")),
             PATH_CONFIG,
@@ -870,13 +884,52 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
     # MC prices are exogenous (Cambium + distribution); load shifting
     # changes total MC dollars, not the prices themselves.
 
-    bulk_marginal_costs = _load_cambium_marginal_costs(
-        settings.path_cambium_marginal_costs,
-        settings.year_run,
-    )
+    # Load supply MCs: use separate energy/capacity files if provided, else fallback to combined
+    if settings.path_supply_energy_mc and settings.path_supply_capacity_mc:
+        bulk_marginal_costs = _load_supply_marginal_costs(
+            settings.path_supply_energy_mc,
+            settings.path_supply_capacity_mc,
+            settings.year_run,
+        )
+    elif settings.path_supply_marginal_costs:
+        bulk_marginal_costs = _load_cambium_marginal_costs(
+            settings.path_supply_marginal_costs,
+            settings.year_run,
+        )
+    else:
+        raise ValueError(
+            "Must provide either path_supply_marginal_costs (combined) or "
+            "both path_supply_energy_mc and path_supply_capacity_mc (separate)"
+        )
     distribution_marginal_costs = load_distribution_marginal_costs(
         settings.path_td_marginal_costs,
     )
+    if not bulk_marginal_costs.index.equals(distribution_marginal_costs.index):
+        if len(bulk_marginal_costs) == len(distribution_marginal_costs):
+            # T&D MC parquet can carry a different in-file year (e.g. 2025) than
+            # run year (e.g. 2026). Align by hour position onto bulk MC index so
+            # CAIRO system-cost merge does not collapse to empty.
+            distribution_marginal_costs = pd.Series(
+                distribution_marginal_costs.values,
+                index=bulk_marginal_costs.index,
+                name=distribution_marginal_costs.name,
+            )
+            log.info(
+                ".... Aligned distribution MC index to bulk MC index "
+                "(bulk_year=%s, dist_year=%s)",
+                bulk_marginal_costs.index[0].year,
+                distribution_marginal_costs.index[0].year,
+            )
+        else:
+            distribution_marginal_costs = distribution_marginal_costs.reindex(
+                bulk_marginal_costs.index
+            )
+            log.info(
+                ".... Reindexed distribution MC to bulk MC index "
+                "(bulk_rows=%s, dist_rows=%s)",
+                len(bulk_marginal_costs),
+                len(distribution_marginal_costs),
+            )
     log.info(
         ".... Loaded distribution marginal costs rows=%s",
         len(distribution_marginal_costs),
@@ -1021,6 +1074,8 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         if tou_season_specs and settings.run_type == "precalc":
             # Load the real supply MC for cost-causation ratio computation.
             if settings.path_tou_supply_mc is not None:
+                # Use the same loader as main supply MC loading.
+                # _load_cambium_marginal_costs handles both Cambium files and other formats.
                 tou_bulk_mc = _load_cambium_marginal_costs(
                     settings.path_tou_supply_mc, settings.year_run
                 )

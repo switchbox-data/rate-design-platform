@@ -12,7 +12,7 @@ def _base_row() -> dict[str, str]:
         "path_tariff_maps_gas": "tariff_maps/gas/rie.csv",
         "path_resstock_metadata": "s3://example/metadata.parquet",
         "path_resstock_loads": "s3://example/loads/",
-        "path_cambium_marginal_costs": "s3://example/cambium.parquet",
+        "path_supply_marginal_costs": "s3://example/cambium.parquet",
         "path_td_marginal_costs": "s3://example/td.parquet",
         "path_utility_assignment": "s3://example/utility_assignment.parquet",
         "path_tariffs_gas": "tariffs/gas",

@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "rie_hp_seasonal",
-      "name": "rie_hp_seasonal",
+      "label": "nyseg_hp_seasonal_supply",
+      "name": "nyseg_hp_seasonal_supply",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,14 +640,14 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.060332309567078565,
+            "rate": 1.7215079336237102,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.014942616793906915,
+            "rate": 0.888199325984785,
             "adj": 0.0,
             "unit": "kWh"
           }

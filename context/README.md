@@ -39,6 +39,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 | cairo_parallelism_and_workers.md         | How to think about parallelism: infra instance, worker count, series vs parallel tracks              |
 | cairo_elastic_cluster.md                 | Elastic Dask cluster: why (many runs), options (dask-cloudprovider etc.), CAIRO + platform changes   |
 | run_orchestration.md                     | RI runs 1–16 orchestration: Justfile dependency chain, demand flex (runs 13-16), design decisions    |
+| ny_supply_marginal_costs.md              | NY supply MC pipeline: LBMP energy + ICAP capacity, zone mapping, load-weighting, MCOS allocation    |
 | nyiso_lbmp_zonal_data_sources.md         | NYISO Day-Ahead/Real-Time zonal LBMP: MIS ZIP vs gridstatus vs NYISOToolkit; data samples            |
 
 ## docs/
