@@ -2,6 +2,11 @@
 # Parameterized for multi-utility reuse via env vars.
 # See context/tools/run_orchestration.md for full documentation.
 
+# Usage (from repo root):
+#   UTILITY=coned just -f rate_design/ny/hp_rates/Justfile run-all-sequential
+# Or from rate_design/ny/hp_rates:
+#   UTILITY=coned just run-all-sequential
+
 # =============================================================================
 # Tier 1: Identity (override via env vars)
 # =============================================================================
@@ -49,7 +54,8 @@ path_tariff_maps                    := path_config / "tariff_maps"
 path_td_mc                          := "s3://data.sb/switchbox/marginal_costs/" + state + "/region=" + region + "/utility=cenhud/year=" + mc_year + "/00000000.parquet"
 path_resstock_release               := "/ebs/data/nrel/resstock/res_2024_amy2018_2"
 path_resstock_metadata              := path_resstock_release + "/metadata"
-path_utility_assignment             := path_resstock_release + "/metadata_utility/state=" + state_upper + "/utility_assignment.parquet"
+# Base dir for gas mapper; script appends state=XX/utility_assignment.parquet
+path_utility_assignment             := path_resstock_release + "/metadata_utility"
 path_resstock_loads_00              := path_resstock_release + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
 # TODO: replace RI placeholder with correct NY Cambium BA once confirmed
 path_cambium                        := "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet"
@@ -113,8 +119,8 @@ create-seasonal-tou key=tou_tariff_key reference_tariff="":
     "{{utility}}" \
     "{{year}}" \
     "{{path_td_mc}}" \
-    "{{path_resstock_base}}/metadata/state={{state_upper}}/upgrade={{upgrade}}/metadata-sb.parquet" \
-    "{{path_resstock_base}}" \
+    "{{path_resstock_release}}/metadata/state={{state_upper}}/upgrade={{upgrade}}/metadata-sb.parquet" \
+    "{{path_resstock_release}}" \
     "{{upgrade}}" \
     "{{path_electric_utility_stats}}" \
     "{{key}}" \
@@ -124,7 +130,7 @@ create-seasonal-tou key=tou_tariff_key reference_tariff="":
 
 create-gas-tariff-map electric_utility upgrade_id output_dir:
   just -f {{path_repo}}/utils/Justfile create-gas-tariff-map \
-    "{{path_resstock_release}}" \
+    "{{path_resstock_metadata}}" \
     "{{path_utility_assignment}}" \
     "{{state_upper}}" \
     "{{electric_utility}}" \
@@ -203,7 +209,8 @@ compute-rev-requirements:
 run-scenario run_num:
   uv run python {{path_project}}/run_scenario.py \
     --run-num "{{run_num}}" \
-    --utility "{{utility}}"
+    --utility "{{utility}}" \
+    {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }}
 
 # Run 1: precalc flat, delivery
 run-1:
@@ -238,7 +245,7 @@ run-5:
     set -euo pipefail
     run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
     echo ">> run-5: resolved run-1 output → ${run1_dir}" >&2
-    just compute-seasonal-discount-inputs "${run1_dir}" "{{path_resstock_base}}" "{{state_upper}}" "{{upgrade}}"
+    just compute-seasonal-discount-inputs "${run1_dir}" "{{path_resstock_release}}" "{{state_upper}}" "{{upgrade}}"
     just create-seasonal-discount-tariff \
         "{{path_tariffs_electric}}/{{utility}}_flat_calibrated.json" \
         "${run1_dir}seasonal_discount_rate_inputs.csv" \
@@ -252,7 +259,7 @@ run-6:
     set -euo pipefail
     run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
     echo ">> run-6: resolved run-2 output → ${run2_dir}" >&2
-    just compute-seasonal-discount-inputs "${run2_dir}" "{{path_resstock_base}}" "{{state_upper}}" "{{upgrade}}"
+    just compute-seasonal-discount-inputs "${run2_dir}" "{{path_resstock_release}}" "{{state_upper}}" "{{upgrade}}"
     just create-seasonal-discount-tariff \
         "{{path_tariffs_electric}}/{{utility}}_flat_supply_calibrated.json" \
         "${run2_dir}seasonal_discount_rate_inputs.csv" \
@@ -329,6 +336,7 @@ run-12:
 all-pre:
     just create-scenario-yamls
     just create-electric-tariff-maps-all
+    just create-gas-tariff-maps-all
     just create-revenue-yaml
     just validate-config
 
