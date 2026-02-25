@@ -1,7 +1,7 @@
 {
   "items": [
     {
-      "label": "nyseg_hp_seasonalTOU",
+      "label": "nyseg_hp_seasonalTOU_supply",
       "uri": "",
       "sector": "Residential",
       "energyweekdayschedule": [
@@ -635,28 +635,28 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.974044,
+            "rate": 1.034255,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 1.213278,
+            "rate": 1.288278,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 1.312693,
+            "rate": 1.393838,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 2.683977,
+            "rate": 2.849889,
             "adj": 0.0,
             "unit": "kWh"
           }
@@ -668,7 +668,7 @@
       "minchargeunits": "$/month",
       "utility": "nyseg",
       "servicetype": "Bundled",
-      "name": "nyseg_hp_seasonalTOU",
+      "name": "nyseg_hp_seasonalTOU_supply",
       "is_default": false,
       "country": "USA",
       "demandunits": "kW",

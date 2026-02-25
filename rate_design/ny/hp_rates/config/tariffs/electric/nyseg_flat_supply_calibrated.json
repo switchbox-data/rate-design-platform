@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "nyseg_flat",
-      "name": "nyseg_flat",
+      "label": "nyseg_flat_supply",
+      "name": "nyseg_flat_supply",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,7 +640,7 @@
       "energyratestructure": [
         [
           {
-            "rate": 1.1152202433609155,
+            "rate": 1.1841587585092743,
             "adj": 0.0,
             "unit": "kWh"
           }

@@ -201,7 +201,7 @@ def _load_supply_energy_mc(
     # Align to common_year (first year in index) and timeshift to target_year
     common_year = df.index[0].year
     if common_year != target_year:
-        df = __timeshift__(df, common_year, target_year)
+        df = __timeshift__(df, target_year)
 
     # Set timezone to EST (CAIRO convention)
     if df.index.tz is None:
@@ -268,9 +268,7 @@ def _load_supply_capacity_mc(
         )
 
     # Rename to match CAIRO convention
-    df = df.rename(
-        columns={"capacity_cost_enduse": "Marginal Capacity Costs ($/kWh)"}
-    )
+    df = df.rename(columns={"capacity_cost_enduse": "Marginal Capacity Costs ($/kWh)"})
     df.loc[:, "Marginal Capacity Costs ($/kWh)"] /= 1000  # $/MWh → $/kWh
 
     df.index = pd.to_datetime(df.index, errors="coerce")
@@ -281,7 +279,7 @@ def _load_supply_capacity_mc(
     # Align to common_year (first year in index) and timeshift to target_year
     common_year = df.index[0].year
     if common_year != target_year:
-        df = __timeshift__(df, common_year, target_year)
+        df = __timeshift__(df, target_year)
 
     # Set timezone to EST (CAIRO convention)
     if df.index.tz is None:
@@ -305,7 +303,7 @@ def _load_supply_marginal_costs(
     - If either path contains "cambium", treat it as a Cambium file (combined energy+capacity)
       and use _load_cambium_marginal_costs with the cambium path.
     - Otherwise, load them separately and combine.
-    
+
     If only one is provided, raises ValueError.
     If both are None, raises ValueError (caller should use _load_cambium_marginal_costs instead).
 
@@ -314,7 +312,7 @@ def _load_supply_marginal_costs(
     - Marginal Capacity Costs ($/kWh)
 
     Args:
-        energy_path: Path to energy MC parquet (or None). If path contains "cambium", 
+        energy_path: Path to energy MC parquet (or None). If path contains "cambium",
                      treated as combined Cambium file.
         capacity_path: Path to capacity MC parquet (or None). If path contains "cambium",
                        treated as combined Cambium file.
@@ -331,7 +329,9 @@ def _load_supply_marginal_costs(
     if energy_path is None:
         raise ValueError("energy_path is required when using separate supply MC files")
     if capacity_path is None:
-        raise ValueError("capacity_path is required when using separate supply MC files")
+        raise ValueError(
+            "capacity_path is required when using separate supply MC files"
+        )
 
     # Check if either path contains "cambium" - if so, treat as Cambium file (backward compatibility)
     if _is_cambium_path(energy_path) or _is_cambium_path(capacity_path):
@@ -339,7 +339,7 @@ def _load_supply_marginal_costs(
         cambium_path = energy_path if _is_cambium_path(energy_path) else capacity_path
         log.info(
             "Detected Cambium path in supply MC: %s. Using _load_cambium_marginal_costs for backward compatibility.",
-            cambium_path
+            cambium_path,
         )
         return _load_cambium_marginal_costs(cambium_path, target_year)
 
@@ -351,9 +351,7 @@ def _load_supply_marginal_costs(
     combined = pd.concat([energy_df, capacity_df], axis=1)
 
     if len(combined) != 8760:
-        raise ValueError(
-            f"Combined supply MC has {len(combined)} rows, expected 8760"
-        )
+        raise ValueError(f"Combined supply MC has {len(combined)} rows, expected 8760")
 
     return combined
 

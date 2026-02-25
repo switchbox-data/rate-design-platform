@@ -22,7 +22,7 @@ runs:
     add_supply_revenue_requirement: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100
@@ -43,15 +43,15 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_coned_run2_up00_precalc_supply__flat__n100
     path_supply_marginal_costs: null
-    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/data.parquet
-    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/00000000.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/00000000.parquet
     path_tariffs_electric:
       all: tariffs/electric/coned_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/coned.yaml
     add_supply_revenue_requirement: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100
@@ -80,7 +80,7 @@ runs:
     add_supply_revenue_requirement: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100
@@ -101,15 +101,15 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_coned_run4_up02_default_supply__flat__n100
     path_supply_marginal_costs: null
-    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/data.parquet
-    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/00000000.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/00000000.parquet
     path_tariffs_electric:
       all: tariffs/electric/coned_flat_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/coned_large_number.yaml
     add_supply_revenue_requirement: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100
@@ -139,7 +139,7 @@ runs:
     add_supply_revenue_requirement: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100
@@ -160,8 +160,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_coned_run6_up00_precalc_supply__hp_seasonal_vs_flat__n100
     path_supply_marginal_costs: null
-    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/data.parquet
-    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/00000000.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/00000000.parquet
     path_tariffs_electric:
       hp: tariffs/electric/coned_hp_seasonal_supply.json
       non-hp: tariffs/electric/coned_flat_supply.json
@@ -169,7 +169,7 @@ runs:
     add_supply_revenue_requirement: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100
@@ -198,7 +198,7 @@ runs:
     add_supply_revenue_requirement: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100
@@ -219,15 +219,15 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_coned_run8_up02_default_supply__hp_seasonal__n100
     path_supply_marginal_costs: null
-    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/data.parquet
-    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/00000000.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/00000000.parquet
     path_tariffs_electric:
       all: tariffs/electric/coned_hp_seasonal_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/coned_large_number.yaml
     add_supply_revenue_requirement: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100
@@ -257,7 +257,7 @@ runs:
     add_supply_revenue_requirement: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100
@@ -278,8 +278,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_coned_run10_up00_precalc_supply__hp_seasonalTOU_vs_flat__n100
     path_supply_marginal_costs: null
-    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/data.parquet
-    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/00000000.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/00000000.parquet
     path_tariffs_electric:
       hp: tariffs/electric/coned_hp_seasonalTOU_supply.json
       non-hp: tariffs/electric/coned_flat_supply.json
@@ -287,7 +287,7 @@ runs:
     add_supply_revenue_requirement: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100
@@ -316,7 +316,7 @@ runs:
     add_supply_revenue_requirement: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100
@@ -337,15 +337,15 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_coned_run12_up02_default_supply__hp_seasonalTOU__n100
     path_supply_marginal_costs: null
-    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/data.parquet
-    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/00000000.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/00000000.parquet
     path_tariffs_electric:
       all: tariffs/electric/coned_hp_seasonalTOU_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/coned_large_number.yaml
     add_supply_revenue_requirement: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100
@@ -375,7 +375,7 @@ runs:
     add_supply_revenue_requirement: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100
@@ -396,8 +396,8 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_coned_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_flat__n100
     path_supply_marginal_costs: null
-    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/data.parquet
-    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/00000000.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/00000000.parquet
     path_tariffs_electric:
       hp: tariffs/electric/coned_hp_seasonalTOU_flex_supply.json
       non-hp: tariffs/electric/coned_flat_supply.json
@@ -405,7 +405,7 @@ runs:
     add_supply_revenue_requirement: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100
@@ -434,7 +434,7 @@ runs:
     add_supply_revenue_requirement: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100
@@ -455,15 +455,15 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_coned_run16_up02_default_supply__hp_seasonalTOU_flex__n100
     path_supply_marginal_costs: null
-    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/data.parquet
-    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=coned/year=2025/00000000.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=coned/year=2025/00000000.parquet
     path_tariffs_electric:
       all: tariffs/electric/coned_hp_seasonalTOU_flex_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/coned_large_number.yaml
     add_supply_revenue_requirement: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2026
+    year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
     sample_size: 100

@@ -904,6 +904,32 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
     distribution_marginal_costs = load_distribution_marginal_costs(
         settings.path_td_marginal_costs,
     )
+    if not bulk_marginal_costs.index.equals(distribution_marginal_costs.index):
+        if len(bulk_marginal_costs) == len(distribution_marginal_costs):
+            # T&D MC parquet can carry a different in-file year (e.g. 2025) than
+            # run year (e.g. 2026). Align by hour position onto bulk MC index so
+            # CAIRO system-cost merge does not collapse to empty.
+            distribution_marginal_costs = pd.Series(
+                distribution_marginal_costs.values,
+                index=bulk_marginal_costs.index,
+                name=distribution_marginal_costs.name,
+            )
+            log.info(
+                ".... Aligned distribution MC index to bulk MC index "
+                "(bulk_year=%s, dist_year=%s)",
+                bulk_marginal_costs.index[0].year,
+                distribution_marginal_costs.index[0].year,
+            )
+        else:
+            distribution_marginal_costs = distribution_marginal_costs.reindex(
+                bulk_marginal_costs.index
+            )
+            log.info(
+                ".... Reindexed distribution MC to bulk MC index "
+                "(bulk_rows=%s, dist_rows=%s)",
+                len(bulk_marginal_costs),
+                len(distribution_marginal_costs),
+            )
     log.info(
         ".... Loaded distribution marginal costs rows=%s",
         len(distribution_marginal_costs),

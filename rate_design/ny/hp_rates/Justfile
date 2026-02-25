@@ -23,7 +23,7 @@ utility     := env_var_or_default('UTILITY', 'nyseg')
 #   UTILITY=coned just run-1
 
 region                := env_var_or_default('REGION', 'nyiso')
-year                  := env_var_or_default('YEAR', '2026')
+year                  := env_var_or_default('YEAR', '2025')
 mc_year               := env_var_or_default('MC_YEAR', '2026')
 upgrade               := env_var_or_default('UPGRADE', '00')
 default_tariff        := env_var_or_default('DEFAULT_TARIFF', utility + '_default.json')
