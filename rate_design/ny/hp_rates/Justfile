@@ -36,6 +36,7 @@ dist_hours            := env_var_or_default('DIST_HOURS', '100')
 # =============================================================================
 
 path_repo                           := `git rev-parse --show-toplevel`
+project_root                        := path_repo
 path_project                        := path_repo / "rate_design" / state / "hp_rates"
 path_config                         := path_project / "config"
 path_tariffs_electric               := path_config / "tariffs/electric"
@@ -624,36 +625,36 @@ apply-ny-lmi-discounts run_dir utility fpl_year cpi_s3_path participation_rate="
 # -----------------------------------------------------------------------------
 # PRE: Marginal cost allocation (utility loads and MC table → S3; data assumed on S3)
 # -----------------------------------------------------------------------------
-state := "NY"
-load_year := "2025"
-mc_year := "2026"
-utility_s3_base := "s3://data.sb/eia/hourly_demand/utilities/"
-mc_output_s3_base := "s3://data.sb/switchbox/marginal_costs/ny/"
+state_data_prep := "NY"
+load_year_data_prep := "2025"
+mc_year_data_prep := "2026"
+utility_s3_base_data_prep := "s3://data.sb/eia/hourly_demand/utilities/"
+mc_output_s3_base_data_prep := "s3://data.sb/switchbox/marginal_costs/ny/"
 
-create-td-mc-data utility:
+create-td-mc-data-legacy utility:
   cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_utility_tx_dx_mc.py \
-    --state {{state}} \
+    --state {{state_data_prep}} \
     --utility {{utility}} \
-    --mc-year {{mc_year}} \
-    --load-year {{load_year}} \
+    --mc-year {{mc_year_data_prep}} \
+    --load-year {{load_year_data_prep}} \
     --mc-table-path {{project_root}}/rate_design/ny/hp_rates/config/marginal_costs/ny_marginal_costs_2026_2035.csv \
-    --utility-load-s3-base {{utility_s3_base}} \
-    --output-s3-base {{mc_output_s3_base}} \
+    --utility-load-s3-base {{utility_s3_base_data_prep}} \
+    --output-s3-base {{mc_output_s3_base_data_prep}} \
     --upload
 
-create-td-mc-data-all:
-  just create-td-mc-data nyseg
-  just create-td-mc-data rge
-  just create-td-mc-data cenhud
+create-td-mc-data-all-legacy:
+  just create-td-mc-data-legacy nyseg
+  just create-td-mc-data-legacy rge
+  just create-td-mc-data-legacy cenhud
 
 create-td-mc-data-nyseg:
-  just create-td-mc-data nyseg
+  just create-td-mc-data-legacy nyseg
 
 create-td-mc-data-rge:
-  just create-td-mc-data rge
+  just create-td-mc-data-legacy rge
 
 create-td-mc-data-cenhud:
-  just create-td-mc-data cenhud
+  just create-td-mc-data-legacy cenhud
 
 # Supply marginal costs (LBMP + ICAP MCOS)
 supply_mc_year := "2025"
@@ -681,7 +682,7 @@ create-supply-mc-data-all:
 
 # Create scenario YAMLs from the Runs & Charts Google Sheet (requires G_* env and browser auth)
 # Writes rate_design/<state>/hp_rates/config/scenarios_<utility>.yaml per utility
-create-scenario-yamls:
+create-scenario-yamls-legacy:
     uv run python {{project_root}}/utils/pre/create_scenario_yamls.py
 
 # =============================================================================

@@ -1,9 +1,14 @@
 {
   "items": [
     {
-      "label": "nyseg_flat_supply",
+      "label": "nyseg_flat",
+      "name": "nyseg_flat",
       "uri": "",
       "sector": "Residential",
+      "servicetype": "Bundled",
+      "dgrules": "Net Metering",
+      "utility": "GenericUtility",
+      "country": "USA",
       "energyweekdayschedule": [
         [
           0,
@@ -635,7 +640,7 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.06455,
+            "rate": 0.11677978965347749,
             "adj": 0.0,
             "unit": "kWh"
           }
@@ -644,14 +649,7 @@
       "fixedchargefirstmeter": 6.75,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
-      "minchargeunits": "$/month",
-      "utility": "NYSEG",
-      "servicetype": "Bundled",
-      "name": "nyseg_flat_supply",
-      "is_default": false,
-      "country": "USA",
-      "demandunits": "kW",
-      "demandrateunit": "kW"
+      "minchargeunits": "$/month"
     }
   ]
 }
