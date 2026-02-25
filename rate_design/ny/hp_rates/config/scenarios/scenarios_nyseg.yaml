@@ -18,11 +18,11 @@ runs:
       all: tariffs/electric/nyseg_flat.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: 0.0
 
@@ -36,7 +36,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nyseg.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
-    path_cambium_marginal_costs: TK
+    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=nyseg/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
@@ -45,11 +45,11 @@ runs:
       all: tariffs/electric/nyseg_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: 0.0
 
@@ -72,11 +72,11 @@ runs:
       all: tariffs/electric/nyseg_flat_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: 0.0
 
@@ -90,7 +90,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nyseg.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
-    path_cambium_marginal_costs: TK
+    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=nyseg/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
@@ -99,11 +99,11 @@ runs:
       all: tariffs/electric/nyseg_flat_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: 0.0
 
@@ -127,11 +127,11 @@ runs:
       non-hp: tariffs/electric/nyseg_flat.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: 0.0
 
@@ -145,7 +145,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nyseg.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
-    path_cambium_marginal_costs: TK
+    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=nyseg/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
@@ -155,11 +155,11 @@ runs:
       non-hp: tariffs/electric/nyseg_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: 0.0
 
@@ -182,11 +182,11 @@ runs:
       all: tariffs/electric/nyseg_hp_seasonal_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: 0.0
 
@@ -200,7 +200,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nyseg.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
-    path_cambium_marginal_costs: TK
+    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=nyseg/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
@@ -209,11 +209,11 @@ runs:
       all: tariffs/electric/nyseg_hp_seasonal_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: 0.0
 
@@ -237,11 +237,11 @@ runs:
       non-hp: tariffs/electric/nyseg_flat.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: 0.0
 
@@ -255,7 +255,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nyseg.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
-    path_cambium_marginal_costs: TK
+    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=nyseg/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
@@ -265,11 +265,11 @@ runs:
       non-hp: tariffs/electric/nyseg_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: 0.0
 
@@ -292,11 +292,11 @@ runs:
       all: tariffs/electric/nyseg_hp_seasonalTOU_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: 0.0
 
@@ -310,7 +310,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nyseg.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
-    path_cambium_marginal_costs: TK
+    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=nyseg/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
@@ -319,11 +319,11 @@ runs:
       all: tariffs/electric/nyseg_hp_seasonalTOU_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: 0.0
 
@@ -347,11 +347,11 @@ runs:
       non-hp: tariffs/electric/nyseg_flat.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: 0.0
 
@@ -365,7 +365,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nyseg.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
-    path_cambium_marginal_costs: TK
+    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=nyseg/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
@@ -375,11 +375,11 @@ runs:
       non-hp: tariffs/electric/nyseg_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: 0.0
 
@@ -402,11 +402,11 @@ runs:
       all: tariffs/electric/nyseg_hp_seasonalTOU_flex_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     add_supply_revenue_requirement: false
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: -0.1
 
@@ -420,7 +420,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nyseg.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
-    path_cambium_marginal_costs: TK
+    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=nyseg/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
@@ -429,10 +429,10 @@ runs:
       all: tariffs/electric/nyseg_hp_seasonalTOU_flex_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     add_supply_revenue_requirement: true
-    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=NY/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     solar_pv_compensation: net_metering
-    year_run: 2025
+    year_run: 2026
     year_dollar_conversion: 2025
-    process_workers: 20
+    process_workers: 8
     sample_size: 100
     elasticity: -0.1

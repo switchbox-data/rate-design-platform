@@ -70,12 +70,12 @@ agg_load, agg_solar = _return_preaggregated_load(
 
 ## Magnitude
 
-| Value | Result |
-|-------|--------|
-| Conversion factor applied twice | 0.0341214116² ≈ 0.00116 |
-| Under-billing factor | 1 / 0.0341214116 ≈ **29.3×** |
-| Typical RI residential annual gas bill (correct) | ~$500–$1,500 |
-| Typical RI residential annual gas bill (double-converted) | ~$17–$51 |
+| Value                                                     | Result                       |
+| --------------------------------------------------------- | ---------------------------- |
+| Conversion factor applied twice                           | 0.0341214116² ≈ 0.00116      |
+| Under-billing factor                                      | 1 / 0.0341214116 ≈ **29.3×** |
+| Typical RI residential annual gas bill (correct)          | ~$500–$1,500                 |
+| Typical RI residential annual gas bill (double-converted) | ~$17–$51                     |
 
 We confirmed this in production data: before the fix, RI residential annual
 gas bills were in the $17–$51 range; after, $500–$1,500.

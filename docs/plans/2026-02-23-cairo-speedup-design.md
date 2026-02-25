@@ -31,6 +31,7 @@ context/tools/
 ## Phase 0 — Baseline instrumentation
 
 Add `time.perf_counter()` timing around each major call in `run_scenario.py::run()`:
+
 - `_return_load` (electricity)
 - `_return_load` (gas)
 - `_return_revenue_requirement_target`
@@ -88,6 +89,7 @@ Scope: flat/TOU path (covers all 12 RI runs). Tiered/combined path is a stretch 
 ## Testing strategy
 
 After each phase:
+
 1. Run the patched version on `just run 1` (or `run 2` as a clean check)
 2. Compare all output CSVs/parquets against the pre-patch baseline using `pandas.testing.assert_frame_equal(check_exact=False, rtol=1e-4)`
 3. Record stage timings in `context/tools/cairo_speedup_log.md`
@@ -96,11 +98,11 @@ After each phase:
 ## Expected cumulative speedup
 
 | After phase | Speedup estimate |
-|-------------|-----------------|
-| Phase 0     | 0× (baseline)   |
-| Phase 1     | ~1.5–2×         |
-| Phase 2     | ~3–6×           |
-| Phase 3     | ~5–10×          |
+| ----------- | ---------------- |
+| Phase 0     | 0× (baseline)    |
+| Phase 1     | ~1.5–2×          |
+| Phase 2     | ~3–6×            |
+| Phase 3     | ~5–10×           |
 
 ## Migration path
 

@@ -26,6 +26,7 @@ each iterating 1,910 buildings serially) with a single PyArrow batch read of all
 parquet files at once.
 
 Key implementation details:
+
 - `pyarrow.dataset` reads all 1,910 files in one multi-threaded pass, selecting
   only the 4 needed columns
 - Schema unification via `pa.unify_schemas()` handles minor per-file schema
@@ -48,6 +49,7 @@ Replaced the 1,910-task Dask loop in
 with a single pandas groupby across all buildings simultaneously.
 
 Key implementation details:
+
 - CAIRO's `_load_base_tariffs` used to get per-building tariff assignments
 - Period schedule merged onto the full hourly DataFrame in one `merge()`
 - Tier info merged in a second `merge()` on `period`
@@ -78,6 +80,7 @@ Replaced the 1,910-task Dask loop in
 with a single vectorized pandas pass.
 
 Key implementation details:
+
 - Energy charge rates extracted from `ur_ec_tou_mat` (rate + adjustments)
   across all tariffs into a lookup DataFrame
 - `merge()` of aggregated load onto rate lookup, then multiply `grid_cons ×
@@ -99,48 +102,48 @@ All times from single-run benchmarks on the same 8-core EC2 instance.
 warm predictably across runs). Phase 1 measured warm ≈ 27s in a single-session
 warm-up; Phase 2–4 benchmarks run separately and show cold values.
 
-| Stage | Baseline | Phase 1 | Phase 2 | Phase 3 | Phase 4 |
-|-------|----------|---------|---------|---------|---------|
-| `_return_load(electricity)` | 19.5s | — | — | — | — |
-| `_return_load(gas)` | 20.3s | — | — | — | — |
-| `_return_loads_combined` | — | 26.8s | 72.0s* | 74.9s* | 80.1s* |
-| `phase2_marginal_costs_rr` | 3.5s | 3.5s | 3.6s | 3.6s | 3.6s |
-| `bs.simulate` | 104.8s | 75.4s | 78.2s | 66.9s | ~72s |
-| **Total** | **150.2s** | **~106s** | **~154s*** | **~146s*** | **~156s*** |
+| Stage                       | Baseline   | Phase 1   | Phase 2    | Phase 3    | Phase 4    |
+| --------------------------- | ---------- | --------- | ---------- | ---------- | ---------- |
+| `_return_load(electricity)` | 19.5s      | —         | —          | —          | —          |
+| `_return_load(gas)`         | 20.3s      | —         | —          | —          | —          |
+| `_return_loads_combined`    | —          | 26.8s     | 72.0s*     | 74.9s*     | 80.1s*     |
+| `phase2_marginal_costs_rr`  | 3.5s       | 3.5s      | 3.6s       | 3.6s       | 3.6s       |
+| `bs.simulate`               | 104.8s     | 75.4s     | 78.2s      | 66.9s      | ~72s       |
+| **Total**                   | **150.2s** | **~106s** | **~154s*** | **~146s*** | **~156s*** |
 
 \* Cold filesystem cache. Warm-cache estimate for Phase 3 total: **~97s**.
 Warm-cache estimate for Phase 4 total (using Phase 1 warm `_return_loads_combined` ≈ 27s): **~103s**.
 
-| Milestone | vs. Baseline (warm cache) |
-|-----------|--------------------------|
-| Phase 1 | **1.41×** faster |
-| Phase 2 | ~1.4× faster |
-| Phase 3 | **~1.55×** faster |
-| Phase 4 | **~1.46×** faster (gas correctness fix; gas billing ~23% faster; Phase 4 slightly below Phase 3 because cold-cache `_return_loads_combined` variance dominates and gas bills are now correct, not the previous wrong-but-faster result) |
+| Milestone | vs. Baseline (warm cache)                                                                                                                                                                                                               |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Phase 1   | **1.41×** faster                                                                                                                                                                                                                        |
+| Phase 2   | ~1.4× faster                                                                                                                                                                                                                            |
+| Phase 3   | **~1.55×** faster                                                                                                                                                                                                                       |
+| Phase 4   | **~1.46×** faster (gas correctness fix; gas billing ~23% faster; Phase 4 slightly below Phase 3 because cold-cache `_return_loads_combined` variance dominates and gas bills are now correct, not the previous wrong-but-faster result) |
 
 `bs.simulate` breakdown — Phase 3 vs Phase 4 (from diagnostic instrumentation):
 
-| Sub-stage | Phase 3 (before) | Phase 4 (after) |
-|-----------|------------------|-----------------|
-| Electricity `_return_preaggregated_load` (tariff agg + precalc calibration) | ~30s | ~30s (unchanged) |
-| Electricity `aggregate_system_revenues` (billing) | ~10s | ~10s (unchanged) |
-| Gas `_calculate_gas_bills` (tariff agg + billing) | ~26s | **~20s** |
-| — `_vectorized_process_building_demand_by_period` | — | 19.7s |
-| — `_vectorized_calculate_gas_bills` | — | 0.2s |
-| Other overhead | ~12s | ~12s |
+| Sub-stage                                                                   | Phase 3 (before) | Phase 4 (after)  |
+| --------------------------------------------------------------------------- | ---------------- | ---------------- |
+| Electricity `_return_preaggregated_load` (tariff agg + precalc calibration) | ~30s             | ~30s (unchanged) |
+| Electricity `aggregate_system_revenues` (billing)                           | ~10s             | ~10s (unchanged) |
+| Gas `_calculate_gas_bills` (tariff agg + billing)                           | ~26s             | **~20s**         |
+| — `_vectorized_process_building_demand_by_period`                           | —                | 19.7s            |
+| — `_vectorized_calculate_gas_bills`                                         | —                | 0.2s             |
+| Other overhead                                                              | ~12s             | ~12s             |
 
 ---
 
 ## Part 1 result: parallel tracks
 
-| Metric | Value |
-|---|---|
-| T8 (single run, 8 workers) | 172s |
-| T4 (single run, 4 workers) | 149s |
-| Ratio r = T4/T8 | 0.87 |
-| `run-all-sequential` total | 1917s (31m 57s) |
+| Metric                          | Value           |
+| ------------------------------- | --------------- |
+| T8 (single run, 8 workers)      | 172s            |
+| T4 (single run, 4 workers)      | 149s            |
+| Ratio r = T4/T8                 | 0.87            |
+| `run-all-sequential` total      | 1917s (31m 57s) |
 | `run-all-parallel-tracks` total | 1100s (18m 20s) |
-| Improvement | ~43% faster |
+| Improvement                     | ~43% faster     |
 
 ---
 
@@ -151,12 +154,12 @@ vectorized pandas operations. The primary cost is now in tariff aggregation
 (`_vectorized_process_building_demand_by_period`, 19.7s) — the billing calculation
 itself (`_vectorized_calculate_gas_bills`) takes only 0.2s.
 
-| Sub-stage | Phase 3 (before) | Phase 4 (after) |
-|---|---|---|
-| Gas tariff aggregation | ~24s | **19.7s** |
-| Gas bill calculation | ~2s | **0.2s** |
-| Gas `_calculate_gas_bills` total | ~26s | **~20s** |
-| **Total `bs.simulate`** | ~67–78s | **~72s** |
+| Sub-stage                        | Phase 3 (before) | Phase 4 (after) |
+| -------------------------------- | ---------------- | --------------- |
+| Gas tariff aggregation           | ~24s             | **19.7s**       |
+| Gas bill calculation             | ~2s              | **0.2s**        |
+| Gas `_calculate_gas_bills` total | ~26s             | **~20s**        |
+| **Total `bs.simulate`**          | ~67–78s          | **~72s**        |
 
 The gas aggregation bottleneck (19.7s) is caused by the 1,910 × 8,760 hour merge
 in `_vectorized_process_building_demand_by_period` — the same code used for
@@ -212,6 +215,7 @@ coupled to CAIRO's per-building state machine and would require substantial
 restructuring to vectorize.
 
 Further meaningful speedup beyond ~1.5× would most likely require:
+
 1. Changes inside the CAIRO package to expose a vectorized API, or
 2. A parallel/distributed execution approach (see
    `context/tools/cairo_elastic_cluster.md` for prior analysis of elastic Dask
@@ -221,20 +225,21 @@ Further meaningful speedup beyond ~1.5× would most likely require:
 
 ## Files changed
 
-| File | Change |
-|------|--------|
-| `rate_design/ri/hp_rates/patches.py` | New — all three patch phases |
-| `rate_design/ri/hp_rates/run_scenario.py` | Import patches; add per-stage timing |
-| `tests/test_patches.py` | New — 3 unit tests |
-| `context/tools/cairo_speedup_log.md` | Benchmark log updated after each phase |
-| `docs/plans/2026-02-23-cairo-speedup-design.md` | Design doc |
-| `docs/plans/2026-02-23-cairo-speedup-plan.md` | Implementation plan |
+| File                                            | Change                                 |
+| ----------------------------------------------- | -------------------------------------- |
+| `rate_design/ri/hp_rates/patches.py`            | New — all three patch phases           |
+| `rate_design/ri/hp_rates/run_scenario.py`       | Import patches; add per-stage timing   |
+| `tests/test_patches.py`                         | New — 3 unit tests                     |
+| `context/tools/cairo_speedup_log.md`            | Benchmark log updated after each phase |
+| `docs/plans/2026-02-23-cairo-speedup-design.md` | Design doc                             |
+| `docs/plans/2026-02-23-cairo-speedup-plan.md`   | Implementation plan                    |
 
 ---
 
 ## Gas path internals (discovered 2026-02-23)
 
 `_calculate_gas_bills` signature:
+
 ```python
 def _calculate_gas_bills(
     self,
@@ -302,6 +307,7 @@ shape as the electricity `customer_bills_monthly` produced by the same
 **Gas tariff fields used:**
 
 The gas JSON tariffs use the standard OPENEI/RateAcuity rate structure fields:
+
 - `energyratestructure`: list-of-list of dicts with `"rate"` ($/kWh in the JSON;
   CAIRO interprets in kWh units even for gas since the data arrives as kWh before
   `_adjust_gas_loads` converts to therms)

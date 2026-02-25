@@ -1,14 +1,17 @@
 # tests/test_patches.py
 """Tests for rate_design/ri/hp_rates/patches.py — CAIRO performance monkey-patches."""
+
 from __future__ import annotations
 
 import pandas as pd
 import pytest
 from pathlib import Path
 
-LOAD_DIR = Path("/data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=RI/upgrade=00/")
+LOAD_DIR = Path(
+    "/data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=RI/upgrade=00/"
+)
 SAMPLE_IDS = [100147, 100151, 100312]  # first 3 buildings from the upgrade dir
-SOLAR_IDS = [8584, 85645, 121546]      # solar PV buildings (from RI upgrade=00)
+SOLAR_IDS = [8584, 85645, 121546]  # solar PV buildings (from RI upgrade=00)
 ALL_IDS = SAMPLE_IDS + SOLAR_IDS
 
 
@@ -16,6 +19,7 @@ ALL_IDS = SAMPLE_IDS + SOLAR_IDS
 def sample_filepaths():
     """Return {bldg_id: path} for ALL_IDS. Skip if data not accessible."""
     from utils.cairo import build_bldg_id_to_load_filepath
+
     if not LOAD_DIR.exists():
         pytest.skip("ResStock load dir not accessible")
     fps = build_bldg_id_to_load_filepath(
@@ -80,12 +84,17 @@ def test_vectorized_aggregation_matches_cairo(sample_filepaths):
     from pathlib import Path
     from cairo.rates_tool.loads import _return_load, process_building_demand_by_period
     from cairo.rates_tool.tariffs import get_default_tariff_structures
-    from rate_design.ri.hp_rates.patches import _vectorized_process_building_demand_by_period
+    from rate_design.ri.hp_rates.patches import (
+        _vectorized_process_building_demand_by_period,
+    )
 
     # Load the flat tariff used in run 1 — convert from URDB JSON to PySAM format,
     # matching how _initialize_tariffs prepares tariffs before calling
     # process_building_demand_by_period in the real run.
-    tariff_path = Path(__file__).resolve().parent.parent / "rate_design/ri/hp_rates/config/tariffs/electric/rie_flat.json"
+    tariff_path = (
+        Path(__file__).resolve().parent.parent
+        / "rate_design/ri/hp_rates/config/tariffs/electric/rie_flat.json"
+    )
     if not tariff_path.exists():
         pytest.skip("rie_flat.json not found")
 
@@ -125,12 +134,22 @@ def test_vectorized_aggregation_matches_cairo(sample_filepaths):
     )
 
     # Sort both for comparison (row order may differ)
-    sort_cols = [c for c in ["bldg_id", "month", "period", "tier", "charge_type"] if c in ref_agg_load.reset_index().columns]
-    ref_sorted = ref_agg_load.reset_index().sort_values(sort_cols).reset_index(drop=True)
-    new_sorted = new_agg_load.reset_index().sort_values(sort_cols).reset_index(drop=True)
+    sort_cols = [
+        c
+        for c in ["bldg_id", "month", "period", "tier", "charge_type"]
+        if c in ref_agg_load.reset_index().columns
+    ]
+    ref_sorted = (
+        ref_agg_load.reset_index().sort_values(sort_cols).reset_index(drop=True)
+    )
+    new_sorted = (
+        new_agg_load.reset_index().sort_values(sort_cols).reset_index(drop=True)
+    )
 
     # Compare numeric columns present in both
-    numeric_cols = [c for c in ref_sorted.select_dtypes("number").columns if c in new_sorted.columns]
+    numeric_cols = [
+        c for c in ref_sorted.select_dtypes("number").columns if c in new_sorted.columns
+    ]
     for col in numeric_cols:
         pd.testing.assert_series_equal(
             ref_sorted[col].reset_index(drop=True),
@@ -148,7 +167,10 @@ def test_vectorized_billing_matches_cairo(sample_filepaths):
     from cairo.rates_tool.system_revenues import run_system_revenues
     from rate_design.ri.hp_rates.patches import _vectorized_run_system_revenues
 
-    tariff_path = Path(__file__).resolve().parent.parent / "rate_design/ri/hp_rates/config/tariffs/electric/rie_flat.json"
+    tariff_path = (
+        Path(__file__).resolve().parent.parent
+        / "rate_design/ri/hp_rates/config/tariffs/electric/rie_flat.json"
+    )
     if not tariff_path.exists():
         pytest.skip("rie_flat.json not found")
 
@@ -158,26 +180,40 @@ def test_vectorized_billing_matches_cairo(sample_filepaths):
     tariff_map = pd.DataFrame({"bldg_id": bldg_ids, "tariff_key": "rie_flat"})
 
     raw = _cairo_loads_orig._return_load(
-        load_type="electricity", target_year=2025, building_stock_sample=bldg_ids,
-        load_filepath_key=sample_filepaths, force_tz="EST",
+        load_type="electricity",
+        target_year=2025,
+        building_stock_sample=bldg_ids,
+        load_filepath_key=sample_filepaths,
+        force_tz="EST",
     )
     # Use the original (pre-patch) process_building_demand_by_period for clean agg_load
     from rate_design.ri.hp_rates.patches import _orig_process_building_demand_by_period
+
     agg_load, agg_solar = _orig_process_building_demand_by_period(
-        target_year=2025, load_col_key="total_fuel_electricity",
-        prototype_ids=bldg_ids, tariff_base=tariff_base,
-        tariff_map=tariff_map, prepassed_load=raw, solar_pv_compensation=None,
+        target_year=2025,
+        load_col_key="total_fuel_electricity",
+        prototype_ids=bldg_ids,
+        tariff_base=tariff_base,
+        tariff_map=tariff_map,
+        prepassed_load=raw,
+        solar_pv_compensation=None,
     )
 
     ref_bills = run_system_revenues(
-        aggregated_load=agg_load, aggregated_solar=agg_solar,
-        solar_compensation_df=None, prototype_ids=bldg_ids,
-        tariff_config=tariff_base, tariff_strategy=tariff_map,
+        aggregated_load=agg_load,
+        aggregated_solar=agg_solar,
+        solar_compensation_df=None,
+        prototype_ids=bldg_ids,
+        tariff_config=tariff_base,
+        tariff_strategy=tariff_map,
     )
     new_bills = _vectorized_run_system_revenues(
-        aggregated_load=agg_load, aggregated_solar=agg_solar,
-        solar_compensation_df=None, prototype_ids=bldg_ids,
-        tariff_config=tariff_base, tariff_strategy=tariff_map,
+        aggregated_load=agg_load,
+        aggregated_solar=agg_solar,
+        solar_compensation_df=None,
+        prototype_ids=bldg_ids,
+        tariff_config=tariff_base,
+        tariff_strategy=tariff_map,
     )
 
     pd.testing.assert_frame_equal(
@@ -249,13 +285,20 @@ def test_gas_path_produces_reasonable_bills(sample_filepaths):
     )
 
     # Load a gas tariff using PySAM format (same as the real run uses)
-    gas_tariff_dir = Path(__file__).resolve().parent.parent / "rate_design/ri/hp_rates/config/tariffs/gas"
-    gas_tariff_files = [p for p in gas_tariff_dir.glob("*.json") if p.stem != "null_gas_tariff"]
+    gas_tariff_dir = (
+        Path(__file__).resolve().parent.parent
+        / "rate_design/ri/hp_rates/config/tariffs/gas"
+    )
+    gas_tariff_files = [
+        p for p in gas_tariff_dir.glob("*.json") if p.stem != "null_gas_tariff"
+    ]
     if not gas_tariff_files:
         pytest.skip("No gas tariff files found")
 
     tariff_key = gas_tariff_files[0].stem
-    tariff_base = get_default_tariff_structures([tariff_key], {tariff_key: gas_tariff_files[0]})
+    tariff_base = get_default_tariff_structures(
+        [tariff_key], {tariff_key: gas_tariff_files[0]}
+    )
     tariff_map = pd.DataFrame({"bldg_id": bldg_ids, "tariff_key": tariff_key})
 
     dask.config.set(scheduler="synchronous")
@@ -272,7 +315,9 @@ def test_gas_path_produces_reasonable_bills(sample_filepaths):
     # Monthly gas usage in aggregated_load should be in therms.
     # Winter month (month=1): expect 30-150 therms per building.
     jan_rows = agg_gas.reset_index()
-    jan_rows = jan_rows[(jan_rows["month"] == 1) & (jan_rows["charge_type"] == "energy_charge")]
+    jan_rows = jan_rows[
+        (jan_rows["month"] == 1) & (jan_rows["charge_type"] == "energy_charge")
+    ]
     jan_load = jan_rows["load_data"].median()
 
     assert jan_load > 10, (
@@ -298,26 +343,39 @@ def test_vectorized_gas_billing_matches_correct_bills(sample_filepaths):
     bldg_ids = list(sample_filepaths.keys())[:3]
 
     _, gas = _return_loads_combined(
-        target_year=2025, building_ids=bldg_ids,
-        load_filepath_key=sample_filepaths, force_tz="EST",
+        target_year=2025,
+        building_ids=bldg_ids,
+        load_filepath_key=sample_filepaths,
+        force_tz="EST",
     )
 
-    gas_tariff_dir = Path(__file__).resolve().parent.parent / "rate_design/ri/hp_rates/config/tariffs/gas"
-    gas_tariff_files = [f for f in gas_tariff_dir.glob("*.json") if "null" not in f.name]
+    gas_tariff_dir = (
+        Path(__file__).resolve().parent.parent
+        / "rate_design/ri/hp_rates/config/tariffs/gas"
+    )
+    gas_tariff_files = [
+        f for f in gas_tariff_dir.glob("*.json") if "null" not in f.name
+    ]
     if not gas_tariff_files:
         pytest.skip("No non-null gas tariff files found")
 
     tariff_file = gas_tariff_files[0]
     tariff_key = tariff_file.stem
     tariff_base_raw = {tariff_key: __import__("json").loads(tariff_file.read_text())}
-    tariff_base = get_default_tariff_structures(tariff_base_raw, {tariff_key: tariff_file})
+    tariff_base = get_default_tariff_structures(
+        tariff_base_raw, {tariff_key: tariff_file}
+    )
     tariff_map = pd.DataFrame({"bldg_id": bldg_ids, "tariff_key": tariff_key})
 
     dask.config.set(scheduler="synchronous")
     agg_gas, _ = _vectorized_process_building_demand_by_period(
-        target_year=2025, load_col_key="total_fuel_gas",
-        prototype_ids=bldg_ids, tariff_base=tariff_base,
-        tariff_map=tariff_map, prepassed_load=gas, solar_pv_compensation=None,
+        target_year=2025,
+        load_col_key="total_fuel_gas",
+        prototype_ids=bldg_ids,
+        tariff_base=tariff_base,
+        tariff_map=tariff_map,
+        prepassed_load=gas,
+        solar_pv_compensation=None,
     )
 
     new_bills = _vectorized_calculate_gas_bills(

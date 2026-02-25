@@ -13,12 +13,12 @@
 
 ## Review gates
 
-| After phase | What to check before proceeding |
-|-------------|----------------------------------|
-| Phase 0 | `context/tools/cairo_speedup_log.md` has baseline timings; `run_scenario.py` has TIMING log lines |
-| Phase 1 | Output CSVs for run 2 match pre-patch baseline; `_return_loads_combined` timing < combined original reads |
-| Phase 2 | Output CSVs for run 2 match; `bs.simulate` timing improved; all 3 unit tests pass |
-| Phase 3 | Output CSVs for runs 1 and 2 match; total time ≥ 3× faster than baseline |
+| After phase | What to check before proceeding                                                                           |
+| ----------- | --------------------------------------------------------------------------------------------------------- |
+| Phase 0     | `context/tools/cairo_speedup_log.md` has baseline timings; `run_scenario.py` has TIMING log lines         |
+| Phase 1     | Output CSVs for run 2 match pre-patch baseline; `_return_loads_combined` timing < combined original reads |
+| Phase 2     | Output CSVs for run 2 match; `bs.simulate` timing improved; all 3 unit tests pass                         |
+| Phase 3     | Output CSVs for runs 1 and 2 match; total time ≥ 3× faster than baseline                                  |
 
 ---
 
@@ -33,6 +33,7 @@
 ## Orientation
 
 Key files:
+
 - `rate_design/ri/hp_rates/run_scenario.py` — entry point; `run()` function is what we time
 - `rate_design/ri/hp_rates/patches.py` — NEW: all monkey-patches live here
 - `context/tools/cairo_speedup_log.md` — NEW: benchmark log
@@ -41,6 +42,7 @@ Key files:
 - `.venv/lib/python3.13/site-packages/cairo/rates_tool/system_revenues.py` — CAIRO source (read-only reference)
 
 Key facts:
+
 - 1,910 buildings for RIE utility
 - 8 cores; `dask.config.set(scheduler="processes", num_workers=8)` already set at `run_scenario.py:613`
 - Parquet files at `/data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=RI/upgrade=00/`
@@ -58,6 +60,7 @@ Or via just: `just -f rate_design/ri/hp_rates/Justfile run-scenario N`
 ### Task 0.1: Create the speedup log file
 
 **Files:**
+
 - Create: `context/tools/cairo_speedup_log.md`
 
 **Step 1: Create the file**
@@ -84,6 +87,7 @@ git commit -m "Add CAIRO speedup benchmark log"
 ### Task 0.2: Add per-stage timing to `run()` in `run_scenario.py`
 
 **Files:**
+
 - Modify: `rate_design/ri/hp_rates/run_scenario.py`
 
 **Step 1: Read the current `run()` function** (already done — lines 605–769)
@@ -294,18 +298,18 @@ Add a section to `context/tools/cairo_speedup_log.md`:
 ```markdown
 ## Baseline — run 1 (pre-patch), DATE
 
-| Stage | Time (s) |
-|-------|----------|
-| _load_prototype_ids_for_run | X.X |
-| _initialize_tariffs | X.X |
-| _build_precalc_period_mapping | X.X |
-| return_buildingstock | X.X |
-| build_bldg_id_to_load_filepath | X.X |
-| _return_load(electricity) | X.X |
-| _return_load(gas) | X.X |
-| phase2_marginal_costs_rr | X.X |
-| bs.simulate | X.X |
-| **Total** | **X.X** |
+| Stage                          | Time (s) |
+| ------------------------------ | -------- |
+| _load_prototype_ids_for_run    | X.X      |
+| _initialize_tariffs            | X.X      |
+| _build_precalc_period_mapping  | X.X      |
+| return_buildingstock           | X.X      |
+| build_bldg_id_to_load_filepath | X.X      |
+| _return_load(electricity)      | X.X      |
+| _return_load(gas)              | X.X      |
+| phase2_marginal_costs_rr       | X.X      |
+| bs.simulate                    | X.X      |
+| **Total**                      | **X.X**  |
 ```
 
 **Step 6: Commit**
@@ -326,6 +330,7 @@ git commit -m "Phase 0: add per-stage timing to run_scenario.py"
 ### Task 1.1: Create `patches.py` skeleton and write failing test
 
 **Files:**
+
 - Create: `rate_design/ri/hp_rates/patches.py`
 - Create: `tests/test_patches.py`
 
@@ -433,6 +438,7 @@ Expected: `FAILED` with `ImportError: cannot import name '_return_loads_combined
 ### Task 1.2: Implement `_return_loads_combined` in `patches.py`
 
 **Files:**
+
 - Modify: `rate_design/ri/hp_rates/patches.py`
 
 **Step 1: Implement the function**
@@ -571,12 +577,14 @@ uv run pytest tests/test_patches.py::test_combined_reader_matches_separate_reads
 Expected: `PASSED`
 
 If failing, debug by printing shapes and dtypes:
+
 ```python
 print(new_elec.dtypes, ref_elec.dtypes)
 print(new_elec.index[:3], ref_elec.index[:3])
 ```
 
 Common issues:
+
 - `electricity_net` / `grid_cons` not computed by `_return_load` for non-solar → check what columns ref_elec actually has and match them
 - Index level ordering (bldg_id vs time) mismatch → check `ref_elec.index.names`
 
@@ -585,6 +593,7 @@ Common issues:
 ### Task 1.3: Hook combined reader into `run_scenario.py`
 
 **Files:**
+
 - Modify: `rate_design/ri/hp_rates/run_scenario.py`
 
 **Step 1: Add import at top of file**
@@ -624,14 +633,14 @@ Find and replace this block in `run()`:
 With:
 
 ```python
-    t0 = time.perf_counter()
-    raw_load_elec, raw_load_gas = _return_loads_combined(
-        target_year=settings.year_run,
-        building_ids=prototype_ids,
-        load_filepath_key=bldg_id_to_load_filepath,
-        force_tz="EST",
-    )
-    log.info("TIMING _return_loads_combined: %.1fs", time.perf_counter() - t0)
+t0 = time.perf_counter()
+raw_load_elec, raw_load_gas = _return_loads_combined(
+    target_year=settings.year_run,
+    building_ids=prototype_ids,
+    load_filepath_key=bldg_id_to_load_filepath,
+    force_tz="EST",
+)
+log.info("TIMING _return_loads_combined: %.1fs", time.perf_counter() - t0)
 ```
 
 **Step 3: Save a reference run 2 output before applying the patch**
@@ -677,13 +686,13 @@ Add to `context/tools/cairo_speedup_log.md`:
 ```markdown
 ## Phase 1 — combined batch reader, DATE
 
-| Stage | Baseline (s) | Phase 1 (s) | Δ |
-|-------|-------------|-------------|---|
-| _return_load(electricity) | X.X | — | — |
-| _return_load(gas) | X.X | — | — |
-| _return_loads_combined | — | X.X | saves X.Xs |
-| bs.simulate | X.X | X.X | X.Xs |
-| **Total** | **X.X** | **X.X** | **X.Xs (X×)** |
+| Stage                     | Baseline (s) | Phase 1 (s) | Δ             |
+| ------------------------- | ------------ | ----------- | ------------- |
+| _return_load(electricity) | X.X          | —           | —             |
+| _return_load(gas)         | X.X          | —           | —             |
+| _return_loads_combined    | —            | X.X         | saves X.Xs    |
+| bs.simulate               | X.X          | X.X         | X.Xs          |
+| **Total**                 | **X.X**      | **X.X**     | **X.Xs (X×)** |
 ```
 
 **Step 7: Commit**
@@ -706,6 +715,7 @@ git commit -m "Phase 1: combined batch parquet reader, halves file I/O"
 ### Task 2.1: Write failing test for vectorized aggregation
 
 **Files:**
+
 - Modify: `tests/test_patches.py`
 
 **Step 1: Add the test**
@@ -834,6 +844,7 @@ Record the exact index names and column names — the vectorized replacement mus
 ### Task 2.3: Implement `_vectorized_process_building_demand_by_period`
 
 **Files:**
+
 - Modify: `rate_design/ri/hp_rates/patches.py`
 
 **Step 1: Add the implementation**
@@ -1020,6 +1031,7 @@ If failing on structure mismatch, re-run the inspection from Task 2.2 and adjust
 ### Task 2.4: Monkey-patch `process_building_demand_by_period` into CAIRO
 
 **Files:**
+
 - Modify: `rate_design/ri/hp_rates/patches.py`
 
 **Step 1: Add the monkey-patch at the bottom of `patches.py`**
@@ -1123,6 +1135,7 @@ Record exact output structure before implementing.
 ### Task 3.2: Write failing test for vectorized billing
 
 **Files:**
+
 - Modify: `tests/test_patches.py`
 
 **Step 1: Add test**
@@ -1187,16 +1200,19 @@ Expected: `FAILED` with ImportError
 ### Task 3.3: Implement `_vectorized_run_system_revenues`
 
 **Files:**
+
 - Modify: `rate_design/ri/hp_rates/patches.py`
 
 **Step 1: Understand the billing structure**
 
 From the inspection in Task 3.1, `run_system_revenues` returns a DataFrame where:
+
 - Index: `bldg_id`
 - Columns: `[Jan, Feb, ..., Dec, Annual]` (monthly + annual bill totals)
 - Each value: total monthly bill in $
 
 The per-building bill calculation in `return_monthly_bills_year1`:
+
 - Energy charges: `sum(grid_cons * energy_rate)` grouped by month
 - Fixed charges: flat $/month
 - Demand charges: `peak_demand * demand_rate` per month
@@ -1329,6 +1345,7 @@ If the month columns don't match CAIRO's naming: print `lookups.months` and adju
 ### Task 3.4: Add monkey-patch for `run_system_revenues`
 
 **Files:**
+
 - Modify: `rate_design/ri/hp_rates/patches.py`
 
 **Step 1: Add to the monkey-patch block at the bottom of `patches.py`**
@@ -1372,11 +1389,11 @@ Add final section to `context/tools/cairo_speedup_log.md`:
 ```markdown
 ## Phase 3 — vectorized billing, DATE
 
-| Stage | Baseline (s) | Phase 3 (s) | Δ |
-|-------|-------------|-------------|---|
-| _return_loads_combined | X.X | X.X | — |
-| bs.simulate | X.X | X.X | Xs |
-| **Total** | **X.X** | **X.X** | **X× speedup** |
+| Stage                  | Baseline (s) | Phase 3 (s) | Δ              |
+| ---------------------- | ------------ | ----------- | -------------- |
+| _return_loads_combined | X.X          | X.X         | —              |
+| bs.simulate            | X.X          | X.X         | Xs             |
+| **Total**              | **X.X**      | **X.X**     | **X× speedup** |
 ```
 
 **Step 6: Commit**

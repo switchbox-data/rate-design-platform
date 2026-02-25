@@ -5,12 +5,18 @@ See docs/plans/2026-02-23-cairo-speedup-design.md and context/tools/cairo_speedu
 Import this module at the top of run_scenario.py (after all other imports):
     import rate_design.ri.hp_rates.patches  # noqa: F401  (currently no-op; patches added below)
 """
+
 from __future__ import annotations
 
 import datetime as dt
 import logging
 from pathlib import Path
+from typing import Any, cast
 
+import cairo.rates_tool.loads as _cairo_loads
+import cairo.rates_tool.lookups as _cairo_sim_lookups
+import cairo.rates_tool.system_revenues as _cairo_sysrev
+import cairo.rates_tool.systemsimulator as _cairo_sim
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -122,7 +128,9 @@ def _return_loads_combined(
     # replace the year here because the Timedelta offset already handles the
     # no-shift case (offset_hours=0 leaves data unchanged). For the current RI
     # runs (2018→2025, offset=48h), this divergence is not triggered.
-    year_offset = pd.Timestamp(f"{target_year}-01-01") - pd.Timestamp(f"{source_year}-01-01")
+    year_offset = pd.Timestamp(f"{target_year}-01-01") - pd.Timestamp(
+        f"{source_year}-01-01"
+    )
     df["time"] = df["timestamp"] + year_offset
     df = df.drop(columns=["timestamp"])
 
@@ -132,7 +140,9 @@ def _return_loads_combined(
     # 7. Apply timezone (tz_localize on the unique time level values only)
     if force_tz is not None:
         # set_levels requires unique level values; localize the level, not the flat values
-        unique_time_level = df.index.levels[df.index.names.index("time")].tz_localize(force_tz)
+        unique_time_level = df.index.levels[df.index.names.index("time")].tz_localize(
+            force_tz
+        )
         df.index = df.index.set_levels(unique_time_level, level="time")
 
     # 8. Build electricity DataFrame — match _return_load("electricity") structure exactly
@@ -165,7 +175,9 @@ def _return_loads_combined(
     # 9. Build gas DataFrame — match _return_load("gas") structure exactly
     #    Output column: ['load_data'] in therms
     gas = pd.DataFrame(index=df.index)
-    gas["load_data"] = df["out.natural_gas.total.energy_consumption"] * _GAS_KWH_TO_THERM
+    gas["load_data"] = (
+        df["out.natural_gas.total.energy_consumption"] * _GAS_KWH_TO_THERM
+    )
 
     return elec, gas
 
@@ -173,6 +185,7 @@ def _return_loads_combined(
 # ---------------------------------------------------------------------------
 # Phase 2: vectorized tariff aggregation
 # ---------------------------------------------------------------------------
+
 
 def _vectorized_process_building_demand_by_period(
     target_year: int,
@@ -201,9 +214,9 @@ def _vectorized_process_building_demand_by_period(
     from cairo.rates_tool.loads import (
         _return_energy_charge_aggregation_method,
         extract_energy_charge_map,
-        _calculate_pv_load_columns,
     )
     from cairo.rates_tool import tariffs as tariff_funcs
+
     # Use the saved-before-patching original to avoid infinite recursion.
     _orig_pbdbp = _orig_process_building_demand_by_period
 
@@ -279,22 +292,35 @@ def _vectorized_process_building_demand_by_period(
         if "electricity_net" in all_loads.columns:
             all_loads["grid_cons"] = all_loads["electricity_net"].clip(lower=0)
             all_loads = all_loads.drop(columns=["electricity_net"])
-        if "pv_generation" in all_loads.columns and "grid_cons" not in all_loads.columns:
+        if (
+            "pv_generation" in all_loads.columns
+            and "grid_cons" not in all_loads.columns
+        ):
             all_loads["grid_cons"] = all_loads["load_data"] - all_loads["pv_generation"]
-    if not is_gas and "pv_generation" in all_loads.columns and "grid_cons" in all_loads.columns:
+    if (
+        not is_gas
+        and "pv_generation" in all_loads.columns
+        and "grid_cons" in all_loads.columns
+    ):
         # net_exports = max(0, pv_generation - load_data); self_cons = min(pv_gen, load_data)
         all_loads["net_exports"] = (
             all_loads["pv_generation"] - all_loads["load_data"]
         ).clip(lower=0.0)
-        all_loads["self_cons"] = all_loads["pv_generation"].clip(upper=all_loads["load_data"])
+        all_loads["self_cons"] = all_loads["pv_generation"].clip(
+            upper=all_loads["load_data"]
+        )
 
     if is_gas:
         avail_load_cols = ["load_data"]
         avail_pv_cols = []
     else:
-        avail_load_cols = [c for c in ["grid_cons", "load_data"] if c in all_loads.columns]
+        avail_load_cols = [
+            c for c in ["grid_cons", "load_data"] if c in all_loads.columns
+        ]
         avail_pv_cols = [
-            c for c in ["net_exports", "self_cons", "pv_generation"] if c in all_loads.columns
+            c
+            for c in ["net_exports", "self_cons", "pv_generation"]
+            if c in all_loads.columns
         ]
 
     # 4. Add datetime indicators (same as _add_datetime_indicators)
@@ -402,8 +428,14 @@ def _vectorized_process_building_demand_by_period(
     combined = combined.set_index("bldg_id")
 
     # 10. Assemble agg_solar
-    all_solar = pd.concat(solar_parts, ignore_index=True) if solar_parts else pd.DataFrame(
-        columns=["bldg_id", "month", "period", "tier"] + avail_pv_cols + ["charge_type", "tariff"]
+    all_solar = (
+        pd.concat(solar_parts, ignore_index=True)
+        if solar_parts
+        else pd.DataFrame(
+            columns=["bldg_id", "month", "period", "tier"]
+            + avail_pv_cols
+            + ["charge_type", "tariff"]
+        )
     )
     # Add any missing pv columns to solar df
     for col in ["net_exports", "self_cons", "pv_generation"]:
@@ -419,13 +451,14 @@ def _vectorized_process_building_demand_by_period(
 # Phase 3: vectorized bill calculation
 # ---------------------------------------------------------------------------
 
+
 def _vectorized_run_system_revenues(
     aggregated_load: pd.DataFrame,
     aggregated_solar,
     solar_compensation_df,
     solar_compensation_style=None,
     process_agg_load: bool = True,
-    prototype_ids=None,
+    prototype_ids: list[int] | None = None,
     tariff_config=None,
     tariff_strategy=None,
 ):
@@ -445,6 +478,7 @@ def _vectorized_run_system_revenues(
     """
     import cairo.rates_tool.lookups as lookups
     from cairo.rates_tool import tariffs as tariff_funcs
+
     # Reference saved at module level before monkey-patch to avoid recursion.
     _orig_rsr = _orig_run_system_revenues
     log.info(
@@ -454,7 +488,9 @@ def _vectorized_run_system_revenues(
     )
 
     tariff_map_dict, tariff_dicts = tariff_funcs._load_base_tariffs(
-        tariff_base=tariff_config, tariff_map=tariff_strategy, prototype_ids=prototype_ids
+        tariff_base=tariff_config,
+        tariff_map=tariff_strategy,
+        prototype_ids=prototype_ids,
     )
 
     # Normalize solar_compensation_df the same way CAIRO does
@@ -490,12 +526,14 @@ def _vectorized_run_system_revenues(
     rate_rows = []
     for tariff_key, td in tariff_dicts.items():
         for row in td["ur_ec_tou_mat"]:
-            rate_rows.append({
-                "tariff": tariff_key,
-                "period": float(row[0]),
-                "tier": float(row[1]),
-                "rate": float(row[4]) + float(row[5]),  # rate + adjustments
-            })
+            rate_rows.append(
+                {
+                    "tariff": tariff_key,
+                    "period": float(row[0]),
+                    "tier": float(row[1]),
+                    "rate": float(row[4]) + float(row[5]),  # rate + adjustments
+                }
+            )
     rate_lookup = pd.DataFrame(rate_rows)
 
     # Process agg_load the same way CAIRO does in run_system_revenues.
@@ -523,24 +561,45 @@ def _vectorized_run_system_revenues(
             tariff_strategy=tariff_strategy,
         )
 
+    if prototype_ids is None:
+        log.info(
+            "PATCH_FALLBACK _vectorized_run_system_revenues reason=prototype_ids_none"
+        )
+        return _orig_rsr(
+            aggregated_load=aggregated_load,
+            aggregated_solar=aggregated_solar,
+            solar_compensation_df=solar_compensation_df,
+            solar_compensation_style=solar_compensation_style,
+            process_agg_load=process_agg_load,
+            prototype_ids=prototype_ids,
+            tariff_config=tariff_config,
+            tariff_strategy=tariff_strategy,
+        )
+
     # --- Vectorized energy charge calculation ---
     # Filter to energy_charge rows only
-    energy_rows = aggregated_load[aggregated_load["charge_type"] == "energy_charge"].copy()
+    energy_rows = aggregated_load[
+        aggregated_load["charge_type"] == "energy_charge"
+    ].copy()
     energy_rows = energy_rows.reset_index()  # bring bldg_id into columns
 
     # Merge energy rates (by tariff + period + tier)
-    energy_rows = energy_rows.merge(rate_lookup, on=["tariff", "period", "tier"], how="left")
+    energy_rows = energy_rows.merge(
+        rate_lookup, on=["tariff", "period", "tier"], how="left"
+    )
     # For electricity: bill on grid_cons; for gas: bill on load_data (no grid_cons column)
     billing_col = "grid_cons" if "grid_cons" in energy_rows.columns else "load_data"
     energy_rows["costs"] = energy_rows[billing_col] * energy_rows["rate"]
 
     # Sum energy costs by (bldg_id, month)
-    monthly_energy = (
-        energy_rows.groupby(["bldg_id", "month"], as_index=False)["costs"].sum()
-    )
+    monthly_energy = energy_rows.groupby(["bldg_id", "month"], as_index=False)[
+        "costs"
+    ].sum()
 
     # Pivot to wide format: rows=bldg_id, columns=month (1..12)
-    monthly_wide = monthly_energy.pivot(index="bldg_id", columns="month", values="costs")
+    monthly_wide = monthly_energy.pivot(
+        index="bldg_id", columns="month", values="costs"
+    )
     # Ensure all 12 months are present
     for m in range(1, 13):
         if m not in monthly_wide.columns:
@@ -568,7 +627,9 @@ def _vectorized_run_system_revenues(
         # but for min_charge=0.0 the max() has no effect on positive bills.
         # We still apply it for correctness.
         if min_ch > 0.0:
-            monthly_wide.loc[bldg_id, :] = monthly_wide.loc[bldg_id, :].clip(lower=min_ch)
+            monthly_wide.loc[bldg_id, :] = monthly_wide.loc[bldg_id, :].clip(
+                lower=min_ch
+            )
 
     # Reorder to match prototype_ids order (CAIRO preserves insertion order)
     monthly_wide = monthly_wide.reindex(prototype_ids)
@@ -586,6 +647,7 @@ def _vectorized_run_system_revenues(
 # ---------------------------------------------------------------------------
 # Phase 4b: vectorized gas bill calculation
 # ---------------------------------------------------------------------------
+
 
 def _vectorized_calculate_gas_bills(
     aggregated_gas_load: pd.DataFrame,
@@ -628,10 +690,14 @@ def _vectorized_calculate_gas_bills(
     if isinstance(gas_tariff_map, pd.DataFrame):
         tariff_map_df = gas_tariff_map
     else:
-        raise TypeError(f"gas_tariff_map must be a DataFrame, got {type(gas_tariff_map)}")
+        raise TypeError(
+            f"gas_tariff_map must be a DataFrame, got {type(gas_tariff_map)}"
+        )
 
     tariff_map_dict, tariff_dicts = tariff_funcs._load_base_tariffs(
-        tariff_base=gas_tariff_base, tariff_map=tariff_map_df, prototype_ids=prototype_ids
+        tariff_base=gas_tariff_base,
+        tariff_map=tariff_map_df,
+        prototype_ids=prototype_ids,
     )
 
     # Build a rate lookup DataFrame from ur_ec_tou_mat across all tariffs.
@@ -641,12 +707,14 @@ def _vectorized_calculate_gas_bills(
     for tariff_key, td in tariff_dicts.items():
         tou_mat = td.get("ur_ec_tou_mat", [])
         for row in tou_mat:
-            rate_rows.append({
-                "tariff": tariff_key,
-                "period": float(row[0]),
-                "tier": float(row[1]),
-                "rate": float(row[4]) + float(row[5]),  # rate + adjustments
-            })
+            rate_rows.append(
+                {
+                    "tariff": tariff_key,
+                    "period": float(row[0]),
+                    "tier": float(row[1]),
+                    "rate": float(row[4]) + float(row[5]),  # rate + adjustments
+                }
+            )
     rate_lookup = pd.DataFrame(rate_rows)
 
     # Filter to energy_charge rows; reset_index to bring bldg_id into columns
@@ -656,18 +724,22 @@ def _vectorized_calculate_gas_bills(
     energy_rows = energy_rows.reset_index()  # bldg_id now a column
 
     # Merge rates on [tariff, period, tier]
-    energy_rows = energy_rows.merge(rate_lookup, on=["tariff", "period", "tier"], how="left")
+    energy_rows = energy_rows.merge(
+        rate_lookup, on=["tariff", "period", "tier"], how="left"
+    )
 
     # Gas consumption is in load_data (therms); no grid_cons column
     energy_rows["costs"] = energy_rows["load_data"] * energy_rows["rate"]
 
     # Sum energy costs by (bldg_id, month)
-    monthly_energy = (
-        energy_rows.groupby(["bldg_id", "month"], as_index=False)["costs"].sum()
-    )
+    monthly_energy = energy_rows.groupby(["bldg_id", "month"], as_index=False)[
+        "costs"
+    ].sum()
 
     # Pivot to wide format: rows=bldg_id, columns=month (1..12)
-    monthly_wide = monthly_energy.pivot(index="bldg_id", columns="month", values="costs")
+    monthly_wide = monthly_energy.pivot(
+        index="bldg_id", columns="month", values="costs"
+    )
     # Ensure all 12 months present
     for m in range(1, 13):
         if m not in monthly_wide.columns:
@@ -687,7 +759,9 @@ def _vectorized_calculate_gas_bills(
         monthly_wide.loc[bldg_id, :] += fixed
 
         if min_ch > 0.0:
-            monthly_wide.loc[bldg_id, :] = monthly_wide.loc[bldg_id, :].clip(lower=min_ch)
+            monthly_wide.loc[bldg_id, :] = monthly_wide.loc[bldg_id, :].clip(
+                lower=min_ch
+            )
 
     # Reorder to match prototype_ids order
     monthly_wide = monthly_wide.reindex(prototype_ids)
@@ -705,25 +779,23 @@ def _vectorized_calculate_gas_bills(
 # ---------------------------------------------------------------------------
 # Apply monkey-patches
 # ---------------------------------------------------------------------------
-import cairo.rates_tool.loads as _cairo_loads
-
 # Save the original BEFORE replacing, so fallback calls inside
 # _vectorized_process_building_demand_by_period don't recurse into the patch.
 _orig_process_building_demand_by_period = _cairo_loads.process_building_demand_by_period
 
-_cairo_loads.process_building_demand_by_period = _vectorized_process_building_demand_by_period
+_cairo_loads.process_building_demand_by_period = cast(
+    Any, _vectorized_process_building_demand_by_period
+)
 log.info(
     "PATCH_APPLIED cairo.rates_tool.loads.process_building_demand_by_period -> %s",
     _vectorized_process_building_demand_by_period.__name__,
 )
 
-import cairo.rates_tool.system_revenues as _cairo_sysrev
-
 # Save the original BEFORE replacing, so fallback calls inside
 # _vectorized_run_system_revenues don't recurse into the patch.
 _orig_run_system_revenues = _cairo_sysrev.run_system_revenues
 
-_cairo_sysrev.run_system_revenues = _vectorized_run_system_revenues
+_cairo_sysrev.run_system_revenues = cast(Any, _vectorized_run_system_revenues)
 log.info(
     "PATCH_APPLIED cairo.rates_tool.system_revenues.run_system_revenues -> %s",
     _vectorized_run_system_revenues.__name__,
@@ -732,14 +804,12 @@ log.info(
 # ---------------------------------------------------------------------------
 # Phase 4b: monkey-patch _calculate_gas_bills on MeetRevenueSufficiencySystemWide
 # ---------------------------------------------------------------------------
-import logging as _logging
-import cairo.rates_tool.systemsimulator as _cairo_sim
-import cairo.rates_tool.lookups as _cairo_sim_lookups
-
 # Import _initialize_tariffs from systemsimulator (module-level function)
 _cairo_initialize_tariffs = _cairo_sim._initialize_tariffs
 
-_orig_calculate_gas_bills = _cairo_sim.MeetRevenueSufficiencySystemWide._calculate_gas_bills
+_orig_calculate_gas_bills = (
+    _cairo_sim.MeetRevenueSufficiencySystemWide._calculate_gas_bills
+)
 
 
 def _patched_calculate_gas_bills(
@@ -807,7 +877,7 @@ def _patched_calculate_gas_bills(
         return gas_bills
 
     except Exception:
-        _logging.getLogger("rates_analysis").warning(
+        log.warning(
             "Vectorized gas billing failed, falling back to CAIRO", exc_info=True
         )
         return _orig_calculate_gas_bills(
@@ -822,7 +892,9 @@ def _patched_calculate_gas_bills(
         )
 
 
-_cairo_sim.MeetRevenueSufficiencySystemWide._calculate_gas_bills = _patched_calculate_gas_bills
+_cairo_sim.MeetRevenueSufficiencySystemWide._calculate_gas_bills = cast(
+    Any, _patched_calculate_gas_bills
+)
 log.info(
     "PATCH_APPLIED MeetRevenueSufficiencySystemWide._calculate_gas_bills -> %s",
     _patched_calculate_gas_bills.__name__,
