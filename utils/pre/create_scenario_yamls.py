@@ -14,10 +14,20 @@ Note on path_supply_marginal_costs column:
     For RI runs, continue using Cambium paths:
         s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
     
-    To automatically update the Google Sheet for NY supply runs, use:
-        uv run python utils/pre/create_scenario_yamls.py --update-sheet
+    Use an Excel formula in the path_supply_marginal_costs column to automatically
+    set the path based on add_supply_revenue_requirement and utility.
     
-    Or after manual updates, run: just create-scenario-yamls
+    Example formula (adjust column references as needed):
+    =IF(AND($B18="NY", E18="X"), 
+        "s3://data.sb/switchbox/marginal_costs/ny/supply/utility=" & LOWER($C18) & "/year=2025/data.parquet",
+        "s3://data.sb/nrel/cambium/zero_marginal_costs.csv")
+    
+    Where:
+    - $B18 is the state column (NY)
+    - E18 is the add_supply_revenue_requirement column (X = TRUE)
+    - $C18 is the utility column
+    
+    After updating the Google Sheet, run: just create-scenario-yamls
 """
 
 from __future__ import annotations
@@ -249,16 +259,6 @@ def _cell_to_str(value: object) -> str:
     return str(value).strip()
 
 
-def _col_num_to_letter(col_num: int) -> str:
-    """Convert 1-based column number to Excel column letter (A, B, ..., Z, AA, ...)."""
-    result = ""
-    while col_num > 0:
-        col_num -= 1
-        result = chr(65 + (col_num % 26)) + result
-        col_num //= 26
-    return result
-
-
 def _get_worksheet(
     gc: gspread.Client, sheet_id: str, name: str | None, index: int | None
 ):  # noqa: ANN001
@@ -271,110 +271,11 @@ def _get_worksheet(
     return sh.sheet1
 
 
-def _update_ny_supply_mc_paths(
-    ws: gspread.Worksheet,
-    headers: list[str],
-    norm_to_header: dict[str, str],
-    rows_as_dicts: list[dict[str, str]],
-    state_key: str,
-    utility_key: str,
-) -> int:
-    """Update path_supply_marginal_costs for NY supply runs in the Google Sheet.
-    
-    Args:
-        ws: The worksheet to update.
-        headers: List of original header names.
-        norm_to_header: Mapping from normalized header to original header.
-        rows_as_dicts: All data rows from the sheet (with original row positions).
-        state_key: Original header name for state column.
-        utility_key: Original header name for utility column.
-    
-    Returns:
-        Number of cells updated.
-    """
-    # Find column indices
-    path_mc_key = norm_to_header.get("path_supply_marginal_costs")
-    add_supply_key = norm_to_header.get("add_supply_revenue_requirement")
-    
-    if not path_mc_key or not add_supply_key:
-        print("Warning: Missing required columns for sheet update. Skipping update.")
-        return 0
-    
-    # Find column index (1-based for gspread)
-    path_mc_col_idx = headers.index(path_mc_key) + 1
-    
-    # Get all values to find row numbers (header row is 1, data starts at 2)
-    all_values = ws.get_all_values()
-    if len(all_values) < 2:
-        return 0
-    
-    updates: list[dict[str, object]] = []
-    updated_count = 0
-    prev_utility = ""
-    
-    # Process each row (row index in sheet = row_index + 2: 1 for header, 1-based)
-    for row_idx, row in enumerate(rows_as_dicts):
-        sheet_row = row_idx + 2  # 1 for header, 1-based indexing
-        
-        state_val = (row.get(state_key) or "").strip().upper()
-        if not state_val:
-            continue
-        
-        utility_val = (row.get(utility_key) or "").strip().lower()
-        if utility_val and not utility_val.isdigit():
-            prev_utility = utility_val
-        elif prev_utility:
-            utility_val = prev_utility
-        
-        # Check if this is a NY supply run
-        if state_val != "NY":
-            continue
-        
-        add_supply_val = (row.get(add_supply_key) or "").strip()
-        try:
-            is_supply_run = _parse_bool(add_supply_val)
-        except (ValueError, KeyError):
-            continue
-        
-        if not is_supply_run:
-            continue
-        
-        # Generate new path
-        new_path = f"s3://data.sb/switchbox/marginal_costs/ny/supply/utility={utility_val}/year=2025/data.parquet"
-        
-        # Check current value - only update if different
-        current_path = (row.get(path_mc_key) or "").strip()
-        if current_path == new_path:
-            continue
-        
-        # Add to batch update (A1 notation: e.g., "A2", "B5")
-        col_letter = _col_num_to_letter(path_mc_col_idx)
-        cell_address = f"{col_letter}{sheet_row}"
-        updates.append({
-            "range": cell_address,
-            "values": [[new_path]]
-        })
-        updated_count += 1
-        current_display = current_path[:60] + "..." if len(current_path) > 60 else current_path
-        new_display = new_path[:60] + "..." if len(new_path) > 60 else new_path
-        print(f"  Row {sheet_row} ({utility_val}): {current_display} → {new_display}")
-    
-    # Batch update all cells at once
-    if updates:
-        ws.batch_update(updates)
-        print(f"\n✓ Updated {updated_count} NY supply run paths in Google Sheet")
-    else:
-        print("  No NY supply runs found that need updating")
-    
-    return updated_count
-
-
 def run(
     sheet_id: str = DEFAULT_SHEET_ID,
     worksheet_name: str | None = None,
     worksheet_index: int | None = None,
     output_dir: Path | None = None,
-    update_sheet: bool = False,
 ) -> None:
     """Fetch sheet, group by (state, utility), write scenario YAMLs.
     
@@ -383,7 +284,6 @@ def run(
         worksheet_name: Worksheet name (default: first sheet).
         worksheet_index: Worksheet index 0-based (default: first sheet).
         output_dir: Output root directory (default: project root).
-        update_sheet: If True, update path_supply_marginal_costs for NY supply runs.
     """
     load_dotenv()
 
@@ -473,14 +373,6 @@ def run(
             row[utility_key] = prev_utility
         data_rows.append(row)
     
-    # Update sheet if requested
-    if update_sheet:
-        print("\n" + "=" * 60)
-        print("UPDATING GOOGLE SHEET: NY Supply MC Paths")
-        print("=" * 60)
-        _update_ny_supply_mc_paths(ws, headers, norm_to_header, rows_as_dicts, state_key, utility_key)
-        print("=" * 60 + "\n")
-
     # Group by (state, utility)
     groups: dict[tuple[str, str], list[dict[str, str]]] = {}
     for row in data_rows:
@@ -563,11 +455,6 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Output root directory (default: project root).",
     )
-    parser.add_argument(
-        "--update-sheet",
-        action="store_true",
-        help="Update path_supply_marginal_costs for NY supply runs in the Google Sheet.",
-    )
     return parser.parse_args()
 
 
@@ -578,7 +465,6 @@ def main() -> None:
         worksheet_name=args.sheet_name,
         worksheet_index=args.worksheet_index,
         output_dir=args.output_dir,
-        update_sheet=args.update_sheet,
     )
 
 
