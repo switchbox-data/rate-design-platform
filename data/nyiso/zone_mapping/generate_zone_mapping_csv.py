@@ -42,12 +42,12 @@ ZONE_NAMES: dict[str, str] = {
 # ConEd has a split: 87% NYC / 13% GHIJ (LHV).
 _MAPPING_ROWS: list[tuple[str, list[str], str, str, float]] = [
     ("cenhud", ["G"], "GHIJ", "LHV", 1.0),
-    # ConEd — 87% NYC locality
-    ("coned", ["H", "I", "J"], "NYC", "NYC", 0.87),
+    # ConEd — zones G (Westchester), H (Westchester), J (NYC); 87% NYC locality
+    ("coned", ["G", "H", "J"], "NYC", "NYC", 0.87),
     # ConEd — 13% GHIJ (Lower Hudson Valley) locality
-    ("coned", ["H", "I", "J"], "GHIJ", "LHV", 0.13),
+    ("coned", ["G", "H", "J"], "GHIJ", "LHV", 0.13),
     ("nimo", ["A", "B", "C", "D", "E", "F"], "NYCA", "ROS", 1.0),
-    ("nyseg", ["A", "C", "D", "E", "F", "G", "H"], "NYCA", "ROS", 1.0),
+    ("nyseg", ["A", "B", "C", "D", "E", "F"], "NYCA", "ROS", 1.0),
     ("or", ["G"], "GHIJ", "LHV", 1.0),
     ("rge", ["B"], "NYCA", "ROS", 1.0),
     ("psegli", ["K"], "LI", "LI", 1.0),

@@ -73,7 +73,7 @@ STATE_CONFIGS: dict[str, StateConfig] = {
 # A single utility can have multiple state entries.
 UTILITY_SERVICE_AREAS: dict[str, list[UtilityServiceArea]] = {
     "nyseg": [
-        {"state": "NY", "zones": ["A", "C", "D", "E", "F", "G", "H"]},
+        {"state": "NY", "zones": ["A", "B", "C", "D", "E", "F"]},
     ],
     "rge": [
         {"state": "NY", "zones": ["B"]},
@@ -85,7 +85,7 @@ UTILITY_SERVICE_AREAS: dict[str, list[UtilityServiceArea]] = {
         {"state": "NY", "zones": ["A", "B", "C", "D", "E", "F"]},
     ],
     "coned": [
-        {"state": "NY", "zones": ["H", "I", "J"]},
+        {"state": "NY", "zones": ["G", "H", "J"]},
     ],
     "or": [
         {"state": "NY", "zones": ["G"]},
