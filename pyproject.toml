@@ -32,7 +32,6 @@ dependencies = [
     "python-calamine>=0.6.1",
     "fastexcel>=0.19.0",
     "tariff-fetch>=0.1",
-    "just>=0.8.165",
 ]
 
 [project.urls]
