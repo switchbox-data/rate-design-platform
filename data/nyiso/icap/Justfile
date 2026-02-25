@@ -33,6 +33,12 @@ upload:
         --exclude "*" --include "*.parquet"
     @echo "Uploaded to {{path_s3_parquet}}"
 
+# Update: discover latest month on S3, fetch new months only (no upload)
+update:
+    uv run python "{{path_local_base}}/update_icap_to_latest.py" \
+        --path-local-parquet "{{path_local_parquet}}" \
+        --path-s3-parquet "{{path_s3_parquet}}"
+
 # Prepare: fetch + validate (no upload)
 prepare: fetch validate
 
