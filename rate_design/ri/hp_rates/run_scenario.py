@@ -309,12 +309,17 @@ def _parse_utility_revenue_requirement(
     value: Any,
     base_dir: Path,
     raw_path_tariffs_electric: dict[str, Any],
+    *,
+    add_supply: bool = False,
 ) -> float | dict[str, float]:
     """Parse utility_delivery_revenue_requirement from a YAML path.
 
     Returns a single float for single-RR YAMLs, or a dict keyed by tariff_key
     for subclass-RR YAMLs.  raw_path_tariffs_electric is the original YAML dict
     (alias -> path string) before alias-to-stem conversion.
+
+    For the new schema (total_delivery_revenue_requirement), add_supply selects
+    which key to read (delivery-only vs delivery+supply).
     """
     if not isinstance(value, str):
         raise ValueError(
@@ -339,14 +344,22 @@ def _parse_utility_revenue_requirement(
             f"got {type(rr_data).__name__} in {path}"
         )
 
-    if "revenue_requirement" in rr_data:
-        return _parse_single_revenue_requirement(rr_data)
+    if "total_delivery_revenue_requirement" in rr_data:
+        key = (
+            "total_delivery_and_supply_revenue_requirement"
+            if add_supply
+            else "total_delivery_revenue_requirement"
+        )
+        return _parse_float(rr_data[key], key)
     if "subclass_revenue_requirements" in rr_data:
         return _parse_subclass_revenue_requirement(
             rr_data, raw_path_tariffs_electric, base_dir
         )
+    if "revenue_requirement" in rr_data:
+        return _parse_single_revenue_requirement(rr_data)
     raise ValueError(
-        f"{path} must contain 'revenue_requirement' or 'subclass_revenue_requirements'."
+        f"{path} must contain 'total_delivery_revenue_requirement', "
+        "'subclass_revenue_requirements', or 'revenue_requirement'."
     )
 
 
@@ -425,10 +438,15 @@ def _build_settings_from_yaml_run(
         PATH_CONFIG,
         "electric",
     )
+    add_supply_revenue_requirement = _parse_bool(
+        _require_value(run, "add_supply_revenue_requirement"),
+        "add_supply_revenue_requirement",
+    )
     utility_delivery_revenue_requirement = _parse_utility_revenue_requirement(
         _require_value(run, "utility_delivery_revenue_requirement"),
         PATH_CONFIG,
         raw_path_tariffs_electric,
+        add_supply=add_supply_revenue_requirement,
     )
     path_tariff_maps_gas = _resolve_path(
         str(_require_value(run, "path_tariff_maps_gas")),
@@ -438,11 +456,6 @@ def _build_settings_from_yaml_run(
         _require_value(run, "path_tariffs_gas"),
         path_tariff_maps_gas,
         PATH_CONFIG,
-    )
-
-    add_supply_revenue_requirement = _parse_bool(
-        _require_value(run, "add_supply_revenue_requirement"),
-        "add_supply_revenue_requirement",
     )
     sample_size = (
         _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
@@ -719,7 +732,6 @@ def run(settings: ScenarioSettings) -> None:
         bulk_marginal_costs=bulk_marginal_costs,
         distribution_marginal_costs=distribution_marginal_costs,
         low_income_strategy=None,
-        delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
     )
 
     if rr_ratios is not None:
