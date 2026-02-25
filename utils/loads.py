@@ -7,6 +7,8 @@ specific building IDs for alignment with CAIRO sample runs.
 
 from __future__ import annotations
 
+from typing import cast
+
 import pandas as pd
 import polars as pl
 
@@ -62,12 +64,12 @@ def scan_resstock_loads(
         **kwargs,
     )
 
-    # Partition columns from hive.
     lf = lf.filter(
         pl.col("state") == str(state),
         pl.col("upgrade") == str(upgrade),
-        pl.col("bldg_id").is_in(building_ids),
     )
+    if building_ids is not None:
+        lf = lf.filter(pl.col("bldg_id").is_in(building_ids))
     return lf
 
 
@@ -108,7 +110,7 @@ def hourly_system_load_from_resstock(
         .agg(pl.col("_wload").sum().alias("load"))
         .sort("_ts")
     )
-    df = aggregated.collect()
+    df = cast(pl.DataFrame, aggregated.collect())
     index = df["_ts"].to_pandas()
     series = df["load"].to_pandas()
     series.index = index
