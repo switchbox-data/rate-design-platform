@@ -153,7 +153,7 @@ runs:
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonal_supply.json
       non-hp: tariffs/electric/rie_flat_supply.json
-    utility_delivery_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
+    utility_delivery_revenue_requirement: rev_requirement/rie_hp_vs_nonhp_supply.yaml
     add_supply_revenue_requirement: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
     solar_pv_compensation: net_metering
@@ -263,7 +263,7 @@ runs:
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonalTOU_supply.json
       non-hp: tariffs/electric/rie_flat_supply.json
-    utility_delivery_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
+    utility_delivery_revenue_requirement: rev_requirement/rie_hp_vs_nonhp_supply.yaml
     add_supply_revenue_requirement: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
     solar_pv_compensation: net_metering
@@ -373,7 +373,7 @@ runs:
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonalTOU_flex_supply.json
       non-hp: tariffs/electric/rie_flat_supply.json
-    utility_delivery_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
+    utility_delivery_revenue_requirement: rev_requirement/rie_hp_vs_nonhp_supply.yaml
     add_supply_revenue_requirement: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet
     solar_pv_compensation: net_metering

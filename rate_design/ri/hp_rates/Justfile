@@ -36,9 +36,11 @@ path_scenarios                      := path_config / "scenarios"
 path_scenario_config                := path_scenarios / "scenarios_" + utility + ".yaml"
 path_periods_yaml                   := path_config / "periods" / utility + ".yaml"
 path_rev_requirement                := path_config / "rev_requirement"
+path_rate_case_delivery_rr          := path_rev_requirement / "rate_case_delivery_rr.yaml"
 path_default_rev_requirement        := path_rev_requirement / utility + ".yaml"
-path_differentiated_rev_requirement := path_rev_requirement / utility + "_hp_vs_nonhp.yaml"
-path_tariff_maps                    := path_config / "tariff_maps"
+path_differentiated_rev_requirement        := path_rev_requirement / (utility + "_hp_vs_nonhp.yaml")
+path_differentiated_rev_requirement_supply := path_rev_requirement / (utility + "_hp_vs_nonhp_supply.yaml")
+path_tariff_maps                          := path_config / "tariff_maps"
 path_td_mc                          := "s3://data.sb/switchbox/marginal_costs/" + state + "/region=" + region + "/utility=" + utility + "/year=" + year + "/00000000.parquet"
 path_resstock_base                  := "/data.sb/nrel/resstock/res_2024_amy2018_2"
 path_s3_resstock_metadata           := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
@@ -51,6 +53,8 @@ path_s3_utility_loads               := "s3://data.sb/eia/hourly_demand/utilities
 path_electric_utility_stats         := "s3://data.sb/eia/861/electric_utility_stats/year=2024/state=" + state_upper + "/data.parquet"
 path_default_tariff                 := path_tariffs_electric / default_tariff
 path_default_supply_tariff          := path_tariffs_electric / default_tariff_supply
+path_genability                     := path_tariffs_electric / "genability"
+path_monthly_rates                  := path_genability / (utility + "_monthly_rates.yaml")
 tou_tariff_key                      := utility + "_hp_seasonalTOU"
 latest_output                       := path_repo / "utils/mid/latest_run_output.sh"
 
@@ -100,6 +104,16 @@ create-gas-tariff-map electric_utility upgrade_id output_dir:
 
 create-gas-tariff-maps-all:
   just create-gas-tariff-map {{utility}} {{upgrade}} {{path_tariff_maps}}/gas
+
+# Topped-up delivery and supply revenue requirement from monthly rates + EIA-861 + rate-case RR.
+# Reads rate-case value from rate_case_delivery_rr.yaml; writes topped-up output to <utility>.yaml.
+compute-rr:
+  uv run python {{path_repo}}/utils/pre/compute_rr.py \
+    --utility {{utility}} \
+    --path-monthly-rates "{{path_monthly_rates}}" \
+    --path-electric-utility-stats "{{path_electric_utility_stats}}" \
+    --path-rate-case-rr "{{path_rate_case_delivery_rr}}" \
+    --output "{{path_default_rev_requirement}}"
 
 # Flat tariff JSONs.
 create-flat-tariff:
@@ -186,13 +200,22 @@ copy-calibrated-tariff-from-run run_dir output_dir="":
     "{{output_dir}}"
 
 # Differentiated revenue requirements from run-1 BAT output.
-# Produces differentiated rev requirement YAML needed by runs 5, 6, 9, 10 (2-tariff precalc runs).
+# Produces differentiated rev requirement YAML needed by runs 5, 9, 13 (2-tariff delivery-only precalc).
 compute-rev-requirements:
     #!/usr/bin/env bash
     set -euo pipefail
     run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
     echo ">> compute-rev-requirements: resolved run-1 output → ${run1_dir}" >&2
     just compute-subclass-rr "${run1_dir}" "{{path_scenario_config}}"
+
+# Differentiated revenue requirements from run-2 BAT output (delivery+supply).
+# Produces rie_hp_vs_nonhp_supply.yaml needed by runs 6, 10, 14 (2-tariff delivery+supply precalc).
+compute-rev-requirements-supply:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
+    echo ">> compute-rev-requirements-supply: resolved run-2 output → ${run2_dir}" >&2
+    just compute-subclass-rr "${run2_dir}" "{{path_scenario_config}}" 2 "has_hp" "BAT_percustomer" "{{path_differentiated_rev_requirement_supply}}" "{{path_default_rev_requirement}}"
 
 # =============================================================================
 # RUNS: scenario execution (run-1 through run-12)
