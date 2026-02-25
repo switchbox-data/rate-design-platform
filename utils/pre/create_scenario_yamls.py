@@ -197,13 +197,19 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         "path_tariff_maps_gas",
         "path_resstock_metadata",
         "path_resstock_loads",
-        "path_supply_marginal_costs",
         "path_td_marginal_costs",
         "path_utility_assignment",
         "path_tariffs_gas",
         "path_outputs",
     ):
         run[key] = get(key)
+    
+    # Handle path_supply_marginal_costs with backward compatibility for path_cambium_marginal_costs
+    try:
+        run["path_supply_marginal_costs"] = get("path_supply_marginal_costs")
+    except ValueError:
+        # Fallback to old column name for backward compatibility
+        run["path_supply_marginal_costs"] = get("path_cambium_marginal_costs")
 
     run["path_tariffs_electric"] = _path_tariffs_to_dict(
         require_non_empty("path_tariffs_electric")
