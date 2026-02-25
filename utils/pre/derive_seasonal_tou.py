@@ -37,7 +37,6 @@ import pandas as pd
 import polars as pl
 from cairo.rates_tool.loads import return_buildingstock
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils import get_aws_region
 from utils.loads import (
     ELECTRIC_LOAD_COL,

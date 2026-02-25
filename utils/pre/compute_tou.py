@@ -158,6 +158,8 @@ def combine_marginal_costs(
     total_bulk = bulk_marginal_costs.sum(axis=1).sort_index()
     total_bulk.name = "bulk_mc"
     dist_mc = distribution_marginal_costs.sort_index()
+    bulk_index = pd.DatetimeIndex(total_bulk.index)
+    bulk_tz = bulk_index.tz
 
     if not total_bulk.index.equals(dist_mc.index):
         # Some MC sources are partitioned by year but carry a different timestamp
@@ -169,7 +171,11 @@ def combine_marginal_costs(
                 dist_index = pd.DatetimeIndex(
                     [ts.replace(year=target_year) for ts in dist_mc.index]
                 )
-                dist_index = dist_index.tz_localize(total_bulk.index.tz) if dist_index.tz is None else dist_index.tz_convert(total_bulk.index.tz)  # type: ignore[arg-type]
+                dist_index = (
+                    dist_index.tz_localize(bulk_tz)
+                    if dist_index.tz is None
+                    else dist_index.tz_convert(bulk_tz)
+                )
                 dist_mc = pd.Series(
                     dist_mc.values,
                     index=dist_index,

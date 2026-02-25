@@ -156,7 +156,9 @@ def test_zone_coverage():
 
     expected_covered = ["A", "B", "C", "D", "E", "F", "G", "H", "J", "K"]
     for zone in expected_covered:
-        assert zone in covered_zones, f"Zone {zone} should be covered by at least one utility"
+        assert zone in covered_zones, (
+            f"Zone {zone} should be covered by at least one utility"
+        )
 
 
 def test_eia_zones_match_zone_mapping():

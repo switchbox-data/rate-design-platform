@@ -13,13 +13,13 @@ Schema: `timestamp` (datetime), `energy_cost_enduse` ($/MWh), `capacity_cost_end
 
 ## Data sources
 
-| Dataset | S3 path | Schema key columns |
-|---|---|---|
-| LBMP (energy prices) | `s3://data.sb/nyiso/lbmp/day_ahead/zones/zone={ZONE_NAME}/year={Y}/month={M}/data.parquet` | `interval_start_est`, `zone`, `lbmp_usd_per_mwh` |
-| ICAP (capacity prices) | `s3://data.sb/nyiso/icap/year={Y}/month={M}/data.parquet` | `locality` (Categorical), `auction_type` (Categorical), `price_per_kw_month` |
-| EIA zone loads | `s3://data.sb/eia/hourly_demand/zones/region=nyiso/zone={LETTER}/year={Y}/month={M}/data.parquet` | `timestamp`, `zone`, `load_mw` |
-| EIA utility loads | `s3://data.sb/eia/hourly_demand/utilities/region=nyiso/utility={NAME}/year={Y}/month={M}/data.parquet` | `timestamp`, `utility`, `load_mw` |
-| Zone mapping | `s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv` | `utility`, `load_zone_letter`, `lbmp_zone_name`, `icap_locality`, `capacity_weight` |
+| Dataset                | S3 path                                                                                                | Schema key columns                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| LBMP (energy prices)   | `s3://data.sb/nyiso/lbmp/day_ahead/zones/zone={ZONE_NAME}/year={Y}/month={M}/data.parquet`             | `interval_start_est`, `zone`, `lbmp_usd_per_mwh`                                    |
+| ICAP (capacity prices) | `s3://data.sb/nyiso/icap/year={Y}/month={M}/data.parquet`                                              | `locality` (Categorical), `auction_type` (Categorical), `price_per_kw_month`        |
+| EIA zone loads         | `s3://data.sb/eia/hourly_demand/zones/region=nyiso/zone={LETTER}/year={Y}/month={M}/data.parquet`      | `timestamp`, `zone`, `load_mw`                                                      |
+| EIA utility loads      | `s3://data.sb/eia/hourly_demand/utilities/region=nyiso/utility={NAME}/year={Y}/month={M}/data.parquet` | `timestamp`, `utility`, `load_mw`                                                   |
+| Zone mapping           | `s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv`                                          | `utility`, `load_zone_letter`, `lbmp_zone_name`, `icap_locality`, `capacity_weight` |
 
 ## Utility-to-zone mapping
 
@@ -28,15 +28,15 @@ Defined in two places that **must stay consistent** (enforced by `test_eia_zones
 - `data/eia/hourly_loads/eia_region_config.py` → `UTILITY_SERVICE_AREAS` (zones for EIA load aggregation)
 - `data/nyiso/zone_mapping/generate_zone_mapping_csv.py` → `_MAPPING_ROWS` (zones + ICAP locality + capacity weight)
 
-| Utility | Load Zones | ICAP Locality | Capacity Weight |
-|---|---|---|---|
-| cenhud | G | GHIJ | 1.0 |
-| coned | G, H, J | NYC: 0.87, GHIJ: 0.13 | split |
-| nimo | A, B, C, D, E, F | NYCA | 1.0 |
-| nyseg | A, B, C, D, E, F | NYCA | 1.0 |
-| or | G | GHIJ | 1.0 |
-| rge | B | NYCA | 1.0 |
-| psegli | K | LI | 1.0 |
+| Utility | Load Zones       | ICAP Locality         | Capacity Weight |
+| ------- | ---------------- | --------------------- | --------------- |
+| cenhud  | G                | GHIJ                  | 1.0             |
+| coned   | G, H, J          | NYC: 0.87, GHIJ: 0.13 | split           |
+| nimo    | A, B, C, D, E, F | NYCA                  | 1.0             |
+| nyseg   | A, B, C, D, E, F | NYCA                  | 1.0             |
+| or      | G                | GHIJ                  | 1.0             |
+| rge     | B                | NYCA                  | 1.0             |
+| psegli  | K                | LI                    | 1.0             |
 
 ## Energy MC (LBMP)
 

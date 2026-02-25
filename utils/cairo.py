@@ -355,18 +355,6 @@ def _load_supply_marginal_costs(
 
     return combined
 
-    common_years = [2017, 2023, 2034, 2045, 2051]
-    year_diff = [abs(y - target_year) for y in common_years]
-    common_year = common_years[year_diff.index(min(year_diff))]
-    df.index = pd.DatetimeIndex(
-        [t.replace(year=common_year) for t in df.index],
-        name="time",
-    )
-    df = __timeshift__(df, target_year)
-    df.index = df.index.tz_localize("EST")
-    df.index.name = "time"
-    return df
-
 
 def build_bldg_id_to_load_filepath(
     path_resstock_loads: Path,

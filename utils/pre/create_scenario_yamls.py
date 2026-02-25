@@ -7,46 +7,46 @@ Note on path_supply_marginal_costs column:
     For NY supply runs (runs with add_supply_revenue_requirement=true), the
     path_supply_marginal_costs column should point to NYISO-derived supply MCs:
         s3://data.sb/switchbox/marginal_costs/ny/supply/utility={utility}/year=2025/data.parquet
-    
+
     For NY delivery-only runs (add_supply_revenue_requirement=false), use:
         s3://data.sb/nrel/cambium/zero_marginal_costs.csv
-    
+
     For RI runs, continue using Cambium paths:
         s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
-    
+
     Use Excel formulas in the Google Sheet to automatically set paths:
-    
+
     For NY supply runs, use separate energy and capacity paths:
-    
+
     path_supply_energy_mc formula:
-    =IF(AND($B18="NY", E18="X"), 
+    =IF(AND($B18="NY", E18="X"),
         "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" & LOWER($C18) & "/year=2025/data.parquet",
         IF($B18="NY", "s3://data.sb/nrel/cambium/zero_marginal_costs.csv", ""))
-    
+
     path_supply_capacity_mc formula:
-    =IF(AND($B18="NY", E18="X"), 
+    =IF(AND($B18="NY", E18="X"),
         "s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=" & LOWER($C18) & "/year=2025/data.parquet",
         IF($B18="NY", "s3://data.sb/nrel/cambium/zero_marginal_costs.csv", ""))
-    
+
     Where:
     - $B18 is the state column (NY)
     - E18 is the add_supply_revenue_requirement column (X = TRUE)
     - $C18 is the utility column
-    
+
     For backward compatibility, path_supply_marginal_costs can still be used for combined files
     (RI runs or legacy NY runs). If both path_supply_energy_mc and path_supply_capacity_mc
     are provided, they take precedence over path_supply_marginal_costs.
-    
+
     path_tou_supply_mc formula (for runs where num = 13 or 14):
     =IF(AND($B18="NY", OR($A18=13, $A18=14)),
         "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" & LOWER($C18) & "/year=2025/data.parquet",
         "")
-    
+
     Where:
     - $A18 is the num column (run number)
     - $B18 is the state column (NY)
     - $C18 is the utility column
-    
+
     After updating the Google Sheet, run: just create-scenario-yamls
 """
 
@@ -214,7 +214,7 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         "path_outputs",
     ):
         run[key] = get(key)
-    
+
     # Handle path_supply_marginal_costs with backward compatibility for path_cambium_marginal_costs
     try:
         run["path_supply_marginal_costs"] = get("path_supply_marginal_costs")
@@ -225,13 +225,13 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         except ValueError:
             # Allow None if neither exists (when using separate energy/capacity paths)
             run["path_supply_marginal_costs"] = None
-    
+
     # Handle separate energy and capacity paths (optional)
     try:
         run["path_supply_energy_mc"] = get_optional("path_supply_energy_mc")
     except ValueError:
         run["path_supply_energy_mc"] = None
-    
+
     try:
         run["path_supply_capacity_mc"] = get_optional("path_supply_capacity_mc")
     except ValueError:
@@ -319,7 +319,7 @@ def run(
     output_dir: Path | None = None,
 ) -> None:
     """Fetch sheet, group by (state, utility), write scenario YAMLs.
-    
+
     Args:
         sheet_id: Google Spreadsheet ID.
         worksheet_name: Worksheet name (default: first sheet).
@@ -413,7 +413,7 @@ def run(
         elif prev_utility:
             row[utility_key] = prev_utility
         data_rows.append(row)
-    
+
     # Group by (state, utility)
     groups: dict[tuple[str, str], list[dict[str, str]]] = {}
     for row in data_rows:
