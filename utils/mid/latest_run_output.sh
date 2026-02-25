@@ -8,7 +8,7 @@
 # parent(path_outputs) to an S3 URI, then uses `aws s3 ls` to find the
 # most recent directory matching *_<run_name>/.
 #
-# Prints the full S3 URI (with trailing slash) to stdout.
+# Prints the full S3 URI (no trailing slash) so callers can safely append /filename.
 # Exits non-zero with a message on stderr if no match is found.
 
 set -euo pipefail
@@ -67,4 +67,6 @@ if [[ -z "$match" ]]; then
   exit 1
 fi
 
-echo "${s3_parent}${match}"
+# Strip trailing slash so "${run_dir}/filename" does not produce double slash
+result="${s3_parent}${match}"
+echo "${result%/}"

@@ -38,12 +38,15 @@ path_periods_yaml                   := path_config / "periods" / utility + ".yam
 path_rev_requirement                := path_config / "rev_requirement"
 path_default_rev_requirement        := path_rev_requirement / utility + ".yaml"
 path_differentiated_rev_requirement := path_rev_requirement / utility + "_hp_vs_nonhp.yaml"
+path_revenue_csv                    := "s3://data.sb/switchbox/revenue_requirements/" + state + "/revenue_requirements.csv"
+revenue_utility_col                 := "utility"
+revenue_year_col                    := "year"
 path_tariff_maps                    := path_config / "tariff_maps"
 path_td_mc                          := "s3://data.sb/switchbox/marginal_costs/" + state + "/region=" + region + "/utility=" + utility + "/year=" + year + "/00000000.parquet"
-path_resstock_base                  := "/data.sb/nrel/resstock/res_2024_amy2018_2"
-path_s3_resstock_metadata           := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
-path_s3_utility_assignment          := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility"
-path_resstock_loads_00              := path_resstock_base + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
+path_resstock_release               := "/ebs/data/nrel/resstock/res_2024_amy2018_2"
+path_resstock_metadata              := path_resstock_release + "/metadata"
+path_utility_assignment             := path_resstock_release + "/metadata_utility/state=" + state_upper + "/utility_assignment.parquet"
+path_resstock_loads_00              := path_resstock_release + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
 path_cambium                        := "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=" + year + "/gea=" + uppercase(region) + "/r=" + cambium_ba + "/data.parquet"
 path_mc_table                       := path_config / "marginal_costs" / state + "_marginal_costs_" + year + ".csv"
 path_s3_mc_output                   := "s3://data.sb/switchbox/marginal_costs/" + state + "/"
@@ -85,21 +88,33 @@ create-scenario-yamls:
 create-electric-tariff-maps-all:
     just -f {{path_repo}}/utils/Justfile write-tariff-maps-all "{{path_scenarios}}"
 
+# Default revenue requirement YAML from S3 revenue requirements table.
+create-revenue-yaml:
+  uv run python {{path_repo}}/utils/pre/create_revenue_yaml.py \
+    --path-revenue-csv "{{path_revenue_csv}}" \
+    --path-output-yaml "{{path_default_rev_requirement}}" \
+    --utility "{{utility}}" \
+    --year "{{year}}" \
+    --utility-col "{{revenue_utility_col}}" \
+    --year-col "{{revenue_year_col}}"
+
 # Gas tariff maps.
 fetch-gas-tariffs:
   uv run python {{path_repo}}/utils/pre/fetch_gas_tariffs_rateacuity.py "{{path_rateacuity_yaml}}" "{{path_tariffs_gas}}"
 
 create-gas-tariff-map electric_utility upgrade_id output_dir:
   just -f {{path_repo}}/utils/Justfile create-gas-tariff-map \
-    "{{path_s3_resstock_metadata}}" \
-    "{{path_s3_utility_assignment}}" \
+    "{{path_resstock_metadata}}" \
+    "{{path_utility_assignment}}" \
     "{{state_upper}}" \
     "{{electric_utility}}" \
     "{{upgrade_id}}" \
     "{{output_dir}}"
 
 create-gas-tariff-maps-all:
-  just create-gas-tariff-map {{utility}} {{upgrade}} {{path_tariff_maps}}/gas
+  just create-gas-tariff-map {{utility}} "00" {{path_tariff_maps}}/gas
+  just create-gas-tariff-map {{utility}} "02" {{path_tariff_maps}}/gas
+
 
 # Flat tariff JSONs.
 create-flat-tariff:
@@ -114,20 +129,22 @@ create-flat-tariff:
 # reference_tariff: path to a calibrated tariff JSON whose base rate and fixed
 # charge are extracted to set TOU price levels. When empty, derive_seasonal_tou
 # falls back to its built-in defaults.
-create-seasonal-tou key=tou_tariff_key reference_tariff="":
+create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
   just -f {{path_repo}}/utils/Justfile create-seasonal-tou \
     "{{path_cambium}}" \
     "{{state_upper}}" \
     "{{utility}}" \
     "{{year}}" \
     "{{path_td_mc}}" \
-    "{{path_resstock_base}}/metadata/state={{state_upper}}/upgrade={{upgrade}}/metadata-sb.parquet" \
-    "{{path_resstock_loads_00}}" \
+    "{{path_resstock_release}}/metadata/state={{state_upper}}/upgrade={{upgrade}}/metadata-sb.parquet" \
+    "{{path_resstock_release}}" \
+    "{{upgrade}}" \
     "{{path_electric_utility_stats}}" \
     "{{key}}" \
     "{{path_config}}" \
     "{{path_periods_yaml}}" \
-    "{{reference_tariff}}"
+    "{{reference_tariff}}" \
+    "{{run_dir}}"
 
 # Marginal cost allocation (state-specific).
 create-td-mc-data:
@@ -162,10 +179,12 @@ compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" cross
     "{{cross_subsidy_col}}"
 
 # Seasonal discount inputs from run outputs + ResStock loads.
-compute-seasonal-discount-inputs run_dir resstock_loads_path cross_subsidy_col="BAT_percustomer" output_dir="":
+compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="":
   just -f {{path_repo}}/utils/Justfile compute-seasonal-discount-inputs \
     "{{run_dir}}" \
-    "{{resstock_loads_path}}" \
+    "{{resstock_base}}" \
+    "{{state_upper}}" \
+    "{{upgrade}}" \
     "{{cross_subsidy_col}}" \
     "{{output_dir}}"
 
@@ -238,7 +257,7 @@ run-5:
     set -euo pipefail
     run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
     echo ">> run-5: resolved run-1 output → ${run1_dir}" >&2
-    just compute-seasonal-discount-inputs "${run1_dir}" "{{path_resstock_loads_00}}"
+    just compute-seasonal-discount-inputs "${run1_dir}" "{{path_resstock_release}}" "{{state_upper}}" "{{upgrade}}"
     just create-seasonal-discount-tariff \
         "{{path_tariffs_electric}}/{{utility}}_flat_calibrated.json" \
         "${run1_dir}seasonal_discount_rate_inputs.csv" \
@@ -253,7 +272,7 @@ run-6:
     set -euo pipefail
     run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
     echo ">> run-6: resolved run-2 output → ${run2_dir}" >&2
-    just compute-seasonal-discount-inputs "${run2_dir}" "{{path_resstock_loads_00}}"
+    just compute-seasonal-discount-inputs "${run2_dir}" "{{path_resstock_release}}" "{{state_upper}}" "{{upgrade}}"
     just create-seasonal-discount-tariff \
         "{{path_tariffs_electric}}/{{utility}}_flat_supply_calibrated.json" \
         "${run2_dir}seasonal_discount_rate_inputs.csv" \
@@ -381,6 +400,8 @@ run-16:
 all-pre:
     just create-scenario-yamls
     just create-electric-tariff-maps-all
+    just create-gas-tariff-maps-all
+    just create-revenue-yaml
     just validate-config
 
 run-all-sequential:

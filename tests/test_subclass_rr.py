@@ -55,9 +55,20 @@ def _write_sample_run_dir(tmp_path: Path) -> Path:
     return run_dir
 
 
+_LOADS_STATE = "NY"
+_LOADS_UPGRADE = "00"
+
+
 def _write_sample_resstock_loads_dir(tmp_path: Path) -> Path:
-    loads_dir = tmp_path / "loads"
-    loads_dir.mkdir(parents=True)
+    """Write sample ResStock loads in hive-partition layout and return the base path."""
+    resstock_base = tmp_path / "resstock"
+    partition_dir = (
+        resstock_base
+        / "load_curve_hourly"
+        / f"state={_LOADS_STATE}"
+        / f"upgrade={_LOADS_UPGRADE}"
+    )
+    partition_dir.mkdir(parents=True)
     # HP buildings (1, 3): winter kWh = 10 + 20 + 30 = 60
     pl.DataFrame(
         {
@@ -70,15 +81,15 @@ def _write_sample_resstock_loads_dir(tmp_path: Path) -> Path:
             ],
             "out.electricity.net.energy_consumption": [10.0, 999.0, 20.0, 30.0],
         }
-    ).write_parquet(loads_dir / "sample_hp_loads.parquet")
+    ).write_parquet(partition_dir / "sample_hp_loads.parquet")
     pl.DataFrame(
         {
             "bldg_id": [2, 4],
             "timestamp": ["2025-01-01 00:00:00", "2025-01-01 00:00:00"],
             "out.electricity.net.energy_consumption": [500.0, 600.0],
         }
-    ).write_parquet(loads_dir / "sample_nonhp_loads.parquet")
-    return loads_dir
+    ).write_parquet(partition_dir / "sample_nonhp_loads.parquet")
+    return resstock_base
 
 
 @pytest.mark.parametrize(
@@ -232,11 +243,13 @@ def test_write_revenue_requirement_yamls(tmp_path: Path) -> None:
 
 def test_compute_hp_seasonal_discount_inputs(tmp_path: Path) -> None:
     run_dir = _write_sample_run_dir(tmp_path)
-    loads_dir = _write_sample_resstock_loads_dir(tmp_path)
+    resstock_base = _write_sample_resstock_loads_dir(tmp_path)
 
     out = compute_hp_seasonal_discount_inputs(
         run_dir=run_dir,
-        resstock_loads_path=loads_dir,
+        resstock_base=str(resstock_base),
+        state=_LOADS_STATE,
+        upgrade=_LOADS_UPGRADE,
         cross_subsidy_col="BAT_percustomer",
     )
 
@@ -273,19 +286,27 @@ def test_compute_hp_seasonal_discount_inputs_applies_weights(tmp_path: Path) -> 
         encoding="utf-8",
     )
 
-    loads_dir = tmp_path / "loads"
-    loads_dir.mkdir(parents=True)
+    resstock_base = tmp_path / "resstock"
+    partition_dir = (
+        resstock_base
+        / "load_curve_hourly"
+        / f"state={_LOADS_STATE}"
+        / f"upgrade={_LOADS_UPGRADE}"
+    )
+    partition_dir.mkdir(parents=True)
     pl.DataFrame(
         {
             "bldg_id": [1, 2],
             "timestamp": ["2025-01-01 00:00:00", "2025-01-01 00:00:00"],
             "out.electricity.net.energy_consumption": [100.0, 100.0],
         }
-    ).write_parquet(loads_dir / "sample.parquet")
+    ).write_parquet(partition_dir / "sample.parquet")
 
     out = compute_hp_seasonal_discount_inputs(
         run_dir=run_dir,
-        resstock_loads_path=loads_dir,
+        resstock_base=str(resstock_base),
+        state=_LOADS_STATE,
+        upgrade=_LOADS_UPGRADE,
         cross_subsidy_col="BAT_percustomer",
     )
     # Weighted cross subsidy = 10*1 + 10*9 = 100
@@ -299,7 +320,7 @@ def test_compute_hp_seasonal_discount_inputs_raises_when_non_positive_rate(
     tmp_path: Path,
 ) -> None:
     run_dir = _write_sample_run_dir(tmp_path)
-    loads_dir = _write_sample_resstock_loads_dir(tmp_path)
+    resstock_base = _write_sample_resstock_loads_dir(tmp_path)
     # Force very low default rate so formula goes non-positive.
     (run_dir / "tariff_final_config.json").write_text(
         '{"rie_a16":{"ur_ec_tou_mat":[[1,1,1e+38,0,0.01,0.0,0]]}}',
@@ -309,17 +330,21 @@ def test_compute_hp_seasonal_discount_inputs_raises_when_non_positive_rate(
     with pytest.raises(ValueError, match="Computed winter_rate_hp is negative"):
         compute_hp_seasonal_discount_inputs(
             run_dir=run_dir,
-            resstock_loads_path=loads_dir,
+            resstock_base=str(resstock_base),
+            state=_LOADS_STATE,
+            upgrade=_LOADS_UPGRADE,
             cross_subsidy_col="BAT_percustomer",
         )
 
 
 def test_write_seasonal_inputs_csv_uses_output_dir_override(tmp_path: Path) -> None:
     run_dir = _write_sample_run_dir(tmp_path)
-    loads_dir = _write_sample_resstock_loads_dir(tmp_path)
+    resstock_base = _write_sample_resstock_loads_dir(tmp_path)
     seasonal_inputs = compute_hp_seasonal_discount_inputs(
         run_dir=run_dir,
-        resstock_loads_path=loads_dir,
+        resstock_base=str(resstock_base),
+        state=_LOADS_STATE,
+        upgrade=_LOADS_UPGRADE,
     )
     output_dir = tmp_path / "out"
     output_dir.mkdir()

@@ -194,7 +194,7 @@ def find_tou_peak_window(
     if window_hours < 1 or window_hours > 23:
         raise ValueError("window_hours must be between 1 and 23")
 
-    # Demand-weighted MC: MC_h * load_h
+    # Demand-weighted MC: MC_h * load_h (caller must pass aligned indices)
     dw_mc = combined_mc * hourly_system_load
 
     # Build a 24-hour profile: average demand-weighted MC by hour-of-day
