@@ -427,10 +427,26 @@ def main() -> None:
         run_dir_path = args.run_dir.rstrip("/")
         cm_path = f"{run_dir_path}/customer_metadata.csv"
         log.info("Reading building IDs from %s", cm_path)
-        csv_opts = get_aws_storage_options() if cm_path.startswith("s3://") else None
-        run_bldg_ids = pl.read_csv(
-            cm_path, columns=["bldg_id"], storage_options=csv_opts
-        )["bldg_id"].to_list()
+        if cm_path.startswith("s3://"):
+            try:
+                # Avoid get_aws_storage_options() here: its "region" key is not
+                # accepted by some fsspec/s3fs code paths used by read_csv.
+                run_bldg_ids = pl.read_csv(cm_path, columns=["bldg_id"])[
+                    "bldg_id"
+                ].to_list()
+            except TypeError:
+                # Compatibility fallback for older fsspec/s3fs stacks.
+                run_bldg_ids = pl.read_csv(
+                    cm_path,
+                    columns=["bldg_id"],
+                    storage_options={
+                        "client_kwargs": {"region_name": get_aws_region()}
+                    },
+                )["bldg_id"].to_list()
+        else:
+            run_bldg_ids = pl.read_csv(cm_path, columns=["bldg_id"])[
+                "bldg_id"
+            ].to_list()
         building_stock_sample = run_bldg_ids
         log.info("Restricting to %d buildings from run output", len(run_bldg_ids))
 

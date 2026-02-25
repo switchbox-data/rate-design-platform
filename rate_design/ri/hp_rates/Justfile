@@ -260,7 +260,7 @@ run-5:
     just compute-seasonal-discount-inputs "${run1_dir}" "{{path_resstock_release}}" "{{state_upper}}" "{{upgrade}}"
     just create-seasonal-discount-tariff \
         "{{path_tariffs_electric}}/{{utility}}_flat_calibrated.json" \
-        "${run1_dir}seasonal_discount_rate_inputs.csv" \
+        "${run1_dir}/seasonal_discount_rate_inputs.csv" \
         {{utility}}_hp_seasonal \
         "{{path_tariffs_electric}}/{{utility}}_hp_seasonal.json"
     just run-scenario 5
@@ -275,7 +275,7 @@ run-6:
     just compute-seasonal-discount-inputs "${run2_dir}" "{{path_resstock_release}}" "{{state_upper}}" "{{upgrade}}"
     just create-seasonal-discount-tariff \
         "{{path_tariffs_electric}}/{{utility}}_flat_supply_calibrated.json" \
-        "${run2_dir}seasonal_discount_rate_inputs.csv" \
+        "${run2_dir}/seasonal_discount_rate_inputs.csv" \
         {{utility}}_hp_seasonal_supply \
         "{{path_tariffs_electric}}/{{utility}}_hp_seasonal_supply.json"
     just run-scenario 6
@@ -299,31 +299,33 @@ run-8:
     just run-scenario 8
 
 # Run 9: precalc hp_seasonalTOU vs flat, delivery
-# Depends on run-1 calibrated tariff as reference for TOU price levels.
+# Uses run-1 output for calibrated tariff (reference) and run-dir (building list/weights).
 run-9:
     #!/usr/bin/env bash
     set -euo pipefail
+    run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
+    echo ">> run-9: run-1 output → ${run1_dir}" >&2
     ref_tariff="{{path_tariffs_electric}}/{{utility}}_flat_calibrated.json"
     if [ ! -f "${ref_tariff}" ]; then
-        run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
-        echo ">> run-9: calibrated tariff missing, copying from run-1 → ${run1_dir}" >&2
+        echo ">> run-9: calibrated tariff missing, copying from run-1" >&2
         just copy-calibrated-tariff-from-run "${run1_dir}"
     fi
-    just create-seasonal-tou {{tou_tariff_key}} "${ref_tariff}"
+    just create-seasonal-tou {{tou_tariff_key}} "${ref_tariff}" "${run1_dir}"
     just run-scenario 9
 
 # Run 10: precalc hp_seasonalTOU vs flat, supply
-# Depends on run-2 calibrated tariff as reference for TOU price levels.
+# Uses run-2 output for calibrated tariff (reference) and run-dir (building list/weights).
 run-10:
     #!/usr/bin/env bash
     set -euo pipefail
+    run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
+    echo ">> run-10: run-2 output → ${run2_dir}" >&2
     ref_tariff="{{path_tariffs_electric}}/{{utility}}_flat_supply_calibrated.json"
     if [ ! -f "${ref_tariff}" ]; then
-        run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
-        echo ">> run-10: calibrated supply tariff missing, copying from run-2 → ${run2_dir}" >&2
+        echo ">> run-10: calibrated supply tariff missing, copying from run-2" >&2
         just copy-calibrated-tariff-from-run "${run2_dir}"
     fi
-    just create-seasonal-tou {{tou_tariff_key}}_supply "${ref_tariff}"
+    just create-seasonal-tou {{tou_tariff_key}}_supply "${ref_tariff}" "${run2_dir}"
     just run-scenario 10
 
 # Run 11: default hp_seasonalTOU calibrated, delivery (needs run 9 output)
@@ -423,7 +425,7 @@ run-all-sequential:
     just run-15
     just run-16
 
-# Run all 12 scenarios as 6 delivery/supply waves in parallel.
+# Run all 16 scenarios as 8 delivery/supply waves in parallel.
 # Each wave runs the odd (delivery) and even (supply) run concurrently, each with
 # half the available CPUs. Requires --num-workers support in run_scenario.py.
 # Use when T4/T8 ratio r < 1.8 (measured in cairo_parallelism_and_workers.md).
@@ -477,7 +479,19 @@ run-all-parallel-tracks:
     wait $PID11 || { echo "ERROR: run-11 failed" >&2; exit 1; }
     wait $PID12 || { echo "ERROR: run-12 failed" >&2; exit 1; }
 
-    echo ">> run-all-parallel-tracks: all 12 runs complete" >&2
+    # Wave 7: run-13 (precalc hp_seasonalTOU_flex, delivery) and run-14 (precalc hp_seasonalTOU_flex, supply)
+    just run-13 & PID13=$!
+    just run-14 & PID14=$!
+    wait $PID13 || { echo "ERROR: run-13 failed" >&2; exit 1; }
+    wait $PID14 || { echo "ERROR: run-14 failed" >&2; exit 1; }
+
+    # Wave 8: run-15 (default hp_seasonalTOU_flex calibrated, delivery) and run-16 (default hp_seasonalTOU_flex calibrated, supply)
+    just run-15 & PID15=$!
+    just run-16 & PID16=$!
+    wait $PID15 || { echo "ERROR: run-15 failed" >&2; exit 1; }
+    wait $PID16 || { echo "ERROR: run-16 failed" >&2; exit 1; }
+
+    echo ">> run-all-parallel-tracks: all 16 runs complete" >&2
 
 # =============================================================================
 # POST: after all runs are completed
