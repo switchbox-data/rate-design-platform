@@ -112,7 +112,9 @@ create-gas-tariff-map electric_utility upgrade_id output_dir:
     "{{output_dir}}"
 
 create-gas-tariff-maps-all:
-  just create-gas-tariff-map {{utility}} {{upgrade}} {{path_tariff_maps}}/gas
+  just create-gas-tariff-map {{utility}} "00" {{path_tariff_maps}}/gas
+  just create-gas-tariff-map {{utility}} "02" {{path_tariff_maps}}/gas
+
 
 # Flat tariff JSONs.
 create-flat-tariff:
@@ -397,6 +399,7 @@ run-16:
 all-pre:
     just create-scenario-yamls
     just create-electric-tariff-maps-all
+    just create-gas-tariff-maps-all
     just create-revenue-yaml
     just validate-config
 
