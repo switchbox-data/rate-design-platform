@@ -57,7 +57,7 @@ def main() -> None:
             (
                 "path_cambium",
                 args.path_cambium,
-                str(run2.get("path_cambium_marginal_costs", "")),
+                str(run2.get("path_supply_marginal_costs", "")),
             )
         )
 

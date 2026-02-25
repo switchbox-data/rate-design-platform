@@ -3,9 +3,9 @@
 Reads the sheet, groups by (state, utility), and writes
 rate_design/<state>/hp_rates/config/scenarios_<utility>.yaml for each group.
 
-Note on path_cambium_marginal_costs column:
+Note on path_supply_marginal_costs column:
     For NY supply runs (runs with add_supply_revenue_requirement=true), the
-    path_cambium_marginal_costs column should point to NYISO-derived supply MCs:
+    path_supply_marginal_costs column should point to NYISO-derived supply MCs:
         s3://data.sb/switchbox/marginal_costs/ny/supply/utility={utility}/year=2025/data.parquet
     
     For NY delivery-only runs (add_supply_revenue_requirement=false), use:
@@ -178,7 +178,7 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         "path_tariff_maps_gas",
         "path_resstock_metadata",
         "path_resstock_loads",
-        "path_cambium_marginal_costs",
+        "path_supply_marginal_costs",
         "path_td_marginal_costs",
         "path_utility_assignment",
         "path_tariffs_gas",
@@ -279,7 +279,7 @@ def _update_ny_supply_mc_paths(
     state_key: str,
     utility_key: str,
 ) -> int:
-    """Update path_cambium_marginal_costs for NY supply runs in the Google Sheet.
+    """Update path_supply_marginal_costs for NY supply runs in the Google Sheet.
     
     Args:
         ws: The worksheet to update.
@@ -293,7 +293,7 @@ def _update_ny_supply_mc_paths(
         Number of cells updated.
     """
     # Find column indices
-    path_mc_key = norm_to_header.get("path_cambium_marginal_costs")
+    path_mc_key = norm_to_header.get("path_supply_marginal_costs")
     add_supply_key = norm_to_header.get("add_supply_revenue_requirement")
     
     if not path_mc_key or not add_supply_key:
@@ -383,7 +383,7 @@ def run(
         worksheet_name: Worksheet name (default: first sheet).
         worksheet_index: Worksheet index 0-based (default: first sheet).
         output_dir: Output root directory (default: project root).
-        update_sheet: If True, update path_cambium_marginal_costs for NY supply runs.
+        update_sheet: If True, update path_supply_marginal_costs for NY supply runs.
     """
     load_dotenv()
 
@@ -566,7 +566,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--update-sheet",
         action="store_true",
-        help="Update path_cambium_marginal_costs for NY supply runs in the Google Sheet.",
+        help="Update path_supply_marginal_costs for NY supply runs in the Google Sheet.",
     )
     return parser.parse_args()
 

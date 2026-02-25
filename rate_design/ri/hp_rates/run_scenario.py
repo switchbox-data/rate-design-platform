@@ -81,7 +81,7 @@ class ScenarioSettings:
     path_resstock_metadata: Path
     path_resstock_loads: Path
     path_utility_assignment: str | Path
-    path_cambium_marginal_costs: str | Path
+    path_supply_marginal_costs: str | Path
     path_td_marginal_costs: str | Path
     path_tariff_maps_electric: Path
     path_tariff_maps_gas: Path
@@ -517,8 +517,8 @@ def _build_settings_from_yaml_run(
             str(_require_value(run, "path_resstock_loads")),
             PATH_CONFIG,
         ),
-        path_cambium_marginal_costs=_resolve_path_or_uri(
-            str(_require_value(run, "path_cambium_marginal_costs")),
+        path_supply_marginal_costs=_resolve_path_or_uri(
+            str(_require_value(run, "path_supply_marginal_costs")),
             PATH_CONFIG,
         ),
         path_td_marginal_costs=_resolve_path_or_uri(
@@ -871,7 +871,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
     # changes total MC dollars, not the prices themselves.
 
     bulk_marginal_costs = _load_cambium_marginal_costs(
-        settings.path_cambium_marginal_costs,
+        settings.path_supply_marginal_costs,
         settings.year_run,
     )
     distribution_marginal_costs = load_distribution_marginal_costs(
