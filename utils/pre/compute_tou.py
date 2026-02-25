@@ -155,11 +155,45 @@ def combine_marginal_costs(
     Returns:
         Series of total marginal cost per kWh, indexed by time.
     """
-    total_bulk = bulk_marginal_costs.sum(axis=1)
+    total_bulk = bulk_marginal_costs.sum(axis=1).sort_index()
     total_bulk.name = "bulk_mc"
-    combined = pd.merge(
-        total_bulk, distribution_marginal_costs, left_index=True, right_index=True
-    )
+    dist_mc = distribution_marginal_costs.sort_index()
+
+    if not total_bulk.index.equals(dist_mc.index):
+        # Some MC sources are partitioned by year but carry a different timestamp
+        # year in-file (e.g., partition year=2026 with 2025 timestamps). Normalize
+        # distribution timestamps to the bulk MC year before fallback alignment.
+        if len(total_bulk) == len(dist_mc):
+            try:
+                target_year = int(total_bulk.index[0].year)
+                dist_index = pd.DatetimeIndex(
+                    [ts.replace(year=target_year) for ts in dist_mc.index]
+                )
+                dist_index = dist_index.tz_localize(total_bulk.index.tz) if dist_index.tz is None else dist_index.tz_convert(total_bulk.index.tz)  # type: ignore[arg-type]
+                dist_mc = pd.Series(
+                    dist_mc.values,
+                    index=dist_index,
+                    name=dist_mc.name,
+                ).sort_index()
+            except ValueError:
+                # If year replacement ever fails (e.g. leap-day mismatch), use
+                # positional alignment as a last resort.
+                dist_mc = pd.Series(
+                    dist_mc.values,
+                    index=total_bulk.index,
+                    name=dist_mc.name,
+                )
+
+        if not total_bulk.index.equals(dist_mc.index):
+            dist_mc = dist_mc.reindex(total_bulk.index)
+
+    combined = pd.concat([total_bulk, dist_mc], axis=1).dropna(how="any")
+    if combined.empty:
+        raise ValueError(
+            "Unable to align bulk and distribution marginal costs: no overlapping "
+            "timestamps after index alignment."
+        )
+
     total: pd.Series = combined.sum(axis=1)
     total.name = "total_mc_per_kwh"
     total.index.name = "time"
