@@ -166,6 +166,26 @@ create-td-mc-data-rge:
 create-td-mc-data-cenhud:
   just create-td-mc-data cenhud
 
+# Supply marginal costs (LBMP + ICAP MCOS)
+supply_mc_year := "2025"
+zone_mapping_path := "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
+
+create-supply-mc-data utility:
+  cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_utility_supply_mc.py \
+    --utility {{utility}} \
+    --year {{supply_mc_year}} \
+    --zone-mapping-path {{zone_mapping_path}} \
+    --upload
+
+create-supply-mc-data-all:
+  just create-supply-mc-data cenhud
+  just create-supply-mc-data coned
+  just create-supply-mc-data nimo
+  just create-supply-mc-data nyseg
+  just create-supply-mc-data or
+  just create-supply-mc-data rge
+  just create-supply-mc-data psegli
+
 # =============================================================================
 # Create scenario YAMLs from Google Sheets
 # =============================================================================

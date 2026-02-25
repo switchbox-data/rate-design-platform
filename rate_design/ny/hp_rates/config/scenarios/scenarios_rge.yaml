@@ -36,7 +36,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/rge.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
-    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_cambium_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/supply/utility=rge/year=2025/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=rge/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
@@ -90,7 +90,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/rge.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
-    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_cambium_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/supply/utility=rge/year=2025/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=rge/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
@@ -145,7 +145,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/rge.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
-    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_cambium_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/supply/utility=rge/year=2025/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=rge/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
@@ -200,7 +200,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/rge.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
-    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_cambium_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/supply/utility=rge/year=2025/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=rge/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
@@ -255,7 +255,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/rge.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
-    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_cambium_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/supply/utility=rge/year=2025/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=rge/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
@@ -310,7 +310,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/rge.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
-    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_cambium_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/supply/utility=rge/year=2025/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=rge/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
@@ -365,7 +365,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/rge.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
-    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_cambium_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/supply/utility=rge/year=2025/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=rge/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
@@ -420,7 +420,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/rge.csv
     path_resstock_metadata: /data.sb/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /data.sb/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
-    path_cambium_marginal_costs: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    path_cambium_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/supply/utility=rge/year=2025/data.parquet
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=rge/year=2026/00000000.parquet
     path_utility_assignment: s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas

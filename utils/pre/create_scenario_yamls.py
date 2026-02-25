@@ -2,6 +2,19 @@
 
 Reads the sheet, groups by (state, utility), and writes
 rate_design/<state>/hp_rates/config/scenarios_<utility>.yaml for each group.
+
+Note on path_cambium_marginal_costs column:
+    For NY supply runs (runs with add_supply_revenue_requirement=true), the
+    path_cambium_marginal_costs column should point to NYISO-derived supply MCs:
+        s3://data.sb/switchbox/marginal_costs/ny/supply/utility={utility}/year=2025/data.parquet
+    
+    For NY delivery-only runs (add_supply_revenue_requirement=false), use:
+        s3://data.sb/nrel/cambium/zero_marginal_costs.csv
+    
+    For RI runs, continue using Cambium paths:
+        s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet
+    
+    After updating the Google Sheet, run: just create-scenario-yamls
 """
 
 from __future__ import annotations
