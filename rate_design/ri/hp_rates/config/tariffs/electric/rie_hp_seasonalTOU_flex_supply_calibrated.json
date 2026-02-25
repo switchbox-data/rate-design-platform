@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "rie_hp_seasonalTOU_supply",
-      "name": "rie_hp_seasonalTOU_supply",
+      "label": "rie_hp_seasonalTOU_flex_supply",
+      "name": "rie_hp_seasonalTOU_flex_supply",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,28 +640,28 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.05083708759457981,
+            "rate": 0.05098943086010231,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.06311932795743029,
+            "rate": 0.06330847735590303,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.09765804526918782,
+            "rate": 0.09790990513756845,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.24803415037395488,
+            "rate": 0.24867545430471896,
             "adj": 0.0,
             "unit": "kWh"
           }

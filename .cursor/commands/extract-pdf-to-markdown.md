@@ -23,7 +23,7 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 
 - Preserve all heading levels (H1→H2→H3, etc.)
 - Maintain table of contents structure if present
-- Keep section numbers, subsection labels, and organizational schemes from original
+- Keep section numbers, subsection labels, and organizational schemes from original. **When the source has a table of contents**, verify that numbered section titles and counts in the extract match the TOC (e.g. the last numbered section in the extract should correspond to the last TOC entry; unnumbered headings on the same page as a numbered section may stay unnumbered).
 - Preserve logical document sections with `---` between them if they marked distinct parts
 
 ### Text & Formatting
@@ -39,6 +39,8 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 
 - Convert **ALL** tables to markdown table format
 - Preserve column headers and cell content exactly
+- **Multi-column factor tables**: For tables with many numbered or lettered columns (e.g. (1)–(13), or A, B, C…), **verify column alignment for every row**, including the last. If one row has fewer or more populated cells than others (e.g. due to PDF layout or wrapping), ensure the extract preserves the same number of columns per row and does not drop or merge columns; add or align cells so each row matches the header.
+- **When table content cannot be extracted** from the PDF (e.g. exhibit or appendix pages yield only titles or the table is image-based), do not invent cell data. Add an explicit note in the extract: _"Table content was not extractable from the PDF; description below is inferred from surrounding text. See original PDF for data."_ Then provide a short description of the table’s purpose and structure based on the narrative, and a "[→ See original PDF page X]" pointer.
 - If a table is complex/wide, add a description before it explaining its structure
 - Complex tables that don't render cleanly: provide both a prose description and the markdown version
 - Keep alignment indicators if relevant (left, center, right aligned)
@@ -193,8 +195,8 @@ When the source PDF contains them, include short back-matter sections such as **
 
 The PDF file path is provided as: **$ARGUMENTS**
 
-1. Examine PDF structure first (TOC, sections, page count). From the first page, extract author affiliations and correspondence if present.
-2. Preserve structure exactly in markdown (include **Author affiliations** in metadata when available).
+1. Examine PDF structure first (TOC, sections, page count). From the first page, extract author affiliations and correspondence if present. If the document has a TOC, note the section numbers and page mapping so the extract’s heading numbers match (e.g. last numbered section = last TOC entry).
+2. Preserve structure exactly in markdown (include **Author affiliations** in metadata when available). Verify section numbers against the TOC before finalizing.
 3. Extract section by section, applying all rules (inline math in prose, markdown lists for inline-numbered lists, equation labels).
 4. For visual elements: stop and write detailed description
 5. For complex tables: show prose description + markdown version
