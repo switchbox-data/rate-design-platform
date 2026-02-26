@@ -7,9 +7,11 @@ project_root := `git rev-parse --show-toplevel`
 # =============================================================================
 
 # Create scenario YAMLs from the Runs & Charts Google Sheet (requires G_* env and browser auth).
-# Writes rate_design/<state>/hp_rates/config/scenarios_<utility>.yaml per utility in your reference sheet.
-create-scenario-yamls:
-    uv run python {{project_root}}/utils/pre/create_scenario_yamls.py
+# Writes rate_design/hp_rates/<state>/config/scenarios/scenarios_<utility>.yaml.
+# Pass state="" to generate for all states.
+create-scenario-yamls state="":
+    uv run python {{project_root}}/utils/pre/create_scenario_yamls.py \
+        {{ if state != "" { "--state " + state } else { "" } }}
 
 # Write electric tariff map CSVs for all runs in a single scenario file.
 write-tariff-maps scenario_config:

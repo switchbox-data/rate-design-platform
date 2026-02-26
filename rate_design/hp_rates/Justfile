@@ -1,0 +1,485 @@
+# Shared heat pump rate design tasks.
+# Imported by state-specific Justfiles (ny/Justfile, ri/Justfile).
+# Run from rate_design/hp_rates/.
+#
+# Usage (from rate_design/hp_rates/):
+#   just s ny list-utilities                                    # show valid utilities
+#   UTILITY=nyseg just s ny all-pre                             # single utility pre-processing
+#   UTILITY=nyseg just s ny run-all-sequential                  # single utility full run
+#   just s ny run-all-utilities-sequential                      # all utilities for a state
+#   UTILITY=rie just -f ri/Justfile all-pre                     # via state wrapper directly
+#   set -a && source ny/state.env && set +a && UTILITY=nyseg just all-pre  # manual source
+
+# =============================================================================
+# Tier 1: Identity (set by state wrapper, dispatch, or manual source)
+# =============================================================================
+
+set allow-duplicate-variables := true
+
+state   := env_var_or_default('STATE', '')
+utility := env_var_or_default('UTILITY', '')
+
+# Dispatch: source state.env and re-invoke just so env_var_or_default picks
+# up state-level config (REGION, YEAR, UTILITIES, etc.).
+s state_arg +recipe:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a
+    source "{{justfile_directory()}}/{{state_arg}}/state.env"
+    set +a
+    just {{recipe}}
+
+# =============================================================================
+# Tier 2: Config from env vars (state.env via dotenv, or explicit env override)
+# =============================================================================
+
+state_upper := uppercase(state)
+
+region                := env_var_or_default('REGION', 'isone')
+cambium_ba            := env_var_or_default('CAMBIUM_BA', 'p133')
+year                  := env_var_or_default('YEAR', '2025')
+mc_year               := env_var_or_default('MC_YEAR', year)
+upgrade               := env_var_or_default('UPGRADE', '00')
+default_tariff        := utility + "_default.json"
+default_tariff_supply := utility + "_default_supply.json"
+upstream_hours        := env_var_or_default('UPSTREAM_HOURS', '100')
+dist_hours            := env_var_or_default('DIST_HOURS', '100')
+utilities             := env_var_or_default('UTILITIES', utility)
+
+# =============================================================================
+# Tier 3: Derived paths (all computed from Tier 1 + 2)
+# =============================================================================
+
+path_repo                           := `git rev-parse --show-toplevel`
+project_root                        := path_repo
+path_project                        := path_repo / "rate_design" / "hp_rates" / state
+path_config                         := path_project / "config"
+path_tariffs_electric               := path_config / "tariffs/electric"
+path_tariffs_gas                    := path_config / "tariffs/gas"
+path_rateacuity_yaml                := path_tariffs_gas / "rateacuity_tariffs.yaml"
+path_scenarios                      := path_config / "scenarios"
+path_scenario_config                := path_scenarios / "scenarios_" + utility + ".yaml"
+path_periods_yaml                   := path_config / "periods" / utility + ".yaml"
+path_rev_requirement                := path_config / "rev_requirement"
+path_default_rev_requirement        := path_rev_requirement / utility + ".yaml"
+path_differentiated_rev_requirement := path_rev_requirement / utility + "_hp_vs_nonhp.yaml"
+path_revenue_csv                    := "s3://data.sb/switchbox/revenue_requirements/" + state + "/" + env_var_or_default('REVENUE_CSV_FILENAME', 'revenue_requirements.csv')
+revenue_utility_col                 := "utility"
+revenue_year_col                    := "year"
+path_tariff_maps                    := path_config / "tariff_maps"
+path_td_mc                          := "s3://data.sb/switchbox/marginal_costs/" + state + "/region=" + region + "/utility=" + utility + "/year=" + mc_year + "/00000000.parquet"
+path_resstock_release               := "/ebs/data/nrel/resstock/res_2024_amy2018_2"
+path_resstock_metadata              := path_resstock_release + "/metadata"
+path_utility_assignment             := path_resstock_release + "/metadata_utility"
+path_resstock_loads_00              := path_resstock_release + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
+path_cambium                        := "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025" + "/gea=" + uppercase(region) + "/r=" + cambium_ba + "/data.parquet"
+path_mc_table                       := env_var_or_default('MC_TABLE', path_config / "marginal_costs" / state + "_marginal_costs_" + year + ".csv")
+path_s3_mc_output                   := "s3://data.sb/switchbox/marginal_costs/" + state + "/"
+path_s3_utility_loads               := "s3://data.sb/eia/hourly_demand/utilities/"
+path_electric_utility_stats         := "s3://data.sb/eia/861/electric_utility_stats/year=2024/state=" + state_upper + "/data.parquet"
+path_default_tariff                 := path_tariffs_electric / default_tariff
+path_default_supply_tariff          := path_tariffs_electric / default_tariff_supply
+tou_tariff_key                      := utility + "_hp_seasonalTOU"
+latest_output                       := path_repo / "utils/mid/latest_run_output.sh"
+
+# =============================================================================
+# VALIDATION
+# =============================================================================
+
+validate-config mode="warn":
+  uv run python {{path_repo}}/utils/pre/validate_config.py \
+    --scenario-config "{{path_scenario_config}}" \
+    --state "{{state_upper}}" \
+    --utility "{{utility}}" \
+    --upgrade "{{upgrade}}" \
+    --year "{{year}}" \
+    --path-td-mc "{{path_td_mc}}" \
+    --path-cambium "{{path_cambium}}" \
+    --path-electric-utility-stats "{{path_electric_utility_stats}}" \
+    --path-resstock-loads "{{path_resstock_loads_00}}" \
+    {{ if mode == "strict" { "--strict" } else { "" } }}
+
+# =============================================================================
+# PRE-CONFIG: generate before any runs
+# =============================================================================
+
+create-scenario-yamls:
+    just -f {{path_repo}}/utils/Justfile create-scenario-yamls "{{state_upper}}"
+
+create-electric-tariff-maps-all:
+    just -f {{path_repo}}/utils/Justfile write-tariff-maps-all "{{path_scenarios}}"
+
+create-revenue-yaml:
+  uv run python {{path_repo}}/utils/pre/create_revenue_yaml.py \
+    --path-revenue-csv "{{path_revenue_csv}}" \
+    --path-output-yaml "{{path_default_rev_requirement}}" \
+    --utility "{{utility}}" \
+    --year "{{year}}" \
+    --utility-col "{{revenue_utility_col}}" \
+    --year-col "{{revenue_year_col}}"
+
+create-flat-tariff:
+  just -f {{path_repo}}/utils/Justfile create-flat-tariff \
+    "{{path_default_tariff}}" \
+    "{{path_default_supply_tariff}}" \
+    "{{utility}}_flat" \
+    "{{utility}}_flat_supply" \
+    "{{path_tariffs_electric}}"
+
+create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
+  just -f {{path_repo}}/utils/Justfile create-seasonal-tou \
+    "{{path_cambium}}" \
+    "{{state_upper}}" \
+    "{{utility}}" \
+    "{{year}}" \
+    "{{path_td_mc}}" \
+    "{{path_resstock_release}}/metadata/state={{state_upper}}/upgrade={{upgrade}}/metadata-sb.parquet" \
+    "{{path_resstock_release}}" \
+    "{{upgrade}}" \
+    "{{path_electric_utility_stats}}" \
+    "{{key}}" \
+    "{{path_config}}" \
+    "{{path_periods_yaml}}" \
+    "{{reference_tariff}}" \
+    "{{run_dir}}"
+
+create-gas-tariff-map electric_utility upgrade_id output_dir:
+  just -f {{path_repo}}/utils/Justfile create-gas-tariff-map \
+    "{{path_resstock_metadata}}" \
+    "{{path_utility_assignment}}" \
+    "{{state_upper}}" \
+    "{{electric_utility}}" \
+    "{{upgrade_id}}" \
+    "{{output_dir}}"
+
+create-gas-tariff-maps-all:
+  just create-gas-tariff-map {{utility}} "00" {{path_tariff_maps}}/gas
+  just create-gas-tariff-map {{utility}} "02" {{path_tariff_maps}}/gas
+
+create-td-mc-data:
+  uv run python {{path_repo}}/utils/pre/generate_utility_tx_dx_mc.py \
+    --state {{state_upper}} \
+    --utility {{utility}} \
+    --mc-year {{mc_year}} \
+    --load-year {{year}} \
+    --mc-table-path {{path_mc_table}} \
+    --utility-load-s3-base {{path_s3_utility_loads}} \
+    --output-s3-base {{path_s3_mc_output}} \
+    --upstream-hours {{upstream_hours}} \
+    --dist-hours {{dist_hours}} \
+    --upload
+
+# =============================================================================
+# MID-CONFIG: generate between runs (using outputs from earlier runs)
+# =============================================================================
+
+compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" cross_subsidy_col="BAT_percustomer" differentiated_yaml=path_differentiated_rev_requirement default_yaml=path_default_rev_requirement:
+  just -f {{path_repo}}/utils/Justfile compute-subclass-rr \
+    "{{run_dir}}" \
+    "{{scenario_config}}" \
+    "{{differentiated_yaml}}" \
+    "{{default_yaml}}" \
+    "{{run_num}}" \
+    "{{group_col}}" \
+    "{{cross_subsidy_col}}"
+
+compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="":
+  just -f {{path_repo}}/utils/Justfile compute-seasonal-discount-inputs \
+    "{{run_dir}}" \
+    "{{resstock_base}}" \
+    "{{state_upper}}" \
+    "{{upgrade}}" \
+    "{{cross_subsidy_col}}" \
+    "{{output_dir}}"
+
+create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label output_path periods_yaml=path_periods_yaml:
+  just -f {{path_repo}}/utils/Justfile create-seasonal-discount-tariff \
+    "{{base_tariff_json}}" \
+    "{{seasonal_inputs_csv}}" \
+    "{{label}}" \
+    "{{output_path}}" \
+    "{{periods_yaml}}"
+
+copy-calibrated-tariff-from-run run_dir output_dir="":
+  just -f {{path_repo}}/utils/Justfile copy-calibrated-tariff-from-run \
+    "{{run_dir}}" \
+    "{{state}}" \
+    "{{output_dir}}"
+
+compute-rev-requirements:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
+    echo ">> compute-rev-requirements: resolved run-1 output → ${run1_dir}" >&2
+    just compute-subclass-rr "${run1_dir}" "{{path_scenario_config}}"
+
+# =============================================================================
+# RUNS: scenario execution (run-1 through run-16)
+# =============================================================================
+
+run-scenario run_num:
+  uv run python {{path_repo}}/rate_design/hp_rates/run_scenario.py \
+    --state "{{state}}" \
+    --run-num "{{run_num}}" \
+    --utility "{{utility}}" \
+    {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }}
+
+run-1:
+    just create-flat-tariff
+    just run-scenario 1
+
+run-2:
+    just run-scenario 2
+
+run-3:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
+    echo ">> run-3: resolved run-1 output → ${run1_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run1_dir}"
+    just run-scenario 3
+
+run-4:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
+    echo ">> run-4: resolved run-2 output → ${run2_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run2_dir}"
+    just run-scenario 4
+
+run-5:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
+    echo ">> run-5: resolved run-1 output → ${run1_dir}" >&2
+    just compute-seasonal-discount-inputs "${run1_dir}" "{{path_resstock_release}}" "{{state_upper}}" "{{upgrade}}"
+    just create-seasonal-discount-tariff \
+        "{{path_tariffs_electric}}/{{utility}}_flat_calibrated.json" \
+        "${run1_dir}/seasonal_discount_rate_inputs.csv" \
+        {{utility}}_hp_seasonal \
+        "{{path_tariffs_electric}}/{{utility}}_hp_seasonal.json"
+    just run-scenario 5
+
+run-6:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
+    echo ">> run-6: resolved run-2 output → ${run2_dir}" >&2
+    just compute-seasonal-discount-inputs "${run2_dir}" "{{path_resstock_release}}" "{{state_upper}}" "{{upgrade}}"
+    just create-seasonal-discount-tariff \
+        "{{path_tariffs_electric}}/{{utility}}_flat_supply_calibrated.json" \
+        "${run2_dir}/seasonal_discount_rate_inputs.csv" \
+        {{utility}}_hp_seasonal_supply \
+        "{{path_tariffs_electric}}/{{utility}}_hp_seasonal_supply.json"
+    just run-scenario 6
+
+run-7:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run5_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 5)
+    echo ">> run-7: resolved run-5 output → ${run5_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run5_dir}"
+    just run-scenario 7
+
+run-8:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run6_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 6)
+    echo ">> run-8: resolved run-6 output → ${run6_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run6_dir}"
+    just run-scenario 8
+
+run-9:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
+    echo ">> run-9: run-1 output → ${run1_dir}" >&2
+    ref_tariff="{{path_tariffs_electric}}/{{utility}}_flat_calibrated.json"
+    if [ ! -f "${ref_tariff}" ]; then
+        echo ">> run-9: calibrated tariff missing, copying from run-1" >&2
+        just copy-calibrated-tariff-from-run "${run1_dir}"
+    fi
+    just create-seasonal-tou {{tou_tariff_key}} "${ref_tariff}" "${run1_dir}"
+    just run-scenario 9
+
+run-10:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
+    echo ">> run-10: run-2 output → ${run2_dir}" >&2
+    ref_tariff="{{path_tariffs_electric}}/{{utility}}_flat_supply_calibrated.json"
+    if [ ! -f "${ref_tariff}" ]; then
+        echo ">> run-10: calibrated supply tariff missing, copying from run-2" >&2
+        just copy-calibrated-tariff-from-run "${run2_dir}"
+    fi
+    just create-seasonal-tou {{tou_tariff_key}}_supply "${ref_tariff}" "${run2_dir}"
+    just run-scenario 10
+
+run-11:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run9_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 9)
+    echo ">> run-11: resolved run-9 output → ${run9_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run9_dir}"
+    just run-scenario 11
+
+run-12:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run10_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 10)
+    echo ">> run-12: resolved run-10 output → ${run10_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run10_dir}"
+    just run-scenario 12
+
+run-13:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}.json"
+    target_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}_flex.json"
+    if [ ! -f "${source_tou}" ]; then
+        echo ">> run-13: missing source TOU tariff: ${source_tou}" >&2
+        echo ">> run-13: run run-9 first to generate it." >&2
+        exit 1
+    fi
+    cp "${source_tou}" "${target_tou}"
+    echo ">> run-13: copied ${source_tou} -> ${target_tou}" >&2
+    just run-scenario 13
+
+run-14:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}_supply.json"
+    target_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}_flex_supply.json"
+    if [ ! -f "${source_tou}" ]; then
+        echo ">> run-14: missing source TOU supply tariff: ${source_tou}" >&2
+        echo ">> run-14: run run-10 first to generate it." >&2
+        exit 1
+    fi
+    cp "${source_tou}" "${target_tou}"
+    echo ">> run-14: copied ${source_tou} -> ${target_tou}" >&2
+    just run-scenario 14
+
+run-15:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run13_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 13)
+    echo ">> run-15: resolved run-13 output → ${run13_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run13_dir}"
+    just run-scenario 15
+
+run-16:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run14_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 14)
+    echo ">> run-16: resolved run-14 output → ${run14_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run14_dir}"
+    just run-scenario 16
+
+# =============================================================================
+# ORCHESTRATION
+# =============================================================================
+
+all-pre:
+    just create-scenario-yamls
+    just create-electric-tariff-maps-all
+    just create-gas-tariff-maps-all
+    just create-revenue-yaml
+    just create-flat-tariff
+    just validate-config
+
+run-all-utilities-sequential:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    IFS=',' read -ra utils <<< "{{utilities}}"
+    for util in "${utils[@]}"; do
+        echo ">> ======================================" >&2
+        echo ">> Running utility: $util" >&2
+        echo ">> ======================================" >&2
+        UTILITY="$util" just all-pre
+        UTILITY="$util" just run-all-sequential
+    done
+
+run-all-sequential:
+    just run-1
+    just compute-rev-requirements
+    just run-2
+    just run-3
+    just run-4
+    just run-5
+    just run-6
+    just run-7
+    just run-8
+    just run-9
+    just run-10
+    just run-11
+    just run-12
+    just run-13
+    just run-14
+    just run-15
+    just run-16
+
+run-all-parallel-tracks:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    WORKERS=$(( $(nproc) / 2 ))
+    [ "$WORKERS" -lt 1 ] && WORKERS=1
+    export RDP_NUM_WORKERS="$WORKERS"
+    echo ">> run-all-parallel-tracks: ${WORKERS} workers/track on $(nproc) total vCPUs" >&2
+
+    just create-flat-tariff
+
+    just run-scenario 1 & PID1=$!
+    just run-scenario 2 & PID2=$!
+    wait $PID1 || { echo "ERROR: run-1 failed" >&2; exit 1; }
+    wait $PID2 || { echo "ERROR: run-2 failed" >&2; exit 1; }
+
+    just compute-rev-requirements
+
+    just run-3 & PID3=$!
+    just run-4 & PID4=$!
+    wait $PID3 || { echo "ERROR: run-3 failed" >&2; exit 1; }
+    wait $PID4 || { echo "ERROR: run-4 failed" >&2; exit 1; }
+
+    just run-5 & PID5=$!
+    just run-6 & PID6=$!
+    wait $PID5 || { echo "ERROR: run-5 failed" >&2; exit 1; }
+    wait $PID6 || { echo "ERROR: run-6 failed" >&2; exit 1; }
+
+    just run-7 & PID7=$!
+    just run-8 & PID8=$!
+    wait $PID7 || { echo "ERROR: run-7 failed" >&2; exit 1; }
+    wait $PID8 || { echo "ERROR: run-8 failed" >&2; exit 1; }
+
+    just run-9 & PID9=$!
+    just run-10 & PID10=$!
+    wait $PID9 || { echo "ERROR: run-9 failed" >&2; exit 1; }
+    wait $PID10 || { echo "ERROR: run-10 failed" >&2; exit 1; }
+
+    just run-11 & PID11=$!
+    just run-12 & PID12=$!
+    wait $PID11 || { echo "ERROR: run-11 failed" >&2; exit 1; }
+    wait $PID12 || { echo "ERROR: run-12 failed" >&2; exit 1; }
+
+    just run-13 & PID13=$!
+    just run-14 & PID14=$!
+    wait $PID13 || { echo "ERROR: run-13 failed" >&2; exit 1; }
+    wait $PID14 || { echo "ERROR: run-14 failed" >&2; exit 1; }
+
+    just run-15 & PID15=$!
+    just run-16 & PID16=$!
+    wait $PID15 || { echo "ERROR: run-15 failed" >&2; exit 1; }
+    wait $PID16 || { echo "ERROR: run-16 failed" >&2; exit 1; }
+
+    echo ">> run-all-parallel-tracks: all 16 runs complete" >&2
+
+# =============================================================================
+# HELPERS
+# =============================================================================
+
+list-states:
+    @for d in "{{justfile_directory()}}"/*; do \
+        [ -f "$d/state.env" ] && basename "$d"; \
+    done; true
+
+list-utilities:
+    @echo "{{utilities}}" | tr ',' '\n'
