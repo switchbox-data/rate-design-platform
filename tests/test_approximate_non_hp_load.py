@@ -83,23 +83,29 @@ def _make_metadata_df(
     weather_stations: list[str],
     has_hp: list[bool],
 ) -> pl.DataFrame:
-    return pl.DataFrame({
-        "bldg_id": bldg_ids,
-        WEATHER_FILE_CITY_COLUMN: weather_stations,
-        HAS_HP_COLUMN: has_hp,
-        BLDG_TYPE_COLUMN: ["Multifamily (2-4 units)"] * len(bldg_ids),
-        STORIES_COLUMN: ["8+"] * len(bldg_ids),
-    })
+    return pl.DataFrame(
+        {
+            "bldg_id": bldg_ids,
+            WEATHER_FILE_CITY_COLUMN: weather_stations,
+            HAS_HP_COLUMN: has_hp,
+            BLDG_TYPE_COLUMN: ["Multifamily (2-4 units)"] * len(bldg_ids),
+            STORIES_COLUMN: ["8+"] * len(bldg_ids),
+        }
+    )
 
 
-def _write_load_parquet(path: Path, heating: np.ndarray, cooling: np.ndarray | None = None) -> None:
+def _write_load_parquet(
+    path: Path, heating: np.ndarray, cooling: np.ndarray | None = None
+) -> None:
     data = {HEATING_LOAD_COLUMN: heating.tolist()}
     if cooling is not None:
         data[COOLING_LOAD_COLUMN] = cooling.tolist()
     pl.DataFrame(data).write_parquet(path)
 
 
-def _heating_curve(n_hours: int, base: float, amplitude: float, phase: float, seed: int | None = None) -> np.ndarray:
+def _heating_curve(
+    n_hours: int, base: float, amplitude: float, phase: float, seed: int | None = None
+) -> np.ndarray:
     """Hourly heating load: base + amplitude * sin(2*pi*hour/8760 + phase) + small noise."""
     if seed is not None:
         np.random.seed(seed)
@@ -109,7 +115,9 @@ def _heating_curve(n_hours: int, base: float, amplitude: float, phase: float, se
     return (seasonal + noise).astype(np.float64)
 
 
-def _cooling_curve(n_hours: int, base: float, amplitude: float, phase: float, seed: int | None = None) -> np.ndarray:
+def _cooling_curve(
+    n_hours: int, base: float, amplitude: float, phase: float, seed: int | None = None
+) -> np.ndarray:
     """Cooling peaks in summer (phase shifted vs heating)."""
     if seed is not None:
         np.random.seed(seed)
@@ -136,9 +144,15 @@ def test_find_nearest_neighbors_heating_only(tmp_path: Path) -> None:
     heating_curves = {
         1: _heating_curve(n_hours, base=5.0, amplitude=3.0, phase=0.0, seed=101),
         2: _heating_curve(n_hours, base=6.0, amplitude=2.5, phase=0.2, seed=102),
-        3: _heating_curve(n_hours, base=5.1, amplitude=2.9, phase=0.05, seed=103),  # close to 1
-        4: _heating_curve(n_hours, base=6.2, amplitude=2.4, phase=0.18, seed=104),  # close to 2
-        5: _heating_curve(n_hours, base=8.0, amplitude=1.0, phase=1.0, seed=105),  # different
+        3: _heating_curve(
+            n_hours, base=5.1, amplitude=2.9, phase=0.05, seed=103
+        ),  # close to 1
+        4: _heating_curve(
+            n_hours, base=6.2, amplitude=2.4, phase=0.18, seed=104
+        ),  # close to 2
+        5: _heating_curve(
+            n_hours, base=8.0, amplitude=1.0, phase=1.0, seed=105
+        ),  # different
         10: _heating_curve(n_hours, base=4.0, amplitude=4.0, phase=0.5, seed=110),
         11: _heating_curve(n_hours, base=4.1, amplitude=3.8, phase=0.52, seed=111),
         12: _heating_curve(n_hours, base=10.0, amplitude=0.5, phase=0.0, seed=112),
@@ -185,8 +199,20 @@ def test_find_nearest_neighbors_include_cooling(tmp_path: Path) -> None:
     n_hours = 8760
 
     for bldg_id in bldg_ids:
-        h = _heating_curve(n_hours, base=3.0 + bldg_id, amplitude=2.0, phase=bldg_id * 0.1, seed=200 + bldg_id)
-        c = _cooling_curve(n_hours, base=1.0 + bldg_id * 0.5, amplitude=1.5, phase=bldg_id * 0.15, seed=300 + bldg_id)
+        h = _heating_curve(
+            n_hours,
+            base=3.0 + bldg_id,
+            amplitude=2.0,
+            phase=bldg_id * 0.1,
+            seed=200 + bldg_id,
+        )
+        c = _cooling_curve(
+            n_hours,
+            base=1.0 + bldg_id * 0.5,
+            amplitude=1.5,
+            phase=bldg_id * 0.15,
+            seed=300 + bldg_id,
+        )
         _write_load_parquet(tmp_path / f"{bldg_id}-{int(upgrade_id)}.parquet", h, c)
 
     with patch("utils.pre.approximate_non_hp_load.STORAGE_OPTIONS", {}):
@@ -212,7 +238,11 @@ def test_find_nearest_neighbors_include_cooling(tmp_path: Path) -> None:
 
 
 def _make_electricity_frame_constant(
-    n_rows: int, heating_vals: float, cooling_vals: float, total_consumption: float, total_intensity: float
+    n_rows: int,
+    heating_vals: float,
+    cooling_vals: float,
+    total_consumption: float,
+    total_intensity: float,
 ) -> pl.LazyFrame:
     heating_cols = list(HEATING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS)
     cooling_cols = list(COOLING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS)
@@ -234,7 +264,10 @@ def _make_electricity_frame_time_varying(
     total_intensity_per_row: list[float],
 ) -> pl.LazyFrame:
     assert len(heating_per_row) == n_rows and len(cooling_per_row) == n_rows
-    assert len(total_consumption_per_row) == n_rows and len(total_intensity_per_row) == n_rows
+    assert (
+        len(total_consumption_per_row) == n_rows
+        and len(total_intensity_per_row) == n_rows
+    )
     heating_cols = list(HEATING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS)
     cooling_cols = list(COOLING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS)
     data = {}
@@ -258,8 +291,45 @@ def test_replace_electricity_columns_constant() -> None:
     df = cast(pl.DataFrame, out.collect())
 
     assert df.shape[0] == n_rows
-    assert df["out.electricity.heating.energy_consumption"].to_list() == [3.0, 3.0, 3.0, 3.0]
-    assert df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[0]].to_list() == [65.0, 65.0, 65.0, 65.0]
+    # Every heating column = (2 + 4) / 2 = 3
+    for c in HEATING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS:
+        assert df[c].to_list() == [3.0] * n_rows
+    # Every cooling column = (1 + 2) / 2 = 1.5
+    for c in COOLING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS:
+        assert df[c].to_list() == [1.5] * n_rows
+    # Total: orig 100 - orig_heating_sum(4*10) - orig_cooling_sum(2*5) + avg_heating_sum(4*3) + avg_cooling_sum(2*1.5) = 100 - 40 - 10 + 12 + 3 = 65
+    assert (
+        df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[0]].to_list() == [65.0] * n_rows
+    )
+    # Total intensity: orig 1 - orig_heating_intensity(4*10) - orig_cooling_intensity(2*5) + avg_heating(4*3) + avg_cooling(2*1.5) = 1 - 40 - 10 + 12 + 3 = -34
+    assert (
+        df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[1]].to_list()
+        == [-34.0] * n_rows
+    )
+
+
+def test_replace_electricity_columns_single_neighbor() -> None:
+    """With one neighbor, all heating/cooling columns become that neighbor's; total = orig - orig_h/c + neighbor_h/c."""
+    n_rows = 3
+    original = _make_electricity_frame_constant(n_rows, 10.0, 5.0, 100.0, 1.0)
+    single = _make_electricity_frame_constant(n_rows, 2.0, 1.0, 50.0, 0.5)
+
+    out = _replace_electricity_columns(original, [single])
+    df = cast(pl.DataFrame, out.collect())
+
+    for c in HEATING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS:
+        assert df[c].to_list() == [2.0] * n_rows
+    for c in COOLING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS:
+        assert df[c].to_list() == [1.0] * n_rows
+    # total_consumption = 100 - 4*10 - 2*5 + 4*2 + 2*1 = 100 - 40 - 10 + 8 + 2 = 60
+    assert (
+        df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[0]].to_list() == [60.0] * n_rows
+    )
+    # total_intensity = 1 - 40 - 10 + 8 + 2 = -39
+    assert (
+        df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[1]].to_list()
+        == [-39.0] * n_rows
+    )
 
 
 def test_replace_electricity_columns_time_varying() -> None:
@@ -277,7 +347,9 @@ def test_replace_electricity_columns_time_varying() -> None:
     n2_heating = (4.0 + 0.3 * np.sin(hour)).tolist()
     n2_cooling = (2.0 + 0.15 * np.cos(hour)).tolist()
 
-    original = _make_electricity_frame_time_varying(n_rows, orig_heating, orig_cooling, orig_total, orig_intensity)
+    original = _make_electricity_frame_time_varying(
+        n_rows, orig_heating, orig_cooling, orig_total, orig_intensity
+    )
     neighbor1 = _make_electricity_frame_time_varying(
         n_rows, n1_heating, n1_cooling, [50.0] * n_rows, [0.5] * n_rows
     )
@@ -288,49 +360,108 @@ def test_replace_electricity_columns_time_varying() -> None:
     out = _replace_electricity_columns(original, [neighbor1, neighbor2])
     df = cast(pl.DataFrame, out.collect())
 
-    # Heating consumption (first col) = (n1_heating + n2_heating) / 2 per row
     expected_heating = [(a + b) / 2 for a, b in zip(n1_heating, n2_heating)]
-    assert df["out.electricity.heating.energy_consumption"].to_list() == pytest.approx(expected_heating)
-    # Cooling first col
     expected_cooling = [(a + b) / 2 for a, b in zip(n1_cooling, n2_cooling)]
-    assert df["out.electricity.cooling.energy_consumption"].to_list() == pytest.approx(expected_cooling)
+    # Every heating column equals expected_heating (all 8)
+    for c in HEATING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS:
+        assert df[c].to_list() == pytest.approx(expected_heating)
+    for c in COOLING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS:
+        assert df[c].to_list() == pytest.approx(expected_cooling)
 
-    # Total: orig_total - sum(orig heating consumption cols) - sum(orig cooling consumption cols) + avg_heating_sum + avg_cooling_sum
-    # 4 heating consumption cols, 2 cooling. orig_heating_sum = 4*orig_heating, orig_cooling_sum = 2*orig_cooling
-    # avg_heating_sum = 4 * expected_heating, avg_cooling_sum = 2 * expected_cooling
+    # Total consumption: orig_total - sum(orig 4 heating consumption) - sum(orig 2 cooling consumption) + avg_heating_sum + avg_cooling_sum
     orig_heating_sum = [4 * x for x in orig_heating]
     orig_cooling_sum = [2 * x for x in orig_cooling]
     avg_heating_sum = [4 * x for x in expected_heating]
     avg_cooling_sum = [2 * x for x in expected_cooling]
     expected_total = [
         o - oh - oc + ah + ac
-        for o, oh, oc, ah, ac in zip(orig_total, orig_heating_sum, orig_cooling_sum, avg_heating_sum, avg_cooling_sum)
+        for o, oh, oc, ah, ac in zip(
+            orig_total,
+            orig_heating_sum,
+            orig_cooling_sum,
+            avg_heating_sum,
+            avg_cooling_sum,
+        )
     ]
-    assert df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[0]].to_list() == pytest.approx(expected_total)
+    assert df[
+        TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[0]
+    ].to_list() == pytest.approx(expected_total)
+    # Total intensity: same formula with intensity columns (4 heating + 2 cooling)
+    orig_heating_int_sum = [4 * x for x in orig_heating]
+    orig_cooling_int_sum = [2 * x for x in orig_cooling]
+    expected_total_intensity = [
+        o - oh - oc + ah + ac
+        for o, oh, oc, ah, ac in zip(
+            orig_intensity,
+            orig_heating_int_sum,
+            orig_cooling_int_sum,
+            avg_heating_sum,
+            avg_cooling_sum,
+        )
+    ]
+    assert df[
+        TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[1]
+    ].to_list() == pytest.approx(expected_total_intensity)
+
+
+def test_replace_heating_cooling_load_columns_single_neighbor() -> None:
+    """With one neighbor, both load columns equal that neighbor's."""
+    n_rows = 24
+    hour = np.arange(n_rows, dtype=np.float64)
+    original = pl.DataFrame(
+        {
+            HEATING_LOAD_COLUMN: (10.0 + 3.0 * np.sin(hour)).tolist(),
+            COOLING_LOAD_COLUMN: (5.0 + 2.0 * np.cos(hour)).tolist(),
+        }
+    ).lazy()
+    single = pl.DataFrame(
+        {
+            HEATING_LOAD_COLUMN: (2.0 + 0.5 * np.sin(hour)).tolist(),
+            COOLING_LOAD_COLUMN: (1.0 + 0.3 * np.cos(hour)).tolist(),
+        }
+    ).lazy()
+
+    out = _replace_heating_cooling_load_columns(original, [single])
+    df = cast(pl.DataFrame, out.collect())
+
+    expected_h = (2.0 + 0.5 * np.sin(hour)).tolist()
+    expected_c = (1.0 + 0.3 * np.cos(hour)).tolist()
+    assert df[HEATING_LOAD_COLUMN].to_list() == pytest.approx(expected_h)
+    assert df[COOLING_LOAD_COLUMN].to_list() == pytest.approx(expected_c)
 
 
 def test_replace_heating_cooling_load_columns() -> None:
-    """Replace heating and cooling load columns with neighbor average; time-varying loads."""
+    """Replace heating and cooling load columns with neighbor average; time-varying loads, multiple neighbors."""
     n_rows = 168  # one week hourly
     hour = np.arange(n_rows, dtype=np.float64)
-    original = pl.DataFrame({
-        HEATING_LOAD_COLUMN: (10.0 + 3.0 * np.sin(2 * np.pi * hour / 24)).tolist(),
-        COOLING_LOAD_COLUMN: (5.0 + 2.0 * np.cos(2 * np.pi * hour / 24)).tolist(),
-    }).lazy()
-    neighbor1 = pl.DataFrame({
-        HEATING_LOAD_COLUMN: (2.0 + 0.5 * np.sin(2 * np.pi * hour / 24)).tolist(),
-        COOLING_LOAD_COLUMN: (1.0 + 0.3 * np.cos(2 * np.pi * hour / 24)).tolist(),
-    }).lazy()
-    neighbor2 = pl.DataFrame({
-        HEATING_LOAD_COLUMN: (4.0 + 1.0 * np.sin(2 * np.pi * hour / 24)).tolist(),
-        COOLING_LOAD_COLUMN: (3.0 + 0.8 * np.cos(2 * np.pi * hour / 24)).tolist(),
-    }).lazy()
-    neighbor3 = pl.DataFrame({
-        HEATING_LOAD_COLUMN: (1.0 + 0.2 * np.sin(2 * np.pi * hour / 24)).tolist(),
-        COOLING_LOAD_COLUMN: (2.0 + 0.5 * np.cos(2 * np.pi * hour / 24)).tolist(),
-    }).lazy()
+    original = pl.DataFrame(
+        {
+            HEATING_LOAD_COLUMN: (10.0 + 3.0 * np.sin(2 * np.pi * hour / 24)).tolist(),
+            COOLING_LOAD_COLUMN: (5.0 + 2.0 * np.cos(2 * np.pi * hour / 24)).tolist(),
+        }
+    ).lazy()
+    neighbor1 = pl.DataFrame(
+        {
+            HEATING_LOAD_COLUMN: (2.0 + 0.5 * np.sin(2 * np.pi * hour / 24)).tolist(),
+            COOLING_LOAD_COLUMN: (1.0 + 0.3 * np.cos(2 * np.pi * hour / 24)).tolist(),
+        }
+    ).lazy()
+    neighbor2 = pl.DataFrame(
+        {
+            HEATING_LOAD_COLUMN: (4.0 + 1.0 * np.sin(2 * np.pi * hour / 24)).tolist(),
+            COOLING_LOAD_COLUMN: (3.0 + 0.8 * np.cos(2 * np.pi * hour / 24)).tolist(),
+        }
+    ).lazy()
+    neighbor3 = pl.DataFrame(
+        {
+            HEATING_LOAD_COLUMN: (1.0 + 0.2 * np.sin(2 * np.pi * hour / 24)).tolist(),
+            COOLING_LOAD_COLUMN: (2.0 + 0.5 * np.cos(2 * np.pi * hour / 24)).tolist(),
+        }
+    ).lazy()
 
-    out = _replace_heating_cooling_load_columns(original, [neighbor1, neighbor2, neighbor3])
+    out = _replace_heating_cooling_load_columns(
+        original, [neighbor1, neighbor2, neighbor3]
+    )
     df = cast(pl.DataFrame, out.collect())
 
     n1_h = (2.0 + 0.5 * np.sin(2 * np.pi * hour / 24)).tolist()
@@ -346,7 +477,13 @@ def test_replace_heating_cooling_load_columns() -> None:
     assert df[COOLING_LOAD_COLUMN].to_list() == pytest.approx(expected_cooling)
 
 
-def _make_natural_gas_frame(n_rows: int, h_consumption: float, h_intensity: float, total_consumption: float, total_intensity: float) -> pl.LazyFrame:
+def _make_natural_gas_frame(
+    n_rows: int,
+    h_consumption: float,
+    h_intensity: float,
+    total_consumption: float,
+    total_intensity: float,
+) -> pl.LazyFrame:
     data = {
         HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]: [h_consumption] * n_rows,
         HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]: [h_intensity] * n_rows,
@@ -359,21 +496,113 @@ def _make_natural_gas_frame(n_rows: int, h_consumption: float, h_intensity: floa
 
 
 def test_replace_natural_gas_columns() -> None:
-    """Replace natural gas heating columns with neighbor average and adjust totals."""
+    """Replace natural gas heating columns with neighbor average and adjust totals. All 4 heating cols + 2 total cols."""
     n_rows = 4
-    original = _make_natural_gas_frame(n_rows, h_consumption=20.0, h_intensity=2.0, total_consumption=80.0, total_intensity=3.0)
-    neighbor1 = _make_natural_gas_frame(n_rows, h_consumption=4.0, h_intensity=0.4, total_consumption=30.0, total_intensity=0.3)
-    neighbor2 = _make_natural_gas_frame(n_rows, h_consumption=6.0, h_intensity=0.6, total_consumption=40.0, total_intensity=0.4)
+    original = _make_natural_gas_frame(
+        n_rows,
+        h_consumption=20.0,
+        h_intensity=2.0,
+        total_consumption=80.0,
+        total_intensity=3.0,
+    )
+    neighbor1 = _make_natural_gas_frame(
+        n_rows,
+        h_consumption=4.0,
+        h_intensity=0.4,
+        total_consumption=30.0,
+        total_intensity=0.3,
+    )
+    neighbor2 = _make_natural_gas_frame(
+        n_rows,
+        h_consumption=6.0,
+        h_intensity=0.6,
+        total_consumption=40.0,
+        total_intensity=0.4,
+    )
 
     out = _replace_natural_gas_columns(original, [neighbor1, neighbor2])
     df = cast(pl.DataFrame, out.collect())
 
-    assert df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == [5.0, 5.0, 5.0, 5.0]
-    assert df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == [65.0, 65.0, 65.0, 65.0]
-    assert df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]].to_list() == [1.5, 1.5, 1.5, 1.5]
+    # Heating: cols 0,2 are consumption (4 and 6 avg = 5); cols 1,3 are intensity (0.4 and 0.6 avg = 0.5)
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list()
+        == [5.0] * n_rows
+    )
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]].to_list()
+        == [0.5] * n_rows
+    )
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[2]].to_list()
+        == [0.0] * n_rows
+    )  # 0+0
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[3]].to_list()
+        == [0.0] * n_rows
+    )
+    # Total: 80 - (20+0) + (4+6)/2 + 0 = 80 - 20 + 5 = 65; intensity: 3 - (2+0) + 0.5 = 1.5
+    assert (
+        df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == [65.0] * n_rows
+    )
+    assert (
+        df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]].to_list() == [1.5] * n_rows
+    )
 
 
-def _make_fuel_oil_frame(n_rows: int, h_consumption: float, h_intensity: float, total_consumption: float, total_intensity: float) -> pl.LazyFrame:
+def test_replace_natural_gas_columns_single_neighbor() -> None:
+    """Single neighbor: all heating cols become neighbor's; total = orig_total - orig_heating_sum + neighbor_heating_sum."""
+    n_rows = 3
+    original = _make_natural_gas_frame(
+        n_rows,
+        h_consumption=20.0,
+        h_intensity=2.0,
+        total_consumption=80.0,
+        total_intensity=3.0,
+    )
+    single = _make_natural_gas_frame(
+        n_rows,
+        h_consumption=4.0,
+        h_intensity=0.4,
+        total_consumption=30.0,
+        total_intensity=0.3,
+    )
+
+    out = _replace_natural_gas_columns(original, [single])
+    df = cast(pl.DataFrame, out.collect())
+
+    # Single has col0=4, col1=0.4, col2=0, col3=0
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list()
+        == [4.0] * n_rows
+    )
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]].to_list()
+        == [0.4] * n_rows
+    )
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[2]].to_list()
+        == [0.0] * n_rows
+    )
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[3]].to_list()
+        == [0.0] * n_rows
+    )
+    # total = 80 - (20+0) + (4+0) = 64; total_intensity = 3 - (2+0) + (0.4+0) = 1.4
+    assert (
+        df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == [64.0] * n_rows
+    )
+    assert df[
+        TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]
+    ].to_list() == pytest.approx([1.4] * n_rows)
+
+
+def _make_fuel_oil_frame(
+    n_rows: int,
+    h_consumption: float,
+    h_intensity: float,
+    total_consumption: float,
+    total_intensity: float,
+) -> pl.LazyFrame:
     data = {
         HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]: [h_consumption] * n_rows,
         HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]: [h_intensity] * n_rows,
@@ -386,19 +615,93 @@ def _make_fuel_oil_frame(n_rows: int, h_consumption: float, h_intensity: float, 
 
 
 def test_replace_fuel_oil_columns() -> None:
-    """Replace fuel oil heating columns with neighbor average and adjust totals."""
+    """Replace fuel oil heating columns with neighbor average and adjust totals. All 4 heating + 2 total cols."""
     n_rows = 4
-    original = _make_fuel_oil_frame(n_rows, h_consumption=15.0, h_intensity=1.5, total_consumption=50.0, total_intensity=0.5)
-    neighbor1 = _make_fuel_oil_frame(n_rows, h_consumption=3.0, h_intensity=0.3, total_consumption=20.0, total_intensity=0.2)
+    original = _make_fuel_oil_frame(
+        n_rows,
+        h_consumption=15.0,
+        h_intensity=1.5,
+        total_consumption=50.0,
+        total_intensity=0.5,
+    )
+    neighbor1 = _make_fuel_oil_frame(
+        n_rows,
+        h_consumption=3.0,
+        h_intensity=0.3,
+        total_consumption=20.0,
+        total_intensity=0.2,
+    )
 
     out = _replace_fuel_oil_columns(original, [neighbor1])
     df = cast(pl.DataFrame, out.collect())
 
-    assert df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [3.0, 3.0, 3.0, 3.0]
-    assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [38.0, 38.0, 38.0, 38.0]
+    # Neighbor has (3, 0.3, 0, 0) for the 4 heating cols
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [3.0] * n_rows
+    )
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == [0.3] * n_rows
+    )
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[2]].to_list() == [0.0] * n_rows
+    )
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[3]].to_list() == [0.0] * n_rows
+    )
+    assert (
+        df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [38.0] * n_rows
+    )  # 50 - 15 + 3
+    assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == pytest.approx(
+        [-0.7] * n_rows
+    )  # 0.5 - 1.5 + 0.3
 
 
-def _make_propane_frame(n_rows: int, h_consumption: float, h_intensity: float, total_consumption: float, total_intensity: float) -> pl.LazyFrame:
+def test_replace_fuel_oil_columns_single_neighbor() -> None:
+    """Single neighbor: heating cols = neighbor; total = orig_total - orig_heating_sum + neighbor_heating_sum."""
+    n_rows = 3
+    original = _make_fuel_oil_frame(
+        n_rows,
+        h_consumption=15.0,
+        h_intensity=1.5,
+        total_consumption=50.0,
+        total_intensity=0.5,
+    )
+    single = _make_fuel_oil_frame(
+        n_rows,
+        h_consumption=3.0,
+        h_intensity=0.3,
+        total_consumption=20.0,
+        total_intensity=0.2,
+    )
+
+    out = _replace_fuel_oil_columns(original, [single])
+    df = cast(pl.DataFrame, out.collect())
+
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [3.0] * n_rows
+    )
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == [0.3] * n_rows
+    )
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[2]].to_list() == [0.0] * n_rows
+    )
+    assert (
+        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[3]].to_list() == [0.0] * n_rows
+    )
+    assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [38.0] * n_rows
+    assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == pytest.approx(
+        [-0.7] * n_rows
+    )
+
+
+def _make_propane_frame(
+    n_rows: int,
+    h_consumption: float,
+    h_intensity: float,
+    total_consumption: float,
+    total_intensity: float,
+) -> pl.LazyFrame:
     data = {
         HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]: [h_consumption] * n_rows,
         HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]: [h_intensity] * n_rows,
@@ -411,14 +714,77 @@ def _make_propane_frame(n_rows: int, h_consumption: float, h_intensity: float, t
 
 
 def test_replace_propane_columns() -> None:
-    """Replace propane heating columns with neighbor average and adjust totals."""
+    """Replace propane heating columns with neighbor average and adjust totals. All 4 heating + 2 total cols."""
     n_rows = 4
-    original = _make_propane_frame(n_rows, h_consumption=12.0, h_intensity=1.2, total_consumption=45.0, total_intensity=0.45)
-    neighbor1 = _make_propane_frame(n_rows, h_consumption=2.0, h_intensity=0.2, total_consumption=15.0, total_intensity=0.15)
-    neighbor2 = _make_propane_frame(n_rows, h_consumption=4.0, h_intensity=0.4, total_consumption=25.0, total_intensity=0.25)
+    original = _make_propane_frame(
+        n_rows,
+        h_consumption=12.0,
+        h_intensity=1.2,
+        total_consumption=45.0,
+        total_intensity=0.45,
+    )
+    neighbor1 = _make_propane_frame(
+        n_rows,
+        h_consumption=2.0,
+        h_intensity=0.2,
+        total_consumption=15.0,
+        total_intensity=0.15,
+    )
+    neighbor2 = _make_propane_frame(
+        n_rows,
+        h_consumption=4.0,
+        h_intensity=0.4,
+        total_consumption=25.0,
+        total_intensity=0.25,
+    )
 
     out = _replace_propane_columns(original, [neighbor1, neighbor2])
     df = cast(pl.DataFrame, out.collect())
 
-    assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == [3.0, 3.0, 3.0, 3.0]
-    assert df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == [36.0, 36.0, 36.0, 36.0]
+    assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == pytest.approx(
+        [3.0] * n_rows
+    )
+    assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]].to_list() == pytest.approx(
+        [0.3] * n_rows
+    )
+    assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[2]].to_list() == [0.0] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[3]].to_list() == [0.0] * n_rows
+    assert df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == pytest.approx(
+        [36.0] * n_rows
+    )  # 45 - 12 + 3
+    assert df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]].to_list() == pytest.approx(
+        [-0.45] * n_rows
+    )  # 0.45 - 1.2 + 0.3
+
+
+def test_replace_propane_columns_single_neighbor() -> None:
+    """Single neighbor: all heating cols = neighbor's; total = orig_total - orig_heating_sum + neighbor_heating_sum."""
+    n_rows = 3
+    original = _make_propane_frame(
+        n_rows,
+        h_consumption=12.0,
+        h_intensity=1.2,
+        total_consumption=45.0,
+        total_intensity=0.45,
+    )
+    single = _make_propane_frame(
+        n_rows,
+        h_consumption=2.0,
+        h_intensity=0.2,
+        total_consumption=15.0,
+        total_intensity=0.15,
+    )
+
+    out = _replace_propane_columns(original, [single])
+    df = cast(pl.DataFrame, out.collect())
+
+    assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == [2.0] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]].to_list() == [0.2] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[2]].to_list() == [0.0] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[3]].to_list() == [0.0] * n_rows
+    assert (
+        df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == [35.0] * n_rows
+    )  # 45 - 12 + 2
+    assert df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]].to_list() == pytest.approx(
+        [-0.55] * n_rows
+    )  # 0.45 - 1.2 + 0.2
