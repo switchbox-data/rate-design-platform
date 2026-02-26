@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 from typing import cast
 
 import numpy as np
@@ -8,6 +9,15 @@ from cloudpathlib import S3Path
 from utils import get_aws_region
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
+
+
+def _parquet_storage_options(load_curve_hourly_dir: S3Path | Path) -> dict:
+    """Return storage_options for scan_parquet/sink_parquet: use AWS options for S3, none for local Path."""
+    if isinstance(load_curve_hourly_dir, S3Path):
+        return STORAGE_OPTIONS
+    return {}
+
+
 BLDG_TYPE_COLUMN = "in.geometry_building_type_height"
 STORIES_COLUMN = "in.geometry_story_bin"
 WEATHER_FILE_CITY_COLUMN = "in.weather_file_city"
@@ -30,12 +40,12 @@ HEATING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS = (
 COOLING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS = (
     "out.electricity.cooling.energy_consumption",
     "out.electricity.cooling.energy_consumption_intensity",
+    "out.electricity.cooling_fans_pumps.energy_consumption",
+    "out.electricity.cooling_fans_pumps.energy_consumption_intensity",
 )
 TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS = (
     "out.electricity.total.energy_consumption",
     "out.electricity.total.energy_consumption_intensity",
-    "out.electricity.cooling_fans_pumps.energy_consumption",
-    "out.electricity.cooling_fans_pumps.energy_consumption_intensity",
 )
 
 # Heating/Cooling energy consumption columns for all fuels.
@@ -106,15 +116,16 @@ def group_by_weather_station_id(metadata: pl.LazyFrame) -> dict[str, list[int]]:
 
 
 def _load_one_total_building_load_curve(
-    load_curve_hourly_dir: S3Path,
+    load_curve_hourly_dir: S3Path | Path,
     bldg_id: int,
     upgrade_id: str,
     include_cooling: bool = False,
 ) -> tuple[int, np.ndarray] | None:
     """Load one parquet, compute summed column; returns (bldg_id, vec) or None."""
     path = load_curve_hourly_dir / f"{bldg_id}-{int(upgrade_id)}.parquet"
+    opts = _parquet_storage_options(load_curve_hourly_dir)
     try:
-        lf = pl.scan_parquet(str(path), storage_options=STORAGE_OPTIONS)
+        lf = pl.scan_parquet(str(path), storage_options=opts)
     except Exception:
         raise ValueError(
             f"Failed to load load curve for bldg_id: {bldg_id} from {path}"
@@ -146,14 +157,15 @@ def _load_one_total_building_load_curve(
 
 
 def _load_one_total_heating_cooling_energy_consumption_curve(
-    load_curve_hourly_dir: S3Path,
+    load_curve_hourly_dir: S3Path | Path,
     bldg_id: int,
     upgrade_id: str,
 ) -> tuple[int, np.ndarray] | None:
     """Load one parquet, compute summed heating + cooling energy consumption columns; returns (bldg_id, vec) or None."""
     path = load_curve_hourly_dir / f"{bldg_id}-{int(upgrade_id)}.parquet"
+    opts = _parquet_storage_options(load_curve_hourly_dir)
     try:
-        lf = pl.scan_parquet(str(path), storage_options=STORAGE_OPTIONS)
+        lf = pl.scan_parquet(str(path), storage_options=opts)
     except Exception:
         raise ValueError(
             f"Failed to load load curve for bldg_id: {bldg_id} from {path}"
@@ -202,14 +214,15 @@ def _load_one_total_heating_cooling_energy_consumption_curve(
 
 
 def _load_one_heating_building_load_curve(
-    load_curve_hourly_dir: S3Path,
+    load_curve_hourly_dir: S3Path | Path,
     bldg_id: int,
     upgrade_id: str,
 ) -> tuple[int, np.ndarray] | None:
     """Load one parquet, heating load column only; returns (bldg_id, vec) or None."""
     path = load_curve_hourly_dir / f"{bldg_id}-{int(upgrade_id)}.parquet"
+    opts = _parquet_storage_options(load_curve_hourly_dir)
     try:
-        lf = pl.scan_parquet(str(path), storage_options=STORAGE_OPTIONS)
+        lf = pl.scan_parquet(str(path), storage_options=opts)
     except Exception:
         raise ValueError(
             f"Failed to load load curve for bldg_id: {bldg_id} from {path}"
@@ -232,14 +245,15 @@ def _load_one_heating_building_load_curve(
 
 
 def _load_one_cooling_building_load_curve(
-    load_curve_hourly_dir: S3Path,
+    load_curve_hourly_dir: S3Path | Path,
     bldg_id: int,
     upgrade_id: str,
 ) -> tuple[int, np.ndarray] | None:
     """Load one parquet, cooling load column only; returns (bldg_id, vec) or None."""
     path = load_curve_hourly_dir / f"{bldg_id}-{int(upgrade_id)}.parquet"
+    opts = _parquet_storage_options(load_curve_hourly_dir)
     try:
-        lf = pl.scan_parquet(str(path), storage_options=STORAGE_OPTIONS)
+        lf = pl.scan_parquet(str(path), storage_options=opts)
     except Exception:
         raise ValueError(
             f"Failed to load load curve for bldg_id: {bldg_id} from {path}"
@@ -262,14 +276,15 @@ def _load_one_cooling_building_load_curve(
 
 
 def _load_one_heating_energy_consumption_curve(
-    load_curve_hourly_dir: S3Path,
+    load_curve_hourly_dir: S3Path | Path,
     bldg_id: int,
     upgrade_id: str,
 ) -> tuple[int, np.ndarray] | None:
     """Load one parquet, heating energy consumption columns only (summed); returns (bldg_id, vec) or None."""
     path = load_curve_hourly_dir / f"{bldg_id}-{int(upgrade_id)}.parquet"
+    opts = _parquet_storage_options(load_curve_hourly_dir)
     try:
-        lf = pl.scan_parquet(str(path), storage_options=STORAGE_OPTIONS)
+        lf = pl.scan_parquet(str(path), storage_options=opts)
     except Exception:
         raise ValueError(
             f"Failed to load load curve for bldg_id: {bldg_id} from {path}"
@@ -304,14 +319,15 @@ def _load_one_heating_energy_consumption_curve(
 
 
 def _load_one_cooling_energy_consumption_curve(
-    load_curve_hourly_dir: S3Path,
+    load_curve_hourly_dir: S3Path | Path,
     bldg_id: int,
     upgrade_id: str,
 ) -> tuple[int, np.ndarray] | None:
     """Load one parquet, cooling energy consumption columns only (summed); returns (bldg_id, vec) or None."""
     path = load_curve_hourly_dir / f"{bldg_id}-{int(upgrade_id)}.parquet"
+    opts = _parquet_storage_options(load_curve_hourly_dir)
     try:
-        lf = pl.scan_parquet(str(path), storage_options=STORAGE_OPTIONS)
+        lf = pl.scan_parquet(str(path), storage_options=opts)
     except Exception:
         raise ValueError(
             f"Failed to load load curve for bldg_id: {bldg_id} from {path}"
@@ -346,7 +362,7 @@ def _load_one_cooling_energy_consumption_curve(
 
 
 def _load_all_total_load_curves_for_bldg_ids(
-    load_curve_hourly_dir: S3Path,
+    load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
     bldg_ids: list[int],
     max_workers: int = 256,
@@ -374,7 +390,7 @@ def _load_all_total_load_curves_for_bldg_ids(
 
 
 def _load_all_heating_load_curves_for_bldg_ids(
-    load_curve_hourly_dir: S3Path,
+    load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
     bldg_ids: list[int],
     max_workers: int = 256,
@@ -413,16 +429,16 @@ def _rmse_8760(x: np.ndarray, y: np.ndarray, smooth: bool = False) -> float:
 def _find_nearest_neighbors(
     metadata: pl.LazyFrame,
     non_hp_mf_highrise_bldg_metadata: pl.LazyFrame,
-    load_curve_hourly_dir: S3Path,
+    load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
     *,
     k: int = 5,
     max_workers_load_curves: int = 256,
     max_workers_neighbors: int = 256,
     include_cooling: bool = False,
-) -> dict[int, list[int]]:
+) -> dict[int, list[tuple[int, float]]]:
     """For each non-HP MF highrise bldg, find k nearest same-weather bldgs by lowest RMSE on load curves.
-    Returns non_hp_bldg_id -> [k nearest neighbor bldg_ids].
+    Returns non_hp_bldg_id -> [(neighbor_bldg_id, rmse), ...].
     """
     weather_station_bldg_id_map_non_hp = group_by_weather_station_id(
         non_hp_mf_highrise_bldg_metadata
@@ -445,6 +461,7 @@ def _find_nearest_neighbors(
                 upgrade_id,
                 station_bldg_ids,
                 max_workers=max_workers_load_curves,
+                include_cooling=include_cooling,
             )
         else:
             non_hp_load_curves = _load_all_heating_load_curves_for_bldg_ids(
@@ -463,6 +480,7 @@ def _find_nearest_neighbors(
                         load_curve_hourly_dir,
                         bldg_id,
                         upgrade_id,
+                        include_cooling=include_cooling,
                     ): bldg_id
                     for bldg_id in neighbor_bldg_ids
                 }
@@ -491,6 +509,7 @@ def _find_nearest_neighbors(
                         k_nearest_bldg_id_map[station_bldg_id].append(
                             (neighbor_bldg_id, rmse)
                         )
+                        k_nearest_bldg_id_map[station_bldg_id].sort(key=lambda p: p[1])
                     else:
                         if rmse < k_nearest_bldg_id_map[station_bldg_id][-1][1]:
                             k_nearest_bldg_id_map[station_bldg_id][-1] = (
@@ -506,72 +525,401 @@ def _find_nearest_neighbors(
     return k_nearest_bldg_id_map
 
 
-def _find_nearest_neighbors_ignore_weather_station(
-    metadata: pl.LazyFrame,
-    non_hp_mf_highrise_bldg_metadata: pl.LazyFrame,
-    load_curve_hourly_dir: S3Path,
+def _replace_electricity_columns(
+    original_load_curve_hourly: pl.LazyFrame,
+    neighbors_load_curve_hourly: list[pl.LazyFrame],
+) -> pl.LazyFrame:
+    """Replace heating and cooling electricity columns with neighbor averages and adjust total electricity columns accordingly."""
+    heating_cols = list(HEATING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS)
+    cooling_cols = list(COOLING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS)
+    hc_cols = heating_cols + cooling_cols
+    n_neighbors = len(neighbors_load_curve_hourly)
+
+    # Add row index to original so we can join neighbors by hour
+    out = original_load_curve_hourly.with_row_index("_ri")
+
+    # Join each neighbor on row index; alias neighbor columns to _n0_<col>, _n1_<col>, ...
+    for i, neighbor in enumerate(neighbors_load_curve_hourly):
+        neighbor_select = neighbor.select(
+            [pl.col(c).alias(f"_n{i}_{c}") for c in hc_cols]
+        ).with_row_index("_ri")
+        out = out.join(neighbor_select, on="_ri", how="left")
+
+    # Average each heating/cooling column: (_n0_c + _n1_c + ... + _n{k-1}_c) / k
+    def avg_expr(col: str) -> pl.Expr:
+        total = pl.col(f"_n0_{col}")
+        for j in range(1, n_neighbors):
+            total = total + pl.col(f"_n{j}_{col}")
+        return total / n_neighbors
+
+    replace_cols: list[pl.Expr] = [avg_expr(c).alias(c) for c in hc_cols]
+
+    # Column sets for total adjustment
+    heating_consumption = [c for c in heating_cols if "consumption_intensity" not in c]
+    cooling_consumption = [c for c in cooling_cols if "consumption_intensity" not in c]
+    heating_intensity = [c for c in heating_cols if "consumption_intensity" in c]
+    cooling_intensity = [c for c in cooling_cols if "consumption_intensity" in c]
+
+    # Original sums (from original frame, still in out)
+    orig_heating_consumption = pl.col(heating_consumption[0])
+    for c in heating_consumption[1:]:
+        orig_heating_consumption = orig_heating_consumption + pl.col(c)
+    orig_cooling_consumption = pl.col(cooling_consumption[0])
+    for c in cooling_consumption[1:]:
+        orig_cooling_consumption = orig_cooling_consumption + pl.col(c)
+    orig_heating_intensity = pl.col(heating_intensity[0])
+    for c in heating_intensity[1:]:
+        orig_heating_intensity = orig_heating_intensity + pl.col(c)
+    orig_cooling_intensity = pl.col(cooling_intensity[0])
+    for c in cooling_intensity[1:]:
+        orig_cooling_intensity = orig_cooling_intensity + pl.col(c)
+
+    # Averaged sums: (1/n) * sum over neighbors of (sum of cols)
+    def avg_sum(cols: list[str]) -> pl.Expr:
+        neighbor_sums = pl.col(f"_n0_{cols[0]}")
+        for c in cols[1:]:
+            neighbor_sums = neighbor_sums + pl.col(f"_n0_{c}")
+        for i in range(1, n_neighbors):
+            s = pl.col(f"_n{i}_{cols[0]}")
+            for c in cols[1:]:
+                s = s + pl.col(f"_n{i}_{c}")
+            neighbor_sums = neighbor_sums + s
+        return neighbor_sums / n_neighbors
+
+    avg_heating_consumption = avg_sum(heating_consumption)
+    avg_cooling_consumption = avg_sum(cooling_consumption)
+    avg_heating_intensity = avg_sum(heating_intensity)
+    avg_cooling_intensity = avg_sum(cooling_intensity)
+
+    total_consumption_col = TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[0]
+    total_intensity_col = TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[1]
+    new_total_consumption = (
+        pl.col(total_consumption_col)
+        - orig_heating_consumption
+        - orig_cooling_consumption
+        + avg_heating_consumption
+        + avg_cooling_consumption
+    )
+    new_total_intensity = (
+        pl.col(total_intensity_col)
+        - orig_heating_intensity
+        - orig_cooling_intensity
+        + avg_heating_intensity
+        + avg_cooling_intensity
+    )
+    replace_cols.extend(
+        [
+            new_total_consumption.alias(total_consumption_col),
+            new_total_intensity.alias(total_intensity_col),
+        ]
+    )
+
+    drop_cols = ["_ri"] + [f"_n{i}_{c}" for i in range(n_neighbors) for c in hc_cols]
+    return out.with_columns(replace_cols).drop(drop_cols)
+
+
+def _replace_heating_cooling_load_columns(
+    original_load_curve_hourly: pl.LazyFrame,
+    neighbors_load_curve_hourly: list[pl.LazyFrame],
+) -> pl.LazyFrame:
+    """Replace heating and cooling load columns with neighbor averages."""
+    hc_cols = [HEATING_LOAD_COLUMN, COOLING_LOAD_COLUMN]
+    n_neighbors = len(neighbors_load_curve_hourly)
+
+    out = original_load_curve_hourly.with_row_index("_ri")
+
+    for i, neighbor in enumerate(neighbors_load_curve_hourly):
+        neighbor_select = neighbor.select(
+            [pl.col(c).alias(f"_n{i}_{c}") for c in hc_cols]
+        ).with_row_index("_ri")
+        out = out.join(neighbor_select, on="_ri", how="left")
+
+    def avg_expr(col: str) -> pl.Expr:
+        total = pl.col(f"_n0_{col}")
+        for j in range(1, n_neighbors):
+            total = total + pl.col(f"_n{j}_{col}")
+        return total / n_neighbors
+
+    replace_cols = [avg_expr(c).alias(c) for c in hc_cols]
+    drop_cols = ["_ri"] + [f"_n{i}_{c}" for i in range(n_neighbors) for c in hc_cols]
+    return out.with_columns(replace_cols).drop(drop_cols)
+
+
+def _replace_natural_gas_columns(
+    original_load_curve_hourly: pl.LazyFrame,
+    neighbors_load_curve_hourly: list[pl.LazyFrame],
+) -> pl.LazyFrame:
+    """Replace natural gas heating columns with neighbor averages and adjust total natural gas columns accordingly."""
+
+    heating_cols = list(HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS)
+    n_neighbors = len(neighbors_load_curve_hourly)
+
+    out = original_load_curve_hourly.with_row_index("_ri")
+
+    for i, neighbor in enumerate(neighbors_load_curve_hourly):
+        neighbor_select = neighbor.select(
+            [pl.col(c).alias(f"_n{i}_{c}") for c in heating_cols]
+        ).with_row_index("_ri")
+        out = out.join(neighbor_select, on="_ri", how="left")
+
+    def avg_expr(col: str) -> pl.Expr:
+        total = pl.col(f"_n0_{col}")
+        for j in range(1, n_neighbors):
+            total = total + pl.col(f"_n{j}_{col}")
+        return total / n_neighbors
+
+    replace_cols: list[pl.Expr] = [avg_expr(c).alias(c) for c in heating_cols]
+
+    heating_consumption = [c for c in heating_cols if "consumption_intensity" not in c]
+    heating_intensity = [c for c in heating_cols if "consumption_intensity" in c]
+
+    orig_heating_consumption = pl.col(heating_consumption[0])
+    for c in heating_consumption[1:]:
+        orig_heating_consumption = orig_heating_consumption + pl.col(c)
+    orig_heating_intensity = pl.col(heating_intensity[0])
+    for c in heating_intensity[1:]:
+        orig_heating_intensity = orig_heating_intensity + pl.col(c)
+
+    def avg_sum(cols: list[str]) -> pl.Expr:
+        neighbor_sums = pl.col(f"_n0_{cols[0]}")
+        for c in cols[1:]:
+            neighbor_sums = neighbor_sums + pl.col(f"_n0_{c}")
+        for i in range(1, n_neighbors):
+            s = pl.col(f"_n{i}_{cols[0]}")
+            for c in cols[1:]:
+                s = s + pl.col(f"_n{i}_{c}")
+            neighbor_sums = neighbor_sums + s
+        return neighbor_sums / n_neighbors
+
+    avg_heating_consumption = avg_sum(heating_consumption)
+    avg_heating_intensity = avg_sum(heating_intensity)
+
+    total_consumption_col = TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]
+    total_intensity_col = TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]
+    new_total_consumption = (
+        pl.col(total_consumption_col)
+        - orig_heating_consumption
+        + avg_heating_consumption
+    )
+    new_total_intensity = (
+        pl.col(total_intensity_col) - orig_heating_intensity + avg_heating_intensity
+    )
+    replace_cols.extend(
+        [
+            new_total_consumption.alias(total_consumption_col),
+            new_total_intensity.alias(total_intensity_col),
+        ]
+    )
+
+    drop_cols = ["_ri"] + [
+        f"_n{i}_{c}" for i in range(n_neighbors) for c in heating_cols
+    ]
+    return out.with_columns(replace_cols).drop(drop_cols)
+
+
+def _replace_fuel_oil_columns(
+    original_load_curve_hourly: pl.LazyFrame,
+    neighbors_load_curve_hourly: list[pl.LazyFrame],
+) -> pl.LazyFrame:
+    """Replace fuel oil heating columns with neighbor averages and adjust total fuel oil columns accordingly."""
+    heating_cols = list(HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS)
+    n_neighbors = len(neighbors_load_curve_hourly)
+
+    out = original_load_curve_hourly.with_row_index("_ri")
+
+    for i, neighbor in enumerate(neighbors_load_curve_hourly):
+        neighbor_select = neighbor.select(
+            [pl.col(c).alias(f"_n{i}_{c}") for c in heating_cols]
+        ).with_row_index("_ri")
+        out = out.join(neighbor_select, on="_ri", how="left")
+
+    def avg_expr(col: str) -> pl.Expr:
+        total = pl.col(f"_n0_{col}")
+        for j in range(1, n_neighbors):
+            total = total + pl.col(f"_n{j}_{col}")
+        return total / n_neighbors
+
+    replace_cols: list[pl.Expr] = [avg_expr(c).alias(c) for c in heating_cols]
+
+    heating_consumption = [c for c in heating_cols if "consumption_intensity" not in c]
+    heating_intensity = [c for c in heating_cols if "consumption_intensity" in c]
+
+    orig_heating_consumption = pl.col(heating_consumption[0])
+    for c in heating_consumption[1:]:
+        orig_heating_consumption = orig_heating_consumption + pl.col(c)
+    orig_heating_intensity = pl.col(heating_intensity[0])
+    for c in heating_intensity[1:]:
+        orig_heating_intensity = orig_heating_intensity + pl.col(c)
+
+    def avg_sum(cols: list[str]) -> pl.Expr:
+        neighbor_sums = pl.col(f"_n0_{cols[0]}")
+        for c in cols[1:]:
+            neighbor_sums = neighbor_sums + pl.col(f"_n0_{c}")
+        for i in range(1, n_neighbors):
+            s = pl.col(f"_n{i}_{cols[0]}")
+            for c in cols[1:]:
+                s = s + pl.col(f"_n{i}_{c}")
+            neighbor_sums = neighbor_sums + s
+        return neighbor_sums / n_neighbors
+
+    avg_heating_consumption = avg_sum(heating_consumption)
+    avg_heating_intensity = avg_sum(heating_intensity)
+
+    total_consumption_col = TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]
+    total_intensity_col = TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]
+    new_total_consumption = (
+        pl.col(total_consumption_col)
+        - orig_heating_consumption
+        + avg_heating_consumption
+    )
+    new_total_intensity = (
+        pl.col(total_intensity_col) - orig_heating_intensity + avg_heating_intensity
+    )
+    replace_cols.extend(
+        [
+            new_total_consumption.alias(total_consumption_col),
+            new_total_intensity.alias(total_intensity_col),
+        ]
+    )
+
+    drop_cols = ["_ri"] + [
+        f"_n{i}_{c}" for i in range(n_neighbors) for c in heating_cols
+    ]
+    return out.with_columns(replace_cols).drop(drop_cols)
+
+
+def _replace_propane_columns(
+    original_load_curve_hourly: pl.LazyFrame,
+    neighbors_load_curve_hourly: list[pl.LazyFrame],
+) -> pl.LazyFrame:
+    """Replace propane heating columns with neighbor averages and adjust total propane columns accordingly."""
+    heating_cols = list(HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS)
+    n_neighbors = len(neighbors_load_curve_hourly)
+
+    out = original_load_curve_hourly.with_row_index("_ri")
+
+    for i, neighbor in enumerate(neighbors_load_curve_hourly):
+        neighbor_select = neighbor.select(
+            [pl.col(c).alias(f"_n{i}_{c}") for c in heating_cols]
+        ).with_row_index("_ri")
+        out = out.join(neighbor_select, on="_ri", how="left")
+
+    def avg_expr(col: str) -> pl.Expr:
+        total = pl.col(f"_n0_{col}")
+        for j in range(1, n_neighbors):
+            total = total + pl.col(f"_n{j}_{col}")
+        return total / n_neighbors
+
+    replace_cols: list[pl.Expr] = [avg_expr(c).alias(c) for c in heating_cols]
+
+    heating_consumption = [c for c in heating_cols if "consumption_intensity" not in c]
+    heating_intensity = [c for c in heating_cols if "consumption_intensity" in c]
+
+    orig_heating_consumption = pl.col(heating_consumption[0])
+    for c in heating_consumption[1:]:
+        orig_heating_consumption = orig_heating_consumption + pl.col(c)
+    orig_heating_intensity = pl.col(heating_intensity[0])
+    for c in heating_intensity[1:]:
+        orig_heating_intensity = orig_heating_intensity + pl.col(c)
+
+    def avg_sum(cols: list[str]) -> pl.Expr:
+        neighbor_sums = pl.col(f"_n0_{cols[0]}")
+        for c in cols[1:]:
+            neighbor_sums = neighbor_sums + pl.col(f"_n0_{c}")
+        for i in range(1, n_neighbors):
+            s = pl.col(f"_n{i}_{cols[0]}")
+            for c in cols[1:]:
+                s = s + pl.col(f"_n{i}_{c}")
+            neighbor_sums = neighbor_sums + s
+        return neighbor_sums / n_neighbors
+
+    avg_heating_consumption = avg_sum(heating_consumption)
+    avg_heating_intensity = avg_sum(heating_intensity)
+
+    total_consumption_col = TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]
+    total_intensity_col = TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]
+    new_total_consumption = (
+        pl.col(total_consumption_col)
+        - orig_heating_consumption
+        + avg_heating_consumption
+    )
+    new_total_intensity = (
+        pl.col(total_intensity_col) - orig_heating_intensity + avg_heating_intensity
+    )
+    replace_cols.extend(
+        [
+            new_total_consumption.alias(total_consumption_col),
+            new_total_intensity.alias(total_intensity_col),
+        ]
+    )
+
+    drop_cols = ["_ri"] + [
+        f"_n{i}_{c}" for i in range(n_neighbors) for c in heating_cols
+    ]
+    return out.with_columns(replace_cols).drop(drop_cols)
+
+
+def replace_hvac_columns(
+    original_load_curve_hourly: pl.LazyFrame,
+    neighbors_load_curve_hourly: list[pl.LazyFrame],
+) -> pl.LazyFrame:
+    """Replace hvac columns in the original load curve with neighbor averages. Frames must already be loaded."""
+    out = _replace_electricity_columns(
+        original_load_curve_hourly, neighbors_load_curve_hourly
+    )
+    out = _replace_heating_cooling_load_columns(out, neighbors_load_curve_hourly)
+    out = _replace_natural_gas_columns(out, neighbors_load_curve_hourly)
+    out = _replace_fuel_oil_columns(out, neighbors_load_curve_hourly)
+    out = _replace_propane_columns(out, neighbors_load_curve_hourly)
+    return out
+
+
+def update_load_curve_hourly(
+    nearest_neighbor_map: dict[int, list[tuple[int, float]]],
+    load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
     *,
-    k: int = 5,
-    max_workers_load_curves: int = 256,
-    max_workers_neighbors: int = 256,
-) -> dict[int, list[int]]:
-    """For each non-HP MF highrise bldg, find k nearest same-weather bldgs by lowest RMSE on load curves.
-    Returns non_hp_bldg_id -> [k nearest neighbor bldg_ids].
-    """
-    all_bldg_ids = cast(
-        pl.DataFrame,
-        metadata.select("bldg_id").collect(),
-    )["bldg_id"].to_list()
-    non_hp_bldg_ids = cast(
-        pl.DataFrame,
-        non_hp_mf_highrise_bldg_metadata.select("bldg_id").collect(),
-    )["bldg_id"].to_list()
-    neighbor_bldg_ids = [x for x in all_bldg_ids if x not in non_hp_bldg_ids]
-    k_nearest_bldg_id_map: dict[int, list[tuple[int, float]]] = {
-        bldg_id: [] for bldg_id in non_hp_bldg_ids
-    }
-    non_hp_load_curves = _load_all_total_load_curves_for_bldg_ids(
-        load_curve_hourly_dir,
-        upgrade_id,
-        non_hp_bldg_ids,
-        max_workers=max_workers_load_curves,
-    )
-    # Download load curves for each neighbor (in parallel).
-    with ThreadPoolExecutor(max_workers=max_workers_neighbors) as executor:
-        futures = {
-            executor.submit(
-                _load_one_total_building_load_curve,
-                load_curve_hourly_dir,
-                bldg_id,
-                upgrade_id,
-            ): bldg_id
-            for bldg_id in neighbor_bldg_ids
-        }
-        for i, future in enumerate(as_completed(futures)):
-            result = future.result()
-            neighbor_bldg_id, neighbor_load_curve_vec = result
-            # For each non-HP station bldg, compute RMSE to each neighbor; iteratively keep only top k (lowest RMSE).
-            for non_hp_bldg_id in non_hp_bldg_ids:
-                non_hp_bldg_load_curve_vec = non_hp_load_curves[non_hp_bldg_id]
-                rmse = _rmse_8760(non_hp_bldg_load_curve_vec, neighbor_load_curve_vec)
-                if len(k_nearest_bldg_id_map[non_hp_bldg_id]) < k:
-                    k_nearest_bldg_id_map[non_hp_bldg_id].append(
-                        (neighbor_bldg_id, rmse)
-                    )
-                else:
-                    if rmse < k_nearest_bldg_id_map[non_hp_bldg_id][-1][1]:
-                        k_nearest_bldg_id_map[non_hp_bldg_id][-1] = (
-                            neighbor_bldg_id,
-                            rmse,
-                        )
-                        k_nearest_bldg_id_map[non_hp_bldg_id].sort(key=lambda p: p[1])
-            print(f"Processed {i + 1} of {len(neighbor_bldg_ids)} neighbor bldgs")
-    return k_nearest_bldg_id_map
+    max_workers: int = 64,
+) -> None:
+    """Load original and neighbor parquets concurrently, replace hvac columns, sink back to original path. Stays in LazyFrame (scan/sink)."""
+    upgrade_int = int(upgrade_id)
+    opts = _parquet_storage_options(load_curve_hourly_dir)
+
+    def process_one(
+        bldg_id: int, k_nearest_bldg_ids_rmse: list[tuple[int, float]]
+    ) -> None:
+        original_path = load_curve_hourly_dir / f"{bldg_id}-{upgrade_int}.parquet"
+        neighbor_ids = [nid for nid, _ in k_nearest_bldg_ids_rmse]
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            original_future = executor.submit(
+                pl.scan_parquet,
+                str(original_path),
+                storage_options=opts,
+            )
+            neighbor_futures = [
+                executor.submit(
+                    pl.scan_parquet,
+                    str(load_curve_hourly_dir / f"{nid}-{upgrade_int}.parquet"),
+                    storage_options=opts,
+                )
+                for nid in neighbor_ids
+            ]
+            original_lf = original_future.result()
+            neighbors_lf = [f.result() for f in neighbor_futures]
+        replaced = replace_hvac_columns(original_lf, neighbors_lf)
+        replaced.sink_parquet(str(original_path), storage_options=opts)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            executor.submit(process_one, bldg_id, k_nearest_bldg_ids_rmse)
+            for bldg_id, k_nearest_bldg_ids_rmse in nearest_neighbor_map.items()
+        ]
+        for future in as_completed(futures):
+            future.result()
 
 
 def _validate_one_building_load(
-    load_curve_hourly_dir: S3Path,
+    load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
     bldg_id: int,
     k_nearest_bldg_ids_rmse: list[tuple[int, float]],
@@ -589,6 +937,14 @@ def _validate_one_building_load(
         )
     except (ValueError, OSError) as e:
         raise ValueError(f"Error loading load curve for bldg_id: {bldg_id}: {e}")
+    if (
+        real_total_result is None
+        or real_heating_result is None
+        or real_cooling_result is None
+    ):
+        raise ValueError(
+            f"Error loading load curve for bldg_id: {bldg_id}: one or more curves failed to load"
+        )
     _, real_total_vec = real_total_result
     _, real_heating_vec = real_heating_result
     _, real_cooling_vec = real_cooling_result
@@ -605,6 +961,14 @@ def _validate_one_building_load(
         neighbor_cooling_result = _load_one_cooling_building_load_curve(
             load_curve_hourly_dir, neighbor_id, upgrade_id
         )
+        if (
+            neighbor_total_result is None
+            or neighbor_heating_result is None
+            or neighbor_cooling_result is None
+        ):
+            raise ValueError(
+                f"Error loading load curve for neighbor_id: {neighbor_id}: one or more curves failed to load"
+            )
         _, neighbor_total_vec = neighbor_total_result
         _, neighbor_heating_vec = neighbor_heating_result
         _, neighbor_cooling_vec = neighbor_cooling_result
@@ -632,7 +996,7 @@ def _validate_one_building_load(
 
 
 def _validate_nearest_neighbors_building_load(
-    load_curve_hourly_dir: S3Path,
+    load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
     approximated_yes_hp_mf_highrise_bldg_ids: dict[int, list[tuple[int, float]]],
     max_workers: int = 64,
@@ -704,7 +1068,7 @@ def _validate_nearest_neighbors_building_load(
 
 
 def _validate_one_building_energy_consumption(
-    load_curve_hourly_dir: S3Path,
+    load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
     bldg_id: int,
     k_nearest_bldg_ids_rmse: list[tuple[int, float]],
@@ -724,6 +1088,14 @@ def _validate_one_building_energy_consumption(
         raise ValueError(
             f"Error loading energy consumption curve for bldg_id: {bldg_id}: {e}"
         )
+    if (
+        real_total_result is None
+        or real_heating_result is None
+        or real_cooling_result is None
+    ):
+        raise ValueError(
+            f"Error loading energy consumption curve for bldg_id: {bldg_id}: one or more curves failed to load"
+        )
     _, real_total_vec = real_total_result
     _, real_heating_vec = real_heating_result
     _, real_cooling_vec = real_cooling_result
@@ -742,6 +1114,14 @@ def _validate_one_building_energy_consumption(
         neighbor_cooling_result = _load_one_cooling_energy_consumption_curve(
             load_curve_hourly_dir, neighbor_id, upgrade_id
         )
+        if (
+            neighbor_total_result is None
+            or neighbor_heating_result is None
+            or neighbor_cooling_result is None
+        ):
+            raise ValueError(
+                f"Error loading energy consumption curve for neighbor_id: {neighbor_id}: one or more curves failed to load"
+            )
         _, neighbor_total_vec = neighbor_total_result
         _, neighbor_heating_vec = neighbor_heating_result
         _, neighbor_cooling_vec = neighbor_cooling_result
@@ -778,7 +1158,7 @@ def _validate_one_building_energy_consumption(
 
 
 def _validate_nearest_neighbors_heating_cooling_energy_consumption(
-    load_curve_hourly_dir: S3Path,
+    load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
     approximated_yes_hp_mf_highrise_bldg_ids: dict[int, list[tuple[int, float]]],
     max_workers: int = 64,
@@ -887,6 +1267,43 @@ def _validate_nearest_neighbors_heating_cooling_energy_consumption(
     )
 
 
+def validate_nearest_neighbor_approximation(
+    metadata: pl.LazyFrame,
+    load_curve_hourly_dir: S3Path | Path,
+    upgrade_id: str,
+    *,
+    k: int = 20,
+    include_cooling: bool = False,
+    n_validation: int = 100,
+) -> None:
+    """Run nearest-neighbor approximation validation: find k nearest for a sample of HP MF highrise bldgs and report load/energy metrics."""
+    validation_bldg_ids = (
+        metadata.filter(
+            (
+                pl.col(HAS_HP_COLUMN)
+                & pl.col(BLDG_TYPE_COLUMN).str.contains("Multifamily", literal=True)
+                & pl.col(STORIES_COLUMN).str.contains("8+", literal=True)
+            )
+        )
+        .select("bldg_id", WEATHER_FILE_CITY_COLUMN)
+        .head(n_validation)
+    )
+    validation_bldg_id_nearest_neighbors = _find_nearest_neighbors(
+        metadata,
+        validation_bldg_ids,
+        load_curve_hourly_dir,
+        upgrade_id,
+        k=k,
+        include_cooling=include_cooling,
+    )
+    _validate_nearest_neighbors_building_load(
+        load_curve_hourly_dir, upgrade_id, validation_bldg_id_nearest_neighbors
+    )
+    _validate_nearest_neighbors_heating_cooling_energy_consumption(
+        load_curve_hourly_dir, upgrade_id, validation_bldg_id_nearest_neighbors
+    )
+
+
 if __name__ == "__main__":
     # Load files, define paths
     path_s3 = S3Path("s3://data.sb/nrel/resstock")
@@ -910,41 +1327,28 @@ if __name__ == "__main__":
         / f"upgrade={upgrade_id}"
     )
 
-    # Identify non-HP MF highrise bldg_ids
-    non_hp_mf_highrise_bldg_ids = _identify_non_hp_mf_highrise(metadata).head(10)
-
-    # Identify validation bldg_ids (MF highrise, with HP in upgrade 2)
-    validation_bldg_ids = (
-        metadata.filter(
-            (
-                pl.col(HAS_HP_COLUMN)
-                & pl.col(BLDG_TYPE_COLUMN).str.contains("Multifamily", literal=True)
-                & pl.col(STORIES_COLUMN).str.contains("8+", literal=True)
-            )
-        )
-        .select("bldg_id", WEATHER_FILE_CITY_COLUMN)
-        .head(300)
-    )
-    validation_bldg_id_nearest_neighbors = _find_nearest_neighbors(
-        metadata,
-        validation_bldg_ids,
-        load_curve_hourly_dir,
-        upgrade_id,
-        k=3,
-        include_cooling=True,  # True means find nearest neighbor based on total load curves; otherwise, only based on heating load curves.
-    )
-    print(validation_bldg_id_nearest_neighbors)
-    _validate_nearest_neighbors_building_load(
-        load_curve_hourly_dir, upgrade_id, validation_bldg_id_nearest_neighbors
-    )
-    _validate_nearest_neighbors_heating_cooling_energy_consumption(
-        load_curve_hourly_dir, upgrade_id, validation_bldg_id_nearest_neighbors
-    )
-
-    """_approximate_non_hp_load(
+    """# Identify non-HP MF highrise bldg_ids
+    non_hp_mf_highrise_bldg_ids = _identify_non_hp_mf_highrise(metadata)
+    nearest_neighbor_map = _find_nearest_neighbors(
         metadata,
         non_hp_mf_highrise_bldg_ids,
         load_curve_hourly_dir,
-        load_curve_upgrade,
-        k=1,
+        upgrade_id,
+        k=15,
+        include_cooling=False,
+    )
+    update_load_curve_hourly(
+        nearest_neighbor_map,
+        load_curve_hourly_dir,
+        upgrade_id,
     )"""
+
+    # Validation. Uncomment to run.
+    validate_nearest_neighbor_approximation(
+        metadata,
+        load_curve_hourly_dir,
+        upgrade_id,
+        k=15,
+        include_cooling=False,
+        n_validation=100,
+    )
