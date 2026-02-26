@@ -1,9 +1,14 @@
 {
   "items": [
     {
-      "label": "rie_flat_calibrated",
+      "label": "rie_hp_seasonal",
+      "name": "rie_hp_seasonal",
       "uri": "",
       "sector": "Residential",
+      "servicetype": "Bundled",
+      "dgrules": "Net Metering",
+      "utility": "GenericUtility",
+      "country": "USA",
       "energyweekdayschedule": [
         [
           1,
@@ -635,14 +640,14 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.06109201910056205,
+            "rate": 0.0599938997259963,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.1126558754275619,
+            "rate": 0.014858828292900417,
             "adj": 0.0,
             "unit": "kWh"
           }
@@ -651,14 +656,7 @@
       "fixedchargefirstmeter": 6.75,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
-      "minchargeunits": "$/month",
-      "utility": "Rhode Island Energy",
-      "servicetype": "Bundled",
-      "name": "rie_flat_calibrated",
-      "is_default": false,
-      "country": "USA",
-      "demandunits": "kW",
-      "demandrateunit": "kW"
+      "minchargeunits": "$/month"
     }
   ]
 }

@@ -38,12 +38,15 @@ path_periods_yaml                   := path_config / "periods" / utility + ".yam
 path_rev_requirement                := path_config / "rev_requirement"
 path_default_rev_requirement        := path_rev_requirement / utility + ".yaml"
 path_differentiated_rev_requirement := path_rev_requirement / utility + "_hp_vs_nonhp.yaml"
+path_revenue_csv                    := "s3://data.sb/switchbox/revenue_requirements/" + state + "/revenue_requirements.csv"
+revenue_utility_col                 := "utility"
+revenue_year_col                    := "year"
 path_tariff_maps                    := path_config / "tariff_maps"
 path_td_mc                          := "s3://data.sb/switchbox/marginal_costs/" + state + "/region=" + region + "/utility=" + utility + "/year=" + year + "/00000000.parquet"
-path_resstock_base                  := "/data.sb/nrel/resstock/res_2024_amy2018_2"
-path_s3_resstock_metadata           := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata"
-path_s3_utility_assignment          := "s3://data.sb/nrel/resstock/res_2024_amy2018_2/metadata_utility"
-path_resstock_loads_00              := path_resstock_base + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
+path_resstock_release               := "/ebs/data/nrel/resstock/res_2024_amy2018_2"
+path_resstock_metadata              := path_resstock_release + "/metadata"
+path_utility_assignment             := path_resstock_release + "/metadata_utility/state=" + state_upper + "/utility_assignment.parquet"
+path_resstock_loads_00              := path_resstock_release + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
 path_cambium                        := "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=" + year + "/gea=" + uppercase(region) + "/r=" + cambium_ba + "/data.parquet"
 path_mc_table                       := path_config / "marginal_costs" / state + "_marginal_costs_" + year + ".csv"
 path_s3_mc_output                   := "s3://data.sb/switchbox/marginal_costs/" + state + "/"
@@ -85,21 +88,33 @@ create-scenario-yamls:
 create-electric-tariff-maps-all:
     just -f {{path_repo}}/utils/Justfile write-tariff-maps-all "{{path_scenarios}}"
 
+# Default revenue requirement YAML from S3 revenue requirements table.
+create-revenue-yaml:
+  uv run python {{path_repo}}/utils/pre/create_revenue_yaml.py \
+    --path-revenue-csv "{{path_revenue_csv}}" \
+    --path-output-yaml "{{path_default_rev_requirement}}" \
+    --utility "{{utility}}" \
+    --year "{{year}}" \
+    --utility-col "{{revenue_utility_col}}" \
+    --year-col "{{revenue_year_col}}"
+
 # Gas tariff maps.
 fetch-gas-tariffs:
   uv run python {{path_repo}}/utils/pre/fetch_gas_tariffs_rateacuity.py "{{path_rateacuity_yaml}}" "{{path_tariffs_gas}}"
 
 create-gas-tariff-map electric_utility upgrade_id output_dir:
   just -f {{path_repo}}/utils/Justfile create-gas-tariff-map \
-    "{{path_s3_resstock_metadata}}" \
-    "{{path_s3_utility_assignment}}" \
+    "{{path_resstock_metadata}}" \
+    "{{path_utility_assignment}}" \
     "{{state_upper}}" \
     "{{electric_utility}}" \
     "{{upgrade_id}}" \
     "{{output_dir}}"
 
 create-gas-tariff-maps-all:
-  just create-gas-tariff-map {{utility}} {{upgrade}} {{path_tariff_maps}}/gas
+  just create-gas-tariff-map {{utility}} "00" {{path_tariff_maps}}/gas
+  just create-gas-tariff-map {{utility}} "02" {{path_tariff_maps}}/gas
+
 
 # Flat tariff JSONs.
 create-flat-tariff:
@@ -114,20 +129,22 @@ create-flat-tariff:
 # reference_tariff: path to a calibrated tariff JSON whose base rate and fixed
 # charge are extracted to set TOU price levels. When empty, derive_seasonal_tou
 # falls back to its built-in defaults.
-create-seasonal-tou key=tou_tariff_key reference_tariff="":
+create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
   just -f {{path_repo}}/utils/Justfile create-seasonal-tou \
     "{{path_cambium}}" \
     "{{state_upper}}" \
     "{{utility}}" \
     "{{year}}" \
     "{{path_td_mc}}" \
-    "{{path_resstock_base}}/metadata/state={{state_upper}}/upgrade={{upgrade}}/metadata-sb.parquet" \
-    "{{path_resstock_loads_00}}" \
+    "{{path_resstock_release}}/metadata/state={{state_upper}}/upgrade={{upgrade}}/metadata-sb.parquet" \
+    "{{path_resstock_release}}" \
+    "{{upgrade}}" \
     "{{path_electric_utility_stats}}" \
     "{{key}}" \
     "{{path_config}}" \
     "{{path_periods_yaml}}" \
-    "{{reference_tariff}}"
+    "{{reference_tariff}}" \
+    "{{run_dir}}"
 
 # Marginal cost allocation (state-specific).
 create-td-mc-data:
@@ -162,10 +179,12 @@ compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" cross
     "{{cross_subsidy_col}}"
 
 # Seasonal discount inputs from run outputs + ResStock loads.
-compute-seasonal-discount-inputs run_dir resstock_loads_path cross_subsidy_col="BAT_percustomer" output_dir="":
+compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="":
   just -f {{path_repo}}/utils/Justfile compute-seasonal-discount-inputs \
     "{{run_dir}}" \
-    "{{resstock_loads_path}}" \
+    "{{resstock_base}}" \
+    "{{state_upper}}" \
+    "{{upgrade}}" \
     "{{cross_subsidy_col}}" \
     "{{output_dir}}"
 
@@ -201,7 +220,8 @@ compute-rev-requirements:
 run-scenario run_num:
   uv run python {{path_project}}/run_scenario.py \
     --run-num "{{run_num}}" \
-    --utility "{{utility}}"
+    --utility "{{utility}}" \
+    {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }}
 
 # Run 1: precalc flat, delivery
 run-1:
@@ -237,10 +257,10 @@ run-5:
     set -euo pipefail
     run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
     echo ">> run-5: resolved run-1 output → ${run1_dir}" >&2
-    just compute-seasonal-discount-inputs "${run1_dir}" "{{path_resstock_loads_00}}"
+    just compute-seasonal-discount-inputs "${run1_dir}" "{{path_resstock_release}}" "{{state_upper}}" "{{upgrade}}"
     just create-seasonal-discount-tariff \
         "{{path_tariffs_electric}}/{{utility}}_flat_calibrated.json" \
-        "${run1_dir}seasonal_discount_rate_inputs.csv" \
+        "${run1_dir}/seasonal_discount_rate_inputs.csv" \
         {{utility}}_hp_seasonal \
         "{{path_tariffs_electric}}/{{utility}}_hp_seasonal.json"
     just run-scenario 5
@@ -252,10 +272,10 @@ run-6:
     set -euo pipefail
     run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
     echo ">> run-6: resolved run-2 output → ${run2_dir}" >&2
-    just compute-seasonal-discount-inputs "${run2_dir}" "{{path_resstock_loads_00}}"
+    just compute-seasonal-discount-inputs "${run2_dir}" "{{path_resstock_release}}" "{{state_upper}}" "{{upgrade}}"
     just create-seasonal-discount-tariff \
         "{{path_tariffs_electric}}/{{utility}}_flat_supply_calibrated.json" \
-        "${run2_dir}seasonal_discount_rate_inputs.csv" \
+        "${run2_dir}/seasonal_discount_rate_inputs.csv" \
         {{utility}}_hp_seasonal_supply \
         "{{path_tariffs_electric}}/{{utility}}_hp_seasonal_supply.json"
     just run-scenario 6
@@ -279,31 +299,33 @@ run-8:
     just run-scenario 8
 
 # Run 9: precalc hp_seasonalTOU vs flat, delivery
-# Depends on run-1 calibrated tariff as reference for TOU price levels.
+# Uses run-1 output for calibrated tariff (reference) and run-dir (building list/weights).
 run-9:
     #!/usr/bin/env bash
     set -euo pipefail
+    run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
+    echo ">> run-9: run-1 output → ${run1_dir}" >&2
     ref_tariff="{{path_tariffs_electric}}/{{utility}}_flat_calibrated.json"
     if [ ! -f "${ref_tariff}" ]; then
-        run1_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 1)
-        echo ">> run-9: calibrated tariff missing, copying from run-1 → ${run1_dir}" >&2
+        echo ">> run-9: calibrated tariff missing, copying from run-1" >&2
         just copy-calibrated-tariff-from-run "${run1_dir}"
     fi
-    just create-seasonal-tou {{tou_tariff_key}} "${ref_tariff}"
+    just create-seasonal-tou {{tou_tariff_key}} "${ref_tariff}" "${run1_dir}"
     just run-scenario 9
 
 # Run 10: precalc hp_seasonalTOU vs flat, supply
-# Depends on run-2 calibrated tariff as reference for TOU price levels.
+# Uses run-2 output for calibrated tariff (reference) and run-dir (building list/weights).
 run-10:
     #!/usr/bin/env bash
     set -euo pipefail
+    run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
+    echo ">> run-10: run-2 output → ${run2_dir}" >&2
     ref_tariff="{{path_tariffs_electric}}/{{utility}}_flat_supply_calibrated.json"
     if [ ! -f "${ref_tariff}" ]; then
-        run2_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 2)
-        echo ">> run-10: calibrated supply tariff missing, copying from run-2 → ${run2_dir}" >&2
+        echo ">> run-10: calibrated supply tariff missing, copying from run-2" >&2
         just copy-calibrated-tariff-from-run "${run2_dir}"
     fi
-    just create-seasonal-tou {{tou_tariff_key}}_supply "${ref_tariff}"
+    just create-seasonal-tou {{tou_tariff_key}}_supply "${ref_tariff}" "${run2_dir}"
     just run-scenario 10
 
 # Run 11: default hp_seasonalTOU calibrated, delivery (needs run 9 output)
@@ -324,12 +346,64 @@ run-12:
     just copy-calibrated-tariff-from-run "${run10_dir}"
     just run-scenario 12
 
-# Master recipe: all 12 runs in dependency order.
+# Run 13: precalc hp_seasonalTOU_flex vs flat, delivery
+# Reuses run-9 TOU tariff shape; _flex differs only by runtime elasticity.
+run-13:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}.json"
+    target_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}_flex.json"
+    if [ ! -f "${source_tou}" ]; then
+        echo ">> run-13: missing source TOU tariff: ${source_tou}" >&2
+        echo ">> run-13: run run-9 first to generate it." >&2
+        exit 1
+    fi
+    cp "${source_tou}" "${target_tou}"
+    echo ">> run-13: copied ${source_tou} -> ${target_tou}" >&2
+    just run-scenario 13
+
+# Run 14: precalc hp_seasonalTOU_flex vs flat, supply
+# Reuses run-10 TOU supply tariff shape; _flex differs only by runtime elasticity.
+run-14:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}_supply.json"
+    target_tou="{{path_tariffs_electric}}/{{tou_tariff_key}}_flex_supply.json"
+    if [ ! -f "${source_tou}" ]; then
+        echo ">> run-14: missing source TOU supply tariff: ${source_tou}" >&2
+        echo ">> run-14: run run-10 first to generate it." >&2
+        exit 1
+    fi
+    cp "${source_tou}" "${target_tou}"
+    echo ">> run-14: copied ${source_tou} -> ${target_tou}" >&2
+    just run-scenario 14
+
+# Run 15: default hp_seasonalTOU_flex calibrated, delivery (needs run 13 output)
+run-15:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run13_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 13)
+    echo ">> run-15: resolved run-13 output → ${run13_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run13_dir}"
+    just run-scenario 15
+
+# Run 16: default hp_seasonalTOU_flex calibrated, supply (needs run 14 output)
+run-16:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run14_dir=$(bash "{{latest_output}}" "{{path_scenario_config}}" 14)
+    echo ">> run-16: resolved run-14 output → ${run14_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run14_dir}"
+    just run-scenario 16
+
+# Master recipe: all 16 runs in dependency order.
 
 # One-time pre-processing (scenario YAMLs + tariff maps). Validate config checks select inputs in Justfile match scenario YAML.
 all-pre:
     just create-scenario-yamls
     just create-electric-tariff-maps-all
+    just create-gas-tariff-maps-all
+    just create-revenue-yaml
     just validate-config
 
 run-all-sequential:
@@ -346,6 +420,78 @@ run-all-sequential:
     just run-10
     just run-11
     just run-12
+    just run-13
+    just run-14
+    just run-15
+    just run-16
+
+# Run all 16 scenarios as 8 delivery/supply waves in parallel.
+# Each wave runs the odd (delivery) and even (supply) run concurrently, each with
+# half the available CPUs. Requires --num-workers support in run_scenario.py.
+# Use when T4/T8 ratio r < 1.8 (measured in cairo_parallelism_and_workers.md).
+run-all-parallel-tracks:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    WORKERS=$(( $(nproc) / 2 ))
+    [ "$WORKERS" -lt 1 ] && WORKERS=1
+    export RDP_NUM_WORKERS="$WORKERS"
+    echo ">> run-all-parallel-tracks: ${WORKERS} workers/track on $(nproc) total vCPUs" >&2
+
+    # Pre-Wave 1: create shared flat tariff files (run-1's PRE step, needed by run-2)
+    just create-flat-tariff
+
+    # Wave 1: run-1 (delivery) and run-2 (supply) scenario steps, now truly concurrent
+    just run-scenario 1 & PID1=$!
+    just run-scenario 2 & PID2=$!
+    wait $PID1 || { echo "ERROR: run-1 failed" >&2; exit 1; }
+    wait $PID2 || { echo "ERROR: run-2 failed" >&2; exit 1; }
+
+    # compute-rev-requirements uses run-1 BAT output; needed by runs 5, 6, 9, 10
+    just compute-rev-requirements
+
+    # Wave 2: run-3 (copies calibrated tariff from run-1) and run-4 (from run-2)
+    just run-3 & PID3=$!
+    just run-4 & PID4=$!
+    wait $PID3 || { echo "ERROR: run-3 failed" >&2; exit 1; }
+    wait $PID4 || { echo "ERROR: run-4 failed" >&2; exit 1; }
+
+    # Wave 3: run-5 (delivery hp_seasonal) and run-6 (supply hp_seasonal)
+    just run-5 & PID5=$!
+    just run-6 & PID6=$!
+    wait $PID5 || { echo "ERROR: run-5 failed" >&2; exit 1; }
+    wait $PID6 || { echo "ERROR: run-6 failed" >&2; exit 1; }
+
+    # Wave 4: run-7 (default hp_seasonal calibrated, delivery) and run-8 (default hp_seasonal calibrated, supply)
+    just run-7 & PID7=$!
+    just run-8 & PID8=$!
+    wait $PID7 || { echo "ERROR: run-7 failed" >&2; exit 1; }
+    wait $PID8 || { echo "ERROR: run-8 failed" >&2; exit 1; }
+
+    # Wave 5: run-9 (delivery TOU) and run-10 (supply TOU); also depend on compute-rev-requirements
+    just run-9 & PID9=$!
+    just run-10 & PID10=$!
+    wait $PID9 || { echo "ERROR: run-9 failed" >&2; exit 1; }
+    wait $PID10 || { echo "ERROR: run-10 failed" >&2; exit 1; }
+
+    # Wave 6: run-11 (default hp_seasonalTOU calibrated, delivery) and run-12 (default hp_seasonalTOU calibrated, supply)
+    just run-11 & PID11=$!
+    just run-12 & PID12=$!
+    wait $PID11 || { echo "ERROR: run-11 failed" >&2; exit 1; }
+    wait $PID12 || { echo "ERROR: run-12 failed" >&2; exit 1; }
+
+    # Wave 7: run-13 (precalc hp_seasonalTOU_flex, delivery) and run-14 (precalc hp_seasonalTOU_flex, supply)
+    just run-13 & PID13=$!
+    just run-14 & PID14=$!
+    wait $PID13 || { echo "ERROR: run-13 failed" >&2; exit 1; }
+    wait $PID14 || { echo "ERROR: run-14 failed" >&2; exit 1; }
+
+    # Wave 8: run-15 (default hp_seasonalTOU_flex calibrated, delivery) and run-16 (default hp_seasonalTOU_flex calibrated, supply)
+    just run-15 & PID15=$!
+    just run-16 & PID16=$!
+    wait $PID15 || { echo "ERROR: run-15 failed" >&2; exit 1; }
+    wait $PID16 || { echo "ERROR: run-16 failed" >&2; exit 1; }
+
+    echo ">> run-all-parallel-tracks: all 16 runs complete" >&2
 
 # =============================================================================
 # POST: after all runs are completed

@@ -4,6 +4,8 @@ Performance profile of the CAIRO code paths invoked by `run_scenario.py` (RI hea
 scenarios), identifying compute-intensive stages, parallelism status, and speedup
 opportunities ordered by implementation difficulty.
 
+**See also:** [GitHub #250](https://github.com/switchbox-data/rate-design-platform/issues/250) for the broader CAIRO performance investigation; Tier 0 (Dask process scheduler) is implemented.
+
 Based on code at `.venv/lib/python3.13/site-packages/cairo/rates_tool/`.
 
 ## Execution flow overview

@@ -4,7 +4,7 @@ version = "0.0.0"
 description = "Simulation platform for electrical rate design."
 authors = [{ name = "Switchbox", email = "hello@switch.box" }]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 license = { text = "MIT" }
 dependencies = [
     "buildstock-fetch>=1.6.1",
@@ -44,6 +44,7 @@ dev = [
     "ty>=0.0.1a21",
     "deptry>=0.20.0",
     "ipykernel>=7.1.0",
+    "plotnine>=0.14.0",
 ]
 
 [build-system]

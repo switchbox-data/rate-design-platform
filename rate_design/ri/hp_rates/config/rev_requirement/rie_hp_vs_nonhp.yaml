@@ -1,7 +1,7 @@
 utility: rie
 group_col: has_hp
 cross_subsidy_col: BAT_percustomer
-run_dir: /data.sb/switchbox/cairo/ri_hp_rates/analysis_outputs/20260217_215617_ri_rie_run_01_precalc_delivery_up00_y2025
+run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ri/20260225_205514_ri_rie_run1_up00_precalc__flat
 subclass_revenue_requirements:
-  'false': 236639858.05193782
-  'true': 5229742.948062252
+  'false': 236628484.88549885
+  'true': 5241116.114501136

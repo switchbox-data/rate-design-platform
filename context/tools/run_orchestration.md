@@ -1,13 +1,17 @@
-# Run Orchestration (RI runs 1-12)
+# Run Orchestration (RI runs 1-16)
 
 ## Purpose
 
-Automate the full sequence of 12 CAIRO runs for heat-pump rate design
+Automate the full sequence of 16 CAIRO runs for heat-pump rate design
 (`just run-all-sequential` from `rate_design/ri/hp_rates/`). Each run has
 pre-processing steps (tariff creation, calibrated tariff promotion, seasonal
 discount derivation) that depend on outputs from earlier runs. The
 orchestration encodes these dependencies so the entire pipeline can execute
 unattended.
+
+Runs 1-12 cover flat, seasonal, and seasonal-TOU tariff tiers with no demand
+response. Runs 13-16 add a demand-flexibility (load-shifting) variant of the
+seasonal-TOU tariff with `elasticity = -0.1`.
 
 ## Parameterization
 
@@ -30,7 +34,7 @@ Three layers work together:
 | Layer            | Path                               | Role                                                                                                                  |
 | ---------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | Generic recipes  | `utils/Justfile`                   | Reusable pre/mid recipes with no state-specific paths. RI Justfile delegates here.                                    |
-| RI orchestration | `rate_design/ri/hp_rates/Justfile` | Defines `run-1` ... `run-12`, `all-pre`, and `run-all-sequential`. Binds utility-specific config and wires the chain. |
+| RI orchestration | `rate_design/ri/hp_rates/Justfile` | Defines `run-1` ... `run-16`, `all-pre`, and `run-all-sequential`. Binds utility-specific config and wires the chain. |
 | Output resolver  | `utils/mid/latest_run_output.sh`   | Shell script that finds the most recent CAIRO output directory for a given run on S3.                                 |
 | Config validator | `utils/pre/validate_config.py`     | Checks Justfile vars against scenario YAML values. Warn-only by default, `--strict` exits non-zero for CI.            |
 
@@ -46,21 +50,52 @@ all-pre  (create-scenario-yamls, create-electric-tariff-maps-all, validate-confi
   ├─ run-1  (precalc flat, delivery)
   │    │
   │    ├─ compute-rev-requirements  ← computes differentiated rev requirement YAML from run-1 BAT output
-  │    │    (needed by runs 5, 6, 9, 10 -- all multi-tariff precalc runs)
+  │    │    (needed by runs 5, 6, 9, 10, 13, 14 -- all multi-tariff precalc runs)
   │    │
   │    ├─ run-3  (default flat calibrated, delivery)    ← copies calibrated tariff from run-1
   │    ├─ run-5  (precalc hp_seasonal vs flat)           ← seasonal discount inputs from run-1
   │    │    └─ run-7  (default hp_seasonal calibrated)   ← copies calibrated tariff from run-5
-  │    └─ run-9  (precalc hp_seasonalTOU vs flat)        ← uses run-1 calibrated tariff as reference
-  │         └─ run-11 (default hp_seasonalTOU calibrated) ← copies calibrated tariff from run-9
+  │    ├─ run-9  (precalc hp_seasonalTOU vs flat)        ← uses run-1 calibrated tariff as reference
+  │    │    └─ run-11 (default hp_seasonalTOU calibrated) ← copies calibrated tariff from run-9
+  │    └─ run-13 (precalc hp_seasonalTOU_flex vs flat, e=-0.1) ← copies TOU tariff from run-9
+  │         └─ run-15 (default hp_seasonalTOU_flex calibrated, e=-0.1) ← copies calibrated tariff from run-13
   │
   └─ run-2  (precalc flat, supply)
        ├─ run-4  (default flat calibrated, supply)       ← copies calibrated tariff from run-2
        ├─ run-6  (precalc hp_seasonal vs flat, supply)   ← seasonal discount inputs from run-2
        │    └─ run-8  (default hp_seasonal calibrated, supply) ← copies from run-6
-       └─ run-10 (precalc hp_seasonalTOU vs flat, supply) ← uses run-2 calibrated tariff as reference
-            └─ run-12 (default hp_seasonalTOU calibrated, supply) ← copies from run-10
+       ├─ run-10 (precalc hp_seasonalTOU vs flat, supply) ← uses run-2 calibrated tariff as reference
+       │    └─ run-12 (default hp_seasonalTOU calibrated, supply) ← copies from run-10
+       └─ run-14 (precalc hp_seasonalTOU_flex vs flat, supply, e=-0.1) ← copies TOU supply tariff from run-10
+            └─ run-16 (default hp_seasonalTOU_flex calibrated, supply, e=-0.1) ← copies from run-14
 ```
+
+## Demand flexibility (runs 13-16)
+
+Runs 13-16 are the demand-flex variants of the seasonal-TOU runs (9-12).
+The `_flex` tariff JSONs are structurally identical to the `_seasonalTOU`
+tariffs — same periods, same peak/off-peak structure. The behavioral
+difference comes entirely from the nonzero `elasticity: -0.1` in the
+scenario YAML, which triggers the two-pass revenue requirement recalibration
+at runtime in `run_scenario.py`.
+
+When `elasticity != 0`, the scenario runner:
+
+1. **Phase 1a:** Freezes the residual from original (unshifted) loads.
+   `frozen_residual = full_RR_orig - MC_orig`.
+2. **Phase 1.5:** Applies demand-response load shifting to TOU customers
+   only (energy-conserving, zero-sum within each season).
+3. **Phase 2:** Recomputes the revenue requirement as
+   `new_RR = MC_shifted + frozen_residual`. The residual (embedded
+   infrastructure costs) is invariant to short-run demand response; only the
+   marginal cost component adjusts.
+4. **Phase 3:** Runs CAIRO simulation with the shifted loads and recalibrated
+   RR.
+
+For full details see `context/tools/cairo_demand_flexibility_workflow.md`.
+
+`run-all-sequential` now executes runs 1-16 in order, including the demand-flex
+runs.
 
 ## How `latest_run_output.sh` works
 
@@ -101,12 +136,17 @@ For CI, call `just validate-config strict` to exit non-zero on mismatch.
 From `rate_design/ri/hp_rates/`:
 
 ```bash
-# Full pipeline
 # Just the pre-processing + validation
 just all-pre
 
-# Runs 1-12 in sequential order
+# Runs 1-16 in sequential order
 just run-all-sequential
+
+# Demand-flex runs (already included in run-all-sequential)
+just run-13
+just run-14
+just run-15
+just run-16
 
 # Individual run (after its dependencies have completed)
 just run-5
@@ -155,12 +195,26 @@ it possible to replicate the entire orchestration for a new utility by changing
 only the top section.
 
 **Reference tariff for TOU derivation.** Runs 9 and 10 derive seasonal TOU
-tariffs using a calibrated flat tariff as reference (from runs 1 and 2
+tariffs using calibrated flat tariffs as references (from runs 1 and 2
 respectively). The `--reference-tariff` flag on `derive_seasonal_tou.py`
 extracts the base rate and fixed charge from this tariff rather than using
-hardcoded defaults.
+hardcoded defaults. Runs 13 and 14 do not re-derive TOU; they copy the run-9
+and run-10 TOU tariffs to `_flex` tariff filenames.
+
+**Demand-flex tariff identity.** The `_flex` tariffs are structurally identical
+to their `_seasonalTOU` counterparts. Demand-flex behavior is triggered
+entirely by the `elasticity` field in the scenario YAML, not by any tariff
+structure difference. This keeps tariff creation simple and isolates the
+behavioral modeling in the scenario runner.
 
 **Sequential execution.** Delivery runs (odd) and supply runs (even) are
-independent and could theoretically run in parallel. For now the pipeline runs
-sequentially via `run-all-sequential` for simplicity and debuggability.
-Parallelization is a future improvement.
+independent and could theoretically run in parallel. `run-all-sequential` runs them
+serially for simplicity and debuggability. Use `run-all-parallel-tracks` for faster
+end-to-end wall time (see Parallel tracks below).
+
+**Parallel tracks.** `run-all-parallel-tracks` runs delivery and supply runs as concurrent
+pairs (6 waves of 2), each pair using half the available CPUs. This beats the sequential
+strategy when T4/T8 < 1.8 (see `cairo_parallelism_and_workers.md` for measured ratio).
+File conflicts: none — each wave pair writes to distinct tariff files and timestamped S3
+output directories. The `compute-rev-requirements` step remains serial between wave 1 and
+wave 2 (it reads run-1 output and is fast; runs 5, 6, 9, and 10 all depend on it).
