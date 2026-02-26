@@ -34,7 +34,7 @@ The CLI no longer accepts `--customer-count`. Instead it takes `--path-electric-
 
 ## RI scenario integration
 
-`rate_design/ri/hp_rates/run_scenario.py` supports optional runtime derivation through `tou_derivation` in YAML:
+`rate_design/hp_rates/run_scenario.py` supports optional runtime derivation through `tou_derivation` in YAML:
 
 ```yaml
 tou_derivation:

@@ -54,16 +54,16 @@ Alternative subclass split and BAT metric:
 uv run python utils/post/compute_subclass_rr.py \
   --run-dir "s3://.../<run>/<runtime>" \
   --run-num 1 \
-  --scenario-config "rate_design/ri/hp_rates/config/scenarios.yaml" \
-  --differentiated-yaml-path "rate_design/ri/hp_rates/config/rev_requirement/rie_hp_vs_nonhp.yaml" \
-  --default-yaml-path "rate_design/ri/hp_rates/config/rev_requirement/rie.yaml" \
+  --scenario-config "rate_design/hp_rates/ri/config/scenarios.yaml" \
+  --differentiated-yaml-path "rate_design/hp_rates/ri/config/rev_requirement/rie_hp_vs_nonhp.yaml" \
+  --default-yaml-path "rate_design/hp_rates/ri/config/rev_requirement/rie.yaml" \
   --group-col "postprocess_group.heating_type" \
   --cross-subsidy-col "BAT_peak"
 ```
 
 RI Justfile recipe:
 
-- `rate_design/ri/hp_rates/Justfile`
+- `rate_design/hp_rates/ri/Justfile`
   - `compute-subclass-rr` (generic; always pass full run directory path)
 
 Seasonal discount input generation is now intentionally separate:
@@ -77,9 +77,9 @@ that exact column and then falls back to `postprocess_group.<name>`.
 Output behavior:
 
 - Writes differentiated subclass RR YAML:
-  `rate_design/ri/hp_rates/config/rev_requirement/rie_hp_vs_nonhp.yaml`
+  `rate_design/hp_rates/ri/config/rev_requirement/rie_hp_vs_nonhp.yaml`
 - Writes default RIE RR YAML (from `scenarios.yaml.utility_delivery_revenue_requirement`):
-  `rate_design/ri/hp_rates/config/rev_requirement/rie.yaml`
+  `rate_design/hp_rates/ri/config/rev_requirement/rie.yaml`
 - Both output paths are overrideable via:
   - `--differentiated-yaml-path`
   - `--default-yaml-path`
