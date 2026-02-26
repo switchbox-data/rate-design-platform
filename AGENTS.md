@@ -119,7 +119,7 @@ Match existing style: Ruff for formatting/lint, **ty** for type checking, dprint
 
 ### Polars and parquet
 
-- **Prefer LazyFrame:** Use `scan_parquet` and lazy operations; only materialize (e.g. `.collect()` or `read_parquet`) when the operation cannot be done lazily (e.g. control flow that depends on data, or a library that requires a DataFrame).
+- **Prefer LazyFrame:** Use `scan_parquet` and lazy operations; only materialize (e.g. `.collect()` or `read_parquet`) when the operation cannot be done lazily (e.g. control flow that depends on data, or a library that requires a DataFrame). For more on laziness, when to collect, and how to handle runtime data-quality asserts without scattering collects, see `context/tools/polars_laziness_and_validation.md`.
 - **LazyFrame vs DataFrame:** Only `LazyFrame` has `.collect()`. A `DataFrame` from `read_parquet`, `.collect()`, or `df.join()` does not—calling `.collect()` on it will raise. Use `.group_by().agg()` on a DataFrame directly; no `.collect()`.
 - **Joins:** With default `coalesce=True`, Polars keeps only the **left** join key column and drops the right. If you need both key columns in the result, use `coalesce=False` in the join; otherwise select/alias from the left key as needed.
 - **Prefer a single path for scan_parquet:** Pass the hive-partition root (or directory) to `pl.scan_parquet(path, ...)` so Polars reads the dataset as one logical table; do not pre-list files with s3fs just to pass a list of paths unless you have confirmed the row identity or grouping is not in the data (e.g. only in the path).
