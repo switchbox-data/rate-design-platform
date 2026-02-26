@@ -119,9 +119,8 @@ def _load_one_total_building_load_curve(
     load_curve_hourly_dir: S3Path | Path,
     bldg_id: int,
     upgrade_id: str,
-    include_cooling: bool = False,
 ) -> tuple[int, np.ndarray] | None:
-    """Load one parquet, compute summed column; returns (bldg_id, vec) or None."""
+    """Load one parquet, compute total building load (heating + cooling); returns (bldg_id, vec) or None."""
     path = load_curve_hourly_dir / f"{bldg_id}-{int(upgrade_id)}.parquet"
     opts = _parquet_storage_options(load_curve_hourly_dir)
     try:
@@ -132,18 +131,16 @@ def _load_one_total_building_load_curve(
         )
     schema = lf.collect_schema()
     if (
-        include_cooling and COOLING_LOAD_COLUMN not in schema.names()
-    ) or HEATING_LOAD_COLUMN not in schema.names():
+        HEATING_LOAD_COLUMN not in schema.names()
+        or COOLING_LOAD_COLUMN not in schema.names()
+    ):
         raise ValueError(
-            f"Load curve for bldg_id: {bldg_id} from {path} is missing required columns: {COOLING_LOAD_COLUMN if include_cooling else ''} {HEATING_LOAD_COLUMN}"
+            f"Load curve for bldg_id: {bldg_id} from {path} is missing required columns: {HEATING_LOAD_COLUMN}, {COOLING_LOAD_COLUMN}"
         )
     df = cast(
         pl.DataFrame,
         lf.with_columns(
-            (
-                (pl.col(COOLING_LOAD_COLUMN) if include_cooling else pl.lit(0.0))
-                + pl.col(HEATING_LOAD_COLUMN)
-            ).alias("_summed")
+            (pl.col(HEATING_LOAD_COLUMN) + pl.col(COOLING_LOAD_COLUMN)).alias("_summed")
         )
         .select("_summed")
         .collect(),
@@ -366,9 +363,8 @@ def _load_all_total_load_curves_for_bldg_ids(
     upgrade_id: str,
     bldg_ids: list[int],
     max_workers: int = 256,
-    include_cooling: bool = False,
 ) -> dict[int, np.ndarray]:
-    """Load load curves for the given bldg_ids. Returns bldg_id -> 8760-point array."""
+    """Load total (heating + cooling) load curves for the given bldg_ids. Returns bldg_id -> 8760-point array."""
     bldg_id_to_load_curve: dict[int, np.ndarray] = {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
@@ -377,7 +373,6 @@ def _load_all_total_load_curves_for_bldg_ids(
                 load_curve_hourly_dir,
                 bldg_id,
                 upgrade_id,
-                include_cooling=include_cooling,
             ): bldg_id
             for bldg_id in bldg_ids
         }
@@ -446,7 +441,12 @@ def _find_nearest_neighbors(
     weather_station_bldg_id_map_total = group_by_weather_station_id(metadata)
 
     k_nearest_bldg_id_map: dict[int, list[tuple[int, float]]] = {}
-    for weather_station, station_bldg_ids in weather_station_bldg_id_map_non_hp.items():
+    for i, (weather_station, station_bldg_ids) in enumerate(
+        weather_station_bldg_id_map_non_hp.items()
+    ):
+        print(
+            f"Processing weather station {i + 1} of {len(weather_station_bldg_id_map_non_hp)}: {weather_station}"
+        )
         k_nearest_bldg_id_map.update({bldg_id: [] for bldg_id in station_bldg_ids})
         # Neighbors = all bldgs at this station except the non-HP ones we're finding neighbors for.
         neighbor_bldg_ids = [
@@ -454,14 +454,13 @@ def _find_nearest_neighbors(
             for x in weather_station_bldg_id_map_total[weather_station]
             if x not in station_bldg_ids
         ]
-        # If include_cooling, fit based on total load curves; otherwise, fit based on heating load curves.
+        # If include_cooling, fit based on total (heating+cooling) load curves; otherwise, fit based on heating load curves.
         if include_cooling:
             non_hp_load_curves = _load_all_total_load_curves_for_bldg_ids(
                 load_curve_hourly_dir,
                 upgrade_id,
                 station_bldg_ids,
                 max_workers=max_workers_load_curves,
-                include_cooling=include_cooling,
             )
         else:
             non_hp_load_curves = _load_all_heating_load_curves_for_bldg_ids(
@@ -480,7 +479,6 @@ def _find_nearest_neighbors(
                         load_curve_hourly_dir,
                         bldg_id,
                         upgrade_id,
-                        include_cooling=include_cooling,
                     ): bldg_id
                     for bldg_id in neighbor_bldg_ids
                 }
@@ -519,9 +517,6 @@ def _find_nearest_neighbors(
                             k_nearest_bldg_id_map[station_bldg_id].sort(
                                 key=lambda p: p[1]
                             )
-                print(
-                    f"Processed {i + 1} of {len(neighbor_bldg_ids)} neighbor bldgs for weather station {weather_station}"
-                )
     return k_nearest_bldg_id_map
 
 
@@ -876,38 +871,43 @@ def replace_hvac_columns(
 
 def update_load_curve_hourly(
     nearest_neighbor_map: dict[int, list[tuple[int, float]]],
-    load_curve_hourly_dir: S3Path | Path,
+    input_load_curve_hourly_dir: S3Path | Path,
+    output_load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
     *,
     max_workers: int = 64,
 ) -> None:
     """Load original and neighbor parquets concurrently, replace hvac columns, sink back to original path. Stays in LazyFrame (scan/sink)."""
     upgrade_int = int(upgrade_id)
-    opts = _parquet_storage_options(load_curve_hourly_dir)
+    scan_opts = _parquet_storage_options(input_load_curve_hourly_dir)
+    sink_opts = _parquet_storage_options(output_load_curve_hourly_dir)
 
     def process_one(
         bldg_id: int, k_nearest_bldg_ids_rmse: list[tuple[int, float]]
     ) -> None:
-        original_path = load_curve_hourly_dir / f"{bldg_id}-{upgrade_int}.parquet"
+        input_path = input_load_curve_hourly_dir / f"{bldg_id}-{upgrade_int}.parquet"
         neighbor_ids = [nid for nid, _ in k_nearest_bldg_ids_rmse]
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             original_future = executor.submit(
                 pl.scan_parquet,
-                str(original_path),
-                storage_options=opts,
+                str(input_path),
+                storage_options=scan_opts,
             )
             neighbor_futures = [
                 executor.submit(
                     pl.scan_parquet,
-                    str(load_curve_hourly_dir / f"{nid}-{upgrade_int}.parquet"),
-                    storage_options=opts,
+                    str(input_load_curve_hourly_dir / f"{nid}-{upgrade_int}.parquet"),
+                    storage_options=scan_opts,
                 )
                 for nid in neighbor_ids
             ]
             original_lf = original_future.result()
             neighbors_lf = [f.result() for f in neighbor_futures]
         replaced = replace_hvac_columns(original_lf, neighbors_lf)
-        replaced.sink_parquet(str(original_path), storage_options=opts)
+        replaced.sink_parquet(
+            str(output_load_curve_hourly_dir / f"{bldg_id}-{upgrade_int}.parquet"),
+            storage_options=sink_opts,
+        )
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [
@@ -927,7 +927,7 @@ def _validate_one_building_load(
     """Compute validation metrics for one building (total, heating, cooling load). Returns (total_rmse, total_peak, heating_rmse, heating_peak, cooling_rmse, cooling_peak) or None on load failure."""
     try:
         real_total_result = _load_one_total_building_load_curve(
-            load_curve_hourly_dir, bldg_id, upgrade_id, include_cooling=True
+            load_curve_hourly_dir, bldg_id, upgrade_id
         )
         real_heating_result = _load_one_heating_building_load_curve(
             load_curve_hourly_dir, bldg_id, upgrade_id
@@ -953,7 +953,7 @@ def _validate_one_building_load(
     average_neighbor_cooling = np.zeros(8760)
     for neighbor_id, _ in k_nearest_bldg_ids_rmse:
         neighbor_total_result = _load_one_total_building_load_curve(
-            load_curve_hourly_dir, neighbor_id, upgrade_id, include_cooling=True
+            load_curve_hourly_dir, neighbor_id, upgrade_id
         )
         neighbor_heating_result = _load_one_heating_building_load_curve(
             load_curve_hourly_dir, neighbor_id, upgrade_id
@@ -1269,7 +1269,7 @@ def _validate_nearest_neighbors_heating_cooling_energy_consumption(
 
 def validate_nearest_neighbor_approximation(
     metadata: pl.LazyFrame,
-    load_curve_hourly_dir: S3Path | Path,
+    input_load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
     *,
     k: int = 20,
@@ -1291,16 +1291,16 @@ def validate_nearest_neighbor_approximation(
     validation_bldg_id_nearest_neighbors = _find_nearest_neighbors(
         metadata,
         validation_bldg_ids,
-        load_curve_hourly_dir,
+        input_load_curve_hourly_dir,
         upgrade_id,
         k=k,
         include_cooling=include_cooling,
     )
     _validate_nearest_neighbors_building_load(
-        load_curve_hourly_dir, upgrade_id, validation_bldg_id_nearest_neighbors
+        input_load_curve_hourly_dir, upgrade_id, validation_bldg_id_nearest_neighbors
     )
     _validate_nearest_neighbors_heating_cooling_energy_consumption(
-        load_curve_hourly_dir, upgrade_id, validation_bldg_id_nearest_neighbors
+        input_load_curve_hourly_dir, upgrade_id, validation_bldg_id_nearest_neighbors
     )
 
 
@@ -1309,19 +1309,29 @@ if __name__ == "__main__":
     path_s3 = S3Path("s3://data.sb/nrel/resstock")
     state = "NY"
     upgrade_id = "02"
-    release = "res_2024_amy2018_2_sb"
-    metadata_path = (
+    input_release = "res_2024_amy2018_2"
+    output_release = "res_2024_amy2018_2_sb"
+    input_metadata_path = (
         path_s3
-        / release
+        / input_release
         / "metadata"
         / f"state={state}"
         / f"upgrade={upgrade_id}"
         / "metadata-sb.parquet"
     )
-    metadata = pl.scan_parquet(str(metadata_path), storage_options=STORAGE_OPTIONS)
-    load_curve_hourly_dir = (
+    input_metadata = pl.scan_parquet(
+        str(input_metadata_path), storage_options=STORAGE_OPTIONS
+    )
+    input_load_curve_hourly_dir = (
         path_s3
-        / release
+        / input_release
+        / "load_curve_hourly"
+        / f"state={state}"
+        / f"upgrade={upgrade_id}"
+    )
+    output_load_curve_hourly_dir = (
+        path_s3
+        / output_release
         / "load_curve_hourly"
         / f"state={state}"
         / f"upgrade={upgrade_id}"
@@ -1332,7 +1342,7 @@ if __name__ == "__main__":
     nearest_neighbor_map = _find_nearest_neighbors(
         metadata,
         non_hp_mf_highrise_bldg_ids,
-        load_curve_hourly_dir,
+        input_load_curve_hourly_dir,
         upgrade_id,
         k=15,
         include_cooling=False,
@@ -1345,8 +1355,8 @@ if __name__ == "__main__":
 
     # Validation. Uncomment to run.
     validate_nearest_neighbor_approximation(
-        metadata,
-        load_curve_hourly_dir,
+        input_metadata,
+        input_load_curve_hourly_dir,
         upgrade_id,
         k=15,
         include_cooling=False,

@@ -188,3 +188,14 @@ assign-utility-ri release upgrade:
         --input_metadata_filename "metadata-sb.parquet" \
         --output_metadata_dir "{{path_s3_parquet}}/{{release}}/metadata_utility/state=RI/" \
         --output_utility_assignment_filename "utility_assignment.parquet" \
+
+
+# Approximate non-HP load for a state
+approximate-non-hp-load state upgrade_id input_release output_release k:
+    uv run python "{{path_local_repo}}/utils/pre/approximate_non_hp_load.py" \
+        --path_s3 "{{path_s3_parquet}}" \
+        --state "{{state}}" \
+        --upgrade_id "{{upgrade_id}}" \
+        --input_release "{{input_release}}" \
+        --output_release "{{output_release}}" \
+        --k "{{k}}" \
