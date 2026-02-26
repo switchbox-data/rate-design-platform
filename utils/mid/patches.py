@@ -3,7 +3,7 @@ Monkey-patches on top of CAIRO for performance.
 See docs/plans/2026-02-23-cairo-speedup-design.md and context/tools/cairo_speedup_log.md.
 
 Import this module at the top of run_scenario.py (after all other imports):
-    import rate_design.ri.hp_rates.patches  # noqa: F401  (currently no-op; patches added below)
+    import utils.mid.patches  # noqa: F401
 """
 
 from __future__ import annotations

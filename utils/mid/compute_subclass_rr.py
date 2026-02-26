@@ -45,13 +45,13 @@ DEFAULT_SEASONAL_OUTPUT_FILENAME = "seasonal_discount_rate_inputs.csv"
 ELECTRIC_LOAD_COL = "out.electricity.net.energy_consumption"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SCENARIO_CONFIG_PATH = (
-    PROJECT_ROOT / "rate_design/ri/hp_rates/config/scenarios.yaml"
+    PROJECT_ROOT / "rate_design/hp_rates/ri/config/scenarios.yaml"
 )
 DEFAULT_DIFFERENTIATED_YAML_PATH = (
-    PROJECT_ROOT / "rate_design/ri/hp_rates/config/rev_requirement/rie_hp_vs_nonhp.yaml"
+    PROJECT_ROOT / "rate_design/hp_rates/ri/config/rev_requirement/rie_hp_vs_nonhp.yaml"
 )
 DEFAULT_RIE_YAML_PATH = (
-    PROJECT_ROOT / "rate_design/ri/hp_rates/config/rev_requirement/rie.yaml"
+    PROJECT_ROOT / "rate_design/hp_rates/ri/config/rev_requirement/rie.yaml"
 )
 LOGGER = logging.getLogger(__name__)
 

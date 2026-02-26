@@ -67,12 +67,12 @@ def resolve_winter_summer_months(
 
 
 def get_utility_periods_yaml_path(project_root: Path, state: str, utility: str) -> Path:
-    """Return `<project_root>/rate_design/<state>/hp_rates/config/periods/<utility>.yaml`."""
+    """Return `<project_root>/rate_design/hp_rates/<state>/config/periods/<utility>.yaml`."""
     return (
         project_root
         / "rate_design"
-        / state.lower()
         / "hp_rates"
+        / state.lower()
         / "config"
         / "periods"
         / f"{utility.lower()}.yaml"

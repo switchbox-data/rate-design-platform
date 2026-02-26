@@ -263,8 +263,8 @@ def _default_destination_dir(state: str) -> Path:
     return (
         get_project_root()
         / "rate_design"
-        / state_code
         / "hp_rates"
+        / state_code
         / "config"
         / "tariffs"
         / "electric"
@@ -314,14 +314,14 @@ def main() -> None:
     parser.add_argument(
         "--state",
         required=True,
-        help="Two-letter state code used to resolve rate_design/<state>/... output path.",
+        help="Two-letter state code used to resolve rate_design/hp_rates/<state>/... output path.",
     )
     parser.add_argument(
         "--destination-dir",
         default="",
         help=(
             "Optional local directory override for output tariff files. "
-            "Defaults to rate_design/<state>/hp_rates/config/tariffs/electric."
+            "Defaults to rate_design/hp_rates/<state>/config/tariffs/electric."
         ),
     )
     args = parser.parse_args()

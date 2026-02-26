@@ -1,7 +1,7 @@
 """Create scenario YAMLs from the Runs & Charts Google Sheet.
 
 Reads the sheet, groups by (state, utility), and writes
-rate_design/<state>/hp_rates/config/scenarios_<utility>.yaml for each group.
+rate_design/hp_rates/<state>/config/scenarios_<utility>.yaml for each group.
 
 Note on path_supply_marginal_costs column:
     For NY supply runs (runs with add_supply_revenue_requirement=true), the
@@ -317,6 +317,7 @@ def run(
     worksheet_name: str | None = None,
     worksheet_index: int | None = None,
     output_dir: Path | None = None,
+    state_filter: str | None = None,
 ) -> None:
     """Fetch sheet, group by (state, utility), write scenario YAMLs.
 
@@ -429,6 +430,9 @@ def run(
     out_root = output_dir or get_project_root()
 
     for (state, utility), group_rows in groups.items():
+        if state_filter and state.upper() != state_filter.upper():
+            continue
+
         # Sort by num
         def num_val(r: dict[str, str]) -> int:
             n = (r.get(num_key) or "").strip()
@@ -452,8 +456,8 @@ def run(
         out_path = (
             out_root
             / "rate_design"
-            / state.lower()
             / "hp_rates"
+            / state.lower()
             / "config"
             / "scenarios"
             / f"scenarios_{utility}.yaml"
@@ -496,6 +500,12 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Output root directory (default: project root).",
     )
+    parser.add_argument(
+        "--state",
+        type=str,
+        default=None,
+        help="Two-letter state code to filter (e.g. NY, RI). Omit to generate all.",
+    )
     return parser.parse_args()
 
 
@@ -506,6 +516,7 @@ def main() -> None:
         worksheet_name=args.sheet_name,
         worksheet_index=args.worksheet_index,
         output_dir=args.output_dir,
+        state_filter=args.state,
     )
 
 
