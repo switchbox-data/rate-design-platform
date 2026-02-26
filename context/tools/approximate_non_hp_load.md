@@ -34,14 +34,14 @@ Implementation: **Polars LazyFrames** where possible (scan → replace → sink)
 
 ## Main entrypoints
 
-| Function | Role |
-|----------|------|
-| `_identify_non_hp_mf_highrise(metadata)` | Filter to ~has_hp=False, Multifamily, 8+ stories; return bldg_id + weather. |
-| `group_by_weather_station_id(metadata)` | Group bldg_ids by `in.weather_file_city`. |
-| `_find_nearest_neighbors(..., load_curve_hourly_dir, upgrade_id, k, include_cooling)` | Per non-HP bldg, k nearest same-weather bldgs by RMSE (total or heating-only). |
-| `replace_hvac_columns(original_lf, neighbors_lf_list)` | Replace electricity, heating/cooling load, natural_gas, fuel_oil, propane columns with neighbor averages; adjust totals. |
-| `update_load_curve_hourly(nearest_neighbor_map, input_dir, output_dir, upgrade_id)` | For each bldg in map: scan original + neighbors, replace HVAC, sink to output dir. |
-| `validate_nearest_neighbor_approximation(metadata, input_load_curve_hourly_dir, upgrade_id, ...)` | Sample HP MF highrise, find neighbors, run load and energy-consumption validation and print summary. |
+| Function                                                                                          | Role                                                                                                                     |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `_identify_non_hp_mf_highrise(metadata)`                                                          | Filter to ~has_hp=False, Multifamily, 8+ stories; return bldg_id + weather.                                              |
+| `group_by_weather_station_id(metadata)`                                                           | Group bldg_ids by `in.weather_file_city`.                                                                                |
+| `_find_nearest_neighbors(..., load_curve_hourly_dir, upgrade_id, k, include_cooling)`             | Per non-HP bldg, k nearest same-weather bldgs by RMSE (total or heating-only).                                           |
+| `replace_hvac_columns(original_lf, neighbors_lf_list)`                                            | Replace electricity, heating/cooling load, natural_gas, fuel_oil, propane columns with neighbor averages; adjust totals. |
+| `update_load_curve_hourly(nearest_neighbor_map, input_dir, output_dir, upgrade_id)`               | For each bldg in map: scan original + neighbors, replace HVAC, sink to output dir.                                       |
+| `validate_nearest_neighbor_approximation(metadata, input_load_curve_hourly_dir, upgrade_id, ...)` | Sample HP MF highrise, find neighbors, run load and energy-consumption validation and print summary.                     |
 
 ## Load helpers (single building → 8760 vec or None)
 
@@ -68,7 +68,7 @@ For each replace group (electricity, heating/cooling load, natural_gas, fuel_oil
 - `_validate_one_building_load` / `_validate_one_building_energy_consumption`: load real + neighbor curves, compute RMSE/peak/diff metrics.
 - `_validate_nearest_neighbors_building_load` / `_validate_nearest_neighbors_heating_cooling_energy_consumption`: run validation over a map of bldg_id → neighbor list and print aggregates.
 
-## __main__
+## **main**
 
 When run as a script, loads metadata and paths from S3 (NY, upgrade 02, `res_2024_amy2018_2`), and can:
 

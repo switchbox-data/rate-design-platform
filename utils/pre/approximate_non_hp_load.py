@@ -1,3 +1,4 @@
+import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import cast
@@ -1305,18 +1306,51 @@ def validate_nearest_neighbor_approximation(
 
 
 if __name__ == "__main__":
-    # Load files, define paths
-    path_s3 = S3Path("s3://data.sb/nrel/resstock")
-    state = "NY"
-    upgrade_id = "02"
-    input_release = "res_2024_amy2018_2"
-    output_release = "res_2024_amy2018_2_sb"
+    parser = argparse.ArgumentParser(
+        description="Approximate non-HP MF highrise load curves using k-nearest neighbors; optionally run validation.",
+    )
+    parser.add_argument(
+        "--path_s3",
+        type=str,
+        required=True,
+        help="S3 base path for ResStock data (e.g. s3://data.sb/nrel/resstock)",
+    )
+    parser.add_argument(
+        "--state", type=str, required=True, help="State abbreviation (e.g. NY)"
+    )
+    parser.add_argument(
+        "--upgrade_id",
+        type=str,
+        required=True,
+        help="Upgrade id (e.g. 02)",
+    )
+    parser.add_argument(
+        "--input_release",
+        type=str,
+        required=True,
+        help="Input release name (e.g. res_2024_amy2018_2)",
+    )
+    parser.add_argument(
+        "--output_release",
+        type=str,
+        required=True,
+        help="Output release name for approximated curves (e.g. res_2024_amy2018_2_sb)",
+    )
+    parser.add_argument(
+        "--k",
+        type=int,
+        required=True,
+        help="Number of nearest neighbors per building",
+    )
+    args = parser.parse_args()
+
+    path_s3 = S3Path(args.path_s3)
     input_metadata_path = (
         path_s3
-        / input_release
+        / args.input_release
         / "metadata"
-        / f"state={state}"
-        / f"upgrade={upgrade_id}"
+        / f"state={args.state}"
+        / f"upgrade={args.upgrade_id}"
         / "metadata-sb.parquet"
     )
     input_metadata = pl.scan_parquet(
@@ -1324,41 +1358,41 @@ if __name__ == "__main__":
     )
     input_load_curve_hourly_dir = (
         path_s3
-        / input_release
+        / args.input_release
         / "load_curve_hourly"
-        / f"state={state}"
-        / f"upgrade={upgrade_id}"
+        / f"state={args.state}"
+        / f"upgrade={args.upgrade_id}"
     )
     output_load_curve_hourly_dir = (
         path_s3
-        / output_release
+        / args.output_release
         / "load_curve_hourly"
-        / f"state={state}"
-        / f"upgrade={upgrade_id}"
+        / f"state={args.state}"
+        / f"upgrade={args.upgrade_id}"
     )
 
-    """# Identify non-HP MF highrise bldg_ids
-    non_hp_mf_highrise_bldg_ids = _identify_non_hp_mf_highrise(metadata)
+    non_hp_mf_highrise_bldg_metadata = _identify_non_hp_mf_highrise(input_metadata)
     nearest_neighbor_map = _find_nearest_neighbors(
-        metadata,
-        non_hp_mf_highrise_bldg_ids,
+        input_metadata,
+        non_hp_mf_highrise_bldg_metadata,
         input_load_curve_hourly_dir,
-        upgrade_id,
-        k=15,
+        args.upgrade_id,
+        k=int(args.k),
         include_cooling=False,
     )
     update_load_curve_hourly(
         nearest_neighbor_map,
-        load_curve_hourly_dir,
-        upgrade_id,
-    )"""
+        input_load_curve_hourly_dir,
+        output_load_curve_hourly_dir,
+        args.upgrade_id,
+    )
 
-    # Validation. Uncomment to run.
-    validate_nearest_neighbor_approximation(
+    # Validation. Uncomment to run validation.
+    """validate_nearest_neighbor_approximation(
         input_metadata,
         input_load_curve_hourly_dir,
-        upgrade_id,
-        k=15,
+        args.upgrade_id,
+        k=args.k,
         include_cooling=False,
         n_validation=100,
-    )
+    )"""
