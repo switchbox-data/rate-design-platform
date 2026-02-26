@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Literal, cast
 
 import polars as pl
-from cloudpathlib import S3Path
 from plotnine import (
     aes,
     geom_col,
@@ -29,28 +28,19 @@ from plotnine import (
     theme_minimal,
 )
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.post.io import (
+    ANNUAL_MONTH,
+    BLDG_ID,
+    BILL_LEVEL,
+    is_s3,
+    load_lazy,
+    path_or_s3,
+    storage_opts,
+)
 
-ANNUAL_MONTH = "Annual"
-BLDG_ID = "bldg_id"
-BILL_LEVEL = "bill_level"
 HEATING_TYPE_COL = "postprocess_group.heating_type"
 FOSSIL_FUEL = "fossil_fuel"
 BILLS_CSV = "/bills/elec_bills_year_run.csv"
-
-
-def _storage_opts() -> dict[str, str]:
-    return get_aws_storage_options()
-
-
-def _path_or_s3(path_str: str) -> S3Path | Path:
-    if path_str.startswith("s3://"):
-        return S3Path(path_str)
-    return Path(path_str)
-
-
-def _is_s3(path: S3Path | Path) -> bool:
-    return isinstance(path, S3Path)
 
 
 def _assert_join_preserves_keys(
@@ -190,18 +180,6 @@ def _median_customer_components(
         "No fossil-fuel-heated buildings in metadata after join."
     )
     return _weighted_median_row(fossil, sort_col="total", weight_col="weight")
-
-
-def _load_lazy(
-    path: str,
-    storage_options: dict[str, str] | None,
-    format: Literal["parquet", "csv"],
-) -> pl.LazyFrame:
-    if storage_options is None:
-        return pl.scan_parquet(path) if format == "parquet" else pl.scan_csv(path)
-    if format == "parquet":
-        return pl.scan_parquet(path, storage_options=storage_options)
-    return pl.scan_csv(path, storage_options=storage_options)
 
 
 COMPONENT_NAMES: dict[str, str] = {
@@ -355,10 +333,10 @@ def main() -> None:
     args = _parse_args()
     annual_fixed = _read_fixed_charge_from_tariff(args.path_tariff_json) * 12
 
-    storage = _storage_opts() if _is_s3(_path_or_s3(args.path_metadata)) else None
+    storage = storage_opts() if is_s3(path_or_s3(args.path_metadata)) else None
 
     def _load(path: str, fmt: Literal["csv", "parquet"] = "csv") -> pl.LazyFrame:
-        return _load_lazy(str(_path_or_s3(path)), storage, fmt)
+        return load_lazy(str(path_or_s3(path)), storage, fmt)
 
     metadata = cast(
         pl.DataFrame,
