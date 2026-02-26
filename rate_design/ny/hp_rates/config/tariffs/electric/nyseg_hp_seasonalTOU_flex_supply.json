@@ -635,28 +635,28 @@
       "energyratestructure": [
         [
           {
-            "rate": 1.034255,
+            "rate": 0.177573,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 1.288278,
+            "rate": 0.2206,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 1.393838,
+            "rate": 0.240954,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 2.849889,
+            "rate": 0.491923,
             "adj": 0.0,
             "unit": "kWh"
           }

@@ -4,7 +4,7 @@ runs:
     state: RI
     utility: rie
     run_type: precalc
-    upgrade: '00'
+    upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/rie_flat.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=00/metadata-sb.parquet
@@ -32,7 +32,7 @@ runs:
     state: RI
     utility: rie
     run_type: precalc
-    upgrade: '00'
+    upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/rie_flat_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=00/metadata-sb.parquet
@@ -60,7 +60,7 @@ runs:
     state: RI
     utility: rie
     run_type: default
-    upgrade: '02'
+    upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/rie_flat_calibrated.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=02/metadata-sb.parquet
@@ -88,7 +88,7 @@ runs:
     state: RI
     utility: rie
     run_type: default
-    upgrade: '02'
+    upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/rie_flat_calibrated_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=02/metadata-sb.parquet
@@ -116,7 +116,7 @@ runs:
     state: RI
     utility: rie
     run_type: precalc
-    upgrade: '00'
+    upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonal_vs_flat.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=00/metadata-sb.parquet
@@ -145,7 +145,7 @@ runs:
     state: RI
     utility: rie
     run_type: precalc
-    upgrade: '00'
+    upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonal_vs_flat_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=00/metadata-sb.parquet
@@ -174,7 +174,7 @@ runs:
     state: RI
     utility: rie
     run_type: default
-    upgrade: '02'
+    upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonal_calibrated.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=02/metadata-sb.parquet
@@ -202,7 +202,7 @@ runs:
     state: RI
     utility: rie
     run_type: default
-    upgrade: '02'
+    upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonal_calibrated_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=02/metadata-sb.parquet
@@ -230,7 +230,7 @@ runs:
     state: RI
     utility: rie
     run_type: precalc
-    upgrade: '00'
+    upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_vs_flat.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=00/metadata-sb.parquet
@@ -259,7 +259,7 @@ runs:
     state: RI
     utility: rie
     run_type: precalc
-    upgrade: '00'
+    upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_vs_flat_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=00/metadata-sb.parquet
@@ -288,7 +288,7 @@ runs:
     state: RI
     utility: rie
     run_type: default
-    upgrade: '02'
+    upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_calibrated.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=02/metadata-sb.parquet
@@ -316,7 +316,7 @@ runs:
     state: RI
     utility: rie
     run_type: default
-    upgrade: '02'
+    upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_calibrated_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=02/metadata-sb.parquet
@@ -344,7 +344,7 @@ runs:
     state: RI
     utility: rie
     run_type: precalc
-    upgrade: '00'
+    upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_flex_vs_flat.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=00/metadata-sb.parquet
@@ -373,7 +373,7 @@ runs:
     state: RI
     utility: rie
     run_type: precalc
-    upgrade: '00'
+    upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_flex_vs_flat_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=00/metadata-sb.parquet
@@ -402,7 +402,7 @@ runs:
     state: RI
     utility: rie
     run_type: default
-    upgrade: '02'
+    upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_flex_calibrated.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=02/metadata-sb.parquet
@@ -430,7 +430,7 @@ runs:
     state: RI
     utility: rie
     run_type: default
-    upgrade: '02'
+    upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_flex_calibrated_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=RI/upgrade=02/metadata-sb.parquet
