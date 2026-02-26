@@ -277,6 +277,13 @@ if ! grep -q "^TMPDIR=" /etc/environment; then
   echo "TMPDIR=/ebs/tmp" >>/etc/environment
 fi
 
+# Set AWS_DEFAULT_REGION so Polars (object-store crate) and other tools can
+# resolve the bucket region without ~/.aws/config or explicit storage_options.
+# EC2 instances use IAM roles for credentials but have no config file by default.
+if ! grep -q "^AWS_DEFAULT_REGION=" /etc/environment; then
+  echo "AWS_DEFAULT_REGION=us-west-2" >>/etc/environment
+fi
+
 # Start and enable SSM agent (for AWS Systems Manager Session Manager)
 systemctl enable amazon-ssm-agent || true
 systemctl start amazon-ssm-agent || true

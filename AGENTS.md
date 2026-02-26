@@ -128,6 +128,7 @@ Match existing style: Ruff for formatting/lint, **ty** for type checking, dprint
 
 - **Always inspect the data before coding.** When writing code that reads from S3 (or any data source), open the actual dataset—e.g. read one parquet and print schema and a few rows (`df.schema`, `df.head()`)—instead of assuming column names, presence of IDs, or file layout. Do not infer schema or row identity from file paths or other code alone.
 - **Check context/docs first.** Before assuming a dataset's structure, look in `context/docs/` for data dictionaries, dataset docs, or release notes (e.g. ResStock, Cambium, EIA, PUMS). Use that as the source of truth; if docs and data disagree, note it.
+- **Parquet reads: local vs S3.** S3 has ~50–100 ms overhead per GET regardless of payload size. ResStock load curves are one-file-per-building (~33k files for NY). **Whole state from S3**: `scan_parquet` on the directory = ~28 min of overhead; prefer downloading locally first (e.g. `aws s3 sync`) or consolidating into fewer files. **Single utility from S3**: Do NOT use `scan_parquet(dir).filter(bldg_id.is_in(...))` — it probes every file; instead, load `metadata_utility` for bldg_ids, construct paths `{base}/{bldg_id}-{upgrade}.parquet`, and pass the list to `scan_parquet`. On local disk, `scan_parquet` + filter is fine (overhead ~1 s). Full guide: `context/tools/parquet_reads_local_vs_s3.md`.
 
 ## Dependencies
 
