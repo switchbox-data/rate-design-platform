@@ -1,5 +1,5 @@
 # tests/test_patches.py
-"""Tests for rate_design/ri/hp_rates/patches.py — CAIRO performance monkey-patches."""
+"""Tests for utils/mid/patches.py — CAIRO performance monkey-patches."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def sample_filepaths():
 def test_combined_reader_matches_separate_reads(sample_filepaths):
     """_return_loads_combined returns same data as two separate _return_load calls."""
     from cairo.rates_tool.loads import _return_load
-    from rate_design.ri.hp_rates.patches import _return_loads_combined
+    from utils.mid.patches import _return_loads_combined
 
     target_year = 2025
     bldg_ids = list(sample_filepaths.keys())
@@ -84,7 +84,7 @@ def test_vectorized_aggregation_matches_cairo(sample_filepaths):
     from pathlib import Path
     from cairo.rates_tool.loads import _return_load, process_building_demand_by_period
     from cairo.rates_tool.tariffs import get_default_tariff_structures
-    from rate_design.ri.hp_rates.patches import (
+    from utils.mid.patches import (
         _vectorized_process_building_demand_by_period,
     )
 
@@ -93,7 +93,7 @@ def test_vectorized_aggregation_matches_cairo(sample_filepaths):
     # process_building_demand_by_period in the real run.
     tariff_path = (
         Path(__file__).resolve().parent.parent
-        / "rate_design/ri/hp_rates/config/tariffs/electric/rie_flat.json"
+        / "rate_design/hp_rates/ri/config/tariffs/electric/rie_flat.json"
     )
     if not tariff_path.exists():
         pytest.skip("rie_flat.json not found")
@@ -165,11 +165,11 @@ def test_vectorized_billing_matches_cairo(sample_filepaths):
     from cairo.rates_tool import loads as _cairo_loads_orig
     from cairo.rates_tool.tariffs import get_default_tariff_structures
     from cairo.rates_tool.system_revenues import run_system_revenues
-    from rate_design.ri.hp_rates.patches import _vectorized_run_system_revenues
+    from utils.mid.patches import _vectorized_run_system_revenues
 
     tariff_path = (
         Path(__file__).resolve().parent.parent
-        / "rate_design/ri/hp_rates/config/tariffs/electric/rie_flat.json"
+        / "rate_design/hp_rates/ri/config/tariffs/electric/rie_flat.json"
     )
     if not tariff_path.exists():
         pytest.skip("rie_flat.json not found")
@@ -187,7 +187,7 @@ def test_vectorized_billing_matches_cairo(sample_filepaths):
         force_tz="EST",
     )
     # Use the original (pre-patch) process_building_demand_by_period for clean agg_load
-    from rate_design.ri.hp_rates.patches import _orig_process_building_demand_by_period
+    from utils.mid.patches import _orig_process_building_demand_by_period
 
     agg_load, agg_solar = _orig_process_building_demand_by_period(
         target_year=2025,
@@ -235,7 +235,7 @@ def test_gas_bills_not_double_converted(sample_filepaths):
     An average residential building uses ~500-1,200 therms/year. At ~$1.50/therm,
     annual gas bill should be ~$750-$1,800. If double-converted, the bill would be ~$26-$62.
     """
-    from rate_design.ri.hp_rates.patches import _return_loads_combined
+    from utils.mid.patches import _return_loads_combined
 
     bldg_ids = list(sample_filepaths.keys())[:1]  # just one building for speed
 
@@ -287,7 +287,7 @@ def test_gas_path_produces_reasonable_bills(sample_filepaths):
     # Load a gas tariff using PySAM format (same as the real run uses)
     gas_tariff_dir = (
         Path(__file__).resolve().parent.parent
-        / "rate_design/ri/hp_rates/config/tariffs/gas"
+        / "rate_design/hp_rates/ri/config/tariffs/gas"
     )
     gas_tariff_files = [
         p for p in gas_tariff_dir.glob("*.json") if p.stem != "null_gas_tariff"
@@ -333,7 +333,7 @@ def test_vectorized_gas_billing_matches_correct_bills(sample_filepaths):
     expected range for RI residential buildings after the double-conversion fix.
     """
     import dask
-    from rate_design.ri.hp_rates.patches import (
+    from utils.mid.patches import (
         _return_loads_combined,
         _vectorized_process_building_demand_by_period,
         _vectorized_calculate_gas_bills,
@@ -351,7 +351,7 @@ def test_vectorized_gas_billing_matches_correct_bills(sample_filepaths):
 
     gas_tariff_dir = (
         Path(__file__).resolve().parent.parent
-        / "rate_design/ri/hp_rates/config/tariffs/gas"
+        / "rate_design/hp_rates/ri/config/tariffs/gas"
     )
     gas_tariff_files = [
         f for f in gas_tariff_dir.glob("*.json") if "null" not in f.name
