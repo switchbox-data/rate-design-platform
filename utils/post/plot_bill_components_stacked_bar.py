@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Literal, cast
+from typing import cast
 
 import polars as pl
 from plotnine import (
@@ -32,10 +32,7 @@ from utils.post.io import (
     ANNUAL_MONTH,
     BLDG_ID,
     BILL_LEVEL,
-    is_s3,
-    load_lazy,
-    path_or_s3,
-    storage_opts,
+    scan,
 )
 
 HEATING_TYPE_COL = "postprocess_group.heating_type"
@@ -333,25 +330,20 @@ def main() -> None:
     args = _parse_args()
     annual_fixed = _read_fixed_charge_from_tariff(args.path_tariff_json) * 12
 
-    storage = storage_opts() if is_s3(path_or_s3(args.path_metadata)) else None
-
-    def _load(path: str, fmt: Literal["csv", "parquet"] = "csv") -> pl.LazyFrame:
-        return load_lazy(str(path_or_s3(path)), storage, fmt)
-
     metadata = cast(
         pl.DataFrame,
-        _load(args.path_metadata, "parquet").collect(),
+        scan(args.path_metadata, "parquet").collect(),
     )
 
     median_current = _median_customer_components(
-        _load(args.run_dir_delivery + BILLS_CSV),
-        _load(args.run_dir_supply + BILLS_CSV),
+        scan(args.run_dir_delivery + BILLS_CSV),
+        scan(args.run_dir_supply + BILLS_CSV),
         metadata,
         annual_fixed,
     )
     median_hp = _median_customer_components(
-        _load(args.run_dir_delivery_hp + BILLS_CSV),
-        _load(args.run_dir_supply_hp + BILLS_CSV),
+        scan(args.run_dir_delivery_hp + BILLS_CSV),
+        scan(args.run_dir_supply_hp + BILLS_CSV),
         metadata,
         annual_fixed,
     )

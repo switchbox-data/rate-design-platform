@@ -1,15 +1,16 @@
 """Plot weighted histogram of annual bill change (before vs after HP) under default rates.
 
 Reads comb_bills_year_target from run 2 (before) and run 4 (after), tops up with
-delivered fuel (oil/propane) costs via add_delivered_fuel_bills, computes delta,
-joins to metadata-sb (upgrade 00), applies a population filter, and plots the
-weighted distribution. Produces figures 2, 4, 5, 6 depending on --filter.
+delivered fuel (oil/propane) costs via add_delivered_fuel_bills using monthly
+consumption and monthly EIA prices, computes delta, joins to metadata-sb (upgrade 00),
+applies a population filter, and plots the weighted distribution.
+Produces figures 2, 4, 5, 6 depending on --filter.
 """
 
 from __future__ import annotations
 
 import argparse
-from typing import Literal, cast
+from typing import cast
 
 import polars as pl
 from plotnine import (
@@ -25,16 +26,15 @@ from plotnine import (
 
 from utils.post.delivered_fuel_bills import (
     add_delivered_fuel_bills,
-    load_avg_annual_fuel_price,
+    load_monthly_fuel_prices,
 )
 from utils.post.io import (
     ANNUAL_MONTH,
     BLDG_ID,
     BILL_LEVEL,
-    is_s3,
-    load_lazy,
     path_or_s3,
-    storage_opts,
+    scan,
+    scan_load_curves_for_utility,
 )
 
 BIN_WIDTH = 100
@@ -84,39 +84,38 @@ META_COLS = [
 
 
 def _compute_bill_deltas(
-    comb_before: pl.LazyFrame,
-    comb_after: pl.LazyFrame,
-    annual_before: pl.LazyFrame,
-    annual_after: pl.LazyFrame,
+    comb_bills_u00: pl.LazyFrame,
+    comb_bills_u02: pl.LazyFrame,
+    load_curve_monthly_u00: pl.LazyFrame,
+    load_curve_monthly_u02: pl.LazyFrame,
+    monthly_prices: pl.DataFrame,
     metadata: pl.DataFrame,
-    oil_price: float,
-    propane_price: float,
     filter_name: str,
 ) -> pl.DataFrame:
     """Collect bills, add delivered fuel, compute delta, join metadata, filter, return DataFrame."""
-    before_topped = add_delivered_fuel_bills(
-        comb_before, annual_before, oil_price, propane_price
+    topped_u00 = add_delivered_fuel_bills(
+        comb_bills_u00, load_curve_monthly_u00, monthly_prices
     )
-    after_topped = add_delivered_fuel_bills(
-        comb_after, annual_after, oil_price, propane_price
+    topped_u02 = add_delivered_fuel_bills(
+        comb_bills_u02, load_curve_monthly_u02, monthly_prices
     )
 
-    before_annual = cast(
+    annual_u00 = cast(
         pl.DataFrame,
-        before_topped.filter(pl.col("month") == ANNUAL_MONTH)
+        topped_u00.filter(pl.col("month") == ANNUAL_MONTH)
         .select(
             pl.col(BLDG_ID), pl.col("weight"), pl.col(BILL_LEVEL).alias("bill_before")
         )
         .collect(),
     )
-    after_annual = cast(
+    annual_u02 = cast(
         pl.DataFrame,
-        after_topped.filter(pl.col("month") == ANNUAL_MONTH)
+        topped_u02.filter(pl.col("month") == ANNUAL_MONTH)
         .select(pl.col(BLDG_ID), pl.col(BILL_LEVEL).alias("bill_after"))
         .collect(),
     )
 
-    delta_df = before_annual.join(after_annual, on=BLDG_ID, how="inner").with_columns(
+    delta_df = annual_u00.join(annual_u02, on=BLDG_ID, how="inner").with_columns(
         (pl.col("bill_after") - pl.col("bill_before")).alias("delta")
     )
 
@@ -247,14 +246,19 @@ def _parse_args() -> argparse.Namespace:
         help="S3 or local path to metadata-sb.parquet for upgrade 00.",
     )
     parser.add_argument(
-        "--path-annual-results-before",
+        "--path-resstock-release",
         required=True,
-        help="S3 or local path to load_curve_annual upgrade 00 parquet.",
+        help="Root of ResStock release, e.g. s3://data.sb/nrel/resstock/res_2024_amy2018_2.",
     )
     parser.add_argument(
-        "--path-annual-results-after",
+        "--utility",
         required=True,
-        help="S3 or local path to load_curve_annual upgrade 02 parquet.",
+        help="Electric utility short code (e.g. 'rie', 'or', 'coned').",
+    )
+    parser.add_argument(
+        "--path-heating-fuel-prices",
+        required=True,
+        help="S3 or local path to Hive-partitioned EIA heating fuel prices root.",
     )
     parser.add_argument(
         "--state",
@@ -284,31 +288,29 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     args = _parse_args()
 
-    storage = storage_opts() if is_s3(path_or_s3(args.run_dir_before)) else None
-
-    def _load(path: str, fmt: Literal["csv", "parquet"] = "csv") -> pl.LazyFrame:
-        return load_lazy(str(path_or_s3(path)), storage, fmt)
-
-    oil_price = load_avg_annual_fuel_price(
-        "heating_oil", args.state, args.price_year, "residential", storage
-    )
-    propane_price = load_avg_annual_fuel_price(
-        "propane", args.state, args.price_year, "residential", storage
+    monthly_prices = load_monthly_fuel_prices(
+        args.path_heating_fuel_prices,
+        args.state,
+        args.price_year,
     )
 
     metadata = cast(
         pl.DataFrame,
-        _load(args.path_metadata, "parquet").collect(),
+        scan(args.path_metadata, "parquet").collect(),
     )
 
+    def scan_monthly(upgrade: str) -> pl.LazyFrame:
+        return scan_load_curves_for_utility(
+            args.path_resstock_release, args.state, upgrade, args.utility, "monthly"
+        )
+
     df = _compute_bill_deltas(
-        comb_before=_load(str(path_or_s3(args.run_dir_before) / COMB_BILLS_CSV)),
-        comb_after=_load(str(path_or_s3(args.run_dir_after) / COMB_BILLS_CSV)),
-        annual_before=_load(args.path_annual_results_before, "parquet"),
-        annual_after=_load(args.path_annual_results_after, "parquet"),
+        comb_bills_u00=scan(str(path_or_s3(args.run_dir_before) / COMB_BILLS_CSV)),
+        comb_bills_u02=scan(str(path_or_s3(args.run_dir_after) / COMB_BILLS_CSV)),
+        load_curve_monthly_u00=scan_monthly("00"),
+        load_curve_monthly_u02=scan_monthly("02"),
+        monthly_prices=monthly_prices,
         metadata=metadata,
-        oil_price=oil_price,
-        propane_price=propane_price,
         filter_name=args.filter,
     )
 
