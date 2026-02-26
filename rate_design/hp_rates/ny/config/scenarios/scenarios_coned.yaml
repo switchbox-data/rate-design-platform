@@ -6,7 +6,7 @@ runs:
     run_type: precalc
     upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/coned_flat.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
@@ -35,7 +35,7 @@ runs:
     run_type: precalc
     upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/coned_flat_supply.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
@@ -64,7 +64,7 @@ runs:
     run_type: default
     upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/coned_flat_calibrated.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
@@ -93,7 +93,7 @@ runs:
     run_type: default
     upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/coned_flat_calibrated_supply.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
@@ -122,7 +122,7 @@ runs:
     run_type: precalc
     upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/coned_hp_seasonal_vs_flat.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
@@ -152,7 +152,7 @@ runs:
     run_type: precalc
     upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/coned_hp_seasonal_vs_flat_supply.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
@@ -182,7 +182,7 @@ runs:
     run_type: default
     upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/coned_hp_seasonal_calibrated.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
@@ -211,7 +211,7 @@ runs:
     run_type: default
     upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/coned_hp_seasonal_calibrated_supply.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
@@ -240,7 +240,7 @@ runs:
     run_type: precalc
     upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/coned_hp_seasonalTOU_vs_flat.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
@@ -270,7 +270,7 @@ runs:
     run_type: precalc
     upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/coned_hp_seasonalTOU_vs_flat_supply.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
@@ -300,7 +300,7 @@ runs:
     run_type: default
     upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/coned_hp_seasonalTOU_calibrated.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
@@ -329,7 +329,7 @@ runs:
     run_type: default
     upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/coned_hp_seasonalTOU_calibrated_supply.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
@@ -358,7 +358,7 @@ runs:
     run_type: precalc
     upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/coned_hp_seasonalTOU_flex_vs_flat.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
@@ -388,7 +388,7 @@ runs:
     run_type: precalc
     upgrade: '0'
     path_tariff_maps_electric: tariff_maps/electric/coned_hp_seasonalTOU_flex_vs_flat_supply.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=00/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
@@ -418,7 +418,7 @@ runs:
     run_type: default
     upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/coned_hp_seasonalTOU_flex_calibrated.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
@@ -447,7 +447,7 @@ runs:
     run_type: default
     upgrade: '2'
     path_tariff_maps_electric: tariff_maps/electric/coned_hp_seasonalTOU_flex_calibrated_supply.csv
-    path_tariff_maps_gas: tariff_maps/gas/coned.csv
+    path_tariff_maps_gas: tariff_maps/gas/coned_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2/load_curve_hourly/state=NY/upgrade=02/
     path_td_marginal_costs: s3://data.sb/switchbox/marginal_costs/ny/region=nyiso/utility=cenhud/year=2026/00000000.parquet
