@@ -1,7 +1,7 @@
 utility: nyseg
 group_col: has_hp
 cross_subsidy_col: BAT_percustomer
-run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/20260226_150127_ny_nyseg_run1_up00_precalc__flat
+run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/20260226_201519_ny_nyseg_run1_up00_precalc__flat__n100
 subclass_revenue_requirements:
-  'false': 965765897.6751279
-  'true': 34234101.32487271
+  'false': 949962501.5247264
+  'true': 50037497.47527368
