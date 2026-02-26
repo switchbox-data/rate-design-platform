@@ -54,12 +54,20 @@ from utils.types import ElectricUtility
 
 log = logging.getLogger("rates_analysis").getChild("run_scenario")
 
+
 def _storage_options() -> dict[str, str]:
     return {"aws_region": get_aws_region()}
+
+
 # Resolve paths relative to this script so the scenario can be run from any CWD.
+# Config lives under rate_design/hp_rates/{state}/config/.
 PATH_PROJECT = Path(__file__).resolve().parent
-PATH_CONFIG = PATH_PROJECT / "config"
-PATH_SCENARIOS = PATH_CONFIG / "scenarios"
+
+
+def _state_config(state: str) -> Path:
+    return PATH_PROJECT / state.lower() / "config"
+
+
 SUBCLASS_TO_ALIAS: dict[str, str] = {
     "true": "hp",
     "false": "non-hp",
@@ -73,11 +81,8 @@ def _timed(label: str) -> Iterator[None]:
     log.info("TIMING %s: %.1fs", label, time.perf_counter() - t0)
 
 
-def _scenario_config_from_utility(utility: str) -> Path:
-    return PATH_SCENARIOS / f"scenarios_{utility}.yaml"
-
-
-PATH_TOU_DERIVATION = PATH_CONFIG / "tou_derivation"
+def _scenario_config_from_utility(state: str, utility: str) -> Path:
+    return _state_config(state) / "scenarios" / f"scenarios_{utility}.yaml"
 
 
 @dataclass(slots=True)
@@ -192,11 +197,13 @@ def _resolve_output_dir(
 def _build_settings_from_yaml_run(
     run: dict[str, Any],
     run_num: int,
+    state: str,
     output_dir_override: Path | None,
     run_name_override: str | None,
 ) -> ScenarioSettings:
     """Build runtime settings from repo YAML scenario config."""
-    state = str(run.get("state", "RI")).upper()
+    state = state.upper()
+    path_config = _state_config(state)
     utility = str(_require_value(run, "utility")).lower()
     mode = str(run.get("run_type", "precalc"))
     year_run = _parse_int(_require_value(run, "year_run"), "year_run")
@@ -209,35 +216,35 @@ def _build_settings_from_yaml_run(
     )
     path_electric_utility_stats = _resolve_path_or_uri(
         str(_require_value(run, "path_electric_utility_stats")),
-        PATH_CONFIG,
+        path_config,
     )
     solar_pv_compensation = str(_require_value(run, "solar_pv_compensation"))
 
     path_tariff_maps_electric = _resolve_path(
         str(_require_value(run, "path_tariff_maps_electric")),
-        PATH_CONFIG,
+        path_config,
     )
     raw_path_tariffs_electric = _require_value(run, "path_tariffs_electric")
     path_tariffs_electric = _parse_path_tariffs(
         raw_path_tariffs_electric,
         path_tariff_maps_electric,
-        PATH_CONFIG,
+        path_config,
         "electric",
     )
     utility_delivery_revenue_requirement = _parse_utility_revenue_requirement(
         _require_value(run, "utility_delivery_revenue_requirement"),
-        PATH_CONFIG,
+        path_config,
         raw_path_tariffs_electric,
         SUBCLASS_TO_ALIAS,
     )
     path_tariff_maps_gas = _resolve_path(
         str(_require_value(run, "path_tariff_maps_gas")),
-        PATH_CONFIG,
+        path_config,
     )
     path_tariffs_gas = _parse_path_tariffs_gas(
         _require_value(run, "path_tariffs_gas"),
         path_tariff_maps_gas,
-        PATH_CONFIG,
+        path_config,
     )
 
     add_supply_revenue_requirement = _parse_bool(
@@ -251,7 +258,7 @@ def _build_settings_from_yaml_run(
     path_tou_supply_mc: str | Path | None = None
     if "path_tou_supply_mc" in run:
         path_tou_supply_mc = _resolve_path_or_uri(
-            str(run["path_tou_supply_mc"]), PATH_CONFIG
+            str(run["path_tou_supply_mc"]), path_config
         )
     output_dir = _resolve_output_dir(run, run_num, output_dir_override)
     run_name = run_name_override or run.get("run_name") or f"run_{run_num}"
@@ -263,34 +270,34 @@ def _build_settings_from_yaml_run(
         path_results=output_dir,
         path_utility_assignment=_resolve_path_or_uri(
             str(_require_value(run, "path_utility_assignment")),
-            PATH_CONFIG,
+            path_config,
         ),
         path_resstock_metadata=_resolve_path(
             str(_require_value(run, "path_resstock_metadata")),
-            PATH_CONFIG,
+            path_config,
         ),
         path_resstock_loads=_resolve_path(
             str(_require_value(run, "path_resstock_loads")),
-            PATH_CONFIG,
+            path_config,
         ),
         path_supply_marginal_costs=_resolve_path_or_uri(
-            str(run.get("path_supply_marginal_costs", "")), PATH_CONFIG
+            str(run.get("path_supply_marginal_costs", "")), path_config
         )
         if run.get("path_supply_marginal_costs")
         else None,
         path_supply_energy_mc=_resolve_path_or_uri(
-            str(run.get("path_supply_energy_mc", "")), PATH_CONFIG
+            str(run.get("path_supply_energy_mc", "")), path_config
         )
         if run.get("path_supply_energy_mc")
         else None,
         path_supply_capacity_mc=_resolve_path_or_uri(
-            str(run.get("path_supply_capacity_mc", "")), PATH_CONFIG
+            str(run.get("path_supply_capacity_mc", "")), path_config
         )
         if run.get("path_supply_capacity_mc")
         else None,
         path_td_marginal_costs=_resolve_path_or_uri(
             str(_require_value(run, "path_td_marginal_costs")),
-            PATH_CONFIG,
+            path_config,
         ),
         path_tariff_maps_electric=path_tariff_maps_electric,
         path_tariff_maps_gas=path_tariff_maps_gas,
@@ -320,12 +327,18 @@ def _parse_args() -> argparse.Namespace:
         help=("Path to YAML scenario config. Required unless --utility is provided."),
     )
     parser.add_argument(
+        "--state",
+        type=str,
+        required=True,
+        help="Two-letter state code (e.g. ri, ny). Determines config directory.",
+    )
+    parser.add_argument(
         "--utility",
         type=str,
         default=None,
         help=(
             "Utility code used to derive scenario config as "
-            "config/scenarios/scenarios_<utility>.yaml. "
+            "{state}/config/scenarios/scenarios_<utility>.yaml. "
             "Required unless --scenario-config is provided."
         ),
     )
@@ -366,15 +379,17 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
+    state = args.state
     scenario_config = args.scenario_config
     if scenario_config is None:
         if args.utility is None:
             raise ValueError("Provide either --scenario-config or --utility.")
-        scenario_config = _scenario_config_from_utility(args.utility.lower())
+        scenario_config = _scenario_config_from_utility(state, args.utility.lower())
     run = _load_run_from_yaml(scenario_config, args.run_num)
     return _build_settings_from_yaml_run(
         run=run,
         run_num=args.run_num,
+        state=state,
         output_dir_override=args.output_dir,
         run_name_override=args.run_name,
     )
@@ -593,7 +608,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             add_supply_revenue_requirement=settings.add_supply_revenue_requirement,
             path_tariffs_electric=settings.path_tariffs_electric,
             path_tou_supply_mc=settings.path_tou_supply_mc,
-            tou_derivation_dir=PATH_TOU_DERIVATION,
+            tou_derivation_dir=_state_config(settings.state) / "tou_derivation",
             raw_load_elec=raw_load_elec,
             customer_metadata=customer_metadata,
             tariff_map_df=tariff_map_df,

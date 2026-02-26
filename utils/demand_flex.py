@@ -76,9 +76,7 @@ def is_diurnal_tou(tariff_path: Path) -> bool:
     return False
 
 
-def find_tou_derivation_path(
-    tariff_key: str, tou_derivation_dir: Path
-) -> Path | None:
+def find_tou_derivation_path(tariff_key: str, tou_derivation_dir: Path) -> Path | None:
     """Find the TOU derivation JSON for a tariff key, if one exists.
 
     Convention: strip ``_calibrated`` and ``_flex`` suffixes from the tariff key
@@ -223,9 +221,7 @@ def apply_demand_flex(
     """
     # Identify which tariffs are diurnal TOU
     tou_tariff_keys = [
-        key
-        for key, path in path_tariffs_electric.items()
-        if is_diurnal_tou(path)
+        key for key, path in path_tariffs_electric.items() if is_diurnal_tou(path)
     ]
     if not tou_tariff_keys:
         raise ValueError(
@@ -317,30 +313,22 @@ def apply_demand_flex(
     updated_precalc = precalc_mapping
     if tou_season_specs and run_type == "precalc":
         if path_tou_supply_mc is not None:
-            tou_bulk_mc = _load_cambium_marginal_costs(
-                path_tou_supply_mc, year_run
-            )
+            tou_bulk_mc = _load_cambium_marginal_costs(path_tou_supply_mc, year_run)
             log.info(
                 ".... Phase 1.75: using real supply MC from %s",
                 path_tou_supply_mc,
             )
         else:
             tou_bulk_mc = bulk_marginal_costs
-            log.info(
-                ".... Phase 1.75: using scenario bulk MC (no path_tou_supply_mc)"
-            )
+            log.info(".... Phase 1.75: using scenario bulk MC (no path_tou_supply_mc)")
 
-        log.info(
-            ".... Phase 1.75: recomputing TOU precalc mapping from shifted load"
-        )
+        log.info(".... Phase 1.75: recomputing TOU precalc mapping from shifted load")
         sample_weights = customer_metadata[["bldg_id", "weight"]]
         shifted_weighted = effective_load_elec.reset_index().merge(
             sample_weights, on="bldg_id"
         )
         shifted_weighted["electricity_net"] *= shifted_weighted["weight"]
-        shifted_system_load = shifted_weighted.groupby("time")[
-            "electricity_net"
-        ].sum()
+        shifted_system_load = shifted_weighted.groupby("time")["electricity_net"].sum()
 
         updated_precalc = recompute_tou_precalc_mapping(
             precalc_mapping=precalc_mapping,
