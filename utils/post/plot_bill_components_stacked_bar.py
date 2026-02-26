@@ -36,6 +36,7 @@ BLDG_ID = "bldg_id"
 BILL_LEVEL = "bill_level"
 HEATING_TYPE_COL = "postprocess_group.heating_type"
 FOSSIL_FUEL = "fossil_fuel"
+BILLS_CSV = "/bills/elec_bills_year_run.csv"
 
 
 def _storage_opts() -> dict[str, str]:
@@ -308,7 +309,7 @@ def _plot_bill_components_stacked(
     )
 
 
-def main() -> None:
+def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Plot stacked bar chart of median electric bill components (current HVAC vs HP).",
     )
@@ -347,47 +348,32 @@ def main() -> None:
         default=None,
         help="Path to save chart PNG. If omitted, chart is shown interactively.",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
 
+
+def main() -> None:
+    args = _parse_args()
     annual_fixed = _read_fixed_charge_from_tariff(args.path_tariff_json) * 12
 
-    path_meta = _path_or_s3(args.path_metadata)
-    storage = _storage_opts() if _is_s3(path_meta) else None
+    storage = _storage_opts() if _is_s3(_path_or_s3(args.path_metadata)) else None
+
+    def _load(path: str, fmt: Literal["csv", "parquet"] = "csv") -> pl.LazyFrame:
+        return _load_lazy(str(_path_or_s3(path)), storage, fmt)
+
     metadata = cast(
         pl.DataFrame,
-        _load_lazy(str(path_meta), storage, "parquet").collect(),
+        _load(args.path_metadata, "parquet").collect(),
     )
 
-    path_delivery = _path_or_s3(args.run_dir_delivery)
-    path_supply = _path_or_s3(args.run_dir_supply)
-    path_delivery_hp = _path_or_s3(args.run_dir_delivery_hp)
-    path_supply_hp = _path_or_s3(args.run_dir_supply_hp)
-    use_s3 = _is_s3(path_delivery)
-    if use_s3:
-        storage = storage or _storage_opts()
-
-    bills_delivery = _load_lazy(
-        str(path_delivery / "bills" / "elec_bills_year_run.csv"), storage, "csv"
-    )
-    bills_supply = _load_lazy(
-        str(path_supply / "bills" / "elec_bills_year_run.csv"), storage, "csv"
-    )
     median_current = _median_customer_components(
-        bills_delivery,
-        bills_supply,
+        _load(args.run_dir_delivery + BILLS_CSV),
+        _load(args.run_dir_supply + BILLS_CSV),
         metadata,
         annual_fixed,
     )
-
-    bills_delivery_hp = _load_lazy(
-        str(path_delivery_hp / "bills" / "elec_bills_year_run.csv"), storage, "csv"
-    )
-    bills_supply_hp = _load_lazy(
-        str(path_supply_hp / "bills" / "elec_bills_year_run.csv"), storage, "csv"
-    )
     median_hp = _median_customer_components(
-        bills_delivery_hp,
-        bills_supply_hp,
+        _load(args.run_dir_delivery_hp + BILLS_CSV),
+        _load(args.run_dir_supply_hp + BILLS_CSV),
         metadata,
         annual_fixed,
     )
