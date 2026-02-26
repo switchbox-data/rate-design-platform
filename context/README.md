@@ -41,6 +41,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 | run_orchestration.md                     | RI runs 1–16 orchestration: Justfile dependency chain, demand flex (runs 13-16), design decisions  |
 | ny_supply_marginal_costs.md              | NY supply MC pipeline: LBMP energy + ICAP capacity, zone mapping, load-weighting, MCOS allocation  |
 | nyiso_lbmp_zonal_data_sources.md         | NYISO Day-Ahead/Real-Time zonal LBMP: MIS ZIP vs gridstatus vs NYISOToolkit; data samples          |
+| parquet_reads_local_vs_s3.md             | Reading Parquet from local disk vs S3: per-GET overhead, file discovery, Hive filters vs path construction, best practices for whole-state and per-utility reads |
 | polars_laziness_and_validation.md        | Polars LazyFrame best practices: when to collect, runtime data-quality asserts vs laziness/streaming, strategies for small and large data |
 
 ## docs/
