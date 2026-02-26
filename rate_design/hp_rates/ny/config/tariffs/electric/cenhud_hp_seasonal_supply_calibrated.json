@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "nyseg_hp_seasonal",
-      "name": "nyseg_hp_seasonal",
+      "label": "cenhud_hp_seasonal_supply",
+      "name": "cenhud_hp_seasonal_supply",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,14 +640,14 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.11677978965347749,
+            "rate": 0.24014989087438438,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.022000228909681105,
+            "rate": 0.11688401191199473,
             "adj": 0.0,
             "unit": "kWh"
           }

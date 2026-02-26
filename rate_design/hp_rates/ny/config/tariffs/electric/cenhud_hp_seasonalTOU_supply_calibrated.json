@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "nyseg_hp_seasonalTOU_flex_supply",
-      "name": "nyseg_hp_seasonalTOU_flex_supply",
+      "label": "cenhud_hp_seasonalTOU_supply",
+      "name": "cenhud_hp_seasonalTOU_supply",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,28 +640,28 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.10860474883854529,
+            "rate": 0.1314389986055453,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.1349196794821248,
+            "rate": 0.1554923353503601,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.1473657836990221,
+            "rate": 0.16935914970324512,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.30086773570742203,
+            "rate": 0.3165051086421531,
             "adj": 0.0,
             "unit": "kWh"
           }

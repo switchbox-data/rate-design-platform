@@ -1,14 +1,9 @@
 {
   "items": [
     {
-      "label": "nyseg_hp_seasonalTOU_flex_supply",
-      "name": "nyseg_hp_seasonalTOU_flex_supply",
+      "label": "cenhud_hp_seasonalTOU",
       "uri": "",
       "sector": "Residential",
-      "servicetype": "Bundled",
-      "dgrules": "Net Metering",
-      "utility": "GenericUtility",
-      "country": "USA",
       "energyweekdayschedule": [
         [
           0,
@@ -640,28 +635,28 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.10860474883854529,
+            "rate": 0.157963,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.1349196794821248,
+            "rate": 0.186866,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.1473657836990221,
+            "rate": 0.203541,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.30086773570742203,
+            "rate": 0.380368,
             "adj": 0.0,
             "unit": "kWh"
           }
@@ -670,7 +665,14 @@
       "fixedchargefirstmeter": 6.75,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
-      "minchargeunits": "$/month"
+      "minchargeunits": "$/month",
+      "utility": "cenhud",
+      "servicetype": "Bundled",
+      "name": "cenhud_hp_seasonalTOU",
+      "is_default": false,
+      "country": "USA",
+      "demandunits": "kW",
+      "demandrateunit": "kW"
     }
   ]
 }
