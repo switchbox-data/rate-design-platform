@@ -1,0 +1,441 @@
+{
+  "5244": {
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr",
+    "variableRateKey": "electricSupplyChargeSC1Adirondack"
+  },
+  "5245": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr",
+    "variableRateKey": "electricSupplyChargeSc1DeliveryAdjAdirondack"
+  },
+  "5246": {
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr",
+    "variableRateKey": "electricSupplyChargeSC1Capital"
+  },
+  "5247": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr",
+    "variableRateKey": "electricSupplyChargeSc1DeliveryAdjCapital"
+  },
+  "5248": {
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr",
+    "variableRateKey": "electricSupplyChargeSC1Central"
+  },
+  "5249": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr",
+    "variableRateKey": "electricSupplyChargeSc1DeliveryAdjCentral"
+  },
+  "5250": {
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr",
+    "variableRateKey": "electricSupplyChargeSC1Frontier"
+  },
+  "5251": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr",
+    "variableRateKey": "electricSupplyChargeSc1DeliveryAdjFrontier"
+  },
+  "5252": {
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr",
+    "variableRateKey": "electricSupplyChargeSC1Genesee"
+  },
+  "5253": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr",
+    "variableRateKey": "electricSupplyChargeSc1DeliveryAdjGenesee"
+  },
+  "5254": {
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr",
+    "variableRateKey": "electricSupplyChargeSC1Utica"
+  },
+  "5255": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr",
+    "variableRateKey": "electricSupplyChargeSc1DeliveryAdjUtica"
+  },
+  "20715134": {
+    "master_charge": "Customer Charge",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20715135": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20715136": {
+    "master_charge": "Low-income discounts",
+    "master_type": "Eligibility",
+    "decision": "skip"
+  },
+  "20715137": {
+    "master_charge": "Revenue Decoupling (RDM)",
+    "master_type": "Revenue true-up",
+    "decision": "exclude",
+    "variableRateKey": "revenueDecouplingMechanism"
+  },
+  "20715138": {
+    "master_charge": "Transmission Revenue Adjustment",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "TransmissionRevenueAdjSC1579"
+  },
+  "20715139": {
+    "master_charge": "Transition / Restructuring",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "legacyTransitionChargeSC1"
+  },
+  "20715140": {
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "esrMechanismSC1Frontier"
+  },
+  "20715141": {
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "esrMechanismSC1Genesee"
+  },
+  "20715142": {
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "esrMechanismSC1Adirondack"
+  },
+  "20715143": {
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "esrMechanismSC1Utica"
+  },
+  "20715144": {
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "esrMechanismSC1Capital"
+  },
+  "20715145": {
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "esrMechanismSC1Central"
+  },
+  "20715146": {
+    "master_charge": "System Benefits Charge",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "systemBenefitsCharge579"
+  },
+  "20715147": {
+    "master_charge": "CES Supply Surcharge",
+    "master_type": "CES supply",
+    "decision": "add_to_srr",
+    "variableRateKey": "cleanEnergyStandardSupply579"
+  },
+  "20715148": {
+    "master_charge": "CES Delivery",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "cleanEnergyStandardDelivery579"
+  },
+  "20715149": {
+    "master_charge": "DLM Surcharge",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "dynamicLoadManagementSurchargeSC1"
+  },
+  "20715150": {
+    "master_charge": "Earnings Adjustment Mechanism",
+    "master_type": "Performance incentive",
+    "decision": "exclude",
+    "variableRateKey": "earningsAdjustmentMechanismSC1"
+  },
+  "20715151": {
+    "master_charge": "Minimum Charge",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "19819734": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "electricSupplyChargeSC1Adirondack"
+  },
+  "19819735": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "electricSupplyChargeSC1Capital"
+  },
+  "19819736": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "electricSupplyChargeSC1Central"
+  },
+  "19819737": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "electricSupplyChargeSC1Frontier"
+  },
+  "19819738": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "electricSupplyChargeSC1Genesee"
+  },
+  "19819739": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "electricSupplyChargeSC1Utica"
+  },
+  "19819740": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "esrMechanismSC1Adirondack"
+  },
+  "19819741": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "esrMechanismSC1Capital"
+  },
+  "19819742": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "esrMechanismSC1Central"
+  },
+  "19819743": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "esrMechanismSC1Frontier"
+  },
+  "19819744": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "esrMechanismSC1Genesee"
+  },
+  "19819745": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "esrMechanismSC1Utica"
+  },
+  "19819746": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "electricSupplyChargeSC1Adirondack"
+  },
+  "19819747": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "electricSupplyChargeSC1Capital"
+  },
+  "19819748": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "electricSupplyChargeSC1Central"
+  },
+  "19819749": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "electricSupplyChargeSC1Frontier"
+  },
+  "19819750": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "electricSupplyChargeSC1Genesee"
+  },
+  "19819751": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "electricSupplyChargeSC1Utica"
+  },
+  "19819752": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "esrMechanismSC1Adirondack"
+  },
+  "19819753": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "esrMechanismSC1Capital"
+  },
+  "19819754": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "esrMechanismSC1Central"
+  },
+  "19819755": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "esrMechanismSC1Frontier"
+  },
+  "19819756": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "esrMechanismSC1Genesee"
+  },
+  "19819757": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "esrMechanismSC1Utica"
+  },
+  "19819758": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "cleanEnergyStandardSupply579"
+  },
+  "19819759": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "merchantFunctionChargeElectricitySupplyProcurementCharge"
+  },
+  "19819760": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "rider_id": 3293827,
+    "variableRateKey": "merchantFunctionChargeElectricitySupplyCreditCollectionCharg"
+  },
+  "20879424": {
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr"
+  },
+  "20879425": {
+    "master_charge": "Customer Benefit Contribution",
+    "master_type": "Other",
+    "decision": "exclude"
+  },
+  "20915138": {
+    "master_charge": "EV Make Ready",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "rate_name": "Electric Vehicle Make Ready Surcharge"
+  },
+  "20684525": {
+    "master_charge": "Arrears / COVID forgiveness",
+    "master_type": "Sunk-cost recovery",
+    "decision": "add_to_drr",
+    "rate_name": "Arrears Management Program Recovery Surcharge - Phase 1"
+  },
+  "20684526": {
+    "master_charge": "Arrears / COVID forgiveness",
+    "master_type": "Sunk-cost recovery",
+    "decision": "add_to_drr",
+    "rate_name": "Arrears Management Program Recovery Surcharge - Phase 2"
+  },
+  "20718608": {
+    "master_charge": "Net Utility Plant / Depreciation Recon",
+    "master_type": "Cost recon",
+    "decision": "exclude"
+  },
+  "20775852": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20761838": {
+    "master_charge": "GreenUp",
+    "master_type": "Eligibility / optional",
+    "decision": "skip",
+    "rider_id": 3315516
+  },
+  "20416783": {
+    "master_charge": "CBC (solar only)",
+    "master_type": "Eligibility / optional",
+    "decision": "skip",
+    "rider_id": 3399323
+  },
+  "20059189": {
+    "master_charge": "EV Make Ready",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "rider_id": 3402224
+  },
+  "20260236": {
+    "master_charge": "Arrears / COVID forgiveness",
+    "master_type": "Sunk-cost recovery",
+    "decision": "add_to_drr",
+    "rider_id": 3435425
+  },
+  "20260237": {
+    "master_charge": "Arrears / COVID forgiveness",
+    "master_type": "Sunk-cost recovery",
+    "decision": "add_to_drr",
+    "rider_id": 3435425
+  },
+  "20288265": {
+    "master_charge": "Net Utility Plant / Depreciation Recon",
+    "master_type": "Cost reconciliation",
+    "decision": "exclude",
+    "rider_id": 3482945
+  }
+}

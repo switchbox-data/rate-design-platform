@@ -1,0 +1,268 @@
+{
+  "20918155": {
+    "master_charge": "Customer Charge",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20918156": {
+    "master_charge": "Billing & Payment Processing",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20918157": {
+    "master_charge": "Delivery Revenue Surcharge / Electric Bill Credit",
+    "master_type": "Revenue true-up",
+    "decision": "exclude",
+    "variableRateKey": "DeliveryRevenueSurchargeSc1"
+  },
+  "20918158": {
+    "master_charge": "MAC sub-components",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "macAdjustmentReconciliation2252"
+  },
+  "20918159": {
+    "master_charge": "Transition / Restructuring",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "macAdjustmentTransitionAdjustment2252"
+  },
+  "20918160": {
+    "master_charge": "MAC sub-components",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "macAdjustmentUncollectibeBillExpense2252"
+  },
+  "20918161": {
+    "master_charge": "Delivery cost true-up (MAC / RAM / DSA)",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "monthlyAdjustmentClauseResidential"
+  },
+  "20918162": {
+    "master_charge": "Revenue Decoupling (RDM)",
+    "master_type": "Revenue true-up",
+    "decision": "exclude",
+    "variableRateKey": "revenueDecouplingMechanismAdjustmentSc1"
+  },
+  "20918163": {
+    "master_charge": "CES Delivery",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "cleanEnergyStandardDelivery2252"
+  },
+  "20918164": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20918165": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20918166": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20918167": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20918168": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20918169": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20918170": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "variableRateKey": "2252MerchantFunctionChargeSC1SC7"
+  },
+  "20918171": {
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr",
+    "variableRateKey": "marketSupplyChargeResidentialZoneH"
+  },
+  "20918172": {
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr",
+    "variableRateKey": "marketSupplyChargeResidentialZoneI"
+  },
+  "20918173": {
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr",
+    "variableRateKey": "marketSupplyChargeResidentialZoneJ"
+  },
+  "20918174": {
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "mscIResidentialWestchester2252"
+  },
+  "20918175": {
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "mscIResidentialWestchester2252"
+  },
+  "20918176": {
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "mscIResidentialNewYork2252"
+  },
+  "20918177": {
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "mscIIAdjustmentFactor"
+  },
+  "20918178": {
+    "master_charge": "CES Supply Surcharge",
+    "master_type": "CES supply",
+    "decision": "add_to_srr",
+    "variableRateKey": "cleanEnergyStandardSupply2252"
+  },
+  "20918179": {
+    "master_charge": "System Benefits Charge",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "systemsBenefitsCharge2252"
+  },
+  "20918180": {
+    "master_charge": "NY State Surcharge (\u00a718-a)",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "newYorkStateSurchargeSC1"
+  },
+  "20918181": {
+    "master_charge": "Minimum Charge",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "18273430": {
+    "master_charge": "Tax Sur-Credit",
+    "master_type": "Expired",
+    "decision": "exclude",
+    "variableRateKey": "taxSurCreditSC1"
+  },
+  "18336601": {
+    "master_charge": "DLM Surcharge",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "dynamicLoadManagementSurcharge2252SC1"
+  },
+  "20812620": {
+    "master_charge": "CBC (solar only)",
+    "master_type": "Eligibility",
+    "decision": "skip"
+  },
+  "20903427": {
+    "master_charge": "EV Make Ready",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "rate_name": "Electric Vehicle Make Ready Surcharge"
+  },
+  "20206987": {
+    "master_charge": "Arrears / COVID forgiveness",
+    "master_type": "Sunk-cost recovery",
+    "decision": "add_to_drr",
+    "rate_name": "Arrears Management Program Recovery Surcharge"
+  },
+  "20669930": {
+    "master_charge": "GRT",
+    "master_type": "Tax pass-through",
+    "decision": "exclude"
+  },
+  "20669931": {
+    "master_charge": "GRT",
+    "master_type": "Tax pass-through",
+    "decision": "exclude"
+  },
+  "20669932": {
+    "master_charge": "GRT",
+    "master_type": "Tax pass-through",
+    "decision": "exclude"
+  },
+  "20669933": {
+    "master_charge": "GRT",
+    "master_type": "Tax pass-through",
+    "decision": "exclude"
+  },
+  "20669934": {
+    "master_charge": "GRT",
+    "master_type": "Tax pass-through",
+    "decision": "exclude"
+  },
+  "20669935": {
+    "master_charge": "GRT",
+    "master_type": "Tax pass-through",
+    "decision": "exclude"
+  },
+  "20721406": {
+    "master_charge": "VDER / DER Cost Recovery",
+    "master_type": "DER credit recovery",
+    "decision": "add_to_drr",
+    "rider_id": 3521053
+  },
+  "20443074": {
+    "master_charge": "CBC (solar only)",
+    "master_type": "Eligibility / optional",
+    "decision": "skip",
+    "rider_id": 3399165
+  },
+  "20041688": {
+    "master_charge": "EV Make Ready",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "rider_id": 3401705
+  },
+  "20669924": {
+    "master_charge": "GRT",
+    "master_type": "Tax pass-through",
+    "decision": "exclude",
+    "rider_id": 3516476
+  },
+  "20669925": {
+    "master_charge": "GRT",
+    "master_type": "Tax pass-through",
+    "decision": "exclude",
+    "rider_id": 3516476
+  },
+  "20669926": {
+    "master_charge": "GRT",
+    "master_type": "Tax pass-through",
+    "decision": "exclude",
+    "rider_id": 3516476
+  },
+  "20669927": {
+    "master_charge": "GRT",
+    "master_type": "Tax pass-through",
+    "decision": "exclude",
+    "rider_id": 3516476
+  },
+  "20669928": {
+    "master_charge": "GRT",
+    "master_type": "Tax pass-through",
+    "decision": "exclude",
+    "rider_id": 3516476
+  },
+  "20669929": {
+    "master_charge": "GRT",
+    "master_type": "Tax pass-through",
+    "decision": "exclude",
+    "rider_id": 3516476
+  }
+}
