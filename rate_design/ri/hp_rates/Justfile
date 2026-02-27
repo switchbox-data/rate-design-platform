@@ -47,22 +47,11 @@ path_resstock_release               := "/ebs/data/nrel/resstock/res_2024_amy2018
 path_resstock_metadata              := path_resstock_release + "/metadata"
 path_utility_assignment             := path_resstock_release + "/metadata_utility/state=" + state_upper + "/utility_assignment.parquet"
 path_resstock_loads_00              := path_resstock_release + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
-path_s3_resstock_release            := "s3://data.sb/nrel/resstock/res_2024_amy2018_2"
-path_s3_resstock_metadata           := path_s3_resstock_release + "/metadata"
-path_metadata_sb_00                 := path_s3_resstock_metadata + "/state=" + state_upper + "/upgrade=00/metadata-sb.parquet"
-path_s3_load_curve_annual           := path_s3_resstock_release + "/load_curve_annual"
-path_annual_results_00              := path_s3_load_curve_annual + "/state=" + state_upper + "/upgrade=00/RI_upgrade00_metadata_and_annual_results.parquet"
-path_annual_results_02              := path_s3_load_curve_annual + "/state=" + state_upper + "/upgrade=02/RI_upgrade02_metadata_and_annual_results.parquet"
-path_s3_load_curve_monthly          := path_s3_resstock_release + "/load_curve_monthly"
-path_load_curve_monthly_u00         := path_s3_load_curve_monthly + "/state=" + state_upper + "/upgrade=00/"
-path_load_curve_monthly_u02         := path_s3_load_curve_monthly + "/state=" + state_upper + "/upgrade=02/"
-path_s3_utility_assignment          := path_s3_resstock_release + "/metadata_utility"
 path_cambium                        := "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=" + year + "/gea=" + uppercase(region) + "/r=" + cambium_ba + "/data.parquet"
 path_mc_table                       := path_config / "marginal_costs" / state + "_marginal_costs_" + year + ".csv"
 path_s3_mc_output                   := "s3://data.sb/switchbox/marginal_costs/" + state + "/"
 path_s3_utility_loads               := "s3://data.sb/eia/hourly_demand/utilities/"
 path_electric_utility_stats         := "s3://data.sb/eia/861/electric_utility_stats/year=2024/state=" + state_upper + "/data.parquet"
-path_heating_fuel_prices            := "s3://data.sb/eia/heating_fuel_prices"
 path_default_tariff                 := path_tariffs_electric / default_tariff
 path_default_supply_tariff          := path_tariffs_electric / default_tariff_supply
 tou_tariff_key                      := utility + "_hp_seasonalTOU"
@@ -519,28 +508,3 @@ apply-ri-lmi-discounts run_dir run_state run_utility fpl_year cpi_s3_path partic
     --participation-rate {{participation_rate}} \
     {{ if rider == "true" { "--rider" } else { "" } }} \
     --upload
-
-# Median electric bill components stacked bar (current HVAC vs HP). Uses runs 1–4 and metadata-sb.parquet (upgrade 00).
-plot-bill-components-stacked-bar run_dir_delivery run_dir_supply run_dir_delivery_hp run_dir_supply_hp output="" path_tariff_json=(path_tariffs_electric / (utility + "_flat.json")):
-  uv run python {{path_repo}}/utils/post/plot_bill_components_stacked_bar.py \
-    --run-dir-delivery "{{run_dir_delivery}}" \
-    --run-dir-supply "{{run_dir_supply}}" \
-    --run-dir-delivery-hp "{{run_dir_delivery_hp}}" \
-    --run-dir-supply-hp "{{run_dir_supply_hp}}" \
-    --path-tariff-json "{{path_tariff_json}}" \
-    --path-metadata "{{path_metadata_sb_00}}" \
-    {{ if output != "" { "--output " + output } else { "" } }}
-
-# Bill change histogram (figures 2, 4, 5, 6). Filter: non_hp | natgas | oil_propane | electric_resistance.
-plot-bill-change-histogram run_dir_before run_dir_after filter output="" price_year="2024":
-  uv run python {{path_repo}}/utils/post/plot_bill_change_histogram.py \
-    --run-dir-before "{{run_dir_before}}" \
-    --run-dir-after "{{run_dir_after}}" \
-    --path-metadata "{{path_metadata_sb_00}}" \
-    --path-resstock-release "{{path_s3_resstock_release}}" \
-    --utility "{{utility}}" \
-    --path-heating-fuel-prices "{{path_heating_fuel_prices}}" \
-    --state {{state_upper}} \
-    --price-year {{price_year}} \
-    --filter {{filter}} \
-    {{ if output != "" { "--output " + output } else { "" } }}
