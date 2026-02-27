@@ -112,9 +112,6 @@ validate-config mode="warn":
 create-scenario-yamls:
     just -f {{path_repo}}/utils/Justfile create-scenario-yamls "{{state_upper}}"
 
-create-electric-tariff-maps-all:
-    just -f {{path_repo}}/utils/Justfile write-tariff-maps-all "{{path_scenarios}}"
-
 create-revenue-yaml:
   uv run python {{path_repo}}/utils/pre/create_revenue_yaml.py \
     --path-revenue-csv "{{path_revenue_csv}}" \
@@ -124,6 +121,7 @@ create-revenue-yaml:
     --utility-col "{{revenue_utility_col}}" \
     --year-col "{{revenue_year_col}}"
 
+# Revenue requirement top-ups
 fetch-genability-tariffs effective_date="2025-01-01":
   uv run python {{path_repo}}/utils/pre/fetch_electric_tariffs_genability.py \
     "{{path_genability_yaml}}" \
@@ -147,6 +145,7 @@ compute-rr:
     --path-rate-case-rr "{{path_rate_case_delivery_rr}}" \
     --output "{{path_default_rev_requirement}}"
 
+# Pre-calibrated tariffs
 create-flat-tariff:
   just -f {{path_repo}}/utils/Justfile create-flat-tariff \
     "{{path_default_tariff}}" \
@@ -172,6 +171,10 @@ create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
     "{{reference_tariff}}" \
     "{{run_dir}}"
 
+# Tariff maps
+create-electric-tariff-maps-all:
+    just -f {{path_repo}}/utils/Justfile write-tariff-maps-all "{{path_scenarios}}"
+
 create-gas-tariff-map electric_utility upgrade_id output_dir:
   just -f {{path_repo}}/utils/Justfile create-gas-tariff-map \
     "{{path_resstock_metadata}}" \
@@ -185,6 +188,7 @@ create-gas-tariff-maps-all:
   just create-gas-tariff-map {{utility}} "00" {{path_tariff_maps}}/gas
   just create-gas-tariff-map {{utility}} "02" {{path_tariff_maps}}/gas
 
+# Distribution marginal costs
 create-td-mc-data:
   uv run python {{path_repo}}/utils/pre/generate_utility_tx_dx_mc.py \
     --state {{state_upper}} \
