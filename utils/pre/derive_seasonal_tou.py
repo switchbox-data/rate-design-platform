@@ -15,7 +15,7 @@ Usage (via Justfile)::
     just derive-seasonal-tou \\
         --cambium-path s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet \\
         --state RI --utility rie --year 2025 \\
-        --path-td-marginal-costs s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/0000000.parquet \\
+        --path-td-marginal-costs s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet \\
         --resstock-metadata-path /data.sb/nrel/resstock/.../metadata-sb.parquet \\
         --resstock-loads-path   /data.sb/nrel/resstock/.../load_curve_hourly/state=RI/upgrade=00 \\
         --path-electric-utility-stats s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet \\

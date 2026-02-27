@@ -9,11 +9,11 @@ Input:
     - Marginal cost table CSV ($/kW-yr)
     - Target year (2026-2035)
 
-Output: s3://data.sb/switchbox/marginal_costs/ny/utility=X/year=YYYY/data.parquet
+Output: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=X/year=YYYY/data.parquet
 Output partitions written as:
-    - NY default base: s3://data.sb/switchbox/marginal_costs/ny/
-    - RI default base: s3://data.sb/switchbox/marginal_costs/ri/
-    - Partition path: region=<iso_region>/utility=X/year=YYYY/data.parquet
+    - NY default base: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/
+    - RI default base: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
+    - Partition path: utility=X/year=YYYY/data.parquet
 
 Usage:
     # Inspect results (no upload) - uses 2026 MC with 2026 loads
@@ -478,14 +478,14 @@ def save_allocated_costs(
     """Save allocated marginal costs to S3 with Hive-style partitioning.
 
     Output structure:
-        region=<iso_region>/utility=X/year=YYYY/data.parquet
+        utility=X/year=YYYY/data.parquet
 
     Args:
         df: DataFrame with allocated costs
-        iso_region: ISO region partition key (nyiso/isone)
+        iso_region: ISO region partition key (nyiso/isone) - used for validation only
         utility: Utility name
         year: Target year
-        s3_base: Base S3 path for marginal costs
+        s3_base: Base S3 path for marginal costs (should include dist_and_sub_tx subdirectory)
         validation_results: Validation results to include in metadata
         storage_options: Polars S3 storage options with AWS bucket region
     """
@@ -493,7 +493,6 @@ def save_allocated_costs(
     output_df = df.select(
         [
             "timestamp",
-            pl.lit(iso_region).alias("region"),
             pl.lit(utility).alias("utility"),
             pl.lit(year).alias("year"),
             "mc_total_per_kwh",
@@ -501,15 +500,16 @@ def save_allocated_costs(
     )
 
     s3_base = s3_base.rstrip("/") + "/"
+    # Write directly to the partition path with data.parquet filename
+    output_path = f"{s3_base}utility={utility}/year={year}/data.parquet"
     output_df.write_parquet(
-        s3_base,
-        partition_by=["region", "utility", "year"],
+        output_path,
         storage_options=storage_options,
     )
 
     print(
         "\n✓ Saved allocated costs to "
-        f"{s3_base}/region={iso_region}/utility={utility}/year={year}/data.parquet"
+        f"{output_path}"
     )
     print(f"  Rows: {len(output_df):,}")
     print(f"  Columns: {', '.join(output_df.columns)}")
@@ -565,7 +565,7 @@ def main():
         "--output-s3-base",
         type=str,
         required=True,
-        help="Base S3 path for output (e.g., s3://data.sb/switchbox/marginal_costs/ny/)",
+        help="Base S3 path for output (e.g., s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/)",
     )
     parser.add_argument(
         "--upstream-hours",

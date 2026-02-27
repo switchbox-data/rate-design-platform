@@ -302,10 +302,7 @@ def _build_settings_from_yaml_run(
         if run.get("path_supply_capacity_mc")
         else None,
         path_dist_and_sub_tx_marginal_costs=_resolve_path_or_uri(
-            str(
-                run.get("path_dist_and_sub_tx_marginal_costs")
-                or _require_value(run, "path_distribution_marginal_costs")
-            ),
+            _require_value(run, "path_dist_and_sub_tx_marginal_costs"),
             path_config,
         ),
         path_tariff_maps_electric=path_tariff_maps_electric,
@@ -607,7 +604,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             precalc_mapping=precalc_mapping,
             rr_total=rr_total,
             bulk_marginal_costs=bulk_marginal_costs,
-            distribution_marginal_costs=dist_and_sub_tx_marginal_costs,
+            dist_and_sub_tx_marginal_costs=dist_and_sub_tx_marginal_costs,
         )
         effective_load_elec = flex.effective_load_elec
         elasticity_tracker = flex.elasticity_tracker

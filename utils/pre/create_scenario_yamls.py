@@ -230,12 +230,9 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     ):
         run[key] = get(key)
 
-    # Handle path_dist_and_sub_tx_marginal_costs with backward compatibility for path_distribution_marginal_costs
-    try:
-        run["path_dist_and_sub_tx_marginal_costs"] = get("path_dist_and_sub_tx_marginal_costs")
-    except ValueError:
-        # Fallback to old column name for backward compatibility
-        run["path_dist_and_sub_tx_marginal_costs"] = get("path_distribution_marginal_costs")
+    run["path_dist_and_sub_tx_marginal_costs"] = get(
+        "path_dist_and_sub_tx_marginal_costs"
+    )
 
     # Handle path_supply_marginal_costs with backward compatibility for path_cambium_marginal_costs
     try:
