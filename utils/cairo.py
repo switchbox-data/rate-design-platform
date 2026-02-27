@@ -297,7 +297,12 @@ def _load_supply_marginal_costs(
     target_year: int,
 ) -> pd.DataFrame:
     """
-    Load supply marginal costs from separate energy and capacity files, or fallback to combined Cambium file.
+    Load supply marginal costs: Energy + Capacity (bulk supply).
+
+    Architecture:
+    - Supply MCs = Energy + Capacity (bulk supply, from Cambium or NYISO)
+    - Delivery MCs = Bulk Tx + Dist+Sub-Tx (handled separately)
+    All MCs are index-aligned to a common 8760-hour DatetimeIndex.
 
     If both energy_path and capacity_path are provided:
     - If either path contains "cambium", treat it as a Cambium file (combined energy+capacity)
@@ -306,6 +311,9 @@ def _load_supply_marginal_costs(
 
     If only one is provided, raises ValueError.
     If both are None, raises ValueError (caller should use _load_cambium_marginal_costs instead).
+
+    For delivery-only runs (add_supply_revenue_requirement=false), supply MCs may be set to
+    zero but are still loaded to provide the alignment target index.
 
     Returns DataFrame with columns matching CAIRO convention:
     - Marginal Energy Costs ($/kWh)
@@ -319,7 +327,8 @@ def _load_supply_marginal_costs(
         target_year: Target year for timeshifting.
 
     Returns:
-        Combined DataFrame with both energy and capacity costs.
+        Combined DataFrame with both energy and capacity costs, indexed by DatetimeIndex
+        (EST-localized, 8760 rows).
     """
     if energy_path is None and capacity_path is None:
         raise ValueError(
@@ -429,58 +438,68 @@ def _fetch_prototype_ids_by_electric_util(
     return cast(list[int], bldg_ids["bldg_id"].to_list())
 
 
-def load_distribution_marginal_costs(
+def load_dist_and_sub_tx_marginal_costs(
     path: str | Path,
 ) -> pd.Series:
-    """Load distribution marginal costs from a parquet path and return a tz-aware Series."""
+    """Load *distribution + upstream (Tx/Sub-Tx)* marginal costs and return a tz-aware Series.
+
+    The parquet this function loads is produced by `utils/pre/generate_utility_tx_dx_mc.py`
+    and contains:
+    - `mc_upstream_per_kwh` (Tx/Sub-Tx component, $/kWh)
+    - `mc_dist_per_kwh` (distribution component, $/kWh)
+    - `mc_total_per_kwh` (= upstream + distribution, $/kWh)
+
+    We load `mc_total_per_kwh` and pass it to CAIRO as the delivery-side MC trace.
+    Bulk transmission is handled separately via `load_bulk_tx_marginal_costs`.
+    """
     path_str = str(path)
     if path_str.startswith("s3://"):
-        distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
+        dist_and_sub_tx_mc_scan: pl.LazyFrame = pl.scan_parquet(
             path_str,
             storage_options=get_aws_storage_options(),
         )
     else:
-        distribution_mc_scan = pl.scan_parquet(path_str)
-    distribution_mc_df = cast(pl.DataFrame, distribution_mc_scan.collect())
-    distribution_marginal_costs = distribution_mc_df.to_pandas()
+        dist_and_sub_tx_mc_scan = pl.scan_parquet(path_str)
+    dist_and_sub_tx_mc_df = cast(pl.DataFrame, dist_and_sub_tx_mc_scan.collect())
+    dist_and_sub_tx_marginal_costs = dist_and_sub_tx_mc_df.to_pandas()
     required_cols = {"timestamp", "mc_total_per_kwh"}
-    missing_cols = required_cols.difference(distribution_marginal_costs.columns)
+    missing_cols = required_cols.difference(dist_and_sub_tx_marginal_costs.columns)
     if missing_cols:
         raise ValueError(
-            "Distribution marginal costs parquet is missing required columns "
+            "Dist+sub-tx marginal costs parquet is missing required columns "
             f"{sorted(required_cols)}. Missing: {sorted(missing_cols)}"
         )
-    distribution_marginal_costs = distribution_marginal_costs.set_index("timestamp")[
-        "mc_total_per_kwh"
-    ]
-    distribution_marginal_costs.index = pd.DatetimeIndex(
-        distribution_marginal_costs.index
+    dist_and_sub_tx_marginal_costs = dist_and_sub_tx_marginal_costs.set_index(
+        "timestamp"
+    )["mc_total_per_kwh"]
+    dist_and_sub_tx_marginal_costs.index = pd.DatetimeIndex(
+        dist_and_sub_tx_marginal_costs.index
     ).tz_localize("EST")
-    distribution_marginal_costs.index.name = "time"
-    distribution_marginal_costs.name = "Marginal Distribution Costs ($/kWh)"
-    return distribution_marginal_costs
+    dist_and_sub_tx_marginal_costs.index.name = "time"
+    dist_and_sub_tx_marginal_costs.name = "Marginal Dist+Sub-Tx Costs ($/kWh)"
+    return dist_and_sub_tx_marginal_costs
 
 
-def load_transmission_marginal_costs(
+def load_bulk_tx_marginal_costs(
     path: str | Path,
 ) -> pd.Series:
     """Load bulk transmission marginal costs from a parquet path and return a tz-aware Series.
 
-    Reads parquet with columns ``timestamp`` and ``transmission_cost_enduse`` ($/MWh),
+    Reads parquet with columns ``timestamp`` and ``bulk_tx_cost_enduse`` ($/MWh),
     converts to $/kWh (÷ 1000), TZ-localizes to EST, and returns a Series named
-    ``"Marginal Transmission Costs ($/kWh)"``.
+    ``"Marginal Bulk Transmission Costs ($/kWh)"``.
 
-    The output mirrors the shape of :func:`load_distribution_marginal_costs` so the
+    The output mirrors the shape of :func:`load_dist_and_sub_tx_marginal_costs` so the
     caller can sum the two into a single delivery MC trace for CAIRO.
 
     Args:
-        path: Local or S3 path to the transmission MC parquet file.
-            Expected schema: ``timestamp`` (datetime), ``transmission_cost_enduse``
+        path: Local or S3 path to the bulk transmission MC parquet file.
+            Expected schema: ``timestamp`` (datetime), ``bulk_tx_cost_enduse``
             (float, $/MWh), 8760 rows.
 
     Returns:
         ``pd.Series`` indexed by ``DatetimeIndex`` (EST-localized, name ``"time"``),
-        values in $/kWh, series name ``"Marginal Transmission Costs ($/kWh)"``.
+        values in $/kWh, series name ``"Marginal Bulk Transmission Costs ($/kWh)"``.
 
     Raises:
         FileNotFoundError: If the path does not exist.
@@ -489,60 +508,181 @@ def load_transmission_marginal_costs(
     """
     path_str = str(path)
     if path_str.startswith("s3://"):
-        tx_mc_scan: pl.LazyFrame = pl.scan_parquet(
+        bulk_tx_mc_scan: pl.LazyFrame = pl.scan_parquet(
             path_str,
             storage_options=get_aws_storage_options(),
         )
     else:
-        tx_mc_scan = pl.scan_parquet(path_str)
-    tx_mc_df = cast(pl.DataFrame, tx_mc_scan.collect())
-    tx_mc_pd = tx_mc_df.to_pandas()
+        bulk_tx_mc_scan = pl.scan_parquet(path_str)
+    bulk_tx_mc_df = cast(pl.DataFrame, bulk_tx_mc_scan.collect())
+    bulk_tx_mc_pd = bulk_tx_mc_df.to_pandas()
 
-    required_cols = {"timestamp", "transmission_cost_enduse"}
-    missing_cols = required_cols.difference(tx_mc_pd.columns)
+    required_cols = {"timestamp", "bulk_tx_cost_enduse"}
+    missing_cols = required_cols.difference(bulk_tx_mc_pd.columns)
     if missing_cols:
         raise ValueError(
-            "Transmission marginal costs parquet is missing required columns "
+            "Bulk transmission marginal costs parquet is missing required columns "
             f"{sorted(required_cols)}. Missing: {sorted(missing_cols)}"
         )
 
-    if tx_mc_pd["transmission_cost_enduse"].isna().any():
+    if bulk_tx_mc_pd["bulk_tx_cost_enduse"].isna().any():
         raise ValueError(
-            "Transmission marginal costs contain null values in transmission_cost_enduse"
+            "Bulk transmission marginal costs contain null values in bulk_tx_cost_enduse"
         )
 
-    if len(tx_mc_pd) != 8760:
+    if len(bulk_tx_mc_pd) != 8760:
         log.warning(
-            "Transmission MC has %d rows (expected 8760); proceeding anyway.",
-            len(tx_mc_pd),
+            "Bulk transmission MC has %d rows (expected 8760); proceeding anyway.",
+            len(bulk_tx_mc_pd),
         )
 
-    tx_series = tx_mc_pd.set_index("timestamp")["transmission_cost_enduse"]
+    bulk_tx_series = bulk_tx_mc_pd.set_index("timestamp")["bulk_tx_cost_enduse"]
 
     # $/MWh → $/kWh
-    tx_series = tx_series / 1000.0
+    bulk_tx_series = bulk_tx_series / 1000.0
 
-    tx_series.index = pd.DatetimeIndex(tx_series.index).tz_localize("EST")
-    tx_series.index.name = "time"
-    tx_series.name = "Marginal Transmission Costs ($/kWh)"
+    bulk_tx_series.index = pd.DatetimeIndex(bulk_tx_series.index).tz_localize("EST")
+    bulk_tx_series.index.name = "time"
+    bulk_tx_series.name = "Marginal Bulk Transmission Costs ($/kWh)"
 
     # Validate all values >= 0
-    if (tx_series < 0).any():
-        n_neg = int((tx_series < 0).sum())
-        log.warning("Transmission MC has %d negative values; check input data.", n_neg)
+    if (bulk_tx_series < 0).any():
+        n_neg = int((bulk_tx_series < 0).sum())
+        log.warning(
+            "Bulk transmission MC has %d negative values; check input data.", n_neg
+        )
 
     # Log summary for inspection
-    annual_sum_kwh = float(tx_series.sum())
+    annual_sum_kwh = float(bulk_tx_series.sum())
     log.info(
-        "Loaded transmission MC: %d rows, annual sum = %.4f $/kW-yr, "
+        "Loaded bulk transmission MC: %d rows, annual sum = %.4f $/kW-yr, "
         "avg = %.6f $/kWh, max = %.6f $/kWh",
-        len(tx_series),
+        len(bulk_tx_series),
         annual_sum_kwh,
-        float(tx_series.mean()),
-        float(tx_series.max()),
+        float(bulk_tx_series.mean()),
+        float(bulk_tx_series.max()),
     )
 
-    return tx_series
+    return bulk_tx_series
+
+
+def _align_mc_to_index(
+    mc_series: pd.Series,
+    target_index: pd.DatetimeIndex,
+    mc_type: str = "MC",
+) -> pd.Series:
+    """Align a marginal cost Series to a target DatetimeIndex.
+
+    Handles index alignment when MC has a different year or length than the target.
+    Preserves values by position when lengths match (common when MC file year differs
+    from run year), otherwise reindexes.
+
+    Args:
+        mc_series: MC Series with DatetimeIndex to align.
+        target_index: Target DatetimeIndex (typically from bulk MC).
+        mc_type: Label for logging (e.g., "dist_and_sub_tx", "bulk_tx").
+
+    Returns:
+        MC Series aligned to target_index, preserving original name.
+    """
+    if mc_series.index.equals(target_index):
+        return mc_series
+
+    if len(mc_series) == len(target_index):
+        # Same length but different timestamps: align by position
+        aligned = pd.Series(
+            mc_series.values,
+            index=target_index,
+            name=mc_series.name,
+        )
+        log.info(
+            "Aligned %s MC index to target (mc_year=%s, target_year=%s)",
+            mc_type,
+            mc_series.index[0].year,
+            target_index[0].year,
+        )
+        return aligned
+
+    # Different lengths: reindex
+    aligned = mc_series.reindex(target_index)
+    log.info(
+        "Reindexed %s MC to target (mc_rows=%s, target_rows=%s)",
+        mc_type,
+        len(mc_series),
+        len(target_index),
+    )
+    return aligned
+
+
+def add_bulk_tx_and_dist_and_sub_tx_marginal_cost(
+    path_dist_and_sub_tx_mc: str | Path,
+    path_bulk_tx_mc: str | Path | None,
+    target_index: pd.DatetimeIndex,
+) -> pd.Series:
+    """Load and combine delivery marginal costs: Bulk Tx + Dist+Sub-Tx.
+
+    Architecture:
+    - Delivery MCs = Bulk Tx + Dist+Sub-Tx (both are delivery charges)
+    - Supply MCs = Energy + Capacity (bulk supply, handled separately)
+    All MCs must share the same DatetimeIndex for CAIRO compatibility.
+
+    This function loads dist+sub-tx MC (required) and bulk transmission MC (optional),
+    aligns both to the target_index, and sums them into a single delivery MC Series.
+
+    Args:
+        path_dist_and_sub_tx_mc: Path to dist+sub-tx MC parquet file.
+        path_bulk_tx_mc: Optional path to bulk transmission MC parquet file.
+        target_index: Target DatetimeIndex to align both MCs to (typically from supply MC index
+            to ensure all MCs share the same 8760-hour index).
+
+    Returns:
+        Combined delivery MC Series (dist+sub-tx + bulk transmission) aligned to target_index,
+        named "Marginal Delivery Costs ($/kWh)".
+
+    Raises:
+        ValueError: If combined series contains nulls after alignment.
+    """
+    # Load and align dist+sub-tx MC (distribution + upstream Tx/Sub-Tx)
+    dist_and_sub_tx_mc = load_dist_and_sub_tx_marginal_costs(path_dist_and_sub_tx_mc)
+    dist_and_sub_tx_mc = _align_mc_to_index(
+        dist_and_sub_tx_mc, target_index, "dist_and_sub_tx"
+    )
+
+    # Load and align bulk transmission MC if provided, then combine
+    # Handle None, empty string, or blank path
+    if path_bulk_tx_mc is not None and str(path_bulk_tx_mc).strip():
+        bulk_tx_mc = load_bulk_tx_marginal_costs(path_bulk_tx_mc)
+        bulk_tx_mc = _align_mc_to_index(bulk_tx_mc, target_index, "bulk_tx")
+
+        # Log pre-merge statistics
+        dist_sum = float(dist_and_sub_tx_mc.sum())
+        bulk_tx_sum = float(bulk_tx_mc.sum())
+        log.info(
+            "Pre-merge delivery MC: Dist+Sub-Tx=%.4f $/kW-yr, Bulk Tx=%.4f $/kW-yr",
+            dist_sum,
+            bulk_tx_sum,
+        )
+
+        # Sum bulk transmission into dist+sub-tx (both are delivery charges)
+        delivery_mc = dist_and_sub_tx_mc + bulk_tx_mc
+
+        # Validate and log
+        if delivery_mc.isna().any():
+            raise ValueError(
+                "Combined delivery MC (dist+sub-tx + bulk transmission) contains null values"
+            )
+
+        log.info(
+            "Combined delivery MC: Total=%.4f $/kW-yr (Dist+Sub-Tx=%.4f + Bulk Tx=%.4f)",
+            float(delivery_mc.sum()),
+            dist_sum,
+            bulk_tx_sum,
+        )
+    else:
+        delivery_mc = dist_and_sub_tx_mc
+
+    delivery_mc.name = "Marginal Delivery Costs ($/kWh)"
+    return delivery_mc
 
 
 def extract_tou_period_rates(tou_tariff: dict) -> pd.DataFrame:
