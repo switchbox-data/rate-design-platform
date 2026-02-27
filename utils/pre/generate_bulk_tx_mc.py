@@ -350,9 +350,7 @@ def allocate_bulk_tx_to_hours(
         DataFrame with columns: timestamp, bulk_tx_cost_enduse ($/MWh).
     """
     # Sum of loads in SCR hours
-    scr_load_sum = float(
-        load_with_scr.filter(pl.col("is_scr"))["load_mw"].sum()
-    )
+    scr_load_sum = float(load_with_scr.filter(pl.col("is_scr"))["load_mw"].sum())
     if scr_load_sum <= 0:
         raise ValueError(
             f"Total SCR load is non-positive: {scr_load_sum:.2f} MW. "
@@ -398,13 +396,11 @@ def allocate_bulk_tx_to_hours(
         )
 
     avg_nonzero = float(
-        result.filter(pl.col("bulk_tx_cost_enduse") > 0)[
-            "bulk_tx_cost_enduse"
-        ].mean()  # type: ignore[arg-type]
+        result.filter(pl.col("bulk_tx_cost_enduse") > 0)["bulk_tx_cost_enduse"].mean()  # type: ignore[arg-type]
     )
     max_cost = float(result["bulk_tx_cost_enduse"].max())  # type: ignore[arg-type]
 
-    print(f"\nAllocation summary:")
+    print("\nAllocation summary:")
     print(f"  v_z = {v_z:.4f} $/kW-yr")
     print(f"  SCR load sum = {scr_load_sum:,.1f} MW")
     print(f"  Weight sum = {weight_sum:.6f}")
@@ -453,9 +449,7 @@ def prepare_output(
 
     # Fill missing with 0
     output = output.with_columns(
-        pl.col("bulk_tx_cost_enduse")
-        .fill_null(0.0)
-        .alias("bulk_tx_cost_enduse"),
+        pl.col("bulk_tx_cost_enduse").fill_null(0.0).alias("bulk_tx_cost_enduse"),
     )
 
     output = output.select("timestamp", "bulk_tx_cost_enduse")
@@ -651,7 +645,9 @@ def main() -> None:
     print(f"  SCR hours/season: {n_scr}")
     print(f"  Winter months:    {winter_months}")
     print(f"  Summer months:    {summer_months}")
-    src = args.periods_yaml or (str(periods_yaml_path) if periods_yaml_path.exists() else "default")
+    src = args.periods_yaml or (
+        str(periods_yaml_path) if periods_yaml_path.exists() else "default"
+    )
     print(f"  Season source:    {src}")
     print(f"  Upload to S3:     {'Yes' if args.upload else 'No (inspect only)'}")
     print("=" * 60)
@@ -665,7 +661,7 @@ def main() -> None:
     v_z = resolve_utility_vz(mapping_df, vz_df, utility, args.v_z_quantile)
 
     # ── 3. Load utility load profile ──────────────────────────────────────
-    print(f"\n── Utility Load Profile ──")
+    print("\n── Utility Load Profile ──")
     print(f"Loading utility load profile for {utility}, year {load_year}...")
     utility_load_df = load_utility_load_profile(
         args.utility_loads_s3_base,
@@ -698,7 +694,7 @@ def main() -> None:
     avg_cost = float(output_df["bulk_tx_cost_enduse"].mean())  # type: ignore[arg-type]
     max_cost = float(output_df["bulk_tx_cost_enduse"].max())  # type: ignore[arg-type]
     n_nonzero = output_df.filter(pl.col("bulk_tx_cost_enduse") > 0).height
-    print(f"\nOutput summary:")
+    print("\nOutput summary:")
     print(f"  avg = ${avg_cost:.2f}/MWh, max = ${max_cost:.2f}/MWh")
     print(f"  {n_nonzero} non-zero hours out of 8760")
 

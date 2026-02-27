@@ -129,12 +129,8 @@ class TestIdentifyScrHours:
         expected_winter = set(DEFAULT_SCR_WINTER_MONTHS)
         expected_summer = set(derive_summer_months(list(DEFAULT_SCR_WINTER_MONTHS)))
 
-        summer_scr = result.filter(
-            pl.col("is_scr") & (pl.col("season") == "summer")
-        )
-        winter_scr = result.filter(
-            pl.col("is_scr") & (pl.col("season") == "winter")
-        )
+        summer_scr = result.filter(pl.col("is_scr") & (pl.col("season") == "summer"))
+        winter_scr = result.filter(pl.col("is_scr") & (pl.col("season") == "winter"))
 
         actual_summer = set(summer_scr["timestamp"].dt.month().unique().to_list())
         actual_winter = set(winter_scr["timestamp"].dt.month().unique().to_list())
@@ -189,10 +185,14 @@ class TestIdentifyScrHours:
         """Custom winter_months drives SCR season assignment."""
         load_df = _make_load_profile()
         custom_winter = [11, 12, 1, 2, 3, 4]  # Nov–Apr (NYISO capability period)
-        result = identify_scr_hours(load_df, n_hours_per_season=40, winter_months=custom_winter)
+        result = identify_scr_hours(
+            load_df, n_hours_per_season=40, winter_months=custom_winter
+        )
 
         winter_scr = result.filter(pl.col("is_scr") & (pl.col("season") == "winter"))
-        actual_winter_months = set(winter_scr["timestamp"].dt.month().unique().to_list())
+        actual_winter_months = set(
+            winter_scr["timestamp"].dt.month().unique().to_list()
+        )
         assert actual_winter_months.issubset(set(custom_winter))
 
 
@@ -208,9 +208,7 @@ class TestAllocateBulkTxToHours:
         load_with_scr = identify_scr_hours(load_df, n_hours_per_season=40)
 
         # Compute weights manually to verify
-        scr_load_sum = float(
-            load_with_scr.filter(pl.col("is_scr"))["load_mw"].sum()
-        )
+        scr_load_sum = float(load_with_scr.filter(pl.col("is_scr"))["load_mw"].sum())
         scr_loads = load_with_scr.filter(pl.col("is_scr"))["load_mw"]
         weight_sum = float((scr_loads / scr_load_sum).sum())
 
@@ -237,9 +235,7 @@ class TestAllocateBulkTxToHours:
         load_with_scr = identify_scr_hours(load_df, n_hours_per_season=40)
         allocated = allocate_bulk_tx_to_hours(load_with_scr, v_z=30.0)
 
-        n_nonzero = allocated.filter(
-            pl.col("bulk_tx_cost_enduse") > 0
-        ).height
+        n_nonzero = allocated.filter(pl.col("bulk_tx_cost_enduse") > 0).height
         assert n_nonzero == 80  # 40 summer + 40 winter
 
     def test_all_costs_non_negative(self) -> None:
@@ -248,9 +244,7 @@ class TestAllocateBulkTxToHours:
         load_with_scr = identify_scr_hours(load_df, n_hours_per_season=40)
         allocated = allocate_bulk_tx_to_hours(load_with_scr, v_z=30.0)
 
-        neg_count = allocated.filter(
-            pl.col("bulk_tx_cost_enduse") < 0
-        ).height
+        neg_count = allocated.filter(pl.col("bulk_tx_cost_enduse") < 0).height
         assert neg_count == 0
 
     def test_higher_load_gets_higher_cost(self) -> None:
@@ -355,9 +349,7 @@ class TestPrepareOutput:
         allocated = allocate_bulk_tx_to_hours(load_with_scr, v_z=30.0)
         output = prepare_output(allocated, year=2025)
 
-        null_count = output.filter(
-            pl.col("bulk_tx_cost_enduse").is_null()
-        ).height
+        null_count = output.filter(pl.col("bulk_tx_cost_enduse").is_null()).height
         assert null_count == 0
 
     def test_output_schema(self) -> None:
@@ -387,9 +379,7 @@ class TestPrepareOutput:
         allocated = allocate_bulk_tx_to_hours(load_with_scr, v_z=30.0)
         output = prepare_output(allocated, year=2025)
 
-        n_nonzero = output.filter(
-            pl.col("bulk_tx_cost_enduse") > 0
-        ).height
+        n_nonzero = output.filter(pl.col("bulk_tx_cost_enduse") > 0).height
         assert n_nonzero == 80
 
 
