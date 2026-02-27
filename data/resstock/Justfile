@@ -212,7 +212,7 @@ assign-utility-ri release upgrade:
         --output_utility_assignment_filename "utility_assignment.parquet" \
 
 # Approximate non-HP load for a state
-approximate-non-hp-load state upgrade_id input_release output_release k:
+approximate-non-hp-load state upgrade_id input_release output_release k update_MF_highrise update_other_fuel_types:
     uv run python "{{path_local_repo}}/utils/pre/approximate_non_hp_load.py" \
         --path_s3 "{{path_s3_parquet}}" \
         --state "{{state}}" \
@@ -220,9 +220,11 @@ approximate-non-hp-load state upgrade_id input_release output_release k:
         --input_release "{{input_release}}" \
         --output_release "{{output_release}}" \
         --k "{{k}}" \
+        --update_MF_highrise "{{update_MF_highrise}}" \
+        --update_other_fuel_types "{{update_other_fuel_types}}"
 
 approximate-non-hp-load-upgrade-02-NY:
-    just approximate-non-hp-load NY 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15
+    just approximate-non-hp-load NY 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True
 
 approximate-non-hp-load-upgrade-02-RI:
-    just approximate-non-hp-load RI 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15
+    just approximate-non-hp-load RI 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True
