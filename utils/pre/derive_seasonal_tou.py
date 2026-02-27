@@ -1,6 +1,6 @@
 """Derive a seasonal TOU tariff and derivation spec from marginal costs.
 
-Standalone script that loads bulk (Cambium) and distribution marginal costs,
+Standalone script that loads bulk (Cambium) and dist+sub-tx marginal costs,
 computes seasonal TOU peak windows and cost-causation ratios, and writes:
 
 1. **URDB v7 tariff JSON** — ready for CAIRO ``_initialize_tariffs``.
@@ -15,7 +15,7 @@ Usage (via Justfile)::
     just derive-seasonal-tou \\
         --cambium-path s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet \\
         --state RI --utility rie --year 2025 \\
-        --path-td-marginal-costs s3://data.sb/switchbox/marginal_costs/ri/region=isone/utility=rie/year=2025/0000000.parquet \\
+        --path-td-marginal-costs s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet \\
         --resstock-metadata-path /data.sb/nrel/resstock/.../metadata-sb.parquet \\
         --resstock-loads-path   /data.sb/nrel/resstock/.../load_curve_hourly/state=RI/upgrade=00 \\
         --path-electric-utility-stats s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet \\
@@ -45,7 +45,7 @@ from utils.loads import (
 )
 from utils.cairo import (
     _load_cambium_marginal_costs,
-    load_distribution_marginal_costs,
+    load_dist_and_sub_tx_marginal_costs,
 )
 from utils.mid.data_parsing import get_residential_customer_count_from_utility_stats
 from utils.pre.compute_tou import (
@@ -83,7 +83,7 @@ log = logging.getLogger(__name__)
 
 def derive_seasonal_tou(
     bulk_marginal_costs: pd.DataFrame,
-    distribution_marginal_costs: pd.Series,
+    dist_and_sub_tx_marginal_costs: pd.Series,
     hourly_system_load: pd.Series,
     *,
     winter_months: list[int] | None = None,
@@ -101,7 +101,7 @@ def derive_seasonal_tou(
     Args:
         bulk_marginal_costs: Cambium energy + capacity MCs ($/kWh),
             indexed by time.
-        distribution_marginal_costs: Distribution MCs ($/kWh) Series,
+        dist_and_sub_tx_marginal_costs: Dist+sub-tx MCs ($/kWh) Series,
             indexed by time.
         hourly_system_load: Hourly aggregate system load (kW or kWh)
             for demand-weighting.
@@ -122,7 +122,7 @@ def derive_seasonal_tou(
           downstream demand shifting.
     """
     combined_mc = combine_marginal_costs(
-        bulk_marginal_costs, distribution_marginal_costs
+        bulk_marginal_costs, dist_and_sub_tx_marginal_costs
     )
 
     # Align load index to MC index so multiply in find_tou_peak_window is 1:1 (MC is
@@ -194,7 +194,7 @@ def derive_seasonal_tou(
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description=(
-            "Derive a seasonal TOU tariff from Cambium + distribution marginal "
+            "Derive a seasonal TOU tariff from Cambium + dist+sub-tx marginal "
             "costs.  Writes tariff JSON and derivation spec JSON."
         ),
     )
@@ -403,10 +403,10 @@ def main() -> None:
     bulk_mc = _load_cambium_marginal_costs(args.cambium_path, args.year)
 
     log.info(
-        "Loading distribution marginal costs from %s",
+        "Loading dist+sub-tx marginal costs from %s",
         args.path_td_marginal_costs,
     )
-    dist_mc = load_distribution_marginal_costs(args.path_td_marginal_costs)
+    dist_mc = load_dist_and_sub_tx_marginal_costs(args.path_td_marginal_costs)
 
     log.info(
         "Looking up residential customer count from %s for utility=%s",
@@ -490,7 +490,7 @@ def main() -> None:
     )
     tou_tariff, season_specs = derive_seasonal_tou(
         bulk_marginal_costs=bulk_mc,
-        distribution_marginal_costs=dist_mc,
+        dist_and_sub_tx_marginal_costs=dist_mc,
         hourly_system_load=hourly_system_load,
         winter_months=winter_months,
         tou_window_hours=tou_window_hours,

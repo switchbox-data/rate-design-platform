@@ -19,33 +19,49 @@ Note on path_supply_marginal_costs column:
     For NY supply runs, use separate energy and capacity paths:
 
     path_supply_energy_mc formula:
-    =IF(AND($B18="NY", E18="X"),
-        "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" & LOWER($C18) & "/year=2025/data.parquet",
-        IF($B18="NY", "s3://data.sb/nrel/cambium/zero_marginal_costs.csv", ""))
+    =IF(AND($A18="NY", E18="X"),
+        "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" & LOWER($B18) & "/year=2025/data.parquet",
+        IF($A18="NY", "s3://data.sb/nrel/cambium/zero_marginal_costs.csv", ""))
 
     path_supply_capacity_mc formula:
-    =IF(AND($B18="NY", E18="X"),
-        "s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=" & LOWER($C18) & "/year=2025/data.parquet",
-        IF($B18="NY", "s3://data.sb/nrel/cambium/zero_marginal_costs.csv", ""))
+    =IF(AND($A18="NY", E18="X"),
+        "s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=" & LOWER($B18) & "/year=2025/data.parquet",
+        IF($A18="NY", "s3://data.sb/nrel/cambium/zero_marginal_costs.csv", ""))
 
     Where:
-    - $B18 is the state column (NY)
+    - $A18 is the state column (NY)
     - E18 is the add_supply_revenue_requirement column (X = TRUE)
-    - $C18 is the utility column
+    - $B18 is the utility column
 
     For backward compatibility, path_supply_marginal_costs can still be used for combined files
     (RI runs or legacy NY runs). If both path_supply_energy_mc and path_supply_capacity_mc
     are provided, they take precedence over path_supply_marginal_costs.
 
     path_tou_supply_mc formula (for runs where num = 13 or 14):
-    =IF(AND($B18="NY", OR($A18=13, $A18=14)),
-        "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" & LOWER($C18) & "/year=2025/data.parquet",
+    =IF(AND($A18="NY", OR($C18=13, $C18=14)),
+        "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" & LOWER($B18) & "/year=2025/data.parquet",
         "")
 
     Where:
-    - $A18 is the num column (run number)
-    - $B18 is the state column (NY)
-    - $C18 is the utility column
+    - $A18 is the state column (NY)
+    - $B18 is the utility column
+    - $C18 is the num column (run number)
+
+    path_dist_and_sub_tx_marginal_costs formula (required for NY and RI):
+    =IF($A18="NY",
+        "s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=" & LOWER($B18) & "/year=2025/data.parquet",
+        IF($A18="RI",
+            "s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=" & LOWER($B18) & "/year=2025/data.parquet",
+            ""))
+
+    path_bulk_tx_marginal_costs formula (optional for NY, blank for RI):
+    =IF($A18="NY",
+        "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=" & LOWER($B18) & "/year=2025/data.parquet",
+        "")
+
+    Where:
+    - $A18 is the state column (NY or RI)
+    - $B18 is the utility column
 
     After updating the Google Sheet, run: just create-scenario-yamls
 """
@@ -208,12 +224,15 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         "path_tariff_maps_gas",
         "path_resstock_metadata",
         "path_resstock_loads",
-        "path_td_marginal_costs",
         "path_utility_assignment",
         "path_tariffs_gas",
         "path_outputs",
     ):
         run[key] = get(key)
+
+    run["path_dist_and_sub_tx_marginal_costs"] = get(
+        "path_dist_and_sub_tx_marginal_costs"
+    )
 
     # Handle path_supply_marginal_costs with backward compatibility for path_cambium_marginal_costs
     try:
@@ -254,6 +273,11 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     path_tou_supply_mc = get_optional("path_tou_supply_mc")
     if path_tou_supply_mc:
         run["path_tou_supply_mc"] = path_tou_supply_mc
+
+    path_bulk_tx_marginal_costs = get_optional("path_bulk_tx_marginal_costs")
+    # Only include if not empty/blank (formula returns "" for non-NY utilities)
+    if path_bulk_tx_marginal_costs and path_bulk_tx_marginal_costs.strip():
+        run["path_bulk_tx_marginal_costs"] = path_bulk_tx_marginal_costs
 
     run["solar_pv_compensation"] = require_non_empty("solar_pv_compensation")
 

@@ -93,7 +93,7 @@ def recompute_tou_precalc_mapping(
     precalc_mapping: pd.DataFrame,
     shifted_system_load_raw: pd.Series,
     bulk_marginal_costs: pd.DataFrame,
-    distribution_marginal_costs: pd.Series,
+    dist_and_sub_tx_marginal_costs: pd.Series,
     tou_season_specs: dict[str, list[SeasonTouSpec]],
 ) -> pd.DataFrame:
     """Recompute precalc rel_values for TOU tariffs using shifted-load MC weights.
@@ -111,7 +111,7 @@ def recompute_tou_precalc_mapping(
             (weight x kWh summed across buildings, indexed by time).
     """
     combined_mc_raw = combine_marginal_costs(
-        bulk_marginal_costs, distribution_marginal_costs
+        bulk_marginal_costs, dist_and_sub_tx_marginal_costs
     )
 
     mc_index = pd.DatetimeIndex(combined_mc_raw.index)
@@ -212,7 +212,7 @@ def apply_demand_flex(
     precalc_mapping: pd.DataFrame,
     rr_total: float,
     bulk_marginal_costs: pd.DataFrame,
-    distribution_marginal_costs: pd.Series,
+    dist_and_sub_tx_marginal_costs: pd.Series,
 ) -> DemandFlexResult:
     """Run the full demand-flex pipeline (phases 1a, 1.5, 1.75, 2).
 
@@ -258,7 +258,7 @@ def apply_demand_flex(
         residual_cost=None,
         residual_cost_frac=None,
         bulk_marginal_costs=bulk_marginal_costs,
-        distribution_marginal_costs=distribution_marginal_costs,
+        distribution_marginal_costs=dist_and_sub_tx_marginal_costs,
         low_income_strategy=None,
         delivery_only_rev_req_passed=add_supply_revenue_requirement,
     )
@@ -334,7 +334,7 @@ def apply_demand_flex(
             precalc_mapping=precalc_mapping,
             shifted_system_load_raw=shifted_system_load,
             bulk_marginal_costs=tou_bulk_mc,
-            distribution_marginal_costs=distribution_marginal_costs,
+            distribution_marginal_costs=dist_and_sub_tx_marginal_costs,
             tou_season_specs=tou_season_specs,
         )
 
@@ -352,7 +352,7 @@ def apply_demand_flex(
         residual_cost=frozen_residual,
         residual_cost_frac=None,
         bulk_marginal_costs=bulk_marginal_costs,
-        distribution_marginal_costs=distribution_marginal_costs,
+        distribution_marginal_costs=dist_and_sub_tx_marginal_costs,
         low_income_strategy=None,
         delivery_only_rev_req_passed=False,
     )
