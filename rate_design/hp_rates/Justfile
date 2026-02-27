@@ -77,7 +77,9 @@ path_mc_table                       := env_var_or_default('MC_TABLE', path_confi
 path_s3_mc_output                   := "s3://data.sb/switchbox/marginal_costs/" + state + "/"
 path_s3_utility_loads               := "s3://data.sb/eia/hourly_demand/utilities/"
 path_electric_utility_stats         := "s3://data.sb/eia/861/electric_utility_stats/year=2024/state=" + state_upper + "/data.parquet"
-path_default_tariff                 := path_tariffs_electric / default_tariff
+path_genability                     := path_tariffs_electric / "genability"
+path_genability_yaml                := path_genability / "tariffs_by_utility.yaml"
+path_default_tariff                 := path_genability / "default_tariffs" / default_tariff
 path_default_supply_tariff          := path_tariffs_electric / default_tariff_supply
 tou_tariff_key                      := utility + "_hp_seasonalTOU"
 latest_output                       := path_repo / "utils/mid/latest_run_output.sh"
@@ -117,6 +119,13 @@ create-revenue-yaml:
     --year "{{year}}" \
     --utility-col "{{revenue_utility_col}}" \
     --year-col "{{revenue_year_col}}"
+
+fetch-genability-tariffs effective_date="2025-01-01":
+  uv run python {{path_repo}}/utils/pre/fetch_electric_tariffs_genability.py \
+    "{{path_genability_yaml}}" \
+    "{{path_genability}}/default_tariffs" \
+    --state "{{state_upper}}" \
+    --effective-date "{{effective_date}}"
 
 create-flat-tariff:
   just -f {{path_repo}}/utils/Justfile create-flat-tariff \
