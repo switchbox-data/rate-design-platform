@@ -15,6 +15,7 @@ from utils.mid.compute_subclass_rr import (
     _write_seasonal_inputs_csv,
     compute_hp_seasonal_discount_inputs,
     compute_subclass_rr,
+    parse_group_value_to_subclass,
 )
 
 
@@ -212,11 +213,15 @@ def test_compute_subclass_rr_applies_weights(tmp_path: Path) -> None:
     assert nonhp["revenue_requirement"][0] == pytest.approx(810.0)
 
 
-def test_write_revenue_requirement_yamls(tmp_path: Path) -> None:
+def test_write_revenue_requirement_yamls_new_format(tmp_path: Path) -> None:
+    """Verify the new nested YAML format with delivery/supply/total per subclass."""
     run_dir = _write_sample_run_dir(tmp_path)
     breakdown = compute_subclass_rr(run_dir)
     differentiated_yaml = tmp_path / "config/rev_requirement/rie_hp_vs_nonhp.yaml"
     default_yaml = tmp_path / "config/rev_requirement/rie.yaml"
+
+    gv_map = {"true": "hp", "false": "non-hp"}
+    supply_mc = {"true": 50.0, "false": 100.0}
 
     out_diff, out_default = _write_revenue_requirement_yamls(
         breakdown,
@@ -227,18 +232,90 @@ def test_write_revenue_requirement_yamls(tmp_path: Path) -> None:
         default_revenue_requirement=241869601.0,
         differentiated_yaml_path=differentiated_yaml,
         default_yaml_path=default_yaml,
+        group_value_to_subclass=gv_map,
+        supply_mc_by_subclass=supply_mc,
+        total_delivery_rr=933.0,
+        total_delivery_and_supply_rr=1083.0,
     )
 
     assert out_diff == differentiated_yaml
-    assert out_default == default_yaml
     assert differentiated_yaml.exists()
-    assert not default_yaml.exists()
 
     diff_data = yaml.safe_load(differentiated_yaml.read_text(encoding="utf-8"))
     assert diff_data["utility"] == "rie"
     assert diff_data["group_col"] == "has_hp"
-    assert "false" in diff_data["subclass_revenue_requirements"]
-    assert "true" in diff_data["subclass_revenue_requirements"]
+    assert diff_data["source_run_dir"] == str(run_dir)
+    assert diff_data["total_delivery_revenue_requirement"] == pytest.approx(933.0)
+    assert diff_data["total_delivery_and_supply_revenue_requirement"] == pytest.approx(
+        1083.0
+    )
+
+    sr = diff_data["subclass_revenue_requirements"]
+    assert "hp" in sr
+    assert "non-hp" in sr
+    assert sr["hp"]["delivery"] == pytest.approx(393.0)
+    assert sr["hp"]["supply"] == pytest.approx(50.0)
+    assert sr["hp"]["total"] == pytest.approx(443.0)
+    assert sr["non-hp"]["delivery"] == pytest.approx(540.0)
+    assert sr["non-hp"]["supply"] == pytest.approx(100.0)
+    assert sr["non-hp"]["total"] == pytest.approx(640.0)
+
+
+def test_write_revenue_requirement_yamls_round_trip(tmp_path: Path) -> None:
+    """V2: delivery sums match total, and total == delivery + supply per subclass."""
+    run_dir = _write_sample_run_dir(tmp_path)
+    breakdown = compute_subclass_rr(run_dir)
+    differentiated_yaml = tmp_path / "config/rev_requirement/test_hp_vs_nonhp.yaml"
+    default_yaml = tmp_path / "config/rev_requirement/test.yaml"
+
+    gv_map = {"true": "hp", "false": "non-hp"}
+    supply_mc = {"true": 70.0, "false": 130.0}
+    delivery_total = sum(
+        float(row["revenue_requirement"]) for row in breakdown.to_dicts()
+    )
+    supply_total = sum(supply_mc.values())
+
+    _write_revenue_requirement_yamls(
+        breakdown,
+        run_dir=run_dir,
+        group_col="has_hp",
+        cross_subsidy_col="BAT_percustomer",
+        utility="test",
+        default_revenue_requirement=0.0,
+        differentiated_yaml_path=differentiated_yaml,
+        default_yaml_path=default_yaml,
+        group_value_to_subclass=gv_map,
+        supply_mc_by_subclass=supply_mc,
+        total_delivery_rr=delivery_total,
+        total_delivery_and_supply_rr=delivery_total + supply_total,
+    )
+
+    data = yaml.safe_load(differentiated_yaml.read_text(encoding="utf-8"))
+    sr = data["subclass_revenue_requirements"]
+
+    sum_delivery = sum(v["delivery"] for v in sr.values())
+    sum_total = sum(v["total"] for v in sr.values())
+
+    assert sum_delivery == pytest.approx(data["total_delivery_revenue_requirement"])
+    assert sum_total == pytest.approx(
+        data["total_delivery_and_supply_revenue_requirement"]
+    )
+
+    for alias, vals in sr.items():
+        assert vals["total"] == pytest.approx(vals["delivery"] + vals["supply"]), (
+            f"Subclass {alias}: total != delivery + supply"
+        )
+
+
+def test_parse_group_value_to_subclass() -> None:
+    result = parse_group_value_to_subclass("true=hp,false=non-hp")
+    assert result == {"true": "hp", "false": "non-hp"}
+
+    with pytest.raises(ValueError, match="Invalid"):
+        parse_group_value_to_subclass("bad_format")
+
+    with pytest.raises(ValueError, match="Duplicate"):
+        parse_group_value_to_subclass("true=hp,true=non-hp")
 
 
 def test_compute_hp_seasonal_discount_inputs(tmp_path: Path) -> None:
