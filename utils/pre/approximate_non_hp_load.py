@@ -1024,7 +1024,7 @@ def update_metadata(
             & ~pl.col(HEATING_TYPE_COLUMN).str.contains("Non-Ducted Heating")
         )
         .then(pl.lit("ASHP, SEER 20, 11 HSPF, CCHP, Max Load"))
-        .otherwise(pl.col(HEATING_TYPE_COLUMN))
+        .otherwise(pl.col(UPGRADE_HEATING_EFFICIENCY_COLUMN))
         .alias(UPGRADE_HEATING_EFFICIENCY_COLUMN)
     )
     replaced_metadata = replaced_metadata.with_columns(

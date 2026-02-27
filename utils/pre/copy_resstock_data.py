@@ -23,7 +23,7 @@ def copy_dir(
     source_dir: str | Path,
     dest_dir: str | Path,
     *,
-    max_workers: int = 32,
+    max_workers: int = 128,
 ) -> int:
     """
     Copy all files from source directory to destination directory.
@@ -49,7 +49,7 @@ def _copy_s3_dir_to_s3(
     source_dir: str,
     dest_dir: str,
     *,
-    max_workers: int = 32,
+    max_workers: int = 128,
 ) -> int:
     """Copy all objects under source prefix to dest prefix (server-side). Same bucket."""
     bucket_src, source_prefix = _get_s3_bucket_and_prefix(source_dir)
@@ -150,8 +150,16 @@ def copy_resstock_data(
     """
     if data_path.startswith("s3://"):
         bucket, base_prefix = _get_s3_bucket_and_prefix(data_path.rstrip("/"))
-        source_dir = f"s3://{bucket}/{base_prefix}/{release_from}/{file_type}/state={state}/upgrade={upgrade_id}/"
-        dest_dir = f"s3://{bucket}/{base_prefix}/{release_to}/{file_type}/state={state}/upgrade={upgrade_id}/"
+        if file_type == "metadata_utility":
+            source_dir = (
+                f"s3://{bucket}/{base_prefix}/{release_from}/{file_type}/state={state}/"
+            )
+            dest_dir = (
+                f"s3://{bucket}/{base_prefix}/{release_to}/{file_type}/state={state}/"
+            )
+        else:
+            source_dir = f"s3://{bucket}/{base_prefix}/{release_from}/{file_type}/state={state}/upgrade={upgrade_id}/"
+            dest_dir = f"s3://{bucket}/{base_prefix}/{release_to}/{file_type}/state={state}/upgrade={upgrade_id}/"
         return copy_dir(source_dir, dest_dir)
 
     else:
@@ -200,6 +208,9 @@ if __name__ == "__main__":
     total = 0
     for file_type in args.file_types.split():
         for upgrade_id in args.upgrade_ids.split():
+            print(
+                f"Copying {file_type} upgrade={upgrade_id} from {args.release_from} to {args.release_to}"
+            )
             n = copy_resstock_data(
                 data_path=args.data_path,
                 release_from=args.release_from,
