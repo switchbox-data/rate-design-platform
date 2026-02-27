@@ -78,7 +78,7 @@ path_mc_table                       := env_var_or_default('MC_TABLE', path_confi
 path_s3_mc_output                   := "s3://data.sb/switchbox/marginal_costs/" + state + "/"
 path_s3_utility_loads               := "s3://data.sb/eia/hourly_demand/utilities/"
 path_electric_utility_stats         := "s3://data.sb/eia/861/electric_utility_stats/year=2024/state=" + state_upper + "/data.parquet"
-path_genability                     := path_tariffs_electric / "genability"
+path_genability                     := path_rev_requirement / "top-ups"
 path_genability_yaml                := path_genability / "tariffs_by_utility.yaml"
 path_charge_decisions               := path_genability / "charge_decisions" / (utility + "_charge_decisions.json")
 path_monthly_rates                  := path_genability / "monthly_rates" / (utility + "_monthly_rates_" + monthly_rates_year + ".yaml")

@@ -2,7 +2,7 @@
 
 Every charge on a Rhode Island default residential electric bill — Rhode Island Energy (RIE), tariff A-16 — evaluated for whether it belongs in CAIRO's BAT and bill calculations, and whether it creates a cross-subsidy between heat pump (HP) and non-HP customers. Rhode Island has a single major electric distribution utility (RIE, formerly National Grid – Rhode Island); A-16 is the default residential rate. Regulation is by the Rhode Island Public Utilities Commission (RI PUC). Default supply is Last Resort Service (LRS), procured via competitive solicitations; wholesale costs flow from ISO-NE.
 
-**Data sources:** Genability tariff JSON at `rate_design/hp_rates/ri/config/tariffs/electric/genability/rie_default_2025-01-01.json`; RI PUC compliance filings (e.g. Dockets 25-03-EL, 25-04-EL, 25-05-EL); [tariff-fetch RIE residential A-16 wiki](https://github.com/switchbox-data/tariff_fetch/blob/main/docs/wiki/utilities/rie/residential-a16/index.md).
+**Data sources:** Genability tariff JSON at `rate_design/hp_rates/ri/config/rev_requirement/top-ups/default_tariffs/rie_default_2025-01-01.json`; RI PUC compliance filings (e.g. Dockets 25-03-EL, 25-04-EL, 25-05-EL); [tariff-fetch RIE residential A-16 wiki](https://github.com/switchbox-data/tariff_fetch/blob/main/docs/wiki/utilities/rie/residential-a16/index.md).
 
 ---
 
