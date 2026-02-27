@@ -8,15 +8,15 @@ Incorporate bulk transmission marginal costs into the NY rate design platform. E
 
 ## Status
 
-| Task                          | Status     | Notes                                                              |
-| ----------------------------- | ---------- | ------------------------------------------------------------------ |
-| Branch + draft PR             | ✅ Done    | `feature/bulk-tx-costs`, PR closes #302                            |
-| Raw project CSV               | ✅ Done    | `data/nyiso/transmission/csv/ny_bulk_tx_projects.csv`              |
-| `derive_tx_values.py`         | ✅ Done    | Isotonic + quantile derivation for LHV, NYC, LI; NiMo MCOS for ROS |
-| `tx_locality` in zone mapping | ✅ Done    | Added to `generate_zone_mapping_csv.py`                            |
-| Context doc                   | ✅ Done    | `context/tools/ny_bulk_tx_marginal_costs.md`                       |
-| Hourly allocation script      | ✅ Done    | `utils/pre/generate_bulk_tx_mc.py` (SCR top-40 seasonal peaks)     |
-| CAIRO integration             | ✅ Done    | Load bulk Tx MC + merge with dist+sub-tx delivery MC in CAIRO run  |
+| Task                          | Status  | Notes                                                              |
+| ----------------------------- | ------- | ------------------------------------------------------------------ |
+| Branch + draft PR             | ✅ Done | `feature/bulk-tx-costs`, PR closes #302                            |
+| Raw project CSV               | ✅ Done | `data/nyiso/transmission/csv/ny_bulk_tx_projects.csv`              |
+| `derive_tx_values.py`         | ✅ Done | Isotonic + quantile derivation for LHV, NYC, LI; NiMo MCOS for ROS |
+| `tx_locality` in zone mapping | ✅ Done | Added to `generate_zone_mapping_csv.py`                            |
+| Context doc                   | ✅ Done | `context/tools/ny_bulk_tx_marginal_costs.md`                       |
+| Hourly allocation script      | ✅ Done | `utils/pre/generate_bulk_tx_mc.py` (SCR top-40 seasonal peaks)     |
+| CAIRO integration             | ✅ Done | Load bulk Tx MC + merge with dist+sub-tx delivery MC in CAIRO run  |
 
 ## Derivation pipeline
 
