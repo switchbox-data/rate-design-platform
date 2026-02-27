@@ -1,9 +1,9 @@
 utility: coned
-delivery_revenue_requirement_from_rate_case: 1000000000.0
+delivery_revenue_requirement_from_rate_case: 999999999.0
 delivery_revenue_requirement_topups: 146303900.55
 supply_revenue_requirement_topups: 4180082746.34
-total_delivery_revenue_requirement: 1146303900.55
-total_delivery_and_supply_revenue_requirement: 5326386646.89
+total_delivery_revenue_requirement: 1146303899.55
+total_delivery_and_supply_revenue_requirement: 5326386645.89
 total_residential_kwh: 13643968512.0
 eia_year: 2024
 delivery_top_ups:

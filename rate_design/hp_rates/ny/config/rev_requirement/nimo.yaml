@@ -1,9 +1,9 @@
 utility: nimo
-delivery_revenue_requirement_from_rate_case: 1000000000.0
+delivery_revenue_requirement_from_rate_case: 999999999.0
 delivery_revenue_requirement_topups: 94005089.33
 supply_revenue_requirement_topups: 11472379116.51
-total_delivery_revenue_requirement: 1094005089.33
-total_delivery_and_supply_revenue_requirement: 12566384205.84
+total_delivery_revenue_requirement: 1094005088.33
+total_delivery_and_supply_revenue_requirement: 12566384204.84
 total_residential_kwh: 11833894912.0
 eia_year: 2024
 delivery_top_ups:

@@ -1,9 +1,9 @@
 utility: or
-delivery_revenue_requirement_from_rate_case: 1000000000.0
+delivery_revenue_requirement_from_rate_case: 999999999.0
 delivery_revenue_requirement_topups: 15531440.84
 supply_revenue_requirement_topups: 170817117.46
-total_delivery_revenue_requirement: 1015531440.84
-total_delivery_and_supply_revenue_requirement: 1186348558.3
+total_delivery_revenue_requirement: 1015531439.84
+total_delivery_and_supply_revenue_requirement: 1186348557.3
 total_residential_kwh: 1750770048.0
 eia_year: 2024
 delivery_top_ups:

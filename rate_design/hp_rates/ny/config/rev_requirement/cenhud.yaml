@@ -1,9 +1,9 @@
 utility: cenhud
-delivery_revenue_requirement_from_rate_case: 1000000000.0
+delivery_revenue_requirement_from_rate_case: 394388063.0
 delivery_revenue_requirement_topups: 21805621.03
 supply_revenue_requirement_topups: 216049433.47
-total_delivery_revenue_requirement: 1021805621.03
-total_delivery_and_supply_revenue_requirement: 1237855054.5
+total_delivery_revenue_requirement: 416193684.03
+total_delivery_and_supply_revenue_requirement: 632243117.5
 total_residential_kwh: 2167787008.0
 eia_year: 2024
 delivery_top_ups:

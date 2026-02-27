@@ -1,9 +1,9 @@
 utility: psegli
-delivery_revenue_requirement_from_rate_case: 1000000000.0
+delivery_revenue_requirement_from_rate_case: 999999999.0
 delivery_revenue_requirement_topups: 50704848.62
 supply_revenue_requirement_topups: 6289282316.65
-total_delivery_revenue_requirement: 1050704848.62
-total_delivery_and_supply_revenue_requirement: 7339987165.27
+total_delivery_revenue_requirement: 1050704847.62
+total_delivery_and_supply_revenue_requirement: 7339987164.27
 total_residential_kwh: 9129428992.0
 eia_year: 2024
 delivery_top_ups:

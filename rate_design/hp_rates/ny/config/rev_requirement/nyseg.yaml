@@ -1,9 +1,9 @@
 utility: nyseg
-delivery_revenue_requirement_from_rate_case: 1000000000.0
+delivery_revenue_requirement_from_rate_case: 999999999.0
 delivery_revenue_requirement_topups: 157858879.88
 supply_revenue_requirement_topups: 1976606828.33
-total_delivery_revenue_requirement: 1157858879.88
-total_delivery_and_supply_revenue_requirement: 3134465708.21
+total_delivery_revenue_requirement: 1157858878.88
+total_delivery_and_supply_revenue_requirement: 3134465707.21
 total_residential_kwh: 6919839232.0
 eia_year: 2024
 delivery_top_ups:

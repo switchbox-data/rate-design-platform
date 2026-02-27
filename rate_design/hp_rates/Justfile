@@ -64,9 +64,6 @@ path_periods_yaml                   := path_config / "periods" / utility + ".yam
 path_rev_requirement                := path_config / "rev_requirement"
 path_default_rev_requirement        := path_rev_requirement / utility + ".yaml"
 path_differentiated_rev_requirement := path_rev_requirement / utility + "_hp_vs_nonhp.yaml"
-path_revenue_csv                    := "s3://data.sb/switchbox/revenue_requirements/" + state + "/" + env_var_or_default('REVENUE_CSV_FILENAME', 'revenue_requirements.csv')
-revenue_utility_col                 := "utility"
-revenue_year_col                    := "year"
 path_tariff_maps                    := path_config / "tariff_maps"
 path_td_mc                          := "s3://data.sb/switchbox/marginal_costs/" + state + "/region=" + region + "/utility=" + utility + "/year=" + mc_year + "/00000000.parquet"
 path_resstock_release               := "/ebs/data/nrel/resstock/res_2024_amy2018_2"
@@ -111,15 +108,6 @@ validate-config mode="warn":
 
 create-scenario-yamls:
     just -f {{path_repo}}/utils/Justfile create-scenario-yamls "{{state_upper}}"
-
-create-revenue-yaml:
-  uv run python {{path_repo}}/utils/pre/create_revenue_yaml.py \
-    --path-revenue-csv "{{path_revenue_csv}}" \
-    --path-output-yaml "{{path_default_rev_requirement}}" \
-    --utility "{{utility}}" \
-    --year "{{year}}" \
-    --utility-col "{{revenue_utility_col}}" \
-    --year-col "{{revenue_year_col}}"
 
 # Revenue requirement top-ups
 fetch-genability-tariffs effective_date="2025-01-01":
@@ -416,7 +404,7 @@ all-pre:
     just create-scenario-yamls
     just create-electric-tariff-maps-all
     just create-gas-tariff-maps-all
-    just create-revenue-yaml
+    just compute-rr
     just create-flat-tariff
     just validate-config
 
