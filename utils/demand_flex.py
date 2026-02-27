@@ -244,6 +244,11 @@ def apply_demand_flex(
         )
 
     # -- Phase 1a: freeze residual from original loads --
+    # Run the RR decomposition exactly as we would without demand flex:
+    # same raw loads, same MC prices → same total MC, same residual.
+    # We capture the residual here and freeze it so that when loads shift
+    # later, only the MC component changes — the residual (embedded infra
+    # costs) stays fixed. See context/tools/demand_flex_residual_treatment.md.
     log.info(".... Phase 1a: computing frozen residual from original loads")
     (
         full_rr_orig,
@@ -271,15 +276,22 @@ def apply_demand_flex(
     )
 
     # -- Phase 1.5: shift TOU customers (per TOU tariff) --
+    # Now simulate what happens when customers actually respond to the TOU
+    # price signal: shift load away from peak hours based on the elasticity.
+    # This changes the load shapes, which will change total MC downstream.
     effective_load_elec = raw_load_elec
     elasticity_tracker = pd.DataFrame()
     tou_season_specs: dict[str, list[SeasonTouSpec]] = {}
 
+    # A scenario may have multiple TOU tariffs (e.g. HP TOU + seasonal TOU),
+    # each with its own rate structure and set of assigned buildings.
     for tou_key in tou_tariff_keys:
         tou_tariff_path = path_tariffs_electric[tou_key]
         with open(tou_tariff_path) as f:
             tou_tariff = json.load(f)
 
+        # Only buildings assigned to this TOU tariff get shifted;
+        # everyone else's loads pass through unchanged.
         tou_rows = tariff_map_df[tariff_map_df["tariff_key"] == tou_key]
         tou_bldg_ids = cast(list[int], tou_rows["bldg_id"].astype(int).tolist())
 
@@ -295,6 +307,8 @@ def apply_demand_flex(
             len(tou_bldg_ids),
             tou_key,
         )
+        # Shift each TOU customer's hourly load based on the peak/off-peak
+        # price differential and the elasticity parameter.
         effective_load_elec, tracker = apply_runtime_tou_demand_response(
             raw_load_elec=effective_load_elec,
             tou_bldg_ids=tou_bldg_ids,
@@ -302,14 +316,25 @@ def apply_demand_flex(
             demand_elasticity=elasticity,
             season_specs=season_specs,
         )
+        # Accumulate per-tariff shift diagnostics into one combined tracker.
         if elasticity_tracker.empty:
             elasticity_tracker = tracker
         else:
             elasticity_tracker = pd.concat([elasticity_tracker, tracker], axis=0)
 
-    # -- Phase 1.75: recompute TOU cost-causation ratios from shifted load --
+    # -- Phase 1.75: recompute TOU peak/off-peak cost-causation ratios --
+    # The TOU ratio (peak rate / off-peak rate) was derived from the original
+    # load shape. Now that loads have shifted, the cost per kWh in each period
+    # has changed — less load in peak means a lower demand-weighted peak MC,
+    # so the old ratio overstates the true peak/off-peak cost difference.
+    # Recompute it from the shifted loads to keep the tariff cost-reflective.
+    # See context/domain/cost_reflective_tou_rate_design.md § "Demand flexibility".
+    # Only applies to precalc (which calibrates tariff structure); default
+    # runs use a pre-calibrated tariff and skip this.
     updated_precalc = precalc_mapping
     if tou_season_specs and run_type == "precalc":
+        # Delivery-only scenarios may have zeroed-out Cambium; use the real
+        # supply MC file if provided so cost-causation ratios are meaningful.
         if path_tou_supply_mc is not None:
             tou_bulk_mc = _load_cambium_marginal_costs(path_tou_supply_mc, year_run)
             log.info(
@@ -321,6 +346,9 @@ def apply_demand_flex(
             log.info(".... Phase 1.75: using scenario bulk MC (no path_tou_supply_mc)")
 
         log.info(".... Phase 1.75: recomputing TOU precalc mapping from shifted load")
+        # Sum individual building loads into one system-level hourly curve,
+        # then ask: given this new load shape, what's the cost per kWh in
+        # peak vs. off-peak? That gives us the updated TOU ratio.
         sample_weights = customer_metadata[["bldg_id", "weight"]]
         shifted_weighted = effective_load_elec.reset_index().merge(
             sample_weights, on="bldg_id"
@@ -337,6 +365,10 @@ def apply_demand_flex(
         )
 
     # -- Phase 2: new_RR = MC_shifted + frozen_residual --
+    # Re-run the decomposition on the shifted loads. Total MC is now lower
+    # (less peak load × expensive prices), but the residual is the same one
+    # we froze in Phase 1a. The new RR = lower MC + same residual, so the
+    # MC savings from load shifting flow through as a lower total RR.
     log.info(".... Phase 2: recomputing RR with shifted loads + frozen residual")
     (
         _rr_shifted,

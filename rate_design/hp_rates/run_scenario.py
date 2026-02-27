@@ -597,10 +597,38 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         rr_total = rr_setting
         rr_ratios = None
 
-    # Demand-flex or single-pass revenue requirement
+    # Decompose the revenue requirement into marginal costs and a residual.
+    # RR = total_MC + residual, where total_MC = sum of hourly (MC_price × load)
+    # and residual = RR − total_MC (embedded infrastructure costs).
     demand_flex_enabled = settings.elasticity != 0.0
 
-    if demand_flex_enabled:
+    if not demand_flex_enabled:
+        # Compute hourly MCs (prices × load), total MC, and residual (RR − MC).
+        # The RR target passes through unchanged; the real outputs are
+        # marginal_system_prices and costs_by_type.
+        (
+            revenue_requirement_raw,
+            marginal_system_prices,
+            _marginal_system_costs,
+            costs_by_type,
+        ) = _return_revenue_requirement_target(
+            building_load=raw_load_elec,
+            sample_weight=customer_metadata[["bldg_id", "weight"]],
+            revenue_requirement_target=rr_total,
+            residual_cost=None,
+            residual_cost_frac=None,
+            bulk_marginal_costs=bulk_marginal_costs,
+            distribution_marginal_costs=distribution_marginal_costs,
+            low_income_strategy=None,
+        )
+        effective_load_elec = raw_load_elec
+        elasticity_tracker = pd.DataFrame()
+        tou_tariff_keys = []
+    else:
+        # Same decomposition as above, but TOU prices shift loads first,
+        # which changes total MC and therefore lowers the RR. We also
+        # recompute TOU period ratios from the shifted load shape so the
+        # tariff structure stays cost-reflective post-flex.
         flex = apply_demand_flex(
             elasticity=settings.elasticity,
             run_type=settings.run_type,
@@ -616,34 +644,20 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             bulk_marginal_costs=bulk_marginal_costs,
             distribution_marginal_costs=distribution_marginal_costs,
         )
-        effective_load_elec = flex.effective_load_elec
-        elasticity_tracker = flex.elasticity_tracker
-        revenue_requirement_raw = flex.revenue_requirement_raw
+
+        revenue_requirement_raw = (
+            flex.revenue_requirement_raw
+        )  # lower: MC shrank from shifted load
         marginal_system_prices = flex.marginal_system_prices
-        marginal_system_costs = flex.marginal_system_costs
+        _marginal_system_costs = flex.marginal_system_costs
         costs_by_type = flex.costs_by_type
-        precalc_mapping = flex.precalc_mapping
+
+        effective_load_elec = flex.effective_load_elec  # post-shift load shapes
+        elasticity_tracker = flex.elasticity_tracker
         tou_tariff_keys = flex.tou_tariff_keys
-    else:
-        effective_load_elec = raw_load_elec
-        elasticity_tracker = pd.DataFrame()
-        tou_tariff_keys = []
-        # -- No demand flex: single-pass revenue requirement (unchanged) --
-        (
-            revenue_requirement_raw,
-            marginal_system_prices,
-            marginal_system_costs,
-            costs_by_type,
-        ) = _return_revenue_requirement_target(
-            building_load=raw_load_elec,
-            sample_weight=customer_metadata[["bldg_id", "weight"]],
-            revenue_requirement_target=rr_total,
-            residual_cost=None,
-            residual_cost_frac=None,
-            bulk_marginal_costs=bulk_marginal_costs,
-            distribution_marginal_costs=distribution_marginal_costs,
-            low_income_strategy=None,
-        )
+        precalc_mapping = (
+            flex.precalc_mapping
+        )  # TOU ratios recomputed from shifted loads
 
     # Apply subclass RR split if configured.
     # Compute per-subclass supply MC so each subclass's RR reflects
