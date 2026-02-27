@@ -5,23 +5,25 @@ used to compute delivery and supply revenue-requirement top-ups for all seven NY
 electric utilities: CenHud, ConEd, National Grid (NiMo), NYSEG, O&R, PSEG-LI, and
 RG&E.
 
-## Files
+## Directory layout
 
-For each utility `<key>` (e.g. `coned`, `nimo`):
-
-| File                                     | What it is                                                                                                                                    |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<key>_default_<date>.json`              | Full Genability tariff JSON, snapshotted at `<date>`                                                                                          |
-| `<key>_charge_decisions.json`            | Classification of every rate in the tariff: `add_to_drr`, `add_to_srr`, `already_in_drr`, `exclude`, `skip`                                   |
-| `<key>_monthly_rates.yaml`               | Monthly volumetric rates ($/kWh) for every classified charge, fetched from the API for each month in the requested range, labeled by decision |
-| `<key>_default_<date>_<start>_<end>.csv` | (Diagnostic) Tidy-long time series of all charges over a date range                                                                           |
+```
+top-ups/
+├── tariffs_by_utility.yaml                   # Which Genability tariff to fetch per utility
+├── default_tariffs/
+│   └── <key>_default_<date>.json             # Full Genability tariff JSON snapshot
+├── charge_decisions/
+│   └── <key>_charge_decisions.json           # Per-charge classification (add_to_drr, etc.)
+└── monthly_rates/
+    └── <key>_monthly_rates_<year>.yaml       # Monthly $/kWh rates for classified charges
+```
 
 ## How these are produced
 
 ### 1. Fetch the base tariff snapshot
 
 `utils/pre/fetch_electric_tariffs_genability.py` downloads the full Genability tariff
-JSON for each utility listed in `genability_tariffs.yaml`. It takes an `--effective-date`
+JSON for each utility listed in `tariffs_by_utility.yaml`. It takes an `--effective-date`
 that controls which tariff version you get — all charges effective on that date will be
 included. See `context/domain/tariff_structure_and_genability.md` for details on how
 Genability versioning, riders, and variable rates work.
@@ -30,17 +32,19 @@ Genability versioning, riders, and variable rates work.
 UTILITY=coned just s ny fetch-genability-tariffs
 ```
 
+Output goes to `default_tariffs/`.
+
 ### 2. Classify each charge (manual research)
 
 The tariff snapshot contains dozens of rate line items (delivery charges, surcharges,
-riders, supply components, taxes). Each one needs to be classified by whether it belongs in the delivery revenue
-requirement, the supply revenue requirement, or should be excluded from the BAT
-analysis.
+riders, supply components, taxes). Each one needs to be classified by whether it
+belongs in the delivery revenue requirement, the supply revenue requirement, or should
+be excluded from the BAT analysis.
 
 This classification was done through extensive manual research documented in
 `context/domain/ny_residential_charges_in_bat.md`. The result is one
-`<key>_charge_decisions.json` per utility, where every `tariffRateId` is mapped to a
-`decision`:
+`<key>_charge_decisions.json` per utility in `charge_decisions/`, where every
+`tariffRateId` is mapped to a `decision`:
 
 - **`add_to_drr`** — volumetric surcharge that should be "topped up" into the delivery revenue requirement (e.g. SBC, CES Delivery, DLM Surcharge)
 - **`add_to_srr`** — supply-side surcharge for the supply revenue requirement (e.g. CES Supply, MFC, bundled commodity)
@@ -61,14 +65,15 @@ tariffRateId version drift. Each charge in the output YAML is labeled with its
 UTILITY=coned just s ny fetch-monthly-rates
 ```
 
-Produces `coned_monthly_rates_2025.yaml`.
+Output goes to `monthly_rates/`. The year defaults to `MONTHLY_RATES_YEAR` (2025).
 
 ### 4. Compute topped-up revenue requirement
 
 The monthly rates YAML feeds into `utils/pre/compute_rr.py`, which filters for
-`add_to_drr` charges, multiplies each monthly rate by EIA-861 residential kWh to get
-an annual budget, then adds it to the rate-case revenue requirement. The output
-lives in the parent `rev_requirement/` directory (e.g. `rev_requirement/<utility>.yaml`).
+`add_to_drr` and `add_to_srr` charges, multiplies each day-weighted average monthly
+rate by EIA-861 residential kWh to get an annual budget, then adds it to the rate-case
+delivery revenue requirement. The output lives in the parent `rev_requirement/`
+directory (e.g. `rev_requirement/<utility>.yaml`).
 
 ```bash
 UTILITY=coned just s ny compute-rr
@@ -80,7 +85,7 @@ To replicate this for a new state/utility:
 
 1. **Add the utility to `utils/utility_codes.py`** with its EIA utility ID so the fetch script can resolve it to a Genability LSE.
 2. **Add an entry to `tariffs_by_utility.yaml`** in the state's `rev_requirement/top-ups/` directory (use `default` to get the residential default tariff, or a specific `masterTariffId`).
-3. **Fetch the base tariff**: run the `fetch-genability` recipe with the appropriate effective date.
+3. **Fetch the base tariff**: run `fetch-genability-tariffs` with the appropriate effective date.
 4. **Classify every charge** by reading through the tariff JSON and regulatory filings. This is unavoidable manual research — see `context/domain/ny_residential_charges_in_bat.md` for the kind of analysis required. Document the research in a `context/domain/<state>_residential_charges_in_bat.md` file, then encode the decisions in a `<key>_charge_decisions.json`.
-5. **Fetch the monthly rates**: run `fetch-monthly-rates` for the utility and month range.
+5. **Fetch the monthly rates**: run `fetch-monthly-rates` for the utility.
 6. **Compute the revenue requirement**: run `compute-rr` to produce the topped-up `rev_requirement/<utility>.yaml`.
