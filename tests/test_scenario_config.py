@@ -17,11 +17,7 @@ from utils.scenario_config import (
 )
 
 _CONFIG_DIR = (
-    Path(__file__).resolve().parents[1]
-    / "rate_design"
-    / "hp_rates"
-    / "ny"
-    / "config"
+    Path(__file__).resolve().parents[1] / "rate_design" / "hp_rates" / "ny" / "config"
 )
 
 
@@ -47,7 +43,9 @@ class TestParserWithNewYAMLFormat:
         result = _parse_utility_revenue_requirement(
             "rev_requirement/cenhud.yaml",
             _CONFIG_DIR,
-            raw_path_tariffs_electric={"all": "tariffs/electric/cenhud_flat_supply.json"},
+            raw_path_tariffs_electric={
+                "all": "tariffs/electric/cenhud_flat_supply.json"
+            },
             add_supply=True,
             run_includes_subclasses=False,
         )
