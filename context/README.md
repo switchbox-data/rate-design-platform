@@ -45,6 +45,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 | polars_laziness_and_validation.md        | Polars LazyFrame best practices: when to collect, runtime data-quality asserts vs laziness/streaming, strategies for small and large data                                                                                                                                                                |
 | ny_lmi_discounts_genability_encoding.md  | EAP/LMI encoding in NY Genability electric tariffs: which utilities encode EAP, tier/heating structure, amount comparison to lmi_discounts_in_ny.md                                                                                                                                                      |
 | tariff_rates_and_genability.md           | Tariff/rate/rider/charge terminology, regulatory underpinnings (rate cases, rider proceedings, tariff books, leaf/revision versioning), Genability/Arcadia data model and APIs, and how to reconstruct historical monthly charges (API sequence, date-boundary subtleties, validation via Calculate API) |
+| approximate_non_hp_load.md               | MF highrise non-HP load approximation: nearest-neighbor RMSE, replace HVAC columns, update/sink, validation                                                                                                                                                                                              |
 
 ## docs/
 
