@@ -6,7 +6,7 @@ This document summarizes the demand-flexibility (price-response) workflow in CAI
 
 ## Current repo implementation
 
-The core CAIRO demand-response functions are commented out in `cairo/rates_tool/loads.py` (see code references below). This repo has an active runtime implementation in `utils/cairo.py` with the same parent/worker naming:
+The core CAIRO demand-response functions are commented out in `cairo/rates_tool/loads.py` (see code references below). This repo has low-level per-building shifting in `utils/cairo.py`:
 
 - `process_residential_hourly_demand_response_shift(...)`
 - `_shift_building_hourly_demand(...)`
@@ -21,7 +21,14 @@ Equivalent flat tariff is computed endogenously by default for each active slice
 
 `P_flat = sum_t(Q_t * P_t) / sum_t(Q_t)`
 
-The scenario entrypoint is `rate_design/ri/hp_rates/run_scenario.py`, which orchestrates load shifting, revenue requirement recalibration, and the CAIRO simulation.
+The multi-phase demand-flex orchestration (phases 1a, 1.5, 1.75, 2) lives in `utils/demand_flex.py`. Key exports:
+
+- `apply_demand_flex(...)` — entry point called by `run_scenario.py`; returns a `DemandFlexResult` dataclass
+- `is_diurnal_tou(tariff_path)` — detect TOU tariffs with intra-day rate variation
+- `find_tou_derivation_path(tariff_key, tou_derivation_dir)` — locate the TOU derivation JSON for a tariff
+- `recompute_tou_precalc_mapping(...)` — recompute precalc rel_values from shifted-load MC weights (Phase 1.75)
+
+The scenario entrypoint is `rate_design/hp_rates/run_scenario.py`, which delegates demand-flex orchestration to `utils/demand_flex.py:apply_demand_flex()` and handles the CAIRO simulation.
 
 Primary code references:
 
@@ -64,7 +71,7 @@ flowchart TD
     end
 
     subgraph phase175 ["Phase 1.75: Recompute TOU cost-causation ratios (precalc only)"]
-        E --> CC["_recompute_tou_precalc_mapping(\n  shifted system load,\n  real supply MC + dist MC, season_specs)"]
+        E --> CC["recompute_tou_precalc_mapping(\n  shifted system load,\n  real supply MC + dist MC, season_specs)\n  [utils/demand_flex.py]"]
         MC --> CC
         CC --> PM["updated precalc_mapping\n(new peak/off-peak rel_values)"]
     end
@@ -109,7 +116,7 @@ flowchart TD
 
 - **Only runs when `run_type == "precalc"`**. Default runs use a pre-calibrated tariff and have no revenue-neutrality constraint to recalibrate — they only apply demand shifting.
 - The load shift changes the demand-weighted marginal cost profile, so the peak/off-peak cost-causation ratios change.
-- `_recompute_tou_precalc_mapping` aggregates the shifted building loads to system-level hourly demand, then recomputes per-season `compute_tou_cost_causation_ratio` and `compute_seasonal_base_rates` using the shifted system load.
+- `recompute_tou_precalc_mapping` (`utils/demand_flex.py`) aggregates the shifted building loads to system-level hourly demand, then recomputes per-season `compute_tou_cost_causation_ratio` and `compute_seasonal_base_rates` using the shifted system load.
 - **Supply MC source:** For delivery-only precalc runs the scenario's Cambium file may be zeros. The optional YAML field `path_tou_supply_mc` points to the real Cambium parquet; if set, that MC is loaded and combined with distribution MC for cost-causation computation. If unset, `bulk_marginal_costs` (the scenario's Cambium) is used directly — this works for supply runs where the Cambium file is already real.
 - For seasons where the combined MC (supply + distribution) is zero everywhere (e.g. winter when distribution capacity costs are allocated only to summer peak hours), the original `base_rate` and `peak_offpeak_ratio` from the TOU derivation spec are preserved.
 - The precalc_period_mapping `rel_values` are updated in-place for each TOU tariff. Non-TOU entries are unchanged.

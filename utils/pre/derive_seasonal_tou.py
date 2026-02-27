@@ -305,7 +305,7 @@ def _parse_args() -> argparse.Namespace:
         help=(
             "Optional periods YAML containing `winter_months` and "
             "`tou_window_hours`. When omitted, resolves "
-            "rate_design/<state>/hp_rates/config/periods/<utility>.yaml."
+            "rate_design/hp_rates/<state>/config/periods/<utility>.yaml."
         ),
     )
     p.add_argument(

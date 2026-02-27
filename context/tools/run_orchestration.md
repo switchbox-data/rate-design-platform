@@ -3,7 +3,7 @@
 ## Purpose
 
 Automate the full sequence of 16 CAIRO runs for heat-pump rate design
-(`just run-all-sequential` from `rate_design/ri/hp_rates/`). Each run has
+(`just run-all-sequential` from `rate_design/hp_rates/ri/`). Each run has
 pre-processing steps (tariff creation, calibrated tariff promotion, seasonal
 discount derivation) that depend on outputs from earlier runs. The
 orchestration encodes these dependencies so the entire pipeline can execute
@@ -34,7 +34,7 @@ Three layers work together:
 | Layer            | Path                               | Role                                                                                                                  |
 | ---------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | Generic recipes  | `utils/Justfile`                   | Reusable pre/mid recipes with no state-specific paths. RI Justfile delegates here.                                    |
-| RI orchestration | `rate_design/ri/hp_rates/Justfile` | Defines `run-1` ... `run-16`, `all-pre`, and `run-all-sequential`. Binds utility-specific config and wires the chain. |
+| RI orchestration | `rate_design/hp_rates/ri/Justfile` | Defines `run-1` ... `run-16`, `all-pre`, and `run-all-sequential`. Binds utility-specific config and wires the chain. |
 | Output resolver  | `utils/mid/latest_run_output.sh`   | Shell script that finds the most recent CAIRO output directory for a given run on S3.                                 |
 | Config validator | `utils/pre/validate_config.py`     | Checks Justfile vars against scenario YAML values. Warn-only by default, `--strict` exits non-zero for CI.            |
 
@@ -133,7 +133,7 @@ For CI, call `just validate-config strict` to exit non-zero on mismatch.
 
 ## How to run
 
-From `rate_design/ri/hp_rates/`:
+From `rate_design/hp_rates/ri/`:
 
 ```bash
 # Just the pre-processing + validation

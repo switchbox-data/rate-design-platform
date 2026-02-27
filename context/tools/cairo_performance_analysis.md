@@ -10,7 +10,7 @@ Based on code at `.venv/lib/python3.13/site-packages/cairo/rates_tool/`.
 
 ## Execution flow overview
 
-The `run()` function in `rate_design/ri/hp_rates/run_scenario.py` proceeds in three
+The `run()` function in `rate_design/hp_rates/run_scenario.py` proceeds in three
 phases. The call graph applies to all scenario YAML configs (e.g.
 `config/scenarios/scenarios_rie.yaml`).
 

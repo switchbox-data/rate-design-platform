@@ -15,8 +15,8 @@ from utils.cairo import (
 EXAMPLE_CSV = (
     Path(__file__).resolve().parent.parent
     / "rate_design"
-    / "ny"
     / "hp_rates"
+    / "ny"
     / "data"
     / "marginal_costs"
     / "example_marginal_costs.csv"

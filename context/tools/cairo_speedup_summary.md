@@ -14,7 +14,7 @@ Three performance patches applied as module-level monkey-patches loaded by
 `run_scenario.py` before CAIRO runs. All patches live in:
 
 ```
-rate_design/ri/hp_rates/patches.py
+rate_design/hp_rates/patches.py
 ```
 
 ### Phase 1 — Combined batch parquet reader
@@ -227,8 +227,8 @@ Further meaningful speedup beyond ~1.5× would most likely require:
 
 | File                                            | Change                                 |
 | ----------------------------------------------- | -------------------------------------- |
-| `rate_design/ri/hp_rates/patches.py`            | New — all three patch phases           |
-| `rate_design/ri/hp_rates/run_scenario.py`       | Import patches; add per-stage timing   |
+| `utils/mid/patches.py`                          | New — all three patch phases           |
+| `rate_design/hp_rates/run_scenario.py`          | Import patches; add per-stage timing   |
 | `tests/test_patches.py`                         | New — 3 unit tests                     |
 | `context/tools/cairo_speedup_log.md`            | Benchmark log updated after each phase |
 | `docs/plans/2026-02-23-cairo-speedup-design.md` | Design doc                             |
@@ -339,7 +339,7 @@ directly; it calls `_return_preaggregated_load` (line 469), which calls
 no way to bypass `_adjust_gas_loads` without monkey-patching either
 `_return_preaggregated_load` or `_calculate_gas_bills` itself.
 
-**Gas tariff JSON structure (`rate_design/ri/hp_rates/config/tariffs/gas/`):**
+**Gas tariff JSON structure (`rate_design/hp_rates/ri/config/tariffs/gas/`):**
 
 Three files: `rie_heating.json`, `rie_nonheating.json`, `null_gas_tariff.json`.
 

@@ -1,0 +1,109 @@
+# NY heat pump rate design tasks.
+# Thin wrapper: sets state defaults, loads state.env, imports shared recipes.
+#
+# Usage (from rate_design/hp_rates/):
+#   just -f ny/Justfile all-pre
+#   UTILITY=coned just -f ny/Justfile run-all-sequential
+# Or via dispatch:
+#   just s ny all-pre
+
+set dotenv-path := "state.env"
+
+state   := env_var_or_default('STATE', 'ny')
+utility := env_var_or_default('UTILITY', 'nyseg')
+
+import '../Justfile'
+
+# =============================================================================
+# NY-only: multi-utility TD marginal cost data
+# =============================================================================
+
+create-td-mc-data-all:
+  UTILITY=nyseg just create-td-mc-data
+  UTILITY=rge just create-td-mc-data
+  UTILITY=cenhud just create-td-mc-data
+
+# =============================================================================
+# NY-only: supply marginal costs (LBMP + ICAP MCOS)
+# =============================================================================
+
+supply_mc_year := "2025"
+zone_mapping_path := "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
+
+create-supply-mc-data utility_arg:
+  cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_utility_supply_mc.py \
+    --utility {{utility_arg}} \
+    --year {{supply_mc_year}} \
+    --zone-mapping-path {{zone_mapping_path}} \
+    --upload
+
+create-supply-mc-data-all:
+  just create-supply-mc-data cenhud
+  just create-supply-mc-data coned
+  just create-supply-mc-data nimo
+  just create-supply-mc-data nyseg
+  just create-supply-mc-data or
+  just create-supply-mc-data rge
+  just create-supply-mc-data psegli
+
+# =============================================================================
+# NY-only: multi-utility gas tariff mapping shortcuts
+# =============================================================================
+
+map-gas-tariff gas_utility upgrade_id output_dir:
+  just create-gas-tariff-map "{{gas_utility}}" "{{upgrade_id}}" "{{output_dir}}"
+
+map-gas-bath:
+  just map-gas-tariff bath 00 {{path_tariff_maps}}/gas
+
+map-gas-cenhud:
+  just map-gas-tariff cenhud 00 {{path_tariff_maps}}/gas
+
+map-gas-chautauqua:
+  just map-gas-tariff chautauqua 00 {{path_tariff_maps}}/gas
+
+map-gas-coned:
+  just map-gas-tariff coned 00 {{path_tariff_maps}}/gas
+
+map-gas-national-grid:
+  just map-gas-tariff nimo 00 {{path_tariff_maps}}/gas
+
+map-gas-nyseg:
+  just map-gas-tariff nyseg 00 {{path_tariff_maps}}/gas
+
+map-gas-or:
+  just map-gas-tariff or 00 {{path_tariff_maps}}/gas
+
+map-gas-psegli:
+  just map-gas-tariff psegli 00 {{path_tariff_maps}}/gas
+
+map-gas-rge:
+  just map-gas-tariff rge 00 {{path_tariff_maps}}/gas
+
+map-gas-all-utilities:
+  just map-gas-bath
+  just map-gas-cenhud
+  just map-gas-chautauqua
+  just map-gas-coned
+  just map-gas-national-grid
+  just map-gas-nyseg
+  just map-gas-or
+  just map-gas-psegli
+  just map-gas-rge
+
+
+
+# =============================================================================
+# NY-only: post-run LMI discounts
+# =============================================================================
+
+apply-ny-lmi-discounts run_dir utility_arg fpl_year cpi_s3_path participation_rate="1.0" rider="false":
+  uv run python {{path_repo}}/utils/post/apply_ny_lmi_discounts_to_bills.py \
+    --run-dir "{{run_dir}}" \
+    --state {{state_upper}} \
+    --utility {{utility_arg}} \
+    --fpl-year {{fpl_year}} \
+    --cpi-s3-path "{{cpi_s3_path}}" \
+    --participation-rate {{participation_rate}} \
+    {{ if rider == "true" { "--rider" } else { "" } }} \
+    --upload
