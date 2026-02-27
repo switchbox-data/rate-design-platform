@@ -38,6 +38,7 @@ from utils.cairo import (
 )
 from utils.demand_flex import apply_demand_flex, split_revenue_requirement_by_tou
 from utils.scenario_config import (
+    RevenueRequirementConfig,
     _parse_bool,
     _parse_float,
     _parse_int,
@@ -68,12 +69,6 @@ def _state_config(state: str) -> Path:
     return PATH_PROJECT / state.lower() / "config"
 
 
-SUBCLASS_TO_ALIAS: dict[str, str] = {
-    "true": "hp",
-    "false": "non-hp",
-}
-
-
 @contextlib.contextmanager
 def _timed(label: str) -> Iterator[None]:
     t0 = time.perf_counter()
@@ -102,7 +97,9 @@ class ScenarioSettings:
     path_tariff_maps_gas: Path
     path_tariffs_electric: dict[str, Path]
     path_tariffs_gas: dict[str, Path]
-    utility_delivery_revenue_requirement: float | dict[str, float]
+    rr_total: float
+    subclass_rr: dict[str, float] | None
+    run_includes_subclasses: bool
     path_electric_utility_stats: str | Path
     year_run: int
     year_dollar_conversion: int
@@ -111,7 +108,7 @@ class ScenarioSettings:
     path_supply_energy_mc: str | Path | None = None
     path_supply_capacity_mc: str | Path | None = None
     solar_pv_compensation: str = "net_metering"
-    add_supply_revenue_requirement: bool = False
+    run_includes_supply: bool = False
     sample_size: int | None = None
     elasticity: float = 0.0
     path_tou_supply_mc: str | Path | None = None
@@ -231,16 +228,20 @@ def _build_settings_from_yaml_run(
         path_config,
         "electric",
     )
-    add_supply_revenue_requirement = _parse_bool(
-        _require_value(run, "add_supply_revenue_requirement"),
-        "add_supply_revenue_requirement",
+    run_includes_supply = _parse_bool(
+        _require_value(run, "run_includes_supply"),
+        "run_includes_supply",
     )
-    utility_delivery_revenue_requirement = _parse_utility_revenue_requirement(
+    run_includes_subclasses = _parse_bool(
+        _require_value(run, "run_includes_subclasses"),
+        "run_includes_subclasses",
+    )
+    rr_config: RevenueRequirementConfig = _parse_utility_revenue_requirement(
         _require_value(run, "utility_delivery_revenue_requirement"),
         path_config,
         raw_path_tariffs_electric,
-        SUBCLASS_TO_ALIAS,
-        add_supply=add_supply_revenue_requirement,
+        add_supply=run_includes_supply,
+        run_includes_subclasses=run_includes_subclasses,
     )
     path_tariff_maps_gas = _resolve_path(
         str(_require_value(run, "path_tariff_maps_gas")),
@@ -303,14 +304,16 @@ def _build_settings_from_yaml_run(
         path_tariff_maps_gas=path_tariff_maps_gas,
         path_tariffs_electric=path_tariffs_electric,
         path_tariffs_gas=path_tariffs_gas,
-        utility_delivery_revenue_requirement=utility_delivery_revenue_requirement,
+        rr_total=rr_config.rr_total,
+        subclass_rr=rr_config.subclass_rr,
+        run_includes_subclasses=rr_config.run_includes_subclasses,
         path_electric_utility_stats=path_electric_utility_stats,
         year_run=year_run,
         year_dollar_conversion=year_dollar_conversion,
         process_workers=process_workers,
         solar_pv_compensation=solar_pv_compensation,
         sample_size=sample_size,
-        add_supply_revenue_requirement=add_supply_revenue_requirement,
+        run_includes_supply=run_includes_supply,
         elasticity=elasticity,
         path_tou_supply_mc=path_tou_supply_mc,
     )
@@ -584,19 +587,6 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         tariff_dict=tariffs_params,
     )
 
-    # Decompose subclass revenue requirement into total + ratios so that
-    # both demand-flex and non-flex paths can work with a scalar target
-    # for CAIRO's _return_revenue_requirement_target, then re-split after.
-    rr_setting = settings.utility_delivery_revenue_requirement
-    if isinstance(rr_setting, dict):
-        rr_total = sum(rr_setting.values())
-        rr_ratios: dict[str, float] | None = {
-            k: v / rr_total for k, v in rr_setting.items()
-        }
-    else:
-        rr_total = rr_setting
-        rr_ratios = None
-
     # FIND TOTAL RESIDUAL AND HOURLY MC's
     # Decomposes the revenue requirement into total marginal costs and residual.
     # RR = total_MC + residual, where total_MC = sum of hourly (MC_price × load)
@@ -604,9 +594,6 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
     demand_flex_enabled = settings.elasticity != 0.0
 
     if not demand_flex_enabled:
-        # Compute hourly MCs (prices × load), total MC, and residual (RR − MC).
-        # The RR target passes through unchanged; the real outputs are
-        # marginal_system_prices and costs_by_type.
         (
             revenue_requirement,
             marginal_system_prices,
@@ -615,7 +602,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         ) = _return_revenue_requirement_target(
             building_load=raw_load_elec,
             sample_weight=customer_metadata[["bldg_id", "weight"]],
-            revenue_requirement_target=rr_total,
+            revenue_requirement_target=settings.rr_total,
             residual_cost=None,
             residual_cost_frac=None,
             bulk_marginal_costs=bulk_marginal_costs,
@@ -624,12 +611,9 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         )
         effective_load_elec = raw_load_elec
         elasticity_tracker = pd.DataFrame()
-        tou_tariff_keys = []
+        if settings.run_includes_subclasses:
+            revenue_requirement = settings.subclass_rr
     else:
-        # Same decomposition as above, but TOU prices shift loads first,
-        # which changes total MC and therefore lowers the RR. We also
-        # recompute TOU period ratios from the shifted load shape so the
-        # tariff structure stays cost-reflective post-flex.
         flex = apply_demand_flex(
             elasticity=settings.elasticity,
             run_type=settings.run_type,
@@ -641,79 +625,25 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             customer_metadata=customer_metadata,
             tariff_map_df=tariff_map_df,
             precalc_mapping=precalc_mapping,
-            rr_total=rr_total,
+            rr_total=settings.rr_total,
             bulk_marginal_costs=bulk_marginal_costs,
             distribution_marginal_costs=distribution_marginal_costs,
         )
 
-        revenue_requirement = (
-            flex.revenue_requirement_raw
-        )  # lower: MC shrank from shifted load
+        revenue_requirement = flex.revenue_requirement_raw
         marginal_system_prices = flex.marginal_system_prices
         _marginal_system_costs = flex.marginal_system_costs
         costs_by_type = flex.costs_by_type
 
-        effective_load_elec = flex.effective_load_elec  # post-shift load shapes
+        effective_load_elec = flex.effective_load_elec
         elasticity_tracker = flex.elasticity_tracker
-        tou_tariff_keys = flex.tou_tariff_keys
-        precalc_mapping = (
-            flex.precalc_mapping
-        )  # TOU ratios recomputed from shifted loads
-
-    # Apply subclass RR split if configured.
-    # Compute per-subclass supply MC so each subclass's RR reflects
-    # its own marginal cost responsibility.  Without this, the delivery
-    # ratios would be applied to the topped-up total, mis-allocating
-    # supply MC between subclasses with different load profiles.
-    if rr_ratios is not None and isinstance(rr_setting, dict):
-        subclass_supply_mc: dict[str, float] = {}
-        if settings.add_supply_revenue_requirement:
-            supply_cols = [
-                c
-                for c in bulk_marginal_costs.columns
-                if "Energy" in c or "Capacity" in c
-            ]
-            supply_mc_prices = bulk_marginal_costs[supply_cols].sum(axis=1)
-
-            # Pre-merge weights into load once to avoid redundant
-            # copy + merge inside process_residential_hourly_demand
-            # per subclass (N_buildings × 8760 rows each time).
-            weighted_load = raw_load_elec.reset_index().merge(
-                customer_metadata[["bldg_id", "weight"]], on="bldg_id"
-            )
-            weighted_load["weighted_kwh"] = (
-                weighted_load["electricity_net"] * weighted_load["weight"]
-            )
-
-            for tariff_key in rr_setting:
-                subclass_bldg_ids = set(
-                    tariff_map_df.loc[
-                        tariff_map_df["tariff_key"] == tariff_key, "bldg_id"
-                    ]
-                )
-                sub = weighted_load[weighted_load["bldg_id"].isin(subclass_bldg_ids)]
-                subclass_sys_load = sub.groupby("time")["weighted_kwh"].sum()
-                subclass_supply_mc[tariff_key] = float(
-                    supply_mc_prices.mul(subclass_sys_load).sum()
-                )
-            log.info(
-                ".... Per-subclass supply MC: %s",
-                {k: f"${v:,.0f}" for k, v in subclass_supply_mc.items()},
-            )
-
-        # Each subclass's baseline = delivery_RR_k + own supply MC
-        subclass_baseline: dict[str, float] = {
-            k: v + subclass_supply_mc.get(k, 0.0) for k, v in rr_setting.items()
-        }
-
-        if demand_flex_enabled:
+        precalc_mapping = flex.precalc_mapping
+        if settings.run_includes_subclasses and settings.subclass_rr is not None:
             revenue_requirement = split_revenue_requirement_by_tou(
                 revenue_requirement_total=revenue_requirement,
-                subclass_baseline=subclass_baseline,
-                tou_tariff_keys=tou_tariff_keys,
+                subclass_baseline=settings.subclass_rr,
+                tou_tariff_keys=flex.tou_tariff_keys,
             )
-        else:
-            revenue_requirement = subclass_baseline
 
     # Phase 3 ---------------------------------------------------------------
     # FIND RATE(S) THAT MEET REVENUE REQUIREMENT(S)
