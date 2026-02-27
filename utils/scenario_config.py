@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -63,23 +64,82 @@ def get_residential_customer_count_from_utility_stats(
     return int(value)
 
 
+MWH_TO_KWH = 1000
+
+
+def get_residential_sales_kwh_from_utility_stats(
+    path: str | Path,
+    utility: str,
+    *,
+    storage_options: dict[str, str] | None = None,
+) -> float:
+    """Read EIA-861 utility stats parquet and return residential sales in kWh for the utility.
+
+    The parquet is state-partitioned (e.g. state=NY/data.parquet) with columns
+    utility_code and residential_sales_mwh. Filters for utility_code == utility
+    and returns residential_sales_mwh converted to kWh (multiplied by 1000).
+
+    Raises:
+        ValueError: If path has no row for that utility, or more than one row.
+    """
+    path_str = str(path)
+    opts = storage_options if path_str.startswith("s3://") else None
+    lf = (
+        pl.scan_parquet(path_str, storage_options=opts)
+        .filter(pl.col("utility_code") == utility)
+        .select(
+            (pl.col("residential_sales_mwh") * MWH_TO_KWH).alias(
+                "residential_sales_kwh"
+            )
+        )
+    )
+    df = cast(pl.DataFrame, lf.collect())
+    if df.height == 0:
+        raise ValueError(
+            f"No row with utility_code={utility!r} in {path_str}. "
+            "Check path_electric_utility_stats and utility in the scenario YAML."
+        )
+    if df.height > 1:
+        raise ValueError(
+            f"Expected one row for utility_code={utility!r} in {path_str}, got {df.height}"
+        )
+    value = df.item(0, 0)
+    if value is None:
+        raise ValueError(
+            f"residential_sales_mwh is null for utility_code={utility!r} in {path_str}"
+        )
+    return float(value)
+
+
 # Revenue requirement parsing
-def _parse_single_revenue_requirement(rr_data: dict[str, Any]) -> float:
-    """Extract a scalar revenue_requirement from the YAML mapping."""
-    return _parse_float(rr_data["revenue_requirement"], "revenue_requirement")
+
+
+@dataclass(frozen=True, slots=True)
+class RevenueRequirementConfig:
+    """Parsed revenue requirement configuration.
+
+    rr_total: scalar for MC decomposition (delivery or delivery+supply).
+    subclass_rr: per-tariff-key RR dict, or None for non-subclass runs.
+    run_includes_subclasses: whether the run uses per-subclass RRs.
+    """
+
+    rr_total: float
+    subclass_rr: dict[str, float] | None
+    run_includes_subclasses: bool
 
 
 def _parse_subclass_revenue_requirement(
     rr_data: dict[str, Any],
     raw_path_tariffs_electric: dict[str, Any],
     base_dir: Path,
-    subclass_to_alias: dict[str, str],
+    *,
+    add_supply: bool,
 ) -> dict[str, float]:
     """Map subclass revenue requirements to tariff keys.
 
-    Subclass YAML keys ('true'/'false') are mapped via subclass_to_alias to
-    the raw YAML aliases ('hp'/'non-hp'), then resolved to tariff keys (file
-    stems like '{utility}_hp_seasonal') using the path strings.
+    YAML subclass keys are aliases ('hp'/'non-hp') matching the keys in
+    path_tariffs_electric. Each alias resolves to a tariff key (file stem).
+    Picks 'delivery' or 'total' per subclass based on *add_supply*.
     """
     subclass_rr = rr_data.get("subclass_revenue_requirements")
     if not isinstance(subclass_rr, dict) or not subclass_rr:
@@ -91,23 +151,29 @@ def _parse_subclass_revenue_requirement(
     }
 
     result: dict[str, float] = {}
-    for group_val, amount in subclass_rr.items():
-        alias = subclass_to_alias.get(str(group_val))
-        if alias is None:
-            raise ValueError(
-                f"Unknown subclass group value {group_val!r}; "
-                f"expected one of {sorted(subclass_to_alias)}"
-            )
-        tariff_key = alias_to_tariff_key.get(alias)
+    for alias, amount in subclass_rr.items():
+        alias_str = str(alias)
+        tariff_key = alias_to_tariff_key.get(alias_str)
         if tariff_key is None:
             raise ValueError(
-                f"Subclass {group_val!r} maps to alias {alias!r} but "
-                f"path_tariffs_electric has no alias {alias!r} "
-                f"(available: {sorted(alias_to_tariff_key)})"
+                f"Subclass alias {alias_str!r} in YAML not found in "
+                f"path_tariffs_electric (available: {sorted(alias_to_tariff_key)})"
             )
-        result[tariff_key] = _parse_float(
-            amount, f"subclass_revenue_requirements[{group_val}]"
-        )
+        if isinstance(amount, dict):
+            rr_field = "total" if add_supply else "delivery"
+            if rr_field not in amount:
+                raise ValueError(
+                    f"subclass_revenue_requirements[{alias_str}] missing "
+                    f"required field {rr_field!r}"
+                )
+            result[tariff_key] = _parse_float(
+                amount[rr_field],
+                f"subclass_revenue_requirements[{alias_str}].{rr_field}",
+            )
+        else:
+            result[tariff_key] = _parse_float(
+                amount, f"subclass_revenue_requirements[{alias_str}]"
+            )
 
     return result
 
@@ -116,13 +182,16 @@ def _parse_utility_revenue_requirement(
     value: Any,
     base_dir: Path,
     raw_path_tariffs_electric: dict[str, Any],
-    subclass_to_alias: dict[str, str],
-) -> float | dict[str, float]:
+    *,
+    add_supply: bool,
+    run_includes_subclasses: bool = False,
+) -> RevenueRequirementConfig:
     """Parse utility_delivery_revenue_requirement from a YAML path.
 
-    Returns a single float for single-RR YAMLs, or a dict keyed by tariff_key
-    for subclass-RR YAMLs.  raw_path_tariffs_electric is the original YAML dict
-    (alias -> path string) before alias-to-stem conversion.
+    Returns a RevenueRequirementConfig with:
+      - rr_total: scalar from total_delivery[_and_supply]_revenue_requirement
+      - subclass_rr: per-tariff-key RR dict (or None)
+      - run_includes_subclasses: whether this run uses subclass RRs
     """
     if not isinstance(value, str):
         raise ValueError(
@@ -147,14 +216,41 @@ def _parse_utility_revenue_requirement(
             f"got {type(rr_data).__name__} in {path}"
         )
 
-    if "revenue_requirement" in rr_data:
-        return _parse_single_revenue_requirement(rr_data)
-    if "subclass_revenue_requirements" in rr_data:
-        return _parse_subclass_revenue_requirement(
-            rr_data, raw_path_tariffs_electric, base_dir, subclass_to_alias
+    rr_key = (
+        "total_delivery_and_supply_revenue_requirement"
+        if add_supply
+        else "total_delivery_revenue_requirement"
+    )
+
+    if rr_key not in rr_data:
+        # Fallback: legacy YAMLs (e.g. *_large_number.yaml) use a bare
+        # 'revenue_requirement' key with the same value for both modes.
+        if "revenue_requirement" in rr_data:
+            rr_total = _parse_float(
+                rr_data["revenue_requirement"], "revenue_requirement"
+            )
+        else:
+            raise ValueError(
+                f"{path} must contain '{rr_key}' (or 'revenue_requirement')."
+            )
+    else:
+        rr_total = _parse_float(rr_data[rr_key], rr_key)
+
+    subclass_rr: dict[str, float] | None = None
+    if run_includes_subclasses:
+        if "subclass_revenue_requirements" not in rr_data:
+            raise ValueError(
+                f"run_includes_subclasses is true but {path} has no "
+                "'subclass_revenue_requirements'."
+            )
+        subclass_rr = _parse_subclass_revenue_requirement(
+            rr_data, raw_path_tariffs_electric, base_dir, add_supply=add_supply
         )
-    raise ValueError(
-        f"{path} must contain 'revenue_requirement' or 'subclass_revenue_requirements'."
+
+    return RevenueRequirementConfig(
+        rr_total=rr_total,
+        subclass_rr=subclass_rr,
+        run_includes_subclasses=run_includes_subclasses,
     )
 
 

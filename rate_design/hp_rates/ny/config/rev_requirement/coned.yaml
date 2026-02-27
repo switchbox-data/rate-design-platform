@@ -1,4 +1,43 @@
 utility: coned
-revenue_requirement: 999999999.0
-source: s3://data.sb/switchbox/revenue_requirements/ny/revenue_requirements_dummy.csv:revenue_requirement
-  (utility_col=utility, year_col=year, utility=coned, year=2026)
+delivery_revenue_requirement_from_rate_case: 999999999.0
+delivery_revenue_requirement_topups: 146303900.55
+supply_revenue_requirement_topups: 4180082746.34
+total_delivery_revenue_requirement: 1146303899.55
+total_delivery_and_supply_revenue_requirement: 5326386645.89
+total_residential_kwh: 13643968512.0
+eia_year: 2024
+delivery_top_ups:
+  ces_delivery:
+    avg_monthly_rate: 0.000289
+    total_budget: 3943106.9
+  system_benefits_charge:
+    avg_monthly_rate: 0.0056421918
+    total_budget: 76981887.0
+  dlm_surcharge:
+    avg_monthly_rate: 0.0017342466
+    total_budget: 23662005.67
+  arrears_covid_forgiveness:
+    avg_monthly_rate: 0.0012
+    total_budget: 16372762.21
+  vder_der_cost_recovery:
+    avg_monthly_rate: 0.0011
+    total_budget: 15008365.36
+  ev_make_ready:
+    avg_monthly_rate: 0.0007575342
+    total_budget: 10335773.41
+supply_top_ups:
+  merchant_function_charge:
+    avg_monthly_rate: 0.0045035178
+    total_budget: 61445855.17
+  supply_commodity_bundled_1:
+    avg_monthly_rate: 0.0911183123
+    total_budget: 1243215384.19
+  supply_commodity_bundled_2:
+    avg_monthly_rate: 0.0922391315
+    total_budget: 1258507805.76
+  supply_commodity_bundled_3:
+    avg_monthly_rate: 0.1144601014
+    total_budget: 1561690019.03
+  ces_supply_surcharge:
+    avg_monthly_rate: 0.0040474795
+    total_budget: 55223682.2

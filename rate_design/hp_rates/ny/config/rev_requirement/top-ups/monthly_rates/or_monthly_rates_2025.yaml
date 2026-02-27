@@ -1,0 +1,192 @@
+utility: or
+master_tariff_id: 81134
+start_month: 2025-01
+end_month: 2025-12
+charges:
+  supply_cost_true_up:
+    tariff_rate_id: 20904666
+    master_charge: Supply cost true-up
+    decision: exclude
+    monthly_rates:
+      2025-01: 0.00127
+      2025-02: 0.0029
+      2025-03: 0.00098
+      2025-04: 0.00788
+      2025-05: 0.00993
+      2025-06: 0.01141
+      2025-07: 0.00641
+      2025-08: 0.009
+      2025-09: 0.00932
+      2025-10: 0.01019
+      2025-11: 0.01106
+      2025-12: 0.01016
+  supply_commodity_bundled:
+    tariff_rate_id: 20904667
+    master_charge: Supply commodity (bundled)
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.08635
+      2025-02: 0.08222
+      2025-03: 0.08852
+      2025-04: 0.07315
+      2025-05: 0.07204
+      2025-06: 0.09231
+      2025-07: 0.11895
+      2025-08: 0.11822
+      2025-09: 0.07723
+      2025-10: 0.0786
+      2025-11: 0.10229
+      2025-12: 0.13357
+  merchant_function_charge:
+    tariff_rate_id: 20904668
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.00342
+      2025-02: 0.0034
+      2025-03: 0.00345
+      2025-04: 0.00377
+      2025-05: 0.00375
+      2025-06: 0.00387
+      2025-07: 0.004
+      2025-08: 0.00399
+      2025-09: 0.00377
+      2025-10: 0.00378
+      2025-11: 0.00393
+      2025-12: 0.0041
+  revenue_decoupling_rdm:
+    tariff_rate_id: 20904669
+    master_charge: Revenue Decoupling (RDM)
+    decision: exclude
+    monthly_rates:
+      2025-01: -0.00177
+      2025-02: -0.01278
+      2025-03: -0.01278
+      2025-04: -0.01278
+      2025-05: -0.01278
+      2025-06: -0.01278
+      2025-07: -0.01278
+      2025-08: -0.01278
+      2025-09: -0.01278
+      2025-10: -0.01278
+      2025-11: -0.01278
+      2025-12: -0.01278
+  system_benefits_charge:
+    tariff_rate_id: 20904670
+    master_charge: System Benefits Charge
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.00762
+      2025-02: 0.00762
+      2025-03: 0.00762
+      2025-04: 0.00762
+      2025-05: 0.00762
+      2025-06: 0.00762
+      2025-07: 0.00446
+      2025-08: 0.00446
+      2025-09: 0.00446
+      2025-10: 0.00446
+      2025-11: 0.00446
+      2025-12: 0.00446
+  dlm_surcharge:
+    tariff_rate_id: 20904671
+    master_charge: DLM Surcharge
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.00043
+      2025-02: 0.00043
+      2025-03: 0.00043
+      2025-04: 0.00043
+      2025-05: 0.00036
+      2025-06: 0.00036
+      2025-07: 0.00036
+      2025-08: 0.00036
+      2025-09: 0.00036
+      2025-10: 0.00036
+      2025-11: 0.00036
+      2025-12: 0.00036
+  delivery_revenue_surcharge_electric_bill_credit:
+    tariff_rate_id: 20904672
+    master_charge: Delivery Revenue Surcharge / Electric Bill Credit
+    decision: exclude
+    monthly_rates:
+      2025-01: 0.0
+      2025-02: 0.0
+      2025-03: 0.0
+      2025-04: 0.00531
+      2025-05: 0.00531
+      2025-06: 0.00531
+      2025-07: 0.00531
+      2025-08: 0.00531
+      2025-09: 0.00531
+      2025-10: 0.00531
+      2025-11: 0.00531
+      2025-12: 0.00531
+  transition_restructuring_1:
+    tariff_rate_id: 20904673
+    master_charge: Transition / Restructuring
+    decision: exclude
+    monthly_rates:
+      2025-01: -0.00053
+      2025-02: -0.00053
+      2025-03: -0.00053
+      2025-04: -0.00053
+      2025-05: -0.00053
+      2025-06: -0.00053
+      2025-07: -0.00053
+      2025-08: -0.00053
+      2025-09: -0.00053
+      2025-10: -0.00053
+      2025-11: -0.00053
+      2025-12: -0.00053
+  transition_restructuring_2:
+    tariff_rate_id: 20904674
+    master_charge: Transition / Restructuring
+    decision: exclude
+    monthly_rates:
+      2025-01: -0.00017
+      2025-02: -0.00017
+      2025-03: -0.00017
+      2025-04: -0.00017
+      2025-05: -0.00017
+      2025-06: -0.00017
+      2025-07: -0.00017
+      2025-08: -0.00017
+      2025-09: -0.00017
+      2025-10: -0.00017
+      2025-11: -0.00017
+      2025-12: -0.00017
+  energy_storage_surcharge:
+    tariff_rate_id: 20450082
+    master_charge: Energy Storage Surcharge
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 2.0e-05
+      2025-02: 2.0e-05
+      2025-03: 2.0e-05
+      2025-04: 2.0e-05
+      2025-05: 2.0e-05
+      2025-06: 2.0e-05
+      2025-07: 2.0e-05
+      2025-08: 2.0e-05
+      2025-09: 2.0e-05
+      2025-10: 2.0e-05
+      2025-11: 2.0e-05
+      2025-12: 2.0e-05
+  ev_make_ready:
+    tariff_rate_id: 20056054
+    master_charge: EV Make Ready
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.00073
+      2025-02: 0.0026
+      2025-03: 0.0026
+      2025-04: 0.0026
+      2025-05: 0.0026
+      2025-06: 0.0026
+      2025-07: 0.0026
+      2025-08: 0.0026
+      2025-09: 0.0026
+      2025-10: 0.0026
+      2025-11: 0.0026
+      2025-12: 0.0026

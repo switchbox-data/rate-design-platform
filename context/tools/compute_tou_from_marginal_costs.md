@@ -30,7 +30,7 @@ Instead of hardcoding `tou_base_rate` and `tou_fixed_charge`, the CLI accepts `-
 
 ## Customer count: dynamic lookup
 
-The CLI no longer accepts `--customer-count`. Instead it takes `--path-electric-utility-stats` (an EIA-861 utility stats parquet) and looks up the residential customer count at runtime using `utils.mid.data_parsing.get_residential_customer_count_from_utility_stats`.
+The CLI no longer accepts `--customer-count`. Instead it takes `--path-electric-utility-stats` (an EIA-861 utility stats parquet) and looks up the residential customer count at runtime using `utils.scenario_config.get_residential_customer_count_from_utility_stats`.
 
 ## RI scenario integration
 

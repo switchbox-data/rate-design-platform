@@ -30,6 +30,29 @@ def _base_row() -> dict[str, str]:
     }
 
 
+def test_row_to_run_uses_run_includes_supply() -> None:
+    """run_includes_supply is emitted (from either new or old column name)."""
+    row = _base_row()
+    headers = list(row.keys())
+    run = _row_to_run(row, headers)
+    assert "run_includes_supply" in run
+    assert run["run_includes_supply"] is False
+    assert "add_supply_revenue_requirement" not in run
+
+
+def test_row_to_run_derives_run_includes_subclasses() -> None:
+    """run_includes_subclasses is derived from path_tariffs_electric keys."""
+    row = _base_row()
+    headers = list(row.keys())
+    run = _row_to_run(row, headers)
+    assert run["run_includes_subclasses"] is True
+
+    row_single = _base_row()
+    row_single["path_tariffs_electric"] = "all: tariffs/electric/rie_flat.json"
+    run_single = _row_to_run(row_single, list(row_single.keys()))
+    assert run_single["run_includes_subclasses"] is False
+
+
 def test_row_to_run_includes_path_tou_supply_mc_when_populated() -> None:
     row = _base_row()
     row["path_tou_supply_mc"] = (

@@ -1,0 +1,220 @@
+utility: cenhud
+master_tariff_id: 85880
+start_month: 2025-01
+end_month: 2025-12
+charges:
+  core_delivery_rate:
+    tariff_rate_id: 20910537
+    master_charge: Core Delivery Rate
+    decision: already_in_drr
+    monthly_rates:
+      2025-07: 0.1386
+      2025-08: 0.1386
+      2025-09: 0.1386
+      2025-10: 0.1386
+      2025-11: 0.1386
+      2025-12: 0.1386
+  merchant_function_charge_1:
+    tariff_rate_id: 20910538
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.00043
+      2025-02: 0.00043
+      2025-03: 0.00043
+      2025-04: 0.00043
+      2025-05: 0.00043
+      2025-06: 0.00043
+      2025-07: 0.0002
+      2025-08: 0.0002
+      2025-09: 0.0002
+      2025-10: 0.0002
+      2025-11: 0.0002
+      2025-12: 0.0002
+  merchant_function_charge_2:
+    tariff_rate_id: 20910539
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.00206
+      2025-02: 0.00206
+      2025-03: 0.00206
+      2025-04: 0.00206
+      2025-05: 0.00206
+      2025-06: 0.00206
+      2025-07: 0.00206
+      2025-08: 0.00206
+      2025-09: 0.00326
+      2025-10: 0.00326
+      2025-11: 0.00326
+      2025-12: 0.00326
+  merchant_function_charge_3:
+    tariff_rate_id: 20910540
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.00087
+      2025-02: 0.00087
+      2025-03: 0.00087
+      2025-04: 0.00087
+      2025-05: 0.00087
+      2025-06: 0.00087
+      2025-07: 0.00087
+      2025-08: 0.00087
+      2025-09: 0.00098
+      2025-10: 0.00098
+      2025-11: 0.00098
+      2025-12: 0.00098
+  central_hudson_misc_charges:
+    tariff_rate_id: 20910541
+    master_charge: Central Hudson Misc Charges
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.0044187097
+      2025-02: 0.0034260714
+      2025-03: 0.0042922581
+      2025-04: 0.005791
+      2025-05: 0.0085025806
+      2025-06: 0.0075733333
+      2025-07: 0.0038216129
+      2025-08: 0.0060390323
+      2025-09: 0.0063333333
+      2025-10: 0.0058935484
+      2025-11: 0.001543
+      2025-12: 0.0047225806
+  supply_commodity_bundled:
+    tariff_rate_id: 20910542
+    master_charge: Supply commodity (bundled)
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.0696325806
+      2025-02: 0.0940271429
+      2025-03: 0.1231445161
+      2025-04: 0.116718
+      2025-05: 0.0938083871
+      2025-06: 0.0820266667
+      2025-07: 0.0894396774
+      2025-08: 0.1191009677
+      2025-09: 0.1046133333
+      2025-10: 0.081716129
+      2025-11: 0.087518
+      2025-12: 0.0900696774
+  revenue_decoupling_rdm:
+    tariff_rate_id: 20910543
+    master_charge: Revenue Decoupling (RDM)
+    decision: exclude
+    monthly_rates:
+      2025-01: 0.00038
+      2025-02: 0.00047
+      2025-03: 0.00047
+      2025-04: 0.00047
+      2025-05: 0.00047
+      2025-06: 0.00047
+      2025-07: 0.00047
+      2025-08: 0.00678
+      2025-09: 0.00678
+      2025-10: 0.00678
+      2025-11: 0.00678
+      2025-12: 0.00678
+  transition_restructuring:
+    tariff_rate_id: 20910544
+    master_charge: Transition / Restructuring
+    decision: exclude
+    monthly_rates:
+      2025-01: 0.00036
+      2025-02: 0.00036
+      2025-03: 0.00036
+      2025-04: 0.00036
+      2025-05: 0.00036
+      2025-06: 0.00036
+      2025-07: 0.00017
+      2025-08: 0.00017
+      2025-09: 0.00017
+      2025-10: 0.00017
+      2025-11: 0.00017
+      2025-12: 0.00017
+  delivery_revenue_surcharge_electric_bill_credit:
+    tariff_rate_id: 20910546
+    master_charge: Delivery Revenue Surcharge / Electric Bill Credit
+    decision: exclude
+    monthly_rates:
+      2025-01: -0.00491
+      2025-02: -0.00491
+      2025-03: -0.00491
+      2025-04: -0.00491
+      2025-05: -0.00491
+      2025-06: -0.00491
+      2025-07: 0.0
+      2025-08: 0.0
+      2025-09: -0.00487
+      2025-10: -0.00487
+      2025-11: -0.00487
+      2025-12: -0.00487
+  supply_cost_true_up:
+    tariff_rate_id: 20910547
+    master_charge: Supply cost true-up
+    decision: exclude
+    monthly_rates:
+      2025-01: 0.0027351613
+      2025-02: 0.0001303571
+      2025-03: -0.0096432258
+      2025-04: -0.008907
+      2025-05: 0.0030216129
+      2025-06: 0.0129866667
+      2025-07: 0.0126551613
+      2025-08: 0.0004132258
+      2025-09: -0.0029933333
+      2025-10: -0.0090522581
+      2025-11: -0.0036493333
+      2025-12: -0.0075796774
+  system_benefits_charge:
+    tariff_rate_id: 20910548
+    master_charge: System Benefits Charge
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.0074658065
+      2025-02: 0.00746
+      2025-03: 0.00746
+      2025-04: 0.00746
+      2025-05: 0.00746
+      2025-06: 0.00746
+      2025-07: 0.00228
+      2025-08: 0.00228
+      2025-09: 0.00228
+      2025-10: 0.00228
+      2025-11: 0.00228
+      2025-12: 0.00228
+  earnings_adjustment_mechanism:
+    tariff_rate_id: 20910549
+    master_charge: Earnings Adjustment Mechanism
+    decision: exclude
+    monthly_rates:
+      2025-01: 0.00071
+      2025-02: 0.00071
+      2025-03: 0.00071
+      2025-04: 0.00071
+      2025-05: 0.00071
+      2025-06: 0.00071
+      2025-07: 0.00071
+      2025-08: 0.00071
+      2025-09: 0.0001493333
+      2025-10: 0.00013
+      2025-11: 0.00013
+      2025-12: 0.00013
+  delivery_cost_true_up_mac_ram_dsa:
+    tariff_rate_id: 20910550
+    master_charge: Delivery cost true-up (MAC / RAM / DSA)
+    decision: exclude
+    monthly_rates:
+      2025-01: 0.00348
+      2025-02: 0.00348
+      2025-03: 0.00348
+      2025-04: 0.00348
+      2025-05: 0.00348
+      2025-06: 0.00348
+      2025-07: 0.0
+      2025-08: 0.0
+      2025-09: 0.0
+      2025-10: 0.0
+      2025-11: 0.0
+      2025-12: 0.0
