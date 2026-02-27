@@ -1,0 +1,53 @@
+# EIA-877 heating fuel price data pipeline
+#
+# Fetch weekly state-level residential and wholesale propane / heating oil
+# prices from the EIA API, aggregate to monthly averages, and write
+# Hive-partitioned parquet locally. Upload syncs to S3.
+#
+# Usage (from project root):
+#   just -f data/eia/heating_fuel_prices/Justfile fetch
+#   just -f data/eia/heating_fuel_prices/Justfile fetch 2024-01 2026-02
+#   just -f data/eia/heating_fuel_prices/Justfile upload
+#   just -f data/eia/heating_fuel_prices/Justfile clean
+
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_parquet := path_local_repo + "/data/eia/heating_fuel_prices/parquet/"
+path_s3_parquet := "s3://data.sb/eia/heating_fuel_prices/"
+
+# Fetch heating fuel prices from EIA API; aggregate to monthly; write local parquet.
+# Optional args: start_month end_month (YYYY-MM format).
+fetch start_month="" end_month="":
+    #!/usr/bin/env bash
+    cmd=(uv run python "{{path_local_repo}}/data/eia/heating_fuel_prices/fetch_heating_fuel_prices_parquet.py" \
+        --path-local-parquet "{{path_local_parquet}}")
+    if [[ -n "{{start_month}}" ]]; then
+        cmd+=(--start "{{start_month}}")
+    fi
+    if [[ -n "{{end_month}}" ]]; then
+        cmd+=(--end "{{end_month}}")
+    fi
+    "${cmd[@]}"
+
+# Validate: run QA checks on local parquet.
+validate:
+    uv run python "{{path_local_repo}}/data/eia/heating_fuel_prices/validate_heating_fuel_prices_parquet.py" \
+        --path-local-parquet "{{path_local_parquet}}"
+
+# Update: discover latest partition on S3, fetch new months only (no upload).
+update:
+    uv run python "{{path_local_repo}}/data/eia/heating_fuel_prices/update_heating_fuel_prices_to_latest.py" \
+        --path-local-parquet "{{path_local_parquet}}" \
+        --path-s3-parquet "{{path_s3_parquet}}"
+
+# Prepare: fetch + validate (no upload).
+prepare: fetch validate
+
+# Sync local parquet to S3.
+upload:
+    aws s3 sync "{{path_local_parquet}}" "{{path_s3_parquet}}" --exclude "*" --include "*.parquet"
+    @echo "Synced parquet to {{path_s3_parquet}}"
+
+# Remove local parquet staging dir.
+clean:
+    rm -rf "{{path_local_parquet}}"
+    @echo "Removed {{path_local_parquet}}"

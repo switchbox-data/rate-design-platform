@@ -1,0 +1,37 @@
+# RI heat pump rate design tasks.
+# Thin wrapper: sets state defaults, loads state.env, imports shared recipes.
+#
+# Usage (from rate_design/hp_rates/):
+#   just -f ri/Justfile all-pre
+#   just -f ri/Justfile run-all-sequential
+# Or via dispatch:
+#   just s ri all-pre
+
+set dotenv-path := "state.env"
+
+state   := env_var_or_default('STATE', 'ri')
+utility := env_var_or_default('UTILITY', 'rie')
+
+import '../Justfile'
+
+# =============================================================================
+# RI-only: gas tariff fetch
+# =============================================================================
+
+fetch-gas-tariffs:
+  uv run python {{path_repo}}/utils/pre/fetch_gas_tariffs_rateacuity.py "{{path_rateacuity_yaml}}" "{{path_tariffs_gas}}"
+
+# =============================================================================
+# RI-only: post-run LMI discounts
+# =============================================================================
+
+apply-ri-lmi-discounts run_dir run_state run_utility fpl_year cpi_s3_path participation_rate="1.0" rider="false":
+  uv run python {{path_repo}}/utils/post/apply_ri_lmi_discounts_to_bills.py \
+    --run-dir "{{run_dir}}" \
+    --state {{run_state}} \
+    --utility {{run_utility}} \
+    --fpl-year {{fpl_year}} \
+    --cpi-s3-path "{{cpi_s3_path}}" \
+    --participation-rate {{participation_rate}} \
+    {{ if rider == "true" { "--rider" } else { "" } }} \
+    --upload

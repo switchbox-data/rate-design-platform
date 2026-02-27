@@ -27,7 +27,7 @@ Adding a new state
      Enables get_eia_utility_id_to_std_name() and the utility_code column.
 
    - gas_tariff_key / electric_tariff_key: keys used in tariff filenames and
-    tariff_map CSVs. Must match keys in rate_design/<state>/hp_rates/config/
+    tariff_map CSVs. Must match keys in rate_design/hp_rates/<state>/config/
     tariffs (electricity/ and gas/) and tariff_maps (electric/ and gas/).
 
    - rate_acuity_utility_names: names as they appear in the Rate Acuity gas
@@ -42,7 +42,7 @@ Adding a new state
 4. Update utils/types.py: add new std_names to ElectricUtility / GasUtility
    Literals. Keep them in sync with get_electric_std_names() / get_gas_std_names().
 
-5. Add Justfile recipes in rate_design/<state>/hp_rates/ for
+5. Add Justfile recipes in rate_design/hp_rates/<state>/ for
    map-electric-tariff and map-gas-tariff using the new std_names.
 """
 

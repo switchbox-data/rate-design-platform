@@ -14,7 +14,7 @@ For each run the script:
 Usage::
 
     uv run python utils/pre/write_tariff_maps_from_scenario.py \\
-        --scenario-config rate_design/ri/hp_rates/config/scenarios/scenarios_rie.yaml
+        --scenario-config rate_design/hp_rates/ri/config/scenarios/scenarios_rie.yaml
 """
 
 from __future__ import annotations

@@ -34,7 +34,7 @@ The CLI no longer accepts `--customer-count`. Instead it takes `--path-electric-
 
 ## RI scenario integration
 
-`rate_design/ri/hp_rates/run_scenario.py` supports optional runtime derivation through `tou_derivation` in YAML:
+`rate_design/hp_rates/run_scenario.py` supports optional runtime derivation through `tou_derivation` in YAML:
 
 ```yaml
 tou_derivation:
@@ -45,6 +45,22 @@ tou_derivation:
 ```
 
 When enabled, `run_scenario.py` derives the TOU tariff and map, writes them under `config/tariffs/electric/` and `config/tariff_maps/electric/`, and then runs normal CAIRO simulation using those artifacts.
+
+## Marginal cost loading for TOU
+
+The TOU calculator uses the same marginal cost loading logic as the main supply MC loader. The optional `path_tou_supply_mc` field in scenario YAMLs can point to:
+
+- **Cambium files** (combined energy+capacity): If the path contains "cambium", it's loaded via `_load_cambium_marginal_costs()` as a combined file with both energy and capacity costs.
+- **Separate files**: Currently, `path_tou_supply_mc` is a single path. For backward compatibility, it uses `_load_cambium_marginal_costs()` which can handle various file formats.
+
+This ensures consistent handling of Cambium files across both the main supply MC loading (via `_load_supply_marginal_costs()` which detects Cambium paths) and TOU cost-causation ratio computation.
+
+### Main supply MC loading
+
+The main supply MC loader (`utils.cairo._load_supply_marginal_costs()`) supports both separate energy/capacity files and Cambium files for backward compatibility:
+
+- **Separate files**: If both `path_supply_energy_mc` and `path_supply_capacity_mc` are provided and neither contains "cambium", they're loaded separately and combined.
+- **Cambium files**: If either path contains "cambium", the loader automatically uses `_load_cambium_marginal_costs()` to load the combined file, skipping the separate file loading. This provides backward compatibility for RI runs and zero_marginal_costs cases that use Cambium paths in both columns.
 
 ## Standalone CLI
 

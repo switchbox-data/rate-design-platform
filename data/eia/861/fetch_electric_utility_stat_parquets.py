@@ -18,6 +18,12 @@ to allow a fully lazy pipeline; dataset is validated in tests to match.
 
 Source: PUDL Catalyst Coop stable release (see PUDL_STABLE_VERSION; EIA-861 coverage 2001-2024).
 
+Sales and customer counts in the output are **total delivery** (Schedule 4A + 4C): we
+aggregate without filtering on PUDL's service_type, so bundled and delivery-only rows
+are summed. For distribution IOUs this equals total MWh/customers on the utility's
+wires. Verified against PUDL service_type breakdown and NYSERDA Appendix F (e.g. ConEd
+2021 residential: 2,482,139 bundled + 458,590 delivery-only = 2,940,729 total).
+
 Columns: year, state (when writing parquet), utility_id_eia, utility_code, utility_name,
 business_model, entity_type, report_date, total_sales_mwh, total_sales_revenue,
 then per customer class ({class}_sales_mwh, {class}_sales_revenue, {class}_customers).

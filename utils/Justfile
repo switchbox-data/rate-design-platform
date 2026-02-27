@@ -7,9 +7,11 @@ project_root := `git rev-parse --show-toplevel`
 # =============================================================================
 
 # Create scenario YAMLs from the Runs & Charts Google Sheet (requires G_* env and browser auth).
-# Writes rate_design/<state>/hp_rates/config/scenarios_<utility>.yaml per utility in your reference sheet.
-create-scenario-yamls:
-    uv run python {{project_root}}/utils/pre/create_scenario_yamls.py
+# Writes rate_design/hp_rates/<state>/config/scenarios/scenarios_<utility>.yaml.
+# Pass state="" to generate for all states.
+create-scenario-yamls state="":
+    uv run python {{project_root}}/utils/pre/create_scenario_yamls.py \
+        {{ if state != "" { "--state " + state } else { "" } }}
 
 # Write electric tariff map CSVs for all runs in a single scenario file.
 write-tariff-maps scenario_config:
@@ -45,7 +47,8 @@ create-gas-tariff-map metadata_path utility_assignment_path state electric_utili
 # Derive seasonal TOU tariff + derivation spec.
 # reference_tariff: optional path to a calibrated tariff JSON; when provided,
 # base rate and fixed charge are extracted from it instead of using defaults.
-create-seasonal-tou cambium_path state utility year td_mc_path resstock_metadata_path resstock_loads_path path_electric_utility_stats tou_tariff_key output_dir periods_yaml="" reference_tariff="":
+# Uses resstock_base + state + upgrade for hive-partitioned load scan (no globbing).
+create-seasonal-tou cambium_path state utility year td_mc_path resstock_metadata_path resstock_base upgrade path_electric_utility_stats tou_tariff_key output_dir periods_yaml="" reference_tariff="" run_dir="":
   uv run python {{project_root}}/utils/pre/derive_seasonal_tou.py \
     --cambium-path "{{cambium_path}}" \
     --state "{{state}}" \
@@ -53,12 +56,14 @@ create-seasonal-tou cambium_path state utility year td_mc_path resstock_metadata
     --year "{{year}}" \
     --path-td-marginal-costs "{{td_mc_path}}" \
     --resstock-metadata-path "{{resstock_metadata_path}}" \
-    --resstock-loads-path "{{resstock_loads_path}}" \
+    --resstock-base "{{resstock_base}}" \
+    --upgrade "{{upgrade}}" \
     --path-electric-utility-stats "{{path_electric_utility_stats}}" \
     --tou-tariff-key "{{tou_tariff_key}}" \
     --output-dir "{{output_dir}}" \
     {{ if periods_yaml != "" { "--periods-yaml \"" + periods_yaml + "\"" } else { "" } }} \
-    {{ if reference_tariff != "" { "--reference-tariff \"" + reference_tariff + "\"" } else { "" } }}
+    {{ if reference_tariff != "" { "--reference-tariff \"" + reference_tariff + "\"" } else { "" } }} \
+    {{ if run_dir != "" { "--run-dir \"" + run_dir + "\"" } else { "" } }}
 
 
 # =============================================================================
@@ -77,11 +82,14 @@ compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yam
     --default-yaml-path "{{default_yaml_path}}"
 
 # Seasonal discount inputs from run outputs + ResStock loads.
-compute-seasonal-discount-inputs run_dir resstock_loads_path cross_subsidy_col="BAT_percustomer" output_dir="":
+# Uses hive partitions (resstock_base + state + upgrade); building_ids from run metadata.
+compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="":
   uv run python {{project_root}}/utils/mid/compute_seasonal_discount_inputs.py \
     --run-dir "{{run_dir}}" \
+    --resstock-base "{{resstock_base}}" \
+    --state "{{state}}" \
+    --upgrade "{{upgrade}}" \
     --cross-subsidy-col "{{cross_subsidy_col}}" \
-    --resstock-loads-path "{{resstock_loads_path}}" \
     {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }}
 
 # Tariff JSON creation from seasonal_discount_rate_inputs.csv.

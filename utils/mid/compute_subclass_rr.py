@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from pathlib import Path
+from time import perf_counter
 from typing import cast
 
 import polars as pl
@@ -22,6 +24,7 @@ from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.loads import scan_resstock_loads
 from utils.pre.season_config import (
     DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS,
     get_utility_periods_yaml_path,
@@ -42,14 +45,15 @@ DEFAULT_SEASONAL_OUTPUT_FILENAME = "seasonal_discount_rate_inputs.csv"
 ELECTRIC_LOAD_COL = "out.electricity.net.energy_consumption"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SCENARIO_CONFIG_PATH = (
-    PROJECT_ROOT / "rate_design/ri/hp_rates/config/scenarios.yaml"
+    PROJECT_ROOT / "rate_design/hp_rates/ri/config/scenarios.yaml"
 )
 DEFAULT_DIFFERENTIATED_YAML_PATH = (
-    PROJECT_ROOT / "rate_design/ri/hp_rates/config/rev_requirement/rie_hp_vs_nonhp.yaml"
+    PROJECT_ROOT / "rate_design/hp_rates/ri/config/rev_requirement/rie_hp_vs_nonhp.yaml"
 )
 DEFAULT_RIE_YAML_PATH = (
-    PROJECT_ROOT / "rate_design/ri/hp_rates/config/rev_requirement/rie.yaml"
+    PROJECT_ROOT / "rate_design/hp_rates/ri/config/rev_requirement/rie.yaml"
 )
+LOGGER = logging.getLogger(__name__)
 
 
 def _resolve_winter_months(
@@ -178,28 +182,6 @@ def _resolve_path_or_s3(path_value: str) -> S3Path | Path:
     return S3Path(path_value) if path_value.startswith("s3://") else Path(path_value)
 
 
-def _scan_loads_parquet(
-    loads_path: S3Path | Path,
-    storage_options: dict[str, str] | None,
-) -> pl.LazyFrame:
-    base = str(loads_path).rstrip("/")
-    parquet_glob = f"{base}/*.parquet"
-    if isinstance(loads_path, S3Path):
-        return pl.scan_parquet(parquet_glob, storage_options=storage_options)
-    return pl.scan_parquet(parquet_glob)
-
-
-def _resolve_electric_load_column(loads: pl.LazyFrame) -> str:
-    schema_cols = loads.collect_schema().names()
-    if ELECTRIC_LOAD_COL in schema_cols:
-        return ELECTRIC_LOAD_COL
-    available_preview = ", ".join(schema_cols[:10])
-    raise ValueError(
-        f"Required electric load column '{ELECTRIC_LOAD_COL}' not found. "
-        f"Available columns (first 10): {available_preview}"
-    )
-
-
 def _extract_default_rate_from_tariff_config(
     tariff_final_config_path: S3Path | Path,
 ) -> float:
@@ -241,18 +223,25 @@ def _extract_default_rate_from_tariff_config(
 
 def compute_hp_seasonal_discount_inputs(
     run_dir: S3Path | Path,
-    resstock_loads_path: S3Path | Path,
+    resstock_base: str,
+    state: str,
+    upgrade: str,
     cross_subsidy_col: str = DEFAULT_BAT_METRIC,
     storage_options: dict[str, str] | None = None,
     tariff_final_config_path: S3Path | Path | None = None,
     winter_months: tuple[int, ...] | None = None,
 ) -> pl.DataFrame:
-    """Compute HP-only seasonal discount inputs from run outputs + ResStock loads."""
+    """Compute HP-only seasonal discount inputs from run outputs + ResStock loads.
+
+    Uses hive partitions (state, upgrade) and building IDs from the run so the
+    load scan aligns with the CAIRO sample and avoids globbing.
+    """
     resolved_winter_months = (
         winter_months
         if winter_months is not None
         else tuple(DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS)
     )
+    t0 = perf_counter()
     metadata = _load_metadata_for_group(
         run_dir=run_dir,
         group_col=DEFAULT_GROUP_COL,
@@ -264,6 +253,10 @@ def compute_hp_seasonal_discount_inputs(
         metadata.filter(pl.col(GROUP_VALUE_COL) == "true")
         .join(cross_sub, on=BLDG_ID_COL, how="left")
         .collect()
+    )
+    LOGGER.info(
+        "seasonal_inputs: loaded metadata + cross-subsidy in %.2fs",
+        perf_counter() - t0,
     )
     hp_cross_subsidy = cast(pl.DataFrame, hp_cross_subsidy)
     if hp_cross_subsidy.is_empty():
@@ -277,8 +270,21 @@ def compute_hp_seasonal_discount_inputs(
         raise ValueError(f"Missing sample weights for {nulls_weight} HP buildings.")
 
     hp_weights = hp_cross_subsidy.select(pl.col(BLDG_ID_COL), pl.col(WEIGHT_COL))
-    loads = _scan_loads_parquet(resstock_loads_path, storage_options)
-    electric_load_col = _resolve_electric_load_column(loads)
+    building_ids = hp_cross_subsidy[BLDG_ID_COL].to_list()
+    t1 = perf_counter()
+    loads = scan_resstock_loads(
+        resstock_base,
+        state,
+        upgrade,
+        building_ids=building_ids,
+        storage_options=storage_options,
+    )
+    LOGGER.info(
+        "seasonal_inputs: prepared loads scan for %d HP buildings in %.2fs",
+        len(building_ids),
+        perf_counter() - t1,
+    )
+    t2 = perf_counter()
     winter_kwh_hp = (
         loads.join(hp_weights.lazy(), on=BLDG_ID_COL, how="inner")
         .select(
@@ -287,14 +293,18 @@ def compute_hp_seasonal_discount_inputs(
             .cast(pl.String, strict=False)
             .str.to_datetime(strict=False)
             .alias("timestamp"),
-            pl.col(electric_load_col).cast(pl.Float64).alias("demand_kwh"),
+            pl.col(ELECTRIC_LOAD_COL).cast(pl.Float64).alias("demand_kwh"),
             pl.col(WEIGHT_COL).cast(pl.Float64),
         )
         .with_columns(pl.col("timestamp").dt.month().alias("month_num"))
         .filter(pl.col("month_num").is_in(resolved_winter_months))
         .with_columns((pl.col("demand_kwh") * pl.col(WEIGHT_COL)).alias("weighted_kwh"))
         .select(pl.col("weighted_kwh").sum().alias("winter_kwh_hp"))
-        .collect()
+        .collect(engine="streaming")
+    )
+    LOGGER.info(
+        "seasonal_inputs: collected winter kWh aggregate in %.2fs",
+        perf_counter() - t2,
     )
     winter_kwh_hp = cast(pl.DataFrame, winter_kwh_hp)
 
@@ -327,7 +337,8 @@ def compute_hp_seasonal_discount_inputs(
             f"winter_rate_hp={winter_rate_hp}"
         )
 
-    return pl.DataFrame(
+    t3 = perf_counter()
+    result = pl.DataFrame(
         {
             "subclass": ["true"],
             "cross_subsidy_col": [cross_subsidy_col],
@@ -339,6 +350,11 @@ def compute_hp_seasonal_discount_inputs(
             "winter_months": [",".join(str(m) for m in resolved_winter_months)],
         }
     )
+    LOGGER.info(
+        "seasonal_inputs: finalized result frame in %.2fs",
+        perf_counter() - t3,
+    )
+    return result
 
 
 def compute_subclass_rr(
@@ -571,11 +587,16 @@ def main() -> None:
         ),
     )
     parser.add_argument(
-        "--resstock-loads-path",
+        "--resstock-base",
         help=(
-            "Optional ResStock hourly electric loads directory (local or s3://...). "
-            "If provided, writes seasonal discount inputs for has_hp=true."
+            "Optional base path to ResStock release (e.g. s3://.../res_2024_amy2018_2). "
+            "If provided with --upgrade, writes seasonal discount inputs for has_hp=true."
         ),
+    )
+    parser.add_argument(
+        "--upgrade",
+        default="00",
+        help="Upgrade partition for loads (e.g. 00). Used when --resstock-base is set.",
     )
     parser.add_argument(
         "--tariff-final-config-path",
@@ -637,13 +658,12 @@ def main() -> None:
         print(f"Wrote differentiated YAML: {differentiated_yaml_path}")
         print(f"Wrote default YAML: {default_yaml_path}")
 
-    if args.resstock_loads_path:
+    if args.resstock_base:
         winter_months = _resolve_winter_months(
             state=run_state,
             utility=run_utility,
             periods_yaml_path=args.periods_yaml,
         )
-        resstock_loads_path = _resolve_path_or_s3(args.resstock_loads_path)
         tariff_final_config_path = (
             _resolve_path_or_s3(args.tariff_final_config_path)
             if args.tariff_final_config_path
@@ -651,7 +671,9 @@ def main() -> None:
         )
         seasonal_inputs = compute_hp_seasonal_discount_inputs(
             run_dir=run_dir,
-            resstock_loads_path=resstock_loads_path,
+            resstock_base=args.resstock_base,
+            state=run_state,
+            upgrade=args.upgrade,
             cross_subsidy_col=args.cross_subsidy_col,
             storage_options=storage_options,
             tariff_final_config_path=tariff_final_config_path,
