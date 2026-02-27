@@ -119,7 +119,7 @@ Match existing style: Ruff for formatting/lint, **ty** for type checking, dprint
 
 ### Polars and parquet
 
-- **Prefer LazyFrame:** Use `scan_parquet` and lazy operations; only materialize (e.g. `.collect()` or `read_parquet`) when the operation cannot be done lazily (e.g. control flow that depends on data, or a library that requires a DataFrame).
+- **Prefer LazyFrame:** Use `scan_parquet` and lazy operations; only materialize (e.g. `.collect()` or `read_parquet`) when the operation cannot be done lazily (e.g. control flow that depends on data, or a library that requires a DataFrame). For more on laziness, when to collect, and how to handle runtime data-quality asserts without scattering collects, see `context/tools/polars_laziness_and_validation.md`.
 - **LazyFrame vs DataFrame:** Only `LazyFrame` has `.collect()`. A `DataFrame` from `read_parquet`, `.collect()`, or `df.join()` does not—calling `.collect()` on it will raise. Use `.group_by().agg()` on a DataFrame directly; no `.collect()`.
 - **Joins:** With default `coalesce=True`, Polars keeps only the **left** join key column and drops the right. If you need both key columns in the result, use `coalesce=False` in the join; otherwise select/alias from the left key as needed.
 - **Prefer a single path for scan_parquet:** Pass the hive-partition root (or directory) to `pl.scan_parquet(path, ...)` so Polars reads the dataset as one logical table; do not pre-list files with s3fs just to pass a list of paths unless you have confirmed the row identity or grouping is not in the data (e.g. only in the path).
@@ -128,6 +128,7 @@ Match existing style: Ruff for formatting/lint, **ty** for type checking, dprint
 
 - **Always inspect the data before coding.** When writing code that reads from S3 (or any data source), open the actual dataset—e.g. read one parquet and print schema and a few rows (`df.schema`, `df.head()`)—instead of assuming column names, presence of IDs, or file layout. Do not infer schema or row identity from file paths or other code alone.
 - **Check context/docs first.** Before assuming a dataset's structure, look in `context/docs/` for data dictionaries, dataset docs, or release notes (e.g. ResStock, Cambium, EIA, PUMS). Use that as the source of truth; if docs and data disagree, note it.
+- **Parquet reads: local vs S3.** S3 has ~50–100 ms overhead per GET regardless of payload size. ResStock load curves are one-file-per-building (~33k files for NY). **Whole state from S3**: `scan_parquet` on the directory = ~28 min of overhead; prefer downloading locally first (e.g. `aws s3 sync`) or consolidating into fewer files. **Single utility from S3**: Do NOT use `scan_parquet(dir).filter(bldg_id.is_in(...))` — it probes every file; instead, load `metadata_utility` for bldg_ids, construct paths `{base}/{bldg_id}-{upgrade}.parquet`, and pass the list to `scan_parquet`. On local disk, `scan_parquet` + filter is fine (overhead ~1 s). Full guide: `context/tools/parquet_reads_local_vs_s3.md`.
 
 ## Dependencies
 
