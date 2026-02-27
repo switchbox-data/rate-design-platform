@@ -18,15 +18,12 @@ from pathlib import Path
 from time import perf_counter
 from typing import cast
 
-import numpy as np
-import pandas as pd
 import polars as pl
 import yaml
 from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.cairo import _load_supply_marginal_costs
 from utils.loads import scan_resstock_loads
 from utils.pre.season_config import (
     DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS,
@@ -82,65 +79,6 @@ def parse_group_value_to_subclass(raw: str) -> dict[str, str]:
         result[value] = alias
     if not result:
         raise ValueError("group-value-to-subclass must contain at least one mapping")
-    return result
-
-
-def compute_per_subclass_supply_mc(
-    supply_mc_df: pd.DataFrame,
-    loads_lf: pl.LazyFrame,
-    metadata_with_subclass: pl.DataFrame,
-) -> dict[str, float]:
-    """Compute per-subclass supply MC from hourly prices and loads.
-
-    Mirrors the computation in run_scenario.py lines 669-702:
-      supply_MC_k = sum_h(supply_price_h * weighted_load_k_h)
-
-    Args:
-        supply_mc_df: DataFrame from _load_supply_marginal_costs (8760 rows,
-            columns contain 'Energy' and/or 'Capacity' in names).
-        loads_lf: ResStock loads LazyFrame (bldg_id, timestamp, demand col).
-        metadata_with_subclass: DataFrame with bldg_id, weight, subclass columns.
-    """
-    supply_cols = [c for c in supply_mc_df.columns if "Energy" in c or "Capacity" in c]
-    if not supply_cols:
-        raise ValueError(
-            "Supply MC DataFrame has no Energy/Capacity columns: "
-            f"{supply_mc_df.columns.tolist()}"
-        )
-    supply_prices_arr = supply_mc_df[supply_cols].sum(axis=1).values
-
-    building_ids = metadata_with_subclass[BLDG_ID_COL].to_list()
-    weighted_loads: pl.DataFrame = cast(
-        pl.DataFrame,
-        loads_lf.filter(pl.col(BLDG_ID_COL).is_in(building_ids))
-        .join(
-            metadata_with_subclass.select(
-                BLDG_ID_COL, WEIGHT_COL, GROUP_VALUE_COL
-            ).lazy(),
-            on=BLDG_ID_COL,
-            how="inner",
-        )
-        .with_columns(
-            (pl.col(ELECTRIC_LOAD_COL) * pl.col(WEIGHT_COL)).alias("weighted_kwh")
-        )
-        .group_by(GROUP_VALUE_COL, "timestamp")
-        .agg(pl.col("weighted_kwh").sum())
-        .sort(GROUP_VALUE_COL, "timestamp")
-        .collect(),
-    )
-
-    result: dict[str, float] = {}
-    for subclass_val in weighted_loads[GROUP_VALUE_COL].unique().sort().to_list():
-        sub = weighted_loads.filter(pl.col(GROUP_VALUE_COL) == subclass_val).sort(
-            "timestamp"
-        )
-        hourly_load = sub["weighted_kwh"].to_numpy()
-        if len(hourly_load) != len(supply_prices_arr):
-            raise ValueError(
-                f"Subclass {subclass_val!r}: expected {len(supply_prices_arr)} "
-                f"hourly values, got {len(hourly_load)}"
-            )
-        result[str(subclass_val)] = float(np.dot(supply_prices_arr, hourly_load))
     return result
 
 
@@ -556,7 +494,7 @@ def _load_run_fields(
 
 
 def _write_revenue_requirement_yamls(
-    breakdown: pl.DataFrame,
+    delivery_breakdown: pl.DataFrame,
     run_dir: S3Path | Path,
     group_col: str,
     cross_subsidy_col: str,
@@ -566,26 +504,39 @@ def _write_revenue_requirement_yamls(
     default_yaml_path: Path,
     *,
     group_value_to_subclass: dict[str, str] | None = None,
-    supply_mc_by_subclass: dict[str, float] | None = None,
+    total_breakdown: pl.DataFrame | None = None,
     total_delivery_rr: float | None = None,
     total_delivery_and_supply_rr: float | None = None,
 ) -> tuple[Path, Path]:
+    """Write per-subclass revenue requirement YAML.
+
+    *delivery_breakdown* comes from run 1 (delivery-only BAT).
+    *total_breakdown*, when provided, comes from run 2 (delivery+supply BAT).
+    Supply per subclass is derived as total - delivery.
+    """
     differentiated_yaml_path.parent.mkdir(parents=True, exist_ok=True)
     default_yaml_path.parent.mkdir(parents=True, exist_ok=True)
 
     gv_map = group_value_to_subclass or {}
-    supply_mc = supply_mc_by_subclass or {}
+
+    total_rr_by_subclass: dict[str, float] = {}
+    if total_breakdown is not None:
+        for row in total_breakdown.to_dicts():
+            total_rr_by_subclass[str(row["subclass"])] = float(
+                row["revenue_requirement"]
+            )
 
     subclass_rr: dict[str, dict[str, float]] = {}
-    for row in breakdown.to_dicts():
+    for row in delivery_breakdown.to_dicts():
         raw_val = str(row["subclass"])
         alias = gv_map.get(raw_val, raw_val)
         delivery = float(row["revenue_requirement"])
-        supply = supply_mc.get(raw_val, 0.0)
+        total = total_rr_by_subclass.get(raw_val, delivery)
+        supply = total - delivery
         subclass_rr[alias] = {
             "delivery": delivery,
             "supply": supply,
-            "total": delivery + supply,
+            "total": total,
         }
 
     differentiated_data: dict[str, object] = {
@@ -744,17 +695,12 @@ def main() -> None:
         ),
     )
     parser.add_argument(
-        "--supply-energy-mc",
-        help="Path to supply energy MC parquet (for per-subclass supply MC).",
-    )
-    parser.add_argument(
-        "--supply-capacity-mc",
-        help="Path to supply capacity MC parquet (for per-subclass supply MC).",
-    )
-    parser.add_argument(
-        "--year-run",
-        type=int,
-        help="Target year for MC time-shifting (required when computing supply MC).",
+        "--run-dir-supply",
+        help=(
+            "Path to CAIRO output directory for the delivery+supply run (run 2). "
+            "When provided, per-subclass supply RR is derived as total (run 2) "
+            "minus delivery (run 1)."
+        ),
     )
     args = parser.parse_args()
 
@@ -795,55 +741,28 @@ def main() -> None:
             base_rr_data["total_delivery_and_supply_revenue_requirement"]
         )
 
-    # Compute per-subclass supply MC if paths provided.
-    supply_mc_by_subclass: dict[str, float] | None = None
-    if args.supply_energy_mc and args.supply_capacity_mc:
-        if args.year_run is None:
-            parser.error("--year-run is required when computing supply MC")
-        if not args.resstock_base:
-            parser.error("--resstock-base is required when computing supply MC")
-
-        t_supply = perf_counter()
-        supply_mc_df = _load_supply_marginal_costs(
-            args.supply_energy_mc,
-            args.supply_capacity_mc,
-            args.year_run,
+    total_breakdown: pl.DataFrame | None = None
+    if args.run_dir_supply:
+        run_dir_supply: S3Path | Path = (
+            S3Path(args.run_dir_supply)
+            if args.run_dir_supply.startswith("s3://")
+            else Path(args.run_dir_supply)
         )
-        LOGGER.info(
-            "Loaded supply MC prices (%d rows) in %.2fs",
-            len(supply_mc_df),
-            perf_counter() - t_supply,
+        storage_options_supply = (
+            get_aws_storage_options() if isinstance(run_dir_supply, S3Path) else None
         )
-
-        metadata_with_subclass = _load_group_values(
-            run_dir, args.group_col, storage_options
-        ).collect()
-        metadata_with_subclass = cast(pl.DataFrame, metadata_with_subclass)
-
-        building_ids = metadata_with_subclass[BLDG_ID_COL].to_list()
-        loads_lf = scan_resstock_loads(
-            args.resstock_base,
-            run_state,
-            args.upgrade,
-            building_ids=building_ids,
-            storage_options=storage_options,
+        total_breakdown = compute_subclass_rr(
+            run_dir=run_dir_supply,
+            group_col=args.group_col,
+            cross_subsidy_col=args.cross_subsidy_col,
+            annual_month=args.annual_month,
+            storage_options=storage_options_supply,
         )
-
-        t_mc = perf_counter()
-        supply_mc_by_subclass = compute_per_subclass_supply_mc(
-            supply_mc_df=supply_mc_df,
-            loads_lf=loads_lf,
-            metadata_with_subclass=metadata_with_subclass,
-        )
-        LOGGER.info(
-            "Per-subclass supply MC: %s (%.2fs)",
-            {k: f"${v:,.0f}" for k, v in supply_mc_by_subclass.items()},
-            perf_counter() - t_mc,
-        )
+        LOGGER.info("Run-2 (delivery+supply) breakdown:\n%s", total_breakdown)
 
     if args.write_revenue_requirement_yamls:
         differentiated_yaml_path, default_yaml_path = _write_revenue_requirement_yamls(
-            breakdown=breakdown,
+            delivery_breakdown=breakdown,
             run_dir=run_dir,
             group_col=args.group_col,
             cross_subsidy_col=args.cross_subsidy_col,
@@ -852,7 +771,7 @@ def main() -> None:
             differentiated_yaml_path=args.differentiated_yaml_path,
             default_yaml_path=args.default_yaml_path,
             group_value_to_subclass=gv_map,
-            supply_mc_by_subclass=supply_mc_by_subclass,
+            total_breakdown=total_breakdown,
             total_delivery_rr=total_delivery_rr,
             total_delivery_and_supply_rr=total_delivery_and_supply_rr,
         )

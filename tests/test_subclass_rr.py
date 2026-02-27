@@ -18,6 +18,8 @@ from utils.mid.compute_subclass_rr import (
     parse_group_value_to_subclass,
 )
 
+RUN2_SUPPLY_OFFSET = 50.0
+
 
 def _write_sample_run_dir(tmp_path: Path) -> Path:
     run_dir = tmp_path / "run"
@@ -213,19 +215,65 @@ def test_compute_subclass_rr_applies_weights(tmp_path: Path) -> None:
     assert nonhp["revenue_requirement"][0] == pytest.approx(810.0)
 
 
-def test_write_revenue_requirement_yamls_new_format(tmp_path: Path) -> None:
-    """Verify the new nested YAML format with delivery/supply/total per subclass."""
-    run_dir = _write_sample_run_dir(tmp_path)
-    breakdown = compute_subclass_rr(run_dir)
+def _write_sample_run2_dir(tmp_path: Path) -> Path:
+    """Write a run-2 (delivery+supply) output dir with higher bills than run 1."""
+    run_dir = tmp_path / "run2"
+    (run_dir / "bills").mkdir(parents=True)
+    (run_dir / "cross_subsidization").mkdir(parents=True)
+
+    # Same structure as run 1 but annual bills are higher by RUN2_SUPPLY_OFFSET
+    # per building (supply adds cost).
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 1, 2, 2, 3, 3, 4, 4],
+            "month": ["Jan", "Annual"] * 4,
+            "bill_level": [
+                5.0,
+                100.0 + RUN2_SUPPLY_OFFSET,
+                10.0,
+                200.0 + RUN2_SUPPLY_OFFSET,
+                15.0,
+                300.0 + RUN2_SUPPLY_OFFSET,
+                20.0,
+                400.0 + RUN2_SUPPLY_OFFSET,
+            ],
+        }
+    ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
+
+    # Same BAT values — the cross-subsidy allocation is independent
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 2, 3, 4],
+            "BAT_percustomer": [3.0, 20.0, 4.0, 40.0],
+            "BAT_vol": [1.0, 2.0, 3.0, 4.0],
+        }
+    ).write_csv(run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv")
+
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 2, 3, 4],
+            "weight": [1.0, 1.0, 1.0, 1.0],
+            "postprocess_group.has_hp": [True, False, True, False],
+            "postprocess_group.heating_type": ["hp", "gas", "hp", "resistance"],
+        }
+    ).write_csv(run_dir / "customer_metadata.csv")
+    return run_dir
+
+
+def test_write_revenue_requirement_yamls_two_runs(tmp_path: Path) -> None:
+    """Verify the nested YAML: delivery from run 1, total from run 2, supply = diff."""
+    run1_dir = _write_sample_run_dir(tmp_path)
+    run2_dir = _write_sample_run2_dir(tmp_path)
+    delivery_breakdown = compute_subclass_rr(run1_dir)
+    total_breakdown = compute_subclass_rr(run2_dir)
     differentiated_yaml = tmp_path / "config/rev_requirement/rie_hp_vs_nonhp.yaml"
     default_yaml = tmp_path / "config/rev_requirement/rie.yaml"
 
     gv_map = {"true": "hp", "false": "non-hp"}
-    supply_mc = {"true": 50.0, "false": 100.0}
 
     out_diff, out_default = _write_revenue_requirement_yamls(
-        breakdown,
-        run_dir=run_dir,
+        delivery_breakdown,
+        run_dir=run1_dir,
         group_col="has_hp",
         cross_subsidy_col="BAT_percustomer",
         utility="rie",
@@ -233,9 +281,9 @@ def test_write_revenue_requirement_yamls_new_format(tmp_path: Path) -> None:
         differentiated_yaml_path=differentiated_yaml,
         default_yaml_path=default_yaml,
         group_value_to_subclass=gv_map,
-        supply_mc_by_subclass=supply_mc,
+        total_breakdown=total_breakdown,
         total_delivery_rr=933.0,
-        total_delivery_and_supply_rr=1083.0,
+        total_delivery_and_supply_rr=1133.0,
     )
 
     assert out_diff == differentiated_yaml
@@ -244,40 +292,47 @@ def test_write_revenue_requirement_yamls_new_format(tmp_path: Path) -> None:
     diff_data = yaml.safe_load(differentiated_yaml.read_text(encoding="utf-8"))
     assert diff_data["utility"] == "rie"
     assert diff_data["group_col"] == "has_hp"
-    assert diff_data["source_run_dir"] == str(run_dir)
+    assert diff_data["source_run_dir"] == str(run1_dir)
     assert diff_data["total_delivery_revenue_requirement"] == pytest.approx(933.0)
     assert diff_data["total_delivery_and_supply_revenue_requirement"] == pytest.approx(
-        1083.0
+        1133.0
     )
 
     sr = diff_data["subclass_revenue_requirements"]
     assert "hp" in sr
     assert "non-hp" in sr
+
+    # Run 1 delivery: hp=400-7=393, non-hp=600-60=540
+    # Run 2 total: hp=500-7=493, non-hp=700-60=640 (each bldg +50, same BAT)
+    # Supply = total - delivery
     assert sr["hp"]["delivery"] == pytest.approx(393.0)
-    assert sr["hp"]["supply"] == pytest.approx(50.0)
-    assert sr["hp"]["total"] == pytest.approx(443.0)
+    assert sr["hp"]["total"] == pytest.approx(493.0)
+    assert sr["hp"]["supply"] == pytest.approx(100.0)
     assert sr["non-hp"]["delivery"] == pytest.approx(540.0)
-    assert sr["non-hp"]["supply"] == pytest.approx(100.0)
     assert sr["non-hp"]["total"] == pytest.approx(640.0)
+    assert sr["non-hp"]["supply"] == pytest.approx(100.0)
 
 
 def test_write_revenue_requirement_yamls_round_trip(tmp_path: Path) -> None:
-    """V2: delivery sums match total, and total == delivery + supply per subclass."""
-    run_dir = _write_sample_run_dir(tmp_path)
-    breakdown = compute_subclass_rr(run_dir)
+    """Delivery sums match total_delivery_rr, total == delivery + supply per subclass."""
+    run1_dir = _write_sample_run_dir(tmp_path)
+    run2_dir = _write_sample_run2_dir(tmp_path)
+    delivery_breakdown = compute_subclass_rr(run1_dir)
+    total_breakdown = compute_subclass_rr(run2_dir)
     differentiated_yaml = tmp_path / "config/rev_requirement/test_hp_vs_nonhp.yaml"
     default_yaml = tmp_path / "config/rev_requirement/test.yaml"
 
     gv_map = {"true": "hp", "false": "non-hp"}
-    supply_mc = {"true": 70.0, "false": 130.0}
     delivery_total = sum(
-        float(row["revenue_requirement"]) for row in breakdown.to_dicts()
+        float(row["revenue_requirement"]) for row in delivery_breakdown.to_dicts()
     )
-    supply_total = sum(supply_mc.values())
+    total_total = sum(
+        float(row["revenue_requirement"]) for row in total_breakdown.to_dicts()
+    )
 
     _write_revenue_requirement_yamls(
-        breakdown,
-        run_dir=run_dir,
+        delivery_breakdown,
+        run_dir=run1_dir,
         group_col="has_hp",
         cross_subsidy_col="BAT_percustomer",
         utility="test",
@@ -285,9 +340,9 @@ def test_write_revenue_requirement_yamls_round_trip(tmp_path: Path) -> None:
         differentiated_yaml_path=differentiated_yaml,
         default_yaml_path=default_yaml,
         group_value_to_subclass=gv_map,
-        supply_mc_by_subclass=supply_mc,
+        total_breakdown=total_breakdown,
         total_delivery_rr=delivery_total,
-        total_delivery_and_supply_rr=delivery_total + supply_total,
+        total_delivery_and_supply_rr=total_total,
     )
 
     data = yaml.safe_load(differentiated_yaml.read_text(encoding="utf-8"))

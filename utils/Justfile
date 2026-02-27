@@ -71,7 +71,7 @@ create-seasonal-tou cambium_path state utility year td_mc_path resstock_metadata
 # =============================================================================
 
 # Revenue requirement YAML outputs from CAIRO BAT results.
-compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yaml_path run_num="1" group_col="has_hp" cross_subsidy_col="BAT_percustomer" group_value_to_subclass="" base_rr_yaml="" supply_energy_mc="" supply_capacity_mc="" year_run="" resstock_base="" upgrade="00":
+compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yaml_path run_num="1" group_col="has_hp" cross_subsidy_col="BAT_percustomer" group_value_to_subclass="" base_rr_yaml="" run_dir_supply="" resstock_base="" upgrade="00":
   uv run python {{project_root}}/utils/mid/compute_subclass_rr.py \
     --run-dir "{{run_dir}}" \
     --run-num "{{run_num}}" \
@@ -82,9 +82,7 @@ compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yam
     --default-yaml-path "{{default_yaml_path}}" \
     {{ if group_value_to_subclass != "" { "--group-value-to-subclass \"" + group_value_to_subclass + "\"" } else { "" } }} \
     {{ if base_rr_yaml != "" { "--base-rr-yaml \"" + base_rr_yaml + "\"" } else { "" } }} \
-    {{ if supply_energy_mc != "" { "--supply-energy-mc \"" + supply_energy_mc + "\"" } else { "" } }} \
-    {{ if supply_capacity_mc != "" { "--supply-capacity-mc \"" + supply_capacity_mc + "\"" } else { "" } }} \
-    {{ if year_run != "" { "--year-run " + year_run } else { "" } }} \
+    {{ if run_dir_supply != "" { "--run-dir-supply \"" + run_dir_supply + "\"" } else { "" } }} \
     {{ if resstock_base != "" { "--resstock-base \"" + resstock_base + "\"" } else { "" } }} \
     {{ if resstock_base != "" { "--upgrade \"" + upgrade + "\"" } else { "" } }}
 
