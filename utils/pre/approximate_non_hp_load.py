@@ -1011,6 +1011,7 @@ if __name__ == "__main__":
 # Validation functions
 ########################################################
 
+
 def _validate_one_building_load(
     load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
