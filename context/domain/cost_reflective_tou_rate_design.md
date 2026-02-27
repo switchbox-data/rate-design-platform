@@ -14,15 +14,17 @@ A simple average implicitly assumes load is flat within the period. When it isn'
 
 Weight each hour's MC price by its share of total period load:
 
-$$\text{avg\_mc\_peak} = \sum_{h \in \text{peak}} \text{MC}_h \times \frac{\text{load}_h}{\sum_{k \in \text{peak}} \text{load}_k}$$
+$$\overline{MC}_{\text{peak}} = \sum_{h \in \text{peak}} MC_h \times \frac{L_h}{\sum_{k \in \text{peak}} L_k}$$
 
 Equivalently:
 
-$$\text{avg\_mc\_peak} = \frac{\sum_{h \in \text{peak}} \text{MC}_h \times \text{load}_h}{\sum_{h \in \text{peak}} \text{load}_h}$$
+$$\overline{MC}_{\text{peak}} = \frac{\sum_{h \in \text{peak}} MC_h \times L_h}{\sum_{h \in \text{peak}} L_h}$$
+
+where $MC_h$ is the marginal cost price ($/kWh) at hour $h$ and $L_h$ is system load (kWh) at hour $h$.
 
 This gives you the one flat $/kWh rate that, when applied to every kWh consumed during the period, recovers the same total MC dollars as if each kWh had been charged its true hourly MC:
 
-$$\text{avg\_mc\_peak} \times \sum_{h \in \text{peak}} \text{load}_h = \sum_{h \in \text{peak}} \text{MC}_h \times \text{load}_h$$
+$$\overline{MC}_{\text{peak}} \times \sum_{h \in \text{peak}} L_h = \sum_{h \in \text{peak}} MC_h \times L_h$$
 
 That's the property that makes it the right choice: it's the rate that recovers the true total marginal cost for the period.
 
@@ -30,7 +32,7 @@ That's the property that makes it the right choice: it's the rate that recovers 
 
 With demand-weighted averages in hand, the cost-causation ratio is:
 
-$$\text{ratio} = \frac{\text{avg\_mc\_peak}}{\text{avg\_mc\_offpeak}}$$
+$$\text{ratio} = \frac{\overline{MC}_{\text{peak}}}{\overline{MC}_{\text{offpeak}}}$$
 
 What does this actually say? Each side of the ratio is already the best single $/kWh rate for its period — the one that, applied to all kWh in the period, recovers the true MC dollars. So the ratio compares two quantities that are directly commensurable: the cost per kWh served during peak vs. the cost per kWh served during off-peak.
 

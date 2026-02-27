@@ -91,6 +91,8 @@ To add or refresh extracted PDF content: use the **extract-pdf-to-markdown** sla
 
 Match existing style: Ruff for formatting/lint, **ty** for type checking, dprint for md formatting using `.mardownlint.json` and shfmt for shell scripts. Keep new code consistent with current patterns in `utils/` and `rate_design/`.
 
+**LaTeX in markdown:** GitHub's MathJax renderer does not support escaped underscores inside `\text{}` (e.g. `\text{avg\_mc\_peak}` will fail). Use proper math symbols instead: `\overline{MC}_{\text{peak}}`, `MC_h`, `L_h`, etc. Bare subscripts and `\text{}` with simple words (no underscores) are fine.
+
 ## Code Quality (required before every commit)
 
 - Run `just check` — no linter errors, no type errors, no warnings
