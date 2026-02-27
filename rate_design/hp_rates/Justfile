@@ -40,6 +40,7 @@ cambium_ba            := env_var_or_default('CAMBIUM_BA', 'p133')
 year                  := env_var_or_default('YEAR', '2025')
 mc_year               := env_var_or_default('MC_YEAR', year)
 upgrade               := env_var_or_default('UPGRADE', '00')
+monthly_rates_year    := env_var_or_default('MONTHLY_RATES_YEAR', '2025')
 default_tariff        := utility + "_default_2025-01-01.json"
 default_tariff_supply := utility + "_default_supply.json"
 upstream_hours        := env_var_or_default('UPSTREAM_HOURS', '100')
@@ -79,6 +80,8 @@ path_s3_utility_loads               := "s3://data.sb/eia/hourly_demand/utilities
 path_electric_utility_stats         := "s3://data.sb/eia/861/electric_utility_stats/year=2024/state=" + state_upper + "/data.parquet"
 path_genability                     := path_tariffs_electric / "genability"
 path_genability_yaml                := path_genability / "tariffs_by_utility.yaml"
+path_charge_decisions               := path_genability / "charge_decisions" / (utility + "_charge_decisions.json")
+path_monthly_rates                  := path_genability / "monthly_rates" / (utility + "_monthly_rates_" + monthly_rates_year + ".yaml")
 path_default_tariff                 := path_genability / "default_tariffs" / default_tariff
 path_default_supply_tariff          := path_tariffs_electric / default_tariff_supply
 tou_tariff_key                      := utility + "_hp_seasonalTOU"
@@ -126,6 +129,14 @@ fetch-genability-tariffs effective_date="2025-01-01":
     "{{path_genability}}/default_tariffs" \
     --state "{{state_upper}}" \
     --effective-date "{{effective_date}}"
+
+fetch-monthly-rates start=(monthly_rates_year + "-01") end=(monthly_rates_year + "-12"):
+  uv run python {{path_repo}}/utils/pre/fetch_monthly_rates.py \
+    --utility "{{utility}}" \
+    --start "{{start}}" \
+    --end "{{end}}" \
+    --path-charge-list "{{path_charge_decisions}}" \
+    --output "{{path_monthly_rates}}"
 
 create-flat-tariff:
   just -f {{path_repo}}/utils/Justfile create-flat-tariff \
