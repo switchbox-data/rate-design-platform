@@ -43,6 +43,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 | nyiso_lbmp_zonal_data_sources.md         | NYISO Day-Ahead/Real-Time zonal LBMP: MIS ZIP vs gridstatus vs NYISOToolkit; data samples                                                                        |
 | parquet_reads_local_vs_s3.md             | Reading Parquet from local disk vs S3: per-GET overhead, file discovery, Hive filters vs path construction, best practices for whole-state and per-utility reads |
 | polars_laziness_and_validation.md        | Polars LazyFrame best practices: when to collect, runtime data-quality asserts vs laziness/streaming, strategies for small and large data                        |
+| ny_lmi_discounts_genability_encoding.md  | EAP/LMI encoding in NY Genability electric tariffs: which utilities encode EAP, tier/heating structure, amount comparison to lmi_discounts_in_ny.md              |
 
 ## docs/
 
