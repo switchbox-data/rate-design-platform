@@ -226,7 +226,7 @@ class TestAllocateBulkTxToHours:
 
         # 1 kW × 1 hour × $/MWh / 1000 = $/kWh contribution
         # Sum over all hours = v_z $/kW-yr
-        actual = float(allocated["transmission_cost_enduse"].sum()) / 1000.0
+        actual = float(allocated["bulk_tx_cost_enduse"].sum()) / 1000.0
         assert abs(actual - v_z) < v_z * 1e-4, (
             f"1 kW recovery: expected {v_z}, got {actual}"
         )
@@ -238,7 +238,7 @@ class TestAllocateBulkTxToHours:
         allocated = allocate_bulk_tx_to_hours(load_with_scr, v_z=30.0)
 
         n_nonzero = allocated.filter(
-            pl.col("transmission_cost_enduse") > 0
+            pl.col("bulk_tx_cost_enduse") > 0
         ).height
         assert n_nonzero == 80  # 40 summer + 40 winter
 
@@ -249,7 +249,7 @@ class TestAllocateBulkTxToHours:
         allocated = allocate_bulk_tx_to_hours(load_with_scr, v_z=30.0)
 
         neg_count = allocated.filter(
-            pl.col("transmission_cost_enduse") < 0
+            pl.col("bulk_tx_cost_enduse") < 0
         ).height
         assert neg_count == 0
 
@@ -265,7 +265,7 @@ class TestAllocateBulkTxToHours:
         )
         # Sort by load descending; costs should also be descending
         sorted_df = joined.sort("load_mw", descending=True)
-        costs = sorted_df["transmission_cost_enduse"].to_list()
+        costs = sorted_df["bulk_tx_cost_enduse"].to_list()
         assert costs == sorted(costs, reverse=True)
 
     @pytest.mark.parametrize("v_z", [10.0, 30.0, 55.0, 74.71])
@@ -275,7 +275,7 @@ class TestAllocateBulkTxToHours:
         load_with_scr = identify_scr_hours(load_df, n_hours_per_season=40)
         allocated = allocate_bulk_tx_to_hours(load_with_scr, v_z)
 
-        actual = float(allocated["transmission_cost_enduse"].sum()) / 1000.0
+        actual = float(allocated["bulk_tx_cost_enduse"].sum()) / 1000.0
         assert abs(actual - v_z) < v_z * 1e-4
 
 
@@ -356,7 +356,7 @@ class TestPrepareOutput:
         output = prepare_output(allocated, year=2025)
 
         null_count = output.filter(
-            pl.col("transmission_cost_enduse").is_null()
+            pl.col("bulk_tx_cost_enduse").is_null()
         ).height
         assert null_count == 0
 
@@ -367,7 +367,7 @@ class TestPrepareOutput:
         allocated = allocate_bulk_tx_to_hours(load_with_scr, v_z=30.0)
         output = prepare_output(allocated, year=2025)
 
-        assert set(output.columns) == {"timestamp", "transmission_cost_enduse"}
+        assert set(output.columns) == {"timestamp", "bulk_tx_cost_enduse"}
 
     def test_output_preserves_1kw_recovery(self) -> None:
         """1 kW constant load still recovers v_z after prepare_output."""
@@ -377,7 +377,7 @@ class TestPrepareOutput:
         allocated = allocate_bulk_tx_to_hours(load_with_scr, v_z)
         output = prepare_output(allocated, year=2025)
 
-        actual = float(output["transmission_cost_enduse"].sum()) / 1000.0
+        actual = float(output["bulk_tx_cost_enduse"].sum()) / 1000.0
         assert abs(actual - v_z) < v_z * 1e-4
 
     def test_correct_nonzero_count(self) -> None:
@@ -388,7 +388,7 @@ class TestPrepareOutput:
         output = prepare_output(allocated, year=2025)
 
         n_nonzero = output.filter(
-            pl.col("transmission_cost_enduse") > 0
+            pl.col("bulk_tx_cost_enduse") > 0
         ).height
         assert n_nonzero == 80
 

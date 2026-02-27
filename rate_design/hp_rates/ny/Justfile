@@ -51,7 +51,7 @@ create-supply-mc-data-all:
 # =============================================================================
 
 tx_mc_year := "2025"
-path_vz_table := "s3://data.sb/nyiso/transmission/ny_bulk_tx_values.csv"
+path_vz_table := "s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_values.csv"
 
 create-tx-mc-data utility_arg:
   cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_bulk_tx_mc.py \

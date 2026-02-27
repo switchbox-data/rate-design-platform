@@ -8,7 +8,7 @@
 path_local_repo := `git rev-parse --show-toplevel`
 path_local_base := justfile_directory()
 path_local_csv := path_local_base + "/csv"
-path_s3_csv := "s3://data.sb/nyiso/transmission/"
+path_s3_csv := "s3://data.sb/nyiso/bulk_tx/"
 
 # Derive: run isotonic derivation from raw projects CSV → v_z values CSV
 derive:
@@ -19,7 +19,7 @@ derive:
 # Upload: sync local CSVs to S3
 upload:
     aws s3 sync "{{path_local_csv}}/" "{{path_s3_csv}}" --exclude "*" --include "*.csv"
-    echo "✓ Uploaded transmission CSVs to {{path_s3_csv}}"
+    echo "✓ Uploaded bulk Tx CSVs to {{path_s3_csv}}"
 
 # Clean: remove local CSV staging dir
 clean:

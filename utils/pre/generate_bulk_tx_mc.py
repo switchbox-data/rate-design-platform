@@ -4,8 +4,8 @@ This script allocates bulk transmission marginal costs (v_z, $/kW-yr) derived fr
 NYISO AC Transmission and LI Export studies to hourly price signals using SCR
 (Seasonal Coincident Reserve) top-40-per-season peak hours.
 
-Transmission is treated as a delivery charge (combined with distribution MC in
-run_scenario.py) and active in delivery-only CAIRO runs.
+Bulk transmission is treated as a delivery charge (combined with distribution MC in
+`rate_design/hp_rates/run_scenario.py`) and active in delivery-only CAIRO runs.
 
 The allocation method:
     - Summer = months 5–10, Winter = months 11–12 + 1–4
@@ -15,7 +15,7 @@ The allocation method:
 
 Input data:
     - Derived v_z table:
-        s3://data.sb/nyiso/transmission/ny_bulk_tx_values.csv
+        s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_values.csv
         Schema: gen_capacity_zone, v_low_kw_yr, v_mid_kw_yr, v_high_kw_yr, v_isotonic_kw_yr
     - Utility zone mapping CSV (utility → gen_capacity_zone, capacity_weight):
         s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv
@@ -23,8 +23,8 @@ Input data:
         s3://data.sb/eia/hourly_demand/utilities/region=nyiso/utility={name}/year={YYYY}/month={M}/data.parquet
 
 Output:
-    s3://data.sb/switchbox/marginal_costs/ny/transmission/utility={utility}/year={YYYY}/data.parquet
-    Schema: timestamp (datetime), transmission_cost_enduse ($/MWh), 8760 rows
+    s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility={utility}/year={YYYY}/data.parquet
+    Schema: timestamp (datetime), bulk_tx_cost_enduse ($/MWh), 8760 rows
 
 Usage:
     # Inspect results (no upload)
@@ -43,7 +43,7 @@ Usage:
     uv run python utils/pre/generate_bulk_tx_mc.py \\
         --utility coned --year 2025 \\
         --zone-mapping-path data/nyiso/zone_mapping/csv/ny_utility_zone_mapping.csv \\
-        --v-z-table-path data/nyiso/transmission/csv/ny_bulk_tx_values.csv
+        --v-z-table-path data/nyiso/bulk_tx/csv/ny_bulk_tx_values.csv
 """
 
 from __future__ import annotations
@@ -76,12 +76,12 @@ from utils.pre.season_config import (
 
 # ── Default S3 paths ─────────────────────────────────────────────────────────
 
-DEFAULT_VZ_TABLE_PATH = "s3://data.sb/nyiso/transmission/ny_bulk_tx_values.csv"
+DEFAULT_VZ_TABLE_PATH = "s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_values.csv"
 DEFAULT_ZONE_MAPPING_PATH = (
     "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
 )
 DEFAULT_UTILITY_LOADS_S3_BASE = "s3://data.sb/eia/hourly_demand/utilities/"
-DEFAULT_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/ny/transmission/"
+DEFAULT_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/"
 
 # SCR allocation parameters
 N_SCR_HOURS_PER_SEASON = 40
@@ -338,16 +338,16 @@ def allocate_bulk_tx_to_hours(
 
     For SCR hours: w_t = load_t / sum(load in SCR hours)
     pi_t = v_z * w_t ($/kW per hour)
-    transmission_cost_enduse = pi_t * 1000 ($/MWh)
+    bulk_tx_cost_enduse = pi_t * 1000 ($/MWh)
 
-    For non-SCR hours: transmission_cost_enduse = 0.
+    For non-SCR hours: bulk_tx_cost_enduse = 0.
 
     Args:
         load_with_scr: Load profile with columns: timestamp, load_mw, is_scr.
         v_z: Bulk transmission marginal cost in $/kW-yr.
 
     Returns:
-        DataFrame with columns: timestamp, transmission_cost_enduse ($/MWh).
+        DataFrame with columns: timestamp, bulk_tx_cost_enduse ($/MWh).
     """
     # Sum of loads in SCR hours
     scr_load_sum = float(
@@ -377,11 +377,11 @@ def allocate_bulk_tx_to_hours(
     # Allocate: pi_t = v_z * w_t gives $/kW per hour
     # Convert to $/MWh: multiply by 1000
     result = result.with_columns(
-        (pl.col("weight") * v_z * 1000.0).alias("transmission_cost_enduse")
+        (pl.col("weight") * v_z * 1000.0).alias("bulk_tx_cost_enduse")
     )
 
     # Validate non-zero count
-    n_nonzero = result.filter(pl.col("transmission_cost_enduse") > 0).height
+    n_nonzero = result.filter(pl.col("bulk_tx_cost_enduse") > 0).height
     n_scr = result.filter(pl.col("is_scr")).height
     if n_nonzero != n_scr:
         raise ValueError(
@@ -390,19 +390,19 @@ def allocate_bulk_tx_to_hours(
         )
 
     # Validate all non-zero values are positive
-    neg_count = result.filter(pl.col("transmission_cost_enduse") < 0).height
+    neg_count = result.filter(pl.col("bulk_tx_cost_enduse") < 0).height
     if neg_count > 0:
         raise ValueError(
-            f"{neg_count} hours have negative transmission costs. "
+            f"{neg_count} hours have negative bulk transmission costs. "
             f"All costs should be non-negative."
         )
 
     avg_nonzero = float(
-        result.filter(pl.col("transmission_cost_enduse") > 0)[
-            "transmission_cost_enduse"
+        result.filter(pl.col("bulk_tx_cost_enduse") > 0)[
+            "bulk_tx_cost_enduse"
         ].mean()  # type: ignore[arg-type]
     )
-    max_cost = float(result["transmission_cost_enduse"].max())  # type: ignore[arg-type]
+    max_cost = float(result["bulk_tx_cost_enduse"].max())  # type: ignore[arg-type]
 
     print(f"\nAllocation summary:")
     print(f"  v_z = {v_z:.4f} $/kW-yr")
@@ -412,7 +412,7 @@ def allocate_bulk_tx_to_hours(
     print(f"  Avg non-zero cost = {avg_nonzero:.2f} $/MWh")
     print(f"  Max cost = {max_cost:.2f} $/MWh")
 
-    return result.select("timestamp", "transmission_cost_enduse")
+    return result.select("timestamp", "bulk_tx_cost_enduse")
 
 
 # ── Output assembly ──────────────────────────────────────────────────────────
@@ -422,17 +422,17 @@ def prepare_output(
     allocated_df: pl.DataFrame,
     year: int,
 ) -> pl.DataFrame:
-    """Prepare transmission MC DataFrame for saving (8760 rows).
+    """Prepare bulk Tx MC DataFrame for saving (8760 rows).
 
     Joins allocated costs onto a reference 8760 timestamp index, filling
     non-SCR hours with 0.
 
     Args:
-        allocated_df: Allocated costs (timestamp, transmission_cost_enduse in $/MWh).
+        allocated_df: Allocated costs (timestamp, bulk_tx_cost_enduse in $/MWh).
         year: Target year.
 
     Returns:
-        DataFrame with 8760 rows: timestamp, transmission_cost_enduse ($/MWh).
+        DataFrame with 8760 rows: timestamp, bulk_tx_cost_enduse ($/MWh).
     """
     ref_8760 = build_cairo_8760_timestamps(year)
 
@@ -444,7 +444,7 @@ def prepare_output(
     # Deduplicate (e.g. DST)
     hourly = (
         hourly.group_by("timestamp")
-        .agg(pl.col("transmission_cost_enduse").mean())
+        .agg(pl.col("bulk_tx_cost_enduse").mean())
         .sort("timestamp")
     )
 
@@ -453,18 +453,18 @@ def prepare_output(
 
     # Fill missing with 0
     output = output.with_columns(
-        pl.col("transmission_cost_enduse")
+        pl.col("bulk_tx_cost_enduse")
         .fill_null(0.0)
-        .alias("transmission_cost_enduse"),
+        .alias("bulk_tx_cost_enduse"),
     )
 
-    output = output.select("timestamp", "transmission_cost_enduse")
+    output = output.select("timestamp", "bulk_tx_cost_enduse")
 
     if output.height != 8760:
         raise ValueError(f"Output has {output.height} rows, expected 8760")
 
-    if output.filter(pl.col("transmission_cost_enduse").is_null()).height > 0:
-        raise ValueError("Output has null values in transmission_cost_enduse")
+    if output.filter(pl.col("bulk_tx_cost_enduse").is_null()).height > 0:
+        raise ValueError("Output has null values in bulk_tx_cost_enduse")
 
     return output
 
@@ -476,12 +476,12 @@ def save_output(
     output_s3_base: str,
     storage_options: dict[str, str],
 ) -> None:
-    """Write transmission MC parquet to S3 with Hive-style partitioning.
+    """Write bulk Tx MC parquet to S3 with Hive-style partitioning.
 
     Path: {output_s3_base}/utility={utility}/year={year}/data.parquet
 
     Args:
-        output_df: Transmission MC DataFrame (timestamp, transmission_cost_enduse).
+        output_df: Bulk Tx MC DataFrame (timestamp, bulk_tx_cost_enduse).
         utility: Utility name.
         year: Target year.
         output_s3_base: S3 base path.
@@ -501,7 +501,7 @@ def save_output(
     )
 
     output_path = f"{output_s3_base}utility={utility}/year={year}/data.parquet"
-    print(f"\n✓ Saved transmission MC to {output_path}")
+    print(f"\n✓ Saved bulk Tx MC to {output_path}")
     print(f"  Rows: {len(output_df):,}")
     print(f"  Columns: {', '.join(output_df.columns)}")
 
@@ -527,7 +527,7 @@ def _parse_args() -> argparse.Namespace:
         "--year",
         type=int,
         required=True,
-        help="Target year for transmission MC generation (e.g. 2025).",
+        help="Target year for bulk Tx MC generation (e.g. 2025).",
     )
     parser.add_argument(
         "--load-year",
@@ -690,14 +690,14 @@ def main() -> None:
 
     # ── 7. Display sample ─────────────────────────────────────────────────
     print("\n" + "=" * 60)
-    print("SAMPLE: Top 10 hours by transmission cost")
+    print("SAMPLE: Top 10 hours by bulk Tx cost")
     print("=" * 60)
-    sample = output_df.sort("transmission_cost_enduse", descending=True).head(10)
+    sample = output_df.sort("bulk_tx_cost_enduse", descending=True).head(10)
     print(sample)
 
-    avg_cost = float(output_df["transmission_cost_enduse"].mean())  # type: ignore[arg-type]
-    max_cost = float(output_df["transmission_cost_enduse"].max())  # type: ignore[arg-type]
-    n_nonzero = output_df.filter(pl.col("transmission_cost_enduse") > 0).height
+    avg_cost = float(output_df["bulk_tx_cost_enduse"].mean())  # type: ignore[arg-type]
+    max_cost = float(output_df["bulk_tx_cost_enduse"].max())  # type: ignore[arg-type]
+    n_nonzero = output_df.filter(pl.col("bulk_tx_cost_enduse") > 0).height
     print(f"\nOutput summary:")
     print(f"  avg = ${avg_cost:.2f}/MWh, max = ${max_cost:.2f}/MWh")
     print(f"  {n_nonzero} non-zero hours out of 8760")
