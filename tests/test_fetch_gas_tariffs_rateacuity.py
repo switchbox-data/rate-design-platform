@@ -82,7 +82,7 @@ def test_load_config_ny() -> None:
     project_root = Path(__file__).resolve().parents[1]
     yaml_path = (
         project_root
-        / "rate_design/ny/hp_rates/config/tariffs/gas/rateacuity_tariffs.yaml"
+        / "rate_design/hp_rates/ny/config/tariffs/gas/rateacuity_tariffs.yaml"
     )
     state, utilities = load_config(yaml_path)
     assert state == "NY"
@@ -98,7 +98,7 @@ def test_load_config_ny_coned_kedli_kedny_structure() -> None:
     project_root = Path(__file__).resolve().parents[1]
     yaml_path = (
         project_root
-        / "rate_design/ny/hp_rates/config/tariffs/gas/rateacuity_tariffs.yaml"
+        / "rate_design/hp_rates/ny/config/tariffs/gas/rateacuity_tariffs.yaml"
     )
     _state, utilities = load_config(yaml_path)
 
@@ -142,7 +142,7 @@ def test_load_config_ri() -> None:
     project_root = Path(__file__).resolve().parents[1]
     yaml_path = (
         project_root
-        / "rate_design/ri/hp_rates/config/tariffs/gas/rateacuity_tariffs.yaml"
+        / "rate_design/hp_rates/ri/config/tariffs/gas/rateacuity_tariffs.yaml"
     )
     state, utilities = load_config(yaml_path)
     assert state == "RI"

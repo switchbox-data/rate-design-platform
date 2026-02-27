@@ -4,7 +4,7 @@ import random
 
 import pytest
 
-from rate_design.ri.hp_rates.run_scenario import apply_prototype_sample
+from rate_design.hp_rates.run_scenario import apply_prototype_sample
 
 
 def test_apply_prototype_sample_none_returns_unchanged() -> None:

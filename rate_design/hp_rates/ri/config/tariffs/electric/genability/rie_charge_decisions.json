@@ -1,0 +1,139 @@
+{
+  "20870462": {
+    "master_charge": "Customer Charge",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20870463": {
+    "master_charge": "Distribution Charge",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20870464": {
+    "master_charge": "Operating & Maintenance Exp Charge",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20870465": {
+    "master_charge": "O&M Reconciliation Factor",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "oAndMReconciliationFactor"
+  },
+  "20870466": {
+    "master_charge": "CapEx Factor Charge",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20870467": {
+    "master_charge": "CapEx Reconciliation Factor",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "capExReconciliationFactorA16"
+  },
+  "20870468": {
+    "master_charge": "RDM Adjustment Factor",
+    "master_type": "Revenue true-up",
+    "decision": "exclude",
+    "variableRateKey": "rDMAdjustmentFactor"
+  },
+  "20870469": {
+    "master_charge": "Pension Adjustment Factor",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20870470": {
+    "master_charge": "Storm Fund Replenishment Factor",
+    "master_type": "Sunk-cost recovery",
+    "decision": "add_to_drr",
+    "rate_name": "Storm Fund Replenishment Factor"
+  },
+  "20870471": {
+    "master_charge": "Arrearage Management Adjustment Factor",
+    "master_type": "Sunk-cost recovery",
+    "decision": "add_to_drr",
+    "rate_name": "Arrearage Management Adjustment Factor"
+  },
+  "20870472": {
+    "master_charge": "Low-Income Discount Recovery Factor",
+    "master_type": "LMI cost recovery",
+    "decision": "exclude"
+  },
+  "20870473": {
+    "master_charge": "Performance Incentive Factor",
+    "master_type": "Performance incentive",
+    "decision": "exclude"
+  },
+  "20870474": {
+    "master_charge": "Last Resort Adjustment Factor",
+    "master_type": "Cost recon",
+    "decision": "exclude"
+  },
+  "20870475": {
+    "master_charge": "Net Metering Charge",
+    "master_type": "DER credit recovery",
+    "decision": "add_to_drr",
+    "rate_name": "Net Metering Charge"
+  },
+  "20870476": {
+    "master_charge": "Long Term Contracting Charge",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "longTermContractingCharge"
+  },
+  "20870477": {
+    "master_charge": "RE Growth Charge",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "rEGrowthChargeA16"
+  },
+  "20870478": {
+    "master_charge": "LIHEAP Enhancement Charge",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "lIHEAPEnhancementCharge"
+  },
+  "20870479": {
+    "master_charge": "Transmission Charge",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20870480": {
+    "master_charge": "Transition Charge",
+    "master_type": "Cost recon",
+    "decision": "exclude"
+  },
+  "20870481": {
+    "master_charge": "Energy Efficiency Programs Charge",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "energyEfficiencyProgramCharge"
+  },
+  "20870482": {
+    "master_charge": "Standard Offer Service Charge",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr",
+    "variableRateKey": "standardOfferServiceResidential"
+  },
+  "20870483": {
+    "master_charge": "Minimum",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20870484": {
+    "master_charge": "Renewable Standard Energy Charge",
+    "master_type": "CES supply",
+    "decision": "add_to_srr",
+    "variableRateKey": "renewableStandardEnergyCharge"
+  },
+  "20870485": {
+    "master_charge": "Gross Earnings Tax",
+    "master_type": "Tax pass-through",
+    "decision": "exclude"
+  },
+  "20110087": {
+    "master_charge": "Gross Earnings Tax",
+    "master_type": "Tax pass-through",
+    "decision": "exclude"
+  }
+}

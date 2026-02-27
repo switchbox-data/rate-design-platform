@@ -262,7 +262,7 @@ def test_map_gas_tariff_ny_keys_match_yaml() -> None:
     project_root = Path(__file__).resolve().parents[1]
     yaml_path = (
         project_root
-        / "rate_design/ny/hp_rates/config/tariffs/gas/rateacuity_tariffs.yaml"
+        / "rate_design/hp_rates/ny/config/tariffs/gas/rateacuity_tariffs.yaml"
     )
     _state, utilities = load_config(yaml_path)
     valid_tariff_keys = {

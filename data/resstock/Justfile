@@ -151,9 +151,31 @@ prepare-metadata-ny lmi="true":
     just identify-heating-type {{resstock_release}} NY "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet"
     {{ if lmi == "true" { "just add-vulnerability-columns " + resstock_release + " NY \"" + resstock_upgrade_ids_padded + "\" \"metadata-sb.parquet\" \"metadata-sb.parquet\"" } else { "echo 'Skipping vulnerability columns (lmi=false)'" } }}
 
+# =============================================================================
+# NY-only: polygon downloads (data prep for utility assignment)
+# =============================================================================
+
+download-ny-utility-polygons:
+	just download-ny-electric-utility-polygons
+	just download-ny-gas-utility-polygons
+
+download-ny-electric-utility-polygons:
+	wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/resource/awza-4vgu.csv" | aws s3 cp - "s3://data.sb/gis/utility_boundaries/ny_electric_utilities_`date +%Y%m%d`.csv"
+	just test-ny-electric-utility-polygons-download
+
+download-ny-gas-utility-polygons:
+	wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/api/views/i7nm-ih89/rows.csv" | aws s3 cp - "s3://data.sb/gis/utility_boundaries/ny_gas_utilities_$(date +%Y%m%d).csv"
+	just test-ny-gas-utility-polygons-download
+
+test-ny-electric-utility-polygons-download:
+	aws s3 ls "s3://data.sb/gis/utility_boundaries/" | grep "ny_electric_utilities_.*\.csv"
+
+test-ny-gas-utility-polygons-download:
+	aws s3 ls "s3://data.sb/gis/utility_boundaries/" | grep "ny_gas_utilities_.*\.csv"
+
 # Assign electric/gas utilities to ResStock buildings (NY only). Run download-ny-utility-polygons first.
 assign-utility-ny release upgrade electric_poly gas_poly:
-    just -f "{{path_local_repo}}/rate_design/ny/hp_rates/Justfile" download-ny-utility-polygons
+    just download-ny-utility-polygons
     uv run python "{{path_local_repo}}/data/resstock/assign_utility_ny.py" \
         --input_metadata_dir "{{path_s3_parquet}}/{{release}}/metadata/state=NY/upgrade={{upgrade}}/" \
         --input_metadata_filename "metadata-sb.parquet" \

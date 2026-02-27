@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from data.eia.hourly_loads.aggregate_eia_utility_loads import aggregate_utility_load
 from data.eia.hourly_loads.eia_region_config import get_utility_zone_mapping_for_state
+from data.nyiso.zone_mapping.generate_zone_mapping_csv import build_zone_mapping
 
 UTILITY_ZONE_MAPPING = get_utility_zone_mapping_for_state("NY")
 
@@ -149,37 +150,55 @@ def test_aggregate_utility_load_no_missing_hours():
 
 def test_zone_coverage():
     """Test that all NYISO zones A-K are covered by at least one utility."""
-    covered_zones = set()
+    covered_zones: set[str] = set()
     for zones in UTILITY_ZONE_MAPPING.values():
         covered_zones.update(zones)
 
-    # Currently only covering zones A-G (H-K are ConEd/LIPA, excluded)
-    expected_covered = ["A", "B", "C", "D", "E", "F", "G"]
+    expected_covered = ["A", "B", "C", "D", "E", "F", "G", "H", "J", "K"]
     for zone in expected_covered:
-        assert zone in covered_zones, f"Zone {zone} should be covered"
+        assert zone in covered_zones, (
+            f"Zone {zone} should be covered by at least one utility"
+        )
 
 
-if __name__ == "__main__":
-    # Run tests
-    test_utility_zone_mapping_structure()
-    print("✓ test_utility_zone_mapping_structure passed")
+def test_eia_zones_match_zone_mapping():
+    """Validate that EIA utility zones and NYISO zone mapping zones are consistent.
 
-    test_utility_zone_mapping_no_overlap_single_utility()
-    print("✓ test_utility_zone_mapping_no_overlap_single_utility passed")
+    The EIA config (eia_region_config.UTILITY_SERVICE_AREAS) and the NYISO zone
+    mapping (generate_zone_mapping_csv._MAPPING_ROWS) both define which LBMP zones
+    each utility covers. They must agree — otherwise load-weighting and LBMP lookups
+    will use different zone sets.
+    """
+    eia_mapping = get_utility_zone_mapping_for_state("NY")
+    zone_mapping_df = build_zone_mapping()
 
-    test_aggregate_utility_load_single_zone()
-    print("✓ test_aggregate_utility_load_single_zone passed")
+    # Get unique zones per utility from the zone mapping CSV
+    zone_mapping_zones: dict[str, set[str]] = {}
+    for utility in zone_mapping_df["utility"].unique().to_list():
+        utility_rows = zone_mapping_df.filter(pl.col("utility") == utility)
+        zone_mapping_zones[utility] = set(
+            utility_rows["load_zone_letter"].unique().to_list()
+        )
 
-    test_aggregate_utility_load_multiple_zones()
-    print("✓ test_aggregate_utility_load_multiple_zones passed")
+    # Every NY utility in EIA config must appear in zone mapping and vice versa
+    eia_utilities = set(eia_mapping.keys())
+    zm_utilities = set(zone_mapping_zones.keys())
 
-    test_aggregate_utility_load_sorted_by_timestamp()
-    print("✓ test_aggregate_utility_load_sorted_by_timestamp passed")
+    missing_in_zm = eia_utilities - zm_utilities
+    missing_in_eia = zm_utilities - eia_utilities
+    assert not missing_in_zm, (
+        f"Utilities in EIA config but missing from zone mapping: {missing_in_zm}"
+    )
+    assert not missing_in_eia, (
+        f"Utilities in zone mapping but missing from EIA config: {missing_in_eia}"
+    )
 
-    test_aggregate_utility_load_no_missing_hours()
-    print("✓ test_aggregate_utility_load_no_missing_hours passed")
-
-    test_zone_coverage()
-    print("✓ test_zone_coverage passed")
-
-    print("\n✓ All tests passed!")
+    # For each utility, zones must match exactly
+    for utility in sorted(eia_utilities):
+        eia_zones = set(eia_mapping[utility])
+        zm_zones = zone_mapping_zones[utility]
+        assert eia_zones == zm_zones, (
+            f"Zone mismatch for {utility}: "
+            f"EIA config has {sorted(eia_zones)}, "
+            f"zone mapping has {sorted(zm_zones)}"
+        )

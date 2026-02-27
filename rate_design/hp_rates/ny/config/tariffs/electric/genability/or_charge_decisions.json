@@ -1,0 +1,132 @@
+{
+  "20904662": {
+    "master_charge": "Customer Charge",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20904663": {
+    "master_charge": "Billing & Payment Processing",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20904664": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20904665": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20904666": {
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "energyCostAdjResidential1"
+  },
+  "20904667": {
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr",
+    "variableRateKey": "marketSupplyChargeResidential1"
+  },
+  "20904668": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "variableRateKey": "merchantFunctionChargeRes1ResTOU19"
+  },
+  "20904669": {
+    "master_charge": "Revenue Decoupling (RDM)",
+    "master_type": "Revenue true-up",
+    "decision": "exclude",
+    "variableRateKey": "revenueDecouplingMechanismAdjustmentResidential1"
+  },
+  "20904670": {
+    "master_charge": "System Benefits Charge",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "systemBenefitsCharge691"
+  },
+  "20904671": {
+    "master_charge": "DLM Surcharge",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "dynamicLoadManagementSurchargeSc119"
+  },
+  "20904672": {
+    "master_charge": "Delivery Revenue Surcharge / Electric Bill Credit",
+    "master_type": "Revenue true-up",
+    "decision": "exclude",
+    "variableRateKey": "deliveryRevenueSurchargeSC1SC19"
+  },
+  "20904673": {
+    "master_charge": "Transition / Restructuring",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "transitionAdjFullService"
+  },
+  "20904674": {
+    "master_charge": "Transition / Restructuring",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "transitionAdjRetailAccess"
+  },
+  "20904675": {
+    "master_charge": "Minimum Charge",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20799335": {
+    "master_charge": "Low-income discounts",
+    "master_type": "Eligibility",
+    "decision": "skip"
+  },
+  "20859431": {
+    "master_charge": "CBC (solar only)",
+    "master_type": "Eligibility",
+    "decision": "skip"
+  },
+  "20859461": {
+    "master_charge": "Energy Storage Surcharge",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "rate_name": "Energy Storage Surcharge"
+  },
+  "20912282": {
+    "master_charge": "EV Make Ready",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "rate_name": "Electric Vehicle Make-Ready Surcharge"
+  },
+  "20904391": {
+    "master_charge": "Low-income discounts",
+    "master_type": "Eligibility",
+    "decision": "skip"
+  },
+  "20396254": {
+    "master_charge": "Low-income discounts",
+    "master_type": "Eligibility / optional",
+    "decision": "skip",
+    "rider_id": 3292956
+  },
+  "20574711": {
+    "master_charge": "CBC (solar only)",
+    "master_type": "Eligibility / optional",
+    "decision": "skip",
+    "rider_id": 3399335
+  },
+  "20450082": {
+    "master_charge": "Energy Storage Surcharge",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "rider_id": 3405404
+  },
+  "20056054": {
+    "master_charge": "EV Make Ready",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "rider_id": 3406514
+  }
+}

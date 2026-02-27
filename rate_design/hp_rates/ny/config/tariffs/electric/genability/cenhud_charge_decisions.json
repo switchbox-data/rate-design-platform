@@ -1,0 +1,117 @@
+{
+  "20910536": {
+    "master_charge": "Customer Charge",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20910537": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20910538": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "variableRateKey": "AllocationMFCLostRevenueSC1"
+  },
+  "20910539": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "variableRateKey": "BaseMFCSupplyChargeSC1"
+  },
+  "20910540": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "variableRateKey": "MFCAdminChargeSC1"
+  },
+  "20910541": {
+    "master_charge": "Central Hudson Misc Charges",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "miscellaneousChargesSC1Res2033"
+  },
+  "20910542": {
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr",
+    "variableRateKey": "marketPriceCharge"
+  },
+  "20910543": {
+    "master_charge": "Revenue Decoupling (RDM)",
+    "master_type": "Revenue true-up",
+    "decision": "exclude",
+    "variableRateKey": "RevenueDecouplingMechanismSc1LSE2033"
+  },
+  "20910544": {
+    "master_charge": "Transition / Restructuring",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "TransitionAdjSc1"
+  },
+  "20910545": {
+    "master_charge": "Purchased Power Adjustment",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "purchasedPowerAdjustmentSC1Residential"
+  },
+  "20910546": {
+    "master_charge": "Delivery Revenue Surcharge / Electric Bill Credit",
+    "master_type": "Revenue true-up",
+    "decision": "exclude",
+    "variableRateKey": "electricBillCreditSC12033"
+  },
+  "20910547": {
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "marketPriceAdjustment"
+  },
+  "20910548": {
+    "master_charge": "System Benefits Charge",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "systemsBenefitsChargeResidential2033"
+  },
+  "20910549": {
+    "master_charge": "Earnings Adjustment Mechanism",
+    "master_type": "Performance incentive",
+    "decision": "exclude",
+    "variableRateKey": "earningsAdjMechanismSurSc1"
+  },
+  "20910550": {
+    "master_charge": "Delivery cost true-up (MAC / RAM / DSA)",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "rateOfAdjMechanismSurSc1"
+  },
+  "20910551": {
+    "master_charge": "Minimum Charge",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20871983": {
+    "master_charge": "Low-income discounts",
+    "master_type": "Eligibility",
+    "decision": "skip"
+  },
+  "20880129": {
+    "master_charge": "CBC (solar only)",
+    "master_type": "Eligibility",
+    "decision": "skip"
+  },
+  "20380245": {
+    "master_charge": "Low-income discounts",
+    "master_type": "Eligibility / optional",
+    "decision": "skip",
+    "rider_id": 3292959
+  },
+  "20028318": {
+    "master_charge": "CBC (solar only)",
+    "master_type": "Eligibility / optional",
+    "decision": "skip",
+    "rider_id": 3399332
+  }
+}

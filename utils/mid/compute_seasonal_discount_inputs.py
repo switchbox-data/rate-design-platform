@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from pathlib import Path
 
 from cloudpathlib import S3Path
@@ -31,6 +32,10 @@ def _write_seasonal_inputs_csv(
 
 def main() -> None:
     load_dotenv()
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
     parser = argparse.ArgumentParser(
         description=(
             "Compute HP seasonal discount inputs from run outputs and ResStock loads "
@@ -43,9 +48,19 @@ def main() -> None:
         help="Path to CAIRO output directory (local or s3://...).",
     )
     parser.add_argument(
-        "--resstock-loads-path",
+        "--resstock-base",
         required=True,
-        help="Path to ResStock hourly electric loads directory (local or s3://...).",
+        help="Base path to ResStock release (e.g. s3://.../res_2024_amy2018_2).",
+    )
+    parser.add_argument(
+        "--state",
+        required=True,
+        help="State partition for loads (e.g. NY, RI).",
+    )
+    parser.add_argument(
+        "--upgrade",
+        required=True,
+        help="Upgrade partition for loads (e.g. 00).",
     )
     parser.add_argument(
         "--cross-subsidy-col",
@@ -70,7 +85,6 @@ def main() -> None:
     args = parser.parse_args()
 
     run_dir = _resolve_path_or_s3(args.run_dir)
-    resstock_loads_path = _resolve_path_or_s3(args.resstock_loads_path)
     tariff_final_config_path = (
         _resolve_path_or_s3(args.tariff_final_config_path)
         if args.tariff_final_config_path
@@ -81,7 +95,9 @@ def main() -> None:
     storage_options = get_aws_storage_options() if isinstance(run_dir, S3Path) else None
     seasonal_inputs = compute_hp_seasonal_discount_inputs(
         run_dir=run_dir,
-        resstock_loads_path=resstock_loads_path,
+        resstock_base=args.resstock_base,
+        state=args.state,
+        upgrade=args.upgrade,
         cross_subsidy_col=args.cross_subsidy_col,
         storage_options=storage_options,
         tariff_final_config_path=tariff_final_config_path,
