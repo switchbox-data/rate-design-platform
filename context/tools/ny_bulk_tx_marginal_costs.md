@@ -8,7 +8,7 @@ How bulk transmission marginal costs (v_z, $/kW-yr) are derived per `gen_capacit
 
 CLI: `--path-projects-csv <input> --path-output-csv <output>`
 
-Output: `s3://data.sb/nyiso/transmission/ny_bulk_tx_values.csv`
+Output: `s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_values.csv`
 Schema: `gen_capacity_zone`, `v_low_kw_yr`, `v_mid_kw_yr`, `v_high_kw_yr`, `v_isotonic_kw_yr`
 
 Justfile: `data/nyiso/transmission/Justfile` (recipes: `derive`, `upload`, `clean`)
@@ -131,4 +131,20 @@ The `tx_locality` column in `ny_utility_zone_mapping.csv` maps each utility to i
 
 ## Integration with CAIRO
 
-Bulk Tx MC values from this pipeline are consumed by `utils/pre/generate_utility_supply_mc.py` (or a dedicated bulk Tx MC generator) and allocated to hourly price signals using SCR top-40-per-season peak hours, similar to generation capacity MC allocation but using seasonal rather than monthly peaks. The hourly $/kWh trace is then included in CAIRO's `bulk_marginal_costs` input alongside energy and generation capacity.
+Bulk Tx MC values from this pipeline are consumed by `utils/pre/generate_bulk_tx_mc.py` and allocated to hourly price signals using SCR top-40-per-season peak hours, similar to generation capacity MC allocation but using seasonal rather than monthly peaks.
+
+### MC Loading Pipeline
+
+The hourly bulk Tx MC trace (8760 rows, $/MWh) is loaded and combined with the delivery-side
+dist+sub-tx MC in `utils/cairo.py`:
+
+- **`load_bulk_tx_marginal_costs(path)`**: Loads bulk Tx MC parquet, converts $/MWh → $/kWh, returns Series with EST timezone
+- **`_align_mc_to_index(mc_series, target_index, mc_type)`**: Shared utility for aligning any MC Series to a target DatetimeIndex. Handles same-length position alignment (when MC file year differs from run year) and reindexing for different lengths.
+- **`add_bulk_tx_and_distribution_marginal_cost(path_distribution_mc, path_bulk_tx_mc, target_index)`**: High-level function that:
+  1. Loads dist+sub-tx MC (required; `mc_total_per_kwh` from `generate_utility_tx_dx_mc.py`)
+  2. Loads bulk Tx MC (optional)
+  3. Aligns both to target index (typically from bulk MC)
+  4. Sums them into a single delivery MC Series
+  5. Validates and logs statistics
+
+This design keeps all MC loading/alignment logic in `utils/cairo.py`, making `run_scenario.py` clean and maintainable. The combined delivery MC is then passed to CAIRO's `add_delivery_mc` alongside supply MC (energy + capacity).

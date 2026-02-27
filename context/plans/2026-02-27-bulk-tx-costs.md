@@ -15,8 +15,8 @@ Incorporate bulk transmission marginal costs into the NY rate design platform. E
 | `derive_tx_values.py`         | ✅ Done    | Isotonic + quantile derivation for LHV, NYC, LI; NiMo MCOS for ROS |
 | `tx_locality` in zone mapping | ✅ Done    | Added to `generate_zone_mapping_csv.py`                            |
 | Context doc                   | ✅ Done    | `context/tools/ny_bulk_tx_marginal_costs.md`                       |
-| Hourly allocation script      | 🔲 Pending | `generate_bulk_tx_mc.py` (SCR top-40 seasonal peaks)               |
-| CAIRO integration             | 🔲 Pending | Add bulk Tx to `bulk_marginal_costs` input                         |
+| Hourly allocation script      | ✅ Done    | `utils/pre/generate_bulk_tx_mc.py` (SCR top-40 seasonal peaks)     |
+| CAIRO integration             | ✅ Done    | Load bulk Tx MC + merge with dist+sub-tx delivery MC in CAIRO run  |
 
 ## Derivation pipeline
 
@@ -32,13 +32,20 @@ derive_tx_values.py (Steps 1–4)
         └── Step 4: Aggregate to gen_capacity_zone
         │
         ▼
-ny_bulk_tx_values.csv → s3://data.sb/nyiso/transmission/
+ny_bulk_tx_values.csv → s3://data.sb/nyiso/bulk_tx/
         │
         ▼
 generate_bulk_tx_mc.py (future: hourly allocation)
         │
         ▼
 s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/
+
+## Refactor note (naming)
+
+Completed naming refactor to use **`bulk_tx`** (instead of `transmission` / `sub_tx`) for the
+separate hourly bulk transmission MC trace and S3 output paths. Delivery-side marginal costs
+loaded from `mc_total_per_kwh` remain keyed as `path_distribution_marginal_costs` in scenario
+YAMLs for compatibility, but represent **dist + sub-tx** (upstream + distribution).
 ```
 
 ## Key design decision: ROS value
