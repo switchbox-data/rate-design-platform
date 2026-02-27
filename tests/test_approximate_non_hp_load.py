@@ -22,7 +22,7 @@ from utils.pre.approximate_non_hp_load import (
     UPGRADE_PARTIAL_CONDITIONING_COLUMN,
     UPGRADE_HEATING_EFFICIENCY_COLUMN,
     _find_nearest_neighbors,
-    _identify_non_hp_mf_highrise,
+    _identify_non_hp_mf,
     _replace_electricity_columns,
     _replace_fuel_oil_columns,
     _replace_heating_cooling_load_columns,
@@ -153,7 +153,7 @@ def test_find_nearest_neighbors_heating_only(tmp_path: Path) -> None:
     has_hp = [False, False, True, True, True, False, True, True]
     metadata_df = _make_metadata_df(bldg_ids, weather_stations, has_hp)
     metadata = metadata_df.lazy()
-    non_hp = _identify_non_hp_mf_highrise(metadata)
+    non_hp = _identify_non_hp_mf(metadata)
     upgrade_id = "02"
     n_hours = 8760
 
@@ -211,7 +211,7 @@ def test_find_nearest_neighbors_include_cooling(tmp_path: Path) -> None:
     has_hp = [False, False, True, True, True]
     metadata_df = _make_metadata_df(bldg_ids, weather_stations, has_hp)
     metadata = metadata_df.lazy()
-    non_hp = _identify_non_hp_mf_highrise(metadata)
+    non_hp = _identify_non_hp_mf(metadata)
     upgrade_id = "02"
     n_hours = 8760
 

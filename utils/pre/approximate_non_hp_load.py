@@ -104,15 +104,11 @@ TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS = (
 )
 
 
-def _identify_non_hp_mf_highrise(metadata: pl.LazyFrame) -> pl.LazyFrame:
-    is_non_hp_mf_highrise = (
-        ~pl.col(POSTPROCESS_HAS_HP_COLUMN)
-        & pl.col(BLDG_TYPE_COLUMN).str.contains("Multifamily", literal=True)
-        & pl.col(STORIES_COLUMN).str.contains("8+", literal=True)
-    )
-    return metadata.filter(is_non_hp_mf_highrise).select(
-        "bldg_id", WEATHER_FILE_CITY_COLUMN
-    )
+def _identify_non_hp_mf(metadata: pl.LazyFrame) -> pl.LazyFrame:
+    is_non_hp_mf = ~pl.col(POSTPROCESS_HAS_HP_COLUMN) & pl.col(
+        BLDG_TYPE_COLUMN
+    ).str.contains("Multifamily", literal=True)
+    return metadata.filter(is_non_hp_mf).select("bldg_id", WEATHER_FILE_CITY_COLUMN)
 
 
 def _identify_other_fuel_types(metadata: pl.LazyFrame) -> pl.LazyFrame:
@@ -126,7 +122,7 @@ def _identify_other_fuel_types(metadata: pl.LazyFrame) -> pl.LazyFrame:
 
 def group_by_weather_station_id(metadata: pl.LazyFrame) -> dict[str, list[int]]:
     """
-    Group non-HP MF highrise bldg_ids by weather_station_id.
+    Group non-HP MF bldg_ids by weather_station_id.
     Single lazy pipeline: semi-join metadata to restrict to those bldg_ids, then group_by/agg; one collect.
     """
     unique_df = cast(
@@ -462,7 +458,7 @@ def _find_nearest_neighbors(
     max_workers_neighbors: int = 256,
     include_cooling: bool = False,
 ) -> dict[int, list[tuple[int, float]]]:
-    """For each non-HP MF highrise bldg, find k nearest same-weather bldgs by lowest RMSE on load curves.
+    """For each non-HP MF bldg, find k nearest same-weather bldgs by lowest RMSE on load curves.
     Returns non_hp_bldg_id -> [(neighbor_bldg_id, rmse), ...].
     """
     weather_station_bldg_id_map_non_hp = group_by_weather_station_id(
@@ -1052,7 +1048,7 @@ def update_metadata(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Approximate non-HP MF highrise load curves using k-nearest neighbors; optionally run validation.",
+        description="Approximate non-HP MF load curves using k-nearest neighbors; optionally run validation.",
     )
     parser.add_argument(
         "--path_s3",
@@ -1088,10 +1084,10 @@ if __name__ == "__main__":
         help="Number of nearest neighbors per building",
     )
     parser.add_argument(
-        "--update_MF_highrise",
+        "--update_MF",
         type=bool,
         required=True,
-        help="Whether to update MF highrise load curves and metadata",
+        help="Whether to update MF load curves and metadata",
     )
     parser.add_argument(
         "--update_other_fuel_types",
@@ -1136,14 +1132,14 @@ if __name__ == "__main__":
         / f"state={args.state}"
         / f"upgrade={args.upgrade_id}"
     )
-    if args.update_MF_highrise:
-        non_hp_mf_highrise_bldg_metadata = _identify_non_hp_mf_highrise(input_metadata)
+    if args.update_MF:
+        non_hp_mf_bldg_metadata = _identify_non_hp_mf(input_metadata)
     if args.update_other_fuel_types:
         non_hp_other_fuel_types_bldg_metadata = _identify_other_fuel_types(
             input_metadata
         )
     non_hp_bldg_metadata = pl.concat(
-        [non_hp_mf_highrise_bldg_metadata, non_hp_other_fuel_types_bldg_metadata]
+        [non_hp_mf_bldg_metadata, non_hp_other_fuel_types_bldg_metadata]
     )
 
     nearest_neighbor_map = _find_nearest_neighbors(
@@ -1264,10 +1260,10 @@ def _validate_one_building_load(
 def _validate_nearest_neighbors_building_load(
     load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
-    approximated_yes_hp_mf_highrise_bldg_ids: dict[int, list[tuple[int, float]]],
+    approximated_yes_hp_mf_bldg_ids: dict[int, list[tuple[int, float]]],
     max_workers: int = 64,
 ) -> None:
-    """Validate the approximated yes-HP MF highrise load curves.
+    """Validate the approximated yes-HP MF load curves.
     Reports total (heating+cooling), heating-only, and cooling-only metrics for all cases.
     One task per (bldg_id, k_nearest); main thread collects results and prints combined summary.
     """
@@ -1287,7 +1283,7 @@ def _validate_nearest_neighbors_building_load(
                 bldg_id,
                 k_nearest_bldg_ids_rmse,
             ): bldg_id
-            for bldg_id, k_nearest_bldg_ids_rmse in approximated_yes_hp_mf_highrise_bldg_ids.items()
+            for bldg_id, k_nearest_bldg_ids_rmse in approximated_yes_hp_mf_bldg_ids.items()
         }
         for future in as_completed(futures):
             result = future.result()
@@ -1426,10 +1422,10 @@ def _validate_one_building_energy_consumption(
 def _validate_nearest_neighbors_heating_cooling_energy_consumption(
     load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
-    approximated_yes_hp_mf_highrise_bldg_ids: dict[int, list[tuple[int, float]]],
+    approximated_yes_hp_mf_bldg_ids: dict[int, list[tuple[int, float]]],
     max_workers: int = 64,
 ) -> None:
-    """Validate the approximated yes-HP MF highrise heating/cooling energy consumption curves.
+    """Validate the approximated yes-HP MF heating/cooling energy consumption curves.
     Reports total (heating+cooling), heating-only, and cooling-only metrics for all cases.
     One task per (bldg_id, k_nearest); main thread collects results and prints combined summary.
     """
@@ -1453,7 +1449,7 @@ def _validate_nearest_neighbors_heating_cooling_energy_consumption(
                 bldg_id,
                 k_nearest_bldg_ids_rmse,
             ): bldg_id
-            for bldg_id, k_nearest_bldg_ids_rmse in approximated_yes_hp_mf_highrise_bldg_ids.items()
+            for bldg_id, k_nearest_bldg_ids_rmse in approximated_yes_hp_mf_bldg_ids.items()
         }
         for future in as_completed(futures):
             result = future.result()
@@ -1542,13 +1538,12 @@ def validate_nearest_neighbor_approximation(
     include_cooling: bool = False,
     n_validation: int = 100,
 ) -> None:
-    """Run nearest-neighbor approximation validation: find k nearest for a sample of HP MF highrise bldgs and report load/energy metrics."""
+    """Run nearest-neighbor approximation validation: find k nearest for a sample of HP MF bldgs and report load/energy metrics."""
     validation_bldg_ids = (
         metadata.filter(
             (
                 pl.col(POSTPROCESS_HAS_HP_COLUMN)
                 & pl.col(BLDG_TYPE_COLUMN).str.contains("Multifamily", literal=True)
-                & pl.col(STORIES_COLUMN).str.contains("8+", literal=True)
             )
         )
         .select("bldg_id", WEATHER_FILE_CITY_COLUMN)

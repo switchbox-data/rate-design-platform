@@ -46,6 +46,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 | ny_lmi_discounts_genability_encoding.md  | EAP/LMI encoding in NY Genability electric tariffs: which utilities encode EAP, tier/heating structure, amount comparison to lmi_discounts_in_ny.md                                                                                                                                                      |
 | tariff_rates_and_genability.md           | Tariff/rate/rider/charge terminology, regulatory underpinnings (rate cases, rider proceedings, tariff books, leaf/revision versioning), Genability/Arcadia data model and APIs, and how to reconstruct historical monthly charges (API sequence, date-boundary subtleties, validation via Calculate API) |
 | approximate_non_hp_load.md               | MF highrise non-HP load approximation: nearest-neighbor RMSE, replace HVAC columns, update/sink, validation                                                                                                                                                                                              |
+| resstock_data_preparation_run_order.md   | Run order for ResStock data: fetch → identify HP/heating/natgas → utility assignment (standard) → copy to sb release (incl. metadata_utility) → approximate non-HP load → sync S3 sb release to EBS                                                                                                      |
 
 ## docs/
 

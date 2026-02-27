@@ -24,6 +24,7 @@ def copy_dir(
     dest_dir: str | Path,
     *,
     max_workers: int = 128,
+    include_suffixes: list[str] | None = None,
 ) -> int:
     """
     Copy all files from source directory to destination directory.
@@ -32,14 +33,19 @@ def copy_dir(
     Supports:
     - S3: pass s3://bucket/prefix/ for source_dir and dest_dir (same bucket).
     - Local: pass local paths as str or Path.
+
+    If include_suffixes is set, only copy objects/files whose key (S3) or name (local)
+    ends with one of the given suffixes (e.g. ["metadata-sb.parquet"]).
     """
     src = str(source_dir).rstrip("/")
     dst = str(dest_dir).rstrip("/")
 
     if src.startswith("s3://") and dst.startswith("s3://"):
-        return _copy_s3_dir_to_s3(src, dst, max_workers=max_workers)
+        return _copy_s3_dir_to_s3(
+            src, dst, max_workers=max_workers, include_suffixes=include_suffixes
+        )
     if not src.startswith("s3://") and not dst.startswith("s3://"):
-        return _copy_local_dir(Path(src), Path(dst))
+        return _copy_local_dir(Path(src), Path(dst), include_suffixes=include_suffixes)
     raise ValueError(
         "Source and destination must both be S3 URIs or both be local paths"
     )
@@ -50,6 +56,7 @@ def _copy_s3_dir_to_s3(
     dest_dir: str,
     *,
     max_workers: int = 128,
+    include_suffixes: list[str] | None = None,
 ) -> int:
     """Copy all objects under source prefix to dest prefix (server-side). Same bucket."""
     bucket_src, source_prefix = _get_s3_bucket_and_prefix(source_dir)
@@ -70,6 +77,8 @@ def _copy_s3_dir_to_s3(
             key = obj["Key"]
             if key.endswith("/"):
                 continue
+            if include_suffixes and not any(key.endswith(s) for s in include_suffixes):
+                continue
             dest_key = dest_prefix + key[len(source_prefix) :]
             to_copy.append((key, dest_key))
 
@@ -87,13 +96,22 @@ def _copy_s3_dir_to_s3(
     return len(to_copy)
 
 
-def _copy_local_dir(source_dir: Path, dest_dir: Path) -> int:
+def _copy_local_dir(
+    source_dir: Path,
+    dest_dir: Path,
+    *,
+    include_suffixes: list[str] | None = None,
+) -> int:
     """Copy all files from source_dir to dest_dir (local). Creates dest parents as needed."""
     if not source_dir.is_dir():
         return 0
     count = 0
     for src_file in source_dir.rglob("*"):
         if not src_file.is_file():
+            continue
+        if include_suffixes and not any(
+            src_file.name.endswith(s) for s in include_suffixes
+        ):
             continue
         try:
             rel = src_file.relative_to(source_dir)
@@ -112,6 +130,8 @@ def _copy_local_resstock_prefix(
     release_to: str,
     file_type: str,
     upgrade_id: str,
+    *,
+    include_suffixes: list[str] | None = None,
 ) -> int:
     """
     Copy files from base_path/release_from/file_type/state=*/upgrade={upgrade_id}/...
@@ -131,7 +151,7 @@ def _copy_local_resstock_prefix(
         if not source_dir.is_dir():
             continue
         dest_dir = dest_base / state_dir.name / upgrade_dir
-        total += copy_dir(source_dir, dest_dir)
+        total += copy_dir(source_dir, dest_dir, include_suffixes=include_suffixes)
     return total
 
 
@@ -148,6 +168,8 @@ def copy_resstock_data(
     Supports S3 (s3://...) or local paths. Structure: release/file_type/state={state}/upgrade={upgrade_id}/.
     Returns number of objects/files copied.
     """
+    metadata_only_sb = ["metadata-sb.parquet"] if file_type == "metadata" else None
+
     if data_path.startswith("s3://"):
         bucket, base_prefix = _get_s3_bucket_and_prefix(data_path.rstrip("/"))
         if file_type == "metadata_utility":
@@ -160,14 +182,19 @@ def copy_resstock_data(
         else:
             source_dir = f"s3://{bucket}/{base_prefix}/{release_from}/{file_type}/state={state}/upgrade={upgrade_id}/"
             dest_dir = f"s3://{bucket}/{base_prefix}/{release_to}/{file_type}/state={state}/upgrade={upgrade_id}/"
-        return copy_dir(source_dir, dest_dir)
+        return copy_dir(source_dir, dest_dir, include_suffixes=metadata_only_sb)
 
     else:
         base_path = Path(data_path.rstrip("/"))
         if not base_path.is_dir():
             raise FileNotFoundError(f"Data path is not a directory: {base_path}")
         return _copy_local_resstock_prefix(
-            base_path, release_from, release_to, file_type, upgrade_id
+            base_path,
+            release_from,
+            release_to,
+            file_type,
+            upgrade_id,
+            include_suffixes=metadata_only_sb,
         )
 
 
@@ -225,4 +252,7 @@ if __name__ == "__main__":
                     f"Copied {n} objects: {file_type} upgrade={upgrade_id} "
                     f"({args.release_from} -> {args.release_to})"
                 )
+            if file_type == "metadata_utility" and upgrade_id == "00":
+                break
+
     print(f"Total objects copied: {total}")
