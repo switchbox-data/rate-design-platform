@@ -1,0 +1,27 @@
+# NYISO bulk transmission marginal cost derivation
+#
+# Derive v_z ($/kW-yr) per gen_capacity_zone from NYISO AC Transmission
+# and LI Export study project data.
+#
+# Run from repo root: just -f data/nyiso/transmission/Justfile <recipe>
+
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_base := justfile_directory()
+path_local_csv := path_local_base + "/csv"
+path_s3_csv := "s3://data.sb/nyiso/transmission/"
+
+# Derive: run isotonic derivation from raw projects CSV → v_z values CSV
+derive:
+    uv run python "{{path_local_base}}/derive_tx_values.py" \
+        --path-projects-csv "{{path_local_csv}}/ny_bulk_tx_projects.csv" \
+        --path-output-csv "{{path_local_csv}}/ny_bulk_tx_values.csv"
+
+# Upload: sync local CSVs to S3
+upload:
+    aws s3 sync "{{path_local_csv}}/" "{{path_s3_csv}}" --exclude "*" --include "*.csv"
+    echo "✓ Uploaded transmission CSVs to {{path_s3_csv}}"
+
+# Clean: remove local CSV staging dir
+clean:
+    rm -rf "{{path_local_csv}}"
+    echo "✓ Removed csv/"

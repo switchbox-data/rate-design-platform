@@ -24,6 +24,7 @@ data/eia/hourly_loads/utility_parquet/
 data/fred/cpi/parquet/
 data/nyiso/lbmp/zips/
 data/nyiso/lbmp/parquet/
+data/nyiso/transmission/csv/
 data/nyiso/zone_mapping/csv/
 rate_design/hp_rates/ny/config/buildstock_raw/
 rate_design/hp_rates/ny/config/buildstock_processed/
