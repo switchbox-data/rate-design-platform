@@ -1,5 +1,6 @@
 """Tests for approximate_non_hp_load: find k nearest neighbors and replace * columns."""
 
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
@@ -11,6 +12,7 @@ import pytest
 from utils.pre.approximate_non_hp_load import (
     COOLING_LOAD_COLUMN,
     HEATING_LOAD_COLUMN,
+    TIMESTAMP_COLUMN,
     _find_nearest_neighbors,
     _identify_non_hp_mf_highrise,
     _replace_electricity_columns,
@@ -19,6 +21,12 @@ from utils.pre.approximate_non_hp_load import (
     _replace_natural_gas_columns,
     _replace_propane_columns,
 )
+
+
+def _timestamp_series(n_rows: int) -> list[datetime]:
+    """Chronological timestamps for join/sort tests (2018-01-01 00:00 + hours)."""
+    return [datetime(2018, 1, 1) + timedelta(hours=i) for i in range(n_rows)]
+
 
 BLDG_TYPE_COLUMN = "in.geometry_building_type_height"
 STORIES_COLUMN = "in.geometry_story_bin"
@@ -253,6 +261,7 @@ def _make_electricity_frame_constant(
         data[c] = [cooling_vals] * n_rows
     data[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[0]] = [total_consumption] * n_rows
     data[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[1]] = [total_intensity] * n_rows
+    data[TIMESTAMP_COLUMN] = _timestamp_series(n_rows)
     return pl.DataFrame(data).lazy()
 
 
@@ -277,6 +286,7 @@ def _make_electricity_frame_time_varying(
         data[c] = cooling_per_row
     data[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[0]] = total_consumption_per_row
     data[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[1]] = total_intensity_per_row
+    data[TIMESTAMP_COLUMN] = _timestamp_series(n_rows)
     return pl.DataFrame(data).lazy()
 
 
@@ -410,12 +420,14 @@ def test_replace_heating_cooling_load_columns_single_neighbor() -> None:
     hour = np.arange(n_rows, dtype=np.float64)
     original = pl.DataFrame(
         {
+            TIMESTAMP_COLUMN: _timestamp_series(n_rows),
             HEATING_LOAD_COLUMN: (10.0 + 3.0 * np.sin(hour)).tolist(),
             COOLING_LOAD_COLUMN: (5.0 + 2.0 * np.cos(hour)).tolist(),
         }
     ).lazy()
     single = pl.DataFrame(
         {
+            TIMESTAMP_COLUMN: _timestamp_series(n_rows),
             HEATING_LOAD_COLUMN: (2.0 + 0.5 * np.sin(hour)).tolist(),
             COOLING_LOAD_COLUMN: (1.0 + 0.3 * np.cos(hour)).tolist(),
         }
@@ -434,26 +446,31 @@ def test_replace_heating_cooling_load_columns() -> None:
     """Replace heating and cooling load columns with neighbor average; time-varying loads, multiple neighbors."""
     n_rows = 168  # one week hourly
     hour = np.arange(n_rows, dtype=np.float64)
+    ts = _timestamp_series(n_rows)
     original = pl.DataFrame(
         {
+            TIMESTAMP_COLUMN: ts,
             HEATING_LOAD_COLUMN: (10.0 + 3.0 * np.sin(2 * np.pi * hour / 24)).tolist(),
             COOLING_LOAD_COLUMN: (5.0 + 2.0 * np.cos(2 * np.pi * hour / 24)).tolist(),
         }
     ).lazy()
     neighbor1 = pl.DataFrame(
         {
+            TIMESTAMP_COLUMN: ts,
             HEATING_LOAD_COLUMN: (2.0 + 0.5 * np.sin(2 * np.pi * hour / 24)).tolist(),
             COOLING_LOAD_COLUMN: (1.0 + 0.3 * np.cos(2 * np.pi * hour / 24)).tolist(),
         }
     ).lazy()
     neighbor2 = pl.DataFrame(
         {
+            TIMESTAMP_COLUMN: ts,
             HEATING_LOAD_COLUMN: (4.0 + 1.0 * np.sin(2 * np.pi * hour / 24)).tolist(),
             COOLING_LOAD_COLUMN: (3.0 + 0.8 * np.cos(2 * np.pi * hour / 24)).tolist(),
         }
     ).lazy()
     neighbor3 = pl.DataFrame(
         {
+            TIMESTAMP_COLUMN: ts,
             HEATING_LOAD_COLUMN: (1.0 + 0.2 * np.sin(2 * np.pi * hour / 24)).tolist(),
             COOLING_LOAD_COLUMN: (2.0 + 0.5 * np.cos(2 * np.pi * hour / 24)).tolist(),
         }
@@ -485,6 +502,7 @@ def _make_natural_gas_frame(
     total_intensity: float,
 ) -> pl.LazyFrame:
     data = {
+        TIMESTAMP_COLUMN: _timestamp_series(n_rows),
         HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]: [h_consumption] * n_rows,
         HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]: [h_intensity] * n_rows,
         HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[2]: [0.0] * n_rows,
@@ -614,6 +632,7 @@ def test_replace_natural_gas_columns_time_varying() -> None:
     ) -> pl.LazyFrame:
         return pl.DataFrame(
             {
+                TIMESTAMP_COLUMN: _timestamp_series(n_rows),
                 HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]: h_vals,
                 HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]: i_vals,
                 HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[2]: [0.0] * n_rows,
@@ -666,6 +685,7 @@ def _make_fuel_oil_frame(
     total_intensity: float,
 ) -> pl.LazyFrame:
     data = {
+        TIMESTAMP_COLUMN: _timestamp_series(n_rows),
         HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]: [h_consumption] * n_rows,
         HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]: [h_intensity] * n_rows,
         HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[2]: [0.0] * n_rows,
@@ -813,6 +833,7 @@ def _make_propane_frame(
     total_intensity: float,
 ) -> pl.LazyFrame:
     data = {
+        TIMESTAMP_COLUMN: _timestamp_series(n_rows),
         HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]: [h_consumption] * n_rows,
         HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]: [h_intensity] * n_rows,
         HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[2]: [0.0] * n_rows,

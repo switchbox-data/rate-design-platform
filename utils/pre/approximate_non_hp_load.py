@@ -25,6 +25,9 @@ WEATHER_FILE_CITY_COLUMN = "in.weather_file_city"
 HAS_HP_COLUMN = "postprocess_group.has_hp"
 
 # Columns in load_curve_hourly parquet.
+TIMESTAMP_COLUMN = (
+    "timestamp"  # chronological order; sort by this after joins to restore row order
+)
 COOLING_LOAD_COLUMN = "out.load.cooling.energy_delivered.kbtu"
 HEATING_LOAD_COLUMN = "out.load.heating.energy_delivered.kbtu"
 
@@ -531,15 +534,14 @@ def _replace_electricity_columns(
     hc_cols = heating_cols + cooling_cols
     n_neighbors = len(neighbors_load_curve_hourly)
 
-    # Add row index to original so we can join neighbors by hour
-    out = original_load_curve_hourly.with_row_index("_ri")
-
-    # Join each neighbor on row index; alias neighbor columns to _n0_<col>, _n1_<col>, ...
+    # Join each neighbor on timestamp so row order aligns by time
+    out = original_load_curve_hourly
     for i, neighbor in enumerate(neighbors_load_curve_hourly):
         neighbor_select = neighbor.select(
-            [pl.col(c).alias(f"_n{i}_{c}") for c in hc_cols]
-        ).with_row_index("_ri")
-        out = out.join(neighbor_select, on="_ri", how="left")
+            [pl.col(TIMESTAMP_COLUMN)]
+            + [pl.col(c).alias(f"_n{i}_{c}") for c in hc_cols]
+        )
+        out = out.join(neighbor_select, on=TIMESTAMP_COLUMN, how="left")
 
     # Average each heating/cooling column: (_n0_c + _n1_c + ... + _n{k-1}_c) / k
     def avg_expr(col: str) -> pl.Expr:
@@ -610,7 +612,7 @@ def _replace_electricity_columns(
         ]
     )
 
-    drop_cols = ["_ri"] + [f"_n{i}_{c}" for i in range(n_neighbors) for c in hc_cols]
+    drop_cols = [f"_n{i}_{c}" for i in range(n_neighbors) for c in hc_cols]
     return out.with_columns(replace_cols).drop(drop_cols)
 
 
@@ -622,13 +624,13 @@ def _replace_heating_cooling_load_columns(
     hc_cols = [HEATING_LOAD_COLUMN, COOLING_LOAD_COLUMN]
     n_neighbors = len(neighbors_load_curve_hourly)
 
-    out = original_load_curve_hourly.with_row_index("_ri")
-
+    out = original_load_curve_hourly
     for i, neighbor in enumerate(neighbors_load_curve_hourly):
         neighbor_select = neighbor.select(
-            [pl.col(c).alias(f"_n{i}_{c}") for c in hc_cols]
-        ).with_row_index("_ri")
-        out = out.join(neighbor_select, on="_ri", how="left")
+            [pl.col(TIMESTAMP_COLUMN)]
+            + [pl.col(c).alias(f"_n{i}_{c}") for c in hc_cols]
+        )
+        out = out.join(neighbor_select, on=TIMESTAMP_COLUMN, how="left")
 
     def avg_expr(col: str) -> pl.Expr:
         total = pl.col(f"_n0_{col}")
@@ -637,7 +639,7 @@ def _replace_heating_cooling_load_columns(
         return total / n_neighbors
 
     replace_cols = [avg_expr(c).alias(c) for c in hc_cols]
-    drop_cols = ["_ri"] + [f"_n{i}_{c}" for i in range(n_neighbors) for c in hc_cols]
+    drop_cols = [f"_n{i}_{c}" for i in range(n_neighbors) for c in hc_cols]
     return out.with_columns(replace_cols).drop(drop_cols)
 
 
@@ -646,17 +648,16 @@ def _replace_natural_gas_columns(
     neighbors_load_curve_hourly: list[pl.LazyFrame],
 ) -> pl.LazyFrame:
     """Replace natural gas heating columns with neighbor averages and adjust total natural gas columns accordingly."""
-
     heating_cols = list(HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS)
     n_neighbors = len(neighbors_load_curve_hourly)
 
-    out = original_load_curve_hourly.with_row_index("_ri")
-
+    out = original_load_curve_hourly
     for i, neighbor in enumerate(neighbors_load_curve_hourly):
         neighbor_select = neighbor.select(
-            [pl.col(c).alias(f"_n{i}_{c}") for c in heating_cols]
-        ).with_row_index("_ri")
-        out = out.join(neighbor_select, on="_ri", how="left")
+            [pl.col(TIMESTAMP_COLUMN)]
+            + [pl.col(c).alias(f"_n{i}_{c}") for c in heating_cols]
+        )
+        out = out.join(neighbor_select, on=TIMESTAMP_COLUMN, how="left")
 
     def avg_expr(col: str) -> pl.Expr:
         total = pl.col(f"_n0_{col}")
@@ -707,9 +708,7 @@ def _replace_natural_gas_columns(
         ]
     )
 
-    drop_cols = ["_ri"] + [
-        f"_n{i}_{c}" for i in range(n_neighbors) for c in heating_cols
-    ]
+    drop_cols = [f"_n{i}_{c}" for i in range(n_neighbors) for c in heating_cols]
     return out.with_columns(replace_cols).drop(drop_cols)
 
 
@@ -721,13 +720,13 @@ def _replace_fuel_oil_columns(
     heating_cols = list(HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS)
     n_neighbors = len(neighbors_load_curve_hourly)
 
-    out = original_load_curve_hourly.with_row_index("_ri")
-
+    out = original_load_curve_hourly
     for i, neighbor in enumerate(neighbors_load_curve_hourly):
         neighbor_select = neighbor.select(
-            [pl.col(c).alias(f"_n{i}_{c}") for c in heating_cols]
-        ).with_row_index("_ri")
-        out = out.join(neighbor_select, on="_ri", how="left")
+            [pl.col(TIMESTAMP_COLUMN)]
+            + [pl.col(c).alias(f"_n{i}_{c}") for c in heating_cols]
+        )
+        out = out.join(neighbor_select, on=TIMESTAMP_COLUMN, how="left")
 
     def avg_expr(col: str) -> pl.Expr:
         total = pl.col(f"_n0_{col}")
@@ -778,9 +777,7 @@ def _replace_fuel_oil_columns(
         ]
     )
 
-    drop_cols = ["_ri"] + [
-        f"_n{i}_{c}" for i in range(n_neighbors) for c in heating_cols
-    ]
+    drop_cols = [f"_n{i}_{c}" for i in range(n_neighbors) for c in heating_cols]
     return out.with_columns(replace_cols).drop(drop_cols)
 
 
@@ -792,13 +789,13 @@ def _replace_propane_columns(
     heating_cols = list(HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS)
     n_neighbors = len(neighbors_load_curve_hourly)
 
-    out = original_load_curve_hourly.with_row_index("_ri")
-
+    out = original_load_curve_hourly
     for i, neighbor in enumerate(neighbors_load_curve_hourly):
         neighbor_select = neighbor.select(
-            [pl.col(c).alias(f"_n{i}_{c}") for c in heating_cols]
-        ).with_row_index("_ri")
-        out = out.join(neighbor_select, on="_ri", how="left")
+            [pl.col(TIMESTAMP_COLUMN)]
+            + [pl.col(c).alias(f"_n{i}_{c}") for c in heating_cols]
+        )
+        out = out.join(neighbor_select, on=TIMESTAMP_COLUMN, how="left")
 
     def avg_expr(col: str) -> pl.Expr:
         total = pl.col(f"_n0_{col}")
@@ -849,9 +846,7 @@ def _replace_propane_columns(
         ]
     )
 
-    drop_cols = ["_ri"] + [
-        f"_n{i}_{c}" for i in range(n_neighbors) for c in heating_cols
-    ]
+    drop_cols = [f"_n{i}_{c}" for i in range(n_neighbors) for c in heating_cols]
     return out.with_columns(replace_cols).drop(drop_cols)
 
 
@@ -867,7 +862,7 @@ def replace_hvac_columns(
     out = _replace_natural_gas_columns(out, neighbors_load_curve_hourly)
     out = _replace_fuel_oil_columns(out, neighbors_load_curve_hourly)
     out = _replace_propane_columns(out, neighbors_load_curve_hourly)
-    return out
+    return out.sort(TIMESTAMP_COLUMN)
 
 
 def update_load_curve_hourly(
@@ -876,7 +871,7 @@ def update_load_curve_hourly(
     output_load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
     *,
-    max_workers: int = 64,
+    max_workers: int = 150,
 ) -> None:
     """Load original and neighbor parquets concurrently, replace hvac columns, sink back to original path. Stays in LazyFrame (scan/sink)."""
     upgrade_int = int(upgrade_id)
@@ -915,7 +910,8 @@ def update_load_curve_hourly(
             executor.submit(process_one, bldg_id, k_nearest_bldg_ids_rmse)
             for bldg_id, k_nearest_bldg_ids_rmse in nearest_neighbor_map.items()
         ]
-        for future in as_completed(futures):
+        for i, future in enumerate(as_completed(futures)):
+            print(f"Processed {i + 1} of {len(nearest_neighbor_map)} buildings")
             future.result()
 
 
