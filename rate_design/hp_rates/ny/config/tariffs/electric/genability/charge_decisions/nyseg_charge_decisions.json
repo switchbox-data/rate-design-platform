@@ -1,0 +1,164 @@
+{
+  "20570165": {
+    "master_charge": "Customer Charge",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20570166": {
+    "master_charge": "Billing & Payment Processing",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20570167": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20570168": {
+    "master_charge": "Revenue Decoupling (RDM)",
+    "master_type": "Revenue true-up",
+    "decision": "exclude",
+    "variableRateKey": "revenueDecouplingMechanism562SC1"
+  },
+  "20570169": {
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery",
+    "decision": "already_in_drr"
+  },
+  "20707777": {
+    "master_charge": "RAD (agricultural)",
+    "master_type": "Eligibility",
+    "decision": "skip",
+    "variableRateKey": "residentialAgriculturalDiscount562"
+  },
+  "20570171": {
+    "master_charge": "Transition / Restructuring",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "transitionChargeSchedules1812"
+  },
+  "20570172": {
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function",
+    "decision": "add_to_srr",
+    "variableRateKey": "merchantFunctionChargeSchedules1812569"
+  },
+  "20570173": {
+    "master_charge": "System Benefits Charge",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "systemsBenefitsCharge"
+  },
+  "20570174": {
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr",
+    "variableRateKey": "supplyChargeResidentialRegularSchedule1"
+  },
+  "20570175": {
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr",
+    "variableRateKey": "supplyChargeSC1West"
+  },
+  "20570176": {
+    "master_charge": "CES Delivery",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "cleanEnergyStandard562"
+  },
+  "20570177": {
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity",
+    "decision": "add_to_srr",
+    "variableRateKey": "supplyChargeSC1LHV"
+  },
+  "18337959": {
+    "master_charge": "DLM Surcharge",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "variableRateKey": "dynamicLoadManagementSurcharge562S1"
+  },
+  "18436594": {
+    "master_charge": "Delivery cost true-up (MAC / RAM / DSA)",
+    "master_type": "Cost recon",
+    "decision": "exclude",
+    "variableRateKey": "rateAdjustmentMechanismSC1"
+  },
+  "20799353": {
+    "master_charge": "Earnings Adjustment Mechanism",
+    "master_type": "Performance incentive",
+    "decision": "exclude"
+  },
+  "20881884": {
+    "master_charge": "CBC (solar only)",
+    "master_type": "Eligibility",
+    "decision": "skip"
+  },
+  "20914486": {
+    "master_charge": "EV Make Ready",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "rate_name": "Electric Vehicle Make Ready Surcharge"
+  },
+  "20707726": {
+    "master_charge": "Late Payment / Waived Fees",
+    "master_type": "Sunk-cost recovery",
+    "decision": "add_to_drr",
+    "rate_name": "Late Payment Charge and Other Waived Fees Surcharge"
+  },
+  "20681800": {
+    "master_charge": "Arrears / COVID forgiveness",
+    "master_type": "Sunk-cost recovery",
+    "decision": "add_to_drr",
+    "rate_name": "Arrears Relief Program - Phase 1"
+  },
+  "20681801": {
+    "master_charge": "Arrears / COVID forgiveness",
+    "master_type": "Sunk-cost recovery",
+    "decision": "add_to_drr",
+    "rate_name": "Arrears Relief Program - Phase 2"
+  },
+  "20914372": {
+    "master_charge": "Recovery Charge (storm bonds)",
+    "master_type": "Sunk-cost recovery",
+    "decision": "add_to_drr",
+    "rate_name": "Recovery Charge"
+  },
+  "20368251": {
+    "master_charge": "Earnings Adjustment Mechanism",
+    "master_type": "Performance incentive",
+    "decision": "exclude",
+    "rider_id": 3397588
+  },
+  "20415211": {
+    "master_charge": "CBC (solar only)",
+    "master_type": "Eligibility / optional",
+    "decision": "skip",
+    "rider_id": 3399329
+  },
+  "20044992": {
+    "master_charge": "EV Make Ready",
+    "master_type": "Program surcharge",
+    "decision": "add_to_drr",
+    "rider_id": 3402011
+  },
+  "20145892": {
+    "master_charge": "Late Payment / Waived Fees",
+    "master_type": "Sunk-cost recovery",
+    "decision": "add_to_drr",
+    "rider_id": 3413780
+  },
+  "20267849": {
+    "master_charge": "Arrears / COVID forgiveness",
+    "master_type": "Sunk-cost recovery",
+    "decision": "add_to_drr",
+    "rider_id": 3434933
+  },
+  "20267850": {
+    "master_charge": "Arrears / COVID forgiveness",
+    "master_type": "Sunk-cost recovery",
+    "decision": "add_to_drr",
+    "rider_id": 3434933
+  }
+}
