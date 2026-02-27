@@ -1,0 +1,7 @@
+utility: cenhud
+group_col: has_hp
+cross_subsidy_col: BAT_percustomer
+run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/20260226_210525_ny_cenhud_run1_up00_precalc__flat__n100
+subclass_revenue_requirements:
+  'false': 366751347.0779246
+  'true': 27636715.922075193

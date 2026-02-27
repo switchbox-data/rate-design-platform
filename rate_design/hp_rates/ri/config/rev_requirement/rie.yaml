@@ -1,0 +1,4 @@
+utility: rie
+revenue_requirement: 241869601.0
+source: s3://data.sb/switchbox/revenue_requirements/ri/revenue_requirements.csv:revenue_requirement
+  (utility_col=utility, year_col=year, utility=rie, year=2025)

@@ -361,7 +361,7 @@ if __name__ == "__main__":
             stacklevel=2,
         )
     else:
-        output_filename = f"{args.electric_utility}.csv"
+        output_filename = f"{args.electric_utility}_u{args.upgrade_id}.csv"
         try:
             out_base = S3Path(args.output_dir)
             output_path = out_base / output_filename

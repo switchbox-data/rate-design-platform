@@ -57,8 +57,8 @@ just create-rie-hp-seasonal-calibrated-supply <seasonal_inputs_csv_from_run2>
 
 Output names are fixed to match RI config tariff naming:
 
-- Run 1 (delivery): `rate_design/ri/hp_rates/config/tariffs/electric/rie_hp_seasonal_calibrated.json`
-- Run 2 (delivery + supply): `rate_design/ri/hp_rates/config/tariffs/electric/rie_hp_seasonal_calibrated_supply.json`
+- Run 1 (delivery): `rate_design/hp_rates/ri/config/tariffs/electric/rie_hp_seasonal_calibrated.json`
+- Run 2 (delivery + supply): `rate_design/hp_rates/ri/config/tariffs/electric/rie_hp_seasonal_calibrated_supply.json`
 
 4. Generate tariff map using existing mapper support (`seasonal_discount`)
 
@@ -76,7 +76,7 @@ This recipe reads `<run_dir>/tariff_final_config.json`, parses `tariff_key` from
 the run directory name, converts CAIRO-native tariff fields (`ur_ec_*`,
 `ur_ec_tou_mat`) into URDB `items[0]` format, and writes:
 
-- `rate_design/<state>/hp_rates/config/tariffs/electric/<tariff_key>_calibrated.json`
+- `rate_design/hp_rates/<state>/config/tariffs/electric/<tariff_key>_calibrated.json`
 
 ## Expected Seasonal Inputs CSV
 

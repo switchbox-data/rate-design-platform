@@ -18,16 +18,18 @@ data/census/pums/parquet/
 data/census/pums/data_dict_cache/
 data/eia/861/electric_utility_stats/
 data/eia/861/parquet/
+data/eia/heating_fuel_prices/parquet/
 data/eia/hourly_loads/zone_parquet/
 data/eia/hourly_loads/utility_parquet/
 data/fred/cpi/parquet/
 data/nyiso/lbmp/zips/
 data/nyiso/lbmp/parquet/
-rate_design/ny/hp_rates/config/buildstock_raw/
-rate_design/ny/hp_rates/config/buildstock_processed/
-rate_design/ny/hp_rates/config/cairo_cases/
-rate_design/ny/hp_rates/config/resstock/loads/
-rate_design/ny/hp_rates/config/resstock/results_*.parquet
+data/nyiso/zone_mapping/csv/
+rate_design/hp_rates/ny/config/buildstock_raw/
+rate_design/hp_rates/ny/config/buildstock_processed/
+rate_design/hp_rates/ny/config/cairo_cases/
+rate_design/hp_rates/ny/config/resstock/loads/
+rate_design/hp_rates/ny/config/resstock/results_*.parquet
 outputs/
 site/
 
@@ -43,13 +45,13 @@ build/
 *.json
 !dprint.json
 !.markdownlint.json
-!rate_design/ny/hp_rates/config/tariffs/**
-!rate_design/ri/hp_rates/config/tariffs/**
-!rate_design/ny/hp_rates/config/tariff_maps/**
-!rate_design/ri/hp_rates/config/tariff_maps/**
-!rate_design/ny/hp_rates/config/marginal_costs/**
-!rate_design/ri/hp_rates/config/marginal_costs/**
-!rate_design/ri/hp_rates/config/distribution_cost_params.json
+!rate_design/hp_rates/ny/config/tariffs/**
+!rate_design/hp_rates/ri/config/tariffs/**
+!rate_design/hp_rates/ny/config/tariff_maps/**
+!rate_design/hp_rates/ri/config/tariff_maps/**
+!rate_design/hp_rates/ny/config/marginal_costs/**
+!rate_design/hp_rates/ri/config/marginal_costs/**
+!rate_design/hp_rates/ri/config/distribution_cost_params.json
 
 # Terraform state files
 infra/*.tfstate
@@ -60,5 +62,6 @@ infra/.terraform.lock.hcl
 .secrets
 .env
 .gspread_authorized_user.json
+utils/pre/update_sheet_formulas.py
 
 CLAUDE.md
