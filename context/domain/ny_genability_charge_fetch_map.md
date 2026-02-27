@@ -17,15 +17,15 @@ Exhaustive charge-level reference for fetching 2025 monthly rate values from the
 
 ## Tariff IDs
 
-| Utility | File                  | tariffId | masterTariffId |
-| ------- | --------------------- | -------- | -------------- |
-| CE      | `coned_default.json`  | 3538383  | 809            |
-| LI      | `psegli_default.json` | 3531707  | 3439408        |
-| RG      | `rge_default.json`    | 3516726  | 2001956        |
-| NY      | `nyseg_default.json`  | 3506378  | 80701          |
-| NG      | `nimo_default.json`   | 3520620  | 803            |
-| OR      | `or_default.json`     | 3536606  | 81134          |
-| CH      | `cenhud_default.json` | 3537335  | 85880          |
+| Utility | File                             | tariffId | masterTariffId |
+| ------- | -------------------------------- | -------- | -------------- |
+| CE      | `coned_default_2025-01-01.json`  | 3538383  | 809            |
+| LI      | `psegli_default_2025-01-01.json` | 3531707  | 3439408        |
+| RG      | `rge_default_2025-01-01.json`    | 3516726  | 2001956        |
+| NY      | `nyseg_default_2025-01-01.json`  | 3506378  | 80701          |
+| NG      | `nimo_default_2025-01-01.json`   | 3520620  | 803            |
+| OR      | `or_default_2025-01-01.json`     | 3536606  | 81134          |
+| CH      | `cenhud_default_2025-01-01.json` | 3537335  | 85880          |
 
 ---
 

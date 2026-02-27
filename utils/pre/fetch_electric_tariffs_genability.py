@@ -309,7 +309,7 @@ def main() -> None:
     parser.add_argument(
         "path_output_dir",
         type=Path,
-        help="Output directory for <utility>_<identifier>.json files (e.g. rie_default.json)",
+        help="Output directory for <key>_<identifier>_<date>.json files (e.g. rie_default_2025-01-01.json)",
     )
     parser.add_argument(
         "--state",
