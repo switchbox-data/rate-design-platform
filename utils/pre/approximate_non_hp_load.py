@@ -901,7 +901,7 @@ def update_load_curve_hourly(
     output_load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
     *,
-    max_workers: int = 150,
+    max_workers: int = 256,
 ) -> list[int]:
     """Load original and neighbor parquets concurrently, replace hvac columns, sink back to original path. Returns list of bldg_ids that use natural gas after replacement."""
     upgrade_int = int(upgrade_id)
