@@ -19,7 +19,7 @@ import logging
 
 import yaml
 
-from utils.mid.data_parsing import get_residential_sales_kwh_from_utility_stats
+from utils.scenario_config import get_residential_sales_kwh_from_utility_stats
 
 
 def _parse_month(month_key: str) -> tuple[int, int]:

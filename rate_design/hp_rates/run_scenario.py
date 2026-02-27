@@ -37,7 +37,7 @@ from utils.cairo import (
     load_distribution_marginal_costs,
 )
 from utils.demand_flex import apply_demand_flex
-from utils.mid.data_parsing import (
+from utils.scenario_config import (
     _parse_bool,
     _parse_float,
     _parse_int,

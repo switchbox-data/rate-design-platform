@@ -47,7 +47,7 @@ from utils.cairo import (
     _load_cambium_marginal_costs,
     load_distribution_marginal_costs,
 )
-from utils.mid.data_parsing import get_residential_customer_count_from_utility_stats
+from utils.scenario_config import get_residential_customer_count_from_utility_stats
 from utils.pre.compute_tou import (
     SeasonTouSpec,
     combine_marginal_costs,
