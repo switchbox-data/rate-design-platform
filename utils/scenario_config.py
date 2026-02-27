@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -111,17 +112,34 @@ def get_residential_sales_kwh_from_utility_stats(
 
 
 # Revenue requirement parsing
+
+
+@dataclass(frozen=True, slots=True)
+class RevenueRequirementConfig:
+    """Parsed revenue requirement configuration.
+
+    rr_total: scalar for MC decomposition (delivery or delivery+supply).
+    subclass_rr: per-tariff-key RR dict, or None for non-subclass runs.
+    run_includes_subclasses: whether the run uses per-subclass RRs.
+    """
+
+    rr_total: float
+    subclass_rr: dict[str, float] | None
+    run_includes_subclasses: bool
+
+
 def _parse_subclass_revenue_requirement(
     rr_data: dict[str, Any],
     raw_path_tariffs_electric: dict[str, Any],
     base_dir: Path,
-    subclass_to_alias: dict[str, str],
+    *,
+    add_supply: bool,
 ) -> dict[str, float]:
     """Map subclass revenue requirements to tariff keys.
 
-    Subclass YAML keys ('true'/'false') are mapped via subclass_to_alias to
-    the raw YAML aliases ('hp'/'non-hp'), then resolved to tariff keys (file
-    stems like '{utility}_hp_seasonal') using the path strings.
+    YAML subclass keys are aliases ('hp'/'non-hp') matching the keys in
+    path_tariffs_electric. Each alias resolves to a tariff key (file stem).
+    Picks 'delivery' or 'total' per subclass based on *add_supply*.
     """
     subclass_rr = rr_data.get("subclass_revenue_requirements")
     if not isinstance(subclass_rr, dict) or not subclass_rr:
@@ -133,23 +151,29 @@ def _parse_subclass_revenue_requirement(
     }
 
     result: dict[str, float] = {}
-    for group_val, amount in subclass_rr.items():
-        alias = subclass_to_alias.get(str(group_val))
-        if alias is None:
-            raise ValueError(
-                f"Unknown subclass group value {group_val!r}; "
-                f"expected one of {sorted(subclass_to_alias)}"
-            )
-        tariff_key = alias_to_tariff_key.get(alias)
+    for alias, amount in subclass_rr.items():
+        alias_str = str(alias)
+        tariff_key = alias_to_tariff_key.get(alias_str)
         if tariff_key is None:
             raise ValueError(
-                f"Subclass {group_val!r} maps to alias {alias!r} but "
-                f"path_tariffs_electric has no alias {alias!r} "
-                f"(available: {sorted(alias_to_tariff_key)})"
+                f"Subclass alias {alias_str!r} in YAML not found in "
+                f"path_tariffs_electric (available: {sorted(alias_to_tariff_key)})"
             )
-        result[tariff_key] = _parse_float(
-            amount, f"subclass_revenue_requirements[{group_val}]"
-        )
+        if isinstance(amount, dict):
+            rr_field = "total" if add_supply else "delivery"
+            if rr_field not in amount:
+                raise ValueError(
+                    f"subclass_revenue_requirements[{alias_str}] missing "
+                    f"required field {rr_field!r}"
+                )
+            result[tariff_key] = _parse_float(
+                amount[rr_field],
+                f"subclass_revenue_requirements[{alias_str}].{rr_field}",
+            )
+        else:
+            result[tariff_key] = _parse_float(
+                amount, f"subclass_revenue_requirements[{alias_str}]"
+            )
 
     return result
 
@@ -158,19 +182,16 @@ def _parse_utility_revenue_requirement(
     value: Any,
     base_dir: Path,
     raw_path_tariffs_electric: dict[str, Any],
-    subclass_to_alias: dict[str, str],
     *,
     add_supply: bool,
-) -> float | dict[str, float]:
+    run_includes_subclasses: bool = False,
+) -> RevenueRequirementConfig:
     """Parse utility_delivery_revenue_requirement from a YAML path.
 
-    For topped-up RR YAMLs (from compute_rr), selects:
-      - ``total_delivery_and_supply_revenue_requirement`` when *add_supply* is True
-      - ``total_delivery_revenue_requirement`` when *add_supply* is False
-
-    For subclass-RR YAMLs (from compute_subclass_rr), returns a dict keyed by
-    tariff_key.  *raw_path_tariffs_electric* is the original YAML dict
-    (alias -> path string) before alias-to-stem conversion.
+    Returns a RevenueRequirementConfig with:
+      - rr_total: scalar from total_delivery[_and_supply]_revenue_requirement
+      - subclass_rr: per-tariff-key RR dict (or None)
+      - run_includes_subclasses: whether this run uses subclass RRs
     """
     if not isinstance(value, str):
         raise ValueError(
@@ -200,14 +221,36 @@ def _parse_utility_revenue_requirement(
         if add_supply
         else "total_delivery_revenue_requirement"
     )
-    if rr_key in rr_data:
-        return _parse_float(rr_data[rr_key], rr_key)
-    if "subclass_revenue_requirements" in rr_data:
-        return _parse_subclass_revenue_requirement(
-            rr_data, raw_path_tariffs_electric, base_dir, subclass_to_alias
+
+    if rr_key not in rr_data:
+        # Fallback: legacy YAMLs (e.g. *_large_number.yaml) use a bare
+        # 'revenue_requirement' key with the same value for both modes.
+        if "revenue_requirement" in rr_data:
+            rr_total = _parse_float(
+                rr_data["revenue_requirement"], "revenue_requirement"
+            )
+        else:
+            raise ValueError(
+                f"{path} must contain '{rr_key}' (or 'revenue_requirement')."
+            )
+    else:
+        rr_total = _parse_float(rr_data[rr_key], rr_key)
+
+    subclass_rr: dict[str, float] | None = None
+    if run_includes_subclasses:
+        if "subclass_revenue_requirements" not in rr_data:
+            raise ValueError(
+                f"run_includes_subclasses is true but {path} has no "
+                "'subclass_revenue_requirements'."
+            )
+        subclass_rr = _parse_subclass_revenue_requirement(
+            rr_data, raw_path_tariffs_electric, base_dir, add_supply=add_supply
         )
-    raise ValueError(
-        f"{path} must contain '{rr_key}' or 'subclass_revenue_requirements'."
+
+    return RevenueRequirementConfig(
+        rr_total=rr_total,
+        subclass_rr=subclass_rr,
+        run_includes_subclasses=run_includes_subclasses,
     )
 
 
