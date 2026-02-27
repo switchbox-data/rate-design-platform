@@ -597,7 +597,8 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         rr_total = rr_setting
         rr_ratios = None
 
-    # Decompose the revenue requirement into marginal costs and a residual.
+    # FIND TOTAL RESIDUAL AND HOURLY MC's
+    # Decomposes the revenue requirement into total marginal costs and residual.
     # RR = total_MC + residual, where total_MC = sum of hourly (MC_price × load)
     # and residual = RR − total_MC (embedded infrastructure costs).
     demand_flex_enabled = settings.elasticity != 0.0
@@ -715,8 +716,9 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             revenue_requirement = subclass_baseline
 
     # Phase 3 ---------------------------------------------------------------
-    # Precalc calibrates rates against shifted loads so the resulting
-    # tariff recovers the (lower) RR from the demand-flex load profile.
+    # FIND RATE(S) THAT MEET REVENUE REQUIREMENT(S)
+    # THEN CALCULATE CUSTOMER-LEVEL BILLS USING THE RATE,
+    # CUSTOMER-LEVEL COSTS USING HOURLY MARGINAL COSTS AND RESIDUAL.
     with _timed("bs.simulate"):
         bs = MeetRevenueSufficiencySystemWide(
             run_type=settings.run_type,
