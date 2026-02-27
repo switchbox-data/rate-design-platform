@@ -47,6 +47,30 @@ create-supply-mc-data-all:
   just create-supply-mc-data psegli
 
 # =============================================================================
+# NY-only: bulk transmission marginal costs (NYISO AC Tx / LI Export, SCR)
+# =============================================================================
+
+tx_mc_year := "2025"
+path_vz_table := "s3://data.sb/nyiso/transmission/ny_bulk_tx_values.csv"
+
+create-tx-mc-data utility_arg:
+  cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_bulk_tx_mc.py \
+    --utility {{utility_arg}} \
+    --year {{tx_mc_year}} \
+    --zone-mapping-path {{zone_mapping_path}} \
+    --v-z-table-path {{path_vz_table}} \
+    --upload
+
+create-tx-mc-data-all:
+  just create-tx-mc-data cenhud
+  just create-tx-mc-data coned
+  just create-tx-mc-data nimo
+  just create-tx-mc-data nyseg
+  just create-tx-mc-data or
+  just create-tx-mc-data rge
+  just create-tx-mc-data psegli
+
+# =============================================================================
 # NY-only: multi-utility gas tariff mapping shortcuts
 # =============================================================================
 
