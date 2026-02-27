@@ -461,6 +461,90 @@ def load_distribution_marginal_costs(
     return distribution_marginal_costs
 
 
+def load_transmission_marginal_costs(
+    path: str | Path,
+) -> pd.Series:
+    """Load bulk transmission marginal costs from a parquet path and return a tz-aware Series.
+
+    Reads parquet with columns ``timestamp`` and ``transmission_cost_enduse`` ($/MWh),
+    converts to $/kWh (÷ 1000), TZ-localizes to EST, and returns a Series named
+    ``"Marginal Transmission Costs ($/kWh)"``.
+
+    The output mirrors the shape of :func:`load_distribution_marginal_costs` so the
+    caller can sum the two into a single delivery MC trace for CAIRO.
+
+    Args:
+        path: Local or S3 path to the transmission MC parquet file.
+            Expected schema: ``timestamp`` (datetime), ``transmission_cost_enduse``
+            (float, $/MWh), 8760 rows.
+
+    Returns:
+        ``pd.Series`` indexed by ``DatetimeIndex`` (EST-localized, name ``"time"``),
+        values in $/kWh, series name ``"Marginal Transmission Costs ($/kWh)"``.
+
+    Raises:
+        FileNotFoundError: If the path does not exist.
+        ValueError: If required columns are missing, data has nulls, or row count
+            is not 8760.
+    """
+    path_str = str(path)
+    if path_str.startswith("s3://"):
+        tx_mc_scan: pl.LazyFrame = pl.scan_parquet(
+            path_str,
+            storage_options=get_aws_storage_options(),
+        )
+    else:
+        tx_mc_scan = pl.scan_parquet(path_str)
+    tx_mc_df = cast(pl.DataFrame, tx_mc_scan.collect())
+    tx_mc_pd = tx_mc_df.to_pandas()
+
+    required_cols = {"timestamp", "transmission_cost_enduse"}
+    missing_cols = required_cols.difference(tx_mc_pd.columns)
+    if missing_cols:
+        raise ValueError(
+            "Transmission marginal costs parquet is missing required columns "
+            f"{sorted(required_cols)}. Missing: {sorted(missing_cols)}"
+        )
+
+    if tx_mc_pd["transmission_cost_enduse"].isna().any():
+        raise ValueError(
+            "Transmission marginal costs contain null values in transmission_cost_enduse"
+        )
+
+    if len(tx_mc_pd) != 8760:
+        log.warning(
+            "Transmission MC has %d rows (expected 8760); proceeding anyway.",
+            len(tx_mc_pd),
+        )
+
+    tx_series = tx_mc_pd.set_index("timestamp")["transmission_cost_enduse"]
+
+    # $/MWh → $/kWh
+    tx_series = tx_series / 1000.0
+
+    tx_series.index = pd.DatetimeIndex(tx_series.index).tz_localize("EST")
+    tx_series.index.name = "time"
+    tx_series.name = "Marginal Transmission Costs ($/kWh)"
+
+    # Validate all values >= 0
+    if (tx_series < 0).any():
+        n_neg = int((tx_series < 0).sum())
+        log.warning("Transmission MC has %d negative values; check input data.", n_neg)
+
+    # Log summary for inspection
+    annual_sum_kwh = float(tx_series.sum())
+    log.info(
+        "Loaded transmission MC: %d rows, annual sum = %.4f $/kW-yr, "
+        "avg = %.6f $/kWh, max = %.6f $/kWh",
+        len(tx_series),
+        annual_sum_kwh,
+        float(tx_series.mean()),
+        float(tx_series.max()),
+    )
+
+    return tx_series
+
+
 def extract_tou_period_rates(tou_tariff: dict) -> pd.DataFrame:
     """Extract period-level TOU rates from a URDB-style tariff.
 
