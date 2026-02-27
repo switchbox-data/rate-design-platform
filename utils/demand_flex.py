@@ -193,6 +193,45 @@ def recompute_tou_precalc_mapping(
 
 
 # ---------------------------------------------------------------------------
+# Subclass RR split (demand-flex)
+# ---------------------------------------------------------------------------
+
+
+def split_revenue_requirement_by_tou(
+    revenue_requirement_total: float,
+    subclass_baseline: dict[str, float],
+    tou_tariff_keys: list[str],
+) -> dict[str, float]:
+    """Split system RR so only TOU subclasses absorb the post-flex reduction.
+
+    Non-TOU subclasses keep their baseline RR; the reduced total is allocated
+    among TOU subclasses proportionally by their baseline share.
+    """
+    non_shifted_rr = sum(
+        subclass_baseline[k] for k in subclass_baseline if k not in tou_tariff_keys
+    )
+    shifted_rr_total = revenue_requirement_total - non_shifted_rr
+    tou_baseline_total = sum(
+        subclass_baseline[k] for k in subclass_baseline if k in tou_tariff_keys
+    )
+    result: dict[str, float] = {}
+    for k in subclass_baseline:
+        if k in tou_tariff_keys:
+            result[k] = (
+                shifted_rr_total * (subclass_baseline[k] / tou_baseline_total)
+                if tou_baseline_total > 0
+                else shifted_rr_total
+            )
+        else:
+            result[k] = subclass_baseline[k]
+    log.info(
+        ".... Subclass RR (demand-flex): %s",
+        {k: f"${v:,.0f}" for k, v in result.items()},
+    )
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Main orchestrator
 # ---------------------------------------------------------------------------
 

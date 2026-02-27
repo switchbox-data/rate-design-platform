@@ -36,7 +36,7 @@ from utils.cairo import (
     build_bldg_id_to_load_filepath,
     load_distribution_marginal_costs,
 )
-from utils.demand_flex import apply_demand_flex
+from utils.demand_flex import apply_demand_flex, split_revenue_requirement_by_tou
 from utils.scenario_config import (
     _parse_bool,
     _parse_float,
@@ -706,29 +706,10 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         }
 
         if demand_flex_enabled:
-            # Only TOU subclasses shifted load → only they absorb the RR
-            # change.  Non-shifted subclasses keep their baseline.
-            non_shifted_rr = sum(
-                subclass_baseline[k] for k in rr_setting if k not in tou_tariff_keys
-            )
-            shifted_rr_total = revenue_requirement - non_shifted_rr
-            # Split among TOU subclasses proportionally (if more than one).
-            tou_baseline_total = sum(
-                subclass_baseline[k] for k in rr_setting if k in tou_tariff_keys
-            )
-            revenue_requirement: float | dict[str, float] = {}
-            for k in rr_setting:
-                if k in tou_tariff_keys:
-                    revenue_requirement[k] = (
-                        shifted_rr_total * (subclass_baseline[k] / tou_baseline_total)
-                        if tou_baseline_total > 0
-                        else shifted_rr_total
-                    )
-                else:
-                    revenue_requirement[k] = subclass_baseline[k]
-            log.info(
-                ".... Subclass RR (demand-flex): %s",
-                {k: f"${v:,.0f}" for k, v in revenue_requirement.items()},
+            revenue_requirement = split_revenue_requirement_by_tou(
+                revenue_requirement_total=revenue_requirement,
+                subclass_baseline=subclass_baseline,
+                tou_tariff_keys=tou_tariff_keys,
             )
         else:
             revenue_requirement = subclass_baseline
