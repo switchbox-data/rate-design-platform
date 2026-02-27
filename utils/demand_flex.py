@@ -202,7 +202,6 @@ def apply_demand_flex(
     elasticity: float,
     run_type: str,
     year_run: int,
-    add_supply_revenue_requirement: bool,
     path_tariffs_electric: dict[str, Path],
     path_tou_supply_mc: str | Path | None,
     tou_derivation_dir: Path,
@@ -260,7 +259,6 @@ def apply_demand_flex(
         bulk_marginal_costs=bulk_marginal_costs,
         distribution_marginal_costs=distribution_marginal_costs,
         low_income_strategy=None,
-        delivery_only_rev_req_passed=add_supply_revenue_requirement,
     )
     total_mc_orig = float(costs_by_type_orig["Total Marginal Costs ($)"])
     frozen_residual: float = float(full_rr_orig) - total_mc_orig

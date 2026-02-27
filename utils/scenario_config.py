@@ -111,11 +111,6 @@ def get_residential_sales_kwh_from_utility_stats(
 
 
 # Revenue requirement parsing
-def _parse_single_revenue_requirement(rr_data: dict[str, Any]) -> float:
-    """Extract a scalar revenue_requirement from the YAML mapping."""
-    return _parse_float(rr_data["revenue_requirement"], "revenue_requirement")
-
-
 def _parse_subclass_revenue_requirement(
     rr_data: dict[str, Any],
     raw_path_tariffs_electric: dict[str, Any],
@@ -164,11 +159,17 @@ def _parse_utility_revenue_requirement(
     base_dir: Path,
     raw_path_tariffs_electric: dict[str, Any],
     subclass_to_alias: dict[str, str],
+    *,
+    add_supply: bool,
 ) -> float | dict[str, float]:
     """Parse utility_delivery_revenue_requirement from a YAML path.
 
-    Returns a single float for single-RR YAMLs, or a dict keyed by tariff_key
-    for subclass-RR YAMLs.  raw_path_tariffs_electric is the original YAML dict
+    For topped-up RR YAMLs (from compute_rr), selects:
+      - ``total_delivery_and_supply_revenue_requirement`` when *add_supply* is True
+      - ``total_delivery_revenue_requirement`` when *add_supply* is False
+
+    For subclass-RR YAMLs (from compute_subclass_rr), returns a dict keyed by
+    tariff_key.  *raw_path_tariffs_electric* is the original YAML dict
     (alias -> path string) before alias-to-stem conversion.
     """
     if not isinstance(value, str):
@@ -194,14 +195,19 @@ def _parse_utility_revenue_requirement(
             f"got {type(rr_data).__name__} in {path}"
         )
 
-    if "revenue_requirement" in rr_data:
-        return _parse_single_revenue_requirement(rr_data)
+    rr_key = (
+        "total_delivery_and_supply_revenue_requirement"
+        if add_supply
+        else "total_delivery_revenue_requirement"
+    )
+    if rr_key in rr_data:
+        return _parse_float(rr_data[rr_key], rr_key)
     if "subclass_revenue_requirements" in rr_data:
         return _parse_subclass_revenue_requirement(
             rr_data, raw_path_tariffs_electric, base_dir, subclass_to_alias
         )
     raise ValueError(
-        f"{path} must contain 'revenue_requirement' or 'subclass_revenue_requirements'."
+        f"{path} must contain '{rr_key}' or 'subclass_revenue_requirements'."
     )
 
 

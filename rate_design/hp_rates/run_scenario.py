@@ -231,11 +231,16 @@ def _build_settings_from_yaml_run(
         path_config,
         "electric",
     )
+    add_supply_revenue_requirement = _parse_bool(
+        _require_value(run, "add_supply_revenue_requirement"),
+        "add_supply_revenue_requirement",
+    )
     utility_delivery_revenue_requirement = _parse_utility_revenue_requirement(
         _require_value(run, "utility_delivery_revenue_requirement"),
         path_config,
         raw_path_tariffs_electric,
         SUBCLASS_TO_ALIAS,
+        add_supply=add_supply_revenue_requirement,
     )
     path_tariff_maps_gas = _resolve_path(
         str(_require_value(run, "path_tariff_maps_gas")),
@@ -245,11 +250,6 @@ def _build_settings_from_yaml_run(
         _require_value(run, "path_tariffs_gas"),
         path_tariff_maps_gas,
         path_config,
-    )
-
-    add_supply_revenue_requirement = _parse_bool(
-        _require_value(run, "add_supply_revenue_requirement"),
-        "add_supply_revenue_requirement",
     )
     elasticity = _parse_float(run.get("elasticity", 0.0), "elasticity")
     sample_size = (
@@ -605,7 +605,6 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             elasticity=settings.elasticity,
             run_type=settings.run_type,
             year_run=settings.year_run,
-            add_supply_revenue_requirement=settings.add_supply_revenue_requirement,
             path_tariffs_electric=settings.path_tariffs_electric,
             path_tou_supply_mc=settings.path_tou_supply_mc,
             tou_derivation_dir=_state_config(settings.state) / "tou_derivation",
@@ -644,7 +643,6 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             bulk_marginal_costs=bulk_marginal_costs,
             distribution_marginal_costs=distribution_marginal_costs,
             low_income_strategy=None,
-            delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
         )
 
     # Apply subclass RR split if configured.
