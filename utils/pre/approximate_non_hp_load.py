@@ -2,6 +2,7 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import cast
+import threading
 
 import numpy as np
 import polars as pl
@@ -21,8 +22,23 @@ def _parquet_storage_options(load_curve_hourly_dir: S3Path | Path) -> dict:
 
 BLDG_TYPE_COLUMN = "in.geometry_building_type_height"
 STORIES_COLUMN = "in.geometry_story_bin"
+HEATING_TYPE_COLUMN = "in.hvac_heating_type"
 WEATHER_FILE_CITY_COLUMN = "in.weather_file_city"
-HAS_HP_COLUMN = "postprocess_group.has_hp"
+HEATS_WITH_COLUMNS = (
+    "heats_with_electricity",
+    "heats_with_natgas",
+    "heats_with_oil",
+    "heats_with_propane",
+)
+
+# Columns to change in metadata
+UPGRADE_COOLING_EFFICIENCY_COLUMN = "upgrade.hvac_cooling_efficiency"
+UPGRADE_PARTIAL_CONDITIONING_COLUMN = "upgrade.hvac_cooling_partial_space_conditioning"
+UPGRADE_HEATING_EFFICIENCY_COLUMN = "upgrade.hvac_heating_efficiency"
+POSTPROCESS_HAS_HP_COLUMN = "postprocess_group.has_hp"
+POSTPROCESS_HEATING_TYPE_COLUMN = "postprocess_group.heating_type"
+HAS_NATGAS_CONNECTION_COLUMN = "has_natgas_connection"
+
 
 # Columns in load_curve_hourly parquet.
 TIMESTAMP_COLUMN = (
@@ -81,6 +97,7 @@ TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS = (
     "out.fuel_oil.total.energy_consumption",
     "out.fuel_oil.total.energy_consumption_intensity",
 )
+
 TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS = (
     "out.propane.total.energy_consumption",
     "out.propane.total.energy_consumption_intensity",
@@ -89,11 +106,20 @@ TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS = (
 
 def _identify_non_hp_mf_highrise(metadata: pl.LazyFrame) -> pl.LazyFrame:
     is_non_hp_mf_highrise = (
-        ~pl.col(HAS_HP_COLUMN)
+        ~pl.col(POSTPROCESS_HAS_HP_COLUMN)
         & pl.col(BLDG_TYPE_COLUMN).str.contains("Multifamily", literal=True)
         & pl.col(STORIES_COLUMN).str.contains("8+", literal=True)
     )
     return metadata.filter(is_non_hp_mf_highrise).select(
+        "bldg_id", WEATHER_FILE_CITY_COLUMN
+    )
+
+
+def _identify_other_fuel_types(metadata: pl.LazyFrame) -> pl.LazyFrame:
+    is_other_fuel_types = pl.col(POSTPROCESS_HAS_HP_COLUMN) & pl.all_horizontal(
+        pl.col(c).eq(False) for c in HEATS_WITH_COLUMNS
+    )
+    return metadata.filter(is_other_fuel_types).select(
         "bldg_id", WEATHER_FILE_CITY_COLUMN
     )
 
@@ -427,7 +453,7 @@ def _rmse_8760(x: np.ndarray, y: np.ndarray, smooth: bool = False) -> float:
 
 def _find_nearest_neighbors(
     metadata: pl.LazyFrame,
-    non_hp_mf_highrise_bldg_metadata: pl.LazyFrame,
+    non_hp_bldg_metadata: pl.LazyFrame,
     load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
     *,
@@ -440,7 +466,7 @@ def _find_nearest_neighbors(
     Returns non_hp_bldg_id -> [(neighbor_bldg_id, rmse), ...].
     """
     weather_station_bldg_id_map_non_hp = group_by_weather_station_id(
-        non_hp_mf_highrise_bldg_metadata
+        non_hp_bldg_metadata
     )
     weather_station_bldg_id_map_total = group_by_weather_station_id(metadata)
 
@@ -646,7 +672,7 @@ def _replace_heating_cooling_load_columns(
 def _replace_natural_gas_columns(
     original_load_curve_hourly: pl.LazyFrame,
     neighbors_load_curve_hourly: list[pl.LazyFrame],
-) -> pl.LazyFrame:
+) -> tuple[pl.LazyFrame, bool]:
     """Replace natural gas heating columns with neighbor averages and adjust total natural gas columns accordingly."""
     heating_cols = list(HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS)
     n_neighbors = len(neighbors_load_curve_hourly)
@@ -709,7 +735,13 @@ def _replace_natural_gas_columns(
     )
 
     drop_cols = [f"_n{i}_{c}" for i in range(n_neighbors) for c in heating_cols]
-    return out.with_columns(replace_cols).drop(drop_cols)
+    total_sum_df = cast(pl.DataFrame, out.select(new_total_consumption.sum()).collect())
+    total_sum = float(total_sum_df.to_series().item())
+    if np.isclose(total_sum, 0.0, atol=1e-6):
+        uses_natural_gas = False
+    else:
+        uses_natural_gas = True
+    return out.with_columns(replace_cols).drop(drop_cols), uses_natural_gas
 
 
 def _replace_fuel_oil_columns(
@@ -853,16 +885,18 @@ def _replace_propane_columns(
 def replace_hvac_columns(
     original_load_curve_hourly: pl.LazyFrame,
     neighbors_load_curve_hourly: list[pl.LazyFrame],
-) -> pl.LazyFrame:
-    """Replace hvac columns in the original load curve with neighbor averages. Frames must already be loaded."""
+) -> tuple[pl.LazyFrame, bool]:
+    """Replace hvac columns in the original load curve with neighbor averages. Frames must already be loaded. Returns (replaced LazyFrame, uses_natural_gas)."""
     out = _replace_electricity_columns(
         original_load_curve_hourly, neighbors_load_curve_hourly
     )
     out = _replace_heating_cooling_load_columns(out, neighbors_load_curve_hourly)
-    out = _replace_natural_gas_columns(out, neighbors_load_curve_hourly)
+    out, uses_natural_gas = _replace_natural_gas_columns(
+        out, neighbors_load_curve_hourly
+    )
     out = _replace_fuel_oil_columns(out, neighbors_load_curve_hourly)
     out = _replace_propane_columns(out, neighbors_load_curve_hourly)
-    return out.sort(TIMESTAMP_COLUMN)
+    return out.sort(TIMESTAMP_COLUMN), uses_natural_gas
 
 
 def update_load_curve_hourly(
@@ -872,11 +906,13 @@ def update_load_curve_hourly(
     upgrade_id: str,
     *,
     max_workers: int = 150,
-) -> None:
-    """Load original and neighbor parquets concurrently, replace hvac columns, sink back to original path. Stays in LazyFrame (scan/sink)."""
+) -> list[int]:
+    """Load original and neighbor parquets concurrently, replace hvac columns, sink back to original path. Returns list of bldg_ids that use natural gas after replacement."""
     upgrade_int = int(upgrade_id)
     scan_opts = _parquet_storage_options(input_load_curve_hourly_dir)
     sink_opts = _parquet_storage_options(output_load_curve_hourly_dir)
+    natural_gas_usage: list[int] = []
+    usage_lock = threading.Lock()
 
     def process_one(
         bldg_id: int, k_nearest_bldg_ids_rmse: list[tuple[int, float]]
@@ -899,7 +935,10 @@ def update_load_curve_hourly(
             ]
             original_lf = original_future.result()
             neighbors_lf = [f.result() for f in neighbor_futures]
-        replaced = replace_hvac_columns(original_lf, neighbors_lf)
+        replaced, uses_natural_gas = replace_hvac_columns(original_lf, neighbors_lf)
+        with usage_lock:
+            if uses_natural_gas:
+                natural_gas_usage.append(bldg_id)
         replaced.sink_parquet(
             str(output_load_curve_hourly_dir / f"{bldg_id}-{upgrade_int}.parquet"),
             storage_options=sink_opts,
@@ -913,6 +952,102 @@ def update_load_curve_hourly(
         for i, future in enumerate(as_completed(futures)):
             print(f"Processed {i + 1} of {len(nearest_neighbor_map)} buildings")
             future.result()
+    return natural_gas_usage
+
+
+def update_metadata(
+    non_hp_bldg_metadata: pl.LazyFrame,
+    input_metadata: pl.LazyFrame,
+    natural_gas_usage: list[int] | None = None,
+) -> pl.LazyFrame:
+    """Update metadata for non-HP bldg_id's."""
+    non_hp_df = cast(
+        pl.DataFrame,
+        non_hp_bldg_metadata.select("bldg_id").collect(),
+    )
+    non_hp_bldg_ids = non_hp_df["bldg_id"].to_list()
+    # Update postprocess_group.has_hp column
+    replaced_metadata = input_metadata.with_columns(
+        pl.when(pl.col("bldg_id").is_in(non_hp_bldg_ids))
+        .then(True)
+        .otherwise(pl.col(POSTPROCESS_HAS_HP_COLUMN))
+        .alias(POSTPROCESS_HAS_HP_COLUMN)
+    )
+    # For non-HP bldg_id's only: set has_natgas_connection from natural_gas_usage (True/False); other bldg_id's unchanged
+    if natural_gas_usage:
+        replaced_metadata = replaced_metadata.with_columns(
+            pl.when(
+                pl.col("bldg_id").is_in(non_hp_bldg_ids)
+                & pl.col("bldg_id").is_in(natural_gas_usage)
+            )
+            .then(True)
+            .when(
+                pl.col("bldg_id").is_in(non_hp_bldg_ids)
+                & ~pl.col("bldg_id").is_in(natural_gas_usage)
+            )
+            .then(False)
+            .otherwise(pl.col(HAS_NATGAS_CONNECTION_COLUMN))
+            .alias(HAS_NATGAS_CONNECTION_COLUMN)
+        )
+    # Update heats_with columns
+    for heats_with in HEATS_WITH_COLUMNS:
+        if heats_with == "heats_with_electricity":
+            replaced_metadata = replaced_metadata.with_columns(
+                pl.when(pl.col("bldg_id").is_in(non_hp_bldg_ids))
+                .then(True)
+                .otherwise(pl.col(heats_with))
+                .alias(heats_with)
+            )
+        else:
+            replaced_metadata = replaced_metadata.with_columns(
+                pl.when(pl.col("bldg_id").is_in(non_hp_bldg_ids))
+                .then(False)
+                .otherwise(pl.col(heats_with))
+                .alias(heats_with)
+            )
+    # Update postprocess_group.heating_type column
+    replaced_metadata = replaced_metadata.with_columns(
+        pl.when(pl.col("bldg_id").is_in(non_hp_bldg_ids))
+        .then("heat_pump")
+        .otherwise(pl.col(POSTPROCESS_HEATING_TYPE_COLUMN))
+        .alias(POSTPROCESS_HEATING_TYPE_COLUMN)
+    )
+    # Update upgrade.hvac columns
+    replaced_metadata = replaced_metadata.with_columns(
+        pl.when(
+            pl.col("bldg_id").is_in(non_hp_bldg_ids)
+            & pl.col(HEATING_TYPE_COLUMN).str.contains("Non-Ducted Heating")
+        )
+        .then(pl.lit("MSHP, SEER 20, 11 HSPF, CCHP, Max Load"))
+        .when(
+            pl.col("bldg_id").is_in(non_hp_bldg_ids)
+            & ~pl.col(HEATING_TYPE_COLUMN).str.contains("Non-Ducted Heating")
+        )
+        .then(pl.lit("ASHP, SEER 20, 11 HSPF, CCHP, Max Load"))
+        .otherwise(pl.col(HEATING_TYPE_COLUMN))
+        .alias(UPGRADE_HEATING_EFFICIENCY_COLUMN)
+    )
+    replaced_metadata = replaced_metadata.with_columns(
+        pl.when(
+            pl.col("bldg_id").is_in(non_hp_bldg_ids)
+            & pl.col(HEATING_TYPE_COLUMN).str.contains("Non-Ducted Heating")
+        )
+        .then(pl.lit("Non-Ducted Heat Pump"))
+        .when(
+            pl.col("bldg_id").is_in(non_hp_bldg_ids)
+            & ~pl.col(HEATING_TYPE_COLUMN).str.contains("Non-Ducted Heating")
+        )
+        .then(pl.lit("Ducted Heat Pump"))
+        .otherwise(pl.col(UPGRADE_COOLING_EFFICIENCY_COLUMN))
+        .alias(UPGRADE_COOLING_EFFICIENCY_COLUMN)
+    )
+    replaced_metadata = replaced_metadata.with_columns(
+        pl.when(pl.col("bldg_id").is_in(non_hp_bldg_ids))
+        .then("100% Conditioned")
+        .otherwise(pl.col(UPGRADE_PARTIAL_CONDITIONING_COLUMN))
+        .alias(UPGRADE_PARTIAL_CONDITIONING_COLUMN)
+    )
+    return replaced_metadata
 
 
 if __name__ == "__main__":
@@ -952,6 +1087,19 @@ if __name__ == "__main__":
         required=True,
         help="Number of nearest neighbors per building",
     )
+    parser.add_argument(
+        "--update_MF_highrise",
+        type=bool,
+        required=True,
+        help="Whether to update MF highrise load curves and metadata",
+    )
+    parser.add_argument(
+        "--update_other_fuel_types",
+        type=bool,
+        required=True,
+        help="Whether to update bldg_id's with other heating fuel types' load curves and metadata",
+    )
+
     args = parser.parse_args()
 
     path_s3 = S3Path(args.path_s3)
@@ -973,6 +1121,14 @@ if __name__ == "__main__":
         / f"state={args.state}"
         / f"upgrade={args.upgrade_id}"
     )
+    output_metadata_path = (
+        path_s3
+        / args.output_release
+        / "metadata"
+        / f"state={args.state}"
+        / f"upgrade={args.upgrade_id}"
+        / "metadata-sb.parquet"
+    )
     output_load_curve_hourly_dir = (
         path_s3
         / args.output_release
@@ -980,21 +1136,37 @@ if __name__ == "__main__":
         / f"state={args.state}"
         / f"upgrade={args.upgrade_id}"
     )
+    if args.update_MF_highrise:
+        non_hp_mf_highrise_bldg_metadata = _identify_non_hp_mf_highrise(input_metadata)
+    if args.update_other_fuel_types:
+        non_hp_other_fuel_types_bldg_metadata = _identify_other_fuel_types(
+            input_metadata
+        )
+    non_hp_bldg_metadata = pl.concat(
+        [non_hp_mf_highrise_bldg_metadata, non_hp_other_fuel_types_bldg_metadata]
+    )
 
-    non_hp_mf_highrise_bldg_metadata = _identify_non_hp_mf_highrise(input_metadata)
     nearest_neighbor_map = _find_nearest_neighbors(
         input_metadata,
-        non_hp_mf_highrise_bldg_metadata,
+        non_hp_bldg_metadata,
         input_load_curve_hourly_dir,
         args.upgrade_id,
         k=int(args.k),
         include_cooling=False,
     )
-    update_load_curve_hourly(
+    natural_gas_usage = update_load_curve_hourly(
         nearest_neighbor_map,
         input_load_curve_hourly_dir,
         output_load_curve_hourly_dir,
         args.upgrade_id,
+    )
+    updated_metadata = update_metadata(
+        non_hp_bldg_metadata,
+        input_metadata,
+        natural_gas_usage=natural_gas_usage,
+    )
+    updated_metadata.sink_parquet(
+        str(output_metadata_path), storage_options=STORAGE_OPTIONS
     )
 
     # Validation. Uncomment to run validation.
@@ -1374,7 +1546,7 @@ def validate_nearest_neighbor_approximation(
     validation_bldg_ids = (
         metadata.filter(
             (
-                pl.col(HAS_HP_COLUMN)
+                pl.col(POSTPROCESS_HAS_HP_COLUMN)
                 & pl.col(BLDG_TYPE_COLUMN).str.contains("Multifamily", literal=True)
                 & pl.col(STORIES_COLUMN).str.contains("8+", literal=True)
             )

@@ -11,8 +11,16 @@ import pytest
 
 from utils.pre.approximate_non_hp_load import (
     COOLING_LOAD_COLUMN,
+    HAS_NATGAS_CONNECTION_COLUMN,
     HEATING_LOAD_COLUMN,
+    HEATING_TYPE_COLUMN,
+    HEATS_WITH_COLUMNS,
+    POSTPROCESS_HAS_HP_COLUMN,
+    POSTPROCESS_HEATING_TYPE_COLUMN,
     TIMESTAMP_COLUMN,
+    UPGRADE_COOLING_EFFICIENCY_COLUMN,
+    UPGRADE_PARTIAL_CONDITIONING_COLUMN,
+    UPGRADE_HEATING_EFFICIENCY_COLUMN,
     _find_nearest_neighbors,
     _identify_non_hp_mf_highrise,
     _replace_electricity_columns,
@@ -20,6 +28,7 @@ from utils.pre.approximate_non_hp_load import (
     _replace_heating_cooling_load_columns,
     _replace_natural_gas_columns,
     _replace_propane_columns,
+    update_metadata,
 )
 
 
@@ -538,7 +547,7 @@ def test_replace_natural_gas_columns() -> None:
         total_intensity=0.4,
     )
 
-    out = _replace_natural_gas_columns(original, [neighbor1, neighbor2])
+    out, _ = _replace_natural_gas_columns(original, [neighbor1, neighbor2])
     df = cast(pl.DataFrame, out.collect())
 
     # Heating: cols 0,2 are consumption (4 and 6 avg = 5); cols 1,3 are intensity (0.4 and 0.6 avg = 0.5)
@@ -585,7 +594,7 @@ def test_replace_natural_gas_columns_single_neighbor() -> None:
         total_intensity=0.3,
     )
 
-    out = _replace_natural_gas_columns(original, [single])
+    out, _ = _replace_natural_gas_columns(original, [single])
     df = cast(pl.DataFrame, out.collect())
 
     # Single has col0=4, col1=0.4, col2=0, col3=0
@@ -646,7 +655,7 @@ def test_replace_natural_gas_columns_time_varying() -> None:
     neighbor1 = frame_h(n1_h, n1_i, [30.0] * n_rows, [0.3] * n_rows)
     neighbor2 = frame_h(n2_h, n2_i, [40.0] * n_rows, [0.4] * n_rows)
 
-    out = _replace_natural_gas_columns(original, [neighbor1, neighbor2])
+    out, _ = _replace_natural_gas_columns(original, [neighbor1, neighbor2])
     df = cast(pl.DataFrame, out.collect())
 
     expected_h = [(a + b) / 2 for a, b in zip(n1_h, n2_h)]
@@ -919,3 +928,363 @@ def test_replace_propane_columns_single_neighbor() -> None:
     assert df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]].to_list() == pytest.approx(
         [-0.55] * n_rows
     )  # 0.45 - 1.2 + 0.2
+
+
+# ---- update_metadata tests ----
+
+
+# Columns update_metadata reads/writes (from module)
+def _make_input_metadata_for_update(
+    bldg_ids: list[int],
+    *,
+    has_hp: list[bool] | None = None,
+    has_natgas_connection: list[bool] | None = None,
+    heats_with_electricity: list[bool] | None = None,
+    heats_with_natgas: list[bool] | None = None,
+    heats_with_oil: list[bool] | None = None,
+    heats_with_propane: list[bool] | None = None,
+    heating_type: list[str] | None = None,
+    postprocess_heating_type: list[str] | None = None,
+    upgrade_heating_efficiency: list[str] | None = None,
+    upgrade_cooling_efficiency: list[str] | None = None,
+    upgrade_partial_conditioning: list[str] | None = None,
+    in_hvac_heating_type: list[str] | None = None,
+) -> pl.LazyFrame:
+    """Build minimal input_metadata LazyFrame with columns that update_metadata touches."""
+    n = len(bldg_ids)
+    has_hp = has_hp if has_hp is not None else [False] * n
+    data: dict = {
+        "bldg_id": bldg_ids,
+        POSTPROCESS_HAS_HP_COLUMN: has_hp,
+        HAS_NATGAS_CONNECTION_COLUMN: has_natgas_connection
+        if has_natgas_connection is not None
+        else [False] * n,
+        "heats_with_electricity": heats_with_electricity
+        if heats_with_electricity is not None
+        else [False] * n,
+        "heats_with_natgas": heats_with_natgas
+        if heats_with_natgas is not None
+        else [False] * n,
+        "heats_with_oil": heats_with_oil if heats_with_oil is not None else [False] * n,
+        "heats_with_propane": heats_with_propane
+        if heats_with_propane is not None
+        else [False] * n,
+        POSTPROCESS_HEATING_TYPE_COLUMN: postprocess_heating_type
+        if postprocess_heating_type is not None
+        else ["other"] * n,
+        UPGRADE_HEATING_EFFICIENCY_COLUMN: upgrade_heating_efficiency
+        if upgrade_heating_efficiency is not None
+        else ["orig_heat_eff"] * n,
+        UPGRADE_COOLING_EFFICIENCY_COLUMN: upgrade_cooling_efficiency
+        if upgrade_cooling_efficiency is not None
+        else ["orig_cool_eff"] * n,
+        UPGRADE_PARTIAL_CONDITIONING_COLUMN: upgrade_partial_conditioning
+        if upgrade_partial_conditioning is not None
+        else ["partial"] * n,
+        HEATING_TYPE_COLUMN: in_hvac_heating_type
+        if in_hvac_heating_type is not None
+        else ["Furnace"] * n,
+    }
+    return pl.DataFrame(data).lazy()
+
+
+def _make_non_hp_bldg_metadata(bldg_ids: list[int]) -> pl.LazyFrame:
+    """Minimal non_hp_bldg_metadata: only bldg_id and weather_file_city needed for update_metadata."""
+    return pl.DataFrame(
+        {"bldg_id": bldg_ids, WEATHER_FILE_CITY_COLUMN: ["WS1"] * len(bldg_ids)}
+    ).lazy()
+
+
+def test_update_metadata_postprocess_has_hp() -> None:
+    """Non-HP bldg_ids get postprocess_group.has_hp=True; others keep original value."""
+    input_meta = _make_input_metadata_for_update(
+        [1, 2, 3],
+        has_hp=[False, True, False],
+    )
+    non_hp = _make_non_hp_bldg_metadata([1, 3])  # 1 and 3 are "non-HP" to be updated
+
+    out = update_metadata(non_hp, input_meta)
+    df = cast(pl.DataFrame, out.collect())
+
+    # 1 and 3 in non_hp_bldg_ids → True; 2 not in list → keep True
+    assert df.filter(pl.col("bldg_id") == 1)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
+        True
+    ]
+    assert df.filter(pl.col("bldg_id") == 2)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
+        True
+    ]
+    assert df.filter(pl.col("bldg_id") == 3)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
+        True
+    ]
+
+
+def test_update_metadata_postprocess_has_hp_others_unchanged() -> None:
+    """Buildings not in non_hp_bldg_metadata keep their original has_hp value."""
+    input_meta = _make_input_metadata_for_update(
+        [10, 20, 30],
+        has_hp=[False, True, False],
+    )
+    non_hp = _make_non_hp_bldg_metadata([20])  # only 20 is "non-HP" to update
+
+    out = update_metadata(non_hp, input_meta)
+    df = cast(pl.DataFrame, out.collect())
+
+    assert df.filter(pl.col("bldg_id") == 10)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
+        False
+    ]
+    assert df.filter(pl.col("bldg_id") == 20)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
+        True
+    ]
+    assert df.filter(pl.col("bldg_id") == 30)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
+        False
+    ]
+
+
+def test_update_metadata_heats_with_columns() -> None:
+    """Non-HP bldg_ids: heats_with_electricity=True, heats_with_natgas/oil/propane=False; others unchanged."""
+    input_meta = _make_input_metadata_for_update(
+        [1, 2, 3],
+        heats_with_electricity=[False, True, False],
+        heats_with_natgas=[True, False, True],
+        heats_with_oil=[False, False, True],
+        heats_with_propane=[True, False, False],
+    )
+    non_hp = _make_non_hp_bldg_metadata([1, 3])
+
+    out = update_metadata(non_hp, input_meta)
+    df = cast(pl.DataFrame, out.collect())
+
+    for col in HEATS_WITH_COLUMNS:
+        if col == "heats_with_electricity":
+            assert df.filter(pl.col("bldg_id") == 1)[col].to_list() == [True]
+            assert df.filter(pl.col("bldg_id") == 3)[col].to_list() == [True]
+        else:
+            assert df.filter(pl.col("bldg_id") == 1)[col].to_list() == [False]
+            assert df.filter(pl.col("bldg_id") == 3)[col].to_list() == [False]
+    # bldg_id 2 not in non_hp → unchanged
+    assert df.filter(pl.col("bldg_id") == 2)["heats_with_electricity"].to_list() == [
+        True
+    ]
+    assert df.filter(pl.col("bldg_id") == 2)["heats_with_natgas"].to_list() == [False]
+    assert df.filter(pl.col("bldg_id") == 2)["heats_with_oil"].to_list() == [False]
+    assert df.filter(pl.col("bldg_id") == 2)["heats_with_propane"].to_list() == [False]
+
+
+def test_update_metadata_postprocess_heating_type() -> None:
+    """Non-HP bldg_ids get postprocess_group.heating_type='heat_pump'; others unchanged."""
+    input_meta = _make_input_metadata_for_update(
+        [1, 2, 3],
+        postprocess_heating_type=["furnace", "heat_pump", "other"],
+    )
+    non_hp = _make_non_hp_bldg_metadata([1, 3])
+
+    out = update_metadata(non_hp, input_meta)
+    df = cast(pl.DataFrame, out.collect())
+
+    assert df.filter(pl.col("bldg_id") == 1)[
+        POSTPROCESS_HEATING_TYPE_COLUMN
+    ].to_list() == ["heat_pump"]
+    assert df.filter(pl.col("bldg_id") == 2)[
+        POSTPROCESS_HEATING_TYPE_COLUMN
+    ].to_list() == ["heat_pump"]
+    assert df.filter(pl.col("bldg_id") == 3)[
+        POSTPROCESS_HEATING_TYPE_COLUMN
+    ].to_list() == ["heat_pump"]
+
+
+def test_update_metadata_has_natgas_connection_when_natural_gas_usage_provided() -> (
+    None
+):
+    """When natural_gas_usage is provided: in list → True, in non_hp but not in list → False; others unchanged."""
+    input_meta = _make_input_metadata_for_update(
+        [1, 2, 3, 4],
+        has_natgas_connection=[True, False, True, False],
+    )
+    non_hp = _make_non_hp_bldg_metadata([1, 2, 3])  # 1,2,3 updated; 4 is not non-HP
+    natural_gas_usage = [1, 3]  # bldg_ids that use natural gas after approximation
+
+    out = update_metadata(non_hp, input_meta, natural_gas_usage=natural_gas_usage)
+    df = cast(pl.DataFrame, out.collect())
+
+    assert df.filter(pl.col("bldg_id") == 1)[
+        HAS_NATGAS_CONNECTION_COLUMN
+    ].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 2)[
+        HAS_NATGAS_CONNECTION_COLUMN
+    ].to_list() == [False]
+    assert df.filter(pl.col("bldg_id") == 3)[
+        HAS_NATGAS_CONNECTION_COLUMN
+    ].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 4)[
+        HAS_NATGAS_CONNECTION_COLUMN
+    ].to_list() == [False]  # unchanged (not in non_hp)
+
+
+def test_update_metadata_has_natgas_connection_others_unchanged() -> None:
+    """Buildings not in non_hp_bldg_metadata keep original has_natgas_connection when natural_gas_usage is passed."""
+    input_meta = _make_input_metadata_for_update(
+        [10, 20],
+        has_natgas_connection=[True, False],
+    )
+    non_hp = _make_non_hp_bldg_metadata([20])  # only 20 is non-HP
+    natural_gas_usage = [20]
+
+    out = update_metadata(non_hp, input_meta, natural_gas_usage=natural_gas_usage)
+    df = cast(pl.DataFrame, out.collect())
+
+    assert df.filter(pl.col("bldg_id") == 10)[
+        HAS_NATGAS_CONNECTION_COLUMN
+    ].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 20)[
+        HAS_NATGAS_CONNECTION_COLUMN
+    ].to_list() == [True]
+
+
+def test_update_metadata_natural_gas_usage_none() -> None:
+    """When natural_gas_usage is None, has_natgas_connection column is not modified (no block runs)."""
+    input_meta = _make_input_metadata_for_update(
+        [1, 2],
+        has_natgas_connection=[True, False],
+    )
+    non_hp = _make_non_hp_bldg_metadata([1, 2])
+
+    out = update_metadata(non_hp, input_meta, natural_gas_usage=None)
+    df = cast(pl.DataFrame, out.collect())
+
+    # Without natural_gas_usage, the has_natgas_connection block is skipped — column stays as-is.
+    # So 1 and 2 keep True and False (and they're still updated for has_hp, heats_with, etc.)
+    assert df.filter(pl.col("bldg_id") == 1)[
+        HAS_NATGAS_CONNECTION_COLUMN
+    ].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 2)[
+        HAS_NATGAS_CONNECTION_COLUMN
+    ].to_list() == [False]
+
+
+def test_update_metadata_upgrade_partial_conditioning() -> None:
+    """Non-HP bldg_ids get upgrade.hvac_cooling_partial_space_conditioning='100% Conditioned'; others unchanged."""
+    input_meta = _make_input_metadata_for_update(
+        [1, 2, 3],
+        upgrade_partial_conditioning=["50%", "100% Conditioned", "75%"],
+    )
+    non_hp = _make_non_hp_bldg_metadata([1, 3])
+
+    out = update_metadata(non_hp, input_meta)
+    df = cast(pl.DataFrame, out.collect())
+
+    assert df.filter(pl.col("bldg_id") == 1)[
+        UPGRADE_PARTIAL_CONDITIONING_COLUMN
+    ].to_list() == ["100% Conditioned"]
+    assert df.filter(pl.col("bldg_id") == 2)[
+        UPGRADE_PARTIAL_CONDITIONING_COLUMN
+    ].to_list() == ["100% Conditioned"]
+    assert df.filter(pl.col("bldg_id") == 3)[
+        UPGRADE_PARTIAL_CONDITIONING_COLUMN
+    ].to_list() == ["100% Conditioned"]
+
+
+def test_update_metadata_empty_non_hp() -> None:
+    """When non_hp_bldg_metadata has no rows, no bldg_id is updated; all columns unchanged."""
+    input_meta = _make_input_metadata_for_update(
+        [1, 2],
+        has_hp=[False, True],
+        postprocess_heating_type=["furnace", "heat_pump"],
+        heats_with_electricity=[False, True],
+    )
+    non_hp = _make_non_hp_bldg_metadata([])
+
+    out = update_metadata(non_hp, input_meta)
+    df = cast(pl.DataFrame, out.collect())
+
+    assert df[POSTPROCESS_HAS_HP_COLUMN].to_list() == [False, True]
+    assert df[POSTPROCESS_HEATING_TYPE_COLUMN].to_list() == ["furnace", "heat_pump"]
+    assert df["heats_with_electricity"].to_list() == [False, True]
+
+
+def test_update_metadata_upgrade_hvac_by_heating_type() -> None:
+    """Non-HP bldg_ids get upgrade hvac columns set by in.hvac_heating_type (Non-Ducted vs Ducted)."""
+    input_meta = _make_input_metadata_for_update(
+        [1, 2, 3],
+        in_hvac_heating_type=[
+            "Non-Ducted Heating",
+            "Ducted Heating",
+            "Non-Ducted Heating",
+        ],
+        upgrade_heating_efficiency=["a", "b", "c"],
+        upgrade_cooling_efficiency=["x", "y", "z"],
+    )
+    non_hp = _make_non_hp_bldg_metadata([1, 2, 3])
+
+    out = update_metadata(non_hp, input_meta)
+    df = cast(pl.DataFrame, out.collect())
+
+    # Non-Ducted → MSHP / Non-Ducted Heat Pump; Ducted → ASHP / Ducted Heat Pump
+    assert df.filter(pl.col("bldg_id") == 1)[
+        UPGRADE_HEATING_EFFICIENCY_COLUMN
+    ].to_list() == ["MSHP, SEER 20, 11 HSPF, CCHP, Max Load"]
+    assert df.filter(pl.col("bldg_id") == 1)[
+        UPGRADE_COOLING_EFFICIENCY_COLUMN
+    ].to_list() == ["Non-Ducted Heat Pump"]
+    assert df.filter(pl.col("bldg_id") == 2)[
+        UPGRADE_HEATING_EFFICIENCY_COLUMN
+    ].to_list() == ["ASHP, SEER 20, 11 HSPF, CCHP, Max Load"]
+    assert df.filter(pl.col("bldg_id") == 2)[
+        UPGRADE_COOLING_EFFICIENCY_COLUMN
+    ].to_list() == ["Ducted Heat Pump"]
+
+
+def test_update_metadata_mixed_comprehensive() -> None:
+    """Full mix: some non-HP with/without natgas, one HP building; verify all updated columns."""
+    input_meta = _make_input_metadata_for_update(
+        [101, 102, 103],
+        has_hp=[False, False, True],
+        has_natgas_connection=[True, False, False],
+        heats_with_electricity=[False, False, True],
+        heats_with_natgas=[True, True, False],
+        postprocess_heating_type=["furnace", "furnace", "heat_pump"],
+        upgrade_partial_conditioning=["50%", "50%", "100% Conditioned"],
+    )
+    non_hp = _make_non_hp_bldg_metadata([101, 102])
+    natural_gas_usage = [101]  # only 101 uses natural gas after approximation
+
+    out = update_metadata(non_hp, input_meta, natural_gas_usage=natural_gas_usage)
+    df = cast(pl.DataFrame, out.collect())
+
+    # 101: non-HP, in natural_gas_usage
+    assert df.filter(pl.col("bldg_id") == 101)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
+        True
+    ]
+    assert df.filter(pl.col("bldg_id") == 101)[
+        HAS_NATGAS_CONNECTION_COLUMN
+    ].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 101)["heats_with_electricity"].to_list() == [
+        True
+    ]
+    assert df.filter(pl.col("bldg_id") == 101)["heats_with_natgas"].to_list() == [False]
+    assert df.filter(pl.col("bldg_id") == 101)[
+        POSTPROCESS_HEATING_TYPE_COLUMN
+    ].to_list() == ["heat_pump"]
+
+    # 102: non-HP, not in natural_gas_usage
+    assert df.filter(pl.col("bldg_id") == 102)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
+        True
+    ]
+    assert df.filter(pl.col("bldg_id") == 102)[
+        HAS_NATGAS_CONNECTION_COLUMN
+    ].to_list() == [False]
+    assert df.filter(pl.col("bldg_id") == 102)["heats_with_electricity"].to_list() == [
+        True
+    ]
+    assert df.filter(pl.col("bldg_id") == 102)["heats_with_natgas"].to_list() == [False]
+
+    # 103: not in non_hp → all unchanged except we didn't touch it
+    assert df.filter(pl.col("bldg_id") == 103)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
+        True
+    ]
+    assert df.filter(pl.col("bldg_id") == 103)[
+        HAS_NATGAS_CONNECTION_COLUMN
+    ].to_list() == [False]
+    assert df.filter(pl.col("bldg_id") == 103)["heats_with_electricity"].to_list() == [
+        True
+    ]
+    assert df.filter(pl.col("bldg_id") == 103)["heats_with_natgas"].to_list() == [False]
