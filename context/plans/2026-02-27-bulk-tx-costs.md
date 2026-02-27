@@ -8,15 +8,15 @@ Incorporate bulk transmission marginal costs into the NY rate design platform. E
 
 ## Status
 
-| Task | Status | Notes |
-| --- | --- | --- |
-| Branch + draft PR | ✅ Done | `feature/bulk-tx-costs`, PR closes #302 |
-| Raw project CSV | ✅ Done | `data/nyiso/transmission/csv/ny_bulk_tx_projects.csv` |
-| `derive_tx_values.py` | ✅ Done | Isotonic + quantile derivation for LHV, NYC, LI; NiMo MCOS for ROS |
-| `tx_locality` in zone mapping | ✅ Done | Added to `generate_zone_mapping_csv.py` |
-| Context doc | ✅ Done | `context/tools/ny_bulk_tx_marginal_costs.md` |
-| Hourly allocation script | 🔲 Pending | `generate_bulk_tx_mc.py` (SCR top-40 seasonal peaks) |
-| CAIRO integration | 🔲 Pending | Add bulk Tx to `bulk_marginal_costs` input |
+| Task                          | Status     | Notes                                                              |
+| ----------------------------- | ---------- | ------------------------------------------------------------------ |
+| Branch + draft PR             | ✅ Done    | `feature/bulk-tx-costs`, PR closes #302                            |
+| Raw project CSV               | ✅ Done    | `data/nyiso/transmission/csv/ny_bulk_tx_projects.csv`              |
+| `derive_tx_values.py`         | ✅ Done    | Isotonic + quantile derivation for LHV, NYC, LI; NiMo MCOS for ROS |
+| `tx_locality` in zone mapping | ✅ Done    | Added to `generate_zone_mapping_csv.py`                            |
+| Context doc                   | ✅ Done    | `context/tools/ny_bulk_tx_marginal_costs.md`                       |
+| Hourly allocation script      | 🔲 Pending | `generate_bulk_tx_mc.py` (SCR top-40 seasonal peaks)               |
+| CAIRO integration             | 🔲 Pending | Add bulk Tx to `bulk_marginal_costs` input                         |
 
 ## Derivation pipeline
 
@@ -67,13 +67,13 @@ We investigated what the ~$10/kW-yr value actually represents:
 
 We analyzed NiMo's 2025 MCOS (`context/papers/mcos/nimo_2025_mcos.md`) to understand the T-Station + T-Line composition:
 
-| Component | System capital | ECCR | MC ($/kW-yr) | What it covers |
-| --- | --- | --- | --- | --- |
-| T-Station | $2,316M | 8.21% | $16 | HV substation equipment (≥69 kV) |
-| T-Line | $5,259M | 8.44% | $38 | Inter-substation transmission lines, network upgrades |
-| **T total** | **$7,576M** | — | **$54** | **All bulk transmission** |
-| D-Station | $1,895M | 8.06% | $13 | MV substation equipment |
-| D-Line | $1,233M | 14.13% | $15 | Distribution feeders |
+| Component   | System capital | ECCR   | MC ($/kW-yr) | What it covers                                        |
+| ----------- | -------------- | ------ | ------------ | ----------------------------------------------------- |
+| T-Station   | $2,316M        | 8.21%  | $16          | HV substation equipment (≥69 kV)                      |
+| T-Line      | $5,259M        | 8.44%  | $38          | Inter-substation transmission lines, network upgrades |
+| **T total** | **$7,576M**    | —      | **$54**      | **All bulk transmission**                             |
+| D-Station   | $1,895M        | 8.06%  | $13          | MV substation equipment                               |
+| D-Line      | $1,233M        | 14.13% | $15          | Distribution feeders                                  |
 
 Key findings:
 
@@ -87,12 +87,12 @@ Key findings:
 
 OATT (Open Access Transmission Tariff) ATRR provides an embedded-cost cross-check:
 
-| Utility | OATT proxy ($/kW-yr) | Type |
-| --- | --- | --- |
-| NYSEG | ~$53 | Embedded cost |
-| RG&E | ~$43 | Embedded cost |
-| CenHud | ~$55 | Embedded cost |
-| NiMo T+T | $54 | Forward-looking LRMC |
+| Utility  | OATT proxy ($/kW-yr) | Type                 |
+| -------- | -------------------- | -------------------- |
+| NYSEG    | ~$53                 | Embedded cost        |
+| RG&E     | ~$43                 | Embedded cost        |
+| CenHud   | ~$55                 | Embedded cost        |
+| NiMo T+T | $54                  | Forward-looking LRMC |
 
 All upstate utilities converge on **$43–55/kW-yr**. NiMo's $54 falls squarely in the center of this range. The convergence between embedded cost (OATT) and forward-looking LRMC (MCOS) gives high confidence.
 
@@ -104,12 +104,12 @@ This is implemented in `derive_tx_values.py` in the `aggregate_to_zones` functio
 
 ## Final v_z values ($/kW-yr)
 
-| Zone | v_low | v_mid | v_high | Source |
-| --- | --- | --- | --- | --- |
-| ROS | 43.20 | 54.00 | 56.70 | NiMo MCOS T+T |
-| LHV | ~35 | ~43 | ~50 | NYISO AC Primary + Addendum Optimizer |
-| NYC | ~48 | ~55 | ~62 | NYISO MMU (UPNY-ConEd) |
-| LI | ~30 | ~36 | ~42 | NYISO LI Export Policy |
+| Zone | v_low | v_mid | v_high | Source                                |
+| ---- | ----- | ----- | ------ | ------------------------------------- |
+| ROS  | 43.20 | 54.00 | 56.70  | NiMo MCOS T+T                         |
+| LHV  | ~35   | ~43   | ~50    | NYISO AC Primary + Addendum Optimizer |
+| NYC  | ~48   | ~55   | ~62    | NYISO MMU (UPNY-ConEd)                |
+| LI   | ~30   | ~36   | ~42    | NYISO LI Export Policy                |
 
 ## Next steps
 

@@ -15,12 +15,12 @@ Justfile: `data/nyiso/transmission/Justfile` (recipes: `derive`, `upload`, `clea
 
 ## Data sources
 
-| Dataset | Source | What it provides |
-| --- | --- | --- |
-| NYISO AC Transmission study (2019) | GH issue #302 | Project-level ΔMW and annual benefit ($M/yr) for AC Primary, Addendum Optimizer, and MMU scenarios across NYISO localities |
-| NYISO LI Export study (2020) | GH issue #302 | LI Export (Policy) projects with ΔMW and benefit |
-| NiMo 2025 MCOS (Exhibit 1) | `context/papers/mcos/nimo_2025_mcos.md` | Forward-looking LRMC for T-Station and T-Line infrastructure, used for ROS zone |
-| OATT proxies (NYSEG, RG&E, CenHud) | PR #286 MCOS studies comparison | Cross-validation of upstate bulk Tx costs |
+| Dataset                            | Source                                  | What it provides                                                                                                           |
+| ---------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| NYISO AC Transmission study (2019) | GH issue #302                           | Project-level ΔMW and annual benefit ($M/yr) for AC Primary, Addendum Optimizer, and MMU scenarios across NYISO localities |
+| NYISO LI Export study (2020)       | GH issue #302                           | LI Export (Policy) projects with ΔMW and benefit                                                                           |
+| NiMo 2025 MCOS (Exhibit 1)         | `context/papers/mcos/nimo_2025_mcos.md` | Forward-looking LRMC for T-Station and T-Line infrastructure, used for ROS zone                                            |
+| OATT proxies (NYSEG, RG&E, CenHud) | PR #286 MCOS studies comparison         | Cross-validation of upstate bulk Tx costs                                                                                  |
 
 ## Derivation by zone
 
@@ -59,11 +59,11 @@ The NYISO AC Transmission study does **not** directly provide a usable upstate b
 
 This ~$10/kW-yr figure measures **incremental interface benefit** — the value of relieving congestion at NYISO transmission interfaces — not the **infrastructure cost** of building or expanding bulk transmission assets that serve upstate load. These are different economic quantities:
 
-| Concept | What it measures | Typical value |
-| --- | --- | --- |
+| Concept                         | What it measures                      | Typical value              |
+| ------------------------------- | ------------------------------------- | -------------------------- |
 | Interface benefit (NYISO study) | Congestion relief value at interfaces | ~$10/kW-yr (upstate share) |
-| Infrastructure LRMC (MCOS) | Forward-looking cost of new T assets | ~$43–55/kW-yr |
-| Embedded cost (OATT ATRR) | Current revenue requirement recovery | ~$43–55/kW-yr |
+| Infrastructure LRMC (MCOS)      | Forward-looking cost of new T assets  | ~$43–55/kW-yr              |
+| Embedded cost (OATT ATRR)       | Current revenue requirement recovery  | ~$43–55/kW-yr              |
 
 For the BAT, we need infrastructure cost — the marginal cost of serving 1 additional kW of upstate load through bulk transmission infrastructure. NiMo's MCOS provides exactly this.
 
@@ -71,13 +71,13 @@ For the BAT, we need infrastructure cost — the marginal cost of serving 1 addi
 
 From the NiMo 2025 MCOS (Exhibit 1, system-wide summary, line 245):
 
-| Component | Capital ($M) | ECCR | MC ($/kW-yr) |
-| --- | --- | --- | --- |
-| T-Station | $2,316M | 8.21% | $16 |
-| T-Line | $5,259M | 8.44% | $38 |
-| **T total** | **$7,576M** | — | **$54** |
-| D-Station | $1,895M | 8.06% | $13 |
-| D-Line | $1,233M | 14.13% | $15 |
+| Component   | Capital ($M) | ECCR   | MC ($/kW-yr) |
+| ----------- | ------------ | ------ | ------------ |
+| T-Station   | $2,316M      | 8.21%  | $16          |
+| T-Line      | $5,259M      | 8.44%  | $38          |
+| **T total** | **$7,576M**  | —      | **$54**      |
+| D-Station   | $1,895M      | 8.06%  | $13          |
+| D-Line      | $1,233M      | 14.13% | $15          |
 
 - **Total system capacity:** 11,533 MW of additions over FY2026–2036.
 - **System-wide total MC:** $71.5/kW-yr (all four components).
@@ -91,12 +91,12 @@ From the NiMo 2025 MCOS (Exhibit 1, system-wide summary, line 245):
 
 OATT (Open Access Transmission Tariff) Annual Transmission Revenue Requirements provide an embedded-cost proxy for bulk Tx (from PR #286):
 
-| Utility | OATT proxy ($/kW-yr) | Basis |
-| --- | --- | --- |
-| NYSEG | ~$53 | Embedded Tx revenue requirement |
-| RG&E | ~$43 | Embedded Tx revenue requirement |
-| CenHud | ~$55 | Embedded Tx revenue requirement |
-| NiMo T+T | $54 | Forward-looking LRMC |
+| Utility  | OATT proxy ($/kW-yr) | Basis                           |
+| -------- | -------------------- | ------------------------------- |
+| NYSEG    | ~$53                 | Embedded Tx revenue requirement |
+| RG&E     | ~$43                 | Embedded Tx revenue requirement |
+| CenHud   | ~$55                 | Embedded Tx revenue requirement |
+| NiMo T+T | $54                  | Forward-looking LRMC            |
 
 All upstate utilities converge on **$43–55/kW-yr** range. NiMo's $54 is well within this range. The OATT values measure embedded cost (current RR recovery), while NiMo's MCOS measures forward-looking LRMC — their convergence gives high confidence.
 
@@ -119,15 +119,15 @@ For upstate (ROS / zones A–F), the situation is fundamentally different:
 
 The `tx_locality` column in `ny_utility_zone_mapping.csv` maps each utility to its transmission locality zone. Currently `tx_locality` equals `gen_capacity_zone` for all utilities:
 
-| Utility | Zones | tx_locality | gen_capacity_zone |
-| --- | --- | --- | --- |
-| cenhud | G | LHV | LHV |
-| coned | G, H, J | NYC / LHV | NYC / LHV |
-| nimo | A–F | ROS | ROS |
-| nyseg | A–F | ROS | ROS |
-| or | G | LHV | LHV |
-| rge | B | ROS | ROS |
-| psegli | K | LI | LI |
+| Utility | Zones   | tx_locality | gen_capacity_zone |
+| ------- | ------- | ----------- | ----------------- |
+| cenhud  | G       | LHV         | LHV               |
+| coned   | G, H, J | NYC / LHV   | NYC / LHV         |
+| nimo    | A–F     | ROS         | ROS               |
+| nyseg   | A–F     | ROS         | ROS               |
+| or      | G       | LHV         | LHV               |
+| rge     | B       | ROS         | ROS               |
+| psegli  | K       | LI          | LI                |
 
 ## Integration with CAIRO
 
