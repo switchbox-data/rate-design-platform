@@ -1008,7 +1008,7 @@ def update_metadata(
     # Update postprocess_group.heating_type column
     replaced_metadata = replaced_metadata.with_columns(
         pl.when(pl.col("bldg_id").is_in(non_hp_bldg_ids))
-        .then("heat_pump")
+        .then(pl.lit("heat_pump"))
         .otherwise(pl.col(POSTPROCESS_HEATING_TYPE_COLUMN))
         .alias(POSTPROCESS_HEATING_TYPE_COLUMN)
     )
@@ -1043,7 +1043,7 @@ def update_metadata(
     )
     replaced_metadata = replaced_metadata.with_columns(
         pl.when(pl.col("bldg_id").is_in(non_hp_bldg_ids))
-        .then("100% Conditioned")
+        .then(pl.lit("100% Conditioned"))
         .otherwise(pl.col(UPGRADE_PARTIAL_CONDITIONING_COLUMN))
         .alias(UPGRADE_PARTIAL_CONDITIONING_COLUMN)
     )
