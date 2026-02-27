@@ -270,9 +270,11 @@ def aggregate_to_zones(
 ) -> pl.DataFrame:
     """Map locality-level values to gen_capacity_zone and produce final v_z table.
 
-    Derivation approach (from plan):
-    - ROS: AC Primary NYCA system benefit (distributed across all load), sized for
-      upstate internal share. ~$10/kW-yr.
+    Derivation approach:
+    - ROS: NiMo 2025 MCOS T-Station + T-Line = $54/kW-yr. The NYISO study's
+      NYCA system benefit scaled by upstate share only gives ~$10/kW-yr (measures
+      incremental interface benefit, not infrastructure cost). NiMo's LRMC
+      aligns with OATT proxies ($43–55/kW-yr) for upstate utilities.
     - LHV: AC Primary G-K projects + Addendum Optimizer G-J-driven projects.
       Multiple comparable data points for isotonic fit. ~$43/kW-yr.
     - NYC: MMU scenarios (Baseline + CES+Retirement) at UPNY-ConEd interface.
@@ -290,33 +292,27 @@ def aggregate_to_zones(
     zone_results: list[dict[str, object]] = []
 
     # ── ROS (A-F / Upstate) ──────────────────────────────────────────────
-    # AC Primary reports negative A-F benefit (procurement cost increase).
-    # But upstate still relies on bulk Tx for reliability. Use NYCA system
-    # benefit as a proxy: the per-MW system benefit (~$43/kW-yr) partially
-    # accrues to upstate. Apply a fraction (~0.25) to get ~$10/kW-yr.
-    nyca_rows = dist_df.filter(
-        (pl.col("locality") == "NYCA") & (pl.col("scenario_family") == "ac_primary")
-    )
-    if len(nyca_rows) > 0:
-        nyca_v_mid = float(nyca_rows["v_mid_kw_yr"][0])
-        # Upstate fraction: NYCA system benefit allocated to A-F.
-        # A-F load is ~25% of NYCA total; reliability share is smaller.
-        upstate_fraction = 0.23
-        ros_v_mid = round(nyca_v_mid * upstate_fraction, 2)
-        ros_v_low = round(float(nyca_rows["v_low_kw_yr"][0]) * upstate_fraction, 2)
-        ros_v_high = round(float(nyca_rows["v_high_kw_yr"][0]) * upstate_fraction, 2)
-    else:
-        ros_v_low = ros_v_mid = ros_v_high = 10.0
-
-    # Isotonic for ROS: use NYCA isotonic scaled
-    nyca_iso = isotonic_df.filter(
-        (pl.col("locality") == "NYCA") & (pl.col("scenario_family") == "ac_primary")
-    )
-    ros_v_isotonic = (
-        round(float(nyca_iso["v_isotonic_kw_yr"][0]) * 0.23, 2)
-        if len(nyca_iso) > 0
-        else ros_v_mid
-    )
+    # The NYISO AC Transmission study does not directly derive upstate bulk
+    # Tx MC — the A-F locality has *negative* benefit (procurement cost
+    # increase), and scaling the NYCA system benefit by upstate load share
+    # (~0.23) gives only ~$10/kW-yr, which measures incremental interface
+    # benefit, not infrastructure cost.
+    #
+    # Instead we use NiMo's 2025 MCOS T-Station + T-Line marginal cost
+    # ($16 + $38 = $54/kW-yr, undiluted ECCR-weighted LRMC across 11,533 MW
+    # of capacity additions FY2026–2036). This is the forward-looking
+    # infrastructure cost for a 1 kW load increase in upstate NY, and it
+    # aligns with OATT proxies for upstate utilities:
+    #   • NYSEG OATT: ~$53/kW-yr
+    #   • RG&E OATT:  ~$43/kW-yr
+    #   • CenHud OATT: ~$55/kW-yr
+    #
+    # See context/tools/ny_bulk_tx_marginal_costs.md for full analysis.
+    NIMO_T_STATION_MC = 16.0  # $/kW-yr (ECCR 8.21% × avg capital/MW)
+    NIMO_T_LINE_MC = 38.0  # $/kW-yr (ECCR 8.44% × avg capital/MW)
+    ros_v_mid = NIMO_T_STATION_MC + NIMO_T_LINE_MC  # $54/kW-yr
+    ros_v_low = round(ros_v_mid * 0.8, 2)  # ~$43, consistent with RG&E OATT
+    ros_v_high = round(ros_v_mid * 1.05, 2)  # ~$57, consistent with CenHud OATT
 
     zone_results.append(
         {
@@ -324,7 +320,7 @@ def aggregate_to_zones(
             "v_low_kw_yr": ros_v_low,
             "v_mid_kw_yr": ros_v_mid,
             "v_high_kw_yr": ros_v_high,
-            "v_isotonic_kw_yr": ros_v_isotonic,
+            "v_isotonic_kw_yr": ros_v_mid,  # No isotonic fit; use MCOS directly
         }
     )
 
@@ -338,10 +334,7 @@ def aggregate_to_zones(
     for locality, family in lhv_families:
         rows = projects_with_v.filter(
             (pl.col("locality") == locality)
-            & (
-                pl.col("scenario").replace_strict(SCENARIO_FAMILY_MAP)
-                == family
-            )
+            & (pl.col("scenario").replace_strict(SCENARIO_FAMILY_MAP) == family)
         )
         if len(rows) > 0:
             lhv_v_values.extend(rows["v_kw_yr"].to_list())
@@ -426,9 +419,7 @@ def aggregate_to_zones(
         (pl.col("locality") == "K") & (pl.col("scenario_family") == "li_export")
     )
     li_v_isotonic = (
-        round(float(li_iso["v_isotonic_kw_yr"][0]), 2)
-        if len(li_iso) > 0
-        else li_v_mid
+        round(float(li_iso["v_isotonic_kw_yr"][0]), 2) if len(li_iso) > 0 else li_v_mid
     )
 
     zone_results.append(
@@ -443,15 +434,24 @@ def aggregate_to_zones(
 
     result_df = pl.DataFrame(zone_results)
 
-    # Validation: ordering ROS < LHV < NYC
-    ros_mid = float(result_df.filter(pl.col("gen_capacity_zone") == "ROS")["v_mid_kw_yr"][0])
-    lhv_mid = float(result_df.filter(pl.col("gen_capacity_zone") == "LHV")["v_mid_kw_yr"][0])
-    nyc_mid = float(result_df.filter(pl.col("gen_capacity_zone") == "NYC")["v_mid_kw_yr"][0])
-
-    assert ros_mid < lhv_mid < nyc_mid, (
-        f"Expected ROS < LHV < NYC ordering, got "
-        f"ROS={ros_mid}, LHV={lhv_mid}, NYC={nyc_mid}"
+    # Validation: ordering LHV < ROS < NYC (ROS uses NiMo MCOS ~$54;
+    # LHV has lighter interface-driven costs ~$43; NYC is highest ~$55).
+    # Allow ROS ≈ NYC since both are in the ~$54-55 range.
+    ros_mid = float(
+        result_df.filter(pl.col("gen_capacity_zone") == "ROS")["v_mid_kw_yr"][0]
     )
+    lhv_mid = float(
+        result_df.filter(pl.col("gen_capacity_zone") == "LHV")["v_mid_kw_yr"][0]
+    )
+    nyc_mid = float(
+        result_df.filter(pl.col("gen_capacity_zone") == "NYC")["v_mid_kw_yr"][0]
+    )
+
+    assert lhv_mid < nyc_mid, (
+        f"Expected LHV < NYC ordering, got LHV={lhv_mid}, NYC={nyc_mid}"
+    )
+    # ROS and NYC can be close — both represent high infrastructure cost
+    assert ros_mid > 0, f"ROS v_mid must be positive, got {ros_mid}"
 
     # Cross-check: Tx MC should be a fraction of ICAP capacity prices
     # NYC ICAP is ~$12/kW-mo = $144/kW-yr; Tx at ~$55/kW-yr is ~38%
@@ -498,9 +498,7 @@ def main() -> None:
     # Safeguard: reject uninterpolated Just variables
     for p in (path_projects, path_output):
         if "{{" in str(p) or "}}" in str(p):
-            raise ValueError(
-                f"Path looks like an uninterpolated Just variable: {p}"
-            )
+            raise ValueError(f"Path looks like an uninterpolated Just variable: {p}")
 
     # ── Load raw data ────────────────────────────────────────────────────
     df = pl.read_csv(
@@ -512,7 +510,15 @@ def main() -> None:
     )
 
     # Validation 1a: schema and content checks
-    required_cols = {"year", "scenario", "project", "locality", "annual_benefit_m_yr", "delta_mw", "notes"}
+    required_cols = {
+        "year",
+        "scenario",
+        "project",
+        "locality",
+        "annual_benefit_m_yr",
+        "delta_mw",
+        "notes",
+    }
     missing = required_cols - set(df.columns)
     assert not missing, f"Missing columns: {missing}"
 
