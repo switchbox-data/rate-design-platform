@@ -1,4 +1,46 @@
 utility: nyseg
-revenue_requirement: 999999999.0
-source: s3://data.sb/switchbox/revenue_requirements/ny/revenue_requirements_dummy.csv:revenue_requirement
-  (utility_col=utility, year_col=year, utility=nyseg, year=2026)
+delivery_revenue_requirement_from_rate_case: 1000000000.0
+delivery_revenue_requirement_topups: 157858879.88
+supply_revenue_requirement_topups: 1976606828.33
+total_delivery_revenue_requirement: 1157858879.88
+total_delivery_and_supply_revenue_requirement: 3134465708.21
+total_residential_kwh: 6919839232.0
+eia_year: 2024
+delivery_top_ups:
+  system_benefits_charge:
+    avg_monthly_rate: 0.0060855041
+    total_budget: 42110710.08
+  ces_delivery:
+    avg_monthly_rate: 0.004480137
+    total_budget: 31001827.68
+  dlm_surcharge:
+    avg_monthly_rate: 0.0001753836
+    total_budget: 1213626.05
+  recovery_charge_storm_bonds:
+    avg_monthly_rate: 0.0111593589
+    total_budget: 77220969.55
+  ev_make_ready:
+    avg_monthly_rate: 0.0001616575
+    total_budget: 1118644.15
+  late_payment_waived_fees:
+    avg_monthly_rate: 1.28219e-05
+    total_budget: 88725.61
+  arrears_covid_forgiveness_1:
+    avg_monthly_rate: 0.000306674
+    total_budget: 2122134.59
+  arrears_covid_forgiveness_2:
+    avg_monthly_rate: 0.0004309699
+    total_budget: 2982242.17
+supply_top_ups:
+  merchant_function_charge:
+    avg_monthly_rate: 0.0038637397
+    total_budget: 26736457.74
+  supply_commodity_bundled_1:
+    avg_monthly_rate: 0.09629206
+    total_budget: 666325574.44
+  supply_commodity_bundled_2:
+    avg_monthly_rate: 0.0863514921
+    total_budget: 597538442.45
+  supply_commodity_bundled_3:
+    avg_monthly_rate: 0.0991361693
+    total_budget: 686006353.7

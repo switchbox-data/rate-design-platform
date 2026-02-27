@@ -82,6 +82,7 @@ path_genability                     := path_tariffs_electric / "genability"
 path_genability_yaml                := path_genability / "tariffs_by_utility.yaml"
 path_charge_decisions               := path_genability / "charge_decisions" / (utility + "_charge_decisions.json")
 path_monthly_rates                  := path_genability / "monthly_rates" / (utility + "_monthly_rates_" + monthly_rates_year + ".yaml")
+path_rate_case_delivery_rr          := path_rev_requirement / "delivery_rev_requirements_from_rate_cases.yaml"
 path_default_tariff                 := path_genability / "default_tariffs" / default_tariff
 path_default_supply_tariff          := path_tariffs_electric / default_tariff_supply
 tou_tariff_key                      := utility + "_hp_seasonalTOU"
@@ -137,6 +138,14 @@ fetch-monthly-rates start=(monthly_rates_year + "-01") end=(monthly_rates_year +
     --end "{{end}}" \
     --path-charge-list "{{path_charge_decisions}}" \
     --output "{{path_monthly_rates}}"
+
+compute-rr:
+  uv run python {{path_repo}}/utils/pre/compute_rr.py \
+    --utility {{utility}} \
+    --path-monthly-rates "{{path_monthly_rates}}" \
+    --path-electric-utility-stats "{{path_electric_utility_stats}}" \
+    --path-rate-case-rr "{{path_rate_case_delivery_rr}}" \
+    --output "{{path_default_rev_requirement}}"
 
 create-flat-tariff:
   just -f {{path_repo}}/utils/Justfile create-flat-tariff \

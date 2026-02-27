@@ -1,3 +1,31 @@
 utility: rge
-revenue_requirement: 1000000000.0
-source: placeholder -- replace with actual revenue requirement from s3://data.sb/switchbox/revenue_requirements/ny/revenue_requirements.csv
+delivery_revenue_requirement_from_rate_case: 1000000000.0
+delivery_revenue_requirement_topups: 18016848.58
+supply_revenue_requirement_topups: 253192873.32
+total_delivery_revenue_requirement: 1018016848.58
+total_delivery_and_supply_revenue_requirement: 1271209721.9
+total_residential_kwh: 2842349056.0
+eia_year: 2024
+delivery_top_ups:
+  system_benefits_charge_1:
+    avg_monthly_rate: 0.000187
+    total_budget: 531519.27
+  system_benefits_charge_2:
+    avg_monthly_rate: 0.0059874986
+    total_budget: 17018561.08
+  dlm_surcharge:
+    avg_monthly_rate: 0.0001642192
+    total_budget: 466768.23
+supply_top_ups:
+  merchant_function_charge:
+    avg_monthly_rate: 0.0037984712
+    total_budget: 10796581.12
+  supply_commodity_bundled:
+    avg_monthly_rate: 0.0822515019
+    total_budget: 233787478.82
+  ces_supply_surcharge_1:
+    avg_monthly_rate: 0.0007760274
+    total_budget: 2205740.74
+  ces_supply_surcharge_2:
+    avg_monthly_rate: 0.0022527397
+    total_budget: 6403072.63

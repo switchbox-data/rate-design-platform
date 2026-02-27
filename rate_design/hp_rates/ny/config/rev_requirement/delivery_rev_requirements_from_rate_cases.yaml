@@ -1,0 +1,10 @@
+# Rate-case delivery revenue requirements (hard-coded from PUC filings).
+# One entry per utility. Used as input to compute_rr.py; do not overwrite with computed values.
+# TODO: replace dummy values with actual rate-case numbers
+coned: 1000000000.0
+psegli: 1000000000.0
+rge: 1000000000.0
+nyseg: 1000000000.0
+nimo: 1000000000.0
+or: 1000000000.0
+cenhud: 1000000000.0

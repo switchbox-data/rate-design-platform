@@ -1,3 +1,28 @@
 utility: psegli
-revenue_requirement: 1000000000.0
-source: placeholder -- replace with actual revenue requirement from s3://data.sb/switchbox/revenue_requirements/ny/revenue_requirements.csv
+delivery_revenue_requirement_from_rate_case: 1000000000.0
+delivery_revenue_requirement_topups: 50704848.62
+supply_revenue_requirement_topups: 6289282316.65
+total_delivery_revenue_requirement: 1050704848.62
+total_delivery_and_supply_revenue_requirement: 7339987165.27
+total_residential_kwh: 9129428992.0
+eia_year: 2024
+delivery_top_ups:
+  vder_der_cost_recovery:
+    avg_monthly_rate: 0.005554
+    total_budget: 50704848.62
+supply_top_ups:
+  securitization_charge_offset_udsa_1:
+    avg_monthly_rate: -0.0205745973
+    total_budget: -187834324.75
+  securitization_charge_offset_udsa_2:
+    avg_monthly_rate: 0.0205745973
+    total_budget: 187834324.75
+  merchant_function_charge:
+    avg_monthly_rate: 0.001885
+    total_budget: 17208973.65
+  supply_commodity_bundled_1:
+    avg_monthly_rate: 0.6782725836
+    total_budget: 6192241388.85
+  supply_commodity_bundled_2:
+    avg_monthly_rate: 0.008744463
+    total_budget: 79831954.16

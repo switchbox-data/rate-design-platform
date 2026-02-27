@@ -63,6 +63,53 @@ def get_residential_customer_count_from_utility_stats(
     return int(value)
 
 
+MWH_TO_KWH = 1000
+
+
+def get_residential_sales_kwh_from_utility_stats(
+    path: str | Path,
+    utility: str,
+    *,
+    storage_options: dict[str, str] | None = None,
+) -> float:
+    """Read EIA-861 utility stats parquet and return residential sales in kWh for the utility.
+
+    The parquet is state-partitioned (e.g. state=NY/data.parquet) with columns
+    utility_code and residential_sales_mwh. Filters for utility_code == utility
+    and returns residential_sales_mwh converted to kWh (multiplied by 1000).
+
+    Raises:
+        ValueError: If path has no row for that utility, or more than one row.
+    """
+    path_str = str(path)
+    opts = storage_options if path_str.startswith("s3://") else None
+    lf = (
+        pl.scan_parquet(path_str, storage_options=opts)
+        .filter(pl.col("utility_code") == utility)
+        .select(
+            (pl.col("residential_sales_mwh") * MWH_TO_KWH).alias(
+                "residential_sales_kwh"
+            )
+        )
+    )
+    df = cast(pl.DataFrame, lf.collect())
+    if df.height == 0:
+        raise ValueError(
+            f"No row with utility_code={utility!r} in {path_str}. "
+            "Check path_electric_utility_stats and utility in the scenario YAML."
+        )
+    if df.height > 1:
+        raise ValueError(
+            f"Expected one row for utility_code={utility!r} in {path_str}, got {df.height}"
+        )
+    value = df.item(0, 0)
+    if value is None:
+        raise ValueError(
+            f"residential_sales_mwh is null for utility_code={utility!r} in {path_str}"
+        )
+    return float(value)
+
+
 # Revenue requirement parsing
 def _parse_single_revenue_requirement(rr_data: dict[str, Any]) -> float:
     """Extract a scalar revenue_requirement from the YAML mapping."""
