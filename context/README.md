@@ -28,6 +28,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | cairo_lmi_and_bat_analysis.md            | CAIRO LMI parameters, discount mechanisms, and how the Bill Alignment Test (BAT) works                                                                           |
 | cairo_demand_flexibility_workflow.md     | CAIRO demand-flexibility workflow, two-pass RR recalibration, and data flow                                                                                      |
+| demand_flex_residual_treatment.md        | Frozen vs. fixed-RR residual treatment in demand flex: two approaches, economic interpretations, temporal assumptions, and when to use each                      |
 | compare_resstock_eia861_loads.md         | ResStock hourly load vs EIA-861 residential sales comparison: script usage, defaults, interpretation                                                             |
 | compute_tou_from_marginal_costs.md       | MC-driven TOU tariff derivation: peak-window finder, cost-causation ratio, URDB JSON                                                                             |
 | resstock_lmi_metadata_guide.md           | ResStock 2024.2 parquet metadata: columns for LMI tier assignment, FPL/SMI, income                                                                               |
