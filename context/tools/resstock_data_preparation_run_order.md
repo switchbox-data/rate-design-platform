@@ -65,9 +65,9 @@ Copy the relevant release and upgrade(s) from the standard release to the new sb
 just -f data/resstock/Justfile copy-resstock-data res_2024_amy2018_2 res_2024_amy2018_2_sb <STATE> "<UPGRADE_IDS>" "<FILE_TYPES>"
 ```
 
-- **Example (NY, upgrade 02, metadata + hourly loads + metadata_utility):**  
+- **Example (NY, upgrade 02, metadata + hourly loads + metadata_utility):**\
   `just -f data/resstock/Justfile copy-resstock-data res_2024_amy2018_2 res_2024_amy2018_2_sb NY "02" "metadata load_curve_hourly metadata_utility"`
-- **Example (all upgrades):**  
+- **Example (all upgrades):**\
   `just -f data/resstock/Justfile copy-resstock-data res_2024_amy2018_2 res_2024_amy2018_2_sb NY "00 01 02 03 04 05" "metadata load_curve_hourly metadata_utility"`
 - **Result:** `s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/` has the same structure and files for the chosen state and upgrade(s), including metadata_utility. Use `metadata-sb.parquet` and other files as the source for step 5.
 
@@ -81,11 +81,11 @@ Run the non-HP load approximation for the state and upgrade(s) in the sb release
 just -f data/resstock/Justfile approximate-non-hp-load <STATE> <UPGRADE_ID> res_2024_amy2018_2 res_2024_amy2018_2_sb <K> <UPDATE_MF> <UPDATE_OTHER_FUEL>
 ```
 
-- **Example (NY, upgrade 02, k=15, update MF and other fuel types):**  
+- **Example (NY, upgrade 02, k=15, update MF and other fuel types):**\
   `just -f data/resstock/Justfile approximate-non-hp-load NY 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True`
-- **Arguments:**  
-  - `K`: number of nearest neighbors (e.g. 15).  
-  - `UPDATE_MF`: `True` to update non-HP MF buildings.  
+- **Arguments:**
+  - `K`: number of nearest neighbors (e.g. 15).
+  - `UPDATE_MF`: `True` to update non-HP MF buildings.
   - `UPDATE_OTHER_FUEL`: `True` to update “other fuel type” non-HP buildings.
 - **Result:** In `res_2024_amy2018_2_sb`, load curves and metadata for the selected non-HP buildings are replaced with approximated (HP-like) loads and metadata (postprocess_group.has_hp, heating_type, has_natgas_connection, etc.). Run once per upgrade you care about (e.g. 02).
 
@@ -101,12 +101,12 @@ aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/res
 
 ## Summary checklist
 
-| Step | Action |
-|------|--------|
-| 1 | `just -f data/resstock/Justfile fetch <STATE>` |
-| 2 | `just -f data/resstock/Justfile identify-hp-and-heating-type-all-upgrades-and-natgas-connection <STATE>` |
-| 3 | Utility assignment on **standard** release (assign-utility-ny / assign-utility-ri for `res_2024_amy2018_2`, upgrade "00") |
-| 4 | `just -f data/resstock/Justfile copy-resstock-data res_2024_amy2018_2 res_2024_amy2018_2_sb <STATE> "<UPGRADE_IDS>" "metadata load_curve_hourly metadata_utility"` |
-| 5 | `just -f data/resstock/Justfile approximate-non-hp-load <STATE> <UPGRADE_ID> res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True` (per upgrade); then `aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/` |
+| Step | Action                                                                                                                                                                                                                                                                 |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `just -f data/resstock/Justfile fetch <STATE>`                                                                                                                                                                                                                         |
+| 2    | `just -f data/resstock/Justfile identify-hp-and-heating-type-all-upgrades-and-natgas-connection <STATE>`                                                                                                                                                               |
+| 3    | Utility assignment on **standard** release (assign-utility-ny / assign-utility-ri for `res_2024_amy2018_2`, upgrade "00")                                                                                                                                              |
+| 4    | `just -f data/resstock/Justfile copy-resstock-data res_2024_amy2018_2 res_2024_amy2018_2_sb <STATE> "<UPGRADE_IDS>" "metadata load_curve_hourly metadata_utility"`                                                                                                     |
+| 5    | `just -f data/resstock/Justfile approximate-non-hp-load <STATE> <UPGRADE_ID> res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True` (per upgrade); then `aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/` |
 
 After step 5, the sb release is ready for rate-design runs (e.g. CAIRO) using `res_2024_amy2018_2_sb` and the chosen state/upgrade.
