@@ -607,7 +607,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         # The RR target passes through unchanged; the real outputs are
         # marginal_system_prices and costs_by_type.
         (
-            revenue_requirement_raw,
+            revenue_requirement,
             marginal_system_prices,
             _marginal_system_costs,
             costs_by_type,
@@ -645,7 +645,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             distribution_marginal_costs=distribution_marginal_costs,
         )
 
-        revenue_requirement_raw = (
+        revenue_requirement = (
             flex.revenue_requirement_raw
         )  # lower: MC shrank from shifted load
         marginal_system_prices = flex.marginal_system_prices
@@ -711,7 +711,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             non_shifted_rr = sum(
                 subclass_baseline[k] for k in rr_setting if k not in tou_tariff_keys
             )
-            shifted_rr_total = revenue_requirement_raw - non_shifted_rr
+            shifted_rr_total = revenue_requirement - non_shifted_rr
             # Split among TOU subclasses proportionally (if more than one).
             tou_baseline_total = sum(
                 subclass_baseline[k] for k in rr_setting if k in tou_tariff_keys
@@ -732,8 +732,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             )
         else:
             revenue_requirement = subclass_baseline
-    else:
-        revenue_requirement = revenue_requirement_raw
+
     # Phase 3 ---------------------------------------------------------------
     # Precalc calibrates rates against shifted loads so the resulting
     # tariff recovers the (lower) RR from the demand-flex load profile.
