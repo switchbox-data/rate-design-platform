@@ -54,6 +54,23 @@ fetch-load-curve-annual state:
         --output_directory {{path_local_parquet}} \
         --sample 0
 
+
+# Copy resstock data from one release to another.
+copy-resstock-data release_from release_to state upgrade_ids file_types:
+	uv run python "{{path_local_repo}}/utils/pre/copy_resstock_data.py" \
+		--data_path "{{path_s3_parquet}}" \
+		--release_from "{{release_from}}" \
+		--release_to "{{release_to}}" \
+		--state "{{state}}" \
+		--upgrade_ids "{{upgrade_ids}}" \
+		--file_types "{{file_types}}"
+
+copy-resstock-data-2024-amy2018-2-NY upgrade_ids file_types:
+	just copy-resstock-data res_2024_amy2018_2 res_2024_amy2018_2_sb NY "{{upgrade_ids}}" "{{file_types}}"
+
+copy-resstock-data-2024-amy2018-2-RI upgrade_ids file_types:
+	just copy-resstock-data res_2024_amy2018_2 res_2024_amy2018_2_sb RI "{{upgrade_ids}}" "{{file_types}}"
+
 # Verify ResStock download. Pass state (NY or RI).
 test-download state:
     cd "{{path_local_repo}}" && uv run python "{{path_local_repo}}/tests/test_resstock_download_to_s3.py" \
@@ -175,7 +192,6 @@ test-ny-gas-utility-polygons-download:
 
 # Assign electric/gas utilities to ResStock buildings (NY only). Run download-ny-utility-polygons first.
 assign-utility-ny release upgrade electric_poly gas_poly:
-    just download-ny-utility-polygons
     uv run python "{{path_local_repo}}/data/resstock/assign_utility_ny.py" \
         --input_metadata_dir "{{path_s3_parquet}}/{{release}}/metadata/state=NY/upgrade={{upgrade}}/" \
         --input_metadata_filename "metadata-sb.parquet" \
@@ -193,3 +209,26 @@ assign-utility-ri release upgrade:
         --input_metadata_filename "metadata-sb.parquet" \
         --output_metadata_dir "{{path_s3_parquet}}/{{release}}/metadata_utility/state=RI/" \
         --output_utility_assignment_filename "utility_assignment.parquet" \
+
+# Approximate non-HP load for a state
+approximate-non-hp-load state upgrade_id input_release output_release k update_MF update_other_fuel_types:
+    uv run python "{{path_local_repo}}/utils/pre/approximate_non_hp_load.py" \
+        --path_s3 "{{path_s3_parquet}}" \
+        --state "{{state}}" \
+        --upgrade_id "{{upgrade_id}}" \
+        --input_release "{{input_release}}" \
+        --output_release "{{output_release}}" \
+        --k "{{k}}" \
+        --update_MF "{{update_MF}}" \
+        --update_other_fuel_types "{{update_other_fuel_types}}"
+
+create-sb-release-for-upgrade-02-NY:
+    just copy-resstock-data-2024-amy2018-2-NY "00 02" "metadata metadata_utility load_curve_hourly" # Copy data to new sb release
+    just approximate-non-hp-load NY 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True # Approximate non-HP load for upgrade 02
+    sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/
+
+
+create-sb-release-for-upgrade-02-RI:
+    just copy-resstock-data-2024-amy2018-2-RI "00 02" "metadata metadata_utility load_curve_hourly" # Copy data to new sb release
+    just approximate-non-hp-load RI 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True # Approximate non-HP load for upgrade 02
+    sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/
