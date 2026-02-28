@@ -10,6 +10,14 @@
 #   UTILITY=rie just -f ri/Justfile all-pre                     # via state wrapper directly
 #   set -a && source ny/state.env && set +a && UTILITY=nyseg just all-pre  # manual source
 
+# Usage for RI (from rate_design/hp_rates/):
+#   just s ri list-utilities                                    # show valid utilities
+#   UTILITY=rie just s ri all-pre                             # single utility pre-processing
+#   UTILITY=rie just s ri run-all-sequential                  # single utility full run
+#   just s ri run-all-utilities-sequential                      # all utilities for a state
+#   UTILITY=rie just -f ri/Justfile all-pre                     # via state wrapper directly
+#   set -a && source ri/state.env && set +a && UTILITY=rie just all-pre  # manual source
+
 # =============================================================================
 # Tier 1: Identity (set by state wrapper, dispatch, or manual source)
 # =============================================================================

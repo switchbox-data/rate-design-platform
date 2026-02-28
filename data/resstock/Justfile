@@ -222,13 +222,13 @@ approximate-non-hp-load state upgrade_id input_release output_release k update_M
         --update_MF "{{update_MF}}" \
         --update_other_fuel_types "{{update_other_fuel_types}}"
 
-approximate-non-hp-load-upgrade-02-NY:
+create-sb-release-for-upgrade-02-NY:
     just copy-resstock-data-2024-amy2018-2-NY "00 02" "metadata metadata_utility load_curve_hourly" # Copy data to new sb release
     just approximate-non-hp-load NY 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True # Approximate non-HP load for upgrade 02
     sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/
 
 
-approximate-non-hp-load-upgrade-02-RI:
+create-sb-release-for-upgrade-02-RI:
     just copy-resstock-data-2024-amy2018-2-RI "00 02" "metadata metadata_utility load_curve_hourly" # Copy data to new sb release
     just approximate-non-hp-load RI 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True # Approximate non-HP load for upgrade 02
     sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/

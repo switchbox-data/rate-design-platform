@@ -502,6 +502,12 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
                 "applicability",
                 "postprocess_group.has_hp",
                 "postprocess_group.heating_type",
+                "heats_with_electricity",
+                "heats_with_natgas",
+                "heats_with_oil",
+                "heats_with_propane",
+                "has_natgas_connection",
+                "approximated_hp_load",
                 "in.vintage_acs",
             ],
         )
