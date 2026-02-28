@@ -567,12 +567,12 @@ def test_replace_natural_gas_columns() -> None:
         df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[3]].to_list()
         == [0.0] * n_rows
     )
-    # Total: 80 - (20+0) + (4+6)/2 + 0 = 80 - 20 + 5 = 65; intensity: 3 - (2+0) + 0.5 = 1.5
+    # Total: orig_total - orig_heating only (neighbor avg not added back): 80 - (20+0) = 60; intensity: 3 - (2+0) = 1.0
     assert (
-        df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == [65.0] * n_rows
+        df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == [60.0] * n_rows
     )
     assert (
-        df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]].to_list() == [1.5] * n_rows
+        df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]].to_list() == [1.0] * n_rows
     )
 
 
@@ -614,13 +614,13 @@ def test_replace_natural_gas_columns_single_neighbor() -> None:
         df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[3]].to_list()
         == [0.0] * n_rows
     )
-    # total = 80 - (20+0) + (4+0) = 64; total_intensity = 3 - (2+0) + (0.4+0) = 1.4
+    # total = orig_total - orig_heating only: 80 - (20+0) = 60; total_intensity = 3 - (2+0) = 1.0
     assert (
-        df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == [64.0] * n_rows
+        df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == [60.0] * n_rows
     )
     assert df[
         TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]
-    ].to_list() == pytest.approx([1.4] * n_rows)
+    ].to_list() == pytest.approx([1.0] * n_rows)
 
 
 def test_replace_natural_gas_columns_time_varying() -> None:
@@ -675,9 +675,9 @@ def test_replace_natural_gas_columns_time_varying() -> None:
         df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[3]].to_list()
         == [0.0] * n_rows
     )
-    # total = orig_tot - orig_heating_sum + avg_heating_sum (col0+col2 consumption, col1+col3 intensity)
-    expected_tot = [o - oh + ah for o, oh, ah in zip(orig_tot, orig_h, expected_h)]
-    expected_toti = [o - oi + ai for o, oi, ai in zip(orig_toti, orig_int, expected_i)]
+    # total = orig_tot - orig_heating only (neighbor avg not added back)
+    expected_tot = [o - oh for o, oh in zip(orig_tot, orig_h)]
+    expected_toti = [o - oi for o, oi in zip(orig_toti, orig_int)]
     assert df[
         TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]
     ].to_list() == pytest.approx(expected_tot)
@@ -740,11 +740,11 @@ def test_replace_fuel_oil_columns() -> None:
         df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[3]].to_list() == [0.0] * n_rows
     )
     assert (
-        df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [38.0] * n_rows
-    )  # 50 - 15 + 3
+        df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [35.0] * n_rows
+    )  # 50 - 15 (neighbor avg not added back)
     assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == pytest.approx(
-        [-0.7] * n_rows
-    )  # 0.5 - 1.5 + 0.3
+        [-1.0] * n_rows
+    )  # 0.5 - 1.5
 
 
 def test_replace_fuel_oil_columns_two_neighbors() -> None:
@@ -788,10 +788,10 @@ def test_replace_fuel_oil_columns_two_neighbors() -> None:
     assert (
         df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[3]].to_list() == [0.0] * n_rows
     )
-    # total = 50 - 15 + 4 = 39; total_intensity = 0.5 - 1.5 + 0.4 = -0.6
-    assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [39.0] * n_rows
+    # total = 50 - 15 = 35; total_intensity = 0.5 - 1.5 = -1.0 (neighbor avg not added back)
+    assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [35.0] * n_rows
     assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == pytest.approx(
-        [-0.6] * n_rows
+        [-1.0] * n_rows
     )
 
 
@@ -828,9 +828,9 @@ def test_replace_fuel_oil_columns_single_neighbor() -> None:
     assert (
         df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[3]].to_list() == [0.0] * n_rows
     )
-    assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [38.0] * n_rows
+    assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [35.0] * n_rows
     assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == pytest.approx(
-        [-0.7] * n_rows
+        [-1.0] * n_rows
     )
 
 
@@ -890,11 +890,11 @@ def test_replace_propane_columns() -> None:
     assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[2]].to_list() == [0.0] * n_rows
     assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[3]].to_list() == [0.0] * n_rows
     assert df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == pytest.approx(
-        [36.0] * n_rows
-    )  # 45 - 12 + 3
+        [33.0] * n_rows
+    )  # 45 - 12 (neighbor avg not added back)
     assert df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]].to_list() == pytest.approx(
-        [-0.45] * n_rows
-    )  # 0.45 - 1.2 + 0.3
+        [-0.75] * n_rows
+    )  # 0.45 - 1.2
 
 
 def test_replace_propane_columns_single_neighbor() -> None:
@@ -923,11 +923,11 @@ def test_replace_propane_columns_single_neighbor() -> None:
     assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[2]].to_list() == [0.0] * n_rows
     assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[3]].to_list() == [0.0] * n_rows
     assert (
-        df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == [35.0] * n_rows
-    )  # 45 - 12 + 2
+        df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == [33.0] * n_rows
+    )  # 45 - 12 (neighbor avg not added back)
     assert df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]].to_list() == pytest.approx(
-        [-0.55] * n_rows
-    )  # 0.45 - 1.2 + 0.2
+        [-0.75] * n_rows
+    )  # 0.45 - 1.2
 
 
 # ---- update_metadata tests ----
