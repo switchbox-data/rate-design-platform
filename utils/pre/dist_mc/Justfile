@@ -1,0 +1,29 @@
+# NiMo MCOS dilution analysis
+#
+# Computes diluted marginal costs from NiMo's MCOS Exhibit 1 workbook,
+# using project-level classifications (bulk_tx / sub_tx / distribution).
+# Outputs levelized and year-by-year CSVs plus a terminal report.
+
+# ── Inputs ────────────────────────────────────────────────────────────────────
+
+path_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/nimo_study_workpaper.xlsx"
+path_classifications := "nimo_project_classifications.csv"  # hand-built: workbook + NYISO Gold Book cross-ref
+system_peak_mw := "6616.0"        # 2024 actual, NiMo Peak Load Forecast March 2025
+undiluted_mc_per_kw := "71.524"   # Exhibit 1 summary row (line 245), col F26
+
+# ── Outputs ───────────────────────────────────────────────────────────────────
+
+path_output_dir := "."
+
+# ── Recipes ───────────────────────────────────────────────────────────────────
+
+analyze:
+    uv run python analyze_nimo_mcos.py \
+        --path-xlsx "{{path_xlsx}}" \
+        --path-classifications "{{path_classifications}}" \
+        --system-peak-mw {{system_peak_mw}} \
+        --undiluted-mc-per-kw {{undiluted_mc_per_kw}} \
+        --path-output-dir "{{path_output_dir}}"
+
+clean:
+    rm -f nimo_diluted_levelized.csv nimo_diluted_annualized.csv

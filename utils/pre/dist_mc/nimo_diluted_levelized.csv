@@ -1,0 +1,6 @@
+bucket,label,n_projects,n_unique_stations,capacity_mw,capital_b,annual_cost_nominal_m,annual_cost_discounted_m,diluted_per_kw_yr
+total,All projects,237,152,11532.5,10.7,960.9,824.9,124.68
+bulk_tx,Bulk TX (≥230kV),2,1,2100.0,1.07,90.4,86.5,13.08
+sub_tx,Sub-TX (69–115kV),47,1,6889.1,6.71,571.1,481.1,72.72
+distribution,Distribution (≤13.2kV),188,151,2543.4,2.93,299.4,257.2,38.88
+sub_tx_plus_dist,Sub-TX + Distribution (DRV-relevant),235,152,9432.5,9.63,870.5,738.3,111.59
