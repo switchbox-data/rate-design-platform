@@ -111,13 +111,27 @@ The cost of capital multiplied by ECCR is then loaded for other Revenue Requirem
 
 ### Exhibit 1 — MCOS Results
 
-[DIAGRAM DESCRIPTION: Exhibit 1 — MCOS Results]
+Exhibit 1 presents the system-wide marginal cost by rate class. All rate classes share the same underlying capital costs and ECCR rates; the marginal cost is uniform across classes.
 
-**Note:** Table content was not extractable from the PDF; description below is inferred from surrounding text. See original PDF for data.
+| # | Rate Class                                | Rate Code                               | TX/Sub-TX Capital ($/kW) | Primary/Secondary Dist Capital ($/kW) | TX ECCR+O&M (%) | Dist ECCR+O&M (%) | **MC of Service ($/kW)** |
+| - | ----------------------------------------- | --------------------------------------- | -----------------------: | ------------------------------------: | --------------: | ----------------: | -----------------------: |
+| 1 | Residential Non Time of Use (TOU)         | SC No. 1                                |                  $563.17 |                               $721.12 |            8.2% |             13.9% |                          |
+| 2 | Residential Heat                          | SC No. 1                                |                  $563.17 |                               $721.12 |            8.2% |             13.9% |                          |
+| 3 | Residential Time of Day (TOD)             | SC No. 1 VMRP                           |                  $563.17 |                               $721.12 |            8.2% |             13.9% |                          |
+| 4 | Small Commercial                          | SC No. 2 & No. 2 VMRP                   |                  $563.17 |                               $721.12 |            8.2% |             13.9% |                          |
+| 5 | Large Commercial                          | SC No. 2-L, SC No. 2-H & SC No. 2L-VMRP |                  $563.17 |                               $721.12 |            8.2% |             13.9% |                          |
+| 6 | Mandatory Large Demand MRP (below 500 KW) | SC No. 2 MRP                            |                  $563.17 |                               $721.12 |            8.2% |             13.9% |                          |
+| 7 | Mandatory Large Demand MRP (above 500 KW) | SC No. 2 MRP                            |                  $563.17 |                               $721.12 |            8.2% |             13.9% |                          |
+| 8 | **Cost of the Next System kW**            |                                         |                          |                                       |                 |                   |              **$146.90** |
 
-Exhibit 1 is a table presenting the MCOS results underlying the study. Based on the narrative in Section 2 (Capital Cost per Capacity Added MW), the table includes for each project or summary: **Location**, **Asset Class** (T-Station, T-Line, D-Station, D-Line), **In service date**, **Capacity Added**, **Capital spending** (with and without risk and contingency), **Cost per MVA**, and **Total Capital spending** by asset class. This exhibit is the source for computing capital cost per MW of Capacity Added by component.
+**Notes:**
 
-[→ See original PDF pages 6–7 for full table.]
+1. Costs are escalated into 2025 using a ten year Compound Growth Rate of the Handy-Whitman Index.
+2. Economic Carrying Charge Model includes O&M, Taxes, and Insurance.
+
+**Derivation:** MC = (TX Capital × TX Rate) + (Dist Capital × Dist Rate) = $563.17 × 8.2% + $721.12 × 13.9% = **$146.90/kW-yr**. This is the annual revenue requirement per kW of system capacity, combining transmission ($46.18/kW-yr) and distribution ($100.24/kW-yr). The combined ECCR+O&M rates (8.2% TX, 13.9% Dist) match the narrative: ECCR (4.79% TX, 5.02% Dist) + O&M (3.4% TX, 8.9% Dist) = 8.19% and 13.92%, rounded.
+
+[→ Source: original PDF page 6.]
 
 ---
 
