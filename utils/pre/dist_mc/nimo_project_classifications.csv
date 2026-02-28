@@ -1,0 +1,239 @@
+exhibit1_line,fn_reference,station,capacity_mw,capital_m,annual_cost_nominal_m,annual_cost_discounted_m,classification,voltage_kv,evidence
+1,FN000507,HAGUE,1.5,3.03,0.428,0.419,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+2,FN010416,GREENBUSH,2.2,0.82,0.116,0.114,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+3,FN010097,Sawyer Ave,12.0,3.62,0.473,0.445,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+4,FN000138,BRUNSWICK,2.2,0.31,0.044,0.043,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+5,FN002420,STARR RD.,2.6,1.20,0.170,0.167,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+6,FN014043,New 3rd Ave Substation,40.0,45.99,4.955,4.025,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+7,FN000570,THOUSAND ISLANDS,0.3,0.35,0.050,0.050,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+8,FN014243,ALTAMONT,26.5,8.44,0.680,0.613,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+9,FN011042,Avenue A,6.4,25.93,2.395,2.071,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+10,FN011558,BAKER STREET,5.0,3.80,0.537,0.484,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+11,FN011559,BAKER STREET,5.0,5.11,0.722,0.611,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+12,FN011978,BALLSTON,17.6,7.06,0.795,0.646,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+13,FN014323,Beech,40.0,51.26,4.996,4.320,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+14,FN012619,Belmont,10.0,2.69,0.380,0.322,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+15,FN002393,BETHLEHEM,0.5,0.51,0.072,0.072,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+16,FN012008,BETHLEHEM,1.0,1.60,0.226,0.204,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+17,FN011227,Birch Avenue,1.5,2.01,0.284,0.272,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+18,FN012140,Birch Avenue,24.6,50.15,4.042,3.352,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+19,FN011964,Gabriels Station,4.0,6.83,0.733,0.608,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+20,FN011975,Boyntonville,32.5,33.17,2.944,2.442,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+21,FN011363,Bridgeport,15.0,10.00,0.806,0.668,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+22,FN012610,Bridgeport,15.0,2.74,0.387,0.328,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+23,FN011439,Brook Road,43.4,2.44,0.196,0.160,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+24,FN011352,Brunswick,12.5,26.31,2.120,1.759,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+25,FN011997,Buckley,32.5,27.13,3.138,2.549,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+26,FN011369,Buffalo Station 63,5.2,4.86,0.540,0.438,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+27,FN012851,54 MAIN,5.0,8.27,1.169,0.950,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+28,FN012851A,Buffalo Station 54,40.0,14.01,1.129,0.917,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+29,FN012817,61 STATION 61,5.0,16.83,2.379,1.932,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+30,FN005875,Buffalo Station 122,6.0,22.50,2.123,2.123,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+31,FN005840,Buffalo Station 25,9.0,18.72,1.681,1.423,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+32,FN005818,30 SPILLMAN,9.0,28.08,2.320,2.091,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+33,FN005832,31 STATION,9.0,29.65,2.546,2.393,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+34,FN005771,32 BAILEY,9.0,40.89,3.789,3.711,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+35,FN005819,34 BEST ST.,9.0,15.20,1.391,1.178,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+36,FN005842,35 WALDEN,9.0,23.17,2.060,1.781,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+37,FN005791,38 SPRING,9.0,40.85,4.247,4.159,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+38,FN005820,41 STATION 41,9.0,15.20,1.391,1.178,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+39,FN010096,Buffalo Station 45,9.0,31.69,2.665,2.402,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+40,FN005821,51 ELK ST,9.0,33.54,2.803,2.424,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+41,FN005822,68 ELMWOOD,9.0,15.20,1.391,1.178,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+42,FN011290,New Buffalo Station 97,15.0,36.44,3.178,2.582,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+43,FN014248,Burdeck,19.9,27.48,2.215,1.799,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+44,FN014222,Burgoyne,8.8,0.67,0.095,0.093,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+45,FN011414,Burgoyne,17.6,31.56,2.543,2.110,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+46,FN012964,171 BURT,5.0,13.23,1.838,1.493,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+47,FN011413,Butler,17.6,26.05,2.099,1.741,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+48,FN012612,Butternut,15.0,2.44,0.345,0.281,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+49,FN011415,Cedar,15.0,1.74,0.140,0.114,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+50,FN012138,Chestertown,34.5,135.68,17.317,14.067,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+51,FN011946,New Cicero Substation,80.0,49.29,4.829,4.263,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+52,FN014417,Cleveland,7.0,18.34,2.591,2.335,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+53,FN011920,COBLESKILL,9.4,6.91,0.751,0.720,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+54,FN011848,Coffeen,5.0,2.27,0.321,0.295,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+55,FN006634,RUSSELL RD,1.0,4.64,0.655,0.590,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+56,FN006637,Commerce,4.4,10.47,0.843,0.760,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+57,FN011440,Corinth,9.5,28.72,2.314,1.920,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+58,FN010312,Vail Mills,2.5,0.21,0.029,0.028,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+60,FN011976,CURTIS GREENFIELD,40.0,24.12,2.370,1.965,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+61,FN004729,Delanson,1.2,0.19,0.027,0.027,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+62,FN004723,Delanson,1.2,0.24,0.035,0.035,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+63,FN010831,Delanson,11.2,9.51,0.766,0.623,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+64,FN011939,Delmar,7.2,29.79,3.048,2.805,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+65,FN011387A,Dorwin,2.0,8.66,1.224,1.126,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+66,FN011971,East Fulton,40.0,25.31,3.577,2.906,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+67,FN011545,BATAVIA STATION,5.0,3.96,0.560,0.474,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+68,FN011544,EAST GOLAH,5.0,4.95,0.699,0.592,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+69,FN011543,EAST GOLAH,5.0,3.96,0.560,0.474,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+70,FN000216A,East Pulaski,15.6,10.67,0.860,0.775,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+71,FN011402,East Schodack,15.3,26.31,2.120,1.722,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+72,FN010022,Sawyer Ave,20.0,7.70,1.088,0.921,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+73,FN012052,Delameter,40.0,12.03,1.699,1.531,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+74,FN012051,Delameter,40.0,20.50,1.652,1.489,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+76,FN012062,Bridgeport,22.0,11.35,1.604,1.445,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+77,FN012061,Bridgeport,25.0,23.05,1.858,1.674,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+78,FN012057,East Molloy,22.0,12.61,1.782,1.606,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+79,FN012055,East Molloy,25.0,22.20,1.789,1.613,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+80,FN012048,BATAVIA STATION,40.0,13.54,1.912,1.724,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+81,FN012041,BATAVIA STATION,40.0,22.77,1.835,1.654,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+82,FN014033,Everett,15.0,5.75,0.624,0.507,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+83,FN013818,64 STATION 64,4.6,1.01,0.143,0.131,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+84,FN005770,Fayette St,41.5,64.62,6.629,5.975,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+85,FN000459,FIREHOUSE,10.0,2.08,0.294,0.276,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+86,FN011347,FIREHOUSE,15.0,3.37,0.271,0.220,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+87,FN006171,Florida,2.0,0.35,0.050,0.048,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+88,FN014455,FRENCH MOUNTAIN,5.0,0.35,0.049,0.048,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+89,FN013397,Geneseo,6.8,9.71,0.782,0.635,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+90,FN013415,Geneseo,1.4,13.27,1.875,1.523,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+91,FN000195A,Gilbert Mills,15.0,13.67,1.102,1.014,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+92,FN011476,Gilmantown,10.0,5.42,0.437,0.394,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+93,FN011422,GLOVERSVILLE,15.0,30.06,2.422,2.009,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+94,FN011970,GRANBY CENTER,32.9,34.17,4.827,4.088,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+95,FN002240,Grand Island,15.0,10.62,0.856,0.740,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+96,FN011384,Grand Island,22.6,12.71,1.024,0.832,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+97,FN006457,GREENBUSH,12.5,2.18,0.309,0.296,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+98,FN011442,New Greenwich Substation,20.0,3.25,0.262,0.213,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+99,FN011527,GROOMS,29.7,47.76,4.419,3.590,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+100,FN002374,HAGUE,4.0,1.73,0.245,0.240,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+101,FN011445,Hague,17.6,31.66,2.551,2.073,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+102,FN011353,Hemstreet,12.5,1.99,0.161,0.130,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+103,FN014119,Indian Lake,12.0,2.96,0.239,0.194,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+104,FN011417,Inman,14.0,17.65,2.493,2.201,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+105,FN010667,68 ELMWOOD,2.2,0.78,0.111,0.102,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+106,FN011010,Karner,17.5,55.39,5.676,5.116,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+107,FN011605,Kenmore Station 22,2.0,4.20,0.338,0.287,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+108,FN005761,Lakeville,10.0,37.95,4.049,3.965,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+109,FN011371,LASHER,11.0,7.29,1.030,0.837,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+110,FN011411,Latham,7.5,30.15,2.430,1.974,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+111,FN011974,Liberty Street,6.2,26.20,2.738,2.468,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+112,FN013411,Livonia,8.8,14.15,1.141,0.927,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+113,FN013414,37 HUDSON AVE,5.0,9.68,0.780,0.634,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+114,FN011857,Lowville,5.0,5.37,0.758,0.616,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+115,FN010006,LYNDONVILLE,5.0,3.30,0.266,0.221,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+116,FN011424,Mayfield,14.5,1.50,0.121,0.098,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+117,FN011534,McClellan,5.3,28.72,2.314,1.919,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+118,FN011344,Mexico,20.0,45.91,6.487,5.270,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+119,FN011382,Middleburgh,19.4,23.63,1.904,1.579,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+120,FN012928,Middleville,5.2,14.81,2.092,1.771,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+121,FN012193,Delameter,2.0,6.80,0.961,0.922,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+122,FN011965,Clintion Station,13.5,19.70,1.810,1.533,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+123,FN011560,North Leroy,5.0,9.23,1.305,1.082,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+124,FN011393,Nassau,13.0,25.84,2.082,1.727,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+125,FN011296,New Cuba Station,12.5,30.58,2.999,2.436,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+126,FN012315,NEW KRUMKILL,60.0,59.37,6.876,5.823,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+127,FN011311,New Livingston Substation,12.5,39.99,3.996,3.246,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+128,FN010052,Middleport,7.0,11.88,0.957,0.811,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+129,FN011103,NEWTONVILLE,38.7,37.07,3.913,3.454,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+130,FN011426,Northville Station,12.5,26.05,2.099,1.741,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+131,FN011416,Ogdenbrook,24.6,4.80,0.387,0.315,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+132,FN012130,Otten,0.3,4.06,0.327,0.266,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+133,FN011443,OTTEN,0.5,8.18,1.155,0.938,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+134,FN012945,Paloma,20.0,0.01,0.001,0.001,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+135,FN011395,Partridge,15.0,26.05,2.099,1.741,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+136,FN012618,Peat,22.0,15.70,2.218,1.802,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+137,FN012004,PINEBUSH,0.7,3.06,0.432,0.358,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+138,FN011397,Pinebush,32.6,25.06,2.020,1.641,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+139,FN002263,Port Henry,2.5,0.74,0.104,0.102,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+140,FN011433,Port Henry,14.5,8.27,0.667,0.553,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+141,FN013957,Pottersville,13.0,15.47,1.630,1.324,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+142,FN011942,Raquette Lake,0.5,0.29,0.023,0.023,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+143,FN012721,North Chautauqua,4.0,3.53,0.285,0.231,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+144,FN000126,RIVERSIDE,5.0,12.78,1.806,1.562,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+145,FN011854,Rome Substation,5.0,0.64,0.091,0.077,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+146,FN011852,Rome Substation,5.0,3.61,0.511,0.460,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+147,FN011853,Rome Substation,5.0,3.64,0.514,0.464,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+148,FN011856,Rome Substation,5.0,0.64,0.091,0.077,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+149,FN001348,Rotterdam,13.0,4.73,0.668,0.654,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+150,FN014168,RUSSELL RD,2.0,0.24,0.033,0.033,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+151,FN013424A,South Washington,5.0,8.37,1.183,0.981,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+152,FN011355A,Schenevus,3.0,2.50,0.201,0.178,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+153,FN011399,Schodack,17.6,29.33,2.364,1.920,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+154,FN011465,SCHROON LAKE,4.8,0.68,0.096,0.094,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+155,FN011466,Scofield,29.5,0.52,0.042,0.040,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+156,FN002211,Scotia,9.1,0.45,0.036,0.030,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+157,FN001881,SELKIRK,2.5,0.51,0.072,0.072,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+158,FN006212,Sharon,2.1,1.40,0.198,0.186,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+159,FN006224,Sharon,2.0,0.93,0.131,0.125,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+160,FN013868,Shawnee Rd Station 76,17.6,9.27,0.747,0.688,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+161,FN011715,Smith Bridge Station,25.0,16.60,1.765,1.658,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+162,FN005814,EDEN CENTER,11.0,31.25,2.833,2.662,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+163,FN003350,NORTH COLLINS,5.6,6.38,0.901,0.901,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+164,FN011436,South Street,7.5,24.81,1.999,1.658,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+165,FN010876,Station 140,10.0,28.82,2.323,2.138,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+166,FN006255,Station 3012,9.0,45.07,4.722,4.625,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+167,FN005886,Station 61,35.0,23.21,1.871,1.651,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+168,FN011383,Summit,2.4,22.39,1.804,1.497,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+169,FN011069,Swaggertown,23.4,32.33,3.883,3.357,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+170,FN011562,Swann Rd,5.0,3.07,0.434,0.360,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+171,FN012826,78 FASSETT ST.,5.0,11.90,1.681,1.365,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+172,FN005852,TULLER HILL,6.0,0.37,0.052,0.051,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+173,FN011404,UNIONVILLE,2.0,10.17,1.437,1.242,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+174,FN011406,UNIONVILLE,7.5,2.96,0.239,0.194,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+175,FN011310,214 Station,23.6,1.13,0.095,0.077,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+176,FN012943,Paloma,20.0,1.80,0.145,0.118,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+177,FN006357,VAIL MILLS,4.0,2.10,0.297,0.297,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+178,FN006234,VAIL MILLS,16.0,0.28,0.039,0.037,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+179,FN011427,VAIL MILLS,15.0,1.58,0.127,0.103,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+180,FN011996,Valkin,57.6,7.55,0.779,0.732,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+181,FN013976,Van Hoesen,48.2,48.38,5.796,4.807,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+182,FN011400,Voorheesville,15.0,31.56,2.543,2.110,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+183,FN006517,CHAUTAUQUA,4.0,0.57,0.081,0.078,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+184,FN012599,Walesville,14.0,20.39,2.881,2.340,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+185,FN002225,Warrensburg,0.5,1.20,0.169,0.166,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+186,FN011538,Watt,5.8,9.03,1.170,0.951,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+187,FN011539,WEAVER ST,4.1,23.36,2.491,2.024,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+188,FN011423,Wells,3.4,24.81,1.999,1.658,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+189,FN012598,Whitesboro,12.0,28.38,4.010,3.257,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+190,FN011388,WOLF RD.,3.0,6.52,0.921,0.830,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.
+192,FN010073,Transm Net,14.0,66.74,5.627,5.178,sub_tx,115,Lines 130/133 at Huntley. Gold Book Table VII: NGRID Huntley-Lockport 115kV.
+193,FN011214,Transm Net,105.0,93.63,7.889,7.412,sub_tx,115,Lockport-Batavia #112 rebuild. Gold Book Table VII: NGRID Lockport Batavia 115kV.
+194,FN010083,Transm Net,100.0,129.65,10.897,9.821,sub_tx,115,Mortimer-Pannell #24/#25 reconductor. Gold Book Table VII: NGRID Mortimer Pannell 115kV.
+195,FN008736,Transm Net,20.0,16.52,1.356,1.197,sub_tx,115,South Oswego 115kV Asset Replacement. Explicitly 115kV in FinalData.
+196,FN008276,Transm Net,1650.0,3202.50,267.372,217.200,sub_tx,115,"Massive 115kV network rebuild across northern NY (Coffeen, Black River, Colton, Malone, Boonville, Lighthouse Hill, Clay, Taylorville). Gold Book Table VII confirms all segments at 115kV. Includes CLCPA Phase 2 work. One Clay 345kV bay extension, but bulk of spend is 115kV."
+197,FN011526,Transm Net,52.1,2.50,0.205,0.167,sub_tx,115,Capital North Area Study - Elnora Tap. 115kV sub-TX.
+198,FN008017,Transm Net,28.0,16.04,1.354,1.147,sub_tx,115,Colton-BF 1-2 T3140-T3150 ACR. 115kV sub-TX line.
+199,FN008359,Transm Net,800.0,301.57,25.447,23.418,sub_tx,69/115,"Mortimer-Golah #109/#110/#119, SE Batavia-Golah. Gold Book Table VII: Mortimer-Golah 115kV and 69kV→115kV rebuild, SE Batavia-Golah 115kV."
+200,FN008347,Transm Net,380.0,73.06,6.164,5.672,sub_tx,115,Dunkirk-Laona #161/#162 rebuild. Line numbers and corridor consistent with 115kV sub-TX.
+201,FN008061,Transm Net,33.0,0.45,0.038,0.031,sub_tx,115,E. Golah 2nd 115kV Tap. Explicitly 115kV in FinalData.
+202,FN013189,Transm Net,20.0,9.80,0.804,0.695,sub_tx,230,Eastover 230kV 70 MVAR cap bank. Explicitly 230kV in FinalData project name. Support equipment for 230kV sub-TX network.
+203,FN013188,Transm Net,34.0,0.98,0.083,0.072,sub_tx,115,Elbridge-Geres Lock capacity. 115kV sub-TX line.
+204,FN008471,Transm Net,16.0,22.73,1.865,1.789,sub_tx,230,Elm St #2 TRF Asset Replacement. Gold Book Table VII: NGRID Elm St 230/23kV transformer replacement.
+205,FN012042,Transm Net,40.0,10.89,0.919,0.829,sub_tx,115,EV Readiness Study - Angola T-line. 115kV sub-TX.
+206,FN012047,Transm Net,40.0,8.58,0.724,0.653,sub_tx,115,EV Readiness Study - Chittenango T-line. 115kV sub-TX.
+207,FN012044,Transm Net,40.0,10.41,0.879,0.792,sub_tx,115,EV Readiness Study - Dewitt T-line. 115kV sub-TX.
+208,FN012050,Transm Net,40.0,6.18,0.522,0.470,sub_tx,115,EV Readiness Study - Pattersonville T-line. 115kV sub-TX.
+209,FN012039,Transm Net,40.0,6.70,0.565,0.509,sub_tx,115,EV Readiness Study - Pembroke (Flying J) T-line. 115kV sub-TX.
+210,FN008333,Transm Net,18.0,0.36,0.030,0.030,sub_tx,115,Flat Rock Upgrades - Line. 115kV. Gold Book: NGRID Colton Browns Falls 115kV.
+211,FN010064,Transm Net,75.0,52.28,4.299,4.124,sub_tx,115,Oneida Station Rebuild. Gold Book Table VII: NGRID Oneida 115kV.
+212,FN008052,Transm Net,160.0,31.84,2.688,2.423,sub_tx,115,Frontier #181 ACR/Reconductor. 115kV consistent with NiMo transmission line numbering.
+214,FN010080,Transm Net,20.0,177.99,15.492,15.173,sub_tx,115,New Manheim (Inghams PAR replacement). Gold Book Table VII: NGRID Manheim (Inghams) 115kV.
+215,FN011215,Transm Net,10.0,21.76,1.786,1.544,sub_tx,115/34.5,Homer Hill 115kV/34.5kV Asset Replacement. Explicitly 115kV in FinalData. Gold Book: Homer Hill 115kV.
+216,FN010078,Transm Net,25.0,19.84,1.628,1.594,sub_tx,115,Hoosick - Replace Bank 1 & Relays. 115kV sub-TX station.
+217,FN010094,Transm Net,130.0,315.01,35.659,29.576,sub_tx,115/23,Katherine St Terminal 115/23kV substation and T-lines #145/#146. FinalData project name explicitly says 115/23kV. Steps from sub-TX to primary distribution voltage.
+218,FN011642,Transm Net,550.0,724.04,60.473,49.125,sub_tx,69/115,"Rotterdam/Marshville/Meco/Inghams area. Gold Book Table VII: Rotterdam 115/69kV rebuild, Amsterdam-Rotterdam 69kV, Marshville 115/69kV, Meco 115/69kV. Includes new Ames Road 345/115kV station (queue 1672) but bulk is 69/115kV sub-TX."
+219,FN011630,Transm Net,40.0,14.32,1.175,0.955,sub_tx,115,Lasher Rebuild. 115kV sub-TX station.
+220,FN010084,Transm Net,5.0,106.57,8.843,7.488,sub_tx,115,Lockport Sub Rebuild. Gold Book Table VII: NGRID Lockport 115kV station rebuild.
+221,FN008253,Transm Net,312.0,173.04,14.608,12.116,sub_tx,115,Lockport-Batavia #107 Rebuild. Gold Book Table VII: NGRID Lockport Batavia 115kV.
+222,FN008254,Transm Net,312.0,202.91,17.129,13.915,sub_tx,115,Lockport-Batavia #108 Rebuild. Gold Book Table VII: NGRID Lockport Batavia 115kV.
+223,FN008453,Transm Net,200.0,18.28,1.500,1.439,sub_tx,115,Malone PAR (Phase Angle Regulator). Gold Book Table VII: NGRID Malone 115kV PAR on Malone-Willis line.
+224,FN013571,Transm Net,1100.0,142.21,11.982,9.733,bulk_tx,345,"Niagara-Dysinger 345kV. Gold Book Table VII: NGRID 345kV line work, queue position visible. Explicitly 345kV in project name."
+225,FN013182,Transm Net,844.0,114.12,9.633,7.826,sub_tx,115,Oneida-Rome LN1 new double-circuit transmission. 115kV based on corridor and naming convention.
+226,FN013318,Transm Net,104.0,2.05,0.173,0.141,sub_tx,115,Porter-Inghams 115kV DCT Rebuild. Explicitly 115kV in FinalData project name.
+227,FN008063,Transm Net,40.0,3.08,0.260,0.254,sub_tx,115,Reconductor Cortland-Clarks Corners. Gold Book Table VII: NGRID Cortland Clarks Corners 115kV.
+228,FN010255,Transm Net,24.0,3.37,0.285,0.231,sub_tx,115,S.Oswego-Curtis #10 Rebuild. 115kV sub-TX line.
+229,FN008472,Transm Net,10.0,3.58,0.294,0.276,sub_tx,115,Seneca #5 TRF Asset Replacement. 115kV sub-TX station.
+230,FN008116,Transm Net,30.0,163.73,13.822,11.228,sub_tx,115,Sleight Rd-Auburn #3 Rebuild. 115kV sub-TX line.
+231,FN008374,Transm Net,1000.0,928.93,78.418,76.806,bulk_tx,230/345,Smart Path Connect T-Line. NYISO queue 1125 (SPCP). Gold Book Table VII: 230kV and 345kV lines and substations.
+232,FN008262,Transm Net,97.0,60.89,5.140,4.176,sub_tx,115,South Oswego-Geres Lock #9 Rebuild. 115kV sub-TX line.
+233,FN008260,Transm Net,40.0,0.56,0.047,0.038,sub_tx,115,Spier-Mohican/Spier-Butler Rebuild. 115kV sub-TX line.
+234,FN008683,Transm Net,10.0,50.73,4.162,3.599,sub_tx,115,Teall Ave Asset Replacement. 115kV sub-TX station.
+235,FN013316,Transm Net,11.0,9.80,0.827,0.715,sub_tx,115,Teall-Oneida LN2 & LN5 DCT Rebuild. 115kV sub-TX lines.
+236,FN011646,Transm Net,10.0,6.30,0.517,0.420,sub_tx,115,Higley. 115kV sub-TX station.
+237,FN013525,Transm Net,10.0,18.64,1.530,1.379,sub_tx,115,Tilden Asset Replacement. 115kV sub-TX station.
+238,FN011289,Transm Net,25.0,2.92,0.239,0.194,sub_tx,115,Tonawanda Area Study - STA 129 Tap. 115kV sub-TX.
+239,FN011396,Transm Net,25.0,33.61,3.124,2.538,sub_tx,115,Tonawanda Area Study - STA74 new tap. 115kV sub-TX. Has D_Line and D_Station components in FinalData (mixed sub-TX/distribution).
+240,FN013572,Transm Net,200.0,156.37,12.884,11.374,sub_tx,115,West Lysander Station. FinalData shows T_Station and T_Line components. 115kV consistent with NiMo sub-TX stations.
+241,FN010101,Transm Net,100.0,238.80,20.159,20.159,sub_tx,115,Gardenville-Dunkirk #141/#142. Gold Book Table VII: NGRID Gardenville Dunkirk 115kV.
+243,xxx,xxx,0.0,0.00,0.000,0.000,distribution,<=13.2,Named substation project. FinalData shows D_Station/D_Line costs only.

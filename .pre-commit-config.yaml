@@ -26,7 +26,7 @@ repos:
       - id: check-toml
       - id: check-added-large-files
         args: ["--maxkb=600"]
-        exclude: uv.lock|rate_design/.*/config/marginal_costs/.*\.csv
+        exclude: uv.lock|rate_design/.*/config/marginal_costs/.*\.csv|context/papers/nyiso_gold_book_2025\.md
       - id: check-merge-conflict
       - id: check-case-conflict
 
