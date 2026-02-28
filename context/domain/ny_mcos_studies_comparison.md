@@ -6,6 +6,72 @@ Source extractions are in `context/papers/mcos/`.
 
 ---
 
+## 0. What MCOS numbers mean: undiluted, diluted, and why we dilute
+
+### What a marginal cost of service study produces
+
+An MCOS study starts with a list of planned capital projects — substation upgrades, feeder rebuilds, transmission line reconductoring, etc. Each project has a capital cost and a capacity (MW) it adds or relieves. The study converts each project's capital cost into an **annualized revenue requirement** using an Economic Carrying Charge Rate (ECCR), which folds in return on/of capital, O&M, taxes, and insurance. The result, for each project, is an annual cost in $/yr.
+
+Projects enter service at different times over the 10-year horizon. In any given year, the "bill" is the sum of annualized costs for all projects in service by that year. Early years have a small bill; later years accumulate more. The year-by-year tables in these studies show this growing annual bill.
+
+### Undiluted: cost per MW of new capacity
+
+The **undiluted** marginal cost divides the total annual bill by the total capacity added by the projects:
+
+> undiluted MC = total annual revenue requirement ($) ÷ total capacity added (MW)
+
+This answers: **"Given the projects we have planned, what is the average cost of adding one MW of capacity where we're constrained?"** It's a measure of construction economics — the price tag per MW of relief at locations that need it.
+
+Only substations or areas with planned projects enter the calculation. Areas with ample headroom contribute nothing to the numerator and nothing to the denominator.
+
+### Diluted: the annual infrastructure bill, allocated per MW of existing load
+
+The **diluted** marginal cost divides the same total annual bill by the **system peak demand**:
+
+> diluted MC = total annual revenue requirement ($) ÷ system peak (MW)
+
+This answers a different question: **"How should the cost of the capital plan be allocated across all customers?"**
+
+The utility needs to recover, say, $825M/yr from ratepayers to fund its infrastructure program. The standard regulatory approach for demand-related costs is to allocate them in proportion to each customer's contribution to system peak. If the system peak is 6,600 MW, then each MW of peak demand is responsible for $825M / 6,600 = $125k/yr.
+
+The diluted number is a **rate-making construct**, not a physical one. It doesn't mean each MW of load "causes" $125k of infrastructure cost. It means each MW's **share of the bill** is $125k. It's like splitting a dinner check by headcount: if 10 people ran up a $500 tab, the diluted cost is $50/person regardless of who ordered what.
+
+Substations with no planned investment contribute MW to the denominator but zero to the numerator. Their customers still pay the diluted rate — their load is part of the peak that "dilutes" the average. This is why the diluted number is always lower than the undiluted (except in unusual cases like NiMo, where bulk transmission projects inflate project capacity beyond system peak — see the NiMo section below).
+
+### Why allocating by peak contribution is the convention
+
+Allocating infrastructure costs by peak demand is an imperfect proxy for cost causation, but it's the standard approach because:
+
+1. **You can't retroactively bill the customers who caused each investment.** A substation upgrade triggered by load growth 5 years ago must be paid for by today's customers.
+2. **Peak contribution is observable and measurable.** Each customer's demand during system peak is recorded.
+3. **The grid is interconnected.** Transmission upgrades benefit the whole system, not just the constrained area. Even distribution upgrades improve reliability for adjacent areas.
+4. **Over time, it averages out.** Today's unconstrained substations were yesterday's constrained ones. The customer base turns over and investment needs rotate across the territory.
+5. **The alternative is impossibly complex.** Tracing each project's cost to the specific customers whose load growth caused it would require perfect historical attribution across decades.
+
+### What the diluted number is used for
+
+For rate design, the diluted number is the right system-wide average to apply to all customers. Using the undiluted number system-wide would overcharge customers by pretending everyone is behind a constrained substation.
+
+The diluted number also connects to time-of-use rates and demand charges: once you have an annual $/kW-yr, you can convert it to hourly price signals using probability-of-peak (PoP) analysis or top-hour allocation, so customers who shift load off-peak pay less. This is how the annual capital bill becomes an operational incentive.
+
+For DER compensation (VDER), the diluted number is the floor (DRV — system-wide value of demand reduction). The undiluted number, or the PSC Staff's hybrid variant, is closer to the actual avoided cost at constrained locations, which is why LSRV (locational adder) exists on top of DRV.
+
+### Grid topology and the three-bucket classification
+
+The physical grid has a hierarchy: **bulk transmission** (230kV+) → **sub-transmission** (69–115kV) → **distribution substations** (stepping to 13kV) → **primary feeders** → **transformers** → **secondary/service**.
+
+MCOS projects span multiple levels. Properly classifying them matters because:
+
+- **Bulk TX** costs are FERC-jurisdictional and recovered through NYISO charges, not local distribution rates. They should not be included in distribution MC or DRV.
+- **Sub-TX** costs (69–115kV lines and the transmission-side of distribution substations) are state-jurisdictional and DRV-relevant — DERs can defer these investments.
+- **Distribution** costs (substations, feeders, transformers) are clearly local and DRV-relevant.
+
+The conventional boundary: a substation belongs to the voltage level it **delivers to**. A 115kV→13kV substation is a distribution asset. A 345kV→115kV substation is sub-transmission. Lines belong to the voltage tier they operate at.
+
+Not all MCOS studies make this classification explicit. NiMo lumps everything into "T-Station / T-Line / D-Station / D-Line" components without separating bulk from sub-TX. Cross-referencing with the NYISO Gold Book (which lists all planned bulk transmission projects with voltages) is necessary to separate the buckets — see the NiMo analysis below.
+
+---
+
 ## 1. Overview and comparison of the six studies
 
 ### Who did the studies
@@ -65,7 +131,7 @@ All studies nominally follow the NERA methodology as required by the Order. In p
 
 ### Notable differences
 
-1. **Diluted MC availability:** Only CenHud and NYSEG/RG&E provide a system-wide MC that includes zero-MC areas (the diluted number). ConEd, O&R, NiMo, and PSEG-LI only report the undiluted (projects-only) MC.
+1. **Diluted MC availability:** Only CenHud and NYSEG/RG&E provide a system-wide MC that includes zero-MC areas (the diluted number). ConEd and O&R only report the undiluted (projects-only) MC. PSEG-LI and NiMo's diluted values can be estimated from project data and system peak (see section 2B).
 2. **Time differentiation:** Only NYSEG/RG&E (CRA) perform a probability-of-peak analysis. The others present annual $/kW-yr without hourly allocation.
 3. **Local distribution facilities:** Only NYSEG/RG&E (CRA) estimate per-customer-class costs for secondary lines, transformers, and local primary taps. The NERA-method studies (ConEd, O&R) include secondary cable and transformers as system-level cost centers instead.
 4. **Component granularity:** ConEd has the finest breakdown (5 cost centers); NiMo lumps everything into 4 broad asset types with no sub-breakdown of transmission vs sub-transmission; PSEG-LI has only 2 categories (TX, Dist).
@@ -169,15 +235,17 @@ Table 1: 10-year levelized by division (undiluted). Table 2: year-by-year system
 | Sodus       |      0.00 |      4.02 |           0.00 |             4.15 |               4.35 |
 | **System**  | **41.78** | **30.27** |      **17.81** |        **93.51** |          **98.03** |
 
-#### PSEG-LI
+#### PSEG-LI — Exhibit 1 (PDF p. 6)
 
-Exhibits not extractable from PDF. The narrative provides ECCRs (TX 4.79%, Dist 5.02%) and O&M loaders (TX 3.4%, Dist 8.9%) but no system-wide MC totals appear in the extractable text. See PDF Exhibit 1 (pp. 6–7).
+Single system-wide number: **$146.90/kW-yr** (undiluted). Uniform across all rate classes. Derived from capital cost per kW × combined ECCR+O&M rate: TX/Sub-TX $563.17/kW × 8.2% = $46.18/kW-yr; Primary/Secondary Distribution $721.12/kW × 13.9% = $100.24/kW-yr. Costs escalated to 2025 using Handy-Whitman Index. Based on 30 discrete substation and line projects totaling $600M ($690M with risk & contingency) over FY2025–FY2032. No year-by-year breakdown; single system-wide result only.
+
+The $146.90 is undiluted: the denominator is the 1,210.1 MVA of capacity added by the 30 projects, not LIPA's total system capacity. **Estimated diluted value:** LIPA system peak is ~5,200 MW (NYISO Gold Book). Total annual marginal cost = $146.90/kW × 1,210.1 MW = ~$177.8M/yr. Diluted system-wide: $177.8M / 5,200 MW ≈ **$34/kW-yr**. Equivalently: $146.90 × (1,210 / 5,200) = $34/kW-yr. This implies ~77% of LIPA's system has no planned investment in the 8-year window — a dilution ratio of ~4.3×, comparable to NYSEG (3.0×) and between CenHud (5.5×) and RG&E (2.5×).
 
 ### 2B. Diluted tables (system-wide including zero-MC areas)
 
 These numbers reflect the true system-wide average: areas with no planned investment are weighted as zero. For use as a uniform system-wide rate, these are more appropriate but also lower.
 
-Only CenHud and NYSEG/RG&E provide diluted tables.
+CenHud and NYSEG/RG&E provide diluted tables directly. PSEG-LI and NiMo diluted values can be estimated from project data and system peak (see below).
 
 #### CenHud — Table 2 (PDF p. 14)
 
@@ -239,18 +307,85 @@ Same approach. ~54% of dist substations and ~66% of feeders have no investment.
 
 Dilution ratio: undiluted $98.03 → diluted $38.94 (2.5× ratio).
 
+#### PSEG-LI — Estimated diluted (computed from Exhibit 2 project data)
+
+PSEG-LI does not publish a diluted table. However, Exhibit 2 provides the total capacity added by the 30 projects (1,210.1 MVA) and the undiluted MC ($146.90/kW-yr). LIPA's system peak is ~5,200 MW (NYISO Gold Book). Diluted system-wide estimate:
+
+> $146.90 × (1,210 / 5,200) = **~$34/kW-yr**
+
+| Component    | Undiluted ($/kW-yr) | Project MVA |  System MW | Diluted ($/kW-yr) |
+| ------------ | ------------------: | ----------: | ---------: | ----------------: |
+| Transmission |              $46.18 |     1,027.1 |     ~5,200 |            ~$9.12 |
+| Distribution |             $100.24 |       183.0 |     ~5,200 |            ~$3.53 |
+| **Total**    |         **$146.90** | **1,210.1** | **~5,200** |          **~$34** |
+
+Dilution ratio: undiluted $146.90 → diluted ~$34 (4.3× ratio). ~77% of LIPA's system has no planned investment in the 8-year window, comparable to NYSEG's ~77% upstream figure.
+
+**Note:** The per-component diluted split above uses the simplistic method of scaling each component by the ratio of its project capacity to system peak. A more precise dilution would weight by substation-level MW, which requires the workpapers.
+
+#### NiMo — Computed diluted (from Exhibit 1 workbook with project-level classification)
+
+NiMo does not publish a diluted table. We compute one from the MCOS Exhibit 1 workbook, which has year-by-year annualized costs (FY2026–FY2036) for each of 238 projects. System peak: 6,616 MW (2024 actual, NiMo Peak Load Forecast March 2025).
+
+**Why NiMo's undiluted number is misleading.** The headline undiluted MC is $71.52/kW-yr. But the "kW" in the denominator is kW of _capacity added_ by projects (11,533 MW total), not kW of system load. If you naïvely dilute — divide the total annual bill ($825M) by system peak (6,616 MW) — you get **$125/kW-yr**, _higher_ than the undiluted value. That's because the project portfolio adds 1.7× the system peak in capacity, driven by massive bulk transmission projects that add NYISO-scale transfer capability, not local load-serving capacity.
+
+**Three-bucket classification.** NiMo's workbook labels cost components as T-Station / T-Line / D-Station / D-Line but doesn't distinguish bulk TX from sub-TX. We classified all 238 projects by cross-referencing with the NYISO Gold Book (Table VII) for voltage levels:
+
+- **Bulk TX** (≥230kV): 2 projects, 2,100 MW, $1.07B — Smart Path Connect (230/345kV) and Niagara-Dysinger (345kV). FERC-jurisdictional; not relevant for distribution MC or DRV.
+- **Sub-TX** (69–115kV): 47 projects, 6,889 MW, $6.71B — all other "Transm Net" entries. These are sub-transmission lines and stations stepping bulk voltage down toward distribution, at 69kV or 115kV. State-jurisdictional and DRV-relevant.
+- **Distribution** (≤13.2kV): 189 projects across 152 named substations, 2,543 MW, $2.93B — substation transformers, feeders, and related equipment. Clearly DRV-relevant.
+
+Full classifications with evidence are in `utils/pre/dist_mc/nimo_project_classifications.csv`.
+
+**Present-value-equivalent diluted MC (levelized across full study period):**
+
+| Bucket                                   | Projects | Capacity (MW) | Capital ($B) | Annual cost ($M, FY26) | Diluted ($/kW-yr) |
+| ---------------------------------------- | -------: | ------------: | -----------: | ---------------------: | ----------------: |
+| All projects                             |      238 |        11,533 |       $10.70 |                   $825 |           $124.68 |
+| Bulk TX (≥230kV)                         |        2 |         2,100 |        $1.07 |                    $87 |            $13.08 |
+| Sub-TX (69–115kV)                        |       47 |         6,889 |        $6.71 |                   $481 |            $72.72 |
+| Distribution (≤13.2kV)                   |      189 |         2,543 |        $2.93 |                   $257 |            $38.88 |
+| **Sub-TX + Distribution (DRV-relevant)** |  **236** |     **9,433** |    **$9.63** |               **$738** |       **$111.59** |
+
+The DRV-relevant diluted MC is **$111.59/kW-yr** — much higher than other utilities because NiMo's sub-transmission investment program is enormous (47 projects, $6.7B). The distribution-only component ($38.88/kW-yr) is in line with other utilities.
+
+**Year-by-year diluted MC.** Because projects enter service at different times, the annual infrastructure bill grows over the study period. The workbook's F-columns provide each project's annualized cost in each fiscal year's dollars (inflating at 2.1%/yr GDP deflator). For each year, we sum costs only from projects in service by that year and divide by system peak:
+
+|                                      FY | New MW | Cumulative MW | Annual bill ($M) | Diluted ($/kW-yr) |
+| --------------------------------------: | -----: | ------------: | ---------------: | ----------------: |
+| _Sub-TX + Distribution (DRV-relevant):_ |        |               |                  |                   |
+|                                    2026 |    142 |           142 |              $24 |             $3.60 |
+|                                    2027 |    178 |           320 |              $61 |             $9.19 |
+|                                    2028 |    370 |           689 |              $72 |            $10.94 |
+|                                    2029 |    242 |           931 |              $91 |            $13.75 |
+|                                    2030 |  1,258 |         2,189 |             $139 |            $21.03 |
+|                                    2031 |    891 |         3,079 |             $204 |            $30.79 |
+|                                    2032 |    391 |         3,470 |             $236 |            $35.60 |
+|                                    2033 |    195 |         3,665 |             $268 |            $40.56 |
+|                                    2034 |    265 |         3,930 |             $312 |            $47.09 |
+|                                    2035 |    816 |         4,746 |             $420 |            $63.44 |
+|                                    2036 |  4,687 |         9,433 |             $909 |           $137.37 |
+
+The diluted MC starts at $3.60/kW-yr in FY2026 (only 142 MW in service) and grows to $137/kW-yr by FY2036. FY2036 is a spike because NiMo backloads ~4,700 MW of sub-TX and distribution projects into the final year. The present-value-equivalent $111.59/kW-yr sits between the early and late years, reflecting the time-value-weighted average.
+
+For comparison, the all-projects table (including bulk TX) and the distribution-only table are in the script output — run `just analyze` from `utils/pre/dist_mc/` for the full breakdown. Output CSVs: `nimo_diluted_levelized.csv` and `nimo_diluted_annualized.csv`.
+
+**Substation coverage:** 152 named substations have MCOS projects. NiMo's System Data Portal lists 569 distribution substations → ~73% have no planned investment in the 11-year window. DPS Staff identified 151 non-zero-cost substations in their hybrid DRV calculation and arrived at **$146.59/kW-yr** (Staff Proposal, Dec 2025) — higher than NiMo's own $71.52 because Staff re-levelized costs using WACC and allocated transmission capacity to substations differently.
+
+**Sources:** NiMo 2025 MCOS workbook (`utils/pre/dist_mc/Workpaper for NiMO 2025 MCOS Study.xlsx`); project classifications (`utils/pre/dist_mc/nimo_project_classifications.csv`); NiMo Peak Load Forecast (March 2025, `context/papers/mcos/nimo_peak_load_forecast_2025.pdf`); NYISO Gold Book 2025 (`context/papers/nyiso_gold_book_2025.md`, Table VII); DPS Staff Proposal on DRV/LSRV (`context/papers/mcos/dps_staff_proposal_drv_lsrv_20251211.pdf`).
+
 ---
 
 ## 3. Transmission component: bulk vs local, per utility
 
-| Utility        | Label                     | Voltages covered               | FERC-jurisdictional?                                                         | Includes NYISO bulk TX?                                                             | Evidence                                                                                                                                                       |
-| -------------- | ------------------------- | ------------------------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **ConEd**      | "Transmission System"     | 138 kV, 345 kV stations        | Yes — ConEd is a NYISO TO                                                    | **Yes** — but project-based; only 5 substations (Brooklyn, Queens) have non-zero MC | Schedule 4: Atlantic, Gateway Park, Hillside, Idlewild, Nevins Street. Bronx, Westchester, Manhattan, SI all zero.                                             |
-| **O&R**        | "Transmission System"     | 138 kV                         | Yes — O&R is a NYISO TO                                                      | **Yes** — but only 2 substations (West Nyack, Viola Road)                           | Schedule 4; all other substations "–".                                                                                                                         |
-| **CenHud**     | "Local Transmission"      | 69 kV, 115/69 kV               | Ambiguous — 115 kV may be FERC-jurisdictional, 69 kV is state-jurisdictional | **No** — explicitly labeled "local"                                                 | 10 local TX areas named (Northwest 115/69, Northwest 69, RD-RJ Lines, etc.). No reference to FERC or bulk TX.                                                  |
-| **NiMo**       | T-Station + T-Line        | ≥ 69 kV (explicitly defined)   | Yes — NiMo is a major NYISO TO                                               | **Yes** — bulk TX is dominant (~65% of total MC)                                    | 49 "Transm Net" entries, some massive (3,202 MW / $3.2B, 929 MW / $929M). These are NYISO-scale projects. No separation of bulk vs local TX.                   |
-| **NYSEG/RG&E** | "Upstream" (sub + feeder) | 115 kV, 46 kV, 34.5 kV         | Mixed — 115 kV may be FERC-jurisdictional; lower is state                    | **No** — explicitly excluded                                                        | CRA footnote 4: "to differentiate them from the more regional transmission grid costs that are recoverable through NYISO Transmission Service Charges (TSCs)." |
-| **PSEG-LI**    | T-Station + T-Line        | Not stated in extractable text | LIPA has unique FERC relationship                                            | **Unclear** — exhibits not extractable                                              | Study framed as "location-specific avoided distribution costs." Modest $600M portfolio.                                                                        |
+| Utility        | Label                     | Voltages covered               | FERC-jurisdictional?                                                         | Includes NYISO bulk TX?                                                                                                                        | Evidence                                                                                                                                                       |
+| -------------- | ------------------------- | ------------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ConEd**      | "Transmission System"     | 138 kV, 345 kV stations        | Yes — ConEd is a NYISO TO                                                    | **Yes** — but project-based; only 5 substations (Brooklyn, Queens) have non-zero MC                                                            | Schedule 4: Atlantic, Gateway Park, Hillside, Idlewild, Nevins Street. Bronx, Westchester, Manhattan, SI all zero.                                             |
+| **O&R**        | "Transmission System"     | 138 kV                         | Yes — O&R is a NYISO TO                                                      | **Yes** — but only 2 substations (West Nyack, Viola Road)                                                                                      | Schedule 4; all other substations "–".                                                                                                                         |
+| **CenHud**     | "Local Transmission"      | 69 kV, 115/69 kV               | Ambiguous — 115 kV may be FERC-jurisdictional, 69 kV is state-jurisdictional | **No** — explicitly labeled "local"                                                                                                            | 10 local TX areas named (Northwest 115/69, Northwest 69, RD-RJ Lines, etc.). No reference to FERC or bulk TX.                                                  |
+| **NiMo**       | T-Station + T-Line        | ≥ 69 kV (explicitly defined)   | Yes — NiMo is a major NYISO TO                                               | **Yes** — 2 bulk TX projects (Smart Path Connect 230/345kV, Niagara-Dysinger 345kV) at $1.07B; remaining 47 "Transm Net" are sub-TX (69–115kV) | Classified via NYISO Gold Book Table VII cross-reference. See `utils/pre/dist_mc/nimo_project_classifications.csv`.                                            |
+| **NYSEG/RG&E** | "Upstream" (sub + feeder) | 115 kV, 46 kV, 34.5 kV         | Mixed — 115 kV may be FERC-jurisdictional; lower is state                    | **No** — explicitly excluded                                                                                                                   | CRA footnote 4: "to differentiate them from the more regional transmission grid costs that are recoverable through NYISO Transmission Service Charges (TSCs)." |
+| **PSEG-LI**    | T-Station + T-Line        | Not stated in extractable text | LIPA has unique FERC relationship                                            | **Unclear** — exhibits not extractable                                                                                                         | Study framed as "location-specific avoided distribution costs." Modest $600M portfolio.                                                                        |
 
 ---
 
