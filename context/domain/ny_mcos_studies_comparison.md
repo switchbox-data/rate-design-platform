@@ -239,7 +239,7 @@ Table 1: 10-year levelized by division (undiluted). Table 2: year-by-year system
 
 Single system-wide number: **$146.90/kW-yr** (undiluted). Uniform across all rate classes. Derived from capital cost per kW × combined ECCR+O&M rate: TX/Sub-TX $563.17/kW × 8.2% = $46.18/kW-yr; Primary/Secondary Distribution $721.12/kW × 13.9% = $100.24/kW-yr. Costs escalated to 2025 using Handy-Whitman Index. Based on 30 discrete substation and line projects totaling $600M ($690M with risk & contingency) over FY2025–FY2032. No year-by-year breakdown; single system-wide result only.
 
-The $146.90 is undiluted: the denominator is the 1,210.1 MVA of capacity added by the 30 projects, not LIPA's total system capacity. **Estimated diluted value:** LIPA system peak is ~5,200 MW (NYISO Gold Book). Total annual marginal cost = $146.90/kW × 1,210.1 MW = ~$177.8M/yr. Diluted system-wide: $177.8M / 5,200 MW ≈ **$34/kW-yr**. Equivalently: $146.90 × (1,210 / 5,200) = $34/kW-yr. This implies ~77% of LIPA's system has no planned investment in the 8-year window — a dilution ratio of ~4.3×, comparable to NYSEG (3.0×) and between CenHud (5.5×) and RG&E (2.5×).
+The $146.90 is undiluted: the denominator is the 1,210.1 MVA of capacity added by the 30 projects, not LIPA's total system capacity. **Estimated diluted value:** LIPA's 2024 actual non-coincident peak is 4,935 MW (2025 NYISO Gold Book, Table I-4a, Zone K). Total annual marginal cost = $146.90/kW × 1,210.1 MW = ~$177.8M/yr. Diluted system-wide: $177.8M / 4,935 MW ≈ **$36/kW-yr**. Equivalently: $146.90 × (1,210 / 4,935) = $36/kW-yr. This implies ~75% of LIPA's system has no planned investment in the 8-year window — a dilution ratio of ~4.1×, comparable to NYSEG (3.0×) and between CenHud (5.5×) and RG&E (2.5×).
 
 ### 2B. Diluted tables (system-wide including zero-MC areas)
 
@@ -309,17 +309,17 @@ Dilution ratio: undiluted $98.03 → diluted $38.94 (2.5× ratio).
 
 #### PSEG-LI — Estimated diluted (computed from Exhibit 2 project data)
 
-PSEG-LI does not publish a diluted table. However, Exhibit 2 provides the total capacity added by the 30 projects (1,210.1 MVA) and the undiluted MC ($146.90/kW-yr). LIPA's system peak is ~5,200 MW (NYISO Gold Book). Diluted system-wide estimate:
+PSEG-LI does not publish a diluted table. However, Exhibit 2 provides the total capacity added by the 30 projects (1,210.1 MVA) and the undiluted MC ($146.90/kW-yr). LIPA's 2024 actual non-coincident peak is 4,935 MW (2025 NYISO Gold Book, Table I-4a, Zone K). Diluted system-wide estimate:
 
-> $146.90 × (1,210 / 5,200) = **~$34/kW-yr**
+> $146.90 × (1,210 / 4,935) = **~$36/kW-yr**
 
-| Component    | Undiluted ($/kW-yr) | Project MVA |  System MW | Diluted ($/kW-yr) |
-| ------------ | ------------------: | ----------: | ---------: | ----------------: |
-| Transmission |              $46.18 |     1,027.1 |     ~5,200 |            ~$9.12 |
-| Distribution |             $100.24 |       183.0 |     ~5,200 |            ~$3.53 |
-| **Total**    |         **$146.90** | **1,210.1** | **~5,200** |          **~$34** |
+| Component    | Undiluted ($/kW-yr) | Project MVA | System MW | Diluted ($/kW-yr) |
+| ------------ | ------------------: | ----------: | --------: | ----------------: |
+| Transmission |              $46.18 |     1,027.1 |     4,935 |            ~$9.62 |
+| Distribution |             $100.24 |       183.0 |     4,935 |            ~$3.72 |
+| **Total**    |         **$146.90** | **1,210.1** | **4,935** |          **~$36** |
 
-Dilution ratio: undiluted $146.90 → diluted ~$34 (4.3× ratio). ~77% of LIPA's system has no planned investment in the 8-year window, comparable to NYSEG's ~77% upstream figure.
+Dilution ratio: undiluted $146.90 → diluted ~$36 (4.1× ratio). ~75% of LIPA's system has no planned investment in the 8-year window, comparable to NYSEG's ~77% upstream figure.
 
 **Note:** The per-component diluted split above uses the simplistic method of scaling each component by the ratio of its project capacity to system peak. A more precise dilution would weight by substation-level MW, which requires the workpapers.
 
