@@ -699,10 +699,30 @@ def _replace_natural_gas_columns(
     for c in heating_intensity[1:]:
         orig_heating_intensity = orig_heating_intensity + pl.col(c)
 
+    def avg_sum(cols: list[str]) -> pl.Expr:
+        neighbor_sums = pl.col(f"_n0_{cols[0]}")
+        for c in cols[1:]:
+            neighbor_sums = neighbor_sums + pl.col(f"_n0_{c}")
+        for i in range(1, n_neighbors):
+            s = pl.col(f"_n{i}_{cols[0]}")
+            for c in cols[1:]:
+                s = s + pl.col(f"_n{i}_{c}")
+            neighbor_sums = neighbor_sums + s
+        return neighbor_sums / n_neighbors
+
+    avg_heating_consumption = avg_sum(heating_consumption)
+    avg_heating_intensity = avg_sum(heating_intensity)
+
     total_consumption_col = TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]
     total_intensity_col = TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]
-    new_total_consumption = pl.col(total_consumption_col) - orig_heating_consumption
-    new_total_intensity = pl.col(total_intensity_col) - orig_heating_intensity
+    new_total_consumption = (
+        pl.col(total_consumption_col)
+        - orig_heating_consumption
+        + avg_heating_consumption
+    )
+    new_total_intensity = (
+        pl.col(total_intensity_col) - orig_heating_intensity + avg_heating_intensity
+    )
     replace_cols.extend(
         [
             new_total_consumption.alias(total_consumption_col),
@@ -713,7 +733,7 @@ def _replace_natural_gas_columns(
     drop_cols = [f"_n{i}_{c}" for i in range(n_neighbors) for c in heating_cols]
     total_sum_df = cast(pl.DataFrame, out.select(new_total_consumption.sum()).collect())
     total_sum = float(total_sum_df.to_series().item())
-    if np.isclose(total_sum, 0.0, atol=1e-2):
+    if np.isclose(total_sum, 0.0, atol=1e-3):
         uses_natural_gas = False
     else:
         uses_natural_gas = True
@@ -754,10 +774,30 @@ def _replace_fuel_oil_columns(
     for c in heating_intensity[1:]:
         orig_heating_intensity = orig_heating_intensity + pl.col(c)
 
+    def avg_sum(cols: list[str]) -> pl.Expr:
+        neighbor_sums = pl.col(f"_n0_{cols[0]}")
+        for c in cols[1:]:
+            neighbor_sums = neighbor_sums + pl.col(f"_n0_{c}")
+        for i in range(1, n_neighbors):
+            s = pl.col(f"_n{i}_{cols[0]}")
+            for c in cols[1:]:
+                s = s + pl.col(f"_n{i}_{c}")
+            neighbor_sums = neighbor_sums + s
+        return neighbor_sums / n_neighbors
+
+    avg_heating_consumption = avg_sum(heating_consumption)
+    avg_heating_intensity = avg_sum(heating_intensity)
+
     total_consumption_col = TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]
     total_intensity_col = TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]
-    new_total_consumption = pl.col(total_consumption_col) - orig_heating_consumption
-    new_total_intensity = pl.col(total_intensity_col) - orig_heating_intensity
+    new_total_consumption = (
+        pl.col(total_consumption_col)
+        - orig_heating_consumption
+        + avg_heating_consumption
+    )
+    new_total_intensity = (
+        pl.col(total_intensity_col) - orig_heating_intensity + avg_heating_intensity
+    )
     replace_cols.extend(
         [
             new_total_consumption.alias(total_consumption_col),
@@ -803,10 +843,30 @@ def _replace_propane_columns(
     for c in heating_intensity[1:]:
         orig_heating_intensity = orig_heating_intensity + pl.col(c)
 
+    def avg_sum(cols: list[str]) -> pl.Expr:
+        neighbor_sums = pl.col(f"_n0_{cols[0]}")
+        for c in cols[1:]:
+            neighbor_sums = neighbor_sums + pl.col(f"_n0_{c}")
+        for i in range(1, n_neighbors):
+            s = pl.col(f"_n{i}_{cols[0]}")
+            for c in cols[1:]:
+                s = s + pl.col(f"_n{i}_{c}")
+            neighbor_sums = neighbor_sums + s
+        return neighbor_sums / n_neighbors
+
+    avg_heating_consumption = avg_sum(heating_consumption)
+    avg_heating_intensity = avg_sum(heating_intensity)
+
     total_consumption_col = TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]
     total_intensity_col = TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]
-    new_total_consumption = pl.col(total_consumption_col) - orig_heating_consumption
-    new_total_intensity = pl.col(total_intensity_col) - orig_heating_intensity
+    new_total_consumption = (
+        pl.col(total_consumption_col)
+        - orig_heating_consumption
+        + avg_heating_consumption
+    )
+    new_total_intensity = (
+        pl.col(total_intensity_col) - orig_heating_intensity + avg_heating_intensity
+    )
     replace_cols.extend(
         [
             new_total_consumption.alias(total_consumption_col),
