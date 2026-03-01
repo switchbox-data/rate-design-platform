@@ -10,6 +10,14 @@
 #   UTILITY=rie just -f ri/Justfile all-pre                     # via state wrapper directly
 #   set -a && source ny/state.env && set +a && UTILITY=nyseg just all-pre  # manual source
 
+# Usage for RI (from rate_design/hp_rates/):
+#   just s ri list-utilities                                    # show valid utilities
+#   UTILITY=rie just s ri all-pre                             # single utility pre-processing
+#   UTILITY=rie just s ri run-all-sequential                  # single utility full run
+#   just s ri run-all-utilities-sequential                      # all utilities for a state
+#   UTILITY=rie just -f ri/Justfile all-pre                     # via state wrapper directly
+#   set -a && source ri/state.env && set +a && UTILITY=rie just all-pre  # manual source
+
 # =============================================================================
 # Tier 1: Identity (set by state wrapper, dispatch, or manual source)
 # =============================================================================
@@ -68,7 +76,7 @@ revenue_utility_col                 := "utility"
 revenue_year_col                    := "year"
 path_tariff_maps                    := path_config / "tariff_maps"
 path_td_mc                          := "s3://data.sb/switchbox/marginal_costs/" + state + "/region=" + region + "/utility=" + utility + "/year=" + mc_year + "/00000000.parquet"
-path_resstock_release               := "/ebs/data/nrel/resstock/res_2024_amy2018_2"
+path_resstock_release               := "/ebs/data/nrel/resstock/res_2024_amy2018_2_sb"
 path_resstock_metadata              := path_resstock_release + "/metadata"
 path_utility_assignment             := path_resstock_release + "/metadata_utility"
 path_resstock_loads_00              := path_resstock_release + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
