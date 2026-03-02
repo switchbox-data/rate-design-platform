@@ -13,6 +13,7 @@ from typing import cast
 import math
 
 import matplotlib
+
 matplotlib.use("Agg")  # Non-interactive backend so plot works without a display
 import matplotlib.pyplot as plt
 import numpy as np
@@ -38,12 +39,13 @@ FLOOR_AREA_COL = "in.geometry_floor_area"
 
 # Load curve annual column names
 HVAC_RELATED_ELECTRICITY_COLS = (
+    "out.electricity.cooling.energy_consumption.kwh",
     "out.electricity.cooling_fans_pumps.energy_consumption.kwh",
     "out.electricity.heating.energy_consumption.kwh",
     "out.electricity.heating_fans_pumps.energy_consumption.kwh",
     "out.electricity.heating_hp_bkup.energy_consumption.kwh",
     "out.electricity.heating_hp_bkup_fa.energy_consumption.kwh",
-    "out.electricity.mech_vent.energy_consumption.kwh"
+    "out.electricity.mech_vent.energy_consumption.kwh",
 )
 NON_HVAC_RELATED_ELECTRICITY_COLS = (
     "out.electricity.ceiling_fan.energy_consumption.kwh",
@@ -60,11 +62,12 @@ NON_HVAC_RELATED_ELECTRICITY_COLS = (
     "out.electricity.plug_loads.energy_consumption.kwh",
     "out.electricity.pool_heater.energy_consumption.kwh",
     "out.electricity.pool_pump.energy_consumption.kwh",
+    # "out.electricity.pv.energy_consumption.kwh",
     "out.electricity.range_oven.energy_consumption.kwh",
     "out.electricity.refrigerator.energy_consumption.kwh",
     "out.electricity.well_pump.energy_consumption.kwh",
-    "out.electricity.pv.energy_consumption.kwh"
 )
+
 
 def _storage_options() -> dict[str, str]:
     return {"aws_region": get_aws_region()}
@@ -106,14 +109,34 @@ def load_resstock_annual_by_utility(
         raise ValueError(
             f"Annual parquet at {path_annual!r} must have {BLDG_ID_COL!r}, {elec_col!r}, {WEIGHT_COL!r}. Found: {schema[:40]!r}"
         )
+    hvac_cols = [c for c in HVAC_RELATED_ELECTRICITY_COLS if c in schema]
+    non_hvac_cols = [c for c in NON_HVAC_RELATED_ELECTRICITY_COLS if c in schema]
+
+    select_exprs: list[pl.Expr] = [
+        pl.col(BLDG_ID_COL),
+        pl.col(elec_col).alias("annual_kwh"),
+        pl.col(WEIGHT_COL),
+    ]
+    if hvac_cols:
+        select_exprs.append(
+            pl.sum_horizontal([pl.col(c) for c in hvac_cols]).alias(
+                "total_hvac_related_electricity_kwh"
+            )
+        )
+    else:
+        select_exprs.append(pl.lit(0.0).alias("total_hvac_related_electricity_kwh"))
+    if non_hvac_cols:
+        select_exprs.append(
+            pl.sum_horizontal([pl.col(c) for c in non_hvac_cols]).alias(
+                "total_non_hvac_related_electricity_kwh"
+            )
+        )
+    else:
+        select_exprs.append(pl.lit(0.0).alias("total_non_hvac_related_electricity_kwh"))
 
     annual_df = cast(
         pl.DataFrame,
-        annual_lf.select(
-            pl.col(BLDG_ID_COL),
-            pl.col(elec_col).alias("annual_kwh"),
-            pl.col(WEIGHT_COL),
-        ).collect(),
+        annual_lf.select(select_exprs).collect(),
     )
 
     opts_ua = storage_options if _is_s3(path_utility_assignment) else None
@@ -138,6 +161,72 @@ def load_resstock_annual_by_utility(
         pl.col("annual_kwh").mean().alias("mean_annual_kwh_per_bldg"),
     )
     return by_utility.rename({ELECTRIC_UTILITY_COL: "utility_code"})
+
+
+def load_resstock_annual_building_level(
+    path_annual: str,
+    path_utility_assignment: str,
+    storage_options: dict[str, str] | None,
+    load_column: str | None = None,
+) -> pl.DataFrame:
+    """Load full annual parquet, join utility assignment, add HVAC/non-HVAC sums, annual_kwh, weighted_kwh, and utility_code. Returns all original columns plus these."""
+    opts_annual = storage_options if _is_s3(path_annual) else None
+    annual_lf = pl.scan_parquet(path_annual, storage_options=opts_annual)
+    schema = annual_lf.collect_schema().names()
+    elec_col = load_column or ANNUAL_ELECTRICITY_COL
+    if elec_col not in schema or BLDG_ID_COL not in schema or WEIGHT_COL not in schema:
+        raise ValueError(
+            f"Annual parquet at {path_annual!r} must have {BLDG_ID_COL!r}, {elec_col!r}, {WEIGHT_COL!r}. Found: {schema[:40]!r}"
+        )
+    hvac_cols = [c for c in HVAC_RELATED_ELECTRICITY_COLS if c in schema]
+    non_hvac_cols = [c for c in NON_HVAC_RELATED_ELECTRICITY_COLS if c in schema]
+    add_exprs: list[pl.Expr] = [
+        pl.col(elec_col).alias("annual_kwh"),
+        (pl.col(elec_col) * pl.col(WEIGHT_COL)).alias("weighted_kwh"),
+    ]
+    if hvac_cols:
+        add_exprs.append(
+            pl.sum_horizontal([pl.col(c) for c in hvac_cols]).alias(
+                "total_hvac_related_electricity_kwh"
+            )
+        )
+    else:
+        add_exprs.append(pl.lit(0.0).alias("total_hvac_related_electricity_kwh"))
+    if non_hvac_cols:
+        add_exprs.append(
+            pl.sum_horizontal([pl.col(c) for c in non_hvac_cols]).alias(
+                "total_non_hvac_related_electricity_kwh"
+            )
+        )
+    else:
+        add_exprs.append(pl.lit(0.0).alias("total_non_hvac_related_electricity_kwh"))
+    annual_df = cast(pl.DataFrame, annual_lf.collect()).with_columns(add_exprs)
+    opts_ua = storage_options if _is_s3(path_utility_assignment) else None
+    ua_df = cast(
+        pl.DataFrame,
+        pl.scan_parquet(path_utility_assignment, storage_options=opts_ua)
+        .select(BLDG_ID_COL, ELECTRIC_UTILITY_COL)
+        .collect(),
+    )
+    if ELECTRIC_UTILITY_COL not in ua_df.columns:
+        raise ValueError(
+            f"Utility assignment at {path_utility_assignment!r} missing {ELECTRIC_UTILITY_COL!r}"
+        )
+    return annual_df.join(ua_df, on=BLDG_ID_COL, how="inner").rename(
+        {ELECTRIC_UTILITY_COL: "utility_code"}
+    )
+
+
+def group_resstock_annual_by_utility(
+    resstock_annual: pl.DataFrame,
+) -> dict[str, pl.DataFrame]:
+    """Group resstock_annual by utility_code. Returns dict of utility_code -> resstock_annual DataFrame."""
+    return resstock_annual.group_by("utility_code").agg(
+        pl.col("weighted_kwh").sum().alias("resstock_total_kwh"),
+        pl.col(WEIGHT_COL).sum().alias("resstock_customers"),
+        pl.len().alias("n_bldgs"),
+        pl.col("annual_kwh").mean().alias("mean_annual_kwh_per_bldg"),
+    )
 
 
 def load_metadata_by_utility(
@@ -183,14 +272,11 @@ def load_eia_by_utility(
     When utility_codes is provided, only rows with matching utility_code are loaded.
     """
     opts = storage_options if _is_s3(path_eia861) else None
-    lf = (
-        pl.scan_parquet(path_eia861, storage_options=opts)
-        .select(
-            pl.col("utility_code"),
-            pl.col("residential_sales_mwh"),
-            (pl.col("residential_sales_mwh") * MWH_TO_KWH).alias("eia_residential_kwh"),
-            pl.col("residential_customers").alias("eia_residential_customers"),
-        )
+    lf = pl.scan_parquet(path_eia861, storage_options=opts).select(
+        pl.col("utility_code"),
+        pl.col("residential_sales_mwh"),
+        (pl.col("residential_sales_mwh") * MWH_TO_KWH).alias("eia_residential_kwh"),
+        pl.col("residential_customers").alias("eia_residential_customers"),
     )
     if utility_codes is not None:
         lf = lf.filter(pl.col("utility_code").is_in(utility_codes))
@@ -223,9 +309,7 @@ def building_type_share_by_utility(
         n_single_family = df.filter(
             col.str.contains("Single-Family", literal=True)
         ).height
-        n_mobile_home = df.filter(
-            col.str.contains("Mobile Home", literal=True)
-        ).height
+        n_mobile_home = df.filter(col.str.contains("Mobile Home", literal=True)).height
         out[utility_code] = {
             "multifamily_pct": n_multifamily / n_total * 100.0,
             "single_family_pct": n_single_family / n_total * 100.0,
@@ -265,11 +349,15 @@ def compare_resstock_eia_by_utility(
         pl.col("resstock_total_kwh"),
         pl.col("resstock_total_kwh_normalized_to_eia"),
         pl.col("eia_residential_kwh"),
-        (pl.col("resstock_total_kwh_normalized_to_eia") / pl.col("eia_residential_kwh")).alias(
-            "kwh_ratio"
-        ),
         (
-            (pl.col("resstock_total_kwh_normalized_to_eia") - pl.col("eia_residential_kwh"))
+            pl.col("resstock_total_kwh_normalized_to_eia")
+            / pl.col("eia_residential_kwh")
+        ).alias("kwh_ratio"),
+        (
+            (
+                pl.col("resstock_total_kwh_normalized_to_eia")
+                - pl.col("eia_residential_kwh")
+            )
             / pl.col("eia_residential_kwh")
             * 100
         ).alias("kwh_pct_diff"),
@@ -285,6 +373,7 @@ def compare_resstock_eia_by_utility(
         ).alias("customers_pct_diff"),
     )
 
+
 def fit_kwh_pct_diff_vs_multifamily_pct(
     comparison: pl.DataFrame,
     building_type_shares: dict[str | int, dict[str, float]],
@@ -294,16 +383,17 @@ def fit_kwh_pct_diff_vs_multifamily_pct(
     Returns dict with fit params, R², error distribution, F-test (overall significance),
     t-tests and p-values for slope/intercept, and AIC/BIC for model comparison.
     """
-    shares_df = pl.DataFrame([
-        {
-            "utility_code": uc,
-            "multifamily_pct": vals["multifamily_pct"],
-        }
-        for uc, vals in building_type_shares.items()
-    ])
-    plot_df = (
-        comparison.select("utility_code", "kwh_pct_diff")
-        .join(shares_df, on="utility_code", how="inner")
+    shares_df = pl.DataFrame(
+        [
+            {
+                "utility_code": uc,
+                "multifamily_pct": vals["multifamily_pct"],
+            }
+            for uc, vals in building_type_shares.items()
+        ]
+    )
+    plot_df = comparison.select("utility_code", "kwh_pct_diff").join(
+        shares_df, on="utility_code", how="inner"
     )
     x = plot_df["multifamily_pct"].to_numpy()
     y = plot_df["kwh_pct_diff"].to_numpy()
@@ -384,17 +474,18 @@ def fit_kwh_pct_diff_vs_multifamily_and_mobile_pct(
     also returns partial F-test and comparison stats to test whether adding
     mobile_home_pct improves the fit significantly.
     """
-    shares_df = pl.DataFrame([
-        {
-            "utility_code": uc,
-            "multifamily_pct": vals["multifamily_pct"],
-            "mobile_home_pct": vals.get("mobile_home_pct", 0.0),
-        }
-        for uc, vals in building_type_shares.items()
-    ])
-    plot_df = (
-        comparison.select("utility_code", "kwh_pct_diff")
-        .join(shares_df, on="utility_code", how="inner")
+    shares_df = pl.DataFrame(
+        [
+            {
+                "utility_code": uc,
+                "multifamily_pct": vals["multifamily_pct"],
+                "mobile_home_pct": vals.get("mobile_home_pct", 0.0),
+            }
+            for uc, vals in building_type_shares.items()
+        ]
+    )
+    plot_df = comparison.select("utility_code", "kwh_pct_diff").join(
+        shares_df, on="utility_code", how="inner"
     )
     x_mf = plot_df["multifamily_pct"].to_numpy()
     x_mobile = plot_df["mobile_home_pct"].to_numpy()
@@ -433,8 +524,12 @@ def fit_kwh_pct_diff_vs_multifamily_and_mobile_pct(
     f_stat = (ms_reg / ms_res) if ms_res > 0 else 0.0
     f_pvalue = float(scipy_stats.f.sf(f_stat, df_reg, df_residual))
 
-    t_mf = (slope_multifamily / se_slope_multifamily) if se_slope_multifamily > 0 else 0.0
-    t_mobile = (slope_mobile_home / se_slope_mobile_home) if se_slope_mobile_home > 0 else 0.0
+    t_mf = (
+        (slope_multifamily / se_slope_multifamily) if se_slope_multifamily > 0 else 0.0
+    )
+    t_mobile = (
+        (slope_mobile_home / se_slope_mobile_home) if se_slope_mobile_home > 0 else 0.0
+    )
     t_intercept = (intercept / se_intercept) if se_intercept > 0 else 0.0
     slope_multifamily_pvalue = float(2 * scipy_stats.t.sf(abs(t_mf), df_residual))
     slope_mobile_home_pvalue = float(2 * scipy_stats.t.sf(abs(t_mobile), df_residual))
@@ -506,16 +601,17 @@ def plot_kwh_pct_diff_vs_multifamily_pct(
     comparison: DataFrame from compare_resstock_eia_by_utility (utility_code, kwh_pct_diff).
     building_type_shares: dict from building_type_share_by_utility (utility_code -> multifamily_pct, single_family_pct).
     """
-    shares_df = pl.DataFrame([
-        {
-            "utility_code": uc,
-            "multifamily_pct": vals["multifamily_pct"],
-        }
-        for uc, vals in building_type_shares.items()
-    ])
-    plot_df = (
-        comparison.select("utility_code", "kwh_pct_diff")
-        .join(shares_df, on="utility_code", how="inner")
+    shares_df = pl.DataFrame(
+        [
+            {
+                "utility_code": uc,
+                "multifamily_pct": vals["multifamily_pct"],
+            }
+            for uc, vals in building_type_shares.items()
+        ]
+    )
+    plot_df = comparison.select("utility_code", "kwh_pct_diff").join(
+        shares_df, on="utility_code", how="inner"
     )
     x = plot_df["multifamily_pct"].to_numpy()
     y = plot_df["kwh_pct_diff"].to_numpy()
@@ -549,9 +645,7 @@ def plot_kwh_pct_diff_vs_multifamily_pct(
             verticalalignment="top",
         )
     ax.set_xlabel("Multifamily share (%)")
-    ax.set_ylabel(
-        "Load % difference (ResStock − EIA) / EIA"
-    )
+    ax.set_ylabel("Load % difference (ResStock − EIA) / EIA")
     ax.set_title(
         "ResStock vs EIA load % difference (normalized by customer count) by utility multifamily share"
     )
@@ -574,7 +668,7 @@ def _bldg_ids_for_building_type(
     building_type: str,
 ) -> list:
     """Return list of bldg_id values whose BUILDING_TYPE_RECS_COL matches building_type."""
-    substring = BUILDING_TYPE_FILTER.get(building_type)
+    substring: str = BUILDING_TYPE_FILTER.get(building_type)
     filtered = resstock_metadata.filter(
         pl.col(BUILDING_TYPE_RECS_COL).str.contains(substring, literal=True)
     )
@@ -582,13 +676,13 @@ def _bldg_ids_for_building_type(
 
 
 def _parse_floor_area_sqft(val: str | None) -> float:
-    """Parse one floor area value: '4000+' -> 5500, '750-999' -> midpoint, else float.
+    """Parse one floor area value: '4000+' -> 6000, '750-999' -> midpoint, else float.
     No Polars list.get; avoids out-of-bounds and cast errors."""
     if val is None or (isinstance(val, str) and val.strip() == ""):
         return float("nan")
     s = str(val).strip()
     if s.endswith("+"):
-        return 5500.0
+        return 6000.0
     if "-" in s:
         parts = s.split("-", 1)
         if len(parts) == 2:
@@ -761,6 +855,56 @@ def two_sample_difference_of_means_test(
     }
 
 
+def adjust_mf_non_hvac_related_electricity(
+    resstock_annual_by_utility: pl.DataFrame,
+    metadata_with_utility: pl.DataFrame,
+    MF_to_SF_non_hvac_ratio: float,
+    MF_to_SF_hvac_ratio: float,
+) -> pl.DataFrame:
+    """Adjust non-HVAC-related electricity consumption for multifamily buildings by the ratio of multifamily to single-family non-HVAC-related electricity consumption.
+
+    Only rows with bldg_id in multifamily_bldg_ids are adjusted; others keep original values.
+    """
+    multifamily_bldg_ids = (
+        metadata_with_utility.filter(
+            pl.col(BUILDING_TYPE_RECS_COL).str.contains("Multi-Family", literal=True)
+        )
+        .get_column(BLDG_ID_COL)
+        .to_list()
+    )
+    is_mf = pl.col(BLDG_ID_COL).is_in(multifamily_bldg_ids)
+    # Scale non-HVAC by ratio so MF matches SF intensity; keep HVAC unchanged.
+    adjusted_annual = (
+        pl.col("annual_kwh")
+        - pl.col("total_non_hvac_related_electricity_kwh")
+        + pl.col("total_non_hvac_related_electricity_kwh") / MF_to_SF_non_hvac_ratio
+        - pl.col("total_hvac_related_electricity_kwh")
+        + pl.col("total_hvac_related_electricity_kwh") / MF_to_SF_hvac_ratio
+    )
+    adjusted_non_hvac = (
+        pl.col("total_non_hvac_related_electricity_kwh") / MF_to_SF_non_hvac_ratio
+    )
+    adjusted_hvac = pl.col("total_hvac_related_electricity_kwh") / MF_to_SF_hvac_ratio
+    out = resstock_annual_by_utility.with_columns(
+        pl.when(is_mf)
+        .then(adjusted_annual)
+        .otherwise(pl.col("annual_kwh"))
+        .alias("annual_kwh"),
+        pl.when(is_mf)
+        .then(adjusted_non_hvac)
+        .otherwise(pl.col("total_non_hvac_related_electricity_kwh"))
+        .alias("total_non_hvac_related_electricity_kwh"),
+        pl.when(is_mf)
+        .then(adjusted_hvac)
+        .otherwise(pl.col("total_hvac_related_electricity_kwh"))
+        .alias("total_hvac_related_electricity_kwh"),
+    )
+    # Recompute weighted_kwh from adjusted annual_kwh so utility aggregation reflects the adjustment.
+    return out.with_columns(
+        (pl.col("annual_kwh") * pl.col(WEIGHT_COL)).alias("weighted_kwh")
+    )
+
+
 def load_data(
     path_annual: str,
     path_utility_assignment: str,
@@ -768,7 +912,9 @@ def load_data(
     path_eia861: str,
     storage_options: dict[str, str] | None = None,
     load_column: str | None = None,
-) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame, dict[str, pl.DataFrame], pl.DataFrame]:
+) -> tuple[
+    pl.DataFrame, pl.DataFrame, pl.DataFrame, dict[str, pl.DataFrame], pl.DataFrame
+]:
     """Load ResStock annual by utility, metadata by utility, and EIA by utility.
 
     Returns:
@@ -783,7 +929,12 @@ def load_data(
         storage_options=storage_options,
         load_column=load_column,
     )
-    resstock_annual = pl.scan_parquet(path_annual, storage_options=storage_options).collect()
+    resstock_annual = load_resstock_annual_building_level(
+        path_annual,
+        path_utility_assignment,
+        storage_options=storage_options,
+        load_column=load_column,
+    )
     metadata_with_utility, metadata_by_utility = load_metadata_by_utility(
         path_metadata,
         path_utility_assignment,
@@ -793,7 +944,13 @@ def load_data(
     eia = load_eia_by_utility(
         path_eia861, storage_options=storage_options, utility_codes=utility_codes
     )
-    return resstock_annual_by_utility, resstock_annual, metadata_with_utility, metadata_by_utility, eia
+    return (
+        resstock_annual_by_utility,
+        resstock_annual,
+        metadata_with_utility,
+        metadata_by_utility,
+        eia,
+    )
 
 
 if __name__ == "__main__":
@@ -819,7 +976,13 @@ if __name__ == "__main__":
         else None
     )
 
-    resstock_annual_by_utility, resstock_annual, metadata_with_utility, metadata_by_utility, eia = load_data(
+    (
+        resstock_annual_by_utility,
+        resstock_annual,
+        metadata_with_utility,
+        metadata_by_utility,
+        eia,
+    ) = load_data(
         path_annual=path_annual,
         path_utility_assignment=path_utility_assignment,
         path_metadata=path_metadata,
@@ -832,36 +995,59 @@ if __name__ == "__main__":
     comparison = compare_resstock_eia_by_utility(resstock_annual_by_utility, eia)
 
     # Plot per-utility percent difference vs multifamily share and some stats.
-    building_type_shares = building_type_share_by_utility(metadata_by_utility)
-    multifamily_fit_result = fit_kwh_pct_diff_vs_multifamily_pct(comparison, building_type_shares)
+    building_type_shares = building_type_share_by_utility(
+        cast(dict[str | int, pl.DataFrame], metadata_by_utility)
+    )
+    multifamily_fit_result = fit_kwh_pct_diff_vs_multifamily_pct(
+        comparison, building_type_shares
+    )
     plot_kwh_pct_diff_vs_multifamily_pct(
         comparison, building_type_shares, multifamily_fit_result
     )
+    print(f"multifamily_fit_result: {multifamily_fit_result}")
 
     # Two-predictor fit (multifamily + mobile home) and comparison to single-predictor.
     mobile_multifamily_fit_result = fit_kwh_pct_diff_vs_multifamily_and_mobile_pct(
         comparison, building_type_shares, fit_single_predictor=multifamily_fit_result
     )
     print("\nLinear fit: kwh_pct_diff ~ multifamily_pct + mobile_home_pct")
-    print(f"  R² = {mobile_multifamily_fit_result['r_squared']:.4f}, AIC = {mobile_multifamily_fit_result['aic']:.2f}, BIC = {mobile_multifamily_fit_result['bic']:.2f}")
-    print(f"  slope_multifamily = {mobile_multifamily_fit_result['slope_multifamily']:.4f} (p = {mobile_multifamily_fit_result['slope_multifamily_pvalue']:.4f})")
-    print(f"  slope_mobile_home = {mobile_multifamily_fit_result['slope_mobile_home']:.4f} (p = {mobile_multifamily_fit_result['slope_mobile_home_pvalue']:.4f})")
+    print(
+        f"  R² = {mobile_multifamily_fit_result['r_squared']:.4f}, AIC = {mobile_multifamily_fit_result['aic']:.2f}, BIC = {mobile_multifamily_fit_result['bic']:.2f}"
+    )
+    print(
+        f"  slope_multifamily = {mobile_multifamily_fit_result['slope_multifamily']:.4f} (p = {mobile_multifamily_fit_result['slope_multifamily_pvalue']:.4f})"
+    )
+    print(
+        f"  slope_mobile_home = {mobile_multifamily_fit_result['slope_mobile_home']:.4f} (p = {mobile_multifamily_fit_result['slope_mobile_home_pvalue']:.4f})"
+    )
     print("  Comparison to single-predictor (multifamily only):")
     print(f"    ΔR² = {mobile_multifamily_fit_result['delta_r_squared']:.4f}")
-    print(f"    Partial F (adding mobile_home) = {mobile_multifamily_fit_result['partial_f_stat']:.4f}, p = {mobile_multifamily_fit_result['partial_f_pvalue']:.4f}")
-    print(f"    Single-predictor AIC/BIC: {mobile_multifamily_fit_result['aic_single_predictor']:.2f} / {mobile_multifamily_fit_result['bic_single_predictor']:.2f}")
+    print(
+        f"    Partial F (adding mobile_home) = {mobile_multifamily_fit_result['partial_f_stat']:.4f}, p = {mobile_multifamily_fit_result['partial_f_pvalue']:.4f}"
+    )
+    print(
+        f"    Single-predictor AIC/BIC: {mobile_multifamily_fit_result['aic_single_predictor']:.2f} / {mobile_multifamily_fit_result['bic_single_predictor']:.2f}"
+    )
     p_partial = mobile_multifamily_fit_result["partial_f_pvalue"]
     if p_partial < 0.05:
-        print(f"  Adding mobile_home_pct is statistically significant (p = {p_partial:.4f} < 0.05).")
+        print(
+            f"  Adding mobile_home_pct is statistically significant (p = {p_partial:.4f} < 0.05)."
+        )
     else:
-        print(f"  Adding mobile_home_pct is not statistically significant (p = {p_partial:.4f} >= 0.05).")
+        print(
+            f"  Adding mobile_home_pct is not statistically significant (p = {p_partial:.4f} >= 0.05)."
+        )
 
     # Calculate total non-HVAC-related electricity kWh for multifamily and single-family buildings.
-    multifamily_non_hvac_related_electricity_kwh = calculate_total_non_hvac_related_electricity_kwh(
-        resstock_annual, metadata_with_utility, "multifamily"
+    multifamily_non_hvac_related_electricity_kwh = (
+        calculate_total_non_hvac_related_electricity_kwh(
+            resstock_annual, metadata_with_utility, "multifamily"
+        )
     )
-    single_family_non_hvac_related_electricity_kwh = calculate_total_non_hvac_related_electricity_kwh(
-        resstock_annual, metadata_with_utility, "single_family"
+    single_family_non_hvac_related_electricity_kwh = (
+        calculate_total_non_hvac_related_electricity_kwh(
+            resstock_annual, metadata_with_utility, "single_family"
+        )
     )
 
     # Difference-of-means test: total_non_hvac_kwh_by_floor_area (multifamily vs single-family)
@@ -872,22 +1058,98 @@ if __name__ == "__main__":
         pl.col("total_non_hvac_kwh_by_floor_area").is_finite()
     ).get_column("total_non_hvac_kwh_by_floor_area")
     diff_test = two_sample_difference_of_means_test(mf_vals, sf_vals)
-    print("\nDifference-of-means test: total_non_hvac_kwh_by_floor_area (multifamily vs single-family)")
-    print(f"  Multifamily:   n={diff_test['n1']}, mean={diff_test['mean1']:.2f}, std={diff_test['std1']:.2f}")
-    print(f"  Single-family: n={diff_test['n2']}, mean={diff_test['mean2']:.2f}, std={diff_test['std2']:.2f}")
+    print(
+        "\nDifference-of-means test: total_non_hvac_kwh_by_floor_area (multifamily vs single-family)"
+    )
+    print(
+        f"  Multifamily:   n={diff_test['n1']}, mean={diff_test['mean1']:.2f}, std={diff_test['std1']:.2f}"
+    )
+    print(
+        f"  Single-family: n={diff_test['n2']}, mean={diff_test['mean2']:.2f}, std={diff_test['std2']:.2f}"
+    )
     print(f"  Difference (MF − SF) = {diff_test['diff']:.2f}")
-    print(f"  Difference (MF − SF) as % of SF = {diff_test['diff'] / diff_test['mean2'] * 100:.2f}%")
-    print(f"  Welch t = {diff_test['t_stat']:.4f}, df ≈ {diff_test['welch_df']:.1f}, p = {diff_test['p_value']:.4f}")
+    print(
+        f"  Difference (MF − SF) as % of SF = {diff_test['diff'] / diff_test['mean2'] * 100:.2f}%"
+    )
+    print(
+        f"  Welch t = {diff_test['t_stat']:.4f}, df ≈ {diff_test['welch_df']:.1f}, p = {diff_test['p_value']:.4f}"
+    )
     if diff_test["p_value"] < 0.05:
         print("  The difference is statistically significant (p < 0.05).")
     else:
         print("  The difference is not statistically significant (p >= 0.05).")
 
-
     # Normalize non-HVAC related electricity consumption by floor area for multifamily and recalculate the difference with eia.
-    MF_to_SF_non_hvac_ratio = diff_test['mean1'] / diff_test['mean2']
+    MF_to_SF_non_hvac_ratio = diff_test["mean1"] / diff_test["mean2"]
+    print(f"MF_to_SF_non_hvac_ratio: {MF_to_SF_non_hvac_ratio}")
 
+    # Calculate total non-HVAC-related electricity kWh for multifamily and single-family buildings.
+    multifamily_total_hvac_related_electricity_kwh = (
+        calculate_total_hvac_related_electricity_kwh(
+            resstock_annual, metadata_with_utility, "multifamily"
+        )
+    )
+    single_family_total_hvac_related_electricity_kwh = (
+        calculate_total_hvac_related_electricity_kwh(
+            resstock_annual, metadata_with_utility, "single_family"
+        )
+    )
 
+    # Difference-of-means test: tota_hvac_related_electricity_kwh (multifamily vs single-family)
+    mf_vals = multifamily_total_hvac_related_electricity_kwh.filter(
+        pl.col("total_hvac_kwh_by_floor_area").is_finite()
+    ).get_column("total_hvac_kwh_by_floor_area")
+    sf_vals = single_family_total_hvac_related_electricity_kwh.filter(
+        pl.col("total_hvac_kwh_by_floor_area").is_finite()
+    ).get_column("total_hvac_kwh_by_floor_area")
+    diff_test = two_sample_difference_of_means_test(mf_vals, sf_vals)
+    print(
+        "\nDifference-of-means test: total_hvac_kwh_by_floor_area (multifamily vs single-family)"
+    )
+    print(
+        f"  Multifamily:   n={diff_test['n1']}, mean={diff_test['mean1']:.2f}, std={diff_test['std1']:.2f}"
+    )
+    print(
+        f"  Single-family: n={diff_test['n2']}, mean={diff_test['mean2']:.2f}, std={diff_test['std2']:.2f}"
+    )
+    print(f"  Difference (MF − SF) = {diff_test['diff']:.2f}")
+    print(
+        f"  Difference (MF − SF) as % of SF = {diff_test['diff'] / diff_test['mean2'] * 100:.2f}%"
+    )
+    print(
+        f"  Welch t = {diff_test['t_stat']:.4f}, df ≈ {diff_test['welch_df']:.1f}, p = {diff_test['p_value']:.4f}"
+    )
+    if diff_test["p_value"] < 0.05:
+        print("  The difference is statistically significant (p < 0.05).")
+    else:
+        print("  The difference is not statistically significant (p >= 0.05).")
+    MF_to_SF_hvac_ratio = diff_test["mean1"] / diff_test["mean2"]
+    print(f"MF_to_SF_hvac_ratio: {MF_to_SF_hvac_ratio}")
+
+    adjusted_resstock_annual_with_utility = adjust_mf_non_hvac_related_electricity(
+        resstock_annual,
+        metadata_with_utility,
+        MF_to_SF_non_hvac_ratio,
+        MF_to_SF_hvac_ratio,
+    )
+    adjusted_resstock_annual_by_utility = group_resstock_annual_by_utility(
+        adjusted_resstock_annual_with_utility
+    )
+    adjusted_comparison = compare_resstock_eia_by_utility(
+        adjusted_resstock_annual_by_utility, eia
+    )
+
+    # Plot per-utility percent difference vs multifamily share and some stats.
+    adjusted_multifamily_fit_result = fit_kwh_pct_diff_vs_multifamily_pct(
+        adjusted_comparison, building_type_shares
+    )
+    print(f"adjusted_multifamily_fit_result: {adjusted_multifamily_fit_result}")
+    plot_kwh_pct_diff_vs_multifamily_pct(
+        adjusted_comparison,
+        building_type_shares,
+        adjusted_multifamily_fit_result,
+        path_output="adjusted_comparison.png",
+    )
 
     """print("\nResStock annual load results by utility:")
     print(resstock_annual)
