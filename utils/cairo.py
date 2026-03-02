@@ -21,26 +21,67 @@ CambiumPathLike = str | Path | S3Path
 log = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Low-level I/O helpers
+# ---------------------------------------------------------------------------
+
+
+def _normalize_mc_path(path: CambiumPathLike):  # noqa: ANN201
+    """Return a single path-like (Path or S3Path) for an MC CSV or Parquet.
+
+    Accepts:
+    - S3Path / Path: returned as-is
+    - str starting with "s3://": wrapped in S3Path
+    - str with "/" or explicit extension: wrapped in Path
+    - bare scenario name (str): resolved to config.MARGINALCOST_DIR/<name>.csv
+    """
+    if isinstance(path, (S3Path, Path)):
+        return path
+    if isinstance(path, str):
+        if path.startswith("s3://"):
+            return S3Path(path)
+        if "/" in path or path.endswith((".csv", ".parquet")):
+            return Path(path)
+        return config.MARGINALCOST_DIR / f"{path}.csv"
+    raise TypeError(f"path must be str, Path, or S3Path; got {type(path)}")
+
+
+def _read_parquet_to_pandas(path: Path | S3Path) -> pd.DataFrame:
+    """Read a single parquet file (local or S3) into a pandas DataFrame.
+
+    For S3, streams bytes through BytesIO so PyArrow reads a single file rather
+    than inferring a partitioned dataset from Hive-style path segments like
+    ``scenario=MidCase/...`` (which would raise ArrowTypeError on schema merge).
+    """
+    if isinstance(path, S3Path):
+        return pd.read_parquet(io.BytesIO(path.read_bytes()), engine="pyarrow")
+    return pd.read_parquet(path)
+
+
+def _set_timestamp_index(df: pd.DataFrame) -> pd.DataFrame:
+    """Move a 'timestamp' column to the index if needed, and name the index 'time'."""
+    if "timestamp" in df.columns and not isinstance(df.index, pd.DatetimeIndex):
+        df = df.set_index("timestamp")
+    if df.index.name != "time":
+        df.index.name = "time"
+    return df
+
+
+def _scan_parquet_pl(path_str: str) -> pl.LazyFrame:
+    """Scan a parquet path (local or S3) as a Polars LazyFrame."""
+    if path_str.startswith("s3://"):
+        return pl.scan_parquet(path_str, storage_options=get_aws_storage_options())
+    return pl.scan_parquet(path_str)
+
+
 def _is_cambium_path(path: CambiumPathLike) -> bool:
-    """Check if a path is a Cambium file path (contains 'cambium' in the path string)."""
+    """Return True if the path string contains 'cambium' (case-insensitive)."""
     return "cambium" in str(path).lower()
 
 
-def _normalize_cambium_path(cambium_scenario: CambiumPathLike):  # noqa: ANN201
-    """Return a single path-like (Path or S3Path) for Cambium CSV or Parquet."""
-    if isinstance(cambium_scenario, S3Path):
-        return cambium_scenario
-    if isinstance(cambium_scenario, Path):
-        return cambium_scenario
-    if isinstance(cambium_scenario, str):
-        if cambium_scenario.startswith("s3://"):
-            return S3Path(cambium_scenario)
-        if "/" in cambium_scenario or cambium_scenario.endswith((".csv", ".parquet")):
-            return Path(cambium_scenario)
-        return config.MARGINALCOST_DIR / f"{cambium_scenario}.csv"
-    raise TypeError(
-        f"cambium_scenario must be str, Path, or S3Path; got {type(cambium_scenario)}"
-    )
+# ---------------------------------------------------------------------------
+# Supply-side marginal cost loaders
+# ---------------------------------------------------------------------------
 
 
 def _load_cambium_marginal_costs(
@@ -62,41 +103,22 @@ def _load_cambium_marginal_costs(
     - Both: we divide cost columns by 1000 to get $/kWh; then common_year alignment,
       __timeshift__ to target_year, and tz_localize("EST") so output matches CAIRO.
     """
-    path = _normalize_cambium_path(cambium_scenario)
+    path = _normalize_mc_path(cambium_scenario)
     if not path.exists():
         raise FileNotFoundError(f"Cambium marginal cost file {path} does not exist")
 
     suffix = path.suffix.lower()
     if suffix == ".csv":
-        if isinstance(path, S3Path):
-            raw = path.read_bytes()
-            df = pd.read_csv(
-                io.BytesIO(raw),
-                skiprows=5,
-                index_col="timestamp",
-                parse_dates=True,
-            )
-        else:
-            df = pd.read_csv(
-                path,
-                skiprows=5,
-                index_col="timestamp",
-                parse_dates=True,
-            )
+        raw = path.read_bytes() if isinstance(path, S3Path) else None
+        df = pd.read_csv(
+            io.BytesIO(raw) if raw is not None else path,
+            skiprows=5,
+            index_col="timestamp",
+            parse_dates=True,
+        )
     elif suffix == ".parquet":
-        if isinstance(path, S3Path):
-            # Read as bytes and pass BytesIO so PyArrow reads a single file. If we pass
-            # the S3 path (even with explicit S3FileSystem), PyArrow infers a partitioned
-            # dataset from path segments like scenario=MidCase/... and raises
-            # ArrowTypeError when merging partition schemas.
-            raw = path.read_bytes()
-            df = pd.read_parquet(io.BytesIO(raw), engine="pyarrow")
-        else:
-            df = pd.read_parquet(path)
-        if "timestamp" in df.columns and not isinstance(df.index, pd.DatetimeIndex):
-            df = df.set_index("timestamp")
-        if df.index.name != "time":
-            df.index.name = "time"
+        df = _read_parquet_to_pandas(path)
+        df = _set_timestamp_index(df)
     else:
         raise ValueError(
             f"Cambium file must be .csv or .parquet; got {path} (suffix {suffix})"
@@ -137,157 +159,64 @@ def _load_cambium_marginal_costs(
     return df
 
 
-def _load_supply_energy_mc(
-    energy_path: CambiumPathLike, target_year: int
+def _load_supply_mc_column(
+    path: CambiumPathLike,
+    col: str,
+    label: str,
+    target_year: int,
+    context: str = "Supply MC",
 ) -> pd.DataFrame:
+    """Load a single supply MC column from a parquet file (local or S3).
+
+    Returns a one-column DataFrame named ``label`` in $/kWh, indexed by a
+    tz-aware DatetimeIndex (EST), time-shifted to ``target_year``.
+
+    Args:
+        path: Local or S3 path to the supply MC parquet file.
+        col: Source column name in the parquet (e.g. ``"energy_cost_enduse"``).
+        label: Output column name (e.g. ``"Marginal Energy Costs ($/kWh)"``).
+        target_year: Target year for timeshifting.
+        context: Human-readable label used in error messages.
     """
-    Load supply energy marginal costs (LBMP) from parquet (local or S3). Returns costs in $/kWh.
-
-    Accepts: local path (str or Path) or S3 URI (str or S3Path).
-    Example S3 Parquet:
-    s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nyseg/year=2025/data.parquet
-
-    Assumptions:
-    - Parquet: columns timestamp (datetime), energy_cost_enduse (float).
-      Costs are in $/MWh. Exactly 8760 rows (hourly).
-    - We divide by 1000 to get $/kWh; then common_year alignment,
-      __timeshift__ to target_year, and tz_localize("EST") so output matches CAIRO.
-    """
-    path = _normalize_cambium_path(energy_path)
-    if not path.exists():
-        raise FileNotFoundError(f"Supply energy MC file {path} does not exist")
-
-    if path.suffix.lower() != ".parquet":
+    normalized = _normalize_mc_path(path)
+    if not normalized.exists():
+        raise FileNotFoundError(f"{context} file {normalized} does not exist")
+    if normalized.suffix.lower() != ".parquet":
         raise ValueError(
-            f"Supply energy MC file must be .parquet; got {path} (suffix {path.suffix})"
+            f"{context} file must be .parquet; got {normalized} (suffix {normalized.suffix})"
         )
 
-    if isinstance(path, S3Path):
-        # Read as bytes and pass BytesIO so PyArrow reads a single file
-        raw = path.read_bytes()
-        df = pd.read_parquet(io.BytesIO(raw), engine="pyarrow")
-    else:
-        df = pd.read_parquet(path)
+    df = _read_parquet_to_pandas(normalized)
+    df = _set_timestamp_index(df)
 
-    if "timestamp" in df.columns and not isinstance(df.index, pd.DatetimeIndex):
-        df = df.set_index("timestamp")
-    if df.index.name != "time":
-        df.index.name = "time"
+    if col not in df.columns:
+        raise ValueError(f"{context} file {normalized} missing required column: {col}")
 
-    # Keep only energy column
-    if "energy_cost_enduse" not in df.columns:
-        raise ValueError(
-            f"Supply energy MC file {path} missing required column: energy_cost_enduse"
-        )
-
-    df = df.loc[:, ["energy_cost_enduse"]].copy()
-    df["energy_cost_enduse"] = pd.to_numeric(df["energy_cost_enduse"], errors="coerce")
-    df = df.dropna(subset=["energy_cost_enduse"], how="any")
-
+    df = df.loc[:, [col]].copy()
+    df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=[col])
     if df.empty:
         raise ValueError(
-            f"Supply energy MC file {path} has no valid numeric rows in energy_cost_enduse"
+            f"{context} file {normalized} has no valid numeric rows in {col}"
         )
 
-    # Rename to match CAIRO convention
-    df = df.rename(columns={"energy_cost_enduse": "Marginal Energy Costs ($/kWh)"})
-    df.loc[:, "Marginal Energy Costs ($/kWh)"] /= 1000  # $/MWh → $/kWh
+    df = df.rename(columns={col: label})
+    df.loc[:, label] /= 1000  # $/MWh → $/kWh
 
     df.index = pd.to_datetime(df.index, errors="coerce")
     df = df.loc[~df.index.isna()].copy()
     if df.empty:
-        raise ValueError(f"Supply energy MC file {path} has no valid timestamps")
+        raise ValueError(f"{context} file {normalized} has no valid timestamps")
 
-    # Align to common_year (first year in index) and timeshift to target_year
     common_year = df.index[0].year
     if common_year != target_year:
         df = __timeshift__(df, target_year)
 
-    # Set timezone to EST (CAIRO convention)
     if df.index.tz is None:
         df.index = df.index.tz_localize("EST")
     else:
         df.index = df.index.tz_convert("EST")
     df.index.name = "time"
-
-    return df
-
-
-def _load_supply_capacity_mc(
-    capacity_path: CambiumPathLike, target_year: int
-) -> pd.DataFrame:
-    """
-    Load supply capacity marginal costs (ICAP) from parquet (local or S3). Returns costs in $/kWh.
-
-    Accepts: local path (str or Path) or S3 URI (str or S3Path).
-    Example S3 Parquet:
-    s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2025/data.parquet
-
-    Assumptions:
-    - Parquet: columns timestamp (datetime), capacity_cost_enduse (float).
-      Costs are in $/MWh. Exactly 8760 rows (hourly).
-    - We divide by 1000 to get $/kWh; then common_year alignment,
-      __timeshift__ to target_year, and tz_localize("EST") so output matches CAIRO.
-    """
-    path = _normalize_cambium_path(capacity_path)
-    if not path.exists():
-        raise FileNotFoundError(f"Supply capacity MC file {path} does not exist")
-
-    if path.suffix.lower() != ".parquet":
-        raise ValueError(
-            f"Supply capacity MC file must be .parquet; got {path} (suffix {path.suffix})"
-        )
-
-    if isinstance(path, S3Path):
-        # Read as bytes and pass BytesIO so PyArrow reads a single file
-        raw = path.read_bytes()
-        df = pd.read_parquet(io.BytesIO(raw), engine="pyarrow")
-    else:
-        df = pd.read_parquet(path)
-
-    if "timestamp" in df.columns and not isinstance(df.index, pd.DatetimeIndex):
-        df = df.set_index("timestamp")
-    if df.index.name != "time":
-        df.index.name = "time"
-
-    # Keep only capacity column
-    if "capacity_cost_enduse" not in df.columns:
-        raise ValueError(
-            f"Supply capacity MC file {path} missing required column: capacity_cost_enduse"
-        )
-
-    df = df.loc[:, ["capacity_cost_enduse"]].copy()
-    df["capacity_cost_enduse"] = pd.to_numeric(
-        df["capacity_cost_enduse"], errors="coerce"
-    )
-    df = df.dropna(subset=["capacity_cost_enduse"], how="any")
-
-    if df.empty:
-        raise ValueError(
-            f"Supply capacity MC file {path} has no valid numeric rows in capacity_cost_enduse"
-        )
-
-    # Rename to match CAIRO convention
-    df = df.rename(columns={"capacity_cost_enduse": "Marginal Capacity Costs ($/kWh)"})
-    df.loc[:, "Marginal Capacity Costs ($/kWh)"] /= 1000  # $/MWh → $/kWh
-
-    df.index = pd.to_datetime(df.index, errors="coerce")
-    df = df.loc[~df.index.isna()].copy()
-    if df.empty:
-        raise ValueError(f"Supply capacity MC file {path} has no valid timestamps")
-
-    # Align to common_year (first year in index) and timeshift to target_year
-    common_year = df.index[0].year
-    if common_year != target_year:
-        df = __timeshift__(df, target_year)
-
-    # Set timezone to EST (CAIRO convention)
-    if df.index.tz is None:
-        df.index = df.index.tz_localize("EST")
-    else:
-        df.index = df.index.tz_convert("EST")
-    df.index.name = "time"
-
     return df
 
 
@@ -297,7 +226,12 @@ def _load_supply_marginal_costs(
     target_year: int,
 ) -> pd.DataFrame:
     """
-    Load supply marginal costs from separate energy and capacity files, or fallback to combined Cambium file.
+    Load supply marginal costs: Energy + Capacity (bulk supply).
+
+    Architecture:
+    - Supply MCs = Energy + Capacity (bulk supply, from Cambium or NYISO)
+    - Delivery MCs = Bulk Tx + Dist+Sub-Tx (handled separately)
+    All MCs are index-aligned to a common 8760-hour DatetimeIndex.
 
     If both energy_path and capacity_path are provided:
     - If either path contains "cambium", treat it as a Cambium file (combined energy+capacity)
@@ -306,6 +240,9 @@ def _load_supply_marginal_costs(
 
     If only one is provided, raises ValueError.
     If both are None, raises ValueError (caller should use _load_cambium_marginal_costs instead).
+
+    For delivery-only runs (add_supply_revenue_requirement=false), supply MCs may be set to
+    zero but are still loaded to provide the alignment target index.
 
     Returns DataFrame with columns matching CAIRO convention:
     - Marginal Energy Costs ($/kWh)
@@ -319,7 +256,8 @@ def _load_supply_marginal_costs(
         target_year: Target year for timeshifting.
 
     Returns:
-        Combined DataFrame with both energy and capacity costs.
+        Combined DataFrame with both energy and capacity costs, indexed by DatetimeIndex
+        (EST-localized, 8760 rows).
     """
     if energy_path is None and capacity_path is None:
         raise ValueError(
@@ -333,9 +271,9 @@ def _load_supply_marginal_costs(
             "capacity_path is required when using separate supply MC files"
         )
 
-    # Check if either path contains "cambium" - if so, treat as Cambium file (backward compatibility)
+    # Backward compatibility: if either path is a Cambium file (combined energy+capacity),
+    # route to the Cambium loader and let it produce both columns.
     if _is_cambium_path(energy_path) or _is_cambium_path(capacity_path):
-        # Use the cambium path (prefer energy_path if both contain cambium, otherwise use the one that does)
         cambium_path = energy_path if _is_cambium_path(energy_path) else capacity_path
         log.info(
             "Detected Cambium path in supply MC: %s. Using _load_cambium_marginal_costs for backward compatibility.",
@@ -343,17 +281,31 @@ def _load_supply_marginal_costs(
         )
         return _load_cambium_marginal_costs(cambium_path, target_year)
 
-    # Both paths are separate files (not Cambium)
-    energy_df = _load_supply_energy_mc(energy_path, target_year)
-    capacity_df = _load_supply_capacity_mc(capacity_path, target_year)
+    # Separate energy and capacity parquets (e.g. NYISO LBMP + ICAP).
+    energy_df = _load_supply_mc_column(
+        energy_path,
+        col="energy_cost_enduse",
+        label="Marginal Energy Costs ($/kWh)",
+        target_year=target_year,
+        context="Supply energy MC",
+    )
+    capacity_df = _load_supply_mc_column(
+        capacity_path,
+        col="capacity_cost_enduse",
+        label="Marginal Capacity Costs ($/kWh)",
+        target_year=target_year,
+        context="Supply capacity MC",
+    )
 
-    # Combine on index (should align perfectly as both are 8760 rows)
     combined = pd.concat([energy_df, capacity_df], axis=1)
-
     if len(combined) != 8760:
         raise ValueError(f"Combined supply MC has {len(combined)} rows, expected 8760")
-
     return combined
+
+
+# ---------------------------------------------------------------------------
+# Building ID / load-file helpers
+# ---------------------------------------------------------------------------
 
 
 def build_bldg_id_to_load_filepath(
@@ -392,11 +344,11 @@ def build_bldg_id_to_load_filepath(
         if building_ids_set is not None and bldg_id not in building_ids_set:
             continue
 
-        if return_path_base is None:
-            filepath = parquet_file
-        else:
-            filepath = return_path_base / parquet_file.name
-
+        filepath = (
+            parquet_file
+            if return_path_base is None
+            else return_path_base / parquet_file.name
+        )
         bldg_id_to_load_filepath[bldg_id] = filepath
 
     return bldg_id_to_load_filepath
@@ -429,36 +381,218 @@ def _fetch_prototype_ids_by_electric_util(
     return cast(list[int], bldg_ids["bldg_id"].to_list())
 
 
-def load_distribution_marginal_costs(
+# ---------------------------------------------------------------------------
+# Delivery-side marginal cost loaders
+# ---------------------------------------------------------------------------
+
+
+def load_dist_and_sub_tx_marginal_costs(
     path: str | Path,
 ) -> pd.Series:
-    """Load distribution marginal costs from a parquet path and return a tz-aware Series."""
-    path_str = str(path)
-    if path_str.startswith("s3://"):
-        distribution_mc_scan: pl.LazyFrame = pl.scan_parquet(
-            path_str,
-            storage_options=get_aws_storage_options(),
-        )
-    else:
-        distribution_mc_scan = pl.scan_parquet(path_str)
-    distribution_mc_df = cast(pl.DataFrame, distribution_mc_scan.collect())
-    distribution_marginal_costs = distribution_mc_df.to_pandas()
+    """Load *distribution + upstream (Tx/Sub-Tx)* marginal costs and return a tz-aware Series.
+
+    The parquet this function loads is produced by `utils/pre/generate_utility_tx_dx_mc.py`
+    and contains:
+    - `mc_upstream_per_kwh` (Tx/Sub-Tx component, $/kWh)
+    - `mc_dist_per_kwh` (distribution component, $/kWh)
+    - `mc_total_per_kwh` (= upstream + distribution, $/kWh)
+
+    We load `mc_total_per_kwh` and pass it to CAIRO as the delivery-side MC trace.
+    Bulk transmission is handled separately via `load_bulk_tx_marginal_costs`.
+    """
+    df = cast(pl.DataFrame, _scan_parquet_pl(str(path)).collect()).to_pandas()
     required_cols = {"timestamp", "mc_total_per_kwh"}
-    missing_cols = required_cols.difference(distribution_marginal_costs.columns)
+    missing_cols = required_cols.difference(df.columns)
     if missing_cols:
         raise ValueError(
-            "Distribution marginal costs parquet is missing required columns "
+            "Dist+sub-tx marginal costs parquet is missing required columns "
             f"{sorted(required_cols)}. Missing: {sorted(missing_cols)}"
         )
-    distribution_marginal_costs = distribution_marginal_costs.set_index("timestamp")[
-        "mc_total_per_kwh"
-    ]
-    distribution_marginal_costs.index = pd.DatetimeIndex(
-        distribution_marginal_costs.index
-    ).tz_localize("EST")
-    distribution_marginal_costs.index.name = "time"
-    distribution_marginal_costs.name = "Marginal Distribution Costs ($/kWh)"
-    return distribution_marginal_costs
+    series = df.set_index("timestamp")["mc_total_per_kwh"]
+    series.index = pd.DatetimeIndex(series.index).tz_localize("EST")
+    series.index.name = "time"
+    series.name = "Marginal Dist+Sub-Tx Costs ($/kWh)"
+    return series
+
+
+def load_bulk_tx_marginal_costs(
+    path: str | Path,
+) -> pd.Series:
+    """Load bulk transmission marginal costs from a parquet path and return a tz-aware Series.
+
+    Reads parquet with columns ``timestamp`` and ``bulk_tx_cost_enduse`` ($/MWh),
+    converts to $/kWh (÷ 1000), TZ-localizes to EST, and returns a Series named
+    ``"Marginal Bulk Transmission Costs ($/kWh)"``.
+
+    The output mirrors the shape of :func:`load_dist_and_sub_tx_marginal_costs` so the
+    caller can sum the two into a single delivery MC trace for CAIRO.
+
+    Args:
+        path: Local or S3 path to the bulk transmission MC parquet file.
+            Expected schema: ``timestamp`` (datetime), ``bulk_tx_cost_enduse``
+            (float, $/MWh), 8760 rows.
+
+    Returns:
+        ``pd.Series`` indexed by ``DatetimeIndex`` (EST-localized, name ``"time"``),
+        values in $/kWh, series name ``"Marginal Bulk Transmission Costs ($/kWh)"``.
+
+    Raises:
+        FileNotFoundError: If the path does not exist.
+        ValueError: If required columns are missing, data has nulls, or row count
+            is not 8760.
+    """
+    df = cast(pl.DataFrame, _scan_parquet_pl(str(path)).collect()).to_pandas()
+
+    required_cols = {"timestamp", "bulk_tx_cost_enduse"}
+    missing_cols = required_cols.difference(df.columns)
+    if missing_cols:
+        raise ValueError(
+            "Bulk transmission marginal costs parquet is missing required columns "
+            f"{sorted(required_cols)}. Missing: {sorted(missing_cols)}"
+        )
+
+    if df["bulk_tx_cost_enduse"].isna().any():
+        raise ValueError(
+            "Bulk transmission marginal costs contain null values in bulk_tx_cost_enduse"
+        )
+
+    if len(df) != 8760:
+        log.warning(
+            "Bulk transmission MC has %d rows (expected 8760); proceeding anyway.",
+            len(df),
+        )
+
+    series = df.set_index("timestamp")["bulk_tx_cost_enduse"] / 1000.0  # $/MWh → $/kWh
+    series.index = pd.DatetimeIndex(series.index).tz_localize("EST")
+    series.index.name = "time"
+    series.name = "Marginal Bulk Transmission Costs ($/kWh)"
+
+    if (series < 0).any():
+        log.warning(
+            "Bulk transmission MC has %d negative values; check input data.",
+            int((series < 0).sum()),
+        )
+
+    log.info(
+        "Loaded bulk transmission MC: %d rows, annual sum = %.4f $/kW-yr, "
+        "avg = %.6f $/kWh, max = %.6f $/kWh",
+        len(series),
+        float(series.sum()),
+        float(series.mean()),
+        float(series.max()),
+    )
+    return series
+
+
+def _align_mc_to_index(
+    mc_series: pd.Series,
+    target_index: pd.DatetimeIndex,
+    mc_type: str = "MC",
+) -> pd.Series:
+    """Align a marginal cost Series to a target DatetimeIndex.
+
+    Handles index alignment when MC has a different year or length than the target.
+    Preserves values by position when lengths match (common when MC file year differs
+    from run year), otherwise reindexes.
+
+    Args:
+        mc_series: MC Series with DatetimeIndex to align.
+        target_index: Target DatetimeIndex (typically from bulk MC).
+        mc_type: Label for logging (e.g., "dist_and_sub_tx", "bulk_tx").
+
+    Returns:
+        MC Series aligned to target_index, preserving original name.
+    """
+    if mc_series.index.equals(target_index):
+        return mc_series
+
+    if len(mc_series) == len(target_index):
+        # Same length but different timestamps: align by position
+        log.info(
+            "Aligned %s MC index to target (mc_year=%s, target_year=%s)",
+            mc_type,
+            mc_series.index[0].year,
+            target_index[0].year,
+        )
+        return pd.Series(mc_series.values, index=target_index, name=mc_series.name)
+
+    # Different lengths: reindex
+    aligned = mc_series.reindex(target_index)
+    log.info(
+        "Reindexed %s MC to target (mc_rows=%s, target_rows=%s)",
+        mc_type,
+        len(mc_series),
+        len(target_index),
+    )
+    return aligned
+
+
+def add_bulk_tx_and_dist_and_sub_tx_marginal_cost(
+    path_dist_and_sub_tx_mc: str | Path,
+    path_bulk_tx_mc: str | Path | None,
+    target_index: pd.DatetimeIndex,
+) -> pd.Series:
+    """Load and combine delivery marginal costs: Bulk Tx + Dist+Sub-Tx.
+
+    Architecture:
+    - Delivery MCs = Bulk Tx + Dist+Sub-Tx (both are delivery charges)
+    - Supply MCs = Energy + Capacity (bulk supply, handled separately)
+    All MCs must share the same DatetimeIndex for CAIRO compatibility.
+
+    This function loads dist+sub-tx MC (required) and bulk transmission MC (optional),
+    aligns both to the target_index, and sums them into a single delivery MC Series.
+
+    Args:
+        path_dist_and_sub_tx_mc: Path to dist+sub-tx MC parquet file.
+        path_bulk_tx_mc: Optional path to bulk transmission MC parquet file.
+        target_index: Target DatetimeIndex to align both MCs to (typically from supply MC index
+            to ensure all MCs share the same 8760-hour index).
+
+    Returns:
+        Combined delivery MC Series (dist+sub-tx + bulk transmission) aligned to target_index,
+        named "Marginal Delivery Costs ($/kWh)".
+
+    Raises:
+        ValueError: If combined series contains nulls after alignment.
+    """
+    dist_and_sub_tx_mc = _align_mc_to_index(
+        load_dist_and_sub_tx_marginal_costs(path_dist_and_sub_tx_mc),
+        target_index,
+        "dist_and_sub_tx",
+    )
+
+    if path_bulk_tx_mc is not None and str(path_bulk_tx_mc).strip():
+        bulk_tx_mc = _align_mc_to_index(
+            load_bulk_tx_marginal_costs(path_bulk_tx_mc), target_index, "bulk_tx"
+        )
+        dist_sum = float(dist_and_sub_tx_mc.sum())
+        bulk_tx_sum = float(bulk_tx_mc.sum())
+        log.info(
+            "Pre-merge delivery MC: Dist+Sub-Tx=%.4f $/kW-yr, Bulk Tx=%.4f $/kW-yr",
+            dist_sum,
+            bulk_tx_sum,
+        )
+        delivery_mc = dist_and_sub_tx_mc + bulk_tx_mc
+        if delivery_mc.isna().any():
+            raise ValueError(
+                "Combined delivery MC (dist+sub-tx + bulk transmission) contains null values"
+            )
+        log.info(
+            "Combined delivery MC: Total=%.4f $/kW-yr (Dist+Sub-Tx=%.4f + Bulk Tx=%.4f)",
+            float(delivery_mc.sum()),
+            dist_sum,
+            bulk_tx_sum,
+        )
+    else:
+        delivery_mc = dist_and_sub_tx_mc
+
+    delivery_mc.name = "Marginal Delivery Costs ($/kWh)"
+    return delivery_mc
+
+
+# ---------------------------------------------------------------------------
+# TOU / demand-response helpers
+# ---------------------------------------------------------------------------
 
 
 def extract_tou_period_rates(tou_tariff: dict) -> pd.DataFrame:
@@ -741,16 +875,12 @@ def _infer_season_groups_from_tariff(
         return []
 
     groups: list[dict[str, object]] = []
-    ordered_groups = sorted(grouped.items(), key=lambda item: min(item[1]))
-    for idx, (periods, months) in enumerate(ordered_groups):
+    for idx, (periods, months) in enumerate(
+        sorted(grouped.items(), key=lambda item: min(item[1]))
+    ):
         if not periods:
             continue
-        groups.append(
-            {
-                "name": f"season_{idx + 1}",
-                "months": sorted(months),
-            }
-        )
+        groups.append({"name": f"season_{idx + 1}", "months": sorted(months)})
     return groups
 
 
@@ -803,15 +933,12 @@ def apply_runtime_tou_demand_response(
     # fall back to full-year as a single group.
     shifted_chunks: list[pd.DataFrame] = []
     trackers: list[pd.DataFrame] = []
-    season_groups: list[dict[str, object]] = []
+
     if season_specs:
-        for spec in season_specs:
-            season_groups.append(
-                {
-                    "name": str(spec.season.name),
-                    "months": list(spec.season.months),
-                }
-            )
+        season_groups: list[dict[str, object]] = [
+            {"name": str(spec.season.name), "months": list(spec.season.months)}
+            for spec in season_specs
+        ]
     else:
         # For seasonal+TOU tariffs without explicit derivation specs, infer
         # month groups directly from tariff month->period structure.
@@ -822,10 +949,7 @@ def apply_runtime_tou_demand_response(
             season_name = str(season_group["name"])
             season_months = set(cast(list[int], season_group["months"]))
             season_df = tou_df[tou_df["month"].isin(season_months)].copy()
-            if season_df.empty:
-                continue
-            season_periods = sorted(season_df["energy_period"].dropna().unique())
-            if not season_periods:
+            if season_df.empty or not season_df["energy_period"].dropna().size:
                 continue
             shifted_season, tracker = process_residential_hourly_demand_response_shift(
                 hourly_load_df=season_df,
