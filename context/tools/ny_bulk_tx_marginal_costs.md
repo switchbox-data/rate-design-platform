@@ -79,16 +79,19 @@ The NYISO AC Transmission study is not used for ROS:
 
 #### Resulting v_z distribution for ROS
 
-With three undiluted values [$10.89, $40.21, $78.42] /kW-yr run through the Steps 1–3 quantile and isotonic pipeline (output of `just derive` in `data/nyiso/transmission/`):
+Three undiluted values: Niagara-Dysinger $10.89, Eastover $40.21, Smart Path $78.42 /kW-yr.
+Output of `just derive` in `data/nyiso/transmission/`:
 
-| Column             | Value       | Basis                                                                                   |
-| ------------------ | ----------- | --------------------------------------------------------------------------------------- |
-| `v_low_kw_yr`      | $40.21/kW-yr | P25 with Polars nearest-quantile: position 0.25×(3−1)=0.5 rounds to index 1 (Eastover) |
-| `v_mid_kw_yr`      | $40.21/kW-yr | P50: index 1 = Eastover. Niagara-Dysinger ($10.89) falls below P25.                   |
-| `v_high_kw_yr`     | $78.42/kW-yr | P75: rounds to index 2 = Smart Path Connect                                            |
-| `v_isotonic_kw_yr` | $40.21/kW-yr | Median slope from isotonic B = g(ΔMW) fit (see below)                                 |
+| Column             | Value        | Basis                                                             |
+| ------------------ | ------------ | ----------------------------------------------------------------- |
+| `v_low_kw_yr`      | $40.21/kW-yr | P25 = Eastover (Polars nearest-quantile on 3 pts; see note)      |
+| `v_mid_kw_yr`      | $40.21/kW-yr | P50 = Eastover (median of three values)                          |
+| `v_high_kw_yr`     | $78.42/kW-yr | P75 = Smart Path Connect                                         |
+| `v_isotonic_kw_yr` | $40.21/kW-yr | Median slope from isotonic B = g(ΔMW) fit (see below)           |
 
-The isotonic fit: sorted by ΔMW, the B = g(ΔMW) curve passes through (0, 0), (20, 0.804M), (1000, 78.42M), (1100, 91.20M). The last two points are pooled by PAV because the slope from 1000→1100 MW ($10.89/kW-yr) is lower than the prior segment ($78.42/kW-yr). After pooling, the three piecewise slopes are [$40.21, ~$45.3, $0]; the median is **$40.21/kW-yr**.
+**Note on P25 = P50:** With only 3 data points, Polars "nearest" quantile maps both P25 and P50 to the middle value (Eastover, $40.21). Niagara-Dysinger ($10.89) is the minimum and sits below P25 — it does not appear in any quantile column. If you want it to influence `v_low`, run the script with a different quantile interpolation or add more ROS project data points.
+
+**Isotonic fit:** sorted by ΔMW, the B = g(ΔMW) curve passes through (0, 0), (20, $0.804M), (1000, $78.42M), (1100, $91.20M). The slope drops sharply from Smart Path ($78.42/kW-yr) to Niagara-Dysinger ($10.89/kW-yr), so PAV pools those two segments. The three resulting piecewise slopes are [$40.21, ~$45.3, ~$0] /kW-yr; the median is **$40.21/kW-yr**.
 
 #### Why not use the OATT proxies for ROS v_mid?
 
