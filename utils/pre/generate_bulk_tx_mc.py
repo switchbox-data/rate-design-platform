@@ -437,9 +437,9 @@ def allocate_bulk_tx_to_hours(
 
     n_nonzero = result.filter(pl.col("bulk_tx_cost_enduse") > 0).height
     avg_nonzero = float(
-        result.filter(pl.col("bulk_tx_cost_enduse") > 0)["bulk_tx_cost_enduse"].mean()
-    )  # type: ignore[arg-type]
-    max_cost = float(result["bulk_tx_cost_enduse"].max())  # type: ignore[arg-type]
+        result.filter(pl.col("bulk_tx_cost_enduse") > 0)["bulk_tx_cost_enduse"].mean()  # type: ignore[invalid-argument-type]
+    )
+    max_cost = float(result["bulk_tx_cost_enduse"].max())  # type: ignore[invalid-argument-type]
     print(f"\nSeasonal φ via peak surplus above τ_min={tau_min:,.1f} MW (SCR floor):")
     print(
         f"  Summer: peak={peaks['summer']:,.1f} MW  surplus={summer_surplus:,.1f} MW  →  φ_s = {phi_s:.4f}"
