@@ -397,13 +397,9 @@ def allocate_bulk_tx_to_hours(
     phi_w = 1.0 - phi_s
 
     # Attach φ and threshold per row so the weight expression needs no Python branches.
-    season_phi = (
-        season_stats
-        .with_columns(
-            pl.when(pl.col("season") == "summer").then(phi_s).otherwise(phi_w).alias("phi")
-        )
-        .select("season", "threshold_mw", "phi")
-    )
+    season_phi = season_stats.with_columns(
+        pl.when(pl.col("season") == "summer").then(phi_s).otherwise(phi_w).alias("phi")
+    ).select("season", "threshold_mw", "phi")
 
     # Exceedance: max(load − threshold, 0) for SCR hours, 0 elsewhere.
     with_exc = load_with_scr.join(season_phi, on="season").with_columns(
@@ -445,8 +441,12 @@ def allocate_bulk_tx_to_hours(
     )  # type: ignore[arg-type]
     max_cost = float(result["bulk_tx_cost_enduse"].max())  # type: ignore[arg-type]
     print(f"\nSeasonal φ via peak surplus above τ_min={tau_min:,.1f} MW (SCR floor):")
-    print(f"  Summer: peak={peaks['summer']:,.1f} MW  surplus={summer_surplus:,.1f} MW  →  φ_s = {phi_s:.4f}")
-    print(f"  Winter: peak={peaks['winter']:,.1f} MW  surplus={winter_surplus:,.1f} MW  →  φ_w = {phi_w:.4f}")
+    print(
+        f"  Summer: peak={peaks['summer']:,.1f} MW  surplus={summer_surplus:,.1f} MW  →  φ_s = {phi_s:.4f}"
+    )
+    print(
+        f"  Winter: peak={peaks['winter']:,.1f} MW  surplus={winter_surplus:,.1f} MW  →  φ_w = {phi_w:.4f}"
+    )
     print(
         f"\nAllocation:  v_z={v_z:.4f} $/kW-yr  |  non-zero={n_nonzero} hrs  |  weight_sum={weight_sum:.6f}"
     )

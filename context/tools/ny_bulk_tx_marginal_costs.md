@@ -114,7 +114,59 @@ The `gen_capacity_zone` column in `ny_utility_zone_mapping.csv` is the single fo
 
 ## Integration with CAIRO
 
-Bulk Tx MC values from this pipeline are consumed by `utils/pre/generate_bulk_tx_mc.py` and allocated to hourly price signals using SCR top-40-per-season peak hours, similar to generation capacity MC allocation but using seasonal rather than monthly peaks.
+Bulk Tx MC values from this pipeline are consumed by `utils/pre/generate_bulk_tx_mc.py`
+and allocated to hourly $/MWh price signals using a two-level seasonal PoP method.
+
+### Hourly allocation method
+
+**Level 1 — between seasons (peak surplus above SCR floor):**
+
+The fraction of v_z attributed to each season is derived from how far each season's
+coincident peak exceeds the capacity-triggering floor τ_min:
+
+```
+τ_min = min(τ_summer, τ_winter)        [lower of the two SCR thresholds]
+φ_s   = (peak_s − τ_min) / ((peak_s − τ_min) + (peak_w − τ_min))
+φ_w   = 1 − φ_s
+```
+
+τ_min is the load of the (N+1)th highest hour in the lower-threshold season (almost always
+winter). Only load *above* this floor is "capacity-driving". Summer peaks far exceed τ_min;
+winter peaks barely clear it — yielding φ_s ≈ 0.80–0.93 across NY utilities.
+
+**Level 2 — within each season (exceedance above the SCR threshold):**
+
+Each of the top-40 SCR hours in a season is weighted by how far it exceeds that season's
+own threshold (the 41st highest hour):
+
+```
+exc_h = max(load_h − τ_season, 0)   for h in top-40 SCR hours
+w_h   = exc_h / Σ exc_h             [sums to 1 within season]
+```
+
+**Hourly price signal:**
+
+```
+pi_h = v_z × φ_season × w_h         [$/kW-yr]
+bulk_tx_cost_enduse_h = pi_h × 1000 [$/MWh]
+```
+
+Global weights sum to 1 by construction: φ_s·Σw_s + φ_w·Σw_w = φ_s + φ_w = 1.
+
+**Resulting φ values (2025 runs):**
+
+| Utility | τ_min (MW) | φ_s   | φ_w   |
+| ------- | ---------- | ----- | ----- |
+| cenhud  | 1,537      | 0.884 | 0.117 |
+| coned   | 9,119      | 0.890 | 0.110 |
+| nimo    | 9,641      | 0.799 | 0.201 |
+| nyseg   | 9,641      | 0.799 | 0.201 |
+| or      | 1,537      | 0.884 | 0.117 |
+| rge     | 1,439      | 0.883 | 0.117 |
+| psegli  | 2,969      | 0.926 | 0.074 |
+
+NIMO/NYSEG show lower φ_s because their summer and winter peaks are closest together;
+PSEGLI shows the highest φ_s because its summer peak (5,543 MW) is nearly double τ_min.
 
 ### MC Loading Pipeline
 
