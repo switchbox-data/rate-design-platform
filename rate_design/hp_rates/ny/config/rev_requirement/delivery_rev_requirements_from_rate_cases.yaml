@@ -3,9 +3,9 @@
 # Source: s3://data.sb/switchbox/revenue_requirements/ny/revenue_requirements_dummy.csv
 cenhud: 394388063.0
 # TODO: replace dummy values with actual rate-case numbers
-coned: 999999999.0
+coned: 3116197000.0
 psegli: 999999999.0
-rge: 999999999.0
-nyseg: 999999999.0
-nimo: 999999999.0
-or: 999999999.0
+rge: 325582979.0
+nyseg: 834673681.0
+nimo: 1314441124.0
+or: 248359000.0
