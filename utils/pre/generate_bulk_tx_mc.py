@@ -7,11 +7,18 @@ NYISO AC Transmission and LI Export studies to hourly price signals using SCR
 Bulk transmission is treated as a delivery charge (combined with distribution MC in
 `rate_design/hp_rates/run_scenario.py`) and active in delivery-only CAIRO runs.
 
-The allocation method:
-    - Summer = months 5–10, Winter = months 11–12 + 1–4
-    - Top 40 hours per season by utility load → 80 SCR hours total
-    - Load-weighted smear: w_t = load_t / sum(load in SCR hours)
-    - pi_t = v_z * w_t for t in SCR hours; 0 otherwise
+The allocation method (two-level):
+    Level 1 — between seasons (peak-share weights):
+        φ_s = summer_peak_MW / (summer_peak_MW + winter_peak_MW)
+        φ_w = 1 − φ_s
+    Level 2 — within each season (exceedance above the (N+1)th hour):
+        threshold_season = load of the (N+1)th highest hour in that season
+        exc_h = max(load_h − threshold_season, 0)  for h in top-N SCR hours
+        w_h = exc_h / Σ exc_h  (sums to 1 within season)
+    Hourly allocation:
+        pi_h = v_z × φ_season × w_h   [$/kW-yr]
+        bulk_tx_cost_enduse_h = pi_h × 1000   [$/MWh]
+    Global weights sum to 1: Σ (φ_s × Σw_s + φ_w × Σw_w) = φ_s + φ_w = 1.
 
 Input data:
     - Derived v_z table:
@@ -334,80 +341,97 @@ def identify_scr_hours(
 def allocate_bulk_tx_to_hours(
     load_with_scr: pl.DataFrame,
     v_z: float,
+    n_hours_per_season: int = N_SCR_HOURS_PER_SEASON,
 ) -> pl.DataFrame:
-    """Allocate v_z ($/kW-yr) to hourly $/MWh using load-weighted SCR smear.
+    """Allocate v_z ($/kW-yr) using two-level seasonal PoP allocation.
 
-    For SCR hours: w_t = load_t / sum(load in SCR hours)
-    pi_t = v_z * w_t ($/kW per hour)
-    bulk_tx_cost_enduse = pi_t * 1000 ($/MWh)
+    Level 1 — between seasons (peak-share weights):
+        φ_s = summer_peak / (summer_peak + winter_peak)
+        φ_w = 1 − φ_s
 
-    For non-SCR hours: bulk_tx_cost_enduse = 0.
+    Level 2 — within each season (exceedance above the (N+1)th hour):
+        threshold = load of the (n_hours_per_season + 1)th highest hour in season
+        exc_h = max(load_h − threshold, 0)  for h in top-N SCR hours
+        w_h = exc_h / Σ exc_h  (sums to 1 within season)
+
+    Hourly allocation:
+        pi_h = v_z × φ_season × w_h   [$/kW-yr]
+        bulk_tx_cost_enduse_h = pi_h × 1000   [$/MWh]
+
+    Global weights sum to 1 by construction:
+        Σ_all w_h = φ_s × Σ_summer w_h + φ_w × Σ_winter w_h = φ_s + φ_w = 1.
 
     Args:
-        load_with_scr: Load profile with columns: timestamp, load_mw, is_scr.
+        load_with_scr: DataFrame with columns: timestamp, load_mw, season, is_scr.
+            (Output of identify_scr_hours.)
         v_z: Bulk transmission marginal cost in $/kW-yr.
+        n_hours_per_season: SCR window size; the (n+1)th hour sets the exceedance
+            threshold for each season (default: N_SCR_HOURS_PER_SEASON).
 
     Returns:
         DataFrame with columns: timestamp, bulk_tx_cost_enduse ($/MWh).
     """
-    # Sum of loads in SCR hours
-    scr_load_sum = float(load_with_scr.filter(pl.col("is_scr"))["load_mw"].sum())
-    if scr_load_sum <= 0:
+    # One group_by pass: coincident peak and exceedance threshold per season.
+    # threshold_mw = smallest of the top-(N+1) hours = the (N+1)th highest load.
+    season_stats = load_with_scr.group_by("season").agg(
+        pl.col("load_mw").max().alias("peak_mw"),
+        pl.col("load_mw").top_k(n_hours_per_season + 1).min().alias("threshold_mw"),
+    )
+    peaks = dict(zip(season_stats["season"], season_stats["peak_mw"]))
+    thresholds = dict(zip(season_stats["season"], season_stats["threshold_mw"]))
+    summer_peak, winter_peak = peaks["summer"], peaks["winter"]
+    if summer_peak <= 0 or winter_peak <= 0:
         raise ValueError(
-            f"Total SCR load is non-positive: {scr_load_sum:.2f} MW. "
-            f"Cannot compute load weights."
+            f"Non-positive season peak: summer={summer_peak:.1f} MW, winter={winter_peak:.1f} MW"
         )
 
-    # Compute weights and allocate
-    result = load_with_scr.with_columns(
+    # Attach φ and threshold per row so the weight expression needs no Python branches.
+    total_peak = summer_peak + winter_peak
+    season_phi = season_stats.with_columns(
+        (pl.col("peak_mw") / total_peak).alias("phi")
+    ).select("season", "threshold_mw", "phi")
+
+    # Exceedance: max(load − threshold, 0) for SCR hours, 0 elsewhere.
+    with_exc = load_with_scr.join(season_phi, on="season").with_columns(
         pl.when(pl.col("is_scr"))
-        .then(pl.col("load_mw") / scr_load_sum)
+        .then((pl.col("load_mw") - pl.col("threshold_mw")).clip(lower_bound=0.0))
         .otherwise(0.0)
-        .alias("weight")
+        .alias("exceedance")
     )
 
-    # Validate weights sum to 1.0
+    # Within-season sums for normalisation; validate before joining back.
+    exc_sums = with_exc.group_by("season").agg(pl.col("exceedance").sum().alias("exc_sum"))
+    for season, exc_sum in zip(exc_sums["season"], exc_sums["exc_sum"]):
+        if exc_sum <= 0:
+            raise ValueError(
+                f"All {season} SCR loads equal the threshold "
+                f"({thresholds[season]:.1f} MW); cannot compute exceedance weights."
+            )
+
+    # w_h = (exc_h / Σ_season exc) × φ_season  →  global weights sum to 1.
+    result = (
+        with_exc.join(exc_sums, on="season")
+        .with_columns(
+            (pl.col("exceedance") / pl.col("exc_sum") * pl.col("phi")).alias("weight")
+        )
+        .with_columns((pl.col("weight") * v_z * 1000.0).alias("bulk_tx_cost_enduse"))
+    )
+
     weight_sum = float(result["weight"].sum())
     if abs(weight_sum - 1.0) > 1e-4:
         raise ValueError(
-            f"SCR weights sum to {weight_sum:.6f}, expected 1.0 (tolerance 0.01%)"
+            f"Global weights sum to {weight_sum:.6f}, expected 1.0 (tolerance 0.01%)"
         )
 
-    # Allocate: pi_t = v_z * w_t gives $/kW per hour
-    # Convert to $/MWh: multiply by 1000
-    result = result.with_columns(
-        (pl.col("weight") * v_z * 1000.0).alias("bulk_tx_cost_enduse")
-    )
-
-    # Validate non-zero count
+    phi_s = summer_peak / total_peak
     n_nonzero = result.filter(pl.col("bulk_tx_cost_enduse") > 0).height
-    n_scr = result.filter(pl.col("is_scr")).height
-    if n_nonzero != n_scr:
-        raise ValueError(
-            f"Non-zero hours ({n_nonzero}) != SCR hours ({n_scr}). "
-            f"All SCR hours should have positive costs."
-        )
-
-    # Validate all non-zero values are positive
-    neg_count = result.filter(pl.col("bulk_tx_cost_enduse") < 0).height
-    if neg_count > 0:
-        raise ValueError(
-            f"{neg_count} hours have negative bulk transmission costs. "
-            f"All costs should be non-negative."
-        )
-
-    avg_nonzero = float(
-        result.filter(pl.col("bulk_tx_cost_enduse") > 0)["bulk_tx_cost_enduse"].mean()  # type: ignore[arg-type]
-    )
+    avg_nonzero = float(result.filter(pl.col("bulk_tx_cost_enduse") > 0)["bulk_tx_cost_enduse"].mean())  # type: ignore[arg-type]
     max_cost = float(result["bulk_tx_cost_enduse"].max())  # type: ignore[arg-type]
-
-    print("\nAllocation summary:")
-    print(f"  v_z = {v_z:.4f} $/kW-yr")
-    print(f"  SCR load sum = {scr_load_sum:,.1f} MW")
-    print(f"  Weight sum = {weight_sum:.6f}")
-    print(f"  Non-zero hours = {n_nonzero}")
-    print(f"  Avg non-zero cost = {avg_nonzero:.2f} $/MWh")
-    print(f"  Max cost = {max_cost:.2f} $/MWh")
+    print(f"\nSeasonal peak-share weights (threshold = {n_hours_per_season + 1}th hour):")
+    print(f"  Summer: {summer_peak:,.1f} MW  (thr {thresholds['summer']:,.1f} MW)  →  φ_s = {phi_s:.4f}")
+    print(f"  Winter: {winter_peak:,.1f} MW  (thr {thresholds['winter']:,.1f} MW)  →  φ_w = {1 - phi_s:.4f}")
+    print(f"\nAllocation:  v_z={v_z:.4f} $/kW-yr  |  non-zero={n_nonzero} hrs  |  weight_sum={weight_sum:.6f}")
+    print(f"  avg={avg_nonzero:.2f} $/MWh  max={max_cost:.2f} $/MWh")
 
     return result.select("timestamp", "bulk_tx_cost_enduse")
 
@@ -675,7 +699,7 @@ def main() -> None:
 
     # ── 5. Allocate v_z to hours ──────────────────────────────────────────
     print("\n── Bulk Tx Allocation ──")
-    allocated_df = allocate_bulk_tx_to_hours(load_with_scr, v_z)
+    allocated_df = allocate_bulk_tx_to_hours(load_with_scr, v_z, n_scr)
 
     # ── 6. Prepare output (8760 rows) ─────────────────────────────────────
     print("\n── Output Preparation ──")
