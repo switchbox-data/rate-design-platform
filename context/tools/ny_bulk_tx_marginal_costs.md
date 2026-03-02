@@ -49,7 +49,7 @@ For each (locality, scenario_family) group:
 
 2. **Sort by ΔMW ascending** — traces the supply curve from smallest to largest capacity increment.
 
-3. **Compute cumulative secants.** At each step *i*:
+3. **Compute cumulative secants.** At each step _i_:
    \[ \text{secant}_i = \frac{\text{cum\_B}_i \times 10^6}{\text{cum\_ΔMW}_i \times 10^3} \quad [\$/\text{kW-yr}] \]
 
 4. **v\_avg = mean(secant\_i)** across all steps.
@@ -60,14 +60,15 @@ A large-ΔMW low-v project only affects the last cumulative secant, not every te
 
 Zone membership is determined by the `receiving_locality` column (where the benefit accrues), not by the study `locality` (where the infrastructure sits):
 
-| receiving_locality | gen_capacity_zone(s) | Rationale |
-| ------------------ | -------------------- | --------- |
-| `G-K` | **LHV** and **LI** | G-K spans zones G–K; K = Long Island, so G-K benefits both |
-| `G-J` | **LHV** | G–J corridor; J is within LHV, not LI |
-| `J` | **NYC** | UPNY-ConEd interface studies, explicitly Zone J only |
-| `ROS` | **ROS** | Upstate only |
+| receiving_locality | gen_capacity_zone(s) | Rationale                                                  |
+| ------------------ | -------------------- | ---------------------------------------------------------- |
+| `G-K`              | **LHV** and **LI**   | G-K spans zones G–K; K = Long Island, so G-K benefits both |
+| `G-J`              | **LHV**              | G–J corridor; J is within LHV, not LI                      |
+| `J`                | **NYC**              | UPNY-ConEd interface studies, explicitly Zone J only       |
+| `ROS`              | **ROS**              | Upstate only                                               |
 
 Key decisions:
+
 - **G-J → LHV only** (not NYC). The MMU J-only studies are the clean NYC data source; mixing in G-J projects would dilute NYC with a broader corridor value.
 - **LI Export projects (locality=K, receiving=G-J) → LHV**, not LI. These export cables deliver benefit to the mainland (G-J), not to Long Island load.
 - **LI zone uses only G-K projects** (Smart Path Connect, Eastover, AC Primary G-K), since G-K spans to zone K.
@@ -95,12 +96,12 @@ Smart Path Connect and Eastover have receiving_locality=G-K and contribute to LH
 
 **Four contributing families** (all with receiving_locality=G-K or G-J):
 
-| Family | Projects | Secants | v_avg |
-| ------ | -------- | ------- | ----- |
-| G-K/nimo_mcos | Smart Path (1,000 MW) + Eastover (20 MW) | [$40.21, $77.67] | $58.94 |
-| G-K/ac_primary | Tier1+Tier2 (1,850 MW) | [$45.41] | $45.41 |
-| G-J/addendum_optimizer | T027+T029 (1,300 MW) + T027+T019 (1,850 MW) | [$26.92, $25.27] | $26.10 |
-| K/li_export | 7 LI Export projects (1,514–2,829 MW) | [$74.54, $74.36, $57.80, $44.21, $45.86, $43.79, $39.84] | $54.34 |
+| Family                 | Projects                                    | Secants                                                  | v_avg  |
+| ---------------------- | ------------------------------------------- | -------------------------------------------------------- | ------ |
+| G-K/nimo_mcos          | Smart Path (1,000 MW) + Eastover (20 MW)    | [$40.21, $77.67]                                         | $58.94 |
+| G-K/ac_primary         | Tier1+Tier2 (1,850 MW)                      | [$45.41]                                                 | $45.41 |
+| G-J/addendum_optimizer | T027+T029 (1,300 MW) + T027+T019 (1,850 MW) | [$26.92, $25.27]                                         | $26.10 |
+| K/li_export            | 7 LI Export projects (1,514–2,829 MW)       | [$74.54, $74.36, $57.80, $44.21, $45.86, $43.79, $39.84] | $54.34 |
 
 Zone v_avg = mean($58.94, $45.41, $26.10, $54.34) = **$46.20/kW-yr**
 
@@ -116,9 +117,9 @@ Zone v_avg = **$53.53/kW-yr**.
 
 **Source:** G-K projects only (receiving_locality=G-K includes zone K).
 
-| Family | v_avg |
-| ------ | ----- |
-| G-K/nimo_mcos (Smart Path + Eastover) | $58.94 |
+| Family                                  | v_avg  |
+| --------------------------------------- | ------ |
+| G-K/nimo_mcos (Smart Path + Eastover)   | $58.94 |
 | G-K/ac_primary (AC Primary Tier1+Tier2) | $45.41 |
 
 Zone v_avg = mean($58.94, $45.41) = **$52.17/kW-yr**
@@ -127,12 +128,12 @@ LI Export projects (locality=K, direction LI→mainland) have receiving_locality
 
 ## Final v_avg values (output of `just derive`)
 
-| gen_capacity_zone | v_avg_kw_yr | Contributing families |
-| ----------------- | ----------- | --------------------- |
-| ROS | $10.89 | ROS/nimo_mcos (Niagara-Dysinger) |
-| LHV | $46.20 | G-K/nimo_mcos ($58.94), G-K/ac_primary ($45.41), G-J/addendum_optimizer ($26.10), K/li_export ($54.34) |
-| NYC | $53.53 | UPNY-ConEd/mmu (MMU Baseline+CES+Ret, averaged per project) |
-| LI  | $52.17 | G-K/nimo_mcos ($58.94), G-K/ac_primary ($45.41) |
+| gen_capacity_zone | v_avg_kw_yr | Contributing families                                                                                  |
+| ----------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
+| ROS               | $10.89      | ROS/nimo_mcos (Niagara-Dysinger)                                                                       |
+| LHV               | $46.20      | G-K/nimo_mcos ($58.94), G-K/ac_primary ($45.41), G-J/addendum_optimizer ($26.10), K/li_export ($54.34) |
+| NYC               | $53.53      | UPNY-ConEd/mmu (MMU Baseline+CES+Ret, averaged per project)                                            |
+| LI                | $52.17      | G-K/nimo_mcos ($58.94), G-K/ac_primary ($45.41)                                                        |
 
 ## Zone mapping
 
@@ -167,7 +168,7 @@ coincident peak exceeds the capacity-triggering floor τ_min:
 ```
 
 τ_min is the load of the (N+1)th highest hour in the lower-threshold season (almost always
-winter). Only load *above* this floor is "capacity-driving". Summer peaks far exceed τ_min;
+winter). Only load _above_ this floor is "capacity-driving". Summer peaks far exceed τ_min;
 winter peaks barely clear it — yielding φ_s ≈ 0.80–0.93 across NY utilities.
 
 **Level 2 — within each season (exceedance above the SCR threshold):**

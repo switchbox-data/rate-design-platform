@@ -28,7 +28,6 @@ from utils.pre.season_config import (
     derive_summer_months,
 )
 
-
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 
@@ -71,14 +70,11 @@ def _make_load_profile(n_hours: int = 8760, year: int = 2025) -> pl.DataFrame:
 
 
 def _make_vz_table() -> pl.DataFrame:
-    """Create a v_z table matching the real schema."""
+    """Create a v_z table matching the real schema (average-secant derivation only)."""
     return pl.DataFrame(
         {
             "gen_capacity_zone": ["ROS", "LHV", "NYC", "LI"],
-            "v_low_kw_yr": [9.95, 25.52, 31.60, 30.16],
-            "v_mid_kw_yr": [9.95, 26.92, 74.71, 36.44],
-            "v_high_kw_yr": [9.95, 36.16, 74.71, 74.18],
-            "v_isotonic_kw_yr": [9.95, 22.19, 70.46, 0.0],
+            "v_avg_kw_yr": [9.95, 26.92, 74.71, 36.44],
         }
     )
 
@@ -287,15 +283,15 @@ class TestVzResolution:
         loaded = load_vz_table(csv_path)
         assert loaded.height == 4
         assert "gen_capacity_zone" in loaded.columns
-        assert "v_mid_kw_yr" in loaded.columns
+        assert "v_avg_kw_yr" in loaded.columns
 
     def test_resolve_single_zone_utility(self) -> None:
         """Single-zone utility gets v_z directly."""
         mapping = _make_zone_mapping()
         vz_df = _make_vz_table()
 
-        v_z = resolve_utility_vz(mapping, vz_df, "test_single", "mid")
-        expected = 9.95  # ROS mid
+        v_z = resolve_utility_vz(mapping, vz_df, "test_single", "avg")
+        expected = 9.95  # ROS avg
         assert abs(v_z - expected) < 0.01
 
     def test_resolve_multi_zone_utility(self) -> None:
@@ -303,7 +299,7 @@ class TestVzResolution:
         mapping = _make_zone_mapping()
         vz_df = _make_vz_table()
 
-        v_z = resolve_utility_vz(mapping, vz_df, "test_multi", "mid")
+        v_z = resolve_utility_vz(mapping, vz_df, "test_multi", "avg")
         # 0.87 * NYC(74.71) + 0.13 * LHV(26.92) = 65.0077 + 3.4996 = 68.5073
         expected = 0.87 * 74.71 + 0.13 * 26.92
         assert abs(v_z - expected) < 0.01
@@ -314,11 +310,15 @@ class TestVzResolution:
         vz_df = _make_vz_table()
 
         with pytest.raises(ValueError, match="not found in zone mapping"):
-            resolve_utility_vz(mapping, vz_df, "nonexistent", "mid")
+            resolve_utility_vz(mapping, vz_df, "nonexistent", "avg")
 
-    @pytest.mark.parametrize("quantile", ["low", "mid", "high", "isotonic"])
+    @pytest.mark.parametrize("quantile", ["avg"])
     def test_all_quantiles_work(self, quantile: str) -> None:
-        """All quantile selections produce a positive v_z for single-zone."""
+        """All supported quantile selections produce a positive v_z for single-zone.
+
+        Only 'avg' (average-secant) is currently supported; the parametrize list
+        is kept to make adding future quantiles explicit.
+        """
         mapping = _make_zone_mapping()
         vz_df = _make_vz_table()
 
