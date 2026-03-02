@@ -1,0 +1,588 @@
+"""Compute diluted marginal costs from Con Edison's MCOS study workbook.
+
+Reads ConEd's 2025 MCOS workbook (CapEx sheets for capital budgets, Schedule 11
+for composite rates and escalation, Coincident Load for system peak) and computes
+diluted marginal costs by cost center — both levelized and year-by-year.
+
+ConEd's workbook separates costs into five NERA cost centers:
+  1. Transmission (138/345 kV) — NYISO-jurisdictional bulk TX, EXCLUDED
+  2. Area Station & Sub-Transmission — sub-TX + dist substations, INCLUDED
+  3. Primary — distribution feeders, INCLUDED
+  4. Transformer — distribution transformers, INCLUDED
+  5. Secondary — secondary cables, INCLUDED
+
+Cost centers 1–2 use a cumulative 10-year capital budget (CapEx Transmission,
+CapEx Substation sheets). Cost centers 3–5 use a representative annual budget
+from a single sample year (CapEx Distribution sheet).
+
+Dilution formula:
+  Annual RR(Y)  = Capital(Y) × Composite Rate × Escalation(Y)
+  Diluted MC(Y) = Annual RR(Y) / System Peak   [$/kW-yr]
+
+The composite rate is Schedule 11 col 13 ("Annual MC at System Peak"), which
+already adjusts for area-station-to-system diversity. Dividing by the area
+station coincident total (not the lower system coincident peak) is correct:
+  (Capital × col13) / ASC_total  ≡  (Capital × col11) / (ASC_total × CF)
+                                 ≡  Annual RR / System Peak
+
+Classification: ConEd's own cost center structure IS the tier classification.
+CapEx Transmission = bulk TX (verified against NYISO Gold Book Table VII —
+both projects appear: Eastern Queens 138 kV and Brooklyn Clean Energy Hub
+345 kV). No project-level reclassification is needed.
+
+Outputs:
+  - coned_diluted_levelized.csv:  one row per cost center
+  - coned_diluted_annualized.csv: one row per (cost center, year)
+  - Terminal report (always printed)
+
+Usage (via Justfile):
+    just analyze-coned
+"""
+
+from __future__ import annotations
+
+import argparse
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import fsspec
+import openpyxl
+import polars as pl
+
+
+# ── Study parameters ─────────────────────────────────────────────────────────
+
+YEARS = list(range(2025, 2035))  # 2025 through 2034
+N_YEARS = len(YEARS)
+
+COST_CENTERS = ["transmission", "substation", "primary", "transformer", "secondary"]
+LOCAL_CENTERS = ["substation", "primary", "transformer", "secondary"]
+DIST_CENTERS = ["primary", "transformer", "secondary"]
+
+CC_LABELS = {
+    "transmission": "Bulk TX (138/345 kV)",
+    "substation": "Area Station & Sub-TX",
+    "primary": "Primary Distribution",
+    "transformer": "Distribution Transformer",
+    "secondary": "Secondary Cable",
+    "distribution": "Distribution (Prim+Trans+Sec)",
+    "local_total": "Sub-TX + dist (excl. bulk TX)",
+}
+
+
+# ── ConEd workbook cell references ───────────────────────────────────────────
+#
+# Column/row indices are openpyxl 1-indexed (A=1, B=2, ...).
+# Verified from direct inspection of coned_study_workpaper.xlsx.
+
+# Sheet names.  Note: Carrying Charge Loaders has a TRAILING SPACE.
+SH_TX = "CapEx Transmission"
+SH_SUB = "CapEx Substation"
+SH_DIST = "CapEx Distribution"
+SH_SCHED11 = "Carrying Charge Loaders "
+SH_COINC = "Coincident Load"
+
+# ── CapEx Transmission / Substation: shared column layout ────────────────────
+#
+# These sheets have a left half ($/kW view) and right half (project detail).
+# Both halves share the same rows; the years 2025–2034 appear twice (left for
+# $/kW, right for cumulative cashflow $000s).
+#
+# Left half (Section 1 and Section 2 reuse these columns):
+#   B(2)=MW  D(4)=Region  E(5)=Area Substation  F(6)..O(15)=years 2025–2034
+#
+# Right half (Section 1 only):
+#   P(16)=Area Station Ref  Q(17)=Description  R(18)=Additional MW
+#   S(19)=Estimated Cost ($000s)  T(20)=$/kW  U(21)=Pre-2025 Actual
+#   V(22)..AE(31)=cumulative cashflow 2025–2034 ($000s)
+
+CAPEX_YEAR_COL = {yr: 6 + (yr - 2025) for yr in YEARS}  # F(6)=2025 .. O(15)=2034
+CAPEX_MW_COL = 2  # B: MW (left half, Section 1)
+CAPEX_REGION_COL = 4  # D: Region
+CAPEX_STNNAME_COL = 5  # E: Area Substation name
+CAPEX_DESC_COL = 17  # Q: Project Description (right half)
+CAPEX_COST_COL = 19  # S: Estimated Cost $000s (right half)
+
+# Section 1 project data rows
+TX_PROJECT_ROWS = range(8, 13)  # rows 8–12 (5 area-stn assignments, 2 projects)
+SUB_PROJECT_ROWS = range(9, 26)  # rows 9–25 (17 area-stn projects)
+
+# Section 2 ("by Region $000s") grand-total rows
+TX_TOTAL_ROW = 22
+SUB_TOTAL_ROW = 35
+
+# ── CapEx Distribution ───────────────────────────────────────────────────────
+#
+# Right-side table (cols I–O) lists individual demand-related distribution
+# projects from a representative sample year.  Values are in DOLLARS (not
+# $000s), unlike the other CapEx sheets.
+#
+# Row 151 is the total.  Project rows run from 8 to ~150.
+DIST_TOTAL_ROW = 151
+DIST_PRIMARY_COL = 12  # L: Primary cost ($)
+DIST_TRANS_COL = 13  # M: Transformer cost ($)
+DIST_SEC_COL = 14  # N: Secondary cost ($)
+DIST_KW_COL = 15  # O: New capacity (kW)
+DIST_NAME_COL = 9  # I: Project type / name
+
+# ── Schedule 11: Carrying Charge Loaders ─────────────────────────────────────
+#
+# Composite rate at system peak level = col O (15), i.e. Schedule 11 col (13).
+# GDP escalation rate = row 25, year columns C(3)..L(12).
+SCHED11_RATE_COL = 15
+SCHED11_ROWS = {
+    "transmission": 12,
+    "substation": 13,
+    "primary": 14,
+    "transformer": 15,
+    "secondary": 16,
+}
+SCHED11_ESC_ROW = 25
+SCHED11_ESC_YEAR_COL = {yr: 3 + (yr - 2025) for yr in YEARS}
+
+# ── Coincident Load ──────────────────────────────────────────────────────────
+#
+# "Area Station Coincident Totals" row 26, year cols B(2)..L(12) for 2025–2035.
+COINC_TOTAL_ROW = 26
+COINC_YEAR_COL = {yr: 2 + (yr - 2025) for yr in YEARS}
+
+
+# ── Data classes ─────────────────────────────────────────────────────────────
+
+
+@dataclass
+class CostCenterData:
+    """Parsed data for one cost center."""
+
+    name: str
+    label: str
+    n_projects: int
+    total_capacity_mw: float
+    total_cost_k: float  # total (or annual) capital $000s
+    composite_rate: float
+    capital_by_year: dict[int, float] = field(default_factory=dict)
+    is_annual: bool = False
+
+
+@dataclass
+class DilutedRow:
+    """One year's diluted MC for a cost center."""
+
+    year: int
+    capital_k: float
+    annual_rr_k: float
+    escalation: float
+    nominal_mc: float  # with escalation ($/kW-yr)
+    real_mc: float  # base-year dollars ($/kW-yr)
+
+
+# ── Workbook I/O ─────────────────────────────────────────────────────────────
+
+
+def _cell(sheet, row: int, col: int) -> float:
+    v = sheet.cell(row=row, column=col).value
+    if v is None:
+        return 0.0
+    try:
+        return float(v)
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def _str_cell(sheet, row: int, col: int) -> str:
+    v = sheet.cell(row=row, column=col).value
+    return str(v).strip() if v else ""
+
+
+def _load_wb(path: str):
+    if path.startswith("s3://"):
+        fs = fsspec.filesystem("s3")
+        with fs.open(path, "rb") as f:
+            return openpyxl.load_workbook(f, data_only=True)
+    return openpyxl.load_workbook(path, data_only=True)
+
+
+# ── Parsing functions ────────────────────────────────────────────────────────
+
+
+def parse_composite_rates(wb) -> dict[str, float]:
+    sheet = wb[SH_SCHED11]
+    rates = {}
+    for name, row in SCHED11_ROWS.items():
+        rates[name] = _cell(sheet, row, SCHED11_RATE_COL)
+    return rates
+
+
+def parse_escalation(wb) -> dict[int, float]:
+    sheet = wb[SH_SCHED11]
+    return {
+        yr: _cell(sheet, SCHED11_ESC_ROW, col)
+        for yr, col in SCHED11_ESC_YEAR_COL.items()
+    }
+
+
+def parse_coincident_peak(wb) -> dict[int, float]:
+    sheet = wb[SH_COINC]
+    return {
+        yr: _cell(sheet, COINC_TOTAL_ROW, col) for yr, col in COINC_YEAR_COL.items()
+    }
+
+
+def _parse_capex_cumulative(
+    wb, sheet_name: str, total_row: int, project_rows: range, name: str
+) -> CostCenterData:
+    """Parse a cumulative CapEx sheet (Transmission or Substation)."""
+    sheet = wb[sheet_name]
+
+    capital = {yr: _cell(sheet, total_row, col) for yr, col in CAPEX_YEAR_COL.items()}
+
+    descriptions: list[str] = []
+    total_mw = 0.0
+    total_cost = 0.0
+    for r in project_rows:
+        desc = _str_cell(sheet, r, CAPEX_DESC_COL)
+        mw = _cell(sheet, r, CAPEX_MW_COL)
+        cost = _cell(sheet, r, CAPEX_COST_COL)
+        if desc:
+            descriptions.append(desc)
+            total_mw += mw
+            total_cost += cost
+
+    n_unique = len(set(descriptions))
+
+    return CostCenterData(
+        name=name,
+        label=CC_LABELS[name],
+        n_projects=n_unique,
+        total_capacity_mw=total_mw,
+        total_cost_k=total_cost,
+        composite_rate=0.0,
+        capital_by_year=capital,
+    )
+
+
+def parse_capex_tx(wb) -> CostCenterData:
+    return _parse_capex_cumulative(
+        wb, SH_TX, TX_TOTAL_ROW, TX_PROJECT_ROWS, "transmission"
+    )
+
+
+def parse_capex_sub(wb) -> CostCenterData:
+    return _parse_capex_cumulative(
+        wb, SH_SUB, SUB_TOTAL_ROW, SUB_PROJECT_ROWS, "substation"
+    )
+
+
+def parse_capex_dist(wb) -> tuple[CostCenterData, CostCenterData, CostCenterData]:
+    """Parse CapEx Distribution for the three distribution cost centers.
+
+    CapEx Distribution values are in DOLLARS (not $000s).  We convert to $000s
+    for consistency with the other CapEx sheets.
+    """
+    sheet = wb[SH_DIST]
+
+    primary_dollars = _cell(sheet, DIST_TOTAL_ROW, DIST_PRIMARY_COL)
+    trans_dollars = _cell(sheet, DIST_TOTAL_ROW, DIST_TRANS_COL)
+    sec_dollars = _cell(sheet, DIST_TOTAL_ROW, DIST_SEC_COL)
+    total_kw = _cell(sheet, DIST_TOTAL_ROW, DIST_KW_COL)
+
+    n_projects = 0
+    for r in range(8, DIST_TOTAL_ROW):
+        if _str_cell(sheet, r, DIST_NAME_COL):
+            n_projects += 1
+
+    def _make(name: str, dollars: float) -> CostCenterData:
+        cap_k = dollars / 1000.0
+        return CostCenterData(
+            name=name,
+            label=CC_LABELS[name],
+            n_projects=n_projects,
+            total_capacity_mw=total_kw / 1000.0,
+            total_cost_k=cap_k,
+            composite_rate=0.0,
+            capital_by_year={yr: cap_k for yr in YEARS},
+            is_annual=True,
+        )
+
+    return (
+        _make("primary", primary_dollars),
+        _make("transformer", trans_dollars),
+        _make("secondary", sec_dollars),
+    )
+
+
+# ── Dilution computation ─────────────────────────────────────────────────────
+
+
+def compute_diluted(
+    cc: CostCenterData,
+    escalation: dict[int, float],
+    system_peak_mw: float,
+) -> list[DilutedRow]:
+    """Year-by-year diluted MC.
+
+    capital is in $000s, peak in MW ⇒ $000s/MW = $/kW.
+    """
+    rows: list[DilutedRow] = []
+    for yr in YEARS:
+        cap = cc.capital_by_year.get(yr, 0.0)
+        esc = escalation.get(yr, 1.0)
+        rr_nom = cap * cc.composite_rate * esc
+        rr_real = cap * cc.composite_rate
+        nom_mc = rr_nom / system_peak_mw if system_peak_mw else 0.0
+        real_mc = rr_real / system_peak_mw if system_peak_mw else 0.0
+        rows.append(DilutedRow(yr, cap, rr_nom, esc, nom_mc, real_mc))
+    return rows
+
+
+def levelized(rows: list[DilutedRow]) -> float:
+    """Average of real (base-year) diluted MC across all study years."""
+    return sum(r.real_mc for r in rows) / len(rows) if rows else 0.0
+
+
+# ── CSV export ───────────────────────────────────────────────────────────────
+
+
+def _sum_mc(
+    diluted: dict[str, list[DilutedRow]], centers: list[str], yi: int, *, nominal: bool
+) -> float:
+    return sum(
+        (diluted[c][yi].nominal_mc if nominal else diluted[c][yi].real_mc)
+        for c in centers
+    )
+
+
+def export_levelized_csv(
+    ccs: dict[str, CostCenterData],
+    diluted: dict[str, list[DilutedRow]],
+    path: Path,
+) -> None:
+    rows = []
+    for name in COST_CENTERS:
+        cc = ccs[name]
+        lev = levelized(diluted[name])
+        full_real = diluted[name][-1].real_mc
+        full_nom = diluted[name][-1].nominal_mc
+        cost_m = (
+            cc.total_cost_k / 1e3
+            if cc.is_annual
+            else cc.capital_by_year[YEARS[-1]] / 1e3
+        )
+        rows.append(
+            {
+                "cost_center": name,
+                "label": cc.label,
+                "n_projects": cc.n_projects,
+                "capacity_mw": round(cc.total_capacity_mw, 1),
+                "total_cost_m": round(cost_m, 1),
+                "composite_rate": round(cc.composite_rate, 5),
+                "levelized_mc_kw_yr": round(lev, 2),
+                "full_buildout_real_mc_kw_yr": round(full_real, 2),
+                "full_buildout_nominal_mc_kw_yr": round(full_nom, 2),
+            }
+        )
+
+    dist_lev = sum(levelized(diluted[c]) for c in DIST_CENTERS)
+    dist_full_real = sum(diluted[c][-1].real_mc for c in DIST_CENTERS)
+    rows.append(
+        {
+            "cost_center": "distribution",
+            "label": CC_LABELS["distribution"],
+            "n_projects": ccs["primary"].n_projects,
+            "capacity_mw": round(ccs["primary"].total_capacity_mw, 1),
+            "total_cost_m": round(
+                sum(ccs[c].total_cost_k for c in DIST_CENTERS) / 1e3, 1
+            ),
+            "composite_rate": 0.0,
+            "levelized_mc_kw_yr": round(dist_lev, 2),
+            "full_buildout_real_mc_kw_yr": round(dist_full_real, 2),
+            "full_buildout_nominal_mc_kw_yr": round(
+                sum(diluted[c][-1].nominal_mc for c in DIST_CENTERS), 2
+            ),
+        }
+    )
+
+    local_lev = sum(levelized(diluted[c]) for c in LOCAL_CENTERS)
+    local_full_real = sum(diluted[c][-1].real_mc for c in LOCAL_CENTERS)
+    rows.append(
+        {
+            "cost_center": "local_total",
+            "label": CC_LABELS["local_total"],
+            "n_projects": 0,
+            "capacity_mw": 0.0,
+            "total_cost_m": 0.0,
+            "composite_rate": 0.0,
+            "levelized_mc_kw_yr": round(local_lev, 2),
+            "full_buildout_real_mc_kw_yr": round(local_full_real, 2),
+            "full_buildout_nominal_mc_kw_yr": round(
+                sum(diluted[c][-1].nominal_mc for c in LOCAL_CENTERS), 2
+            ),
+        }
+    )
+
+    pl.DataFrame(rows).write_csv(path)
+    print(f"  Wrote {path}")
+
+
+def export_annualized_csv(diluted: dict[str, list[DilutedRow]], path: Path) -> None:
+    rows = []
+    for yi, yr in enumerate(YEARS):
+        row: dict[str, object] = {"year": yr}
+        for name in COST_CENTERS:
+            row[f"{name}_nominal"] = round(diluted[name][yi].nominal_mc, 2)
+            row[f"{name}_real"] = round(diluted[name][yi].real_mc, 2)
+        row["distribution_nominal"] = round(
+            _sum_mc(diluted, DIST_CENTERS, yi, nominal=True), 2
+        )
+        row["distribution_real"] = round(
+            _sum_mc(diluted, DIST_CENTERS, yi, nominal=False), 2
+        )
+        row["local_total_nominal"] = round(
+            _sum_mc(diluted, LOCAL_CENTERS, yi, nominal=True), 2
+        )
+        row["local_total_real"] = round(
+            _sum_mc(diluted, LOCAL_CENTERS, yi, nominal=False), 2
+        )
+        rows.append(row)
+    pl.DataFrame(rows).write_csv(path)
+    print(f"  Wrote {path}")
+
+
+# ── Terminal report ──────────────────────────────────────────────────────────
+
+
+def print_report(
+    ccs: dict[str, CostCenterData],
+    diluted: dict[str, list[DilutedRow]],
+    system_peak_mw: float,
+) -> None:
+    W = 80
+    print("=" * W)
+    print("Con Edison MCOS Dilution Analysis")
+    print("=" * W)
+
+    print(f"\n── System {'─' * (W - 11)}")
+    print(f"  System peak (2025 ASC total):  {system_peak_mw:,.1f} MW")
+
+    print(f"\n── Cost centers {'─' * (W - 16)}")
+    for name in COST_CENTERS:
+        cc = ccs[name]
+        lev = levelized(diluted[name])
+        full_r = diluted[name][-1].real_mc
+        full_n = diluted[name][-1].nominal_mc
+        cap_type = "annual" if cc.is_annual else "cumulative to 2034"
+        cap_m = (
+            cc.total_cost_k / 1e3
+            if cc.is_annual
+            else cc.capital_by_year[YEARS[-1]] / 1e3
+        )
+        print(f"\n  {cc.label}")
+        print(f"    {cc.n_projects} project(s), {cc.total_capacity_mw:,.1f} MW")
+        print(f"    Capital ({cap_type}): ${cap_m:,.1f}M")
+        print(f"    Composite rate: {cc.composite_rate:.5f}")
+        print(f"    Levelized: ${lev:,.2f}/kW-yr")
+        print(
+            f"    Full buildout: ${full_r:,.2f}/kW-yr (real)  ${full_n:,.2f}/kW-yr (nominal)"
+        )
+
+    print(f"\n── Sub-TX + dist total {'─' * (W - 23)}")
+    loc_lev = sum(levelized(diluted[c]) for c in LOCAL_CENTERS)
+    loc_full_r = sum(diluted[c][-1].real_mc for c in LOCAL_CENTERS)
+    loc_full_n = sum(diluted[c][-1].nominal_mc for c in LOCAL_CENTERS)
+    print(f"  Levelized: ${loc_lev:,.2f}/kW-yr")
+    print(
+        f"  Full buildout: ${loc_full_r:,.2f}/kW-yr (real)  ${loc_full_n:,.2f}/kW-yr (nominal)"
+    )
+
+    print(f"\n── Year-by-year diluted MC ($/kW-yr, nominal) {'─' * (W - 46)}")
+    hdr = f"  {'Year':>4}  {'TX':>8}  {'Substn':>8}  {'Primary':>8}  {'Transf':>8}  {'Second':>8}  {'Local':>8}"
+    print(hdr)
+    print(f"  {'─' * (len(hdr) - 2)}")
+    for yi, yr in enumerate(YEARS):
+        vals = [diluted[c][yi].nominal_mc for c in COST_CENTERS]
+        loc = sum(diluted[c][yi].nominal_mc for c in LOCAL_CENTERS)
+        parts = "  ".join(f"${v:>7.2f}" for v in vals)
+        print(f"  {yr:>4}  {parts}  ${loc:>7.2f}")
+
+    print()
+
+
+# ── CLI ──────────────────────────────────────────────────────────────────────
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Compute diluted MC from ConEd MCOS workbook"
+    )
+    parser.add_argument(
+        "--path-xlsx",
+        type=str,
+        required=True,
+        help="Path or S3 URL to ConEd MCOS workbook",
+    )
+    parser.add_argument(
+        "--system-peak-mw",
+        type=float,
+        required=True,
+        help="Area station coincident total (MW)",
+    )
+    parser.add_argument(
+        "--path-output-dir", type=Path, required=True, help="Directory for output CSVs"
+    )
+    args = parser.parse_args()
+
+    print(f"Loading workbook: {args.path_xlsx}")
+    wb = _load_wb(args.path_xlsx)
+
+    composite = parse_composite_rates(wb)
+    escalation = parse_escalation(wb)
+    coinc = parse_coincident_peak(wb)
+    print(
+        f"  Composite rates: {', '.join(f'{k}={v:.5f}' for k, v in composite.items())}"
+    )
+    print(f"  Escalation: {escalation[2025]:.4f} → {escalation[2034]:.4f}")
+    print(
+        f"  Coincident load 2025: {coinc[2025]:,.1f} MW (CLI: {args.system_peak_mw:,.1f} MW)"
+    )
+
+    tx = parse_capex_tx(wb)
+    sub = parse_capex_sub(wb)
+    primary, transformer, secondary = parse_capex_dist(wb)
+
+    ccs: dict[str, CostCenterData] = {}
+    for cc in [tx, sub, primary, transformer, secondary]:
+        cc.composite_rate = composite[cc.name]
+        ccs[cc.name] = cc
+
+    tx_cap_m = tx.capital_by_year[YEARS[-1]] / 1e3
+    sub_cap_m = sub.capital_by_year[YEARS[-1]] / 1e3
+    dist_k = primary.total_cost_k + transformer.total_cost_k + secondary.total_cost_k
+    print(
+        f"  TX: {tx.n_projects} project(s), {tx.total_capacity_mw:,.0f} MW, ${tx_cap_m:,.0f}M capital"
+    )
+    print(
+        f"  Sub: {sub.n_projects} project(s), {sub.total_capacity_mw:,.0f} MW, ${sub_cap_m:,.0f}M capital"
+    )
+    print(
+        f"  Dist: {primary.n_projects} projects (sample), ${dist_k / 1e3:,.1f}M annual"
+    )
+
+    diluted = {
+        name: compute_diluted(cc, escalation, args.system_peak_mw)
+        for name, cc in ccs.items()
+    }
+
+    out = args.path_output_dir
+    out.mkdir(parents=True, exist_ok=True)
+    print("\nExporting CSVs:")
+    export_levelized_csv(ccs, diluted, out / "coned_diluted_levelized.csv")
+    export_annualized_csv(diluted, out / "coned_diluted_annualized.csv")
+
+    print()
+    print_report(ccs, diluted, args.system_peak_mw)
+
+    wb.close()
+
+
+if __name__ == "__main__":
+    main()

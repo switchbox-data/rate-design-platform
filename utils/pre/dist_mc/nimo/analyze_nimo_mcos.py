@@ -236,7 +236,7 @@ class DilutionResult:
     bulk_tx: BucketSummary
     sub_tx: BucketSummary
     distribution: BucketSummary
-    sub_tx_plus_dist: BucketSummary  # What DRV should cover
+    sub_tx_plus_dist: BucketSummary
 
     def buckets(self) -> list[BucketSummary]:
         return [
@@ -293,7 +293,7 @@ def compute_dilution(
         ),
         sub_tx_plus_dist=_bucket(
             "sub_tx_plus_dist",
-            "Sub-TX + Distribution (DRV-relevant)",
+            "Sub-TX + Distribution",
             by_cls["sub_tx"] + by_cls["distribution"],
             system_peak_mw,
         ),
@@ -385,7 +385,7 @@ def compute_all_annualized(
         ),
         "sub_tx_plus_dist": compute_annualized_table(
             "sub_tx_plus_dist",
-            "Sub-TX + Distribution (DRV-relevant)",
+            "Sub-TX + Distribution",
             by_cls["sub_tx"] + by_cls["distribution"],
             system_peak_mw,
         ),
@@ -501,7 +501,7 @@ def print_report(
         f"{'(⚠ > 1.0)' if ratio > 1 else ''}"
     )
 
-    print(f"\n── DRV-relevant composite {'─' * (W - 26)}")
+    print(f"\n── Sub-TX + dist composite {'─' * (W - 27)}")
     _print_bucket(result.sub_tx_plus_dist)
 
     print(f"\n── Dilution summary {'─' * (W - 20)}")
@@ -510,7 +510,7 @@ def print_report(
     print(f"  Sub-TX only:            ${result.sub_tx.diluted_per_kw:,.2f}/kW-yr")
     print(f"  Distribution only:      ${result.distribution.diluted_per_kw:,.2f}/kW-yr")
     d = result.sub_tx_plus_dist.diluted_per_kw
-    print(f"  Sub-TX + Distribution:  ${d:,.2f}/kW-yr  ← DRV-relevant")
+    print(f"  Sub-TX + Distribution:  ${d:,.2f}/kW-yr  ← excl bulk TX")
     if result.total.diluted_per_kw > result.undiluted_mc_per_kw:
         print(
             f"\n  ⚠  Diluted total > undiluted because project capacity "
@@ -526,7 +526,7 @@ def print_report(
     print("  NYSEG:                  $23/kW-yr  (levelized total, no bulk TX)")
     print("  PSEG-LI:               $34/kW-yr  (estimated total, includes TX)")
     print("  RG&E:                   $39/kW-yr  (levelized total, no bulk TX)")
-    print(f"  NiMo sub-TX + dist:     ${d:.0f}/kW-yr  (DRV-relevant, excl bulk TX)")
+    print(f"  NiMo sub-TX + dist:     ${d:.0f}/kW-yr  (excl bulk TX)")
     print(
         f"  NiMo all projects:      ${result.total.diluted_per_kw:.0f}/kW-yr  (incl bulk TX)"
     )

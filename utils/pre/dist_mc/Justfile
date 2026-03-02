@@ -1,29 +1,53 @@
-# NiMo MCOS dilution analysis
+# MCOS dilution analysis — NiMo, ConEd, O&R
 #
-# Computes diluted marginal costs from NiMo's MCOS Exhibit 1 workbook,
-# using project-level classifications (bulk_tx / sub_tx / distribution).
-# Outputs levelized and year-by-year CSVs plus a terminal report.
+# Each utility lives in its own subdirectory with analysis script(s),
+# classification data (NiMo), and output CSVs.
 
-# ── Inputs ────────────────────────────────────────────────────────────────────
+# ── NiMo inputs ──────────────────────────────────────────────────────────────
 
-path_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/nimo_study_workpaper.xlsx"
-path_classifications := "nimo_project_classifications.csv"  # hand-built: workbook + NYISO Gold Book cross-ref
-system_peak_mw := "6616.0"        # 2024 actual, NiMo Peak Load Forecast March 2025
+path_nimo_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/nimo_study_workpaper.xlsx"
+path_classifications := "nimo/nimo_project_classifications.csv"
+path_nimo_output := "nimo"
+nimo_peak_mw := "6616.0"          # 2024 actual, NiMo Peak Load Forecast March 2025
 undiluted_mc_per_kw := "71.524"   # Exhibit 1 summary row (line 245), col F26
 
-# ── Outputs ───────────────────────────────────────────────────────────────────
+# ── ConEd inputs ─────────────────────────────────────────────────────────────
 
-path_output_dir := "."
+path_coned_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/coned_study_workpaper.xlsx"
+path_coned_output := "coned"
+coned_peak_mw := "11997.7"  # 2025 area station coincident total, Coincident Load sheet
 
-# ── Recipes ───────────────────────────────────────────────────────────────────
+# ── O&R inputs ───────────────────────────────────────────────────────────────
 
-analyze:
-    uv run python analyze_nimo_mcos.py \
-        --path-xlsx "{{path_xlsx}}" \
+path_or_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/or_study_workpaper.xlsx"
+path_or_output := "or"
+or_peak_mw := "1078.5"  # 2024 coincident forecast, Coincident Forecast sheet row 65
+
+# ── Recipes ──────────────────────────────────────────────────────────────────
+
+analyze-nimo:
+    uv run python nimo/analyze_nimo_mcos.py \
+        --path-xlsx "{{path_nimo_xlsx}}" \
         --path-classifications "{{path_classifications}}" \
-        --system-peak-mw {{system_peak_mw}} \
+        --system-peak-mw {{nimo_peak_mw}} \
         --undiluted-mc-per-kw {{undiluted_mc_per_kw}} \
-        --path-output-dir "{{path_output_dir}}"
+        --path-output-dir "{{path_nimo_output}}"
+
+analyze-coned:
+    uv run python coned/analyze_coned_mcos.py \
+        --path-xlsx "{{path_coned_xlsx}}" \
+        --system-peak-mw {{coned_peak_mw}} \
+        --path-output-dir "{{path_coned_output}}"
+
+analyze-or:
+    uv run python or/analyze_or_mcos.py \
+        --path-xlsx "{{path_or_xlsx}}" \
+        --system-peak-mw {{or_peak_mw}} \
+        --path-output-dir "{{path_or_output}}"
+
+analyze-all: analyze-nimo analyze-coned analyze-or
 
 clean:
-    rm -f nimo_diluted_levelized.csv nimo_diluted_annualized.csv
+    rm -f nimo/nimo_diluted_levelized.csv nimo/nimo_diluted_annualized.csv
+    rm -f coned/coned_diluted_levelized.csv coned/coned_diluted_annualized.csv
+    rm -f or/or_diluted_levelized.csv or/or_diluted_annualized.csv
