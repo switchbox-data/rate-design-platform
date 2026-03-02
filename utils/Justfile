@@ -48,13 +48,13 @@ create-gas-tariff-map metadata_path utility_assignment_path state electric_utili
 # reference_tariff: optional path to a calibrated tariff JSON; when provided,
 # base rate and fixed charge are extracted from it instead of using defaults.
 # Uses resstock_base + state + upgrade for hive-partitioned load scan (no globbing).
-create-seasonal-tou cambium_path state utility year td_mc_path resstock_metadata_path resstock_base upgrade path_electric_utility_stats tou_tariff_key output_dir periods_yaml="" reference_tariff="" run_dir="":
+create-seasonal-tou cambium_path state utility year dist_and_sub_tx_mc_path resstock_metadata_path resstock_base upgrade path_electric_utility_stats tou_tariff_key output_dir periods_yaml="" reference_tariff="" run_dir="":
   uv run python {{project_root}}/utils/pre/derive_seasonal_tou.py \
     --cambium-path "{{cambium_path}}" \
     --state "{{state}}" \
     --utility "{{utility}}" \
     --year "{{year}}" \
-    --path-td-marginal-costs "{{td_mc_path}}" \
+    --path-dist-and-sub-tx-mc "{{dist_and_sub_tx_mc_path}}" \
     --resstock-metadata-path "{{resstock_metadata_path}}" \
     --resstock-base "{{resstock_base}}" \
     --upgrade "{{upgrade}}" \

@@ -10,14 +10,6 @@
 #   UTILITY=rie just -f ri/Justfile all-pre                     # via state wrapper directly
 #   set -a && source ny/state.env && set +a && UTILITY=nyseg just all-pre  # manual source
 
-# Usage for RI (from rate_design/hp_rates/):
-#   just s ri list-utilities                                    # show valid utilities
-#   UTILITY=rie just s ri all-pre                             # single utility pre-processing
-#   UTILITY=rie just s ri run-all-sequential                  # single utility full run
-#   just s ri run-all-utilities-sequential                      # all utilities for a state
-#   UTILITY=rie just -f ri/Justfile all-pre                     # via state wrapper directly
-#   set -a && source ri/state.env && set +a && UTILITY=rie just all-pre  # manual source
-
 # =============================================================================
 # Tier 1: Identity (set by state wrapper, dispatch, or manual source)
 # =============================================================================
@@ -35,7 +27,7 @@ s state_arg +recipe:
     set -a
     source "{{justfile_directory()}}/{{state_arg}}/state.env"
     set +a
-    just {{recipe}}
+    just -f "{{justfile_directory()}}/{{state_arg}}/Justfile" {{recipe}}
 
 # =============================================================================
 # Tier 2: Config from env vars (state.env via dotenv, or explicit env override)
@@ -47,6 +39,7 @@ region                := env_var_or_default('REGION', 'isone')
 cambium_ba            := env_var_or_default('CAMBIUM_BA', 'p133')
 year                  := env_var_or_default('YEAR', '2025')
 mc_year               := env_var_or_default('MC_YEAR', year)
+load_year             := env_var_or_default('LOAD_YEAR', year)
 upgrade               := env_var_or_default('UPGRADE', '00')
 default_tariff        := utility + "_default.json"
 default_tariff_supply := utility + "_default_supply.json"
@@ -75,14 +68,20 @@ path_revenue_csv                    := "s3://data.sb/switchbox/revenue_requireme
 revenue_utility_col                 := "utility"
 revenue_year_col                    := "year"
 path_tariff_maps                    := path_config / "tariff_maps"
-path_td_mc                          := "s3://data.sb/switchbox/marginal_costs/" + state + "/region=" + region + "/utility=" + utility + "/year=" + mc_year + "/00000000.parquet"
+path_dist_and_sub_tx_mc             := "s3://data.sb/switchbox/marginal_costs/" + state + "/dist_and_sub_tx/utility=" + utility + "/year=" + mc_year + "/data.parquet"
+path_bulk_tx_mc                     := ""
+# Supply MC: defaults to Cambium path (used by RI and other Cambium-based states).
+# States using separate NYISO-style supply MCs (NY) override these in their Justfile.
+path_supply_energy_mc               := path_cambium
+path_supply_capacity_mc             := path_cambium
 path_resstock_release               := "/ebs/data/nrel/resstock/res_2024_amy2018_2_sb"
 path_resstock_metadata              := path_resstock_release + "/metadata"
 path_utility_assignment             := path_resstock_release + "/metadata_utility"
 path_resstock_loads_00              := path_resstock_release + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
 path_cambium                        := "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025" + "/gea=" + uppercase(region) + "/r=" + cambium_ba + "/data.parquet"
-path_mc_table                       := env_var_or_default('MC_TABLE', path_config / "marginal_costs" / state + "_marginal_costs_" + year + ".csv")
-path_s3_mc_output                   := "s3://data.sb/switchbox/marginal_costs/" + state + "/"
+mc_table_filename                   := env_var_or_default('MC_TABLE', state + "_marginal_costs_" + year + ".csv")
+path_mc_table                       := path_config / "marginal_costs" / mc_table_filename
+path_s3_mc_output                   := "s3://data.sb/switchbox/marginal_costs/" + state + "/dist_and_sub_tx/"
 path_s3_utility_loads               := "s3://data.sb/eia/hourly_demand/utilities/"
 path_electric_utility_stats         := "s3://data.sb/eia/861/electric_utility_stats/year=2024/state=" + state_upper + "/data.parquet"
 path_default_tariff                 := path_tariffs_electric / default_tariff
@@ -101,8 +100,9 @@ validate-config mode="warn":
     --utility "{{utility}}" \
     --upgrade "{{upgrade}}" \
     --year "{{year}}" \
-    --path-td-mc "{{path_td_mc}}" \
-    --path-cambium "{{path_cambium}}" \
+    --path-dist-and-sub-tx-mc "{{path_dist_and_sub_tx_mc}}" \
+    {{ if path_bulk_tx_mc != "" { "--path-bulk-tx-mc \"" + path_bulk_tx_mc + "\"" } else { "" } }} \
+    {{ if path_supply_energy_mc != "" { "--path-supply-energy-mc \"" + path_supply_energy_mc + "\"" } else { "" } }} \
     --path-electric-utility-stats "{{path_electric_utility_stats}}" \
     --path-resstock-loads "{{path_resstock_loads_00}}" \
     {{ if mode == "strict" { "--strict" } else { "" } }}
@@ -140,7 +140,7 @@ create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
     "{{state_upper}}" \
     "{{utility}}" \
     "{{year}}" \
-    "{{path_td_mc}}" \
+    "{{path_dist_and_sub_tx_mc}}" \
     "{{path_resstock_release}}/metadata/state={{state_upper}}/upgrade={{upgrade}}/metadata-sb.parquet" \
     "{{path_resstock_release}}" \
     "{{upgrade}}" \
@@ -164,12 +164,12 @@ create-gas-tariff-maps-all:
   just create-gas-tariff-map {{utility}} "00" {{path_tariff_maps}}/gas
   just create-gas-tariff-map {{utility}} "02" {{path_tariff_maps}}/gas
 
-create-td-mc-data:
+create-dist-and-sub-tx-mc-data:
   uv run python {{path_repo}}/utils/pre/generate_utility_tx_dx_mc.py \
     --state {{state_upper}} \
     --utility {{utility}} \
     --mc-year {{mc_year}} \
-    --load-year {{year}} \
+    --load-year {{load_year}} \
     --mc-table-path {{path_mc_table}} \
     --utility-load-s3-base {{path_s3_utility_loads}} \
     --output-s3-base {{path_s3_mc_output}} \

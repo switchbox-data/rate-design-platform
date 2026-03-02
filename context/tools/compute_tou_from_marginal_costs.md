@@ -68,7 +68,7 @@ The main supply MC loader (`utils.cairo._load_supply_marginal_costs()`) supports
 uv run python -m utils.pre.derive_seasonal_tou \
   --cambium-path <path> \
   --state RI --utility rie --year 2025 \
-  --path-td-marginal-costs <path> \
+  --path-dist-and-sub-tx-mc <path> \
   --resstock-metadata-path <path> \
   --resstock-loads-path <path> \
   --path-electric-utility-stats <path> \

@@ -141,23 +141,23 @@ def make_winter_summer_seasons(
 
 def combine_marginal_costs(
     bulk_marginal_costs: pd.DataFrame,
-    distribution_marginal_costs: pd.Series,
+    dist_and_sub_tx_marginal_costs: pd.Series,
 ) -> pd.Series:
-    """Merge bulk (energy + capacity) and distribution MCs into a single $/kWh series.
+    """Merge bulk (energy + capacity) and dist+sub-tx MCs into a single $/kWh series.
 
     Args:
         bulk_marginal_costs: DataFrame indexed by time with columns
             ``Marginal Energy Costs ($/kWh)`` and
             ``Marginal Capacity Costs ($/kWh)``.
-        distribution_marginal_costs: Series indexed by time with name
-            ``Marginal Distribution Costs ($/kWh)``.
+        dist_and_sub_tx_marginal_costs: Series indexed by time with name
+            ``Marginal Dist+Sub-Tx Costs ($/kWh)``.
 
     Returns:
         Series of total marginal cost per kWh, indexed by time.
     """
     total_bulk = bulk_marginal_costs.sum(axis=1).sort_index()
     total_bulk.name = "bulk_mc"
-    dist_mc = distribution_marginal_costs.sort_index()
+    dist_mc = dist_and_sub_tx_marginal_costs.sort_index()
     bulk_index = pd.DatetimeIndex(total_bulk.index)
     bulk_tz = bulk_index.tz
 
@@ -196,7 +196,7 @@ def combine_marginal_costs(
     combined = pd.concat([total_bulk, dist_mc], axis=1).dropna(how="any")
     if combined.empty:
         raise ValueError(
-            "Unable to align bulk and distribution marginal costs: no overlapping "
+            "Unable to align bulk and dist+sub-tx marginal costs: no overlapping "
             "timestamps after index alignment."
         )
 

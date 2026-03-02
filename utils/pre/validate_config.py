@@ -37,8 +37,9 @@ def main() -> None:
     parser.add_argument("--utility", required=True)
     parser.add_argument("--upgrade", required=True)
     parser.add_argument("--year", required=True)
-    parser.add_argument("--path-td-mc", required=True)
-    parser.add_argument("--path-cambium", required=True)
+    parser.add_argument("--path-dist-and-sub-tx-mc", required=True)
+    parser.add_argument("--path-bulk-tx-mc", default=None)
+    parser.add_argument("--path-supply-energy-mc", default=None)
     parser.add_argument("--path-electric-utility-stats", required=True)
     parser.add_argument("--path-resstock-loads", required=True)
     parser.add_argument("--strict", action="store_true")
@@ -56,9 +57,9 @@ def main() -> None:
         ("upgrade", args.upgrade, str(run1.get("upgrade", "")).zfill(2)),
         ("year", args.year, str(run1.get("year_run", ""))),
         (
-            "path_td_mc",
-            _normalize_data_path(args.path_td_mc),
-            _normalize_data_path(str(run1.get("path_td_marginal_costs", ""))),
+            "path_dist_and_sub_tx_mc",
+            _normalize_data_path(args.path_dist_and_sub_tx_mc),
+            _normalize_data_path(str(run1.get("path_dist_and_sub_tx_mc", ""))),
         ),
         (
             "path_electric_utility_stats",
@@ -72,16 +73,26 @@ def main() -> None:
         ),
     ]
 
-    if run2:
-        # Support both path_supply_marginal_costs (new) and path_cambium_marginal_costs (backward compatibility)
-        supply_mc_path = run2.get("path_supply_marginal_costs") or run2.get(
-            "path_cambium_marginal_costs", ""
-        )
+    # Optional: check path_bulk_tx_mc (NY-only; skipped when arg not supplied)
+    if args.path_bulk_tx_mc is not None:
         checks.append(
             (
-                "path_cambium",
-                _normalize_data_path(args.path_cambium),
-                _normalize_data_path(str(supply_mc_path)),
+                "path_bulk_tx_mc",
+                _normalize_data_path(args.path_bulk_tx_mc),
+                _normalize_data_path(str(run1.get("path_bulk_tx_mc", ""))),
+            )
+        )
+
+    # Optional: check path_supply_energy_mc against run2's YAML value.
+    # Skipped when --path-supply-energy-mc is not provided (e.g. states without
+    # a fixed supply energy MC Justfile variable).
+    if args.path_supply_energy_mc is not None and run2:
+        yaml_supply_energy = run2.get("path_supply_energy_mc", "")
+        checks.append(
+            (
+                "path_supply_energy_mc",
+                _normalize_data_path(args.path_supply_energy_mc),
+                _normalize_data_path(str(yaml_supply_energy)),
             )
         )
 
