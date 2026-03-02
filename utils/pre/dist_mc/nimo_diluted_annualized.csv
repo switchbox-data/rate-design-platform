@@ -17,10 +17,10 @@ bulk_tx,Bulk TX (≥230kV),2029,0.0,1000.0,81.7,12.36
 bulk_tx,Bulk TX (≥230kV),2030,0.0,1000.0,83.5,12.62
 bulk_tx,Bulk TX (≥230kV),2031,0.0,1000.0,85.2,12.88
 bulk_tx,Bulk TX (≥230kV),2032,0.0,1000.0,87.0,13.15
-bulk_tx,Bulk TX (≥230kV),2033,0.0,1000.0,88.8,13.43
-bulk_tx,Bulk TX (≥230kV),2034,0.0,1000.0,90.7,13.71
-bulk_tx,Bulk TX (≥230kV),2035,0.0,1000.0,92.6,14.0
-bulk_tx,Bulk TX (≥230kV),2036,1100.0,2100.0,106.5,16.1
+bulk_tx,Bulk TX (≥230kV),2033,20.0,1020.0,89.6,13.55
+bulk_tx,Bulk TX (≥230kV),2034,0.0,1020.0,91.5,13.83
+bulk_tx,Bulk TX (≥230kV),2035,0.0,1020.0,93.4,14.12
+bulk_tx,Bulk TX (≥230kV),2036,1100.0,2120.0,107.4,16.23
 sub_tx,Sub-TX (69–115kV),2026,118.0,118.0,20.2,3.05
 sub_tx,Sub-TX (69–115kV),2027,85.0,203.0,38.0,5.74
 sub_tx,Sub-TX (69–115kV),2028,291.0,494.0,46.5,7.02
@@ -28,10 +28,10 @@ sub_tx,Sub-TX (69–115kV),2029,115.0,609.0,55.6,8.41
 sub_tx,Sub-TX (69–115kV),2030,1194.0,1803.0,94.0,14.21
 sub_tx,Sub-TX (69–115kV),2031,470.0,2273.0,114.7,17.34
 sub_tx,Sub-TX (69–115kV),2032,220.0,2493.0,131.4,19.86
-sub_tx,Sub-TX (69–115kV),2033,85.0,2578.0,141.8,21.43
-sub_tx,Sub-TX (69–115kV),2034,33.0,2611.0,155.0,23.42
-sub_tx,Sub-TX (69–115kV),2035,442.0,3053.0,208.5,31.51
-sub_tx,Sub-TX (69–115kV),2036,3836.1,6889.1,592.2,89.52
+sub_tx,Sub-TX (69–115kV),2033,65.0,2558.0,141.0,21.31
+sub_tx,Sub-TX (69–115kV),2034,33.0,2591.0,154.1,23.3
+sub_tx,Sub-TX (69–115kV),2035,442.0,3033.0,207.6,31.39
+sub_tx,Sub-TX (69–115kV),2036,3836.1,6869.1,591.4,89.39
 distribution,Distribution (≤13.2kV),2026,23.9,23.9,3.6,0.55
 distribution,Distribution (≤13.2kV),2027,92.6,116.5,22.8,3.44
 distribution,Distribution (≤13.2kV),2028,78.9,195.4,25.9,3.92
@@ -50,7 +50,7 @@ sub_tx_plus_dist,Sub-TX + Distribution (DRV-relevant),2029,241.7,931.0,91.0,13.7
 sub_tx_plus_dist,Sub-TX + Distribution (DRV-relevant),2030,1257.6,2188.6,139.1,21.03
 sub_tx_plus_dist,Sub-TX + Distribution (DRV-relevant),2031,890.8,3079.4,203.7,30.79
 sub_tx_plus_dist,Sub-TX + Distribution (DRV-relevant),2032,390.7,3470.1,235.5,35.6
-sub_tx_plus_dist,Sub-TX + Distribution (DRV-relevant),2033,194.8,3664.9,268.4,40.56
-sub_tx_plus_dist,Sub-TX + Distribution (DRV-relevant),2034,264.6,3929.5,311.5,47.09
-sub_tx_plus_dist,Sub-TX + Distribution (DRV-relevant),2035,816.3,4745.8,419.7,63.44
-sub_tx_plus_dist,Sub-TX + Distribution (DRV-relevant),2036,4686.8,9432.5,908.9,137.37
+sub_tx_plus_dist,Sub-TX + Distribution (DRV-relevant),2033,174.8,3644.9,267.6,40.44
+sub_tx_plus_dist,Sub-TX + Distribution (DRV-relevant),2034,264.6,3909.5,310.7,46.96
+sub_tx_plus_dist,Sub-TX + Distribution (DRV-relevant),2035,816.3,4725.8,418.9,63.31
+sub_tx_plus_dist,Sub-TX + Distribution (DRV-relevant),2036,4686.8,9412.5,908.0,137.24
