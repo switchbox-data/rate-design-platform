@@ -15,12 +15,12 @@ Justfile: `data/nyiso/transmission/Justfile` (recipes: `derive`, `upload`, `clea
 
 ## Data sources
 
-| Dataset                            | Source                                  | What it provides                                                                                                           |
-| ---------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| NYISO AC Transmission study (2019) | GH issue #302                           | Project-level ΔMW and annual benefit ($M/yr) for AC Primary, Addendum Optimizer, and MMU scenarios across NYISO localities |
-| NYISO LI Export study (2020)       | GH issue #302                           | LI Export (Policy) projects with ΔMW and benefit                                                                           |
-| NiMo 2025 MCOS (project workbook)  | `context/papers/mcos/nimo_2025_mcos.md` | Per-project undiluted $/kW-yr for three bulk TX projects (≥230 kV), used for ROS zone                                      |
-| OATT proxies (NYSEG, RG&E, CenHud) | `context/domain/ny_mcos_studies_comparison.md` | Cross-reference for total transmission costs (bulk + sub); not used directly for bulk TX v_z                          |
+| Dataset                            | Source                                         | What it provides                                                                                                           |
+| ---------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| NYISO AC Transmission study (2019) | GH issue #302                                  | Project-level ΔMW and annual benefit ($M/yr) for AC Primary, Addendum Optimizer, and MMU scenarios across NYISO localities |
+| NYISO LI Export study (2020)       | GH issue #302                                  | LI Export (Policy) projects with ΔMW and benefit                                                                           |
+| NiMo 2025 MCOS (project workbook)  | `context/papers/mcos/nimo_2025_mcos.md`        | Per-project undiluted $/kW-yr for three bulk TX projects (≥230 kV), used for ROS zone                                      |
+| OATT proxies (NYSEG, RG&E, CenHud) | `context/domain/ny_mcos_studies_comparison.md` | Cross-reference for total transmission costs (bulk + sub); not used directly for bulk TX v_z                               |
 
 ## Derivation by zone
 
@@ -55,17 +55,18 @@ Represents the marginal benefit of expanding LI export capability. Quantile and 
 **Method:** Undiluted $/kW-yr per project — the same approach used for generation capacity MC. Each project's v = ECCR annual cost ÷ its own added capacity (kW). We do **not** divide by NiMo's system peak (6,616 MW); that would yield a diluted $13.19/kW-yr levelized figure, which is not what we want. The undiluted per-project values feed directly into the Steps 1–3 isotonic/quantile pipeline.
 
 The NYISO AC Transmission study is not used for ROS:
+
 - The A–F locality has **negative** annual benefit in the AC Primary scenario (procurement cost increase from upstate generation displacement).
 - The NYCA system-wide benefit scaled by upstate load share (~23%) gives ~$10/kW-yr — an interface-congestion-relief measure, not an infrastructure LRMC.
 
 #### NiMo 2025 MCOS bulk TX project table (≥230 kV)
 
-| Project                   | FN Ref   | Voltage   | In-Service | Capacity (MW) | Capital ($M) | Undiluted ($/kW-yr) |
-| ------------------------- | -------- | --------- | ---------- | ------------- | ------------ | ------------------- |
-| Smart Path Connect        | FN008374 | 230/345 kV | FY2027    | 1,000         | $928.9       | $78.42              |
-| Eastover 230kV Cap Bank   | FN013189 | 230 kV    | FY2033     | 20            | $9.8         | $40.21              |
-| Niagara-Dysinger          | FN013571 | 345 kV    | FY2036     | 1,100         | $142.2       | $10.89              |
-| **Total**                 |          |           |            | **2,120**     | **$1,080.9** |                     |
+| Project                 | FN Ref   | Voltage    | In-Service | Capacity (MW) | Capital ($M) | Undiluted ($/kW-yr) |
+| ----------------------- | -------- | ---------- | ---------- | ------------- | ------------ | ------------------- |
+| Smart Path Connect      | FN008374 | 230/345 kV | FY2027     | 1,000         | $928.9       | $78.42              |
+| Eastover 230kV Cap Bank | FN013189 | 230 kV     | FY2033     | 20            | $9.8         | $40.21              |
+| Niagara-Dysinger        | FN013571 | 345 kV     | FY2036     | 1,100         | $142.2       | $10.89              |
+| **Total**               |          |            |            | **2,120**     | **$1,080.9** |                     |
 
 - **Undiluted $/kW-yr** = E_total column = ECCR × capital/MW at in-service-year nominal prices (F-column value for the in-service year).
 - These are the values entered in `ny_bulk_tx_projects.csv` as `annual_benefit_m_yr` = undiluted $/kW-yr × delta_mw / 1000 ($M/yr), so Step 1 recovers v = B / (ΔMW × 1000) = undiluted $/kW-yr exactly.
@@ -82,12 +83,12 @@ The NYISO AC Transmission study is not used for ROS:
 Three undiluted values: Niagara-Dysinger $10.89, Eastover $40.21, Smart Path $78.42 /kW-yr.
 Output of `just derive` in `data/nyiso/transmission/`:
 
-| Column             | Value        | Basis                                                             |
-| ------------------ | ------------ | ----------------------------------------------------------------- |
-| `v_low_kw_yr`      | $40.21/kW-yr | P25 = Eastover (Polars nearest-quantile on 3 pts; see note)      |
-| `v_mid_kw_yr`      | $40.21/kW-yr | P50 = Eastover (median of three values)                          |
-| `v_high_kw_yr`     | $78.42/kW-yr | P75 = Smart Path Connect                                         |
-| `v_isotonic_kw_yr` | $40.21/kW-yr | Median slope from isotonic B = g(ΔMW) fit (see below)           |
+| Column             | Value        | Basis                                                       |
+| ------------------ | ------------ | ----------------------------------------------------------- |
+| `v_low_kw_yr`      | $40.21/kW-yr | P25 = Eastover (Polars nearest-quantile on 3 pts; see note) |
+| `v_mid_kw_yr`      | $40.21/kW-yr | P50 = Eastover (median of three values)                     |
+| `v_high_kw_yr`     | $78.42/kW-yr | P75 = Smart Path Connect                                    |
+| `v_isotonic_kw_yr` | $40.21/kW-yr | Median slope from isotonic B = g(ΔMW) fit (see below)       |
 
 **Note on P25 = P50:** With only 3 data points, Polars "nearest" quantile maps both P25 and P50 to the middle value (Eastover, $40.21). Niagara-Dysinger ($10.89) is the minimum and sits below P25 — it does not appear in any quantile column. If you want it to influence `v_low`, run the script with a different quantile interpolation or add more ROS project data points.
 
@@ -101,15 +102,15 @@ OATT (Open Access Transmission Tariff) revenue requirements for upstate utilitie
 
 The `gen_capacity_zone` column in `ny_utility_zone_mapping.csv` is the single four-zone grouping used for both generation capacity MC and bulk TX MC lookups. Bulk TX uses the same locality mapping as generation capacity — no separate `tx_locality` column is needed.
 
-| Utility | Zones   | gen_capacity_zone |
-| ------- | ------- | ----------------- |
-| cenhud  | G       | LHV               |
+| Utility | Zones   | gen_capacity_zone     |
+| ------- | ------- | --------------------- |
+| cenhud  | G       | LHV                   |
 | coned   | G, H, J | NYC (87%) / LHV (13%) |
-| nimo    | A–F     | ROS               |
-| nyseg   | A–F     | ROS               |
-| or      | G       | LHV               |
-| rge     | B       | ROS               |
-| psegli  | K       | LI                |
+| nimo    | A–F     | ROS                   |
+| nyseg   | A–F     | ROS                   |
+| or      | G       | LHV                   |
+| rge     | B       | ROS                   |
+| psegli  | K       | LI                    |
 
 ## Integration with CAIRO
 

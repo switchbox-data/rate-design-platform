@@ -136,7 +136,8 @@ create-flat-tariff:
 
 create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
   just -f {{path_repo}}/utils/Justfile create-seasonal-tou \
-    "{{path_cambium}}" \
+    "{{path_supply_energy_mc}}" \
+    "{{path_supply_capacity_mc}}" \
     "{{state_upper}}" \
     "{{utility}}" \
     "{{year}}" \
@@ -149,7 +150,8 @@ create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
     "{{path_config}}" \
     "{{path_periods_yaml}}" \
     "{{reference_tariff}}" \
-    "{{run_dir}}"
+    "{{run_dir}}" \
+    "{{path_bulk_tx_mc}}"
 
 create-gas-tariff-map electric_utility upgrade_id output_dir:
   just -f {{path_repo}}/utils/Justfile create-gas-tariff-map \
