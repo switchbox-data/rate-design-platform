@@ -50,6 +50,10 @@ SCENARIO_FAMILY_MAP: dict[str, str] = {
     "Addendum MMU (Baseline)": "mmu",
     "Addendum MMU (CES+Ret)": "mmu",
     "LI Export (Policy)": "li_export",
+    # NiMo 2025 MCOS bulk TX (≥230 kV) projects for ROS zone.
+    # annual_benefit_m_yr = undiluted ECCR annual cost at project MW,
+    # so v = cost_m_yr / (delta_mw × 1000) recovers the undiluted $/kW-yr.
+    "NiMo MCOS (Bulk TX)": "nimo_mcos",
 }
 
 
@@ -65,6 +69,7 @@ LOCALITY_TO_GEN_CAPACITY_ZONE: dict[str, str] = {
     "K": "LI",
     "NYCA": "NYCA_SYSTEM",  # system-wide; distributed to all zones
     "UPNY-ConEd": "NYC",  # interface benefits accrue to downstate load
+    "ROS": "ROS",  # NiMo MCOS bulk TX projects tagged directly as ROS
 }
 
 
@@ -292,27 +297,46 @@ def aggregate_to_zones(
     zone_results: list[dict[str, object]] = []
 
     # ── ROS (A-F / Upstate) ──────────────────────────────────────────────
-    # The NYISO AC Transmission study does not directly derive upstate bulk
-    # Tx MC — the A-F locality has *negative* benefit (procurement cost
-    # increase), and scaling the NYCA system benefit by upstate load share
-    # (~0.23) gives only ~$10/kW-yr, which measures incremental interface
-    # benefit, not infrastructure cost.
+    # Use NiMo 2025 MCOS bulk TX projects (≥230 kV: Smart Path Connect,
+    # Eastover 230kV Cap Bank, Niagara-Dysinger). Each project's v is
+    # its *undiluted* $/kW-yr = ECCR annual cost ÷ project's own MW,
+    # consistent with how generation capacity MC is treated (not divided
+    # by system peak). The three undiluted values are:
+    #   Smart Path Connect:       $78.42 /kW-yr  (1,000 MW, FY2027)
+    #   Eastover 230kV Cap Bank:  $40.21 /kW-yr  (   20 MW, FY2033)
+    #   Niagara-Dysinger:         $10.89 /kW-yr  (1,100 MW, FY2036)
+    # P25/P50/P75 and isotonic slope are computed from those three points
+    # by Steps 1–3 above, same as any other zone.
     #
-    # Instead we use NiMo's 2025 MCOS T-Station + T-Line marginal cost
-    # ($16 + $38 = $54/kW-yr, undiluted ECCR-weighted LRMC across 11,533 MW
-    # of capacity additions FY2026–2036). This is the forward-looking
-    # infrastructure cost for a 1 kW load increase in upstate NY, and it
-    # aligns with OATT proxies for upstate utilities:
-    #   • NYSEG OATT: ~$53/kW-yr
-    #   • RG&E OATT:  ~$43/kW-yr
-    #   • CenHud OATT: ~$55/kW-yr
+    # The NYISO AC Transmission study is *not* used for ROS: the A-F
+    # locality has negative annual benefit (upstate procurement cost
+    # increase), and the NYCA system-wide benefit is an interface-relief
+    # measure, not infrastructure LRMC.
     #
     # See context/tools/ny_bulk_tx_marginal_costs.md for full analysis.
-    NIMO_T_STATION_MC = 16.0  # $/kW-yr (ECCR 8.21% × avg capital/MW)
-    NIMO_T_LINE_MC = 38.0  # $/kW-yr (ECCR 8.44% × avg capital/MW)
-    ros_v_mid = NIMO_T_STATION_MC + NIMO_T_LINE_MC  # $54/kW-yr
-    ros_v_low = round(ros_v_mid * 0.8, 2)  # ~$43, consistent with RG&E OATT
-    ros_v_high = round(ros_v_mid * 1.05, 2)  # ~$57, consistent with CenHud OATT
+    ros_rows = dist_df.filter(
+        (pl.col("locality") == "ROS") & (pl.col("scenario_family") == "nimo_mcos")
+    )
+    if len(ros_rows) > 0:
+        ros_v_low = round(float(ros_rows["v_low_kw_yr"][0]), 2)
+        ros_v_mid = round(float(ros_rows["v_mid_kw_yr"][0]), 2)
+        ros_v_high = round(float(ros_rows["v_high_kw_yr"][0]), 2)
+    else:
+        warnings.warn(
+            "No NiMo MCOS data found for ROS locality — "
+            "check that ny_bulk_tx_projects.csv contains NiMo MCOS (Bulk TX) rows.",
+            stacklevel=2,
+        )
+        ros_v_low = ros_v_mid = ros_v_high = 40.0
+
+    ros_iso = isotonic_df.filter(
+        (pl.col("locality") == "ROS") & (pl.col("scenario_family") == "nimo_mcos")
+    )
+    ros_v_isotonic = (
+        round(float(ros_iso["v_isotonic_kw_yr"][0]), 2)
+        if len(ros_iso) > 0
+        else ros_v_mid
+    )
 
     zone_results.append(
         {
@@ -320,7 +344,7 @@ def aggregate_to_zones(
             "v_low_kw_yr": ros_v_low,
             "v_mid_kw_yr": ros_v_mid,
             "v_high_kw_yr": ros_v_high,
-            "v_isotonic_kw_yr": ros_v_mid,  # No isotonic fit; use MCOS directly
+            "v_isotonic_kw_yr": ros_v_isotonic,
         }
     )
 
@@ -434,9 +458,10 @@ def aggregate_to_zones(
 
     result_df = pl.DataFrame(zone_results)
 
-    # Validation: ordering LHV < ROS < NYC (ROS uses NiMo MCOS ~$54;
-    # LHV has lighter interface-driven costs ~$43; NYC is highest ~$55).
-    # Allow ROS ≈ NYC since both are in the ~$54-55 range.
+    # Validation: ROS and LHV use different data sources (NiMo MCOS vs NYISO
+    # interface studies), so cross-zone ordering is not strictly enforced.
+    # We only require LHV < NYC (both from NYISO interface studies, where NYC
+    # interface congestion value exceeds LHV) and ROS > 0.
     ros_mid = float(
         result_df.filter(pl.col("gen_capacity_zone") == "ROS")["v_mid_kw_yr"][0]
     )
@@ -450,7 +475,6 @@ def aggregate_to_zones(
     assert lhv_mid < nyc_mid, (
         f"Expected LHV < NYC ordering, got LHV={lhv_mid}, NYC={nyc_mid}"
     )
-    # ROS and NYC can be close — both represent high infrastructure cost
     assert ros_mid > 0, f"ROS v_mid must be positive, got {ros_mid}"
 
     # Cross-check: Tx MC should be a fraction of ICAP capacity prices
@@ -459,6 +483,7 @@ def aggregate_to_zones(
         nyc_icap_annual = 144.0  # Approximate NYC ICAP annual price
         tx_fraction = nyc_mid / nyc_icap_annual
         print(f"  NYC Tx as fraction of ICAP: {tx_fraction:.1%} (expect ~30-50%)")
+    print(f"  ROS v_mid (NiMo MCOS undiluted): ${ros_mid:.2f}/kW-yr")
 
     print("\n" + "=" * 70)
     print("STEP 4: Final v_z per gen_capacity_zone")
@@ -522,7 +547,7 @@ def main() -> None:
     missing = required_cols - set(df.columns)
     assert not missing, f"Missing columns: {missing}"
 
-    expected_localities = {"A-F", "G-K", "K", "NYCA", "UPNY-ConEd", "G-J"}
+    expected_localities = {"A-F", "G-K", "K", "NYCA", "UPNY-ConEd", "G-J", "ROS"}
     actual_localities = set(df["locality"].unique().to_list())
     unexpected = actual_localities - expected_localities
     assert not unexpected, f"Unexpected localities: {unexpected}"

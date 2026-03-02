@@ -92,7 +92,6 @@ def _make_zone_mapping() -> pl.DataFrame:
             "lbmp_zone_name": ["WEST", "GENESE", "HUD_VL", "N.Y.C."],
             "icap_locality": ["NYCA", "NYCA", "NYC", "GHIJ"],
             "gen_capacity_zone": ["ROS", "ROS", "NYC", "LHV"],
-            "tx_locality": ["ROS", "ROS", "NYC", "LHV"],
             "capacity_weight": [1.0, 1.0, 0.87, 0.13],
         }
     )

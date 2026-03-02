@@ -19,8 +19,8 @@ Justfile: `data/nyiso/transmission/Justfile` (recipes: `derive`, `upload`, `clea
 | ---------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | NYISO AC Transmission study (2019) | GH issue #302                           | Project-level ΔMW and annual benefit ($M/yr) for AC Primary, Addendum Optimizer, and MMU scenarios across NYISO localities |
 | NYISO LI Export study (2020)       | GH issue #302                           | LI Export (Policy) projects with ΔMW and benefit                                                                           |
-| NiMo 2025 MCOS (Exhibit 1)         | `context/papers/mcos/nimo_2025_mcos.md` | Forward-looking LRMC for T-Station and T-Line infrastructure, used for ROS zone                                            |
-| OATT proxies (NYSEG, RG&E, CenHud) | PR #286 MCOS studies comparison         | Cross-validation of upstate bulk Tx costs                                                                                  |
+| NiMo 2025 MCOS (project workbook)  | `context/papers/mcos/nimo_2025_mcos.md` | Per-project undiluted $/kW-yr for three bulk TX projects (≥230 kV), used for ROS zone                                      |
+| OATT proxies (NYSEG, RG&E, CenHud) | `context/domain/ny_mcos_studies_comparison.md` | Cross-reference for total transmission costs (bulk + sub); not used directly for bulk TX v_z                          |
 
 ## Derivation by zone
 
@@ -48,86 +48,65 @@ Represents the marginal benefit of expanding LI export capability. Quantile and 
 
 **Result:** ~$36/kW-yr (mid).
 
-### ROS (Rest of State / Upstate, zones A–F) — NiMo MCOS approach
+### ROS (Rest of State / Upstate, zones A–F) — NiMo MCOS project-level approach
 
-**Source:** NiMo 2025 MCOS, T-Station + T-Line marginal cost components.
+**Source:** NiMo 2025 MCOS, three bulk TX projects (all ≥230 kV).
 
-The NYISO AC Transmission study does **not** directly provide a usable upstate bulk Tx MC:
+**Method:** Undiluted $/kW-yr per project — the same approach used for generation capacity MC. Each project's v = ECCR annual cost ÷ its own added capacity (kW). We do **not** divide by NiMo's system peak (6,616 MW); that would yield a diluted $13.19/kW-yr levelized figure, which is not what we want. The undiluted per-project values feed directly into the Steps 1–3 isotonic/quantile pipeline.
 
-- The A–F locality has **negative** annual benefit in the AC Primary scenario (procurement cost increase from added upstate generation displacement).
-- Scaling the NYCA system-wide benefit (~$43/kW-yr) by the upstate load share (~23%) yields only ~$10/kW-yr.
+The NYISO AC Transmission study is not used for ROS:
+- The A–F locality has **negative** annual benefit in the AC Primary scenario (procurement cost increase from upstate generation displacement).
+- The NYCA system-wide benefit scaled by upstate load share (~23%) gives ~$10/kW-yr — an interface-congestion-relief measure, not an infrastructure LRMC.
 
-This ~$10/kW-yr figure measures **incremental interface benefit** — the value of relieving congestion at NYISO transmission interfaces — not the **infrastructure cost** of building or expanding bulk transmission assets that serve upstate load. These are different economic quantities:
+#### NiMo 2025 MCOS bulk TX project table (≥230 kV)
 
-| Concept                         | What it measures                      | Typical value              |
-| ------------------------------- | ------------------------------------- | -------------------------- |
-| Interface benefit (NYISO study) | Congestion relief value at interfaces | ~$10/kW-yr (upstate share) |
-| Infrastructure LRMC (MCOS)      | Forward-looking cost of new T assets  | ~$43–55/kW-yr              |
-| Embedded cost (OATT ATRR)       | Current revenue requirement recovery  | ~$43–55/kW-yr              |
+| Project                   | FN Ref   | Voltage   | In-Service | Capacity (MW) | Capital ($M) | Undiluted ($/kW-yr) |
+| ------------------------- | -------- | --------- | ---------- | ------------- | ------------ | ------------------- |
+| Smart Path Connect        | FN008374 | 230/345 kV | FY2027    | 1,000         | $928.9       | $78.42              |
+| Eastover 230kV Cap Bank   | FN013189 | 230 kV    | FY2033     | 20            | $9.8         | $40.21              |
+| Niagara-Dysinger          | FN013571 | 345 kV    | FY2036     | 1,100         | $142.2       | $10.89              |
+| **Total**                 |          |           |            | **2,120**     | **$1,080.9** |                     |
 
-For the BAT, we need infrastructure cost — the marginal cost of serving 1 additional kW of upstate load through bulk transmission infrastructure. NiMo's MCOS provides exactly this.
+- **Undiluted $/kW-yr** = E_total column = ECCR × capital/MW at in-service-year nominal prices (F-column value for the in-service year).
+- These are the values entered in `ny_bulk_tx_projects.csv` as `annual_benefit_m_yr` = undiluted $/kW-yr × delta_mw / 1000 ($M/yr), so Step 1 recovers v = B / (ΔMW × 1000) = undiluted $/kW-yr exactly.
+- **Diluted system-wide levelized** (÷ 6,616 MW NiMo peak) = $13.19/kW-yr. This is **not** used — bulk TX is treated as undiluted, consistent with generation capacity MC.
 
-#### NiMo MCOS T-Station + T-Line breakdown
+#### Notes on individual projects
 
-From the NiMo 2025 MCOS (Exhibit 1, system-wide summary, line 245):
+- **Smart Path Connect** dominates in capital (86% of bulk TX spend) and enters service FY2027, so it is active for nearly the entire study horizon and drives the levelized value.
+- **Niagara-Dysinger** is large in MW (1,100) but cheap per kW ($10.89/kW-yr) — it is a 345 kV line with modest capital for its scale. It enters service FY2036 (the last year of the study), so its effect on any levelized or time-averaged figure is small.
+- **Eastover** is a minor capacitor bank (20 MW, $9.8M); it enters service FY2033.
 
-| Component   | Capital ($M) | ECCR   | MC ($/kW-yr) |
-| ----------- | ------------ | ------ | ------------ |
-| T-Station   | $2,316M      | 8.21%  | $16          |
-| T-Line      | $5,259M      | 8.44%  | $38          |
-| **T total** | **$7,576M**  | —      | **$54**      |
-| D-Station   | $1,895M      | 8.06%  | $13          |
-| D-Line      | $1,233M      | 14.13% | $15          |
+#### Resulting v_z distribution for ROS
 
-- **Total system capacity:** 11,533 MW of additions over FY2026–2036.
-- **System-wide total MC:** $71.5/kW-yr (all four components).
-- **T-Station + T-Line = $54/kW-yr** is the bulk transmission portion.
-- Transmission assets operate at ≥69 kV.
-- This is a forward-looking **LRMC** (Long-Run Marginal Cost), inflation-adjusted to FY2026 base year using 2.1% Blue Chip consensus forecast.
-- The T-Line component ($38/kW-yr) dominates and includes inter-substation transmission lines and network upgrades — these are the bulk transmission assets.
-- The T-Station component ($16/kW-yr) includes high-voltage substation equipment (transformers, breakers, switchgear at ≥69 kV).
+With three undiluted values [$10.89, $40.21, $78.42] /kW-yr run through the Steps 1–3 quantile and isotonic pipeline (output of `just derive` in `data/nyiso/transmission/`):
 
-#### Cross-validation with OATT proxies
+| Column             | Value       | Basis                                                                                   |
+| ------------------ | ----------- | --------------------------------------------------------------------------------------- |
+| `v_low_kw_yr`      | $40.21/kW-yr | P25 with Polars nearest-quantile: position 0.25×(3−1)=0.5 rounds to index 1 (Eastover) |
+| `v_mid_kw_yr`      | $40.21/kW-yr | P50: index 1 = Eastover. Niagara-Dysinger ($10.89) falls below P25.                   |
+| `v_high_kw_yr`     | $78.42/kW-yr | P75: rounds to index 2 = Smart Path Connect                                            |
+| `v_isotonic_kw_yr` | $40.21/kW-yr | Median slope from isotonic B = g(ΔMW) fit (see below)                                 |
 
-OATT (Open Access Transmission Tariff) Annual Transmission Revenue Requirements provide an embedded-cost proxy for bulk Tx (from PR #286):
+The isotonic fit: sorted by ΔMW, the B = g(ΔMW) curve passes through (0, 0), (20, 0.804M), (1000, 78.42M), (1100, 91.20M). The last two points are pooled by PAV because the slope from 1000→1100 MW ($10.89/kW-yr) is lower than the prior segment ($78.42/kW-yr). After pooling, the three piecewise slopes are [$40.21, ~$45.3, $0]; the median is **$40.21/kW-yr**.
 
-| Utility  | OATT proxy ($/kW-yr) | Basis                           |
-| -------- | -------------------- | ------------------------------- |
-| NYSEG    | ~$53                 | Embedded Tx revenue requirement |
-| RG&E     | ~$43                 | Embedded Tx revenue requirement |
-| CenHud   | ~$55                 | Embedded Tx revenue requirement |
-| NiMo T+T | $54                  | Forward-looking LRMC            |
+#### Why not use the OATT proxies for ROS v_mid?
 
-All upstate utilities converge on **$43–55/kW-yr** range. NiMo's $54 is well within this range. The OATT values measure embedded cost (current RR recovery), while NiMo's MCOS measures forward-looking LRMC — their convergence gives high confidence.
-
-**Result for ROS:** $54/kW-yr (mid), with sensitivity range $43–57/kW-yr based on OATT cross-checks.
-
-## Why the NYISO study v_z ≈ $10/kW-yr is wrong for upstate
-
-The NYISO AC Transmission and LI Export studies were designed to evaluate **specific transmission expansion projects** at NYISO interfaces. They quantify the **benefit** (reduced congestion, production cost savings) of adding MW of transfer capability at specific interfaces.
-
-For downstate zones (LHV, NYC, LI), these interface benefits are a reasonable proxy for bulk Tx MC because the binding constraint for serving incremental load is the interface itself — adding load in these areas drives the need for the transmission projects studied.
-
-For upstate (ROS / zones A–F), the situation is fundamentally different:
-
-1. **Upstate is a net exporter** — additional upstate generation reduces downstate congestion but doesn't create upstate transmission investment need.
-2. **The A–F benefit is negative** in the AC Primary scenario — upstate doesn't benefit from more AC transmission; it actually faces higher costs from displaced generation.
-3. **Upstate bulk Tx infrastructure needs** are driven by internal load growth and reliability, not interface transfers. These needs are captured by the MCOS/OATT values.
-4. **The NYCA system benefit (~$43/kW-yr)** accrues primarily to downstate load (the load behind constrained interfaces), so scaling it by upstate load share is not economically meaningful.
+OATT (Open Access Transmission Tariff) revenue requirements for upstate utilities span $43–55/kW-yr. However, those values reflect **all** transmission assets (including sub-transmission at 69–230 kV), not just bulk TX (≥230 kV). The NiMo MCOS project-level breakdown is the right source because it isolates the three ≥230 kV projects explicitly. The OATT figures remain useful for cross-checking that the overall (bulk + sub) transmission cost is in the right ballpark.
 
 ## Zone mapping
 
-The `tx_locality` column in `ny_utility_zone_mapping.csv` maps each utility to its transmission locality zone. Currently `tx_locality` equals `gen_capacity_zone` for all utilities:
+The `gen_capacity_zone` column in `ny_utility_zone_mapping.csv` is the single four-zone grouping used for both generation capacity MC and bulk TX MC lookups. Bulk TX uses the same locality mapping as generation capacity — no separate `tx_locality` column is needed.
 
-| Utility | Zones   | tx_locality | gen_capacity_zone |
-| ------- | ------- | ----------- | ----------------- |
-| cenhud  | G       | LHV         | LHV               |
-| coned   | G, H, J | NYC / LHV   | NYC / LHV         |
-| nimo    | A–F     | ROS         | ROS               |
-| nyseg   | A–F     | ROS         | ROS               |
-| or      | G       | LHV         | LHV               |
-| rge     | B       | ROS         | ROS               |
-| psegli  | K       | LI          | LI                |
+| Utility | Zones   | gen_capacity_zone |
+| ------- | ------- | ----------------- |
+| cenhud  | G       | LHV               |
+| coned   | G, H, J | NYC (87%) / LHV (13%) |
+| nimo    | A–F     | ROS               |
+| nyseg   | A–F     | ROS               |
+| or      | G       | LHV               |
+| rge     | B       | ROS               |
+| psegli  | K       | LI                |
 
 ## Integration with CAIRO
 

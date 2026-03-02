@@ -11,9 +11,9 @@ Output schema (one row per utility × load_zone × icap_locality):
   load_zone_letter   – NYISO zone letter (A–K)
   lbmp_zone_name     – NYISO LBMP zone name used in day-ahead price data
   icap_locality      – ICAP locality for capacity pricing (NYCA, GHIJ, NYC, LI)
-  gen_capacity_zone  – generation capacity zone (ROS, LHV, NYC, LI)
-  tx_locality        – transmission locality for bulk Tx MC (same as gen_capacity_zone
-                        for now; kept separate in case Tx localities diverge later)
+  gen_capacity_zone  – generation capacity zone (ROS, LHV, NYC, LI); also used for
+                       bulk TX locality lookup (both generation capacity MC and bulk TX
+                       MC use the same four-zone grouping)
   capacity_weight    – fraction of utility capacity obligation from this locality
 """
 
@@ -40,24 +40,24 @@ ZONE_NAMES: dict[str, str] = {
 }
 
 # ── Utility mapping rows ─────────────────────────────────────────────────────
-# Each tuple: (utility, zone_letters, icap_locality, gen_capacity_zone, tx_locality, capacity_weight)
-# tx_locality == gen_capacity_zone for now; kept separate in case Tx localities diverge.
-# ConEd has a split: 87% NYC / 13% GHIJ (LHV).
-_MAPPING_ROWS: list[tuple[str, list[str], str, str, str, float]] = [
-    ("cenhud", ["G"], "GHIJ", "LHV", "LHV", 1.0),
+# Each tuple: (utility, zone_letters, icap_locality, gen_capacity_zone, capacity_weight)
+# gen_capacity_zone is the four-zone grouping used for both generation capacity MC
+# and bulk TX MC lookups. ConEd has a split: 87% NYC / 13% GHIJ (LHV).
+_MAPPING_ROWS: list[tuple[str, list[str], str, str, float]] = [
+    ("cenhud", ["G"], "GHIJ", "LHV", 1.0),
     # ConEd — zones G (Westchester), H (Westchester), J (NYC); 87% NYC locality
-    ("coned", ["G", "H", "J"], "NYC", "NYC", "NYC", 0.87),
+    ("coned", ["G", "H", "J"], "NYC", "NYC", 0.87),
     # ConEd — 13% GHIJ (Lower Hudson Valley) locality
-    ("coned", ["G", "H", "J"], "GHIJ", "LHV", "LHV", 0.13),
-    ("nimo", ["A", "B", "C", "D", "E", "F"], "NYCA", "ROS", "ROS", 1.0),
-    ("nyseg", ["A", "B", "C", "D", "E", "F"], "NYCA", "ROS", "ROS", 1.0),
-    ("or", ["G"], "GHIJ", "LHV", "LHV", 1.0),
-    ("rge", ["B"], "NYCA", "ROS", "ROS", 1.0),
-    ("psegli", ["K"], "LI", "LI", "LI", 1.0),
+    ("coned", ["G", "H", "J"], "GHIJ", "LHV", 0.13),
+    ("nimo", ["A", "B", "C", "D", "E", "F"], "NYCA", "ROS", 1.0),
+    ("nyseg", ["A", "B", "C", "D", "E", "F"], "NYCA", "ROS", 1.0),
+    ("or", ["G"], "GHIJ", "LHV", 1.0),
+    ("rge", ["B"], "NYCA", "ROS", 1.0),
+    ("psegli", ["K"], "LI", "LI", 1.0),
 ]
 
-# Valid tx_locality values
-VALID_TX_LOCALITIES = frozenset({"ROS", "LHV", "NYC", "LI"})
+# Valid gen_capacity_zone values (used for both generation capacity and bulk TX)
+VALID_GEN_CAPACITY_ZONES = frozenset({"ROS", "LHV", "NYC", "LI"})
 
 
 def build_zone_mapping() -> pl.DataFrame:
@@ -68,12 +68,10 @@ def build_zone_mapping() -> pl.DataFrame:
         zone_letters,
         icap_locality,
         gen_cap_zone,
-        tx_loc,
         cap_weight,
     ) in _MAPPING_ROWS:
-        # Validate tx_locality
-        assert tx_loc in VALID_TX_LOCALITIES, (
-            f"tx_locality '{tx_loc}' not in {VALID_TX_LOCALITIES}"
+        assert gen_cap_zone in VALID_GEN_CAPACITY_ZONES, (
+            f"gen_capacity_zone '{gen_cap_zone}' not in {VALID_GEN_CAPACITY_ZONES}"
         )
         for letter in zone_letters:
             rows.append(
@@ -83,7 +81,6 @@ def build_zone_mapping() -> pl.DataFrame:
                     "lbmp_zone_name": ZONE_NAMES[letter],
                     "icap_locality": icap_locality,
                     "gen_capacity_zone": gen_cap_zone,
-                    "tx_locality": tx_loc,
                     "capacity_weight": cap_weight,
                 }
             )
@@ -96,7 +93,6 @@ def build_zone_mapping() -> pl.DataFrame:
             "lbmp_zone_name": pl.Utf8,
             "icap_locality": pl.Utf8,
             "gen_capacity_zone": pl.Utf8,
-            "tx_locality": pl.Utf8,
             "capacity_weight": pl.Float64,
         },
     )

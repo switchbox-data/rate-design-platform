@@ -161,7 +161,9 @@ def resolve_utility_vz(
     """
     vz_col = VZ_QUANTILE_MAP[quantile]
 
-    # Get unique (tx_locality, capacity_weight) pairs for this utility
+    # Get unique (gen_capacity_zone, capacity_weight) pairs for this utility.
+    # gen_capacity_zone is the same four-zone grouping (ROS, LHV, NYC, LI) used
+    # by the generation capacity MC — bulk TX uses the same locality mapping.
     utility_rows = mapping_df.filter(pl.col("utility") == utility)
     if utility_rows.is_empty():
         available = sorted(mapping_df["utility"].unique().to_list())
@@ -169,22 +171,21 @@ def resolve_utility_vz(
             f"Utility '{utility}' not found in zone mapping. Available: {available}"
         )
 
-    locality_weights = utility_rows.select("tx_locality", "capacity_weight").unique()
+    zone_weights = utility_rows.select("gen_capacity_zone", "capacity_weight").unique()
 
-    # Join with v_z table on gen_capacity_zone == tx_locality
-    joined = locality_weights.join(
+    # Join with v_z table on gen_capacity_zone
+    joined = zone_weights.join(
         vz_df.select("gen_capacity_zone", vz_col),
-        left_on="tx_locality",
-        right_on="gen_capacity_zone",
+        on="gen_capacity_zone",
         how="left",
     )
 
     # Check for missing v_z values
     missing = joined.filter(pl.col(vz_col).is_null())
     if not missing.is_empty():
-        missing_zones = missing["tx_locality"].to_list()
+        missing_zones = missing["gen_capacity_zone"].to_list()
         raise ValueError(
-            f"No v_z value found for tx_locality zone(s): {missing_zones}. "
+            f"No v_z value found for gen_capacity_zone(s): {missing_zones}. "
             f"Check that ny_bulk_tx_values.csv covers all gen_capacity_zones."
         )
 
@@ -200,7 +201,7 @@ def resolve_utility_vz(
     print(f"\nv_z resolution for {utility} (quantile={quantile}):")
     for row in joined.iter_rows(named=True):
         print(
-            f"  tx_locality={row['tx_locality']}, "
+            f"  gen_capacity_zone={row['gen_capacity_zone']}, "
             f"weight={row['capacity_weight']:.2f}, "
             f"v_z={row[vz_col]:.2f} $/kW-yr"
         )
@@ -483,18 +484,14 @@ def save_output(
     """
     output_s3_base = output_s3_base.rstrip("/") + "/"
 
-    partitioned = output_df.with_columns(
-        pl.lit(utility).alias("utility"),
-        pl.lit(year).alias("year"),
-    )
-
-    partitioned.write_parquet(
-        output_s3_base,
-        partition_by=["utility", "year"],
+    # Write directly to the partition path with data.parquet filename
+    # (matching the pattern used by generate_utility_tx_dx_mc.py)
+    output_path = f"{output_s3_base}utility={utility}/year={year}/data.parquet"
+    output_df.write_parquet(
+        output_path,
         storage_options=storage_options,
     )
 
-    output_path = f"{output_s3_base}utility={utility}/year={year}/data.parquet"
     print(f"\n✓ Saved bulk Tx MC to {output_path}")
     print(f"  Rows: {len(output_df):,}")
     print(f"  Columns: {', '.join(output_df.columns)}")
