@@ -23,7 +23,7 @@ The allocation method (two-level):
 Input data:
     - Derived v_z table:
         s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_values.csv
-        Schema: gen_capacity_zone, v_low_kw_yr, v_mid_kw_yr, v_high_kw_yr, v_isotonic_kw_yr
+        Schema: gen_capacity_zone, v_avg_kw_yr
     - Utility zone mapping CSV (utility → gen_capacity_zone, capacity_weight):
         s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv
     - EIA utility-level hourly loads (for SCR peak identification):
@@ -104,12 +104,9 @@ DEFAULT_SCR_WINTER_MONTHS: tuple[int, ...] = DEFAULT_SEASONAL_DISCOUNT_WINTER_MO
 # Valid NY utilities
 VALID_UTILITIES = frozenset({"cenhud", "coned", "nimo", "nyseg", "or", "rge", "psegli"})
 
-# Valid v_z quantile columns
+# v_z column from ny_bulk_tx_values.csv (derived via average-secant method)
 VZ_QUANTILE_MAP: dict[str, str] = {
-    "low": "v_low_kw_yr",
-    "mid": "v_mid_kw_yr",
-    "high": "v_high_kw_yr",
-    "isotonic": "v_isotonic_kw_yr",
+    "avg": "v_avg_kw_yr",
 }
 
 
@@ -125,8 +122,7 @@ def load_vz_table(
         path: Local or S3 path to ny_bulk_tx_values.csv.
 
     Returns:
-        DataFrame with columns: gen_capacity_zone, v_low_kw_yr, v_mid_kw_yr,
-        v_high_kw_yr, v_isotonic_kw_yr.
+        DataFrame with columns: gen_capacity_zone, v_avg_kw_yr.
     """
     if path.startswith("s3://"):
         s3_path = S3Path(path)
@@ -135,7 +131,7 @@ def load_vz_table(
     else:
         df = pl.read_csv(path)
 
-    required = {"gen_capacity_zone"} | set(VZ_QUANTILE_MAP.values())
+    required = {"gen_capacity_zone", "v_avg_kw_yr"}
     missing = required - set(df.columns)
     if missing:
         raise ValueError(f"v_z table CSV missing columns: {sorted(missing)}")
@@ -161,7 +157,7 @@ def resolve_utility_vz(
         mapping_df: Full zone mapping DataFrame.
         vz_df: v_z table DataFrame.
         utility: Utility name.
-        quantile: Quantile to select (low/mid/high/isotonic).
+        quantile: Column key to select (currently only "avg").
 
     Returns:
         Weighted v_z in $/kW-yr.
@@ -588,9 +584,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--v-z-quantile",
         type=str,
-        default="mid",
+        default="avg",
         choices=sorted(VZ_QUANTILE_MAP.keys()),
-        help="v_z quantile to use (default: mid = P50).",
+        help="v_z column to use (default: avg = average-secant value).",
     )
     parser.add_argument(
         "--utility-loads-s3-base",

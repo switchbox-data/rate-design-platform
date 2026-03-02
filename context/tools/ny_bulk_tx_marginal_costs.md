@@ -9,7 +9,7 @@ How bulk transmission marginal costs (v_z, $/kW-yr) are derived per `gen_capacit
 CLI: `--path-projects-csv <input> --path-output-csv <output>`
 
 Output: `s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_values.csv`
-Schema: `gen_capacity_zone`, `v_low_kw_yr`, `v_mid_kw_yr`, `v_high_kw_yr`, `v_isotonic_kw_yr`
+Schema: `gen_capacity_zone`, `v_avg_kw_yr`
 
 Justfile: `data/nyiso/transmission/Justfile` (recipes: `derive`, `upload`, `clean`)
 
@@ -22,81 +22,117 @@ Justfile: `data/nyiso/transmission/Justfile` (recipes: `derive`, `upload`, `clea
 | NiMo 2025 MCOS (project workbook)  | `context/papers/mcos/nimo_2025_mcos.md`        | Per-project undiluted $/kW-yr for three bulk TX projects (≥230 kV), used for ROS zone                                      |
 | OATT proxies (NYSEG, RG&E, CenHud) | `context/domain/ny_mcos_studies_comparison.md` | Cross-reference for total transmission costs (bulk + sub); not used directly for bulk TX v_z                               |
 
+## Major NY Transmission Projects
+
+Reference table of major bulk transmission projects in New York, their approximate costs, flow directions, and primary receiving localities:
+
+| Project                                                    | Approx. Cost                 | Flow Direction           | Primary Receiving Locality     | Notes                                  |
+| ---------------------------------------------------------- | ---------------------------- | ------------------------ | ------------------------------ | -------------------------------------- |
+| **Niagara–Dysinger 345 kV Rebuild**                        | ~$100–120M                   | Ontario/Niagara → A/F    | A–F (ROS)                      | Western NY reliability reinforcement   |
+| **Western NY Public Policy Portfolio (Segment A/B)**       | ~$350–400M                   | Niagara/Western NY → A–F | A–F (ROS)                      | Multiple 230/345 kV rebuilds           |
+| **Smart Path Connect (Marcy–New Scotland + rebuilds)**     | ~$700–900M                   | Upstate → LHV/G–K        | LHV (primary), G–K (secondary) | Central East relief                    |
+| **Edic–Pleasant Valley (Segment B)**                       | ~$1.2–1.5B                   | Upstate → Downstate      | LHV / G–K                      | Major CE bottleneck relief             |
+| **Eastover Capacity Bank / CE Upgrades**                   | ~$100–200M                   | Upstate → LHV            | LHV                            | Improves CE transfer                   |
+| **UPNY–ConEd AC Transmission (Segment A)**                 | ~$1.0–1.2B                   | Upstate → NYC            | Zone J (NYC)                   | Direct NYC deliverability increase     |
+| **NY Energy Solution (NYES)**                              | ~$500–600M                   | Upstate → LHV            | LHV                            | Public policy carbon reduction project |
+| **Empire State Line**                                      | ~$850–1,000M                 | Upstate → NYC            | Zone J                         | Competes with UPNY–ConEd               |
+| **NYC Public Policy Transmission (AC Solution Portfolio)** | ~$1.5–2.0B (portfolio total) | Upstate → NYC            | Zone J                         | Selected AC solution for 70x30 goal    |
+| **NYCLI (Long Island Export Cable)**                       | ~$700–800M                   | LI (K) → NYC (J)         | Zone J                         | Improves LI export to NYC              |
+
+## Derivation method
+
+### Step 2 — Average secant of the diminishing-returns curve
+
+For each (locality, scenario_family) group:
+
+1. **Collapse scenario variants.** If multiple rows share the same (project, delta_mw) — e.g. Baseline vs CES+Ret for the same project — average their `annual_benefit_m_yr` first so each physical project contributes one data point.
+
+2. **Sort by ΔMW ascending** — traces the supply curve from smallest to largest capacity increment.
+
+3. **Compute cumulative secants.** At each step *i*:
+   \[ \text{secant}_i = \frac{\text{cum\_B}_i \times 10^6}{\text{cum\_ΔMW}_i \times 10^3} \quad [\$/\text{kW-yr}] \]
+
+4. **v\_avg = mean(secant\_i)** across all steps.
+
+A large-ΔMW low-v project only affects the last cumulative secant, not every term — so it has less downward influence than in a simple mean or MW-weighted average.
+
+### Step 3 — Zone assignment via `receiving_locality`
+
+Zone membership is determined by the `receiving_locality` column (where the benefit accrues), not by the study `locality` (where the infrastructure sits):
+
+| receiving_locality | gen_capacity_zone(s) | Rationale |
+| ------------------ | -------------------- | --------- |
+| `G-K` | **LHV** and **LI** | G-K spans zones G–K; K = Long Island, so G-K benefits both |
+| `G-J` | **LHV** | G–J corridor; J is within LHV, not LI |
+| `J` | **NYC** | UPNY-ConEd interface studies, explicitly Zone J only |
+| `ROS` | **ROS** | Upstate only |
+
+Key decisions:
+- **G-J → LHV only** (not NYC). The MMU J-only studies are the clean NYC data source; mixing in G-J projects would dilute NYC with a broader corridor value.
+- **LI Export projects (locality=K, receiving=G-J) → LHV**, not LI. These export cables deliver benefit to the mainland (G-J), not to Long Island load.
+- **LI zone uses only G-K projects** (Smart Path Connect, Eastover, AC Primary G-K), since G-K spans to zone K.
+- **`addendum_optimizer_gj_elim`** is excluded as a sensitivity scenario.
+
 ## Derivation by zone
 
-### LHV (Lower Hudson Valley, zones G–K)
+### ROS (Rest of State / Upstate)
 
-**Source:** NYISO AC Primary G–K projects + Addendum Optimizer G–J projects.
+**Source:** NiMo 2025 MCOS — Niagara-Dysinger only (receiving_locality=ROS).
 
-Multiple comparable projects with published ΔMW enable both quantile distributions (P25/P50/P75) and isotonic regression fitting. The isotonic curve B = g(ΔMW) fits a non-decreasing piecewise linear function subject to g(0) = 0, yielding a marginal cost slope in $/kW-yr.
+Single project → v_avg = **$10.89/kW-yr** (345 kV, 1,100 MW, FY2036).
 
-**Result:** ~$43/kW-yr (mid).
-
-### NYC (New York City, zones G–J via UPNY-ConEd interface)
-
-**Source:** MMU scenarios (Baseline + CES+Retirement) at the UPNY-ConEd interface.
-
-These represent the marginal benefit of expanding the transmission corridor into downstate load, driven by generation retirement scenarios. Projects have published ΔMW for quantile and isotonic derivation.
-
-**Result:** ~$55/kW-yr (mid).
-
-### LI (Long Island, zone K)
-
-**Source:** LI Export Policy projects (T035–T053) with published ΔMW.
-
-Represents the marginal benefit of expanding LI export capability. Quantile and isotonic derivation from the set of comparable projects.
-
-**Result:** ~$36/kW-yr (mid).
-
-### ROS (Rest of State / Upstate, zones A–F) — NiMo MCOS project-level approach
-
-**Source:** NiMo 2025 MCOS, three bulk TX projects (all ≥230 kV).
-
-**Method:** Undiluted $/kW-yr per project — the same approach used for generation capacity MC. Each project's v = ECCR annual cost ÷ its own added capacity (kW). We do **not** divide by NiMo's system peak (6,616 MW); that would yield a diluted $13.19/kW-yr levelized figure, which is not what we want. The undiluted per-project values feed directly into the Steps 1–3 isotonic/quantile pipeline.
-
-The NYISO AC Transmission study is not used for ROS:
-
-- The A–F locality has **negative** annual benefit in the AC Primary scenario (procurement cost increase from upstate generation displacement).
-- The NYCA system-wide benefit scaled by upstate load share (~23%) gives ~$10/kW-yr — an interface-congestion-relief measure, not an infrastructure LRMC.
+Smart Path Connect and Eastover have receiving_locality=G-K and contribute to LHV and LI, not ROS.
 
 #### NiMo 2025 MCOS bulk TX project table (≥230 kV)
 
-| Project                 | FN Ref   | Voltage    | In-Service | Capacity (MW) | Capital ($M) | Undiluted ($/kW-yr) |
-| ----------------------- | -------- | ---------- | ---------- | ------------- | ------------ | ------------------- |
-| Smart Path Connect      | FN008374 | 230/345 kV | FY2027     | 1,000         | $928.9       | $78.42              |
-| Eastover 230kV Cap Bank | FN013189 | 230 kV     | FY2033     | 20            | $9.8         | $40.21              |
-| Niagara-Dysinger        | FN013571 | 345 kV     | FY2036     | 1,100         | $142.2       | $10.89              |
-| **Total**               |          |            |            | **2,120**     | **$1,080.9** |                     |
+| Project                 | FN Ref   | Voltage    | In-Service | ΔMW   | Capital ($M) | v ($/kW-yr) | receiving_locality | Zones  |
+| ----------------------- | -------- | ---------- | ---------- | ----- | ------------ | ----------- | ------------------ | ------ |
+| Smart Path Connect      | FN008374 | 230/345 kV | FY2027     | 1,000 | $928.9       | $78.42      | G-K                | LHV+LI |
+| Eastover 230kV Cap Bank | FN013189 | 230 kV     | FY2033     | 20    | $9.8         | $40.21      | G-K                | LHV+LI |
+| Niagara-Dysinger        | FN013571 | 345 kV     | FY2036     | 1,100 | $142.2       | $10.89      | ROS                | ROS    |
 
-- **Undiluted $/kW-yr** = E_total column = ECCR × capital/MW at in-service-year nominal prices (F-column value for the in-service year).
-- These are the values entered in `ny_bulk_tx_projects.csv` as `annual_benefit_m_yr` = undiluted $/kW-yr × delta_mw / 1000 ($M/yr), so Step 1 recovers v = B / (ΔMW × 1000) = undiluted $/kW-yr exactly.
-- **Diluted system-wide levelized** (÷ 6,616 MW NiMo peak) = $13.19/kW-yr. This is **not** used — bulk TX is treated as undiluted, consistent with generation capacity MC.
+### LHV (Lower Hudson Valley, zones G–J)
 
-#### Notes on individual projects
+**Four contributing families** (all with receiving_locality=G-K or G-J):
 
-- **Smart Path Connect** dominates in capital (86% of bulk TX spend) and enters service FY2027, so it is active for nearly the entire study horizon and drives the levelized value.
-- **Niagara-Dysinger** is large in MW (1,100) but cheap per kW ($10.89/kW-yr) — it is a 345 kV line with modest capital for its scale. It enters service FY2036 (the last year of the study), so its effect on any levelized or time-averaged figure is small.
-- **Eastover** is a minor capacitor bank (20 MW, $9.8M); it enters service FY2033.
+| Family | Projects | Secants | v_avg |
+| ------ | -------- | ------- | ----- |
+| G-K/nimo_mcos | Smart Path (1,000 MW) + Eastover (20 MW) | [$40.21, $77.67] | $58.94 |
+| G-K/ac_primary | Tier1+Tier2 (1,850 MW) | [$45.41] | $45.41 |
+| G-J/addendum_optimizer | T027+T029 (1,300 MW) + T027+T019 (1,850 MW) | [$26.92, $25.27] | $26.10 |
+| K/li_export | 7 LI Export projects (1,514–2,829 MW) | [$74.54, $74.36, $57.80, $44.21, $45.86, $43.79, $39.84] | $54.34 |
 
-#### Resulting v_z distribution for ROS
+Zone v_avg = mean($58.94, $45.41, $26.10, $54.34) = **$46.20/kW-yr**
 
-Three undiluted values: Niagara-Dysinger $10.89, Eastover $40.21, Smart Path $78.42 /kW-yr.
-Output of `just derive` in `data/nyiso/transmission/`:
+### NYC (New York City, zone J)
 
-| Column             | Value        | Basis                                                       |
-| ------------------ | ------------ | ----------------------------------------------------------- |
-| `v_low_kw_yr`      | $40.21/kW-yr | P25 = Eastover (Polars nearest-quantile on 3 pts; see note) |
-| `v_mid_kw_yr`      | $40.21/kW-yr | P50 = Eastover (median of three values)                     |
-| `v_high_kw_yr`     | $78.42/kW-yr | P75 = Smart Path Connect                                    |
-| `v_isotonic_kw_yr` | $40.21/kW-yr | Median slope from isotonic B = g(ΔMW) fit (see below)       |
+**Source:** MMU Baseline + CES+Ret at UPNY-ConEd interface (receiving_locality=J).
 
-**Note on P25 = P50:** With only 3 data points, Polars "nearest" quantile maps both P25 and P50 to the middle value (Eastover, $40.21). Niagara-Dysinger ($10.89) is the minimum and sits below P25 — it does not appear in any quantile column. If you want it to influence `v_low`, run the script with a different quantile interpolation or add more ROS project data points.
+Baseline and CES+Ret averaged per project → two collapsed projects: T027+T029 (350 MW, avg B=$18.52M) and T027+T019 (375 MW, avg B=$20.73M). Cumulative secants: [$52.93, $54.14].
 
-**Isotonic fit:** sorted by ΔMW, the B = g(ΔMW) curve passes through (0, 0), (20, $0.804M), (1000, $78.42M), (1100, $91.20M). The slope drops sharply from Smart Path ($78.42/kW-yr) to Niagara-Dysinger ($10.89/kW-yr), so PAV pools those two segments. The three resulting piecewise slopes are [$40.21, ~$45.3, ~$0] /kW-yr; the median is **$40.21/kW-yr**.
+Zone v_avg = **$53.53/kW-yr**.
 
-#### Why not use the OATT proxies for ROS v_mid?
+### LI (Long Island, zone K)
 
-OATT (Open Access Transmission Tariff) revenue requirements for upstate utilities span $43–55/kW-yr. However, those values reflect **all** transmission assets (including sub-transmission at 69–230 kV), not just bulk TX (≥230 kV). The NiMo MCOS project-level breakdown is the right source because it isolates the three ≥230 kV projects explicitly. The OATT figures remain useful for cross-checking that the overall (bulk + sub) transmission cost is in the right ballpark.
+**Source:** G-K projects only (receiving_locality=G-K includes zone K).
+
+| Family | v_avg |
+| ------ | ----- |
+| G-K/nimo_mcos (Smart Path + Eastover) | $58.94 |
+| G-K/ac_primary (AC Primary Tier1+Tier2) | $45.41 |
+
+Zone v_avg = mean($58.94, $45.41) = **$52.17/kW-yr**
+
+LI Export projects (locality=K, direction LI→mainland) have receiving_locality=G-J and go to LHV, not LI — the benefit of expanded export capability accrues to mainland load, not LI load.
+
+## Final v_avg values (output of `just derive`)
+
+| gen_capacity_zone | v_avg_kw_yr | Contributing families |
+| ----------------- | ----------- | --------------------- |
+| ROS | $10.89 | ROS/nimo_mcos (Niagara-Dysinger) |
+| LHV | $46.20 | G-K/nimo_mcos ($58.94), G-K/ac_primary ($45.41), G-J/addendum_optimizer ($26.10), K/li_export ($54.34) |
+| NYC | $53.53 | UPNY-ConEd/mmu (MMU Baseline+CES+Ret, averaged per project) |
+| LI  | $52.17 | G-K/nimo_mcos ($58.94), G-K/ac_primary ($45.41) |
 
 ## Zone mapping
 
