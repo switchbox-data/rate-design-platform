@@ -1,3 +1,94 @@
 utility: nimo
-revenue_requirement: 1000000000.0
-source: placeholder -- replace with actual revenue requirement from s3://data.sb/switchbox/revenue_requirements/ny/revenue_requirements.csv
+delivery_revenue_requirement_from_rate_case: 999999999.0
+delivery_revenue_requirement_topups: 94005089.33
+supply_revenue_requirement_topups: 11472379116.51
+total_delivery_revenue_requirement: 1094005088.33
+total_delivery_and_supply_revenue_requirement: 12566384204.84
+total_residential_kwh: 11833894912.0
+eia_year: 2024
+delivery_top_ups:
+  system_benefits_charge:
+    avg_monthly_rate: 0.0051121945
+    total_budget: 60497172.73
+  ces_delivery:
+    avg_monthly_rate: 0.00025
+    total_budget: 2958473.73
+  dlm_surcharge:
+    avg_monthly_rate: 0.000649
+    total_budget: 7680197.8
+  ev_make_ready:
+    avg_monthly_rate: 0.0003481096
+    total_budget: 4119492.29
+  arrears_covid_forgiveness_1:
+    avg_monthly_rate: 0.0010616712
+    total_budget: 12563705.8
+  arrears_covid_forgiveness_2:
+    avg_monthly_rate: 0.0005227397
+    total_budget: 6186046.98
+supply_top_ups:
+  supply_commodity_bundled_1:
+    avg_monthly_rate: 0.0706367123
+    total_budget: 835907430.63
+  supply_commodity_bundled_2:
+    avg_monthly_rate: 0.0835348767
+    total_budget: 988542952.5
+  supply_commodity_bundled_3:
+    avg_monthly_rate: 0.0742730411
+    total_budget: 878939363.12
+  supply_commodity_bundled_4:
+    avg_monthly_rate: 0.0713247945
+    total_budget: 844050122.98
+  supply_commodity_bundled_5:
+    avg_monthly_rate: 0.0725712603
+    total_budget: 858800667.71
+  supply_commodity_bundled_6:
+    avg_monthly_rate: 0.0759688767
+    total_budget: 899007703.6
+  ces_supply_surcharge:
+    avg_monthly_rate: 0.0024767671
+    total_budget: 29309801.86
+  merchant_function_charge_1:
+    avg_monthly_rate: 0.0706367123
+    total_budget: 835907430.63
+  merchant_function_charge_2:
+    avg_monthly_rate: 0.0835348767
+    total_budget: 988542952.5
+  merchant_function_charge_3:
+    avg_monthly_rate: 0.0742730411
+    total_budget: 878939363.12
+  merchant_function_charge_4:
+    avg_monthly_rate: 0.0713247945
+    total_budget: 844050122.98
+  merchant_function_charge_5:
+    avg_monthly_rate: 0.0725712603
+    total_budget: 858800667.71
+  merchant_function_charge_6:
+    avg_monthly_rate: 0.0759688767
+    total_budget: 899007703.6
+  merchant_function_charge_7:
+    avg_monthly_rate: 0.0124274274
+    total_budget: 147064869.85
+  merchant_function_charge_8:
+    avg_monthly_rate: 0.0155051753
+    total_budget: 183486615.59
+  merchant_function_charge_9:
+    avg_monthly_rate: 0.0085608247
+    total_budget: 101307899.36
+  merchant_function_charge_10:
+    avg_monthly_rate: 0.0085591589
+    total_budget: 101288187.01
+  merchant_function_charge_11:
+    avg_monthly_rate: 0.0081009479
+    total_budget: 95865766.67
+  merchant_function_charge_12:
+    avg_monthly_rate: 0.0099329014
+    total_budget: 117544910.98
+  merchant_function_charge_13:
+    avg_monthly_rate: 0.0069883562
+    total_budget: 82699472.46
+  merchant_function_charge_14:
+    avg_monthly_rate: 9.16438e-05
+    total_budget: 1084503.52
+  merchant_function_charge_15:
+    avg_monthly_rate: 0.0001884932
+    total_budget: 2230608.14

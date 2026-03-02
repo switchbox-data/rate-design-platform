@@ -56,6 +56,32 @@ DEFAULT_RIE_YAML_PATH = (
 LOGGER = logging.getLogger(__name__)
 
 
+def parse_group_value_to_subclass(raw: str) -> dict[str, str]:
+    """Parse 'true=hp,false=non-hp' into {'true': 'hp', 'false': 'non-hp'}."""
+    result: dict[str, str] = {}
+    for pair in raw.split(","):
+        pair = pair.strip()
+        if "=" not in pair:
+            raise ValueError(
+                f"Invalid group-value-to-subclass pair {pair!r}; expected 'value=alias'"
+            )
+        value, alias = pair.split("=", 1)
+        value = value.strip()
+        alias = alias.strip()
+        if not value or not alias:
+            raise ValueError(
+                f"Empty key or value in group-value-to-subclass pair {pair!r}"
+            )
+        if value in result:
+            raise ValueError(
+                f"Duplicate group value {value!r} in group-value-to-subclass"
+            )
+        result[value] = alias
+    if not result:
+        raise ValueError("group-value-to-subclass must contain at least one mapping")
+    return result
+
+
 def _resolve_winter_months(
     *,
     state: str,
@@ -468,7 +494,7 @@ def _load_run_fields(
 
 
 def _write_revenue_requirement_yamls(
-    breakdown: pl.DataFrame,
+    delivery_breakdown: pl.DataFrame,
     run_dir: S3Path | Path,
     group_col: str,
     cross_subsidy_col: str,
@@ -476,29 +502,61 @@ def _write_revenue_requirement_yamls(
     default_revenue_requirement: float,
     differentiated_yaml_path: Path,
     default_yaml_path: Path,
+    *,
+    group_value_to_subclass: dict[str, str] | None = None,
+    total_breakdown: pl.DataFrame | None = None,
+    total_delivery_rr: float | None = None,
+    total_delivery_and_supply_rr: float | None = None,
 ) -> tuple[Path, Path]:
+    """Write per-subclass revenue requirement YAML.
+
+    *delivery_breakdown* comes from run 1 (delivery-only BAT).
+    *total_breakdown*, when provided, comes from run 2 (delivery+supply BAT).
+    Supply per subclass is derived as total - delivery.
+    """
     differentiated_yaml_path.parent.mkdir(parents=True, exist_ok=True)
     default_yaml_path.parent.mkdir(parents=True, exist_ok=True)
 
-    differentiated_data = {
+    gv_map = group_value_to_subclass or {}
+
+    total_rr_by_subclass: dict[str, float] = {}
+    if total_breakdown is not None:
+        for row in total_breakdown.to_dicts():
+            total_rr_by_subclass[str(row["subclass"])] = float(
+                row["revenue_requirement"]
+            )
+
+    subclass_rr: dict[str, dict[str, float]] = {}
+    for row in delivery_breakdown.to_dicts():
+        raw_val = str(row["subclass"])
+        alias = gv_map.get(raw_val, raw_val)
+        delivery = float(row["revenue_requirement"])
+        total = total_rr_by_subclass.get(raw_val, delivery)
+        supply = total - delivery
+        subclass_rr[alias] = {
+            "delivery": delivery,
+            "supply": supply,
+            "total": total,
+        }
+
+    differentiated_data: dict[str, object] = {
         "utility": utility,
         "group_col": group_col,
         "cross_subsidy_col": cross_subsidy_col,
-        "run_dir": str(run_dir),
-        "subclass_revenue_requirements": {
-            str(row["subclass"]): float(row["revenue_requirement"])
-            for row in breakdown.to_dicts()
-        },
+        "source_run_dir": str(run_dir),
     }
+    if total_delivery_rr is not None:
+        differentiated_data["total_delivery_revenue_requirement"] = total_delivery_rr
+    if total_delivery_and_supply_rr is not None:
+        differentiated_data["total_delivery_and_supply_revenue_requirement"] = (
+            total_delivery_and_supply_rr
+        )
+    differentiated_data["subclass_revenue_requirements"] = subclass_rr
+
     differentiated_yaml_path.write_text(
         yaml.safe_dump(differentiated_data, sort_keys=False),
         encoding="utf-8",
     )
-    # TODO: need to create data.sb/switchbox/revenue_requirements/{state}/revenue_requirement.csv as new source. yaml ref is circular
-    # default_yaml_path.write_text(
-    #     yaml.safe_dump(default_data, sort_keys=False),
-    #     encoding="utf-8",
-    # )
     return differentiated_yaml_path, default_yaml_path
 
 
@@ -620,6 +678,30 @@ def main() -> None:
             "If omitted, resolves from state and utility in the scenario config."
         ),
     )
+    parser.add_argument(
+        "--group-value-to-subclass",
+        help=(
+            "Mapping of raw group values to subclass aliases, e.g. "
+            "'true=hp,false=non-hp'. Used for YAML output keys."
+        ),
+    )
+    parser.add_argument(
+        "--base-rr-yaml",
+        type=Path,
+        help=(
+            "Path to base revenue requirement YAML (e.g. cenhud.yaml). "
+            "Copies total_delivery_revenue_requirement and "
+            "total_delivery_and_supply_revenue_requirement into output."
+        ),
+    )
+    parser.add_argument(
+        "--run-dir-supply",
+        help=(
+            "Path to CAIRO output directory for the delivery+supply run (run 2). "
+            "When provided, per-subclass supply RR is derived as total (run 2) "
+            "minus delivery (run 1)."
+        ),
+    )
     args = parser.parse_args()
 
     run_dir: S3Path | Path = (
@@ -644,9 +726,43 @@ def main() -> None:
         run_num=args.run_num,
     )
 
+    gv_map: dict[str, str] | None = None
+    if args.group_value_to_subclass:
+        gv_map = parse_group_value_to_subclass(args.group_value_to_subclass)
+
+    # Read top-level totals from base RR YAML if provided.
+    total_delivery_rr: float | None = None
+    total_delivery_and_supply_rr: float | None = None
+    if args.base_rr_yaml:
+        with args.base_rr_yaml.open(encoding="utf-8") as f:
+            base_rr_data = yaml.safe_load(f)
+        total_delivery_rr = float(base_rr_data["total_delivery_revenue_requirement"])
+        total_delivery_and_supply_rr = float(
+            base_rr_data["total_delivery_and_supply_revenue_requirement"]
+        )
+
+    total_breakdown: pl.DataFrame | None = None
+    if args.run_dir_supply:
+        run_dir_supply: S3Path | Path = (
+            S3Path(args.run_dir_supply)
+            if args.run_dir_supply.startswith("s3://")
+            else Path(args.run_dir_supply)
+        )
+        storage_options_supply = (
+            get_aws_storage_options() if isinstance(run_dir_supply, S3Path) else None
+        )
+        total_breakdown = compute_subclass_rr(
+            run_dir=run_dir_supply,
+            group_col=args.group_col,
+            cross_subsidy_col=args.cross_subsidy_col,
+            annual_month=args.annual_month,
+            storage_options=storage_options_supply,
+        )
+        LOGGER.info("Run-2 (delivery+supply) breakdown:\n%s", total_breakdown)
+
     if args.write_revenue_requirement_yamls:
         differentiated_yaml_path, default_yaml_path = _write_revenue_requirement_yamls(
-            breakdown=breakdown,
+            delivery_breakdown=breakdown,
             run_dir=run_dir,
             group_col=args.group_col,
             cross_subsidy_col=args.cross_subsidy_col,
@@ -654,6 +770,10 @@ def main() -> None:
             default_revenue_requirement=default_revenue_requirement,
             differentiated_yaml_path=args.differentiated_yaml_path,
             default_yaml_path=args.default_yaml_path,
+            group_value_to_subclass=gv_map,
+            total_breakdown=total_breakdown,
+            total_delivery_rr=total_delivery_rr,
+            total_delivery_and_supply_rr=total_delivery_and_supply_rr,
         )
         print(f"Wrote differentiated YAML: {differentiated_yaml_path}")
         print(f"Wrote default YAML: {default_yaml_path}")

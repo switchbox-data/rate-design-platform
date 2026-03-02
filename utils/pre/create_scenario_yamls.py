@@ -4,11 +4,11 @@ Reads the sheet, groups by (state, utility), and writes
 rate_design/hp_rates/<state>/config/scenarios_<utility>.yaml for each group.
 
 Note on path_supply_marginal_costs column:
-    For NY supply runs (runs with add_supply_revenue_requirement=true), the
+    For NY supply runs (runs with run_includes_supply=true), the
     path_supply_marginal_costs column should point to NYISO-derived supply MCs:
         s3://data.sb/switchbox/marginal_costs/ny/supply/utility={utility}/year=2025/data.parquet
 
-    For NY delivery-only runs (add_supply_revenue_requirement=false), use:
+    For NY delivery-only runs (run_includes_supply=false), use:
         s3://data.sb/nrel/cambium/zero_marginal_costs.csv
 
     For RI runs, continue using Cambium paths:
@@ -30,7 +30,7 @@ Note on path_supply_marginal_costs column:
 
     Where:
     - $B18 is the state column (NY)
-    - E18 is the add_supply_revenue_requirement column (X = TRUE)
+    - E18 is the run_includes_supply column (X = TRUE)
     - $C18 is the utility column
 
     For backward compatibility, path_supply_marginal_costs can still be used for combined files
@@ -245,8 +245,16 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         "utility_delivery_revenue_requirement"
     )
 
-    run["add_supply_revenue_requirement"] = _parse_bool(
-        require_non_empty("add_supply_revenue_requirement")
+    # Accept either the new column name or the old one for backward compatibility
+    supply_raw = get_optional("run_includes_supply")
+    if not supply_raw:
+        supply_raw = require_non_empty("add_supply_revenue_requirement")
+    run["run_includes_supply"] = _parse_bool(supply_raw)
+
+    # Derive run_includes_subclasses from path_tariffs_electric keys
+    tariffs_dict = run.get("path_tariffs_electric")
+    run["run_includes_subclasses"] = (
+        isinstance(tariffs_dict, dict) and len(tariffs_dict) > 1
     )
 
     run["path_electric_utility_stats"] = get("path_electric_utility_stats")

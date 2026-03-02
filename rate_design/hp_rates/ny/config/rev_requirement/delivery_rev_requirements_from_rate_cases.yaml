@@ -1,0 +1,11 @@
+# Rate-case delivery revenue requirements (from PUC filings / revenue_requirements CSV).
+# One entry per utility. Used as input to compute_rr.py; do not overwrite with computed values.
+# Source: s3://data.sb/switchbox/revenue_requirements/ny/revenue_requirements_dummy.csv
+cenhud: 394388063.0
+# TODO: replace dummy values with actual rate-case numbers
+coned: 999999999.0
+psegli: 999999999.0
+rge: 999999999.0
+nyseg: 999999999.0
+nimo: 999999999.0
+or: 999999999.0
