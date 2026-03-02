@@ -1,0 +1,3 @@
+# Rate-case delivery revenue requirements (hard-coded from PUC filings).
+# One entry per utility. Used as input to compute_rr.py; do not overwrite with computed values.
+rie: 241869601.0

@@ -54,7 +54,6 @@ from utils.loads import (
     hourly_system_load_from_resstock,
     scan_resstock_loads,
 )
-from utils.mid.data_parsing import get_residential_customer_count_from_utility_stats
 from utils.pre.compute_tou import (
     SeasonTouSpec,
     combine_marginal_costs,
@@ -79,6 +78,7 @@ from utils.pre.season_config import (
     parse_months_arg,
     resolve_winter_summer_months,
 )
+from utils.scenario_config import get_residential_customer_count_from_utility_stats
 
 log = logging.getLogger(__name__)
 

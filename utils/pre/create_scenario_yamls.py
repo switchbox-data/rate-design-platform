@@ -251,16 +251,17 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         "utility_delivery_revenue_requirement"
     )
 
-    # Handle add_supply_revenue_requirement with backward compatibility for run_includes_supply
-    try:
-        run["add_supply_revenue_requirement"] = _parse_bool(
-            require_non_empty("add_supply_revenue_requirement")
-        )
-    except ValueError:
-        # Fallback to run_includes_supply column name
-        run["add_supply_revenue_requirement"] = _parse_bool(
-            require_non_empty("run_includes_supply")
-        )
+    # Accept either the new column name or the old one for backward compatibility
+    supply_raw = get_optional("run_includes_supply")
+    if not supply_raw:
+        supply_raw = require_non_empty("add_supply_revenue_requirement")
+    run["run_includes_supply"] = _parse_bool(supply_raw)
+
+    # Derive run_includes_subclasses from path_tariffs_electric keys
+    tariffs_dict = run.get("path_tariffs_electric")
+    run["run_includes_subclasses"] = (
+        isinstance(tariffs_dict, dict) and len(tariffs_dict) > 1
+    )
 
     run["path_electric_utility_stats"] = get("path_electric_utility_stats")
 

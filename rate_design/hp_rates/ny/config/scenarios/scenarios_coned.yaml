@@ -18,7 +18,8 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/coned_flat.json
     utility_delivery_revenue_requirement: rev_requirement/coned.yaml
-    add_supply_revenue_requirement: false
+    run_includes_supply: false
+    run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -47,7 +48,8 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/coned_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/coned.yaml
-    add_supply_revenue_requirement: true
+    run_includes_supply: true
+    run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -76,7 +78,8 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/coned_flat_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/coned_large_number.yaml
-    add_supply_revenue_requirement: false
+    run_includes_supply: false
+    run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -105,7 +108,8 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/coned_flat_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/coned_large_number.yaml
-    add_supply_revenue_requirement: true
+    run_includes_supply: true
+    run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -135,7 +139,8 @@ runs:
       hp: tariffs/electric/coned_hp_seasonal.json
       non-hp: tariffs/electric/coned_flat.json
     utility_delivery_revenue_requirement: rev_requirement/coned_hp_vs_nonhp.yaml
-    add_supply_revenue_requirement: false
+    run_includes_supply: false
+    run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -165,7 +170,8 @@ runs:
       hp: tariffs/electric/coned_hp_seasonal_supply.json
       non-hp: tariffs/electric/coned_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/coned_hp_vs_nonhp.yaml
-    add_supply_revenue_requirement: true
+    run_includes_supply: true
+    run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -194,7 +200,8 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/coned_hp_seasonal_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/coned_large_number.yaml
-    add_supply_revenue_requirement: false
+    run_includes_supply: false
+    run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -223,7 +230,8 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/coned_hp_seasonal_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/coned_large_number.yaml
-    add_supply_revenue_requirement: true
+    run_includes_supply: true
+    run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -253,7 +261,8 @@ runs:
       hp: tariffs/electric/coned_hp_seasonalTOU.json
       non-hp: tariffs/electric/coned_flat.json
     utility_delivery_revenue_requirement: rev_requirement/coned_hp_vs_nonhp.yaml
-    add_supply_revenue_requirement: false
+    run_includes_supply: false
+    run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -283,7 +292,8 @@ runs:
       hp: tariffs/electric/coned_hp_seasonalTOU_supply.json
       non-hp: tariffs/electric/coned_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/coned_hp_vs_nonhp.yaml
-    add_supply_revenue_requirement: true
+    run_includes_supply: true
+    run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -312,7 +322,8 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/coned_hp_seasonalTOU_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/coned_large_number.yaml
-    add_supply_revenue_requirement: false
+    run_includes_supply: false
+    run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -341,7 +352,8 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/coned_hp_seasonalTOU_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/coned_large_number.yaml
-    add_supply_revenue_requirement: true
+    run_includes_supply: true
+    run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -371,7 +383,8 @@ runs:
       hp: tariffs/electric/coned_hp_seasonalTOU_flex.json
       non-hp: tariffs/electric/coned_flat.json
     utility_delivery_revenue_requirement: rev_requirement/coned_hp_vs_nonhp.yaml
-    add_supply_revenue_requirement: false
+    run_includes_supply: false
+    run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -401,7 +414,8 @@ runs:
       hp: tariffs/electric/coned_hp_seasonalTOU_flex_supply.json
       non-hp: tariffs/electric/coned_flat_supply.json
     utility_delivery_revenue_requirement: rev_requirement/coned_hp_vs_nonhp.yaml
-    add_supply_revenue_requirement: true
+    run_includes_supply: true
+    run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -430,7 +444,8 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/coned_hp_seasonalTOU_flex_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/coned_large_number.yaml
-    add_supply_revenue_requirement: false
+    run_includes_supply: false
+    run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -459,7 +474,8 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/coned_hp_seasonalTOU_flex_supply_calibrated.json
     utility_delivery_revenue_requirement: rev_requirement/coned_large_number.yaml
-    add_supply_revenue_requirement: true
+    run_includes_supply: true
+    run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=coned/year=2025/data.parquet
     solar_pv_compensation: net_metering
