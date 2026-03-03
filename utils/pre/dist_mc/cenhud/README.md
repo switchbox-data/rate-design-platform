@@ -34,7 +34,7 @@ The script produces **four variants** by combining two capital perspectives with
 | Cumulative undiluted  | All with in\_service\_year ≤ Y  | Cumulative project MW  | Per-project cost recovery          |
 | Incremental undiluted | Only with in\_service\_year = Y | New capacity in year Y | Per-project marginal cost          |
 
-Levelized = mean(MC) across all 10 study years, consistent with ConEd/O&R/NiMo.
+Levelized = simple arithmetic mean of real MC across all 10 study years, no discounting.
 
 **Diluted formula:**
 

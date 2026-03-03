@@ -53,6 +53,8 @@ All seven utilities produce four variants by combining two capital perspectives 
 
 Each variant is exported in both annualized (year-by-year) and levelized form — 8 CSVs per utility. See `context/domain/ny_mcos_studies_comparison.md` §6 for the rationale behind cumulative vs. incremental and the BAT's preference for incremental.
 
+**Levelization** uses a simple arithmetic mean of real (base-year) $/kW-yr across the study period — no discounting. The utilities' own MCOS workbooks use NPV-based levelization with utility-specific WACCs (CenHud 6.76%, NYSEG/RG&E 6.975%, ConEd/O&R embedded in composite rate), but the WACCs vary enough across utilities (and are absent for some) that a uniform discount rate would be arbitrary. A simple average is transparent, consistent across all seven utilities, and avoids embedding utility-specific capital structure assumptions into the BAT inputs.
+
 ### Harmonized output schema
 
 All seven utilities output the same two-bucket schema:

@@ -29,7 +29,6 @@ Upstream Substation and Upstream Feeder are combined into a single **upstream** 
 | --------------- | ---------------------------------------- | ------------------------------------ |
 | Study period    | 2026–2035 (10 years)                     | All sheets                           |
 | Inflation       | 2.0%/yr                                  | CRA MCOS report                      |
-| WACC            | 6.975%                                   | T1A row 43, T4 row 19                |
 | System peak     | 2,035.73 MW                              | T4 row 20 col P (2035 forecast)      |
 | Divisions       | 13                                       | T4 row 6 cols C–O                    |
 | Composite rate  | 0.10248 (substations), 0.09801 (feeders) | Derived from W2 (see below)          |
@@ -88,6 +87,8 @@ W2 contains 201 rows of individual project data. Each row has:
 | Upstream     | Feeder     | `ups_feed`       |
 | Distribution | Substation | `dist_sub`       |
 | Distribution | Feeder     | `primary_feeder` |
+
+Levelized = simple arithmetic mean of real (base-year) MC across all 10 study years, no discounting. CRA's workbook uses WACC-based NPV levelization (6.975%), but we use a simple average for cross-utility consistency (see parent [README](../README.md)).
 
 ## How the script computes each variant
 

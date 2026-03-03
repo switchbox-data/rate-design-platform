@@ -46,7 +46,6 @@ import polars as pl
 YEARS = list(range(2026, 2036))
 N_YEARS = len(YEARS)
 INFLATION_RATE = 0.02
-WACC = 0.06975
 
 COST_CENTERS = ["upstream", "dist_sub", "primary_feeder"]
 BUCKET_KEYS = [*COST_CENTERS, "total"]
@@ -344,13 +343,6 @@ def compute_variants(
     }
 
 
-def levelized_npv(values: list[float], wacc: float = WACC) -> float:
-    """NPV-based levelized cost."""
-    pv = sum(v / (1 + wacc) ** i for i, v in enumerate(values))
-    annuity = sum(1 / (1 + wacc) ** i for i in range(len(values)))
-    return pv / annuity if annuity > 0 else 0.0
-
-
 def to_real(nominal: list[float]) -> list[float]:
     """Convert nominal values to base-year (2026) real dollars."""
     return [v / (1 + INFLATION_RATE) ** i for i, v in enumerate(nominal)]
@@ -422,7 +414,6 @@ def print_report(
     print(f"  System peak (2035 forecast):  {config.system_peak_mw:,.2f} MW")
     print(f"  Study period:                 {YEARS[0]}–{YEARS[-1]} ({N_YEARS} years)")
     print(f"  Inflation:                    {INFLATION_RATE * 100:.1f}%/yr")
-    print(f"  WACC:                         {WACC * 100:.3f}%")
     print(f"  Projects parsed:              {len(projects)}")
     print(f"  Composite rate (substation):  {composite_rates['substation']:.5f}")
     print(f"  Composite rate (feeder):      {composite_rates['feeder']:.5f}")

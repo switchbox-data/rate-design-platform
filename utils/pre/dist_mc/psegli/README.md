@@ -133,7 +133,7 @@ The script produces **four variants** by combining two capital perspectives with
 | Cumulative undiluted  | All capacity entered by year Y  | Cumulative capacity MW | Per-project cost recovery          |
 | Incremental undiluted | New capacity entering in year Y | Annual capacity MW     | Per-project marginal cost          |
 
-Levelized = mean(real MC) across all 8 study years, consistent with other utilities.
+Levelized = simple arithmetic mean of real MC across all 8 study years, no discounting.
 
 ### Key output values (incremental diluted, levelized)
 

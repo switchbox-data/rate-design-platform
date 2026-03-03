@@ -113,7 +113,7 @@ The scope of projects and denominator depend on the variant:
 | Cumulative undiluted  | All with in\_service\_year ≤ Y  | Cumulative project MW  | Per-project cost recovery          |
 | Incremental undiluted | Only with in\_service\_year = Y | New capacity in year Y | Per-project marginal cost          |
 
-Levelized = mean(real MC) across all 11 fiscal years, consistent with ConEd/O&R.
+Levelized = simple arithmetic mean of real MC across all 11 fiscal years, no discounting.
 
 Unlike ConEd/O&R, NiMo has per-project in-service years, so incremental values are computed directly (filter to projects entering in year Y) rather than differencing cumulative totals.
 
