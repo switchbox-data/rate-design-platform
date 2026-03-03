@@ -250,9 +250,12 @@ compute-rev-requirements:
     echo ">> compute-rev-requirements: run-1 (delivery) → ${run1_dir}" >&2
     echo ">> compute-rev-requirements: run-2 (delivery+supply) → ${run2_dir}" >&2
     just compute-subclass-rr "${run1_dir}" "{{path_scenario_config}}" \
-      group_value_to_subclass="true=hp,false=non-hp" \
-      base_rr_yaml="{{path_default_rev_requirement}}" \
-      run_dir_supply="${run2_dir}"
+      "1" "has_hp" "BAT_percustomer" \
+      "{{path_differentiated_rev_requirement}}" \
+      "{{path_default_rev_requirement}}" \
+      "true=hp,false=non-hp" \
+      "{{path_default_rev_requirement}}" \
+      "${run2_dir}"
 
 # =============================================================================
 # RUNS: scenario execution (run-1 through run-16)

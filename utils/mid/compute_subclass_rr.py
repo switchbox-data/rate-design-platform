@@ -487,7 +487,14 @@ def _load_run_fields(
         rr_path = scenario_config_path.parent.parent / raw_rr
         with open(rr_path) as f:
             rr_data = yaml.safe_load(f)
-        revenue_requirement = float(rr_data["revenue_requirement"])
+        # PR 300 format uses total_delivery_revenue_requirement;
+        # fall back to revenue_requirement for backward compatibility.
+        rr_key = (
+            "total_delivery_revenue_requirement"
+            if "total_delivery_revenue_requirement" in rr_data
+            else "revenue_requirement"
+        )
+        revenue_requirement = float(rr_data[rr_key])
     else:
         revenue_requirement = float(cast(float | int | str, raw_rr))
     return state, utility, revenue_requirement
