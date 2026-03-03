@@ -671,7 +671,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
     save_file_loc = getattr(bs, "save_file_loc", None)
     if save_file_loc is not None:
         dist_and_sub_tx_mc_path = (
-            Path(save_file_loc) / "dist_and_sub_tx_marginal_costs.csv"
+            Path(save_file_loc) / "delivery_all_marginal_costs.csv"
         )
         dist_and_sub_tx_marginal_costs.to_csv(dist_and_sub_tx_mc_path, index=True)
         log.info(".... Saved dist+sub-tx marginal costs: %s", dist_and_sub_tx_mc_path)

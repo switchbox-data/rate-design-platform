@@ -63,6 +63,15 @@ path_tou_supply_mc formula (for runs where num = 13 or 14):
     - Backward compatibility: old column names path_td_marginal_costs and
       path_dist_and_sub_tx_marginal_costs are still supported
 
+    path_dist_and_sub_tx_mc formula (NY):
+    ="s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=" & LOWER($C18) & "/year=2025/data.parquet"
+
+    path_dist_and_sub_tx_mc formula (RI):
+    ="s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=" & LOWER($C18) & "/year=2025/data.parquet"
+
+    Where:
+    - $C18 is the utility column
+
     After updating the Google Sheet, run: just create-scenario-yamls
 """
 
@@ -224,6 +233,7 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         "path_tariff_maps_gas",
         "path_resstock_metadata",
         "path_resstock_loads",
+        "path_dist_and_sub_tx_mc",
         "path_utility_assignment",
         "path_tariffs_gas",
         "path_outputs",
