@@ -35,7 +35,7 @@ from utils.cairo import (
     add_bulk_tx_and_dist_and_sub_tx_marginal_cost,
     build_bldg_id_to_load_filepath,
 )
-from utils.demand_flex import apply_demand_flex
+from utils.demand_flex import apply_demand_flex, split_revenue_requirement_by_tou
 from utils.mid.patches import _return_loads_combined
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 from utils.scenario_config import (
@@ -568,20 +568,17 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
     # Decomposes the revenue requirement into total marginal costs and residual.
     # RR = total_MC + residual, where total_MC = sum of hourly (MC_price × load)
     # and residual = RR − total_MC (embedded infrastructure costs).
+    #
+    # The revenue requirement (settings.rr_total) is pre-topped-up: it already
+    # includes supply costs when run_includes_supply=True (via supply charges
+    # computed externally by compute_rr / compute_subclass_rr).  We do NOT pass
+    # delivery_only_rev_req_passed to CAIRO because there is nothing to top up
+    # at runtime — the YAML value is the final target.
+    #
+    # Similarly, subclass RRs (settings.subclass_rr) are pre-topped-up: for
+    # supply runs, per-subclass supply costs are derived from run 2 BAT data
+    # (via compute_subclass_rr --run-dir-supply), not from raw Cambium prices.
 
-    # Decompose subclass revenue requirement into total + ratios so that
-    # both demand-flex and non-flex paths can work with a scalar target
-    # for CAIRO's _return_revenue_requirement_target, then re-split after.
-    rr_setting = settings.subclass_rr  # None or dict[tariff_key → float]
-    rr_total = settings.rr_total
-    if rr_setting is not None:
-        rr_ratios: dict[str, float] | None = {
-            k: v / rr_total for k, v in rr_setting.items()
-        }
-    else:
-        rr_ratios = None
-
-    # Demand-flex or single-pass revenue requirement
     demand_flex_enabled = settings.elasticity != 0.0
 
     if demand_flex_enabled:
@@ -596,115 +593,47 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             customer_metadata=customer_metadata,
             tariff_map_df=tariff_map_df,
             precalc_mapping=precalc_mapping,
-            rr_total=rr_total,
+            rr_total=settings.rr_total,
             bulk_marginal_costs=bulk_marginal_costs,
             dist_and_sub_tx_marginal_costs=dist_and_sub_tx_marginal_costs,
         )
+
+        revenue_requirement: float | dict[str, float] | None = (
+            flex.revenue_requirement_raw
+        )
+        marginal_system_prices = flex.marginal_system_prices
+        _marginal_system_costs = flex.marginal_system_costs
+        costs_by_type = flex.costs_by_type
+
         effective_load_elec = flex.effective_load_elec
         elasticity_tracker = flex.elasticity_tracker
-        revenue_requirement_raw = flex.revenue_requirement_raw
-        marginal_system_prices = flex.marginal_system_prices
-        marginal_system_costs = flex.marginal_system_costs
-        costs_by_type = flex.costs_by_type
         precalc_mapping = flex.precalc_mapping
-        tou_tariff_keys = flex.tou_tariff_keys
+        if settings.run_includes_subclasses and settings.subclass_rr is not None:
+            revenue_requirement = split_revenue_requirement_by_tou(
+                revenue_requirement_total=flex.revenue_requirement_raw,
+                subclass_baseline=settings.subclass_rr,
+                tou_tariff_keys=flex.tou_tariff_keys,
+            )
     else:
-        effective_load_elec = raw_load_elec
-        elasticity_tracker = pd.DataFrame()
-        tou_tariff_keys = []
-        # -- No demand flex: single-pass revenue requirement (unchanged) --
         (
-            revenue_requirement_raw,
+            revenue_requirement,
             marginal_system_prices,
-            marginal_system_costs,
+            _marginal_system_costs,
             costs_by_type,
         ) = _return_revenue_requirement_target(
             building_load=raw_load_elec,
             sample_weight=customer_metadata[["bldg_id", "weight"]],
-            revenue_requirement_target=rr_total,
+            revenue_requirement_target=settings.rr_total,
             residual_cost=None,
             residual_cost_frac=None,
             bulk_marginal_costs=bulk_marginal_costs,
             distribution_marginal_costs=dist_and_sub_tx_marginal_costs,
             low_income_strategy=None,
-            delivery_only_rev_req_passed=settings.run_includes_supply,
         )
-
-    # Apply subclass RR split if configured.
-    # Compute per-subclass supply MC so each subclass's RR reflects
-    # its own marginal cost responsibility.  Without this, the delivery
-    # ratios would be applied to the topped-up total, mis-allocating
-    # supply MC between subclasses with different load profiles.
-    if rr_ratios is not None and rr_setting is not None:
-        subclass_supply_mc: dict[str, float] = {}
-        if settings.run_includes_supply:
-            supply_cols = [
-                c
-                for c in bulk_marginal_costs.columns
-                if "Energy" in c or "Capacity" in c
-            ]
-            supply_mc_prices = bulk_marginal_costs[supply_cols].sum(axis=1)
-
-            # Pre-merge weights into load once to avoid redundant
-            # copy + merge inside process_residential_hourly_demand
-            # per subclass (N_buildings × 8760 rows each time).
-            weighted_load = raw_load_elec.reset_index().merge(
-                customer_metadata[["bldg_id", "weight"]], on="bldg_id"
-            )
-            weighted_load["weighted_kwh"] = (
-                weighted_load["electricity_net"] * weighted_load["weight"]
-            )
-
-            for tariff_key in rr_setting:
-                subclass_bldg_ids = set(
-                    tariff_map_df.loc[
-                        tariff_map_df["tariff_key"] == tariff_key, "bldg_id"
-                    ]
-                )
-                sub = weighted_load[weighted_load["bldg_id"].isin(subclass_bldg_ids)]
-                subclass_sys_load = sub.groupby("time")["weighted_kwh"].sum()
-                subclass_supply_mc[tariff_key] = float(
-                    supply_mc_prices.mul(subclass_sys_load).sum()
-                )
-            log.info(
-                ".... Per-subclass supply MC: %s",
-                {k: f"${v:,.0f}" for k, v in subclass_supply_mc.items()},
-            )
-
-        # Each subclass's baseline = delivery_RR_k + own supply MC
-        subclass_baseline: dict[str, float] = {
-            k: v + subclass_supply_mc.get(k, 0.0) for k, v in rr_setting.items()
-        }
-
-        if demand_flex_enabled:
-            # Only TOU subclasses shifted load → only they absorb the RR
-            # change.  Non-shifted subclasses keep their baseline.
-            non_shifted_rr = sum(
-                subclass_baseline[k] for k in rr_setting if k not in tou_tariff_keys
-            )
-            shifted_rr_total = revenue_requirement_raw - non_shifted_rr
-            # Split among TOU subclasses proportionally (if more than one).
-            tou_baseline_total = sum(
-                subclass_baseline[k] for k in rr_setting if k in tou_tariff_keys
-            )
-            revenue_requirement: float | dict[str, float] = {}
-            for k in rr_setting:
-                if k in tou_tariff_keys:
-                    revenue_requirement[k] = (
-                        shifted_rr_total * (subclass_baseline[k] / tou_baseline_total)
-                        if tou_baseline_total > 0
-                        else shifted_rr_total
-                    )
-                else:
-                    revenue_requirement[k] = subclass_baseline[k]
-            log.info(
-                ".... Subclass RR (demand-flex): %s",
-                {k: f"${v:,.0f}" for k, v in revenue_requirement.items()},
-            )
-        else:
-            revenue_requirement = subclass_baseline
-    else:
-        revenue_requirement = revenue_requirement_raw
+        effective_load_elec = raw_load_elec
+        elasticity_tracker = pd.DataFrame()
+        if settings.run_includes_subclasses:
+            revenue_requirement = settings.subclass_rr
 
     # Phase 3 ---------------------------------------------------------------
     # Precalc calibrates rates against shifted loads so the resulting
