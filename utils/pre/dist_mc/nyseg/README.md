@@ -2,9 +2,15 @@
 
 ## Overview
 
-Computes marginal costs from NYSEG's 2025 MCOS study workbook (`nyseg_study_workpaper.xlsx`), prepared by CRA International using the NERA methodology. The workbook aggregates project-level data at the **division level** (13 divisions) before computing system-wide MC.
+Computes marginal costs from NYSEG's 2025 MCOS study workbook (`nyseg_study_workpaper.xlsx`), prepared by CRA International. The workbook contains project-level data in **W2 (Investment Location Detail)**, which we aggregate using **NERA-style project-level formulas** for cross-utility consistency with NiMo, ConEd, O&R, and CenHud.
 
 All values are at **primary distribution voltage** (no secondary loss adjustment). NYSEG's MCOS explicitly excludes NYISO Transmission Service Charges — there is no bulk TX cost center. All three cost centers (upstream, distribution substation, primary feeder) are local sub-transmission and distribution, included in the BAT input.
+
+### Why NERA-style instead of CRA native?
+
+CRA's native methodology computes MC at each substation using location-specific growth factors (W5), demand-related loss factors (W4), and N-0/N-1 capacity analysis — then aggregates upward through division-level tables (T4–T7) to system-wide tables (T1A, T2). This produces MCs that embed location-specific adjustments our other utilities don't use.
+
+By reading the **raw project data** from W2 (capital, capacity, in-service date) and applying the same `Capital / Peak × Composite Rate` formula used by NiMo/ConEd/O&R/CenHud, we get a consistent methodology across all NY utilities. The trade-off is that our output differs from CRA's published tables (T1A, T2) by a few percent — see `context/domain/ny_mcos_studies_comparison.md` §9 for the full rationale.
 
 ## Cost centers
 
@@ -15,225 +21,181 @@ All values are at **primary distribution voltage** (no secondary loss adjustment
 | Distribution Substation | 12.5 kV          | Distribution substations           |
 | Primary Feeder          | 12.5 kV / 4 kV   | Primary distribution feeders       |
 
-The script combines "Upstream Substation" and "Upstream Feeder" into a single **upstream** cost center using capacity-weighted averaging from T7.
+Upstream Substation and Upstream Feeder are combined into a single **upstream** bucket in the output CSVs (capacity-weighted for undiluted variants, summed for diluted).
 
 ## Study parameters
 
-| Parameter          | Value                | Source                         |
-| ------------------ | -------------------- | ------------------------------ |
-| Study period       | 2026–2035 (10 years) | All sheets                     |
-| Inflation          | 2.0%/yr              | CRA MCOS report                |
-| WACC               | 6.975%               | T1A row 43, T4 row 19          |
-| System peak        | 2,035.73 MW          | T4 row 20 col P (system total) |
-| Divisions          | 13                   | T4 row 6 cols C–O              |
-| Utilization factor | 90%                  | CRA planning criteria          |
+| Parameter       | Value                                    | Source                               |
+| --------------- | ---------------------------------------- | ------------------------------------ |
+| Study period    | 2026–2035 (10 years)                     | All sheets                           |
+| Inflation       | 2.0%/yr                                  | CRA MCOS report                      |
+| WACC            | 6.975%                                   | T1A row 43, T4 row 19                |
+| System peak     | 2,035.73 MW                              | T4 row 20 col P (2035 forecast)      |
+| Divisions       | 13                                       | T4 row 6 cols C–O                    |
+| Composite rate  | 0.10248 (substations), 0.09801 (feeders) | Derived from W2 (see below)          |
+| Projects parsed | 107 (of 201 in W2)                       | 94 are prospective with zero capital |
 
-The system peak is the **2035 forecast** (fixed across all study years), unlike NiMo/CenHud which use actual 2024 peaks.
+### Composite rate derivation
 
-## Workbook layout
+The composite rate folds together the **Economic Carrying Charge (ECC)** and **O&M + A&G loading** into a single annualization multiplier. It is derived from W2 by comparing the per-project "Marginal per-kW Investment" (col 31–40) to the "Final Marginal Annualized per-kW Cost" (col 51–60) at the project's ISD year:
 
-### Summary sheets
+```
+composite_rate = col_51(ISD) / col_31(ISD)
+```
 
-| Sheet | Content                                                                   | Script use                                   |
-| ----- | ------------------------------------------------------------------------- | -------------------------------------------- |
-| T1A   | System-wide MC: Table 2 (division-weighted) + Table 3 (diluted, adjusted) | **Primary source** for incremental diluted   |
-| T1B   | Cumulative MC (undiluted, per sub-type)                                   | Reference only                               |
-| T2    | Undiluted MC (capacity-weighted per sub-type)                             | **Primary source** for incremental undiluted |
+The rate is constant within each equipment type:
 
-### Division-level sheets
-
-| Sheet | Content                                                     | Script use                      |
-| ----- | ----------------------------------------------------------- | ------------------------------- |
-| T4    | Upstream sub MC per division ($/kVA of load added)          | Verification (derive Table 2)   |
-| T4B   | Upstream feeder MC per division                             | Verification (derive Table 2)   |
-| T5    | Distribution substation MC per division                     | Verification (derive Table 2)   |
-| T6    | Primary feeder MC per division                              | Verification (derive Table 2)   |
-| T7    | Investment ($000s) and capacity (MVA) per division per year | Capacity for upstream combining |
+| Equipment type | ECC    | O&M+A&G loading | Composite rate |
+| -------------- | ------ | --------------- | -------------- |
+| Substation     | 7.788% | 1.3159×         | 0.10248        |
+| Feeder         | 7.350% | 1.3335×         | 0.09801        |
 
 ### Loss factors
 
-| Sheet | Content                                      |
-| ----- | -------------------------------------------- |
-| W4    | Demand-related loss factors by voltage level |
+From **W4 (Demand Losses)**, used to compute the "Total at Primary" column:
 
-The "Total at Primary" column in T1A and T2 applies loss factors from W4 to express the combined MC at primary voltage. Individual cost center columns are at their own voltage level. This means `total ≠ upstream + dist_sub + primary_feeder`; the total is ~3% higher due to loss factors.
+| Plant from              | Loss factor to primary |
+| ----------------------- | ---------------------- |
+| Upstream (Bulk) Dist.   | 1.0497                 |
+| Distribution Substation | 1.0292                 |
+| Primary Feeder          | 1.0220                 |
 
-## Workbook cell references
+`Total_at_primary(Y) = upstream(Y) × 1.0497 + dist_sub(Y) × 1.0292 + primary(Y) × 1.0220`
 
-### T1A (system-wide diluted MC)
+## Data source: W2 (Investment Location Detail)
 
-T1A contains two year-by-year tables, identified by searching for `col B == 2026`:
+W2 contains 201 rows of individual project data. Each row has:
 
-**First year block (Table 2, row 31):** Division-peak-weighted annual MC.
+| Column       | Content                                           |
+| ------------ | ------------------------------------------------- |
+| C (3)        | Division                                          |
+| E (5)        | Segment: "Upstream" or "Distribution"             |
+| F (6)        | Substation / Location name                        |
+| G (7)        | Equipment: "Substation" or "Feeder"               |
+| I (9)        | ISD (In-Service Date)                             |
+| J–S (10–19)  | Annual investment ($000) by year, 2026–2035       |
+| T (20)       | Total nominal capital ($000)                      |
+| U–AD (21–30) | Added Peak Load-Carrying Capability (MVA) by year |
+| BK (63)      | Final load-carrying capability (MVA)              |
 
-| Row   | Col C          | Col D            | Col E          | Col F            | Col G              |
-| ----- | -------------- | ---------------- | -------------- | ---------------- | ------------------ |
-| 28    | Header: "Year" |                  |                |                  |                    |
-| 29    | $/kW-yr        | $/kW-yr          | $/kW-yr        | $/kW-yr          | $/kW-yr            |
-| 31–40 | Upstream       | Dist. Substation | Primary Feeder | Total at Primary | Total at Secondary |
-| 42    | Levelized      | 30.22            | 24.68          | 11.46            | 68.83              |
-| 43    | WACC (0.06975) |                  |                |                  |                    |
+**107 projects** have nonzero capital and are parsed by the script. The remaining 94 are prospective planning projects with allocated capacity but zero capital (mostly ISD 2034–2035); they contribute no MC and are excluded.
 
-**Second year block (Table 3, row 49):** System-wide MC adjusted for areas with no investment.
+### Cost center classification
 
-| Row   | Col C                               | Col D            | Col E          | Col F            | Col G              |
-| ----- | ----------------------------------- | ---------------- | -------------- | ---------------- | ------------------ |
-| 47    | Upstream                            | Dist. Substation | Primary Feeder | Total at Primary | Total at Secondary |
-| 49–58 | Year-by-year diluted MC (2026–2035) |                  |                |                  |                    |
-| 60    | Levelized Charge                    | 8.46             | 9.79           | 4.07             | **23.11**          |
-
-**Table 3 is our incremental diluted output.** It differs from Table 2 because it adjusts for the fraction of each division's load served by substations with no planned investment.
-
-### T2 (undiluted MC)
-
-| Row   | Col C                                         | Col D        | Col E           | Col F     | Col G          | Col H            |
-| ----- | --------------------------------------------- | ------------ | --------------- | --------- | -------------- | ---------------- |
-| 9     | Year                                          | Upstream Sub | Upstream Feeder | Dist. Sub | Primary Feeder | Total at Primary |
-| 12–21 | 2026–2035 year-by-year undiluted MC ($/kW-yr) |              |                 |           |                |                  |
-| 23    | Levelized                                     | 30.37        | 35.27           | 48.41     | 42.33          | **162.00**       |
-
-Values are capacity-weighted averages: `MC(sub-type, Y) = total_cost(Y) / total_capacity(Y)` across all projects of that sub-type entering service in year Y.
-
-### T4/T4B/T5/T6 (division-level MC)
-
-All four sheets share the same layout:
-
-| Row  | Content                                                            |
-| ---- | ------------------------------------------------------------------ |
-| 5    | "Marginal Annualized Cost per kVA of Load Added..."                |
-| 6    | Division names (cols C–O for 13 divisions, col P = System Average) |
-| 7–16 | Year-by-year MC (2026–2035), one row per year                      |
-| 18   | Levelized MC                                                       |
-| 19   | WACC (0.06975)                                                     |
-| 20   | Peak Load 2035 (MW) per division; col P = system total 2,035.73 MW |
-
-The MC values are in **$/kVA of division peak load** — they represent the annual cost of new infrastructure spread across the entire division's peak demand, not per kVA of project capacity.
-
-### T7 (investment and capacity per division)
-
-T7 has three side-by-side sections:
-
-| Section    | Columns | Content                                                    |
-| ---------- | ------- | ---------------------------------------------------------- |
-| Investment | B–G     | Division (B), Year (C), $000s for 4 sub-types (D–G)        |
-| Capacity   | I–N     | Division (I), Year (J), MVA for 4 sub-types (K–N)          |
-| MC per kW  | P–U     | Division (P), Year (Q), $/kW for upstream sub/feeder (R–S) |
-
-Data starts at row 17. Each division has 10 rows (2026–2035) followed by a blank separator.
-
-NYSEG divisions in order: Auburn (row 17), Binghamton (28), Brewster (39), Elmira (50), Geneva (61), Hornell (72), Ithaca (83), Lancaster (94), Liberty (105), Lockport (116), Mechanicville (127), Oneonta (138), Plattsburgh (149).
+| Segment      | Equipment  | Cost center      |
+| ------------ | ---------- | ---------------- |
+| Upstream     | Substation | `ups_sub`        |
+| Upstream     | Feeder     | `ups_feed`       |
+| Distribution | Substation | `dist_sub`       |
+| Distribution | Feeder     | `primary_feeder` |
 
 ## How the script computes each variant
 
-### 1. Incremental diluted (BAT input)
+For each project `p`: `annualized_per_kw(p) = [total_capital_k(p) / final_capacity_mva(p)] × composite_rate(equipment)` in ISD-year dollars.
 
-Read directly from T1A Table 3 (rows 49–58), columns C–F.
+### 1. Incremental diluted
 
-These values represent the system-wide MC from **new** projects entering service in each year, adjusted for areas with no investment, at primary voltage.
+```
+MC(Y) = Σ_{p: ISD(p)=Y} [annualized_per_kw(p) × capacity_mva(p)] / system_peak_mw
+```
+
+Cost of projects entering service in year Y, spread across the system peak.
 
 ### 2. Cumulative diluted
-
-Accumulated from incremental diluted with 2%/yr inflation:
 
 ```
 cumulative(Y) = Σ_{t=2026}^{Y} incremental(t) × (1.02)^(Y−t)
 ```
 
-Each prior year's new-project cost is inflated forward to year-Y dollars before summing.
-
 ### 3. Incremental undiluted
 
-Read from T2 (rows 12–21). For individual sub-types (upstream sub, upstream feeder, dist sub, primary feeder) directly from columns C–F. The "total at primary" from column G includes loss-factor adjustment.
-
-The **upstream** combined value is capacity-weighted from T7:
-
 ```
-upstream(Y) = [MC_sub(Y) × cap_sub(Y) + MC_feed(Y) × cap_feed(Y)] / [cap_sub(Y) + cap_feed(Y)]
+MC(Y) = Σ_{p: ISD(p)=Y} [annualized(p) × cap(p)] / Σ_{p: ISD(p)=Y} [cap(p)]
 ```
 
-where capacity comes from T7 columns K (upstream sub) and L (upstream feeder), summed across all 13 divisions.
+Capacity-weighted average cost of projects entering service in year Y. Undefined (zero) for years with no projects.
 
 ### 4. Cumulative undiluted
 
-Accumulated using capacity-weighted inflation:
-
 ```
-cumulative(Y) = Σ_{t≤Y}[mc(t) × cap(t) × (1.02)^(Y−t)] / Σ_{t≤Y}[cap(t)]
+MC(Y) = Σ_{p: ISD(p)≤Y} [annualized(p) × cap(p) × (1.02)^(Y−ISD(p))]
+         / Σ_{p: ISD(p)≤Y} [cap(p)]
 ```
-
-This weights each year's cost by how much capacity was added that year, then divides by total cumulative capacity.
-
-## Table 2 derivation (verification)
-
-The script independently derives the T1A Table 2 values from division-level data:
-
-```
-Table2_MC(cc, Y) = Σ_divisions [division_MC(cc, Y) × division_peak / system_peak]
-```
-
-where `division_MC` comes from T4/T4B/T5/T6 (rows 7–16) and `division_peak` from T4 row 20.
-
-This verification confirms that we correctly understand the division-to-system aggregation. The max delta between derived and workbook Table 2 values is <0.0001 for individual cost centers. The total has a larger delta because our derived total is a simple sum (no loss factors), while the workbook total applies W4 loss factors.
-
-## Table 2 vs. Table 3 (the within-division adjustment)
-
-Table 2 spreads project costs across the full division peak, then weights by peak share. Table 3 further adjusts for the fact that within each division, only a fraction of substations have planned investment. The comparison doc notes "~77% of upstream and ~65% of dist substations/feeders have no investment."
-
-The adjustment reduces the MC because it accounts for areas that will not see capacity investment. We read Table 3 directly from the workbook because deriving the within-division coverage fraction requires substation-level peak load data not readily available in the summary sheets.
-
-## Levelized computation
-
-CRA uses NPV-based levelization at the WACC:
-
-```
-levelized = Σ[MC(Y) / (1+WACC)^(Y−2026)] / Σ[1 / (1+WACC)^(Y−2026)]
-```
-
-The CSVs also report simple-average levelized in real (base-year 2026) dollars for cross-utility comparison.
 
 ## Worked examples
 
-### Example 1: Auburn dist sub contribution to Table 2 (2026)
+### Example 1: Incremental diluted, distribution substation, 2028
 
-From T5, Auburn 2026 dist sub MC = 30.97 $/kVA.
-From T4 row 20, Auburn peak = 77.94 MW, system peak = 2,035.73 MW.
+Two dist_sub projects enter service in 2028:
 
-```
-Auburn contribution = 30.97 × (77.94 / 2035.73) = 30.97 × 0.03829 = 1.186 $/kW-yr
-```
-
-Only Auburn and Ithaca have dist sub investment in 2026. Adding Ithaca's contribution (10.31 × 112.84/2035.73 = 0.571) gives Table 2 dist sub 2026 ≈ 1.757 $/kW-yr.
-
-Workbook Table 2 row 31 col D = 1.7572 $/kW-yr. ✓
-
-### Example 2: Upstream undiluted combining (2028)
-
-From T2 row 14: upstream sub = 18.64 $/kW-yr, upstream feeder = 9.39 $/kW-yr.
-From T7 (summed across all divisions): upstream sub capacity 2028 = ~171 MVA, upstream feeder capacity 2028 = ~82 MVA.
+| Project       | Capital ($000) | Capacity (MVA) | $/kW    | Annualized ($/kW-yr) |
+| ------------- | -------------- | -------------- | ------- | -------------------- |
+| Center Point  | 41,509         | 20.16          | 2,059.0 | 211.01               |
+| Fourth Street | 27,900         | 67.14          | 415.6   | 42.59                |
 
 ```
-upstream_combined = (18.64 × 171 + 9.39 × 82) / (171 + 82) = (3,185 + 770) / 253 = 15.63 $/kW-yr
+total_cost = 211.01 × 20.16 + 42.59 × 67.14 = 4,253.9 + 2,859.4 = 7,113.3
+MC = 7,113.3 / 2,035.73 = 3.49 $/kW-yr
 ```
 
-### Example 3: Cumulative diluted 2027
+Script output for dist_sub incremental diluted 2028 = $3.49 $/kW-yr. ✓
 
-Incremental diluted total at primary: 2026 = $1.41, 2027 = $4.60.
+### Example 2: Incremental diluted, total at primary, 2028
 
-```
-cumulative(2027) = 1.41 × 1.02 + 4.60 = 1.44 + 4.60 = $6.04/kW-yr
-```
-
-### Example 4: NPV-based levelized
-
-Incremental diluted total at primary annual values: 1.41, 4.60, 8.78, 9.10, 29.74, 25.04, 48.07, 48.01, 49.27, 39.83.
+2028 has dist_sub = $3.49 and primary_feeder = $0.38 (from 4 feeder projects). Upstream = $0.00 (no upstream projects in 2028).
 
 ```
-PV numerator = 1.41/1.0 + 4.60/1.070 + 8.78/1.144 + ... + 39.83/1.836 = 173.81
-PV denominator = Σ[1/(1.06975)^i for i=0..9] = 7.525
-levelized = 173.81 / 7.525 = $23.11/kW-yr
+total = 0.00 × 1.0497 + 3.49 × 1.0292 + 0.38 × 1.0220
+      = 0.00 + 3.59 + 0.39 = 3.98 $/kW-yr
 ```
 
-Workbook T1A row 60 col F = $23.1138. ✓
+Script output for total incremental diluted 2028 = $3.98 $/kW-yr. ✓
+
+### Example 3: Cumulative diluted, total at primary, 2029
+
+Incremental total: 2028 = $3.98, 2029 = $3.77.
+
+```
+cumulative(2029) = 3.98 × 1.02 + 3.77 = 4.06 + 3.77 = $7.83/kW-yr
+```
+
+### Example 4: Incremental undiluted, distribution substation, 2028
+
+Same two dist_sub projects as Example 1:
+
+```
+MC = (211.01 × 20.16 + 42.59 × 67.14) / (20.16 + 67.14)
+   = 7,113.3 / 87.30 = 81.48 $/kW-yr
+```
+
+This is the capacity-weighted average $/kW-yr of the dist_sub project cohort entering in 2028. Center Point has high $/kW ($2,059) but contributes only 23% of the capacity; Fourth Street has low $/kW ($416) and dominates at 77%.
+
+### Example 5: Cumulative undiluted, distribution substation, 2029
+
+By 2029, four dist_sub projects are in service (2028's Center Point + Fourth Street, plus 2029's Orchard Park + Ferndale):
+
+```
+num = (211.01 × 20.16 × 1.02¹) + (42.59 × 67.14 × 1.02¹)
+    + (57.26 × 11.74 × 1.02⁰) + (70.46 × 40.50 × 1.02⁰)
+    = 4,338.9 + 2,916.6 + 672.2 + 2,853.6 = 10,781.3
+den = 20.16 + 67.14 + 11.74 + 40.50 = 139.54
+MC = 10,781.3 / 139.54 = 77.27 $/kW-yr
+```
+
+## Projects by ISD year
+
+| ISD  | ups_sub | ups_feed | dist_sub | primary_feeder | Total |
+| ---- | ------- | -------- | -------- | -------------- | ----- |
+| 2028 | —       | —        | 2        | 4              | 6     |
+| 2029 | 1       | —        | 2        | 1              | 4     |
+| 2030 | 4       | 1        | 6        | 2              | 13    |
+| 2031 | 2       | 1        | 1        | —              | 4     |
+| 2032 | 1       | 1        | 7        | 3              | 12    |
+| 2033 | 6       | 5        | 7        | 2              | 20    |
+| 2034 | 3       | 4        | 8        | 5              | 20    |
+| 2035 | 13      | 8        | 4        | 3              | 28    |
+
+No projects enter service in 2026 or 2027 — the incremental MC is zero for those years. This differs from the CRA native output (T1A), which shows nonzero values because CRA attributes CWIP during construction.
 
 ## Outputs
 

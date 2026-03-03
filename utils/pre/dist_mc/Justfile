@@ -1,4 +1,4 @@
-# MCOS dilution analysis — NiMo, ConEd, O&R, CenHud, NYSEG, RG&E
+# MCOS dilution analysis — NiMo, ConEd, O&R, CenHud, NYSEG, RG&E, PSEG-LI
 #
 # Each utility lives in its own subdirectory with analysis script(s),
 # classification data (NiMo), and output CSVs.
@@ -41,6 +41,12 @@ path_rge_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/rge_study_workpaper.xlsx
 path_rge_output := "rge"
 rge_peak_mw := "1428.52"          # 2035 forecast, T4a row 20 system total
 
+# ── PSEG-LI inputs ──────────────────────────────────────────────────────────
+
+path_psegli_csv := "s3://data.sb/ny_psc/mcos_studies_2025/psegli_study_project_list.csv"
+path_psegli_output := "psegli"
+psegli_peak_mw := "4935.0"            # 2024 actual NCP, NYISO Gold Book Zone K
+
 # ── Recipes ──────────────────────────────────────────────────────────────────
 
 analyze-nimo:
@@ -81,7 +87,13 @@ analyze-rge:
         --system-peak-mw {{rge_peak_mw}} \
         --path-output-dir "{{path_rge_output}}"
 
-analyze-all: analyze-nimo analyze-coned analyze-or analyze-cenhud analyze-nyseg analyze-rge
+analyze-psegli:
+    uv run python psegli/analyze_psegli_mcos.py \
+        --path-csv "{{path_psegli_csv}}" \
+        --system-peak-mw {{psegli_peak_mw}} \
+        --path-output-dir "{{path_psegli_output}}"
+
+analyze-all: analyze-nimo analyze-coned analyze-or analyze-cenhud analyze-nyseg analyze-rge analyze-psegli
 
 clean:
     rm -f nimo/nimo_*_levelized.csv nimo/nimo_*_annualized.csv
@@ -90,3 +102,4 @@ clean:
     rm -f cenhud/cenhud_*_levelized.csv cenhud/cenhud_*_annualized.csv
     rm -f nyseg/nyseg_*_levelized.csv nyseg/nyseg_*_annualized.csv
     rm -f rge/rge_*_levelized.csv rge/rge_*_annualized.csv
+    rm -f psegli/psegli_*_levelized.csv psegli/psegli_*_annualized.csv

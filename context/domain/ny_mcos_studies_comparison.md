@@ -907,4 +907,114 @@ The harmonization covers the **scoping** of capital and capacity (what enters th
 - **Escalation** (§7B): CenHud's workbook is flat nominal; we apply 2.1%/yr. Others escalate natively.
 - **Diluted formula** (§7A): CenHud's workbook uses peak-share weighting; we normalize to capacity-based.
 - **System peak denominator** (§1): utilities use different fixed peaks (current vs. forecast vs. unstated).
-- **NYSEG/RG&E**: use CRA methodology with division-level aggregation, not the NERA project-level approach. They are not part of this harmonization.
+- **NYSEG/RG&E**: previously used CRA methodology with division-level aggregation; now harmonized to NERA-style project-level approach (see §9).
+
+---
+
+## 9. NYSEG/RG&E: from CRA native tables to NERA-style project-level aggregation
+
+### Background: how the CRA methodology differs from NERA
+
+The four NERA utilities (NiMo, ConEd, O&R, CenHud) all compute MC from project-level data using a straightforward formula:
+
+```
+diluted MC(Y) = Σ [project_annualized_cost × project_capacity] / system_peak
+undiluted MC(Y) = Σ [project_annualized_cost × project_capacity] / Σ [project_capacity]
+```
+
+with projects scoped by in-service year (cumulative: ISD ≤ Y, incremental: ISD = Y).
+
+CRA's native methodology for NYSEG/RG&E is more complex. CRA computes MC at each **substation** using location-specific inputs:
+
+1. **Growth factors (W5)**: per-division seasonal growth rates determining when capacity is needed at each location.
+2. **Demand-related loss factors (W4)**: voltage-level-specific loss multipliers, applied per substation based on its voltage class.
+3. **Within-division adjustment**: only a fraction of substations in each division have planned investment (~23% of upstream, ~35% of dist substations/feeders). CRA adjusts for this by computing MC separately for areas with vs. without investment.
+4. **N-0/N-1 capacity analysis**: per-substation capacity adequacy assessment.
+
+These produce substation-level MCs (T3A, T3B), which are aggregated upward: substation → division (T4–T6, T7) → system-wide (T1A, T2). Our original implementation read the final system-wide tables (T1A for diluted, T2 for undiluted) directly.
+
+### The problem: methodological inconsistency
+
+Reading CRA's pre-computed tables produced MCs that embedded location-specific adjustments that no other utility uses. This made NYSEG/RG&E values not directly comparable to the NERA utilities, which use uniform system-wide formulas. Specifically:
+
+1. CRA attributes investment costs during **construction** (CWIP-style), not just at completion. A project with ISD 2030 but construction starting in 2028 contributes MC in 2028–2030, not just 2030.
+2. CRA's within-division adjustment reduces MC by ~30–50% because it accounts for areas with no planned investment — this adjustment has no NERA analog.
+3. Growth factors cause different divisions' investments to contribute differently to the system-wide MC, creating a location-weighted result that differs from a simple capital-per-system-peak computation.
+
+### The solution: parse W2 with NERA-style formulas
+
+The CRA workbooks contain **W2 (Investment Location Detail)** with per-project data: capital ($000s), capacity (MVA), in-service date, division, and cost center. This is the same raw data that feeds CRA's substation-level analysis.
+
+We now read W2 directly and apply the NERA-style project-level aggregation:
+
+| Data element                  | W2 column | Notes                                   |
+| ----------------------------- | --------- | --------------------------------------- |
+| Division                      | C (3)     |                                         |
+| Segment (Upstream/Dist)       | E (5)     | Maps to cost center                     |
+| Equipment (Substation/Feeder) | G (7)     | Determines composite rate               |
+| In-Service Date               | I (9)     | Used for project scoping                |
+| Total capital ($000)          | T (20)    | Sum of annual investment cols J–S       |
+| Final capacity (MVA)          | BK (63)   | Derated (= nameplate × 0.9 utilization) |
+
+**Composite rate** (ECC × O&M+A&G loading) is derived from W2 itself by comparing col 51 (fully loaded annualized $/kW-yr) to col 31 (capital $/kW) at each project's ISD year. The rate is constant within each equipment type:
+
+| Equipment  | NYSEG   | RG&E    |
+| ---------- | ------- | ------- |
+| Substation | 0.10248 | 0.10283 |
+| Feeder     | 0.09801 | 0.09836 |
+
+The formulas are then identical to the other NERA utilities (§8):
+
+```
+annualized_per_kw(p) = [total_capital(p) / final_capacity(p)] × composite_rate
+```
+
+**Loss factors** from W4 are applied when computing the "Total at Primary" column:
+
+| Factor             | NYSEG  | RG&E   |
+| ------------------ | ------ | ------ |
+| Upstream → primary | 1.0497 | 1.0543 |
+| Dist sub → primary | 1.0292 | 1.0320 |
+| Primary → primary  | 1.0220 | 1.0228 |
+
+### Project coverage
+
+Of the 201 rows in NYSEG's W2 (132 in RG&E's W2), many are **prospective planning projects** — identified capacity needs with zero capital investment, mostly in 2034–2035. These contribute no MC and are excluded:
+
+| Utility | Total W2 rows | Parsed (nonzero capital) | Excluded (zero/no capital) |
+| ------- | ------------- | ------------------------ | -------------------------- |
+| NYSEG   | 201           | 107                      | 94                         |
+| RG&E    | 132           | 96                       | 36                         |
+
+NYSEG has no projects entering service in 2026–2027; RG&E has 3 upstream feeder projects in 2027 and 1 in 2028. The incremental MC is zero for years with no projects.
+
+### Impact on MC values vs. CRA native
+
+The NERA-style values differ from CRA's T1A/T2 because:
+
+1. **No CWIP**: projects contribute only at ISD, not during construction. This makes early-year incremental MC zero when no projects complete (vs. CRA's nonzero CWIP contribution).
+2. **No within-division adjustment**: our MC represents the full cost of all projects divided by the system peak, without discounting for areas with no investment. This produces modestly higher diluted MC than CRA's adjusted values.
+3. **No growth factor weighting**: all projects are weighted by their actual capacity, not by their division's growth-adjusted share. The effect is small since capacity and growth share are correlated.
+
+The net effect on levelized diluted MC:
+
+| Metric                   | NYSEG (NERA) | NYSEG (CRA native) | RG&E (NERA) | RG&E (CRA native) |
+| ------------------------ | ------------ | ------------------ | ----------- | ----------------- |
+| Inc. diluted lev. (real) | $14.78       | ~$23.11            | $18.10      | ~$37.14           |
+
+The NERA values are **lower** than CRA native, primarily because CRA's T1A Table 3 already applies the within-division adjustment which _reduces_ the raw MC. Our NERA calculation does not include CRA's location-specific adjustments that inflate costs at constrained substations, resulting in lower aggregate values. The undiluted variants show larger differences because CRA capacity-weights by the effective capacity at each substation (accounting for losses and growth), while we use the raw MVA from W2.
+
+### Summary of the full harmonization across all six utilities
+
+All six NY utilities with MCOS studies now use the same core methodology:
+
+| Utility    | Data source                            | In-service year                | Annualization                |
+| ---------- | -------------------------------------- | ------------------------------ | ---------------------------- |
+| **NiMo**   | Workbook per-project rows              | Explicit (column D)            | Pre-computed ECCR + F-values |
+| **ConEd**  | Workbook per-project cashflows         | Cashflow stabilization         | Composite rate × escalation  |
+| **O&R**    | Workbook per-project cashflows/budgets | Cashflow stab. / first nonzero | Composite rate × escalation  |
+| **CenHud** | Workbook per-project rows              | Explicit (row)                 | Pre-computed annual costs    |
+| **NYSEG**  | W2 per-project investment + capacity   | Explicit (ISD column)          | Derived composite rate       |
+| **RG&E**   | W2 per-project investment + capacity   | Explicit (ISD column)          | Derived composite rate       |
+
+The remaining cross-utility differences are documented in earlier sections (§1 system peak, §7A CenHud peak-share, §7B CenHud escalation).

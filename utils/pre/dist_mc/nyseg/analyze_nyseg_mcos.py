@@ -1,8 +1,13 @@
 """Compute marginal costs from a CRA-prepared NYSEG MCOS workbook.
 
-Reads system-wide diluted MC from T1A, undiluted from T2, and capacity
-data from T7.  Independently derives division-peak-weighted MC from
-T4/T4B/T5/T6 for verification against the workbook's Table 2.
+Reads per-project data from **W2 (Investment Location Detail)** and
+applies NERA-style project-level aggregation for cross-utility
+consistency.  This replaces the earlier approach of reading pre-computed
+MC tables from T1A/T2, which used CRA's location-specific growth
+factors, demand-loss-adjusted capacities, and within-division
+adjustments.  By aggregating project-level capital and capacity directly,
+NYSEG/RG&E now follow the same methodology as NiMo, ConEd, O&R, and
+CenHud (see context/domain/ny_mcos_studies_comparison.md §9).
 
 Cost centers (at primary voltage level):
   1. Upstream — substation (115 kV/46 kV) + feeder (115 kV/34.5 kV)
@@ -10,28 +15,15 @@ Cost centers (at primary voltage level):
   3. Primary Feeder (12.5 kV/4 kV)
 
 Four MC variants (8 CSVs):
-  1. Cumulative diluted    — accumulated costs ÷ system peak
-  2. Incremental diluted   — new-year costs ÷ system peak (BAT input)
-  3. Cumulative undiluted  — accumulated costs ÷ accumulated capacity
-  4. Incremental undiluted — new-year costs ÷ new-year capacity
-
-CRA applies 2.0%/yr inflation to project costs from in-service year.
-The diluted denominator is the 2035 forecast peak (fixed across years).
-Cumulative variants inflate prior years' incremental contributions at 2%/yr.
-
-The "Total at Primary" column includes demand-related loss factors to
-express the combined MC at primary distribution voltage; individual cost
-center columns are at their own voltage level (upstream, dist sub, primary).
+  1. Cumulative diluted    — costs for projects in service ≤ Y ÷ system peak
+  2. Incremental diluted   — costs for projects entering in Y ÷ system peak
+  3. Cumulative undiluted  — capacity-weighted avg for projects in service ≤ Y
+  4. Incremental undiluted — capacity-weighted avg for projects entering in Y
 
 Data sources within the workbook:
-  T1A  — Table 3/7 (diluted year-by-year, after within-division adjustment)
-       — Table 2 (division-peak-weighted year-by-year, for verification)
-  T2   — Undiluted year-by-year (capacity-weighted per sub-type)
-  T4   — Division-level upstream sub MC  (verification)
-  T4B  — Division-level upstream feeder MC (verification)
-  T5   — Division-level dist sub MC (NYSEG only; verification)
-  T6   — Division-level primary feeder MC (NYSEG only; verification)
-  T7   — Per-division per-year investment + capacity
+  W2  — Per-project investment, capacity, and in-service date
+  W4  — Demand-related loss factors (for "Total at Primary" column)
+  T4  — System peak (row 20, used for verification only; peak is a CLI arg)
 
 Usage (via Justfile):
     just analyze-nyseg
@@ -40,7 +32,7 @@ Usage (via Justfile):
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -65,6 +57,12 @@ BUCKET_LABELS = {
     "total": "Total at Primary",
 }
 
+SUB_COST_CENTERS: dict[str, list[str]] = {
+    "upstream": ["ups_sub", "ups_feed"],
+    "dist_sub": ["dist_sub"],
+    "primary_feeder": ["primary_feeder"],
+}
+
 VARIANT_NAMES = [
     "cumulative_diluted",
     "incremental_diluted",
@@ -72,15 +70,43 @@ VARIANT_NAMES = [
     "incremental_undiluted",
 ]
 
-# T7 capacity-section column positions (1-indexed openpyxl)
-T7_CAP_YEAR = 10
-T7_CAP_UPS_SUB = 11
-T7_CAP_UPS_FEED = 12
-T7_CAP_DIST_SUB = 13
-T7_CAP_PF = 14
+
+# ── W2 column layout (identical for NYSEG and RG&E) ─────────────────────────
+
+W2_DATA_START_ROW = 15
+W2_COL_DIVISION = 3
+W2_COL_SEGMENT = 5
+W2_COL_SUBSTATION = 6
+W2_COL_EQUIPMENT = 7
+W2_COL_ISD = 9
+W2_COL_TOTAL_CAPITAL = 20
+W2_COL_LOAD_CARRYING = 63
+W2_COL_INVEST_KW_START = 31  # $/kW investment, 2026..2035
+W2_COL_FINAL_KW_START = 51  # fully loaded annualized $/kW-yr
 
 
-# ── Configuration ────────────────────────────────────────────────────────────
+# ── Data structures ──────────────────────────────────────────────────────────
+
+
+@dataclass
+class ProjectData:
+    name: str
+    division: str
+    segment: str
+    equipment: str
+    cost_center: str  # ups_sub | ups_feed | dist_sub | primary_feeder
+    isd: int
+    total_capital_k: float  # $000s
+    final_capacity_mva: float
+    capital_per_kw: float  # $/kW = total_capital_k / final_capacity_mva
+    annualized_per_kw: float  # $/kW-yr at ISD prices
+
+
+@dataclass
+class LossFactors:
+    upstream: float = 1.0
+    dist_sub: float = 1.0
+    primary_feeder: float = 1.0
 
 
 @dataclass
@@ -89,359 +115,237 @@ class CRAConfig:
 
     utility: str
     display_name: str
-    divisions: list[str]
     system_peak_mw: float
-    t4_pattern: str  # sheet-name substring for upstream sub
-    t4b_pattern: str  # sheet-name substring for upstream feeder
-    div_col_start: int = 3
-    has_division_t5_t6: bool = True  # RGE T5/T6 have different layout
+    divisions: list[str] = field(default_factory=list)
 
 
-NYSEG_DIVISIONS = [
-    "Auburn",
-    "Binghamton",
-    "Brewster",
-    "Elmira",
-    "Geneva",
-    "Hornell",
-    "Ithaca",
-    "Lancaster",
-    "Liberty",
-    "Lockport",
-    "Mechanicville",
-    "Oneonta",
-    "Plattsburgh",
-]
+# ── Parsing: W2 (projects) ──────────────────────────────────────────────────
 
 
-# ── Workbook navigation ─────────────────────────────────────────────────────
+def _classify_cost_center(segment: str, equipment: str) -> str:
+    seg = segment.strip().lower()
+    equip = equipment.strip().lower()
+    if seg == "upstream":
+        return "ups_sub" if "sub" in equip else "ups_feed"
+    return "dist_sub" if "sub" in equip else "primary_feeder"
 
 
-def find_sheet(wb: openpyxl.Workbook, pattern: str) -> Any:
-    """Find first sheet whose name contains ``pattern``."""
-    for name in wb.sheetnames:
-        if pattern in name:
-            return wb[name]
-    msg = f"No sheet matching '{pattern}' in {wb.sheetnames}"
+def _derive_composite_rate(ws: Any, equipment_keyword: str) -> float:
+    """Derive the composite rate (ECC × O&M/A&G loading) for an equipment type.
+
+    Finds the first project of the given type that has nonzero values at its
+    ISD year and returns col_51(ISD) / col_31(ISD).
+    """
+    for r in range(W2_DATA_START_ROW, ws.max_row + 1):
+        equip = ws.cell(r, W2_COL_EQUIPMENT).value
+        isd = ws.cell(r, W2_COL_ISD).value
+        if not equip or not isd:
+            continue
+        if equipment_keyword not in str(equip).lower():
+            continue
+        isd_yr = int(isd)
+        if isd_yr < YEARS[0] or isd_yr > YEARS[-1]:
+            continue
+        offset = isd_yr - YEARS[0]
+        inv_kw = ws.cell(r, W2_COL_INVEST_KW_START + offset).value
+        final_kw = ws.cell(r, W2_COL_FINAL_KW_START + offset).value
+        if inv_kw and final_kw and float(inv_kw) > 0 and float(final_kw) > 0:
+            return float(final_kw) / float(inv_kw)
+    msg = f"Could not derive composite rate for equipment '{equipment_keyword}'"
     raise ValueError(msg)
 
 
-def find_year_blocks(ws: Any, year_col: int = 2) -> list[int]:
-    """Return row numbers where ``year_col`` == 2026 (start of a year block)."""
-    blocks: list[int] = []
-    for r in range(1, ws.max_row + 1):
-        v = ws.cell(r, year_col).value
-        if v is None:
-            continue
-        try:
-            if int(float(v)) == YEARS[0]:
-                blocks.append(r)
-        except (ValueError, TypeError):
-            pass
-    return blocks
-
-
-def read_year_block(
+def parse_w2_projects(
     ws: Any,
-    start_row: int,
-    cols: dict[str, int],
-    year_col: int = 2,
-) -> dict[str, list[float]]:
-    """Read 10 contiguous year-rows starting at ``start_row``."""
-    result: dict[str, list[float]] = {k: [] for k in cols}
-    for offset in range(N_YEARS):
-        r = start_row + offset
-        yr_val = ws.cell(r, year_col).value
-        if yr_val is None or int(float(yr_val)) != YEARS[offset]:
-            msg = f"Expected year {YEARS[offset]} at row {r}, got {yr_val!r}"
-            raise ValueError(msg)
-        for key, col in cols.items():
-            v = ws.cell(r, col).value
-            result[key].append(float(v) if v is not None else 0.0)
-    return result
+) -> tuple[list[ProjectData], dict[str, float]]:
+    """Parse all projects from W2 and derive composite rates.
 
-
-# ── Parsing: T1A (diluted) ───────────────────────────────────────────────────
-
-
-def parse_diluted_incremental(
-    wb: openpyxl.Workbook,
-) -> tuple[dict[str, list[float]], dict[str, list[float]], float]:
-    """Read incremental diluted MC and division-weighted Table 2 from T1A.
-
-    Returns ``(diluted_inc, table2_wb, diluted_levelized_total)``.
+    Returns ``(projects, composite_rates)`` where ``composite_rates`` maps
+    ``"substation"`` and ``"feeder"`` to their annualization rates.
     """
-    ws = find_sheet(wb, "T1A")
-    blocks = find_year_blocks(ws)
-    if len(blocks) < 2:
-        msg = f"Expected ≥2 year blocks in T1A, found {len(blocks)}"
-        raise ValueError(msg)
+    sub_rate = _derive_composite_rate(ws, "sub")
+    feed_rate = _derive_composite_rate(ws, "feed")
 
-    cols = {"upstream": 3, "dist_sub": 4, "primary_feeder": 5, "total": 6}
-    table2 = read_year_block(ws, blocks[0], cols)
-    diluted = read_year_block(ws, blocks[1], cols)
-
-    lev_total = 0.0
-    for r in range(blocks[1] + N_YEARS, ws.max_row + 1):
-        v = ws.cell(r, 2).value
-        if isinstance(v, str) and "levelized" in v.lower():
-            lev_total = float(ws.cell(r, 6).value or 0)
-            break
-
-    return diluted, table2, lev_total
-
-
-# ── Parsing: T2 (undiluted) ──────────────────────────────────────────────────
-
-
-def parse_undiluted_incremental(
-    wb: openpyxl.Workbook,
-) -> tuple[dict[str, list[float]], float]:
-    """Read incremental undiluted MC per sub-type from T2.
-
-    Returns ``(per_subtype_data, undiluted_levelized_total)``.
-    Keys: ``ups_sub``, ``ups_feed``, ``dist_sub``, ``primary_feeder``, ``total``.
-    """
-    ws = find_sheet(wb, "T2")
-    blocks = find_year_blocks(ws)
-    if not blocks:
-        msg = "No year block found in T2"
-        raise ValueError(msg)
-
-    cols = {
-        "ups_sub": 3,
-        "ups_feed": 4,
-        "dist_sub": 5,
-        "primary_feeder": 6,
-        "total": 7,
-    }
-    data = read_year_block(ws, blocks[0], cols)
-
-    lev_total = 0.0
-    for r in range(blocks[0] + N_YEARS, ws.max_row + 1):
-        v = ws.cell(r, 2).value
-        if isinstance(v, str) and "levelized" in v.lower():
-            lev_total = float(ws.cell(r, 7).value or 0)
-            break
-
-    return data, lev_total
-
-
-# ── Parsing: T7 (capacity) ──────────────────────────────────────────────────
-
-
-def parse_t7_capacity(wb: openpyxl.Workbook) -> dict[int, dict[str, float]]:
-    """Sum per-sub-type capacity (MVA) across all divisions from T7."""
-    ws = find_sheet(wb, "T7")
-    cap_cols = {
-        "ups_sub": T7_CAP_UPS_SUB,
-        "ups_feed": T7_CAP_UPS_FEED,
-        "dist_sub": T7_CAP_DIST_SUB,
-        "pf": T7_CAP_PF,
-    }
-    result: dict[int, dict[str, float]] = {y: {k: 0.0 for k in cap_cols} for y in YEARS}
-
-    for r in range(17, ws.max_row + 1):
-        yr_val = ws.cell(r, T7_CAP_YEAR).value
-        if yr_val is None:
+    projects: list[ProjectData] = []
+    for r in range(W2_DATA_START_ROW, ws.max_row + 1):
+        name = ws.cell(r, W2_COL_SUBSTATION).value
+        if not name:
             continue
-        try:
-            yr = int(float(yr_val))
-        except (ValueError, TypeError):
+        seg = ws.cell(r, W2_COL_SEGMENT).value
+        equip = ws.cell(r, W2_COL_EQUIPMENT).value
+        isd = ws.cell(r, W2_COL_ISD).value
+        total_k = ws.cell(r, W2_COL_TOTAL_CAPITAL).value
+        final_cap = ws.cell(r, W2_COL_LOAD_CARRYING).value
+
+        if not all([seg, equip, isd]):
             continue
-        if yr not in result:
+        if not total_k or not final_cap or float(final_cap) <= 0:
             continue
-        for key, col in cap_cols.items():
-            v = ws.cell(r, col).value
-            if v is not None:
-                try:
-                    result[yr][key] += float(v)
-                except (ValueError, TypeError):
-                    pass
 
-    return result
+        isd_yr = int(isd)
+        if isd_yr < YEARS[0] or isd_yr > YEARS[-1]:
+            continue
 
+        cc = _classify_cost_center(str(seg), str(equip))
+        rate = sub_rate if "sub" in str(equip).lower() else feed_rate
+        cap_per_kw = float(total_k) / float(final_cap)  # $000s/MVA = $/kW
+        annualized = cap_per_kw * rate
 
-# ── Parsing: T4/T4B/T5/T6 (division-level, for verification) ────────────────
-
-
-def parse_division_mc_and_peaks(
-    wb: openpyxl.Workbook,
-    config: CRAConfig,
-) -> tuple[dict[str, dict[str, list[float]]], dict[str, float]]:
-    """Read per-division MC from T4/T4B (and T5/T6 if available) and peak loads.
-
-    Returns ``(div_mc, peaks)``.
-    """
-    div_mc: dict[str, dict[str, list[float]]] = {}
-    n_div = len(config.divisions)
-
-    ws_t4 = find_sheet(wb, config.t4_pattern)
-    div_mc["upstream_sub"] = _read_division_block(
-        ws_t4, config.divisions, config.div_col_start, n_div
-    )
-
-    ws_t4b = find_sheet(wb, config.t4b_pattern)
-    div_mc["upstream_feed"] = _read_division_block(
-        ws_t4b, config.divisions, config.div_col_start, n_div
-    )
-
-    if config.has_division_t5_t6:
-        ws_t5 = find_sheet(wb, "T5")
-        div_mc["dist_sub"] = _read_division_block(
-            ws_t5, config.divisions, config.div_col_start, n_div
-        )
-        ws_t6 = find_sheet(wb, "T6")
-        div_mc["primary_feeder"] = _read_division_block(
-            ws_t6, config.divisions, config.div_col_start, n_div
+        projects.append(
+            ProjectData(
+                name=str(name),
+                division=str(ws.cell(r, W2_COL_DIVISION).value or ""),
+                segment=str(seg),
+                equipment=str(equip),
+                cost_center=cc,
+                isd=isd_yr,
+                total_capital_k=float(total_k),
+                final_capacity_mva=float(final_cap),
+                capital_per_kw=cap_per_kw,
+                annualized_per_kw=annualized,
+            )
         )
 
-    peaks: dict[str, float] = {}
-    for i, name in enumerate(config.divisions):
-        col = config.div_col_start + i
-        v = ws_t4.cell(20, col).value
-        peaks[name] = float(v) if v is not None else 0.0
-
-    return div_mc, peaks
+    rates = {"substation": sub_rate, "feeder": feed_rate}
+    return projects, rates
 
 
-def _read_division_block(
-    ws: Any,
-    divisions: list[str],
-    col_start: int,
-    n_div: int,
-) -> dict[str, list[float]]:
-    """Read MC for each division from rows 7–16 of a division sheet."""
-    result: dict[str, list[float]] = {}
-    for i in range(n_div):
-        col = col_start + i
-        values = [
-            float(ws.cell(r, col).value) if ws.cell(r, col).value is not None else 0.0
-            for r in range(7, 17)
-        ]
-        result[divisions[i]] = values
-    return result
+# ── Parsing: W4 (loss factors) ──────────────────────────────────────────────
+
+
+def parse_w4_loss_factors(ws: Any) -> LossFactors:
+    """Extract demand-related loss factors from W4.
+
+    Finds the "Primary" column dynamically (position differs between NYSEG
+    and RG&E) and reads the upstream→primary, dist-sub→primary, and
+    primary→primary factors.
+    """
+    primary_col: int | None = None
+    for c in range(1, ws.max_column + 1):
+        v = ws.cell(10, c).value
+        if v and "primary" in str(v).lower():
+            primary_col = c
+            break
+    if primary_col is None:
+        return LossFactors()
+
+    def _read(row: int) -> float:
+        v = ws.cell(row, primary_col).value
+        if v is not None and str(v).strip() != "-----":
+            try:
+                return float(v)
+            except (ValueError, TypeError):
+                pass
+        return 1.0
+
+    return LossFactors(upstream=_read(12), dist_sub=_read(13), primary_feeder=_read(14))
 
 
 # ── Computation ──────────────────────────────────────────────────────────────
 
 
-def combine_upstream_undiluted(
-    ups_sub_mc: list[float],
-    ups_feed_mc: list[float],
-    cap_by_year: dict[int, dict[str, float]],
-) -> list[float]:
-    """Capacity-weighted combination of upstream sub + feeder undiluted MC."""
-    result: list[float] = []
-    for yi, yr in enumerate(YEARS):
-        cap_s = cap_by_year[yr]["ups_sub"]
-        cap_f = cap_by_year[yr]["ups_feed"]
-        total_cap = cap_s + cap_f
-        if total_cap > 0:
-            mc = (ups_sub_mc[yi] * cap_s + ups_feed_mc[yi] * cap_f) / total_cap
-        else:
-            mc = 0.0
-        result.append(mc)
-    return result
+def _cc_of_project(p: ProjectData) -> str:
+    """Return the aggregated cost-center bucket for a project."""
+    for cc, subs in SUB_COST_CENTERS.items():
+        if p.cost_center in subs:
+            return cc
+    return "primary_feeder"
 
 
-def accumulate_cumulative_diluted(
-    incremental: dict[str, list[float]],
-) -> dict[str, list[float]]:
-    """Accumulate incremental diluted into cumulative with 2%/yr inflation.
-
-    ``cumulative(Y) = Σ_{t≤Y} incremental(t) × (1.02)^(Y−t)``
-    """
-    result: dict[str, list[float]] = {}
-    for key in BUCKET_KEYS:
-        inc = incremental[key]
-        cum: list[float] = []
-        for yi in range(N_YEARS):
-            total = sum(
-                inc[ti] * (1 + INFLATION_RATE) ** (yi - ti) for ti in range(yi + 1)
-            )
-            cum.append(total)
-        result[key] = cum
-    return result
-
-
-def accumulate_cumulative_undiluted(
-    inc_mc: dict[str, list[float]],
-    cap_by_year: dict[int, dict[str, float]],
-) -> dict[str, list[float]]:
-    """Accumulate undiluted incremental into cumulative.
-
-    ``cumulative(Y) = Σ_{t≤Y}[mc(t)×cap(t)×(1.02)^(Y−t)] / Σ_{t≤Y}[cap(t)]``
-    """
-    cap_keys: dict[str, list[str]] = {
-        "upstream": ["ups_sub", "ups_feed"],
-        "dist_sub": ["dist_sub"],
-        "primary_feeder": ["pf"],
-        "total": ["ups_sub", "ups_feed", "dist_sub", "pf"],
+def compute_variants(
+    projects: list[ProjectData],
+    system_peak_mw: float,
+    loss: LossFactors,
+) -> dict[str, dict[str, list[float]]]:
+    """Compute all four MC variants from project-level data."""
+    loss_map = {
+        "upstream": loss.upstream,
+        "dist_sub": loss.dist_sub,
+        "primary_feeder": loss.primary_feeder,
     }
 
-    result: dict[str, list[float]] = {}
-    for bucket in BUCKET_KEYS:
-        cum: list[float] = []
-        for yi in range(N_YEARS):
-            num = 0.0
-            den = 0.0
-            for ti in range(yi + 1):
-                yr_t = YEARS[ti]
-                cap_t = sum(cap_by_year[yr_t][k] for k in cap_keys[bucket])
-                cost_t = inc_mc[bucket][ti] * cap_t
-                num += cost_t * (1 + INFLATION_RATE) ** (yi - ti)
-                den += cap_t
-            cum.append(num / den if den > 0 else 0.0)
-        result[bucket] = cum
-    return result
+    def _total_from_cc(per_cc: dict[str, list[float]], yi: int) -> float:
+        return sum(per_cc[cc][yi] * loss_map[cc] for cc in COST_CENTERS)
 
+    # Pre-group projects by ISD and cost center for efficiency
+    by_isd: dict[int, list[ProjectData]] = {yr: [] for yr in YEARS}
+    for p in projects:
+        if p.isd in by_isd:
+            by_isd[p.isd].append(p)
 
-def derive_table2(
-    div_mc: dict[str, dict[str, list[float]]],
-    peaks: dict[str, float],
-    system_peak: float,
-    has_t5_t6: bool,
-) -> dict[str, list[float]]:
-    """Derive Table 2 (division-peak-weighted MC) from division sheets."""
-    derived: dict[str, list[float]] = {}
+    # ── Incremental diluted ──────────────────────────────────────────────
+    inc_dil: dict[str, list[float]] = {k: [] for k in BUCKET_KEYS}
+    for yi, yr in enumerate(YEARS):
+        for cc in COST_CENTERS:
+            subs = SUB_COST_CENTERS[cc]
+            yr_p = [p for p in by_isd[yr] if p.cost_center in subs]
+            cost = sum(p.annualized_per_kw * p.final_capacity_mva for p in yr_p)
+            inc_dil[cc].append(cost / system_peak_mw if system_peak_mw > 0 else 0.0)
+        inc_dil["total"].append(_total_from_cc(inc_dil, yi))
 
-    ups_sub = div_mc.get("upstream_sub", {})
-    ups_feed = div_mc.get("upstream_feed", {})
-    upstream: list[float] = []
+    # ── Cumulative diluted ───────────────────────────────────────────────
+    cum_dil: dict[str, list[float]] = {k: [] for k in BUCKET_KEYS}
     for yi in range(N_YEARS):
-        total = sum(
-            (ups_sub.get(d, [0.0] * N_YEARS)[yi] + ups_feed.get(d, [0.0] * N_YEARS)[yi])
-            * peaks.get(d, 0.0)
-            for d in peaks
+        for cc in COST_CENTERS:
+            val = sum(
+                inc_dil[cc][ti] * (1 + INFLATION_RATE) ** (yi - ti)
+                for ti in range(yi + 1)
+            )
+            cum_dil[cc].append(val)
+        cum_dil["total"].append(_total_from_cc(cum_dil, yi))
+
+    # ── Incremental undiluted ────────────────────────────────────────────
+    inc_und: dict[str, list[float]] = {k: [] for k in BUCKET_KEYS}
+    for yr in YEARS:
+        for cc in COST_CENTERS:
+            subs = SUB_COST_CENTERS[cc]
+            yr_p = [p for p in by_isd[yr] if p.cost_center in subs]
+            num = sum(p.annualized_per_kw * p.final_capacity_mva for p in yr_p)
+            den = sum(p.final_capacity_mva for p in yr_p)
+            inc_und[cc].append(num / den if den > 0 else 0.0)
+        all_yr = by_isd[yr]
+        num_t = sum(
+            p.annualized_per_kw * p.final_capacity_mva * loss_map[_cc_of_project(p)]
+            for p in all_yr
         )
-        upstream.append(total / system_peak if system_peak > 0 else 0.0)
-    derived["upstream"] = upstream
+        den_t = sum(p.final_capacity_mva for p in all_yr)
+        inc_und["total"].append(num_t / den_t if den_t > 0 else 0.0)
 
-    if has_t5_t6:
-        for cc in ["dist_sub", "primary_feeder"]:
-            mc_by_div = div_mc.get(cc, {})
-            annual: list[float] = []
-            for yi in range(N_YEARS):
-                total = sum(
-                    mc_by_div.get(d, [0.0] * N_YEARS)[yi] * peaks.get(d, 0.0)
-                    for d in peaks
-                )
-                annual.append(total / system_peak if system_peak > 0 else 0.0)
-            derived[cc] = annual
+    # ── Cumulative undiluted ─────────────────────────────────────────────
+    cum_und: dict[str, list[float]] = {k: [] for k in BUCKET_KEYS}
+    for yi, yr in enumerate(YEARS):
+        for cc in COST_CENTERS:
+            subs = SUB_COST_CENTERS[cc]
+            scope = [p for p in projects if p.isd <= yr and p.cost_center in subs]
+            num = sum(
+                p.annualized_per_kw
+                * p.final_capacity_mva
+                * (1 + INFLATION_RATE) ** (yr - p.isd)
+                for p in scope
+            )
+            den = sum(p.final_capacity_mva for p in scope)
+            cum_und[cc].append(num / den if den > 0 else 0.0)
+        scope_all = [p for p in projects if p.isd <= yr]
+        num_t = sum(
+            p.annualized_per_kw
+            * p.final_capacity_mva
+            * loss_map[_cc_of_project(p)]
+            * (1 + INFLATION_RATE) ** (yr - p.isd)
+            for p in scope_all
+        )
+        den_t = sum(p.final_capacity_mva for p in scope_all)
+        cum_und["total"].append(num_t / den_t if den_t > 0 else 0.0)
 
-    if has_t5_t6:
-        derived["total"] = [
-            sum(derived[cc][yi] for cc in COST_CENTERS) for yi in range(N_YEARS)
-        ]
-    else:
-        derived["total"] = upstream[:]
-
-    return derived
+    return {
+        "incremental_diluted": inc_dil,
+        "cumulative_diluted": cum_dil,
+        "incremental_undiluted": inc_und,
+        "cumulative_undiluted": cum_und,
+    }
 
 
 def levelized_npv(values: list[float], wacc: float = WACC) -> float:
-    """NPV-based levelized cost (matching CRA workbook convention)."""
+    """NPV-based levelized cost."""
     pv = sum(v / (1 + wacc) ** i for i, v in enumerate(values))
     annuity = sum(1 / (1 + wacc) ** i for i in range(len(values)))
     return pv / annuity if annuity > 0 else 0.0
@@ -493,15 +397,14 @@ def export_levelized_csv(mc_nominal: dict[str, list[float]], path: Path) -> None
 
 def print_report(
     config: CRAConfig,
+    projects: list[ProjectData],
+    composite_rates: dict[str, float],
+    loss: LossFactors,
     variants: dict[str, dict[str, list[float]]],
-    table2_derived: dict[str, list[float]],
-    table2_wb: dict[str, list[float]],
-    diluted_lev_wb: float,
-    undiluted_lev_wb: float,
 ) -> None:
     W = 80
     print("=" * W)
-    print(f"{config.display_name} MCOS Analysis — CRA Methodology")
+    print(f"{config.display_name} MCOS Analysis — NERA-style project-level aggregation")
     print("=" * W)
 
     print(f"\n── System {'─' * (W - 11)}")
@@ -509,8 +412,30 @@ def print_report(
     print(f"  Study period:                 {YEARS[0]}–{YEARS[-1]} ({N_YEARS} years)")
     print(f"  Inflation:                    {INFLATION_RATE * 100:.1f}%/yr")
     print(f"  WACC:                         {WACC * 100:.3f}%")
-    print(f"  Divisions:                    {len(config.divisions)}")
+    print(f"  Projects parsed:              {len(projects)}")
+    print(f"  Composite rate (substation):  {composite_rates['substation']:.5f}")
+    print(f"  Composite rate (feeder):      {composite_rates['feeder']:.5f}")
+    print(f"  Loss factor (upstream→pri):   {loss.upstream:.4f}")
+    print(f"  Loss factor (dist_sub→pri):   {loss.dist_sub:.4f}")
+    print(f"  Loss factor (pf→pri):         {loss.primary_feeder:.4f}")
 
+    # Project summary by cost center and ISD
+    from collections import Counter
+
+    by_cc = Counter(p.cost_center for p in projects)
+    print(f"\n── Projects by cost center {'─' * max(1, W - 28)}")
+    for cc in ["ups_sub", "ups_feed", "dist_sub", "primary_feeder"]:
+        print(f"  {cc:<18} {by_cc[cc]:>3} projects")
+
+    by_isd = Counter(p.isd for p in projects)
+    print(f"\n── Projects by ISD year {'─' * max(1, W - 25)}")
+    for yr in YEARS:
+        if by_isd[yr]:
+            print(f"  {yr}  {by_isd[yr]:>3} projects")
+        else:
+            print(f"  {yr}    — (no projects)")
+
+    # Levelized MC
     print(f"\n── Levelized MC (real $/kW-yr, simple avg) {'─' * max(1, W - 43)}")
     header = f"  {'Variant':<28}"
     for k in BUCKET_KEYS:
@@ -525,27 +450,6 @@ def print_report(
         for k in BUCKET_KEYS:
             line += f" ${levs[k]:>12.2f}"
         print(line)
-
-    # Table 2 verification
-    available = [k for k in BUCKET_KEYS if k in table2_derived and k in table2_wb]
-    if available:
-        print(f"\n── Table 2 verification {'─' * (W - 24)}")
-        for cc in available:
-            max_delta = max(
-                abs(table2_derived[cc][yi] - table2_wb[cc][yi]) for yi in range(N_YEARS)
-            )
-            print(f"  {BUCKET_LABELS.get(cc, cc):30s}  max |Δ| = {max_delta:.6f}")
-
-    # Levelized validation
-    print(f"\n── Levelized validation (NPV-based) {'─' * max(1, W - 37)}")
-    our_dil = levelized_npv(variants["incremental_diluted"]["total"])
-    print(
-        f"  Diluted total at primary:   ours=${our_dil:.4f}  wb=${diluted_lev_wb:.4f}"
-    )
-    our_und = levelized_npv(variants["incremental_undiluted"]["total"])
-    print(
-        f"  Undiluted total at primary: ours=${our_und:.4f}  wb=${undiluted_lev_wb:.4f}"
-    )
 
     # Year-by-year incremental diluted
     print(
@@ -574,7 +478,7 @@ def run_analysis(
     config: CRAConfig,
     output_dir: Path,
 ) -> None:
-    """Run the full CRA MCOS analysis pipeline."""
+    """Run the full NERA-style project-level MCOS analysis."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Loading {config.display_name} workbook from {xlsx_path} ...")
@@ -584,71 +488,62 @@ def run_analysis(
     else:
         wb = openpyxl.load_workbook(xlsx_path, data_only=True)
 
-    # 1. Diluted from T1A
-    diluted_inc, table2_wb, diluted_lev_wb = parse_diluted_incremental(wb)
-    print("  T1A: incremental diluted + Table 2 parsed")
+    # 1. Parse projects from W2
+    ws_w2 = _find_sheet(wb, "W2")
+    projects, composite_rates = parse_w2_projects(ws_w2)
+    print(f"  W2: {len(projects)} projects parsed")
 
-    # 2. Undiluted from T2
-    undiluted_raw, undiluted_lev_wb = parse_undiluted_incremental(wb)
-    print("  T2: incremental undiluted per sub-type parsed")
-
-    # 3. Capacity from T7
-    cap = parse_t7_capacity(wb)
-    print("  T7: capacity by year parsed")
-
-    # 4. Division data for verification
-    div_mc, peaks = parse_division_mc_and_peaks(wb, config)
-    peak_sum = sum(peaks.values())
-    print(f"  Division MC + peaks parsed (Σ peaks = {peak_sum:.2f} MW)")
-
-    # 5. Combine upstream undiluted using capacity weights
-    upstream_undiluted = combine_upstream_undiluted(
-        undiluted_raw["ups_sub"], undiluted_raw["ups_feed"], cap
-    )
-    undiluted_inc: dict[str, list[float]] = {
-        "upstream": upstream_undiluted,
-        "dist_sub": undiluted_raw["dist_sub"],
-        "primary_feeder": undiluted_raw["primary_feeder"],
-        "total": undiluted_raw["total"],
-    }
-
-    # 6. Cumulative variants
-    cum_diluted = accumulate_cumulative_diluted(diluted_inc)
-    cum_undiluted = accumulate_cumulative_undiluted(undiluted_inc, cap)
-
-    # 7. Table 2 derivation for verification
-    table2_derived = derive_table2(
-        div_mc, peaks, config.system_peak_mw, config.has_division_t5_t6
+    # 2. Parse loss factors from W4
+    ws_w4 = _find_sheet(wb, "W4")
+    loss = parse_w4_loss_factors(ws_w4)
+    print(
+        f"  W4: loss factors — ups={loss.upstream:.4f}, "
+        f"ds={loss.dist_sub:.4f}, pf={loss.primary_feeder:.4f}"
     )
 
-    variants = {
-        "incremental_diluted": diluted_inc,
-        "cumulative_diluted": cum_diluted,
-        "incremental_undiluted": undiluted_inc,
-        "cumulative_undiluted": cum_undiluted,
-    }
+    # 3. Compute all four MC variants
+    variants = compute_variants(projects, config.system_peak_mw, loss)
+    print("  Computed 4 MC variants")
 
-    # 8. Export CSVs
+    # 4. Export CSVs
     print("\nExporting CSVs:")
     for vname in VARIANT_NAMES:
         prefix = f"{config.utility}_{vname}"
         export_annualized_csv(variants[vname], output_dir / f"{prefix}_annualized.csv")
         export_levelized_csv(variants[vname], output_dir / f"{prefix}_levelized.csv")
 
-    # 9. Report
+    # 5. Report
     print()
-    print_report(
-        config,
-        variants,
-        table2_derived,
-        table2_wb,
-        diluted_lev_wb,
-        undiluted_lev_wb,
-    )
+    print_report(config, projects, composite_rates, loss, variants)
+
+
+def _find_sheet(wb: openpyxl.Workbook, pattern: str) -> Any:
+    for name in wb.sheetnames:
+        if pattern in name:
+            return wb[name]
+    msg = f"No sheet matching '{pattern}' in {wb.sheetnames}"
+    raise ValueError(msg)
+
+
+NYSEG_DIVISIONS = [
+    "Auburn",
+    "Binghamton",
+    "Brewster",
+    "Elmira",
+    "Geneva",
+    "Hornell",
+    "Ithaca",
+    "Lancaster",
+    "Liberty",
+    "Lockport",
+    "Mechanicville",
+    "Oneonta",
+    "Plattsburgh",
+]
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="NYSEG MCOS analysis (CRA)")
+    parser = argparse.ArgumentParser(description="NYSEG MCOS analysis")
     parser.add_argument("--path-xlsx", required=True)
     parser.add_argument("--system-peak-mw", type=float, required=True)
     parser.add_argument("--path-output-dir", required=True)
@@ -657,11 +552,8 @@ def main() -> None:
     config = CRAConfig(
         utility="nyseg",
         display_name="NYSEG",
-        divisions=NYSEG_DIVISIONS,
         system_peak_mw=args.system_peak_mw,
-        t4_pattern="T4 Summary",
-        t4b_pattern="T4B",
-        has_division_t5_t6=True,
+        divisions=NYSEG_DIVISIONS,
     )
 
     run_analysis(args.path_xlsx, config, Path(args.path_output_dir))
