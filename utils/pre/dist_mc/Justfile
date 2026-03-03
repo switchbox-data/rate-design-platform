@@ -1,4 +1,4 @@
-# MCOS dilution analysis — NiMo, ConEd, O&R
+# MCOS dilution analysis — NiMo, ConEd, O&R, CenHud
 #
 # Each utility lives in its own subdirectory with analysis script(s),
 # classification data (NiMo), and output CSVs.
@@ -23,6 +23,12 @@ path_or_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/or_study_workpaper.xlsx"
 path_or_output := "or"
 or_peak_mw := "1078.5"  # 2024 coincident forecast, Coincident Forecast sheet row 65
 
+# ── CenHud inputs ───────────────────────────────────────────────────────────
+
+path_cenhud_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/cenhud_study_workpaper.xlsx"
+path_cenhud_output := "cenhud"
+cenhud_peak_mw := "1103.0"        # 2024 actual, MCOS report p. 3
+
 # ── Recipes ──────────────────────────────────────────────────────────────────
 
 analyze-nimo:
@@ -45,9 +51,16 @@ analyze-or:
         --system-peak-mw {{or_peak_mw}} \
         --path-output-dir "{{path_or_output}}"
 
-analyze-all: analyze-nimo analyze-coned analyze-or
+analyze-cenhud:
+    uv run python cenhud/analyze_cenhud_mcos.py \
+        --path-xlsx "{{path_cenhud_xlsx}}" \
+        --system-peak-mw {{cenhud_peak_mw}} \
+        --path-output-dir "{{path_cenhud_output}}"
+
+analyze-all: analyze-nimo analyze-coned analyze-or analyze-cenhud
 
 clean:
     rm -f nimo/nimo_*_levelized.csv nimo/nimo_*_annualized.csv
     rm -f coned/coned_*_levelized.csv coned/coned_*_annualized.csv
     rm -f or/or_*_levelized.csv or/or_*_annualized.csv
+    rm -f cenhud/cenhud_*_levelized.csv cenhud/cenhud_*_annualized.csv

@@ -105,26 +105,26 @@ All studies nominally follow the NERA methodology as required by the Order. In p
 
 - Project-based: identify load-growth and multi-value capital projects in the planning horizon.
 - Convert project cost to $/kW of added capacity, then annualize using an Economic Carrying Charge (ECC/ECCR) that includes return on/of capital, O&M, taxes, and insurance.
-- Most utilities inflate year-by-year costs using the Blue Chip GDP Implicit Price Deflator (~2%/yr). **Exception: CenHud uses flat nominal costs with no inflation escalation.** See "Annualization mechanics" below for verified rates.
+- Most utilities inflate year-by-year costs using the Blue Chip GDP Implicit Price Deflator (~2%/yr). CenHud's workbook is the exception (flat nominal), but our scripts apply a 2.1%/yr escalator for cross-utility consistency — see §7B. See "Annualization mechanics" below for verified rates.
 - Present costs at the substation serving area level, by year, for each cost segment.
 - Include both load-growth and multi-value (growth + reliability) projects.
 
 **Key differences:**
 
-| Dimension                         | ConEd / O&R                                                                                                             | CenHud                                                                                                                                    | NiMo                                                                                                                              | NYSEG / RG&E                                                                                                                                     | PSEG-LI                                                                               |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| **Annualization**                 | Composite factor (ECCR + O&M + working capital + general plant loading, all folded into one multiplier per cost center) | Similar composite; separate ECCR by asset level, with explicit 30% reserve margin applied to $/kW before annualization                    | ECCR per asset type (T-Station 8.21%, T-Line 8.44%, D-Station 8.06%, D-Line 14.13%); no composite factor — just ECCR × capital/MW | ECC formula produces first-year annual revenue requirement constant in real terms over asset life; adds O&M and A&G loading factors separately   | ECCR (TX 4.79%, Dist 5.02%) plus separate loaders (general plant 2.9%, O&M 3.4%/8.9%) |
-| **Escalation**                    | GDP deflator: 2.4% (2026), then 2.1%/yr (2027–2034); compounding escalation applied to all years                        | **None — flat nominal.** Project annual costs are constant every year after in-service. CenHud is the only utility that does not inflate. | GDP deflator 2.1%/yr applied to each project's ECCR cost; F columns = E × 1.021^(year − in_service_year)                          | Annual inflation 2.0%/yr applied cumulatively to prior-year costs                                                                                | Not stated in extractable text                                                        |
-| **Reserve margin**                | Not explicitly stated as a multiplier; embedded in capacity calculations                                                | 30% reserve margin applied to $/kW before annualization                                                                                   | Not explicitly stated; capacity added is project-level                                                                            | Capacity added × 0.9 to reflect 90% utilization planning criteria                                                                                | Not stated                                                                            |
-| **Capital plan horizon**          | 10-year plan for TX and area station; 1–1.5 years for lower-voltage                                                     | 5-year corporate capital forecast; years 6–10 assumed similar proportion of territory with needs as years 1–5                             | 10-year FY2026–FY2036 capital plan; excluded projects < $1M                                                                       | Capital plan through 2031; CAS (Comprehensive Area Studies) extend to 2032–2035; independent N-0 screening adds potential projects for 2033–2035 | 8-year plan FY2025–FY2032                                                             |
-| **Diluted vs undiluted**          | Undiluted only (excludes zero-MC areas from system average)                                                             | Both (Table 1 = undiluted, Table 2 = diluted)                                                                                             | Undiluted only (projects with capital only)                                                                                       | Both (Tables 1–2 = undiluted by division and year; Table 3 = diluted with % of system needing no investment)                                     | Not extractable                                                                       |
-| **Loss adjustment**               | Not explicitly stated for system average                                                                                | Loss factors applied (1.01 TX, 1.02 sub, 1.05 feeder)                                                                                     | Not stated                                                                                                                        | Total MC shown at both primary and secondary voltage (loss-adjusted)                                                                             | Not stated                                                                            |
-| **Time differentiation**          | Not addressed in MCOS filing                                                                                            | Not addressed                                                                                                                             | Not addressed                                                                                                                     | Section 5: probability-of-peak (PoP) analysis by hour, day-type, month; shift from summer to winter peaking by ~2028                             | Not addressed                                                                         |
-| **Local distribution facilities** | Not addressed as a separate cost                                                                                        | Not addressed                                                                                                                             | Not addressed                                                                                                                     | Section 6: per-customer-class $/kW-yr for secondary transformers, secondary lines, local primary taps (residential ~$110/kW-yr)                  | Not addressed                                                                         |
+| Dimension                         | ConEd / O&R                                                                                                             | CenHud                                                                                                                 | NiMo                                                                                                                              | NYSEG / RG&E                                                                                                                                     | PSEG-LI                                                                               |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| **Annualization**                 | Composite factor (ECCR + O&M + working capital + general plant loading, all folded into one multiplier per cost center) | Similar composite; separate ECCR by asset level, with explicit 30% reserve margin applied to $/kW before annualization | ECCR per asset type (T-Station 8.21%, T-Line 8.44%, D-Station 8.06%, D-Line 14.13%); no composite factor — just ECCR × capital/MW | ECC formula produces first-year annual revenue requirement constant in real terms over asset life; adds O&M and A&G loading factors separately   | ECCR (TX 4.79%, Dist 5.02%) plus separate loaders (general plant 2.9%, O&M 3.4%/8.9%) |
+| **Escalation**                    | GDP deflator: 2.4% (2026), then 2.1%/yr (2027–2034); compounding escalation applied to all years                        | **Workbook: none — flat nominal.** Our scripts apply 2.1%/yr GDP deflator for cross-utility consistency (see §7B).     | GDP deflator 2.1%/yr applied to each project's ECCR cost; F columns = E × 1.021^(year − in_service_year)                          | Annual inflation 2.0%/yr applied cumulatively to prior-year costs                                                                                | Not stated in extractable text                                                        |
+| **Reserve margin**                | Not explicitly stated as a multiplier; embedded in capacity calculations                                                | 30% reserve margin applied to $/kW before annualization                                                                | Not explicitly stated; capacity added is project-level                                                                            | Capacity added × 0.9 to reflect 90% utilization planning criteria                                                                                | Not stated                                                                            |
+| **Capital plan horizon**          | 10-year plan for TX and area station; 1–1.5 years for lower-voltage                                                     | 5-year corporate capital forecast; years 6–10 assumed similar proportion of territory with needs as years 1–5          | 10-year FY2026–FY2036 capital plan; excluded projects < $1M                                                                       | Capital plan through 2031; CAS (Comprehensive Area Studies) extend to 2032–2035; independent N-0 screening adds potential projects for 2033–2035 | 8-year plan FY2025–FY2032                                                             |
+| **Diluted vs undiluted**          | Undiluted only (excludes zero-MC areas from system average)                                                             | Both (Table 1 = undiluted, Table 2 = diluted)                                                                          | Undiluted only (projects with capital only)                                                                                       | Both (Tables 1–2 = undiluted by division and year; Table 3 = diluted with % of system needing no investment)                                     | Not extractable                                                                       |
+| **Loss adjustment**               | Not explicitly stated for system average                                                                                | Loss factors applied (1.01 TX, 1.02 sub, 1.05 feeder)                                                                  | Not stated                                                                                                                        | Total MC shown at both primary and secondary voltage (loss-adjusted)                                                                             | Not stated                                                                            |
+| **Time differentiation**          | Not addressed in MCOS filing                                                                                            | Not addressed                                                                                                          | Not addressed                                                                                                                     | Section 5: probability-of-peak (PoP) analysis by hour, day-type, month; shift from summer to winter peaking by ~2028                             | Not addressed                                                                         |
+| **Local distribution facilities** | Not addressed as a separate cost                                                                                        | Not addressed                                                                                                          | Not addressed                                                                                                                     | Section 6: per-customer-class $/kW-yr for secondary transformers, secondary lines, local primary taps (residential ~$110/kW-yr)                  | Not addressed                                                                         |
 
 ### Notable similarities
 
-1. All use an inflation escalation rate near 2%/yr — **except CenHud**, which uses flat nominal costs. ConEd and O&R use the Blue Chip GDP deflator (2.4% for 2026, then 2.1%); NiMo uses 2.1%; NYSEG/RG&E use 2.0%. The differences are small, but CenHud's omission of escalation is a real methodological outlier.
+1. All use an inflation escalation rate near 2%/yr. ConEd and O&R use the Blue Chip GDP deflator (2.4% for 2026, then 2.1%); NiMo uses 2.1%; NYSEG/RG&E use 2.0%. CenHud's workbook is the lone exception (flat nominal), but our scripts apply 2.1%/yr for consistency — see §7B.
 2. All present year-by-year nominal $/kW at the substation level.
 3. All include multi-value (growth + reliability) projects, per the Order.
 4. None produce a single "levelized" system-wide number as the primary output — all emphasize that MC varies by location and year.
@@ -194,13 +194,13 @@ NiMo's and NYSEG/RGE's base ECCR rates look low (7–8%) but they apply fewer lo
 
 **Step 5: Inflation escalation — the key divergence**
 
-| Utility       | Escalates? | Rate                                         | Mechanism                                                                                                                             |
-| ------------- | ---------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| **NiMo**      | Yes        | 2.1%/yr                                      | E column = ECCR cost at in-service year prices. F columns = E × 1.021^(year − in_service_year). Each project's cost grows every year. |
-| **CenHud**    | **No**     | —                                            | Flat nominal. A project's $/kW-yr is identical in every year after in-service. The _only_ utility that does this.                     |
-| **NYSEG/RGE** | Yes        | 2.0%/yr                                      | Cumulative ECC values grow at ×1.02 annually. In years with no new investment, costs still rise by 2%.                                |
-| **ConEd**     | Yes        | GDP deflator: 2.4% (2026), then 2.1% (2027+) | Annual MC = cumulative $/kW × composite rate × compounding escalation factor (1.000, 1.024, 1.0455, 1.0675, ...)                      |
-| **O&R**       | Yes        | Same GDP deflator as ConEd                   | Same mechanism as ConEd.                                                                                                              |
+| Utility       | Escalates?       | Rate                                         | Mechanism                                                                                                                             |
+| ------------- | ---------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **NiMo**      | Yes              | 2.1%/yr                                      | E column = ECCR cost at in-service year prices. F columns = E × 1.021^(year − in_service_year). Each project's cost grows every year. |
+| **CenHud**    | **Workbook: no** | Our scripts: 2.1%/yr (see §7B)               | Workbook is flat nominal. Our scripts apply 2.1%/yr GDP deflator with base year 2026 for cross-utility consistency.                   |
+| **NYSEG/RGE** | Yes              | 2.0%/yr                                      | Cumulative ECC values grow at ×1.02 annually. In years with no new investment, costs still rise by 2%.                                |
+| **ConEd**     | Yes              | GDP deflator: 2.4% (2026), then 2.1% (2027+) | Annual MC = cumulative $/kW × composite rate × compounding escalation factor (1.000, 1.024, 1.0455, 1.0675, ...)                      |
+| **O&R**       | Yes              | Same GDP deflator as ConEd                   | Same mechanism as ConEd.                                                                                                              |
 
 Verification from workbooks:
 
@@ -213,14 +213,14 @@ Verification from workbooks:
 
 All utilities use the same logic: in a given year, only projects in service contribute. The system-wide value is a load-weighted average across locations.
 
-| Utility   | Aggregation unit               | Weighting                                                              |
-| --------- | ------------------------------ | ---------------------------------------------------------------------- |
-| NiMo      | Per-project                    | Sum(F_year × capacity_MW) for active projects ÷ system peak (6,616 MW) |
-| CenHud    | Per-project                    | Project annual $/kW-yr × (project peak / system peak) → sum            |
-| NYSEG/RGE | Per-division (13 NYSEG, 4 RGE) | Division MC × (division peak load share of system) → sum               |
-| ConEd/O&R | Per-area-substation            | Area station MC × (station coincident load / system load) → sum        |
+| Utility   | Aggregation unit               | Weighting                                                                          |
+| --------- | ------------------------------ | ---------------------------------------------------------------------------------- |
+| NiMo      | Per-project                    | Sum(F_year × capacity_MW) for active projects ÷ system peak (6,616 MW)             |
+| CenHud    | Per-project                    | Workbook: cost\_per\_kW × peak\_share → sum. Our scripts: capacity-based (see §7A) |
+| NYSEG/RGE | Per-division (13 NYSEG, 4 RGE) | Division MC × (division peak load share of system) → sum                           |
+| ConEd/O&R | Per-area-substation            | Area station MC × (station coincident load / system load) → sum                    |
 
-These are mathematically equivalent: total annual cost ÷ system peak = load-weighted average of local MCs.
+For NiMo, ConEd/O&R, and our normalized CenHud, these are mathematically equivalent: total annual cost ÷ system peak = capacity-weighted average. CenHud's native workbook formula uses peak-share weighting instead, which produces different values — see §7A for the full comparison and our normalization decision.
 
 **System peak denominator: what each utility divides by**
 
@@ -714,3 +714,95 @@ In principle, for BAT consistency, both should use the incremental perspective. 
 | **System peak denominator** | Fixed (utility-specific year; see Section 1)       | N/A (hourly allocation via PoP)         | Fixed (same as MCOS source)              |
 
 The mismatch is real but bounded. Substation and transmission dominate the MC (typically 70–90% of total); distribution cost centers are a small share. And for cumulative cost centers, the accumulated-then-levelized value is a reasonable proxy for the average marginal cost over the planning horizon — it's the best we can extract from the MCOS workbooks. The important thing is to know what the numbers represent: an average annual infrastructure cost per kW of system peak, not a true marginal cost in the economic sense.
+
+---
+
+## 7. CenHud implementation: normalizing methodology for cross-utility consistency
+
+CenHud's MCOS workbook (DSA, June 2025) departs from the other three utilities we analyze (ConEd, O&R, NiMo) in two ways that affect the computed MC values. Our analysis scripts normalize both for cross-utility consistency. This section documents the discrepancies, what each utility does, and the decisions we made.
+
+### 7A. Diluted formula: peak-share weighting vs. capacity-based
+
+**The discrepancy.** CenHud's workbook computes the system-wide (diluted) MC using a **peak-share weighting** formula that differs from all three other utilities:
+
+```
+CenHud workbook:  MC_diluted(Y) = sum[ cost_per_kW(p) × peak_share(p) ]
+Other utilities:  MC_diluted(Y) = sum[ cost(p) ] / system_peak
+                                = sum[ cost_per_kW(p) × capacity(p) ] / system_peak
+```
+
+where `peak_share(p)` is the project area's peak load divided by the system coincident peak, and `capacity(p)` is the project's incremental capacity in kW.
+
+These are different quantities:
+
+| CenHud project                 | capacity / system\_peak          | peak\_share | Ratio |
+| ------------------------------ | -------------------------------- | ----------- | ----- |
+| Feeder Future Unidentified     | 16,459 / 1,103,000 = **1.49%**   | **24.14%**  | 16×   |
+| WI\_8031 (Feeder)              | 13,000 / 1,103,000 = **1.18%**   | **0.38%**   | 0.3×  |
+| Substation Future Unidentified | 61,850 / 1,103,000 = **5.61%**   | **7.35%**   | 1.3×  |
+| Northwest 115/69 (Local TX)    | 166,500 / 1,103,000 = **15.10%** | **12.25%**  | 0.8×  |
+
+The peak-share approach weights each project by how much of the system's load its service area represents. The capacity-based approach weights by how much new capacity the project adds relative to the system. These answer fundamentally different questions: "how much of the system bears this cost" (peak-share) vs. "how much capacity was added per kW of system load" (capacity-based).
+
+**What each utility does for diluted:**
+
+| Utility             | Diluted formula                      | Weighting                                               |
+| ------------------- | ------------------------------------ | ------------------------------------------------------- |
+| **ConEd**           | `Capital × Rate × Esc / system_peak` | Aggregate cost / system peak (no per-project weighting) |
+| **O&R**             | Same as ConEd                        | Same                                                    |
+| **NiMo**            | `sum(F_Y × capacity) / system_peak`  | Per-project total cost / system peak                    |
+| **CenHud workbook** | `sum(cost_per_kW × peak_share)`      | Per-project cost weighted by area load share            |
+
+ConEd, O&R, and NiMo all compute diluted MC as **total annual cost / system peak**. ConEd and O&R work with aggregated capital at the cost-center level; NiMo sums per-project costs. Both approaches are mathematically equivalent: each project's contribution to the system-level MC is proportional to `capacity(p) / system_peak`.
+
+CenHud's peak-share formula produces different values because `peak_share(p) ≠ capacity(p) / system_peak`. A project serving a large load area (high peak-share) but adding modest capacity (low capacity/peak ratio) will be heavily weighted in CenHud's formula but modestly weighted in the other utilities' approach.
+
+**Decision: use capacity-based for consistency.** We normalize CenHud's diluted formula to:
+
+```
+MC_diluted(Y) = sum[ cost_per_kW(p) × capacity_kW(p) ] / system_peak_kW
+```
+
+This matches the approach used by ConEd, O&R, and NiMo. The undiluted formula was already consistent across all four utilities (capacity-weighted average of per-project costs), so no change was needed there.
+
+**Trade-off.** The capacity-based formula does not match CenHud's workbook Table 2 validation targets, which use the peak-share formula. The workbook's Table 2 values are documented in the CenHud README as a reference, but our output CSVs use the capacity-based formula for cross-utility comparability.
+
+### 7B. Escalation: applying a GDP deflator to CenHud's flat nominal costs
+
+**The discrepancy.** CenHud's workbook provides flat nominal costs — a project's annual $/kW-yr is identical every year after in-service. No GDP deflator, no inflation. CenHud is the only NY utility that does this.
+
+**What each utility does:**
+
+| Utility             | Escalation                  | Rate                    | Mechanism                                                      |
+| ------------------- | --------------------------- | ----------------------- | -------------------------------------------------------------- |
+| **ConEd**           | GDP Implicit Price Deflator | 2.4% yr 1, then 2.1%/yr | Compounding factor from Carrying Charge Loaders row 25         |
+| **O&R**             | GDP Implicit Price Deflator | 2.4% yr 1, then 2.1%/yr | Same as ConEd (Carrying Charge Loaders row 26)                 |
+| **NiMo**            | Blue Chip GDP Deflator      | 2.1%/yr flat            | Baked into F columns: F\_Y = E × 1.021^(Y − in\_service\_year) |
+| **CenHud workbook** | **None**                    | —                       | Flat nominal. cost(2033) = cost(2034) = cost(2035)             |
+
+All three other utilities escalate at approximately 2.1%/yr in steady state. ConEd/O&R have a slightly higher first-year rate (2.4%) due to near-term GDP forecasts, but converge to 2.1%. NiMo uses 2.1% flat.
+
+This has two consequences:
+
+1. **Nominal annualized values are understated in later years.** CenHud's year-10 nominal MC is identical to its year-1 nominal MC (for the same projects). The other utilities' year-10 values are ~21% higher due to cumulative escalation.
+2. **Levelized values are modestly understated.** The levelized MC (mean of real MC across all years) is unaffected by escalation since real MC is in base-year dollars. But the absence of escalation means CenHud's nominal trajectories are flat while the others rise, creating a visual and analytical inconsistency in the annualized CSVs.
+
+**Decision: apply 2.1%/yr GDP deflator with base year 2026.** We treat the workbook's flat costs as base-year (2026) real values and apply:
+
+```
+escalation(Y) = 1.021^(Y − 2026)
+nominal_mc(Y) = real_mc(Y) × escalation(Y)
+```
+
+The 2.1% rate matches NiMo's steady-state rate and ConEd/O&R's rate from year 2 onward. We chose 2.1% flat (rather than ConEd/O&R's 2.4%/2.1% schedule) because: (a) CenHud's study period starts in 2026, not 2025, so there's no "first year" in the ConEd/O&R sense; and (b) 2.1% is the consensus long-run GDP deflator across all three other utilities.
+
+The `real_mc` column preserves the workbook's original flat values. The `nominal_mc` column includes the applied escalation. The **levelized MC** (mean of `real_mc`) is unaffected — it reflects the workbook's actual cost levels.
+
+### 7C. Summary of changes and their effect
+
+| Change                                  | Affects                                                 | Effect on levelized MC                             | Effect on annualized CSVs                   |
+| --------------------------------------- | ------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------- |
+| Diluted formula: peak-share → capacity  | Diluted variants only (both cumulative and incremental) | Changes diluted levelized values                   | Changes diluted nominal and real columns    |
+| Escalation: flat → 2.1%/yr GDP deflator | All variants (both diluted and undiluted)               | None (levelized uses real\_mc, which is unchanged) | Nominal columns now escalate year over year |
+
+The undiluted formula was already consistent across all utilities (capacity-weighted average). The escalation change only affects nominal values; real values and the levelized MC are unchanged.

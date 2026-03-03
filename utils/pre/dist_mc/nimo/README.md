@@ -15,20 +15,96 @@ NiMo (National Grid Upstate) required the most work of any utility. The workbook
 | NiMo MCOS workbook        | `s3://data.sb/ny_psc/mcos_studies_2025/nimo_study_workpaper.xlsx` | Sheet 1 (Exhibit 1): one row per project with station name, MW, and capital by cost centre. Sheet 11 (FinalData): sub-project–level detail with descriptive names and InvestType. |
 | NYISO Gold Book Table VII | `context/papers/nyiso_gold_book_2025.md` (extracted from PDF)     | Every proposed transmission project in New York, with station names, voltages, and descriptions.                                                                                  |
 
+## Workbook layout (Exhibit 1, Sheet 1)
+
+The MCOS workbook has a single data sheet (Sheet 1, "Exhibit 1") with this structure:
+
+| Rows    | Content                                                |
+| ------- | ------------------------------------------------------ |
+| 1–4     | Title and header (row 5 in Excel = row 4 zero-indexed) |
+| 5       | Column codes (`(A)`, `(B)`, `(C26)`, `(F26)`, etc.)    |
+| 6       | Blank separator                                        |
+| 7+      | One row per project (data starts at row 8 in Excel)    |
+| 245     | Summary / total row (line 245, capacity = 11,532.5 MW) |
+| 246–263 | Additional rows (empty or subtotals)                   |
+
+The script reads 237 valid project rows (non-null line number and station name, excluding "xxx" placeholders).
+
+## Workbook cell references
+
+### Column map
+
+All references are to Exhibit 1 (Sheet 1). Column letters are 1-indexed (Excel convention); the script uses 0-indexed integers internally.
+
+| Excel col | 0-idx | Code    | Header                        | Content                                       |
+| --------- | ----: | ------- | ----------------------------- | --------------------------------------------- |
+| A         |     0 | —       | Line                          | Row number (1–245)                            |
+| B         |     1 | (A)     | Reference                     | FN reference (e.g. `FN010097`)                |
+| C         |     2 | (A1)    | Station                       | Station name or `Transm Net`                  |
+| D         |     3 | (B)     | Capacity Added MW             | Project capacity in MW                        |
+| E–P       |  4–15 | (C26X)… | FY26X–FY36 Capex              | Yearly capital expenditures ($000s)           |
+| Q         |    16 | (C-Sum) | Sum                           | Total capital spending ($000s)                |
+| S–V       | 18–21 | (C-TS)… | T\_Sta/T\_Line/D\_Sta/D\_Line | Capital by cost centre ($000s)                |
+| W         |    22 | (C)     | Sum                           | Capital cost centre total ($000s)             |
+| Y–AB      | 24–27 | (D-TS)… | T\_Sta/T\_Line/D\_Sta/D\_Line | D columns (cost per MW $000s/MW)              |
+| AC        |    28 | (D)     | Sum                           | D total (cost per MW $000s/MW)                |
+| AD        |    29 | (F)     | In-Service Year               | Fiscal year project enters service            |
+| AE–AH     | 30–33 | (E-TS)… | T\_Sta/T\_Line/D\_Sta/D\_Line | ECCR per MW by cost centre ($000s/MW)         |
+| AI        |    34 | (E)     | Sum                           | ECCR total per MW ($000s/MW)                  |
+| AK        |    36 | (F)     | In-Service Year               | (duplicate column)                            |
+| AL        |    37 | (F-1)   | Rationale                     | Project rationale text                        |
+| AN        |    39 | (F26)   | 2026                          | Annual MC per MW in FY2026 dollars ($000s/MW) |
+| AO        |    40 | (F27)   | 2027                          | Annual MC per MW in FY2027 dollars ($000s/MW) |
+| …         |     … | …       | …                             | …                                             |
+| AX        |    49 | (F36)   | 2036                          | Annual MC per MW in FY2036 dollars ($000s/MW) |
+
+### Key columns used by the script
+
+The script reads four things per project:
+
+1. **Capacity** (col D, idx 3): MW of new capacity added
+2. **In-service year** (col AD, idx 29): fiscal year project enters service
+3. **F26** (col AN, idx 39): base-year (FY2026) annual cost per MW ($000s/MW)
+4. **F\_Y** (cols AN–AX, idx 39–49): nominal annual cost per MW in each fiscal year
+
+The classification (bulk\_tx / sub\_tx / distribution) comes from the external CSV, not the workbook.
+
+### ECCR vs. F-value relationship
+
+The E column (AI, idx 34) contains the ECCR annualized cost per MW at the project's **in-service year** prices. The F columns adjust this to each year's price level using the 2.1%/yr Blue Chip GDP deflator:
+
+```
+F_Y(p) = E(p) × (1.021)^(Y − in_service_year)
+F26(p) = E(p) × (1.021)^(2026 − in_service_year)
+```
+
+For example, Sawyer Ave (in-service 2029): E = $39.44, F26 = $39.44 × (1.021)^(−3) = $37.05.
+
+The F columns always contain values regardless of in-service year. The script uses the in-service year filter to determine which projects contribute in a given year — F values for non-in-service projects are ignored.
+
+### System peak
+
+6,616 MW — NiMo's 2024 actual system peak from the NiMo Peak Load Forecast (March 2025). Passed as a CLI argument (`--system-peak-mw 6616`), not read from the workbook.
+
+### Undiluted MC validation target
+
+Line 245 (summary row), col AN (F26) = **$71.524/kW-yr** — this is the MCOS headline undiluted MC. It represents the capacity-weighted average F26 across all 237 projects: `sum(F26(p) × cap(p)) / sum(cap(p))`. The script receives this via `--undiluted-mc-per-kw 71.524` and can cross-check against the computed cumulative undiluted total.
+
 ## MC formula and variants
 
-NiMo's workbook differs from ConEd/O&R: instead of a composite rate × escalation formula, each project has pre-computed **ECCR** (Economic Carrying Charge Rate) values:
+NiMo's workbook differs from ConEd/O&R: instead of a composite rate × escalation formula, each project has pre-computed **ECCR** values with year-by-year F columns:
 
-- **F26(p)**: base-year (FY2026) annual cost/MW ($000s/MW)
-- **F\_Y(p)**: nominal annual cost/MW in year Y ($000s/MW), escalating at 2.1%/yr (Blue Chip GDP deflator)
+- **F26(p)**: base-year (FY2026) annual cost/MW ($000s/MW), col AN
+- **F\_Y(p)**: nominal annual cost/MW in year Y ($000s/MW), cols AN–AX
 
 The MC for a set of projects in year Y is:
 
 ```
-MC(Y) = sum(F × capacity) / Denominator   [$/kW-yr]
+Real MC(Y)    = sum[ F26(p) × capacity(p) ] / Denominator   [$/kW-yr]
+Nominal MC(Y) = sum[ F_Y(p) × capacity(p) ] / Denominator   [$/kW-yr]
 ```
 
-where F = F26 for real (base-year) values, F\_Y for nominal. The scope of projects and denominator depend on the variant:
+The scope of projects and denominator depend on the variant:
 
 | Variant               | Projects in scope               | Denominator            | Perspective                        |
 | --------------------- | ------------------------------- | ---------------------- | ---------------------------------- |
@@ -37,9 +113,62 @@ where F = F26 for real (base-year) values, F\_Y for nominal. The scope of projec
 | Cumulative undiluted  | All with in\_service\_year ≤ Y  | Cumulative project MW  | Per-project cost recovery          |
 | Incremental undiluted | Only with in\_service\_year = Y | New capacity in year Y | Per-project marginal cost          |
 
-Levelized = mean(real MC) across all fiscal years, consistent with ConEd/O&R.
+Levelized = mean(real MC) across all 11 fiscal years, consistent with ConEd/O&R.
 
 Unlike ConEd/O&R, NiMo has per-project in-service years, so incremental values are computed directly (filter to projects entering in year Y) rather than differencing cumulative totals.
+
+### Escalation
+
+NiMo uses the Blue Chip GDP Implicit Price Deflator at **2.1%/yr**. This is already baked into the F columns — F27 = F26 × 1.021, F28 = F26 × 1.021², etc. The script does not apply escalation separately; it reads the pre-computed F\_Y values directly from the workbook.
+
+Verification from the summary row (line 245): F27/F26 = 73.026/71.524 = 1.02100 ✓
+
+## Worked examples
+
+### Example 1: Sawyer Ave contribution to incremental diluted distribution MC, FY2029
+
+Sawyer Ave (line 3, FN010097) is a distribution substation project:
+
+- Station: Sawyer Ave (distribution, ≤13.2 kV)
+- Capacity: 12 MW (col D)
+- In-service: FY2029 (col AD)
+- F26: $37.054/MW ($000s/MW, col AN)
+- F2029: F26 × (1.021)³ = $37.054 × 1.0642 = $39.42/MW (col AQ)
+
+Sawyer Ave's contribution to the **incremental diluted distribution** MC in FY2029:
+
+```
+Real contribution     = F26 × capacity / system_peak
+                      = 37.054 × 12 / 6616  = 0.0672 $/kW-yr
+
+Nominal contribution  = F2029 × capacity / system_peak
+                      = 39.42 × 12 / 6616   = 0.0715 $/kW-yr
+```
+
+This is one of many projects entering in FY2029 — the total incremental diluted distribution MC for FY2029 is $1.26/kW-yr (real), reflecting all projects with in-service = 2029.
+
+### Example 2: Undiluted MC headline validation
+
+The workbook's summary row (line 245) reports an undiluted MC of $71.524/kW-yr. This is the capacity-weighted average F26 across all 237 projects:
+
+```
+Undiluted MC = sum[ F26(p) × cap(p) ] / sum[ cap(p) ]
+             = sum across 237 projects / 11,532.5 MW
+             = $71.524/kW-yr
+```
+
+Our script's cumulative undiluted total for FY2026 should match, since all projects with in-service ≤ 2026 are a subset. The full cumulative undiluted total (with all projects in-service by FY2036) should also approach this value, as later fiscal years include more projects.
+
+### Example 3: FY2036 spike in incremental diluted
+
+FY2036 shows a dramatic spike ($60.45/kW-yr real for sub\_tx\_plus\_dist) because it's the final study year and many large projects have in-service = 2036:
+
+- FN008276 (Transm Net): 1,650 MW, F26 = $131.64/MW — Smart Path Connect (bulk TX)
+- FN013571 (Transm Net): 1,100 MW, F26 = $8.85/MW — Niagara-Dysinger (bulk TX)
+- FN013182 (Transm Net): 844 MW, F26 = $9.27/MW
+- Plus 15+ additional projects totaling ~2,700 MW
+
+This is an artifact of the study horizon — projects without firm schedules are assigned to the last year. The levelized value (averaging across all 11 years) smooths this out.
 
 ## Outputs
 
