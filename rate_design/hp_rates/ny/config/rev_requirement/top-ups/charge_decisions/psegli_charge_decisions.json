@@ -2,157 +2,190 @@
   "20850767": {
     "master_charge": "Customer Charge",
     "master_type": "Base delivery",
-    "decision": "already_in_drr"
+    "decision": "add_to_drr",
+    "charge_unit": "$/day",
+    "rate_name": "Service Charge"
   },
   "20850768": {
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery",
-    "decision": "already_in_drr"
+    "decision": "add_to_drr",
+    "rate_name": "Energy Charge - Summer Peak",
+    "charge_unit": "$/kWh"
   },
   "20850769": {
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery",
-    "decision": "already_in_drr"
+    "decision": "add_to_drr",
+    "rate_name": "Energy Charge - Summer Off-Peak",
+    "charge_unit": "$/kWh"
   },
   "20850770": {
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery",
-    "decision": "already_in_drr"
+    "decision": "add_to_drr",
+    "rate_name": "Energy Charge - Winter Peak",
+    "charge_unit": "$/kWh"
   },
   "20850771": {
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery",
-    "decision": "already_in_drr"
+    "decision": "add_to_drr",
+    "rate_name": "Energy Charge - Winter Off-Peak",
+    "charge_unit": "$/kWh"
   },
   "20850772": {
     "master_charge": "Shoreham Property Tax Settlement",
     "master_type": "Sunk-cost recovery",
     "decision": "add_to_drr",
-    "variableRateKey": "shorehamPropertyTaxSettlementFactorSuffolkCounty"
+    "variableRateKey": "shorehamPropertyTaxSettlementFactorSuffolkCounty",
+    "charge_unit": "%"
   },
   "20850773": {
     "master_charge": "Shoreham Property Tax Settlement",
     "master_type": "Sunk-cost recovery",
     "decision": "add_to_drr",
-    "rate_name": "Shoreham Property Tax (SPT) Settlement Factors"
+    "rate_name": "Shoreham Property Tax (SPT) Settlement Factors",
+    "charge_unit": "%"
   },
   "20850774": {
     "master_charge": "VDER / DER Cost Recovery",
     "master_type": "DER credit recovery",
     "decision": "add_to_drr",
-    "variableRateKey": "distributedEnergyResourcesCostRecoveryRateSmall"
+    "variableRateKey": "distributedEnergyResourcesCostRecoveryRateSmall",
+    "charge_unit": "$/kWh"
   },
   "20850775": {
     "master_charge": "NY State Surcharge (\u00a718-a)",
     "master_type": "Program surcharge",
     "decision": "add_to_drr",
-    "variableRateKey": "newYorkStateAssessment"
+    "variableRateKey": "newYorkStateAssessment",
+    "charge_unit": "%"
   },
   "20850776": {
     "master_charge": "Revenue Decoupling (RDM)",
     "master_type": "Revenue true-up",
     "decision": "exclude",
-    "variableRateKey": "revenueDecouplingMechanismResidential200"
+    "variableRateKey": "revenueDecouplingMechanismResidential200",
+    "charge_unit": "$/kWh"
   },
   "20850777": {
     "master_charge": "Securitization Charge / Offset (UDSA)",
     "master_type": "Sunk-cost recovery",
     "decision": "add_to_srr",
-    "variableRateKey": "securitizationOffsetCharge"
+    "variableRateKey": "securitizationOffsetCharge",
+    "charge_unit": "$/kWh"
   },
   "20850778": {
     "master_charge": "Securitization Charge / Offset (UDSA)",
     "master_type": "Sunk-cost recovery",
     "decision": "add_to_srr",
-    "variableRateKey": "securitizationCharge200"
+    "variableRateKey": "securitizationCharge200",
+    "charge_unit": "$/kWh"
   },
   "20850779": {
     "master_charge": "Delivery cost true-up (MAC / RAM / DSA)",
     "master_type": "Cost recon",
     "decision": "exclude",
-    "variableRateKey": "deliveryServiceAdjustment200"
+    "variableRateKey": "deliveryServiceAdjustment200",
+    "charge_unit": "$/kWh"
   },
   "20850780": {
     "master_charge": "Minimum Charge",
     "master_type": "Base delivery",
-    "decision": "already_in_drr"
+    "decision": "already_in_drr",
+    "charge_unit": "$/month"
   },
   "17165508": {
     "master_charge": "PILOTs (Cities/Villages)",
     "master_type": "Tax pass-through",
     "decision": "exclude",
-    "rider_id": 764
+    "rider_id": 764,
+    "charge_unit": "$/kWh"
   },
   "17165509": {
     "master_charge": "PILOTs (Cities/Villages)",
     "master_type": "Tax pass-through",
     "decision": "exclude",
-    "rider_id": 764
+    "rider_id": 764,
+    "charge_unit": "$/kWh"
   },
   "20837514": {
     "master_charge": "CBC (solar only)",
     "master_type": "Eligibility",
-    "decision": "skip"
+    "decision": "skip",
+    "charge_unit": "$/kWh"
   },
   "20851245": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr"
+    "decision": "add_to_srr",
+    "charge_unit": "$/kWh"
   },
   "20912744": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr"
+    "decision": "add_to_srr",
+    "charge_unit": "$/kWh"
   },
   "20912745": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr"
+    "decision": "add_to_srr",
+    "charge_unit": "$/kWh"
   },
   "20912746": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr"
+    "decision": "add_to_srr",
+    "charge_unit": "$/kWh"
   },
   "20912747": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr"
+    "decision": "add_to_srr",
+    "charge_unit": "$/kWh"
   },
   "20437624": {
     "master_charge": "CBC (solar only)",
     "master_type": "Eligibility / optional",
     "decision": "skip",
-    "rider_id": 3399169
+    "rider_id": 3399169,
+    "charge_unit": "$/kWh"
   },
   "20416295": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
     "decision": "add_to_srr",
-    "rider_id": 3426799
+    "rider_id": 3426799,
+    "charge_unit": "$/kWh"
   },
   "20436694": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
     "decision": "add_to_srr",
-    "rider_id": 3440884
+    "rider_id": 3440884,
+    "charge_unit": "$/kWh"
   },
   "20436695": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
     "decision": "add_to_srr",
-    "rider_id": 3440884
+    "rider_id": 3440884,
+    "charge_unit": "$/kWh"
   },
   "20436696": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
     "decision": "add_to_srr",
-    "rider_id": 3440884
+    "rider_id": 3440884,
+    "charge_unit": "$/kWh"
   },
   "20436697": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
     "decision": "add_to_srr",
-    "rider_id": 3440884
+    "rider_id": 3440884,
+    "charge_unit": "$/kWh"
   }
 }

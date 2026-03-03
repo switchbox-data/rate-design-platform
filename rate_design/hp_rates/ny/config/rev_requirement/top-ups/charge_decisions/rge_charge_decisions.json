@@ -2,146 +2,174 @@
   "20671618": {
     "master_charge": "Customer Charge",
     "master_type": "Base delivery",
-    "decision": "already_in_drr"
+    "decision": "already_in_drr",
+    "charge_unit": "$/month",
+    "rate_name": "Customer Charge"
   },
   "20671619": {
     "master_charge": "Billing & Payment Processing",
     "master_type": "Base delivery",
-    "decision": "already_in_drr"
+    "decision": "already_in_drr",
+    "charge_unit": "$/month",
+    "rate_name": "Bill Issuance Charge"
   },
   "20671620": {
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery",
-    "decision": "already_in_drr"
+    "decision": "already_in_drr",
+    "charge_unit": "$/kWh"
   },
   "20671621": {
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery",
-    "decision": "already_in_drr"
+    "decision": "already_in_drr",
+    "charge_unit": "$/kWh"
   },
   "20671622": {
     "master_charge": "System Benefits Charge",
     "master_type": "Program surcharge",
     "decision": "add_to_drr",
-    "variableRateKey": "SystemBenefitsChargeEnergyEfficiencyLse1007"
+    "variableRateKey": "SystemBenefitsChargeEnergyEfficiencyLse1007",
+    "charge_unit": "$/kWh"
   },
   "20671623": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
     "decision": "add_to_srr",
-    "variableRateKey": "merchantFunctionChargeSmallCustomer"
+    "variableRateKey": "merchantFunctionChargeSmallCustomer",
+    "charge_unit": "$/kWh"
   },
   "20671624": {
     "master_charge": "Transition / Restructuring",
     "master_type": "Cost recon",
     "decision": "exclude",
-    "variableRateKey": "TcfTcvTransitionChargeSc1Sc4iSc4ii"
+    "variableRateKey": "TcfTcvTransitionChargeSc1Sc4iSc4ii",
+    "charge_unit": "$/kWh"
   },
   "20671625": {
     "master_charge": "System Benefits Charge",
     "master_type": "Program surcharge",
     "decision": "add_to_drr",
-    "variableRateKey": "systemBenefitsChargeCleanEnergyFund"
+    "variableRateKey": "systemBenefitsChargeCleanEnergyFund",
+    "charge_unit": "$/kWh"
   },
   "20671626": {
     "master_charge": "Revenue Decoupling (RDM)",
     "master_type": "Revenue true-up",
     "decision": "exclude",
-    "variableRateKey": "RevenueDecouplingMechanismSc1ResLse1007"
+    "variableRateKey": "RevenueDecouplingMechanismSc1ResLse1007",
+    "charge_unit": "$/kWh"
   },
   "20671627": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
     "decision": "add_to_srr",
-    "variableRateKey": "SupplySc1Residential"
+    "variableRateKey": "SupplySc1Residential",
+    "charge_unit": "$/kWh"
   },
   "20671628": {
     "master_charge": "Minimum Charge",
     "master_type": "Base delivery",
-    "decision": "already_in_drr"
+    "decision": "already_in_drr",
+    "charge_unit": "$/month"
   },
   "17894024": {
     "master_charge": "RAD (agricultural)",
     "master_type": "Eligibility",
     "decision": "skip",
-    "variableRateKey": "residentialAgriculturalDiscount1007"
+    "variableRateKey": "residentialAgriculturalDiscount1007",
+    "charge_unit": "$/kWh"
   },
   "20672932": {
     "master_charge": "CES Supply Surcharge",
     "master_type": "CES supply",
-    "decision": "add_to_srr"
+    "decision": "add_to_srr",
+    "charge_unit": "$/kWh"
   },
   "20672933": {
     "master_charge": "CES Supply Surcharge",
     "master_type": "CES supply",
-    "decision": "add_to_srr"
+    "decision": "add_to_srr",
+    "charge_unit": "$/kWh"
   },
   "20672030": {
     "master_charge": "Delivery cost true-up (MAC / RAM / DSA)",
     "master_type": "Cost recon",
-    "decision": "exclude"
+    "decision": "exclude",
+    "charge_unit": "$/kWh"
   },
   "20799255": {
     "master_charge": "Earnings Adjustment Mechanism",
     "master_type": "Performance incentive",
-    "decision": "exclude"
+    "decision": "exclude",
+    "charge_unit": "$/kWh"
   },
   "20672934": {
     "master_charge": "DLM Surcharge",
     "master_type": "Program surcharge",
     "decision": "add_to_drr",
-    "rate_name": "Dynamic Load Management"
+    "rate_name": "Dynamic Load Management",
+    "charge_unit": "$/kWh"
   },
   "20812636": {
     "master_charge": "Low-income discounts",
     "master_type": "Eligibility",
-    "decision": "skip"
+    "decision": "skip",
+    "charge_unit": "$/kWh"
   },
   "20889093": {
     "master_charge": "CBC (solar only)",
     "master_type": "Eligibility",
-    "decision": "skip"
+    "decision": "skip",
+    "charge_unit": "$/kWh"
   },
   "20161946": {
     "master_charge": "CES Supply Surcharge (superseded rider)",
     "master_type": "CES supply",
     "decision": "skip",
-    "rider_id": 3288900
+    "rider_id": 3288900,
+    "charge_unit": "$/kWh"
   },
   "20161947": {
     "master_charge": "CES Supply Surcharge (superseded rider)",
     "master_type": "CES supply",
     "decision": "skip",
-    "rider_id": 3288900
+    "rider_id": 3288900,
+    "charge_unit": "$/kWh"
   },
   "20236777": {
     "master_charge": "Delivery cost true-up (MAC / RAM / DSA)",
     "master_type": "Cost reconciliation",
     "decision": "exclude",
-    "rider_id": 3398089
+    "rider_id": 3398089,
+    "charge_unit": "$/kWh"
   },
   "20360161": {
     "master_charge": "Earnings Adjustment Mechanism",
     "master_type": "Performance incentive",
     "decision": "exclude",
-    "rider_id": 3398119
+    "rider_id": 3398119,
+    "charge_unit": "$/kWh"
   },
   "20162176": {
     "master_charge": "DLM Surcharge",
     "master_type": "Program surcharge",
     "decision": "add_to_drr",
-    "rider_id": 3398067
+    "rider_id": 3398067,
+    "charge_unit": "$/kWh"
   },
   "20387307": {
     "master_charge": "Low-income discounts",
     "master_type": "Eligibility / optional",
     "decision": "skip",
-    "rider_id": 3398130
+    "rider_id": 3398130,
+    "charge_unit": "$/kWh"
   },
   "20416299": {
     "master_charge": "CBC (solar only)",
     "master_type": "Eligibility / optional",
     "decision": "skip",
-    "rider_id": 3399326
+    "rider_id": 3399326,
+    "charge_unit": "$/kWh"
   }
 }

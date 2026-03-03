@@ -1,28 +1,54 @@
 utility: psegli
-delivery_revenue_requirement_from_rate_case: 999999999.0
-delivery_revenue_requirement_topups: 50704848.62
+delivery_revenue_requirement_from_rate_case: 0.0
+delivery_revenue_requirement_topups: 5618161454.82
 supply_revenue_requirement_topups: 6289282316.65
-total_delivery_revenue_requirement: 1050704847.62
-total_delivery_and_supply_revenue_requirement: 7339987164.27
+total_delivery_revenue_requirement: 5618161454.82
+total_delivery_and_supply_revenue_requirement: 11907443771.47
 total_residential_kwh: 9129428992.0
 eia_year: 2024
 delivery_top_ups:
+  customer_charge:
+    charge_unit: $/day
+    customer_count: 1029955
+    total_budget: 203004130.5
+  core_delivery_rate_1:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.2127
+    total_budget: 1941829546.6
+  core_delivery_rate_2:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.1049
+    total_budget: 957677101.26
+  core_delivery_rate_3:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.1809
+    total_budget: 1651513704.65
+  core_delivery_rate_4:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.0891
+    total_budget: 813432123.19
   vder_der_cost_recovery:
+    charge_unit: $/kWh
     avg_monthly_rate: 0.005554
     total_budget: 50704848.62
 supply_top_ups:
   securitization_charge_offset_udsa_1:
+    charge_unit: $/kWh
     avg_monthly_rate: -0.0205745973
     total_budget: -187834324.75
   securitization_charge_offset_udsa_2:
+    charge_unit: $/kWh
     avg_monthly_rate: 0.0205745973
     total_budget: 187834324.75
   merchant_function_charge:
+    charge_unit: $/kWh
     avg_monthly_rate: 0.001885
     total_budget: 17208973.65
   supply_commodity_bundled_1:
+    charge_unit: $/kWh
     avg_monthly_rate: 0.6782725836
     total_budget: 6192241388.85
   supply_commodity_bundled_2:
+    charge_unit: $/kWh
     avg_monthly_rate: 0.008744463
     total_budget: 79831954.16

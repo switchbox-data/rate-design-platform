@@ -3,6 +3,42 @@ master_tariff_id: 809
 start_month: 2025-01
 end_month: 2025-12
 charges:
+  customer_charge:
+    tariff_rate_id: 20918155
+    master_charge: Customer Charge
+    decision: already_in_drr
+    monthly_rates:
+      2025-01: 20.0
+      2025-02: 20.0
+      2025-03: 20.0
+      2025-04: 20.0
+      2025-05: 20.0
+      2025-06: 20.0
+      2025-07: 20.0
+      2025-08: 20.0
+      2025-09: 20.0
+      2025-10: 20.0
+      2025-11: 20.0
+      2025-12: 20.0
+    charge_unit: $/month
+  billing_payment_processing:
+    tariff_rate_id: 20918156
+    master_charge: Billing & Payment Processing
+    decision: already_in_drr
+    monthly_rates:
+      2025-01: 1.28
+      2025-02: 1.28
+      2025-03: 1.28
+      2025-04: 1.28
+      2025-05: 1.28
+      2025-06: 1.28
+      2025-07: 1.28
+      2025-08: 1.28
+      2025-09: 1.28
+      2025-10: 1.28
+      2025-11: 1.28
+      2025-12: 1.28
+    charge_unit: $/month
   delivery_revenue_surcharge_electric_bill_credit:
     tariff_rate_id: 20918157
     master_charge: Delivery Revenue Surcharge / Electric Bill Credit
@@ -20,6 +56,7 @@ charges:
       2025-10: 0.0
       2025-11: 0.0
       2025-12: 0.0
+    charge_unit: $/kWh
   mac_sub_components_1:
     tariff_rate_id: 20918158
     master_charge: MAC sub-components
@@ -37,6 +74,7 @@ charges:
       2025-10: 0.0008408065
       2025-11: 0.0002908
       2025-12: -0.0007521935
+    charge_unit: $/kWh
   transition_restructuring:
     tariff_rate_id: 20918159
     master_charge: Transition / Restructuring
@@ -54,6 +92,7 @@ charges:
       2025-10: 6.0e-06
       2025-11: 6.0e-06
       2025-12: 6.0e-06
+    charge_unit: $/kWh
   mac_sub_components_2:
     tariff_rate_id: 20918160
     master_charge: MAC sub-components
@@ -71,6 +110,7 @@ charges:
       2025-10: 3.4e-05
       2025-11: 2.13e-05
       2025-12: 4.27097e-05
+    charge_unit: $/kWh
   delivery_cost_true_up_mac_ram_dsa:
     tariff_rate_id: 20918161
     master_charge: Delivery cost true-up (MAC / RAM / DSA)
@@ -88,6 +128,7 @@ charges:
       2025-10: 0.00612
       2025-11: 0.01044
       2025-12: 0.00572
+    charge_unit: $/kWh
   revenue_decoupling_rdm:
     tariff_rate_id: 20918162
     master_charge: Revenue Decoupling (RDM)
@@ -105,6 +146,7 @@ charges:
       2025-10: 0.00141
       2025-11: 0.00141
       2025-12: 0.00141
+    charge_unit: $/kWh
   ces_delivery:
     tariff_rate_id: 20918163
     master_charge: CES Delivery
@@ -122,6 +164,7 @@ charges:
       2025-10: 0.000289
       2025-11: 0.000289
       2025-12: 0.000289
+    charge_unit: $/kWh
   merchant_function_charge:
     tariff_rate_id: 20918170
     master_charge: Merchant Function Charge
@@ -139,6 +182,7 @@ charges:
       2025-10: 0.005414
       2025-11: 0.004262
       2025-12: 0.003697
+    charge_unit: $/kWh
   supply_commodity_bundled_1:
     tariff_rate_id: 20918171
     master_charge: Supply commodity (bundled)
@@ -156,6 +200,7 @@ charges:
       2025-10: 0.0870249032
       2025-11: 0.0883439333
       2025-12: 0.1091385484
+    charge_unit: $/kWh
   supply_commodity_bundled_2:
     tariff_rate_id: 20918172
     master_charge: Supply commodity (bundled)
@@ -173,6 +218,7 @@ charges:
       2025-10: 0.0912136129
       2025-11: 0.0909223333
       2025-12: 0.1039660645
+    charge_unit: $/kWh
   supply_commodity_bundled_3:
     tariff_rate_id: 20918173
     master_charge: Supply commodity (bundled)
@@ -190,6 +236,7 @@ charges:
       2025-10: 0.1088729032
       2025-11: 0.1015986
       2025-12: 0.1243145484
+    charge_unit: $/kWh
   supply_cost_true_up_1:
     tariff_rate_id: 20918175
     master_charge: Supply cost true-up
@@ -207,6 +254,7 @@ charges:
       2025-10: 0.0166030645
       2025-11: 0.0162370333
       2025-12: 0.0130919677
+    charge_unit: $/kWh
   supply_cost_true_up_2:
     tariff_rate_id: 20918176
     master_charge: Supply cost true-up
@@ -224,6 +272,7 @@ charges:
       2025-10: -0.0020250645
       2025-11: 0.0032967667
       2025-12: 0.0049242581
+    charge_unit: $/kWh
   supply_cost_true_up_3:
     tariff_rate_id: 20918177
     master_charge: Supply cost true-up
@@ -241,6 +290,7 @@ charges:
       2025-10: 0.0037105484
       2025-11: 0.0063556333
       2025-12: 0.0031225484
+    charge_unit: $/kWh
   ces_supply_surcharge:
     tariff_rate_id: 20918178
     master_charge: CES Supply Surcharge
@@ -258,6 +308,7 @@ charges:
       2025-10: 0.00302
       2025-11: 0.00302
       2025-12: 0.00302
+    charge_unit: $/kWh
   system_benefits_charge:
     tariff_rate_id: 20918179
     master_charge: System Benefits Charge
@@ -275,6 +326,7 @@ charges:
       2025-10: 0.0047
       2025-11: 0.0047
       2025-12: 0.0047
+    charge_unit: $/kWh
   dlm_surcharge:
     tariff_rate_id: 18336601
     master_charge: DLM Surcharge
@@ -292,6 +344,7 @@ charges:
       2025-10: 0.0018
       2025-11: 0.0018
       2025-12: 0.0018
+    charge_unit: $/kWh
   arrears_covid_forgiveness:
     tariff_rate_id: 20206987
     master_charge: Arrears / COVID forgiveness
@@ -309,6 +362,7 @@ charges:
       2025-10: 0.0012
       2025-11: 0.0012
       2025-12: 0.0012
+    charge_unit: $/kWh
   vder_der_cost_recovery:
     tariff_rate_id: 20721406
     master_charge: VDER / DER Cost Recovery
@@ -326,6 +380,7 @@ charges:
       2025-10: 0.0011
       2025-11: 0.0011
       2025-12: 0.0011
+    charge_unit: $/kWh
   ev_make_ready:
     tariff_rate_id: 20041688
     master_charge: EV Make Ready
@@ -343,3 +398,4 @@ charges:
       2025-10: 0.0008
       2025-11: 0.0008
       2025-12: 0.0008
+    charge_unit: $/kWh

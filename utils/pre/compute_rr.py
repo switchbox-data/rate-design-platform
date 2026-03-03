@@ -6,6 +6,10 @@ existing rate-case delivery revenue requirement; filters charges by decision (ad
 add_to_srr); computes day-weighted avg_monthly_rate per charge and total_budget =
 avg_monthly_rate * total_residential_kwh; writes the new schema with delivery and
 supply top-ups and derived totals.
+
+Every charge carries a ``charge_unit``: ``$/kWh`` (volumetric, multiplied by total
+residential kWh), ``$/day`` or ``$/month`` (fixed per-customer, multiplied by EIA-861
+customer count), or ``%`` (percentage-of-bill; skipped here, handled elsewhere).
 """
 
 from __future__ import annotations
@@ -19,7 +23,10 @@ import logging
 
 import yaml
 
-from utils.scenario_config import get_residential_sales_kwh_from_utility_stats
+from utils.scenario_config import (
+    get_residential_customer_count_from_utility_stats,
+    get_residential_sales_kwh_from_utility_stats,
+)
 
 
 def _parse_month(month_key: str) -> tuple[int, int]:
@@ -58,6 +65,69 @@ def _day_weighted_avg_rate(
         weighted_sum += rate * days
         total_days += days
     return weighted_sum / total_days if total_days else 0.0
+
+
+def _fixed_charge_annual_budget(
+    monthly_rates: dict[str, float],
+    month_list: list[tuple[int, int]],
+    charge_unit: str,
+    customer_count: int,
+) -> float:
+    """Compute annual revenue from a fixed per-customer charge.
+
+    For $/day charges, each month contributes rate * days_in_month * customer_count.
+    For $/month charges, each month contributes rate * customer_count.
+    """
+    total = 0.0
+    for y, m in month_list:
+        month_key = f"{y:04d}-{m:02d}"
+        rate = monthly_rates.get(month_key, 0.0)
+        if charge_unit == "$/day":
+            days = calendar.monthrange(y, m)[1]
+            total += rate * days
+        elif charge_unit == "$/month":
+            total += rate
+        else:
+            logging.warning("Unknown charge_unit %r; treating as $/month", charge_unit)
+            total += rate
+    return total * customer_count
+
+
+def _resolve_customer_count_with_year_fallback(
+    path_template: str,
+    year: int,
+    utility: str,
+    storage_options: dict[str, str] | None,
+) -> tuple[int, int]:
+    """Try path for year, then year-1, ...; return (customer_count, actual_year_used)."""
+    pattern = re.compile(r"year=\d{4}")
+    match = pattern.search(path_template)
+    if not match:
+        count = get_residential_customer_count_from_utility_stats(
+            path_template, utility, storage_options=storage_options
+        )
+        return count, year
+
+    for offset in range(0, 21):
+        try_year = year - offset
+        path = pattern.sub(f"year={try_year}", path_template, count=1)
+        try:
+            count = get_residential_customer_count_from_utility_stats(
+                path, utility, storage_options=storage_options
+            )
+            if offset > 0:
+                logging.warning(
+                    "EIA-861 customer count for year %s not found; used year %s.",
+                    year,
+                    try_year,
+                )
+            return count, try_year
+        except (OSError, FileNotFoundError):
+            continue
+    raise FileNotFoundError(
+        f"Could not read EIA-861 customer count for utility={utility} "
+        f"for year {year} or prior 20 years."
+    )
 
 
 def _resolve_path_eia_with_year_fallback(
@@ -171,10 +241,11 @@ def main() -> None:
 
     month_list = _months_in_range(start_month, end_month)
 
-    delivery_top_ups: dict[str, dict[str, float]] = {}
-    supply_top_ups: dict[str, dict[str, float]] = {}
+    delivery_top_ups: dict[str, dict] = {}
+    supply_top_ups: dict[str, dict] = {}
     delivery_budgets_sum = 0.0
     supply_budgets_sum = 0.0
+    residential_customer_count: int | None = None
 
     for slug, data in charges.items():
         decision = data.get("decision")
@@ -183,12 +254,40 @@ def main() -> None:
         monthly = data.get("monthly_rates") or {}
         if not monthly:
             continue
-        avg_rate = _day_weighted_avg_rate(monthly, month_list)
-        total_budget = avg_rate * total_residential_kwh
-        entry = {
-            "avg_monthly_rate": round(avg_rate, 10),
-            "total_budget": round(total_budget, 2),
-        }
+
+        charge_unit = data.get("charge_unit", "$/kWh")
+        if charge_unit in ("$/day", "$/month"):
+            if residential_customer_count is None:
+                residential_customer_count, _ = (
+                    _resolve_customer_count_with_year_fallback(
+                        args.path_electric_utility_stats,
+                        year_for_eia,
+                        utility,
+                        storage_options,
+                    )
+                )
+            total_budget = _fixed_charge_annual_budget(
+                monthly, month_list, charge_unit, residential_customer_count
+            )
+            entry: dict = {
+                "charge_unit": charge_unit,
+                "customer_count": residential_customer_count,
+                "total_budget": round(total_budget, 2),
+            }
+        elif charge_unit == "$/kWh":
+            avg_rate = _day_weighted_avg_rate(monthly, month_list)
+            total_budget = avg_rate * total_residential_kwh
+            entry = {
+                "charge_unit": charge_unit,
+                "avg_monthly_rate": round(avg_rate, 10),
+                "total_budget": round(total_budget, 2),
+            }
+        else:
+            logging.warning(
+                "Skipping %s: unsupported charge_unit %r", slug, charge_unit
+            )
+            continue
+
         if decision == "add_to_drr":
             delivery_top_ups[slug] = entry
             delivery_budgets_sum += total_budget
