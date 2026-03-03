@@ -1,0 +1,51 @@
+# NYISO Gold Book data pipeline
+#
+# Tables extracted from the NYISO Gold Book report.
+# Currently covers Table VII (Proposed Transmission Facilities, 2025).
+#
+# Source: context/papers/nyiso_gold_book_2025.md (PDF-to-markdown extraction)
+#
+# Two-stage pipeline:
+#   1. extract — parse the Gold Book markdown into a raw CSV
+#   2. classify — add project_type / project_subtype columns
+#
+# The committed raw CSV (2025_proposed_transmission_facilities_raw.csv) is
+# the output of the extract step, checked in so that classify can run without
+# re-parsing the markdown.  `just extract` regenerates it from the markdown
+# if needed.
+#
+# QUICK START:
+#   just extract           # (Re)extract raw CSV from Gold Book markdown
+#   just classify          # Produce classified CSV in csv/
+#   just upload            # Sync csv/ to S3
+#
+# Run from repo root:  just -f data/nyiso/gold_book/Justfile <recipe>
+# Or from this dir:    just <recipe>
+
+path_local_base := justfile_directory()
+path_local_input := path_local_base + "/2025_proposed_transmission_facilities_raw.csv"
+path_local_csv := path_local_base + "/csv"
+path_gold_book_md := `git rev-parse --show-toplevel` + "/context/papers/nyiso_gold_book_2025.md"
+path_s3 := "s3://data.sb/nyiso/gold_book/"
+
+# Extract Table VII from Gold Book markdown into raw CSV
+extract:
+    uv run python "{{path_local_base}}/extract_proposed_transmission_facilities.py" \
+        --path-gold-book-md "{{path_gold_book_md}}" \
+        --path-output "{{path_local_input}}"
+
+# Classify projects: reads raw CSV, writes classified output to csv/
+classify:
+    uv run python "{{path_local_base}}/classify_proposed_transmission_facilities.py" \
+        --path-input "{{path_local_input}}" \
+        --path-output "{{path_local_csv}}/2025_proposed_transmission_facilities.csv"
+
+# Upload classified CSV to S3
+upload:
+    aws s3 sync "{{path_local_csv}}/" "{{path_s3}}" --exclude "*" --include "*.csv"
+    echo "✓ Uploaded to {{path_s3}}"
+
+# Remove classified output
+clean:
+    rm -rf "{{path_local_csv}}"
+    echo "✓ Removed {{path_local_csv}}"
