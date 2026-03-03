@@ -15,15 +15,6 @@ utility := env_var_or_default('UTILITY', 'nyseg')
 import '../Justfile'
 
 # =============================================================================
-# NY-only: multi-utility TD marginal cost data
-# =============================================================================
-
-create-dist-and-sub-tx-mc-data-all:
-  UTILITY=nyseg just create-dist-and-sub-tx-mc-data
-  UTILITY=rge just create-dist-and-sub-tx-mc-data
-  UTILITY=cenhud just create-dist-and-sub-tx-mc-data
-
-# =============================================================================
 # NY-only: aggregate MCOS-derived BAT inputs (sub-TX + dist levelized MC)
 # =============================================================================
 

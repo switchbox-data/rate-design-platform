@@ -66,7 +66,7 @@ path_rev_requirement                := path_config / "rev_requirement"
 path_default_rev_requirement        := path_rev_requirement / utility + ".yaml"
 path_differentiated_rev_requirement := path_rev_requirement / utility + "_hp_vs_nonhp.yaml"
 path_tariff_maps                    := path_config / "tariff_maps"
-path_dist_and_sub_tx_mc             := "s3://data.sb/switchbox/marginal_costs/" + state + "/dist_and_sub_tx/utility=" + utility + "/year=" + mc_year + "/data.parquet"
+path_dist_and_sub_tx_mc             := "s3://data.sb/switchbox/marginal_costs/" + state + "/dist_and_sub_tx/utility=" + utility + "/year=" + load_year + "/00000000.parquet"
 path_bulk_tx_mc                     := ""
 # Supply MC: defaults to Cambium path (used by RI and other Cambium-based states).
 # States using separate NYISO-style supply MCs (NY) override these in their Justfile.
@@ -77,8 +77,7 @@ path_resstock_metadata              := path_resstock_release + "/metadata"
 path_utility_assignment             := path_resstock_release + "/metadata_utility"
 path_resstock_loads_00              := path_resstock_release + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
 path_cambium                        := "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025" + "/gea=" + uppercase(region) + "/r=" + cambium_ba + "/data.parquet"
-mc_table_filename                   := env_var_or_default('MC_TABLE', state + "_marginal_costs_" + year + ".csv")
-path_mc_table                       := path_config / "marginal_costs" / mc_table_filename
+path_mc_table                       := env_var_or_default('MC_TABLE', path_config / "marginal_costs" / state + "_marginal_costs_" + year + ".csv")
 path_s3_mc_output                   := "s3://data.sb/switchbox/marginal_costs/" + state + "/dist_and_sub_tx/"
 path_s3_utility_loads               := "s3://data.sb/eia/hourly_demand/utilities/"
 path_electric_utility_stats         := "s3://data.sb/eia/861/electric_utility_stats/year=2024/state=" + state_upper + "/data.parquet"
@@ -191,14 +190,21 @@ create-dist-and-sub-tx-mc-data:
   uv run python {{path_repo}}/utils/pre/generate_utility_tx_dx_mc.py \
     --state {{state_upper}} \
     --utility {{utility}} \
-    --mc-year {{mc_year}} \
     --load-year {{load_year}} \
     --mc-table-path {{path_mc_table}} \
     --utility-load-s3-base {{path_s3_utility_loads}} \
     --output-s3-base {{path_s3_mc_output}} \
-    --upstream-hours {{upstream_hours}} \
-    --dist-hours {{dist_hours}} \
+    --n-hours {{upstream_hours}} \
     --upload
+
+create-dist-and-sub-tx-mc-data-all:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    IFS=',' read -ra utils <<< "{{utilities}}"
+    for util in "${utils[@]}"; do
+        echo ">> Running create-dist-and-sub-tx-mc-data for utility: $util" >&2
+        UTILITY="$util" just create-dist-and-sub-tx-mc-data
+    done
 
 # =============================================================================
 # MID-CONFIG: generate between runs (using outputs from earlier runs)
