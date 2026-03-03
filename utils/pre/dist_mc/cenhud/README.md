@@ -27,12 +27,12 @@ CenHud has no FERC-jurisdictional bulk transmission in its MCOS study. The "Loca
 
 The script produces **four variants** by combining two capital perspectives with two denominators:
 
-| Variant               | Projects in scope                   | Denominator            | Perspective                        |
-| --------------------- | ----------------------------------- | ---------------------- | ---------------------------------- |
-| Cumulative diluted    | All with in\_service\_year + 1 ≤ Y  | System peak (MW)       | MCOS cost allocation               |
-| Incremental diluted   | Only with in\_service\_year + 1 = Y | System peak (MW)       | BAT economic cost (cost causation) |
-| Cumulative undiluted  | All with in\_service\_year + 1 ≤ Y  | Cumulative project MW  | Per-project cost recovery          |
-| Incremental undiluted | Only with in\_service\_year + 1 = Y | New capacity in year Y | Per-project marginal cost          |
+| Variant               | Projects in scope               | Denominator            | Perspective                        |
+| --------------------- | ------------------------------- | ---------------------- | ---------------------------------- |
+| Cumulative diluted    | All with in\_service\_year ≤ Y  | System peak (MW)       | MCOS cost allocation               |
+| Incremental diluted   | Only with in\_service\_year = Y | System peak (MW)       | BAT economic cost (cost causation) |
+| Cumulative undiluted  | All with in\_service\_year ≤ Y  | Cumulative project MW  | Per-project cost recovery          |
+| Incremental undiluted | Only with in\_service\_year = Y | New capacity in year Y | Per-project marginal cost          |
 
 Levelized = mean(MC) across all 10 study years, consistent with ConEd/O&R/NiMo.
 
@@ -53,10 +53,6 @@ MC_undiluted(Y) = sum[ annual_cost_per_kW(p) × capacity_kW(p) ] / sum[ capacity
 ```
 
 This is the **capacity-weighted average** of annual costs for in-scope projects.
-
-### "Year after in-service" convention
-
-Costs contribute starting in `in_service_year + 1`. A project with `in_service_year = 2027` first contributes in 2028. This matches the MCOS report: "values are in nominal dollars and are included starting the year after the projected project in-service year."
 
 ### Escalation (applied for cross-utility consistency)
 
@@ -159,11 +155,11 @@ Each cost center includes a "Future Unidentified Projects" entry representing hy
 
 ### Example 1: Cumulative diluted MC for Substation, year 2028
 
-In 2028, three substation projects have costs contributing (in\_service\_year + 1 ≤ 2028):
+In 2028, three substation projects are in scope (in\_service\_year ≤ 2028):
 
-- **New Baltimore**: in-svc 2026, contributes from 2027. cost = $4.98/kW-yr, capacity = 13,400 kW
-- **Maybrook**: in-svc 2027, contributes from 2028. cost = $70.17/kW-yr, capacity = 24,000 kW
-- **Pulvers 13kV**: in-svc 2027, contributes from 2028. cost = $109.51/kW-yr, capacity = 7,250 kW
+- **New Baltimore**: in-svc 2026, cost = $4.98/kW-yr, capacity = 13,400 kW
+- **Maybrook**: in-svc 2027, cost = $70.17/kW-yr, capacity = 24,000 kW
+- **Pulvers 13kV**: in-svc 2027, cost = $109.51/kW-yr, capacity = 7,250 kW
 
 ```
 numerator = 4.976 × 13,400 + 70.168 × 24,000 + 109.513 × 7,250
@@ -176,10 +172,10 @@ Note: the workbook's Table 2 value for this cell is **$1.796** — that uses pea
 
 ### Example 2: Cumulative undiluted MC for Feeder, year 2027
 
-In 2027, two feeder projects have costs contributing:
+In 2027, two feeder projects are in scope (in\_service\_year ≤ 2027):
 
-- **Future Unidentified**: in-svc 2025, contributes from 2026. cost = $12.569/kW-yr, cap = 16,459 kW
-- **WI\_8031**: in-svc 2026, contributes from 2027. cost = $16.453/kW-yr, cap = 13,000 kW
+- **Future Unidentified**: in-svc 2025, cost = $12.569/kW-yr, cap = 16,459 kW
+- **WI\_8031**: in-svc 2026, cost = $16.453/kW-yr, cap = 13,000 kW
 
 ```
 numerator = 12.569 × 16,459 + 16.453 × 13,000
@@ -191,9 +187,9 @@ MC_undiluted = 420,767 / 29,459 = $14.28/kW-yr
 
 This is the capacity-weighted average of the two projects' annual costs.
 
-### Example 3: Incremental diluted MC for all cost centers, year 2031
+### Example 3: Incremental diluted MC for all cost centers, year 2030
 
-Only projects whose costs first contribute in 2031 (in\_service\_year = 2030):
+Only projects with in\_service\_year = 2030:
 
 - **Substation Future Unidentified**: in-svc 2030, cost = $109.51/kW-yr, capacity = 61,850 kW
 - No Local TX or Feeder projects have in-svc = 2030
@@ -205,9 +201,9 @@ MC_incremental_diluted(feeder) = $0.00
 MC_incremental_diluted(total) = $6.143/kW-yr
 ```
 
-### Example 4: Incremental undiluted MC for Substation, year 2028
+### Example 4: Incremental undiluted MC for Substation, year 2027
 
-Only substation projects whose costs first contribute in 2028 (in\_service\_year = 2027):
+Only substation projects with in\_service\_year = 2027:
 
 - **Maybrook**: in-svc 2027, cost = $70.17/kW-yr, capacity = 24,000 kW
 - **Pulvers 13kV**: in-svc 2027, cost = $109.51/kW-yr, capacity = 7,250 kW

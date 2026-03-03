@@ -33,8 +33,6 @@ CenHud's workbook provides FLAT NOMINAL costs (no escalation), but we apply
 a 2.1%/yr GDP deflator (base year 2026) for consistency with ConEd/O&R/NiMo.
 Real MC uses the workbook's flat values; nominal MC is escalated.
 
-Costs contribute starting the year AFTER the project's in-service year.
-
 Outputs (8 CSVs):
   - cenhud_{cumulative,incremental}_{diluted,undiluted}_{levelized,annualized}.csv
   - Terminal report (always printed)
@@ -253,8 +251,8 @@ def compute_bucket_mc(
 ) -> list[MCRow]:
     """Year-by-year MC for a set of projects under one variant.
 
-    cumulative=True:  in-scope = projects with in_service_year + 1 <= year
-    cumulative=False: in-scope = projects with in_service_year + 1 == year
+    cumulative=True:  in-scope = projects with in_service_year <= year
+    cumulative=False: in-scope = projects with in_service_year == year
     diluted=True:     denominator = system peak
     diluted=False:    denominator = sum(capacity_kw) of in-scope projects
 
@@ -269,9 +267,9 @@ def compute_bucket_mc(
         esc = _escalation(year)
 
         if cumulative:
-            in_scope = [p for p in projects if p.in_service_year + 1 <= year]
+            in_scope = [p for p in projects if p.in_service_year <= year]
         else:
-            in_scope = [p for p in projects if p.in_service_year + 1 == year]
+            in_scope = [p for p in projects if p.in_service_year == year]
 
         if not in_scope:
             rows.append(

@@ -1,5 +1,5 @@
 bucket,label,n_projects,capacity_mw,levelized_mc_kw_yr,final_year_real_mc_kw_yr,final_year_nominal_mc_kw_yr
-local_tx,Local Transmission (69/115 kV),3,593.0,5.54,0.0,0.0
+local_tx,Local Transmission (69/115 kV),3,593.0,11.08,55.4,66.79
 substation,Substation,6,123.7,71.41,0.0,0.0
-feeder,Feeder Circuit,2,29.5,2.9,0.0,0.0
-total,Total (all cost centers),11,746.2,54.84,0.0,0.0
+feeder,Feeder Circuit,2,29.5,1.65,0.0,0.0
+total,Total (all cost centers),11,746.2,59.12,55.4,66.79
