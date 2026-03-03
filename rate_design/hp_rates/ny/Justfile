@@ -24,6 +24,17 @@ create-dist-and-sub-tx-mc-data-all:
   UTILITY=cenhud just create-dist-and-sub-tx-mc-data
 
 # =============================================================================
+# NY-only: aggregate MCOS-derived BAT inputs (sub-TX + dist levelized MC)
+# =============================================================================
+
+path_dist_mc := path_repo / "utils/pre/dist_mc"
+path_bat_inputs := path_config / "marginal_costs" / "ny_sub_tx_and_dist_mc_levelized.csv"
+
+aggregate-dist-mc-bat-inputs:
+  uv run python {{path_dist_mc}}/aggregate_bat_inputs.py \
+    --path-output "{{path_bat_inputs}}"
+
+# =============================================================================
 # NY-only: supply marginal costs (LBMP + ICAP MCOS)
 # =============================================================================
 

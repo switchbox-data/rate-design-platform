@@ -1,0 +1,8596 @@
+{
+  "displayFieldName": "NAME",
+  "fieldAliases": {
+    "NAME": "NAME",
+    "SUB_NUMBER": "SUB_NUMBER",
+    "TYPE": "TYPE",
+    "STATUS": "STATUS",
+    "OP_DIST": "OP_DIST",
+    "TRA_NOM_CA": "TRA_NOM_CA",
+    "NOM_VOLTGE": "NOM_VOLTGE"
+  },
+  "geometryType": "esriGeometryPoint",
+  "spatialReference": {
+    "wkid": 102100,
+    "latestWkid": 3857
+  },
+  "fields": [
+    {
+      "name": "NAME",
+      "type": "esriFieldTypeString",
+      "alias": "NAME",
+      "length": 40
+    },
+    {
+      "name": "SUB_NUMBER",
+      "type": "esriFieldTypeString",
+      "alias": "SUB_NUMBER",
+      "length": 4
+    },
+    {
+      "name": "TYPE",
+      "type": "esriFieldTypeString",
+      "alias": "TYPE",
+      "length": 14
+    },
+    {
+      "name": "STATUS",
+      "type": "esriFieldTypeString",
+      "alias": "STATUS",
+      "length": 10
+    },
+    {
+      "name": "OP_DIST",
+      "type": "esriFieldTypeString",
+      "alias": "OP_DIST",
+      "length": 2
+    },
+    {
+      "name": "TRA_NOM_CA",
+      "type": "esriFieldTypeInteger",
+      "alias": "TRA_NOM_CA"
+    },
+    {
+      "name": "NOM_VOLTGE",
+      "type": "esriFieldTypeDouble",
+      "alias": "NOM_VOLTGE"
+    }
+  ],
+  "features": [
+    {
+      "attributes": {
+        "NAME": "CHITTENANGO",
+        "SUB_NUMBER": "16",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8445879.4487,
+        "y": 5318078.1021
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PEBBLE HILL",
+        "SUB_NUMBER": "290",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8467760.2075,
+        "y": 5315551.566299997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "217 WALMORE",
+        "SUB_NUMBER": "217",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8786082.0145,
+        "y": 5327484.142800003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BYRON STATION",
+        "SUB_NUMBER": "18",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "04",
+        "TRA_NOM_CA": 4800,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8690029.781,
+        "y": 5324569.872699998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GASPORT",
+        "SUB_NUMBER": "90",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "06",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 4800
+      },
+      "geometry": {
+        "x": -8747195.4271,
+        "y": 5343521.083999999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MIDDLEPORT",
+        "SUB_NUMBER": "77",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "06",
+        "TRA_NOM_CA": 4800,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8735869.9554,
+        "y": 5343833.338799998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LIVONIA",
+        "SUB_NUMBER": "37",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "05",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 4800
+      },
+      "geometry": {
+        "x": -8646262.8807,
+        "y": 5284715.425099999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BATAVIA STATION",
+        "SUB_NUMBER": "001",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "04",
+        "TRA_NOM_CA": 13200,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8704498.7279,
+        "y": 5311384.130400002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PETROLIA",
+        "SUB_NUMBER": "19",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8685605.5703,
+        "y": 5174187.627400003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GRANBY CENTER",
+        "SUB_NUMBER": "293",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "14",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8512331.0452,
+        "y": 5362070.398699999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NEW HAVEN",
+        "SUB_NUMBER": "256",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "14",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8495339.7808,
+        "y": 5384517.312200002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MCGRAW",
+        "SUB_NUMBER": "228",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "12",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8471699.4696,
+        "y": 5250217.361400001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GLENWOOD",
+        "SUB_NUMBER": "227",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8480153.7909,
+        "y": 5315311.080700003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FRANKLINVILLE",
+        "SUB_NUMBER": "24",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8734584.7139,
+        "y": 5211563.141400002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WEST SALAMANCA",
+        "SUB_NUMBER": "16",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8765831.8421,
+        "y": 5187438.855599999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "STARR RD.",
+        "SUB_NUMBER": "334",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "12",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8482428.1495,
+        "y": 5248780.254299998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LEHIGH",
+        "SUB_NUMBER": "669",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "18",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8432462.2256,
+        "y": 5362472.5173999965
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PETERBORO",
+        "SUB_NUMBER": "514",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "20",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 13.200000000000001
+      },
+      "geometry": {
+        "x": -8432488.5215,
+        "y": 5326450.595200002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "60 HAUSAUER RD",
+        "SUB_NUMBER": "60",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8766934.6846,
+        "y": 5315022.9690999985
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "209 LONG ROAD",
+        "SUB_NUMBER": "209",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8792468.6585,
+        "y": 5319646.8561
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "25 STATION 25",
+        "SUB_NUMBER": "25",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8783434.3013,
+        "y": 5303964.159400001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "78 FASSETT ST.",
+        "SUB_NUMBER": "78",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8779056.7355,
+        "y": 5317470.584700003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "21 MAIN",
+        "SUB_NUMBER": "21",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8772323.0437,
+        "y": 5306585.512500003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HARTFIELD",
+        "SUB_NUMBER": "79",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8846474.1551,
+        "y": 5200242.489500001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PANAMA",
+        "SUB_NUMBER": "70",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8846600.0825,
+        "y": 5171264.342799999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "71 S. NEWFANE",
+        "SUB_NUMBER": "71",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8758700.7653,
+        "y": 5347311.322700001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CHASM FALLS",
+        "SUB_NUMBER": "852",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "27",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8261790.3223,
+        "y": 5582846.1592999995
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NICHOLVILLE",
+        "SUB_NUMBER": "860",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "27",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8309350.973200001,
+        "y": 5573759.055200003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LOON LAKE",
+        "SUB_NUMBER": "837",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "24",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8244077.790200001,
+        "y": 5550640.495499998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DAVID",
+        "SUB_NUMBER": "979",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "28",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8401682.4324,
+        "y": 5573646.421099998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "45 STATION 45",
+        "SUB_NUMBER": "45",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8780761.9886,
+        "y": 5303142.193800002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "132 BUELL AVE",
+        "SUB_NUMBER": "132",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8764384.827,
+        "y": 5301135.3332
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "155 ROBERTS",
+        "SUB_NUMBER": "155",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8773653.3857,
+        "y": 5291672.074699998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "212 HARBOR FRONT",
+        "SUB_NUMBER": "212",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8777356.0882,
+        "y": 5283436.093500003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DEBALSO",
+        "SUB_NUMBER": "684",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8381713.2664,
+        "y": 5325009.070799999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CLINTON CRCC",
+        "SUB_NUMBER": "604",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8390631.8619,
+        "y": 5320222.719899997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FINE",
+        "SUB_NUMBER": "978",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "29",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8363729.7631,
+        "y": 5504213.627999999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LITTLE RIVER",
+        "SUB_NUMBER": "955",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "25",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8366176.954500001,
+        "y": 5556000.049099997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "THOUSAND ISLANDS",
+        "SUB_NUMBER": "814",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "26",
+        "TRA_NOM_CA": 25000,
+        "NOM_VOLTGE": 15000
+      },
+      "geometry": {
+        "x": -8461899.3199,
+        "y": 5505270.328299999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MALTA",
+        "SUB_NUMBER": "443",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "39",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8215296.7708,
+        "y": 5306548.2114999965
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FRONT ST",
+        "SUB_NUMBER": "360",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8231117.439300001,
+        "y": 5284816.509499997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SAND CREEK ROAD",
+        "SUB_NUMBER": "452",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8218153.017200001,
+        "y": 5271148.208999999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "VAL KIN",
+        "SUB_NUMBER": "427",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "33",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8205030.725,
+        "y": 5226671.681599997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "KNAPP RD",
+        "SUB_NUMBER": "226",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "04",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 15
+      },
+      "geometry": {
+        "x": -8735293.1408,
+        "y": 5313881.891800001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "INDIAN RIVER",
+        "SUB_NUMBER": "323",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "13",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8440559.6599,
+        "y": 5477050.721699998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LOWVILLE",
+        "SUB_NUMBER": "773",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "23",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8401987.6979,
+        "y": 5432333.9804000035
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PARISH",
+        "SUB_NUMBER": "49",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "16",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8475519.3022,
+        "y": 5373544.171099998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ASH ST. SUB",
+        "SUB_NUMBER": "223",
+        "TYPE": "Transmission",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8477579.0384,
+        "y": 5320890.0185
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SENTINEL HEIGHTS",
+        "SUB_NUMBER": "128",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8473141.8332,
+        "y": 5304649.6919
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MILL ST.",
+        "SUB_NUMBER": "748",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "13",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8449865.9576,
+        "y": 5461961.783799998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "207 SLADE AVE",
+        "SUB_NUMBER": "207",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8770119.6651,
+        "y": 5286195.339100003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HOAG",
+        "SUB_NUMBER": "221",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8183599.195800001,
+        "y": 5247311.444899999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CORINTH",
+        "SUB_NUMBER": "285",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "39",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8218775.3517,
+        "y": 5349680.079300001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MC CREA ST.",
+        "SUB_NUMBER": "272",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "38",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8192597.8122000005,
+        "y": 5353298.209899999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NEW KRUMKILL",
+        "SUB_NUMBER": "421",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8218230.936799999,
+        "y": 5260536.468000002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EVERETT RD",
+        "SUB_NUMBER": "420",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8211943.3774999995,
+        "y": 5265699.462300003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GILMANTOWN",
+        "SUB_NUMBER": "154",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8276028.328400001,
+        "y": 5387138.7883
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GRAND ST.",
+        "SUB_NUMBER": "433",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "37",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8291073.962400001,
+        "y": 5262029.939499997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SHARON",
+        "SUB_NUMBER": "363",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "37",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8298657.3719999995,
+        "y": 5276666.894100003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EPHRATAH",
+        "SUB_NUMBER": "018",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8297418.855799999,
+        "y": 5313448.505800001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "RENSSELAER",
+        "SUB_NUMBER": "132",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8209131.4421,
+        "y": 5256665.557099998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ELSMERE",
+        "SUB_NUMBER": "407",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8216427.3069,
+        "y": 5255476.430399999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CARTHAGE",
+        "SUB_NUMBER": "717",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "23",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8416785.5828,
+        "y": 5461766.098499998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FORTS FERRY",
+        "SUB_NUMBER": "459",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8211817.940400001,
+        "y": 5276079.235200003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MAPLEWOOD",
+        "SUB_NUMBER": "307",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8205186.9449000005,
+        "y": 5273299.623199999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "RAQUETTE LAKE",
+        "SUB_NUMBER": "398",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8310533.6745,
+        "y": 5435904.532799996
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WALESVILLE",
+        "SUB_NUMBER": "331",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8387396.9758,
+        "y": 5330775.107900001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SODEMAN ROAD SUBSTATION",
+        "SUB_NUMBER": "1301",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "39",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8226113.693,
+        "y": 5322190.964900002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DUGAN RD.",
+        "SUB_NUMBER": "22",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8726245.6992,
+        "y": 5172414.1215
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MACHIAS",
+        "SUB_NUMBER": "13",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8737998.346,
+        "y": 5221932.3741
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CENTRAL SQUARE STATION",
+        "SUB_NUMBER": "15",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8475777.8559,
+        "y": 5357236.922700003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CASSADAGA",
+        "SUB_NUMBER": "61",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "08",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8830251.9768,
+        "y": 5211521.031300001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BUTLER",
+        "SUB_NUMBER": "362",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "38",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8199879.472200001,
+        "y": 5351377.797600001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BUFF AVE STA",
+        "SUB_NUMBER": "215",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 13.200000000000001
+      },
+      "geometry": {
+        "x": -8798957.5831,
+        "y": 5324228.585100003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "RIFLE RANGE",
+        "SUB_NUMBER": "458",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8221895.774,
+        "y": 5269804.081500001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BURDECK ST",
+        "SUB_NUMBER": "265",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8238298.5832,
+        "y": 5280324.021300003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FT. COVINGTON",
+        "SUB_NUMBER": "896",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "27",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8292485.3972,
+        "y": 5618872.385499999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "COLLAMER CROSSING",
+        "SUB_NUMBER": null,
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8465114.7585,
+        "y": 5328072.148900002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GREENHURST",
+        "SUB_NUMBER": "60",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8829371.7287,
+        "y": 5179132.809
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "66 UNION RD & MECHANIC ST",
+        "SUB_NUMBER": "66",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8767013.5724,
+        "y": 5296065.522600003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "RESERVOIR",
+        "SUB_NUMBER": "103",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8782349.2301,
+        "y": 5173991.679099999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FAYETTE STREET",
+        "SUB_NUMBER": "28",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8478803.4671,
+        "y": 5319082.941699997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BRIDGEPORT",
+        "SUB_NUMBER": "168",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8456695.8786,
+        "y": 5334222.021200001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ORANGEVILLE STATION",
+        "SUB_NUMBER": "019",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "04",
+        "TRA_NOM_CA": 4800,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8711140.5517,
+        "y": 5277349.515299998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LYNDONVILLE",
+        "SUB_NUMBER": "95",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "06",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 4800
+      },
+      "geometry": {
+        "x": -8725951.9816,
+        "y": 5361638.817900002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "YORK CTR",
+        "SUB_NUMBER": "53",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "05",
+        "TRA_NOM_CA": 13200,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8668558.9033,
+        "y": 5292475.922700003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WHITAKER",
+        "SUB_NUMBER": "296",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "14",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8505150.4284,
+        "y": 5363110.427900001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WEST CLEVELAND",
+        "SUB_NUMBER": "326",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "18",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8453488.0972,
+        "y": 5349058.310400002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LYSANDER",
+        "SUB_NUMBER": "297",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8496161.9989,
+        "y": 5338595.248199999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CUYLER",
+        "SUB_NUMBER": "24",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "12",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8455784.6148,
+        "y": 5272292.424000002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EUCLID",
+        "SUB_NUMBER": "267",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8484498.5179,
+        "y": 5339857.9580999985
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CORTLAND",
+        "SUB_NUMBER": "502",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "12",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8477225.6842,
+        "y": 5250520.141999997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EDEN CENTER",
+        "SUB_NUMBER": "88",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "07",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8783218.6304,
+        "y": 5258752.322899997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NORTH COLLINS",
+        "SUB_NUMBER": "92",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "07",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8788200.4598,
+        "y": 5250552.156000003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FREWSBURG",
+        "SUB_NUMBER": "69",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8813032.8613,
+        "y": 5169194.6866
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ROME",
+        "SUB_NUMBER": "762",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "18",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8399399.3584,
+        "y": 5343221.332199998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MADISON",
+        "SUB_NUMBER": "654",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "18",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8398076.5773,
+        "y": 5348591.873000003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "22 KENMORE",
+        "SUB_NUMBER": "22",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8775425.446,
+        "y": 5305562.314800002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "N. CHAUTAUQUA",
+        "SUB_NUMBER": "78",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8851561.6064,
+        "y": 5197185.292199999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "OAK HILL",
+        "SUB_NUMBER": "62",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8821476.9181,
+        "y": 5183381.444399998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "76 SHAWNEE",
+        "SUB_NUMBER": "76",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8776575.8481,
+        "y": 5333708.635300003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "82 11TH ST",
+        "SUB_NUMBER": "82",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8799744.5328,
+        "y": 5328169.652099997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "80 EIGHTH STREET",
+        "SUB_NUMBER": "80",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8800124.2823,
+        "y": 5325959.304399997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BLOOMINGDALE",
+        "SUB_NUMBER": "841",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "24",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8247165.126700001,
+        "y": 5528000.562799998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "161 SHORT STREET",
+        "SUB_NUMBER": "161",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8782197.3199,
+        "y": 5303851.190300003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "41 STATION 41",
+        "SUB_NUMBER": "41",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8779293.2914,
+        "y": 5292893.325800002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NEWTON FALLS",
+        "SUB_NUMBER": "774",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "29",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8348223.437000001,
+        "y": 5498388.273199998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ST. REGIS",
+        "SUB_NUMBER": "977",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "25",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8311547.850500001,
+        "y": 5617008.829700001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HIGLEY",
+        "SUB_NUMBER": "924",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "25",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8341524.950999999,
+        "y": 5547875.200999998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "OGDENSBURG",
+        "SUB_NUMBER": "938",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "28",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8404002.2245,
+        "y": 5573223.869599998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EDWARDS",
+        "SUB_NUMBER": "916",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "29",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8376382.943299999,
+        "y": 5516734.487999998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CROWN POINT",
+        "SUB_NUMBER": "249",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "41",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8173016.6269000005,
+        "y": 5457905.9714
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "STONER",
+        "SUB_NUMBER": "358",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8273520.3421,
+        "y": 5309884.491899997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SMITH BRIDGE",
+        "SUB_NUMBER": "464",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "39",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8212200.655200001,
+        "y": 5329443.517700002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WEIBEL",
+        "SUB_NUMBER": "415",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "39",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8209394.3089000005,
+        "y": 5326347.187200002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SEMINOLE",
+        "SUB_NUMBER": "339",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8216445.2027,
+        "y": 5262084.9344
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HEMSTREET",
+        "SUB_NUMBER": "328",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8194287.3247,
+        "y": 5297927.5955
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PIERCEFIELD",
+        "SUB_NUMBER": "829",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "24",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8300608.398,
+        "y": 5501525.914999999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FABIUS",
+        "SUB_NUMBER": "556",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8459548.0975,
+        "y": 5287656.272399999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "232 OAKWOOD",
+        "SUB_NUMBER": "232",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 13200
+      },
+      "geometry": {
+        "x": -8767033.9576,
+        "y": 5325097.8505000025
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "24 KENMORE",
+        "SUB_NUMBER": "24",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8780589.226,
+        "y": 5305647.939199999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "229 RENAISSANCE DR",
+        "SUB_NUMBER": "229",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 13.200000000000001
+      },
+      "geometry": {
+        "x": -8762596.4607,
+        "y": 5311285.585900001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SARATOGA",
+        "SUB_NUMBER": "142",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "39",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8212555.185900001,
+        "y": 5325667.690700002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HUDSON FALLS",
+        "SUB_NUMBER": "088",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "38",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8192225.229699999,
+        "y": 5355675.7744999975
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FARNAN RD Mini",
+        "SUB_NUMBER": "476",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "38",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 13.200000000000001
+      },
+      "geometry": {
+        "x": -8193501.743000001,
+        "y": 5355664.496600002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PATROON",
+        "SUB_NUMBER": "323",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8216367.9383000005,
+        "y": 5264747.777599998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WARRENSBURG",
+        "SUB_NUMBER": "321",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "40",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8212684.739,
+        "y": 5386540.098200001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "INDIAN LAKE",
+        "SUB_NUMBER": "310",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "40",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8267063.232899999,
+        "y": 5431139.326700002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "RUTH ROAD",
+        "SUB_NUMBER": "381",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8223621.8993999995,
+        "y": 5273602.855700001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BATTENKILL",
+        "SUB_NUMBER": "342",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "39",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8187561.8342,
+        "y": 5327293.427699998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DELANSON",
+        "SUB_NUMBER": "269",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "37",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8259942.666200001,
+        "y": 5275615.314900003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MC CLELLAN",
+        "SUB_NUMBER": "304",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8228016.0809,
+        "y": 5282317.994400002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EAST WORCESTER",
+        "SUB_NUMBER": "060",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "37",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8312366.7092,
+        "y": 5254224.433799997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SCHENEVUS",
+        "SUB_NUMBER": "261",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "37",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8328822.7338,
+        "y": 5242971.496600002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SELKIRK",
+        "SUB_NUMBER": "149",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8217340.736300001,
+        "y": 5243019.949000001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GLOVERSVILLE",
+        "SUB_NUMBER": "072",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8275980.1085,
+        "y": 5321387.157399997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CAROGA",
+        "SUB_NUMBER": "219",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8293209.740800001,
+        "y": 5331039.388800003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LATHAM",
+        "SUB_NUMBER": "282",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8212651.286699999,
+        "y": 5274745.063600004
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MENANDS",
+        "SUB_NUMBER": "101",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8207700.539799999,
+        "y": 5264215.559699997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "VALLEY CRCC",
+        "SUB_NUMBER": "594",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "19",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8346990.5265,
+        "y": 5316966.1809
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "OGDENBROOK",
+        "SUB_NUMBER": "423",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "38",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8202183.2795,
+        "y": 5358980.429099999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DELEVAN",
+        "SUB_NUMBER": "11",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8735250.7489,
+        "y": 5234618.292999998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "684 RIVERWALK",
+        "SUB_NUMBER": "684",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8785608.7491,
+        "y": 5312436.047499999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ROCK CITY",
+        "SUB_NUMBER": "623",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "19",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8334162.6072,
+        "y": 5316788.452299997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NORTH EPHRATAH",
+        "SUB_NUMBER": "479",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8294799.3192,
+        "y": 5318822.947700001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LABRADOR",
+        "SUB_NUMBER": "230",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "12",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8463167.3598,
+        "y": 5269947.998300001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SWAGGERTOWN RD",
+        "SUB_NUMBER": "364",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8232918.254000001,
+        "y": 5295782.452299997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "N. BANGOR",
+        "SUB_NUMBER": "864",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "27",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8282495.5549,
+        "y": 5597926.653999999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BARTELL",
+        "SUB_NUMBER": "325",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8475130.164,
+        "y": 5346049.895400003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BRASHER",
+        "SUB_NUMBER": "851",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "25",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8324825.584899999,
+        "y": 5592924.408399999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SUMMIT",
+        "SUB_NUMBER": "347",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "37",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8297720.452299999,
+        "y": 5257522.7689
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "Welch Ave Metal Clad",
+        "SUB_NUMBER": "83",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8798027.7033,
+        "y": 5325383.917099997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "214 STATION",
+        "SUB_NUMBER": "214",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8778150.493,
+        "y": 5311959.101999998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LAKEPORT",
+        "SUB_NUMBER": "122",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8446154.0799,
+        "y": 5332760.7852
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "49 BEST",
+        "SUB_NUMBER": "49",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 4.16
+      },
+      "geometry": {
+        "x": -8779374.3279,
+        "y": 5297346.595299996
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LINDEN STATION",
+        "SUB_NUMBER": "021",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "04",
+        "TRA_NOM_CA": 4800,
+        "NOM_VOLTGE": 4800
+      },
+      "geometry": {
+        "x": -8697589.8195,
+        "y": 5293976.663099997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BROCKPORT",
+        "SUB_NUMBER": "74",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "06",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 13200
+      },
+      "geometry": {
+        "x": -8678095.7022,
+        "y": 5344368.032300003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GENESEO",
+        "SUB_NUMBER": "55",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "05",
+        "TRA_NOM_CA": 13200,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8655436.2289,
+        "y": 5280114.512500003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "E BATAVIA STATION",
+        "SUB_NUMBER": "028",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "04",
+        "TRA_NOM_CA": 13200,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8698389.255,
+        "y": 5310451.1467999965
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "KNIGHTS CREEK",
+        "SUB_NUMBER": "06",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8684075.4148,
+        "y": 5182615.933600001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LORINGS",
+        "SUB_NUMBER": "276",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "12",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8477012.8769,
+        "y": 5255404.856700003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "POLAND",
+        "SUB_NUMBER": "66",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8807874.5712,
+        "y": 5181158.946000002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PRICE CORNERS (DIST.) SUB",
+        "SUB_NUMBER": "14",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8787872.563,
+        "y": 5180226.615000002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BUCKLEY",
+        "SUB_NUMBER": "140",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8478155.5446,
+        "y": 5331369.751100004
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LANGFORD",
+        "SUB_NUMBER": "180",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "07",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8775179.3328,
+        "y": 5247910.344999999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MILLER ST.",
+        "SUB_NUMBER": "117",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "12",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8480843.0792,
+        "y": 5253164.322800003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WEST VALLEY",
+        "SUB_NUMBER": "25",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8750861.8773,
+        "y": 5222976.611900002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "124 ALMEDA AVE",
+        "SUB_NUMBER": "124",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8774145.4258,
+        "y": 5309629.755400002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "63 HIGHLAND",
+        "SUB_NUMBER": "63",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8776991.4912,
+        "y": 5308042.721500002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "RIPLEY",
+        "SUB_NUMBER": "53",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "08",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8873348.3384,
+        "y": 5200629.689400002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SHERMAN",
+        "SUB_NUMBER": "54",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8860762.9309,
+        "y": 5184539.504199997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ELLICOTT",
+        "SUB_NUMBER": "65",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8821456.653,
+        "y": 5183185.244400002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "216 LOCKPORT RD",
+        "SUB_NUMBER": "216",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8796284.5744,
+        "y": 5329963.313900001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "97 SUMMIT PARK",
+        "SUB_NUMBER": "97",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 13.200000000000001
+      },
+      "geometry": {
+        "x": -8786003.5468,
+        "y": 5325419.1674000025
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WESTVILLE",
+        "SUB_NUMBER": "885",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "27",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8281518.6044,
+        "y": 5611919.768799998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MORRISTOWN",
+        "SUB_NUMBER": "933",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "28",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8420272.6586,
+        "y": 5555174.870999999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EAST WATERTOWN",
+        "SUB_NUMBER": "817",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "13",
+        "TRA_NOM_CA": 224000,
+        "NOM_VOLTGE": 15
+      },
+      "geometry": {
+        "x": -8444086.4325,
+        "y": 5455964.297799997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "154 GEORGE URBAN",
+        "SUB_NUMBER": "154",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8768375.4374,
+        "y": 5299541.6435
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "26 STATION 26",
+        "SUB_NUMBER": "26",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8777053.9328,
+        "y": 5303965.961000003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "121 CLINTON ST",
+        "SUB_NUMBER": "121",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8768734.4414,
+        "y": 5291539.202500001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LAKE SHORE",
+        "SUB_NUMBER": "149",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "07",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8777545.935,
+        "y": 5279170.067299999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ARNOLD",
+        "SUB_NUMBER": "656",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8378780.297,
+        "y": 5325593.5874999985
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NORWOOD",
+        "SUB_NUMBER": "936",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "25",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8349371.7926,
+        "y": 5581357.670599997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MC ADOO",
+        "SUB_NUMBER": "914",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "28",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8383221.331499999,
+        "y": 5554117.7333
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EAST NORFOLK",
+        "SUB_NUMBER": "913",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "25",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8347291.0394,
+        "y": 5589912.068899997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DEKALB E.S.",
+        "SUB_NUMBER": "984",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "29",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 13.200000000000001
+      },
+      "geometry": {
+        "x": -8375949.140900001,
+        "y": 5542177.664399996
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WHITEHALL",
+        "SUB_NUMBER": "187",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "38",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8168645.0956,
+        "y": 5396115.497599997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DUGUID",
+        "SUB_NUMBER": "265",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8457656.2247,
+        "y": 5316833.1875
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BURGOYNE",
+        "SUB_NUMBER": "337",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "38",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8189154.1839000005,
+        "y": 5359971.257399999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "COMSTOCK",
+        "SUB_NUMBER": "048",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "38",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8172206.257300001,
+        "y": 5382368.201899998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BLUE STORES",
+        "SUB_NUMBER": "303",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "33",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8217347.8806,
+        "y": 5177111.942500003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GALEVILLE SUBSTATION",
+        "SUB_NUMBER": "213",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8481567.865,
+        "y": 5325698.028999999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LERAY",
+        "SUB_NUMBER": "813",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "13",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8437675.3262,
+        "y": 5467209.2302
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ANTWERP",
+        "SUB_NUMBER": "801",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "29",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8417278.8419,
+        "y": 5496853.6052
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HINSDALE",
+        "SUB_NUMBER": "218",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8490029.7276,
+        "y": 5319008.042000003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EAST SPRINGFIELD",
+        "SUB_NUMBER": "477",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "37",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8327065.148600001,
+        "y": 5286042.381999999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WEHRLE DR",
+        "SUB_NUMBER": "197",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8762313.0874,
+        "y": 5305407.079599999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CARDIFF",
+        "SUB_NUMBER": "13",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8475580.7603,
+        "y": 5295306.176700003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "RANDALL RD",
+        "SUB_NUMBER": "463",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8228744.4373,
+        "y": 5308410.839599997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "S. PHILADELPHIA",
+        "SUB_NUMBER": "764",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "13",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8428928.0269,
+        "y": 5487675.185699999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "KARNER",
+        "SUB_NUMBER": "317",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8219538.3138,
+        "y": 5269478.167599998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "Birch Avenue",
+        "SUB_NUMBER": "322",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "40",
+        "TRA_NOM_CA": 12500,
+        "NOM_VOLTGE": 34.5
+      },
+      "geometry": {
+        "x": -8206531.6743,
+        "y": 5375047.4661
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "COLLINSVILLE",
+        "SUB_NUMBER": "716",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "23",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8391763.6295,
+        "y": 5405575.7469
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "COBLESKILL",
+        "SUB_NUMBER": "214",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "37",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8291666.385600001,
+        "y": 5264603.027000003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EAST SCHODACK",
+        "SUB_NUMBER": "447",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8197314.438100001,
+        "y": 5245554.538400002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HUDSON",
+        "SUB_NUMBER": "087",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "33",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8211748.224199999,
+        "y": 5198755.409199998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LIMA",
+        "SUB_NUMBER": "36",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "05",
+        "TRA_NOM_CA": 4800,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8639885.6457,
+        "y": 5297633.170900002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SHERMAN CRCC",
+        "SUB_NUMBER": "333",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8366550.6171,
+        "y": 5353702.661399998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EAST FULTON",
+        "SUB_NUMBER": "100",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "14",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8504826.3711,
+        "y": 5362252.4168
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BELMONT",
+        "SUB_NUMBER": "260",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8484325.596,
+        "y": 5331210.228399999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "STATE STREET",
+        "SUB_NUMBER": "954",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "25",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8367452.6822,
+        "y": 5560056.051899999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NORTH CARTHAGE",
+        "SUB_NUMBER": "816",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "23",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8414132.2955,
+        "y": 5463658.8977999985
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "Ohio Childs (MITS)",
+        "SUB_NUMBER": "2154",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 10,
+        "NOM_VOLTGE": 13200
+      },
+      "geometry": {
+        "x": -8779420.4623,
+        "y": 5290771.236699998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GROOMS",
+        "SUB_NUMBER": "345",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8218570.016100001,
+        "y": 5286862.497299999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "TEALL AVE",
+        "SUB_NUMBER": "725",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8473974.4883,
+        "y": 5325503.4168
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CAZENOVIA",
+        "SUB_NUMBER": "220",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8443099.5005,
+        "y": 5302421.456299998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MANLIUS",
+        "SUB_NUMBER": "40",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8457670.2404,
+        "y": 5312108.075400002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DARIEN STATION",
+        "SUB_NUMBER": "016",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "04",
+        "TRA_NOM_CA": 4800,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8726259.0687,
+        "y": 5300334.180200003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "W HAMLIN",
+        "SUB_NUMBER": "82",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "06",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8677981.0751,
+        "y": 5356936.7095
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ROYALTON",
+        "SUB_NUMBER": "98",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "06",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 4800
+      },
+      "geometry": {
+        "x": -8742869.858,
+        "y": 5334184.023800001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ALBION",
+        "SUB_NUMBER": "80",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "06",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 4800
+      },
+      "geometry": {
+        "x": -8704194.8265,
+        "y": 5349836.050099999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BASOM STATION",
+        "SUB_NUMBER": "015",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "04",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 4800
+      },
+      "geometry": {
+        "x": -8726508.6449,
+        "y": 5321590.1351
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ELBA STATION",
+        "SUB_NUMBER": "020",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "04",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8703680.4852,
+        "y": 5322917.027999997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FARMERSVILLE",
+        "SUB_NUMBER": "27",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8723551.0415,
+        "y": 5224884.090800002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "N. OLEAN",
+        "SUB_NUMBER": "30",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8731811.2181,
+        "y": 5174937.246799998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PALOMA",
+        "SUB_NUMBER": "254",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "14",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8516692.7053,
+        "y": 5379334.824299999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SANDY CREEK 66",
+        "SUB_NUMBER": "66",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "16",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8470210.1185,
+        "y": 5410466.203699999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "THIRD ST",
+        "SUB_NUMBER": "216",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "14",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8506582.6265,
+        "y": 5358720.556500003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FAIRDALE",
+        "SUB_NUMBER": "135",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "14",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8521261.5398,
+        "y": 5361662.516999997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SORRELL HILL",
+        "SUB_NUMBER": "269",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8499701.3414,
+        "y": 5335488.3352999985
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FISHER",
+        "SUB_NUMBER": "270",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "12",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8481213.8751,
+        "y": 5253797.483499996
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SAND ROAD",
+        "SUB_NUMBER": "131",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8476048.201,
+        "y": 5328604.214100003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "COLLINS",
+        "SUB_NUMBER": "83",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "07",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8784636.3212,
+        "y": 5235381.195
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "TURIN RD",
+        "SUB_NUMBER": "653",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "18",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8401635.185,
+        "y": 5356279.6635000035
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "126 STATION 126",
+        "SUB_NUMBER": "126",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8782211.7441,
+        "y": 5313535.166299999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "74 MILITARY",
+        "SUB_NUMBER": "74",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8781157.8463,
+        "y": 5312255.858900003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "56 WILLOWDALE & BARTON",
+        "SUB_NUMBER": "56",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8781670.9547,
+        "y": 5309442.0940999985
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "23 KENMORE",
+        "SUB_NUMBER": "23",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8777712.4329,
+        "y": 5305637.756200001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WEST PORTLAND",
+        "SUB_NUMBER": "151",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "08",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8852385.8682,
+        "y": 5214226.717600003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "E. DUNKIRK",
+        "SUB_NUMBER": "63",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "08",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8829036.971,
+        "y": 5234098.6752
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "88 YOUNGSTOWN",
+        "SUB_NUMBER": "88",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8799514.9215,
+        "y": 5349252.209100001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "105 SWANN RD",
+        "SUB_NUMBER": "105",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8793031.9334,
+        "y": 5342460.624499999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HAMMOND",
+        "SUB_NUMBER": "370",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "28",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8426011.2499,
+        "y": 5535305.637100004
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "81 BEECH AVE",
+        "SUB_NUMBER": "81",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8799325.6398,
+        "y": 5329456.7029
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "28 STATION 28",
+        "SUB_NUMBER": "28",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8773529.2515,
+        "y": 5301753.818400003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "68 ELMWOOD",
+        "SUB_NUMBER": "68",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8780582.0833,
+        "y": 5298553.170900002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "42 OHIO",
+        "SUB_NUMBER": "42",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8779443.506,
+        "y": 5290736.547499999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CONKLING",
+        "SUB_NUMBER": "652",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8374165.385,
+        "y": 5325574.426200002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NORTH GOVERNEUR",
+        "SUB_NUMBER": "983",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "29",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8402092.1681,
+        "y": 5518930.074000001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LYME E.S.",
+        "SUB_NUMBER": "733",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "13",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8474297.5419,
+        "y": 5477386.297200002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CEDAR",
+        "SUB_NUMBER": "453",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "38",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8193449.827199999,
+        "y": 5361014.478699997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PORT HENRY",
+        "SUB_NUMBER": "385",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "41",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8179672.1899,
+        "y": 5474007.452
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ST JOHNSVILLE",
+        "SUB_NUMBER": "335",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8314061.6752,
+        "y": 5311473.804399997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CENTER ST.",
+        "SUB_NUMBER": "379",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8279565.231799999,
+        "y": 5305600.791100003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ELNORA",
+        "SUB_NUMBER": "442",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8219604.3608,
+        "y": 5295480.822099999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "VANDALIA",
+        "SUB_NUMBER": "104",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8746879.6877,
+        "y": 5175583.667599998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "210 MILITARY RD",
+        "SUB_NUMBER": "210",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8791070.0537,
+        "y": 5326102.2874
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ALTAMONT",
+        "SUB_NUMBER": "283",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8237166.511399999,
+        "y": 5267919.3510000035
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ROCK CITY FALLS",
+        "SUB_NUMBER": "404",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "39",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8228132.2951,
+        "y": 5321282.028800003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GENESEE ST.",
+        "SUB_NUMBER": "260",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8208612.578199999,
+        "y": 5261836.816299997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BOLTON",
+        "SUB_NUMBER": "284",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "40",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8200526.007999999,
+        "y": 5396649.800399996
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LIBERTY",
+        "SUB_NUMBER": "094",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8203694.646199999,
+        "y": 5270265.673199996
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "RUSSELL RD",
+        "SUB_NUMBER": "228",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8214176.617799999,
+        "y": 5264003.033200003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "VAIL MILLS",
+        "SUB_NUMBER": "392",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8261843.4343,
+        "y": 5318745.031499997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MIDDLEBURG",
+        "SUB_NUMBER": "390",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "37",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8274588.9092999995,
+        "y": 5251616.4657000005
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SCHOHARIE",
+        "SUB_NUMBER": "234",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "37",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8271497.7783,
+        "y": 5262368.009499997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "AVENUE A",
+        "SUB_NUMBER": "291",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8214201.3156,
+        "y": 5259479.302000001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "COFFEEN",
+        "SUB_NUMBER": "760",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "13",
+        "TRA_NOM_CA": 45000,
+        "NOM_VOLTGE": 15
+      },
+      "geometry": {
+        "x": -8454539.8626,
+        "y": 5463793.753200002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EAGLE BAY",
+        "SUB_NUMBER": "382",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8328045.6427,
+        "y": 5429737.518299997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WHITE LAKE",
+        "SUB_NUMBER": "399",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8364796.945800001,
+        "y": 5395004.093699999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CURRY RD",
+        "SUB_NUMBER": "365",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8230137.3401999995,
+        "y": 5275730.486299999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CHRISLER AVE",
+        "SUB_NUMBER": "257",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8230848.309,
+        "y": 5280008.0891999975
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "TWO MILE CREEK STATION",
+        "SUB_NUMBER": "3011",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8783254.0238,
+        "y": 5311476.930399999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "TIBBITS AVE",
+        "SUB_NUMBER": "292",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8201935.279100001,
+        "y": 5270281.107900001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FLORIDA ",
+        "SUB_NUMBER": "501",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8265116.608899999,
+        "y": 5302190.479699999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "AUSABLE FORKS",
+        "SUB_NUMBER": "846",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "24",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8202812.1262,
+        "y": 5535748.170599997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "83 WELCH AVE",
+        "SUB_NUMBER": "83",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8797988.2363,
+        "y": 5325355.7082
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ATTICA STATION",
+        "SUB_NUMBER": "012",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "04",
+        "TRA_NOM_CA": 4800,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8713095.54,
+        "y": 5291497.921300001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "AVON",
+        "SUB_NUMBER": "43",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "05",
+        "TRA_NOM_CA": 4800,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8653641.8919,
+        "y": 5298202.761799999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BERRY ROAD",
+        "SUB_NUMBER": "153",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "08",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8836676.6293,
+        "y": 5226528.6494999975
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "INMAN RD",
+        "SUB_NUMBER": "370",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8222625.566299999,
+        "y": 5279963.050800003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BUTTS RD",
+        "SUB_NUMBER": "72",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "06",
+        "TRA_NOM_CA": 13200,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8701444.1219,
+        "y": 5348741.912900001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SONORA WAY",
+        "SUB_NUMBER": "4381",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "05",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8651347.7093,
+        "y": 5287497.051200002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CUBA",
+        "SUB_NUMBER": "05",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8714128.6552,
+        "y": 5194037.007700004
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "86 LEWISTON HEIGHTS",
+        "SUB_NUMBER": "86",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8797442.7912,
+        "y": 5335201.370999999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "RIVER RD",
+        "SUB_NUMBER": "444",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8200670.7994,
+        "y": 5293361.983599998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FAY ST",
+        "SUB_NUMBER": "103",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "14",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8505322.9577,
+        "y": 5359743.847400002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NEW ROYAL STA. 2715",
+        "SUB_NUMBER": null,
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8795974.2391,
+        "y": 5324994.752099998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LASHER RD",
+        "SUB_NUMBER": "3221",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8229880.844799999,
+        "y": 5308496.922799997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HOPKINS",
+        "SUB_NUMBER": "253",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 18000000,
+        "NOM_VOLTGE": 115000
+      },
+      "geometry": {
+        "x": -8479540.7171,
+        "y": 5328654.857199997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MAPLEHURST",
+        "SUB_NUMBER": "4",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8724880.1564,
+        "y": 5188066.022699997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SO. ROBERTS RD",
+        "SUB_NUMBER": "154",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "08",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8829458.5407,
+        "y": 5233895.388999999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SHEPPARD STATION",
+        "SUB_NUMBER": "029",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "04",
+        "TRA_NOM_CA": 13200,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8689524.8496,
+        "y": 5293967.824900001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EAGLE HARBOR",
+        "SUB_NUMBER": "92",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "06",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 4800
+      },
+      "geometry": {
+        "x": -8711091.9427,
+        "y": 5348014.402500004
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HEMLOCK",
+        "SUB_NUMBER": "38",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "05",
+        "TRA_NOM_CA": 13200,
+        "NOM_VOLTGE": 123
+      },
+      "geometry": {
+        "x": -8639353.7259,
+        "y": 5280674.132799998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GILBERT MILLS",
+        "SUB_NUMBER": "247",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8487955.2473,
+        "y": 5358661.536799997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WINE CREEK",
+        "SUB_NUMBER": "283",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "14",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8514549.5539,
+        "y": 5383344.468900003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "TRUXTON",
+        "SUB_NUMBER": "74",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "12",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8463122.2499,
+        "y": 5268386.711000003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NORTH ASHFORD",
+        "SUB_NUMBER": "36",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8760984.7971,
+        "y": 5232030.771499999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DELAMETER RD",
+        "SUB_NUMBER": "93",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "07",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8794384.5922,
+        "y": 5260692.203599997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PERRYSBURG",
+        "SUB_NUMBER": "181",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "07",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8799419.0167,
+        "y": 5238780.615000002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "STOW",
+        "SUB_NUMBER": "52",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8839126.3348,
+        "y": 5183573.828000002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BAKER STREET",
+        "SUB_NUMBER": "150",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8831188.8779,
+        "y": 5172039.100299999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "93 WILSON",
+        "SUB_NUMBER": "93",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8774975.8133,
+        "y": 5356804.547399998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LAKE COLBY",
+        "SUB_NUMBER": "927",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "24",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8251890.8412,
+        "y": 5520141.226400003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "162 STATION 162",
+        "SUB_NUMBER": "162",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8776992.536,
+        "y": 5301204.076800004
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "146 WALDEN AVE.",
+        "SUB_NUMBER": "146",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8764529.7316,
+        "y": 5297838.426399998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "46 STATION 46",
+        "SUB_NUMBER": "46",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8774592.9147,
+        "y": 5286706.810800001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "142 LEHIGH AVE",
+        "SUB_NUMBER": "142",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8776313.7594,
+        "y": 5284718.261799999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "11 STATION 11",
+        "SUB_NUMBER": "11",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8775147.1922,
+        "y": 5283888.322999999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "38 SPRING",
+        "SUB_NUMBER": "38",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8778474.7487,
+        "y": 5295328.1428999975
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PLEASANT",
+        "SUB_NUMBER": "664",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8376882.2633,
+        "y": 5325272.0320999995
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LAWRENCE AVE",
+        "SUB_NUMBER": "976",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "25",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8345688.285700001,
+        "y": 5571086.1592999995
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "STAR LAKE",
+        "SUB_NUMBER": "727",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "29",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8348109.704500001,
+        "y": 5491406.900600001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BALMAT",
+        "SUB_NUMBER": "904",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "29",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8393241.451,
+        "y": 5504564.660099998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SPRINGFIELD RD.",
+        "SUB_NUMBER": "167",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8469305.5368,
+        "y": 5319798.159000002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HAGUE",
+        "SUB_NUMBER": "418",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "41",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8175971.0315000005,
+        "y": 5441573.846600004
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SCOFIELD",
+        "SUB_NUMBER": "450",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "38",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8219654.5636,
+        "y": 5365933.367200002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PINEBUSH",
+        "SUB_NUMBER": "371",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8224928.6226,
+        "y": 5266630.055799998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PARTRIDGE ST.",
+        "SUB_NUMBER": "128",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8212904.430500001,
+        "y": 5261602.575099997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ONEIDA",
+        "SUB_NUMBER": "501",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "20",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8419245.8978,
+        "y": 5327521.349299997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EAST MOLLOY ROAD",
+        "SUB_NUMBER": "151",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8471333.2918,
+        "y": 5326744.474100001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HARRIS ROAD",
+        "SUB_NUMBER": "235",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8485903.3195,
+        "y": 5314597.337200001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EAST GOLAH",
+        "SUB_NUMBER": "51",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "05",
+        "TRA_NOM_CA": 13200,
+        "NOM_VOLTGE": 120
+      },
+      "geometry": {
+        "x": -8648798.8971,
+        "y": 5304136.9727
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "AKWESASNE",
+        "SUB_NUMBER": "825",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "25",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 4800
+      },
+      "geometry": {
+        "x": -8318283.249399999,
+        "y": 5617402.4278
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EMMET",
+        "SUB_NUMBER": "256",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8230314.8653,
+        "y": 5282432.8138
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BOMBAY E.S.",
+        "SUB_NUMBER": "897",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "27",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8301677.262,
+        "y": 5611908.526500002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FRENCH MOUNTAIN",
+        "SUB_NUMBER": "478",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "38",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8203741.6657,
+        "y": 5368367.561399996
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "UNION ST",
+        "SUB_NUMBER": "376",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "39",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8169746.3935,
+        "y": 5314584.746299997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HOOSICK",
+        "SUB_NUMBER": "314",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8166109.9319,
+        "y": 5298600.525399998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MAYFIELD",
+        "SUB_NUMBER": "356",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8267378.330800001,
+        "y": 5328397.876800001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SCHUYLERVILLE",
+        "SUB_NUMBER": "039",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "39",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8191109.5821,
+        "y": 5326752.9086000025
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BETHLEHEM",
+        "SUB_NUMBER": "021",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8215371.550100001,
+        "y": 5251699.363499999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HILL ST.",
+        "SUB_NUMBER": "311",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8276989.2413,
+        "y": 5317607.9135000035
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "QUAIL HOLLOW",
+        "SUB_NUMBER": "457",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8211605.7337,
+        "y": 5250646.876500003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MARKET HILL",
+        "SUB_NUMBER": "324",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8258239.149,
+        "y": 5305262.251500003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "RICHMOND",
+        "SUB_NUMBER": "32",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "05",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8630957.7547,
+        "y": 5280060.707900003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MIDDLEVILLE",
+        "SUB_NUMBER": "666",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "19",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8345085.2827,
+        "y": 5333479.9794000015
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SO. WASHINGTON ST.",
+        "SUB_NUMBER": "614",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "19",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8346888.310699999,
+        "y": 5314840.653800003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NEW FRANKHAUSER  STATION ",
+        "SUB_NUMBER": "995",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8770508.4816,
+        "y": 5309143.317400001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NEW 85 STEPHENSON AVE",
+        "SUB_NUMBER": "85",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8791808.6961,
+        "y": 5324055.8829
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "55 ELECTRIC AVE",
+        "SUB_NUMBER": "55",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8775212.0731,
+        "y": 5282414.9146
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SYCAWAY",
+        "SUB_NUMBER": "372",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8198643.664999999,
+        "y": 5272568.786600001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CLYMER",
+        "SUB_NUMBER": "55",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8862891.7367,
+        "y": 5164144.447300002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WHITESBORO",
+        "SUB_NUMBER": "632",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8380478.652000001,
+        "y": 5329869.579499997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MOIRA",
+        "SUB_NUMBER": "859",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "27",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8297690.253699999,
+        "y": 5593823.016800001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HOMER",
+        "SUB_NUMBER": "129",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "12",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8479887.6715,
+        "y": 5256855.542999998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "122 SOMMER ST - PROPOSED",
+        "SUB_NUMBER": "122",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8781074.0541,
+        "y": 5317078.9388
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BREWERTON",
+        "SUB_NUMBER": "7",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8476220.8776,
+        "y": 5347967.828599997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "POMPEY",
+        "SUB_NUMBER": "120",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8463637.8465,
+        "y": 5300181.792800002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PINE GROVE",
+        "SUB_NUMBER": "59",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8471042.8591,
+        "y": 5334890.121399999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HANCOCK #2",
+        "SUB_NUMBER": "138",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8473811.0924,
+        "y": 5327126.286200002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PARK STREET",
+        "SUB_NUMBER": "144",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8476207.8822,
+        "y": 5321610.986900002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BARKER STATION",
+        "SUB_NUMBER": "78",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "06",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 4800
+      },
+      "geometry": {
+        "x": -8744460.8016,
+        "y": 5363531.432499997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "N LEROY STATION",
+        "SUB_NUMBER": "004",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "04",
+        "TRA_NOM_CA": 13200,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8682049.5715,
+        "y": 5310198.2654
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CAVANAUGH",
+        "SUB_NUMBER": "616",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8379214.612299999,
+        "y": 5333521.4485
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NILES",
+        "SUB_NUMBER": "294",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8509216.598,
+        "y": 5289949.337800004
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MILTON AVE",
+        "SUB_NUMBER": "266",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8491559.4555,
+        "y": 5320001.498199999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "VALLEY WRCC",
+        "SUB_NUMBER": "44",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8754521.2523,
+        "y": 5199856.414800003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "N. EDEN",
+        "SUB_NUMBER": "82",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "07",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8782153.609,
+        "y": 5260879.0402000025
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "140 MAPLE RD",
+        "SUB_NUMBER": "140",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8766928.3542,
+        "y": 5310729.579099998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "58 HARLEM RD",
+        "SUB_NUMBER": "58",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8770068.6593,
+        "y": 5306638.931999996
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "47 STATION 47",
+        "SUB_NUMBER": "47",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8786367.4493,
+        "y": 5307700.658699997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "57 COLVIN",
+        "SUB_NUMBER": "57",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8777886.5592,
+        "y": 5310118.936899997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SINCLAIRVILLE",
+        "SUB_NUMBER": "72",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "08",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8824483.333,
+        "y": 5199533.354999997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FINDLEY LAKE",
+        "SUB_NUMBER": "71",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8875517.4501,
+        "y": 5179237.132299997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CHAUTAUQUA",
+        "SUB_NUMBER": "57",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8846401.0196,
+        "y": 5192080.357900001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "89 RANSOMVILLE",
+        "SUB_NUMBER": "89",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8783198.4669,
+        "y": 5347779.769500002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "N. LAWRENCE",
+        "SUB_NUMBER": "861",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "27",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8312914.658399999,
+        "y": 5589573.758900002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GABRIELS",
+        "SUB_NUMBER": "835",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "24",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8258262.277000001,
+        "y": 5532533.176899999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FRANKLIN",
+        "SUB_NUMBER": "843",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "24",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8234607.4608,
+        "y": 5533304.400799997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "RIVERVIEW",
+        "SUB_NUMBER": "847",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "24",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8224345.739600001,
+        "y": 5556923.496399999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "160 SUMMER ST.",
+        "SUB_NUMBER": "160",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8780369.9145,
+        "y": 5297447.547700003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "203 STATION ",
+        "SUB_NUMBER": "203",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8781226.4716,
+        "y": 5295174.2678999975
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "48 GELSTON",
+        "SUB_NUMBER": "48",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8782958.9198,
+        "y": 5299325.463600002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "32 BAILEY",
+        "SUB_NUMBER": "32",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8773558.837,
+        "y": 5300104.822099999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "139 MARTIN RD",
+        "SUB_NUMBER": "139",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8773151.3614,
+        "y": 5284005.432899997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "27 JEWETT AVE",
+        "SUB_NUMBER": "27",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8776491.7039,
+        "y": 5301977.673699997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "35 WALDEN",
+        "SUB_NUMBER": "35",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8775871.3277,
+        "y": 5297288.205700003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "39 WILLIAM",
+        "SUB_NUMBER": "39",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8776396.1284,
+        "y": 5294541.129600003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "40 WILLIAM STA",
+        "SUB_NUMBER": "40",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8773740.4156,
+        "y": 5294496.193499997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "33 STATION 33",
+        "SUB_NUMBER": "33",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8782111.0215,
+        "y": 5297554.993199997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CHADWICKS",
+        "SUB_NUMBER": "668",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8378846.5655000005,
+        "y": 5317770.744199999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BRADY",
+        "SUB_NUMBER": "957",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "25",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8366650.5878,
+        "y": 5588313.182599999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BRIER HILL",
+        "SUB_NUMBER": "953",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "28",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8422708.1657,
+        "y": 5546304.937299997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "OTTEN",
+        "SUB_NUMBER": "412",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "41",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8174468.6862,
+        "y": 5411734.255199999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HENRY STREET",
+        "SUB_NUMBER": "316",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "38",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8198047.4846,
+        "y": 5358459.421499997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "224 SWEET HOME",
+        "SUB_NUMBER": "224",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8772217.3981,
+        "y": 5315734.0429000035
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MEXICO",
+        "SUB_NUMBER": "43",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "14",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8485511.0808,
+        "y": 5382176.0176
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CONESUS LAKE SUBSTATION",
+        "SUB_NUMBER": "52",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "05",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8650954.1202,
+        "y": 5268583.258699998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LAKEVIEW",
+        "SUB_NUMBER": "182",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "07",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8787777.4305,
+        "y": 5268126.2667
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "211 AYER RD",
+        "SUB_NUMBER": "211",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8762430.9521,
+        "y": 5311283.093699999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DELAWARE AVE",
+        "SUB_NUMBER": "330",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8212654.3236,
+        "y": 5257726.611500002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BALLSTON",
+        "SUB_NUMBER": "012",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "39",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8221926.8517,
+        "y": 5311799.022100002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PORTAGE ST.",
+        "SUB_NUMBER": "754",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "13",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8452010.9891,
+        "y": 5461171.431500003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "UNIONVILLE",
+        "SUB_NUMBER": "276",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8226074.226500001,
+        "y": 5250930.5385000035
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SCOTIA",
+        "SUB_NUMBER": "255",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8232603.5704,
+        "y": 5286741.403700002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SHORE RD",
+        "SUB_NUMBER": "281",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8223833.382999999,
+        "y": 5298382.8413999975
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "POTTERSVILLE",
+        "SUB_NUMBER": "424",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "40",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8217816.3653,
+        "y": 5423437.447300002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SCHROON LAKE",
+        "SUB_NUMBER": "429",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "41",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8211565.3401999995,
+        "y": 5440389.694600001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WELLS",
+        "SUB_NUMBER": "208",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8269430.924900001,
+        "y": 5371312.243799999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NASSAU",
+        "SUB_NUMBER": "113",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8194431.6348,
+        "y": 5238457.3838
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DEXTER",
+        "SUB_NUMBER": "726",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "13",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8465303.7009,
+        "y": 5465341.5956000015
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GILPIN BAY",
+        "SUB_NUMBER": "956",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "24",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8276411.4113,
+        "y": 5509275.7294000015
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SCHUYLER",
+        "SUB_NUMBER": "663",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8368034.1658,
+        "y": 5325543.227300003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FRANKFORT",
+        "SUB_NUMBER": "677",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "19",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8355842.922,
+        "y": 5317627.612000003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WATT ST",
+        "SUB_NUMBER": "230",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8229156.2162,
+        "y": 5280028.842699997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DORWIN",
+        "SUB_NUMBER": "26",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8476821.4116,
+        "y": 5309489.368199997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "OAKFIELD STATION",
+        "SUB_NUMBER": "003",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "04",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8713907.6292,
+        "y": 5321538.0836
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CAMILLUS",
+        "SUB_NUMBER": "10",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8494038.6322,
+        "y": 5318449.394900002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EAST OTTO",
+        "SUB_NUMBER": "28",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8766673.6852,
+        "y": 5219575.134199999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "UNION",
+        "SUB_NUMBER": "844",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "24",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8227955.8817,
+        "y": 5544796.071900003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "TRINITY",
+        "SUB_NUMBER": "164",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8210657.4076000005,
+        "y": 5257854.373899996
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FAIRMOUNT",
+        "SUB_NUMBER": "118",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8486654.3353,
+        "y": 5316602.1712
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DELMAR",
+        "SUB_NUMBER": "279",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8219216.6711,
+        "y": 5254917.4472
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CLINTON ERCC",
+        "SUB_NUMBER": "366",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8303292.0152,
+        "y": 5296889.6395
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "87 LEWISTON",
+        "SUB_NUMBER": "87",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8798748.5689,
+        "y": 5338797.896899998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PHOENIX",
+        "SUB_NUMBER": "51",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "14",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8493787.0524,
+        "y": 5347090.3829
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BOYNTONVILLE",
+        "SUB_NUMBER": "333",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8175973.839199999,
+        "y": 5287865.6613000035
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "JOHNSON",
+        "SUB_NUMBER": "352",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8209064.172900001,
+        "y": 5276239.268799998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "JEWETT",
+        "SUB_NUMBER": "291",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8508693.8836,
+        "y": 5306881.951399997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PERRY ST",
+        "SUB_NUMBER": "12",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 132000
+      },
+      "geometry": {
+        "x": -8777288.2262,
+        "y": 5292306.748099998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CLOVERBANK",
+        "SUB_NUMBER": "91",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "07",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8782299.4855,
+        "y": 5273430.360600002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WESTMORELAND",
+        "SUB_NUMBER": "649",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8393497.3207,
+        "y": 5327291.884800002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BUTTERNUT",
+        "SUB_NUMBER": "255",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8465236.1276,
+        "y": 5319489.7892
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "RIDGE ROAD",
+        "SUB_NUMBER": "219",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8445778.933,
+        "y": 5310854.658299997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "COURT ST.",
+        "SUB_NUMBER": "121",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8473966.6376,
+        "y": 5324686.623199999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MINOA",
+        "SUB_NUMBER": "44",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8461549.3838,
+        "y": 5322678.8741
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WETHERSFIELD STATION",
+        "SUB_NUMBER": "023",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "04",
+        "TRA_NOM_CA": 4800,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8710830.1613,
+        "y": 5264251.068000004
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SHELBY",
+        "SUB_NUMBER": "76",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "06",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 13.200000000000001
+      },
+      "geometry": {
+        "x": -8723972.3417,
+        "y": 5344776.933399998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WATERPORT",
+        "SUB_NUMBER": "73",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "06",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 4800
+      },
+      "geometry": {
+        "x": -8709103.418,
+        "y": 5361869.5722
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LAKEVILLE",
+        "SUB_NUMBER": "40",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "05",
+        "TRA_NOM_CA": 4800,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8651250.0649,
+        "y": 5286795.009800002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CUBA LAKE",
+        "SUB_NUMBER": "37",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8713079.0286,
+        "y": 5197949.272500001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SOUTH WELLSVILLE",
+        "SUB_NUMBER": "23",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8674927.4515,
+        "y": 5176849.134499997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "W. OLEAN",
+        "SUB_NUMBER": "33",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8733611.2904,
+        "y": 5173262.684
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CLEVELAND",
+        "SUB_NUMBER": "11",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "18",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8447867.2496,
+        "y": 5348277.957800001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "TULLER HILL",
+        "SUB_NUMBER": "246",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "12",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8475796.5906,
+        "y": 5239303.227899998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LEVANT",
+        "SUB_NUMBER": "98",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8813719.9312,
+        "y": 5178589.3977999985
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SOUTH RANDOLPH",
+        "SUB_NUMBER": "32",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8791918.7061,
+        "y": 5181916.570600003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CATTARAUGUS",
+        "SUB_NUMBER": "15",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 4800,
+        "NOM_VOLTGE": 120
+      },
+      "geometry": {
+        "x": -8778547.184,
+        "y": 5209886.910599999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LEVITT",
+        "SUB_NUMBER": "665",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "18",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8401454.5369,
+        "y": 5346271.054700002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "122 SOMMER ST",
+        "SUB_NUMBER": "122",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8781113.8372,
+        "y": 5317063.641000003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "129 BROMPTON",
+        "SUB_NUMBER": "129",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8776237.9295,
+        "y": 5312231.1985
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "77 EAST AVE",
+        "SUB_NUMBER": "77",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8779835.3716,
+        "y": 5315069.5031
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FRENCH CREEK",
+        "SUB_NUMBER": "56",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8872494.157,
+        "y": 5169088.520199999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "170 NEWFANE",
+        "SUB_NUMBER": "170",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8760381.9696,
+        "y": 5355210.315200001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "206 TONAWANDA CREEK",
+        "SUB_NUMBER": "206",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8772134.402,
+        "y": 5320521.443499997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BREMEN",
+        "SUB_NUMBER": "815",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "23",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8392433.9043,
+        "y": 5447140.956100002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "29 POTOMAC",
+        "SUB_NUMBER": "29",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8781646.2426,
+        "y": 5300381.141199999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "52 HERTEL",
+        "SUB_NUMBER": "52",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8780509.8849,
+        "y": 5304067.291500002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "34 BEST ST.",
+        "SUB_NUMBER": "34",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8777758.9018,
+        "y": 5297316.8134
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "43 SENECA ST",
+        "SUB_NUMBER": "43",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8773981.3006,
+        "y": 5291001.063199997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DEERFIELD",
+        "SUB_NUMBER": "606",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8372921.658,
+        "y": 5333948.557599999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ST.JOES",
+        "SUB_NUMBER": "924",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "25",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8352434.5945999995,
+        "y": 5544605.949100003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LISBON E.S.",
+        "SUB_NUMBER": "963",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "28",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8384767.063999999,
+        "y": 5578335.537900001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MIDLER",
+        "SUB_NUMBER": "145",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8471016.0405,
+        "y": 5324804.7949
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CHURCH ST",
+        "SUB_NUMBER": "043",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8257147.3489,
+        "y": 5302460.450099997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SCHODACK",
+        "SUB_NUMBER": "451",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8205844.5836,
+        "y": 5243547.037900001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "JUNIPER",
+        "SUB_NUMBER": "446",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8220841.3846,
+        "y": 5252104.205899999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WESTVALE",
+        "SUB_NUMBER": "133",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8485240.7589,
+        "y": 5319400.728
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "TEMPLE ST.",
+        "SUB_NUMBER": "243",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8477262.5918,
+        "y": 5318033.812799998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BROOK ROAD",
+        "SUB_NUMBER": "369",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "39",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8219098.0644000005,
+        "y": 5324550.4947
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SOUTH ST",
+        "SUB_NUMBER": "297",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "39",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8214614.3137,
+        "y": 5323156.573200002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PERRYVILLE",
+        "SUB_NUMBER": "50",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8441095.5304,
+        "y": 5313733.4221
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LIGHTHOUSE HILL",
+        "SUB_NUMBER": "61",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "16",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8457113.7942,
+        "y": 5391963.208800003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "E.J. WEST HYDRO",
+        "SUB_NUMBER": "038",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8228717.5019000005,
+        "y": 5360512.348499998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PORT LEYDEN",
+        "SUB_NUMBER": "755",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "23",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8388018.194599999,
+        "y": 5400411.734300002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NORTH CREEK",
+        "SUB_NUMBER": "122",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "40",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8234501.1712,
+        "y": 5416343.7097999975
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "STUVESANT",
+        "SUB_NUMBER": "035",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "33",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8208062.983899999,
+        "y": 5213958.5266999975
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GREENBUSH",
+        "SUB_NUMBER": "078",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8205897.4682,
+        "y": 5252159.948399998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "JOHNSTOWN",
+        "SUB_NUMBER": "061",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8279480.9662,
+        "y": 5314285.296300001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NORTH TROY",
+        "SUB_NUMBER": "123",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8197258.2809999995,
+        "y": 5279617.764700003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "OATHOUT",
+        "SUB_NUMBER": "402",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8212800.4103999995,
+        "y": 5272223.951499999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ALDER CREEK",
+        "SUB_NUMBER": "701",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8374086.8577,
+        "y": 5376291.215899996
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "REYNOLDS RD",
+        "SUB_NUMBER": "334",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8202848.771299999,
+        "y": 5262285.535599999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "INGHAMS",
+        "SUB_NUMBER": "020",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8322644.1631000005,
+        "y": 5321156.642999999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "127 DELAWARE ROAD",
+        "SUB_NUMBER": "127",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8779274.1156,
+        "y": 5308359.038699999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "36 SUMNER PL",
+        "SUB_NUMBER": "36",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8773228.098,
+        "y": 5297053.417499997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "TERMINA",
+        "SUB_NUMBER": "651",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8374163.0758,
+        "y": 5329018.379100002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NORTHVILLE",
+        "SUB_NUMBER": "332",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8258562.465500001,
+        "y": 5346797.989299998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LANSINGBURGH",
+        "SUB_NUMBER": "093",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8201785.6226,
+        "y": 5276049.706
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "YAHNUNDASIS",
+        "SUB_NUMBER": "646",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8386161.3673,
+        "y": 5325533.6171
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PORTABLE SUB",
+        "SUB_NUMBER": "92",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "06",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 4800
+      },
+      "geometry": {
+        "x": -8711130.7246,
+        "y": 5347968.225299999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SOUTHLAND ",
+        "SUB_NUMBER": "84",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "06",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 4800
+      },
+      "geometry": {
+        "x": -8744096.2778,
+        "y": 5362441.4038999975
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PEAT STREET",
+        "SUB_NUMBER": "250",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8473403.6714,
+        "y": 5319845.952500001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BRIDGE ST.",
+        "SUB_NUMBER": "295",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8468215.9666,
+        "y": 5320424.6545
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FLY RD",
+        "SUB_NUMBER": "261",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8466678.7826,
+        "y": 5324986.590599999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SOUTHWOOD",
+        "SUB_NUMBER": "244",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8469616.6941,
+        "y": 5310731.510799997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "HANCOCK",
+        "SUB_NUMBER": "137",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8473701.4507,
+        "y": 5327102.802199997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BALLINA",
+        "SUB_NUMBER": "221",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8442544.9236,
+        "y": 5298051.935800001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "37 HUDSON AVE",
+        "SUB_NUMBER": "37",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8781348.9089,
+        "y": 5296445.092699997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CORFU STATION",
+        "SUB_NUMBER": "022",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "04",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 4.8
+      },
+      "geometry": {
+        "x": -8728173.5957,
+        "y": 5306351.7381
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "W ALBION",
+        "SUB_NUMBER": "79",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "06",
+        "TRA_NOM_CA": 13200,
+        "NOM_VOLTGE": 1
+      },
+      "geometry": {
+        "x": -8707913.714,
+        "y": 5348607.187600002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LIVINGSTON COUNTY CORRECTIONAL",
+        "SUB_NUMBER": "130",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "05",
+        "TRA_NOM_CA": 76,
+        "NOM_VOLTGE": 13.200000000000001
+      },
+      "geometry": {
+        "x": -8663661.2488,
+        "y": 5263892.904299997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "GROVELAND",
+        "SUB_NUMBER": "41",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "05",
+        "TRA_NOM_CA": 4800,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8656856.6025,
+        "y": 5260932.648100004
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MUMFORD",
+        "SUB_NUMBER": "50",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "05",
+        "TRA_NOM_CA": 400,
+        "NOM_VOLTGE": 13.200000000000001
+      },
+      "geometry": {
+        "x": -8667076.8158,
+        "y": 5310205.3517
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NEW WHITESVILLE",
+        "SUB_NUMBER": "101",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8660751.0271,
+        "y": 5171500.823899999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ANDOVER",
+        "SUB_NUMBER": "09",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "10",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8660808.6307,
+        "y": 5184267.716300003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LAKE RD",
+        "SUB_NUMBER": "299",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "14",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8506021.103,
+        "y": 5390809.159900002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "EAST PULASKI",
+        "SUB_NUMBER": "324",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "16",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8471857.1673,
+        "y": 5395580.730700001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WEST MONROE",
+        "SUB_NUMBER": "274",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8467988.4668,
+        "y": 5354240.2214
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CONSTANTIA",
+        "SUB_NUMBER": "19",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8460394.9541,
+        "y": 5350247.518399999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "STILES",
+        "SUB_NUMBER": "58",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8490649.6787,
+        "y": 5329686.180100001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "TULLY CENTER",
+        "SUB_NUMBER": "278",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "12",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8472617.2197,
+        "y": 5280148.136200003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "64 STATION 64",
+        "SUB_NUMBER": "64",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8788709.0224,
+        "y": 5315457.060699999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "208 STATION 208",
+        "SUB_NUMBER": "208",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8782936.517,
+        "y": 5306783.2315
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "54 MAIN",
+        "SUB_NUMBER": "54",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8767849.1152,
+        "y": 5305941.134300001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "79 RIDGE ST.",
+        "SUB_NUMBER": "79",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8780422.6744,
+        "y": 5319272.128799997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "61 STATION 61",
+        "SUB_NUMBER": "61",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8768574.5433,
+        "y": 5302854.8386999965
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "67 STATION 67",
+        "SUB_NUMBER": "67",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8762358.5639,
+        "y": 5306743.9690999985
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "130 NIAGARA FALLS BLVD",
+        "SUB_NUMBER": "130",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8774372.1754,
+        "y": 5313321.435000002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BUSTI",
+        "SUB_NUMBER": "68",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8824046.8049,
+        "y": 5168481.207999997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "STATION 159",
+        "SUB_NUMBER": "159",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "09",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8836801.5727,
+        "y": 5184666.4208
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BENNETT RD.",
+        "SUB_NUMBER": "99",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "08",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8830122.7623,
+        "y": 5232302.712899998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "RAYBROOK ES",
+        "SUB_NUMBER": "839",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "24",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8246852.7489,
+        "y": 5512209.064099997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PAUL SMITHS",
+        "SUB_NUMBER": "834",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "24",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8264492.981000001,
+        "y": 5532224.439800002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MALONE",
+        "SUB_NUMBER": "895",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "27",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8270186.232999999,
+        "y": 5594659.271600001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PARISHVILLE",
+        "SUB_NUMBER": "939",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "25",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8329508.186000001,
+        "y": 5563507.261100002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "85 STEPHENSON AVE",
+        "SUB_NUMBER": "85",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8791846.4273,
+        "y": 5324062.5339
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "53 BAILEY",
+        "SUB_NUMBER": "53",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8773533.5598,
+        "y": 5303187.973899998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "213 DALE RD",
+        "SUB_NUMBER": "213",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8768409.434,
+        "y": 5297288.733599998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "30 SPILLMAN",
+        "SUB_NUMBER": "30",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8778145.5102,
+        "y": 5300082.641199999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "44 SOUTH PARK",
+        "SUB_NUMBER": "44",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8774578.6742,
+        "y": 5288641.673500001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "205 ERIE DRIVE",
+        "SUB_NUMBER": "205",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8781480.575,
+        "y": 5294483.583800003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "51 ELK ST",
+        "SUB_NUMBER": "51",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8775426.3101,
+        "y": 5291595.7831000015
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "31 STATION",
+        "SUB_NUMBER": "31",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8776481.0491,
+        "y": 5300134.2304000035
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WEST ADAMS",
+        "SUB_NUMBER": "875",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "13",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8468371.4424,
+        "y": 5437496.3112
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SUNDAY CREEK",
+        "SUB_NUMBER": "876",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "23",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8364103.551999999,
+        "y": 5445582.169
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MCBRIDE",
+        "SUB_NUMBER": "123",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8476311.8556,
+        "y": 5317726.851300001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "McKOWNVILLE",
+        "SUB_NUMBER": "327",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8220153.2103,
+        "y": 5264001.9815
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WOLF RD.",
+        "SUB_NUMBER": "344",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8215674.8654,
+        "y": 5269365.612400003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FIREHOUSE",
+        "SUB_NUMBER": "449",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8209990.597200001,
+        "y": 5285093.621600002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BUCKLEYS",
+        "SUB_NUMBER": "454",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "33",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8214770.0604,
+        "y": 5192319.658699997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NEWARK ST",
+        "SUB_NUMBER": "300",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8204701.606799999,
+        "y": 5276667.4362
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DEPOT ROAD",
+        "SUB_NUMBER": "425",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8233598.025599999,
+        "y": 5263833.591700003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "COLOSSE",
+        "SUB_NUMBER": "321",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "16",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8478088.9897,
+        "y": 5376709.0898
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LORDS HILL",
+        "SUB_NUMBER": "150",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8484868.3311,
+        "y": 5298248.900200002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SEWALL'S ISLAND",
+        "SUB_NUMBER": "766",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "13",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8448582.5652,
+        "y": 5461991.0913999975
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WILTON",
+        "SUB_NUMBER": "329",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "39",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8209916.3651,
+        "y": 5339732.622000001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SAND ROAD #2",
+        "SUB_NUMBER": "141",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8476035.7768,
+        "y": 5328625.686899997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CORLISS PARK",
+        "SUB_NUMBER": "338",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8200604.528999999,
+        "y": 5279689.536600001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "FORT GAGE",
+        "SUB_NUMBER": "319",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "40",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8205496.5792,
+        "y": 5374364.375399999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "CHESTERTOWN",
+        "SUB_NUMBER": "42",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "40",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8216354.077199999,
+        "y": 5411826.681500003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ASHLEY",
+        "SUB_NUMBER": "331",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "38",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8181728.316,
+        "y": 5376195.223399997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "COLVIN AVE",
+        "SUB_NUMBER": "313",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8214649.799799999,
+        "y": 5263392.183700003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "COMMERCE AVE",
+        "SUB_NUMBER": "434",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8212766.27,
+        "y": 5262823.328000002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "RIVERSIDE",
+        "SUB_NUMBER": "288",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8208688.694399999,
+        "y": 5260620.513800003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "QUEENSBURY",
+        "SUB_NUMBER": "295",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "38",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8200297.604800001,
+        "y": 5363074.7148
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "RIPARIUS",
+        "SUB_NUMBER": "293",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "40",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8226679.2918,
+        "y": 5413574.1586000025
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WEAVER ST",
+        "SUB_NUMBER": "245",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8232048.1679,
+        "y": 5282408.82
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WORCESTER",
+        "SUB_NUMBER": "189",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "37",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8321459.9946,
+        "y": 5250814.644000001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SEVENTH AVE",
+        "SUB_NUMBER": "244",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8202169.750399999,
+        "y": 5273416.712899998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "SALISBURY ES",
+        "SUB_NUMBER": "678",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "19",
+        "TRA_NOM_CA": 7000000,
+        "NOM_VOLTGE": 13.200000000000001
+      },
+      "geometry": {
+        "x": -8331729.5175,
+        "y": 5322000.294
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "OLD FORGE",
+        "SUB_NUMBER": "383",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8346735.766000001,
+        "y": 5419676.592
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "STITTVILLE",
+        "SUB_NUMBER": "670",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8377769.4813,
+        "y": 5344094.530199997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WEST HERKIMER",
+        "SUB_NUMBER": "676",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "19",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8348498.024900001,
+        "y": 5315072.610799998
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "LYNN",
+        "SUB_NUMBER": "320",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8233847.1622,
+        "y": 5278654.9147000015
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "BRUNSWICK",
+        "SUB_NUMBER": "264",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8190566.181700001,
+        "y": 5271541.230800003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "2738 LARKINVILLE",
+        "SUB_NUMBER": "2738",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "01",
+        "TRA_NOM_CA": 10000,
+        "NOM_VOLTGE": 13200
+      },
+      "geometry": {
+        "x": -8777228.9985,
+        "y": 5292244.3576000035
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ROCK CUT",
+        "SUB_NUMBER": "286",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8475267.4091,
+        "y": 5313653.4146
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "106 GIBSON",
+        "SUB_NUMBER": "106",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "03",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8796433.2838,
+        "y": 5329902.535599999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "NEWTONVILLE",
+        "SUB_NUMBER": "305",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "30",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8211234.4410999995,
+        "y": 5271637.723099999
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "WETZEL RD SUBSTATION",
+        "SUB_NUMBER": "6900",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8481465.5634,
+        "y": 5335041.3977999985
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "ROTTERDAM",
+        "SUB_NUMBER": "138",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "32",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8237362.4231,
+        "y": 5285953.633599997
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "PROSPECT HILL",
+        "SUB_NUMBER": "413",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "31",
+        "TRA_NOM_CA": null,
+        "NOM_VOLTGE": null
+      },
+      "geometry": {
+        "x": -8202002.5362,
+        "y": 5282112.202600002
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "N. BOMBAY",
+        "SUB_NUMBER": "866",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "27",
+        "TRA_NOM_CA": 7000,
+        "NOM_VOLTGE": 13.200000000000001
+      },
+      "geometry": {
+        "x": -8307552.155300001,
+        "y": 5612723.876500003
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "POLAND CRCC",
+        "SUB_NUMBER": "622",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "17",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8355974.3453,
+        "y": 5346256.277800001
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "DELPHI",
+        "SUB_NUMBER": "262",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "11",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8448192.9202,
+        "y": 5288648.4201000035
+      }
+    },
+    {
+      "attributes": {
+        "NAME": "MAPLE AVE SUBSTATION",
+        "SUB_NUMBER": "3502",
+        "TYPE": "Distribution",
+        "STATUS": "Existing",
+        "OP_DIST": "35",
+        "TRA_NOM_CA": 0,
+        "NOM_VOLTGE": 0
+      },
+      "geometry": {
+        "x": -8258245.110200001,
+        "y": 5309672.487199999
+      }
+    }
+  ]
+}
