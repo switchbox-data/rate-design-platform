@@ -13,12 +13,12 @@ Schema: `timestamp` (datetime), `energy_cost_enduse` ($/MWh), `capacity_cost_end
 
 ## Data sources
 
-| Dataset                | S3 path                                                                                                | Schema key columns                                                                  |
-| ---------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| LBMP (energy prices)   | `s3://data.sb/nyiso/lbmp/real_time/zones/zone={ZONE_NAME}/year={Y}/month={M}/data.parquet`            | `interval_start_est`, `zone`, `lbmp_usd_per_mwh` (5-minute intervals)              |
-| ICAP (capacity prices) | `s3://data.sb/nyiso/icap/year={Y}/month={M}/data.parquet`                                              | `locality` (Categorical), `auction_type` (Categorical), `price_per_kw_month`        |
-| EIA zone loads         | `s3://data.sb/eia/hourly_demand/zones/region=nyiso/zone={LETTER}/year={Y}/month={M}/data.parquet`      | `timestamp`, `zone`, `load_mw`                                                      |
-| Zone mapping           | `s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv`                                          | `utility`, `load_zone_letter`, `lbmp_zone_name`, `icap_locality`, `capacity_weight` |
+| Dataset                | S3 path                                                                                           | Schema key columns                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| LBMP (energy prices)   | `s3://data.sb/nyiso/lbmp/real_time/zones/zone={ZONE_NAME}/year={Y}/month={M}/data.parquet`        | `interval_start_est`, `zone`, `lbmp_usd_per_mwh` (5-minute intervals)               |
+| ICAP (capacity prices) | `s3://data.sb/nyiso/icap/year={Y}/month={M}/data.parquet`                                         | `locality` (Categorical), `auction_type` (Categorical), `price_per_kw_month`        |
+| EIA zone loads         | `s3://data.sb/eia/hourly_demand/zones/region=nyiso/zone={LETTER}/year={Y}/month={M}/data.parquet` | `timestamp`, `zone`, `load_mw`                                                      |
+| Zone mapping           | `s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv`                                     | `utility`, `load_zone_letter`, `lbmp_zone_name`, `icap_locality`, `capacity_weight` |
 
 ## Utility-to-zone mapping
 

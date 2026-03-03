@@ -28,7 +28,9 @@ def test_capacity_peak_profile_uses_nested_nyca_footprint() -> None:
         }
     )
 
-    result = build_capacity_peak_load_profile_from_zone_loads(locality_weights, zone_loads_df)
+    result = build_capacity_peak_load_profile_from_zone_loads(
+        locality_weights, zone_loads_df
+    )
 
     # NYCA = A-K, so K is included.
     assert result.sort("timestamp")["load_mw"].to_list() == [130.0, 240.0]
@@ -50,7 +52,9 @@ def test_capacity_peak_profile_blends_multiple_capacity_localities() -> None:
         }
     )
 
-    result = build_capacity_peak_load_profile_from_zone_loads(locality_weights, zone_loads_df).sort("timestamp")
+    result = build_capacity_peak_load_profile_from_zone_loads(
+        locality_weights, zone_loads_df
+    ).sort("timestamp")
 
     # NYC uses J; LHV uses G-J, so with data present that is (I+J).
     # Hour 1: 0.87*100 + 0.13*(100+30) = 103.9
