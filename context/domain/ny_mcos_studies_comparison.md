@@ -151,7 +151,7 @@ Despite label differences, every utility follows the same conceptual pipeline:
 5. **Escalate by inflation** (or not — see below) to get that-year-dollar costs
 6. **Year-by-year presentation**: only include projects in service that year
 7. **System-wide aggregation**: weight by load share (or sum and divide by system peak)
-8. **Levelization**: NPV of the year-by-year stream
+8. **Levelization**: collapse the year-by-year stream to a single number (workbooks use NPV; our scripts use a simple average — see below)
 
 The utilities differ in how they implement each step and in what order loaders and ECCR are applied.
 
@@ -283,6 +283,18 @@ For the BAT and rate design, the denominator choice affects the level of the dil
 4. **NYSEG/RGE aggregate by division before weighting to system.** This means the system-wide MC is sensitive to which divisions have investment. A single large project in a small division (e.g., Hornell, 5.4% of system peak) gets the full division weight. Other utilities weight at the project or area-station level, which can produce different results from the same underlying project costs.
 
 5. **NYSEG/RGE's use of the 2035 forecasted peak as the dilution denominator systematically lowers their $/kW-yr values** relative to what other utilities would produce from the same project costs. The 2035 forecast is the largest peak in the study horizon. If load growth doesn't materialize (e.g., if energy efficiency offsets electrification), the diluted MC will have understated the per-kW cost. ConEd/O&R and NiMo use a fixed peak closer to the current actual, which is more conservative. See "System peak denominator" in Step 6–7 above for the full comparison and verification.
+
+#### Our levelization approach
+
+Our scripts use a **simple arithmetic mean** of real (base-year) $/kW-yr across each utility's study period — no discounting. This differs from the workbooks, which use NPV-based levelization with utility-specific discount rates (see table above).
+
+**Why no discounting?** The discount rates in the workbooks are utility-specific WACCs that depend on each utility's capital structure (debt/equity mix, cost of debt, cost of equity, tax rate). They range from ~6.8% (CenHud) to ~9.0% (O&R's ECCR-embedded rate), and two utilities (NiMo, ConEd) don't expose a standalone levelization discount rate at all. Using any single discount rate across all seven utilities would be arbitrary — it would be accurate for one utility and wrong for the rest. A simple average is:
+
+- **Transparent**: equivalent to a 0% discount rate, the only assumption-free choice.
+- **Consistent**: the same formula for all seven utilities, with no utility-specific parameters.
+- **Conservative**: on an increasing MC stream (typical — costs ramp as projects enter service), a simple average produces a higher levelized value than NPV-based levelization would. This means our BAT inputs slightly overstate the levelized MC relative to what the workbooks report.
+
+The practical impact is modest. On a 10-year increasing stream, the difference between a simple average and NPV at ~7% is roughly 5–10%, depending on how back-loaded the stream is.
 
 ---
 

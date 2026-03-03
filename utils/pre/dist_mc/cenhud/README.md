@@ -6,7 +6,7 @@ CenHud is the **simplest** of the four NY utilities we analyze:
 
 - Only 11 project entries (8 named + 3 future unidentified placeholders)
 - **No bulk TX** to exclude — all three cost centers are local (69/115 kV and below)
-- **Flat nominal costs in workbook** — the only NY utility with no built-in escalation; we apply a 2.1%/yr GDP deflator for cross-utility consistency (see below)
+- **Flat nominal costs in workbook** — the only NY utility with no built-in escalation; we apply a 2.1%/yr GDP deflator for cross-utility consistency (see Escalation below)
 - Per-project annual costs are pre-computed in the workbook (row 26), already including ECCR, reserve margin, general plant loading, working capital, and loss factors
 
 ## Cost centers
@@ -19,22 +19,29 @@ All three cost centers are **included** in the BAT input. No exclusion or reclas
 | Substation         | `Substation`         | Distribution substation |               |        6 |
 | Feeder Circuit     | `Feeder`             | Primary distribution    |               |        2 |
 
-## No bulk TX
+## Bulk TX treatment
 
 CenHud has no FERC-jurisdictional bulk transmission in its MCOS study. The "Local Transmission" cost center covers 10 local TX areas at 69 kV and 115/69 kV. The MCOS report explicitly labels these as "local." Cross-referencing against NYISO Gold Book Table VII confirms: there are no CenHud entries. All MCOS costs are therefore sub-transmission and distribution — the BAT input is the sum of all three cost centers.
 
 ## MC formula and variants
 
+Base formula (all variants):
+
+```
+Annual RR(Y) = Annual Cost($/kW-yr, p) × Capacity(kW, p)   [per project]
+MC(Y)        = Σ Annual RR(Y) / Denominator                 [$/kW-yr]
+```
+
 The script produces **four variants** by combining two capital perspectives with two denominators:
 
-| Variant               | Projects in scope               | Denominator            | Perspective                        |
-| --------------------- | ------------------------------- | ---------------------- | ---------------------------------- |
-| Cumulative diluted    | All with in\_service\_year ≤ Y  | System peak (MW)       | MCOS cost allocation               |
-| Incremental diluted   | Only with in\_service\_year = Y | System peak (MW)       | BAT economic cost (cost causation) |
-| Cumulative undiluted  | All with in\_service\_year ≤ Y  | Cumulative project MW  | Per-project cost recovery          |
-| Incremental undiluted | Only with in\_service\_year = Y | New capacity in year Y | Per-project marginal cost          |
+| Variant               | Capital(Y)                          | Denominator                  |
+| --------------------- | ----------------------------------- | ---------------------------- |
+| Cumulative diluted    | Accumulated in-service capital to Y | System peak (MW)             |
+| Incremental diluted   | New capital entering service in Y   | System peak (MW)             |
+| Cumulative undiluted  | Accumulated in-service capital to Y | Cumulative project MW to Y   |
+| Incremental undiluted | New capital entering service in Y   | New project MW entering in Y |
 
-Levelized = simple arithmetic mean of real MC across all 10 study years, no discounting.
+Levelized = mean(MC) across all 10 study years, consistent with ConEd/O&R/NiMo.
 
 **Diluted formula:**
 
@@ -67,19 +74,6 @@ nominal_mc(Y) = real_mc(Y) × escalation(Y)
 
 The `real_mc` column preserves the workbook's original flat values (base-year 2026 dollars). The `nominal_mc` column includes the applied escalation. The **levelized MC** (mean of `real_mc`) is unaffected by this change — it reflects the workbook's actual cost levels.
 
-| Year | Escalation factor |
-| ---: | ----------------: |
-| 2026 |            1.0000 |
-| 2027 |            1.0210 |
-| 2028 |            1.0424 |
-| 2029 |            1.0643 |
-| 2030 |            1.0867 |
-| 2031 |            1.1095 |
-| 2032 |            1.1328 |
-| 2033 |            1.1566 |
-| 2034 |            1.1808 |
-| 2035 |            1.2056 |
-
 ### Difference from workbook Table 1
 
 The workbook's Table 1 ("Marginal Costs for Areas with Projects") is NOT the same as our undiluted variant. The workbook computes:
@@ -90,19 +84,19 @@ Table 1 MC(Y) = diluted MC(Y) / sum_of_ALL_peak_shares
 
 where the sum is over ALL projects in the cost center (not just in-scope ones). This divides the system-wide cost by the fraction of the system that has projects. Our undiluted variant uses project **capacity** (kW) as the denominator instead. Values differ by design.
 
-## Workbook cell references
+## Study parameters
 
-### System peak
+| Parameter    | Value     | Source                                        |
+| ------------ | --------- | --------------------------------------------- |
+| Study period | 2026–2035 | All sheets                                    |
+| System peak  | 1,103 MW  | 2024 actual coincident peak (MCOS report p.3) |
+| Escalation   | 2.1%/yr   | Applied externally (see above)                |
 
-| Item        | Source           | Value    |
-| ----------- | ---------------- | -------- |
-| System peak | MCOS report p. 3 | 1,103 MW |
+The system peak is passed as a CLI argument (`--system-peak-mw 1103.0`), not read from the workbook.
 
-The 2024 actual coincident peak. Passed as a CLI argument (`--system-peak-mw 1103.0`), not read from the workbook.
+### Composite rates (financial assumptions)
 
-### Financial assumptions (sheet `Financial Assumptions`)
-
-These parameters are already baked into row (26) of each MCOS sheet. Listed here for traceability:
+Sheet `Financial Assumptions`. These parameters are already baked into row (26) of each MCOS sheet. Listed here for traceability:
 
 | Row | Parameter                           | Local TX | Substation | Feeder |
 | --: | ----------------------------------- | -------: | ---------: | -----: |
@@ -117,35 +111,58 @@ These parameters are already baked into row (26) of each MCOS sheet. Listed here
 |  14 | Discount rate                       |    6.33% |      6.33% |  6.33% |
 |  15 | Salvage value (%)                   |     2.5% |       2.5% |   2.5% |
 
-### Per-project data — Local Transmission (sheet `Local Transmission`)
+### Escalation
+
+| Year | Escalation factor |
+| ---: | ----------------: |
+| 2026 |            1.0000 |
+| 2027 |            1.0210 |
+| 2028 |            1.0424 |
+| 2029 |            1.0643 |
+| 2030 |            1.0867 |
+| 2031 |            1.1095 |
+| 2032 |            1.1328 |
+| 2033 |            1.1566 |
+| 2034 |            1.1808 |
+| 2035 |            1.2056 |
+
+## Per-project data
 
 Row labels in column A (negative integers) identify calculation rows.
 
-| Project             | Col | In-svc year (row 4) | Capacity kW (row 9, label -3) | Annual cost $/kW-yr (row 35, label -26) | Peak share (row 6, workbook only) |
-| ------------------- | --: | ------------------: | ----------------------------: | --------------------------------------: | --------------------------------: |
-| Future Unidentified |   E |                2032 |                       296,500 |                                   55.40 |                            20.97% |
-| Northwest 115/69    |   G |                2035 |                       166,500 |                                   87.17 |                            12.25% |
-| RD-RJ Lines         |   H |                2035 |                       130,000 |                                   14.71 |                             8.39% |
+### Local Transmission — 3 projects
 
-### Per-project data — Substation (sheet `Substation`)
+Sheet `Local Transmission`.
 
-| Project             | Col | In-svc year (row 5) | Capacity kW (row 10, label -3) | Annual cost $/kW-yr (row 36, label -26) | Peak share (row 7, workbook only) |
-| ------------------- | --: | ------------------: | -----------------------------: | --------------------------------------: | --------------------------------: |
-| Future Unidentified |   E |                2030 |                         61,850 |                                  109.51 |                             7.35% |
-| Maybrook            |   G |                2027 |                         24,000 |                                   70.17 |                             1.69% |
-| Pulvers 13kV        |   H |                2027 |                          7,250 |                                  109.51 |                             0.49% |
-| Woodstock           |   I |                2029 |                          6,800 |                                  274.54 |                             1.56% |
-| New Baltimore       |   J |                2026 |                         13,400 |                                    4.98 |                             1.50% |
-| Hurley Ave          |   K |                2032 |                         10,400 |                                  245.75 |                             1.62% |
+| Project             | Col | In-svc year (row 4) | Capacity kW (row 9) | Annual cost $/kW-yr (row 35) | Peak share (workbook only) |
+| ------------------- | --: | ------------------: | ------------------: | ---------------------------: | -------------------------: |
+| Future Unidentified |   E |                2032 |             296,500 |                        55.40 |                     20.97% |
+| Northwest 115/69    |   G |                2035 |             166,500 |                        87.17 |                     12.25% |
+| RD-RJ Lines         |   H |                2035 |             130,000 |                        14.71 |                      8.39% |
+
+### Substation — 6 projects
+
+Sheet `Substation`.
+
+| Project             | Col | In-svc year (row 5) | Capacity kW (row 10) | Annual cost $/kW-yr (row 36) | Peak share (workbook only) |
+| ------------------- | --: | ------------------: | -------------------: | ---------------------------: | -------------------------: |
+| Future Unidentified |   E |                2030 |               61,850 |                       109.51 |                      7.35% |
+| Maybrook            |   G |                2027 |               24,000 |                        70.17 |                      1.69% |
+| Pulvers 13kV        |   H |                2027 |                7,250 |                       109.51 |                      0.49% |
+| Woodstock           |   I |                2029 |                6,800 |                       274.54 |                      1.56% |
+| New Baltimore       |   J |                2026 |               13,400 |                         4.98 |                      1.50% |
+| Hurley Ave          |   K |                2032 |               10,400 |                       245.75 |                      1.62% |
 
 Note: substation peak shares appear at both row 7 (header section) and row 43 (year-by-year section) with identical values. The script finds row 7 first via text search.
 
-### Per-project data — Feeder Circuit (sheet `Feeder`)
+### Feeder Circuit — 2 projects
 
-| Project             | Col | In-svc year (row 6) | Capacity kW (row 11, label -3) | Annual cost $/kW-yr (row 37, label -26) | Peak share (row 8, workbook only) |
-| ------------------- | --: | ------------------: | -----------------------------: | --------------------------------------: | --------------------------------: |
-| Future Unidentified |   E |                2025 |                         16,459 |                                   12.57 |                            24.14% |
-| WI_8031             |   G |                2026 |                         13,000 |                                   16.45 |                             0.38% |
+Sheet `Feeder`.
+
+| Project             | Col | In-svc year (row 6) | Capacity kW (row 11) | Annual cost $/kW-yr (row 37) | Peak share (workbook only) |
+| ------------------- | --: | ------------------: | -------------------: | ---------------------------: | -------------------------: |
+| Future Unidentified |   E |                2025 |               16,459 |                        12.57 |                     24.14% |
+| WI_8031             |   G |                2026 |               13,000 |                        16.45 |                      0.38% |
 
 ### "Future Unidentified Projects"
 
@@ -153,7 +170,7 @@ Each cost center includes a "Future Unidentified Projects" entry representing hy
 
 ## Worked examples
 
-### Example 1: Cumulative diluted MC for Substation, year 2028
+### Cumulative diluted — Substation, year 2028
 
 In 2028, three substation projects are in scope (in\_service\_year ≤ 2028):
 
@@ -170,7 +187,7 @@ MC_diluted = 2,544,680 / 1,103,000 = $2.307/kW-yr
 
 Note: the workbook's Table 2 value for this cell is **$1.796** — that uses peak-share weighting, not capacity-based. Our value differs by design (see §7A in `context/domain/ny_mcos_studies_comparison.md`).
 
-### Example 2: Cumulative undiluted MC for Feeder, year 2027
+### Cumulative undiluted — Feeder, year 2027
 
 In 2027, two feeder projects are in scope (in\_service\_year ≤ 2027):
 
@@ -187,7 +204,7 @@ MC_undiluted = 420,767 / 29,459 = $14.28/kW-yr
 
 This is the capacity-weighted average of the two projects' annual costs.
 
-### Example 3: Incremental diluted MC for all cost centers, year 2030
+### Incremental diluted — all cost centers, year 2030
 
 Only projects with in\_service\_year = 2030:
 
@@ -201,7 +218,7 @@ MC_incremental_diluted(feeder) = $0.00
 MC_incremental_diluted(total) = $6.143/kW-yr
 ```
 
-### Example 4: Incremental undiluted MC for Substation, year 2027
+### Incremental undiluted — Substation, year 2027
 
 Only substation projects with in\_service\_year = 2027:
 

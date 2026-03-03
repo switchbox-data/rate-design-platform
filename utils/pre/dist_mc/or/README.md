@@ -1,10 +1,8 @@
-# O&R MCOS dilution analysis
+# O&R MCOS marginal cost analysis
 
 O&R (Orange & Rockland, a ConEd subsidiary) uses the same NERA methodology as ConEd. See the [ConEd README](../coned/README.md) for the general approach — this document covers only what differs.
 
-## Differences from ConEd
-
-### Five cost centers (with TX split) instead of ConEd's five
+## Cost centers
 
 O&R combines Transformer and Secondary into a single "Secondary Distribution" cost center. Additionally, we split CapEx Transmission into bulk TX (excluded) and local TX (included):
 
@@ -17,6 +15,8 @@ O&R combines Transformer and Secondary into a single "Secondary Distribution" co
 | Secondary Distribution           | CapEx Secondary               | Flat $/kW (system-wide)  | Sub-TX + dist (include) |
 
 Note: O&R's Primary is **cumulative** (unlike ConEd's annual sample), with 26 individual feeder projects over 10 years. O&R's Secondary Distribution is derived from just 2 sample projects, yielding a single system-wide $/kW (12.57) with no regional or temporal variation.
+
+## Bulk TX treatment
 
 ### CapEx Transmission split: bulk vs. local
 
@@ -62,14 +62,16 @@ Under the assumption that bulk TX is handled by a separate analysis using all Go
 - **Dropped projects:** None — the TX split resolves the gap that would otherwise exist for Oak St. and New Hempstead.
 - **Reverse overlap risk:** Same caveat as ConEd — Gold Book entries not in CapEx TX could theoretically also appear in CapEx Substation or Primary, but the MCOS cost centers should be mutually exclusive within the workbook.
 
-### MC variants
+## MC formula and variants
 
-Like ConEd, the script produces four MC variants (cumulative/incremental × diluted/undiluted). The base formula is:
+Base formula (all variants):
 
 ```
 Annual RR(Y) = Capital(Y) × Composite Rate × Escalation(Y)
-MC(Y)        = Annual RR(Y) / Denominator
+MC(Y)        = Annual RR(Y) / Denominator   [$/kW-yr]
 ```
+
+The script produces **four variants** by combining two capital perspectives with two denominators:
 
 | Variant               | Capital(Y)                          | Denominator                  |
 | --------------------- | ----------------------------------- | ---------------------------- |
@@ -80,7 +82,9 @@ MC(Y)        = Annual RR(Y) / Denominator
 
 See the [ConEd README](../coned/README.md#formulas-for-each-variant) for the full formula derivation.
 
-O&R-specific notes:
+**Levelized** = mean of real MC across all 10 study years.
+
+### O&R-specific notes
 
 - All cumulative cost centers (TX bulk/local, Substation, Primary) now use **in-service-year scoping**: each project's capital and MW enter the calculation when the project completes (cashflow stabilizes for TX/Sub; first nonzero budget year for Primary). This matches the NiMo/CenHud project-level methodology. Undiluted MC varies by year, reflecting the actual $/kW of each project cohort.
 - **Secondary Distribution** is flat $/kW of system peak. The undiluted variant equals the diluted variant because the $/kW is already normalized by system peak — there's no separate project capacity.
@@ -95,21 +99,15 @@ Secondary Diluted MC(Y) = Capital($/kW) × Composite Rate × Escalation(Y)
 
 Total capital = $/kW × peak, so Annual RR / peak = $/kW × rate × escalation.
 
-### Carrying charge schedule
+## Study parameters
 
-O&R uses Schedule 10 (not Schedule 11), and the sheet name has **no trailing space** (ConEd's does). Escalation factors are in row 26 (vs. 25 for ConEd).
+| Parameter    | Value        | Source                                      |
+| ------------ | ------------ | ------------------------------------------- |
+| Study period | 2025–2034    | All CapEx sheets                            |
+| System peak  | 1,078.5 MW   | Coincident Forecast D65 (Grand Total, 2024) |
+| Escalation   | GDP deflator | Carrying Charge Loaders row 26, 2.4%→2.1%   |
 
-### System peak
-
-1,078.5 MW — Coincident Forecast sheet row 65, 2024 value (vs. ConEd's 2025 value).
-
-## Workbook cell references
-
-### System Peak
-
-Sheet **Coincident Forecast**, cell **D65** (Grand Total, 2024 forecast) = 1,078.5 MW.
-
-### Composite Rates
+### Composite rates
 
 Sheet **Carrying Charge Loaders** (no trailing space — unlike ConEd), column **O** (Schedule 10 col 13, "Annual MC at System Peak").
 
@@ -121,7 +119,7 @@ Sheet **Carrying Charge Loaders** (no trailing space — unlike ConEd), column *
 | Primary        | O14  | 0.15394 |
 | Secondary Dist | O17  | 0.13725 |
 
-Local TX uses the same Transmission rate (row 12) because it's the same plant type.
+Local TX uses the same Transmission rate (row 12) because it's the same plant type. O&R uses Schedule 10 (not Schedule 11).
 
 ### Escalation
 
@@ -140,11 +138,13 @@ Sheet **Carrying Charge Loaders**, row **26** (vs. row 25 for ConEd), columns C�
 | 2033 | K26  | 1.1844 |
 | 2034 | L26  | 1.2092 |
 
-### Per-project data
+## Per-project data
 
 Parsed from each cumulative cost center's right-half columns. In-service year is inferred from cashflow stabilization (TX, Substation) or first nonzero annual budget (Primary). These tables are the primary audit artifact for the project-level methodology.
 
-**CapEx Transmission** — 3 project rows (rows 8–10). Row 8 is bulk TX (West Nyack, Gold Book match); rows 9–10 are local TX (non-Gold-Book reconductoring).
+### CapEx Transmission — 3 projects
+
+Rows 8–10. Row 8 is bulk TX (West Nyack, Gold Book match); rows 9–10 are local TX (non-Gold-Book reconductoring).
 
 | Row | Classification | Name                        |    MW | Capital ($000s) | In-service |
 | --: | -------------- | --------------------------- | ----: | --------------: | ---------: |
@@ -152,7 +152,9 @@ Parsed from each cumulative cost center's right-half columns. In-service year is
 |   9 | Local TX       | Oak Street (reconductor)    |  79.8 |          29,000 |       2032 |
 |  10 | Local TX       | New Hempstead (reconductor) |  89.3 |           7,500 |       2030 |
 
-**CapEx Substation** — 4 project rows (rows 8–11). Row 12 is the total/summary row (excluded from project parsing).
+### CapEx Substation — 4 projects
+
+Rows 8–11. Row 12 is the total/summary row (excluded from project parsing).
 
 | Row | Station     | Description                             |        MW | Capital ($000s) | In-service |
 | --: | ----------- | --------------------------------------- | --------: | --------------: | ---------: |
@@ -162,7 +164,9 @@ Parsed from each cumulative cost center's right-half columns. In-service year is
 |  11 | Sloatsburg  | Upgrade 1-25 bank → 2×56 MVA            |      82.6 |          18,000 |       2028 |
 |     |             | **Total**                               | **436.0** |     **199,860** |            |
 
-**CapEx Primary** — 26 feeder projects (rows 8–33). Unlike TX/Sub, Primary uses **annual budgets** (not cumulative cashflow): each project has a constant yearly budget starting in its in-service year. In-service year = first nonzero column in X–AG.
+### CapEx Primary — 26 projects
+
+Unlike TX/Sub, Primary uses **annual budgets** (not cumulative cashflow): each project has a constant yearly budget starting in its in-service year. In-service year = first nonzero column in X–AG.
 
 | Row | Region/Location     |       MW | Budget ($000s) | In-service |
 | --: | ------------------- | -------: | -------------: | ---------: |
@@ -194,7 +198,7 @@ Parsed from each cumulative cost center's right-half columns. In-service year is
 |  33 | Wes/Bullville       |      1.1 |            450 |       2030 |
 |     |                     | **54.2** |     **15,496** |            |
 
-### Cumulative Capital — Transmission (bulk + local split)
+### Cumulative capital summary — Transmission (bulk + local split)
 
 Derived from the per-project tables above. Bulk TX = row 8 cashflow. Local TX = sum of rows 9 + 10 cashflows. In-service-year scoping: West Nyack completes 2026 (bulk), New Hempstead 2030 (local), Oak Street 2032 (local). Values in $000s.
 
@@ -211,9 +215,9 @@ Derived from the per-project tables above. Bulk TX = row 8 cashflow. Local TX = 
 | 2033 | AE  | 46,100                | 36,500                     |
 | 2034 | AF  | 46,100                | 36,500                     |
 
-### Cumulative Capital — Substation and Primary (in-service-year scoping)
+### Cumulative capital summary — Substation and Primary (in-service-year scoping)
 
-Derived from the per-project tables above. Each project's full capital and MW enter in its in-service year. Substation: cashflow stabilization. Primary: sum of annual budgets for in-service projects. Capital steps up discretely as projects complete.
+Each project's full capital and MW enter in its in-service year. Substation: cashflow stabilization. Primary: sum of annual budgets for in-service projects.
 
 | Year | Sub Capital ($000s) | Sub Capacity (MW) | Primary Capital ($000s) | Primary Capacity (MW) |
 | ---- | ------------------- | ----------------- | ----------------------- | --------------------- |
@@ -232,7 +236,9 @@ Derived from the per-project tables above. Each project's full capital and MW en
 
 Sheet **CapEx Secondary**, cell **F18** = 12.5659 ($/kW capital cost, system-wide). This is NOT annual MC — the composite rate must still be applied. The system peak cancels out in the formula (see "Secondary Distribution dilution" above), so diluted MC = $/kW × composite rate × escalation.
 
-### Worked example: Cumulative diluted — Substation, year 2029
+## Worked examples
+
+### Cumulative diluted — Substation, year 2029
 
 In-service by 2029: Sloatsburg (2028, $18,000k), Little Tor (2029, $14,410k), New Goshen (2029, $43,450k).
 
@@ -247,7 +253,7 @@ Diluted MC = 9,797 / 1,078.5            = $9.08/kW-yr (nominal)
 Real MC    = 75,860 × 0.11850 / 1,078.5 = $8.33/kW-yr
 ```
 
-### Worked example: Cumulative diluted — Secondary Distribution, year 2026
+### Cumulative diluted — Secondary Distribution, year 2026
 
 ```
 Capital ($/kW)  = CapEx Secondary F18            = 12.5659
@@ -259,7 +265,7 @@ Diluted MC = 12.5659 × 0.13725 × 1.0240 = $1.77/kW-yr
 
 For Secondary Distribution, incremental diluted is identical (flat capital every year), and undiluted = diluted ($/kW is already per kW of system peak — no separate project capacity).
 
-### Worked example: Incremental diluted — Substation, year 2029
+### Incremental diluted — Substation, year 2029
 
 Two projects enter service in 2029: Little Tor ($14,410k) and New Goshen ($43,450k).
 
@@ -274,7 +280,7 @@ Diluted MC = 7,474 / 1,078.5            = $6.93/kW-yr (nominal)
 Real MC    = 57,860 × 0.11850 / 1,078.5 = $6.36/kW-yr
 ```
 
-### Worked example: Cumulative undiluted — Substation, year 2029
+### Cumulative undiluted — Substation, year 2029
 
 Same 3 in-service projects as the diluted example:
 
@@ -291,7 +297,7 @@ Real MC      = 75,860 × 0.11850 / 276.5  = $32.51/kW-yr
 
 Real MC varies by year because each project cohort has a different $/kW. Compare 2034 (all 4 projects, 436 MW): real MC = 199,860 × 0.11850 / 436 = $54.31/kW-yr.
 
-### Worked example: Incremental undiluted — Substation, year 2029
+### Incremental undiluted — Substation, year 2029
 
 Two projects enter service in 2029:
 

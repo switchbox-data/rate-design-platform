@@ -13,7 +13,20 @@ Key differences from other utilities:
 - **Actual project-level ISD timing** from Exhibit 2, not a uniform-entry assumption
 - **Separate classification step** — a classification script cross-references each T-Substation project against public voltage data to confirm all are local sub-transmission (≤69kV), not bulk (≥138kV)
 
-## Two-step pipeline
+## Cost centers
+
+| Cost center  | Asset classes            | BAT tier                | ECCR+O&M rate |
+| ------------ | ------------------------ | ----------------------- | :-----------: |
+| Sub-TX       | T-Substation (all ≤69kV) | Sub-TX + dist (include) |     8.2%      |
+| Distribution | D-Substation, D-Feeders  | Sub-TX + dist (include) |     13.9%     |
+
+**BAT input = Sub-TX + Distribution = Total** (all projects included).
+
+This differs from the initial analysis which excluded all T-Substation projects from BAT. The reclassification is based on voltage evidence showing all T-Substation projects operate at sub-transmission voltages.
+
+## Bulk TX treatment
+
+### Two-step pipeline
 
 Unlike utilities where the MCOS workbook directly labels projects by voltage, PSEG-LI's filing only provides an "asset class" (T-Substation vs D-Substation/D-Feeders) with no voltage information. We therefore split the analysis into two scripts:
 
@@ -22,19 +35,6 @@ Unlike utilities where the MCOS workbook directly labels projects by voltage, PS
 2. **`analyze_psegli_mcos.py`** — reads the classified CSV, applies Exhibit 1's ECCR+O&M rates, and computes MC variants. Both sub_tx and distribution projects are included in BAT.
 
 This mirrors the NiMo approach (`classify_nimo_projects.py` → `nimo_project_classifications.csv` → `analyze_nimo_mcos.py`).
-
-## Data source
-
-| Input               | S3 path / source                                                      |
-| ------------------- | --------------------------------------------------------------------- |
-| Raw project list    | `s3://data.sb/ny_psc/mcos_studies_2025/psegli_study_project_list.csv` |
-| Classified projects | `psegli/psegli_project_classifications.csv` (checked into repo)       |
-| MC parameters       | MCOS filing Exhibit 1 (PDF p. 6) — hardcoded in analyze script        |
-| System peak         | 4,935 MW — LIPA 2024 actual NCP, NYISO Gold Book Zone K Table I-4a    |
-
-The raw CSV contains all 30 projects from Exhibit 2. The classified CSV adds columns: `classification`, `bat_included`, `voltage_kv`, `confidence`, `inference_method`, `evidence`.
-
-## Voltage classification
 
 ### LIPA's voltage architecture
 
@@ -48,7 +48,7 @@ Section 4.1 further clarifies:
 
 So on LIPA's system: **138/345 kV = Bulk Electric System** (NYISO-jurisdictional, excluded from BAT), and **≤69 kV = sub-transmission** (local, included in BAT like distribution).
 
-### Per-project evidence
+### Per-project voltage evidence
 
 Each of the 15 T-Substation projects was classified using public sources. 12 have high-confidence direct voltage evidence; 3 are classified by systemic inference:
 
@@ -85,20 +85,44 @@ Three projects (North Bellmore, New South Road, Arverne) have no direct voltage 
 3. LIPA has no intermediate voltages — projects are either 138/345 kV (BES, with extensive public record) or ≤69 kV (sub-TX)
 4. 138 kV projects generate Article VII environmental reviews, NYISO interconnection queue entries, and media coverage — all absent for these projects
 
-## Cost centers
+## MC formula and variants
 
-| Cost center  | Asset classes            | Included in BAT? | ECCR+O&M rate |
-| ------------ | ------------------------ | :--------------: | :-----------: |
-| Sub-TX       | T-Substation (all ≤69kV) |     **Yes**      |     8.2%      |
-| Distribution | D-Substation, D-Feeders  |     **Yes**      |     13.9%     |
+Base formula (all variants):
 
-**BAT input = Sub-TX + Distribution = Total** (all projects included).
+```
+Annual RR(Y) = Undiluted MC($/kW-yr) × Capacity(kW)   [per cost center]
+MC(Y)        = Σ Annual RR(Y) / Denominator            [$/kW-yr]
+```
 
-This differs from the initial analysis which excluded all T-Substation projects from BAT. The reclassification is based on voltage evidence showing all T-Substation projects operate at sub-transmission voltages.
+Where `Undiluted MC = Capital($/kW) × ECCR+O&M rate` from Exhibit 1.
 
-## Filing inputs (Exhibit 1)
+The script produces **four variants** by combining two capital perspectives with two denominators:
 
-The script uses Exhibit 1's aggregate capital/kW rates and ECCR+O&M rates, NOT the per-project costs from Exhibit 2.
+| Variant               | Capital(Y)                          | Denominator                  |
+| --------------------- | ----------------------------------- | ---------------------------- |
+| Cumulative diluted    | Accumulated in-service capital to Y | System peak (MW)             |
+| Incremental diluted   | New capital entering service in Y   | System peak (MW)             |
+| Cumulative undiluted  | Accumulated in-service capital to Y | Cumulative project MW to Y   |
+| Incremental undiluted | New capital entering service in Y   | New project MW entering in Y |
+
+Levelized = mean(real MC) across all 8 study years, consistent with other utilities.
+
+### Key output values (incremental diluted, levelized)
+
+| Bucket                          | Levelized MC ($/kW-yr) |
+| ------------------------------- | ---------------------: |
+| bulk_tx                         |                  $0.00 |
+| **sub_tx_and_dist (BAT input)** |              **$1.67** |
+
+## Study parameters
+
+| Parameter    | Value     | Source                                                  |
+| ------------ | --------- | ------------------------------------------------------- |
+| Study period | 2025–2032 | 8 years (shorter than 10-year standard)                 |
+| System peak  | 4,935 MW  | LIPA 2024 actual NCP, NYISO Gold Book Zone K Table I-4a |
+| Escalation   | 2.1%/yr   | Applied externally for cross-utility consistency        |
+
+### ECCR+O&M rates (Exhibit 1)
 
 | Parameter             | Sub-TX (T-Station) | Distribution | Source                 |
 | --------------------- | -----------------: | -----------: | ---------------------- |
@@ -108,7 +132,9 @@ The script uses Exhibit 1's aggregate capital/kW rates and ECCR+O&M rates, NOT t
 | **Combined ECCR+O&M** |           **8.2%** |    **13.9%** | Exhibit 1, columns 6–7 |
 | **Undiluted MC**      |         **$46.18** |  **$100.24** | = capital × ECCR+O&M   |
 
-## Capacity entry timing
+## Per-project data
+
+### Capacity entry timing
 
 | Year      | Sub-TX (MW) | Dist (MW) |  Total (MW) | Notes                                             |
 | --------- | ----------: | --------: | ----------: | ------------------------------------------------- |
@@ -122,29 +148,19 @@ The script uses Exhibit 1's aggregate capital/kW rates and ECCR+O&M rates, NOT t
 | 2032      |       112.0 |       0.0 |       112.0 | Sub-TX only                                       |
 | **Total** | **1,027.1** | **183.0** | **1,210.1** |                                                   |
 
-## MC formula and variants
+### Data sources
 
-The script produces **four variants** by combining two capital perspectives with two denominators:
+| Input               | S3 path / source                                                      |
+| ------------------- | --------------------------------------------------------------------- |
+| Raw project list    | `s3://data.sb/ny_psc/mcos_studies_2025/psegli_study_project_list.csv` |
+| Classified projects | `psegli/psegli_project_classifications.csv` (checked into repo)       |
+| MC parameters       | MCOS filing Exhibit 1 (PDF p. 6) — hardcoded in analyze script        |
 
-| Variant               | Capital in scope                | Denominator            | Perspective                        |
-| --------------------- | ------------------------------- | ---------------------- | ---------------------------------- |
-| Cumulative diluted    | All capacity entered by year Y  | System peak (MW)       | MCOS cost allocation               |
-| Incremental diluted   | New capacity entering in year Y | System peak (MW)       | BAT economic cost (cost causation) |
-| Cumulative undiluted  | All capacity entered by year Y  | Cumulative capacity MW | Per-project cost recovery          |
-| Incremental undiluted | New capacity entering in year Y | Annual capacity MW     | Per-project marginal cost          |
-
-Levelized = simple arithmetic mean of real MC across all 8 study years, no discounting.
-
-### Key output values (incremental diluted, levelized)
-
-| Bucket                          | Levelized MC ($/kW-yr) |
-| ------------------------------- | ---------------------: |
-| bulk_tx                         |                  $0.00 |
-| **sub_tx_and_dist (BAT input)** |              **$1.67** |
+The raw CSV contains all 30 projects from Exhibit 2. The classified CSV adds columns: `classification`, `bat_included`, `voltage_kv`, `confidence`, `inference_method`, `evidence`.
 
 ## Worked examples
 
-### Example 1: Incremental diluted MC for Distribution, year 2025
+### Incremental diluted — Distribution, year 2025
 
 In 2025, 114.0 MW of Distribution capacity enters (includes 3 projects clamped from 2024):
 
@@ -158,7 +174,7 @@ escalation(2025) = 1.0
 nominal_mc = $2.32/kW-yr
 ```
 
-### Example 2: Incremental diluted MC for Sub-TX, year 2025
+### Incremental diluted — Sub-TX, year 2025
 
 In 2025, 328.0 MW of Sub-TX capacity enters:
 
@@ -172,13 +188,13 @@ escalation(2025) = 1.0
 nominal_mc = $3.07/kW-yr
 ```
 
-### Example 3: Total incremental diluted, year 2025
+### Incremental diluted — total, year 2025
 
 ```
 total_real_mc = Sub-TX + Dist = $3.07 + $2.32 = $5.38/kW-yr
 ```
 
-### Example 4: Incremental undiluted MC for Sub-TX, any year
+### Incremental undiluted — Sub-TX, any year
 
 Every year that Sub-TX projects enter, the per-kW cost is the same:
 

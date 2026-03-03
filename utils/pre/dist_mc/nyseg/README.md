@@ -1,6 +1,4 @@
-# NYSEG MCOS Analysis
-
-## Overview
+# NYSEG MCOS marginal cost analysis
 
 Computes marginal costs from NYSEG's 2025 MCOS study workbook (`nyseg_study_workpaper.xlsx`), prepared by CRA International. The workbook contains project-level data in **W2 (Investment Location Detail)**, which we aggregate using **NERA-style project-level formulas** for cross-utility consistency with NiMo, ConEd, O&R, and CenHud.
 
@@ -23,18 +21,85 @@ By reading the **raw project data** from W2 (capital, capacity, in-service date)
 
 Upstream Substation and Upstream Feeder are combined into a single **upstream** bucket internally (capacity-weighted for undiluted variants, summed for diluted). The output CSVs use the harmonized two-bucket schema: `bulk_tx` (zero — no bulk TX) and `sub_tx_and_dist` (= total of all cost centers).
 
+## Bulk TX treatment
+
+NYSEG's MCOS explicitly excludes NYISO Transmission Service Charges. There is no bulk TX cost center — all four cost centers are local sub-transmission and distribution. The BAT input is the sum of all cost centers (reported as `sub_tx_and_dist`).
+
+## MC formula and variants
+
+Base formula (all variants):
+
+```
+Annual RR(Y) = Capital(Y) × Composite Rate × Escalation(Y)
+MC(Y)        = Annual RR(Y) / Denominator   [$/kW-yr]
+```
+
+The per-project annualized cost is `[total_capital_k(p) / final_capacity_mva(p)] × composite_rate(equipment)` in ISD-year dollars.
+
+The script produces **four variants** by combining two capital perspectives with two denominators:
+
+| Variant               | Capital(Y)                          | Denominator                  |
+| --------------------- | ----------------------------------- | ---------------------------- |
+| Cumulative diluted    | Accumulated in-service capital to Y | System peak (MW)             |
+| Incremental diluted   | New capital entering service in Y   | System peak (MW)             |
+| Cumulative undiluted  | Accumulated in-service capital to Y | Cumulative project MW to Y   |
+| Incremental undiluted | New capital entering service in Y   | New project MW entering in Y |
+
+### Formulas for each variant
+
+**Incremental diluted** — cost of projects entering service in year Y, spread across system peak:
+
+```
+MC(Y) = Σ_{p: ISD(p)=Y} [annualized_per_kw(p) × capacity_mva(p)] / system_peak_mw
+```
+
+**Cumulative diluted** — accumulated incremental contributions with inflation:
+
+```
+cumulative(Y) = Σ_{t=2026}^{Y} incremental(t) × (1.02)^(Y−t)
+```
+
+**Incremental undiluted** — capacity-weighted average cost of projects entering in year Y:
+
+```
+MC(Y) = Σ_{p: ISD(p)=Y} [annualized(p) × cap(p)] / Σ_{p: ISD(p)=Y} [cap(p)]
+```
+
+Undefined (zero) for years with no projects.
+
+**Cumulative undiluted** — capacity-weighted average with inflation for all in-service projects:
+
+```
+MC(Y) = Σ_{p: ISD(p)≤Y} [annualized(p) × cap(p) × (1.02)^(Y−ISD(p))]
+         / Σ_{p: ISD(p)≤Y} [cap(p)]
+```
+
+**Levelized** = mean of real MC across all 10 study years.
+
+### Loss factors
+
+From **W4 (Demand Losses)**, used to compute the "Total at Primary" column:
+
+| Plant from              | Loss factor to primary |
+| ----------------------- | ---------------------- |
+| Upstream (Bulk) Dist.   | 1.0497                 |
+| Distribution Substation | 1.0292                 |
+| Primary Feeder          | 1.0220                 |
+
+`Total_at_primary(Y) = upstream(Y) × 1.0497 + dist_sub(Y) × 1.0292 + primary(Y) × 1.0220`
+
 ## Study parameters
 
-| Parameter       | Value                                    | Source                               |
-| --------------- | ---------------------------------------- | ------------------------------------ |
-| Study period    | 2026–2035 (10 years)                     | All sheets                           |
-| Inflation       | 2.0%/yr                                  | CRA MCOS report                      |
-| System peak     | 2,035.73 MW                              | T4 row 20 col P (2035 forecast)      |
-| Divisions       | 13                                       | T4 row 6 cols C–O                    |
-| Composite rate  | 0.10248 (substations), 0.09801 (feeders) | Derived from W2 (see below)          |
-| Projects parsed | 107 (of 201 in W2)                       | 94 are prospective with zero capital |
+| Parameter       | Value                | Source                               |
+| --------------- | -------------------- | ------------------------------------ |
+| Study period    | 2026–2035 (10 years) | All sheets                           |
+| System peak     | 2,035.73 MW          | T4 row 20 col P (2035 forecast)      |
+| Inflation       | 2.0%/yr              | CRA MCOS report                      |
+| WACC            | 6.975%               | T1A row 43, T4 row 19                |
+| Divisions       | 13                   | T4 row 6 cols C–O                    |
+| Projects parsed | 107 (of 201 in W2)   | 94 are prospective with zero capital |
 
-### Composite rate derivation
+### Composite rates
 
 The composite rate folds together the **Economic Carrying Charge (ECC)** and **O&M + A&G loading** into a single annualization multiplier. It is derived from W2 by comparing the per-project "Marginal per-kW Investment" (col 31–40) to the "Final Marginal Annualized per-kW Cost" (col 51–60) at the project's ISD year:
 
@@ -49,19 +114,13 @@ The rate is constant within each equipment type:
 | Substation     | 7.788% | 1.3159×         | 0.10248        |
 | Feeder         | 7.350% | 1.3335×         | 0.09801        |
 
-### Loss factors
+### Escalation
 
-From **W4 (Demand Losses)**, used to compute the "Total at Primary" column:
+2.0%/yr inflation applied to cumulative values. Baked into the cumulative formula as `(1.02)^(Y−t)`.
 
-| Plant from              | Loss factor to primary |
-| ----------------------- | ---------------------- |
-| Upstream (Bulk) Dist.   | 1.0497                 |
-| Distribution Substation | 1.0292                 |
-| Primary Feeder          | 1.0220                 |
+## Per-project data
 
-`Total_at_primary(Y) = upstream(Y) × 1.0497 + dist_sub(Y) × 1.0292 + primary(Y) × 1.0220`
-
-## Data source: W2 (Investment Location Detail)
+### Data source: W2 (Investment Location Detail)
 
 W2 contains 201 rows of individual project data. Each row has:
 
@@ -88,44 +147,24 @@ W2 contains 201 rows of individual project data. Each row has:
 | Distribution | Substation | `dist_sub`       |
 | Distribution | Feeder     | `primary_feeder` |
 
-Levelized = simple arithmetic mean of real (base-year) MC across all 10 study years, no discounting. CRA's workbook uses WACC-based NPV levelization (6.975%), but we use a simple average for cross-utility consistency (see parent [README](../README.md)).
+### Projects by ISD year
 
-## How the script computes each variant
+| ISD  | ups_sub | ups_feed | dist_sub | primary_feeder | Total |
+| ---- | ------- | -------- | -------- | -------------- | ----- |
+| 2028 | —       | —        | 2        | 4              | 6     |
+| 2029 | 1       | —        | 2        | 1              | 4     |
+| 2030 | 4       | 1        | 6        | 2              | 13    |
+| 2031 | 2       | 1        | 1        | —              | 4     |
+| 2032 | 1       | 1        | 7        | 3              | 12    |
+| 2033 | 6       | 5        | 7        | 2              | 20    |
+| 2034 | 3       | 4        | 8        | 5              | 20    |
+| 2035 | 13      | 8        | 4        | 3              | 28    |
 
-For each project `p`: `annualized_per_kw(p) = [total_capital_k(p) / final_capacity_mva(p)] × composite_rate(equipment)` in ISD-year dollars.
-
-### 1. Incremental diluted
-
-```
-MC(Y) = Σ_{p: ISD(p)=Y} [annualized_per_kw(p) × capacity_mva(p)] / system_peak_mw
-```
-
-Cost of projects entering service in year Y, spread across the system peak.
-
-### 2. Cumulative diluted
-
-```
-cumulative(Y) = Σ_{t=2026}^{Y} incremental(t) × (1.02)^(Y−t)
-```
-
-### 3. Incremental undiluted
-
-```
-MC(Y) = Σ_{p: ISD(p)=Y} [annualized(p) × cap(p)] / Σ_{p: ISD(p)=Y} [cap(p)]
-```
-
-Capacity-weighted average cost of projects entering service in year Y. Undefined (zero) for years with no projects.
-
-### 4. Cumulative undiluted
-
-```
-MC(Y) = Σ_{p: ISD(p)≤Y} [annualized(p) × cap(p) × (1.02)^(Y−ISD(p))]
-         / Σ_{p: ISD(p)≤Y} [cap(p)]
-```
+No projects enter service in 2026 or 2027 — the incremental MC is zero for those years. This differs from the CRA native output (T1A), which shows nonzero values because CRA attributes CWIP during construction.
 
 ## Worked examples
 
-### Example 1: Incremental diluted, distribution substation, 2028
+### Incremental diluted — distribution substation, 2028
 
 Two dist_sub projects enter service in 2028:
 
@@ -141,7 +180,7 @@ MC = 7,113.3 / 2,035.73 = 3.49 $/kW-yr
 
 Script output for dist_sub incremental diluted 2028 = $3.49 $/kW-yr. ✓
 
-### Example 2: Incremental diluted, total at primary, 2028
+### Incremental diluted — total at primary, 2028
 
 2028 has dist_sub = $3.49 and primary_feeder = $0.38 (from 4 feeder projects). Upstream = $0.00 (no upstream projects in 2028).
 
@@ -152,7 +191,7 @@ total = 0.00 × 1.0497 + 3.49 × 1.0292 + 0.38 × 1.0220
 
 Script output for total incremental diluted 2028 = $3.98 $/kW-yr. ✓
 
-### Example 3: Cumulative diluted, total at primary, 2029
+### Cumulative diluted — total at primary, 2029
 
 Incremental total: 2028 = $3.98, 2029 = $3.77.
 
@@ -160,7 +199,7 @@ Incremental total: 2028 = $3.98, 2029 = $3.77.
 cumulative(2029) = 3.98 × 1.02 + 3.77 = 4.06 + 3.77 = $7.83/kW-yr
 ```
 
-### Example 4: Incremental undiluted, distribution substation, 2028
+### Incremental undiluted — distribution substation, 2028
 
 Same two dist_sub projects as Example 1:
 
@@ -171,7 +210,7 @@ MC = (211.01 × 20.16 + 42.59 × 67.14) / (20.16 + 67.14)
 
 This is the capacity-weighted average $/kW-yr of the dist_sub project cohort entering in 2028. Center Point has high $/kW ($2,059) but contributes only 23% of the capacity; Fourth Street has low $/kW ($416) and dominates at 77%.
 
-### Example 5: Cumulative undiluted, distribution substation, 2029
+### Cumulative undiluted — distribution substation, 2029
 
 By 2029, four dist_sub projects are in service (2028's Center Point + Fourth Street, plus 2029's Orchard Park + Ferndale):
 
@@ -183,32 +222,27 @@ den = 20.16 + 67.14 + 11.74 + 40.50 = 139.54
 MC = 10,781.3 / 139.54 = 77.27 $/kW-yr
 ```
 
-## Projects by ISD year
+## Inputs and outputs
 
-| ISD  | ups_sub | ups_feed | dist_sub | primary_feeder | Total |
-| ---- | ------- | -------- | -------- | -------------- | ----- |
-| 2028 | —       | —        | 2        | 4              | 6     |
-| 2029 | 1       | —        | 2        | 1              | 4     |
-| 2030 | 4       | 1        | 6        | 2              | 13    |
-| 2031 | 2       | 1        | 1        | —              | 4     |
-| 2032 | 1       | 1        | 7        | 3              | 12    |
-| 2033 | 6       | 5        | 7        | 2              | 20    |
-| 2034 | 3       | 4        | 8        | 5              | 20    |
-| 2035 | 13      | 8        | 4        | 3              | 28    |
+| Input          | Source                                                             |
+| -------------- | ------------------------------------------------------------------ |
+| NYSEG workbook | `s3://data.sb/ny_psc/mcos_studies_2025/nyseg_study_workpaper.xlsx` |
+| System peak    | 2,035.73 MW — T4 row 20 col P (2035 forecast)                      |
 
-No projects enter service in 2026 or 2027 — the incremental MC is zero for those years. This differs from the CRA native output (T1A), which shows nonzero values because CRA attributes CWIP during construction.
+| Output                                       | Description                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------ |
+| `nyseg_incremental_diluted_annualized.csv`   | One row per year: bulk_tx (0) and sub_tx_and_dist (nominal/real)   |
+| `nyseg_incremental_diluted_levelized.csv`    | Two rows (bulk_tx=0, sub_tx_and_dist): levelized and final-year MC |
+| `nyseg_cumulative_diluted_annualized.csv`    | Same structure, cumulative diluted                                 |
+| `nyseg_cumulative_diluted_levelized.csv`     | Same structure, cumulative diluted                                 |
+| `nyseg_incremental_undiluted_annualized.csv` | Same structure, incremental undiluted                              |
+| `nyseg_incremental_undiluted_levelized.csv`  | Same structure, incremental undiluted                              |
+| `nyseg_cumulative_undiluted_annualized.csv`  | Same structure, cumulative undiluted                               |
+| `nyseg_cumulative_undiluted_levelized.csv`   | Same structure, cumulative undiluted                               |
 
-## Outputs
+## How to run
 
-8 CSVs in this directory:
-
-| File                                         | Content                                                          |
-| -------------------------------------------- | ---------------------------------------------------------------- |
-| `nyseg_incremental_diluted_annualized.csv`   | One row per year: bulk_tx (0) and sub_tx_and_dist (nominal/real) |
-| `nyseg_incremental_diluted_levelized.csv`    | Two rows (bulk_tx=0, sub_tx_and_dist): levelized and final-year  |
-| `nyseg_cumulative_diluted_annualized.csv`    | Same structure, cumulative diluted                               |
-| `nyseg_cumulative_diluted_levelized.csv`     | Same structure, cumulative diluted                               |
-| `nyseg_incremental_undiluted_annualized.csv` | Same structure, incremental undiluted                            |
-| `nyseg_incremental_undiluted_levelized.csv`  | Same structure, incremental undiluted                            |
-| `nyseg_cumulative_undiluted_annualized.csv`  | Same structure, cumulative undiluted                             |
-| `nyseg_cumulative_undiluted_levelized.csv`   | Same structure, cumulative undiluted                             |
+```bash
+cd utils/pre/dist_mc
+just analyze-nyseg
+```

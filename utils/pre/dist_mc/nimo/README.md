@@ -2,39 +2,80 @@
 
 NiMo (National Grid Upstate) required the most work of any utility. The workbook lists ~237 planned capital projects but does not distinguish **bulk transmission** (≥230 kV) from **sub-transmission** (69–115 kV), so we had to classify every project by voltage tier before computing marginal costs.
 
-## Voltage tiers
+## Cost centers
+
+NiMo's workbook uses four cost centres (T\_Sta, T\_Line, D\_Sta, D\_Line) which we map to three voltage tiers:
 
 - **bulk_tx** (≥230 kV) — NYISO bulk transmission; excluded from local marginal cost
 - **sub_tx** (69–115 kV) — NiMo's sub-transmission network
 - **distribution** (≤13.2 kV) — distribution substations and feeders
 
-## Inputs
+## Bulk TX treatment
+
+The workbook does not label projects by voltage. Classification requires cross-referencing project names and sub-project detail against the NYISO Gold Book. See [How to reproduce the classification](#how-to-reproduce-the-classification) for the full process.
+
+### Inputs for classification
 
 | Input                     | Where it lives                                                    | What it contains                                                                                                                                                                  |
 | ------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | NiMo MCOS workbook        | `s3://data.sb/ny_psc/mcos_studies_2025/nimo_study_workpaper.xlsx` | Sheet 1 (Exhibit 1): one row per project with station name, MW, and capital by cost centre. Sheet 11 (FinalData): sub-project–level detail with descriptive names and InvestType. |
 | NYISO Gold Book Table VII | `context/papers/nyiso_gold_book_2025.md` (extracted from PDF)     | Every proposed transmission project in New York, with station names, voltages, and descriptions.                                                                                  |
 
-## Workbook layout (Exhibit 1, Sheet 1)
+## MC formula and variants
 
-The MCOS workbook has a single data sheet (Sheet 1, "Exhibit 1") with this structure:
+Base formula (all variants):
 
-| Rows    | Content                                                |
-| ------- | ------------------------------------------------------ |
-| 1–4     | Title and header (row 5 in Excel = row 4 zero-indexed) |
-| 5       | Column codes (`(A)`, `(B)`, `(C26)`, `(F26)`, etc.)    |
-| 6       | Blank separator                                        |
-| 7+      | One row per project (data starts at row 8 in Excel)    |
-| 245     | Summary / total row (line 245, capacity = 11,532.5 MW) |
-| 246–263 | Additional rows (empty or subtotals)                   |
+```
+Real MC(Y)    = Σ[ F26(p) × capacity(p) ] / Denominator   [$/kW-yr]
+Nominal MC(Y) = Σ[ F_Y(p) × capacity(p) ] / Denominator   [$/kW-yr]
+```
 
-The script reads 237 valid project rows (non-null line number and station name, excluding "xxx" placeholders).
+NiMo's workbook differs from ConEd/O&R: instead of a composite rate × escalation formula, each project has pre-computed **ECCR** values with year-by-year F columns. **F26(p)** is the base-year (FY2026) annual cost/MW ($000s/MW, col AN), and **F\_Y(p)** is the nominal annual cost/MW in year Y ($000s/MW, cols AN–AX).
 
-## Workbook cell references
+The script produces **four variants** by combining two capital perspectives with two denominators:
 
-### Column map
+| Variant               | Capital(Y)                          | Denominator                  |
+| --------------------- | ----------------------------------- | ---------------------------- |
+| Cumulative diluted    | Accumulated in-service capital to Y | System peak (MW)             |
+| Incremental diluted   | New capital entering service in Y   | System peak (MW)             |
+| Cumulative undiluted  | Accumulated in-service capital to Y | Cumulative project MW to Y   |
+| Incremental undiluted | New capital entering service in Y   | New project MW entering in Y |
 
-All references are to Exhibit 1 (Sheet 1). Column letters are 1-indexed (Excel convention); the script uses 0-indexed integers internally.
+Levelized = mean(real MC) across all 11 fiscal years, consistent with ConEd/O&R.
+
+Unlike ConEd/O&R, NiMo has per-project in-service years, so incremental values are computed directly (filter to projects entering in year Y) rather than differencing cumulative totals.
+
+### Escalation
+
+NiMo uses the Blue Chip GDP Implicit Price Deflator at **2.1%/yr**. This is already baked into the F columns — F27 = F26 × 1.021, F28 = F26 × 1.021², etc. The script does not apply escalation separately; it reads the pre-computed F\_Y values directly from the workbook.
+
+Verification from the summary row (line 245): F27/F26 = 73.026/71.524 = 1.02100 ✓
+
+### ECCR vs. F-value relationship
+
+The E column (AI, idx 34) contains the ECCR annualized cost per MW at the project's **in-service year** prices. The F columns adjust this to each year's price level using the 2.1%/yr deflator:
+
+```
+F_Y(p) = E(p) × (1.021)^(Y − in_service_year)
+F26(p) = E(p) × (1.021)^(2026 − in_service_year)
+```
+
+For example, Sawyer Ave (in-service 2029): E = $39.44, F26 = $39.44 × (1.021)^(−3) = $37.05.
+
+The F columns always contain values regardless of in-service year. The script uses the in-service year filter to determine which projects contribute in a given year — F values for non-in-service projects are ignored.
+
+## Study parameters
+
+| Parameter           | Value         | Source                                                        |
+| ------------------- | ------------- | ------------------------------------------------------------- |
+| Study period        | FY2026–FY2036 | Exhibit 1 columns AN–AX                                       |
+| System peak         | 6,616 MW      | 2024 actual peak, NiMo Peak Load Forecast (Mar 2025)          |
+| Escalation          | 2.1%/yr       | Blue Chip GDP deflator, baked into F columns                  |
+| Undiluted MC target | $71.524/kW-yr | Exhibit 1 line 245 col AN — capacity-weighted average all 237 |
+
+The system peak is passed as a CLI argument (`--system-peak-mw 6616`), not read from the workbook. The undiluted MC target is passed via `--undiluted-mc-per-kw 71.524` for cross-checking.
+
+### Key workbook columns (Exhibit 1, Sheet 1)
 
 | Excel col | 0-idx | Code    | Header                        | Content                                       |
 | --------- | ----: | ------- | ----------------------------- | --------------------------------------------- |
@@ -58,8 +99,6 @@ All references are to Exhibit 1 (Sheet 1). Column letters are 1-indexed (Excel c
 | …         |     … | …       | …                             | …                                             |
 | AX        |    49 | (F36)   | 2036                          | Annual MC per MW in FY2036 dollars ($000s/MW) |
 
-### Key columns used by the script
-
 The script reads four things per project:
 
 1. **Capacity** (col D, idx 3): MW of new capacity added
@@ -69,63 +108,26 @@ The script reads four things per project:
 
 The classification (bulk\_tx / sub\_tx / distribution) comes from the external CSV, not the workbook.
 
-### ECCR vs. F-value relationship
+### Workbook layout (Exhibit 1, Sheet 1)
 
-The E column (AI, idx 34) contains the ECCR annualized cost per MW at the project's **in-service year** prices. The F columns adjust this to each year's price level using the 2.1%/yr Blue Chip GDP deflator:
+| Rows    | Content                                                |
+| ------- | ------------------------------------------------------ |
+| 1–4     | Title and header (row 5 in Excel = row 4 zero-indexed) |
+| 5       | Column codes (`(A)`, `(B)`, `(C26)`, `(F26)`, etc.)    |
+| 6       | Blank separator                                        |
+| 7+      | One row per project (data starts at row 8 in Excel)    |
+| 245     | Summary / total row (line 245, capacity = 11,532.5 MW) |
+| 246–263 | Additional rows (empty or subtotals)                   |
 
-```
-F_Y(p) = E(p) × (1.021)^(Y − in_service_year)
-F26(p) = E(p) × (1.021)^(2026 − in_service_year)
-```
+The script reads 237 valid project rows (non-null line number and station name, excluding "xxx" placeholders).
 
-For example, Sawyer Ave (in-service 2029): E = $39.44, F26 = $39.44 × (1.021)^(−3) = $37.05.
+## Per-project data
 
-The F columns always contain values regardless of in-service year. The script uses the in-service year filter to determine which projects contribute in a given year — F values for non-in-service projects are ignored.
-
-### System peak
-
-6,616 MW — NiMo's 2024 actual system peak from the NiMo Peak Load Forecast (March 2025). Passed as a CLI argument (`--system-peak-mw 6616`), not read from the workbook.
-
-### Undiluted MC validation target
-
-Line 245 (summary row), col AN (F26) = **$71.524/kW-yr** — this is the MCOS headline undiluted MC. It represents the capacity-weighted average F26 across all 237 projects: `sum(F26(p) × cap(p)) / sum(cap(p))`. The script receives this via `--undiluted-mc-per-kw 71.524` and can cross-check against the computed cumulative undiluted total.
-
-## MC formula and variants
-
-NiMo's workbook differs from ConEd/O&R: instead of a composite rate × escalation formula, each project has pre-computed **ECCR** values with year-by-year F columns:
-
-- **F26(p)**: base-year (FY2026) annual cost/MW ($000s/MW), col AN
-- **F\_Y(p)**: nominal annual cost/MW in year Y ($000s/MW), cols AN–AX
-
-The MC for a set of projects in year Y is:
-
-```
-Real MC(Y)    = sum[ F26(p) × capacity(p) ] / Denominator   [$/kW-yr]
-Nominal MC(Y) = sum[ F_Y(p) × capacity(p) ] / Denominator   [$/kW-yr]
-```
-
-The scope of projects and denominator depend on the variant:
-
-| Variant               | Projects in scope               | Denominator            | Perspective                        |
-| --------------------- | ------------------------------- | ---------------------- | ---------------------------------- |
-| Cumulative diluted    | All with in\_service\_year ≤ Y  | System peak (MW)       | MCOS cost allocation               |
-| Incremental diluted   | Only with in\_service\_year = Y | System peak (MW)       | BAT economic cost (cost causation) |
-| Cumulative undiluted  | All with in\_service\_year ≤ Y  | Cumulative project MW  | Per-project cost recovery          |
-| Incremental undiluted | Only with in\_service\_year = Y | New capacity in year Y | Per-project marginal cost          |
-
-Levelized = simple arithmetic mean of real MC across all 11 fiscal years, no discounting.
-
-Unlike ConEd/O&R, NiMo has per-project in-service years, so incremental values are computed directly (filter to projects entering in year Y) rather than differencing cumulative totals.
-
-### Escalation
-
-NiMo uses the Blue Chip GDP Implicit Price Deflator at **2.1%/yr**. This is already baked into the F columns — F27 = F26 × 1.021, F28 = F26 × 1.021², etc. The script does not apply escalation separately; it reads the pre-computed F\_Y values directly from the workbook.
-
-Verification from the summary row (line 245): F27/F26 = 73.026/71.524 = 1.02100 ✓
+NiMo has 237 projects — too many to list individually. The classification CSV (`nimo_project_classifications.csv`) contains the full project-level detail. See [How to reproduce the classification](#how-to-reproduce-the-classification) for the methodology.
 
 ## Worked examples
 
-### Example 1: Cumulative diluted — sub\_tx\_plus\_dist, FY2026
+### Cumulative diluted — sub\_tx\_plus\_dist, FY2026
 
 In FY2026, projects with in\_service\_year ≤ 2026 contribute. Using Sawyer Ave as one example among many:
 
@@ -141,7 +143,7 @@ Real MC(2026) = sum[ F26(p) × cap(p) ] / system_peak
 
 As more projects enter service each year, this grows — by FY2036 it reaches $137.37/kW-yr (real).
 
-### Example 2: Incremental diluted — Sawyer Ave contribution, FY2029
+### Incremental diluted — Sawyer Ave contribution, FY2029
 
 Sawyer Ave (line 3, FN010097) is a distribution substation project:
 
@@ -163,7 +165,7 @@ Nominal contribution  = F2029 × capacity / system_peak
 
 This is one of many projects entering in FY2029 — the total incremental diluted distribution MC for FY2029 is $1.26/kW-yr (real), reflecting all projects with in-service = 2029.
 
-### Example 3: Cumulative undiluted — headline validation, FY2036
+### Cumulative undiluted — headline validation, FY2036
 
 The workbook's summary row (line 245) reports an undiluted MC of $71.524/kW-yr. This is the capacity-weighted average F26 across all 237 projects:
 
@@ -177,7 +179,7 @@ By FY2036, all projects are in-service (in\_service\_year ≤ 2036 for all), so 
 
 Unlike ConEd/O&R, the undiluted MC is NOT constant across years — it changes as the mix of in-service projects shifts. Each project has its own capacity and cost; the capacity-weighted average depends on which projects are in scope.
 
-### Example 4: Incremental undiluted — Sawyer Ave contribution, FY2029
+### Incremental undiluted — Sawyer Ave contribution, FY2029
 
 Same project, but now the denominator is the new capacity added in FY2029 (not system peak):
 
@@ -193,7 +195,7 @@ Sawyer Ave's contribution to the numerator is 37.054 × 12 = $444.6 ($000s). Its
 
 Incremental undiluted can be volatile year to year because a single expensive project with little capacity drives the weighted average up.
 
-### Example 5: FY2036 spike in incremental diluted
+### FY2036 spike in incremental diluted
 
 FY2036 shows a dramatic spike ($60.45/kW-yr real for sub\_tx\_plus\_dist) because it's the final study year and many large projects have in-service = 2036:
 
@@ -204,16 +206,7 @@ FY2036 shows a dramatic spike ($60.45/kW-yr real for sub\_tx\_plus\_dist) becaus
 
 This is an artifact of the study horizon — projects without firm schedules are assigned to the last year. The levelized value (averaging across all 11 years) smooths this out.
 
-## Outputs
-
-| Output                                                             | Description                                                                                                         |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `nimo_project_classifications.csv`                                 | One row per project: classification, voltage, inference method, evidence text, sub-project names, confidence level. |
-| `classify_nimo_projects.py`                                        | The script that produces the CSV. All manual decisions are encoded as commented data structures at the top.         |
-| `nimo_{cumulative,incremental}_{diluted,undiluted}_levelized.csv`  | Two rows (bulk_tx, sub_tx_and_dist): levelized MC ($/kW-yr), final-year real and nominal MC.                        |
-| `nimo_{cumulative,incremental}_{diluted,undiluted}_annualized.csv` | One row per year: bulk_tx and sub_tx_and_dist nominal and real MC ($/kW-yr).                                        |
-
-## How to reproduce the classification (manual process)
+## How to reproduce the classification
 
 If you need to redo this for NiMo or adapt it for another utility's MCOS study, here's the process:
 
@@ -272,6 +265,21 @@ For each project, write down:
 
 This is what `nimo_project_classifications.csv` captures. The evidence column is the most important — it's what lets someone else audit your work.
 
+## Inputs and outputs
+
+| Input                     | Source                                                            |
+| ------------------------- | ----------------------------------------------------------------- |
+| NiMo MCOS workbook        | `s3://data.sb/ny_psc/mcos_studies_2025/nimo_study_workpaper.xlsx` |
+| NYISO Gold Book Table VII | `context/papers/nyiso_gold_book_2025.md`                          |
+| System peak               | 6,616 MW — 2024 actual, NiMo Peak Load Forecast (Mar 2025)        |
+
+| Output                                                             | Description                                                                                                         |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `nimo_project_classifications.csv`                                 | One row per project: classification, voltage, inference method, evidence text, sub-project names, confidence level. |
+| `classify_nimo_projects.py`                                        | The script that produces the CSV. All manual decisions are encoded as commented data structures at the top.         |
+| `nimo_{cumulative,incremental}_{diluted,undiluted}_levelized.csv`  | Two rows (bulk_tx, sub_tx_and_dist): levelized MC ($/kW-yr), final-year real and nominal MC.                        |
+| `nimo_{cumulative,incremental}_{diluted,undiluted}_annualized.csv` | One row per year: bulk_tx and sub_tx_and_dist nominal and real MC ($/kW-yr).                                        |
+
 ## How to run
 
 ```bash
@@ -288,6 +296,6 @@ uv run python classify_nimo_projects.py
 
 This reads the workbook from S3, applies all the classification logic, and overwrites `nimo_project_classifications.csv`. The Gold Book reference data is hardcoded in the script — if the Gold Book changes, update the `GOLD_BOOK_NGRID_HIGH_VOLTAGE` and `GOLD_BOOK_NGRID_SUB_TX` lists.
 
-## Downstream consumers
+### Downstream consumers
 
 The classifications feed into `analyze_nimo_mcos.py`, which uses them to compute marginal costs by tier (bulk TX, sub-TX, distribution, sub-TX + distribution) in all four variants. The **incremental diluted** values are the BAT rate design inputs.

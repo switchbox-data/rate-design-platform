@@ -1,8 +1,8 @@
-# Con Edison MCOS dilution analysis
+# Con Edison MCOS marginal cost analysis
 
 ConEd's workbook already separates costs into five NERA cost centers that cleanly map to voltage tiers. No project-level classification of projects to tiers—bulk tx, sub tx, and dist—is needed — the workbook's cost center structure IS the tier assignment.
 
-## Cost centers and tier mapping
+## Cost centers
 
 | Cost center               | Workbook sheet     | Type                     | BAT tier                |
 | ------------------------- | ------------------ | ------------------------ | ----------------------- |
@@ -12,13 +12,15 @@ ConEd's workbook already separates costs into five NERA cost centers that cleanl
 | Transformer               | CapEx Distribution | Annual sample            | Sub-TX + dist (include) |
 | Secondary                 | CapEx Distribution | Annual sample            | Sub-TX + dist (include) |
 
-## Why no project-level classification is needed
+## Bulk TX treatment
+
+### Why no project-level classification is needed
 
 ConEd's CapEx Substation bundles sub-transmission feeders and area station transformers in the same project descriptions (e.g., "Install new 138/27kV Transformer 4 + new 138kV Feeder 38Q05 from Vernon"). These cannot be separated into distinct sub-TX and distribution tiers. But for the BAT, what matters is excluding bulk TX — the remaining cost centers all represent local delivery investment, and the bundled "Substation" cost center correctly captures all sub-TX and distribution substation spending.
 
-## Gold Book cross-reference
+### Gold Book cross-reference
 
-### Projects in CapEx Transmission vs. Gold Book
+#### Projects in CapEx Transmission vs. Gold Book
 
 Both ConEd CapEx Transmission projects appear in NYISO Gold Book Table VII (pp. 157–158):
 
@@ -29,11 +31,11 @@ Both ConEd CapEx Transmission projects appear in NYISO Gold Book Table VII (pp. 
 
 Cumulative CapEx Transmission capital: $636M (2025) → $1,447M (2028+, flat).
 
-### Gold Book projects NOT in CapEx Transmission
+#### Gold Book projects NOT in CapEx Transmission
 
 18 other ConEd Gold Book Table VII entries do not appear in CapEx Transmission. These include spare transformers (Parkchester No. 1, Mott Haven/Parkview, Fox Hills, Cedar St.), PAR feeders (Gowanus→Greenwood, Goethals→Fox Hills), MTA/Amtrak connections, reconductoring (Hudson Ave East), transformer replacements (Millwood West, Rainey, Fresh Kills), and reconfigurations (Buchanan North). They range from 138 kV to 345 kV and have in-service dates from 2025 to 2031. These are either captured in CapEx Substation or CapEx Distribution, or are maintenance/replacement projects that don't add demand-driven capacity and are therefore excluded from the MCOS.
 
-### Boundary accounting
+#### Boundary accounting
 
 Under the assumption that bulk TX is handled by a separate analysis using all Gold Book entries and we exclude all of CapEx Transmission:
 
@@ -114,11 +116,19 @@ For **annual cost centers** (Primary, Transformer, Secondary), the annual sample
 
 **Levelized** = mean of real MC across all 10 study years.
 
-### Workbook cell references for each input
+## Study parameters
+
+| Parameter    | Value        | Source                                     |
+| ------------ | ------------ | ------------------------------------------ |
+| Study period | 2025–2034    | All CapEx sheets                           |
+| System peak  | 11,997.7 MW  | Coincident Load B26 (ASC total, 2025 fcst) |
+| Escalation   | GDP deflator | Carrying Charge Loaders row 25, 2.4%→2.1%  |
 
 **System Peak** — sheet **Coincident Load**, cell **B26** (Area Station Coincident Total, 2025 forecast = 11,997.7 MW). This is the sum of individual area station coincident peaks, NOT the true system peak (which is smaller — see coincidence factor below). Using the ASC total here is correct because the composite rate in column O has already been adjusted to compensate.
 
-**Composite Rate** — sheet **Carrying Charge Loaders** (note: sheet name has a trailing space), column **O** (Schedule 11 col 13, "Annual MC at System Peak"). The composite rate is a single multiplier per cost center that folds together the ECCR (~10%), general plant loading (7–24%), O&M (~1.1–1.2%), working capital return (~2.4% × 9.3%), loss factors, and a **coincidence factor** (0.95175). Other utilities apply these as separate steps; ConEd pre-multiplies them into one number for a cleaner formula: `Annual RR = Capital × Composite Rate × Escalation`.
+### Composite rates
+
+Sheet **Carrying Charge Loaders** (note: sheet name has a trailing space), column **O** (Schedule 11 col 13, "Annual MC at System Peak"). The composite rate is a single multiplier per cost center that folds together the ECCR (~10%), general plant loading (7–24%), O&M (~1.1–1.2%), working capital return (~2.4% × 9.3%), loss factors, and a **coincidence factor** (0.95175). Other utilities apply these as separate steps; ConEd pre-multiplies them into one number for a cleaner formula: `Annual RR = Capital × Composite Rate × Escalation`.
 
 **Why the coincidence factor is embedded.** Individual area stations peak at different hours. The sum of their individual peaks (the ASC total, 11,997.7 MW) is larger than the true system coincident peak (~11,418 MW) because not all stations peak simultaneously. The ratio is the coincidence factor: 11,418 / 11,997.7 ≈ 0.95175. ConEd's workbook presents capital at the area station level (summing to the ASC total), so the composite rate is scaled down by 0.95175 to produce the correct system-peak-level MC. Algebraically: `Capital × (Rate × 0.95175) / ASC_total = Capital × Rate / System_peak`. This is purely an accounting convenience — the final MC values are identical either way. No other utility in our analysis uses a coincidence factor because they work directly with a single system peak number.
 
@@ -130,7 +140,9 @@ For **annual cost centers** (Primary, Transformer, Secondary), the annual sample
 | Transformer  | O15  | 0.11271 |
 | Secondary    | O16  | 0.12754 |
 
-**Escalation** — sheet **Carrying Charge Loaders**, row **25** (GDP Implicit Price Deflator), columns C–L for years 2025–2034. Base year 2025 = 1.0; 2026 inflates at 2.4%, then 2.1%/yr thereafter.
+### Escalation
+
+Sheet **Carrying Charge Loaders**, row **25** (GDP Implicit Price Deflator), columns C–L for years 2025–2034. Base year 2025 = 1.0; 2026 inflates at 2.4%, then 2.1%/yr thereafter.
 
 | Year | Cell | Value  |
 | ---- | ---- | ------ |
@@ -145,9 +157,13 @@ For **annual cost centers** (Primary, Transformer, Secondary), the annual sample
 | 2033 | K25  | 1.1844 |
 | 2034 | L25  | 1.2092 |
 
-**Per-project data** — parsed from the right-half cashflow columns (W–AF) of each cumulative cost center sheet. In-service year is inferred as the first year where the cumulative cashflow equals its final value (CWIP construction spending ends). These tables are the primary audit artifact for the project-level methodology.
+## Per-project data
 
-**CapEx Transmission** — 5 project-area rows (rows 8–12). All share the same 358 MW capacity (ConEd's TX planning increment). All complete in 2028.
+Parsed from the right-half cashflow columns (W–AF) of each cumulative cost center sheet. In-service year is inferred as the first year where the cumulative cashflow equals its final value (CWIP construction spending ends). These tables are the primary audit artifact for the project-level methodology.
+
+### CapEx Transmission — 5 projects
+
+Rows 8–12. All share the same 358 MW capacity (ConEd's TX planning increment). All complete in 2028.
 
 | Row | Name          |          MW | Capital ($000s) | In-service |
 | --: | ------------- | ----------: | --------------: | ---------: |
@@ -158,7 +174,9 @@ For **annual cost centers** (Primary, Transformer, Secondary), the annual sample
 |  12 | Atlantic      |       358.0 |         285,000 |       2028 |
 |     | **Total**     | **1,790.0** |   **1,447,105** |            |
 
-**CapEx Substation** — 17 project rows (rows 9–25). Projects span 2026–2034, with the largest cohort completing in 2028 (4 projects, $2B) and 2034 (2 projects, $2.1B).
+### CapEx Substation — 17 projects
+
+Rows 9–25. Projects span 2026–2034, with the largest cohort completing in 2028 (4 projects, $2B) and 2034 (2 projects, $2.1B).
 
 | Row | Name                |          MW | Capital ($000s) | In-service |
 | --: | ------------------- | ----------: | --------------: | ---------: |
@@ -181,7 +199,19 @@ For **annual cost centers** (Primary, Transformer, Secondary), the annual sample
 |  25 | Atlantic (new)      |       358.0 |       1,050,000 |       2034 |
 |     | **Total**           | **3,024.0** |   **7,419,444** |            |
 
-**Cumulative Capital** ($000s) — derived from the per-project tables above using in-service-year scoping. Each project's full capital enters the total in the year it completes (cashflow stabilizes). Values step up discretely as projects come in service, unlike the smooth CWIP-based totals in the left-half Section 2 rows (F–O). At 2034 the totals converge because all projects are in service.
+### Annual capital (distribution)
+
+Sheet **CapEx Distribution**, row **151** (total). Values are in **dollars** (not $000s; the code divides by 1,000 for consistency with the other CapEx sheets). The same capital is used for every year.
+
+| Cost center | Cell | Value ($)   | As $000s |
+| ----------- | ---- | ----------- | -------- |
+| Primary     | L151 | ~13,100,000 | 13,100   |
+| Transformer | M151 | ~5,900,000  | 5,900    |
+| Secondary   | N151 | ~16,800,000 | 16,800   |
+
+### Cumulative capital summary
+
+Derived from the per-project tables above using in-service-year scoping. Each project's full capital enters the total in the year it completes (cashflow stabilizes). Values step up discretely as projects come in service, unlike the smooth CWIP-based totals in the left-half Section 2 rows (F–O). At 2034 the totals converge because all projects are in service.
 
 | Year | TX Capital ($000s) | TX Capacity (MW) | Sub Capital ($000s) | Sub Capacity (MW) |
 | ---- | ------------------ | ---------------- | ------------------- | ----------------- |
@@ -196,15 +226,9 @@ For **annual cost centers** (Primary, Transformer, Secondary), the annual sample
 | 2033 | 1,447,105          | 1,790            | 5,329,544           | 2,397             |
 | 2034 | 1,447,105          | 1,790            | 7,419,544           | 3,024             |
 
-**Annual Capital** — sheet **CapEx Distribution**, row **151** (total). Values are in **dollars** (not $000s; the code divides by 1,000 for consistency with the other CapEx sheets). The same capital is used for every year.
+## Worked examples
 
-| Cost center | Cell | Value ($)   | As $000s |
-| ----------- | ---- | ----------- | -------- |
-| Primary     | L151 | ~13,100,000 | 13,100   |
-| Transformer | M151 | ~5,900,000  | 5,900    |
-| Secondary   | N151 | ~16,800,000 | 16,800   |
-
-### Worked example: Cumulative diluted — Substation, year 2028
+### Cumulative diluted — Substation, year 2028
 
 Projects in-service by 2028: Newtown (2026, $142,866k), Parkchester #2, Idlewild, Gateway, Parkview (all 2028).
 
@@ -219,7 +243,7 @@ Diluted MC = 294,352 / 11,997.7            = $24.53/kW-yr (nominal)
 Real MC    = 2,149,119 × 0.12832 / 11,997.7 = $22.99/kW-yr
 ```
 
-### Worked example: Cumulative diluted — Primary, year 2028
+### Cumulative diluted — Primary, year 2028
 
 For annual cost centers, the workbook provides a representative annual sample rather than a 10-year plan. The cumulative variant accumulates this sample: by 2028 (year 4), four years of Primary capital are in service.
 
@@ -237,7 +261,7 @@ Real MC    = 52,400 × 0.12895 / 11,997.7 = $0.56/kW-yr
 
 Compare with incremental diluted in the same year: $0.15/kW-yr nominal. The difference ($0.45) is the carried-over capital from years 2025–2027.
 
-### Worked example: Incremental diluted — Substation, year 2028
+### Incremental diluted — Substation, year 2028
 
 Four projects come in-service in 2028 (Parkchester #2, Idlewild, Gateway, Parkview):
 
@@ -254,7 +278,7 @@ Real MC    = 2,006,253 × 0.12832 / 11,997.7 = $21.46/kW-yr
 
 Compare with cumulative diluted in 2028: $24.53/kW-yr nominal. The difference ($1.63) is Newtown's contribution (in-service since 2026).
 
-### Worked example: Cumulative undiluted — Substation, year 2028
+### Cumulative undiluted — Substation, year 2028
 
 Using in-service-year scoping — same 5 projects as the diluted example above:
 
@@ -271,7 +295,7 @@ Real MC      = 2,149,119 × 0.12832 / 998     = $276/kW-yr
 
 Unlike the old proportional approach, real MC is NOT constant — it depends on the $/kW mix of in-service projects. Compare 2034 (all 17 projects, 3,024 MW): real MC = 7,419,544 × 0.12832 / 3,024 = $315/kW-yr.
 
-### Worked example: Incremental undiluted — Substation, year 2028
+### Incremental undiluted — Substation, year 2028
 
 The 4 projects entering service in 2028:
 
