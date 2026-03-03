@@ -487,7 +487,15 @@ def _load_run_fields(
         rr_path = scenario_config_path.parent.parent / raw_rr
         with open(rr_path) as f:
             rr_data = yaml.safe_load(f)
-        revenue_requirement = float(rr_data["revenue_requirement"])
+        if "total_delivery_revenue_requirement" in rr_data:
+            revenue_requirement = float(rr_data["total_delivery_revenue_requirement"])
+        elif "revenue_requirement" in rr_data:
+            revenue_requirement = float(rr_data["revenue_requirement"])
+        else:
+            raise KeyError(
+                f"RR YAML at {rr_path} is missing both "
+                "'total_delivery_revenue_requirement' and 'revenue_requirement'"
+            )
     else:
         revenue_requirement = float(cast(float | int | str, raw_rr))
     return state, utility, revenue_requirement
