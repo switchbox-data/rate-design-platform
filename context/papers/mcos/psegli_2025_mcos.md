@@ -135,15 +135,63 @@ Exhibit 1 presents the system-wide marginal cost by rate class. All rate classes
 
 ---
 
-### Exhibit 2 — Capital Spending and Cost per MW
+### Exhibit 2 — Capital Project List Screened
 
-[DIAGRAM DESCRIPTION: Exhibit 2 — Capital Spending and Cost per MW]
+Exhibit 2 lists all 30 discrete substation and line projects in the 8-year capital investment plan (FY2025–2032). The table was manually transcribed from the filing PDF and verified against the filing's summary totals (all match to within $1–2).
 
-**Note:** Table content was not extractable from the PDF; description below is inferred from surrounding text. See original PDF for data.
+|  # | SOS ID | Location             | Voltage | Asset Class  | In-Service Date |   MVA | Cost w/o R&C | Cost w/ R&C |  Cost/MVA |
+| -: | -----: | -------------------- | ------- | ------------ | --------------: | ----: | -----------: | ----------: | --------: |
+|  1 |   2446 | Locust Grove         | D       | D-Feeders    |      11/27/2024 |   2.5 |    2,523,022 |   2,523,022 | 1,009,209 |
+|  2 |   2226 | Elwood               | D       | D-Feeders    |      12/31/2024 |  30.0 |   11,884,196 |  11,884,196 |   396,140 |
+|  3 |   2235 | Woodmere             | D       | D-Feeders    |      12/31/2024 |   5.0 |    2,841,567 |   2,841,567 |   568,313 |
+|  4 |   2069 | Bridgehampton        | D       | D-Substation |       3/31/2025 |  33.0 |   13,465,283 |  13,465,283 |   408,039 |
+|  5 |   1545 | Hither Hills         | T&D     | T-Substation |       5/30/2025 |  13.0 |   20,664,012 |  20,664,012 | 1,589,539 |
+|  6 |   2238 | Arverne              | D       | D-Feeders    |        6/2/2025 |  10.0 |    4,862,714 |   4,862,714 |   486,271 |
+|  7 |   2143 | Belmont              | T&D     | T-Substation |       6/30/2025 | 157.0 |   53,557,134 |  53,557,134 |   341,128 |
+|  8 |   2316 | Syosset              | D       | D-Feeders    |        8/1/2025 |  10.0 |   10,518,324 |  10,518,324 | 1,051,832 |
+|  9 |   2334 | Tech Park            | D       | D-Feeders    |       12/1/2025 |  10.0 |   12,132,295 |  12,132,295 | 1,213,230 |
+| 10 |   1940 | Miller Place         | T&D     | T-Substation |       12/9/2025 |  33.0 |   19,534,126 |  19,652,864 |   595,541 |
+| 11 |   1476 | Bridgehampton        | T&D     | T-Substation |      12/15/2025 | 125.0 |   53,120,906 |  63,071,819 |   504,575 |
+| 12 |   2086 | Ocean Beach          | D       | D-Feeders    |      12/31/2025 |   3.5 |    8,415,793 |   8,415,793 | 2,404,512 |
+| 13 |   1540 | North Bellmore       | T&D     | T-Substation |        6/3/2026 |  33.0 |   22,503,469 |  26,143,099 |   792,215 |
+| 14 |   1986 | Southampton          | T&D     | T-Substation |      12/31/2026 | 145.0 |   57,538,676 |  68,483,565 |   472,300 |
+| 15 |   2486 | Port Jefferson       | D       | D-Feeders    |      12/31/2026 |  10.0 |   10,705,531 |  13,313,539 | 1,331,354 |
+| 16 |   2589 | Locust Grove         | D       | D-Feeders    |        6/1/2027 |  10.0 |    2,300,000 |   2,300,000 |   230,000 |
+| 17 |   2583 | Moriches             | T&D     | T-Substation |       6/15/2027 |  14.0 |    1,574,039 |   2,099,058 |   149,933 |
+| 18 |   1822 | Deerfield            | T&D     | T-Substation |       6/30/2027 | 112.0 |    2,785,220 |   2,976,112 |    26,572 |
+| 19 |   2510 | East Hampton Village | D       | D-Feeders    |        6/1/2028 |  10.0 |   10,213,670 |  13,078,838 | 1,307,884 |
+| 20 |   2245 | Arverne              | D       | D-Feeders    |       6/15/2028 |  10.0 |    5,421,450 |   6,734,361 |   673,436 |
+| 21 |   1041 | New South Road       | T&D     | T-Substation |       6/30/2028 |  33.0 |   18,741,050 |  20,819,535 |   630,895 |
+| 22 |   2588 | Lindbergh            | T&D     | T-Substation |       6/30/2028 |  46.6 |   60,000,000 |  60,000,000 | 1,287,554 |
+| 23 |   1103 | Wildwood             | D       | D-Substation |        6/1/2029 |  19.0 |   13,211,835 |  17,734,835 |   933,412 |
+| 24 |   2512 | Quogue Substation    | T&D     | T-Substation |        6/1/2029 |  41.0 |   19,010,340 |  24,847,421 |   606,035 |
+| 25 |   1102 | Peconic              | T&D     | T-Substation |        6/1/2029 |  39.5 |    9,892,660 |  13,396,950 |   339,163 |
+| 26 |   2244 | Arverne              | D       | D-Feeders    |       6/30/2025 |  10.0 |    3,092,668 |   3,092,668 |   309,267 |
+| 27 |   2330 | Arverne              | T&D     | T-Substation |       6/28/2030 |  56.0 |   61,088,880 |  80,775,477 | 1,442,419 |
+| 28 |   2138 | Belmont              | D       | D-Feeders    |       12/3/2029 |  10.0 |    4,381,381 |   5,401,196 |   540,120 |
+| 29 |   2358 | Moriches             | T&D     | T-Substation |       6/16/2031 |  67.0 |    4,043,081 |   5,036,075 |    75,165 |
+| 30 |   2370 | Deerfield            | T&D     | T-Substation |       6/16/2032 | 112.0 |   78,178,834 | 100,846,704 |   900,417 |
 
-Exhibit 2 is a table summarizing **capital spending** and **cost per MW** (or cost per MVA) by asset class or project. It reflects the total capital spending over the study period and the derived cost per MW of capacity added, as described in Section 2.
+**Summary by asset class:**
 
-[→ See original PDF page 7 for full table.]
+| Asset Class      | Projects |         MVA |     Cost w/o R&C |      Cost w/ R&C |
+| ---------------- | -------- | ----------: | ---------------: | ---------------: |
+| T-Substation     | 15       |     1,027.1 |     $482,232,426 |     $562,369,825 |
+| D-Substation     | 2        |        52.0 |      $26,677,118 |      $31,200,118 |
+| D-Feeders        | 13       |       131.0 |      $89,292,610 |      $97,098,512 |
+| **Transmission** | **15**   | **1,027.1** | **$482,232,426** | **$562,369,825** |
+| **Distribution** | **15**   |   **183.0** | **$115,969,728** | **$128,298,630** |
+| **Total**        | **30**   | **1,210.1** | **$598,202,154** | **$690,668,455** |
+
+**Notes:**
+
+- No T-Line projects appear in the screened list, despite the filing listing T-Line as one of the 4 asset classes.
+- All T&D-voltage projects are classified as T-Substation.
+- Cost/MVA = Cost w/ R&C / Load Capacity (MVA).
+- The $/kW values in Exhibit 1 ($563.17 TX, $721.12 Dist) differ from the raw Cost/MVA in Exhibit 2 ($547,532 TX, $701,085 Dist) because Exhibit 1 applies the 2.9% General Plant Adder and escalation to 2025 via Handy-Whitman Index.
+- Three projects (SOS 2446, 2226, 2235) have in-service dates in late 2024, before the FY2025 study start; these are treated as entering in FY2025.
+
+[→ Source: original PDF page 7, manually transcribed and verified against filing summary totals.]
 
 ---
 

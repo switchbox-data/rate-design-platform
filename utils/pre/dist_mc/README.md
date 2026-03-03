@@ -4,15 +4,15 @@ This directory computes **marginal costs** from each NY utility's MCOS study wor
 
 Each utility has its own subdirectory with analysis scripts, output CSVs, and a README documenting the methodology.
 
-| Utility | Directory            | Methodology                                                          |
-| ------- | -------------------- | -------------------------------------------------------------------- |
-| NiMo    | [`nimo/`](nimo/)     | Project-level Gold Book classification                               |
-| ConEd   | [`coned/`](coned/)   | Accept cost center structure                                         |
-| O&R     | [`or/`](or/)         | Split CapEx TX: Gold Book → bulk, non-Gold-Book → local sub-TX       |
-| CenHud  | [`cenhud/`](cenhud/) | All local (no bulk TX); flat nominal costs                           |
-| NYSEG   | [`nyseg/`](nyseg/)   | CRA W2 project data, NERA-style; no bulk TX; 2035 forecast peak      |
-| RG&E    | [`rge/`](rge/)       | CRA W2 project data, NERA-style; no bulk TX; shares logic with NYSEG |
-| PSEG-LI | [`psegli/`](psegli/) | Filing data (Exhibit 2 CSV); 2 cost centers; real project ISD timing |
+| Utility | Directory            | Methodology                                                                                 |
+| ------- | -------------------- | ------------------------------------------------------------------------------------------- |
+| NiMo    | [`nimo/`](nimo/)     | Project-level Gold Book classification                                                      |
+| ConEd   | [`coned/`](coned/)   | Accept cost center structure                                                                |
+| O&R     | [`or/`](or/)         | Split CapEx TX: Gold Book → bulk, non-Gold-Book → local sub-TX                              |
+| CenHud  | [`cenhud/`](cenhud/) | All local (no bulk TX); flat nominal costs                                                  |
+| NYSEG   | [`nyseg/`](nyseg/)   | CRA W2 project data, NERA-style; no bulk TX; 2035 forecast peak                             |
+| RG&E    | [`rge/`](rge/)       | CRA W2 project data, NERA-style; no bulk TX; shares logic with NYSEG                        |
+| PSEG-LI | [`psegli/`](psegli/) | Filing data (Exhibit 2 CSV); voltage-classified (all ≤69kV sub-TX); real project ISD timing |
 
 ## Running
 
@@ -59,4 +59,4 @@ ConEd/O&R use NERA's composite rate × escalation formula; NiMo uses pre-compute
 
 All seven MCOS utilities now use **in-service-year scoping** with project-level data: each project's capital and capacity enter the MC calculation when the project completes, excluding pre-completion CWIP. NiMo and CenHud have explicit in-service years in the workbook; ConEd and O&R infer in-service year from per-project cumulative cashflow stabilization (O&R Primary uses first-nonzero year); NYSEG and RG&E have explicit ISD in W2; PSEG-LI's ISDs come from the transcribed Exhibit 2 project list. See `context/domain/ny_mcos_studies_comparison.md` §8–§9 for details.
 
-The key difference across utilities is **how we identify which costs are bulk TX vs. sub-TX + distribution** — NiMo requires project-level classification against the Gold Book, ConEd's cost center structure maps cleanly to tiers, O&R requires a partial split of CapEx Transmission (Gold Book projects → bulk, non-Gold-Book 138 kV reconductoring → local sub-TX), CenHud has no bulk TX at all, NYSEG/RG&E explicitly exclude NYISO TSCs (no bulk TX; all cost centers are local sub-TX and distribution), and PSEG-LI explicitly separates Transmission (excluded) from Distribution (included) at the cost-center level. See each utility's README for details.
+The key difference across utilities is **how we identify which costs are bulk TX vs. sub-TX + distribution** — NiMo requires project-level classification against the Gold Book, ConEd's cost center structure maps cleanly to tiers, O&R requires a partial split of CapEx Transmission (Gold Book projects → bulk, non-Gold-Book 138 kV reconductoring → local sub-TX), CenHud has no bulk TX at all, NYSEG/RG&E explicitly exclude NYISO TSCs (no bulk TX; all cost centers are local sub-TX and distribution), and PSEG-LI uses a separate classification step (`classify_psegli_projects.py`) that cross-references each T-Substation project against public voltage data (PSEG LI reliability pages, LIPA environmental assessments, NYISO interconnection queue) — all 15 T-Substation projects were confirmed as ≤69kV local sub-transmission, so both Sub-TX and Distribution are included in BAT. See each utility's README for details.

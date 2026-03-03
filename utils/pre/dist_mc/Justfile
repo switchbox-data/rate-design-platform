@@ -43,7 +43,8 @@ rge_peak_mw := "1428.52"          # 2035 forecast, T4a row 20 system total
 
 # ── PSEG-LI inputs ──────────────────────────────────────────────────────────
 
-path_psegli_csv := "s3://data.sb/ny_psc/mcos_studies_2025/psegli_study_project_list.csv"
+path_psegli_raw_csv := "s3://data.sb/ny_psc/mcos_studies_2025/psegli_study_project_list.csv"
+path_psegli_classifications := "psegli/psegli_project_classifications.csv"
 path_psegli_output := "psegli"
 psegli_peak_mw := "4935.0"            # 2024 actual NCP, NYISO Gold Book Zone K
 
@@ -87,9 +88,13 @@ analyze-rge:
         --system-peak-mw {{rge_peak_mw}} \
         --path-output-dir "{{path_rge_output}}"
 
+classify-psegli:
+    uv run python psegli/classify_psegli_projects.py \
+        --path-csv "{{path_psegli_raw_csv}}"
+
 analyze-psegli:
     uv run python psegli/analyze_psegli_mcos.py \
-        --path-csv "{{path_psegli_csv}}" \
+        --path-classifications "{{path_psegli_classifications}}" \
         --system-peak-mw {{psegli_peak_mw}} \
         --path-output-dir "{{path_psegli_output}}"
 
