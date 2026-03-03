@@ -1,4 +1,4 @@
-# MCOS dilution analysis — NiMo, ConEd, O&R, CenHud
+# MCOS dilution analysis — NiMo, ConEd, O&R, CenHud, NYSEG, RG&E
 #
 # Each utility lives in its own subdirectory with analysis script(s),
 # classification data (NiMo), and output CSVs.
@@ -29,6 +29,18 @@ path_cenhud_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/cenhud_study_workpape
 path_cenhud_output := "cenhud"
 cenhud_peak_mw := "1103.0"        # 2024 actual, MCOS report p. 3
 
+# ── NYSEG inputs ────────────────────────────────────────────────────────────
+
+path_nyseg_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/nyseg_study_workpaper.xlsx"
+path_nyseg_output := "nyseg"
+nyseg_peak_mw := "2035.73"        # 2035 forecast, T4 row 20 system total
+
+# ── RG&E inputs ─────────────────────────────────────────────────────────────
+
+path_rge_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/rge_study_workpaper.xlsx"
+path_rge_output := "rge"
+rge_peak_mw := "1428.52"          # 2035 forecast, T4a row 20 system total
+
 # ── Recipes ──────────────────────────────────────────────────────────────────
 
 analyze-nimo:
@@ -57,10 +69,24 @@ analyze-cenhud:
         --system-peak-mw {{cenhud_peak_mw}} \
         --path-output-dir "{{path_cenhud_output}}"
 
-analyze-all: analyze-nimo analyze-coned analyze-or analyze-cenhud
+analyze-nyseg:
+    uv run python nyseg/analyze_nyseg_mcos.py \
+        --path-xlsx "{{path_nyseg_xlsx}}" \
+        --system-peak-mw {{nyseg_peak_mw}} \
+        --path-output-dir "{{path_nyseg_output}}"
+
+analyze-rge:
+    uv run python rge/analyze_rge_mcos.py \
+        --path-xlsx "{{path_rge_xlsx}}" \
+        --system-peak-mw {{rge_peak_mw}} \
+        --path-output-dir "{{path_rge_output}}"
+
+analyze-all: analyze-nimo analyze-coned analyze-or analyze-cenhud analyze-nyseg analyze-rge
 
 clean:
     rm -f nimo/nimo_*_levelized.csv nimo/nimo_*_annualized.csv
     rm -f coned/coned_*_levelized.csv coned/coned_*_annualized.csv
     rm -f or/or_*_levelized.csv or/or_*_annualized.csv
     rm -f cenhud/cenhud_*_levelized.csv cenhud/cenhud_*_annualized.csv
+    rm -f nyseg/nyseg_*_levelized.csv nyseg/nyseg_*_annualized.csv
+    rm -f rge/rge_*_levelized.csv rge/rge_*_annualized.csv

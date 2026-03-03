@@ -1,0 +1,5 @@
+bucket,label,levelized_mc_kw_yr,levelized_npv_mc_kw_yr
+upstream,Upstream (Sub + Feeder),33.6392,35.5723
+dist_sub,Distribution Substation,31.6756,33.0411
+primary_feeder,Primary Feeder,20.0611,20.116
+total,Total at Primary,103.0078,105.2359
