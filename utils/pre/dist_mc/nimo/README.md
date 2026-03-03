@@ -41,7 +41,7 @@ The script produces **four variants** by combining two capital perspectives with
 | Cumulative undiluted  | Accumulated in-service capital to Y | Cumulative project MW to Y   |
 | Incremental undiluted | New capital entering service in Y   | New project MW entering in Y |
 
-Levelized = mean(real MC) across all 11 fiscal years, consistent with ConEd/O&R.
+Levelized = mean(real MC) over the 7-year levelization window (2026–2032), consistent across all utilities. See `context/domain/ny_mcos_studies_comparison.md` §10 for rationale.
 
 Unlike ConEd/O&R, NiMo has per-project in-service years, so incremental values are computed directly (filter to projects entering in year Y) rather than differencing cumulative totals.
 
@@ -204,7 +204,7 @@ FY2036 shows a dramatic spike ($60.45/kW-yr real for sub\_tx\_plus\_dist) becaus
 - FN013182 (Transm Net): 844 MW, F26 = $9.27/MW
 - Plus 15+ additional projects totaling ~2,700 MW
 
-This is an artifact of the study horizon — projects without firm schedules are assigned to the last year. The levelized value (averaging across all 11 years) smooths this out.
+This is an artifact of the study horizon — projects without firm schedules are assigned to the last year. The 7-year levelization window (2026–2032) excludes this spike entirely.
 
 ## How to reproduce the classification
 

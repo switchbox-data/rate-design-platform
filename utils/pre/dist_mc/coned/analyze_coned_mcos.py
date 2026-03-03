@@ -65,6 +65,7 @@ import polars as pl
 
 YEARS = list(range(2025, 2035))  # 2025 through 2034
 N_YEARS = len(YEARS)
+LEVELIZATION_YEARS = range(2026, 2033)  # 7-year window for BAT input
 
 COST_CENTERS = ["transmission", "substation", "primary", "transformer", "secondary"]
 LOCAL_CENTERS = ["substation", "primary", "transformer", "secondary"]
@@ -416,8 +417,9 @@ def compute_mc(
 
 
 def levelized(rows: list[MCRow]) -> float:
-    """Average of real (base-year) MC across all study years."""
-    return sum(r.real_mc for r in rows) / len(rows) if rows else 0.0
+    """Average of real (base-year) MC over the 2026-2032 levelization window."""
+    window = [r for r in rows if r.year in LEVELIZATION_YEARS]
+    return sum(r.real_mc for r in window) / len(window) if window else 0.0
 
 
 # ── CSV export ───────────────────────────────────────────────────────────────

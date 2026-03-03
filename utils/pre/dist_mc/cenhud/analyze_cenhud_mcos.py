@@ -56,6 +56,7 @@ import polars as pl
 
 YEARS = list(range(2026, 2036))  # 2026 through 2035
 N_YEARS = len(YEARS)
+LEVELIZATION_YEARS = range(2026, 2033)  # 7-year window for BAT input
 BASE_YEAR = 2026
 GDP_DEFLATOR_RATE = 0.021  # 2.1%/yr, matching NiMo / ConEd / O&R steady-state rate
 
@@ -310,8 +311,9 @@ def compute_bucket_mc(
 
 
 def levelized(rows: list[MCRow]) -> float:
-    """Average of real (base-year) MC across all study years."""
-    return sum(r.real_mc for r in rows) / len(rows) if rows else 0.0
+    """Average of real (base-year) MC over the 2026-2032 levelization window."""
+    window = [r for r in rows if r.year in LEVELIZATION_YEARS]
+    return sum(r.real_mc for r in window) / len(window) if window else 0.0
 
 
 # ── CSV export ───────────────────────────────────────────────────────────────

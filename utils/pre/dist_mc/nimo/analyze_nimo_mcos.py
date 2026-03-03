@@ -59,9 +59,10 @@ COL_F26 = 39  # Marginal cost in FY2026 ($000s/MW)
 DATA_START_ROW = 7
 
 # Year-by-year F columns: FY2026 (col 39) through FY2036 (col 49)
-FISCAL_YEARS = list(range(2026, 2037))  # [2026, 2027, ..., 2036]
-N_YEARS = len(FISCAL_YEARS)
-F_COL_BY_YEAR: dict[int, int] = {yr: COL_F26 + (yr - 2026) for yr in FISCAL_YEARS}
+YEARS = list(range(2026, 2037))  # [2026, 2027, ..., 2036]
+N_YEARS = len(YEARS)
+LEVELIZATION_YEARS = range(2026, 2033)  # 7-year window for BAT input
+F_COL_BY_YEAR: dict[int, int] = {yr: COL_F26 + (yr - 2026) for yr in YEARS}
 
 VALID_CLASSIFICATIONS = {"bulk_tx", "sub_tx", "distribution"}
 
@@ -113,7 +114,7 @@ class McosProject:
 class MCRow:
     """One year's MC for a bucket (used for all variants)."""
 
-    fy: int
+    year: int
     cost_real_k: float  # numerator, base-year ($000s)
     cost_nominal_k: float  # numerator, year-Y ($000s)
     denominator_mw: float
@@ -264,18 +265,18 @@ def compute_bucket_mc(
     diluted=False:    denominator = sum(capacity) of in-scope projects
     """
     rows: list[MCRow] = []
-    for fy in FISCAL_YEARS:
+    for yr in YEARS:
         if cumulative:
             scope = [
                 p
                 for p in projects
-                if p.in_service_year is not None and p.in_service_year <= fy
+                if p.in_service_year is not None and p.in_service_year <= yr
             ]
         else:
-            scope = [p for p in projects if p.in_service_year == fy]
+            scope = [p for p in projects if p.in_service_year == yr]
 
         cost_real_k = sum(p.f26 * p.capacity_mw for p in scope)
-        cost_nominal_k = sum(p.f_by_year.get(fy, 0.0) * p.capacity_mw for p in scope)
+        cost_nominal_k = sum(p.f_by_year.get(yr, 0.0) * p.capacity_mw for p in scope)
 
         if diluted:
             denom = system_peak_mw
@@ -287,7 +288,7 @@ def compute_bucket_mc(
 
         rows.append(
             MCRow(
-                fy=fy,
+                year=yr,
                 cost_real_k=cost_real_k,
                 cost_nominal_k=cost_nominal_k,
                 denominator_mw=denom,
@@ -299,8 +300,9 @@ def compute_bucket_mc(
 
 
 def levelized(rows: list[MCRow]) -> float:
-    """Average of real (base-year) MC across all study years."""
-    return sum(r.real_mc for r in rows) / len(rows) if rows else 0.0
+    """Average of real (base-year) MC over the 2026-2032 levelization window."""
+    window = [r for r in rows if r.year in LEVELIZATION_YEARS]
+    return sum(r.real_mc for r in window) / len(window) if window else 0.0
 
 
 # ── CSV export (harmonized 2-bucket schema) ──────────────────────────────────
@@ -338,7 +340,7 @@ def export_levelized_csv(
 
 def export_annualized_csv(mc_data: dict[str, list[MCRow]], path: Path) -> None:
     rows = []
-    for yi, fy in enumerate(FISCAL_YEARS):
+    for yi, fy in enumerate(YEARS):
         row: dict[str, object] = {"year": fy}
         for export_key, internal_key, _label in EXPORT_BUCKETS:
             row[f"{export_key}_nominal"] = round(
@@ -393,13 +395,13 @@ def print_report(
         f"\n── Year-by-year sub_tx_plus_dist diluted ($/kW-yr, nominal) "
         f"{'─' * max(1, W - 61)}"
     )
-    print(f"  {'FY':>4}  {'Cumulative':>12}  {'Incremental':>12}  {'Match?':>8}")
+    print(f"  {'Year':>4}  {'Cumulative':>12}  {'Incremental':>12}  {'Match?':>8}")
     print(f"  {'─' * 42}")
-    for yi, fy in enumerate(FISCAL_YEARS):
+    for yi, yr in enumerate(YEARS):
         cum_v = cum_dil["sub_tx_plus_dist"][yi].nominal_mc
         inc_v = inc_dil["sub_tx_plus_dist"][yi].nominal_mc
-        match = "  ✓" if fy == FISCAL_YEARS[0] and abs(cum_v - inc_v) < 0.01 else ""
-        print(f"  {fy:>4}  ${cum_v:>10.2f}  ${inc_v:>10.2f}  {match}")
+        match = "  ✓" if yr == YEARS[0] and abs(cum_v - inc_v) < 0.01 else ""
+        print(f"  {yr:>4}  ${cum_v:>10.2f}  ${inc_v:>10.2f}  {match}")
 
     total_cap = bucket_info["total"]["capacity_mw"]
     ratio = total_cap / system_peak_mw if system_peak_mw else 0

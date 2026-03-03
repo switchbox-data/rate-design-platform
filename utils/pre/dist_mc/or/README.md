@@ -82,7 +82,7 @@ The script produces **four variants** by combining two capital perspectives with
 
 See the [ConEd README](../coned/README.md#formulas-for-each-variant) for the full formula derivation.
 
-**Levelized** = mean of real MC across all 10 study years.
+**Levelized** = mean of real MC over the 7-year levelization window (2026–2032), chosen to capture near-term planned investment while excluding speculative back-loaded projects. See `context/domain/ny_mcos_studies_comparison.md` §10 for rationale.
 
 ### O&R-specific notes
 

@@ -74,7 +74,7 @@ MC(Y) = Σ_{p: ISD(p)≤Y} [annualized(p) × cap(p) × (1.02)^(Y−ISD(p))]
          / Σ_{p: ISD(p)≤Y} [cap(p)]
 ```
 
-**Levelized** = mean of real MC across all 10 study years.
+**Levelized** = mean of real MC over the 7-year levelization window (2026–2032), consistent across all utilities. See `context/domain/ny_mcos_studies_comparison.md` §10 for rationale.
 
 ### Loss factors
 

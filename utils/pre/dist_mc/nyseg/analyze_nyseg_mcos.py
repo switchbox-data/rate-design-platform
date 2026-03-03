@@ -45,6 +45,7 @@ import polars as pl
 
 YEARS = list(range(2026, 2036))
 N_YEARS = len(YEARS)
+LEVELIZATION_YEARS = range(2026, 2033)  # 7-year window for BAT input
 INFLATION_RATE = 0.02
 
 COST_CENTERS = ["upstream", "dist_sub", "primary_feeder"]
@@ -372,7 +373,9 @@ def export_annualized_csv(mc_nominal: dict[str, list[float]], path: Path) -> Non
 def export_levelized_csv(mc_nominal: dict[str, list[float]], path: Path) -> None:
     total_nominal = mc_nominal["total"]
     total_real = to_real(total_nominal)
-    lev_real = sum(total_real) / len(total_real) if total_real else 0.0
+    lev_idx = [i for i, yr in enumerate(YEARS) if yr in LEVELIZATION_YEARS]
+    lev_vals = [total_real[i] for i in lev_idx]
+    lev_real = sum(lev_vals) / len(lev_vals) if lev_vals else 0.0
     final_year_real = total_real[-1] if total_real else 0.0
     final_year_nominal = total_nominal[-1] if total_nominal else 0.0
     rows: list[dict[str, object]] = [
@@ -437,8 +440,13 @@ def print_report(
         else:
             print(f"  {yr}    — (no projects)")
 
-    # Levelized MC
-    print(f"\n── Levelized MC (real $/kW-yr, simple avg) {'─' * max(1, W - 43)}")
+    # Levelized MC (over the 2026-2032 window)
+    lev_idx = [i for i, yr in enumerate(YEARS) if yr in LEVELIZATION_YEARS]
+    n_lev = len(lev_idx)
+    print(
+        f"\n── Levelized MC (real $/kW-yr, {LEVELIZATION_YEARS.start}–"
+        f"{LEVELIZATION_YEARS.stop - 1} avg) {'─' * max(1, W - 50)}"
+    )
     header = f"  {'Variant':<28}"
     for k in BUCKET_KEYS:
         header += f" {BUCKET_LABELS[k]:>14}"
@@ -447,7 +455,7 @@ def print_report(
     for vname in VARIANT_NAMES:
         data = variants[vname]
         real_values = {k: to_real(data[k]) for k in BUCKET_KEYS}
-        levs = {k: sum(real_values[k]) / N_YEARS for k in BUCKET_KEYS}
+        levs = {k: sum(real_values[k][i] for i in lev_idx) / n_lev for k in BUCKET_KEYS}
         line = f"  {vname:<28}"
         for k in BUCKET_KEYS:
             line += f" ${levs[k]:>12.2f}"

@@ -735,6 +735,8 @@ In principle, for BAT consistency, both should use the incremental perspective. 
 
 The mismatch is real but bounded. Substation and transmission dominate the MC (typically 70–90% of total); distribution cost centers are a small share. And for cumulative cost centers, the accumulated-then-levelized value is a reasonable proxy for the average marginal cost over the planning horizon — it's the best we can extract from the MCOS workbooks. The important thing is to know what the numbers represent: an average annual infrastructure cost per kW of system peak, not a true marginal cost in the economic sense.
 
+**Resolution:** The lumpiness concern above — that incremental MC is "noisy and hard to levelize meaningfully" — turns out not to hold. Levelizing (averaging across years) smooths out the timing artifact completely: the levelized value depends only on total capital over the window, not on which year each project happens to complete. We now use **levelized incremental diluted** as the BAT input, which is both conceptually correct (marginal, not embedded) and practically smooth (averaging handles lumpiness). See §10 for the full analysis, including the choice of levelization window and empirical evidence for the 7-year (2026–2032) window.
+
 ---
 
 ## 7. CenHud implementation: normalizing methodology for cross-utility consistency
@@ -1030,3 +1032,143 @@ All six NY utilities with MCOS studies now use the same core methodology:
 | **RG&E**   | W2 per-project investment + capacity   | Explicit (ISD column)          | Derived composite rate       |
 
 The remaining cross-utility differences are documented in earlier sections (§1 system peak, §7A CenHud peak-share, §7B CenHud escalation).
+
+---
+
+## 10. Levelized incremental diluted as the BAT input
+
+### Why incremental, not cumulative
+
+§6 established that the BAT needs incremental MC (Perspective B — "what does one more kW cause?"), not cumulative MC (Perspective A — "what is the accumulated infrastructure bill?"). Cumulative diluted grows monotonically as projects enter service — it reflects the embedded capital stock, not the ongoing rate of new investment. The BAT's economic cost bucket should capture the forward-looking cost that a customer's peak demand causes, which is the incremental perspective.
+
+§6 also raised a practical concern: incremental MC is lumpy because projects are discrete. A utility might have $25/kW-yr of new substation investment in one year and zero the next. This makes the year-by-year incremental series noisy, and it's tempting to reach for cumulative as a "smoothing" device.
+
+### Why lumpiness is not a problem
+
+The lumpiness in the year-by-year incremental series is an artifact of discrete project timing — a substation happens to come online in 2028 rather than 2029. But the underlying need for distribution investment is continuous. The fact that CenHud has zero incremental MC in 2028 and 2031 doesn't mean there's no marginal cost of distribution in those years — it means no project happens to complete then.
+
+**Levelization resolves this.** The levelized incremental diluted value is the simple mean of incremental diluted real MC across a study window. Because adding across years just sums total capital:
+
+```
+levelized = mean(inc_real_mc across years)
+          = Σ(all project annual costs in window) / (system_peak × N_years)
+```
+
+This depends only on **total capital** in the window, not on how it's distributed across years. Whether $60M enters in one year or is spread across three makes zero difference to the levelized value. The lumpiness that makes the year-by-year series noisy washes out completely in the average.
+
+This is also why the non-project-based methods (ConEd's "annual sample" cost centers for Primary/Transformer/Secondary) exist — not because cumulative is conceptually better, but because those cost centers represent hundreds of small routine projects better characterized as a steady annual spend than as discrete lumpy capital.
+
+### Levelization parameters
+
+**No inflation in the levelization.** The levelized value averages the **real** (constant-dollar) MC column. Averaging nominal values would mix 2026 dollars with 2032 dollars, which is meaningless.
+
+**No discounting.** Discounting answers "what is the present value of this cost stream?" — the wrong question. The right question is "what is the representative annual cost of distribution investment?" and a simple average answers that directly. See "Our levelization approach" in §1 for the full rationale. With a 7-year window, the difference between a simple average and a discounted average at ~7% is about 5% — smaller than the cross-utility methodology differences.
+
+**Dollar-year alignment.** The real columns are in different base years: 2025 for ConEd/O&R/PSEG-LI, 2026 for CenHud/NiMo/NYSEG/RG&E. For cross-utility comparison, the 2025-base utilities should be rebased to 2026 dollars (×1.024 for ConEd/O&R, ×1.021 for PSEG-LI). The adjustment is small (~2%) but ensures all values are in the same units.
+
+### Choosing the levelization window: 7 years (2026–2032)
+
+The seven MCOS studies have different study periods:
+
+| Utility | Study period | Years |
+| ------- | ------------ | ----- |
+| ConEd   | 2025–2034    | 10    |
+| O&R     | 2025–2034    | 10    |
+| PSEG-LI | 2025–2032    | 8     |
+| CenHud  | 2026–2035    | 10    |
+| NiMo    | 2026–2036    | 11    |
+| NYSEG   | 2026–2035    | 10    |
+| RG&E    | 2026–2035    | 10    |
+
+Using each utility's full study period produces levelized values that are not directly comparable — different time horizons capture different amounts of capital, and the later years of utility capital plans are increasingly speculative.
+
+We evaluated three common windows:
+
+| Utility | 5 yr (2026–2030) | 7 yr (2026–2032) | Full window | Full span |
+| ------- | ---------------: | ---------------: | ----------: | --------- |
+| ConEd   |             5.74 |             8.32 |        8.31 | 2025–2034 |
+| O&R     |             3.95 |             3.81 |        4.58 | 2025–2034 |
+| CenHud  |             2.07 |             3.93 |        4.24 | 2026–2035 |
+| NiMo    |             3.87 |             4.49 |       10.13 | 2026–2036 |
+| NYSEG   |             2.49 |             4.40 |       14.78 | 2026–2035 |
+| RG&E    |             2.62 |             4.36 |       18.10 | 2026–2035 |
+| PSEG-LI |             1.25 |             1.13 |        1.67 | 2025–2032 |
+
+All values are sub_tx_and_dist incremental diluted real $/kW-yr (not yet rebased to common 2026 dollars).
+
+The full-window values for NYSEG ($14.78) and RG&E ($18.10) are 3–4× their 7-year values, driven by massive back-loading in 2033–2035 (NYSEG: $39+$44+$34/kW-yr; RG&E: $30+$45+$76). Similarly NiMo's full-window ($10.13) is 2.3× its 7-year value ($4.49) because of the FY2036 horizon spike. The 7-year window excludes this back-loading; the 5-year window additionally excludes 2031–2032.
+
+### Empirical evidence: what's real in 2031–2032 vs. speculative in 2033+
+
+To choose between 5 and 7 years, we examined the actual projects that fall in 2031–2032 for each utility.
+
+**ConEd 2031–2032 ($3.98 + $25.58 = $29.56/kW-yr across 2 years):**
+
+- 2031: Millwood West (79 MW, $84M), Cedar Street (85 MW, $253M) — named substations with specific locations
+- 2032: Nevins Street new (358 MW, $1.47B), Hillside new (358 MW, $872M), Bruckner (32 MW, $20M) — named, specific projects
+- **Assessment: Very real.** Nevins and Hillside alone are $2.3B of identified investment. This is the biggest dollar impact and the primary driver of ConEd's 5yr→7yr jump ($5.74 → $8.32). Excluding them would materially understate ConEd's distribution MC.
+
+**O&R 2031–2032 ($1.72 + $5.23 = $6.95):**
+
+- 2031: nothing new
+- 2032: Oak Street (local TX reconductoring, 79.8 MW, $29M) — named, specific
+- **Assessment: Real.** Small, named project.
+
+**CenHud 2031–2032 ($0.00 + $17.21 = $17.21):**
+
+- 2031: nothing
+- 2032: "Future Unidentified" Local TX (296.5 MW, $55.40/kW-yr) + Hurley Ave (substation, 10.4 MW, $245.75/kW-yr)
+- **Assessment: Mixed.** Hurley Ave is a named project (real). But the "Future Unidentified" is explicitly a placeholder — CenHud's 5-year capital forecast identifies specific projects for years 1–5; years 6–10 assume a similar proportion of territory needs investment. The placeholder drives most of the $17.21 spike. This is the **only genuinely speculative entry** in the 7-year window.
+
+**NiMo 2031–2032 ($8.40 + $3.68 = $12.08):**
+
+- 237 projects with individual FN numbers in the workbook. 2031–2032 are years 6–7 of the study. The annualized values ($8.40, $3.68) are moderate — not spiky.
+- **Assessment: Moderately real.** Specific project entries exist but outer-year firmness is inherently lower than years 1–5.
+
+**NYSEG 2031–2032 ($5.40 + $12.98 = $18.38):**
+
+- 2031: 4 projects. 2032: 12 projects. All from W2 with specific location and capital data.
+- Compare with 2033–2035: 20+20+28 projects at $39+$44+$34/kW-yr — the extreme ramp clearly indicates back-loading. 2031–2032 are the last years before this ramp.
+- **Assessment: Moderately real.** Individual entries exist; the extreme back-loading doesn't start until 2033.
+
+**RG&E 2031–2032 ($5.30 + $12.15 = $17.45):**
+
+- 2031: 5 projects. 2032: 10 projects. Same CRA methodology as NYSEG.
+- 2033–2035 ramp: $30+$45+$76/kW-yr — same pattern as NYSEG.
+- **Assessment: Same as NYSEG.** The real back-loading lives in 2033+.
+
+**PSEG-LI 2031–2032 ($0.63 + $1.05 = $1.68):**
+
+- 2031: Moriches phase 2 (67 MW) — named project, NYISO interconnection queue C24-061
+- 2032: Deerfield phase 2 (112 MW) — named project, NY Article VII filing Case 24-T-0113
+- **Assessment: Very real.** Both have public regulatory filings and specific engineering documentation.
+
+### Window choice conclusion
+
+**7 years (2026–2032) is the right window.** The evidence shows:
+
+1. **At 5 years, you lose real investment.** ConEd's $2.3B in named substations (Nevins, Hillside) drive the single largest delta between the 5yr and 7yr values. These are identified projects, not speculative. PSEG-LI's Moriches and Deerfield phases are backed by regulatory filings.
+
+2. **At 7 years, speculative risk is minimal.** The only genuinely speculative entry is CenHud's "Future Unidentified" placeholder at 2032. Everything else is either named/identified or at least individually enumerated in the utility workbook.
+
+3. **The real speculative risk lives in years 8–10 (2033+),** where NYSEG/RG&E show extreme back-loading (project counts roughly double, $/kW-yr roughly triples) and NiMo stacks $59/kW-yr of sub_tx_and_dist at the FY2036 horizon. The 7-year cutoff correctly excludes this territory.
+
+4. **The window is the same for all utilities.** All seven have data covering 2026–2032. No utility is truncated or needs extrapolation.
+
+### Summary: recommended BAT input
+
+The BAT input for sub-TX and distribution marginal cost is the **levelized incremental diluted** value over the **2026–2032 window** (7 years), using **real** (constant-dollar) values **rebased to 2026 dollars**, with **no discounting**:
+
+| Utility | Levelized inc. diluted (real $/kW-yr, 2026–2032) |
+| ------- | -----------------------------------------------: |
+| PSEG-LI |                                             1.13 |
+| CenHud  |                                             3.93 |
+| O&R     |                                             3.81 |
+| NiMo    |                                             4.49 |
+| NYSEG   |                                             4.40 |
+| RG&E    |                                             4.36 |
+| ConEd   |                                             8.32 |
+
+(Values not yet rebased to common 2026 dollars; ConEd/O&R/PSEG-LI values are in 2025 dollars and should be multiplied by ~1.02 for alignment.)
+
+This represents: "the average annual forward-looking sub-TX and distribution investment cost per kW of system peak, in constant dollars, over a 7-year near-term planning horizon."

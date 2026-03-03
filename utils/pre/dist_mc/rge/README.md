@@ -67,12 +67,12 @@ RG&E has only 1 upstream substation project (vs. NYSEG's 30) — most upstream i
 
 RG&E has higher diluted MC than NYSEG despite similar total investment, because its system peak (1,429 MW) is 30% smaller than NYSEG's (2,036 MW). The same dollar of investment is spread across fewer kW.
 
-### Levelized targets
+### Levelized targets (2026–2032 window)
 
 | Variant                                        | RG&E         | NYSEG        |
 | ---------------------------------------------- | ------------ | ------------ |
-| Incremental diluted (simple avg, real $/kW-yr) | $18.10/kW-yr | $14.78/kW-yr |
-| Cumulative diluted (simple avg, real $/kW-yr)  | $42.05/kW-yr | $40.38/kW-yr |
+| Incremental diluted (simple avg, real $/kW-yr) | $4.36/kW-yr  | $4.40/kW-yr  |
+| Cumulative diluted (simple avg, real $/kW-yr)  | $10.51/kW-yr | $10.33/kW-yr |
 
 ## Inputs and outputs
 
