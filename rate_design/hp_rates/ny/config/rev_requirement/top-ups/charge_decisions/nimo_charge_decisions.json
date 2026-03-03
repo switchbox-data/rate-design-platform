@@ -2,30 +2,34 @@
   "5244": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "variableRateKey": "electricSupplyChargeSC1Adirondack",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "5245": {
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery",
-    "decision": "already_in_drr",
+    "decision": "exclude",
     "variableRateKey": "electricSupplyChargeSc1DeliveryAdjAdirondack",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "5246": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "variableRateKey": "electricSupplyChargeSC1Capital",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "5247": {
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery",
-    "decision": "already_in_drr",
+    "decision": "exclude",
     "variableRateKey": "electricSupplyChargeSc1DeliveryAdjCapital",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "5248": {
     "master_charge": "Supply commodity (bundled)",
@@ -44,44 +48,50 @@
   "5250": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "variableRateKey": "electricSupplyChargeSC1Frontier",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "5251": {
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery",
-    "decision": "already_in_drr",
+    "decision": "exclude",
     "variableRateKey": "electricSupplyChargeSc1DeliveryAdjFrontier",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "5252": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "variableRateKey": "electricSupplyChargeSC1Genesee",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "5253": {
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery",
-    "decision": "already_in_drr",
+    "decision": "exclude",
     "variableRateKey": "electricSupplyChargeSc1DeliveryAdjGenesee",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "5254": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "variableRateKey": "electricSupplyChargeSC1Utica",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "5255": {
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery",
-    "decision": "already_in_drr",
+    "decision": "exclude",
     "variableRateKey": "electricSupplyChargeSc1DeliveryAdjUtica",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "20715134": {
     "master_charge": "Customer Charge",
@@ -209,66 +219,74 @@
   "19819734": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "electricSupplyChargeSC1Adirondack",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819735": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "electricSupplyChargeSC1Capital",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819736": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "electricSupplyChargeSC1Central",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819737": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "electricSupplyChargeSC1Frontier",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819738": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "electricSupplyChargeSC1Genesee",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819739": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "electricSupplyChargeSC1Utica",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819740": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "esrMechanismSC1Adirondack",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "19819741": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "esrMechanismSC1Capital",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "19819742": {
     "master_charge": "Merchant Function Charge",
@@ -281,122 +299,137 @@
   "19819743": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "esrMechanismSC1Frontier",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "19819744": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "esrMechanismSC1Genesee",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "19819745": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "esrMechanismSC1Utica",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "19819746": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "electricSupplyChargeSC1Adirondack",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819747": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "electricSupplyChargeSC1Capital",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819748": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "electricSupplyChargeSC1Central",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819749": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "electricSupplyChargeSC1Frontier",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819750": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "electricSupplyChargeSC1Genesee",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819751": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "electricSupplyChargeSC1Utica",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819752": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "esrMechanismSC1Adirondack",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "19819753": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "esrMechanismSC1Capital",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "19819754": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "esrMechanismSC1Central",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Duplicate rider entry (same VRK as another MFC entry)"
   },
   "19819755": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "esrMechanismSC1Frontier",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "19819756": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "esrMechanismSC1Genesee",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "19819757": {
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3293827,
     "variableRateKey": "esrMechanismSC1Utica",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
   },
   "19819758": {
     "master_charge": "Merchant Function Charge",
@@ -425,8 +458,9 @@
   "20879424": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
-    "charge_unit": "$/kWh"
+    "decision": "exclude",
+    "charge_unit": "$/kWh",
+    "_exclude_reason": "No VRK; does not resolve to any rate"
   },
   "20879425": {
     "master_charge": "Customer Benefit Contribution",
