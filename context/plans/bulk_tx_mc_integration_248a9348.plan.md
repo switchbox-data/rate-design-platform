@@ -129,8 +129,8 @@ The NYISO AC Transmission studies report Annual Benefits at **interfaces** (e.g.
 
 The answer is the same principle as ICAP: **the value is assigned to the load zone whose customers benefit from the expanded transfer capability**, not to where the transmission line physically sits.
 
-- **ICAP analogy**: An ICAP locality price (e.g. NYC = $12/kW-mo) reflects the marginal value of capacity *to serve load in that zone*. A generator in Zone J receives the NYC ICAP price because it contributes to NYC load-serving adequacy. Similarly, a transmission expansion across the UPNY-ConEd interface benefits *downstate load* (access to cheaper upstate generation), so the transmission value is assigned to zones G-K.
-- **The studies already partition by locality**: The issue table reports Annual Benefit broken out by NYISO locality (A-F, G-K, K). This is NYISO's own decomposition of *who benefits from each MW of transfer capability*. We use these locality-level benefits directly.
+- **ICAP analogy**: An ICAP locality price (e.g. NYC = $12/kW-mo) reflects the marginal value of capacity _to serve load in that zone_. A generator in Zone J receives the NYC ICAP price because it contributes to NYC load-serving adequacy. Similarly, a transmission expansion across the UPNY-ConEd interface benefits _downstate load_ (access to cheaper upstate generation), so the transmission value is assigned to zones G-K.
+- **The studies already partition by locality**: The issue table reports Annual Benefit broken out by NYISO locality (A-F, G-K, K). This is NYISO's own decomposition of _who benefits from each MW of transfer capability_. We use these locality-level benefits directly.
 - **ROS (Upstate, A-F)**: The AC Primary studies show net-negative incremental benefit for A-F from projects designed to export power downstate. The NYISO study is therefore not used for ROS. Instead, we use the three NiMo 2025 MCOS bulk TX projects (≥230 kV) with **undiluted** $/kW-yr per project MW — the same approach as generation capacity MC. The three undiluted values ($78.42, $40.21, $10.89 /kW-yr) feed directly into the Steps 1–3 quantile/isotonic pipeline, yielding v_mid ≈ $40/kW-yr.
 - **Multi-locality utilities (ConEd)**: Same weighting as ICAP -- ConEd is 87% NYC + 13% LHV by capacity obligation (from zone mapping). The utility-level v_z is the weighted blend.
 
@@ -287,7 +287,6 @@ Add delivery MC loading utilities with shared index alignment logic:
       target_index=pd.DatetimeIndex(bulk_marginal_costs.index),
   )
   ```
-
 
 ## 6. Update `create_scenario_yamls.py`
 
