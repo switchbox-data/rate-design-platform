@@ -52,6 +52,8 @@ def _log_mem(label: str) -> None:
     peak_gb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6
     elapsed = time.perf_counter() - _mem_t0
     log.info("MEM_DEBUG [%+6.1fs] %-42s peak_rss=%.2f GB", elapsed, label, peak_gb)
+
+
 # END DEBUG-MEM
 
 
@@ -96,7 +98,9 @@ def _return_loads_combined(
     #    the same 8760-hour series, so one file is sufficient.
     first_table = pq.read_table(paths[0], columns=["timestamp"])
     ts_first = first_table.column("timestamp").to_numpy()
-    assert len(ts_first) == 8760, f"Expected 8760 rows in first file, got {len(ts_first)}"
+    assert len(ts_first) == 8760, (
+        f"Expected 8760 rows in first file, got {len(ts_first)}"
+    )
     del first_table
 
     # 3. Compute timeshift parameters from source timestamps
@@ -145,9 +149,7 @@ def _return_loads_combined(
         elec_total = np.roll(
             elec_total.reshape(n_bldgs, 8760), -offset_hours, axis=1
         ).ravel()
-        elec_pv = np.roll(
-            elec_pv.reshape(n_bldgs, 8760), -offset_hours, axis=1
-        ).ravel()
+        elec_pv = np.roll(elec_pv.reshape(n_bldgs, 8760), -offset_hours, axis=1).ravel()
         gas_total = np.roll(
             gas_total.reshape(n_bldgs, 8760), -offset_hours, axis=1
         ).ravel()
@@ -180,7 +182,11 @@ def _return_loads_combined(
 
     # 10. Build electricity DataFrame (wraps numpy arrays, no copy)
     elec = pd.DataFrame(
-        {"load_data": elec_total, "pv_generation": elec_pv, "electricity_net": elec_net},
+        {
+            "load_data": elec_total,
+            "pv_generation": elec_pv,
+            "electricity_net": elec_net,
+        },
         index=mi,
         copy=False,
     )
@@ -286,9 +292,7 @@ def _vectorized_process_building_demand_by_period(
     bldg_ids_all = prepassed_load.index.get_level_values("bldg_id").unique()
     n_bldg = len(bldg_ids_all)
     n_hours = 8760
-    bldg_to_row: dict[int, int] = {
-        int(bid): i for i, bid in enumerate(bldg_ids_all)
-    }
+    bldg_to_row: dict[int, int] = {int(bid): i for i, bid in enumerate(bldg_ids_all)}
 
     load_data_2d = prepassed_load["load_data"].values.reshape(n_bldg, n_hours)
     cols_present = set(prepassed_load.columns)
@@ -320,7 +324,11 @@ def _vectorized_process_building_demand_by_period(
         if has_elec_net and elec_net_2d is not None:
             grid_cons_2d = np.maximum(elec_net_2d, 0)
             del elec_net_2d
-        if (has_pv or has_net_exp_raw) and grid_cons_2d is None and pv_gen_2d is not None:
+        if (
+            (has_pv or has_net_exp_raw)
+            and grid_cons_2d is None
+            and pv_gen_2d is not None
+        ):
             grid_cons_2d = load_data_2d - pv_gen_2d
         if pv_gen_2d is not None and grid_cons_2d is not None:
             net_exports_2d = np.clip(pv_gen_2d - load_data_2d, 0, None)
@@ -352,9 +360,7 @@ def _vectorized_process_building_demand_by_period(
     weekday_8760 = time_idx.weekday.values  # 0=Mon..6=Sun
     is_weekday_8760 = weekday_8760 < 5
 
-    _log_mem(
-        f"demand_by_period numpy ready n_bldg={n_bldg}"
-    )
+    _log_mem(f"demand_by_period numpy ready n_bldg={n_bldg}")
 
     # Per-tariff aggregation via matmul
     tariff_to_bldgs: dict[str, list[int]] = {}
@@ -390,9 +396,7 @@ def _vectorized_process_building_demand_by_period(
 
         # Encode (month, period, tier) → unique group id
         composite = months_8760 * 10000 + hour_periods * 100 + hour_tiers
-        unique_composites, hour_group_ids = np.unique(
-            composite, return_inverse=True
-        )
+        unique_composites, hour_group_ids = np.unique(composite, return_inverse=True)
         n_groups = len(unique_composites)
         group_months = unique_composites // 10000
         group_periods = (unique_composites % 10000) // 100
@@ -402,9 +406,7 @@ def _vectorized_process_building_demand_by_period(
         indicator = np.zeros((n_hours, n_groups), dtype=np.float64)
         indicator[np.arange(n_hours), hour_group_ids] = 1.0
 
-        row_indices = np.array(
-            [bldg_to_row[bid] for bid in bldg_ids_for_tariff]
-        )
+        row_indices = np.array([bldg_to_row[bid] for bid in bldg_ids_for_tariff])
         n_tariff_bldg = len(row_indices)
 
         # (n_tariff_bldg, 8760) @ (8760, n_groups) → (n_tariff_bldg, n_groups)
@@ -412,9 +414,7 @@ def _vectorized_process_building_demand_by_period(
         for col_name, col_2d in load_col_arrays.items():
             energy_agg[col_name] = col_2d[row_indices] @ indicator
 
-        bids_expanded = np.repeat(
-            np.asarray(bldg_ids_for_tariff), n_groups
-        )
+        bids_expanded = np.repeat(np.asarray(bldg_ids_for_tariff), n_groups)
         month_expanded = np.tile(group_months, n_tariff_bldg)
         period_expanded = np.tile(group_periods, n_tariff_bldg)
         tier_expanded = np.tile(group_tiers, n_tariff_bldg)
@@ -458,9 +458,7 @@ def _vectorized_process_building_demand_by_period(
 
     # Demand charge rows (vectorized)
     n_proto = len(prototype_ids)
-    tariff_per_bldg = np.array(
-        [tariff_map_dict[bid] for bid in prototype_ids]
-    )
+    tariff_per_bldg = np.array([tariff_map_dict[bid] for bid in prototype_ids])
     demand_dict: dict[str, Any] = {
         "bldg_id": np.repeat(prototype_ids, 12),
         "month": np.tile(np.arange(1, 13), n_proto),
@@ -958,9 +956,7 @@ log.info(
 # which creates ~8 GB of temporaries for 15k buildings × 8760 hours.
 # This replacement uses numpy reshape + broadcast to stay under ~2 GB.
 
-_orig_process_residential_hourly_demand = (
-    _cairo_loads.process_residential_hourly_demand
-)
+_orig_process_residential_hourly_demand = _cairo_loads.process_residential_hourly_demand
 
 
 def _patched_process_residential_hourly_demand(
