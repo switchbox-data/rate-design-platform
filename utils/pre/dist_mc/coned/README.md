@@ -61,17 +61,66 @@ The script produces **four variants** by combining two capital perspectives with
 | Cumulative undiluted  | Accumulated in-service capital to Y | Cumulative project MW to Y   |
 | Incremental undiluted | New capital entering service in Y   | New project MW entering in Y |
 
-For **annual cost centers** (Primary, Transformer, Secondary), capital is the same every year (representative sample), so cumulative = incremental and the distinction only affects cumulative variants (which accumulate the repeating annual sample). Undiluted uses the sample's total capacity (row 151 col O) as the denominator.
+For **annual cost centers** (Primary, Transformer, Secondary), the workbook provides a representative annual sample rather than a 10-year capital plan. The cumulative variants accumulate this repeating sample: `Cum_Capital(Y) = annual_sample × N` where N is the number of years from 2025 through Y. Incremental variants use the flat annual sample directly. For undiluted variants, capacity accumulates proportionally (same ratio every year), so real MC is the same constant for both cumulative and incremental undiluted.
 
-For **cumulative cost centers** (Transmission, Substation), incremental capital is the year-over-year delta of the cumulative. Capacity is derived **proportionally** from capital: each year's capacity is `total_project_MW × capital(Y) / capital(final_year)`. This ensures capital and capacity are aligned at every year. (Per-project in-service year detection was considered but rejected because the workbook's $/kW columns reflect construction-in-progress, not actual completion, creating a timing mismatch that produces wild spikes in the incremental undiluted variant.)
+For **cumulative cost centers** (Transmission, Substation), the script reads each project's right-half cumulative cashflow columns (W–AF) and infers in-service year as the first year where cashflow stabilizes at its final value (CWIP ends). Capital and capacity are then built using **in-service-year scoping**: `Capital(Y) = sum(p.final_capital for projects where in_service_year ≤ Y)`, and likewise for capacity. This matches the NiMo/CenHud project-level methodology: each project's full capital and MW enter the MC calculation together when the project completes, excluding pre-completion CWIP. As a result, cumulative values are lower in early years (when many projects are under construction) but converge to the same total by the end of the study period.
 
-See `context/domain/ny_mcos_studies_comparison.md` §6 for the rationale.
+See `context/domain/ny_mcos_studies_comparison.md` §6–§7 for the rationale and cross-utility comparison.
+
+### Formulas for each variant
+
+All variants share the base formula for annual revenue requirement:
+
+```
+Annual RR(Y) = Capital(Y) × Composite Rate × Escalation(Y)
+```
+
+They differ in Capital(Y) and the denominator:
+
+**Cumulative diluted** (MCOS perspective — the infrastructure bill allocated across all customers):
+
+```
+MC(Y) = Cum_Capital(Y) × Rate × Esc(Y) / System_Peak
+```
+
+**Incremental diluted** (BAT perspective — cost of new investment per kW of system load):
+
+```
+Inc_Capital(Y) = Cum_Capital(Y) − Cum_Capital(Y−1)
+MC(Y) = Inc_Capital(Y) × Rate × Esc(Y) / System_Peak
+```
+
+**Cumulative undiluted** (cost per kW of project capacity):
+
+```
+Capacity(Y)   = sum(p.MW for projects where p.in_service_year ≤ Y)
+Cum_Capital(Y) = sum(p.final_capital for projects where p.in_service_year ≤ Y)
+MC(Y) = Cum_Capital(Y) × Rate × Esc(Y) / Capacity(Y)
+```
+
+Unlike the diluted variants, the denominator grows in discrete steps as projects complete. Real MC varies by year because the $/kW of each project cohort differs.
+
+**Incremental undiluted** (cost per kW of new capacity added in year Y):
+
+```
+Inc_Capital(Y) = sum(p.final_capital for projects where p.in_service_year = Y)
+Inc_Capacity(Y) = sum(p.MW for projects where p.in_service_year = Y)
+MC(Y) = Inc_Capital(Y) × Rate × Esc(Y) / Inc_Capacity(Y)
+```
+
+Non-zero only in years when projects complete. The value reflects the actual $/kW of the specific projects entering service that year — it varies significantly across years depending on which projects complete.
+
+For **annual cost centers** (Primary, Transformer, Secondary), the annual sample is constant, but cumulative variants accumulate it: `Cum_Capital(Y) = sample × N` (where N counts years 2025 through Y). This makes cumulative diluted grow over the study window while incremental diluted stays flat. For undiluted variants, capacity accumulates proportionally (`Cum_Capacity(Y) = sample_MW × N`), so the capital/capacity ratio — and real MC — is the same constant for both cumulative and incremental.
+
+**Levelized** = mean of real MC across all 10 study years.
 
 ### Workbook cell references for each input
 
-**System Peak** — sheet **Coincident Load**, cell **B26** (Area Station Coincident Total, 2025 forecast = 11,997.7 MW). Using col 13 with the ASC total is equivalent to using col 11 with the true system peak (see composite rate note below).
+**System Peak** — sheet **Coincident Load**, cell **B26** (Area Station Coincident Total, 2025 forecast = 11,997.7 MW). This is the sum of individual area station coincident peaks, NOT the true system peak (which is smaller — see coincidence factor below). Using the ASC total here is correct because the composite rate in column O has already been adjusted to compensate.
 
-**Composite Rate** — sheet **Carrying Charge Loaders** (note: sheet name has a trailing space), column **O** (Schedule 11 col 13, "Annual MC at System Peak"). This rate already adjusts for area-to-system diversity (coincidence factor = 0.95175).
+**Composite Rate** — sheet **Carrying Charge Loaders** (note: sheet name has a trailing space), column **O** (Schedule 11 col 13, "Annual MC at System Peak"). The composite rate is a single multiplier per cost center that folds together the ECCR (~10%), general plant loading (7–24%), O&M (~1.1–1.2%), working capital return (~2.4% × 9.3%), loss factors, and a **coincidence factor** (0.95175). Other utilities apply these as separate steps; ConEd pre-multiplies them into one number for a cleaner formula: `Annual RR = Capital × Composite Rate × Escalation`.
+
+**Why the coincidence factor is embedded.** Individual area stations peak at different hours. The sum of their individual peaks (the ASC total, 11,997.7 MW) is larger than the true system coincident peak (~11,418 MW) because not all stations peak simultaneously. The ratio is the coincidence factor: 11,418 / 11,997.7 ≈ 0.95175. ConEd's workbook presents capital at the area station level (summing to the ASC total), so the composite rate is scaled down by 0.95175 to produce the correct system-peak-level MC. Algebraically: `Capital × (Rate × 0.95175) / ASC_total = Capital × Rate / System_peak`. This is purely an accounting convenience — the final MC values are identical either way. No other utility in our analysis uses a coincidence factor because they work directly with a single system peak number.
 
 | Cost center  | Cell | Value   |
 | ------------ | ---- | ------- |
@@ -96,20 +145,56 @@ See `context/domain/ny_mcos_studies_comparison.md` §6 for the rationale.
 | 2033 | K25  | 1.1844 |
 | 2034 | L25  | 1.2092 |
 
-**Cumulative Capital** ($000s) — columns F–O for years 2025–2034. Values grow each year as projects are built. Transmission is sheet **CapEx Transmission** row **22**; Substation is sheet **CapEx Substation** row **35** (both Section 2 grand-total rows). Values are approximate (back-calculated from output CSVs).
+**Per-project data** — parsed from the right-half cashflow columns (W–AF) of each cumulative cost center sheet. In-service year is inferred as the first year where the cumulative cashflow equals its final value (CWIP construction spending ends). These tables are the primary audit artifact for the project-level methodology.
 
-| Year | Col | TX: CapEx Transmission row 22 ($000s) | Sub: CapEx Substation row 35 ($000s) |
-| ---- | --- | ------------------------------------- | ------------------------------------ |
-| 2025 | F   | 635,900                               | 356,200                              |
-| 2026 | G   | 970,300                               | 1,250,100                            |
-| 2027 | H   | 1,220,400                             | 2,157,000                            |
-| 2028 | I   | 1,447,500                             | 3,325,700                            |
-| 2029 | J   | 1,447,500                             | 4,249,500                            |
-| 2030 | K   | 1,447,500                             | 5,313,500                            |
-| 2031 | L   | 1,447,500                             | 6,172,800                            |
-| 2032 | M   | 1,447,500                             | 6,881,500                            |
-| 2033 | N   | 1,447,500                             | 7,239,600                            |
-| 2034 | O   | 1,447,500                             | 7,419,400                            |
+**CapEx Transmission** — 5 project-area rows (rows 8–12). All share the same 358 MW capacity (ConEd's TX planning increment). All complete in 2028.
+
+| Row | Name          |          MW | Capital ($000s) | In-service |
+| --: | ------------- | ----------: | --------------: | ---------: |
+|   8 | Idlewild      |       358.0 |         296,052 |       2028 |
+|   9 | Hillside      |       358.0 |         296,052 |       2028 |
+|  10 | Nevins Street |       358.0 |         285,000 |       2028 |
+|  11 | Gateway Park  |       358.0 |         285,000 |       2028 |
+|  12 | Atlantic      |       358.0 |         285,000 |       2028 |
+|     | **Total**     | **1,790.0** |   **1,447,105** |            |
+
+**CapEx Substation** — 17 project rows (rows 9–25). Projects span 2026–2034, with the largest cohort completing in 2028 (4 projects, $2B) and 2034 (2 projects, $2.1B).
+
+| Row | Name                |          MW | Capital ($000s) | In-service |
+| --: | ------------------- | ----------: | --------------: | ---------: |
+|   9 | Newtown             |       116.0 |         142,866 |       2026 |
+|  10 | Parkchester #2      |        81.0 |          44,025 |       2028 |
+|  11 | Idlewild (new)      |       358.0 |         379,229 |       2028 |
+|  12 | Gateway (new)       |       358.0 |       1,344,121 |       2028 |
+|  13 | Parkview            |        85.0 |         238,878 |       2028 |
+|  14 | Mott Haven          |        84.0 |          47,340 |       2029 |
+|  15 | Glendale            |       127.0 |         133,000 |       2030 |
+|  16 | Fox Hills           |       118.0 |          54,000 |       2030 |
+|  17 | Parkchester #1      |        76.0 |         124,900 |       2029 |
+|  18 | Millwood West       |        79.0 |          84,000 |       2031 |
+|  19 | Cedar Street        |        85.0 |         252,700 |       2031 |
+|  20 | Nevins Street (new) |       358.0 |       1,465,000 |       2032 |
+|  21 | Grasslands          |        82.0 |         128,000 |       2033 |
+|  22 | Hillside (new)      |       358.0 |         871,710 |       2032 |
+|  23 | Bruckner            |        32.0 |          19,675 |       2032 |
+|  24 | Industry City (new) |       269.0 |       1,040,000 |       2034 |
+|  25 | Atlantic (new)      |       358.0 |       1,050,000 |       2034 |
+|     | **Total**           | **3,024.0** |   **7,419,444** |            |
+
+**Cumulative Capital** ($000s) — derived from the per-project tables above using in-service-year scoping. Each project's full capital enters the total in the year it completes (cashflow stabilizes). Values step up discretely as projects come in service, unlike the smooth CWIP-based totals in the left-half Section 2 rows (F–O). At 2034 the totals converge because all projects are in service.
+
+| Year | TX Capital ($000s) | TX Capacity (MW) | Sub Capital ($000s) | Sub Capacity (MW) |
+| ---- | ------------------ | ---------------- | ------------------- | ----------------- |
+| 2025 | 0                  | 0                | 0                   | 0                 |
+| 2026 | 0                  | 0                | 142,866             | 116               |
+| 2027 | 0                  | 0                | 142,866             | 116               |
+| 2028 | 1,447,105          | 1,790            | 2,149,119           | 998               |
+| 2029 | 1,447,105          | 1,790            | 2,321,459           | 1,158             |
+| 2030 | 1,447,105          | 1,790            | 2,508,459           | 1,403             |
+| 2031 | 1,447,105          | 1,790            | 2,845,159           | 1,567             |
+| 2032 | 1,447,105          | 1,790            | 5,201,544           | 2,315             |
+| 2033 | 1,447,105          | 1,790            | 5,329,544           | 2,397             |
+| 2034 | 1,447,105          | 1,790            | 7,419,544           | 3,024             |
 
 **Annual Capital** — sheet **CapEx Distribution**, row **151** (total). Values are in **dollars** (not $000s; the code divides by 1,000 for consistency with the other CapEx sheets). The same capital is used for every year.
 
@@ -119,29 +204,89 @@ See `context/domain/ny_mcos_studies_comparison.md` §6 for the rationale.
 | Transformer | M151 | ~5,900,000  | 5,900    |
 | Secondary   | N151 | ~16,800,000 | 16,800   |
 
-### Worked example: Substation, year 2025
+### Worked example: Cumulative diluted — Substation, year 2028
+
+Projects in-service by 2028: Newtown (2026, $142,866k), Parkchester #2, Idlewild, Gateway, Parkview (all 2028).
 
 ```
-Cumulative Capital = CapEx Substation F35     ≈ 356,230 ($000s)
-Composite Rate     = Carrying Charge O13      = 0.12832
-Escalation         = Carrying Charge C25      = 1.0
-System Peak        = Coincident Load B26      = 11,997.7 MW
+Capital(2028) = 142,866 + 44,025 + 379,229 + 1,344,121 + 238,878 = 2,149,119 ($000s)
+Composite Rate = Carrying Charge O13 = 0.12832
+Escalation     = Carrying Charge F25 = 1.0675
+System Peak    = Coincident Load B26 = 11,997.7 MW
 
-Annual RR  = 356,230 × 0.12832 × 1.0 = 45,719 ($000s)
-Diluted MC = 45,719 / 11,997.7        = $3.81/kW-yr
+Nominal RR = 2,149,119 × 0.12832 × 1.0675 = 294,352 ($000s)
+Diluted MC = 294,352 / 11,997.7            = $24.53/kW-yr (nominal)
+Real MC    = 2,149,119 × 0.12832 / 11,997.7 = $22.99/kW-yr
 ```
 
-### Worked example: Primary, year 2025
+### Worked example: Cumulative diluted — Primary, year 2028
+
+For annual cost centers, the workbook provides a representative annual sample rather than a 10-year plan. The cumulative variant accumulates this sample: by 2028 (year 4), four years of Primary capital are in service.
 
 ```
-Annual Capital = CapEx Distribution L151 ≈ $13,100,000 → 13,100 ($000s)
-Composite Rate = Carrying Charge O14     = 0.12895
-Escalation     = Carrying Charge C25     = 1.0
-System Peak    = Coincident Load B26     = 11,997.7 MW
+Annual Sample  = CapEx Distribution L151 ≈ $13,100,000 → 13,100 ($000s)
+Cum Capital    = 13,100 × 4 years        = 52,400 ($000s)
+Composite Rate = Carrying Charge O14      = 0.12895
+Escalation     = Carrying Charge F25      = 1.0675
+System Peak    = Coincident Load B26      = 11,997.7 MW
 
-Annual RR  = 13,100 × 0.12895 × 1.0 = 1,689 ($000s)
-Diluted MC = 1,689 / 11,997.7        = $0.14/kW-yr
+Nominal RR = 52,400 × 0.12895 × 1.0675 = 7,213 ($000s)
+Diluted MC = 7,213 / 11,997.7           = $0.60/kW-yr (nominal)
+Real MC    = 52,400 × 0.12895 / 11,997.7 = $0.56/kW-yr
 ```
+
+Compare with incremental diluted in the same year: $0.15/kW-yr nominal. The difference ($0.45) is the carried-over capital from years 2025–2027.
+
+### Worked example: Incremental diluted — Substation, year 2028
+
+Four projects come in-service in 2028 (Parkchester #2, Idlewild, Gateway, Parkview):
+
+```
+Inc Capital(2028)  = 44,025 + 379,229 + 1,344,121 + 238,878 = 2,006,253 ($000s)
+Composite Rate     = Carrying Charge O13  = 0.12832
+Escalation(2028)   = Carrying Charge F25  = 1.0675
+System Peak        = 11,997.7 MW
+
+Annual RR  = 2,006,253 × 0.12832 × 1.0675 = 274,768 ($000s)
+Diluted MC = 274,768 / 11,997.7            = $22.90/kW-yr (nominal)
+Real MC    = 2,006,253 × 0.12832 / 11,997.7 = $21.46/kW-yr
+```
+
+Compare with cumulative diluted in 2028: $24.53/kW-yr nominal. The difference ($1.63) is Newtown's contribution (in-service since 2026).
+
+### Worked example: Cumulative undiluted — Substation, year 2028
+
+Using in-service-year scoping — same 5 projects as the diluted example above:
+
+```
+Cum Capital(2028) = 2,149,119 ($000s)  [same as diluted example]
+Capacity(2028)    = 116 + 81 + 358 + 358 + 85 = 998 MW  [actual project MW]
+Composite Rate    = 0.12832
+Escalation(2028)  = 1.0675
+
+Nominal RR   = 2,149,119 × 0.12832 × 1.0675 = 294,352 ($000s)
+Undiluted MC = 294,352 / 998                  = $295/kW-yr (nominal)
+Real MC      = 2,149,119 × 0.12832 / 998     = $276/kW-yr
+```
+
+Unlike the old proportional approach, real MC is NOT constant — it depends on the $/kW mix of in-service projects. Compare 2034 (all 17 projects, 3,024 MW): real MC = 7,419,544 × 0.12832 / 3,024 = $315/kW-yr.
+
+### Worked example: Incremental undiluted — Substation, year 2028
+
+The 4 projects entering service in 2028:
+
+```
+Inc Capital(2028) = 2,006,253 ($000s)  [4 projects' final capitals]
+Inc Capacity(2028) = 81 + 358 + 358 + 85 = 882 MW  [4 projects' MW]
+Composite Rate     = 0.12832
+Escalation(2028)   = 1.0675
+
+Annual RR      = 2,006,253 × 0.12832 × 1.0675 = 274,768 ($000s)
+Undiluted MC   = 274,768 / 882                  = $312/kW-yr (nominal)
+Real MC        = 2,006,253 × 0.12832 / 882     = $292/kW-yr
+```
+
+Incremental undiluted is non-zero only in years when projects complete. It reflects the $/kW of each cohort — $292/kW for the 2028 class vs. $158/kW for Newtown in 2026 (lower because Newtown is a smaller, cheaper project per kW).
 
 ## Inputs and outputs
 

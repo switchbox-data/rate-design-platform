@@ -111,8 +111,9 @@ TX_ALL_ROWS = range(8, 11)
 
 # Right-half cumulative cashflow columns ($000s).
 CAPEX_CF_YEAR_COL = {yr: 23 + (yr - 2025) for yr in YEARS}  # W(23)=2025 .. AF(32)=2034
-SUB_PROJECT_ROWS = range(8, 12)  # rows 8–11 (4 projects)
-SUB_TOTAL_ROW = 18  # Grand total
+SUB_PROJECT_ROWS = range(
+    8, 12
+)  # rows 8–11 (4 projects; row 12 is a total, not a project)
 
 # ── CapEx Primary ────────────────────────────────────────────────────────────
 PRI_REGION_ROWS = [57, 58, 59]  # Central, Eastern, Western ($000s)
@@ -147,6 +148,16 @@ COINC_2024_COL = 4
 
 
 @dataclass
+class ProjectData:
+    """Per-project data parsed from right-half cashflow columns."""
+
+    name: str
+    capacity_mw: float
+    final_capital_k: float  # cumulative capital at completion ($000s), or annual budget
+    in_service_year: int  # first year where cashflow stabilizes, or first nonzero year
+
+
+@dataclass
 class CostCenterData:
     name: str
     label: str
@@ -158,6 +169,7 @@ class CostCenterData:
     capacity_by_year: dict[int, float] = field(default_factory=dict)
     is_annual: bool = False
     is_per_kw_system: bool = False  # True for secondary_dist ($/kW of system peak)
+    projects: list[ProjectData] = field(default_factory=list)
 
 
 @dataclass
@@ -223,95 +235,77 @@ def parse_coincident_peak(wb) -> dict[int, float]:
     return peaks
 
 
-def _parse_capex_cumulative(
-    wb,
-    sheet_name: str,
-    total_row: int,
-    project_rows: range,
-    year_cols: dict[int, int],
-    name: str,
-) -> CostCenterData:
-    """Parse a cumulative CapEx sheet with proportional capacity-by-year.
+def _detect_in_service_year(cashflows: list[float]) -> int:
+    """Infer in-service year from cumulative cashflow stabilization.
 
-    Capacity is derived proportionally from capital: each year's capacity is
-    the fraction of total project MW corresponding to capital spent so far.
-    See ConEd parser docstring for rationale (CWIP timing mismatch).
+    Returns the first study year where the cashflow equals its final value,
+    indicating CWIP has ended and the project is complete.
+    Falls back to the last study year if cashflow never fully stabilizes.
     """
-    sheet = wb[sheet_name]
-    capital = {yr: _cell(sheet, total_row, col) for yr, col in year_cols.items()}
+    final = cashflows[-1]
+    if final <= 0:
+        return YEARS[-1]
+    for i, v in enumerate(cashflows):
+        if abs(v - final) < 0.5:
+            return YEARS[i]
+    return YEARS[-1]
 
-    descriptions: list[str] = []
-    total_mw = 0.0
-    total_cost = 0.0
 
-    for r in project_rows:
-        desc = _str_cell(sheet, r, CAPEX_DESC_COL)
-        mw = _cell(sheet, r, CAPEX_RIGHT_MW)
-        cost = _cell(sheet, r, CAPEX_COST_COL)
-        if desc:
-            descriptions.append(desc)
-            total_mw += mw
-            total_cost += cost
+def _parse_projects_from_cashflow(
+    sheet,
+    rows: list[int] | range,
+    cf_cols: dict[int, int],
+    mw_col: int,
+    name_col: int,
+) -> list[ProjectData]:
+    """Read per-project cashflow rows, detect in-service years."""
+    projects: list[ProjectData] = []
+    for r in rows:
+        ref = _str_cell(sheet, r, name_col)
+        if not ref:
+            continue
+        mw = _cell(sheet, r, mw_col)
+        cashflows = [_cell(sheet, r, col) for col in cf_cols.values()]
+        in_svc = _detect_in_service_year(cashflows)
+        projects.append(ProjectData(ref, mw, cashflows[-1], in_svc))
+    return projects
 
-    final_cap = capital.get(YEARS[-1], 0.0)
-    if final_cap > 0 and total_mw > 0:
-        capacity = {yr: total_mw * capital[yr] / final_cap for yr in YEARS}
-    else:
-        capacity = {yr: 0.0 for yr in YEARS}
 
-    return CostCenterData(
-        name=name,
-        label=CC_LABELS[name],
-        n_projects=len(set(descriptions)),
-        total_capacity_mw=total_mw,
-        total_cost_k=total_cost,
-        composite_rate=0.0,
-        capital_by_year=capital,
-        capacity_by_year=capacity,
-    )
+def _build_scoped_capital_capacity(
+    projects: list[ProjectData],
+) -> tuple[dict[int, float], dict[int, float]]:
+    """Build capital_by_year and capacity_by_year using in-service-year scoping."""
+    capital: dict[int, float] = {}
+    capacity: dict[int, float] = {}
+    for yr in YEARS:
+        in_scope = [p for p in projects if p.in_service_year <= yr]
+        capital[yr] = sum(p.final_capital_k for p in in_scope)
+        capacity[yr] = sum(p.capacity_mw for p in in_scope)
+    return capital, capacity
 
 
 def _parse_tx_rows(wb, rows: list[int], name: str) -> CostCenterData:
     """Parse a subset of CapEx Transmission project rows.
 
-    Uses the right-half cumulative cashflow columns (W-AF) for capital.
-    Capacity is derived proportionally from capital (same rationale as
-    _parse_capex_cumulative).
+    Uses per-project cashflow columns (W-AF) with in-service-year scoping,
+    matching the NiMo/CenHud methodology.
     """
     sheet = wb[SH_TX]
-    capital = {
-        yr: sum(_cell(sheet, r, col) for r in rows)
-        for yr, col in CAPEX_CF_YEAR_COL.items()
-    }
-
-    descriptions: list[str] = []
-    total_mw = 0.0
-    total_cost = 0.0
-
-    for r in rows:
-        desc = _str_cell(sheet, r, CAPEX_DESC_COL)
-        mw = _cell(sheet, r, CAPEX_RIGHT_MW)
-        cost = _cell(sheet, r, CAPEX_COST_COL)
-        if desc:
-            descriptions.append(desc)
-            total_mw += mw
-            total_cost += cost
-
-    final_cap = capital.get(YEARS[-1], 0.0)
-    if final_cap > 0 and total_mw > 0:
-        capacity = {yr: total_mw * capital[yr] / final_cap for yr in YEARS}
-    else:
-        capacity = {yr: 0.0 for yr in YEARS}
+    projects = _parse_projects_from_cashflow(
+        sheet, rows, CAPEX_CF_YEAR_COL, CAPEX_RIGHT_MW, CAPEX_DESC_COL
+    )
+    capital, capacity = _build_scoped_capital_capacity(projects)
 
     return CostCenterData(
         name=name,
         label=CC_LABELS[name],
-        n_projects=len(set(descriptions)),
-        total_capacity_mw=total_mw,
-        total_cost_k=total_cost,
+        n_projects=len({p.name for p in projects}),
+        total_capacity_mw=sum(p.capacity_mw for p in projects),
+        total_cost_k=sum(p.final_capital_k for p in projects),
         composite_rate=0.0,
         capital_by_year=capital,
         capacity_by_year=capacity,
+        projects=projects,
     )
 
 
@@ -323,57 +317,80 @@ def parse_capex_tx_split(wb) -> tuple[CostCenterData, CostCenterData]:
 
 
 def parse_capex_sub(wb) -> CostCenterData:
-    return _parse_capex_cumulative(
-        wb, SH_SUB, SUB_TOTAL_ROW, SUB_PROJECT_ROWS, CAPEX_YEAR_COL, "substation"
+    """Parse CapEx Substation using per-project cashflow with in-service scoping."""
+    sheet = wb[SH_SUB]
+    projects = _parse_projects_from_cashflow(
+        sheet, SUB_PROJECT_ROWS, CAPEX_CF_YEAR_COL, CAPEX_RIGHT_MW, CAPEX_DESC_COL
+    )
+    capital, capacity = _build_scoped_capital_capacity(projects)
+
+    return CostCenterData(
+        name="substation",
+        label=CC_LABELS["substation"],
+        n_projects=len({p.name for p in projects}),
+        total_capacity_mw=sum(p.capacity_mw for p in projects),
+        total_cost_k=sum(p.final_capital_k for p in projects),
+        composite_rate=0.0,
+        capital_by_year=capital,
+        capacity_by_year=capacity,
+        projects=projects,
     )
 
 
 def parse_capex_primary(wb) -> CostCenterData:
-    """Parse CapEx Primary — cumulative capital by summing region rows.
+    """Parse CapEx Primary — project-level annual budgets with in-service years.
 
     CapEx Primary has a DIFFERENT right-side column layout than TX/Sub:
       R(18)=Region  S(19)=Location  T(20)=Description  U(21)=MW
-      V(22)=$/kW  W(23)=Budget/CWE ($000s)  X(24)+= yearly
+      V(22)=$/kW  W(23)=Budget/CWE ($000s)  X(24)..AG(33)=yearly budget 2025-2034
+
+    Each project has a constant annual budget that starts at its in-service
+    year (the first year with a non-zero value).  capital_by_year(Y) = sum
+    of annual budgets for all projects in-service by Y, and capacity_by_year(Y)
+    = sum of project MW for those same projects.
     """
     sheet = wb[SH_PRI]
-    PRI_DESC_COL = 20  # T: Description
     PRI_MW_COL = 21  # U: MW
-    PRI_COST_COL = 23  # W: Budget/CWE ($000s)
+    PRI_BUDGET_COL = 23  # W: Budget/CWE ($000s)
+    PRI_YEARLY_COL = {yr: 24 + (yr - 2025) for yr in YEARS}  # X(24)=2025..AG(33)=2034
+
+    projects: list[ProjectData] = []
+    for r in PRI_PROJECT_ROWS:
+        region = _str_cell(sheet, r, 18)  # R: Region
+        if not region:
+            continue
+        loc = _str_cell(sheet, r, 19)  # S: Location
+        mw = _cell(sheet, r, PRI_MW_COL)
+        budget = _cell(sheet, r, PRI_BUDGET_COL)
+        yearly = [_cell(sheet, r, col) for col in PRI_YEARLY_COL.values()]
+
+        # In-service year = first year with non-zero annual budget
+        in_svc = YEARS[0]
+        for i, v in enumerate(yearly):
+            if v > 0:
+                in_svc = YEARS[i]
+                break
+
+        name = f"{region[:3]}/{loc}" if loc else region
+        projects.append(ProjectData(name, mw, budget, in_svc))
 
     capital: dict[int, float] = {}
-    for yr, col in PRI_YEAR_COL.items():
-        total = sum(_cell(sheet, r, col) for r in PRI_REGION_ROWS)
-        capital[yr] = total
-
-    descriptions: list[str] = []
-    total_mw = 0.0
-    total_cost = 0.0
-    for r in PRI_PROJECT_ROWS:
-        desc = _str_cell(sheet, r, PRI_DESC_COL)
-        mw = _cell(sheet, r, PRI_MW_COL)
-        cost = _cell(sheet, r, PRI_COST_COL)
-        if desc:
-            descriptions.append(desc)
-            total_mw += mw
-            total_cost += cost
-
-    # Derive capacity_by_year proportionally from capital (project-level
-    # in-service years aren't accessible from the region-summary rows).
-    final_cap = capital.get(YEARS[-1], 0.0)
-    if final_cap > 0:
-        capacity = {yr: total_mw * capital[yr] / final_cap for yr in YEARS}
-    else:
-        capacity = {yr: 0.0 for yr in YEARS}
+    capacity: dict[int, float] = {}
+    for yr in YEARS:
+        in_scope = [p for p in projects if p.in_service_year <= yr]
+        capital[yr] = sum(p.final_capital_k for p in in_scope)
+        capacity[yr] = sum(p.capacity_mw for p in in_scope)
 
     return CostCenterData(
         name="primary",
         label=CC_LABELS["primary"],
-        n_projects=len(set(descriptions)),
-        total_capacity_mw=total_mw,
-        total_cost_k=total_cost,
+        n_projects=len(projects),
+        total_capacity_mw=sum(p.capacity_mw for p in projects),
+        total_cost_k=sum(p.final_capital_k for p in projects),
         composite_rate=0.0,
         capital_by_year=capital,
         capacity_by_year=capacity,
+        projects=projects,
     )
 
 
@@ -547,6 +564,23 @@ def print_report(
 
     print(f"\n── System {'─' * (W - 11)}")
     print(f"  System peak (2024 forecast):  {system_peak_mw:,.1f} MW")
+
+    for name in COST_CENTERS:
+        cc = ccs[name]
+        if cc.projects:
+            print(
+                f"\n── {cc.label} — in-service years {'─' * max(1, W - 35 - len(cc.label))}"
+            )
+            by_year: dict[int, list[ProjectData]] = {}
+            for p in cc.projects:
+                by_year.setdefault(p.in_service_year, []).append(p)
+            for yr in sorted(by_year):
+                projs = by_year[yr]
+                mw = sum(p.capacity_mw for p in projs)
+                cap = sum(p.final_capital_k for p in projs)
+                print(
+                    f"  {yr}: {len(projs)} project(s), {mw:,.1f} MW, ${cap / 1e3:,.1f}M"
+                )
 
     cum_dil = variants["cumulative_diluted"]
     inc_dil = variants["incremental_diluted"]

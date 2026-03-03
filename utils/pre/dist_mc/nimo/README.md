@@ -125,7 +125,23 @@ Verification from the summary row (line 245): F27/F26 = 73.026/71.524 = 1.02100 
 
 ## Worked examples
 
-### Example 1: Sawyer Ave contribution to incremental diluted distribution MC, FY2029
+### Example 1: Cumulative diluted — sub\_tx\_plus\_dist, FY2026
+
+In FY2026, projects with in\_service\_year ≤ 2026 contribute. Using Sawyer Ave as one example among many:
+
+- **Sawyer Ave** (FN010097): distribution, 12 MW, in-service FY2029, F26 = $37.054/MW
+
+Sawyer Ave does NOT contribute in FY2026 (in-service 2029 > 2026). Only projects with in\_service\_year ≤ 2026 are in scope. The FY2026 cumulative diluted sub\_tx\_plus\_dist total across all qualifying projects:
+
+```
+Real MC(2026) = sum[ F26(p) × cap(p) ] / system_peak
+              = (all sub_tx + dist projects with in_service ≤ 2026) / 6,616 MW
+              = $3.60/kW-yr
+```
+
+As more projects enter service each year, this grows — by FY2036 it reaches $137.37/kW-yr (real).
+
+### Example 2: Incremental diluted — Sawyer Ave contribution, FY2029
 
 Sawyer Ave (line 3, FN010097) is a distribution substation project:
 
@@ -135,19 +151,19 @@ Sawyer Ave (line 3, FN010097) is a distribution substation project:
 - F26: $37.054/MW ($000s/MW, col AN)
 - F2029: F26 × (1.021)³ = $37.054 × 1.0642 = $39.42/MW (col AQ)
 
-Sawyer Ave's contribution to the **incremental diluted distribution** MC in FY2029:
+Only projects with in\_service\_year = 2029 contribute. Sawyer Ave's contribution:
 
 ```
 Real contribution     = F26 × capacity / system_peak
-                      = 37.054 × 12 / 6616  = 0.0672 $/kW-yr
+                      = 37.054 × 12 / 6,616 = $0.0672/kW-yr
 
 Nominal contribution  = F2029 × capacity / system_peak
-                      = 39.42 × 12 / 6616   = 0.0715 $/kW-yr
+                      = 39.42 × 12 / 6,616  = $0.0715/kW-yr
 ```
 
 This is one of many projects entering in FY2029 — the total incremental diluted distribution MC for FY2029 is $1.26/kW-yr (real), reflecting all projects with in-service = 2029.
 
-### Example 2: Undiluted MC headline validation
+### Example 3: Cumulative undiluted — headline validation, FY2036
 
 The workbook's summary row (line 245) reports an undiluted MC of $71.524/kW-yr. This is the capacity-weighted average F26 across all 237 projects:
 
@@ -157,9 +173,27 @@ Undiluted MC = sum[ F26(p) × cap(p) ] / sum[ cap(p) ]
              = $71.524/kW-yr
 ```
 
-Our script's cumulative undiluted total for FY2026 should match, since all projects with in-service ≤ 2026 are a subset. The full cumulative undiluted total (with all projects in-service by FY2036) should also approach this value, as later fiscal years include more projects.
+By FY2036, all projects are in-service (in\_service\_year ≤ 2036 for all), so cumulative undiluted total should equal this headline value. In earlier years, only a subset contributes — FY2026 cumulative undiluted total is $167.86/kW-yr (higher than the headline because only 142 MW of capacity is in scope, and those early projects have above-average cost/MW).
 
-### Example 3: FY2036 spike in incremental diluted
+Unlike ConEd/O&R, the undiluted MC is NOT constant across years — it changes as the mix of in-service projects shifts. Each project has its own capacity and cost; the capacity-weighted average depends on which projects are in scope.
+
+### Example 4: Incremental undiluted — Sawyer Ave contribution, FY2029
+
+Same project, but now the denominator is the new capacity added in FY2029 (not system peak):
+
+```
+Total new capacity in FY2029 = sum[ cap(p) ] for in_service_year = 2029
+                              = 242 MW (across all buckets)
+
+Real MC(2029)  = sum[ F26(p) × cap(p) ] / sum[ cap(p) ]
+               = capacity-weighted average F26 for FY2029 projects only
+```
+
+Sawyer Ave's contribution to the numerator is 37.054 × 12 = $444.6 ($000s). Its 12 MW enters the denominator. But the total is dominated by larger projects entering that year — the incremental undiluted sub\_tx\_plus\_dist real MC for FY2029 is $201.02/kW-yr, reflecting the cost profile of all projects entering that year.
+
+Incremental undiluted can be volatile year to year because a single expensive project with little capacity drives the weighted average up.
+
+### Example 5: FY2036 spike in incremental diluted
 
 FY2036 shows a dramatic spike ($60.45/kW-yr real for sub\_tx\_plus\_dist) because it's the final study year and many large projects have in-service = 2036:
 

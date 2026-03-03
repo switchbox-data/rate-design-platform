@@ -192,6 +192,14 @@ This is where the approaches diverge most:
 
 NiMo's and NYSEG/RGE's base ECCR rates look low (7–8%) but they apply fewer loaders, so the effective all-in rate is similar. CenHud's rates look high (13–18%) because they stack a 30% reserve margin and 16.1% general plant loading on top of the $/kW _before_ applying ECCR. ConEd/O&R absorb ECCR into a composite rate (12–15%) that also includes O&M, plant loading, insurance, and working capital.
 
+**The three approaches to annualization.** Steps 3 and 4 show a spectrum of how utilities convert capital to annual revenue requirement:
+
+1. **Composite rate** (ConEd, O&R): One multiplier per cost center folds ECCR, general plant loading, O&M, working capital, loss factors, and (for ConEd) a coincidence factor into a single number. The formula is simply `Capital × Composite Rate × Escalation`. This is the cleanest to use but the hardest to decompose — you cannot back out the ECCR in isolation without reverse-engineering the loaders from Schedule 11/10.
+
+2. **Separate loaders** (CenHud, NYSEG/RGE): The ECCR and each loader are applied as visible, sequential steps. CenHud is the most explicit: reserve margin (×1.30) and general plant loading (×1.161) multiply the $/kW _before_ ECCR, then working capital and loss factors add on _after_. NYSEG/RGE bundle loaders into a post-ECCR multiplier (~1.32–1.34×). Both approaches let you see how much each component contributes.
+
+3. **Bare ECCR** (NiMo): No loaders at all. `ECCR × capital/MW` is the final annualized cost. All overhead is implicitly absorbed into the ECCR rates or is assumed to be captured elsewhere in the revenue requirement. Simplest to replicate, but the ECCR must carry all the weight.
+
 **Step 5: Inflation escalation — the key divergence**
 
 | Utility       | Escalates?       | Rate                                         | Mechanism                                                                                                                             |
@@ -806,3 +814,97 @@ The `real_mc` column preserves the workbook's original flat values. The `nominal
 | Escalation: flat → 2.1%/yr GDP deflator | All variants (both diluted and undiluted)               | None (levelized uses real\_mc, which is unchanged) | Nominal columns now escalate year over year |
 
 The undiluted formula was already consistent across all utilities (capacity-weighted average). The escalation change only affects nominal values; real values and the levelized MC are unchanged.
+
+---
+
+## 8. Harmonized project-level methodology across NERA utilities
+
+### Background: the original inconsistency
+
+NiMo and CenHud have always used **project-level data** to build their MC calculations. Each project has an explicit in-service year, capital cost, and capacity (MW). The cumulative MC for year Y sums capital and capacity only for projects where `in_service_year ≤ Y`; the incremental MC uses projects where `in_service_year = Y`. This is clean: each project's full cost and capacity enter the calculation together when it completes.
+
+ConEd and O&R's workbooks are structured differently. Their cumulative cost centers (Transmission, Substation for both; Primary for O&R) present **aggregate** capital-by-year totals in the left half of the sheet (Section 2, columns F–O). These aggregate totals include Construction Work In Progress (CWIP) — capital that's been spent on projects still under construction but not yet in service. Our original implementation read these aggregate totals directly.
+
+The result was an inconsistency: NiMo/CenHud excluded CWIP (projects contribute only when complete), while ConEd/O&R included it (capital grows smoothly as money is spent, even before the project delivers capacity). This produced several artifacts:
+
+1. **Inflated early-year cumulative capital** for ConEd/O&R, because CWIP was counted before any capacity was added.
+2. **Proportional capacity derivation**: since aggregate capacity-by-year was not always available, capacity had to be derived proportionally from the total capacity at end-of-horizon, producing smooth trajectories that didn't reflect actual project completion timing.
+3. **Constant undiluted MC**: because both capital and capacity grew proportionally under the aggregate approach, the per-kW cost was roughly constant across years — masking the real variation in project-level $/kW.
+
+### The harmonization: project-level data with in-service-year scoping
+
+ConEd and O&R's workbooks contain per-project data in the **right half** of the cumulative cost center sheets. Each project row has:
+
+- A description/name
+- Capacity in MW
+- Year-by-year cumulative cashflow columns spanning the 10-year study period
+
+We refactored the ConEd and O&R scripts to read this project-level data and infer in-service years, applying the same scoping logic as NiMo/CenHud.
+
+### How in-service year is inferred
+
+| Utility    | Cost centers                                            | Data format                | In-service year method                                                   |
+| ---------- | ------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------ |
+| **NiMo**   | All (T-Station, T-Line, D-Station, D-Line)              | Explicit per-project       | Stated in workbook (column D)                                            |
+| **CenHud** | All (Local TX, Substation, Feeder)                      | Explicit per-project       | Stated in workbook (in-service year column)                              |
+| **ConEd**  | TX (5 project-area rows), Substation (17 rows)          | Cumulative cashflow (W–AF) | First year where cashflow = final value (CWIP ends)                      |
+| **O&R**    | Bulk TX (1 row), Local TX (2 rows), Substation (4 rows) | Cumulative cashflow (W–AF) | Same as ConEd: cashflow stabilization                                    |
+| **O&R**    | Primary (26 rows)                                       | Annual budget (X–AG)       | First nonzero year (each project has constant annual budget after start) |
+
+The cashflow-stabilization heuristic works because CWIP causes the cumulative cashflow to grow year over year during construction. Once a project is in service, its cumulative cashflow plateaus at the final capital cost. The in-service year is the first year at which this plateau is reached.
+
+For O&R Primary, the data is structured differently: each project's annual budget (not cumulative cashflow) appears in columns X–AG, with zeros before the project starts and a constant value afterward. The in-service year is simply the first nonzero column.
+
+### The formulas, now consistent across all four utilities
+
+**Cumulative diluted:**
+
+```
+Capital(Y) = sum(p.final_capital for p where p.in_service_year ≤ Y)
+MC(Y) = Capital(Y) × composite_rate × escalation(Y) / system_peak
+```
+
+**Incremental diluted:**
+
+```
+Capital(Y) = sum(p.final_capital for p where p.in_service_year = Y)
+MC(Y) = Capital(Y) × composite_rate × escalation(Y) / system_peak
+```
+
+**Cumulative undiluted:**
+
+```
+Capital(Y) = sum(p.final_capital for p where p.in_service_year ≤ Y)
+Capacity(Y) = sum(p.MW for p where p.in_service_year ≤ Y)
+MC(Y) = Capital(Y) × composite_rate × escalation(Y) / Capacity(Y)
+```
+
+**Incremental undiluted:**
+
+```
+Capital(Y) = sum(p.final_capital for p where p.in_service_year = Y)
+Capacity(Y) = sum(p.MW for p where p.in_service_year = Y)
+MC(Y) = Capital(Y) × composite_rate × escalation(Y) / Capacity(Y)
+```
+
+These are identical in structure across NiMo, ConEd, O&R, and CenHud (modulo each utility's specific composite rate / ECCR mechanism). The key invariant is that **capital and capacity enter together**, gated by in-service year.
+
+### Impact on MC values
+
+**Cumulative diluted**: lower in early years (CWIP excluded), converges to the same terminal value. The levelized value is moderately lower because the discounted trajectory is pulled down in early years.
+
+**Incremental diluted**: year-by-year distribution changes (capital is now assigned to the completion year, not spread across construction years), but the levelized value is similar because the total capital added over the study period is unchanged.
+
+**Cumulative undiluted**: previously roughly constant (proportional capital / proportional capacity). Now varies meaningfully year by year, reflecting the actual $/kW of the project cohort in service at each point. Projects with different capital intensities produce different undiluted MCs — which is the whole point of the undiluted variant (cost per MW of new capacity where we're constrained).
+
+**Incremental undiluted**: previously constant or poorly defined. Now reflects the specific $/kW of the project(s) entering service in each year, and is undefined (no projects) in years without completions. This is the most volatile variant but also the most economically meaningful for the BAT's incremental cost perspective (see §6).
+
+### Remaining differences
+
+The harmonization covers the **scoping** of capital and capacity (what enters the calculation in each year). It does not eliminate other cross-utility differences:
+
+- **Composite rate vs. bare ECCR** (§1): ConEd/O&R fold loaders into a single multiplier; NiMo uses bare ECCR; CenHud uses ECCR + explicit loaders.
+- **Escalation** (§7B): CenHud's workbook is flat nominal; we apply 2.1%/yr. Others escalate natively.
+- **Diluted formula** (§7A): CenHud's workbook uses peak-share weighting; we normalize to capacity-based.
+- **System peak denominator** (§1): utilities use different fixed peaks (current vs. forecast vs. unstated).
+- **NYSEG/RG&E**: use CRA methodology with division-level aggregation, not the NERA project-level approach. They are not part of this harmonization.
