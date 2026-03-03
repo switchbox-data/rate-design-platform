@@ -266,7 +266,7 @@ run-scenario run_num:
     {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }}
 
 run-1:
-    just create-flat-tariff
+    # just create-flat-tariff
     just run-scenario 1
 
 run-2:
