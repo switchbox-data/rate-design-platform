@@ -42,10 +42,6 @@ Usage:
     uv run python utils/pre/generate_bulk_tx_mc.py \\
         --utility nyseg --year 2025 --upload
 
-    # Use P25 quantile instead of default P50
-    uv run python utils/pre/generate_bulk_tx_mc.py \\
-        --utility nyseg --year 2025 --v-z-quantile low
-
     # Override default paths
     uv run python utils/pre/generate_bulk_tx_mc.py \\
         --utility coned --year 2025 \\
