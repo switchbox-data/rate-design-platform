@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
-import resource  # DEBUG-MEM
-import time  # DEBUG-MEM
+import resource
+import time
 from pathlib import Path
 from typing import Any, cast
 
@@ -43,18 +43,16 @@ _GAS_KWH_TO_THERM = 0.0341214116
 
 log = logging.getLogger("rates_analysis").getChild("patches")
 
-# DEBUG-MEM: remove this block (and the `import resource` / `import time` above) when done
 _mem_t0: float = time.perf_counter()
 
 
 def _log_mem(label: str) -> None:
-    # Linux: ru_maxrss in kB; macOS: bytes — this code runs on Linux EC2
-    peak_gb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6
+    """Log peak RSS at DEBUG level. Activate with LOG_LEVEL=DEBUG or equivalent."""
+    if not log.isEnabledFor(logging.DEBUG):
+        return
+    peak_gb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6  # Linux kB
     elapsed = time.perf_counter() - _mem_t0
-    log.info("MEM_DEBUG [%+6.1fs] %-42s peak_rss=%.2f GB", elapsed, label, peak_gb)
-
-
-# END DEBUG-MEM
+    log.debug("MEM [%+6.1fs] %-42s peak_rss=%.2f GB", elapsed, label, peak_gb)
 
 
 def _return_loads_combined(
@@ -394,7 +392,13 @@ def _vectorized_process_building_demand_by_period(
             tier_lut[int(row["period"])] = int(row["tier"])
         hour_tiers = tier_lut[hour_periods]
 
-        # Encode (month, period, tier) → unique group id
+        # Encode (month, period, tier) as a single int for np.unique grouping.
+        # Safe when period < 100 and tier < 100 (URDB tariffs use single-digit
+        # values; the max observed is ~12 periods × ~6 tiers).
+        assert hour_periods.max() < 100 and hour_tiers.max() < 100, (
+            f"composite encoding overflow: period_max={hour_periods.max()}, "
+            f"tier_max={hour_tiers.max()}"
+        )
         composite = months_8760 * 10000 + hour_periods * 100 + hour_tiers
         unique_composites, hour_group_ids = np.unique(composite, return_inverse=True)
         n_groups = len(unique_composites)
