@@ -137,11 +137,10 @@ Levelized = mean(real MC) across all 8 study years, consistent with other utilit
 
 ### Key output values (incremental diluted, levelized)
 
-| Bucket                | Levelized MC ($/kW-yr) |
-| --------------------- | ---------------------: |
-| Sub-TX                |                  $1.20 |
-| Distribution          |                  $0.46 |
-| **Total (BAT input)** |              **$1.67** |
+| Bucket                          | Levelized MC ($/kW-yr) |
+| ------------------------------- | ---------------------: |
+| bulk_tx                         |                  $0.00 |
+| **sub_tx_and_dist (BAT input)** |              **$1.67** |
 
 ## Worked examples
 
@@ -197,16 +196,16 @@ nominal_mc(2028) = $46.18 × 1.021^3 = $46.18 × 1.0643 = $49.15/kW-yr
 | MC rates        | PSEG-LI 2025 MCOS filing Exhibit 1 (hardcoded: $563.17/kW Sub-TX, $721.12/kW Dist, 8.2%/13.9%) |
 | System peak     | 4,935 MW — LIPA 2024 actual NCP, NYISO Gold Book Zone K Table I-4a                             |
 
-| Output                                        | Description                                         |
-| --------------------------------------------- | --------------------------------------------------- |
-| `psegli_cumulative_diluted_levelized.csv`     | One row per bucket: levelized and final-year MC     |
-| `psegli_cumulative_diluted_annualized.csv`    | One row per year, columns per bucket (nominal/real) |
-| `psegli_incremental_diluted_levelized.csv`    | Same structure, incremental ÷ system peak           |
-| `psegli_incremental_diluted_annualized.csv`   | Same structure, incremental ÷ system peak           |
-| `psegli_cumulative_undiluted_levelized.csv`   | Same structure, cumulative ÷ cumulative capacity    |
-| `psegli_cumulative_undiluted_annualized.csv`  | Same structure, cumulative ÷ cumulative capacity    |
-| `psegli_incremental_undiluted_levelized.csv`  | Same structure, incremental ÷ annual capacity       |
-| `psegli_incremental_undiluted_annualized.csv` | Same structure, incremental ÷ annual capacity       |
+| Output                                        | Description                                                        |
+| --------------------------------------------- | ------------------------------------------------------------------ |
+| `psegli_cumulative_diluted_levelized.csv`     | Two rows (bulk_tx=0, sub_tx_and_dist): levelized and final-year MC |
+| `psegli_cumulative_diluted_annualized.csv`    | One row per year: bulk_tx (0) and sub_tx_and_dist (nominal/real)   |
+| `psegli_incremental_diluted_levelized.csv`    | Same structure, incremental ÷ system peak                          |
+| `psegli_incremental_diluted_annualized.csv`   | Same structure, incremental ÷ system peak                          |
+| `psegli_cumulative_undiluted_levelized.csv`   | Same structure, cumulative ÷ cumulative capacity                   |
+| `psegli_cumulative_undiluted_annualized.csv`  | Same structure, cumulative ÷ cumulative capacity                   |
+| `psegli_incremental_undiluted_levelized.csv`  | Same structure, incremental ÷ annual capacity                      |
+| `psegli_incremental_undiluted_annualized.csv` | Same structure, incremental ÷ annual capacity                      |
 
 ## How to run
 

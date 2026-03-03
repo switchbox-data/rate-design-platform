@@ -480,52 +480,34 @@ def _sum_mc(
 
 
 def export_levelized_csv(
-    ccs: dict[str, CostCenterData],
     mc_data: dict[str, list[MCRow]],
     path: Path,
 ) -> None:
-    rows = []
-    for name in COST_CENTERS:
-        cc = ccs[name]
-        lev = levelized(mc_data[name])
-        if cc.is_per_kw_system:
-            cost_m = cc.total_cost_k / 1e3
-        elif cc.is_annual:
-            cost_m = cc.total_cost_k / 1e3
-        else:
-            cost_m = cc.capital_by_year[YEARS[-1]] / 1e3
-        rows.append(
-            {
-                "cost_center": name,
-                "label": cc.label,
-                "n_projects": cc.n_projects,
-                "capacity_mw": round(cc.total_capacity_mw, 1),
-                "total_cost_m": round(cost_m, 1),
-                "composite_rate": round(cc.composite_rate, 5),
-                "levelized_mc_kw_yr": round(lev, 2),
-                "final_year_real_mc_kw_yr": round(mc_data[name][-1].real_mc, 2),
-                "final_year_nominal_mc_kw_yr": round(mc_data[name][-1].nominal_mc, 2),
-            }
-        )
+    bulk_tx_lev = levelized(mc_data["transmission"])
+    sub_tx_and_dist_lev = sum(levelized(mc_data[c]) for c in LOCAL_CENTERS)
 
-    local_lev = sum(levelized(mc_data[c]) for c in LOCAL_CENTERS)
-    rows.append(
+    rows = [
         {
-            "cost_center": "local_total",
+            "bucket": "bulk_tx",
+            "label": CC_LABELS["transmission"],
+            "levelized_mc_kw_yr": round(bulk_tx_lev, 2),
+            "final_year_real_mc_kw_yr": round(mc_data["transmission"][-1].real_mc, 2),
+            "final_year_nominal_mc_kw_yr": round(
+                mc_data["transmission"][-1].nominal_mc, 2
+            ),
+        },
+        {
+            "bucket": "sub_tx_and_dist",
             "label": CC_LABELS["local_total"],
-            "n_projects": 0,
-            "capacity_mw": 0.0,
-            "total_cost_m": 0.0,
-            "composite_rate": 0.0,
-            "levelized_mc_kw_yr": round(local_lev, 2),
+            "levelized_mc_kw_yr": round(sub_tx_and_dist_lev, 2),
             "final_year_real_mc_kw_yr": round(
                 sum(mc_data[c][-1].real_mc for c in LOCAL_CENTERS), 2
             ),
             "final_year_nominal_mc_kw_yr": round(
                 sum(mc_data[c][-1].nominal_mc for c in LOCAL_CENTERS), 2
             ),
-        }
-    )
+        },
+    ]
 
     pl.DataFrame(rows).write_csv(path)
     print(f"  Wrote {path}")
@@ -534,17 +516,19 @@ def export_levelized_csv(
 def export_annualized_csv(mc_data: dict[str, list[MCRow]], path: Path) -> None:
     rows = []
     for yi, yr in enumerate(YEARS):
-        row: dict[str, object] = {"year": yr}
-        for name in COST_CENTERS:
-            row[f"{name}_nominal"] = round(mc_data[name][yi].nominal_mc, 2)
-            row[f"{name}_real"] = round(mc_data[name][yi].real_mc, 2)
-        row["local_total_nominal"] = round(
-            _sum_mc(mc_data, LOCAL_CENTERS, yi, nominal=True), 2
+        rows.append(
+            {
+                "year": yr,
+                "bulk_tx_nominal": round(mc_data["transmission"][yi].nominal_mc, 2),
+                "bulk_tx_real": round(mc_data["transmission"][yi].real_mc, 2),
+                "sub_tx_and_dist_nominal": round(
+                    _sum_mc(mc_data, LOCAL_CENTERS, yi, nominal=True), 2
+                ),
+                "sub_tx_and_dist_real": round(
+                    _sum_mc(mc_data, LOCAL_CENTERS, yi, nominal=False), 2
+                ),
+            }
         )
-        row["local_total_real"] = round(
-            _sum_mc(mc_data, LOCAL_CENTERS, yi, nominal=False), 2
-        )
-        rows.append(row)
     pl.DataFrame(rows).write_csv(path)
     print(f"  Wrote {path}")
 
@@ -739,7 +723,7 @@ def main() -> None:
     for variant_name in VARIANT_NAMES:
         mc_data = variants[variant_name]
         prefix = f"or_{variant_name}"
-        export_levelized_csv(ccs, mc_data, out / f"{prefix}_levelized.csv")
+        export_levelized_csv(mc_data, out / f"{prefix}_levelized.csv")
         export_annualized_csv(mc_data, out / f"{prefix}_annualized.csv")
 
     print()

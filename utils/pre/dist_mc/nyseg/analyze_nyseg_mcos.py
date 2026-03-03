@@ -362,32 +362,43 @@ def to_real(nominal: list[float]) -> list[float]:
 def export_annualized_csv(mc_nominal: dict[str, list[float]], path: Path) -> None:
     rows: list[dict[str, object]] = []
     for yi, yr in enumerate(YEARS):
-        row: dict[str, object] = {"year": yr}
-        for key in BUCKET_KEYS:
-            nom = mc_nominal[key][yi]
-            real_val = nom / (1 + INFLATION_RATE) ** yi
-            row[f"{key}_nominal"] = round(nom, 4)
-            row[f"{key}_real"] = round(real_val, 4)
-        rows.append(row)
+        nom = mc_nominal["total"][yi]
+        real_val = nom / (1 + INFLATION_RATE) ** yi
+        rows.append(
+            {
+                "year": yr,
+                "bulk_tx_nominal": 0.0,
+                "bulk_tx_real": 0.0,
+                "sub_tx_and_dist_nominal": round(nom, 4),
+                "sub_tx_and_dist_real": round(real_val, 4),
+            }
+        )
     pl.DataFrame(rows).write_csv(path)
     print(f"  Wrote {path}")
 
 
 def export_levelized_csv(mc_nominal: dict[str, list[float]], path: Path) -> None:
-    rows: list[dict[str, object]] = []
-    for key in BUCKET_KEYS:
-        values = mc_nominal[key]
-        real_values = to_real(values)
-        lev_real = sum(real_values) / len(real_values) if real_values else 0.0
-        lev_npv = levelized_npv(values)
-        rows.append(
-            {
-                "bucket": key,
-                "label": BUCKET_LABELS[key],
-                "levelized_mc_kw_yr": round(lev_real, 4),
-                "levelized_npv_mc_kw_yr": round(lev_npv, 4),
-            }
-        )
+    total_nominal = mc_nominal["total"]
+    total_real = to_real(total_nominal)
+    lev_real = sum(total_real) / len(total_real) if total_real else 0.0
+    final_year_real = total_real[-1] if total_real else 0.0
+    final_year_nominal = total_nominal[-1] if total_nominal else 0.0
+    rows: list[dict[str, object]] = [
+        {
+            "bucket": "bulk_tx",
+            "label": "Bulk TX",
+            "levelized_mc_kw_yr": 0.0,
+            "final_year_real_mc_kw_yr": 0.0,
+            "final_year_nominal_mc_kw_yr": 0.0,
+        },
+        {
+            "bucket": "sub_tx_and_dist",
+            "label": "Sub-TX + Distribution",
+            "levelized_mc_kw_yr": round(lev_real, 4),
+            "final_year_real_mc_kw_yr": round(final_year_real, 4),
+            "final_year_nominal_mc_kw_yr": round(final_year_nominal, 4),
+        },
+    ]
     pl.DataFrame(rows).write_csv(path)
     print(f"  Wrote {path}")
 

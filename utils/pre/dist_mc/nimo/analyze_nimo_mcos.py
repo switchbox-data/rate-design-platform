@@ -303,7 +303,13 @@ def levelized(rows: list[MCRow]) -> float:
     return sum(r.real_mc for r in rows) / len(rows) if rows else 0.0
 
 
-# ── CSV export ────────────────────────────────────────────────────────────────
+# ── CSV export (harmonized 2-bucket schema) ──────────────────────────────────
+
+EXPORT_BUCKETS: list[tuple[str, str, str]] = [
+    ("bulk_tx", "bulk_tx", "Bulk TX"),
+    ("sub_tx_and_dist", "sub_tx_plus_dist", "Sub-TX + Distribution"),
+]
+"""(export_key, internal_key, label) for the harmonized output schema."""
 
 
 def export_levelized_csv(
@@ -312,20 +318,15 @@ def export_levelized_csv(
     path: Path,
 ) -> None:
     rows = []
-    for key in BUCKET_KEYS:
-        info = bucket_info[key]
-        mc_rows = mc_data[key]
+    for export_key, internal_key, label in EXPORT_BUCKETS:
+        mc_rows = mc_data[internal_key]
         lev = levelized(mc_rows)
         final_real = mc_rows[-1].real_mc
         final_nom = mc_rows[-1].nominal_mc
         rows.append(
             {
-                "bucket": key,
-                "label": BUCKET_LABELS[key],
-                "n_projects": info["n_projects"],
-                "n_unique_stations": info["n_unique_stations"],
-                "capacity_mw": round(info["capacity_mw"], 1),
-                "capital_b": round(info["capital_b"], 2),
+                "bucket": export_key,
+                "label": label,
                 "levelized_mc_kw_yr": round(lev, 2),
                 "final_year_real_mc_kw_yr": round(final_real, 2),
                 "final_year_nominal_mc_kw_yr": round(final_nom, 2),
@@ -338,10 +339,12 @@ def export_levelized_csv(
 def export_annualized_csv(mc_data: dict[str, list[MCRow]], path: Path) -> None:
     rows = []
     for yi, fy in enumerate(FISCAL_YEARS):
-        row: dict[str, object] = {"fy": fy}
-        for key in BUCKET_KEYS:
-            row[f"{key}_nominal"] = round(mc_data[key][yi].nominal_mc, 2)
-            row[f"{key}_real"] = round(mc_data[key][yi].real_mc, 2)
+        row: dict[str, object] = {"year": fy}
+        for export_key, internal_key, _label in EXPORT_BUCKETS:
+            row[f"{export_key}_nominal"] = round(
+                mc_data[internal_key][yi].nominal_mc, 2
+            )
+            row[f"{export_key}_real"] = round(mc_data[internal_key][yi].real_mc, 2)
         rows.append(row)
     pl.DataFrame(rows).write_csv(path)
     print(f"  Wrote {path}")

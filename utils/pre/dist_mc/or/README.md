@@ -315,16 +315,16 @@ Non-zero only in years when projects complete. Compare with Sloatsburg alone in 
 | O&R workbook | `s3://data.sb/ny_psc/mcos_studies_2025/or_study_workpaper.xlsx` |
 | System peak  | 1,078.5 MW — Coincident Forecast sheet row 65, 2024 value       |
 
-| Output                                    | Description                                                |
-| ----------------------------------------- | ---------------------------------------------------------- |
-| `or_cumulative_diluted_levelized.csv`     | One row per cost center: levelized and final-year MC       |
-| `or_cumulative_diluted_annualized.csv`    | One row per (cost center, year): nominal and real MC       |
-| `or_incremental_diluted_levelized.csv`    | Same structure, incremental capital ÷ system peak          |
-| `or_incremental_diluted_annualized.csv`   | Same structure, incremental capital ÷ system peak          |
-| `or_cumulative_undiluted_levelized.csv`   | Same structure, cumulative capital ÷ project capacity      |
-| `or_cumulative_undiluted_annualized.csv`  | Same structure, cumulative capital ÷ project capacity      |
-| `or_incremental_undiluted_levelized.csv`  | Same structure, incremental capital ÷ incremental capacity |
-| `or_incremental_undiluted_annualized.csv` | Same structure, incremental capital ÷ incremental capacity |
+| Output                                    | Description                                                      |
+| ----------------------------------------- | ---------------------------------------------------------------- |
+| `or_cumulative_diluted_levelized.csv`     | Two rows (bulk_tx, sub_tx_and_dist): levelized and final-year MC |
+| `or_cumulative_diluted_annualized.csv`    | One row per year: bulk_tx and sub_tx_and_dist (nominal/real)     |
+| `or_incremental_diluted_levelized.csv`    | Same structure, incremental capital ÷ system peak                |
+| `or_incremental_diluted_annualized.csv`   | Same structure, incremental capital ÷ system peak                |
+| `or_cumulative_undiluted_levelized.csv`   | Same structure, cumulative capital ÷ project capacity            |
+| `or_cumulative_undiluted_annualized.csv`  | Same structure, cumulative capital ÷ project capacity            |
+| `or_incremental_undiluted_levelized.csv`  | Same structure, incremental capital ÷ incremental capacity       |
+| `or_incremental_undiluted_annualized.csv` | Same structure, incremental capital ÷ incremental capacity       |
 
 ## How to run
 

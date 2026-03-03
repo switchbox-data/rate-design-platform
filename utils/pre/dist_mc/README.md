@@ -53,6 +53,26 @@ All seven utilities produce four variants by combining two capital perspectives 
 
 Each variant is exported in both annualized (year-by-year) and levelized form — 8 CSVs per utility. See `context/domain/ny_mcos_studies_comparison.md` §6 for the rationale behind cumulative vs. incremental and the BAT's preference for incremental.
 
+### Harmonized output schema
+
+All seven utilities output the same two-bucket schema:
+
+**Annualized** (one row per year):
+
+```
+year,bulk_tx_nominal,bulk_tx_real,sub_tx_and_dist_nominal,sub_tx_and_dist_real
+```
+
+**Levelized** (two rows):
+
+```
+bucket,label,levelized_mc_kw_yr,final_year_real_mc_kw_yr,final_year_nominal_mc_kw_yr
+bulk_tx,...
+sub_tx_and_dist,...
+```
+
+`bulk_tx` is zero for utilities without bulk transmission (CenHud, NYSEG, RG&E, PSEG-LI). `sub_tx_and_dist` groups sub-transmission and distribution together because a consistent disaggregation isn't possible across all utilities. The internal per-cost-center computation is preserved in each script's terminal diagnostic output.
+
 ConEd/O&R use NERA's composite rate × escalation formula; NiMo uses pre-computed ECCR values per project (see `nimo/README.md` for details). CenHud uses NERA methodology with per-project ECCR rates; its workbook provides flat nominal costs (no built-in escalation), but we apply a 2.1%/yr GDP deflator for consistency with the other utilities (see `cenhud/README.md`). NYSEG and RG&E read project-level data from CRA's W2 sheet and apply NERA-style formulas with composite rates derived from the workbook (see `nyseg/README.md` and `rge/README.md`; `context/domain/ny_mcos_studies_comparison.md` §9). PSEG-LI has no workbook, but the Exhibit 2 project list was transcribed from the filing PDF into a CSV on S3; actual per-project in-service dates drive capacity timing, while Exhibit 1's aggregate ECCR+O&M rates provide the per-kW MC computation (see `psegli/README.md`).
 
 ### Harmonized project-level methodology

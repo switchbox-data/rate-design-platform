@@ -21,7 +21,7 @@ By reading the **raw project data** from W2 (capital, capacity, in-service date)
 | Distribution Substation | 12.5 kV          | Distribution substations           |
 | Primary Feeder          | 12.5 kV / 4 kV   | Primary distribution feeders       |
 
-Upstream Substation and Upstream Feeder are combined into a single **upstream** bucket in the output CSVs (capacity-weighted for undiluted variants, summed for diluted).
+Upstream Substation and Upstream Feeder are combined into a single **upstream** bucket internally (capacity-weighted for undiluted variants, summed for diluted). The output CSVs use the harmonized two-bucket schema: `bulk_tx` (zero — no bulk TX) and `sub_tx_and_dist` (= total of all cost centers).
 
 ## Study parameters
 
@@ -201,13 +201,13 @@ No projects enter service in 2026 or 2027 — the incremental MC is zero for tho
 
 8 CSVs in this directory:
 
-| File                                         | Content                                           |
-| -------------------------------------------- | ------------------------------------------------- |
-| `nyseg_incremental_diluted_annualized.csv`   | Year-by-year incremental diluted (nominal + real) |
-| `nyseg_incremental_diluted_levelized.csv`    | Levelized incremental diluted per cost center     |
-| `nyseg_cumulative_diluted_annualized.csv`    | Year-by-year cumulative diluted                   |
-| `nyseg_cumulative_diluted_levelized.csv`     | Levelized cumulative diluted                      |
-| `nyseg_incremental_undiluted_annualized.csv` | Year-by-year incremental undiluted                |
-| `nyseg_incremental_undiluted_levelized.csv`  | Levelized incremental undiluted                   |
-| `nyseg_cumulative_undiluted_annualized.csv`  | Year-by-year cumulative undiluted                 |
-| `nyseg_cumulative_undiluted_levelized.csv`   | Levelized cumulative undiluted                    |
+| File                                         | Content                                                          |
+| -------------------------------------------- | ---------------------------------------------------------------- |
+| `nyseg_incremental_diluted_annualized.csv`   | One row per year: bulk_tx (0) and sub_tx_and_dist (nominal/real) |
+| `nyseg_incremental_diluted_levelized.csv`    | Two rows (bulk_tx=0, sub_tx_and_dist): levelized and final-year  |
+| `nyseg_cumulative_diluted_annualized.csv`    | Same structure, cumulative diluted                               |
+| `nyseg_cumulative_diluted_levelized.csv`     | Same structure, cumulative diluted                               |
+| `nyseg_incremental_undiluted_annualized.csv` | Same structure, incremental undiluted                            |
+| `nyseg_incremental_undiluted_levelized.csv`  | Same structure, incremental undiluted                            |
+| `nyseg_cumulative_undiluted_annualized.csv`  | Same structure, cumulative undiluted                             |
+| `nyseg_cumulative_undiluted_levelized.csv`   | Same structure, cumulative undiluted                             |

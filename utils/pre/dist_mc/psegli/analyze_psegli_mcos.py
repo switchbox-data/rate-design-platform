@@ -48,12 +48,18 @@ BASE_YEAR = 2025
 GDP_DEFLATOR_RATE = 0.021
 
 COST_CENTERS = ["sub_tx", "distribution"]
-BUCKET_KEYS = [*COST_CENTERS, "total"]
+INTERNAL_BUCKET_KEYS = [*COST_CENTERS, "total"]
 
-BUCKET_LABELS = {
+INTERNAL_BUCKET_LABELS = {
     "sub_tx": "Sub-TX (T-Substation, ≤69kV)",
     "distribution": "Distribution (D-Substation + D-Feeders)",
     "total": "Total (Sub-TX + Dist)",
+}
+
+HARMONIZED_BUCKETS = ["bulk_tx", "sub_tx_and_dist"]
+HARMONIZED_LABELS = {
+    "bulk_tx": "Bulk TX",
+    "sub_tx_and_dist": "Sub-TX + Distribution",
 }
 
 VARIANT_NAMES = [
@@ -274,35 +280,29 @@ def levelized(rows: list[MCRow]) -> float:
 
 def export_levelized_csv(
     mc_data: dict[str, list[MCRow]],
-    component_totals: dict[str, float],
-    n_projects_by_cc: dict[str, int],
     path: Path,
 ) -> None:
-    rows = []
-    for key in BUCKET_KEYS:
-        mc_rows = mc_data[key]
-        lev = levelized(mc_rows)
-        final_real = mc_rows[-1].real_mc
-        final_nom = mc_rows[-1].nominal_mc
+    total_rows = mc_data["total"]
+    total_lev = levelized(total_rows)
+    total_final_real = total_rows[-1].real_mc
+    total_final_nom = total_rows[-1].nominal_mc
 
-        if key in component_totals:
-            cap = component_totals[key]
-            n_proj = n_projects_by_cc[key]
-        else:
-            cap = sum(component_totals.values())
-            n_proj = sum(n_projects_by_cc.values())
-
-        rows.append(
-            {
-                "bucket": key,
-                "label": BUCKET_LABELS[key],
-                "n_projects": n_proj,
-                "capacity_mw": round(cap, 1),
-                "levelized_mc_kw_yr": round(lev, 2),
-                "final_year_real_mc_kw_yr": round(final_real, 2),
-                "final_year_nominal_mc_kw_yr": round(final_nom, 2),
-            }
-        )
+    rows = [
+        {
+            "bucket": "bulk_tx",
+            "label": HARMONIZED_LABELS["bulk_tx"],
+            "levelized_mc_kw_yr": 0.0,
+            "final_year_real_mc_kw_yr": 0.0,
+            "final_year_nominal_mc_kw_yr": 0.0,
+        },
+        {
+            "bucket": "sub_tx_and_dist",
+            "label": HARMONIZED_LABELS["sub_tx_and_dist"],
+            "levelized_mc_kw_yr": round(total_lev, 2),
+            "final_year_real_mc_kw_yr": round(total_final_real, 2),
+            "final_year_nominal_mc_kw_yr": round(total_final_nom, 2),
+        },
+    ]
     pl.DataFrame(rows).write_csv(path)
     print(f"  Wrote {path}")
 
@@ -310,11 +310,16 @@ def export_levelized_csv(
 def export_annualized_csv(mc_data: dict[str, list[MCRow]], path: Path) -> None:
     rows = []
     for yi in range(N_YEARS):
-        row: dict[str, object] = {"year": YEARS[yi]}
-        for key in BUCKET_KEYS:
-            row[f"{key}_nominal"] = round(mc_data[key][yi].nominal_mc, 2)
-            row[f"{key}_real"] = round(mc_data[key][yi].real_mc, 2)
-        rows.append(row)
+        total_row = mc_data["total"][yi]
+        rows.append(
+            {
+                "year": YEARS[yi],
+                "bulk_tx_nominal": 0.0,
+                "bulk_tx_real": 0.0,
+                "sub_tx_and_dist_nominal": round(total_row.nominal_mc, 2),
+                "sub_tx_and_dist_real": round(total_row.real_mc, 2),
+            }
+        )
     pl.DataFrame(rows).write_csv(path)
     print(f"  Wrote {path}")
 
@@ -346,7 +351,7 @@ def print_report(
     print(f"  Total capacity:             {total_cap:,.1f} MW")
     for cc in COST_CENTERS:
         print(
-            f"    {BUCKET_LABELS[cc]:40s}  {component_totals[cc]:>8,.1f} MW  ({n_projects_by_cc[cc]} projects)"
+            f"    {INTERNAL_BUCKET_LABELS[cc]:40s}  {component_totals[cc]:>8,.1f} MW  ({n_projects_by_cc[cc]} projects)"
         )
 
     print(f"\n── Classification {'─' * max(1, W - 20)}")
@@ -380,9 +385,9 @@ def print_report(
     for vname in VARIANT_NAMES:
         mc_data = variants[vname]
         print(f"\n  {vname}:")
-        for key in BUCKET_KEYS:
+        for key in INTERNAL_BUCKET_KEYS:
             lev = levelized(mc_data[key])
-            print(f"    {BUCKET_LABELS[key]:40s}  ${lev:7.2f}/kW-yr")
+            print(f"    {INTERNAL_BUCKET_LABELS[key]:40s}  ${lev:7.2f}/kW-yr")
 
     inc_dil = variants["incremental_diluted"]
     print(
@@ -390,12 +395,12 @@ def print_report(
         f"{'─' * max(1, W - 52)}"
     )
     header = f"  {'Year':>4}"
-    for k in BUCKET_KEYS:
+    for k in INTERNAL_BUCKET_KEYS:
         header += f" {k:>14}"
     print(header)
     for yi in range(N_YEARS):
         line = f"  {YEARS[yi]:>4}"
-        for k in BUCKET_KEYS:
+        for k in INTERNAL_BUCKET_KEYS:
             line += f" ${inc_dil[k][yi].nominal_mc:>12.2f}"
         print(line)
 
@@ -494,8 +499,6 @@ def main() -> None:
         prefix = f"psegli_{vname}"
         export_levelized_csv(
             variants[vname],
-            component_totals,
-            n_projects_by_cc,
             out_dir / f"{prefix}_levelized.csv",
         )
         export_annualized_csv(variants[vname], out_dir / f"{prefix}_annualized.csv")

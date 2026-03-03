@@ -316,6 +316,15 @@ def levelized(rows: list[MCRow]) -> float:
 
 # ── CSV export ───────────────────────────────────────────────────────────────
 
+# Harmonized 2-bucket schema: CenHud has no FERC bulk TX, so bulk_tx is
+# always zero and sub_tx_and_dist carries the internal "total" (local_tx +
+# substation + feeder).
+
+EXPORT_BUCKETS = [
+    ("bulk_tx", "Bulk TX"),
+    ("sub_tx_and_dist", "Sub-TX + Distribution"),
+]
+
 
 def export_levelized_csv(
     mc_data: dict[str, list[MCRow]],
@@ -323,23 +332,31 @@ def export_levelized_csv(
     path: Path,
 ) -> None:
     rows = []
-    for key in BUCKET_KEYS:
-        mc_rows = mc_data[key]
-        projs = bucket_projects[key]
-        lev = levelized(mc_rows)
-        final_real = mc_rows[-1].real_mc
-        final_nom = mc_rows[-1].nominal_mc
-        rows.append(
-            {
-                "bucket": key,
-                "label": BUCKET_LABELS[key],
-                "n_projects": len(projs),
-                "capacity_mw": round(sum(p.capacity_kw for p in projs) / 1000, 1),
-                "levelized_mc_kw_yr": round(lev, 2),
-                "final_year_real_mc_kw_yr": round(final_real, 2),
-                "final_year_nominal_mc_kw_yr": round(final_nom, 2),
-            }
-        )
+    for bucket_key, bucket_label in EXPORT_BUCKETS:
+        if bucket_key == "bulk_tx":
+            rows.append(
+                {
+                    "bucket": bucket_key,
+                    "label": bucket_label,
+                    "levelized_mc_kw_yr": 0.0,
+                    "final_year_real_mc_kw_yr": 0.0,
+                    "final_year_nominal_mc_kw_yr": 0.0,
+                }
+            )
+        else:
+            mc_rows = mc_data["total"]
+            lev = levelized(mc_rows)
+            final_real = mc_rows[-1].real_mc
+            final_nom = mc_rows[-1].nominal_mc
+            rows.append(
+                {
+                    "bucket": bucket_key,
+                    "label": bucket_label,
+                    "levelized_mc_kw_yr": round(lev, 2),
+                    "final_year_real_mc_kw_yr": round(final_real, 2),
+                    "final_year_nominal_mc_kw_yr": round(final_nom, 2),
+                }
+            )
     pl.DataFrame(rows).write_csv(path)
     print(f"  Wrote {path}")
 
@@ -348,9 +365,10 @@ def export_annualized_csv(mc_data: dict[str, list[MCRow]], path: Path) -> None:
     rows = []
     for yi, yr in enumerate(YEARS):
         row: dict[str, object] = {"year": yr}
-        for key in BUCKET_KEYS:
-            row[f"{key}_nominal"] = round(mc_data[key][yi].nominal_mc, 2)
-            row[f"{key}_real"] = round(mc_data[key][yi].real_mc, 2)
+        row["bulk_tx_nominal"] = 0.0
+        row["bulk_tx_real"] = 0.0
+        row["sub_tx_and_dist_nominal"] = round(mc_data["total"][yi].nominal_mc, 2)
+        row["sub_tx_and_dist_real"] = round(mc_data["total"][yi].real_mc, 2)
         rows.append(row)
     pl.DataFrame(rows).write_csv(path)
     print(f"  Wrote {path}")

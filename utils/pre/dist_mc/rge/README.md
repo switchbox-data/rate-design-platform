@@ -54,6 +54,6 @@ RG&E has only 1 upstream substation project (vs. NYSEG's 30) — most upstream i
 
 ## Outputs
 
-8 CSVs in this directory, following the same naming convention as NYSEG:
+8 CSVs in this directory, following the same naming convention and harmonized two-bucket schema as NYSEG (bulk_tx=0, sub_tx_and_dist):
 
 `rge_{cumulative,incremental}_{diluted,undiluted}_{annualized,levelized}.csv`

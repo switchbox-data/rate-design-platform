@@ -210,8 +210,8 @@ This is an artifact of the study horizon — projects without firm schedules are
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
 | `nimo_project_classifications.csv`                                 | One row per project: classification, voltage, inference method, evidence text, sub-project names, confidence level. |
 | `reclassify_nimo_projects.py`                                      | The script that produces the CSV. All manual decisions are encoded as commented data structures at the top.         |
-| `nimo_{cumulative,incremental}_{diluted,undiluted}_levelized.csv`  | One row per bucket with levelized MC ($/kW-yr), final-year real and nominal MC.                                     |
-| `nimo_{cumulative,incremental}_{diluted,undiluted}_annualized.csv` | One row per fiscal year, columns per bucket with nominal and real MC ($/kW-yr).                                     |
+| `nimo_{cumulative,incremental}_{diluted,undiluted}_levelized.csv`  | Two rows (bulk_tx, sub_tx_and_dist): levelized MC ($/kW-yr), final-year real and nominal MC.                        |
+| `nimo_{cumulative,incremental}_{diluted,undiluted}_annualized.csv` | One row per year: bulk_tx and sub_tx_and_dist nominal and real MC ($/kW-yr).                                        |
 
 ## How to reproduce the classification (manual process)
 
