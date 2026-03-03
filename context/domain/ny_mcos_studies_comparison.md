@@ -1086,15 +1086,15 @@ We evaluated three common windows:
 
 | Utility | 5 yr (2026–2030) | 7 yr (2026–2032) | Full window | Full span |
 | ------- | ---------------: | ---------------: | ----------: | --------- |
-| ConEd   |             5.74 |             8.32 |        8.31 | 2025–2034 |
-| O&R     |             3.95 |             3.81 |        4.58 | 2025–2034 |
+| ConEd   |             5.88 |             8.52 |        8.51 | 2025–2034 |
+| O&R     |             4.04 |             3.90 |        4.69 | 2025–2034 |
 | CenHud  |             2.07 |             3.93 |        4.24 | 2026–2035 |
 | NiMo    |             3.87 |             4.49 |       10.13 | 2026–2036 |
 | NYSEG   |             2.49 |             4.40 |       14.78 | 2026–2035 |
 | RG&E    |             2.62 |             4.36 |       18.10 | 2026–2035 |
-| PSEG-LI |             1.25 |             1.13 |        1.67 | 2025–2032 |
+| PSEG-LI |             1.28 |             1.16 |        1.70 | 2025–2032 |
 
-All values are sub_tx_and_dist incremental diluted real $/kW-yr (not yet rebased to common 2026 dollars).
+All values are sub_tx_and_dist incremental diluted real 2026 $/kW-yr.
 
 The full-window values for NYSEG ($14.78) and RG&E ($18.10) are 3–4× their 7-year values, driven by massive back-loading in 2033–2035 (NYSEG: $39+$44+$34/kW-yr; RG&E: $30+$45+$76). Similarly NiMo's full-window ($10.13) is 2.3× its 7-year value ($4.49) because of the FY2036 horizon spike. The 7-year window excludes this back-loading; the 5-year window additionally excludes 2031–2032.
 
@@ -1155,20 +1155,42 @@ To choose between 5 and 7 years, we examined the actual projects that fall in 20
 
 4. **The window is the same for all utilities.** All seven have data covering 2026–2032. No utility is truncated or needs extrapolation.
 
+### Base-year rebase to common 2026 dollars
+
+Three utilities — ConEd, O&R, and PSEG-LI — have study periods starting in 2025, with real values expressed in 2025 base-year dollars. The other four (CenHud, NiMo, NYSEG, RG&E) use 2026 as their base year. To make the levelized values directly comparable, we rebase all real values to a common **2026 dollar year** before levelizing.
+
+The rebase multiplier is the one-year escalation factor from each utility's workbook:
+
+- **ConEd / O&R**: The GDP escalation index parsed from their respective Schedule 11 / Schedule 10 sheets gives `escalation[2026]` ≈ 1.024 (relative to escalation[2025] = 1.0). This is applied as a constant multiplier to all real MC values in the `compute_mc` function.
+- **PSEG-LI**: Uses an explicit 2.1% GDP deflator rate; `REBASE_FACTOR = 1.021^1 = 1.021`. Applied to the filing's undiluted MC rate before computing year-by-year values.
+- **CenHud / NiMo / NYSEG / RG&E**: Already in 2026 dollars; no adjustment needed.
+
 ### Summary: recommended BAT input
 
 The BAT input for sub-TX and distribution marginal cost is the **levelized incremental diluted** value over the **2026–2032 window** (7 years), using **real** (constant-dollar) values **rebased to 2026 dollars**, with **no discounting**:
 
-| Utility | Levelized inc. diluted (real $/kW-yr, 2026–2032) |
-| ------- | -----------------------------------------------: |
-| PSEG-LI |                                             1.13 |
-| CenHud  |                                             3.93 |
-| O&R     |                                             3.81 |
-| NiMo    |                                             4.49 |
-| NYSEG   |                                             4.40 |
-| RG&E    |                                             4.36 |
-| ConEd   |                                             8.32 |
+| Utility | Levelized inc. diluted (real 2026 $/kW-yr, 2026–2032) |
+| ------- | ----------------------------------------------------: |
+| PSEG-LI |                                                  1.16 |
+| O&R     |                                                  3.90 |
+| CenHud  |                                                  3.93 |
+| RG&E    |                                                  4.36 |
+| NYSEG   |                                                  4.40 |
+| NiMo    |                                                  4.49 |
+| ConEd   |                                                  8.52 |
 
-(Values not yet rebased to common 2026 dollars; ConEd/O&R/PSEG-LI values are in 2025 dollars and should be multiplied by ~1.02 for alignment.)
+This represents: "the average annual forward-looking sub-TX and distribution investment cost per kW of system peak, in constant 2026 dollars, over a 7-year near-term planning horizon."
 
-This represents: "the average annual forward-looking sub-TX and distribution investment cost per kW of system peak, in constant dollars, over a 7-year near-term planning horizon."
+### Sanity check: do the values match what we know about these utilities?
+
+The 7x spread between ConEd ($8.52) and PSEG-LI ($1.16) is large, but it is fully explained by the underlying project data and system characteristics:
+
+1. **ConEd is highest** — despite the largest system peak (12,000 MW denominator), ConEd has massive named substation projects entering in the window: Parkchester #2, Idlewild, Gateway, Parkview in 2028 (~$2B) and Nevins Street, Hillside, Bruckner in 2032 (~$2.4B). Plus annual primary/transformer/secondary distribution sample costs. NYC underground infrastructure is categorically more expensive per kW than anywhere else in the state.
+
+2. **PSEG-LI is lowest** — the second-largest peak (4,935 MW) dilutes relatively modest investment. Year-by-year incremental diluted is very flat ($0.6–$1.9/kW-yr nominal). Most capacity enters early (2025–2027); 2030–2032 additions are small. Long Island's overhead distribution and lower infrastructure density explain the gap with ConEd.
+
+3. **NYSEG ≈ RG&E** ($4.40 vs $4.36) — these sister Avangrid utilities, both analyzed with the same CRA methodology, should have similar near-term investment intensity. At the full study period they looked very different ($14.78 vs $18.10) due to differential back-loading artifacts. The 7-year window strips that noise, and their convergence is reassuring.
+
+4. **The mid-tier cluster** (O&R $3.90, CenHud $3.93, RG&E $4.36, NYSEG $4.40, NiMo $4.49) — these are all suburban/rural upstate and suburban NY utilities with moderate investment profiles. The tight $3.90–$4.49 band is consistent with their similar infrastructure types and investment horizons.
+
+5. **Ordering matches physical intuition** — dense urban underground (ConEd) >> large upstate territory with significant sub-TX (NiMo, NYSEG/RG&E) ≈ smaller suburban (CenHud, O&R) >> large-peak overhead (PSEG-LI).

@@ -112,7 +112,7 @@ Levelized = mean(real MC) over the 7-year levelization window (2026–2032), con
 | Bucket                          | Levelized MC ($/kW-yr) |
 | ------------------------------- | ---------------------: |
 | bulk_tx                         |                  $0.00 |
-| **sub_tx_and_dist (BAT input)** |              **$1.13** |
+| **sub_tx_and_dist (BAT input)** |              **$1.16** |
 
 ## Study parameters
 

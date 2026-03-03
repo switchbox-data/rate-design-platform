@@ -66,6 +66,7 @@ import polars as pl
 YEARS = list(range(2025, 2035))  # 2025 through 2034
 N_YEARS = len(YEARS)
 LEVELIZATION_YEARS = range(2026, 2033)  # 7-year window for BAT input
+REBASE_YEAR = 2026  # all real values rebased to 2026 dollars
 
 COST_CENTERS = ["transmission", "substation", "primary", "transformer", "secondary"]
 LOCAL_CENTERS = ["substation", "primary", "transformer", "secondary"]
@@ -203,7 +204,7 @@ class MCRow:
     annual_rr_k: float
     escalation: float
     nominal_mc: float  # with escalation ($/kW-yr)
-    real_mc: float  # base-year dollars ($/kW-yr)
+    real_mc: float  # 2026 dollars ($/kW-yr)
 
 
 # ── Workbook I/O ─────────────────────────────────────────────────────────────
@@ -403,13 +404,14 @@ def compute_mc(
     capital is in $000s, denominator in MW ⇒ $000s/MW = $/kW.
     When denominator is 0 (no capacity in that year), MC is 0.
     """
+    rebase = escalation.get(REBASE_YEAR, 1.0)
     rows: list[MCRow] = []
     for yr in YEARS:
         cap = capital_by_year.get(yr, 0.0)
         esc = escalation.get(yr, 1.0)
         denom = denominator_by_year.get(yr, 0.0)
         rr_nom = cap * composite_rate * esc
-        rr_real = cap * composite_rate
+        rr_real = cap * composite_rate * rebase
         nom_mc = rr_nom / denom if denom > 0 else 0.0
         real_mc = rr_real / denom if denom > 0 else 0.0
         rows.append(MCRow(yr, cap, rr_nom, esc, nom_mc, real_mc))

@@ -45,8 +45,10 @@ import polars as pl
 YEARS = list(range(2025, 2033))
 N_YEARS = len(YEARS)
 LEVELIZATION_YEARS = range(2026, 2033)  # 7-year window for BAT input
-BASE_YEAR = 2025
+BASE_YEAR = 2025  # filing's base year for capital costs
+REBASE_YEAR = 2026  # all real values rebased to 2026 dollars
 GDP_DEFLATOR_RATE = 0.021
+REBASE_FACTOR = (1 + GDP_DEFLATOR_RATE) ** (REBASE_YEAR - BASE_YEAR)
 
 COST_CENTERS = ["sub_tx", "distribution"]
 INTERNAL_BUCKET_KEYS = [*COST_CENTERS, "total"]
@@ -123,11 +125,11 @@ class MCRow:
     """One year's MC for a bucket."""
 
     year: int
-    cost_real_k: float
+    cost_real_k: float  # 2026 dollars ($000s)
     cost_nominal_k: float
     denominator_mw: float
     nominal_mc: float
-    real_mc: float
+    real_mc: float  # 2026 dollars ($/kW-yr)
 
 
 # ── CSV reading ──────────────────────────────────────────────────────────────
@@ -179,7 +181,8 @@ def get_component_totals(
 
 
 def _escalation(year: int) -> float:
-    return (1 + GDP_DEFLATOR_RATE) ** (year - BASE_YEAR)
+    """Escalation factor from REBASE_YEAR (2026) to the given year."""
+    return (1 + GDP_DEFLATOR_RATE) ** (year - REBASE_YEAR)
 
 
 def compute_component_mc(
@@ -190,7 +193,7 @@ def compute_component_mc(
     cumulative: bool,
     diluted: bool,
 ) -> list[MCRow]:
-    mc_real = params.undiluted_mc
+    mc_real = params.undiluted_mc * REBASE_FACTOR
     system_peak_kw = system_peak_mw * 1000
     rows: list[MCRow] = []
 
