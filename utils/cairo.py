@@ -420,8 +420,8 @@ def load_bulk_tx_marginal_costs(
 ) -> pd.Series:
     """Load bulk transmission marginal costs from a parquet path and return a tz-aware Series.
 
-    Reads parquet with columns ``timestamp`` and ``bulk_tx_cost_enduse`` ($/MWh),
-    converts to $/kWh (÷ 1000), TZ-localizes to EST, and returns a Series named
+    Reads parquet with columns ``timestamp`` and ``bulk_tx_cost_enduse`` ($/kWh),
+    TZ-localizes to EST, and returns a Series named
     ``"Marginal Bulk Transmission Costs ($/kWh)"``.
 
     The output mirrors the shape of :func:`load_dist_and_sub_tx_marginal_costs` so the
@@ -462,7 +462,7 @@ def load_bulk_tx_marginal_costs(
             len(df),
         )
 
-    series = df.set_index("timestamp")["bulk_tx_cost_enduse"] / 1000.0  # $/MWh → $/kWh
+    series = df.set_index("timestamp")["bulk_tx_cost_enduse"]  # Already in $/kWh
     series.index = pd.DatetimeIndex(series.index).tz_localize("EST")
     series.index.name = "time"
     series.name = "Marginal Bulk Transmission Costs ($/kWh)"

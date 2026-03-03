@@ -17,7 +17,7 @@ The allocation method (two-level):
         w_h = exc_h / Σ exc_h  (sums to 1 within season)
     Hourly allocation:
         pi_h = v_z × φ_season × w_h   [$/kW-yr]
-        bulk_tx_cost_enduse_h = pi_h × 1000   [$/MWh]
+        bulk_tx_cost_enduse_h = pi_h   [$/kWh]
     Global weights sum to 1: Σ (φ_s × Σw_s + φ_w × Σw_w) = φ_s + φ_w = 1.
 
 Input data:
@@ -31,7 +31,7 @@ Input data:
 
 Output:
     s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility={utility}/year={YYYY}/data.parquet
-    Schema: timestamp (datetime), bulk_tx_cost_enduse ($/MWh), 8760 rows
+    Schema: timestamp (datetime), bulk_tx_cost_enduse ($/kWh), 8760 rows
 
 Usage:
     # Inspect results (no upload)
@@ -355,7 +355,7 @@ def allocate_bulk_tx_to_hours(
 
     Hourly allocation:
         pi_h = v_z × φ_season × w_h   [$/kW-yr]
-        bulk_tx_cost_enduse_h = pi_h × 1000   [$/MWh]
+        bulk_tx_cost_enduse_h = pi_h   [$/kWh]
 
     Global weights sum to 1 by construction:
         Σ_all w_h = φ_s × Σ_summer w_h + φ_w × Σ_winter w_h = φ_s + φ_w = 1.
@@ -368,7 +368,7 @@ def allocate_bulk_tx_to_hours(
             threshold for each season (default: N_SCR_HOURS_PER_SEASON).
 
     Returns:
-        DataFrame with columns: timestamp, bulk_tx_cost_enduse ($/MWh).
+        DataFrame with columns: timestamp, bulk_tx_cost_enduse ($/kWh).
     """
     # One group_by pass: seasonal peak and SCR threshold (the (N+1)th highest load).
     season_stats = load_with_scr.group_by("season").agg(
@@ -422,7 +422,7 @@ def allocate_bulk_tx_to_hours(
         .with_columns(
             (pl.col("exceedance") / pl.col("exc_sum") * pl.col("phi")).alias("weight")
         )
-        .with_columns((pl.col("weight") * v_z * 1000.0).alias("bulk_tx_cost_enduse"))
+        .with_columns((pl.col("weight") * v_z).alias("bulk_tx_cost_enduse"))
     )
 
     weight_sum = float(result["weight"].sum())
@@ -446,7 +446,7 @@ def allocate_bulk_tx_to_hours(
     print(
         f"\nAllocation:  v_z={v_z:.4f} $/kW-yr  |  non-zero={n_nonzero} hrs  |  weight_sum={weight_sum:.6f}"
     )
-    print(f"  avg={avg_nonzero:.2f} $/MWh  max={max_cost:.2f} $/MWh")
+    print(f"  avg={avg_nonzero:.6f} $/kWh  max={max_cost:.6f} $/kWh")
 
     return result.select("timestamp", "bulk_tx_cost_enduse")
 
@@ -464,11 +464,11 @@ def prepare_output(
     non-SCR hours with 0.
 
     Args:
-        allocated_df: Allocated costs (timestamp, bulk_tx_cost_enduse in $/MWh).
+        allocated_df: Allocated costs (timestamp, bulk_tx_cost_enduse in $/kWh).
         year: Target year.
 
     Returns:
-        DataFrame with 8760 rows: timestamp, bulk_tx_cost_enduse ($/MWh).
+        DataFrame with 8760 rows: timestamp, bulk_tx_cost_enduse ($/kWh).
     """
     ref_8760 = build_cairo_8760_timestamps(year)
 
@@ -515,7 +515,7 @@ def save_output(
     Path: {output_s3_base}/utility={utility}/year={year}/data.parquet
 
     Args:
-        output_df: Bulk Tx MC DataFrame (timestamp, bulk_tx_cost_enduse).
+        output_df: Bulk Tx MC DataFrame (timestamp, bulk_tx_cost_enduse in $/kWh).
         utility: Utility name.
         year: Target year.
         output_s3_base: S3 base path.
@@ -731,7 +731,7 @@ def main() -> None:
     max_cost = float(output_df["bulk_tx_cost_enduse"].max())  # type: ignore[arg-type]
     n_nonzero = output_df.filter(pl.col("bulk_tx_cost_enduse") > 0).height
     print("\nOutput summary:")
-    print(f"  avg = ${avg_cost:.2f}/MWh, max = ${max_cost:.2f}/MWh")
+    print(f"  avg = ${avg_cost:.6f}/kWh, max = ${max_cost:.6f}/kWh")
     print(f"  {n_nonzero} non-zero hours out of 8760")
 
     # ── 8. Save ───────────────────────────────────────────────────────────

@@ -185,7 +185,7 @@ w_h   = exc_h / Σ exc_h             [sums to 1 within season]
 
 ```
 pi_h = v_z × φ_season × w_h         [$/kW-yr]
-bulk_tx_cost_enduse_h = pi_h × 1000 [$/MWh]
+bulk_tx_cost_enduse_h = pi_h        [$/kWh]
 ```
 
 Global weights sum to 1 by construction: φ_s·Σw_s + φ_w·Σw_w = φ_s + φ_w = 1.
@@ -207,10 +207,10 @@ PSEGLI shows the highest φ_s because its summer peak (5,543 MW) is nearly doubl
 
 ### MC Loading Pipeline
 
-The hourly bulk Tx MC trace (8760 rows, $/MWh) is loaded and combined with the delivery-side
+The hourly bulk Tx MC trace (8760 rows, $/kWh) is loaded and combined with the delivery-side
 dist+sub-tx MC in `utils/cairo.py`:
 
-- **`load_bulk_tx_marginal_costs(path)`**: Loads bulk Tx MC parquet, converts $/MWh → $/kWh, returns Series with EST timezone
+- **`load_bulk_tx_marginal_costs(path)`**: Loads bulk Tx MC parquet (stored as $/kWh), returns Series with EST timezone
 - **`_align_mc_to_index(mc_series, target_index, mc_type)`**: Shared utility for aligning any MC Series to a target DatetimeIndex. Handles same-length position alignment (when MC file year differs from run year) and reindexing for different lengths.
 - **`add_bulk_tx_and_distribution_marginal_cost(path_distribution_mc, path_bulk_tx_mc, target_index)`**: High-level function that:
   1. Loads dist+sub-tx MC (required; `mc_total_per_kwh` from `generate_utility_tx_dx_mc.py`)

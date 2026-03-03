@@ -217,9 +217,10 @@ class TestAllocateBulkTxToHours:
         v_z = 50.0  # $/kW-yr
         allocated = allocate_bulk_tx_to_hours(load_with_scr, v_z)
 
-        # 1 kW × 1 hour × $/MWh / 1000 = $/kWh contribution
+        # 1 kW × 1 hour = 1 kWh
+        # bulk_tx_cost_enduse is in $/kWh
         # Sum over all hours = v_z $/kW-yr
-        actual = float(allocated["bulk_tx_cost_enduse"].sum()) / 1000.0
+        actual = float(allocated["bulk_tx_cost_enduse"].sum())
         assert abs(actual - v_z) < v_z * 1e-4, (
             f"1 kW recovery: expected {v_z}, got {actual}"
         )
@@ -264,7 +265,7 @@ class TestAllocateBulkTxToHours:
         load_with_scr = identify_scr_hours(load_df, n_hours_per_season=40)
         allocated = allocate_bulk_tx_to_hours(load_with_scr, v_z)
 
-        actual = float(allocated["bulk_tx_cost_enduse"].sum()) / 1000.0
+        actual = float(allocated["bulk_tx_cost_enduse"].sum())
         assert abs(actual - v_z) < v_z * 1e-4
 
 
@@ -368,7 +369,7 @@ class TestPrepareOutput:
         allocated = allocate_bulk_tx_to_hours(load_with_scr, v_z)
         output = prepare_output(allocated, year=2025)
 
-        actual = float(output["bulk_tx_cost_enduse"].sum()) / 1000.0
+        actual = float(output["bulk_tx_cost_enduse"].sum())
         assert abs(actual - v_z) < v_z * 1e-4
 
     def test_correct_nonzero_count(self) -> None:
