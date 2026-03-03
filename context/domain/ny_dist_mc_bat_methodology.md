@@ -1,6 +1,6 @@
 # Sub-TX and distribution marginal cost: shared methodology for BAT inputs
 
-How we derive comparable sub-transmission and distribution marginal cost inputs for the Bill Alignment Test (BAT) from the seven heterogeneous NY MCOS study workbooks. For a comparison of the studies themselves, see `ny_mcos_studies_comparison.md`. For per-utility implementation details (cell references, script usage, output format), see the READMEs in `utils/pre/dist_mc/`.
+How we derive comparable sub-transmission and distribution marginal cost inputs for the Bill Alignment Test (BAT) from the seven heterogeneous NY MCOS study workbooks. For a comparison of the studies themselves, see `ny_mcos_studies_comparison.md`. For per-utility implementation details (cell references, script usage, output format), see the [per-utility READMEs](#per-utility-readmes) below.
 
 ---
 
@@ -15,6 +15,20 @@ The BAT requires a sub-TX and distribution marginal cost ($/kW-yr) for each util
 5. Outputs eight CSVs per utility (annualized + levelized for each variant).
 
 The result is seven levelized incremental diluted values — one per utility — that answer: "what is the average annual forward-looking sub-TX and distribution investment cost per kW of system peak, in constant 2026 dollars, over a 7-year near-term planning horizon?"
+
+### Per-utility READMEs
+
+Each utility directory in `utils/pre/dist_mc/` has a README with cell-level workbook references, per-project tables, worked examples, and script usage instructions. This document provides the shared methodology and cross-utility rationale; the READMEs provide the implementation-level detail for each utility.
+
+| Utility | README                                                       | Focus areas                                                                                     |
+| ------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| ConEd   | [coned/README.md](../../utils/pre/dist_mc/coned/README.md)   | CWIP cashflow-stabilization heuristic, composite rates, 17 substation + 5 TX projects           |
+| O&R     | [or/README.md](../../utils/pre/dist_mc/or/README.md)         | Bulk vs. local TX split, Primary budget-based ISD, Secondary flat $/kW                          |
+| CenHud  | [cenhud/README.md](../../utils/pre/dist_mc/cenhud/README.md) | Peak-share vs. capacity-based dilution, flat nominal escalation, "Future Unidentified" projects |
+| NiMo    | [nimo/README.md](../../utils/pre/dist_mc/nimo/README.md)     | Gold Book classification of 238 projects, ECCR+F-value mechanics, FY2036 horizon spike          |
+| NYSEG   | [nyseg/README.md](../../utils/pre/dist_mc/nyseg/README.md)   | CRA→NERA re-analysis, W2 parsing, loss factors, composite rate derivation                       |
+| RG&E    | [rge/README.md](../../utils/pre/dist_mc/rge/README.md)       | Same CRA methodology as NYSEG, smaller system with higher diluted MC                            |
+| PSEG-LI | [psegli/README.md](../../utils/pre/dist_mc/psegli/README.md) | PDF-only source, LIPA voltage architecture, two-step classify→analyze pipeline                  |
 
 ---
 
@@ -169,17 +183,17 @@ Bold entries indicate deviations from the shared pipeline that required normaliz
 
 ConEd and O&R use the NERA methodology with composite rates. Their workbooks present cumulative cost centers (Transmission, Substation for both; Primary for O&R) as **aggregate** capital-by-year totals in the left half of each sheet. These aggregate totals include Construction Work In Progress (CWIP) — capital spent on projects still under construction but not yet in service.
 
-**The problem.** Reading aggregate totals directly would include CWIP before any capacity is added, inflating early-year cumulative capital and producing an inconsistency with NiMo/CenHud (which exclude CWIP because projects contribute only when complete).
+**The problem.** Reading aggregate totals directly would include CWIP before any capacity is added, inflating early-year cumulative capital and producing an inconsistency with NiMo/CenHud (which exclude CWIP because projects contribute only when complete). See Appendix E for the full treatment.
 
 **The solution.** Both workbooks contain per-project data in the **right half** of the cumulative cost center sheets: project name, capacity in MW, and year-by-year cumulative cashflow columns spanning the study period. We read this project-level data and infer in-service years using a **cashflow-stabilization heuristic**: the in-service year is the first year at which the cumulative cashflow reaches its final value (i.e., CWIP ends and the project is complete).
 
 For O&R Primary, the data is structured differently: each project's annual budget (not cumulative cashflow) appears in columns X–AG, with zeros before the project starts and a constant value afterward. The in-service year is the first nonzero column.
 
-**Bulk TX treatment.** ConEd's "Transmission System" cost center covers FERC-jurisdictional 138/345 kV facilities. O&R has the same structure. Both are excluded from the `sub_tx_and_dist` bucket (and available in the `bulk_tx` bucket for separate use).
+**Bulk TX treatment.** ConEd's "Transmission System" cost center covers FERC-jurisdictional 138/345 kV facilities ([details](../../utils/pre/dist_mc/coned/README.md#bulk-tx-treatment)). O&R has the same structure with a bulk/local split ([details](../../utils/pre/dist_mc/or/README.md#capex-transmission-split-bulk-vs-local)). Both are excluded from the `sub_tx_and_dist` bucket (and available in the `bulk_tx` bucket for separate use).
 
-**Base year rebase.** Both studies start in 2025 with real values in 2025 dollars. Rebased to 2026 using the GDP escalation index from their workbooks (×1.024).
+**Base year rebase.** Both studies start in 2025 with real values in 2025 dollars. Rebased to 2026 using the GDP escalation index from their workbooks (×1.024). See ConEd [escalation](../../utils/pre/dist_mc/coned/README.md#escalation) and O&R [escalation](../../utils/pre/dist_mc/or/README.md#escalation) for the workbook source cells.
 
-See the ConEd and O&R READMEs for cell-level workbook references and worked examples.
+For cell-level workbook references, per-project tables, and worked examples, see the [ConEd README](../../utils/pre/dist_mc/coned/README.md#per-project-data) and [O&R README](../../utils/pre/dist_mc/or/README.md#per-project-data).
 
 ### 4.2. CenHud
 
@@ -192,11 +206,11 @@ escalation(Y) = 1.021^(Y − 2026)
 nominal_mc(Y) = real_mc(Y) × escalation(Y)
 ```
 
-The 2.1% rate matches NiMo's steady-state rate and ConEd/O&R's rate from year 2 onward. The `real_mc` column preserves the workbook's original flat values. The levelized MC (mean of `real_mc`) is unaffected.
+The 2.1% rate matches NiMo's steady-state rate and ConEd/O&R's rate from year 2 onward. The `real_mc` column preserves the workbook's original flat values. The levelized MC (mean of `real_mc`) is unaffected. See the CenHud README for the [full escalation treatment](../../utils/pre/dist_mc/cenhud/README.md#escalation-applied-for-cross-utility-consistency).
 
-**Diluted formula.** CenHud's workbook computes diluted MC using **peak-share weighting**: each project's cost is weighted by how much of the system's load its service area represents (`peak_share`). The other utilities all weight by `capacity / system_peak`. These produce different values because `peak_share(p) ≠ capacity(p) / system_peak`. We normalize CenHud to capacity-based for cross-utility consistency. See Appendix C for the detailed comparison.
+**Diluted formula.** CenHud's workbook computes diluted MC using **peak-share weighting**: each project's cost is weighted by how much of the system's load its service area represents (`peak_share`). The other utilities all weight by `capacity / system_peak`. These produce different values because `peak_share(p) ≠ capacity(p) / system_peak`. We normalize CenHud to capacity-based for cross-utility consistency. See Appendix C for the detailed comparison and the CenHud README for [workbook Table 2 reference values](../../utils/pre/dist_mc/cenhud/README.md#table-2--system-wide-diluted--workbook-peak-share-formula-not-our-output).
 
-**Bulk TX.** CenHud has no FERC-jurisdictional bulk transmission. The "Local Transmission" cost center covers 69 kV and 115/69 kV areas — all explicitly labeled "local." All three cost centers are included in `sub_tx_and_dist`.
+**Bulk TX.** CenHud has no FERC-jurisdictional bulk transmission ([details](../../utils/pre/dist_mc/cenhud/README.md#bulk-tx-treatment)). The "Local Transmission" cost center covers 69 kV and 115/69 kV areas — all explicitly labeled "local." All three cost centers are included in `sub_tx_and_dist`.
 
 ### 4.3. NiMo
 
@@ -208,17 +222,17 @@ NiMo's workbook labels cost components as T-Station / T-Line / D-Station / D-Lin
 - **Sub-TX** (69–115kV): 47 projects, 6,889 MW, $6.71B. Included in `sub_tx_and_dist`.
 - **Distribution** (≤13.2kV): 189 projects, 2,543 MW, $2.93B. Included in `sub_tx_and_dist`.
 
-Full classifications with evidence are in `utils/pre/dist_mc/nimo/nimo_project_classifications.csv` and are reproducible via `classify_nimo_projects.py`.
+Full classifications with evidence are in `utils/pre/dist_mc/nimo/nimo_project_classifications.csv` and are reproducible via `classify_nimo_projects.py`. The NiMo README documents the [8-step classification procedure](../../utils/pre/dist_mc/nimo/README.md#how-to-reproduce-the-classification) and [Gold Book inputs](../../utils/pre/dist_mc/nimo/README.md#inputs-for-classification).
 
-**Annualization.** NiMo uses the simplest approach: bare ECCR × capital/MW with no additional loaders. The F columns in the workbook provide pre-computed annualized costs per year, inflating at 2.1%/yr.
+**Annualization.** NiMo uses the simplest approach: bare ECCR × capital/MW with no additional loaders. The F columns in the workbook provide pre-computed annualized costs per year, inflating at 2.1%/yr. See the NiMo README for [ECCR vs. F-value mechanics](../../utils/pre/dist_mc/nimo/README.md#eccr-vs-f-value-relationship) and [workbook layout](../../utils/pre/dist_mc/nimo/README.md#workbook-layout-exhibit-1-sheet-1).
 
-**FY2036 horizon spike.** NiMo backloads ~4,700 MW of sub-TX and distribution projects into the final fiscal year (FY2036), producing a $59/kW-yr spike. The 7-year levelization window (2026–2032) excludes this artifact.
+**FY2036 horizon spike.** NiMo backloads ~4,700 MW of sub-TX and distribution projects into the final fiscal year (FY2036), producing a $59/kW-yr spike ([details](../../utils/pre/dist_mc/nimo/README.md#fy2036-spike-in-incremental-diluted)). The 7-year levelization window (2026–2032) excludes this artifact.
 
 ### 4.4. NYSEG and RG&E
 
 NYSEG and RG&E were analyzed by CRA International using a more complex methodology than NERA. CRA computes MC at each substation using location-specific growth factors, demand-related loss factors, within-division adjustments, and N-0/N-1 capacity analysis. The final system-wide tables embed these adjustments, making them not directly comparable to the NERA utilities.
 
-**The solution.** The CRA workbooks contain **W2 (Investment Location Detail)** with per-project data: capital, capacity (MVA, derated to 90% utilization), in-service date, division, and cost center. We read W2 directly and apply NERA-style project-level aggregation.
+**The solution.** The CRA workbooks contain **W2 (Investment Location Detail)** with per-project data: capital, capacity (MVA, derated to 90% utilization), in-service date, division, and cost center. We read W2 directly and apply NERA-style project-level aggregation ([rationale](../../utils/pre/dist_mc/nyseg/README.md#why-nera-style-instead-of-cra-native)).
 
 **Composite rate** is derived from W2 by comparing col 51 (fully loaded annualized $/kW-yr) to col 31 (capital $/kW) at each project's in-service year:
 
@@ -227,7 +241,7 @@ NYSEG and RG&E were analyzed by CRA International using a more complex methodolo
 | Substation | 0.10248 | 0.10283 |
 | Feeder     | 0.09801 | 0.09836 |
 
-**Loss factors** from W4 are applied when computing the "Total at Primary" column:
+**Loss factors** from W4 are applied when computing the "Total at Primary" column (see NYSEG [loss factors](../../utils/pre/dist_mc/nyseg/README.md#loss-factors) and RG&E [loss factors](../../utils/pre/dist_mc/rge/README.md#loss-factors)):
 
 | Factor             | NYSEG  | RG&E   |
 | ------------------ | ------ | ------ |
@@ -235,23 +249,23 @@ NYSEG and RG&E were analyzed by CRA International using a more complex methodolo
 | Dist sub → primary | 1.0292 | 1.0320 |
 | Primary → primary  | 1.0220 | 1.0228 |
 
-**Bulk TX.** CRA explicitly excludes NYISO TSCs. All cost centers are included in `sub_tx_and_dist`.
+**Bulk TX.** CRA explicitly excludes NYISO TSCs ([NYSEG](../../utils/pre/dist_mc/nyseg/README.md#bulk-tx-treatment), [RG&E](../../utils/pre/dist_mc/rge/README.md#bulk-tx-treatment)). All cost centers are included in `sub_tx_and_dist`.
 
-**System peak.** NYSEG/RG&E use the 2035 forecast peak (2,036 MW and 1,429 MW respectively) — larger than the current actual. This systematically lowers diluted values relative to current-peak-based utilities.
+**System peak.** NYSEG/RG&E use the 2035 forecast peak (2,036 MW and 1,429 MW respectively) — larger than the current actual. This systematically lowers diluted values relative to current-peak-based utilities. See the RG&E README for a [worked comparison](../../utils/pre/dist_mc/rge/README.md#smaller-system-higher-diluted-mc) of how the smaller RG&E system produces higher diluted MC.
 
-See Appendix D for the full comparison of NERA-style vs. CRA native values.
+See Appendix D for the full comparison of NERA-style vs. CRA native values. For W2 column mappings and project counts by ISD year, see the NYSEG README ([W2 data source](../../utils/pre/dist_mc/nyseg/README.md#data-source-w2-investment-location-detail), [projects by ISD](../../utils/pre/dist_mc/nyseg/README.md#projects-by-isd-year)) and RG&E README ([projects by ISD](../../utils/pre/dist_mc/rge/README.md#projects-by-isd-year)).
 
 ### 4.5. PSEG-LI
 
-PSEG-LI's study is filed as a PDF only (no workbook). The 30 projects were transcribed to a CSV and classified by voltage using LIPA's network architecture:
+PSEG-LI's study is filed as a PDF only (no workbook). The 30 projects were transcribed to a CSV and classified by voltage using [LIPA's network architecture](../../utils/pre/dist_mc/psegli/README.md#lipas-voltage-architecture):
 
 - **Sub-TX** (T-Substation, ≤69 kV): 15 projects. LIPA's 138/345 kV = BES (excluded); ≤69 kV = sub-TX (included).
 - **Distribution** (D-Substation + D-Feeders): 15 projects.
 - No T-Line projects in the screened portfolio.
 
-The two-step pipeline (`classify_psegli_projects.py` → `analyze_psegli_mcos.py`) mirrors NiMo's classification approach.
+The [two-step pipeline](../../utils/pre/dist_mc/psegli/README.md#two-step-pipeline) (`classify_psegli_projects.py` → `analyze_psegli_mcos.py`) mirrors NiMo's classification approach. For per-project voltage evidence and edge cases (e.g. Deerfield), see the PSEG-LI README ([voltage evidence](../../utils/pre/dist_mc/psegli/README.md#per-project-voltage-evidence), [Deerfield edge case](../../utils/pre/dist_mc/psegli/README.md#the-deerfield-edge-case)).
 
-**Annualization.** ECCR+O&M from Exhibit 1: Sub-TX 8.2%, Distribution 13.9%. The filing's undiluted MC per kW is multiplied by the ECCR+O&M rate and diluted by system peak (4,935 MW).
+**Annualization.** [ECCR+O&M rates from Exhibit 1](../../utils/pre/dist_mc/psegli/README.md#eccrom-rates-exhibit-1): Sub-TX 8.2%, Distribution 13.9%. The filing's undiluted MC per kW is multiplied by the ECCR+O&M rate and diluted by system peak (4,935 MW).
 
 **Base year rebase.** Study starts in 2025 with real values in 2025 dollars. Rebased to 2026 using `REBASE_FACTOR = 1.021`.
 
@@ -425,7 +439,7 @@ What each utility does:
 
 ConEd, O&R, and NiMo all compute diluted MC as **total annual cost / system peak**. We normalize CenHud to the capacity-based approach for consistency.
 
-**Trade-off.** The capacity-based formula does not match CenHud's workbook Table 2 validation targets. The workbook's Table 2 values are documented in the CenHud README as a reference, but our output CSVs use the capacity-based formula for cross-utility comparability.
+**Trade-off.** The capacity-based formula does not match CenHud's workbook Table 2 validation targets. The workbook's Table 2 values are documented in the CenHud README ([Table 2 reference](../../utils/pre/dist_mc/cenhud/README.md#table-2--system-wide-diluted--workbook-peak-share-formula-not-our-output)), but our output CSVs use the capacity-based formula for cross-utility comparability.
 
 ### CenHud escalation: flat nominal vs. GDP deflator
 
@@ -438,7 +452,7 @@ CenHud's workbook provides flat nominal costs. What each utility does:
 | **NiMo**            | Blue Chip GDP Deflator      | 2.1%/yr flat            | Baked into F columns: F_Y = E × 1.021^(Y − in_service_year) |
 | **CenHud workbook** | **None**                    | —                       | Flat nominal. cost(2033) = cost(2034) = cost(2035)          |
 
-We chose 2.1% flat (rather than ConEd/O&R's 2.4%/2.1% schedule) because: (a) CenHud's study period starts in 2026, not 2025, so there's no "first year" in the ConEd/O&R sense; and (b) 2.1% is the consensus long-run GDP deflator across all three other utilities.
+We chose 2.1% flat (rather than ConEd/O&R's 2.4%/2.1% schedule) because: (a) CenHud's study period starts in 2026, not 2025, so there's no "first year" in the ConEd/O&R sense; and (b) 2.1% is the consensus long-run GDP deflator across all three other utilities. See the CenHud README for the [full escalation discussion](../../utils/pre/dist_mc/cenhud/README.md#escalation-applied-for-cross-utility-consistency).
 
 ### Effect summary
 
@@ -471,6 +485,8 @@ Reading CRA's pre-computed tables embedded location-specific adjustments with no
 3. Growth factors cause different divisions' investments to contribute differently, creating a location-weighted result.
 
 ### W2 parsing details
+
+For the full W2 column mapping and cost center classification rules, see the [NYSEG README](../../utils/pre/dist_mc/nyseg/README.md#data-source-w2-investment-location-detail).
 
 | Data element                  | W2 column | Notes                                   |
 | ----------------------------- | --------- | --------------------------------------- |
@@ -508,7 +524,7 @@ The NERA values are **lower** than CRA native, primarily because CRA's location-
 
 NiMo and CenHud have always used project-level data: each project has an explicit in-service year, capital cost, and capacity. The cumulative MC for year Y sums capital and capacity only for projects where `in_service_year ≤ Y`; the incremental MC uses projects where `in_service_year = Y`.
 
-ConEd and O&R's workbooks present cumulative cost centers as **aggregate** capital-by-year totals. These include CWIP — capital spent on projects still under construction. Reading these directly produced:
+ConEd and O&R's workbooks present cumulative cost centers as **aggregate** capital-by-year totals. These include CWIP — capital spent on projects still under construction. Reading these directly produced (see ConEd [per-project data](../../utils/pre/dist_mc/coned/README.md#per-project-data) and O&R [per-project data](../../utils/pre/dist_mc/or/README.md#per-project-data) for the actual tables):
 
 1. **Inflated early-year cumulative capital** (CWIP counted before capacity is added).
 2. **Proportional capacity derivation** (smooth trajectories that don't reflect actual project completion timing).
@@ -530,7 +546,7 @@ The cashflow-stabilization heuristic works because CWIP causes the cumulative ca
 
 ## Appendix F. System peak denominator choices across utilities
 
-Every utility uses a **fixed** peak value across all study years, but they differ in which year's peak they use. This finding was verified against the actual workbook cells.
+Every utility uses a **fixed** peak value across all study years, but they differ in which year's peak they use. This finding was verified against the actual workbook cells. For the full study parameters (including peak values) for each utility, see: [ConEd](../../utils/pre/dist_mc/coned/README.md#study-parameters), [O&R](../../utils/pre/dist_mc/or/README.md#study-parameters), [CenHud](../../utils/pre/dist_mc/cenhud/README.md#study-parameters), [NiMo](../../utils/pre/dist_mc/nimo/README.md#study-parameters), [NYSEG](../../utils/pre/dist_mc/nyseg/README.md#study-parameters), [RG&E](../../utils/pre/dist_mc/rge/README.md#study-parameters).
 
 | Utility    | System peak (MW) | Basis                                 |
 | ---------- | ---------------- | ------------------------------------- |
@@ -571,7 +587,7 @@ One multiplier per cost center folds ECCR, general plant loading, O&M, working c
 Annual RR = Capital × Composite Rate × Escalation
 ```
 
-ConEd composite rates: 12–15% depending on cost center. O&R: similar range.
+ConEd composite rates: 12–15% depending on cost center ([ConEd rates](../../utils/pre/dist_mc/coned/README.md#composite-rates)). O&R: similar range ([O&R rates](../../utils/pre/dist_mc/or/README.md#composite-rates)).
 
 **Pro:** Cleanest formula — one multiplication. **Con:** Cannot decompose into ECCR vs. loaders without reverse-engineering from Schedule 11/10.
 
@@ -579,8 +595,8 @@ ConEd composite rates: 12–15% depending on cost center. O&R: similar range.
 
 ECCR and each loader applied as visible, sequential steps:
 
-- **CenHud**: Reserve margin (×1.30) and general plant loading (×1.161) multiply the $/kW _before_ ECCR. Working capital and loss factors add on _after_. Most explicit approach — you can see how much each component contributes.
-- **NYSEG/RG&E**: ECCR result × ~1.32–1.34 (O&M + A&G loading factor) = final annualized $/kW. Loaders bundled into a single post-ECCR multiplier.
+- **CenHud**: Reserve margin (×1.30) and general plant loading (×1.161) multiply the $/kW _before_ ECCR. Working capital and loss factors add on _after_. Most explicit approach — you can see how much each component contributes ([CenHud financial assumptions](../../utils/pre/dist_mc/cenhud/README.md#composite-rates-financial-assumptions)).
+- **NYSEG/RG&E**: ECCR result × ~1.32–1.34 (O&M + A&G loading factor) = final annualized $/kW. Loaders bundled into a single post-ECCR multiplier ([NYSEG rates](../../utils/pre/dist_mc/nyseg/README.md#composite-rates), [RG&E rates](../../utils/pre/dist_mc/rge/README.md#composite-rates)).
 
 ### 3. Bare ECCR (NiMo)
 
@@ -590,6 +606,6 @@ No loaders at all:
 Annual RR = Capital/MW × ECCR
 ```
 
-NiMo ECCR rates: T-Station 8.21%, T-Line 8.44%, D-Station 8.06%, D-Line 14.13%.
+NiMo ECCR rates: T-Station 8.21%, T-Line 8.44%, D-Station 8.06%, D-Line 14.13% ([NiMo MC formula](../../utils/pre/dist_mc/nimo/README.md#mc-formula-and-variants)).
 
 All overhead is implicitly absorbed into the ECCR rates or captured elsewhere in the revenue requirement. Simplest to replicate. NiMo's base ECCR rates look low (8%) compared to CenHud (13–18%) but the effective all-in rate is similar because CenHud stacks reserve margin and plant loading on top before applying its ECCR.
