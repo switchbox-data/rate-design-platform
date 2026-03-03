@@ -15,22 +15,22 @@ The script produces plots and printed statistics to assess whether the MF non-HV
 
 ## Data sources and paths
 
-- **ResStock annual:** `s3://data.sb/nrel/resstock/<release>/load_curve_annual/state=<state>/upgrade=<upgrade>/<state>_upgrade<upgrade>_metadata_and_annual_results.parquet`  
+- **ResStock annual:** `s3://data.sb/nrel/resstock/<release>/load_curve_annual/state=<state>/upgrade=<upgrade>/<state>_upgrade<upgrade>_metadata_and_annual_results.parquet`\
   Uses `bldg_id`, `weight`, `out.electricity.total.energy_consumption.kwh`, plus HVAC and non-HVAC component columns (see below).
-- **Utility assignment:** `s3://data.sb/nrel/resstock/<release>/metadata_utility/state=<state>/utility_assignment.parquet`  
+- **Utility assignment:** `s3://data.sb/nrel/resstock/<release>/metadata_utility/state=<state>/utility_assignment.parquet`\
   Must include `bldg_id` and `sb.electric_utility`.
-- **ResStock metadata:** `s3://data.sb/nrel/resstock/<release>/metadata/state=<state>/upgrade=<upgrade>/metadata-sb.parquet`  
+- **ResStock metadata:** `s3://data.sb/nrel/resstock/<release>/metadata/state=<state>/upgrade=<upgrade>/metadata-sb.parquet`\
   Used for `in.geometry_building_type_recs`, `in.geometry_floor_area` (SF vs MF, floor area for kWh/sqft).
-- **EIA-861:** `s3://data.sb/eia/861/electric_utility_stats/year=<year>/state=<state>/data.parquet`  
+- **EIA-861:** `s3://data.sb/eia/861/electric_utility_stats/year=<year>/state=<state>/data.parquet`\
   Default `year=2018` to align with ResStock AMY 2018.
 
 Defaults: release `res_2024_amy2018_2`, upgrade `00`, state `NY` (hardcoded in `if __name__ == "__main__"`).
 
 ## Electricity column groups
 
-- **HVAC-related:** cooling, cooling_fans_pumps, heating, heating_fans_pumps, heating_hp_bkup, heating_hp_bkup_fa, mech_vent.  
+- **HVAC-related:** cooling, cooling_fans_pumps, heating, heating_fans_pumps, heating_hp_bkup, heating_hp_bkup_fa, mech_vent.\
   Not adjusted; only non-HVAC columns are scaled for MF.
-- **Non-HVAC-related:** ceiling_fan, clothes_dryer, clothes_washer, dishwasher, freezer, hot_water, lighting (exterior/garage/interior), permanent_spa (heat/pump), plug_loads, pool (heater/pump), pv, range_oven, refrigerator, well_pump.  
+- **Non-HVAC-related:** ceiling_fan, clothes_dryer, clothes_washer, dishwasher, freezer, hot_water, lighting (exterior/garage/interior), permanent_spa (heat/pump), plug_loads, pool (heater/pump), pv, range_oven, refrigerator, well_pump.\
   Each has a **MF/SF ratio** (mean kWh/sqft, non-zero only). For MF buildings, `new_value = value / ratio`; ratio 1.0 or missing → no change.
 
 Total non-HVAC and `annual_kwh` are recomputed from the (possibly adjusted) component columns after the adjustment.
@@ -64,16 +64,16 @@ Outputs: `kwh_pct_diff_vs_multifamily_original.png`, `kwh_pct_diff_vs_multifamil
 
 ## Key functions
 
-| Function | Purpose |
-| -------- | ------- |
-| `load_data` | One entrypoint: loads ResStock annual by utility, building-level annual, metadata with utility, metadata_by_utility dict, EIA by utility. |
-| `compare_resstock_eia_by_utility` | Join ResStock and EIA by utility; normalize ResStock kWh by customer count; return `kwh_ratio`, `kwh_pct_diff`, customer stats. |
-| `building_type_share_by_utility` | For each utility, multifamily_pct, single_family_pct, mobile_home_pct from metadata. |
-| `print_sf_mf_column_by_column_floor_area_comparison` | Print SF vs MF kWh/sqft per electricity column (non-zero only), difference, ratio, Welch p-value. |
-| `get_non_hvac_mf_to_sf_ratios` | Return dict of non-HVAC column → MF/SF mean kWh/sqft (non-zero only); 1.0 if insufficient samples. |
-| `adjust_mf_electricity` | For MF bldg_ids, scale each non-HVAC column by 1/ratio; recompute total_non_hvac, annual_kwh, weighted_kwh. |
-| `fit_kwh_pct_diff_vs_multifamily_pct` | Linear fit of `kwh_pct_diff` on `multifamily_pct`; returns slope, intercept, R², F-test, etc. |
-| `plot_kwh_pct_diff_vs_multifamily_pct` | Scatter of `kwh_pct_diff` vs `multifamily_pct` with utility labels and regression line. |
+| Function                                             | Purpose                                                                                                                                   |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `load_data`                                          | One entrypoint: loads ResStock annual by utility, building-level annual, metadata with utility, metadata_by_utility dict, EIA by utility. |
+| `compare_resstock_eia_by_utility`                    | Join ResStock and EIA by utility; normalize ResStock kWh by customer count; return `kwh_ratio`, `kwh_pct_diff`, customer stats.           |
+| `building_type_share_by_utility`                     | For each utility, multifamily_pct, single_family_pct, mobile_home_pct from metadata.                                                      |
+| `print_sf_mf_column_by_column_floor_area_comparison` | Print SF vs MF kWh/sqft per electricity column (non-zero only), difference, ratio, Welch p-value.                                         |
+| `get_non_hvac_mf_to_sf_ratios`                       | Return dict of non-HVAC column → MF/SF mean kWh/sqft (non-zero only); 1.0 if insufficient samples.                                        |
+| `adjust_mf_electricity`                              | For MF bldg_ids, scale each non-HVAC column by 1/ratio; recompute total_non_hvac, annual_kwh, weighted_kwh.                               |
+| `fit_kwh_pct_diff_vs_multifamily_pct`                | Linear fit of `kwh_pct_diff` on `multifamily_pct`; returns slope, intercept, R², F-test, etc.                                             |
+| `plot_kwh_pct_diff_vs_multifamily_pct`               | Scatter of `kwh_pct_diff` vs `multifamily_pct` with utility labels and regression line.                                                   |
 
 Helpers: `_bldg_ids_for_building_type`, `_parse_floor_area_sqft` (e.g. `750-999` → midpoint; `4000+` → 6000), `two_sample_difference_of_means_test` (Welch t-test).
 
