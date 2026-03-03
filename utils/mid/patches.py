@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import resource  # DEBUG-MEM
+import time  # DEBUG-MEM
 from pathlib import Path
 from typing import Any, cast
 
@@ -19,7 +21,6 @@ import cairo.rates_tool.system_revenues as _cairo_sysrev
 import cairo.rates_tool.systemsimulator as _cairo_sim
 import numpy as np
 import pandas as pd
-import pyarrow as pa
 import pyarrow.dataset as pad
 import pyarrow.parquet as pq
 
@@ -42,6 +43,17 @@ _GAS_KWH_TO_THERM = 0.0341214116
 
 log = logging.getLogger("rates_analysis").getChild("patches")
 
+# DEBUG-MEM: remove this block (and the `import resource` / `import time` above) when done
+_mem_t0: float = time.perf_counter()
+
+
+def _log_mem(label: str) -> None:
+    # Linux: ru_maxrss in kB; macOS: bytes — this code runs on Linux EC2
+    peak_gb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6
+    elapsed = time.perf_counter() - _mem_t0
+    log.info("MEM_DEBUG [%+6.1fs] %-42s peak_rss=%.2f GB", elapsed, label, peak_gb)
+# END DEBUG-MEM
+
 
 def _return_loads_combined(
     target_year: int,
@@ -49,12 +61,13 @@ def _return_loads_combined(
     load_filepath_key: dict[int, Path],
     force_tz: str | None = "EST",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Read electricity and gas loads for all buildings in one PyArrow batch read.
+    """Read electricity and gas loads for all buildings via Arrow-native processing.
 
-    Replaces two sequential _return_load() calls (one per fuel type) with a single
-    multi-threaded read of all parquet files, returning the same DataFrames that
-    _return_load("electricity") and _return_load("gas") would return.
+    Reads only the 3 data columns across all files (skips bldg_id and timestamp
+    from the bulk read — bldg_id is known from path order, timestamps are read
+    from a single file since all buildings share the same 8760-hour series).
+    All processing is done on numpy arrays extracted from the Arrow table; no
+    intermediate pandas DataFrame is created for the full dataset.
 
     Returns
     -------
@@ -69,116 +82,115 @@ def _return_loads_combined(
         len(building_ids),
         force_tz,
     )
+    global _mem_t0
+    _mem_t0 = time.perf_counter()
 
     # 1. Collect file paths in building_ids order (preserves determinism)
     present_ids = [bid for bid in building_ids if bid in load_filepath_key]
     paths = [str(load_filepath_key[bid]) for bid in present_ids]
+    n_bldgs = len(present_ids)
+    n_rows = n_bldgs * 8760
+    _log_mem("after path collection")
 
-    # 2. Batch read: all files, only the columns we need, in one pass.
-    # Unify schemas across files so that files with minor schema differences
-    # (e.g. extra metadata or reordered fields) are read safely.
-    # PyArrow 23 does not support unify_schemas= on dataset(); we achieve the
-    # same effect by passing an explicit unified schema.
-    unified_schema = pa.unify_schemas([pq.read_schema(p) for p in paths])
-    ds = pad.dataset(paths, format="parquet", schema=unified_schema)
-    table = ds.to_table(columns=_ALL_COLS)
-    df = table.to_pandas()
+    # 2. Read timestamps from the first file only — all ResStock buildings share
+    #    the same 8760-hour series, so one file is sufficient.
+    first_table = pq.read_table(paths[0], columns=["timestamp"])
+    ts_first = first_table.column("timestamp").to_numpy()
+    assert len(ts_first) == 8760, f"Expected 8760 rows in first file, got {len(ts_first)}"
+    del first_table
 
-    # 3. Sort by [bldg_id, timestamp] to ensure consistent ordering
-    df = df.sort_values(["bldg_id", "timestamp"]).reset_index(drop=True)
-
-    # 4. Vectorized timeshift — same offset for all buildings (AMY2018 -> target_year)
-    #    CAIRO __timeshift__ does: data[48:] concat data[:48], i.e. np.roll with negative offset
-    source_year = int(df["timestamp"].dt.year.iloc[0])
+    # 3. Compute timeshift parameters from source timestamps
+    source_year = int(pd.Timestamp(ts_first[0]).year)
     start_day_orig = dt.datetime(source_year, 1, 1).weekday()
     start_day_target = dt.datetime(target_year, 1, 1).weekday()
     offset_days = (start_day_target - start_day_orig) % 7
     offset_hours = offset_days * 24
 
-    data_col_names = [
+    # 4. Build the time index (8760 unique values, shared by all buildings)
+    year_offset = pd.Timestamp(f"{target_year}-01-01") - pd.Timestamp(
+        f"{source_year}-01-01"
+    )
+    unique_times = pd.DatetimeIndex(ts_first) + year_offset
+    del ts_first
+    if force_tz is not None:
+        unique_times = unique_times.tz_localize(force_tz)
+
+    # 5. Read only the 3 data columns from all files (skip bldg_id and timestamp).
+    #    Use the first file's schema — ResStock load files share identical schemas.
+    schema = pq.read_schema(paths[0])
+    _DATA_COLS = [
         "out.electricity.total.energy_consumption",
         "out.electricity.pv.energy_consumption",
         "out.natural_gas.total.energy_consumption",
     ]
+    ds = pad.dataset(paths, format="parquet", schema=schema)
+    table = ds.to_table(columns=_DATA_COLS)
+    _log_mem("after to_table (3 data cols, arrow)")
 
+    assert len(table) == n_rows, (
+        f"Expected {n_rows} rows ({n_bldgs} bldgs × 8760) but got {len(table)}"
+    )
+
+    # 6. Extract numpy arrays and free the Arrow table.
+    #    combine_chunks inside to_numpy creates contiguous copies; after del table
+    #    the chunked Arrow buffers are freed, leaving only the ~3.2 GB numpy arrays.
+    elec_total = table.column(_DATA_COLS[0]).to_numpy()
+    elec_pv = table.column(_DATA_COLS[1]).to_numpy()
+    gas_total = table.column(_DATA_COLS[2]).to_numpy()
+    del table, ds
+    _log_mem("after extract numpy + del table")
+
+    # 7. Vectorized timeshift (AMY2018 → target_year)
     if offset_hours > 0:
-        # All buildings share the same 8760-row structure and the same offset.
-        # Reshape to (n_bldgs, 8760, n_cols), roll axis=1, then flatten back.
-        # This matches CAIRO __timeshift__: pd.concat([data.iloc[N:], data.iloc[:N]])
-        # which equals np.roll(data, -N, axis=0).
-        n_rows = len(df)
-        assert n_rows % 8760 == 0, (
-            f"Expected all buildings to have 8760 rows, but total row count {n_rows} "
-            f"is not divisible by 8760. Check for leap-year or sub-hourly parquet files."
-        )
-        assert n_rows // 8760 == len(present_ids), (
-            f"Row count implies {n_rows // 8760} buildings but {len(present_ids)} IDs were requested."
-        )
-        n_bldgs = n_rows // 8760
-        arr = df[data_col_names].values.reshape(n_bldgs, 8760, len(data_col_names))
-        arr = np.roll(arr, -offset_hours, axis=1)
-        df[data_col_names] = arr.reshape(n_rows, len(data_col_names))
+        elec_total = np.roll(
+            elec_total.reshape(n_bldgs, 8760), -offset_hours, axis=1
+        ).ravel()
+        elec_pv = np.roll(
+            elec_pv.reshape(n_bldgs, 8760), -offset_hours, axis=1
+        ).ravel()
+        gas_total = np.roll(
+            gas_total.reshape(n_bldgs, 8760), -offset_hours, axis=1
+        ).ravel()
+        _log_mem("after timeshift")
 
-    # 5. Replace year in timestamps with target_year — vectorized via fixed time offset.
-    #    Since all source timestamps are in source_year (no leap-year complication between
-    #    non-leap source and non-leap target), adding (Jan 1 target - Jan 1 source) gives
-    #    the same result as ts.replace(year=target_year) for every hour.
-    # NOTE: CAIRO's __timeshift__ skips year replacement when weekday_diff == 0
-    # (i.e., when source and target year start on the same weekday). We always
-    # replace the year here because the Timedelta offset already handles the
-    # no-shift case (offset_hours=0 leaves data unchanged). For the current RI
-    # runs (2018→2025, offset=48h), this divergence is not triggered.
-    year_offset = pd.Timestamp(f"{target_year}-01-01") - pd.Timestamp(
-        f"{source_year}-01-01"
-    )
-    df["time"] = df["timestamp"] + year_offset
-    df = df.drop(columns=["timestamp"])
-
-    # 6. Set MultiIndex [bldg_id, time]
-    df = df.set_index(["bldg_id", "time"])
-
-    # 7. Apply timezone (tz_localize on the unique time level values only)
-    if force_tz is not None:
-        # set_levels requires unique level values; localize the level, not the flat values
-        unique_time_level = df.index.levels[df.index.names.index("time")].tz_localize(
-            force_tz
-        )
-        df.index = df.index.set_levels(unique_time_level, level="time")
-
-    # 8. Build electricity DataFrame — match _return_load("electricity") structure exactly
-    #    Output columns: ['load_data', 'pv_generation', 'electricity_net']
-    elec = pd.DataFrame(index=df.index)
-    elec["load_data"] = df["out.electricity.total.energy_consumption"]
-    elec["pv_generation"] = df["out.electricity.pv.energy_consumption"]
-
-    # Replicate CAIRO __load_buildingprofile__ electricity_net logic per building:
-    # - if all pv_generation == 0: electricity_net = load_data
-    # - if pv_generation < 0 (ResStock convention): electricity_net = load_data + pv_generation
-    # - if pv_generation >= 0 (CAIRO convention): electricity_net = load_data - pv_generation
-    # Use vectorized per-block check; blocks are contiguous since df is sorted by bldg_id.
-    load_arr = elec["load_data"].values
-    pv_arr = elec["pv_generation"].values
-    elec_net = np.empty(len(elec), dtype=np.float64)
-
-    for start_idx in range(0, len(elec), 8760):
-        pv_block = pv_arr[start_idx : start_idx + 8760]
-        ld_block = load_arr[start_idx : start_idx + 8760]
+    # 8. PV sign correction per building block (replicates CAIRO __load_buildingprofile__)
+    elec_net = np.empty(n_rows, dtype=np.float64)
+    for i in range(n_bldgs):
+        s, e = i * 8760, (i + 1) * 8760
+        pv_block = elec_pv[s:e]
+        ld_block = elec_total[s:e]
         if (pv_block == 0.0).all():
-            elec_net[start_idx : start_idx + 8760] = ld_block
+            elec_net[s:e] = ld_block
         elif (pv_block < 0.0).any():
-            elec_net[start_idx : start_idx + 8760] = ld_block + pv_block
+            elec_net[s:e] = ld_block + pv_block
         else:
-            elec_net[start_idx : start_idx + 8760] = ld_block - pv_block
+            elec_net[s:e] = ld_block - pv_block
 
-    elec["electricity_net"] = elec_net
+    # 9. Build MultiIndex [bldg_id, time] from codes — avoids materializing
+    #    135M bldg_id + time values as columns.
+    bldg_level = pd.Index(present_ids, name="bldg_id")
+    bldg_codes = np.repeat(np.arange(n_bldgs, dtype=np.intp), 8760)
+    time_codes = np.tile(np.arange(8760, dtype=np.intp), n_bldgs)
+    mi = pd.MultiIndex(
+        levels=[bldg_level, unique_times],
+        codes=[bldg_codes, time_codes],
+        names=["bldg_id", "time"],
+    )
+    _log_mem("after build MultiIndex")
 
-    # 9. Build gas DataFrame — match _return_load("gas") structure exactly
-    #    Output column: ['load_data'] in therms
-    gas = pd.DataFrame(index=df.index)
-    gas["load_data"] = (
-        df["out.natural_gas.total.energy_consumption"] * _GAS_KWH_TO_THERM
+    # 10. Build electricity DataFrame (wraps numpy arrays, no copy)
+    elec = pd.DataFrame(
+        {"load_data": elec_total, "pv_generation": elec_pv, "electricity_net": elec_net},
+        index=mi,
+        copy=False,
     )
 
+    # 11. Build gas DataFrame (therms conversion)
+    gas_therms = gas_total * _GAS_KWH_TO_THERM
+    del gas_total
+    gas = pd.DataFrame({"load_data": gas_therms}, index=mi, copy=False)
+
+    _log_mem("end of _return_loads_combined")
     return elec, gas
 
 
@@ -262,172 +274,211 @@ def _vectorized_process_building_demand_by_period(
             solar_pv_compensation=solar_pv_compensation,
         )
 
-    # --- Vectorized path for flat / time-of-use tariffs ---
+    # --- Numpy-vectorized path for flat / time-of-use tariffs ---
     #
-    # prepassed_load has MultiIndex [bldg_id, time] and columns:
-    #   electricity: ['load_data', 'pv_generation', 'electricity_net']
-    #   gas:         ['load_data']
-    #
-    # For electricity with no solar (all RI buildings), _calculate_pv_load_columns
-    # renames electricity_net -> grid_cons, keeps load_data and pv_generation.
-    # avail_load_cols = ['grid_cons', 'load_data']
-    # avail_pv_cols   = ['net_exports', 'self_cons', 'pv_generation']
-    #   but only pv_generation will be present (no net_exports/self_cons unless solar)
+    # Instead of reset_index() (creates a 135M-row DataFrame for 15k buildings),
+    # extract numpy arrays reshaped to (n_bldg, 8760), compute derived columns
+    # with numpy, and aggregate via matrix multiplication:
+    #   (n_bldg_tariff, 8760) @ (8760, n_groups) → (n_bldg_tariff, n_groups)
+    # where n_groups = unique (month, period, tier) combos (≤36 for TOU).
+    # This reduces peak memory from ~15 GB to ~3-4 GB.
 
-    # 1. Prepare a flat (non-indexed) DataFrame with all buildings
-    all_loads = prepassed_load.reset_index()  # columns: bldg_id, time, load_data, ...
+    bldg_ids_all = prepassed_load.index.get_level_values("bldg_id").unique()
+    n_bldg = len(bldg_ids_all)
+    n_hours = 8760
+    bldg_to_row: dict[int, int] = {
+        int(bid): i for i, bid in enumerate(bldg_ids_all)
+    }
 
-    # 2. Apply pv sign correction and derive grid_cons — electricity only
-    #    Gas has no pv columns and no electricity_net; load_data (therms) is the only column.
-    if not is_gas:
-        if "pv_generation" in all_loads.columns:
-            all_loads["pv_generation"] = all_loads["pv_generation"].abs()
-        elif "net_exports" in all_loads.columns:
-            all_loads["net_exports"] = all_loads["net_exports"].abs()
+    load_data_2d = prepassed_load["load_data"].values.reshape(n_bldg, n_hours)
+    cols_present = set(prepassed_load.columns)
 
-        # 3. Derive grid_cons etc. via _calculate_pv_load_columns (operates per-building)
-        #    For electricity_net present (no solar): electricity_net -> grid_cons
-        #    For buildings with pv_generation: grid_cons = load_data - pv_generation
-        #    We can do this vectorized since it's column arithmetic.
-        if "electricity_net" in all_loads.columns:
-            all_loads["grid_cons"] = all_loads["electricity_net"].clip(lower=0)
-            all_loads = all_loads.drop(columns=["electricity_net"])
-        if (
-            "pv_generation" in all_loads.columns
-            and "grid_cons" not in all_loads.columns
-        ):
-            all_loads["grid_cons"] = all_loads["load_data"] - all_loads["pv_generation"]
-    if (
-        not is_gas
-        and "pv_generation" in all_loads.columns
-        and "grid_cons" in all_loads.columns
-    ):
-        # net_exports = max(0, pv_generation - load_data); self_cons = min(pv_gen, load_data)
-        all_loads["net_exports"] = (
-            all_loads["pv_generation"] - all_loads["load_data"]
-        ).clip(lower=0.0)
-        all_loads["self_cons"] = all_loads["pv_generation"].clip(
-            upper=all_loads["load_data"]
+    has_elec_net = not is_gas and "electricity_net" in cols_present
+    has_pv = not is_gas and "pv_generation" in cols_present
+    has_net_exp_raw = not is_gas and "net_exports" in cols_present
+
+    elec_net_2d = (
+        prepassed_load["electricity_net"].values.reshape(n_bldg, n_hours)
+        if has_elec_net
+        else None
+    )
+    pv_gen_2d = (
+        np.abs(prepassed_load["pv_generation"].values.reshape(n_bldg, n_hours))
+        if has_pv
+        else None
+    )
+    if has_net_exp_raw and not has_pv:
+        pv_gen_2d = np.abs(
+            prepassed_load["net_exports"].values.reshape(n_bldg, n_hours)
         )
 
-    if is_gas:
-        avail_load_cols = ["load_data"]
-        avail_pv_cols = []
-    else:
-        avail_load_cols = [
-            c for c in ["grid_cons", "load_data"] if c in all_loads.columns
-        ]
-        avail_pv_cols = [
-            c
-            for c in ["net_exports", "self_cons", "pv_generation"]
-            if c in all_loads.columns
-        ]
+    grid_cons_2d: np.ndarray | None = None
+    net_exports_2d: np.ndarray | None = None
+    self_cons_2d: np.ndarray | None = None
 
-    # 4. Add datetime indicators (same as _add_datetime_indicators)
-    all_loads["month"] = all_loads["time"].dt.month
-    all_loads["hour"] = all_loads["time"].dt.hour
-    all_loads["day_type"] = (all_loads["time"].dt.weekday < 5).map(
-        {True: "weekday", False: "weekend"}
+    if not is_gas:
+        if has_elec_net and elec_net_2d is not None:
+            grid_cons_2d = np.maximum(elec_net_2d, 0)
+            del elec_net_2d
+        if (has_pv or has_net_exp_raw) and grid_cons_2d is None and pv_gen_2d is not None:
+            grid_cons_2d = load_data_2d - pv_gen_2d
+        if pv_gen_2d is not None and grid_cons_2d is not None:
+            net_exports_2d = np.clip(pv_gen_2d - load_data_2d, 0, None)
+            self_cons_2d = np.minimum(pv_gen_2d, load_data_2d)
+
+    if is_gas:
+        load_col_arrays: dict[str, np.ndarray] = {"load_data": load_data_2d}
+        pv_col_arrays: dict[str, np.ndarray] = {}
+    else:
+        load_col_arrays = {}
+        if grid_cons_2d is not None:
+            load_col_arrays["grid_cons"] = grid_cons_2d
+        load_col_arrays["load_data"] = load_data_2d
+        pv_col_arrays = {}
+        if net_exports_2d is not None:
+            pv_col_arrays["net_exports"] = net_exports_2d
+        if self_cons_2d is not None:
+            pv_col_arrays["self_cons"] = self_cons_2d
+        if pv_gen_2d is not None:
+            pv_col_arrays["pv_generation"] = pv_gen_2d
+
+    avail_load_cols = list(load_col_arrays.keys())
+    avail_pv_cols = list(pv_col_arrays.keys())
+
+    # Time vectors (built once from the first building's 8760 timestamps)
+    time_idx = prepassed_load.index.get_level_values("time")[:n_hours]
+    months_8760 = time_idx.month.values.astype(np.int32)
+    hours_8760 = time_idx.hour.values.astype(np.int32)
+    weekday_8760 = time_idx.weekday.values  # 0=Mon..6=Sun
+    is_weekday_8760 = weekday_8760 < 5
+
+    _log_mem(
+        f"demand_by_period numpy ready n_bldg={n_bldg}"
     )
 
-    # 5. Per tariff: merge period schedule, groupby, assemble result
-    energy_parts: list[pd.DataFrame] = []
-    solar_parts: list[pd.DataFrame] = []
-
-    # Build reverse map: tariff_key -> list of bldg_ids
+    # Per-tariff aggregation via matmul
     tariff_to_bldgs: dict[str, list[int]] = {}
     for bid in prototype_ids:
         tk = tariff_map_dict[bid]
         tariff_to_bldgs.setdefault(tk, []).append(bid)
 
+    energy_parts: list[pd.DataFrame] = []
+    solar_parts: list[pd.DataFrame] = []
+
     for tariff_key, bldg_ids_for_tariff in tariff_to_bldgs.items():
         td = tariff_dicts[tariff_key]
-
-        # Get the period schedule for this tariff
         charge_period_map = tariff_funcs._charge_period_mapping(td)
-
-        # Extract tier info (flat/TOU: one tier per period)
         energy_charge_usage_map = extract_energy_charge_map(td)
 
-        # Subset to buildings for this tariff
-        bldg_mask = all_loads["bldg_id"].isin(bldg_ids_for_tariff)
-        loads_sub = all_loads.loc[bldg_mask].copy()
+        # 3-D lookup: [month_idx (0-11), hour (0-23), day_type (0=wd,1=we)] → period
+        period_lut = np.zeros((12, 24, 2), dtype=np.int32)
+        for _, row in charge_period_map.iterrows():
+            m_idx = int(row["month"]) - 1
+            h_idx = int(row["hour"])
+            d_idx = 0 if row["day_type"] == "weekday" else 1
+            period_lut[m_idx, h_idx, d_idx] = int(row["period"])
 
-        # Merge period assignment
-        loads_sub = loads_sub.merge(
-            charge_period_map,
-            on=["month", "hour", "day_type"],
-            how="left",
+        day_type_idx = (~is_weekday_8760).astype(np.int32)
+        hour_periods = period_lut[months_8760 - 1, hours_8760, day_type_idx]
+
+        # period → tier lookup
+        max_period = int(energy_charge_usage_map["period"].max())
+        tier_lut = np.zeros(max_period + 1, dtype=np.int32)
+        for _, row in energy_charge_usage_map.iterrows():
+            tier_lut[int(row["period"])] = int(row["tier"])
+        hour_tiers = tier_lut[hour_periods]
+
+        # Encode (month, period, tier) → unique group id
+        composite = months_8760 * 10000 + hour_periods * 100 + hour_tiers
+        unique_composites, hour_group_ids = np.unique(
+            composite, return_inverse=True
         )
+        n_groups = len(unique_composites)
+        group_months = unique_composites // 10000
+        group_periods = (unique_composites % 10000) // 100
+        group_tiers = unique_composites % 100
 
-        # Merge tier info (flat/TOU path: merge on period only)
-        loads_sub = loads_sub.merge(
-            energy_charge_usage_map,
-            on=["period"],
-            how="left",
+        # Indicator matrix: (8760, n_groups) — tiny since n_groups ≤ ~36
+        indicator = np.zeros((n_hours, n_groups), dtype=np.float64)
+        indicator[np.arange(n_hours), hour_group_ids] = 1.0
+
+        row_indices = np.array(
+            [bldg_to_row[bid] for bid in bldg_ids_for_tariff]
         )
+        n_tariff_bldg = len(row_indices)
 
-        # Aggregate: sum by [bldg_id, month, period, tier]
-        agg_cols = avail_load_cols + avail_pv_cols
-        full_agg = loads_sub.groupby(
-            ["bldg_id", "month", "period", "tier"], as_index=False
-        )[agg_cols].sum()
-        full_agg["tariff"] = tariff_key
+        # (n_tariff_bldg, 8760) @ (8760, n_groups) → (n_tariff_bldg, n_groups)
+        energy_agg: dict[str, np.ndarray] = {}
+        for col_name, col_2d in load_col_arrays.items():
+            energy_agg[col_name] = col_2d[row_indices] @ indicator
 
-        # Energy charge: drop PV columns (matches CAIRO's _energy_charge_aggregation behavior)
-        energy_agg = full_agg.drop(columns=avail_pv_cols, errors="ignore").copy()
-        energy_agg["charge_type"] = "energy_charge"
-        energy_parts.append(energy_agg)
+        bids_expanded = np.repeat(
+            np.asarray(bldg_ids_for_tariff), n_groups
+        )
+        month_expanded = np.tile(group_months, n_tariff_bldg)
+        period_expanded = np.tile(group_periods, n_tariff_bldg)
+        tier_expanded = np.tile(group_tiers, n_tariff_bldg)
 
-        # Solar aggregation (net_metering / None): PV columns kept, load cols dropped,
-        # filter to rows where pv_generation > 0 (matches _solar_compensation_aggregation)
-        # Gas has no solar data — skip entirely.
-        if not is_gas:
-            solar_agg = full_agg.drop(columns=avail_load_cols, errors="ignore").copy()
-            solar_agg["charge_type"] = "solar_compensation"
-            if "pv_generation" in avail_pv_cols:
-                solar_agg = solar_agg.loc[solar_agg["pv_generation"] > 0.0]
-            elif "net_exports" in avail_pv_cols:
-                solar_agg = solar_agg.loc[solar_agg["net_exports"] > 0.0]
-            solar_parts.append(solar_agg)
+        edf = pd.DataFrame(
+            {
+                "bldg_id": bids_expanded,
+                "month": month_expanded,
+                "period": period_expanded,
+                "tier": tier_expanded,
+                **{c: a.ravel() for c, a in energy_agg.items()},
+                "charge_type": "energy_charge",
+                "tariff": tariff_key,
+            }
+        )
+        energy_parts.append(edf)
 
-    # 6. Concatenate energy parts
+        if not is_gas and pv_col_arrays:
+            solar_agg: dict[str, np.ndarray] = {}
+            for col_name, col_2d in pv_col_arrays.items():
+                solar_agg[col_name] = col_2d[row_indices] @ indicator
+
+            sdf = pd.DataFrame(
+                {
+                    "bldg_id": bids_expanded.copy(),
+                    "month": month_expanded.copy(),
+                    "period": period_expanded.copy(),
+                    "tier": tier_expanded.copy(),
+                    **{c: a.ravel() for c, a in solar_agg.items()},
+                    "charge_type": "solar_compensation",
+                    "tariff": tariff_key,
+                }
+            )
+            if "pv_generation" in pv_col_arrays:
+                sdf = sdf.loc[sdf["pv_generation"] > 0.0]
+            elif "net_exports" in pv_col_arrays:
+                sdf = sdf.loc[sdf["net_exports"] > 0.0]
+            solar_parts.append(sdf)
+
     all_energy = pd.concat(energy_parts, ignore_index=True)
 
-    # 7. Build demand charge rows (ur_dc_enable=0 for all RI tariffs → NaN rows, then filled to 0)
-    #    Matches CAIRO's _demand_charge_aggregation output: columns are month, period, tier,
-    #    grid_cons, charge_type — load_data added as NaN for concat compatibility.
-    demand_rows = []
-    for bid in prototype_ids:
-        tk = tariff_map_dict[bid]
-        for month in range(1, 13):
-            row = {
-                "bldg_id": bid,
-                "month": month,
-                "period": np.nan,
-                "tier": np.nan,
-                "charge_type": "demand_charge",
-                "tariff": tk,
-            }
-            # For electricity tariffs, CAIRO always emits a grid_cons column in demand rows.
-            # For gas (is_gas), grid_cons is not part of avail_load_cols so we skip it.
-            if not is_gas:
-                row["grid_cons"] = np.nan
-            demand_rows.append(row)
-    demand_df = pd.DataFrame(demand_rows)
-    # Add any other load cols that are in all_energy but not yet in demand_df
+    # Demand charge rows (vectorized)
+    n_proto = len(prototype_ids)
+    tariff_per_bldg = np.array(
+        [tariff_map_dict[bid] for bid in prototype_ids]
+    )
+    demand_dict: dict[str, Any] = {
+        "bldg_id": np.repeat(prototype_ids, 12),
+        "month": np.tile(np.arange(1, 13), n_proto),
+        "period": np.nan,
+        "tier": np.nan,
+        "charge_type": "demand_charge",
+        "tariff": np.repeat(tariff_per_bldg, 12),
+    }
+    if not is_gas:
+        demand_dict["grid_cons"] = np.nan
     for col in avail_load_cols:
-        if col not in demand_df.columns:
-            demand_df[col] = np.nan
-    # Do NOT add PV cols to demand_df — energy charge rows don't have them
+        if col not in demand_dict:
+            demand_dict[col] = np.nan
+    demand_df = pd.DataFrame(demand_dict)
 
-    # 8. Combine energy + demand, fillna(0.0) as CAIRO does
     combined = pd.concat([all_energy, demand_df], ignore_index=True).fillna(0.0)
-
-    # 9. Set index to bldg_id
     combined = combined.set_index("bldg_id")
 
-    # 10. Assemble agg_solar
     all_solar = (
         pd.concat(solar_parts, ignore_index=True)
         if solar_parts
@@ -437,12 +488,12 @@ def _vectorized_process_building_demand_by_period(
             + ["charge_type", "tariff"]
         )
     )
-    # Add any missing pv columns to solar df
     for col in ["net_exports", "self_cons", "pv_generation"]:
         if col not in all_solar.columns:
             all_solar[col] = np.nan
-    # Set index
     all_solar = all_solar.set_index("bldg_id")
+
+    _log_mem("demand_by_period done")
 
     return combined, all_solar
 
@@ -898,4 +949,55 @@ _cairo_sim.MeetRevenueSufficiencySystemWide._calculate_gas_bills = cast(
 log.info(
     "PATCH_APPLIED MeetRevenueSufficiencySystemWide._calculate_gas_bills -> %s",
     _patched_calculate_gas_bills.__name__,
+)
+
+# ---------------------------------------------------------------------------
+# Phase 5: memory-efficient process_residential_hourly_demand
+# ---------------------------------------------------------------------------
+# CAIRO's original does bldg_load.copy().reset_index().merge(weights, ...)
+# which creates ~8 GB of temporaries for 15k buildings × 8760 hours.
+# This replacement uses numpy reshape + broadcast to stay under ~2 GB.
+
+_orig_process_residential_hourly_demand = (
+    _cairo_loads.process_residential_hourly_demand
+)
+
+
+def _patched_process_residential_hourly_demand(
+    bldg_load: pd.DataFrame,
+    sample_weights: pd.DataFrame,
+) -> pd.Series:
+    """Memory-efficient weighted hourly system load aggregation.
+
+    Computes the same result as CAIRO's process_residential_hourly_demand
+    (weighted sum of electricity_net across buildings for each hour) without
+    copying the full DataFrame.
+    """
+    log.info(
+        "PATCH_CALL _patched_process_residential_hourly_demand buildings=%s",
+        bldg_load.index.get_level_values("bldg_id").nunique(),
+    )
+    _log_mem("before process_residential_hourly_demand")
+
+    weights = sample_weights.set_index("bldg_id")["weight"]
+    unique_bldgs = bldg_load.index.get_level_values("bldg_id").unique()
+    n_bldgs = len(unique_bldgs)
+
+    arr = bldg_load["electricity_net"].values.reshape(n_bldgs, 8760)
+    w = weights.reindex(unique_bldgs).values
+    hourly_sum = (arr * w[:, np.newaxis]).sum(axis=0)
+
+    time_idx = bldg_load.index.get_level_values("time").unique()
+    result = pd.Series(hourly_sum, index=time_idx, name="electricity_net")
+
+    _log_mem("after process_residential_hourly_demand")
+    return result
+
+
+_cairo_loads.process_residential_hourly_demand = cast(
+    Any, _patched_process_residential_hourly_demand
+)
+log.info(
+    "PATCH_APPLIED cairo.rates_tool.loads.process_residential_hourly_demand -> %s",
+    _patched_process_residential_hourly_demand.__name__,
 )
