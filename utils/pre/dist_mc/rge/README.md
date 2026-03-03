@@ -81,9 +81,9 @@ RG&E has higher diluted MC than NYSEG despite similar total investment, because 
 | RG&E workbook | `s3://data.sb/ny_psc/mcos_studies_2025/rge_study_workpaper.xlsx` |
 | System peak   | 1,428.52 MW — T4 row 20 col P (2035 forecast)                    |
 
-| Output                                                                        | Description                                                                                           |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `rge_{cumulative,incremental}_{diluted,undiluted}_{annualized,levelized}.csv` | 8 CSVs, same naming convention and harmonized two-bucket schema as NYSEG (bulk_tx=0, sub_tx_and_dist) |
+| Output                                                                                | Description                                                                                           |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `outputs/rge_{cumulative,incremental}_{diluted,undiluted}_{annualized,levelized}.csv` | 8 CSVs, same naming convention and harmonized two-bucket schema as NYSEG (bulk_tx=0, sub_tx_and_dist) |
 
 ## How to run
 

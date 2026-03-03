@@ -1,51 +1,51 @@
 # MCOS dilution analysis — NiMo, ConEd, O&R, CenHud, NYSEG, RG&E, PSEG-LI
 #
-# Each utility lives in its own subdirectory with analysis script(s),
-# classification data (NiMo), and output CSVs.
+# Each utility lives in its own subdirectory with analysis script(s)
+# and classification data (NiMo, PSEG-LI). Output CSVs go to <utility>/outputs/.
 
 # ── NiMo inputs ──────────────────────────────────────────────────────────────
 
 path_nimo_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/nimo_study_workpaper.xlsx"
 path_classifications := "nimo/nimo_project_classifications.csv"
-path_nimo_output := "nimo"
+path_nimo_output := "nimo/outputs"
 nimo_peak_mw := "6616.0"          # 2024 actual, NiMo Peak Load Forecast March 2025
 undiluted_mc_per_kw := "71.524"   # Exhibit 1 summary row (line 245), col F26
 
 # ── ConEd inputs ─────────────────────────────────────────────────────────────
 
 path_coned_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/coned_study_workpaper.xlsx"
-path_coned_output := "coned"
+path_coned_output := "coned/outputs"
 coned_peak_mw := "11997.7"  # 2025 area station coincident total, Coincident Load sheet
 
 # ── O&R inputs ───────────────────────────────────────────────────────────────
 
 path_or_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/or_study_workpaper.xlsx"
-path_or_output := "or"
+path_or_output := "or/outputs"
 or_peak_mw := "1078.5"  # 2024 coincident forecast, Coincident Forecast sheet row 65
 
 # ── CenHud inputs ───────────────────────────────────────────────────────────
 
 path_cenhud_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/cenhud_study_workpaper.xlsx"
-path_cenhud_output := "cenhud"
+path_cenhud_output := "cenhud/outputs"
 cenhud_peak_mw := "1103.0"        # 2024 actual, MCOS report p. 3
 
 # ── NYSEG inputs ────────────────────────────────────────────────────────────
 
 path_nyseg_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/nyseg_study_workpaper.xlsx"
-path_nyseg_output := "nyseg"
+path_nyseg_output := "nyseg/outputs"
 nyseg_peak_mw := "2035.73"        # 2035 forecast, T4 row 20 system total
 
 # ── RG&E inputs ─────────────────────────────────────────────────────────────
 
 path_rge_xlsx := "s3://data.sb/ny_psc/mcos_studies_2025/rge_study_workpaper.xlsx"
-path_rge_output := "rge"
+path_rge_output := "rge/outputs"
 rge_peak_mw := "1428.52"          # 2035 forecast, T4a row 20 system total
 
 # ── PSEG-LI inputs ──────────────────────────────────────────────────────────
 
 path_psegli_raw_csv := "s3://data.sb/ny_psc/mcos_studies_2025/psegli_study_project_list.csv"
 path_psegli_classifications := "psegli/psegli_project_classifications.csv"
-path_psegli_output := "psegli"
+path_psegli_output := "psegli/outputs"
 psegli_peak_mw := "4935.0"            # 2024 actual NCP, NYISO Gold Book Zone K
 
 # ── Recipes ──────────────────────────────────────────────────────────────────
@@ -101,10 +101,4 @@ analyze-psegli:
 analyze-all: analyze-nimo analyze-coned analyze-or analyze-cenhud analyze-nyseg analyze-rge analyze-psegli
 
 clean:
-    rm -f nimo/nimo_*_levelized.csv nimo/nimo_*_annualized.csv
-    rm -f coned/coned_*_levelized.csv coned/coned_*_annualized.csv
-    rm -f or/or_*_levelized.csv or/or_*_annualized.csv
-    rm -f cenhud/cenhud_*_levelized.csv cenhud/cenhud_*_annualized.csv
-    rm -f nyseg/nyseg_*_levelized.csv nyseg/nyseg_*_annualized.csv
-    rm -f rge/rge_*_levelized.csv rge/rge_*_annualized.csv
-    rm -f psegli/psegli_*_levelized.csv psegli/psegli_*_annualized.csv
+    rm -rf nimo/outputs coned/outputs or/outputs cenhud/outputs nyseg/outputs rge/outputs psegli/outputs

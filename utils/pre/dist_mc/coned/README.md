@@ -319,16 +319,16 @@ Incremental undiluted is non-zero only in years when projects complete. It refle
 | ConEd workbook | `s3://data.sb/ny_psc/mcos_studies_2025/coned_study_workpaper.xlsx` |
 | System peak    | 11,997.7 MW — Coincident Load sheet row 26, 2025 forecast          |
 
-| Output                                       | Description                                                      |
-| -------------------------------------------- | ---------------------------------------------------------------- |
-| `coned_cumulative_diluted_levelized.csv`     | Two rows (bulk_tx, sub_tx_and_dist): levelized and final-year MC |
-| `coned_cumulative_diluted_annualized.csv`    | One row per year: bulk_tx and sub_tx_and_dist (nominal/real)     |
-| `coned_incremental_diluted_levelized.csv`    | Same structure, incremental capital ÷ system peak                |
-| `coned_incremental_diluted_annualized.csv`   | Same structure, incremental capital ÷ system peak                |
-| `coned_cumulative_undiluted_levelized.csv`   | Same structure, cumulative capital ÷ project capacity            |
-| `coned_cumulative_undiluted_annualized.csv`  | Same structure, cumulative capital ÷ project capacity            |
-| `coned_incremental_undiluted_levelized.csv`  | Same structure, incremental capital ÷ incremental capacity       |
-| `coned_incremental_undiluted_annualized.csv` | Same structure, incremental capital ÷ incremental capacity       |
+| Output                                               | Description                                                      |
+| ---------------------------------------------------- | ---------------------------------------------------------------- |
+| `outputs/coned_cumulative_diluted_levelized.csv`     | Two rows (bulk_tx, sub_tx_and_dist): levelized and final-year MC |
+| `outputs/coned_cumulative_diluted_annualized.csv`    | One row per year: bulk_tx and sub_tx_and_dist (nominal/real)     |
+| `outputs/coned_incremental_diluted_levelized.csv`    | Same structure, incremental capital ÷ system peak                |
+| `outputs/coned_incremental_diluted_annualized.csv`   | Same structure, incremental capital ÷ system peak                |
+| `outputs/coned_cumulative_undiluted_levelized.csv`   | Same structure, cumulative capital ÷ project capacity            |
+| `outputs/coned_cumulative_undiluted_annualized.csv`  | Same structure, cumulative capital ÷ project capacity            |
+| `outputs/coned_incremental_undiluted_levelized.csv`  | Same structure, incremental capital ÷ incremental capacity       |
+| `outputs/coned_incremental_undiluted_annualized.csv` | Same structure, incremental capital ÷ incremental capacity       |
 
 ## How to run
 

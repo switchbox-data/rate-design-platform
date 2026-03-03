@@ -273,12 +273,12 @@ This is what `nimo_project_classifications.csv` captures. The evidence column is
 | NYISO Gold Book Table VII | `context/papers/nyiso_gold_book_2025.md`                          |
 | System peak               | 6,616 MW — 2024 actual, NiMo Peak Load Forecast (Mar 2025)        |
 
-| Output                                                             | Description                                                                                                         |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `nimo_project_classifications.csv`                                 | One row per project: classification, voltage, inference method, evidence text, sub-project names, confidence level. |
-| `classify_nimo_projects.py`                                        | The script that produces the CSV. All manual decisions are encoded as commented data structures at the top.         |
-| `nimo_{cumulative,incremental}_{diluted,undiluted}_levelized.csv`  | Two rows (bulk_tx, sub_tx_and_dist): levelized MC ($/kW-yr), final-year real and nominal MC.                        |
-| `nimo_{cumulative,incremental}_{diluted,undiluted}_annualized.csv` | One row per year: bulk_tx and sub_tx_and_dist nominal and real MC ($/kW-yr).                                        |
+| Output                                                                     | Description                                                                                                         |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `nimo_project_classifications.csv`                                         | One row per project: classification, voltage, inference method, evidence text, sub-project names, confidence level. |
+| `classify_nimo_projects.py`                                                | The script that produces the CSV. All manual decisions are encoded as commented data structures at the top.         |
+| `outputs/nimo_{cumulative,incremental}_{diluted,undiluted}_levelized.csv`  | Two rows (bulk_tx, sub_tx_and_dist): levelized MC ($/kW-yr), final-year real and nominal MC.                        |
+| `outputs/nimo_{cumulative,incremental}_{diluted,undiluted}_annualized.csv` | One row per year: bulk_tx and sub_tx_and_dist nominal and real MC ($/kW-yr).                                        |
 
 ## How to run
 

@@ -280,16 +280,16 @@ Source: workbook sheet `Summary - System`, rows 21–30. These values use peak-s
 | CenHud workbook | `s3://data.sb/ny_psc/mcos_studies_2025/cenhud_study_workpaper.xlsx` |
 | System peak     | 1,103 MW — 2024 actual coincident peak (MCOS report p. 3)           |
 
-| Output                                        | Description                                                        |
-| --------------------------------------------- | ------------------------------------------------------------------ |
-| `cenhud_cumulative_diluted_levelized.csv`     | Two rows (bulk_tx=0, sub_tx_and_dist): levelized and final-year MC |
-| `cenhud_cumulative_diluted_annualized.csv`    | One row per year: bulk_tx (0) and sub_tx_and_dist (nominal/real)   |
-| `cenhud_incremental_diluted_levelized.csv`    | Same structure, incremental ÷ system peak                          |
-| `cenhud_incremental_diluted_annualized.csv`   | Same structure, incremental ÷ system peak                          |
-| `cenhud_cumulative_undiluted_levelized.csv`   | Same structure, cumulative ÷ project capacity                      |
-| `cenhud_cumulative_undiluted_annualized.csv`  | Same structure, cumulative ÷ project capacity                      |
-| `cenhud_incremental_undiluted_levelized.csv`  | Same structure, incremental ÷ incremental capacity                 |
-| `cenhud_incremental_undiluted_annualized.csv` | Same structure, incremental ÷ incremental capacity                 |
+| Output                                                | Description                                                        |
+| ----------------------------------------------------- | ------------------------------------------------------------------ |
+| `outputs/cenhud_cumulative_diluted_levelized.csv`     | Two rows (bulk_tx=0, sub_tx_and_dist): levelized and final-year MC |
+| `outputs/cenhud_cumulative_diluted_annualized.csv`    | One row per year: bulk_tx (0) and sub_tx_and_dist (nominal/real)   |
+| `outputs/cenhud_incremental_diluted_levelized.csv`    | Same structure, incremental ÷ system peak                          |
+| `outputs/cenhud_incremental_diluted_annualized.csv`   | Same structure, incremental ÷ system peak                          |
+| `outputs/cenhud_cumulative_undiluted_levelized.csv`   | Same structure, cumulative ÷ project capacity                      |
+| `outputs/cenhud_cumulative_undiluted_annualized.csv`  | Same structure, cumulative ÷ project capacity                      |
+| `outputs/cenhud_incremental_undiluted_levelized.csv`  | Same structure, incremental ÷ incremental capacity                 |
+| `outputs/cenhud_incremental_undiluted_annualized.csv` | Same structure, incremental ÷ incremental capacity                 |
 
 ## How to run
 

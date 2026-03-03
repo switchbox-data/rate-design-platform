@@ -229,16 +229,16 @@ MC = 10,781.3 / 139.54 = 77.27 $/kW-yr
 | NYSEG workbook | `s3://data.sb/ny_psc/mcos_studies_2025/nyseg_study_workpaper.xlsx` |
 | System peak    | 2,035.73 MW — T4 row 20 col P (2035 forecast)                      |
 
-| Output                                       | Description                                                        |
-| -------------------------------------------- | ------------------------------------------------------------------ |
-| `nyseg_incremental_diluted_annualized.csv`   | One row per year: bulk_tx (0) and sub_tx_and_dist (nominal/real)   |
-| `nyseg_incremental_diluted_levelized.csv`    | Two rows (bulk_tx=0, sub_tx_and_dist): levelized and final-year MC |
-| `nyseg_cumulative_diluted_annualized.csv`    | Same structure, cumulative diluted                                 |
-| `nyseg_cumulative_diluted_levelized.csv`     | Same structure, cumulative diluted                                 |
-| `nyseg_incremental_undiluted_annualized.csv` | Same structure, incremental undiluted                              |
-| `nyseg_incremental_undiluted_levelized.csv`  | Same structure, incremental undiluted                              |
-| `nyseg_cumulative_undiluted_annualized.csv`  | Same structure, cumulative undiluted                               |
-| `nyseg_cumulative_undiluted_levelized.csv`   | Same structure, cumulative undiluted                               |
+| Output                                               | Description                                                        |
+| ---------------------------------------------------- | ------------------------------------------------------------------ |
+| `outputs/nyseg_incremental_diluted_annualized.csv`   | One row per year: bulk_tx (0) and sub_tx_and_dist (nominal/real)   |
+| `outputs/nyseg_incremental_diluted_levelized.csv`    | Two rows (bulk_tx=0, sub_tx_and_dist): levelized and final-year MC |
+| `outputs/nyseg_cumulative_diluted_annualized.csv`    | Same structure, cumulative diluted                                 |
+| `outputs/nyseg_cumulative_diluted_levelized.csv`     | Same structure, cumulative diluted                                 |
+| `outputs/nyseg_incremental_undiluted_annualized.csv` | Same structure, incremental undiluted                              |
+| `outputs/nyseg_incremental_undiluted_levelized.csv`  | Same structure, incremental undiluted                              |
+| `outputs/nyseg_cumulative_undiluted_annualized.csv`  | Same structure, cumulative undiluted                               |
+| `outputs/nyseg_cumulative_undiluted_levelized.csv`   | Same structure, cumulative undiluted                               |
 
 ## How to run
 
