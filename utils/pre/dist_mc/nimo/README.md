@@ -209,7 +209,7 @@ This is an artifact of the study horizon — projects without firm schedules are
 | Output                                                             | Description                                                                                                         |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
 | `nimo_project_classifications.csv`                                 | One row per project: classification, voltage, inference method, evidence text, sub-project names, confidence level. |
-| `reclassify_nimo_projects.py`                                      | The script that produces the CSV. All manual decisions are encoded as commented data structures at the top.         |
+| `classify_nimo_projects.py`                                        | The script that produces the CSV. All manual decisions are encoded as commented data structures at the top.         |
 | `nimo_{cumulative,incremental}_{diluted,undiluted}_levelized.csv`  | Two rows (bulk_tx, sub_tx_and_dist): levelized MC ($/kW-yr), final-year real and nominal MC.                        |
 | `nimo_{cumulative,incremental}_{diluted,undiluted}_annualized.csv` | One row per year: bulk_tx and sub_tx_and_dist nominal and real MC ($/kW-yr).                                        |
 
@@ -283,7 +283,7 @@ To regenerate the classification CSV:
 
 ```bash
 cd utils/pre/dist_mc/nimo
-uv run python reclassify_nimo_projects.py
+uv run python classify_nimo_projects.py
 ```
 
 This reads the workbook from S3, applies all the classification logic, and overwrites `nimo_project_classifications.csv`. The Gold Book reference data is hardcoded in the script — if the Gold Book changes, update the `GOLD_BOOK_NGRID_HIGH_VOLTAGE` and `GOLD_BOOK_NGRID_SUB_TX` lists.

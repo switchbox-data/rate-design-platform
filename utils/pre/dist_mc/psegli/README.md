@@ -21,7 +21,7 @@ Unlike utilities where the MCOS workbook directly labels projects by voltage, PS
 
 2. **`analyze_psegli_mcos.py`** — reads the classified CSV, applies Exhibit 1's ECCR+O&M rates, and computes MC variants. Both sub_tx and distribution projects are included in BAT.
 
-This mirrors the NiMo approach (`reclassify_nimo_projects.py` → `nimo_project_classifications.csv` → `analyze_nimo_mcos.py`).
+This mirrors the NiMo approach (`classify_nimo_projects.py` → `nimo_project_classifications.csv` → `analyze_nimo_mcos.py`).
 
 ## Data source
 
