@@ -15,7 +15,7 @@ Schema: `timestamp` (datetime), `energy_cost_enduse` ($/MWh), `capacity_cost_end
 
 | Dataset                | S3 path                                                                                                | Schema key columns                                                                  |
 | ---------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| LBMP (energy prices)   | `s3://data.sb/nyiso/lbmp/day_ahead/zones/zone={ZONE_NAME}/year={Y}/month={M}/data.parquet`             | `interval_start_est`, `zone`, `lbmp_usd_per_mwh`                                    |
+| LBMP (energy prices)   | `s3://data.sb/nyiso/lbmp/real_time/zones/zone={ZONE_NAME}/year={Y}/month={M}/data.parquet`            | `interval_start_est`, `zone`, `lbmp_usd_per_mwh` (5-minute intervals)              |
 | ICAP (capacity prices) | `s3://data.sb/nyiso/icap/year={Y}/month={M}/data.parquet`                                              | `locality` (Categorical), `auction_type` (Categorical), `price_per_kw_month`        |
 | EIA zone loads         | `s3://data.sb/eia/hourly_demand/zones/region=nyiso/zone={LETTER}/year={Y}/month={M}/data.parquet`      | `timestamp`, `zone`, `load_mw`                                                      |
 | EIA utility loads      | `s3://data.sb/eia/hourly_demand/utilities/region=nyiso/utility={NAME}/year={Y}/month={M}/data.parquet` | `timestamp`, `utility`, `load_mw`                                                   |
@@ -40,7 +40,9 @@ Defined in two places that **must stay consistent** (enforced by `test_eia_zones
 
 ## Energy MC (LBMP)
 
-- **Single-zone utility** (rge, cenhud, or, psegli): uses that zone's day-ahead LBMP directly.
+Real-time LBMP prices (5-minute intervals) are aggregated to hourly averages by taking the mean of all 5-minute intervals within each hour. These hourly prices are then used to compute energy marginal costs.
+
+- **Single-zone utility** (rge, cenhud, or, psegli): uses that zone's hourly real-time LBMP directly.
 - **Multi-zone utility** (nyseg, nimo, coned): load-weighted average across zones. For each hour: `Σ(LBMP_zone × load_zone) / Σ(load_zone)`, where zone loads come from EIA zone-level hourly data.
 
 ## Capacity MC (ICAP MCOS)

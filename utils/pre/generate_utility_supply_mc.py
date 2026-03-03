@@ -1,13 +1,14 @@
 """Generate utility-level supply marginal costs (energy LBMP + capacity ICAP MCOS).
 
 This script replaces Cambium-based supply marginal costs with real NYISO data:
-- **Energy**: Day-ahead LBMP prices, load-weighted across the utility's LBMP zones.
+- **Energy**: Real-time LBMP prices (5-minute intervals aggregated to hourly),
+  load-weighted across the utility's LBMP zones.
 - **Capacity**: ICAP Spot prices allocated to hours using threshold-exceedance
   weights (8 peak hours per month, analogous to Cambium § 6.8).
 
 Input data:
-    - LBMP day-ahead zonal prices:
-        s3://data.sb/nyiso/lbmp/day_ahead/zones/zone={NAME}/year={YYYY}/month={MM}/data.parquet
+    - LBMP real-time zonal prices (5-minute intervals):
+        s3://data.sb/nyiso/lbmp/real_time/zones/zone={NAME}/year={YYYY}/month={MM}/data.parquet
     - ICAP spot prices (4 localities):
         s3://data.sb/nyiso/icap/year={YYYY}/month={M}/data.parquet
     - EIA zone-level hourly loads (for LBMP load-weighting):
@@ -56,7 +57,7 @@ from utils.pre.generate_utility_tx_dx_mc import (
 
 # ── Default S3 paths ─────────────────────────────────────────────────────────
 
-DEFAULT_LBMP_S3_BASE = "s3://data.sb/nyiso/lbmp/day_ahead/zones/"
+DEFAULT_LBMP_S3_BASE = "s3://data.sb/nyiso/lbmp/real_time/zones/"
 DEFAULT_ICAP_S3_BASE = "s3://data.sb/nyiso/icap/"
 DEFAULT_ZONE_LOADS_S3_BASE = "s3://data.sb/eia/hourly_demand/zones/"
 DEFAULT_UTILITY_LOADS_S3_BASE = "s3://data.sb/eia/hourly_demand/utilities/"
@@ -126,22 +127,58 @@ def get_utility_mapping(mapping_df: pl.DataFrame, utility: str) -> pl.DataFrame:
 # ── Energy MC (LBMP) ─────────────────────────────────────────────────────────
 
 
+def aggregate_lbmp_to_hourly(lbmp_df: pl.DataFrame) -> pl.DataFrame:
+    """Aggregate 5-minute real-time LBMP intervals to hourly averages.
+
+    Real-time LBMP data contains 5-minute intervals. This function aggregates
+    them to hourly by taking the mean of all 5-minute intervals within each hour.
+
+    Args:
+        lbmp_df: DataFrame with 5-minute LBMP data (timestamp, zone, lbmp_usd_per_mwh).
+
+    Returns:
+        DataFrame with hourly LBMP data (timestamp truncated to hour, zone, lbmp_usd_per_mwh).
+    """
+    # Truncate timestamps to hour boundaries
+    lbmp_hourly = lbmp_df.with_columns(
+        pl.col("timestamp").dt.truncate("1h").alias("timestamp")
+    )
+
+    # Group by (hourly timestamp, zone) and take mean of LBMP prices
+    aggregated = (
+        lbmp_hourly.group_by("timestamp", "zone")
+        .agg(pl.col("lbmp_usd_per_mwh").mean().alias("lbmp_usd_per_mwh"))
+        .sort("timestamp", "zone")
+    )
+
+    n_5min = lbmp_df.height
+    n_hourly = aggregated.height
+    print(
+        f"  Aggregated {n_5min:,} 5-minute intervals → {n_hourly:,} hourly averages"
+    )
+    return aggregated
+
+
 def load_lbmp_for_zones(
     lbmp_s3_base: str,
     zone_names: list[str],
     year: int,
     storage_options: dict[str, str],
 ) -> pl.DataFrame:
-    """Load day-ahead LBMP data for the given zones and year.
+    """Load real-time LBMP data for the given zones and year.
+
+    Real-time LBMP data contains 5-minute intervals. This function loads the raw
+    5-minute data; aggregation to hourly is handled separately.
 
     Args:
-        lbmp_s3_base: S3 base path for LBMP data (e.g. s3://data.sb/nyiso/lbmp/day_ahead/zones/).
+        lbmp_s3_base: S3 base path for LBMP data (e.g. s3://data.sb/nyiso/lbmp/real_time/zones/).
         zone_names: List of LBMP zone names (e.g. ["WEST", "GENESE"]).
         year: Target year.
         storage_options: AWS storage options.
 
     Returns:
         DataFrame with columns: timestamp (naive), zone, lbmp_usd_per_mwh.
+        Timestamps are at 5-minute intervals.
     """
     lbmp_s3_base = lbmp_s3_base.rstrip("/") + "/"
     collected = (
@@ -243,20 +280,24 @@ def compute_energy_mc(
     year: int,
     storage_options: dict[str, str],
 ) -> pl.DataFrame:
-    """Compute hourly energy marginal costs from LBMP data.
+    """Compute hourly energy marginal costs from real-time LBMP data.
 
-    For single-zone utilities, returns the zone's LBMP directly.
+    Real-time LBMP data (5-minute intervals) is aggregated to hourly averages,
+    then used to compute energy marginal costs.
+
+    For single-zone utilities, returns the zone's hourly LBMP directly.
     For multi-zone utilities, computes load-weighted average across zones.
 
     Args:
         utility_mapping: Zone mapping rows for this utility.
-        lbmp_s3_base: S3 base for LBMP data.
+        lbmp_s3_base: S3 base for real-time LBMP data.
         zone_loads_s3_base: S3 base for EIA zone loads.
         year: Target year.
         storage_options: AWS storage options.
 
     Returns:
         DataFrame with columns: timestamp, energy_cost_enduse ($/MWh).
+        Timestamps are hourly.
     """
     # Get unique zone names and letters for this utility
     zone_info = utility_mapping.select("lbmp_zone_name", "load_zone_letter").unique()
@@ -272,8 +313,11 @@ def compute_energy_mc(
         )
     )
 
-    # Load LBMP data for all relevant zones
+    # Load LBMP data for all relevant zones (5-minute intervals)
     lbmp_df = load_lbmp_for_zones(lbmp_s3_base, zone_names, year, storage_options)
+
+    # Aggregate 5-minute intervals to hourly averages
+    lbmp_df = aggregate_lbmp_to_hourly(lbmp_df)
 
     if len(zone_names) == 1:
         # Single-zone utility: use LBMP directly
