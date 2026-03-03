@@ -18,7 +18,6 @@ Schema: `timestamp` (datetime), `energy_cost_enduse` ($/MWh), `capacity_cost_end
 | LBMP (energy prices)   | `s3://data.sb/nyiso/lbmp/real_time/zones/zone={ZONE_NAME}/year={Y}/month={M}/data.parquet`            | `interval_start_est`, `zone`, `lbmp_usd_per_mwh` (5-minute intervals)              |
 | ICAP (capacity prices) | `s3://data.sb/nyiso/icap/year={Y}/month={M}/data.parquet`                                              | `locality` (Categorical), `auction_type` (Categorical), `price_per_kw_month`        |
 | EIA zone loads         | `s3://data.sb/eia/hourly_demand/zones/region=nyiso/zone={LETTER}/year={Y}/month={M}/data.parquet`      | `timestamp`, `zone`, `load_mw`                                                      |
-| EIA utility loads      | `s3://data.sb/eia/hourly_demand/utilities/region=nyiso/utility={NAME}/year={Y}/month={M}/data.parquet` | `timestamp`, `utility`, `load_mw`                                                   |
 | Zone mapping           | `s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv`                                          | `utility`, `load_zone_letter`, `lbmp_zone_name`, `icap_locality`, `capacity_weight` |
 
 ## Utility-to-zone mapping
@@ -47,7 +46,40 @@ Real-time LBMP prices (5-minute intervals) are aggregated to hourly averages by 
 
 ## Capacity MC (ICAP MCOS)
 
-Monthly ICAP Spot prices ($/kW-month) are allocated to individual hours using threshold-exceedance weighting on the utility's aggregate load profile:
+Capacity MC now uses **two locality models**, each for a different purpose.
+
+### 1) Nested localities for capacity peak loads (hour-shape)
+
+These are overlapping footprints used only to build the hourly load profile that determines peak-hour weights:
+
+- `NYCA = A-K`
+- `LHV = G-J`
+- `NYC = J`
+- `LI = K`
+
+`icap_locality` from mapping is normalized as:
+
+- `NYCA -> NYCA`
+- `GHIJ -> LHV`
+- `NYC -> NYC`
+- `LI -> LI`
+
+For split utilities (like ConEd), locality load profiles are blended by `capacity_weight` before peak identification.
+
+### 2) Partitioned localities for ICAP prices (monthly $/kW-mo)
+
+Prices use non-overlapping localities after applying utility splits via `gen_capacity_zone`:
+
+- `ROS -> NYCA` (A-F block)
+- `LHV -> LHV` (G-I block)
+- `NYC -> NYC` (J block)
+- `LI -> LI` (K block)
+
+This is the "nested to partitioned" transform used for prices. ICAP source localities are read from NYISO as `NYCA/GHIJ/NYC/LI`, with `GHIJ` mapped to partitioned `LHV`.
+
+### Allocation
+
+Monthly ICAP Spot prices ($/kW-month) are allocated to individual hours using threshold-exceedance weighting on the nested-locality blended load profile:
 
 1. For each month, sort hours by load (descending).
 2. Threshold = load of the 9th-highest hour (i.e., the hour just below the top 8).
@@ -58,20 +90,25 @@ Monthly ICAP Spot prices ($/kW-month) are allocated to individual hours using th
 
 Non-peak hours get zero capacity cost. Only the top 8 load hours per month carry capacity costs.
 
-**ConEd special case**: ICAP price is blended `0.87 × NYC_spot + 0.13 × GHIJ_spot` per month before allocation.
+**ConEd example**:
+
+- Peak-load shape: `0.87 × NYC(J) + 0.13 × LHV(G-J)` (nested footprints)
+- Price blend: `0.87 × NYC + 0.13 × LHV` (partitioned localities; `GHIJ` source mapped to `LHV`)
 
 **Validation**: a 1 kW constant load must recover the sum of 12 monthly ICAP prices exactly (within tolerance). This validates that the hourly allocation sums back to the correct annual total.
 
 ## EIA load pipeline
 
-Utility loads are aggregated from NYISO zone loads via `data/eia/hourly_loads/`:
+Zone loads are fetched/managed via `data/eia/hourly_loads/`:
 
 - `fetch-zone-data` — fetches from EIA API to local parquet
-- `aggregate-utility-loads` / `aggregate-all-utility-loads` — sums zone loads per utility
 - `download` — syncs zone/utility parquet from S3 to local
 - `upload` — syncs local to S3
 
-All 7 NY utilities have 2025 load profiles on S3.
+Supply MC currently uses zone-level hourly loads directly for:
+
+- utility-zone LBMP weighting (energy MC)
+- nested locality capacity peak profiling (capacity MC)
 
 ## 8760 normalization
 
