@@ -645,3 +645,72 @@ These are embedded averages, not LRMC. They likely overstate MC for utilities wi
 The hourly allocation guidance remains valid: bulk TX is driven by zonal/statewide coincident peaks, and PoP allocation should use NYISO zonal load shapes. The FERC Order 1920 compliance process (due April 2026) remains the best long-term source for ISO-endorsed LRMC data.
 
 The sensitivity testing recommendation remains critical: run the BAT with and without bulk TX MC to quantify its impact, regardless of which source is used.
+
+---
+
+## 6. Accumulated vs. incremental MC: what MCOS studies measure and what the BAT needs
+
+### The two perspectives
+
+There are two coherent ways to interpret "T&D marginal cost" from an MCOS study:
+
+**Perspective A — Accumulated ("what's the infrastructure bill?"):** In year Y, sum the annualized carrying charges on ALL projects in service through year Y, divide by system peak. This grows over time as more projects enter service. The levelized value is the time-average of the growing trajectory.
+
+**Perspective B — Incremental ("what does one more kW cause?"):** In year Y, the carrying charges triggered by that year's new investment only, divided by system peak. This is roughly constant if investment is steady, and represents the cost one additional kW of peak demand imposes on the system.
+
+The difference matters: for ConEd, the accumulated Primary MC grows from $19.26/kW-yr (2025) to $50.17/kW-yr (2034) — 2.6× growth, far exceeding the 1.21× from escalation alone. The incremental Primary MC is roughly flat at ~$19/kW-yr (real), representing one year's sample of ~143 distribution projects.
+
+### All six MCOS studies take Perspective A
+
+Every utility's year-by-year tables show the accumulated bill. From Section 1's annualization mechanics:
+
+> "In a given year, only projects in service contribute."
+
+This means year 1 includes carrying charges on year 1's projects; year 5 includes carrying charges on years 1–5's projects; year 10 includes all ten years'. The tables grow because the portfolio grows, not just because of inflation. This applies to **all cost centers** — including the ones ConEd/O&R call "annual" (Primary, Transformer, Secondary), where each year's sample of distribution projects adds another layer of carrying charges on top of previous years.
+
+The MCOS levelized number (the headline figure) is the present-value-weighted average of this growing trajectory. For cost centers with large project backlogs (Substation), the trajectory is steeply rising and the levelized value is well above the year-1 value. For cost centers with steady annual investment (Primary), the trajectory rises linearly (1×, 2×, 3×... of the annual increment) and the levelized value is roughly 5.5× the single-year value.
+
+### Why the studies take this approach
+
+The MCOS studies are designed for **cost allocation**, not marginal pricing. The question they answer is: "How should the capital plan's total cost be shared among ratepayers?" As Section 0 notes:
+
+> "The diluted number is a **rate-making construct**, not a physical one. It doesn't mean each MW of load 'causes' $125k of infrastructure cost. It means each MW's **share of the bill** is $125k."
+
+The accumulated perspective is natural for this purpose. The utility must recover carrying charges on the full portfolio of in-service projects. It doesn't matter whether a project was triggered by 2025 load growth or 2030 load growth — once it's in service, its carrying charges enter the annual bill, and that bill must be allocated across all ratepayers.
+
+### The BAT needs Perspective B (incremental)
+
+The BAT (Simeone et al. 2023) splits each customer's costs into two buckets:
+
+- **Economic cost** = marginal cost × consumption. "Economic theory suggests efficiency is maximized when prices are set at the cost of producing an additional unit of a good (i.e., the marginal cost)." (Section 3.2)
+- **Residual** = revenue requirement minus total economic cost. Allocated by some non-causal principle (flat, volumetric, etc.).
+- **Bill alignment** = bill − (economic cost + residual share)
+
+The economic cost is supposed to capture the cost this customer's load _causes_. For T&D infrastructure, that's the investment triggered by their contribution to peak demand — i.e., the incremental perspective.
+
+If you use the accumulated MCOS values as your MC, you inflate the economic cost bucket. You're attributing to today's customer not just the cost their load triggers, but also the carrying charges on investments triggered by prior years' load growth. Those prior investments are embedded costs — part of the revenue requirement, but not marginal. They belong in the residual.
+
+Using accumulated MC in the BAT has a concrete consequence: it **shrinks the residual** and changes which tariff structures look "aligned." A tariff that looks well-aligned under accumulated MC might look misaligned under incremental MC, because the customer's "fair share" of economic cost is different.
+
+The BAT paper's own data source supports the incremental interpretation. Appendix A describes the distribution CapEx input as "deferrable distribution capacity costs related to peak demand reductions" from the CPUC Avoided Cost Calculator — a prospective, deferral-based number asking: if you reduce 1 kW of peak, how much investment can be deferred? That's Perspective B.
+
+### The practical tension
+
+We use MCOS studies as our T&D MC source because they're the best available data for NY utility-specific forward-looking infrastructure costs. But they were designed for cost allocation (Perspective A), and the BAT needs marginal cost (Perspective B).
+
+For **cumulative cost centers** (Substation, Transmission), the MCOS's accumulated capital trajectory is baked into the workbooks. Our diluted MC code reads the year-by-year accumulated capital and levelizes it. This produces a value that's higher than the single-year incremental but represents the average annual infrastructure burden over the planning horizon. Whether this overstates the true marginal cost depends on how lumpy investment is — if a major substation upgrade happens in year 3, the incremental MC spikes in year 3 and is zero in years without investment, while the accumulated trajectory smooths this out.
+
+For **annual cost centers** (ConEd Primary, Transformer, Secondary; O&R Secondary Distribution), our diluted MC code applies a flat single-year capital value across all years. This is actually closer to Perspective B (incremental) than to the MCOS's own accumulated treatment of the same cost centers. But it creates an internal inconsistency: cumulative cost centers are accumulated while annual cost centers are not.
+
+In principle, for BAT consistency, both should use the incremental perspective. For cumulative cost centers, that would mean using each year's _new_ investment (not the running total) — but these investments are lumpy and discontinuous, making the incremental perspective noisy and hard to levelized meaningfully. The accumulated-then-levelized approach is a practical compromise: it smooths the lumpiness while capturing the average cost of the capital program. The key is understanding that the levelized accumulated value is not the "marginal cost of one more kW" — it's the "average annual cost of the whole program, per kW of system peak."
+
+### Summary
+
+| Dimension                   | MCOS studies                                       | BAT (theory)                            | Our diluted MC code                      |
+| --------------------------- | -------------------------------------------------- | --------------------------------------- | ---------------------------------------- |
+| **Concept**                 | Cost allocation (share of the infrastructure bill) | Marginal cost (cost one more kW causes) | Mix of both                              |
+| **Cumulative cost centers** | Accumulated (capital grows year by year)           | Incremental (new investment per year)   | Accumulated, then levelized              |
+| **Annual cost centers**     | Accumulated (each year's sample stacks)            | Incremental (one year's sample)         | Flat single-year (closer to incremental) |
+| **System peak denominator** | Fixed (utility-specific year; see Section 1)       | N/A (hourly allocation via PoP)         | Fixed (same as MCOS source)              |
+
+The mismatch is real but bounded. Substation and transmission dominate the MC (typically 70–90% of total); distribution cost centers are a small share. And for cumulative cost centers, the accumulated-then-levelized value is a reasonable proxy for the average marginal cost over the planning horizon — it's the best we can extract from the MCOS workbooks. The important thing is to know what the numbers represent: an average annual infrastructure cost per kW of system peak, not a true marginal cost in the economic sense.

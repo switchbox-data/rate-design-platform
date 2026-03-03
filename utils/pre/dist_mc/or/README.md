@@ -62,6 +62,15 @@ Under the assumption that bulk TX is handled by a separate analysis using all Go
 - **Dropped projects:** None — the TX split resolves the gap that would otherwise exist for Oak St. and New Hempstead.
 - **Reverse overlap risk:** Same caveat as ConEd — Gold Book entries not in CapEx TX could theoretically also appear in CapEx Substation or Primary, but the MCOS cost centers should be mutually exclusive within the workbook.
 
+### MC variants
+
+Like ConEd, the script produces four MC variants (cumulative/incremental × diluted/undiluted) — see the [ConEd README](../coned/README.md#mc-formula-and-variants) for the general formula.
+
+O&R-specific notes:
+
+- All cumulative cost centers (TX bulk/local, Substation, Primary) derive capacity proportionally from capital — see the [ConEd README](../coned/README.md#mc-formula-and-variants) for rationale.
+- **Secondary Distribution** is flat $/kW of system peak. The undiluted variant equals the diluted variant because the $/kW is already normalized by system peak — there's no separate project capacity.
+
 ### Secondary Distribution dilution
 
 Because the CapEx Secondary sheet provides capital as $/kW (not total $), the system peak cancels out:
@@ -80,6 +89,103 @@ O&R uses Schedule 10 (not Schedule 11), and the sheet name has **no trailing spa
 
 1,078.5 MW — Coincident Forecast sheet row 65, 2024 value (vs. ConEd's 2025 value).
 
+## Workbook cell references
+
+### System Peak
+
+Sheet **Coincident Forecast**, cell **D65** (Grand Total, 2024 forecast) = 1,078.5 MW.
+
+### Composite Rates
+
+Sheet **Carrying Charge Loaders** (no trailing space — unlike ConEd), column **O** (Schedule 10 col 13, "Annual MC at System Peak").
+
+| Cost center    | Cell | Value   |
+| -------------- | ---- | ------- |
+| Transmission   | O12  | 0.13035 |
+| Local TX       | O12  | 0.13035 |
+| Substation     | O13  | 0.11850 |
+| Primary        | O14  | 0.15394 |
+| Secondary Dist | O17  | 0.13725 |
+
+Local TX uses the same Transmission rate (row 12) because it's the same plant type.
+
+### Escalation
+
+Sheet **Carrying Charge Loaders**, row **26** (vs. row 25 for ConEd), columns C–L for years 2025–2034. Same GDP deflator as ConEd: base year 2025 = 1.0; 2026 inflates at 2.4%, then 2.1%/yr.
+
+| Year | Cell | Value  |
+| ---- | ---- | ------ |
+| 2025 | C26  | 1.0000 |
+| 2026 | D26  | 1.0240 |
+| 2027 | E26  | 1.0455 |
+| 2028 | F26  | 1.0675 |
+| 2029 | G26  | 1.0899 |
+| 2030 | H26  | 1.1128 |
+| 2031 | I26  | 1.1361 |
+| 2032 | J26  | 1.1600 |
+| 2033 | K26  | 1.1844 |
+| 2034 | L26  | 1.2092 |
+
+### Cumulative Capital — Transmission (bulk + local split)
+
+Sheet **CapEx Transmission**, **right-half** cumulative cashflow columns W(2025)–AF(2034), read per-project row. Bulk TX = row 8 (West Nyack). Local TX = sum of rows 9 + 10 (Oak St. + New Hempstead). Values are in $000s. Approximate (back-calculated from output CSVs).
+
+| Year | Col | Bulk TX row 8 ($000s) | Local TX rows 9+10 ($000s) |
+| ---- | --- | --------------------- | -------------------------- |
+| 2025 | W   | 32,100                | 0                          |
+| 2026 | X   | 46,100                | 500                        |
+| 2027 | Y   | 46,100                | 1,200                      |
+| 2028 | Z   | 46,100                | 2,500                      |
+| 2029 | AA  | 46,100                | 7,000                      |
+| 2030 | AB  | 46,100                | 11,500                     |
+| 2031 | AC  | 46,100                | 24,000                     |
+| 2032 | AD  | 46,100                | 36,500                     |
+| 2033 | AE  | 46,100                | 36,500                     |
+| 2034 | AF  | 46,100                | 36,500                     |
+
+### Cumulative Capital — Substation and Primary
+
+Substation: sheet **CapEx Substation**, row **18** (grand total), columns G–P. Primary: sheet **CapEx Primary**, sum of region rows **57 + 58 + 59** (Central, Eastern, Western; no explicit total row), columns G–P. Both in $000s. Approximate (back-calculated from output CSVs).
+
+| Year | Col | Substation row 18 ($000s) | Primary rows 57-59 ($000s) |
+| ---- | --- | ------------------------- | -------------------------- |
+| 2025 | G   | 66,300                    | 2,400                      |
+| 2026 | H   | 77,700                    | 3,300                      |
+| 2027 | I   | 91,800                    | 5,700                      |
+| 2028 | J   | 123,900                   | 8,900                      |
+| 2029 | K   | 139,900                   | 12,500                     |
+| 2030 | L   | 149,900                   | 15,500                     |
+| 2031 | M   | 169,800                   | 15,500                     |
+| 2032 | N   | 189,900                   | 15,500                     |
+| 2033 | O   | 199,900                   | 15,500                     |
+| 2034 | P   | 199,900                   | 15,500                     |
+
+### Secondary Distribution — flat $/kW
+
+Sheet **CapEx Secondary**, cell **F18** = 12.5659 ($/kW capital cost, system-wide). This is NOT annual MC — the composite rate must still be applied. The system peak cancels out in the formula (see "Secondary Distribution dilution" above), so diluted MC = $/kW × composite rate × escalation.
+
+### Worked example: Substation, year 2025
+
+```
+Cumulative Capital = CapEx Substation G18       ≈ 66,300 ($000s)
+Composite Rate     = Carrying Charge Loaders O13 = 0.11850
+Escalation         = Carrying Charge Loaders C26 = 1.0
+System Peak        = Coincident Forecast D65     = 1,078.5 MW
+
+Annual RR  = 66,300 × 0.11850 × 1.0 = 7,857 ($000s)
+Diluted MC = 7,857 / 1,078.5         = $7.28/kW-yr
+```
+
+### Worked example: Secondary Distribution, year 2026
+
+```
+Capital ($/kW)  = CapEx Secondary F18            = 12.5659
+Composite Rate  = Carrying Charge Loaders O17    = 0.13725
+Escalation      = Carrying Charge Loaders D26    = 1.0240
+
+Diluted MC = 12.5659 × 0.13725 × 1.0240 = $1.77/kW-yr
+```
+
 ## Inputs and outputs
 
 | Input        | Source                                                          |
@@ -87,10 +193,16 @@ O&R uses Schedule 10 (not Schedule 11), and the sheet name has **no trailing spa
 | O&R workbook | `s3://data.sb/ny_psc/mcos_studies_2025/or_study_workpaper.xlsx` |
 | System peak  | 1,078.5 MW — Coincident Forecast sheet row 65, 2024 value       |
 
-| Output                      | Description                                                     |
-| --------------------------- | --------------------------------------------------------------- |
-| `or_diluted_levelized.csv`  | One row per cost center: levelized and full-buildout diluted MC |
-| `or_diluted_annualized.csv` | One row per (cost center, year): nominal and real diluted MC    |
+| Output                                    | Description                                                |
+| ----------------------------------------- | ---------------------------------------------------------- |
+| `or_cumulative_diluted_levelized.csv`     | One row per cost center: levelized and final-year MC       |
+| `or_cumulative_diluted_annualized.csv`    | One row per (cost center, year): nominal and real MC       |
+| `or_incremental_diluted_levelized.csv`    | Same structure, incremental capital ÷ system peak          |
+| `or_incremental_diluted_annualized.csv`   | Same structure, incremental capital ÷ system peak          |
+| `or_cumulative_undiluted_levelized.csv`   | Same structure, cumulative capital ÷ project capacity      |
+| `or_cumulative_undiluted_annualized.csv`  | Same structure, cumulative capital ÷ project capacity      |
+| `or_incremental_undiluted_levelized.csv`  | Same structure, incremental capital ÷ incremental capacity |
+| `or_incremental_undiluted_annualized.csv` | Same structure, incremental capital ÷ incremental capacity |
 
 ## How to run
 

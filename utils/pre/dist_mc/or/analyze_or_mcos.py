@@ -1,7 +1,8 @@
-"""Compute diluted marginal costs from Orange & Rockland's MCOS study workbook.
+"""Compute marginal costs from Orange & Rockland's MCOS study workbook.
 
 Same NERA methodology as ConEd (sister companies), but with different cost
-center structure and workbook layout.
+center structure and workbook layout.  Produces four MC variants × two formats
+= 8 output CSVs.
 
 O&R's CapEx Transmission sheet contains three 138 kV projects.  We split them
 into bulk TX (excluded) and local TX (included in sub-TX + dist):
@@ -28,13 +29,12 @@ The remaining cost centers map cleanly:
   - Primary (CapEx Primary) — cumulative, INCLUDED
   - Secondary Distribution (CapEx Secondary) — flat $/kW, INCLUDED
 
-Dilution formula: same as ConEd — see analyze_coned_mcos.py docstring.
+MC formula: same as ConEd — see analyze_coned_mcos.py docstring.
 Local TX uses the Transmission composite rate (same plant type / carrying
 charge characteristics).
 
-Outputs:
-  - or_diluted_levelized.csv
-  - or_diluted_annualized.csv
+Outputs (8 CSVs):
+  - or_{cumulative,incremental}_{diluted,undiluted}_{levelized,annualized}.csv
   - Terminal report
 
 Usage (via Justfile):
@@ -69,6 +69,13 @@ CC_LABELS = {
     "local_total": "Sub-TX + dist (excl. bulk TX)",
 }
 
+VARIANT_NAMES = [
+    "cumulative_diluted",
+    "incremental_diluted",
+    "cumulative_undiluted",
+    "incremental_undiluted",
+]
+
 
 # ── O&R workbook cell references ─────────────────────────────────────────────
 #
@@ -98,35 +105,23 @@ CAPEX_COST_COL = 21  # U: CWE $000s (right half)
 CAPEX_RIGHT_MW = 20  # T: MW (right half)
 
 # CapEx Transmission project rows — split into bulk and local.
-# West Nyack is the only Gold Book project; Oak St. and New Hempstead are 138 kV
-# reconductoring projects that don't appear in Gold Book Table VII.  They'd be
-# dropped under a "Gold Book = bulk TX" approach, so we reclassify them as local
-# (sub-TX) to avoid a gap in cost accounting.
 TX_BULK_ROWS = [8]  # West Nyack (Gold Book line 3962)
 TX_LOCAL_ROWS = [9, 10]  # Oak St., New Hempstead (not in Gold Book)
 TX_ALL_ROWS = range(8, 11)
 
-# Right-half cumulative cashflow columns ($000s), used to read per-project capital.
-# Left-half year cols (G–P) only appear on the region/total rows, not individual
-# project rows in a way that gives $000s directly.
+# Right-half cumulative cashflow columns ($000s).
 CAPEX_CF_YEAR_COL = {yr: 23 + (yr - 2025) for yr in YEARS}  # W(23)=2025 .. AF(32)=2034
 SUB_PROJECT_ROWS = range(8, 12)  # rows 8–11 (4 projects)
 SUB_TOTAL_ROW = 18  # Grand total
 
 # ── CapEx Primary ────────────────────────────────────────────────────────────
-#
-# Same column layout as TX/Sub.  Has cumulative capital by region in a
-# "Primary by Region" section.  Three regions: Central, Eastern, Western.
-# No explicit total row — we sum the three region rows.
 PRI_REGION_ROWS = [57, 58, 59]  # Central, Eastern, Western ($000s)
 PRI_PROJECT_ROWS = range(8, 34)  # rows 8–33 (26 projects, right half)
 PRI_YEAR_COL = CAPEX_YEAR_COL  # same G(7)..P(16)
 
 # ── CapEx Secondary ──────────────────────────────────────────────────────────
-#
-# Only 2 sample projects yielding a system-wide flat $/kW.
 # Row 18, col F(6): "Secondary Distribution ($/kW)" = 12.5659
-# This is CAPITAL cost per kW, not annual MC.  Must apply composite rate.
+# This is capital cost per kW of SYSTEM PEAK, not per kW of project capacity.
 SEC_RATE_ROW = 18
 SEC_RATE_COL = 6  # F
 
@@ -143,8 +138,6 @@ SCHED10_ESC_ROW = 26
 SCHED10_ESC_YEAR_COL = {yr: 3 + (yr - 2025) for yr in YEARS}
 
 # ── Coincident Forecast ──────────────────────────────────────────────────────
-#
-# Grand Total at row 65.  Col D(4)=2024, E(5)=2025, ..., N(14)=2034.
 COINC_TOTAL_ROW = 65
 COINC_YEAR_COL = {yr: 5 + (yr - 2025) for yr in YEARS}
 COINC_2024_COL = 4
@@ -162,11 +155,13 @@ class CostCenterData:
     total_cost_k: float
     composite_rate: float
     capital_by_year: dict[int, float] = field(default_factory=dict)
+    capacity_by_year: dict[int, float] = field(default_factory=dict)
     is_annual: bool = False
+    is_per_kw_system: bool = False  # True for secondary_dist ($/kW of system peak)
 
 
 @dataclass
-class DilutedRow:
+class MCRow:
     year: int
     capital_k: float
     annual_rr_k: float
@@ -236,12 +231,19 @@ def _parse_capex_cumulative(
     year_cols: dict[int, int],
     name: str,
 ) -> CostCenterData:
+    """Parse a cumulative CapEx sheet with proportional capacity-by-year.
+
+    Capacity is derived proportionally from capital: each year's capacity is
+    the fraction of total project MW corresponding to capital spent so far.
+    See ConEd parser docstring for rationale (CWIP timing mismatch).
+    """
     sheet = wb[sheet_name]
     capital = {yr: _cell(sheet, total_row, col) for yr, col in year_cols.items()}
 
     descriptions: list[str] = []
     total_mw = 0.0
     total_cost = 0.0
+
     for r in project_rows:
         desc = _str_cell(sheet, r, CAPEX_DESC_COL)
         mw = _cell(sheet, r, CAPEX_RIGHT_MW)
@@ -251,6 +253,12 @@ def _parse_capex_cumulative(
             total_mw += mw
             total_cost += cost
 
+    final_cap = capital.get(YEARS[-1], 0.0)
+    if final_cap > 0 and total_mw > 0:
+        capacity = {yr: total_mw * capital[yr] / final_cap for yr in YEARS}
+    else:
+        capacity = {yr: 0.0 for yr in YEARS}
+
     return CostCenterData(
         name=name,
         label=CC_LABELS[name],
@@ -259,14 +267,16 @@ def _parse_capex_cumulative(
         total_cost_k=total_cost,
         composite_rate=0.0,
         capital_by_year=capital,
+        capacity_by_year=capacity,
     )
 
 
 def _parse_tx_rows(wb, rows: list[int], name: str) -> CostCenterData:
     """Parse a subset of CapEx Transmission project rows.
 
-    Uses the right-half cumulative cashflow columns (W–AF) to get per-project
-    capital by year, then sums across the given rows.
+    Uses the right-half cumulative cashflow columns (W-AF) for capital.
+    Capacity is derived proportionally from capital (same rationale as
+    _parse_capex_cumulative).
     """
     sheet = wb[SH_TX]
     capital = {
@@ -277,6 +287,7 @@ def _parse_tx_rows(wb, rows: list[int], name: str) -> CostCenterData:
     descriptions: list[str] = []
     total_mw = 0.0
     total_cost = 0.0
+
     for r in rows:
         desc = _str_cell(sheet, r, CAPEX_DESC_COL)
         mw = _cell(sheet, r, CAPEX_RIGHT_MW)
@@ -286,6 +297,12 @@ def _parse_tx_rows(wb, rows: list[int], name: str) -> CostCenterData:
             total_mw += mw
             total_cost += cost
 
+    final_cap = capital.get(YEARS[-1], 0.0)
+    if final_cap > 0 and total_mw > 0:
+        capacity = {yr: total_mw * capital[yr] / final_cap for yr in YEARS}
+    else:
+        capacity = {yr: 0.0 for yr in YEARS}
+
     return CostCenterData(
         name=name,
         label=CC_LABELS[name],
@@ -294,6 +311,7 @@ def _parse_tx_rows(wb, rows: list[int], name: str) -> CostCenterData:
         total_cost_k=total_cost,
         composite_rate=0.0,
         capital_by_year=capital,
+        capacity_by_year=capacity,
     )
 
 
@@ -339,6 +357,14 @@ def parse_capex_primary(wb) -> CostCenterData:
             total_mw += mw
             total_cost += cost
 
+    # Derive capacity_by_year proportionally from capital (project-level
+    # in-service years aren't accessible from the region-summary rows).
+    final_cap = capital.get(YEARS[-1], 0.0)
+    if final_cap > 0:
+        capacity = {yr: total_mw * capital[yr] / final_cap for yr in YEARS}
+    else:
+        capacity = {yr: 0.0 for yr in YEARS}
+
     return CostCenterData(
         name="primary",
         label=CC_LABELS["primary"],
@@ -347,70 +373,80 @@ def parse_capex_primary(wb) -> CostCenterData:
         total_cost_k=total_cost,
         composite_rate=0.0,
         capital_by_year=capital,
+        capacity_by_year=capacity,
     )
 
 
-def parse_capex_secondary(wb) -> CostCenterData:
+def parse_capex_secondary(wb, system_peak_mw: float) -> CostCenterData:
     """Parse CapEx Secondary — flat $/kW for the whole system.
 
-    The sheet gives capital cost per kW (not annual MC).  We store this as
-    capital_by_year with each year having the SAME value: the total system
-    capital implied by ($/kW × system kW), converted to $000s.
-
-    However, we don't know total system kW here; the denominator is the system
-    peak passed at the CLI.  Instead, we store the $/kW as a "per-kW capital"
-    and compute the annual RR in the dilution step as:
-      Annual RR = $/kW × composite_rate × escalation × system_peak
-
-    This simplifies to: diluted MC = $/kW × composite_rate × escalation,
-    which is the same for every year (only escalation varies).
+    The workbook gives capital cost per kW of system peak ($12.57/kW).
+    We store:
+      - capital_by_year: total system capital ($000s) = $/kW × system_peak_kw / 1000
+      - capacity_by_year: system peak (MW) — the denominator for this cost center
+    This means diluted MC = capital × rate × esc / system_peak, and
+    undiluted MC = same value (since the $/kW is already per kW of system peak,
+    there's no separate project capacity for undiluted).
     """
     sheet = wb[SH_SEC]
     dollars_per_kw = _cell(sheet, SEC_RATE_ROW, SEC_RATE_COL)
+
+    total_capital_k = dollars_per_kw * system_peak_mw  # $000s/MW × MW = $000s... wait
+    # Actually: $/kW × (MW × 1000 kW/MW) / 1000 = $/kW × MW = same number.
+    # $12.57/kW × 1078.5 MW = 13,556 ($000s)?  No: $/kW × MW = $/kW × MW.
+    # We need $000s: ($/kW × kW) / 1000 = ($/kW × MW × 1000) / 1000 = $/kW × MW.
+    # So capital_k = dollars_per_kw × system_peak_mw.  ✓
+    total_capital_k = dollars_per_kw * system_peak_mw
 
     return CostCenterData(
         name="secondary_dist",
         label=CC_LABELS["secondary_dist"],
         n_projects=2,
         total_capacity_mw=0.0,
-        total_cost_k=0.0,
+        total_cost_k=total_capital_k,
         composite_rate=0.0,
-        capital_by_year={yr: dollars_per_kw for yr in YEARS},
+        capital_by_year={yr: total_capital_k for yr in YEARS},
+        capacity_by_year={yr: system_peak_mw for yr in YEARS},
         is_annual=True,
+        is_per_kw_system=True,
     )
 
 
-# ── Dilution ─────────────────────────────────────────────────────────────────
+# ── MC computation ───────────────────────────────────────────────────────────
 
 
-def compute_diluted(
-    cc: CostCenterData,
-    escalation: dict[int, float],
-    system_peak_mw: float,
-) -> list[DilutedRow]:
-    rows: list[DilutedRow] = []
+def incremental_from_cumulative(by_year: dict[int, float]) -> dict[int, float]:
+    """Convert cumulative year-by-year values to year-over-year deltas."""
+    result: dict[int, float] = {}
+    prev = 0.0
     for yr in YEARS:
-        cap = cc.capital_by_year.get(yr, 0.0)
+        val = by_year.get(yr, 0.0)
+        result[yr] = val - prev
+        prev = val
+    return result
+
+
+def compute_mc(
+    capital_by_year: dict[int, float],
+    composite_rate: float,
+    escalation: dict[int, float],
+    denominator_by_year: dict[int, float],
+) -> list[MCRow]:
+    """Year-by-year MC.  capital in $000s, denominator in MW ⇒ $/kW."""
+    rows: list[MCRow] = []
+    for yr in YEARS:
+        cap = capital_by_year.get(yr, 0.0)
         esc = escalation.get(yr, 1.0)
-
-        if cc.name == "secondary_dist":
-            # cap is $/kW (capital per kW); diluted MC = $/kW × composite × esc
-            nom_mc = cap * cc.composite_rate * esc
-            real_mc = cap * cc.composite_rate
-            rr = nom_mc * system_peak_mw
-        else:
-            # cap is cumulative capital ($000s); Annual RR ($000s) = cap × rate × esc
-            rr = cap * cc.composite_rate * esc
-            nom_mc = rr / system_peak_mw if system_peak_mw else 0.0
-            real_mc = (
-                (cap * cc.composite_rate) / system_peak_mw if system_peak_mw else 0.0
-            )
-
-        rows.append(DilutedRow(yr, cap, rr, esc, nom_mc, real_mc))
+        denom = denominator_by_year.get(yr, 0.0)
+        rr_nom = cap * composite_rate * esc
+        rr_real = cap * composite_rate
+        nom_mc = rr_nom / denom if denom > 0 else 0.0
+        real_mc = rr_real / denom if denom > 0 else 0.0
+        rows.append(MCRow(yr, cap, rr_nom, esc, nom_mc, real_mc))
     return rows
 
 
-def levelized(rows: list[DilutedRow]) -> float:
+def levelized(rows: list[MCRow]) -> float:
     return sum(r.real_mc for r in rows) / len(rows) if rows else 0.0
 
 
@@ -418,25 +454,25 @@ def levelized(rows: list[DilutedRow]) -> float:
 
 
 def _sum_mc(
-    diluted: dict[str, list[DilutedRow]], centers: list[str], yi: int, *, nominal: bool
+    mc_data: dict[str, list[MCRow]], centers: list[str], yi: int, *, nominal: bool
 ) -> float:
     return sum(
-        (diluted[c][yi].nominal_mc if nominal else diluted[c][yi].real_mc)
+        (mc_data[c][yi].nominal_mc if nominal else mc_data[c][yi].real_mc)
         for c in centers
     )
 
 
 def export_levelized_csv(
     ccs: dict[str, CostCenterData],
-    diluted: dict[str, list[DilutedRow]],
+    mc_data: dict[str, list[MCRow]],
     path: Path,
 ) -> None:
     rows = []
     for name in COST_CENTERS:
         cc = ccs[name]
-        lev = levelized(diluted[name])
-        if cc.name == "secondary_dist":
-            cost_m = 0.0
+        lev = levelized(mc_data[name])
+        if cc.is_per_kw_system:
+            cost_m = cc.total_cost_k / 1e3
         elif cc.is_annual:
             cost_m = cc.total_cost_k / 1e3
         else:
@@ -450,14 +486,12 @@ def export_levelized_csv(
                 "total_cost_m": round(cost_m, 1),
                 "composite_rate": round(cc.composite_rate, 5),
                 "levelized_mc_kw_yr": round(lev, 2),
-                "full_buildout_real_mc_kw_yr": round(diluted[name][-1].real_mc, 2),
-                "full_buildout_nominal_mc_kw_yr": round(
-                    diluted[name][-1].nominal_mc, 2
-                ),
+                "final_year_real_mc_kw_yr": round(mc_data[name][-1].real_mc, 2),
+                "final_year_nominal_mc_kw_yr": round(mc_data[name][-1].nominal_mc, 2),
             }
         )
 
-    local_lev = sum(levelized(diluted[c]) for c in LOCAL_CENTERS)
+    local_lev = sum(levelized(mc_data[c]) for c in LOCAL_CENTERS)
     rows.append(
         {
             "cost_center": "local_total",
@@ -467,11 +501,11 @@ def export_levelized_csv(
             "total_cost_m": 0.0,
             "composite_rate": 0.0,
             "levelized_mc_kw_yr": round(local_lev, 2),
-            "full_buildout_real_mc_kw_yr": round(
-                sum(diluted[c][-1].real_mc for c in LOCAL_CENTERS), 2
+            "final_year_real_mc_kw_yr": round(
+                sum(mc_data[c][-1].real_mc for c in LOCAL_CENTERS), 2
             ),
-            "full_buildout_nominal_mc_kw_yr": round(
-                sum(diluted[c][-1].nominal_mc for c in LOCAL_CENTERS), 2
+            "final_year_nominal_mc_kw_yr": round(
+                sum(mc_data[c][-1].nominal_mc for c in LOCAL_CENTERS), 2
             ),
         }
     )
@@ -480,18 +514,18 @@ def export_levelized_csv(
     print(f"  Wrote {path}")
 
 
-def export_annualized_csv(diluted: dict[str, list[DilutedRow]], path: Path) -> None:
+def export_annualized_csv(mc_data: dict[str, list[MCRow]], path: Path) -> None:
     rows = []
     for yi, yr in enumerate(YEARS):
         row: dict[str, object] = {"year": yr}
         for name in COST_CENTERS:
-            row[f"{name}_nominal"] = round(diluted[name][yi].nominal_mc, 2)
-            row[f"{name}_real"] = round(diluted[name][yi].real_mc, 2)
+            row[f"{name}_nominal"] = round(mc_data[name][yi].nominal_mc, 2)
+            row[f"{name}_real"] = round(mc_data[name][yi].real_mc, 2)
         row["local_total_nominal"] = round(
-            _sum_mc(diluted, LOCAL_CENTERS, yi, nominal=True), 2
+            _sum_mc(mc_data, LOCAL_CENTERS, yi, nominal=True), 2
         )
         row["local_total_real"] = round(
-            _sum_mc(diluted, LOCAL_CENTERS, yi, nominal=False), 2
+            _sum_mc(mc_data, LOCAL_CENTERS, yi, nominal=False), 2
         )
         rows.append(row)
     pl.DataFrame(rows).write_csv(path)
@@ -503,60 +537,54 @@ def export_annualized_csv(diluted: dict[str, list[DilutedRow]], path: Path) -> N
 
 def print_report(
     ccs: dict[str, CostCenterData],
-    diluted: dict[str, list[DilutedRow]],
+    variants: dict[str, dict[str, list[MCRow]]],
     system_peak_mw: float,
 ) -> None:
     W = 80
     print("=" * W)
-    print("Orange & Rockland MCOS Dilution Analysis")
+    print("Orange & Rockland MCOS Analysis — Cumulative vs. Incremental")
     print("=" * W)
 
     print(f"\n── System {'─' * (W - 11)}")
     print(f"  System peak (2024 forecast):  {system_peak_mw:,.1f} MW")
 
-    print(f"\n── Cost centers {'─' * (W - 16)}")
+    cum_dil = variants["cumulative_diluted"]
+    inc_dil = variants["incremental_diluted"]
+    cum_undil = variants["cumulative_undiluted"]
+    inc_undil = variants["incremental_undiluted"]
+
+    print(f"\n── Levelized MC ($/kW-yr, real) {'─' * (W - 32)}")
+    print(
+        f"  {'Cost center':<28} {'Cum.Dil':>8} {'Inc.Dil':>8}"
+        f" {'Cum.Und':>8} {'Inc.Und':>8}"
+    )
+    print(f"  {'─' * (W - 4)}")
     for name in COST_CENTERS:
         cc = ccs[name]
-        lev = levelized(diluted[name])
-        full_r = diluted[name][-1].real_mc
-        full_n = diluted[name][-1].nominal_mc
-        print(f"\n  {cc.label}")
-        print(f"    {cc.n_projects} project(s), {cc.total_capacity_mw:,.1f} MW")
-        if cc.name == "secondary_dist":
-            cap_k = cc.capital_by_year.get(2025, 0)
-            print(f"    Capital: ${cap_k:,.2f}/kW (flat, system-wide)")
-        else:
-            cap_type = "annual" if cc.is_annual else "cumulative to 2034"
-            cap_m = (
-                cc.total_cost_k / 1e3
-                if cc.is_annual
-                else cc.capital_by_year[YEARS[-1]] / 1e3
-            )
-            print(f"    Capital ({cap_type}): ${cap_m:,.1f}M")
-        print(f"    Composite rate: {cc.composite_rate:.5f}")
-        print(f"    Levelized: ${lev:,.2f}/kW-yr")
-        print(
-            f"    Full buildout: ${full_r:,.2f}/kW-yr (real)  ${full_n:,.2f}/kW-yr (nominal)"
-        )
+        vals = [
+            levelized(cum_dil[name]),
+            levelized(inc_dil[name]),
+            levelized(cum_undil[name]),
+            levelized(inc_undil[name]),
+        ]
+        parts = "  ".join(f"${v:>6.2f}" for v in vals)
+        print(f"  {cc.label:<28} {parts}")
+    loc_vals = [
+        sum(levelized(v[c]) for c in LOCAL_CENTERS)
+        for v in [cum_dil, inc_dil, cum_undil, inc_undil]
+    ]
+    parts = "  ".join(f"${v:>6.2f}" for v in loc_vals)
+    print(f"  {'─' * (W - 4)}")
+    print(f"  {'Sub-TX + dist total':<28} {parts}")
 
-    print(f"\n── Sub-TX + dist total {'─' * (W - 23)}")
-    loc_lev = sum(levelized(diluted[c]) for c in LOCAL_CENTERS)
-    loc_full_r = sum(diluted[c][-1].real_mc for c in LOCAL_CENTERS)
-    loc_full_n = sum(diluted[c][-1].nominal_mc for c in LOCAL_CENTERS)
-    print(f"  Levelized: ${loc_lev:,.2f}/kW-yr")
-    print(
-        f"  Full buildout: ${loc_full_r:,.2f}/kW-yr (real)  ${loc_full_n:,.2f}/kW-yr (nominal)"
-    )
-
-    print(f"\n── Year-by-year diluted MC ($/kW-yr, nominal) {'─' * (W - 46)}")
-    hdr = f"  {'Year':>4}  {'BulkTX':>8}  {'LocTX':>8}  {'Substn':>8}  {'Primary':>8}  {'SecDist':>8}  {'Local':>8}"
-    print(hdr)
-    print(f"  {'─' * (len(hdr) - 2)}")
+    print(f"\n── Year-by-year local_total diluted ($/kW-yr, nominal) {'─' * (W - 55)}")
+    print(f"  {'Year':>4}  {'Cumulative':>12}  {'Incremental':>12}  {'Match?':>8}")
+    print(f"  {'─' * 42}")
     for yi, yr in enumerate(YEARS):
-        vals = [diluted[c][yi].nominal_mc for c in COST_CENTERS]
-        loc = sum(diluted[c][yi].nominal_mc for c in LOCAL_CENTERS)
-        parts = "  ".join(f"${v:>7.2f}" for v in vals)
-        print(f"  {yr:>4}  {parts}  ${loc:>7.2f}")
+        cum_v = _sum_mc(cum_dil, LOCAL_CENTERS, yi, nominal=True)
+        inc_v = _sum_mc(inc_dil, LOCAL_CENTERS, yi, nominal=True)
+        match = "  ✓" if yr == YEARS[0] and abs(cum_v - inc_v) < 0.01 else ""
+        print(f"  {yr:>4}  ${cum_v:>10.2f}  ${inc_v:>10.2f}  {match}")
 
     print()
 
@@ -566,7 +594,7 @@ def print_report(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Compute diluted MC from O&R MCOS workbook"
+        description="Compute MC variants from O&R MCOS workbook"
     )
     parser.add_argument(
         "--path-xlsx",
@@ -601,7 +629,7 @@ def main() -> None:
     tx_bulk, tx_local = parse_capex_tx_split(wb)
     sub = parse_capex_sub(wb)
     primary = parse_capex_primary(wb)
-    sec_dist = parse_capex_secondary(wb)
+    sec_dist = parse_capex_secondary(wb, args.system_peak_mw)
 
     ccs: dict[str, CostCenterData] = {}
     for cc in [tx_bulk, tx_local, sub, primary, sec_dist]:
@@ -620,21 +648,68 @@ def main() -> None:
     print(
         f"  Primary: {primary.n_projects} projects, {primary.total_capacity_mw:,.1f} MW, ${primary.total_cost_k / 1e3:,.1f}M"
     )
-    print(f"  SecDist: ${sec_dist.capital_by_year[2025]:.2f}/kW (flat)")
+    print(
+        f"  SecDist: ${sec_dist.capital_by_year[2025] / args.system_peak_mw:.2f}/kW system (flat)"
+    )
 
-    diluted = {
-        name: compute_diluted(cc, escalation, args.system_peak_mw)
+    # ── Build all 4 variants ──────────────────────────────────────────────────
+
+    peak_denom = {yr: args.system_peak_mw for yr in YEARS}
+
+    inc_capital: dict[str, dict[int, float]] = {}
+    inc_capacity: dict[str, dict[int, float]] = {}
+    for name, cc in ccs.items():
+        if cc.is_annual:
+            inc_capital[name] = cc.capital_by_year
+            inc_capacity[name] = cc.capacity_by_year
+        else:
+            inc_capital[name] = incremental_from_cumulative(cc.capital_by_year)
+            inc_capacity[name] = incremental_from_cumulative(cc.capacity_by_year)
+
+    variants: dict[str, dict[str, list[MCRow]]] = {}
+
+    variants["cumulative_diluted"] = {
+        name: compute_mc(cc.capital_by_year, cc.composite_rate, escalation, peak_denom)
         for name, cc in ccs.items()
     }
+
+    variants["incremental_diluted"] = {
+        name: compute_mc(
+            inc_capital[name], ccs[name].composite_rate, escalation, peak_denom
+        )
+        for name in COST_CENTERS
+    }
+
+    variants["cumulative_undiluted"] = {
+        name: compute_mc(
+            cc.capital_by_year, cc.composite_rate, escalation, cc.capacity_by_year
+        )
+        for name, cc in ccs.items()
+    }
+
+    variants["incremental_undiluted"] = {
+        name: compute_mc(
+            inc_capital[name],
+            ccs[name].composite_rate,
+            escalation,
+            inc_capacity[name],
+        )
+        for name in COST_CENTERS
+    }
+
+    # ── Export CSVs ───────────────────────────────────────────────────────────
 
     out = args.path_output_dir
     out.mkdir(parents=True, exist_ok=True)
     print("\nExporting CSVs:")
-    export_levelized_csv(ccs, diluted, out / "or_diluted_levelized.csv")
-    export_annualized_csv(diluted, out / "or_diluted_annualized.csv")
+    for variant_name in VARIANT_NAMES:
+        mc_data = variants[variant_name]
+        prefix = f"or_{variant_name}"
+        export_levelized_csv(ccs, mc_data, out / f"{prefix}_levelized.csv")
+        export_annualized_csv(mc_data, out / f"{prefix}_annualized.csv")
 
     print()
-    print_report(ccs, diluted, args.system_peak_mw)
+    print_report(ccs, variants, args.system_peak_mw)
 
     wb.close()
 
