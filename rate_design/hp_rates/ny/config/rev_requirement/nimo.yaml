@@ -1,9 +1,9 @@
 utility: nimo
 delivery_revenue_requirement_from_rate_case: 1314441124.0
 delivery_revenue_requirement_topups: 94005089.33
-supply_revenue_requirement_topups: 11472379116.51
+supply_revenue_requirement_topups: 1095571648.45
 total_delivery_revenue_requirement: 1408446213.33
-total_delivery_and_supply_revenue_requirement: 12880825329.84
+total_delivery_and_supply_revenue_requirement: 2504017861.78
 total_residential_kwh: 11833894912.0
 eia_year: 2024
 delivery_top_ups:
@@ -32,82 +32,18 @@ delivery_top_ups:
     avg_monthly_rate: 0.0005227397
     total_budget: 6186046.98
 supply_top_ups:
-  supply_commodity_bundled_1:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0706367123
-    total_budget: 835907430.63
-  supply_commodity_bundled_2:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0835348767
-    total_budget: 988542952.5
   supply_commodity_bundled_3:
     charge_unit: $/kWh
     avg_monthly_rate: 0.0742730411
     total_budget: 878939363.12
-  supply_commodity_bundled_4:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0713247945
-    total_budget: 844050122.98
-  supply_commodity_bundled_5:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0725712603
-    total_budget: 858800667.71
-  supply_commodity_bundled_6:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0759688767
-    total_budget: 899007703.6
   ces_supply_surcharge:
     charge_unit: $/kWh
     avg_monthly_rate: 0.0024767671
     total_budget: 29309801.86
-  merchant_function_charge_1:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0706367123
-    total_budget: 835907430.63
-  merchant_function_charge_2:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0835348767
-    total_budget: 988542952.5
-  merchant_function_charge_3:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0742730411
-    total_budget: 878939363.12
-  merchant_function_charge_4:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0713247945
-    total_budget: 844050122.98
-  merchant_function_charge_5:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0725712603
-    total_budget: 858800667.71
-  merchant_function_charge_6:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0759688767
-    total_budget: 899007703.6
-  merchant_function_charge_7:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0124274274
-    total_budget: 147064869.85
-  merchant_function_charge_8:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0155051753
-    total_budget: 183486615.59
   merchant_function_charge_9:
     charge_unit: $/kWh
     avg_monthly_rate: 0.0085608247
     total_budget: 101307899.36
-  merchant_function_charge_10:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0085591589
-    total_budget: 101288187.01
-  merchant_function_charge_11:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0081009479
-    total_budget: 95865766.67
-  merchant_function_charge_12:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0099329014
-    total_budget: 117544910.98
   merchant_function_charge_13:
     charge_unit: $/kWh
     avg_monthly_rate: 0.0069883562

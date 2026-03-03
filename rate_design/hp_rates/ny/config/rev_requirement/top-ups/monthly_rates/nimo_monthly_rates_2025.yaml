@@ -6,7 +6,7 @@ charges:
   supply_commodity_bundled_1:
     tariff_rate_id: 5244
     master_charge: Supply commodity (bundled)
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.08982
       2025-02: 0.08715
@@ -24,7 +24,7 @@ charges:
   supply_commodity_bundled_2:
     tariff_rate_id: 5246
     master_charge: Supply commodity (bundled)
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.11437
       2025-02: 0.12124
@@ -60,7 +60,7 @@ charges:
   supply_commodity_bundled_4:
     tariff_rate_id: 5250
     master_charge: Supply commodity (bundled)
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.08768
       2025-02: 0.08374
@@ -78,7 +78,7 @@ charges:
   supply_commodity_bundled_5:
     tariff_rate_id: 5252
     master_charge: Supply commodity (bundled)
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.09054
       2025-02: 0.08928
@@ -96,7 +96,7 @@ charges:
   supply_commodity_bundled_6:
     tariff_rate_id: 5254
     master_charge: Supply commodity (bundled)
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.09499
       2025-02: 0.09248
@@ -348,7 +348,7 @@ charges:
   merchant_function_charge_1:
     tariff_rate_id: 19819734
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.08982
       2025-02: 0.08715
@@ -366,7 +366,7 @@ charges:
   merchant_function_charge_2:
     tariff_rate_id: 19819735
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.11437
       2025-02: 0.12124
@@ -384,7 +384,7 @@ charges:
   merchant_function_charge_3:
     tariff_rate_id: 19819736
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.09303
       2025-02: 0.09041
@@ -402,7 +402,7 @@ charges:
   merchant_function_charge_4:
     tariff_rate_id: 19819737
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.08768
       2025-02: 0.08374
@@ -420,7 +420,7 @@ charges:
   merchant_function_charge_5:
     tariff_rate_id: 19819738
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.09054
       2025-02: 0.08928
@@ -438,7 +438,7 @@ charges:
   merchant_function_charge_6:
     tariff_rate_id: 19819739
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.09499
       2025-02: 0.09248
@@ -456,7 +456,7 @@ charges:
   merchant_function_charge_7:
     tariff_rate_id: 19819740
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: -0.014274
       2025-02: 0.001168
@@ -474,7 +474,7 @@ charges:
   merchant_function_charge_8:
     tariff_rate_id: 19819741
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: -0.0193
       2025-02: -0.016957
@@ -510,7 +510,7 @@ charges:
   merchant_function_charge_10:
     tariff_rate_id: 19819743
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: -0.012606
       2025-02: -0.00048
@@ -528,7 +528,7 @@ charges:
   merchant_function_charge_11:
     tariff_rate_id: 19819744
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: -0.01528
       2025-02: -0.006705
@@ -546,7 +546,7 @@ charges:
   merchant_function_charge_12:
     tariff_rate_id: 19819745
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: -0.014622
       2025-02: -0.003318
