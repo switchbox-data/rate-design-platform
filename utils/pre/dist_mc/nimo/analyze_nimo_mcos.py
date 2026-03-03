@@ -1,17 +1,31 @@
-"""Compute diluted marginal costs from NiMo's MCOS Exhibit 1 workbook.
+"""Compute marginal costs from NiMo's MCOS Exhibit 1 workbook.
 
 Parses NiMo's MCOS workbook (Exhibit 1), applies project-level classifications
 (bulk_tx / sub_tx / distribution from Gold Book cross-referencing), and computes
-diluted MC values per bucket — both levelized (present-value-equivalent at FY2026
-prices) and year-by-year (cumulative annual bill as projects enter service).
+MC values per bucket in four variants:
 
-Outputs:
-  - Levelized summary CSV: one row per bucket with total costs and diluted $/kW-yr
-  - Annualized CSV: one row per (bucket, fiscal year) with year-by-year diluted MC
+  1. Cumulative diluted    — all in-service projects ÷ system peak
+  2. Incremental diluted   — new projects in year Y ÷ system peak (BAT input)
+  3. Cumulative undiluted  — all in-service projects ÷ in-service capacity
+  4. Incremental undiluted — new projects in year Y ÷ new capacity in year Y
+
+Each variant is exported in both annualized (year-by-year) and levelized form,
+for a total of 8 CSVs.
+
+NiMo's workbook differs from ConEd/O&R: instead of a composite rate × escalation
+formula, each project has pre-computed ECCR values:
+  - F26(p): base-year (FY2026) annual cost/MW ($000s/MW)
+  - F_Y(p): nominal annual cost/MW in year Y ($000s/MW)
+
+So MC(Y) = sum(F × capacity) / Denominator, where F = F26 for real, F_Y for
+nominal.
+
+Outputs (8 CSVs):
+  - nimo_{cumulative,incremental}_{diluted,undiluted}_{levelized,annualized}.csv
   - Terminal report (always printed)
 
 Usage (via Justfile):
-    just analyze
+    just analyze-nimo
 """
 
 from __future__ import annotations
@@ -46,11 +60,26 @@ DATA_START_ROW = 7
 
 # Year-by-year F columns: FY2026 (col 39) through FY2036 (col 49)
 FISCAL_YEARS = list(range(2026, 2037))  # [2026, 2027, ..., 2036]
+N_YEARS = len(FISCAL_YEARS)
 F_COL_BY_YEAR: dict[int, int] = {yr: COL_F26 + (yr - 2026) for yr in FISCAL_YEARS}
 
 VALID_CLASSIFICATIONS = {"bulk_tx", "sub_tx", "distribution"}
 
 BUCKET_KEYS = ["total", "bulk_tx", "sub_tx", "distribution", "sub_tx_plus_dist"]
+BUCKET_LABELS = {
+    "total": "All projects",
+    "bulk_tx": "Bulk TX (≥230kV)",
+    "sub_tx": "Sub-TX (69–115kV)",
+    "distribution": "Distribution (≤13.2kV)",
+    "sub_tx_plus_dist": "Sub-TX + Distribution",
+}
+
+VARIANT_NAMES = [
+    "cumulative_diluted",
+    "incremental_diluted",
+    "cumulative_undiluted",
+    "incremental_undiluted",
+]
 
 
 # ── Data classes ──────────────────────────────────────────────────────────────
@@ -79,24 +108,17 @@ class McosProject:
     in_service_year: int | None
     classification: str = ""  # bulk_tx | sub_tx | distribution
 
-    @property
-    def annual_cost_nominal_k(self) -> float:
-        """Nominal annual MC = E * capacity ($000s/yr). At in-service-year prices."""
-        return self.e_total * self.capacity_mw
 
-    @property
-    def annual_cost_discounted_k(self) -> float:
-        """Discounted annual MC = F26 * capacity ($000s/yr). At FY2026 prices."""
-        return self.f26 * self.capacity_mw
+@dataclass
+class MCRow:
+    """One year's MC for a bucket (used for all variants)."""
 
-    def annual_cost_in_year_k(self, fy: int) -> float:
-        """Cost this project contributes in fiscal year fy ($000s).
-
-        Zero if the project isn't yet in service.
-        """
-        if self.in_service_year is not None and fy < self.in_service_year:
-            return 0.0
-        return self.f_by_year.get(fy, 0.0) * self.capacity_mw
+    fy: int
+    cost_real_k: float  # numerator, base-year ($000s)
+    cost_nominal_k: float  # numerator, year-Y ($000s)
+    denominator_mw: float
+    nominal_mc: float  # $/kW-yr, year-Y dollars
+    real_mc: float  # $/kW-yr, FY2026 dollars
 
 
 # ── Parse MCOS workbook ──────────────────────────────────────────────────────
@@ -209,345 +231,203 @@ def apply_classifications(
         p.classification = cls
 
 
-# ── Dilution ──────────────────────────────────────────────────────────────────
+# ── MC computation ───────────────────────────────────────────────────────────
 
 
-@dataclass
-class BucketSummary:
-    """Cost summary for one classification bucket."""
-
-    key: str
-    label: str
-    n_projects: int
-    n_unique_stations: int
-    capacity_mw: float
-    capital_b: float
-    annual_cost_nominal_m: float  # sum(E × cap), in-service-year prices
-    annual_cost_discounted_m: float  # sum(F26 × cap), FY2026 prices
-    diluted_per_kw: float  # discounted annual / system peak
-
-
-@dataclass
-class DilutionResult:
-    system_peak_mw: float
-    undiluted_mc_per_kw: float
-
-    total: BucketSummary
-    bulk_tx: BucketSummary
-    sub_tx: BucketSummary
-    distribution: BucketSummary
-    sub_tx_plus_dist: BucketSummary
-
-    def buckets(self) -> list[BucketSummary]:
-        return [
-            self.total,
-            self.bulk_tx,
-            self.sub_tx,
-            self.distribution,
-            self.sub_tx_plus_dist,
-        ]
-
-
-def _bucket(
-    key: str, label: str, projects: list[McosProject], system_peak_mw: float
-) -> BucketSummary:
-    nom_k = sum(p.annual_cost_nominal_k for p in projects)
-    disc_k = sum(p.annual_cost_discounted_k for p in projects)
-    unique_stations = len({p.station.upper() for p in projects})
-    return BucketSummary(
-        key=key,
-        label=label,
-        n_projects=len(projects),
-        n_unique_stations=unique_stations,
-        capacity_mw=sum(p.capacity_mw for p in projects),
-        capital_b=sum(p.capital_k for p in projects) / 1e6,
-        annual_cost_nominal_m=nom_k / 1e3,
-        annual_cost_discounted_m=disc_k / 1e3,
-        diluted_per_kw=disc_k / system_peak_mw if system_peak_mw else 0,
-    )
-
-
-def compute_dilution(
+def _projects_by_bucket(
     projects: list[McosProject],
-    *,
-    system_peak_mw: float,
-    undiluted_mc_per_kw: float,
-) -> DilutionResult:
+) -> dict[str, list[McosProject]]:
     by_cls: dict[str, list[McosProject]] = {c: [] for c in VALID_CLASSIFICATIONS}
     for p in projects:
         by_cls[p.classification].append(p)
-
-    return DilutionResult(
-        system_peak_mw=system_peak_mw,
-        undiluted_mc_per_kw=undiluted_mc_per_kw,
-        total=_bucket("total", "All projects", projects, system_peak_mw),
-        bulk_tx=_bucket(
-            "bulk_tx", "Bulk TX (≥230kV)", by_cls["bulk_tx"], system_peak_mw
-        ),
-        sub_tx=_bucket("sub_tx", "Sub-TX (69–115kV)", by_cls["sub_tx"], system_peak_mw),
-        distribution=_bucket(
-            "distribution",
-            "Distribution (≤13.2kV)",
-            by_cls["distribution"],
-            system_peak_mw,
-        ),
-        sub_tx_plus_dist=_bucket(
-            "sub_tx_plus_dist",
-            "Sub-TX + Distribution",
-            by_cls["sub_tx"] + by_cls["distribution"],
-            system_peak_mw,
-        ),
-    )
+    return {
+        "total": list(projects),
+        "bulk_tx": by_cls["bulk_tx"],
+        "sub_tx": by_cls["sub_tx"],
+        "distribution": by_cls["distribution"],
+        "sub_tx_plus_dist": by_cls["sub_tx"] + by_cls["distribution"],
+    }
 
 
-# ── Annualized (year-by-year) dilution ────────────────────────────────────────
-
-
-@dataclass
-class AnnualizedRow:
-    """One fiscal year's worth of costs for a bucket of projects."""
-
-    fy: int
-    new_capacity_mw: float  # capacity entering service this year
-    cumulative_capacity_mw: float  # total in-service capacity through this year
-    annual_cost_m: float  # cumulative annual bill ($M, year-Y dollars)
-    diluted_per_kw: float  # annual bill / system peak ($/kW-yr)
-
-
-@dataclass
-class AnnualizedTable:
-    """Year-by-year diluted marginal costs for one classification bucket."""
-
-    key: str
-    label: str
-    system_peak_mw: float
-    rows: list[AnnualizedRow]
-
-
-def compute_annualized_table(
-    key: str,
-    label: str,
+def compute_bucket_mc(
     projects: list[McosProject],
     system_peak_mw: float,
-) -> AnnualizedTable:
-    """Build a year-by-year table of cumulative diluted MC for a set of projects.
+    *,
+    cumulative: bool,
+    diluted: bool,
+) -> list[MCRow]:
+    """Year-by-year MC for a set of projects under one variant.
 
-    For each fiscal year Y, the annual bill is the sum of (F_Y × capacity) for
-    all projects in service by year Y. The diluted MC divides that bill by
-    system peak.
+    cumulative=True:  in-scope = projects with in_service_year <= fy
+    cumulative=False: in-scope = projects with in_service_year == fy
+    diluted=True:     denominator = system_peak_mw
+    diluted=False:    denominator = sum(capacity) of in-scope projects
     """
-    rows: list[AnnualizedRow] = []
+    rows: list[MCRow] = []
     for fy in FISCAL_YEARS:
-        new_cap = sum(p.capacity_mw for p in projects if p.in_service_year == fy)
-        cum_cap = sum(
-            p.capacity_mw
-            for p in projects
-            if p.in_service_year is not None and p.in_service_year <= fy
-        )
-        annual_cost_k = sum(p.annual_cost_in_year_k(fy) for p in projects)
-        diluted = annual_cost_k / system_peak_mw if system_peak_mw else 0.0
+        if cumulative:
+            scope = [
+                p
+                for p in projects
+                if p.in_service_year is not None and p.in_service_year <= fy
+            ]
+        else:
+            scope = [p for p in projects if p.in_service_year == fy]
+
+        cost_real_k = sum(p.f26 * p.capacity_mw for p in scope)
+        cost_nominal_k = sum(p.f_by_year.get(fy, 0.0) * p.capacity_mw for p in scope)
+
+        if diluted:
+            denom = system_peak_mw
+        else:
+            denom = sum(p.capacity_mw for p in scope)
+
+        real_mc = cost_real_k / denom if denom > 0 else 0.0
+        nominal_mc = cost_nominal_k / denom if denom > 0 else 0.0
+
         rows.append(
-            AnnualizedRow(
+            MCRow(
                 fy=fy,
-                new_capacity_mw=new_cap,
-                cumulative_capacity_mw=cum_cap,
-                annual_cost_m=annual_cost_k / 1e3,
-                diluted_per_kw=diluted,
+                cost_real_k=cost_real_k,
+                cost_nominal_k=cost_nominal_k,
+                denominator_mw=denom,
+                nominal_mc=nominal_mc,
+                real_mc=real_mc,
             )
         )
-    return AnnualizedTable(
-        key=key, label=label, system_peak_mw=system_peak_mw, rows=rows
-    )
+    return rows
 
 
-def compute_all_annualized(
-    projects: list[McosProject], system_peak_mw: float
-) -> dict[str, AnnualizedTable]:
-    by_cls: dict[str, list[McosProject]] = {c: [] for c in VALID_CLASSIFICATIONS}
-    for p in projects:
-        by_cls[p.classification].append(p)
-
-    return {
-        "total": compute_annualized_table(
-            "total", "All projects", projects, system_peak_mw
-        ),
-        "bulk_tx": compute_annualized_table(
-            "bulk_tx", "Bulk TX (≥230kV)", by_cls["bulk_tx"], system_peak_mw
-        ),
-        "sub_tx": compute_annualized_table(
-            "sub_tx", "Sub-TX (69–115kV)", by_cls["sub_tx"], system_peak_mw
-        ),
-        "distribution": compute_annualized_table(
-            "distribution",
-            "Distribution (≤13.2kV)",
-            by_cls["distribution"],
-            system_peak_mw,
-        ),
-        "sub_tx_plus_dist": compute_annualized_table(
-            "sub_tx_plus_dist",
-            "Sub-TX + Distribution",
-            by_cls["sub_tx"] + by_cls["distribution"],
-            system_peak_mw,
-        ),
-    }
+def levelized(rows: list[MCRow]) -> float:
+    """Average of real (base-year) MC across all study years."""
+    return sum(r.real_mc for r in rows) / len(rows) if rows else 0.0
 
 
 # ── CSV export ────────────────────────────────────────────────────────────────
 
 
-def export_levelized_csv(result: DilutionResult, path: Path) -> None:
-    rows = []
-    for b in result.buckets():
-        rows.append(
-            {
-                "bucket": b.key,
-                "label": b.label,
-                "n_projects": b.n_projects,
-                "n_unique_stations": b.n_unique_stations,
-                "capacity_mw": round(b.capacity_mw, 1),
-                "capital_b": round(b.capital_b, 2),
-                "annual_cost_nominal_m": round(b.annual_cost_nominal_m, 1),
-                "annual_cost_discounted_m": round(b.annual_cost_discounted_m, 1),
-                "diluted_per_kw_yr": round(b.diluted_per_kw, 2),
-            }
-        )
-    df = pl.DataFrame(rows)
-    df.write_csv(path)
-    print(f"  Wrote {path}")
-
-
-def export_annualized_csv(tables: dict[str, AnnualizedTable], path: Path) -> None:
+def export_levelized_csv(
+    mc_data: dict[str, list[MCRow]],
+    bucket_info: dict[str, dict],
+    path: Path,
+) -> None:
     rows = []
     for key in BUCKET_KEYS:
-        t = tables[key]
-        for r in t.rows:
-            rows.append(
-                {
-                    "bucket": key,
-                    "label": t.label,
-                    "fy": r.fy,
-                    "new_capacity_mw": round(r.new_capacity_mw, 1),
-                    "cumulative_capacity_mw": round(r.cumulative_capacity_mw, 1),
-                    "annual_cost_m": round(r.annual_cost_m, 1),
-                    "diluted_per_kw_yr": round(r.diluted_per_kw, 2),
-                }
-            )
-    df = pl.DataFrame(rows)
-    df.write_csv(path)
+        info = bucket_info[key]
+        mc_rows = mc_data[key]
+        lev = levelized(mc_rows)
+        final_real = mc_rows[-1].real_mc
+        final_nom = mc_rows[-1].nominal_mc
+        rows.append(
+            {
+                "bucket": key,
+                "label": BUCKET_LABELS[key],
+                "n_projects": info["n_projects"],
+                "n_unique_stations": info["n_unique_stations"],
+                "capacity_mw": round(info["capacity_mw"], 1),
+                "capital_b": round(info["capital_b"], 2),
+                "levelized_mc_kw_yr": round(lev, 2),
+                "final_year_real_mc_kw_yr": round(final_real, 2),
+                "final_year_nominal_mc_kw_yr": round(final_nom, 2),
+            }
+        )
+    pl.DataFrame(rows).write_csv(path)
     print(f"  Wrote {path}")
 
 
-# ── Terminal report ───────────────────────────────────────────────────────────
+def export_annualized_csv(mc_data: dict[str, list[MCRow]], path: Path) -> None:
+    rows = []
+    for yi, fy in enumerate(FISCAL_YEARS):
+        row: dict[str, object] = {"fy": fy}
+        for key in BUCKET_KEYS:
+            row[f"{key}_nominal"] = round(mc_data[key][yi].nominal_mc, 2)
+            row[f"{key}_real"] = round(mc_data[key][yi].real_mc, 2)
+        rows.append(row)
+    pl.DataFrame(rows).write_csv(path)
+    print(f"  Wrote {path}")
 
 
-def _print_annualized_table(table: AnnualizedTable) -> None:
-    hdr = (
-        f"  {'FY':>6}  {'New MW':>8}  {'Cum MW':>8}  {'Bill ($M)':>10}  {'Diluted':>12}"
-    )
-    print(f"  {table.label}")
-    print(f"  System peak: {table.system_peak_mw:,.0f} MW")
-    print(hdr)
-    print(f"  {'─' * (len(hdr) - 2)}")
-    for r in table.rows:
-        print(
-            f"  {r.fy:>6}  {r.new_capacity_mw:>8,.1f}  "
-            f"{r.cumulative_capacity_mw:>8,.1f}  "
-            f"${r.annual_cost_m:>9,.1f}  "
-            f"${r.diluted_per_kw:>8,.2f}/kW-yr"
-        )
-
-
-def _print_bucket(b: BucketSummary, indent: str = "  ") -> None:
-    print(f"{indent}{b.label}")
-    print(
-        f"{indent}  {b.n_projects} projects across "
-        f"{b.n_unique_stations} stations, "
-        f"{b.capacity_mw:,.1f} MW, "
-        f"${b.capital_b:,.2f}B capital"
-    )
-    print(f"{indent}  Nominal:    ${b.annual_cost_nominal_m:,.1f}M/yr  (sum of E×cap)")
-    print(
-        f"{indent}  Discounted: ${b.annual_cost_discounted_m:,.1f}M/yr  "
-        f"(sum of F26×cap, FY2026)"
-    )
-    print(f"{indent}  Diluted:    ${b.diluted_per_kw:,.2f}/kW-yr")
+# ── Terminal report ──────────────────────────────────────────────────────────
 
 
 def print_report(
-    result: DilutionResult,
-    annualized: dict[str, AnnualizedTable] | None = None,
+    bucket_info: dict[str, dict],
+    variants: dict[str, dict[str, list[MCRow]]],
+    system_peak_mw: float,
+    undiluted_mc_per_kw: float,
 ) -> None:
-    W = 78
+    W = 80
     print("=" * W)
-    print("NiMo (National Grid) MCOS Dilution Analysis")
+    print("NiMo (National Grid) MCOS Analysis — Cumulative vs. Incremental")
     print("=" * W)
 
     print(f"\n── System {'─' * (W - 11)}")
-    print(f"  System peak (2024 actual):     {result.system_peak_mw:,.0f} MW")
-    print(f"  Undiluted MC (MCOS headline):  ${result.undiluted_mc_per_kw:.2f}/kW-yr")
+    print(f"  System peak (2024 actual):     {system_peak_mw:,.0f} MW")
+    print(f"  Undiluted MC (MCOS headline):  ${undiluted_mc_per_kw:.2f}/kW-yr")
 
-    print(f"\n── Three-bucket breakdown {'─' * (W - 26)}")
-    _print_bucket(result.total)
-    print()
-    _print_bucket(result.bulk_tx)
-    print()
-    _print_bucket(result.sub_tx)
-    print()
-    _print_bucket(result.distribution)
+    cum_dil = variants["cumulative_diluted"]
+    inc_dil = variants["incremental_diluted"]
+    cum_undil = variants["cumulative_undiluted"]
+    inc_undil = variants["incremental_undiluted"]
 
-    ratio = result.total.capacity_mw / result.system_peak_mw
+    print(f"\n── Levelized MC ($/kW-yr, real FY2026) {'─' * (W - 40)}")
+    print(
+        f"  {'Bucket':<28} {'Cum.Dil':>8} {'Inc.Dil':>8} {'Cum.Und':>8} {'Inc.Und':>8}"
+    )
+    print(f"  {'─' * (W - 4)}")
+    for key in BUCKET_KEYS:
+        label = BUCKET_LABELS[key]
+        vals = [
+            levelized(cum_dil[key]),
+            levelized(inc_dil[key]),
+            levelized(cum_undil[key]),
+            levelized(inc_undil[key]),
+        ]
+        parts = "  ".join(f"${v:>6.2f}" for v in vals)
+        print(f"  {label:<28} {parts}")
+
+    print(
+        f"\n── Year-by-year sub_tx_plus_dist diluted ($/kW-yr, nominal) "
+        f"{'─' * max(1, W - 61)}"
+    )
+    print(f"  {'FY':>4}  {'Cumulative':>12}  {'Incremental':>12}  {'Match?':>8}")
+    print(f"  {'─' * 42}")
+    for yi, fy in enumerate(FISCAL_YEARS):
+        cum_v = cum_dil["sub_tx_plus_dist"][yi].nominal_mc
+        inc_v = inc_dil["sub_tx_plus_dist"][yi].nominal_mc
+        match = "  ✓" if fy == FISCAL_YEARS[0] and abs(cum_v - inc_v) < 0.01 else ""
+        print(f"  {fy:>4}  ${cum_v:>10.2f}  ${inc_v:>10.2f}  {match}")
+
+    total_cap = bucket_info["total"]["capacity_mw"]
+    ratio = total_cap / system_peak_mw if system_peak_mw else 0
     print(
         f"\n  Capacity added / system peak:  {ratio:.2f}x "
-        f"{'(⚠ > 1.0)' if ratio > 1 else ''}"
+        f"{'(> 1.0)' if ratio > 1 else ''}"
     )
-
-    print(f"\n── Sub-TX + dist composite {'─' * (W - 27)}")
-    _print_bucket(result.sub_tx_plus_dist)
-
-    print(f"\n── Dilution summary {'─' * (W - 20)}")
-    print(f"  All projects:           ${result.total.diluted_per_kw:,.2f}/kW-yr")
-    print(f"  Bulk TX only:           ${result.bulk_tx.diluted_per_kw:,.2f}/kW-yr")
-    print(f"  Sub-TX only:            ${result.sub_tx.diluted_per_kw:,.2f}/kW-yr")
-    print(f"  Distribution only:      ${result.distribution.diluted_per_kw:,.2f}/kW-yr")
-    d = result.sub_tx_plus_dist.diluted_per_kw
-    print(f"  Sub-TX + Distribution:  ${d:,.2f}/kW-yr  ← excl bulk TX")
-    if result.total.diluted_per_kw > result.undiluted_mc_per_kw:
-        print(
-            f"\n  ⚠  Diluted total > undiluted because project capacity "
-            f"({result.total.capacity_mw:,.0f} MW)"
-        )
-        print(
-            f"     exceeds system peak ({result.system_peak_mw:,.0f} MW) — "
-            f"driven by bulk TX"
-        )
-
-    print(f"\n── Cross-utility comparison (diluted) {'─' * (W - 38)}")
-    print("  CenHud:                 $12/kW-yr  (levelized total, no bulk TX)")
-    print("  NYSEG:                  $23/kW-yr  (levelized total, no bulk TX)")
-    print("  PSEG-LI:               $34/kW-yr  (estimated total, includes TX)")
-    print("  RG&E:                   $39/kW-yr  (levelized total, no bulk TX)")
-    print(f"  NiMo sub-TX + dist:     ${d:.0f}/kW-yr  (excl bulk TX)")
-    print(
-        f"  NiMo all projects:      ${result.total.diluted_per_kw:.0f}/kW-yr  (incl bulk TX)"
-    )
-
-    if annualized:
-        print(f"\n── Year-by-year diluted MC {'─' * (W - 27)}")
-        print("  As projects enter service, the annual infrastructure bill grows.")
-        print("  Each year's bill ÷ system peak = that year's diluted MC.\n")
-        for key in BUCKET_KEYS:
-            if key in annualized:
-                _print_annualized_table(annualized[key])
-                print()
     print()
 
 
-# ── CLI ───────────────────────────────────────────────────────────────────────
+# ── CLI ──────────────────────────────────────────────────────────────────────
+
+
+def _bucket_info(
+    buckets: dict[str, list[McosProject]],
+) -> dict[str, dict]:
+    """Summary statistics per bucket (for CSV metadata columns)."""
+    info: dict[str, dict] = {}
+    for key, projects in buckets.items():
+        info[key] = {
+            "n_projects": len(projects),
+            "n_unique_stations": len({p.station.upper() for p in projects}),
+            "capacity_mw": sum(p.capacity_mw for p in projects),
+            "capital_b": sum(p.capital_k for p in projects) / 1e6,
+        }
+    return info
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Compute diluted MC from NiMo MCOS workbook"
+        description="Compute MC variants from NiMo MCOS workbook"
     )
     parser.add_argument(
         "--path-xlsx",
@@ -600,25 +480,37 @@ def main() -> None:
         n = sum(1 for p in all_projects if p.classification == cls)
         print(f"  {cls}: {n}")
 
-    # 3. Compute levelized dilution
-    result = compute_dilution(
-        all_projects,
-        system_peak_mw=system_peak_mw,
-        undiluted_mc_per_kw=undiluted_mc,
-    )
+    # 3. Group projects into buckets
+    buckets = _projects_by_bucket(all_projects)
+    info = _bucket_info(buckets)
 
-    # 4. Compute year-by-year annualized tables
-    annualized = compute_all_annualized(all_projects, system_peak_mw)
+    # 4. Compute all 4 variants
+    variants: dict[str, dict[str, list[MCRow]]] = {}
+    for variant_name in VARIANT_NAMES:
+        cumulative = "cumulative" in variant_name
+        diluted = "undiluted" not in variant_name
+        variants[variant_name] = {
+            key: compute_bucket_mc(
+                buckets[key], system_peak_mw, cumulative=cumulative, diluted=diluted
+            )
+            for key in BUCKET_KEYS
+        }
 
     # 5. Export CSVs
     path_output_dir.mkdir(parents=True, exist_ok=True)
     print("\nExporting CSVs:")
-    export_levelized_csv(result, path_output_dir / "nimo_diluted_levelized.csv")
-    export_annualized_csv(annualized, path_output_dir / "nimo_diluted_annualized.csv")
+    for variant_name in VARIANT_NAMES:
+        prefix = f"nimo_{variant_name}"
+        export_levelized_csv(
+            variants[variant_name], info, path_output_dir / f"{prefix}_levelized.csv"
+        )
+        export_annualized_csv(
+            variants[variant_name], path_output_dir / f"{prefix}_annualized.csv"
+        )
 
     # 6. Terminal report
     print()
-    print_report(result, annualized=annualized)
+    print_report(info, variants, system_peak_mw, undiluted_mc)
 
 
 if __name__ == "__main__":

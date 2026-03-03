@@ -1,6 +1,6 @@
-# NiMo MCOS dilution analysis
+# NiMo MCOS marginal cost analysis
 
-NiMo (National Grid Upstate) required the most work of any utility. The workbook lists ~237 planned capital projects but does not distinguish **bulk transmission** (≥230 kV) from **sub-transmission** (69–115 kV), so we had to classify every project by voltage tier before computing diluted marginal costs.
+NiMo (National Grid Upstate) required the most work of any utility. The workbook lists ~237 planned capital projects but does not distinguish **bulk transmission** (≥230 kV) from **sub-transmission** (69–115 kV), so we had to classify every project by voltage tier before computing marginal costs.
 
 ## Voltage tiers
 
@@ -15,14 +15,40 @@ NiMo (National Grid Upstate) required the most work of any utility. The workbook
 | NiMo MCOS workbook        | `s3://data.sb/ny_psc/mcos_studies_2025/nimo_study_workpaper.xlsx` | Sheet 1 (Exhibit 1): one row per project with station name, MW, and capital by cost centre. Sheet 11 (FinalData): sub-project–level detail with descriptive names and InvestType. |
 | NYISO Gold Book Table VII | `context/papers/nyiso_gold_book_2025.md` (extracted from PDF)     | Every proposed transmission project in New York, with station names, voltages, and descriptions.                                                                                  |
 
+## MC formula and variants
+
+NiMo's workbook differs from ConEd/O&R: instead of a composite rate × escalation formula, each project has pre-computed **ECCR** (Economic Carrying Charge Rate) values:
+
+- **F26(p)**: base-year (FY2026) annual cost/MW ($000s/MW)
+- **F\_Y(p)**: nominal annual cost/MW in year Y ($000s/MW), escalating at 2.1%/yr (Blue Chip GDP deflator)
+
+The MC for a set of projects in year Y is:
+
+```
+MC(Y) = sum(F × capacity) / Denominator   [$/kW-yr]
+```
+
+where F = F26 for real (base-year) values, F\_Y for nominal. The scope of projects and denominator depend on the variant:
+
+| Variant               | Projects in scope               | Denominator            | Perspective                        |
+| --------------------- | ------------------------------- | ---------------------- | ---------------------------------- |
+| Cumulative diluted    | All with in\_service\_year ≤ Y  | System peak (MW)       | MCOS cost allocation               |
+| Incremental diluted   | Only with in\_service\_year = Y | System peak (MW)       | BAT economic cost (cost causation) |
+| Cumulative undiluted  | All with in\_service\_year ≤ Y  | Cumulative project MW  | Per-project cost recovery          |
+| Incremental undiluted | Only with in\_service\_year = Y | New capacity in year Y | Per-project marginal cost          |
+
+Levelized = mean(real MC) across all fiscal years, consistent with ConEd/O&R.
+
+Unlike ConEd/O&R, NiMo has per-project in-service years, so incremental values are computed directly (filter to projects entering in year Y) rather than differencing cumulative totals.
+
 ## Outputs
 
-| Output                             | Description                                                                                                         |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `nimo_project_classifications.csv` | One row per project: classification, voltage, inference method, evidence text, sub-project names, confidence level. |
-| `reclassify_nimo_projects.py`      | The script that produces the CSV. All manual decisions are encoded as commented data structures at the top.         |
-| `nimo_diluted_levelized.csv`       | One row per tier: levelized and full-buildout diluted MC.                                                           |
-| `nimo_diluted_annualized.csv`      | One row per (tier, year): nominal and real diluted MC.                                                              |
+| Output                                                             | Description                                                                                                         |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `nimo_project_classifications.csv`                                 | One row per project: classification, voltage, inference method, evidence text, sub-project names, confidence level. |
+| `reclassify_nimo_projects.py`                                      | The script that produces the CSV. All manual decisions are encoded as commented data structures at the top.         |
+| `nimo_{cumulative,incremental}_{diluted,undiluted}_levelized.csv`  | One row per bucket with levelized MC ($/kW-yr), final-year real and nominal MC.                                     |
+| `nimo_{cumulative,incremental}_{diluted,undiluted}_annualized.csv` | One row per fiscal year, columns per bucket with nominal and real MC ($/kW-yr).                                     |
 
 ## How to reproduce the classification (manual process)
 
@@ -101,4 +127,4 @@ This reads the workbook from S3, applies all the classification logic, and overw
 
 ## Downstream consumers
 
-The classifications feed into `analyze_nimo_mcos.py`, which uses them to compute diluted marginal costs by tier (bulk TX, sub-TX, distribution, sub-TX + distribution). Those diluted MCs are the input to the BAT rate design.
+The classifications feed into `analyze_nimo_mcos.py`, which uses them to compute marginal costs by tier (bulk TX, sub-TX, distribution, sub-TX + distribution) in all four variants. The **incremental diluted** values are the BAT rate design inputs.

@@ -1,0 +1,6 @@
+bucket,label,n_projects,n_unique_stations,capacity_mw,capital_b,levelized_mc_kw_yr,final_year_real_mc_kw_yr,final_year_nominal_mc_kw_yr
+total,All projects,237,152,11532.5,10.7,84.66,69.11,85.08
+bulk_tx,Bulk TX (≥230kV),3,1,2120.0,1.08,10.95,8.85,10.89
+sub_tx,Sub-TX (69–115kV),46,1,6869.1,6.7,101.16,80.34,98.9
+distribution,Distribution (≤13.2kV),188,151,2543.4,2.93,110.24,96.43,118.7
+sub_tx_plus_dist,Sub-TX + Distribution,234,152,9412.5,9.62,96.47,83.26,102.49

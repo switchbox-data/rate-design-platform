@@ -32,9 +32,9 @@ MC(Y)        = Annual RR(Y) / Denominator   [$/kW-yr]
 
 The composite rate comes from the utility's carrying charge schedule (ECCR for NiMo, NERA Schedule 11/10 for ConEd/O&R). Escalation uses the GDP Implicit Price Deflator.
 
-### Four MC variants (ConEd/O&R)
+### Four MC variants
 
-ConEd and O&R scripts produce four variants by combining two capital perspectives with two denominator choices:
+All three utilities produce four variants by combining two capital perspectives with two denominator choices:
 
 | Variant               | Capital(Y)                     | Denominator            | Perspective                        |
 | --------------------- | ------------------------------ | ---------------------- | ---------------------------------- |
@@ -45,6 +45,4 @@ ConEd and O&R scripts produce four variants by combining two capital perspective
 
 Each variant is exported in both annualized (year-by-year) and levelized form — 8 CSVs per utility. See `context/domain/ny_mcos_studies_comparison.md` §6 for the rationale behind cumulative vs. incremental and the BAT's preference for incremental.
 
-NiMo currently produces only diluted variants (cumulative/incremental split not yet implemented).
-
-The key difference across utilities is **how we identify which costs are bulk TX vs. sub-TX + distribution** — NiMo requires project-level classification against the Gold Book, ConEd's cost center structure maps cleanly to tiers, and O&R requires a partial split of CapEx Transmission (Gold Book projects → bulk, non-Gold-Book 138 kV reconductoring → local sub-TX). See each utility's README for details.
+ConEd/O&R use NERA's composite rate × escalation formula; NiMo uses pre-computed ECCR values per project (see `nimo/README.md` for details). The key difference across utilities is **how we identify which costs are bulk TX vs. sub-TX + distribution** — NiMo requires project-level classification against the Gold Book, ConEd's cost center structure maps cleanly to tiers, and O&R requires a partial split of CapEx Transmission (Gold Book projects → bulk, non-Gold-Book 138 kV reconductoring → local sub-TX). See each utility's README for details.

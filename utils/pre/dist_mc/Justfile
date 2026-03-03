@@ -48,6 +48,6 @@ analyze-or:
 analyze-all: analyze-nimo analyze-coned analyze-or
 
 clean:
-    rm -f nimo/nimo_diluted_levelized.csv nimo/nimo_diluted_annualized.csv
+    rm -f nimo/nimo_*_levelized.csv nimo/nimo_*_annualized.csv
     rm -f coned/coned_*_levelized.csv coned/coned_*_annualized.csv
     rm -f or/or_*_levelized.csv or/or_*_annualized.csv

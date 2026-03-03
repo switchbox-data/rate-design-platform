@@ -1,0 +1,8 @@
+cost_center,label,n_projects,capacity_mw,total_cost_m,composite_rate,levelized_mc_kw_yr,final_year_real_mc_kw_yr,final_year_nominal_mc_kw_yr
+transmission,Bulk TX (138/345 kV),5,1790.0,1447.1,0.13527,1.63,0.0,0.0
+substation,Area Station & Sub-TX,17,3024.0,7419.4,0.12832,7.94,1.93,2.33
+primary,Primary Distribution,143,97.5,13.1,0.12895,0.14,0.14,0.17
+transformer,Distribution Transformer,143,97.5,5.9,0.11271,0.06,0.06,0.07
+secondary,Secondary Cable,143,97.5,16.8,0.12754,0.18,0.18,0.22
+distribution,Distribution (Prim+Trans+Sec),143,97.5,35.8,0.0,0.38,0.38,0.45
+local_total,Sub-TX + dist (excl. bulk TX),0,0.0,0.0,0.0,8.31,2.3,2.78
