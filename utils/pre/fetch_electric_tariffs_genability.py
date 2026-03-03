@@ -7,7 +7,12 @@ Identifier can be:
   - "default" : residential default tariff (RESIDENTIAL + DEFAULT in Arcadia)
   - <integer> : masterTariffId (use that tariff)
   - "<name>"  : tariff name to match (first match in LSE's tariff list)
-Writes one <utility>_<identifier>.json per entry (e.g. rie_default.json) to the output directory (Genability/Arcadia JSON).
+
+Takes an --effective-date (YYYY-MM-DD) that controls which tariff version you get —
+all charges effective on that date will be included. Defaults to today (UTC).
+
+Writes one <key>_<identifier>_<date>.json per entry (e.g. rie_default_2025-01-01.json)
+to the output directory (Genability/Arcadia JSON).
 
 Requires ARCADIA_APP_ID and ARCADIA_APP_KEY in the environment.
 """
@@ -17,7 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -96,19 +101,18 @@ def _resolve_identifier_to_master_tariff_id(
     auth: tuple[str, str],
     lse_id: int,
     identifier: str | int,
+    effective_on: datetime,
 ) -> int:
     """Resolve YAML identifier to Arcadia masterTariffId."""
-    now = datetime.now(timezone.utc)
     if isinstance(identifier, int):
         return identifier
     if str(identifier).strip().lower() == "default":
-        # Residential + DEFAULT type
         tariffs = list(
             tariffs_paginate(
                 auth,
                 lseId=lse_id,
                 fields="min",
-                effectiveOn=now,
+                effectiveOn=effective_on,
                 customerClasses=["RESIDENTIAL"],
                 tariffTypes=["DEFAULT"],
             )
@@ -144,7 +148,7 @@ def _resolve_identifier_to_master_tariff_id(
             auth,
             lseId=lse_id,
             fields="min",
-            effectiveOn=now,
+            effectiveOn=effective_on,
         )
     )
     for t in all_tariffs:
@@ -200,14 +204,14 @@ def load_config(yaml_path: Path) -> dict[str, dict[str, str | int]]:
     return utilities
 
 
-def _filename_stem(tariff_key: str, identifier: str | int) -> str:
-    """Return the output filename stem: <tariff_key>_<identifier>, e.g. rie_default."""
+def _filename_stem(tariff_key: str, identifier: str | int, effective_date: date) -> str:
+    """Return the output filename stem, e.g. rie_default_2025-01-01."""
+    date_str = effective_date.isoformat()
     if isinstance(identifier, int):
-        return f"{tariff_key}_{identifier}"
+        return f"{tariff_key}_{identifier}_{date_str}"
     ident_str = str(identifier).strip().lower()
     if ident_str == "default":
-        return f"{tariff_key}_default"
-    # Tariff name substring: slugify for filename
+        return f"{tariff_key}_default_{date_str}"
     slug = (
         "".join(c if c.isalnum() or c in "._-" else "_" for c in identifier)
         .strip("_")
@@ -215,16 +219,30 @@ def _filename_stem(tariff_key: str, identifier: str | int) -> str:
     )
     if not slug:
         slug = "default"
-    return f"{tariff_key}_{slug}"
+    return f"{tariff_key}_{slug}_{date_str}"
 
 
 def fetch_genability_tariffs(
     yaml_path: Path,
     output_dir: Path,
     state: str,
+    effective_date: date | None = None,
 ) -> None:
-    """Load YAML config and fetch all listed Genability tariffs; write <utility>_<identifier>.json to output_dir."""
+    """Load YAML config and fetch all listed Genability tariffs.
+
+    Writes <key>_<identifier>_<date>.json per entry to output_dir.
+    """
+    if effective_date is None:
+        effective_date = datetime.now(timezone.utc).date()
+    effective_on = datetime(
+        effective_date.year,
+        effective_date.month,
+        effective_date.day,
+        tzinfo=timezone.utc,
+    )
+
     log.info("Loading config from %s", yaml_path)
+    log.info("Effective date: %s", effective_date.isoformat())
     state_upper = state.upper()
     utilities_config = load_config(yaml_path)
     total_tariffs = sum(len(m) for m in utilities_config.values())
@@ -252,19 +270,18 @@ def fetch_genability_tariffs(
         log.info("LSE id %s for %r", lse_id, std_name)
 
         for tariff_key, identifier in tariff_map.items():
-            # Normalize: YAML may load "123" as int if written as 123
             if isinstance(identifier, str) and identifier.isdigit():
                 identifier = int(identifier)
             log.info("Resolving tariff %r -> %s...", tariff_key, identifier)
             master_tariff_id = _resolve_identifier_to_master_tariff_id(
-                auth, lse_id, identifier
+                auth, lse_id, identifier, effective_on
             )
             log.info("Fetching full tariff masterTariffId=%s", master_tariff_id)
             results = list(
                 tariffs_paginate(
                     auth,
                     masterTariffId=master_tariff_id,
-                    effectiveOn=datetime.now(timezone.utc),
+                    effectiveOn=effective_on,
                     fields="ext",
                     populateProperties=True,
                     populateRates=True,
@@ -274,7 +291,7 @@ def fetch_genability_tariffs(
                 raise ValueError(
                     f"masterTariffId {master_tariff_id} returned no tariff data"
                 )
-            stem = _filename_stem(tariff_key, identifier)
+            stem = _filename_stem(tariff_key, identifier, effective_date)
             out_path = output_dir / f"{stem}.json"
             out_path.write_text(json.dumps(results, indent=2))
             log.info("Wrote %s", out_path)
@@ -292,13 +309,19 @@ def main() -> None:
     parser.add_argument(
         "path_output_dir",
         type=Path,
-        help="Output directory for <utility>_<identifier>.json files (e.g. rie_default.json)",
+        help="Output directory for <key>_<identifier>_<date>.json files (e.g. rie_default_2025-01-01.json)",
     )
     parser.add_argument(
         "--state",
         "-s",
         required=True,
         help="Two-letter state (e.g. NY, RI)",
+    )
+    parser.add_argument(
+        "--effective-date",
+        type=date.fromisoformat,
+        default=None,
+        help="Effective date (YYYY-MM-DD) for tariff version. Defaults to today (UTC).",
     )
     parser.add_argument(
         "--list-utilities",
@@ -322,7 +345,9 @@ def main() -> None:
         for u, m in utilities.items():
             print(f"  {u}: {list(m.keys())}")
         return
-    fetch_genability_tariffs(args.path_yaml, args.path_output_dir, args.state)
+    fetch_genability_tariffs(
+        args.path_yaml, args.path_output_dir, args.state, args.effective_date
+    )
 
 
 if __name__ == "__main__":

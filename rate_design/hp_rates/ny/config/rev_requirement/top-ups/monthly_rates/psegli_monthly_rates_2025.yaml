@@ -1,0 +1,96 @@
+utility: psegli
+master_tariff_id: 3439408
+start_month: 2025-01
+end_month: 2025-12
+charges:
+  vder_der_cost_recovery:
+    tariff_rate_id: 20850774
+    master_charge: VDER / DER Cost Recovery
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.005554
+      2025-02: 0.005554
+      2025-03: 0.005554
+      2025-04: 0.005554
+      2025-05: 0.005554
+      2025-06: 0.005554
+      2025-07: 0.005554
+      2025-08: 0.005554
+      2025-09: 0.005554
+      2025-10: 0.005554
+      2025-11: 0.005554
+      2025-12: 0.005554
+  securitization_charge_offset_udsa_1:
+    tariff_rate_id: 20850777
+    master_charge: Securitization Charge / Offset (UDSA)
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: -0.020031
+      2025-02: -0.020031
+      2025-03: -0.020031
+      2025-04: -0.020031
+      2025-05: -0.0204313226
+      2025-06: -0.020761
+      2025-07: -0.020761
+      2025-08: -0.020761
+      2025-09: -0.020761
+      2025-10: -0.020761
+      2025-11: -0.0206319333
+      2025-12: -0.0218466452
+  securitization_charge_offset_udsa_2:
+    tariff_rate_id: 20850778
+    master_charge: Securitization Charge / Offset (UDSA)
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.020031
+      2025-02: 0.020031
+      2025-03: 0.020031
+      2025-04: 0.020031
+      2025-05: 0.0204313226
+      2025-06: 0.020761
+      2025-07: 0.020761
+      2025-08: 0.020761
+      2025-09: 0.020761
+      2025-10: 0.020761
+      2025-11: 0.0206319333
+      2025-12: 0.0218466452
+  merchant_function_charge:
+    tariff_rate_id: 20416295
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.001885
+      2025-02: 0.001885
+      2025-03: 0.001885
+      2025-04: 0.001885
+      2025-05: 0.001885
+      2025-06: 0.001885
+      2025-07: 0.001885
+      2025-08: 0.001885
+      2025-09: 0.001885
+      2025-10: 0.001885
+      2025-11: 0.001885
+      2025-12: 0.001885
+  supply_commodity_bundled_1:
+    tariff_rate_id: 20436694
+    master_charge: Supply commodity (bundled)
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.241457
+      2025-02: 0.687405
+      2025-03: 0.743136
+      2025-04: 0.695507
+      2025-05: 0.700075
+      2025-06: 0.742615
+      2025-07: 0.676235
+      2025-08: 0.729739
+      2025-09: 0.743324
+      2025-10: 0.740515
+      2025-11: 0.729772
+      2025-12: 0.716766
+  supply_commodity_bundled_2:
+    tariff_rate_id: 20436695
+    master_charge: Supply commodity (bundled)
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.102959

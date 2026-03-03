@@ -6,7 +6,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from utils.mid.data_parsing import (
+from utils.scenario_config import (
     get_residential_customer_count_from_utility_stats,
 )
 

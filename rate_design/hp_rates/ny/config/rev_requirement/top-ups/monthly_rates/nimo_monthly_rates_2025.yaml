@@ -1,0 +1,642 @@
+utility: nimo
+master_tariff_id: 803
+start_month: 2025-01
+end_month: 2025-12
+charges:
+  supply_commodity_bundled_1:
+    tariff_rate_id: 5244
+    master_charge: Supply commodity (bundled)
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.08982
+      2025-02: 0.08715
+      2025-03: 0.05708
+      2025-04: 0.04622
+      2025-05: 0.05102
+      2025-06: 0.06301
+      2025-07: 0.07408
+      2025-08: 0.07578
+      2025-09: 0.06378
+      2025-10: 0.06753
+      2025-11: 0.06494
+      2025-12: 0.10739
+  supply_commodity_bundled_2:
+    tariff_rate_id: 5246
+    master_charge: Supply commodity (bundled)
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.11437
+      2025-02: 0.12124
+      2025-03: 0.07143
+      2025-04: 0.05532
+      2025-05: 0.05986
+      2025-06: 0.07333
+      2025-07: 0.08312
+      2025-08: 0.08404
+      2025-09: 0.06881
+      2025-10: 0.07016
+      2025-11: 0.07042
+      2025-12: 0.13183
+  supply_commodity_bundled_3:
+    tariff_rate_id: 5248
+    master_charge: Supply commodity (bundled)
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.09303
+      2025-02: 0.09041
+      2025-03: 0.06353
+      2025-04: 0.05105
+      2025-05: 0.05458
+      2025-06: 0.067
+      2025-07: 0.07874
+      2025-08: 0.08025
+      2025-09: 0.06669
+      2025-10: 0.06854
+      2025-11: 0.06498
+      2025-12: 0.11251
+  supply_commodity_bundled_4:
+    tariff_rate_id: 5250
+    master_charge: Supply commodity (bundled)
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.08768
+      2025-02: 0.08374
+      2025-03: 0.05913
+      2025-04: 0.04914
+      2025-05: 0.05365
+      2025-06: 0.06536
+      2025-07: 0.07715
+      2025-08: 0.07867
+      2025-09: 0.06589
+      2025-10: 0.06669
+      2025-11: 0.06216
+      2025-12: 0.10646
+  supply_commodity_bundled_5:
+    tariff_rate_id: 5252
+    master_charge: Supply commodity (bundled)
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.09054
+      2025-02: 0.08928
+      2025-03: 0.06163
+      2025-04: 0.04957
+      2025-05: 0.05346
+      2025-06: 0.06561
+      2025-07: 0.07692
+      2025-08: 0.07842
+      2025-09: 0.06544
+      2025-10: 0.06722
+      2025-11: 0.06341
+      2025-12: 0.10948
+  supply_commodity_bundled_6:
+    tariff_rate_id: 5254
+    master_charge: Supply commodity (bundled)
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.09499
+      2025-02: 0.09248
+      2025-03: 0.06512
+      2025-04: 0.05228
+      2025-05: 0.05553
+      2025-06: 0.06825
+      2025-07: 0.08043
+      2025-08: 0.08202
+      2025-09: 0.06796
+      2025-10: 0.06992
+      2025-11: 0.06689
+      2025-12: 0.11579
+  core_delivery_rate_1:
+    tariff_rate_id: 20715135
+    master_charge: Core Delivery Rate
+    decision: already_in_drr
+    monthly_rates:
+      2025-09: 0.08889
+      2025-10: 0.08889
+      2025-11: 0.08889
+      2025-12: 0.08889
+  revenue_decoupling_rdm:
+    tariff_rate_id: 20715137
+    master_charge: Revenue Decoupling (RDM)
+    decision: exclude
+    monthly_rates:
+      2025-01: 0.00101
+      2025-02: 0.00101
+      2025-03: 0.00101
+      2025-04: 0.00101
+      2025-05: 0.00101
+      2025-06: 0.00101
+      2025-07: -0.00421
+      2025-08: -0.00421
+      2025-09: -0.00421
+      2025-10: -0.00421
+      2025-11: -0.00421
+      2025-12: -0.00421
+  transmission_revenue_adjustment:
+    tariff_rate_id: 20715138
+    master_charge: Transmission Revenue Adjustment
+    decision: exclude
+    monthly_rates:
+      2025-01: -0.00578
+      2025-02: -0.0064
+      2025-03: -0.00687
+      2025-04: -0.00379
+      2025-05: -0.00442
+      2025-06: -0.00417
+      2025-07: -0.00319
+      2025-08: -0.00314
+      2025-09: -0.0072326667
+      2025-10: -0.0083245161
+      2025-11: -0.00426
+      2025-12: -0.0034129032
+  transition_restructuring:
+    tariff_rate_id: 20715139
+    master_charge: Transition / Restructuring
+    decision: exclude
+    monthly_rates:
+      2025-01: -0.00161
+      2025-02: -0.0016
+      2025-03: -0.00071
+      2025-04: 0.001483
+      2025-05: 0.0014
+      2025-06: 0.000583
+      2025-07: -4.8e-05
+      2025-08: -0.001161
+      2025-09: -0.001872
+      2025-10: -0.000724
+      2025-11: 0.000154
+      2025-12: -0.00387
+  supply_cost_true_up_1:
+    tariff_rate_id: 20715140
+    master_charge: Supply cost true-up
+    decision: exclude
+    monthly_rates:
+      2025-09: 0.02876
+      2025-10: 0.018298
+      2025-11: 0.008037
+      2025-12: -0.025002
+  supply_cost_true_up_2:
+    tariff_rate_id: 20715141
+    master_charge: Supply cost true-up
+    decision: exclude
+    monthly_rates:
+      2025-09: 0.030407
+      2025-10: 0.018023
+      2025-11: 0.004986
+      2025-12: -0.025388
+  supply_cost_true_up_3:
+    tariff_rate_id: 20715142
+    master_charge: Supply cost true-up
+    decision: exclude
+    monthly_rates:
+      2025-09: 0.027716
+      2025-10: 0.021694
+      2025-11: 0.015664
+      2025-12: -0.024524
+  supply_cost_true_up_4:
+    tariff_rate_id: 20715143
+    master_charge: Supply cost true-up
+    decision: exclude
+    monthly_rates:
+      2025-09: 0.028719
+      2025-10: 0.01497
+      2025-11: 0.005709
+      2025-12: -0.025325
+  supply_cost_true_up_5:
+    tariff_rate_id: 20715144
+    master_charge: Supply cost true-up
+    decision: exclude
+    monthly_rates:
+      2025-09: 0.041311
+      2025-10: 0.025974
+      2025-11: 0.011229
+      2025-12: -0.026391
+  supply_cost_true_up_6:
+    tariff_rate_id: 20715145
+    master_charge: Supply cost true-up
+    decision: exclude
+    monthly_rates:
+      2025-09: 0.03018
+      2025-10: 0.014973
+      2025-11: 0.0047
+      2025-12: -0.025481
+  system_benefits_charge:
+    tariff_rate_id: 20715146
+    master_charge: System Benefits Charge
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.007235
+      2025-02: 0.007235
+      2025-03: 0.007235
+      2025-04: 0.007235
+      2025-05: 0.007235
+      2025-06: 0.007235
+      2025-07: 0.003024
+      2025-08: 0.003024
+      2025-09: 0.003024
+      2025-10: 0.003024
+      2025-11: 0.003024
+      2025-12: 0.003024
+  ces_supply_surcharge:
+    tariff_rate_id: 20715147
+    master_charge: CES Supply Surcharge
+    decision: add_to_srr
+    monthly_rates:
+      2025-09: 0.00741
+      2025-10: 0.00741
+      2025-11: 0.00741
+      2025-12: 0.00741
+  ces_delivery:
+    tariff_rate_id: 20715148
+    master_charge: CES Delivery
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.00025
+      2025-02: 0.00025
+      2025-03: 0.00025
+      2025-04: 0.00025
+      2025-05: 0.00025
+      2025-06: 0.00025
+      2025-07: 0.00025
+      2025-08: 0.00025
+      2025-09: 0.00025
+      2025-10: 0.00025
+      2025-11: 0.00025
+      2025-12: 0.00025
+  dlm_surcharge:
+    tariff_rate_id: 20715149
+    master_charge: DLM Surcharge
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.000649
+      2025-02: 0.000649
+      2025-03: 0.000649
+      2025-04: 0.000649
+      2025-05: 0.000649
+      2025-06: 0.000649
+      2025-07: 0.000649
+      2025-08: 0.000649
+      2025-09: 0.000649
+      2025-10: 0.000649
+      2025-11: 0.000649
+      2025-12: 0.000649
+  earnings_adjustment_mechanism:
+    tariff_rate_id: 20715150
+    master_charge: Earnings Adjustment Mechanism
+    decision: exclude
+    monthly_rates:
+      2025-01: 0.00077
+      2025-02: 0.00077
+      2025-03: 0.00077
+      2025-04: 0.00077
+      2025-05: -1.0e-05
+      2025-06: -1.0e-05
+      2025-07: -1.0e-05
+      2025-08: -1.0e-05
+      2025-09: -1.0e-05
+      2025-10: -1.0e-05
+      2025-11: -1.0e-05
+      2025-12: -1.0e-05
+  merchant_function_charge_1:
+    tariff_rate_id: 19819734
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.08982
+      2025-02: 0.08715
+      2025-03: 0.05708
+      2025-04: 0.04622
+      2025-05: 0.05102
+      2025-06: 0.06301
+      2025-07: 0.07408
+      2025-08: 0.07578
+      2025-09: 0.06378
+      2025-10: 0.06753
+      2025-11: 0.06494
+      2025-12: 0.10739
+  merchant_function_charge_2:
+    tariff_rate_id: 19819735
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.11437
+      2025-02: 0.12124
+      2025-03: 0.07143
+      2025-04: 0.05532
+      2025-05: 0.05986
+      2025-06: 0.07333
+      2025-07: 0.08312
+      2025-08: 0.08404
+      2025-09: 0.06881
+      2025-10: 0.07016
+      2025-11: 0.07042
+      2025-12: 0.13183
+  merchant_function_charge_3:
+    tariff_rate_id: 19819736
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.09303
+      2025-02: 0.09041
+      2025-03: 0.06353
+      2025-04: 0.05105
+      2025-05: 0.05458
+      2025-06: 0.067
+      2025-07: 0.07874
+      2025-08: 0.08025
+      2025-09: 0.06669
+      2025-10: 0.06854
+      2025-11: 0.06498
+      2025-12: 0.11251
+  merchant_function_charge_4:
+    tariff_rate_id: 19819737
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.08768
+      2025-02: 0.08374
+      2025-03: 0.05913
+      2025-04: 0.04914
+      2025-05: 0.05365
+      2025-06: 0.06536
+      2025-07: 0.07715
+      2025-08: 0.07867
+      2025-09: 0.06589
+      2025-10: 0.06669
+      2025-11: 0.06216
+      2025-12: 0.10646
+  merchant_function_charge_5:
+    tariff_rate_id: 19819738
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.09054
+      2025-02: 0.08928
+      2025-03: 0.06163
+      2025-04: 0.04957
+      2025-05: 0.05346
+      2025-06: 0.06561
+      2025-07: 0.07692
+      2025-08: 0.07842
+      2025-09: 0.06544
+      2025-10: 0.06722
+      2025-11: 0.06341
+      2025-12: 0.10948
+  merchant_function_charge_6:
+    tariff_rate_id: 19819739
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.09499
+      2025-02: 0.09248
+      2025-03: 0.06512
+      2025-04: 0.05228
+      2025-05: 0.05553
+      2025-06: 0.06825
+      2025-07: 0.08043
+      2025-08: 0.08202
+      2025-09: 0.06796
+      2025-10: 0.06992
+      2025-11: 0.06689
+      2025-12: 0.11579
+  merchant_function_charge_7:
+    tariff_rate_id: 19819740
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: -0.014274
+      2025-02: 0.001168
+      2025-03: 0.024977
+      2025-04: 0.02209
+      2025-05: 0.015519
+      2025-06: 0.016526
+      2025-07: 0.013937
+      2025-08: 0.028588
+      2025-09: 0.027716
+      2025-10: 0.021694
+      2025-11: 0.015664
+      2025-12: -0.024524
+  merchant_function_charge_8:
+    tariff_rate_id: 19819741
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: -0.0193
+      2025-02: -0.016957
+      2025-03: 0.030902
+      2025-04: 0.036838
+      2025-05: 0.017442
+      2025-06: 0.023464
+      2025-07: 0.023674
+      2025-08: 0.036374
+      2025-09: 0.041311
+      2025-10: 0.025974
+      2025-11: 0.011229
+      2025-12: -0.026391
+  merchant_function_charge_9:
+    tariff_rate_id: 19819742
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: -0.0151
+      2025-02: -0.004094
+      2025-03: 0.021458
+      2025-04: 0.015857
+      2025-05: 0.007664
+      2025-06: 0.013042
+      2025-07: 0.011288
+      2025-08: 0.027971
+      2025-09: 0.03018
+      2025-10: 0.014973
+      2025-11: 0.0047
+      2025-12: -0.025481
+  merchant_function_charge_10:
+    tariff_rate_id: 19819743
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: -0.012606
+      2025-02: -0.00048
+      2025-03: 0.022884
+      2025-04: 0.009617
+      2025-05: 0.005793
+      2025-06: 0.011719
+      2025-07: 0.009953
+      2025-08: 0.025633
+      2025-09: 0.02876
+      2025-10: 0.018298
+      2025-11: 0.008037
+      2025-12: -0.025002
+  merchant_function_charge_11:
+    tariff_rate_id: 19819744
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: -0.01528
+      2025-02: -0.006705
+      2025-03: 0.01857
+      2025-04: 0.012994
+      2025-05: 0.006814
+      2025-06: 0.013233
+      2025-07: 0.011348
+      2025-08: 0.027719
+      2025-09: 0.030407
+      2025-10: 0.018023
+      2025-11: 0.004986
+      2025-12: -0.025388
+  merchant_function_charge_12:
+    tariff_rate_id: 19819745
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: -0.014622
+      2025-02: -0.003318
+      2025-03: 0.030528
+      2025-04: 0.022057
+      2025-05: 0.007723
+      2025-06: 0.012806
+      2025-07: 0.011743
+      2025-08: 0.027876
+      2025-09: 0.028719
+      2025-10: 0.01497
+      2025-11: 0.005709
+      2025-12: -0.025325
+  merchant_function_charge_13:
+    tariff_rate_id: 19819758
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.0057
+      2025-02: 0.0057
+      2025-03: 0.0057
+      2025-04: 0.00741
+      2025-05: 0.00741
+      2025-06: 0.00741
+      2025-07: 0.00741
+      2025-08: 0.00741
+      2025-09: 0.00741
+      2025-10: 0.00741
+      2025-11: 0.00741
+      2025-12: 0.00741
+  merchant_function_charge_14:
+    tariff_rate_id: 19819759
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 9.0e-05
+      2025-02: 9.0e-05
+      2025-03: 9.0e-05
+      2025-04: 9.0e-05
+      2025-05: 9.0e-05
+      2025-06: 9.0e-05
+      2025-07: 8.0e-05
+      2025-08: 8.0e-05
+      2025-09: 0.0001
+      2025-10: 0.0001
+      2025-11: 0.0001
+      2025-12: 0.0001
+  merchant_function_charge_15:
+    tariff_rate_id: 19819760
+    master_charge: Merchant Function Charge
+    decision: add_to_srr
+    monthly_rates:
+      2025-01: 0.00012
+      2025-02: 0.00012
+      2025-03: 0.00012
+      2025-04: 0.00012
+      2025-05: 0.00012
+      2025-06: 0.00012
+      2025-07: 0.00011
+      2025-08: 0.00011
+      2025-09: 0.00033
+      2025-10: 0.00033
+      2025-11: 0.00033
+      2025-12: 0.00033
+  core_delivery_rate_2:
+    tariff_rate_id: 20775852
+    master_charge: Core Delivery Rate
+    decision: already_in_drr
+    monthly_rates:
+      2025-09: 0.00671
+      2025-10: 0.00671
+      2025-11: 0.00671
+      2025-12: 0.00671
+  greenup:
+    tariff_rate_id: 20761838
+    master_charge: GreenUp
+    decision: skip
+    monthly_rates:
+      2025-01: 0.035
+      2025-02: 0.035
+      2025-03: 0.035
+      2025-04: 0.035
+      2025-05: 0.035
+      2025-06: 0.035
+      2025-07: 0.035
+      2025-08: 0.035
+      2025-09: 0.035
+      2025-10: 0.035
+      2025-11: 0.035
+      2025-12: 0.035
+  ev_make_ready:
+    tariff_rate_id: 20059189
+    master_charge: EV Make Ready
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.00022
+      2025-02: 0.00036
+      2025-03: 0.00036
+      2025-04: 0.00036
+      2025-05: 0.00036
+      2025-06: 0.00036
+      2025-07: 0.00036
+      2025-08: 0.00036
+      2025-09: 0.00036
+      2025-10: 0.00036
+      2025-11: 0.00036
+      2025-12: 0.00036
+  arrears_covid_forgiveness_1:
+    tariff_rate_id: 20260236
+    master_charge: Arrears / COVID forgiveness
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.0012
+      2025-02: 0.0012
+      2025-03: 0.0012
+      2025-04: 0.0012
+      2025-05: 0.0012
+      2025-06: 0.0012
+      2025-07: 0.0012
+      2025-08: 0.00087
+      2025-09: 0.00087
+      2025-10: 0.00087
+      2025-11: 0.00087
+      2025-12: 0.00087
+  arrears_covid_forgiveness_2:
+    tariff_rate_id: 20260237
+    master_charge: Arrears / COVID forgiveness
+    decision: add_to_drr
+    monthly_rates:
+      2025-01: 0.0009
+      2025-02: 0.0009
+      2025-03: 0.0009
+      2025-04: 0.0009
+      2025-05: 0.0009
+      2025-06: 0.0009
+      2025-07: 0.0009
+  net_utility_plant_depreciation_recon:
+    tariff_rate_id: 20288265
+    master_charge: Net Utility Plant / Depreciation Recon
+    decision: exclude
+    monthly_rates:
+      2025-01: 0.00267
+      2025-02: 0.00267
+      2025-03: 0.00267
+      2025-04: 0.0
+      2025-05: 0.0
+      2025-06: 0.0
+      2025-07: 0.0
+      2025-08: 0.0
+      2025-09: 0.0
+      2025-10: 0.0
+      2025-11: 0.0
+      2025-12: 0.0
