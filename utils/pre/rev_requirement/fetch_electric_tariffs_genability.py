@@ -32,7 +32,7 @@ from tariff_fetch.genability.tariffs import tariffs_paginate
 from utils.utility_codes import get_utilities_for_state
 
 # Load .env from project root (same as utils/__init__.py)
-_env_path = Path(__file__).resolve().parents[2] / ".env"
+_env_path = Path(__file__).resolve().parents[3] / ".env"
 if _env_path.exists():
     from dotenv import load_dotenv
 
