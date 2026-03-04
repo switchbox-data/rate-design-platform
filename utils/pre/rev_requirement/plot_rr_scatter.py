@@ -82,6 +82,7 @@ def _plot_delivery_vs_kwh(
         )
 
     df = pl.DataFrame(rows)
+    max_delivery_rr = cast(float, df["total_delivery_revenue_requirement"].max())
 
     p = (
         ggplot(
@@ -91,7 +92,7 @@ def _plot_delivery_vs_kwh(
         + geom_text(
             aes(label="utility"),
             nudge_x=0,
-            nudge_y=0.02 * df["total_delivery_revenue_requirement"].max(),
+            nudge_y=0.02 * max_delivery_rr,
             size=9,
         )
         + scale_color_manual(values={"NY": "#56B4E9", "RI": "#E69F00"})
@@ -125,6 +126,9 @@ def _plot_delivery_and_supply_vs_kwh(
         )
 
     df = pl.DataFrame(rows)
+    max_delivery_and_supply_rr = cast(
+        float, df["total_delivery_and_supply_revenue_requirement"].max()
+    )
 
     p = (
         ggplot(
@@ -138,7 +142,7 @@ def _plot_delivery_and_supply_vs_kwh(
         + geom_text(
             aes(label="utility"),
             nudge_x=0,
-            nudge_y=0.02 * df["total_delivery_and_supply_revenue_requirement"].max(),
+            nudge_y=0.02 * max_delivery_and_supply_rr,
             size=9,
         )
         + scale_color_manual(values={"NY": "#56B4E9", "RI": "#E69F00"})
