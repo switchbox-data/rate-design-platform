@@ -22,7 +22,7 @@ top-ups/
 
 ### 1. Fetch the base tariff snapshot
 
-`utils/pre/fetch_electric_tariffs_genability.py` downloads the full Genability tariff
+`utils/pre/rev_requirement/fetch_electric_tariffs_genability.py` downloads the full Genability tariff
 JSON for each utility listed in `tariffs_by_utility.yaml`. It takes an `--effective-date`
 that controls which tariff version you get — all charges effective on that date will be
 included. See `context/domain/tariff_structure_and_genability.md` for details on how
@@ -54,7 +54,7 @@ This classification was done through extensive manual research documented in
 
 ### 3. Fetch actual monthly rates
 
-`utils/pre/fetch_monthly_rates.py` reads the charge decisions file, then hits the
+`utils/pre/rev_requirement/fetch_monthly_rates.py` reads the charge decisions file, then hits the
 Genability API once per month to get the actual $/kWh rate for every classified
 CONSUMPTION_BASED charge. It handles rider fallback, variable rate resolution, and
 tariffRateId version drift. Each charge in the output YAML is labeled with its
@@ -69,7 +69,7 @@ Output goes to `monthly_rates/`. The year defaults to `MONTHLY_RATES_YEAR` (2025
 
 ### 4. Compute topped-up revenue requirement
 
-The monthly rates YAML feeds into `utils/pre/compute_rr.py`, which filters for
+The monthly rates YAML feeds into `utils/pre/rev_requirement/compute_rr.py`, which filters for
 `add_to_drr` and `add_to_srr` charges, multiplies each day-weighted average monthly
 rate by EIA-861 residential kWh to get an annual budget, then adds it to the rate-case
 delivery revenue requirement. The output lives in the parent `rev_requirement/`

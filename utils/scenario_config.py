@@ -64,6 +64,45 @@ def get_residential_customer_count_from_utility_stats(
     return int(value)
 
 
+def get_residential_sales_revenue_from_utility_stats(
+    path: str | Path,
+    utility: str,
+    *,
+    storage_options: dict[str, str] | None = None,
+) -> float:
+    """Read EIA-861 utility stats parquet and return residential sales revenue in dollars.
+
+    The parquet column ``residential_sales_revenue`` is already in whole dollars
+    (PUDL converts from EIA's original thousands-of-dollars reporting).
+
+    Raises:
+        ValueError: If path has no row for that utility, or more than one row.
+    """
+    path_str = str(path)
+    opts = storage_options if path_str.startswith("s3://") else None
+    lf = (
+        pl.scan_parquet(path_str, storage_options=opts)
+        .filter(pl.col("utility_code") == utility)
+        .select("residential_sales_revenue")
+    )
+    df = cast(pl.DataFrame, lf.collect())
+    if df.height == 0:
+        raise ValueError(
+            f"No row with utility_code={utility!r} in {path_str}. "
+            "Check path_electric_utility_stats and utility in the scenario YAML."
+        )
+    if df.height > 1:
+        raise ValueError(
+            f"Expected one row for utility_code={utility!r} in {path_str}, got {df.height}"
+        )
+    value = df.item(0, 0)
+    if value is None:
+        raise ValueError(
+            f"residential_sales_revenue is null for utility_code={utility!r} in {path_str}"
+        )
+    return float(value)
+
+
 MWH_TO_KWH = 1000
 
 

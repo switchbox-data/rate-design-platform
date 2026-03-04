@@ -201,7 +201,7 @@ def main() -> None:
     if (start_year, start_month) > (end_year, end_month):
         raise SystemExit("--start must be <= --end")
 
-    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+    load_dotenv(Path(__file__).resolve().parents[3] / ".env")
     app_id = os.environ.get("ARCADIA_APP_ID")
     app_key = os.environ.get("ARCADIA_APP_KEY")
     if not app_id or not app_key:

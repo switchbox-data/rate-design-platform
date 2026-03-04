@@ -193,6 +193,17 @@ def main() -> None:
         help="Path to rate_case_delivery_rr.yaml (utility_code: amount mapping)",
     )
     parser.add_argument(
+        "--path-supply-base",
+        type=Path,
+        default=None,
+        help=(
+            "Optional YAML mapping utility -> supply base ($). "
+            "If provided and the file has an entry for the current utility, "
+            "the value is added to supply top-ups. Use for utilities with TOU "
+            "supply rates that can't be summed directly."
+        ),
+    )
+    parser.add_argument(
         "--output", type=Path, required=True, help="Output rev_requirement YAML path"
     )
     args = parser.parse_args()
@@ -294,6 +305,25 @@ def main() -> None:
         else:
             supply_top_ups[slug] = entry
             supply_budgets_sum += total_budget
+
+    # Optional supply base override (for utilities with TOU supply rates).
+    # Expressed as an entry in supply_top_ups so the output shape is consistent
+    # across all utilities.
+    if args.path_supply_base and args.path_supply_base.exists():
+        with open(args.path_supply_base) as f:
+            supply_base_data = yaml.safe_load(f)
+        if isinstance(supply_base_data, dict) and utility in supply_base_data:
+            supply_base_value = float(supply_base_data[utility])
+            supply_top_ups["supply_base_from_budget"] = {
+                "source": str(args.path_supply_base.name),
+                "total_budget": round(supply_base_value, 2),
+            }
+            supply_budgets_sum += supply_base_value
+            logging.info(
+                "Added supply base from budget for %s: $%s",
+                utility,
+                f"{supply_base_value:,.0f}",
+            )
 
     delivery_revenue_requirement_topups = round(delivery_budgets_sum, 2)
     supply_revenue_requirement_topups = round(supply_budgets_sum, 2)

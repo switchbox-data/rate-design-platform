@@ -2,65 +2,74 @@
   "20850767": {
     "master_charge": "Customer Charge",
     "master_type": "Base delivery",
-    "decision": "add_to_drr",
+    "decision": "already_in_drr",
     "charge_unit": "$/day",
-    "rate_name": "Service Charge"
+    "rate_name": "Service Charge",
+    "_note": "Part of 'Delivery & System' in LIPA bill; covered by budget-estimated rate-case DRR"
   },
   "20850768": {
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery",
-    "decision": "add_to_drr",
+    "decision": "already_in_drr",
     "rate_name": "Energy Charge - Summer Peak",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_note": "TOU delivery; covered by budget-estimated rate-case DRR"
   },
   "20850769": {
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery",
-    "decision": "add_to_drr",
+    "decision": "already_in_drr",
     "rate_name": "Energy Charge - Summer Off-Peak",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_note": "TOU delivery; covered by budget-estimated rate-case DRR"
   },
   "20850770": {
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery",
-    "decision": "add_to_drr",
+    "decision": "already_in_drr",
     "rate_name": "Energy Charge - Winter Peak",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_note": "TOU delivery; covered by budget-estimated rate-case DRR"
   },
   "20850771": {
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery",
-    "decision": "add_to_drr",
+    "decision": "already_in_drr",
     "rate_name": "Energy Charge - Winter Off-Peak",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_note": "TOU delivery; covered by budget-estimated rate-case DRR"
   },
   "20850772": {
     "master_charge": "Shoreham Property Tax Settlement",
     "master_type": "Sunk-cost recovery",
-    "decision": "add_to_drr",
+    "decision": "exclude",
     "variableRateKey": "shorehamPropertyTaxSettlementFactorSuffolkCounty",
-    "charge_unit": "%"
+    "charge_unit": "%",
+    "_note": "Pass-through to taxing jurisdictions; part of 'Taxes, PILOTs, Assessments' in LIPA bill"
   },
   "20850773": {
     "master_charge": "Shoreham Property Tax Settlement",
     "master_type": "Sunk-cost recovery",
-    "decision": "add_to_drr",
+    "decision": "exclude",
     "rate_name": "Shoreham Property Tax (SPT) Settlement Factors",
-    "charge_unit": "%"
+    "charge_unit": "%",
+    "_note": "Pass-through to taxing jurisdictions; part of 'Taxes, PILOTs, Assessments' in LIPA bill"
   },
   "20850774": {
     "master_charge": "VDER / DER Cost Recovery",
     "master_type": "DER credit recovery",
     "decision": "add_to_drr",
     "variableRateKey": "distributedEnergyResourcesCostRecoveryRateSmall",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_note": "Separate 'DER' line in LIPA bill ($4.04/mo); delivery surcharge outside 'Delivery & System'"
   },
   "20850775": {
     "master_charge": "NY State Surcharge (\u00a718-a)",
     "master_type": "Program surcharge",
-    "decision": "add_to_drr",
+    "decision": "exclude",
     "variableRateKey": "newYorkStateAssessment",
-    "charge_unit": "%"
+    "charge_unit": "%",
+    "_note": "Pass-through to NY State; part of 'Taxes, PILOTs, Assessments' in LIPA bill"
   },
   "20850776": {
     "master_charge": "Revenue Decoupling (RDM)",
@@ -125,26 +134,30 @@
   "20912744": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
-    "charge_unit": "$/kWh"
+    "decision": "exclude",
+    "charge_unit": "$/kWh",
+    "_note": "TOU supply (base tariff); covered by supply_base_overrides from LIPA budget estimate"
   },
   "20912745": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
-    "charge_unit": "$/kWh"
+    "decision": "exclude",
+    "charge_unit": "$/kWh",
+    "_note": "TOU supply (base tariff); covered by supply_base_overrides from LIPA budget estimate"
   },
   "20912746": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
-    "charge_unit": "$/kWh"
+    "decision": "exclude",
+    "charge_unit": "$/kWh",
+    "_note": "TOU supply (base tariff); covered by supply_base_overrides from LIPA budget estimate"
   },
   "20912747": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
-    "charge_unit": "$/kWh"
+    "decision": "exclude",
+    "charge_unit": "$/kWh",
+    "_note": "TOU supply (base tariff); covered by supply_base_overrides from LIPA budget estimate"
   },
   "20437624": {
     "master_charge": "CBC (solar only)",
@@ -163,29 +176,33 @@
   "20436694": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3440884,
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_note": "TOU supply (rider); covered by supply_base_overrides from LIPA budget estimate"
   },
   "20436695": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3440884,
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_note": "TOU supply (rider); covered by supply_base_overrides from LIPA budget estimate"
   },
   "20436696": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3440884,
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_note": "TOU supply (rider); covered by supply_base_overrides from LIPA budget estimate"
   },
   "20436697": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "rider_id": 3440884,
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_note": "TOU supply (rider); covered by supply_base_overrides from LIPA budget estimate"
   }
 }

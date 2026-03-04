@@ -89,6 +89,7 @@ path_genability_yaml                := path_genability / "tariffs_by_utility.yam
 path_charge_decisions               := path_genability / "charge_decisions" / (utility + "_charge_decisions.json")
 path_monthly_rates                  := path_genability / "monthly_rates" / (utility + "_monthly_rates_" + monthly_rates_year + ".yaml")
 path_rate_case_delivery_rr          := path_rev_requirement / "delivery_rev_requirements_from_rate_cases.yaml"
+path_supply_base                    := path_rev_requirement / "supply_base_overrides.yaml"
 path_default_tariff                 := path_genability / "default_tariffs" / default_tariff
 path_default_supply_tariff          := path_tariffs_electric / default_tariff_supply
 tou_tariff_key                      := utility + "_hp_seasonalTOU"
@@ -120,14 +121,14 @@ create-scenario-yamls:
 
 # Revenue requirement top-ups
 fetch-genability-tariffs effective_date="2025-01-01":
-  uv run python {{path_repo}}/utils/pre/fetch_electric_tariffs_genability.py \
+  uv run python {{path_repo}}/utils/pre/rev_requirement/fetch_electric_tariffs_genability.py \
     "{{path_genability_yaml}}" \
     "{{path_genability}}/default_tariffs" \
     --state "{{state_upper}}" \
     --effective-date "{{effective_date}}"
 
 fetch-monthly-rates start=(monthly_rates_year + "-01") end=(monthly_rates_year + "-12"):
-  uv run python {{path_repo}}/utils/pre/fetch_monthly_rates.py \
+  uv run python {{path_repo}}/utils/pre/rev_requirement/fetch_monthly_rates.py \
     --utility "{{utility}}" \
     --start "{{start}}" \
     --end "{{end}}" \
@@ -135,12 +136,21 @@ fetch-monthly-rates start=(monthly_rates_year + "-01") end=(monthly_rates_year +
     --output "{{path_monthly_rates}}"
 
 compute-rr:
-  uv run python {{path_repo}}/utils/pre/compute_rr.py \
+  uv run python {{path_repo}}/utils/pre/rev_requirement/compute_rr.py \
     --utility {{utility}} \
     --path-monthly-rates "{{path_monthly_rates}}" \
     --path-electric-utility-stats "{{path_electric_utility_stats}}" \
     --path-rate-case-rr "{{path_rate_case_delivery_rr}}" \
+    --path-supply-base "{{path_supply_base}}" \
     --output "{{path_default_rev_requirement}}"
+
+estimate-psegli-rr:
+  uv run python {{path_repo}}/utils/pre/rev_requirement/estimate_psegli_rr.py \
+    --path-budget-md "{{path_repo}}/context/papers/lipa_2025_2026_budget_one_pager.md" \
+    --path-electric-utility-stats "{{path_electric_utility_stats}}" \
+    --path-rate-case-rr "{{path_rate_case_delivery_rr}}" \
+    --path-supply-base "{{path_supply_base}}" \
+    --output-key psegli
 
 # Pre-calibrated tariffs
 create-flat-tariff:
