@@ -344,8 +344,9 @@ def allocate_bulk_tx_to_hours(
         Intuition: τ_min is the capacity-triggering floor; only load above it is
         "capacity-driving". Summer peaks far exceed τ_min; winter barely clears it.
 
-    Level 2 — within each season (exceedance above the (N+1)th hour):
-        threshold = load of the (n_hours_per_season + 1)th highest hour in season
+    Level 2 — within each season (exceedance above a tie-safe threshold):
+        load_nth = Nth highest load in season
+        threshold = max(load_mw where load_mw < load_nth)
         exc_h = max(load_h − threshold, 0)  for h in top-N SCR hours
         w_h = exc_h / Σ exc_h  (sums to 1 within season)
 
@@ -360,18 +361,33 @@ def allocate_bulk_tx_to_hours(
         load_with_scr: DataFrame with columns: timestamp, load_mw, season, is_scr.
             (Output of identify_scr_hours.)
         v_z: Bulk transmission marginal cost in $/kW-yr.
-        n_hours_per_season: SCR window size; the (n+1)th hour sets the exceedance
-            threshold for each season (default: N_SCR_HOURS_PER_SEASON).
+        n_hours_per_season: SCR window size; threshold is derived from the Nth
+            highest load per season (default: N_SCR_HOURS_PER_SEASON).
 
     Returns:
         DataFrame with columns: timestamp, bulk_tx_cost_enduse ($/kWh).
     """
-    # One group_by pass: seasonal peak and SCR threshold (the (N+1)th highest load).
+    # Step 1: seasonal peak and Nth highest load (for tie-safe threshold).
     season_stats = load_with_scr.group_by("season").agg(
         pl.col("load_mw").max().alias("peak_mw"),
-        pl.col("load_mw").top_k(n_hours_per_season + 1).min().alias("threshold_mw"),
+        pl.col("load_mw").top_k(n_hours_per_season).min().alias("load_nth"),
     )
     peaks = dict(zip(season_stats["season"], season_stats["peak_mw"]))
+
+    # Step 2: tie-safe threshold = max(load < load_nth) per season.
+    # When the Nth and (N+1)th highest loads are equal, this drops to the
+    # next genuinely lower value so the Nth SCR hour gets positive exceedance.
+    season_thresholds = (
+        load_with_scr.join(season_stats.select("season", "load_nth"), on="season")
+        .filter(pl.col("load_mw") < pl.col("load_nth"))
+        .group_by("season")
+        .agg(pl.col("load_mw").max().alias("threshold_mw"))
+    )
+
+    # Merge threshold back into season_stats; fall back to 0 if all hours
+    # in a season have the same load (impossible with real MW data).
+    season_stats = season_stats.join(season_thresholds, on="season", how="left")
+    season_stats = season_stats.with_columns(pl.col("threshold_mw").fill_null(0.0))
     thresholds = dict(zip(season_stats["season"], season_stats["threshold_mw"]))
 
     # φ: peak surplus above the minimum SCR threshold (the capacity-triggering floor).
