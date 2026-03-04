@@ -7,21 +7,16 @@ import pytest
 
 from utils.pre.generate_utility_supply_mc import (
     allocate_icap_to_hours,
-    build_capacity_peak_load_profile_from_zone_loads,
+    build_locality_load_profiles,
+    compute_capacity_mc_components,
     compute_weighted_icap_prices,
     get_partitioned_price_locality_weights,
     validate_capacity_allocation,
 )
 
 
-def test_capacity_peak_profile_uses_nested_nyca_footprint() -> None:
-    """NYCA locality should use all 11 zones (including LONGIL), not only utility service zones."""
-    locality_weights = pl.DataFrame(
-        {
-            "locality": ["NYCA"],
-            "capacity_weight": [1.0],
-        }
-    )
+def test_build_locality_load_profiles_uses_nested_nyca_footprint() -> None:
+    """NYCA raw ICAP name should use all 11 zones (including LONGIL), not only utility zones."""
     zone_loads_df = pl.DataFrame(
         {
             "timestamp": [1, 1, 1, 2, 2, 2],
@@ -30,21 +25,15 @@ def test_capacity_peak_profile_uses_nested_nyca_footprint() -> None:
         }
     )
 
-    result = build_capacity_peak_load_profile_from_zone_loads(
-        locality_weights, zone_loads_df
-    )
+    profiles = build_locality_load_profiles(["NYCA"], zone_loads_df)
 
-    assert result.sort("timestamp")["load_mw"].to_list() == [130.0, 240.0]
+    assert "NYCA" in profiles
+    result = profiles["NYCA"].sort("timestamp")
+    assert result["load_mw"].to_list() == [130.0, 240.0]
 
 
-def test_capacity_peak_profile_blends_multiple_capacity_localities() -> None:
-    """Split utilities should blend nested localities using capacity_weight."""
-    locality_weights = pl.DataFrame(
-        {
-            "locality": ["NYC", "LHV"],
-            "capacity_weight": [0.87, 0.13],
-        }
-    )
+def test_build_locality_load_profiles_maps_ghij_to_lhv() -> None:
+    """Raw ICAP name GHIJ should map to nested locality LHV (HUD_VL+MILLWD+DUNWOD+N.Y.C.)."""
     zone_loads_df = pl.DataFrame(
         {
             "timestamp": [1, 1, 2, 2],
@@ -53,15 +42,98 @@ def test_capacity_peak_profile_blends_multiple_capacity_localities() -> None:
         }
     )
 
-    result = build_capacity_peak_load_profile_from_zone_loads(
-        locality_weights, zone_loads_df
-    ).sort("timestamp")
+    profiles = build_locality_load_profiles(["GHIJ"], zone_loads_df)
 
-    # NYC uses N.Y.C.; LHV uses HUD_VL+MILLWD+DUNWOD+N.Y.C.,
-    # so with data present that is (DUNWOD+N.Y.C.).
-    # Hour 1: 0.87*100 + 0.13*(100+30) = 103.9
-    # Hour 2: 0.87*200 + 0.13*(200+50) = 206.5
-    assert result["load_mw"].to_list() == [103.9, 206.5]
+    # GHIJ → LHV; LHV uses HUD_VL+MILLWD+DUNWOD+N.Y.C. (with data only for DUNWOD+N.Y.C.)
+    assert "LHV" in profiles
+    result = profiles["LHV"].sort("timestamp")
+    # Raw unweighted sum: hour 1 = 100+30=130, hour 2 = 200+50=250
+    assert result["load_mw"].to_list() == [130.0, 250.0]
+
+
+def test_build_locality_load_profiles_deduplicates_same_nested_locality() -> None:
+    """Two raw ICAP names mapping to the same nested locality should yield one profile."""
+    zone_loads_df = pl.DataFrame(
+        {
+            "timestamp": [1, 2],
+            "zone": ["N.Y.C.", "N.Y.C."],
+            "load_mw": [100.0, 200.0],
+        }
+    )
+    # Both "NYC" → "NYC" (same nested locality)
+    profiles = build_locality_load_profiles(["NYC", "NYC"], zone_loads_df)
+    assert list(profiles.keys()) == ["NYC"]
+
+
+def test_compute_capacity_mc_components_two_locality_utility() -> None:
+    """ConEd-like utility with 2 ICAP localities: peaks identified independently per locality."""
+    from datetime import datetime, timedelta
+
+    year = 2025
+    start = datetime(year, 1, 1, 0, 0, 0)
+    timestamps = [start + timedelta(hours=h) for h in range(8760)]
+
+    # NYC profile: load increases with hour-of-day
+    nyc_loads = [1000.0 + (h % 24) * 10.0 for h in range(8760)]
+    nyc_profile = pl.DataFrame({"timestamp": timestamps, "load_mw": nyc_loads})
+
+    # LHV profile: slightly different load shape
+    lhv_loads = [800.0 + (h % 24) * 8.0 for h in range(8760)]
+    lhv_profile = pl.DataFrame({"timestamp": timestamps, "load_mw": lhv_loads})
+
+    locality_profiles = {"NYC": nyc_profile, "LHV": lhv_profile}
+
+    # ConEd-like: two rows, NYC locality and GHIJ→LHV locality
+    utility_icap_rows = pl.DataFrame(
+        {
+            "icap_locality": ["NYC", "GHIJ"],
+            "gen_capacity_zone": ["NYC", "LHV"],
+            "capacity_weight": [0.87, 0.13],
+        }
+    )
+
+    # ICAP prices for both partitioned localities (12 months each)
+    months = list(range(1, 13))
+    icap_df = pl.DataFrame(
+        {
+            "month": months + months,
+            "locality": ["NYC"] * 12 + ["LHV"] * 12,
+            "price_per_kw_month": [10.0] * 12 + [8.0] * 12,
+        }
+    )
+
+    result = compute_capacity_mc_components(
+        utility_icap_rows, icap_df, locality_profiles, n_peak_hours=8
+    )
+
+    # Non-zero hours = union of NYC's 96 hours and LHV's 96 hours (≥96, ≤192)
+    nonzero = result.filter(pl.col("capacity_cost_per_kw") > 0)
+    assert nonzero.height >= 8 * 12, (
+        f"Expected ≥96 non-zero hours, got {nonzero.height}"
+    )
+    assert nonzero.height <= 2 * 8 * 12, (
+        f"Expected ≤192 non-zero hours, got {nonzero.height}"
+    )
+
+    # Validate against expected annual total:
+    # Expected = 0.87 * 10 * 12 + 0.13 * 8 * 12 = 104.4 + 12.48 = 116.88
+    price_locality_weights = pl.DataFrame(
+        {
+            "locality": ["LHV", "NYC"],
+            "capacity_weight": [0.13, 0.87],
+        }
+    )
+    icap_prices_validation = compute_weighted_icap_prices(
+        icap_df, price_locality_weights
+    )
+    validate_capacity_allocation(result, icap_prices_validation)
+
+    # Costs sum correctly: total should equal weighted ICAP annual total
+    expected_annual = 0.87 * 10.0 * 12 + 0.13 * 8.0 * 12
+    actual_annual = float(result["capacity_cost_per_kw"].sum())
+    assert abs(actual_annual - expected_annual) < 1e-4, (
+        f"Expected annual total {expected_annual:.4f}, got {actual_annual:.4f}"
+    )
 
 
 def test_partitioned_price_locality_weights_transform_nested_to_partitioned() -> None:
