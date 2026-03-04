@@ -1,9 +1,9 @@
 utility: coned
 delivery_revenue_requirement_from_rate_case: 3116197000.0
 delivery_revenue_requirement_topups: 146303900.55
-supply_revenue_requirement_topups: 4180082746.34
+supply_revenue_requirement_topups: 1359884921.55
 total_delivery_revenue_requirement: 3262500900.55
-total_delivery_and_supply_revenue_requirement: 7442583646.89
+total_delivery_and_supply_revenue_requirement: 4622385822.1
 total_residential_kwh: 13643968512.0
 eia_year: 2024
 delivery_top_ups:
@@ -40,14 +40,6 @@ supply_top_ups:
     charge_unit: $/kWh
     avg_monthly_rate: 0.0911183123
     total_budget: 1243215384.19
-  supply_commodity_bundled_2:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0922391315
-    total_budget: 1258507805.76
-  supply_commodity_bundled_3:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.1144601014
-    total_budget: 1561690019.03
   ces_supply_surcharge:
     charge_unit: $/kWh
     avg_monthly_rate: 0.0040474795

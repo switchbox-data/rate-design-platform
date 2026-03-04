@@ -1,9 +1,9 @@
 utility: nyseg
 delivery_revenue_requirement_from_rate_case: 834673681.0
 delivery_revenue_requirement_topups: 157858879.88
-supply_revenue_requirement_topups: 1976606828.33
+supply_revenue_requirement_topups: 693062032.17
 total_delivery_revenue_requirement: 992532560.88
-total_delivery_and_supply_revenue_requirement: 2969139389.21
+total_delivery_and_supply_revenue_requirement: 1685594593.05
 total_residential_kwh: 6919839232.0
 eia_year: 2024
 delivery_top_ups:
@@ -48,11 +48,3 @@ supply_top_ups:
     charge_unit: $/kWh
     avg_monthly_rate: 0.09629206
     total_budget: 666325574.44
-  supply_commodity_bundled_2:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0863514921
-    total_budget: 597538442.45
-  supply_commodity_bundled_3:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0991361693
-    total_budget: 686006353.7

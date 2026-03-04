@@ -115,16 +115,18 @@
   "20918172": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "variableRateKey": "marketSupplyChargeResidentialZoneI",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_note": "Zonal duplicate \u2014 Zone H (20918171) kept as representative; Zone I excluded to avoid 3x overcount"
   },
   "20918173": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "variableRateKey": "marketSupplyChargeResidentialZoneJ",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_note": "Zonal duplicate \u2014 Zone J is LIPA territory, not ConEd; excluded"
   },
   "20918174": {
     "master_charge": "Supply cost true-up",

@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import calendar
 import re
+from collections import defaultdict
 from pathlib import Path
 
 import logging
@@ -167,6 +168,44 @@ def _resolve_path_eia_with_year_fallback(
     )
 
 
+def _warn_potential_zonal_duplicates(charges: dict[str, dict], utility: str) -> None:
+    """Warn when multiple active charges share the same master_charge and decision.
+
+    This catches zone-specific variants (e.g. ConEd supply commodity for Zones H/I/J)
+    that should not all be multiplied by total utility kWh.  Distinct additive
+    subcomponents (e.g. CenHud MFC allocation/base/admin) also trigger the warning;
+    the operator should verify and suppress by excluding the duplicates in
+    charge_decisions.json.
+    """
+    groups: dict[tuple[str, str], list[tuple[str, dict]]] = defaultdict(list)
+    for slug, data in charges.items():
+        decision = data.get("decision", "")
+        if decision not in ("add_to_drr", "add_to_srr"):
+            continue
+        master = data.get("master_charge", slug)
+        groups[(master, decision)].append((slug, data))
+
+    for (master, decision), entries in groups.items():
+        if len(entries) <= 1:
+            continue
+        slugs_info = []
+        for slug, data in entries:
+            vrk = data.get("variableRateKey", "")
+            rate_name = data.get("rate_name", "")
+            label = vrk or rate_name or "(no key)"
+            slugs_info.append(f"  {slug} ({label})")
+        logging.warning(
+            "utility=%s has %d charges with master_charge=%r and decision=%r:\n%s\n"
+            "  → If these are zone-specific variants, only one should be active; "
+            "exclude the rest in charge_decisions.",
+            utility,
+            len(entries),
+            master,
+            decision,
+            "\n".join(slugs_info),
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Compute topped-up delivery and supply revenue requirements from EIA kWh and monthly charge rates."
@@ -230,6 +269,7 @@ def main() -> None:
             f"{args.path_monthly_rates} must have start_month and end_month."
         )
     charges = monthly_rates_data.get("charges") or {}
+    _warn_potential_zonal_duplicates(charges, utility)
     year_for_eia = _parse_month(start_month)[0]
 
     total_residential_kwh, eia_year = _resolve_path_eia_with_year_fallback(

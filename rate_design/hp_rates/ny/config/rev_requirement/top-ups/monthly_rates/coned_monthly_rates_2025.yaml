@@ -204,7 +204,7 @@ charges:
   supply_commodity_bundled_2:
     tariff_rate_id: 20918172
     master_charge: Supply commodity (bundled)
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.1019587419
       2025-02: 0.1031750714
@@ -222,7 +222,7 @@ charges:
   supply_commodity_bundled_3:
     tariff_rate_id: 20918173
     master_charge: Supply commodity (bundled)
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.1247026774
       2025-02: 0.1279048571

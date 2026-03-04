@@ -70,9 +70,10 @@
   "20570175": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "variableRateKey": "supplyChargeSC1West",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_note": "Zonal duplicate \u2014 Regular zone (20570174) kept as representative; West excluded to avoid 3x overcount"
   },
   "20570176": {
     "master_charge": "CES Delivery",
@@ -84,9 +85,10 @@
   "20570177": {
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity",
-    "decision": "add_to_srr",
+    "decision": "exclude",
     "variableRateKey": "supplyChargeSC1LHV",
-    "charge_unit": "$/kWh"
+    "charge_unit": "$/kWh",
+    "_note": "Zonal duplicate \u2014 Regular zone (20570174) kept as representative; LHV excluded to avoid 3x overcount"
   },
   "18337959": {
     "master_charge": "DLM Surcharge",
