@@ -2364,7 +2364,7 @@ requires-dist = [
     { name = "s3fs", specifier = ">=2026.2.0" },
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "sodapy", specifier = ">=2.2.0" },
-    { name = "tariff-fetch", specifier = ">=0.1" },
+    { name = "tariff-fetch", specifier = ">=0.4.1" },
     { name = "tqdm", specifier = ">=4.67.3" },
 ]
 
@@ -2737,7 +2737,7 @@ wheels = [
 
 [[package]]
 name = "tariff-fetch"
-version = "0.3.0"
+version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastexcel" },
@@ -2756,9 +2756,9 @@ dependencies = [
     { name = "typer" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a6/ba/2e201932c27e780c9ef8a00c6c3a44db9196db8374f730b5101a43af27ac/tariff_fetch-0.3.0.tar.gz", hash = "sha256:0d7b7e2565e861bac4022c7bf0c3e8c84fa442da9d38195e7c0a6ebc80a3f6ae", size = 378639, upload-time = "2026-03-03T15:22:41.072Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b1/15/5951baf75e364010d9118362d2c0c17bbcf35c36bae0d7d70fde812ee2ae/tariff_fetch-0.4.1.tar.gz", hash = "sha256:35ccbbe90c03b921ec3b2ff800c5b1c52ccee2c73722f2f3294d0cde94b36c85", size = 383609, upload-time = "2026-03-04T19:32:02.776Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a9/63/b62ec4cfc13941130c5d9573ee476433130e23fa13a0b525d6067e039a38/tariff_fetch-0.3.0-py3-none-any.whl", hash = "sha256:a269ad1a889e2322265de9763591e80a9d90600c049feb48cd9cc8807324a638", size = 68254, upload-time = "2026-03-03T15:22:42.542Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/6c/dafaa94ad71fdc68dfc7aaf3ace9ee350780b33cd72671e6795c66d0b0a3/tariff_fetch-0.4.1-py3-none-any.whl", hash = "sha256:ac8282b89752de5401d567fdee67d1f12799ed63dfdfaebaacf2c2d659606f67", size = 68761, upload-time = "2026-03-04T19:32:06.254Z" },
 ]
 
 [[package]]

@@ -14,14 +14,13 @@ kedli:
   kedli_sf_heating: "-ON HOLD-1-RESIDENTIAL SERVICE-1B - Heating--"
   kedli_mf: "-ON HOLD-3-MULTIPLE-DWELLING SERVICE-3A - Non-Heating--"
 kedny:
-  kedny_sf_nonheating: "1A-RESIDENTIAL NON-HEATING SERVICE---"
-  kedny_sf_heating: "1B-RESIDENTIAL HEATING SERVICE---"
-  kedny_mf: "3-HEATING AND/OR WATER HEATING SERVICE (MULTI-FAMILY BUILDINGS)---"
+  kedny_sf_nonheating: "-ON HOLD-1A-RESIDENTIAL NON-HEATING SERVICE---"
+  kedny_sf_heating: "-ON HOLD-1B-RESIDENTIAL HEATING SERVICE---"
+  kedny_mf: "-ON HOLD-3-HEATING AND/OR WATER HEATING SERVICE (MULTI-FAMILY BUILDINGS)---"
 nfg:
   nfg: "-ON HOLD-1-RESIDENTIAL-Customers Purchasing Gas Supply from Company--"
-# nimo: temporarily skipped — ON HOLD schedule fails to download from Rate Acuity
-# nimo:
-#   nimo: "-ON HOLD-1-RESIDENTIAL DELIVERY SERVICE AND GAS SUPPLY SERVICE OR RESIDENTIAL DELIVERY SERVICE ONLY-Customers Purchasing Gas Supply from Company--"
+nimo:
+  nimo: "-ON HOLD-1-RESIDENTIAL DELIVERY SERVICE AND GAS SUPPLY SERVICE OR RESIDENTIAL DELIVERY SERVICE ONLY-Customers Purchasing Gas Supply from Company--"
 nyseg:
   nyseg_nonheating: "-ON HOLD-PSC 87, SC 1-RESIDENTIAL SERVICE-Non-Heating--"
   nyseg_heating: "-ON HOLD-PSC 87, SC 1-RESIDENTIAL SERVICE-Heating--"
