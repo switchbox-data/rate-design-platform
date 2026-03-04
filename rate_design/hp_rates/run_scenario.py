@@ -100,11 +100,11 @@ class ScenarioSettings:
     subclass_rr: dict[str, float] | None
     run_includes_subclasses: bool
     path_electric_utility_stats: str | Path
+    path_supply_energy_mc: str | Path
+    path_supply_capacity_mc: str | Path
     year_run: int
     year_dollar_conversion: int
     process_workers: int
-    path_supply_energy_mc: str | Path | None = None
-    path_supply_capacity_mc: str | Path | None = None
     path_bulk_tx_mc: str | Path | None = None
     solar_pv_compensation: str = "net_metering"
     run_includes_supply: bool = False
@@ -285,15 +285,13 @@ def _build_settings_from_yaml_run(
             path_config,
         ),
         path_supply_energy_mc=_resolve_path_or_uri(
-            str(run.get("path_supply_energy_mc", "")), path_config
-        )
-        if run.get("path_supply_energy_mc")
-        else None,
+            str(_require_value(run, "path_supply_energy_mc")),
+            path_config,
+        ),
         path_supply_capacity_mc=_resolve_path_or_uri(
-            str(run.get("path_supply_capacity_mc", "")), path_config
-        )
-        if run.get("path_supply_capacity_mc")
-        else None,
+            str(_require_value(run, "path_supply_capacity_mc")),
+            path_config,
+        ),
         path_dist_and_sub_tx_mc=_resolve_path_or_uri(
             str(_require_value(run, "path_dist_and_sub_tx_mc")),
             path_config,
@@ -536,14 +534,9 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
     # MC prices are exogenous; load shifting changes total MC dollars, not prices.
 
     # Load supply MCs: Energy + Capacity (bulk supply).
-    # path_supply_energy_mc / path_supply_capacity_mc are required.
+    # Both paths are required (enforced by ScenarioSettings dataclass).
     # _load_supply_marginal_costs detects Cambium paths internally and routes
     # to the appropriate loader (e.g. RI uses a Cambium file for both).
-    if not (settings.path_supply_energy_mc and settings.path_supply_capacity_mc):
-        raise ValueError(
-            "Must provide both path_supply_energy_mc and path_supply_capacity_mc "
-            "in the scenario YAML."
-        )
     bulk_marginal_costs = _load_supply_marginal_costs(
         settings.path_supply_energy_mc,
         settings.path_supply_capacity_mc,

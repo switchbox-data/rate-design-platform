@@ -240,18 +240,8 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     ):
         run[key] = get(key)
 
-    run["path_dist_and_sub_tx_mc"] = get("path_dist_and_sub_tx_mc")
-
-    # Handle separate energy and capacity paths (required)
-    try:
-        run["path_supply_energy_mc"] = get_optional("path_supply_energy_mc")
-    except ValueError:
-        run["path_supply_energy_mc"] = None
-
-    try:
-        run["path_supply_capacity_mc"] = get_optional("path_supply_capacity_mc")
-    except ValueError:
-        run["path_supply_capacity_mc"] = None
+    run["path_supply_energy_mc"] = require_non_empty("path_supply_energy_mc")
+    run["path_supply_capacity_mc"] = require_non_empty("path_supply_capacity_mc")
 
     run["path_tariffs_electric"] = _path_tariffs_to_dict(
         require_non_empty("path_tariffs_electric")
