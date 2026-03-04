@@ -55,8 +55,6 @@ create-supply-mc-data-all:
 tx_mc_year            := "2025"
 path_vz_table         := "s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_values.csv"
 path_bulk_tx_mc       := "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=" + utility + "/year=" + tx_mc_year + "/data.parquet"
-path_supply_energy_mc   := "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" + utility + "/year=" + supply_mc_year + "/00000000.parquet"
-path_supply_capacity_mc := "s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=" + utility + "/year=" + supply_mc_year + "/00000000.parquet"
 
 create-bulk-tx-mc-data utility_arg:
   cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_bulk_tx_mc.py \
