@@ -48,12 +48,34 @@ When enabled, `run_scenario.py` derives the TOU tariff and map, writes them unde
 
 ## Marginal cost loading for TOU
 
-The TOU calculator uses the same marginal cost loading logic as the main supply MC loader. The optional `path_tou_supply_mc` field in scenario YAMLs can point to:
+### `derive_seasonal_tou.py` (standalone CLI / `create-seasonal-tou` recipe)
 
-- **Cambium files** (combined energy+capacity): If the path contains "cambium", it's loaded via `_load_cambium_marginal_costs()` as a combined file with both energy and capacity costs.
-- **Separate files**: Currently, `path_tou_supply_mc` is a single path. For backward compatibility, it uses `_load_cambium_marginal_costs()` which can handle various file formats.
+The `create-seasonal-tou` Justfile recipe passes `path_supply_energy_mc` and
+`path_supply_capacity_mc` directly from the Justfile variables — which always point to real
+supply MC files (e.g. NYISO LBMP + ICAP parquets for NY). No separate TOU supply path is
+needed.
 
-This ensures consistent handling of Cambium files across both the main supply MC loading (via `_load_supply_marginal_costs()` which detects Cambium paths) and TOU cost-causation ratio computation.
+### Phase 1.75 demand-flex recomputation (`utils/demand_flex.py`)
+
+TOU cost-causation ratios must be identical between delivery-only and supply runs so that
+peak windows and peak/off-peak multipliers are consistent. Phase 1.75 therefore always uses
+**real (non-zero)** bulk supply MCs, regardless of whether the CAIRO run is delivery-only.
+The scenario's `bulk_marginal_costs` (which may be zeros for delivery-only runs) is used
+unchanged everywhere else (Phase 1a, Phase 2 RR computation).
+
+`apply_demand_flex` accepts two optional params: `path_tou_supply_energy_mc` and
+`path_tou_supply_capacity_mc`. When provided, it loads these via `_load_supply_marginal_costs`
+specifically for Phase 1.75 cost-causation computation. If omitted, it falls back to the
+scenario's `bulk_marginal_costs` (which works correctly for supply runs where that is
+already real).
+
+These paths come from the **Justfile** `run-scenario` recipe via CLI args
+(`--path-tou-supply-energy-mc`, `--path-tou-supply-capacity-mc`), wired to the
+Justfile-level `path_supply_energy_mc` / `path_supply_capacity_mc` variables — the same
+real paths used by `create-seasonal-tou`. They are **not** YAML fields or Google Sheet
+columns.
+
+There is no `path_tou_supply_mc` field in scenario YAMLs or Google Sheet columns.
 
 ### Main supply MC loading
 

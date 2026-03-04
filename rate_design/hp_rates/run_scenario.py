@@ -110,7 +110,12 @@ class ScenarioSettings:
     run_includes_supply: bool = False
     sample_size: int | None = None
     elasticity: float = 0.0
-    path_tou_supply_mc: str | Path | None = None
+    # Real (non-zero) supply MC paths used exclusively for Phase 1.75 TOU
+    # cost-causation recalibration.  Supplied as CLI args from the Justfile so
+    # delivery-only runs (whose path_supply_energy/capacity_mc point to zeros)
+    # still share the same TOU windows as supply runs.
+    path_tou_supply_energy_mc: str | Path | None = None
+    path_tou_supply_capacity_mc: str | Path | None = None
 
 
 def apply_prototype_sample(
@@ -255,11 +260,6 @@ def _build_settings_from_yaml_run(
     sample_size = (
         _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
     )
-    path_tou_supply_mc: str | Path | None = None
-    if "path_tou_supply_mc" in run:
-        path_tou_supply_mc = _resolve_path_or_uri(
-            str(run["path_tou_supply_mc"]), path_config
-        )
     path_bulk_tx_mc: str | Path | None = None
     bulk_tx_raw = run.get("path_bulk_tx_mc")
     if bulk_tx_raw and str(bulk_tx_raw).strip():
@@ -311,7 +311,6 @@ def _build_settings_from_yaml_run(
         sample_size=sample_size,
         run_includes_supply=run_includes_supply,
         elasticity=elasticity,
-        path_tou_supply_mc=path_tou_supply_mc,
         path_bulk_tx_mc=path_bulk_tx_mc,
     )
 
@@ -372,6 +371,25 @@ def _parse_args() -> argparse.Namespace:
             "min(process_workers, os.cpu_count())."
         ),
     )
+    parser.add_argument(
+        "--path-tou-supply-energy-mc",
+        default=None,
+        dest="path_tou_supply_energy_mc",
+        help=(
+            "Real (non-zero) supply energy MC path used only for Phase 1.75 TOU "
+            "cost-causation recalibration during demand flex. Passed from the Justfile "
+            "so delivery-only runs share the same TOU windows as supply runs."
+        ),
+    )
+    parser.add_argument(
+        "--path-tou-supply-capacity-mc",
+        default=None,
+        dest="path_tou_supply_capacity_mc",
+        help=(
+            "Real (non-zero) supply capacity MC path used only for Phase 1.75 TOU "
+            "cost-causation recalibration during demand flex."
+        ),
+    )
     args = parser.parse_args()
     if args.scenario_config is None and args.utility is None:
         parser.error("Provide either --scenario-config or --utility.")
@@ -386,13 +404,21 @@ def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
             raise ValueError("Provide either --scenario-config or --utility.")
         scenario_config = _scenario_config_from_utility(state, args.utility.lower())
     run = _load_run_from_yaml(scenario_config, args.run_num)
-    return _build_settings_from_yaml_run(
+    settings = _build_settings_from_yaml_run(
         run=run,
         run_num=args.run_num,
         state=state,
         output_dir_override=args.output_dir,
         run_name_override=args.run_name,
     )
+    # TOU supply MC paths come from Justfile CLI args, not from the scenario YAML,
+    # so that delivery-only runs (with zero supply MCs) still use real paths for
+    # Phase 1.75 cost-causation recalibration.
+    if args.path_tou_supply_energy_mc:
+        settings.path_tou_supply_energy_mc = args.path_tou_supply_energy_mc
+    if args.path_tou_supply_capacity_mc:
+        settings.path_tou_supply_capacity_mc = args.path_tou_supply_capacity_mc
+    return settings
 
 
 # ---------------------------------------------------------------------------
@@ -580,7 +606,6 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             run_type=settings.run_type,
             year_run=settings.year_run,
             path_tariffs_electric=settings.path_tariffs_electric,
-            path_tou_supply_mc=settings.path_tou_supply_mc,
             tou_derivation_dir=_state_config(settings.state) / "tou_derivation",
             raw_load_elec=raw_load_elec,
             customer_metadata=customer_metadata,
@@ -589,6 +614,8 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             rr_total=settings.rr_total,
             bulk_marginal_costs=bulk_marginal_costs,
             dist_and_sub_tx_marginal_costs=dist_and_sub_tx_marginal_costs,
+            path_tou_supply_energy_mc=settings.path_tou_supply_energy_mc,
+            path_tou_supply_capacity_mc=settings.path_tou_supply_capacity_mc,
         )
 
         revenue_requirement: float | dict[str, float] | None = (
