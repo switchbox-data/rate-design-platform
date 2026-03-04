@@ -442,3 +442,57 @@ class TestSeasonAlignment:
         # Both should produce identical SCR hour assignments
         assert result_default["is_scr"].to_list() == result_explicit["is_scr"].to_list()
         assert result_default["season"].to_list() == result_explicit["season"].to_list()
+
+
+# ── Tie-breaking at SCR boundary ─────────────────────────────────────────────
+
+
+def _make_load_profile_with_ties(
+    n_hours_per_season: int = 40, year: int = 2025
+) -> pl.DataFrame:
+    """Load profile where the Nth and (N+1)th highest loads per season are equal."""
+    base = _make_load_profile(year=year)
+    summer_months = derive_summer_months(list(DEFAULT_SCR_WINTER_MONTHS))
+
+    for is_summer in [True, False]:
+        if is_summer:
+            mask = pl.col("timestamp").dt.month().is_in(summer_months)
+        else:
+            mask = ~pl.col("timestamp").dt.month().is_in(summer_months)
+
+        season_loads = base.filter(mask).sort("load_mw", descending=True)
+        nth_load = float(season_loads["load_mw"][n_hours_per_season - 1])
+        next_load = float(season_loads["load_mw"][n_hours_per_season])
+
+        # Set the (N+1)th highest load equal to the Nth
+        base = base.with_columns(
+            pl.when(pl.col("load_mw") == next_load)
+            .then(nth_load)
+            .otherwise(pl.col("load_mw"))
+            .alias("load_mw")
+        )
+
+    return base
+
+
+class TestBulkTxTieBreaking:
+    """Verify allocation handles ties at the SCR boundary."""
+
+    def test_exactly_80_nonzero_with_ties(self) -> None:
+        """When 40th and 41st loads tie, still get 80 nonzero hours."""
+        load_df = _make_load_profile_with_ties(n_hours_per_season=40)
+        load_with_scr = identify_scr_hours(load_df, n_hours_per_season=40)
+        allocated = allocate_bulk_tx_to_hours(load_with_scr, v_z=30.0)
+
+        n_nonzero = allocated.filter(pl.col("bulk_tx_cost_enduse") > 0).height
+        assert n_nonzero == 80
+
+    def test_1kw_recovery_with_ties(self) -> None:
+        """1 kW constant load still recovers v_z with ties present."""
+        v_z = 30.0
+        load_df = _make_load_profile_with_ties(n_hours_per_season=40)
+        load_with_scr = identify_scr_hours(load_df, n_hours_per_season=40)
+        allocated = allocate_bulk_tx_to_hours(load_with_scr, v_z=v_z)
+
+        actual = float(allocated["bulk_tx_cost_enduse"].sum())
+        assert abs(actual - v_z) < v_z * 1e-4
