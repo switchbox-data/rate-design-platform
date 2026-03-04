@@ -20,14 +20,14 @@ Requires ARCADIA_APP_ID and ARCADIA_APP_KEY in the environment.
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 from datetime import date, datetime, timezone
 from pathlib import Path
 
 import yaml
-from tariff_fetch.genability.lse import get_lses_page
-from tariff_fetch.genability.tariffs import tariffs_paginate
+from pydantic import TypeAdapter
+from tariff_fetch.arcadia.api import ArcadiaSignalAPI
+from tariff_fetch.arcadia.schema.tariff import TariffExtended
 
 from utils.utility_codes import get_utilities_for_state
 
@@ -39,16 +39,6 @@ if _env_path.exists():
     load_dotenv(_env_path)
 
 log = logging.getLogger(__name__)
-
-
-def _get_arcadia_credentials() -> tuple[str, str]:
-    import os
-
-    app_id = os.environ.get("ARCADIA_APP_ID")
-    app_key = os.environ.get("ARCADIA_APP_KEY")
-    if not app_id or not app_key:
-        raise RuntimeError("Set ARCADIA_APP_ID and ARCADIA_APP_KEY in the environment")
-    return (app_id, app_key)
 
 
 def _eia_id_for_utility(state: str, std_name: str) -> int:
@@ -72,15 +62,14 @@ def _eia_id_for_utility(state: str, std_name: str) -> int:
     )
 
 
-def _lse_id_for_eia(auth: tuple[str, str], eia_id: int) -> int:
+def _lse_id_for_eia(api: ArcadiaSignalAPI, eia_id: int) -> int:
     """Resolve EIA ID to Arcadia LSE id. Raises if not found or ambiguous."""
-    result = get_lses_page(
-        auth,
+    result = api.lses.get_page(
         fields="min",
-        searchOn=["code"],
+        search_on=["code"],
         search=str(eia_id),
-        startsWith=True,
-        endsWith=True,
+        starts_with=True,
+        ends_with=True,
     )
     results = result.get("results") or []
     if len(results) == 0:
@@ -89,16 +78,16 @@ def _lse_id_for_eia(auth: tuple[str, str], eia_id: int) -> int:
             "Check that the utility exists in Genability/Arcadia."
         )
     if len(results) > 1:
-        names = [r.get("name", r.get("lseId")) for r in results]
+        names = [r.get("name", r.get("lse_id")) for r in results]
         raise ValueError(
             f"EIA ID {eia_id} matches multiple LSEs in Arcadia: {names}. "
             "Use masterTariffId in genability_tariffs.yaml to pick one."
         )
-    return int(results[0]["lseId"])
+    return int(results[0]["lse_id"])
 
 
 def _resolve_identifier_to_master_tariff_id(
-    auth: tuple[str, str],
+    api: ArcadiaSignalAPI,
     lse_id: int,
     identifier: str | int,
     effective_on: datetime,
@@ -108,13 +97,11 @@ def _resolve_identifier_to_master_tariff_id(
         return identifier
     if str(identifier).strip().lower() == "default":
         tariffs = list(
-            tariffs_paginate(
-                auth,
-                lseId=lse_id,
-                fields="min",
-                effectiveOn=effective_on,
-                customerClasses=["RESIDENTIAL"],
-                tariffTypes=["DEFAULT"],
+            api.tariffs.iter_pages(
+                lse_id=lse_id,
+                effective_on=effective_on.date(),
+                customer_classes=["RESIDENTIAL"],
+                tariff_types=["DEFAULT"],
             )
         )
         if not tariffs:
@@ -122,10 +109,10 @@ def _resolve_identifier_to_master_tariff_id(
                 f"LSE {lse_id}: no RESIDENTIAL DEFAULT tariff found in Arcadia"
             )
         chosen = tariffs[0]
-        chosen_id = int(chosen["masterTariffId"])
-        chosen_name = chosen.get("tariffName") or "(no name)"
+        chosen_id = int(chosen["master_tariff_id"])
+        chosen_name = chosen.get("tariff_name") or "(no name)"
         if len(tariffs) > 1:
-            all_names = [t.get("tariffName") or "(no name)" for t in tariffs]
+            all_names = [t.get("tariff_name") or "(no name)" for t in tariffs]
             log.warning(
                 "LSE %s: multiple RESIDENTIAL DEFAULT tariffs found: %s; picking first: %s (masterTariffId=%s)",
                 lse_id,
@@ -141,27 +128,24 @@ def _resolve_identifier_to_master_tariff_id(
                 chosen_id,
             )
         return chosen_id
-    # Match by tariff name (substring)
     name_substring = str(identifier).strip()
     all_tariffs = list(
-        tariffs_paginate(
-            auth,
-            lseId=lse_id,
-            fields="min",
-            effectiveOn=effective_on,
+        api.tariffs.iter_pages(
+            lse_id=lse_id,
+            effective_on=effective_on.date(),
         )
     )
     for t in all_tariffs:
-        if name_substring.lower() in (t.get("tariffName") or "").lower():
-            tid = int(t["masterTariffId"])
+        if name_substring.lower() in (t.get("tariff_name") or "").lower():
+            tid = int(t["master_tariff_id"])
             log.info(
                 "LSE %s: matched tariff by name: %s (masterTariffId=%s)",
                 lse_id,
-                t.get("tariffName") or "(no name)",
+                t.get("tariff_name") or "(no name)",
                 tid,
             )
             return tid
-    available = [t.get("tariffName") for t in all_tariffs[:20]]
+    available = [t.get("tariff_name") for t in all_tariffs[:20]]
     raise ValueError(
         f"No tariff name containing {name_substring!r} for LSE {lse_id}. "
         f"Available (first 20): {available}"
@@ -256,7 +240,8 @@ def fetch_genability_tariffs(
     output_dir = output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    auth = _get_arcadia_credentials()
+    api = ArcadiaSignalAPI()
+    _tariff_ext_adapter = TypeAdapter(list[TariffExtended])
 
     for std_name, tariff_map in utilities_config.items():
         if std_name not in valid_std:
@@ -266,7 +251,7 @@ def fetch_genability_tariffs(
             )
         eia_id = _eia_id_for_utility(state_upper, std_name)
         log.info("Resolving %r (EIA %s) to Arcadia LSE...", std_name, eia_id)
-        lse_id = _lse_id_for_eia(auth, eia_id)
+        lse_id = _lse_id_for_eia(api, eia_id)
         log.info("LSE id %s for %r", lse_id, std_name)
 
         for tariff_key, identifier in tariff_map.items():
@@ -274,17 +259,16 @@ def fetch_genability_tariffs(
                 identifier = int(identifier)
             log.info("Resolving tariff %r -> %s...", tariff_key, identifier)
             master_tariff_id = _resolve_identifier_to_master_tariff_id(
-                auth, lse_id, identifier, effective_on
+                api, lse_id, identifier, effective_on
             )
             log.info("Fetching full tariff masterTariffId=%s", master_tariff_id)
             results = list(
-                tariffs_paginate(
-                    auth,
-                    masterTariffId=master_tariff_id,
-                    effectiveOn=effective_on,
+                api.tariffs.iter_pages(
                     fields="ext",
-                    populateProperties=True,
-                    populateRates=True,
+                    master_tariff_id=master_tariff_id,
+                    effective_on=effective_date,
+                    populate_properties=True,
+                    populate_rates=True,
                 )
             )
             if not results:
@@ -293,7 +277,9 @@ def fetch_genability_tariffs(
                 )
             stem = _filename_stem(tariff_key, identifier, effective_date)
             out_path = output_dir / f"{stem}.json"
-            out_path.write_text(json.dumps(results, indent=2))
+            out_path.write_bytes(
+                _tariff_ext_adapter.dump_json(results, by_alias=True, indent=2)
+            )
             log.info("Wrote %s", out_path)
 
 
