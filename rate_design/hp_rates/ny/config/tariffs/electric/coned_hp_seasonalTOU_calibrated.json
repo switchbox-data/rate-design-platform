@@ -1,9 +1,14 @@
 {
   "items": [
     {
-      "label": "rie_hp_seasonalTOU_supply",
+      "label": "coned_hp_seasonalTOU",
+      "name": "coned_hp_seasonalTOU",
       "uri": "",
       "sector": "Residential",
+      "servicetype": "Bundled",
+      "dgrules": "Net Metering",
+      "utility": "GenericUtility",
+      "country": "USA",
       "energyweekdayschedule": [
         [
           0,
@@ -635,28 +640,28 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.149706,
+            "rate": 0.024568509854735833,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.185957,
+            "rate": 0.05147839869862799,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.285375,
+            "rate": 0.025976285469412195,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.720703,
+            "rate": 0.11339350038354777,
             "adj": 0.0,
             "unit": "kWh"
           }
@@ -665,14 +670,7 @@
       "fixedchargefirstmeter": 6.75,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
-      "minchargeunits": "$/month",
-      "utility": "rie",
-      "servicetype": "Bundled",
-      "name": "rie_hp_seasonalTOU_supply",
-      "is_default": false,
-      "country": "USA",
-      "demandunits": "kW",
-      "demandrateunit": "kW"
+      "minchargeunits": "$/month"
     }
   ]
 }
