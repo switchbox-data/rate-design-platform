@@ -34,7 +34,6 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 
 | File                                     | Purpose                                                                                                                                                                                                                                                                                                  |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| allin_validation_report.md               | All-in volumetric rate report: CSV time series vs Calculate API for NY/RI utilities; per-utility tables and distance analysis                                                                                                                                                                            |
 | cairo_lmi_and_bat_analysis.md            | CAIRO LMI parameters, discount mechanisms, and how the Bill Alignment Test (BAT) works                                                                                                                                                                                                                   |
 | cairo_demand_flexibility_workflow.md     | CAIRO demand-flexibility workflow, two-pass RR recalibration, and data flow                                                                                                                                                                                                                              |
 | demand_flex_residual_treatment.md        | Frozen vs. fixed-RR residual treatment in demand flex: two approaches, economic interpretations, temporal assumptions, and when to use each                                                                                                                                                              |
@@ -49,6 +48,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 | cairo_parallelism_and_workers.md         | How to think about parallelism: infra instance, worker count, series vs parallel tracks                                                                                                                                                                                                                  |
 | cairo_elastic_cluster.md                 | Elastic Dask cluster: why (many runs), options (dask-cloudprovider etc.), CAIRO + platform changes                                                                                                                                                                                                       |
 | run_orchestration.md                     | RI runs 1–16 orchestration: Justfile dependency chain, demand flex (runs 13-16), design decisions                                                                                                                                                                                                        |
+| ny_bulk_tx_marginal_costs.md             | NY bulk transmission MC: per-zone v_z derivation from NYISO studies + NiMo MCOS, ROS analysis, OATT cross-checks                                                                                                                                                                                         |
 | ny_supply_marginal_costs.md              | NY supply MC pipeline: LBMP energy + ICAP capacity, zone mapping, load-weighting, MCOS allocation                                                                                                                                                                                                        |
 | nyiso_lbmp_zonal_data_sources.md         | NYISO Day-Ahead/Real-Time zonal LBMP: MIS ZIP vs gridstatus vs NYISOToolkit; data samples                                                                                                                                                                                                                |
 | parquet_reads_local_vs_s3.md             | Reading Parquet from local disk vs S3: per-GET overhead, file discovery, Hive filters vs path construction, best practices for whole-state and per-utility reads                                                                                                                                         |
@@ -63,19 +63,20 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 
 Technical documentation extracted from PDFs (e.g. Cambium, ResStock dataset docs). Add via the **extract-pdf-to-markdown** slash command.
 
-| File                                | Use when working on …                                                                       |
-| ----------------------------------- | ------------------------------------------------------------------------------------------- |
-| cambium_2024.md                     | Cambium 2024 scenarios, marginal costs, metrics, GEA/BA, LRMER/SRMER, methods               |
-| resstock_2024.2.md                  | ResStock 2024.2 metadata, measure packages, load conventions, or building/upgrade schema    |
-| census_pums_acs1_2022_data_dict.txt | ACS 1-year PUMS variable definitions (2022)                                                 |
-| census_pums_acs1_2023_data_dict.txt | ACS 1-year PUMS variable definitions (2023)                                                 |
-| census_pums_acs1_2023_user_guide.md | ACS 2023 1-year PUMS user guide: file structure, weights, geographies, data dictionary      |
-| census_pums_acs1_2024_data_dict.txt | ACS 1-year PUMS variable definitions (2024)                                                 |
-| census_pums_acs1_2024_user_guide.md | ACS 2024 1-year PUMS user guide: file structure, weights, geographies, data dictionary      |
-| census_pums_acs5_2021_data_dict.txt | ACS 5-year PUMS variable definitions (2017-2021)                                            |
-| census_pums_acs5_2022_data_dict.txt | ACS 5-year PUMS variable definitions (2018-2022)                                            |
-| census_pums_acs5_2023_user_guide.md | ACS 2019–2023 5-year PUMS user guide: file structure, weights, geographies, data dictionary |
-| census_pums_acs5_2023_data_dict.txt | ACS 5-year PUMS variable definitions (2019-2023)                                            |
+| File                                                     | Use when working on …                                                                                                                                        |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| cambium_2024.md                                          | Cambium 2024 scenarios, marginal costs, metrics, GEA/BA, LRMER/SRMER, methods                                                                                |
+| resstock_2024.2.md                                       | ResStock 2024.2 metadata, measure packages, load conventions, or building/upgrade schema                                                                     |
+| census_pums_acs1_2022_data_dict.txt                      | ACS 1-year PUMS variable definitions (2022)                                                                                                                  |
+| census_pums_acs1_2023_data_dict.txt                      | ACS 1-year PUMS variable definitions (2023)                                                                                                                  |
+| census_pums_acs1_2023_user_guide.md                      | ACS 2023 1-year PUMS user guide: file structure, weights, geographies, data dictionary                                                                       |
+| census_pums_acs1_2024_data_dict.txt                      | ACS 1-year PUMS variable definitions (2024)                                                                                                                  |
+| census_pums_acs1_2024_user_guide.md                      | ACS 2024 1-year PUMS user guide: file structure, weights, geographies, data dictionary                                                                       |
+| census_pums_acs5_2021_data_dict.txt                      | ACS 5-year PUMS variable definitions (2017-2021)                                                                                                             |
+| census_pums_acs5_2022_data_dict.txt                      | ACS 5-year PUMS variable definitions (2018-2022)                                                                                                             |
+| census_pums_acs5_2023_user_guide.md                      | ACS 2019–2023 5-year PUMS user guide: file structure, weights, geographies, data dictionary                                                                  |
+| census_pums_acs5_2023_data_dict.txt                      | ACS 5-year PUMS variable definitions (2019-2023)                                                                                                             |
+| nyiso_gold_book_2025_proposed_transmission_facilities.md | NYISO 2025 Gold Book Table VII data dictionary: column definitions, project type/subtype taxonomy, classification methodology, data patterns by project type |
 
 ## papers/
 

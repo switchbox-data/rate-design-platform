@@ -141,23 +141,28 @@ def make_winter_summer_seasons(
 
 def combine_marginal_costs(
     bulk_marginal_costs: pd.DataFrame,
-    distribution_marginal_costs: pd.Series,
+    dist_and_sub_tx_marginal_costs: pd.Series,
+    bulk_tx_marginal_costs: pd.Series | None = None,
 ) -> pd.Series:
-    """Merge bulk (energy + capacity) and distribution MCs into a single $/kWh series.
+    """Merge bulk (energy + capacity), dist+sub-tx, and optional bulk-tx MCs into a single $/kWh series.
 
     Args:
         bulk_marginal_costs: DataFrame indexed by time with columns
             ``Marginal Energy Costs ($/kWh)`` and
             ``Marginal Capacity Costs ($/kWh)``.
-        distribution_marginal_costs: Series indexed by time with name
-            ``Marginal Distribution Costs ($/kWh)``.
+        dist_and_sub_tx_marginal_costs: Series indexed by time with name
+            ``Marginal Dist+Sub-Tx Costs ($/kWh)``.
+        bulk_tx_marginal_costs: Optional Series indexed by time with name
+            ``Marginal Bulk Transmission Costs ($/kWh)``.  When provided, it
+            is added to the total so that TOU peak windows and cost-causation
+            ratios reflect all delivery-side costs.
 
     Returns:
         Series of total marginal cost per kWh, indexed by time.
     """
     total_bulk = bulk_marginal_costs.sum(axis=1).sort_index()
     total_bulk.name = "bulk_mc"
-    dist_mc = distribution_marginal_costs.sort_index()
+    dist_mc = dist_and_sub_tx_marginal_costs.sort_index()
     bulk_index = pd.DatetimeIndex(total_bulk.index)
     bulk_tz = bulk_index.tz
 
@@ -193,10 +198,35 @@ def combine_marginal_costs(
         if not total_bulk.index.equals(dist_mc.index):
             dist_mc = dist_mc.reindex(total_bulk.index)
 
-    combined = pd.concat([total_bulk, dist_mc], axis=1).dropna(how="any")
+    parts = [total_bulk, dist_mc]
+
+    if bulk_tx_marginal_costs is not None:
+        btx = bulk_tx_marginal_costs.sort_index()
+        if not total_bulk.index.equals(btx.index):
+            if len(total_bulk) == len(btx):
+                try:
+                    target_year = int(total_bulk.index[0].year)
+                    btx_index = pd.DatetimeIndex(
+                        [ts.replace(year=target_year) for ts in btx.index]
+                    )
+                    btx_index = (
+                        btx_index.tz_localize(bulk_tz)
+                        if btx_index.tz is None
+                        else btx_index.tz_convert(bulk_tz)
+                    )
+                    btx = pd.Series(
+                        btx.values, index=btx_index, name=btx.name
+                    ).sort_index()
+                except ValueError:
+                    btx = pd.Series(btx.values, index=total_bulk.index, name=btx.name)
+            if not total_bulk.index.equals(btx.index):
+                btx = btx.reindex(total_bulk.index)
+        parts.append(btx)
+
+    combined = pd.concat(parts, axis=1).dropna(how="any")
     if combined.empty:
         raise ValueError(
-            "Unable to align bulk and distribution marginal costs: no overlapping "
+            "Unable to align bulk and dist+sub-tx marginal costs: no overlapping "
             "timestamps after index alignment."
         )
 
