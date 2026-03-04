@@ -22,8 +22,11 @@ data/eia/heating_fuel_prices/parquet/
 data/eia/hourly_loads/zone_parquet/
 data/eia/hourly_loads/utility_parquet/
 data/fred/cpi/parquet/
+data/nyiso/icap/parquet/
 data/nyiso/lbmp/zips/
 data/nyiso/lbmp/parquet/
+data/nyiso/gold_book/csv/
+data/nyiso/transmission/csv/
 data/nyiso/zone_mapping/csv/
 rate_design/hp_rates/ny/config/buildstock_raw/
 rate_design/hp_rates/ny/config/buildstock_processed/
@@ -42,6 +45,7 @@ dist/
 build/
 
 *.csv
+!data/nyiso/gold_book/2025_proposed_transmission_facilities_raw.csv
 *.json
 *.png
 !dprint.json

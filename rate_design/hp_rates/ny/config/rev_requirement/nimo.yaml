@@ -1,3 +1,58 @@
 utility: nimo
-revenue_requirement: 1000000000.0
-source: placeholder -- replace with actual revenue requirement from s3://data.sb/switchbox/revenue_requirements/ny/revenue_requirements.csv
+delivery_revenue_requirement_from_rate_case: 1314441124.0
+delivery_revenue_requirement_topups: 94005089.33
+supply_revenue_requirement_topups: 1095571648.45
+total_delivery_revenue_requirement: 1408446213.33
+total_delivery_and_supply_revenue_requirement: 2504017861.78
+total_residential_kwh: 11833894912.0
+eia_year: 2024
+delivery_top_ups:
+  system_benefits_charge:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.0051121945
+    total_budget: 60497172.73
+  ces_delivery:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.00025
+    total_budget: 2958473.73
+  dlm_surcharge:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.000649
+    total_budget: 7680197.8
+  ev_make_ready:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.0003481096
+    total_budget: 4119492.29
+  arrears_covid_forgiveness_1:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.0010616712
+    total_budget: 12563705.8
+  arrears_covid_forgiveness_2:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.0005227397
+    total_budget: 6186046.98
+supply_top_ups:
+  supply_commodity_bundled_3:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.0742730411
+    total_budget: 878939363.12
+  ces_supply_surcharge:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.0024767671
+    total_budget: 29309801.86
+  merchant_function_charge_9:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.0085608247
+    total_budget: 101307899.36
+  merchant_function_charge_13:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.0069883562
+    total_budget: 82699472.46
+  merchant_function_charge_14:
+    charge_unit: $/kWh
+    avg_monthly_rate: 9.16438e-05
+    total_budget: 1084503.52
+  merchant_function_charge_15:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.0001884932
+    total_budget: 2230608.14

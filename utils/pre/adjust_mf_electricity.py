@@ -9,6 +9,8 @@ back to the same paths (local or S3).
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from typing import cast
 
 import polars as pl
@@ -17,6 +19,12 @@ from cloudpathlib import S3Path
 from utils import get_aws_region
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
+
+
+def _storage_options_for_path(path: Path | S3Path) -> dict[str, str]:
+    """Return STORAGE_OPTIONS for S3 paths, empty dict for local Path."""
+    return STORAGE_OPTIONS if isinstance(path, S3Path) else {}
+
 
 BLDG_ID_COL = "bldg_id"
 ANNUAL_ELECTRICITY_COL = "out.electricity.total.energy_consumption.kwh"
@@ -307,18 +315,21 @@ def _adjust_mf_electricity_hourly_one_bldg(
 def adjust_mf_electricity_parquet(
     metadata: pl.LazyFrame,
     input_load_curve_annual: pl.LazyFrame,
-    load_curve_hourly_dir: S3Path,
+    load_curve_hourly_dir: Path | S3Path,
+    path_metadata: Path | S3Path,
     upgrade_id: str = "00",
-    storage_options: dict[str, str] = STORAGE_OPTIONS,
+    storage_options: dict[str, str] | None = None,
 ) -> None:
     """Load metadata and single annual parquet, apply MF non-HVAC adjustment, write back; then adjust each MF bldg_id's hourly parquet in path_load_curve_hourly.
 
-    path_annual is the path to the single load curve annual parquet file.
-    path_load_curve_hourly is a directory (local or s3://) containing one parquet per
-    bldg_id, named {bldg_id}-{upgrade}.parquet. Only multifamily bldg_ids are adjusted.
-
-    S3: storage_options are inferred from get_aws_region() when path starts with s3://.
+    path_metadata and load_curve_hourly_dir may be Path (local) or S3Path (s3://).
+    storage_options are set automatically from path type (S3 vs local); pass explicitly to override.
     """
+    opts = (
+        storage_options
+        if storage_options is not None
+        else _storage_options_for_path(load_curve_hourly_dir)
+    )
 
     meta_schema = metadata.collect_schema().names()
     if BLDG_ID_COL not in meta_schema:
@@ -371,17 +382,18 @@ def adjust_mf_electricity_parquet(
         .get_column(BLDG_ID_COL)
         .to_list()
     )
-    adjusted_bldg_ids: list[int] = []
-    for bldg_id in unadjusted_multifamily_bldg_ids[:5]:
+
+    def _adjust_and_sink_one_bldg(bldg_id: int) -> int:
         path_hourly = load_curve_hourly_dir / f"{bldg_id}-{int(upgrade_id)}.parquet"
-        load_curve_hourly = pl.scan_parquet(
-            str(path_hourly), storage_options=storage_options
+        lf = pl.scan_parquet(str(path_hourly), storage_options=opts)
+        adjusted = _adjust_mf_electricity_hourly_one_bldg(lf, ratios)
+        adjusted.sink_parquet(str(path_hourly), storage_options=opts)
+        return bldg_id
+
+    with ThreadPoolExecutor() as executor:
+        adjusted_bldg_ids = list(
+            executor.map(_adjust_and_sink_one_bldg, unadjusted_multifamily_bldg_ids)
         )
-        Z = _adjust_mf_electricity_hourly_one_bldg(load_curve_hourly, ratios)
-        """adjusted_load_curve_hourly.sink_parquet(
-            str(path_hourly), storage_options=storage_options
-        )"""
-        adjusted_bldg_ids.append(bldg_id)
 
     if adjusted_bldg_ids:
         updated_metadata = metadata.with_columns(
@@ -390,72 +402,7 @@ def adjust_mf_electricity_parquet(
             .otherwise(pl.col(MF_NON_HVAC_ELECTRICITY_ADJUSTED_COL))
             .alias(MF_NON_HVAC_ELECTRICITY_ADJUSTED_COL)
         )
-        print(
-            cast(
-                pl.DataFrame,
-                updated_metadata.filter(
-                    pl.col(BLDG_ID_COL).is_in(adjusted_bldg_ids)
-                ).collect(),
-            )
-            .get_column(MF_NON_HVAC_ELECTRICITY_ADJUSTED_COL)
-            .to_list()
-        )
-        """updated_metadata.sink_parquet(path_metadata, storage_options=storage_options)"""
-    """multifamily_bldg_ids = (
-        meta_subset.filter(
-            pl.col(BUILDING_TYPE_RECS_COL).str.contains(
-                "Multi-Family", literal=True
-            )
-        )
-        .get_column(BLDG_ID_COL)
-        .to_list()
-    )
-    if not multifamily_bldg_ids or not ratios:
-        return
-
-    non_hvac_in_df = [
-        c for c in NON_HVAC_RELATED_ELECTRICITY_COLS if c in schema
-    ]
-    is_mf = pl.col(BLDG_ID_COL).is_in(multifamily_bldg_ids)
-    hvac_cols = [c for c in HVAC_RELATED_ELECTRICITY_COLS if c in schema]
-    sum_parts: list[pl.Expr] = []
-    for c in non_hvac_in_df:
-        ratio = ratios.get(c, 1.0)
-        if ratio > 0:
-            sum_parts.append(
-                pl.when(is_mf).then(pl.col(c) / ratio).otherwise(pl.col(c))
-            )
-        else:
-            sum_parts.append(pl.col(c))
-    adjusted_non_hvac = pl.sum_horizontal(sum_parts)
-    sum_hvac = (
-        pl.sum_horizontal([pl.col(c) for c in hvac_cols])
-        if hvac_cols
-        else pl.lit(0.0)
-    )
-    new_total = sum_hvac + adjusted_non_hvac
-    update_exprs: list[pl.Expr] = [
-        new_total.alias(ANNUAL_ELECTRICITY_COL),
-    ]
-    for c in non_hvac_in_df:
-        ratio = ratios.get(c, 1.0)
-        if ratio > 0:
-            update_exprs.append(
-                pl.when(is_mf)
-                .then(pl.col(c) / ratio)
-                .otherwise(pl.col(c))
-                .alias(c)
-            )
-    lf.with_columns(update_exprs).sink_parquet(path_annual, storage_options=opts_annual)
-
-    for bldg_id in multifamily_bldg_ids:
-        bldg_id_int = int(bldg_id) if not isinstance(bldg_id, int) else bldg_id
-        path_hourly = _hourly_path(path_load_curve_hourly, bldg_id_int, upgrade)
-        if not path_load_curve_hourly.startswith("s3://") and not Path(
-            path_hourly
-        ).exists():
-            continue
-        _apply_hourly_mf_adjustment(path_hourly, ratios, opts_hourly)"""
+        updated_metadata.sink_parquet(str(path_metadata), storage_options=opts)
 
 
 if __name__ == "__main__":
@@ -529,6 +476,7 @@ if __name__ == "__main__":
             metadata=metadata,
             input_load_curve_annual=input_load_curve_annual,
             load_curve_hourly_dir=load_curve_hourly_dir,
+            path_metadata=metadata_path,
             upgrade_id=upgrade_id,
             storage_options=STORAGE_OPTIONS,
         )

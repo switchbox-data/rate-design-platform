@@ -1,0 +1,4 @@
+# Supply base overrides for utilities with TOU supply rates that can't be
+# summed directly. Estimated from budget documents.
+# See utils/pre/rev_requirement/estimate_psegli_rr.py for methodology.
+psegli: 985266819.92

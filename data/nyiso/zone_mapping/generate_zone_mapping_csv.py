@@ -11,7 +11,9 @@ Output schema (one row per utility × load_zone × icap_locality):
   load_zone_letter   – NYISO zone letter (A–K)
   lbmp_zone_name     – NYISO LBMP zone name used in day-ahead price data
   icap_locality      – ICAP locality for capacity pricing (NYCA, GHIJ, NYC, LI)
-  gen_capacity_zone  – generation capacity zone (ROS, LHV, NYC, LI)
+  gen_capacity_zone  – generation capacity zone (ROS, LHV, NYC, LI); also used for
+                       bulk TX locality lookup (both generation capacity MC and bulk TX
+                       MC use the same four-zone grouping)
   capacity_weight    – fraction of utility capacity obligation from this locality
 """
 
@@ -39,7 +41,8 @@ ZONE_NAMES: dict[str, str] = {
 
 # ── Utility mapping rows ─────────────────────────────────────────────────────
 # Each tuple: (utility, zone_letters, icap_locality, gen_capacity_zone, capacity_weight)
-# ConEd has a split: 87% NYC / 13% GHIJ (LHV).
+# gen_capacity_zone is the four-zone grouping used for both generation capacity MC
+# and bulk TX MC lookups. ConEd has a split: 87% NYC / 13% GHIJ (LHV).
 _MAPPING_ROWS: list[tuple[str, list[str], str, str, float]] = [
     ("cenhud", ["G"], "GHIJ", "LHV", 1.0),
     # ConEd — zones G (Westchester), H (Westchester), J (NYC); 87% NYC locality
@@ -53,11 +56,23 @@ _MAPPING_ROWS: list[tuple[str, list[str], str, str, float]] = [
     ("psegli", ["K"], "LI", "LI", 1.0),
 ]
 
+# Valid gen_capacity_zone values (used for both generation capacity and bulk TX)
+VALID_GEN_CAPACITY_ZONES = frozenset({"ROS", "LHV", "NYC", "LI"})
+
 
 def build_zone_mapping() -> pl.DataFrame:
     """Build the zone mapping DataFrame from the hardcoded mapping table."""
     rows: list[dict[str, str | float]] = []
-    for utility, zone_letters, icap_locality, gen_cap_zone, cap_weight in _MAPPING_ROWS:
+    for (
+        utility,
+        zone_letters,
+        icap_locality,
+        gen_cap_zone,
+        cap_weight,
+    ) in _MAPPING_ROWS:
+        assert gen_cap_zone in VALID_GEN_CAPACITY_ZONES, (
+            f"gen_capacity_zone '{gen_cap_zone}' not in {VALID_GEN_CAPACITY_ZONES}"
+        )
         for letter in zone_letters:
             rows.append(
                 {

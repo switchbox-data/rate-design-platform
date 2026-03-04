@@ -30,7 +30,7 @@ Instead of hardcoding `tou_base_rate` and `tou_fixed_charge`, the CLI accepts `-
 
 ## Customer count: dynamic lookup
 
-The CLI no longer accepts `--customer-count`. Instead it takes `--path-electric-utility-stats` (an EIA-861 utility stats parquet) and looks up the residential customer count at runtime using `utils.mid.data_parsing.get_residential_customer_count_from_utility_stats`.
+The CLI no longer accepts `--customer-count`. Instead it takes `--path-electric-utility-stats` (an EIA-861 utility stats parquet) and looks up the residential customer count at runtime using `utils.scenario_config.get_residential_customer_count_from_utility_stats`.
 
 ## RI scenario integration
 
@@ -66,9 +66,10 @@ The main supply MC loader (`utils.cairo._load_supply_marginal_costs()`) supports
 
 ```bash
 uv run python -m utils.pre.derive_seasonal_tou \
-  --cambium-path <path> \
+  --path-supply-energy-mc <path> \
+  --path-supply-capacity-mc <path> \
   --state RI --utility rie --year 2025 \
-  --path-td-marginal-costs <path> \
+  --path-dist-and-sub-tx-mc <path> \
   --resstock-metadata-path <path> \
   --resstock-loads-path <path> \
   --path-electric-utility-stats <path> \
@@ -77,7 +78,9 @@ uv run python -m utils.pre.derive_seasonal_tou \
   --output-dir <path>
 ```
 
-Optional flags: `--winter-months`, `--tou-window-hours`, `--tou-base-rate` (override), `--tou-fixed-charge` (override), `--periods-yaml`.
+For Cambium-based states (RI), pass the same Cambium path to both `--path-supply-energy-mc` and `--path-supply-capacity-mc`; the loader detects "cambium" in the path and routes to the combined Cambium loader automatically.
+
+Optional flags: `--winter-months`, `--tou-window-hours`, `--tou-base-rate` (override), `--tou-fixed-charge` (override), `--periods-yaml`, `--path-bulk-tx-mc` (NY-only).
 
 ## Justfile recipe
 

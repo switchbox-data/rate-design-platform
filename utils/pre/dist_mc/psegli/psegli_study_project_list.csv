@@ -1,0 +1,31 @@
+sos_id,location,category,voltage_level,asset_class,in_service_date,load_capacity_mva,cost_without_rc,cost_with_rc,cost_per_mva
+2446,Locust Grove,Load Growth,D,D-Feeders,11/27/2024,2.5,2523022,2523022,1009209
+2226,Elwood,Load Growth,D,D-Feeders,12/31/2024,30.0,11884196,11884196,396140
+2235,Woodmere,Load Growth,D,D-Feeders,12/31/2024,5.0,2841567,2841567,568313
+2069,Bridgehampton,Load Growth,D,D-Substation,3/31/2025,33.0,13465283,13465283,408039
+1545,Hither Hills,Load Growth,T&D,T-Substation,5/30/2025,13.0,20664012,20664012,1589539
+2238,Arverne,Load Growth,D,D-Feeders,6/2/2025,10.0,4862714,4862714,486271
+2143,Belmont,Load Growth,T&D,T-Substation,6/30/2025,157.0,53557134,53557134,341128
+2316,Syosset,Load Growth,D,D-Feeders,8/1/2025,10.0,10518324,10518324,1051832
+2334,Tech Park,Load Growth,D,D-Feeders,12/1/2025,10.0,12132295,12132295,1213230
+1940,Miller Place,Load Growth,T&D,T-Substation,12/9/2025,33.0,19534126,19652864,595541
+1476,Bridgehampton,Load Growth,T&D,T-Substation,12/15/2025,125.0,53120906,63071819,504575
+2086,Ocean Beach,Load Growth,D,D-Feeders,12/31/2025,3.5,8415793,8415793,2404512
+1540,North Bellmore,Load Growth,T&D,T-Substation,6/3/2026,33.0,22503469,26143099,792215
+1986,Southampton,Load Growth,T&D,T-Substation,12/31/2026,145.0,57538676,68483565,472300
+2486,Port Jefferson,Load Growth,D,D-Feeders,12/31/2026,10.0,10705531,13313539,1331354
+2589,Locust Grove,Load Growth,D,D-Feeders,6/1/2027,10.0,2300000,2300000,230000
+2583,Moriches,Load Growth,T&D,T-Substation,6/15/2027,14.0,1574039,2099058,149933
+1822,Deerfield,Load Growth,T&D,T-Substation,6/30/2027,112.0,2785220,2976112,26572
+2510,East Hampton Village,Load Growth,D,D-Feeders,6/1/2028,10.0,10213670,13078838,1307884
+2245,Arverne,Load Growth,D,D-Feeders,6/15/2028,10.0,5421450,6734361,673436
+1041,New South Road,Load Growth,T&D,T-Substation,6/30/2028,33.0,18741050,20819535,630895
+2588,Lindbergh,Load Growth,T&D,T-Substation,6/30/2028,46.6,60000000,60000000,1287554
+1103,Wildwood,Load Growth,D,D-Substation,6/1/2029,19.0,13211835,17734835,933412
+2512,Quogue Substation,Load Growth,T&D,T-Substation,6/1/2029,41.0,19010340,24847421,606035
+1102,Peconic,Load Growth,T&D,T-Substation,6/1/2029,39.5,9892660,13396950,339163
+2244,Arverne,Load Growth,D,D-Feeders,6/30/2025,10.0,3092668,3092668,309267
+2330,Arverne,Load Growth,T&D,T-Substation,6/28/2030,56.0,61088880,80775477,1442419
+2138,Belmont,Load Growth,D,D-Feeders,12/3/2029,10.0,4381381,5401196,540120
+2358,Moriches,Load Growth,T&D,T-Substation,6/16/2031,67.0,4043081,5036075,75165
+2370,Deerfield,Load Growth,T&D,T-Substation,6/16/2032,112.0,78178834,100846704,900417

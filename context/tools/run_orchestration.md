@@ -99,18 +99,24 @@ runs.
 
 ## How `latest_run_output.sh` works
 
-CAIRO writes outputs to timestamped directories like
-`{path_outputs_parent}/{YYYYMMDD_HHMMSS}_{run_name}/`. After a run completes,
-downstream runs need to find that directory. The script:
+CAIRO outputs are grouped by execution-time batch under a utility directory:
+`s3://data.sb/.../hp_rates/{state}/{utility}/{execution_time}/{cairo_ts}_{run_name}/`.
+The scenario YAML `path_outputs` contains an explicit `<execution_time>` placeholder,
+e.g. `/data.sb/.../ny/coned/<execution_time>/ny_coned_run1_up00_precalc__flat`.
+
+After a run completes, downstream runs need to find that directory. The script:
 
 1. Parses the scenario YAML for the given `run_num` to extract `run_name`
    and `path_outputs`.
-2. Converts the local FUSE mount path (`/data.sb/...`) to an S3 URI
+2. Goes two levels up from `path_outputs` (past `<execution_time>/` and the
+   run name) to get the utility base dir.
+3. Converts the local FUSE mount path (`/data.sb/...`) to an S3 URI
    (`s3://data.sb/...`).
-3. Runs `aws s3 ls` on the parent directory, filters for `PRE` entries (S3
-   directory markers) matching `run_name`, sorts lexicographically (timestamps
-   sort naturally), and takes the last (most recent) entry.
-4. Prints the full S3 URI to stdout. Downstream recipes capture it via
+4. Finds the **latest** execution_time directory under the utility dir.
+5. Searches **only within** that execution_time dir for a CAIRO output
+   matching `run_name`. Crashes with a helpful error if not found (prevents
+   silently picking up stale outputs from a prior batch).
+6. Prints the full S3 URI to stdout. Downstream recipes capture it via
    `$(bash latest_run_output.sh ...)`.
 
 ### Why `aws s3 ls` instead of the FUSE mount
@@ -139,18 +145,47 @@ From `rate_design/hp_rates/ri/`:
 # Just the pre-processing + validation
 just all-pre
 
-# Runs 1-16 in sequential order
+# Runs 1-16 in sequential order (single execution-time batch)
 just run-all-sequential
 
-# Demand-flex runs (already included in run-all-sequential)
-just run-13
-just run-14
-just run-15
-just run-16
+# Subset of runs as a single batch
+just run-subset 1,2,5,6
 
 # Individual run (after its dependencies have completed)
 just run-5
 ```
+
+## Execution-time batching
+
+All runs in a batch share a single execution-time timestamp (`YYYYMMDDTHHMMSSZ`
+format, UTC), which determines the output directory:
+`s3://data.sb/.../hp_rates/{state}/{utility}/{execution_time}/`.
+
+The `RDP_EXECUTION_TIME` environment variable propagates the batch timestamp:
+
+- **Orchestration recipes** (`run-all-sequential`, `run-all-parallel-tracks`,
+  `run-subset`, `run-all-utilities-sequential`) set
+  `export RDP_EXECUTION_TIME="${RDP_EXECUTION_TIME:-$(date -u +%Y%m%dT%H%M%SZ)}"`
+  at the top. The `:-` fallback means: generate a new timestamp when called
+  standalone, inherit the parent's timestamp when called from a higher-level
+  recipe.
+- **`run-scenario`** reads `RDP_EXECUTION_TIME` (with the same fallback) and
+  passes `--output-dir {path_outputs_base}/{execution_time}` to
+  `run_scenario.py`.
+- **Individual `run-<N>` recipes** don't touch `RDP_EXECUTION_TIME` — they
+  inherit it from whatever called them.
+
+### `run-subset`
+
+Runs a comma-separated list of runs as a single batch:
+
+```bash
+just run-subset 1,2,5,6
+```
+
+Delegates to `run-<N>` recipes, so dependency logic (copy calibrated tariffs,
+etc.) is preserved. Note: `compute-rev-requirements` is not auto-inserted; if
+the subset spans runs 1-2 and 3+, run it separately.
 
 ## Monitoring
 
@@ -158,12 +193,17 @@ Each recipe that resolves a predecessor output prints a diagnostic line to
 stderr:
 
 ```text
->> run-3: resolved run-1 output -> s3://data.sb/switchbox/cairo/outputs/hp_rates/ri/20260221_165459_ri_rie_run1.../
+>> run-3: resolved run-1 output -> s3://data.sb/.../ny/coned/20260304T120000Z/20260304_120001_ny_coned_run1.../
+```
+
+Orchestration recipes also print the batch execution_time at startup:
+
+```text
+>> run-all-sequential [20260304T120000Z]
 ```
 
 This lets you confirm at a glance that each run is picking up the correct
-(most recent) predecessor output rather than a stale directory from a previous
-pipeline execution.
+predecessor output and that all runs share the same batch.
 
 ## Design decisions
 

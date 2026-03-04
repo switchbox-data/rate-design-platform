@@ -54,23 +54,6 @@ fetch-load-curve-annual state:
         --output_directory {{path_local_parquet}} \
         --sample 0
 
-
-# Copy resstock data from one release to another.
-copy-resstock-data release_from release_to state upgrade_ids file_types:
-	uv run python "{{path_local_repo}}/utils/pre/copy_resstock_data.py" \
-		--data_path "{{path_s3_parquet}}" \
-		--release_from "{{release_from}}" \
-		--release_to "{{release_to}}" \
-		--state "{{state}}" \
-		--upgrade_ids "{{upgrade_ids}}" \
-		--file_types "{{file_types}}"
-
-copy-resstock-data-2024-amy2018-2-NY upgrade_ids file_types:
-	just copy-resstock-data res_2024_amy2018_2 res_2024_amy2018_2_sb NY "{{upgrade_ids}}" "{{file_types}}"
-
-copy-resstock-data-2024-amy2018-2-RI upgrade_ids file_types:
-	just copy-resstock-data res_2024_amy2018_2 res_2024_amy2018_2_sb RI "{{upgrade_ids}}" "{{file_types}}"
-
 # Verify ResStock download. Pass state (NY or RI).
 test-download state:
     cd "{{path_local_repo}}" && uv run python "{{path_local_repo}}/tests/test_resstock_download_to_s3.py" \
@@ -192,6 +175,7 @@ test-ny-gas-utility-polygons-download:
 
 # Assign electric/gas utilities to ResStock buildings (NY only). Run download-ny-utility-polygons first.
 assign-utility-ny release upgrade electric_poly gas_poly:
+    just download-ny-utility-polygons
     uv run python "{{path_local_repo}}/data/resstock/assign_utility_ny.py" \
         --input_metadata_dir "{{path_s3_parquet}}/{{release}}/metadata/state=NY/upgrade={{upgrade}}/" \
         --input_metadata_filename "metadata-sb.parquet" \
@@ -240,10 +224,10 @@ adjust-mf-electricity state input_release output_release upgrade_ids:
         --state "{{state}}" \
         --input_release "{{input_release}}" \
         --output_release "{{output_release}}" \
-        --upgrade_ids "{{upgrade_ids}}" \
+        --upgrade_ids "{{upgrade_ids}}"
 
 adjust-mf-electricity-NY-upgrade-00:
     just adjust-mf-electricity NY res_2024_amy2018_2 res_2024_amy2018_2_sb "00"
 
 adjust-mf-electricity-NY-upgrade-02:
-     just adjust-mf-electricity NY res_2024_amy2018_2 res_2024_amy2018_2_sb "02"
+    just adjust-mf-electricity NY res_2024_amy2018_2 res_2024_amy2018_2_sb "02"

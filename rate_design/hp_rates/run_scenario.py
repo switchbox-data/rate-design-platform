@@ -31,13 +31,15 @@ from cairo.rates_tool.systemsimulator import (
 from utils import get_aws_region
 from utils.cairo import (
     _fetch_prototype_ids_by_electric_util,
-    _load_cambium_marginal_costs,
     _load_supply_marginal_costs,
+    add_bulk_tx_and_dist_and_sub_tx_marginal_cost,
     build_bldg_id_to_load_filepath,
-    load_distribution_marginal_costs,
 )
-from utils.demand_flex import apply_demand_flex
-from utils.mid.data_parsing import (
+from utils.demand_flex import apply_demand_flex, split_revenue_requirement_by_tou
+from utils.mid.patches import _return_loads_combined
+from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
+from utils.scenario_config import (
+    RevenueRequirementConfig,
     _parse_bool,
     _parse_float,
     _parse_int,
@@ -48,8 +50,6 @@ from utils.mid.data_parsing import (
     _resolve_path_or_uri,
     get_residential_customer_count_from_utility_stats,
 )
-from utils.mid.patches import _return_loads_combined
-from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 from utils.types import ElectricUtility
 
 log = logging.getLogger("rates_analysis").getChild("run_scenario")
@@ -66,12 +66,6 @@ PATH_PROJECT = Path(__file__).resolve().parent
 
 def _state_config(state: str) -> Path:
     return PATH_PROJECT / state.lower() / "config"
-
-
-SUBCLASS_TO_ALIAS: dict[str, str] = {
-    "true": "hp",
-    "false": "non-hp",
-}
 
 
 @contextlib.contextmanager
@@ -97,21 +91,23 @@ class ScenarioSettings:
     path_resstock_metadata: Path
     path_resstock_loads: Path
     path_utility_assignment: str | Path
-    path_td_marginal_costs: str | Path
+    path_dist_and_sub_tx_mc: str | Path
     path_tariff_maps_electric: Path
     path_tariff_maps_gas: Path
     path_tariffs_electric: dict[str, Path]
     path_tariffs_gas: dict[str, Path]
-    utility_delivery_revenue_requirement: float | dict[str, float]
+    rr_total: float
+    subclass_rr: dict[str, float] | None
+    run_includes_subclasses: bool
     path_electric_utility_stats: str | Path
+    path_supply_energy_mc: str | Path
+    path_supply_capacity_mc: str | Path
     year_run: int
     year_dollar_conversion: int
     process_workers: int
-    path_supply_marginal_costs: str | Path | None = None
-    path_supply_energy_mc: str | Path | None = None
-    path_supply_capacity_mc: str | Path | None = None
+    path_bulk_tx_mc: str | Path | None = None
     solar_pv_compensation: str = "net_metering"
-    add_supply_revenue_requirement: bool = False
+    run_includes_supply: bool = False
     sample_size: int | None = None
     elasticity: float = 0.0
     path_tou_supply_mc: str | Path | None = None
@@ -231,11 +227,20 @@ def _build_settings_from_yaml_run(
         path_config,
         "electric",
     )
-    utility_delivery_revenue_requirement = _parse_utility_revenue_requirement(
-        _require_value(run, "utility_delivery_revenue_requirement"),
+    run_includes_supply = _parse_bool(
+        _require_value(run, "run_includes_supply"),
+        "run_includes_supply",
+    )
+    run_includes_subclasses = _parse_bool(
+        _require_value(run, "run_includes_subclasses"),
+        "run_includes_subclasses",
+    )
+    rr_config: RevenueRequirementConfig = _parse_utility_revenue_requirement(
+        _require_value(run, "utility_revenue_requirement"),
         path_config,
         raw_path_tariffs_electric,
-        SUBCLASS_TO_ALIAS,
+        add_supply=run_includes_supply,
+        run_includes_subclasses=run_includes_subclasses,
     )
     path_tariff_maps_gas = _resolve_path(
         str(_require_value(run, "path_tariff_maps_gas")),
@@ -246,11 +251,6 @@ def _build_settings_from_yaml_run(
         path_tariff_maps_gas,
         path_config,
     )
-
-    add_supply_revenue_requirement = _parse_bool(
-        _require_value(run, "add_supply_revenue_requirement"),
-        "add_supply_revenue_requirement",
-    )
     elasticity = _parse_float(run.get("elasticity", 0.0), "elasticity")
     sample_size = (
         _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
@@ -260,6 +260,10 @@ def _build_settings_from_yaml_run(
         path_tou_supply_mc = _resolve_path_or_uri(
             str(run["path_tou_supply_mc"]), path_config
         )
+    path_bulk_tx_mc: str | Path | None = None
+    bulk_tx_raw = run.get("path_bulk_tx_mc")
+    if bulk_tx_raw and str(bulk_tx_raw).strip():
+        path_bulk_tx_mc = _resolve_path_or_uri(str(bulk_tx_raw).strip(), path_config)
     output_dir = _resolve_output_dir(run, run_num, output_dir_override)
     run_name = run_name_override or run.get("run_name") or f"run_{run_num}"
     return ScenarioSettings(
@@ -280,39 +284,35 @@ def _build_settings_from_yaml_run(
             str(_require_value(run, "path_resstock_loads")),
             path_config,
         ),
-        path_supply_marginal_costs=_resolve_path_or_uri(
-            str(run.get("path_supply_marginal_costs", "")), path_config
-        )
-        if run.get("path_supply_marginal_costs")
-        else None,
         path_supply_energy_mc=_resolve_path_or_uri(
-            str(run.get("path_supply_energy_mc", "")), path_config
-        )
-        if run.get("path_supply_energy_mc")
-        else None,
+            str(_require_value(run, "path_supply_energy_mc")),
+            path_config,
+        ),
         path_supply_capacity_mc=_resolve_path_or_uri(
-            str(run.get("path_supply_capacity_mc", "")), path_config
-        )
-        if run.get("path_supply_capacity_mc")
-        else None,
-        path_td_marginal_costs=_resolve_path_or_uri(
-            str(_require_value(run, "path_td_marginal_costs")),
+            str(_require_value(run, "path_supply_capacity_mc")),
+            path_config,
+        ),
+        path_dist_and_sub_tx_mc=_resolve_path_or_uri(
+            str(_require_value(run, "path_dist_and_sub_tx_mc")),
             path_config,
         ),
         path_tariff_maps_electric=path_tariff_maps_electric,
         path_tariff_maps_gas=path_tariff_maps_gas,
         path_tariffs_electric=path_tariffs_electric,
         path_tariffs_gas=path_tariffs_gas,
-        utility_delivery_revenue_requirement=utility_delivery_revenue_requirement,
+        rr_total=rr_config.rr_total,
+        subclass_rr=rr_config.subclass_rr,
+        run_includes_subclasses=rr_config.run_includes_subclasses,
         path_electric_utility_stats=path_electric_utility_stats,
         year_run=year_run,
         year_dollar_conversion=year_dollar_conversion,
         process_workers=process_workers,
         solar_pv_compensation=solar_pv_compensation,
         sample_size=sample_size,
-        add_supply_revenue_requirement=add_supply_revenue_requirement,
+        run_includes_supply=run_includes_supply,
         elasticity=elasticity,
         path_tou_supply_mc=path_tou_supply_mc,
+        path_bulk_tx_mc=path_bulk_tx_mc,
     )
 
 
@@ -502,12 +502,6 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
                 "applicability",
                 "postprocess_group.has_hp",
                 "postprocess_group.heating_type",
-                "heats_with_electricity",
-                "heats_with_natgas",
-                "heats_with_oil",
-                "heats_with_propane",
-                "has_natgas_connection",
-                "approximated_hp_load",
                 "in.vintage_acs",
             ],
         )
@@ -530,58 +524,31 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
     # ------------------------------------------------------------------
     # Load marginal costs (needed before demand-flex and revenue calc)
     # ------------------------------------------------------------------
-    # MC prices are exogenous (Cambium + distribution); load shifting
-    # changes total MC dollars, not the prices themselves.
+    # Architecture:
+    # - Supply MCs: Energy + Capacity (bulk supply, from Cambium or NYISO)
+    # - Delivery MCs: Bulk Tx + Dist+Sub-Tx (delivery charges)
+    # All MCs are index-aligned to a common 8760-hour DatetimeIndex upon loading.
+    # For delivery-only runs (add_supply_revenue_requirement=false), supply MCs
+    # are set to zero but still loaded to provide the alignment target index.
+    #
+    # MC prices are exogenous; load shifting changes total MC dollars, not prices.
 
-    # Load supply MCs: use separate energy/capacity files if provided, else fallback to combined
-    if settings.path_supply_energy_mc and settings.path_supply_capacity_mc:
-        bulk_marginal_costs = _load_supply_marginal_costs(
-            settings.path_supply_energy_mc,
-            settings.path_supply_capacity_mc,
-            settings.year_run,
-        )
-    elif settings.path_supply_marginal_costs:
-        bulk_marginal_costs = _load_cambium_marginal_costs(
-            settings.path_supply_marginal_costs,
-            settings.year_run,
-        )
-    else:
-        raise ValueError(
-            "Must provide either path_supply_marginal_costs (combined) or "
-            "both path_supply_energy_mc and path_supply_capacity_mc (separate)"
-        )
-    distribution_marginal_costs = load_distribution_marginal_costs(
-        settings.path_td_marginal_costs,
+    # Load supply MCs: Energy + Capacity (bulk supply).
+    # Both paths are required (enforced by ScenarioSettings dataclass).
+    # _load_supply_marginal_costs detects Cambium paths internally and routes
+    # to the appropriate loader (e.g. RI uses a Cambium file for both).
+    bulk_marginal_costs = _load_supply_marginal_costs(
+        settings.path_supply_energy_mc,
+        settings.path_supply_capacity_mc,
+        settings.year_run,
     )
-    if not bulk_marginal_costs.index.equals(distribution_marginal_costs.index):
-        if len(bulk_marginal_costs) == len(distribution_marginal_costs):
-            # T&D MC parquet can carry a different in-file year (e.g. 2025) than
-            # run year (e.g. 2026). Align by hour position onto bulk MC index so
-            # CAIRO system-cost merge does not collapse to empty.
-            distribution_marginal_costs = pd.Series(
-                distribution_marginal_costs.values,
-                index=bulk_marginal_costs.index,
-                name=distribution_marginal_costs.name,
-            )
-            log.info(
-                ".... Aligned distribution MC index to bulk MC index "
-                "(bulk_year=%s, dist_year=%s)",
-                bulk_marginal_costs.index[0].year,
-                distribution_marginal_costs.index[0].year,
-            )
-        else:
-            distribution_marginal_costs = distribution_marginal_costs.reindex(
-                bulk_marginal_costs.index
-            )
-            log.info(
-                ".... Reindexed distribution MC to bulk MC index "
-                "(bulk_rows=%s, dist_rows=%s)",
-                len(bulk_marginal_costs),
-                len(distribution_marginal_costs),
-            )
-    log.info(
-        ".... Loaded distribution marginal costs rows=%s",
-        len(distribution_marginal_costs),
+
+    # Load and combine delivery MCs: Bulk Tx + Dist+Sub-Tx
+    # Align to supply MC index to ensure all MCs share the same DatetimeIndex
+    dist_and_sub_tx_marginal_costs = add_bulk_tx_and_dist_and_sub_tx_marginal_cost(
+        path_dist_and_sub_tx_mc=settings.path_dist_and_sub_tx_mc,
+        path_bulk_tx_mc=settings.path_bulk_tx_mc,
+        target_index=pd.DatetimeIndex(bulk_marginal_costs.index),
     )
     sell_rate = _return_export_compensation_rate(
         year_run=settings.year_run,
@@ -590,20 +557,21 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         tariff_dict=tariffs_params,
     )
 
-    # Decompose subclass revenue requirement into total + ratios so that
-    # both demand-flex and non-flex paths can work with a scalar target
-    # for CAIRO's _return_revenue_requirement_target, then re-split after.
-    rr_setting = settings.utility_delivery_revenue_requirement
-    if isinstance(rr_setting, dict):
-        rr_total = sum(rr_setting.values())
-        rr_ratios: dict[str, float] | None = {
-            k: v / rr_total for k, v in rr_setting.items()
-        }
-    else:
-        rr_total = rr_setting
-        rr_ratios = None
+    # FIND TOTAL RESIDUAL AND HOURLY MC's
+    # Decomposes the revenue requirement into total marginal costs and residual.
+    # RR = total_MC + residual, where total_MC = sum of hourly (MC_price × load)
+    # and residual = RR − total_MC (embedded infrastructure costs).
+    #
+    # The revenue requirement (settings.rr_total) is pre-topped-up: it already
+    # includes supply costs when run_includes_supply=True (via supply charges
+    # computed externally by compute_rr / compute_subclass_rr).  We do NOT pass
+    # delivery_only_rev_req_passed to CAIRO because there is nothing to top up
+    # at runtime — the YAML value is the final target.
+    #
+    # Similarly, subclass RRs (settings.subclass_rr) are pre-topped-up: for
+    # supply runs, per-subclass supply costs are derived from run 2 BAT data
+    # (via compute_subclass_rr --run-dir-supply), not from raw Cambium prices.
 
-    # Demand-flex or single-pass revenue requirement
     demand_flex_enabled = settings.elasticity != 0.0
 
     if demand_flex_enabled:
@@ -611,7 +579,6 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             elasticity=settings.elasticity,
             run_type=settings.run_type,
             year_run=settings.year_run,
-            add_supply_revenue_requirement=settings.add_supply_revenue_requirement,
             path_tariffs_electric=settings.path_tariffs_electric,
             path_tou_supply_mc=settings.path_tou_supply_mc,
             tou_derivation_dir=_state_config(settings.state) / "tou_derivation",
@@ -619,115 +586,48 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             customer_metadata=customer_metadata,
             tariff_map_df=tariff_map_df,
             precalc_mapping=precalc_mapping,
-            rr_total=rr_total,
+            rr_total=settings.rr_total,
             bulk_marginal_costs=bulk_marginal_costs,
-            distribution_marginal_costs=distribution_marginal_costs,
+            dist_and_sub_tx_marginal_costs=dist_and_sub_tx_marginal_costs,
         )
+
+        revenue_requirement: float | dict[str, float] | None = (
+            flex.revenue_requirement_raw
+        )
+        marginal_system_prices = flex.marginal_system_prices
+        _marginal_system_costs = flex.marginal_system_costs
+        costs_by_type = flex.costs_by_type
+
         effective_load_elec = flex.effective_load_elec
         elasticity_tracker = flex.elasticity_tracker
-        revenue_requirement_raw = flex.revenue_requirement_raw
-        marginal_system_prices = flex.marginal_system_prices
-        marginal_system_costs = flex.marginal_system_costs
-        costs_by_type = flex.costs_by_type
         precalc_mapping = flex.precalc_mapping
-        tou_tariff_keys = flex.tou_tariff_keys
+        if settings.run_includes_subclasses and settings.subclass_rr is not None:
+            revenue_requirement = split_revenue_requirement_by_tou(
+                revenue_requirement_total=flex.revenue_requirement_raw,
+                subclass_baseline=settings.subclass_rr,
+                tou_tariff_keys=flex.tou_tariff_keys,
+            )
     else:
-        effective_load_elec = raw_load_elec
-        elasticity_tracker = pd.DataFrame()
-        tou_tariff_keys = []
-        # -- No demand flex: single-pass revenue requirement (unchanged) --
         (
-            revenue_requirement_raw,
+            revenue_requirement,
             marginal_system_prices,
-            marginal_system_costs,
+            _marginal_system_costs,
             costs_by_type,
         ) = _return_revenue_requirement_target(
             building_load=raw_load_elec,
             sample_weight=customer_metadata[["bldg_id", "weight"]],
-            revenue_requirement_target=rr_total,
+            revenue_requirement_target=settings.rr_total,
             residual_cost=None,
             residual_cost_frac=None,
             bulk_marginal_costs=bulk_marginal_costs,
-            distribution_marginal_costs=distribution_marginal_costs,
+            distribution_marginal_costs=dist_and_sub_tx_marginal_costs,
             low_income_strategy=None,
-            delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
         )
+        effective_load_elec = raw_load_elec
+        elasticity_tracker = pd.DataFrame()
+        if settings.run_includes_subclasses:
+            revenue_requirement = settings.subclass_rr
 
-    # Apply subclass RR split if configured.
-    # Compute per-subclass supply MC so each subclass's RR reflects
-    # its own marginal cost responsibility.  Without this, the delivery
-    # ratios would be applied to the topped-up total, mis-allocating
-    # supply MC between subclasses with different load profiles.
-    if rr_ratios is not None and isinstance(rr_setting, dict):
-        subclass_supply_mc: dict[str, float] = {}
-        if settings.add_supply_revenue_requirement:
-            supply_cols = [
-                c
-                for c in bulk_marginal_costs.columns
-                if "Energy" in c or "Capacity" in c
-            ]
-            supply_mc_prices = bulk_marginal_costs[supply_cols].sum(axis=1)
-
-            # Pre-merge weights into load once to avoid redundant
-            # copy + merge inside process_residential_hourly_demand
-            # per subclass (N_buildings × 8760 rows each time).
-            weighted_load = raw_load_elec.reset_index().merge(
-                customer_metadata[["bldg_id", "weight"]], on="bldg_id"
-            )
-            weighted_load["weighted_kwh"] = (
-                weighted_load["electricity_net"] * weighted_load["weight"]
-            )
-
-            for tariff_key in rr_setting:
-                subclass_bldg_ids = set(
-                    tariff_map_df.loc[
-                        tariff_map_df["tariff_key"] == tariff_key, "bldg_id"
-                    ]
-                )
-                sub = weighted_load[weighted_load["bldg_id"].isin(subclass_bldg_ids)]
-                subclass_sys_load = sub.groupby("time")["weighted_kwh"].sum()
-                subclass_supply_mc[tariff_key] = float(
-                    supply_mc_prices.mul(subclass_sys_load).sum()
-                )
-            log.info(
-                ".... Per-subclass supply MC: %s",
-                {k: f"${v:,.0f}" for k, v in subclass_supply_mc.items()},
-            )
-
-        # Each subclass's baseline = delivery_RR_k + own supply MC
-        subclass_baseline: dict[str, float] = {
-            k: v + subclass_supply_mc.get(k, 0.0) for k, v in rr_setting.items()
-        }
-
-        if demand_flex_enabled:
-            # Only TOU subclasses shifted load → only they absorb the RR
-            # change.  Non-shifted subclasses keep their baseline.
-            non_shifted_rr = sum(
-                subclass_baseline[k] for k in rr_setting if k not in tou_tariff_keys
-            )
-            shifted_rr_total = revenue_requirement_raw - non_shifted_rr
-            # Split among TOU subclasses proportionally (if more than one).
-            tou_baseline_total = sum(
-                subclass_baseline[k] for k in rr_setting if k in tou_tariff_keys
-            )
-            revenue_requirement: float | dict[str, float] = {}
-            for k in rr_setting:
-                if k in tou_tariff_keys:
-                    revenue_requirement[k] = (
-                        shifted_rr_total * (subclass_baseline[k] / tou_baseline_total)
-                        if tou_baseline_total > 0
-                        else shifted_rr_total
-                    )
-                else:
-                    revenue_requirement[k] = subclass_baseline[k]
-            log.info(
-                ".... Subclass RR (demand-flex): %s",
-                {k: f"${v:,.0f}" for k, v in revenue_requirement.items()},
-            )
-        else:
-            revenue_requirement = subclass_baseline
-    else:
-        revenue_requirement = revenue_requirement_raw
     # Phase 3 ---------------------------------------------------------------
     # Precalc calibrates rates against shifted loads so the resulting
     # tariff recovers the (lower) RR from the demand-flex load profile.
@@ -763,9 +663,11 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
 
     save_file_loc = getattr(bs, "save_file_loc", None)
     if save_file_loc is not None:
-        distribution_mc_path = Path(save_file_loc) / "distribution_marginal_costs.csv"
-        distribution_marginal_costs.to_csv(distribution_mc_path, index=True)
-        log.info(".... Saved distribution marginal costs: %s", distribution_mc_path)
+        dist_and_sub_tx_mc_path = (
+            Path(save_file_loc) / "delivery_all_marginal_costs.csv"
+        )
+        dist_and_sub_tx_marginal_costs.to_csv(dist_and_sub_tx_mc_path, index=True)
+        log.info(".... Saved dist+sub-tx marginal costs: %s", dist_and_sub_tx_mc_path)
         if demand_flex_enabled:
             tracker_path = Path(save_file_loc) / "demand_flex_elasticity_tracker.csv"
             elasticity_tracker.to_csv(tracker_path, index=True)
