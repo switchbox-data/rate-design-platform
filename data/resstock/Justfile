@@ -232,3 +232,18 @@ create-sb-release-for-upgrade-02-RI:
     just copy-resstock-data-2024-amy2018-2-RI "00 02" "metadata metadata_utility load_curve_hourly" # Copy data to new sb release
     just approximate-non-hp-load RI 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True # Approximate non-HP load for upgrade 02
     sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/
+
+
+adjust-mf-electricity state input_release output_release upgrade_ids:
+    uv run python "{{path_local_repo}}/utils/pre/adjust_mf_electricity.py" \
+        --path_s3 "{{path_s3_parquet}}" \
+        --state "{{state}}" \
+        --input_release "{{input_release}}" \
+        --output_release "{{output_release}}" \
+        --upgrade_ids "{{upgrade_ids}}" \
+
+adjust-mf-electricity-NY-upgrade-00:
+    just adjust-mf-electricity NY res_2024_amy2018_2 res_2024_amy2018_2_sb "00"
+
+adjust-mf-electricity-NY-upgrade-02:
+     just adjust-mf-electricity NY res_2024_amy2018_2 res_2024_amy2018_2_sb "02"
