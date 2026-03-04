@@ -27,6 +27,8 @@ data/nyiso/lbmp/zips/
 data/nyiso/lbmp/parquet/
 data/nyiso/gold_book/csv/
 data/nyiso/transmission/csv/
+data/nyiso/hourly_demand/zones/
+data/nyiso/hourly_demand/utilities/
 data/nyiso/zone_mapping/csv/
 rate_design/hp_rates/ny/config/buildstock_raw/
 rate_design/hp_rates/ny/config/buildstock_processed/
