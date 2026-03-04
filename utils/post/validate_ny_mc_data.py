@@ -11,6 +11,7 @@ generates:
 Usage:
     uv run python utils/post/validate_ny_mc_data.py --output-dir /tmp/mc_validation
     uv run python utils/post/validate_ny_mc_data.py --utilities coned,nyseg --year 2025
+    uv run python utils/post/validate_ny_mc_data.py --year 2025 # all utilities
 """
 
 from __future__ import annotations
