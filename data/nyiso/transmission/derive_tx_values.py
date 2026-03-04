@@ -1,9 +1,10 @@
-"""Derive NY bulk-transmission v_z ($/kW-yr) from project-level NYISO studies.
+"""Derive NY bulk-transmission values ($/kW-yr) from project-level NYISO studies.
 
 Pipeline:
 1) load/filter/enrich project rows
-2) compute family v_avg with cumulative secants
-3) map nested footprints to paying zones and aggregate zone means
+2) collapse scenario variants
+3) compute constraint-group values with cumulative secants
+4) map nested localities to paying localities and aggregate paying-locality means
 """
 
 from __future__ import annotations
@@ -16,9 +17,9 @@ import polars as pl
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-VALID_FOOTPRINT_TOKENS: frozenset[str] = frozenset({"NYCA", "LHV", "NYC", "LI"})
+VALID_NESTED_LOCALITY_TOKENS: frozenset[str] = frozenset({"NYCA", "LHV", "NYC", "LI"})
 
-SCENARIO_FAMILY_MAP: dict[str, str] = {
+SCENARIO_CONSTRAINT_GROUP_MAP: dict[str, str] = {
     "AC Primary": "ac_primary",
     "Addendum Optimizer (Existing Localities)": "addendum_optimizer",
     "Addendum Optimizer (G-J Elimination)": "addendum_optimizer_gj_elim",
@@ -28,8 +29,8 @@ SCENARIO_FAMILY_MAP: dict[str, str] = {
     "NiMo MCOS (Bulk TX)": "nimo_mcos",
 }
 
-# Nested-footprint -> disjoint paying-zone assignment.
-NESTED_TO_PAYING_ZONES: dict[frozenset[str], list[str]] = {
+# Nested-locality set -> disjoint paying-locality assignment.
+NESTED_TO_PAYING_LOCALITIES: dict[frozenset[str], list[str]] = {
     frozenset({"NYCA"}): ["ROS"],
     frozenset({"NYCA", "LHV"}): ["LHV"],
     frozenset({"NYCA", "LHV", "NYC"}): ["NYC", "LHV"],
@@ -45,76 +46,52 @@ NESTED_TO_PAYING_ZONES: dict[frozenset[str], list[str]] = {
 # ── Parsing helpers ───────────────────────────────────────────────────────────
 
 
-def parse_receiving_localities(raw: str) -> frozenset[str]:
-    """Parse and validate a pipe-delimited receiving-localities string.
-
-    Args:
-        raw: Pipe-delimited locality tokens (e.g. ``"NYCA|LHV|NYC"``).
-
-    Returns:
-        Frozenset of validated locality tokens.
-
-    Raises:
-        ValueError: If the string is empty or contains invalid tokens.
-    """
+def parse_nested_localities(raw: str) -> frozenset[str]:
+    """Parse and validate a pipe-delimited nested-localities string."""
     stripped = raw.strip()
     if not stripped:
         raise ValueError(
             "Empty receiving_localities string. "
-            f"Expected pipe-delimited subset of {sorted(VALID_FOOTPRINT_TOKENS)}."
+            f"Expected pipe-delimited subset of {sorted(VALID_NESTED_LOCALITY_TOKENS)}."
         )
+
     tokens = frozenset(stripped.split("|"))
-    invalid = tokens - VALID_FOOTPRINT_TOKENS
+    invalid = tokens - VALID_NESTED_LOCALITY_TOKENS
     if invalid:
         raise ValueError(
-            f"Invalid footprint tokens: {sorted(invalid)}. "
-            f"Expected subset of {sorted(VALID_FOOTPRINT_TOKENS)}."
+            f"Invalid nested locality tokens: {sorted(invalid)}. "
+            f"Expected subset of {sorted(VALID_NESTED_LOCALITY_TOKENS)}."
         )
     return tokens
 
 
-def footprint_to_str(fp: frozenset[str]) -> str:
-    """Convert a footprint token set to canonical sorted string form.
-
-    Args:
-        fp: Footprint tokens as a frozenset.
-
-    Returns:
-        Sorted pipe-delimited footprint string.
-    """
-    return "|".join(sorted(fp))
+def nested_localities_to_str(localities: frozenset[str]) -> str:
+    """Convert a locality-token set to canonical sorted string form."""
+    return "|".join(sorted(localities))
 
 
-def tightest_footprint(fp: frozenset[str]) -> str:
-    """Select the tightest locality token from a footprint.
+def select_tightest_nested_locality(localities: frozenset[str]) -> str:
+    """Select the tightest locality token from a nested-locality set.
 
     Priority is ``NYC > LHV > LI > NYCA``.
-
-    Args:
-        fp: Footprint tokens as a frozenset.
-
-    Returns:
-        Tightest locality token.
     """
-    if "NYC" in fp:
+    if "NYC" in localities:
         return "NYC"
-    if "LHV" in fp:
+    if "LHV" in localities:
         return "LHV"
-    if "LI" in fp:
+    if "LI" in localities:
         return "LI"
     return "NYCA"
 
 
-def paying_zones_for_footprint_str(benefit_footprint_str: str) -> list[str]:
-    """Map a canonical footprint string to disjoint paying zones.
-
-    Args:
-        benefit_footprint_str: Canonical footprint string (sorted tokens).
-
-    Returns:
-        List of paying zones. Empty list if no mapping exists.
-    """
-    return NESTED_TO_PAYING_ZONES.get(frozenset(benefit_footprint_str.split("|")), [])
+def paying_localities_for_nested_localities_str(
+    nested_localities_str: str,
+) -> list[str]:
+    """Map canonical nested-locality string to disjoint paying localities."""
+    return NESTED_TO_PAYING_LOCALITIES.get(
+        frozenset(nested_localities_str.split("|")),
+        [],
+    )
 
 
 # ── Step 1: Load / validate / clean / enrich ─────────────────────────────────
@@ -135,23 +112,7 @@ REQUIRED_PROJECT_COLUMNS: set[str] = {
 
 
 def prepare_projects_for_derivation(path_projects: Path) -> pl.DataFrame:
-    """Load and normalize project rows for the family/zone derivation.
-
-    Steps:
-    - load CSV and validate required columns
-    - drop excluded rows
-    - drop rows with null/non-positive ``delta_mw``
-    - add ``scenario_family`` and canonical ``benefit_footprint_str``
-
-    Args:
-        path_projects: Path to ``ny_bulk_tx_projects.csv``.
-
-    Returns:
-        Cleaned/enriched project DataFrame ready for variant collapse.
-
-    Raises:
-        ValueError: If required columns are missing.
-    """
+    """Load and normalize project rows for constraint-group derivation."""
     df = pl.read_csv(
         path_projects,
         schema_overrides={
@@ -169,8 +130,7 @@ def prepare_projects_for_derivation(path_projects: Path) -> pl.DataFrame:
 
     n_before = len(df)
     df = df.filter(~pl.col("exclude"))
-    n_excluded = n_before - len(df)
-    print(f"\n  Excluded (exclude=True):        {n_excluded} rows")
+    print(f"\n  Excluded (exclude=True):        {n_before - len(df)} rows")
 
     invalid = df.filter(pl.col("delta_mw").is_null() | (pl.col("delta_mw") <= 0))
     for row in invalid.iter_rows(named=True):
@@ -179,28 +139,30 @@ def prepare_projects_for_derivation(path_projects: Path) -> pl.DataFrame:
             f"({row['scenario']}); dropping row.",
             stacklevel=2,
         )
+
     df = df.filter(pl.col("delta_mw").is_not_null() & (pl.col("delta_mw") > 0))
-    n_invalid_mw = invalid.height
-    print(f"  Dropped missing/nonpositive MW: {n_invalid_mw} rows")
+    print(f"  Dropped missing/nonpositive MW: {invalid.height} rows")
     print(f"  Remaining for derivation:       {len(df)} rows")
 
     df = df.with_columns(
-        pl.col("scenario").replace_strict(SCENARIO_FAMILY_MAP).alias("scenario_family"),
+        pl.col("scenario")
+        .replace_strict(SCENARIO_CONSTRAINT_GROUP_MAP)
+        .alias("constraint_group"),
         pl.col("receiving_localities")
         .map_elements(
-            lambda raw: footprint_to_str(parse_receiving_localities(str(raw))),
+            lambda raw: nested_localities_to_str(parse_nested_localities(str(raw))),
             return_dtype=pl.String,
         )
-        .alias("benefit_footprint_str"),
+        .alias("nested_localities_str"),
     )
 
     print(
-        f"\n  Unique benefit footprints: "
-        f"{sorted(df['benefit_footprint_str'].unique().to_list())}"
+        f"\n  Unique nested localities: "
+        f"{sorted(df['nested_localities_str'].unique().to_list())}"
     )
     print(
-        f"  Unique scenario families:  "
-        f"{sorted(df['scenario_family'].unique().to_list())}"
+        f"  Unique constraint groups: "
+        f"{sorted(df['constraint_group'].unique().to_list())}"
     )
     return df
 
@@ -208,41 +170,24 @@ def prepare_projects_for_derivation(path_projects: Path) -> pl.DataFrame:
 # ── Step 2a: Collapse scenario variants ───────────────────────────────────────
 
 
-def collapse_variants(df: pl.DataFrame) -> pl.DataFrame:
-    """Collapse scenario variants into one mean-benefit point per project.
-
-    Args:
-        df: Prepared project DataFrame with scenario family and footprint columns.
-
-    Returns:
-        DataFrame grouped by project/footprint/family with ``mean_benefit_m_yr``.
-    """
+def collapse_scenario_variants(df: pl.DataFrame) -> pl.DataFrame:
+    """Collapse scenario variants into one mean-benefit point per project."""
     return (
-        df.group_by("project", "delta_mw", "benefit_footprint_str", "scenario_family")
+        df.group_by("project", "delta_mw", "nested_localities_str", "constraint_group")
         .agg(pl.col("annual_benefit_m_yr").mean().alias("mean_benefit_m_yr"))
-        .sort("benefit_footprint_str", "scenario_family", "delta_mw")
+        .sort("nested_localities_str", "constraint_group", "delta_mw")
     )
 
 
-# ── Step 2b: Compute family secant v_avg ──────────────────────────────────────
+# ── Step 2b: Compute constraint-group secant v_avg ───────────────────────────
 
 
-def compute_family_secant_vavg(df: pl.DataFrame) -> pl.DataFrame:
-    """Compute family-level v_avg using cumulative secants.
-
-    For each (benefit footprint, scenario family), projects are sorted by
-    ``delta_mw`` and cumulative secants are averaged.
-
-    Args:
-        df: Collapsed variant DataFrame from :func:`collapse_variants`.
-
-    Returns:
-        Family-level DataFrame with ``v_family_kw_yr`` and audit metadata.
-    """
+def compute_constraint_group_secant_vavg(df: pl.DataFrame) -> pl.DataFrame:
+    """Compute constraint-group values using cumulative secants."""
     results: list[dict[str, object]] = []
 
-    for (footprint_str, scenario_family), group_df in df.group_by(
-        "benefit_footprint_str", "scenario_family"
+    for (nested_localities_str, constraint_group), group_df in df.group_by(
+        "nested_localities_str", "constraint_group"
     ):
         group_df = group_df.sort("delta_mw")
         delta_mws: list[float] = group_df["delta_mw"].to_list()
@@ -252,84 +197,75 @@ def compute_family_secant_vavg(df: pl.DataFrame) -> pl.DataFrame:
 
         if n < 2:
             warnings.warn(
-                f"Only {n} project(s) for {footprint_str}/{scenario_family}: "
+                f"Only {n} project(s) for {nested_localities_str}/{constraint_group}: "
                 "secant curve is a single point.",
                 stacklevel=2,
             )
 
         cum_mw = 0.0
-        cum_b = 0.0
+        cum_benefit = 0.0
         secants: list[float] = []
-        for dmw, b in zip(delta_mws, benefits, strict=True):
+        for dmw, benefit in zip(delta_mws, benefits, strict=True):
             cum_mw += dmw
-            cum_b += b
-            secants.append(cum_b * 1000.0 / cum_mw)  # $/kW-yr
+            cum_benefit += benefit
+            secants.append(cum_benefit * 1000.0 / cum_mw)  # $/kW-yr
 
-        v_family = sum(secants) / len(secants)
-        fp = frozenset(str(footprint_str).split("|"))
+        v_constraint_group = sum(secants) / len(secants)
+        locality_tokens = frozenset(str(nested_localities_str).split("|"))
 
         results.append(
             {
-                "benefit_footprint_str": str(footprint_str),
-                "scenario_family": str(scenario_family),
-                "v_family_kw_yr": round(v_family, 2),
+                "nested_localities_str": str(nested_localities_str),
+                "constraint_group": str(constraint_group),
+                "v_constraint_group_kw_yr": round(v_constraint_group, 2),
                 "n_points": n,
                 "project_list": "|".join(projects),
-                "tightest_footprint": tightest_footprint(fp),
+                "tightest_nested_locality": select_tightest_nested_locality(
+                    locality_tokens
+                ),
             }
         )
 
-    result_df = pl.DataFrame(results).sort("benefit_footprint_str", "scenario_family")
+    result_df = pl.DataFrame(results).sort("nested_localities_str", "constraint_group")
 
     print("\n" + "=" * 70)
-    print("STEP 2: Family-level secant v_avg (per benefit_footprint / scenario_family)")
+    print("STEP 2: Constraint-group secant v_avg")
     print("=" * 70)
     for row in result_df.iter_rows(named=True):
         print(
-            f"  {row['benefit_footprint_str']}/{row['scenario_family']}: "
+            f"  {row['nested_localities_str']}/{row['constraint_group']}: "
             f"n={row['n_points']}, "
-            f"v_family={row['v_family_kw_yr']:.2f} $/kW-yr, "
-            f"tightest={row['tightest_footprint']}"
+            f"v_constraint_group={row['v_constraint_group_kw_yr']:.2f} $/kW-yr, "
+            f"tightest={row['tightest_nested_locality']}"
         )
 
     return result_df
 
 
-def annotate_family_paying_zones(family_df: pl.DataFrame) -> pl.DataFrame:
-    """Add paying-zone annotations to each family row.
-
-    Args:
-        family_df: Family-level DataFrame with ``benefit_footprint_str``.
-
-    Returns:
-        Family DataFrame with ``paying_zones`` added.
-    """
-    return family_df.with_columns(
-        pl.col("benefit_footprint_str")
+def annotate_constraint_group_paying_localities(
+    constraint_group_df: pl.DataFrame,
+) -> pl.DataFrame:
+    """Add paying-locality annotations to each constraint-group row."""
+    return constraint_group_df.with_columns(
+        pl.col("nested_localities_str")
         .map_elements(
-            lambda fp: "|".join(paying_zones_for_footprint_str(str(fp))),
+            lambda localities: "|".join(
+                paying_localities_for_nested_localities_str(str(localities))
+            ),
             return_dtype=pl.String,
         )
-        .alias("paying_zones")
+        .alias("paying_localities")
     )
 
 
-# ── Step 3: Paying-zone assignment ────────────────────────────────────────────
+# ── Step 3: Paying-locality assignment ────────────────────────────────────────
 
 
-def assign_families_to_paying_zones(
-    family_df: pl.DataFrame,
+def assign_constraint_groups_to_paying_localities(
+    constraint_group_df: pl.DataFrame,
 ) -> dict[str, list[float]]:
-    """Collect family ``v_family`` values into paying-zone contribution lists.
-
-    Args:
-        family_df: Family-level DataFrame with footprint, family, and v_family.
-
-    Returns:
-        Dict keyed by ``ROS``, ``LHV``, ``NYC``, ``LI`` containing lists of
-        contributing family values.
-    """
-    zone_contributions: dict[str, list[float]] = {
+    """Collect constraint-group values into paying-locality contribution lists."""
+    locality_contributions: dict[str, list[float]] = {
         "ROS": [],
         "LHV": [],
         "NYC": [],
@@ -337,86 +273,74 @@ def assign_families_to_paying_zones(
     }
 
     print("\n" + "=" * 70)
-    print("STEP 3: Paying-zone assignment (nested → partitioned)")
+    print("STEP 3: Paying-locality assignment (nested -> partitioned)")
     print("=" * 70)
 
-    for row in family_df.iter_rows(named=True):
-        fp_str = str(row["benefit_footprint_str"])
-        family = row["scenario_family"]
-        v = float(row["v_family_kw_yr"])
-        zones = paying_zones_for_footprint_str(fp_str)
-        if not zones:
+    for row in constraint_group_df.iter_rows(named=True):
+        nested_localities_str = str(row["nested_localities_str"])
+        constraint_group = str(row["constraint_group"])
+        value = float(row["v_constraint_group_kw_yr"])
+        paying_localities = paying_localities_for_nested_localities_str(
+            nested_localities_str
+        )
+
+        if not paying_localities:
             warnings.warn(
-                f"No paying-zone rule found for footprint '{fp_str}' "
-                f"({family}); skipping.",
+                "No paying-locality rule found for nested localities "
+                f"'{nested_localities_str}' ({constraint_group}); skipping.",
                 UserWarning,
                 stacklevel=2,
             )
             continue
 
-        for zone in zones:
-            if zone in zone_contributions:
-                zone_contributions[zone].append(v)
+        for locality in paying_localities:
+            if locality in locality_contributions:
+                locality_contributions[locality].append(value)
 
-        print(f"  {fp_str}/{family}: v_family=${v:.2f}/kW-yr → pays to {zones}")
-
-    return zone_contributions
-
-
-# ── Step 4: Zone-level aggregation ────────────────────────────────────────────
-
-
-def compute_zone_vavg(
-    zone_contributions: dict[str, list[float]],
-) -> pl.DataFrame:
-    """Compute zone-level v_avg as the mean of contributing family values.
-
-    Args:
-        zone_contributions: Output of :func:`assign_families_to_paying_zones`.
-
-    Returns:
-        DataFrame with ``gen_capacity_zone`` and ``v_avg_kw_yr``.
-
-    Raises:
-        ValueError: If any required zone has no contributions.
-    """
-    zone_results: list[dict[str, object]] = []
-
-    print("\n" + "=" * 70)
-    print("STEP 4: Zone-level v_avg")
-    print("=" * 70)
-
-    for zone in ("ROS", "LHV", "NYC", "LI"):
-        vs = zone_contributions[zone]
-        if not vs:
-            raise ValueError(
-                f"No projects contributed to zone {zone}. "
-                "Check ny_bulk_tx_projects.csv and NESTED_TO_PAYING_ZONES."
-            )
-        v_zone = round(sum(vs) / len(vs), 2)
-        zone_results.append({"gen_capacity_zone": zone, "v_avg_kw_yr": v_zone})
         print(
-            f"  {zone}: mean of [{', '.join(f'${v:.2f}' for v in vs)}] "
-            f"= ${v_zone:.2f}/kW-yr"
+            f"  {nested_localities_str}/{constraint_group}: "
+            f"v=${value:.2f}/kW-yr -> pays to {paying_localities}"
         )
 
-    return pl.DataFrame(zone_results)
+    return locality_contributions
+
+
+# ── Step 4: Paying-locality aggregation ───────────────────────────────────────
+
+
+def compute_paying_locality_vavg(
+    locality_contributions: dict[str, list[float]],
+) -> pl.DataFrame:
+    """Compute paying-locality values as mean of contributing groups."""
+    results: list[dict[str, object]] = []
+
+    print("\n" + "=" * 70)
+    print("STEP 4: Paying-locality v_avg")
+    print("=" * 70)
+
+    for locality in ("ROS", "LHV", "NYC", "LI"):
+        values = locality_contributions[locality]
+        if not values:
+            raise ValueError(
+                f"No projects contributed to paying locality {locality}. "
+                "Check ny_bulk_tx_projects.csv and NESTED_TO_PAYING_LOCALITIES."
+            )
+        v_avg = round(sum(values) / len(values), 2)
+        results.append({"gen_capacity_zone": locality, "v_avg_kw_yr": v_avg})
+        print(
+            f"  {locality}: mean of [{', '.join(f'${v:.2f}' for v in values)}] "
+            f"= ${v_avg:.2f}/kW-yr"
+        )
+
+    return pl.DataFrame(results)
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 
 def _parse_args() -> argparse.Namespace:
-    """Parse CLI arguments for input and output paths.
-
-    Args:
-        None.
-
-    Returns:
-        Parsed CLI namespace.
-    """
     parser = argparse.ArgumentParser(
-        description="Derive bulk transmission v_z per gen_capacity_zone."
+        description="Derive NY bulk transmission values per gen_capacity_zone."
     )
     parser.add_argument(
         "--path-projects-csv",
@@ -428,55 +352,50 @@ def _parse_args() -> argparse.Namespace:
         "--path-output-csv",
         type=str,
         required=True,
-        help="Path to write ny_bulk_tx_values.csv (zone-level output).",
+        help="Path to write ny_bulk_tx_values.csv (paying-locality output).",
     )
     parser.add_argument(
-        "--path-families-csv",
+        "--path-constraint-groups-csv",
         type=str,
         default=None,
         help=(
-            "Path to write ny_bulk_tx_families.csv (family-level audit table). "
-            "Defaults to <parent of --path-output-csv>/ny_bulk_tx_families.csv."
+            "Path to write ny_bulk_tx_constraint_groups.csv "
+            "(constraint-group audit table). "
+            "Defaults to <parent of --path-output-csv>/ny_bulk_tx_constraint_groups.csv."
         ),
     )
     return parser.parse_args()
 
 
 def main() -> None:
-    """Run the end-to-end derivation and write zone/family CSV outputs.
-
-    Args:
-        None.
-
-    Returns:
-        None.
-    """
     args = _parse_args()
     path_projects = Path(args.path_projects_csv)
     path_output = Path(args.path_output_csv)
 
-    # Default families CSV alongside the zone-level output
-    if args.path_families_csv:
-        path_families = Path(args.path_families_csv)
+    if args.path_constraint_groups_csv:
+        path_constraint_groups = Path(args.path_constraint_groups_csv)
     else:
-        path_families = path_output.parent / "ny_bulk_tx_families.csv"
+        path_constraint_groups = path_output.parent / "ny_bulk_tx_constraint_groups.csv"
 
-    for p in (path_projects, path_output, path_families):
-        if "{{" in str(p) or "}}" in str(p):
-            raise ValueError(f"Path looks like an uninterpolated Just variable: {p}")
+    for path in (path_projects, path_output, path_constraint_groups):
+        if "{{" in str(path) or "}}" in str(path):
+            raise ValueError(f"Path looks like an uninterpolated Just variable: {path}")
 
     prepared_df = prepare_projects_for_derivation(path_projects)
 
     print("\n" + "=" * 70)
     print("STEP 2a: Collapse scenario variants")
     print("=" * 70)
-    collapsed = collapse_variants(prepared_df)
-    print(f"  {len(prepared_df)} rows → {len(collapsed)} collapsed project points")
+    collapsed_df = collapse_scenario_variants(prepared_df)
+    print(f"  {len(prepared_df)} rows -> {len(collapsed_df)} collapsed project points")
 
-    family_df = annotate_family_paying_zones(compute_family_secant_vavg(collapsed))
-    zone_df = compute_zone_vavg(assign_families_to_paying_zones(family_df))
+    constraint_group_df = annotate_constraint_group_paying_localities(
+        compute_constraint_group_secant_vavg(collapsed_df)
+    )
+    zone_df = compute_paying_locality_vavg(
+        assign_constraint_groups_to_paying_localities(constraint_group_df)
+    )
 
-    # Sanity checks
     lhv_val = float(
         zone_df.filter(pl.col("gen_capacity_zone") == "LHV")["v_avg_kw_yr"][0]
     )
@@ -491,15 +410,22 @@ def main() -> None:
     )
     assert ros_val > 0, f"ROS v_avg must be positive, got {ros_val:.2f}"
 
-    # ── Write outputs ────────────────────────────────────────────────────
     path_output.parent.mkdir(parents=True, exist_ok=True)
-    path_families.parent.mkdir(parents=True, exist_ok=True)
+    path_constraint_groups.parent.mkdir(parents=True, exist_ok=True)
 
     zone_df.write_csv(path_output)
     print(f"\n✓ Wrote {len(zone_df)} zone rows to {path_output}")
 
-    family_df.write_csv(path_families)
-    print(f"✓ Wrote {len(family_df)} family rows to {path_families}")
+    constraint_group_df.write_csv(path_constraint_groups)
+    print(
+        f"✓ Wrote {len(constraint_group_df)} constraint-group rows to "
+        f"{path_constraint_groups}"
+    )
+
+    legacy_families_path = path_constraint_groups.parent / "ny_bulk_tx_families.csv"
+    if legacy_families_path.exists() and legacy_families_path != path_constraint_groups:
+        legacy_families_path.unlink()
+        print(f"✓ Removed legacy file {legacy_families_path}")
 
     print("\n" + "=" * 70)
     print("FINAL ZONE VALUES")

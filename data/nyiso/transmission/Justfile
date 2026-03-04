@@ -14,12 +14,15 @@ path_s3_csv := "s3://data.sb/nyiso/bulk_tx/"
 derive:
     uv run python "{{path_local_base}}/derive_tx_values.py" \
         --path-projects-csv "{{path_local_csv}}/ny_bulk_tx_projects.csv" \
-        --path-output-csv "{{path_local_csv}}/ny_bulk_tx_values.csv"
+        --path-output-csv "{{path_local_csv}}/ny_bulk_tx_values.csv" \
+        --path-constraint-groups-csv "{{path_local_csv}}/ny_bulk_tx_constraint_groups.csv"
 
 # Upload: sync local CSVs to S3
 upload:
-    aws s3 sync "{{path_local_csv}}/" "{{path_s3_csv}}" --exclude "*" --include "*.csv"
-    echo "✓ Uploaded bulk Tx CSVs to {{path_s3_csv}}"
+    aws s3 rm "{{path_s3_csv}}/ny_bulk_tx_families.csv"
+    aws s3 cp "{{path_local_csv}}/ny_bulk_tx_constraint_groups.csv" "{{path_s3_csv}}/ny_bulk_tx_constraint_groups.csv"
+    aws s3 cp "{{path_local_csv}}/ny_bulk_tx_values.csv" "{{path_s3_csv}}/ny_bulk_tx_values.csv"
+    echo "✓ Uploaded bulk Tx values + constraint groups to {{path_s3_csv}}"
 
 # Clean: remove local CSV staging dir
 clean:
