@@ -53,7 +53,7 @@ create-supply-mc-data-all:
 # =============================================================================
 
 tx_mc_year            := "2025"
-path_vz_table         := "s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_values.csv"
+path_constraint_group_table := "s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_constraint_groups.csv"
 path_bulk_tx_mc       := "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=" + utility + "/year=" + tx_mc_year + "/data.parquet"
 
 create-bulk-tx-mc-data utility_arg:
@@ -61,7 +61,7 @@ create-bulk-tx-mc-data utility_arg:
     --utility {{utility_arg}} \
     --year {{tx_mc_year}} \
     --zone-mapping-path {{zone_mapping_path}} \
-    --v-z-table-path {{path_vz_table}} \
+    --constraint-group-table-path {{path_constraint_group_table}} \
     --upload
 
 create-bulk-tx-mc-data-all:
