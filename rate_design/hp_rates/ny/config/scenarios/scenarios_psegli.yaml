@@ -9,10 +9,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run1_up00_precalc__flat__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_tariffs_electric:
@@ -39,10 +39,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run2_up00_precalc_supply__flat__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=psegli/year=2025/00000000.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=psegli/year=2025/00000000.parquet
     path_tariffs_electric:
@@ -69,10 +69,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run3_up02_default__flat__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_tariffs_electric:
@@ -99,10 +99,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run4_up02_default_supply__flat__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=psegli/year=2025/00000000.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=psegli/year=2025/00000000.parquet
     path_tariffs_electric:
@@ -129,10 +129,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run5_up00_precalc__hp_seasonal_vs_flat__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_tariffs_electric:
@@ -160,10 +160,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run6_up00_precalc_supply__hp_seasonal_vs_flat__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=psegli/year=2025/00000000.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=psegli/year=2025/00000000.parquet
     path_tariffs_electric:
@@ -191,10 +191,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run7_up02_default__hp_seasonal__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_tariffs_electric:
@@ -221,10 +221,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run8_up02_default_supply__hp_seasonal__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=psegli/year=2025/00000000.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=psegli/year=2025/00000000.parquet
     path_tariffs_electric:
@@ -251,10 +251,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run9_up00_precalc__hp_seasonalTOU_vs_flat__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_tariffs_electric:
@@ -282,10 +282,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run10_up00_precalc_supply__hp_seasonalTOU_vs_flat__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=psegli/year=2025/00000000.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=psegli/year=2025/00000000.parquet
     path_tariffs_electric:
@@ -313,10 +313,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run11_up02_default__hp_seasonalTOU__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_tariffs_electric:
@@ -343,10 +343,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run12_up02_default_supply__hp_seasonalTOU__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=psegli/year=2025/00000000.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=psegli/year=2025/00000000.parquet
     path_tariffs_electric:
@@ -373,10 +373,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run13_up00_precalc__hp_seasonalTOU_flex_vs_flat__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_tariffs_electric:
@@ -404,10 +404,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_flat__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=psegli/year=2025/00000000.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=psegli/year=2025/00000000.parquet
     path_tariffs_electric:
@@ -435,10 +435,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run15_up02_default__hp_seasonalTOU_flex__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_tariffs_electric:
@@ -465,10 +465,10 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/psegli_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2025/00000000.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/ny_psegli_run16_up02_default_supply__hp_seasonalTOU_flex__n100
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=psegli/year=2026/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=psegli/year=2025/00000000.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=psegli/year=2025/00000000.parquet
     path_tariffs_electric:
