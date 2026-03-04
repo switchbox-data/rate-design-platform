@@ -69,3 +69,5 @@ infra/.terraform.lock.hcl
 utils/pre/update_sheet_formulas.py
 
 CLAUDE.md
+
+dev_plots/
