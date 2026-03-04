@@ -85,7 +85,7 @@ UTILITY_SERVICE_AREAS: dict[str, list[UtilityServiceArea]] = {
         {"state": "NY", "zones": ["A", "B", "C", "D", "E", "F"]},
     ],
     "coned": [
-        {"state": "NY", "zones": ["G", "H", "J"]},
+        {"state": "NY", "zones": ["G", "H", "I", "J"]},
     ],
     "or": [
         {"state": "NY", "zones": ["G"]},

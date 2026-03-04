@@ -11,10 +11,8 @@ Input data:
         s3://data.sb/nyiso/lbmp/real_time/zones/zone={NAME}/year={YYYY}/month={MM}/data.parquet
     - ICAP spot prices (4 localities):
         s3://data.sb/nyiso/icap/year={YYYY}/month={M}/data.parquet
-    - EIA zone-level hourly loads (for LBMP load-weighting):
-        s3://data.sb/eia/hourly_demand/zones/region=nyiso/zone={letter}/year={YYYY}/month={M}/data.parquet
-    - EIA zone-level hourly loads (for ICAP peak identification by capacity locality):
-        s3://data.sb/eia/hourly_demand/zones/region=nyiso/zone={letter}/year={YYYY}/month={M}/data.parquet
+    - NYISO zone-level hourly loads (for LBMP load-weighting and ICAP peak identification):
+        s3://data.sb/nyiso/hourly_demand/zones/zone={NAME}/year={YYYY}/month={M}/data.parquet
     - Utility zone mapping CSV (utility → LBMP zone, ICAP locality, capacity_weight):
         s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv
 
@@ -56,7 +54,7 @@ from utils.pre.generate_utility_tx_dx_mc import normalize_load_to_cairo_8760
 
 DEFAULT_LBMP_S3_BASE = "s3://data.sb/nyiso/lbmp/real_time/zones/"
 DEFAULT_ICAP_S3_BASE = "s3://data.sb/nyiso/icap/"
-DEFAULT_ZONE_LOADS_S3_BASE = "s3://data.sb/eia/hourly_demand/zones/"
+DEFAULT_ZONE_LOADS_S3_BASE = "s3://data.sb/nyiso/hourly_demand/zones/"
 DEFAULT_ZONE_MAPPING_PATH = (
     "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
 )
@@ -70,11 +68,24 @@ VALID_UTILITIES = frozenset({"cenhud", "coned", "nimo", "nyseg", "or", "rge", "p
 
 # Nested locality footprints used for capacity-peak load profiles.
 # These are overlapping by design (NYCA ⊃ LHV ⊃ NYC, and LI=K).
-NESTED_LOCALITY_ZONE_LETTERS: dict[str, list[str]] = {
-    "NYCA": ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"],
-    "LHV": ["G", "H", "I", "J"],
-    "NYC": ["J"],
-    "LI": ["K"],
+# Keyed by canonical NYISO zone names (matching s3://data.sb/nyiso/hourly_demand/zones/).
+NESTED_LOCALITY_ZONES: dict[str, list[str]] = {
+    "NYCA": [
+        "WEST",
+        "GENESE",
+        "CENTRAL",
+        "NORTH",
+        "MHK_VL",
+        "CAPITL",
+        "HUD_VL",
+        "MILLWD",
+        "DUNWOD",
+        "N.Y.C.",
+        "LONGIL",
+    ],
+    "LHV": ["HUD_VL", "MILLWD", "DUNWOD", "N.Y.C."],
+    "NYC": ["N.Y.C."],
+    "LI": ["LONGIL"],
 }
 
 # Raw ICAP locality names in the source dataset mapped to internal nested names.
@@ -96,7 +107,7 @@ GEN_CAPACITY_ZONE_TO_PARTITIONED_LOCALITY = {
     "LI": "LI",  # K
 }
 
-VALID_NESTED_LOCALITIES = frozenset(NESTED_LOCALITY_ZONE_LETTERS)
+VALID_NESTED_LOCALITIES = frozenset(NESTED_LOCALITY_ZONES)
 VALID_PARTITIONED_LOCALITIES = frozenset(NESTED_LOCALITY_TO_ICAP_RAW)
 
 
@@ -246,15 +257,16 @@ def load_lbmp_for_zones(
 
 def load_zone_loads(
     zone_loads_s3_base: str,
-    zone_letters: list[str],
+    zone_names: list[str],
     year: int,
     storage_options: dict[str, str],
 ) -> pl.DataFrame:
-    """Load EIA zone-level hourly loads for LBMP weighting.
+    """Load NYISO zone-level hourly loads.
 
     Args:
-        zone_loads_s3_base: S3 base path for zone loads.
-        zone_letters: Zone letters (e.g. ["A", "C", "D"]).
+        zone_loads_s3_base: S3 base path for zone loads
+            (e.g. s3://data.sb/nyiso/hourly_demand/zones/).
+        zone_names: Canonical NYISO zone names (e.g. ["WEST", "GENESE"]).
         year: Target year.
         storage_options: AWS storage options.
 
@@ -269,8 +281,7 @@ def load_zone_loads(
             storage_options=storage_options,
         )
         .filter(
-            pl.col("region") == "nyiso",
-            pl.col("zone").is_in(zone_letters),
+            pl.col("zone").is_in(zone_names),
             pl.col("year") == year,
         )
         .select("timestamp", "zone", "load_mw")
@@ -280,7 +291,7 @@ def load_zone_loads(
         raise TypeError("Expected DataFrame from zone loads collect()")
     if collected.is_empty():
         raise FileNotFoundError(
-            f"No zone load data found for zones={zone_letters}, year={year} "
+            f"No zone load data found for zones={zone_names}, year={year} "
             f"under {zone_loads_s3_base}"
         )
 
@@ -304,6 +315,7 @@ def compute_energy_mc(
     zone_loads_s3_base: str,
     year: int,
     storage_options: dict[str, str],
+    zone_load_year: int | None = None,
 ) -> pl.DataFrame:
     """Compute hourly energy marginal costs from real-time LBMP data.
 
@@ -316,27 +328,22 @@ def compute_energy_mc(
     Args:
         utility_mapping: Zone mapping rows for this utility.
         lbmp_s3_base: S3 base for real-time LBMP data.
-        zone_loads_s3_base: S3 base for EIA zone loads.
-        year: Target year.
+        zone_loads_s3_base: S3 base for zone loads.
+        year: LBMP price year (also determines output timestamps).
         storage_options: AWS storage options.
+        zone_load_year: Year to use for zone loads (for multi-zone weighting).
+            Defaults to ``year``. When different from ``year``, load timestamps
+            are remapped to ``year`` before joining with LBMP.
 
     Returns:
         DataFrame with columns: timestamp, energy_cost_enduse ($/MWh).
         Timestamps are hourly.
     """
-    # Get unique zone names and letters for this utility
-    zone_info = utility_mapping.select("lbmp_zone_name", "load_zone_letter").unique()
-    zone_names = sorted(zone_info["lbmp_zone_name"].unique().to_list())
-    zone_letters = sorted(zone_info["load_zone_letter"].unique().to_list())
+    if zone_load_year is None:
+        zone_load_year = year
 
-    # Map zone letters to LBMP zone names
-    letter_to_name: dict[str, str] = dict(
-        zip(
-            zone_info["load_zone_letter"].to_list(),
-            zone_info["lbmp_zone_name"].to_list(),
-            strict=False,
-        )
-    )
+    # Get unique LBMP zone names for this utility
+    zone_names = sorted(utility_mapping["lbmp_zone_name"].unique().to_list())
 
     # Load LBMP data for all relevant zones (5-minute intervals)
     lbmp_df = load_lbmp_for_zones(lbmp_s3_base, zone_names, year, storage_options)
@@ -355,21 +362,20 @@ def compute_energy_mc(
         # Multi-zone utility: load-weighted average
         print(f"  Multi-zone utility → load-weighting across {zone_names}")
         zone_loads = load_zone_loads(
-            zone_loads_s3_base, zone_letters, year, storage_options
+            zone_loads_s3_base, zone_names, zone_load_year, storage_options
         )
 
-        # Map zone load letters to LBMP zone names for joining
-        zone_loads = zone_loads.with_columns(
-            pl.col("zone")
-            .replace_strict(letter_to_name, default=pl.col("zone"))
-            .alias("lbmp_zone_name")
-        )
+        if zone_load_year != year:
+            offset = f"{year - zone_load_year}y"
+            print(f"  Remapping zone load timestamps: {zone_load_year} → {year}")
+            zone_loads = zone_loads.with_columns(
+                pl.col("timestamp").dt.offset_by(offset)
+            )
 
-        # Join LBMP prices with zone loads on (timestamp, zone)
+        # Join LBMP prices with zone loads on (timestamp, zone name)
         joined = lbmp_df.join(
-            zone_loads.select("timestamp", "lbmp_zone_name", "load_mw"),
-            left_on=["timestamp", "zone"],
-            right_on=["timestamp", "lbmp_zone_name"],
+            zone_loads.select("timestamp", "zone", "load_mw"),
+            on=["timestamp", "zone"],
             how="inner",
         )
 
@@ -597,10 +603,10 @@ def build_capacity_peak_load_profile_from_zone_loads(
         if not isinstance(locality, str):
             raise TypeError("locality must be string")
         weight = float(row["capacity_weight"])
-        zone_letters = NESTED_LOCALITY_ZONE_LETTERS[locality]
+        zone_names = NESTED_LOCALITY_ZONES[locality]
 
         locality_load = (
-            zone_loads_df.filter(pl.col("zone").is_in(zone_letters))
+            zone_loads_df.filter(pl.col("zone").is_in(zone_names))
             .group_by("timestamp")
             .agg(pl.col("load_mw").sum().alias("locality_load_mw"))
             .with_columns(
@@ -609,8 +615,7 @@ def build_capacity_peak_load_profile_from_zone_loads(
         )
         if locality_load.is_empty():
             raise ValueError(
-                f"No zone load rows found for locality={locality} "
-                f"(zones={zone_letters})."
+                f"No zone load rows found for locality={locality} (zones={zone_names})."
             )
         locality_frames.append(locality_load)
 
@@ -625,10 +630,10 @@ def build_capacity_peak_load_profile_from_zone_loads(
     return blended
 
 
-def _zone_letters_for_localities(
+def _zone_names_for_localities(
     localities: list[str], locality_zone_map: dict[str, list[str]]
 ) -> list[str]:
-    """Return sorted unique zone letters covered by the given localities."""
+    """Return sorted unique zone names covered by the given localities."""
     return sorted({z for loc in localities for z in locality_zone_map[loc]})
 
 
@@ -640,13 +645,13 @@ def load_capacity_peak_load_profile(
 ) -> pl.DataFrame:
     """Load and assemble the ICAP peak-identification load profile."""
     locality_weights = get_capacity_peak_locality_weights(utility_mapping)
-    zones_needed = _zone_letters_for_localities(
-        locality_weights["locality"].to_list(), NESTED_LOCALITY_ZONE_LETTERS
+    zones_needed = _zone_names_for_localities(
+        locality_weights["locality"].to_list(), NESTED_LOCALITY_ZONES
     )
 
     print(
         "  Capacity peak load basis: "
-        f"{locality_weights.to_dicts()} → zone letters {zones_needed}"
+        f"{locality_weights.to_dicts()} → zones {zones_needed}"
     )
 
     zone_loads_df = load_zone_loads(
@@ -1144,7 +1149,7 @@ def _parse_args() -> argparse.Namespace:
         "--zone-loads-s3-base",
         type=str,
         default=DEFAULT_ZONE_LOADS_S3_BASE,
-        help=f"S3 base for EIA zone loads (default: {DEFAULT_ZONE_LOADS_S3_BASE}).",
+        help=f"S3 base for NYISO zone loads (default: {DEFAULT_ZONE_LOADS_S3_BASE}).",
     )
     parser.add_argument(
         "--output-s3-base",
@@ -1198,24 +1203,10 @@ def main() -> None:
         utility_mapping,
         args.lbmp_s3_base,
         args.zone_loads_s3_base,
-        price_year if price_year == load_year else load_year,
+        price_year,
         storage_options,
+        zone_load_year=load_year if load_year != price_year else None,
     )
-
-    # If price_year != load_year, we use load_year's zone loads for weighting
-    # but price_year's LBMP prices. Reload LBMP for price_year.
-    if price_year != load_year:
-        print(f"\n  Note: Using {load_year} load shapes with {price_year} LBMP prices.")
-        energy_df = compute_energy_mc(
-            utility_mapping,
-            args.lbmp_s3_base,
-            args.zone_loads_s3_base,
-            price_year,
-            storage_options,
-        )
-        # For the output timestamps, we want load_year's timestamps
-        # but price_year's LBMP prices. For now, use price_year as the
-        # primary (LBMP and ICAP are both for price_year).
 
     # ── 3. Capacity MC (ICAP MCOS) ──────────────────────────────────────
     print("\n── Capacity MC (ICAP MCOS) ──")
@@ -1251,6 +1242,15 @@ def main() -> None:
 
     # Validate capacity allocation
     validate_capacity_allocation(capacity_df, icap_prices)
+
+    # Remap capacity timestamps from load_year → price_year when they differ.
+    # offset_by("Ny") shifts by N calendar years on naive datetimes; safe because
+    # Cairo 8760 normalization already handled leap years and DST.
+    if load_year != price_year:
+        print(f"\n  Remapping capacity timestamps: {load_year} → {price_year}")
+        capacity_df = capacity_df.with_columns(
+            pl.col("timestamp").dt.offset_by(f"{price_year - load_year}y")
+        )
 
     # ── 4. Prepare separate outputs ──────────────────────────────────────
     print("\n── Output Preparation ──")

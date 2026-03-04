@@ -18,6 +18,8 @@ import '../Justfile'
 # NY-only: aggregate MCOS-derived BAT inputs (sub-TX + dist levelized MC)
 # =============================================================================
 
+path_s3_utility_loads := "s3://data.sb/nyiso/hourly_demand/utilities/"
+
 path_dist_mc := path_repo / "utils/pre/dist_mc"
 path_bat_inputs := path_config / "marginal_costs" / "ny_sub_tx_and_dist_mc_levelized.csv"
 
@@ -30,12 +32,14 @@ aggregate-dist-mc-bat-inputs:
 # =============================================================================
 
 supply_mc_year := "2025"
+supply_load_year := env_var_or_default('SUPPLY_LOAD_YEAR', '2018')
 zone_mapping_path := "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
 
 create-supply-mc-data utility_arg:
   cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_utility_supply_mc.py \
     --utility {{utility_arg}} \
     --year {{supply_mc_year}} \
+    --load-year {{supply_load_year}} \
     --zone-mapping-path {{zone_mapping_path}} \
     --upload
 
@@ -53,6 +57,7 @@ create-supply-mc-data-all:
 # =============================================================================
 
 tx_mc_year            := "2025"
+tx_load_year          := env_var_or_default('TX_LOAD_YEAR', '2018')
 path_constraint_group_table := "s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_constraint_groups.csv"
 path_bulk_tx_mc       := "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=" + utility + "/year=" + tx_mc_year + "/data.parquet"
 
@@ -60,6 +65,7 @@ create-bulk-tx-mc-data utility_arg:
   cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_bulk_tx_mc.py \
     --utility {{utility_arg}} \
     --year {{tx_mc_year}} \
+    --load-year {{tx_load_year}} \
     --zone-mapping-path {{zone_mapping_path}} \
     --constraint-group-table-path {{path_constraint_group_table}} \
     --upload

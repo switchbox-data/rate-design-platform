@@ -15,7 +15,7 @@ from utils.pre.generate_utility_supply_mc import (
 
 
 def test_capacity_peak_profile_uses_nested_nyca_footprint() -> None:
-    """NYCA locality should use A-K (including K), not only utility service zones."""
+    """NYCA locality should use all 11 zones (including LONGIL), not only utility service zones."""
     locality_weights = pl.DataFrame(
         {
             "locality": ["NYCA"],
@@ -25,7 +25,7 @@ def test_capacity_peak_profile_uses_nested_nyca_footprint() -> None:
     zone_loads_df = pl.DataFrame(
         {
             "timestamp": [1, 1, 1, 2, 2, 2],
-            "zone": ["A", "B", "K", "A", "B", "K"],
+            "zone": ["WEST", "GENESE", "LONGIL", "WEST", "GENESE", "LONGIL"],
             "load_mw": [10.0, 20.0, 100.0, 15.0, 25.0, 200.0],
         }
     )
@@ -34,7 +34,6 @@ def test_capacity_peak_profile_uses_nested_nyca_footprint() -> None:
         locality_weights, zone_loads_df
     )
 
-    # NYCA = A-K, so K is included.
     assert result.sort("timestamp")["load_mw"].to_list() == [130.0, 240.0]
 
 
@@ -49,7 +48,7 @@ def test_capacity_peak_profile_blends_multiple_capacity_localities() -> None:
     zone_loads_df = pl.DataFrame(
         {
             "timestamp": [1, 1, 2, 2],
-            "zone": ["J", "I", "J", "I"],
+            "zone": ["N.Y.C.", "DUNWOD", "N.Y.C.", "DUNWOD"],
             "load_mw": [100.0, 30.0, 200.0, 50.0],
         }
     )
@@ -58,7 +57,8 @@ def test_capacity_peak_profile_blends_multiple_capacity_localities() -> None:
         locality_weights, zone_loads_df
     ).sort("timestamp")
 
-    # NYC uses J; LHV uses G-J, so with data present that is (I+J).
+    # NYC uses N.Y.C.; LHV uses HUD_VL+MILLWD+DUNWOD+N.Y.C.,
+    # so with data present that is (DUNWOD+N.Y.C.).
     # Hour 1: 0.87*100 + 0.13*(100+30) = 103.9
     # Hour 2: 0.87*200 + 0.13*(200+50) = 206.5
     assert result["load_mw"].to_list() == [103.9, 206.5]
@@ -181,3 +181,41 @@ def test_allocate_icap_no_tie_unchanged() -> None:
     assert nonzero.height == n_peak * 12
 
     validate_capacity_allocation(result, icap_prices)
+
+
+# ── timestamp remap when load_year != price_year ─────────────────────────────
+
+
+def test_capacity_timestamp_remap_preserves_allocation() -> None:
+    """Remapping 2018->2025 timestamps preserves ordinal positions and totals."""
+    n_peak = 8
+    load_df = _make_monthly_load(year=2018, n_peak_hours=n_peak)
+    icap_prices = pl.DataFrame(
+        {"month": list(range(1, 13)), "icap_price_per_kw_month": [5.0] * 12}
+    )
+
+    result_2018 = allocate_icap_to_hours(load_df, icap_prices, n_peak_hours=n_peak)
+
+    result_2025 = result_2018.with_columns(
+        pl.col("timestamp").dt.offset_by(f"{2025 - 2018}y")
+    )
+
+    years = result_2025["timestamp"].dt.year().unique().to_list()
+    assert years == [2025]
+
+    assert result_2025.height == result_2018.height
+    nonzero_2018 = result_2018.filter(pl.col("capacity_cost_per_kw") > 0)
+    nonzero_2025 = result_2025.filter(pl.col("capacity_cost_per_kw") > 0)
+    assert nonzero_2025.height == nonzero_2018.height
+
+    assert float(result_2025["capacity_cost_per_kw"].sum()) == pytest.approx(
+        float(result_2018["capacity_cost_per_kw"].sum())
+    )
+
+    def ordinals(df: pl.DataFrame) -> list[tuple[int, int, int]]:
+        ts = df.filter(pl.col("capacity_cost_per_kw") > 0).sort("timestamp")[
+            "timestamp"
+        ]
+        return [(t.month, t.day, t.hour) for t in ts.to_list()]
+
+    assert ordinals(result_2018) == ordinals(result_2025)

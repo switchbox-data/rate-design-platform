@@ -46,17 +46,17 @@ def _make_hourly_load_profile(year: int = 2025) -> pl.DataFrame:
 def _make_zone_loads(year: int = 2025) -> pl.DataFrame:
     base = _make_hourly_load_profile(year)
     zone_scale = {
-        "A": 0.8,
-        "B": 0.9,
-        "C": 1.0,
-        "D": 0.95,
-        "E": 0.85,
-        "F": 0.9,
-        "G": 0.7,
-        "H": 0.75,
-        "I": 0.8,
-        "J": 0.65,
-        "K": 0.6,
+        "WEST": 0.8,
+        "GENESE": 0.9,
+        "CENTRAL": 1.0,
+        "NORTH": 0.95,
+        "MHK_VL": 0.85,
+        "CAPITL": 0.9,
+        "HUD_VL": 0.7,
+        "MILLWD": 0.75,
+        "DUNWOD": 0.8,
+        "N.Y.C.": 0.65,
+        "LONGIL": 0.6,
     }
     frames: list[pl.DataFrame] = []
     for zone, scale in zone_scale.items():
@@ -104,7 +104,7 @@ def _make_mapping() -> pl.DataFrame:
             "gen_capacity_zone": ["ROS", "LHV", "NYC", "LI"],
             "capacity_weight": [0.6, 0.4, 0.87, 0.13],
             "load_zone_letter": ["A", "G", "J", "K"],
-            "lbmp_zone_name": ["WEST", "HUD", "NYC", "LI"],
+            "lbmp_zone_name": ["WEST", "HUD_VL", "N.Y.C.", "LONGIL"],
             "icap_locality": ["NYCA", "GHIJ", "NYC", "LI"],
         }
     )
@@ -208,6 +208,37 @@ class TestPrepareOutput:
 
         assert output.height == 8760
         assert output.filter(pl.col("bulk_tx_cost_enduse").is_null()).height == 0
+
+
+class TestTimestampRemap:
+    def test_bulk_tx_remap_preserves_allocation(self) -> None:
+        """Remapping 2018->2025 timestamps preserves ordinal positions and totals."""
+        load_df = _make_hourly_load_profile(year=2018)
+        with_scr = identify_scr_hours(load_df, n_hours_per_season=40)
+        allocated = allocate_bulk_tx_to_hours(with_scr, v_constraint_group_kw_yr=30.0)
+
+        remapped = allocated.with_columns(
+            pl.col("timestamp").dt.offset_by(f"{2025 - 2018}y")
+        )
+
+        years = remapped["timestamp"].dt.year().unique().to_list()
+        assert years == [2025]
+
+        nonzero_orig = allocated.filter(pl.col("bulk_tx_cost_enduse") > 0)
+        nonzero_remap = remapped.filter(pl.col("bulk_tx_cost_enduse") > 0)
+        assert nonzero_remap.height == nonzero_orig.height
+
+        assert float(remapped["bulk_tx_cost_enduse"].sum()) == pytest.approx(
+            float(allocated["bulk_tx_cost_enduse"].sum())
+        )
+
+        def ordinals(df: pl.DataFrame) -> list[tuple[int, int, int]]:
+            ts = df.filter(pl.col("bulk_tx_cost_enduse") > 0).sort("timestamp")[
+                "timestamp"
+            ]
+            return [(t.month, t.day, t.hour) for t in ts.to_list()]
+
+        assert ordinals(allocated) == ordinals(remapped)
 
 
 class TestErrors:

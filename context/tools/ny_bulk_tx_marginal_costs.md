@@ -32,19 +32,19 @@ Key columns:
 
 ## Locality model
 
-Nested localities (overlapping):
+Nested localities (overlapping, canonical NYISO zone names):
 
-- `NYCA = A-K`
-- `LHV = G-J`
-- `NYC = J`
-- `LI = K`
+- `NYCA = WEST, GENESE, CENTRAL, NORTH, MHK_VL, CAPITL, HUD_VL, MILLWD, DUNWOD, N.Y.C., LONGIL`
+- `LHV = HUD_VL, MILLWD, DUNWOD, N.Y.C.`
+- `NYC = N.Y.C.`
+- `LI = LONGIL`
 
 Paying localities (disjoint):
 
-- `ROS = A-F`
-- `LHV = G-I`
-- `NYC = J`
-- `LI = K`
+- `ROS` (WEST through CAPITL)
+- `LHV` (HUD_VL through N.Y.C.)
+- `NYC` (N.Y.C.)
+- `LI` (LONGIL)
 
 Mapping from nested-locality sets to paying-locality sets is implemented in
 `NESTED_TO_PAYING_LOCALITIES`.
@@ -71,12 +71,12 @@ Mapping from nested-locality sets to paying-locality sets is implemented in
 `utils/pre/generate_bulk_tx_mc.py`
 
 CLI:
-`--utility <name> --year <YYYY> --constraint-group-table-path <path> [--upload]`
+`--utility <name> --year <YYYY> [--load-year <YYYY>] --constraint-group-table-path <path> [--upload]`
 
 High-level flow:
 
 1. Load `ny_bulk_tx_constraint_groups.csv`.
-2. Build load profiles for required `tightest_nested_locality` values from NYISO zone loads.
+2. Build load profiles for required `tightest_nested_locality` values from NYISO zone loads (`s3://data.sb/nyiso/hourly_demand/zones/`). When `--load-year` differs from `--year`, timestamps are remapped after allocation.
 3. Compute SCR weights per nested locality.
 4. Allocate each `constraint_group` value to hours using its tightest locality SCR weights.
 5. Aggregate hourly signals to paying localities.
