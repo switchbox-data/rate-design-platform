@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import io
 from pathlib import Path
+from typing import cast
 
 import polars as pl
 from cloudpathlib import S3Path
@@ -36,7 +37,9 @@ from utils.pre.season_config import (
 DEFAULT_CONSTRAINT_GROUP_TABLE_PATH = (
     "s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_constraint_groups.csv"
 )
-DEFAULT_ZONE_MAPPING_PATH = "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
+DEFAULT_ZONE_MAPPING_PATH = (
+    "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
+)
 DEFAULT_ZONE_LOADS_S3_BASE = "s3://data.sb/eia/hourly_demand/zones/"
 DEFAULT_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/"
 
@@ -118,8 +121,12 @@ def identify_scr_hours(
         .alias("season")
     )
 
-    summer = result.filter(pl.col("season") == "summer").sort("load_mw", descending=True)
-    winter = result.filter(pl.col("season") == "winter").sort("load_mw", descending=True)
+    summer = result.filter(pl.col("season") == "summer").sort(
+        "load_mw", descending=True
+    )
+    winter = result.filter(pl.col("season") == "winter").sort(
+        "load_mw", descending=True
+    )
 
     if summer.height < n_hours_per_season or winter.height < n_hours_per_season:
         raise ValueError("Not enough hours to identify SCR windows")
@@ -179,7 +186,9 @@ def allocate_bulk_tx_to_hours(
         .alias("exceedance")
     )
 
-    exc_sums = with_exc.group_by("season").agg(pl.col("exceedance").sum().alias("exc_sum"))
+    exc_sums = with_exc.group_by("season").agg(
+        pl.col("exceedance").sum().alias("exc_sum")
+    )
     for exc_sum in exc_sums["exc_sum"].to_list():
         if float(exc_sum) <= 0:
             raise ValueError("Zero seasonal exceedance; cannot allocate SCR weights")
@@ -253,7 +262,7 @@ def allocate_constraint_group_to_hours(
     """Allocate one constraint group's annual value using its tightest locality."""
     locality = str(row["tightest_nested_locality"])
     weights = locality_weights[locality]
-    value = float(row["v_constraint_group_kw_yr"])
+    value = cast(float, row["v_constraint_group_kw_yr"])
 
     return weights.with_columns(
         pl.lit(str(row["constraint_group"])).alias("constraint_group"),
@@ -293,11 +302,7 @@ def aggregate_paying_locality_hourly_signals_from_constraint_groups(
 
     locality_hourly = (
         exploded.group_by("paying_locality", "timestamp")
-        .agg(
-            pl.col("constraint_group_cost_enduse")
-            .mean()
-            .alias("bulk_tx_cost_enduse")
-        )
+        .agg(pl.col("constraint_group_cost_enduse").mean().alias("bulk_tx_cost_enduse"))
         .sort("paying_locality", "timestamp")
     )
 
@@ -444,8 +449,7 @@ def _parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help=(
-            "Year of NYISO zone loads for SCR peak identification "
-            "(defaults to --year)."
+            "Year of NYISO zone loads for SCR peak identification (defaults to --year)."
         ),
     )
     parser.add_argument(
@@ -593,12 +597,16 @@ def main() -> None:
     print("\n── Constraint-group Allocation ──")
     group_hourly_parts: list[pl.DataFrame] = []
     for row in constraint_group_df.iter_rows(named=True):
-        group_hourly_parts.append(allocate_constraint_group_to_hours(row, locality_weights))
+        group_hourly_parts.append(
+            allocate_constraint_group_to_hours(row, locality_weights)
+        )
 
     constraint_group_hourly = pl.concat(group_hourly_parts)
 
-    paying_locality_hourly = aggregate_paying_locality_hourly_signals_from_constraint_groups(
-        constraint_group_hourly
+    paying_locality_hourly = (
+        aggregate_paying_locality_hourly_signals_from_constraint_groups(
+            constraint_group_hourly
+        )
     )
 
     utility_hourly = resolve_utility_paying_locality_signal(
@@ -614,8 +622,8 @@ def main() -> None:
     print("=" * 60)
     print(output_df.sort("bulk_tx_cost_enduse", descending=True).head(10))
 
-    avg_cost = float(output_df["bulk_tx_cost_enduse"].mean())
-    max_cost = float(output_df["bulk_tx_cost_enduse"].max())
+    avg_cost = cast(float, output_df["bulk_tx_cost_enduse"].mean())
+    max_cost = cast(float, output_df["bulk_tx_cost_enduse"].max())
     n_nonzero = output_df.filter(pl.col("bulk_tx_cost_enduse") > 0).height
     print("\nOutput summary:")
     print(f"  avg = ${avg_cost:.6f}/kWh, max = ${max_cost:.6f}/kWh")

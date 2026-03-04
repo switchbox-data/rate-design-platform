@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 import polars as pl
 import pytest
@@ -81,7 +82,17 @@ def _make_constraint_group_hourly() -> pl.DataFrame:
             "constraint_group": ["cg1"] * 3 + ["cg2"] * 3 + ["cg3"] * 3,
             "tightest_nested_locality": ["NYCA"] * 9,
             "paying_localities": ["ROS|LHV"] * 3 + ["LHV"] * 3 + ["NYC|LI"] * 3,
-            "constraint_group_cost_enduse": [1.0, 2.0, 3.0, 5.0, 7.0, 9.0, 2.0, 2.0, 2.0],
+            "constraint_group_cost_enduse": [
+                1.0,
+                2.0,
+                3.0,
+                5.0,
+                7.0,
+                9.0,
+                2.0,
+                2.0,
+                2.0,
+            ],
         }
     )
 
@@ -148,28 +159,40 @@ class TestScrAllocation:
 class TestLocalityProfiles:
     def test_build_nested_locality_profiles(self) -> None:
         zone_loads = _make_zone_loads()
-        profiles = build_nested_locality_load_profiles(zone_loads, ["NYCA", "LHV", "NYC", "LI"])
+        profiles = build_nested_locality_load_profiles(
+            zone_loads, ["NYCA", "LHV", "NYC", "LI"]
+        )
         assert set(profiles) == {"NYCA", "LHV", "NYC", "LI"}
         assert profiles["NYCA"].height == 8760
-        assert float(profiles["NYCA"]["load_mw"].mean()) > float(profiles["NYC"]["load_mw"].mean())
+        nyca_avg = cast(float, profiles["NYCA"]["load_mw"].mean())
+        nyc_avg = cast(float, profiles["NYC"]["load_mw"].mean())
+        assert nyca_avg > nyc_avg
 
 
 class TestAggregationAndUtilityResolution:
     def test_aggregate_paying_locality_hourly_signals(self) -> None:
         hourly = _make_constraint_group_hourly()
-        locality_hourly = aggregate_paying_locality_hourly_signals_from_constraint_groups(hourly)
+        locality_hourly = (
+            aggregate_paying_locality_hourly_signals_from_constraint_groups(hourly)
+        )
 
         assert set(locality_hourly) == {"ROS", "LHV", "NYC", "LI"}
         # LHV receives cg1 and cg2 => mean at first hour = (1 + 5) / 2
-        lhv_first = float(locality_hourly["LHV"].sort("timestamp")["bulk_tx_cost_enduse"][0])
+        lhv_first = float(
+            locality_hourly["LHV"].sort("timestamp")["bulk_tx_cost_enduse"][0]
+        )
         assert abs(lhv_first - 3.0) < 1e-9
 
     def test_resolve_utility_paying_locality_signal(self) -> None:
         hourly = _make_constraint_group_hourly()
-        locality_hourly = aggregate_paying_locality_hourly_signals_from_constraint_groups(hourly)
+        locality_hourly = (
+            aggregate_paying_locality_hourly_signals_from_constraint_groups(hourly)
+        )
         mapping = _make_mapping()
 
-        utility_hourly = resolve_utility_paying_locality_signal(mapping, "u1", locality_hourly)
+        utility_hourly = resolve_utility_paying_locality_signal(
+            mapping, "u1", locality_hourly
+        )
         assert utility_hourly.height == 3
         # u1 = 0.6*ROS + 0.4*LHV; first hour: 0.6*1 + 0.4*3 = 1.8
         first = float(utility_hourly.sort("timestamp")["bulk_tx_cost_enduse"][0])

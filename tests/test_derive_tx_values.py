@@ -110,9 +110,7 @@ def test_assign_and_compute_paying_locality_vavg() -> None:
     assert contributions["NYC"] == [30.0]
 
     zones = compute_paying_locality_vavg(contributions).sort("gen_capacity_zone")
-    as_map = {
-        row["gen_capacity_zone"]: row["v_avg_kw_yr"] for row in zones.to_dicts()
-    }
+    as_map = {row["gen_capacity_zone"]: row["v_avg_kw_yr"] for row in zones.to_dicts()}
     assert as_map["ROS"] == 10.0
     assert as_map["LHV"] == 25.0
     assert as_map["NYC"] == 30.0
