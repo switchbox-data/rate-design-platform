@@ -13,12 +13,12 @@ Schema: `timestamp` (datetime), `energy_cost_enduse` ($/MWh), `capacity_cost_end
 
 ## Data sources
 
-| Dataset                 | S3 path                                                                                    | Schema key columns                                                                  |
-| ----------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| LBMP (energy prices)    | `s3://data.sb/nyiso/lbmp/real_time/zones/zone={ZONE_NAME}/year={Y}/month={M}/data.parquet` | `interval_start_est`, `zone`, `lbmp_usd_per_mwh` (5-minute intervals)               |
-| ICAP (capacity prices)  | `s3://data.sb/nyiso/icap/year={Y}/month={M}/data.parquet`                                  | `locality` (Categorical), `auction_type` (Categorical), `price_per_kw_month`        |
-| NYISO zone loads        | `s3://data.sb/nyiso/hourly_demand/zones/zone={NAME}/year={Y}/month={M}/data.parquet`       | `timestamp`, `zone`, `load_mw`                                                      |
-| Zone mapping            | `s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv`                              | `utility`, `load_zone_letter`, `lbmp_zone_name`, `icap_locality`, `capacity_weight` |
+| Dataset                | S3 path                                                                                    | Schema key columns                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| LBMP (energy prices)   | `s3://data.sb/nyiso/lbmp/real_time/zones/zone={ZONE_NAME}/year={Y}/month={M}/data.parquet` | `interval_start_est`, `zone`, `lbmp_usd_per_mwh` (5-minute intervals)               |
+| ICAP (capacity prices) | `s3://data.sb/nyiso/icap/year={Y}/month={M}/data.parquet`                                  | `locality` (Categorical), `auction_type` (Categorical), `price_per_kw_month`        |
+| NYISO zone loads       | `s3://data.sb/nyiso/hourly_demand/zones/zone={NAME}/year={Y}/month={M}/data.parquet`       | `timestamp`, `zone`, `load_mw`                                                      |
+| Zone mapping           | `s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv`                              | `utility`, `load_zone_letter`, `lbmp_zone_name`, `icap_locality`, `capacity_weight` |
 
 ## Utility-to-zone mapping
 
@@ -27,15 +27,15 @@ Defined in two places that **must stay consistent** (enforced by `test_eia_zones
 - `data/eia/hourly_loads/eia_region_config.py` → `UTILITY_SERVICE_AREAS` (zones for EIA load aggregation)
 - `data/nyiso/zone_mapping/generate_zone_mapping_csv.py` → `_MAPPING_ROWS` (zones + ICAP locality + capacity weight)
 
-| Utility | Load Zones          | ICAP Locality         | Capacity Weight |
-| ------- | ------------------- | --------------------- | --------------- |
-| cenhud  | G                   | GHIJ                  | 1.0             |
-| coned   | G, H, I, J          | NYC: 0.87, GHIJ: 0.13 | split           |
-| nimo    | A, B, C, D, E, F    | NYCA                  | 1.0             |
-| nyseg   | A, B, C, D, E, F    | NYCA                  | 1.0             |
-| or      | G                   | GHIJ                  | 1.0             |
-| rge     | B                   | NYCA                  | 1.0             |
-| psegli  | K                   | LI                    | 1.0             |
+| Utility | Load Zones       | ICAP Locality         | Capacity Weight |
+| ------- | ---------------- | --------------------- | --------------- |
+| cenhud  | G                | GHIJ                  | 1.0             |
+| coned   | G, H, I, J       | NYC: 0.87, GHIJ: 0.13 | split           |
+| nimo    | A, B, C, D, E, F | NYCA                  | 1.0             |
+| nyseg   | A, B, C, D, E, F | NYCA                  | 1.0             |
+| or      | G                | GHIJ                  | 1.0             |
+| rge     | B                | NYCA                  | 1.0             |
+| psegli  | K                | LI                    | 1.0             |
 
 ## Energy MC (LBMP)
 
@@ -46,56 +46,56 @@ Real-time LBMP prices (5-minute intervals) are aggregated to hourly averages by 
 
 ## Capacity MC (ICAP MCOS)
 
-Capacity MC now uses **two locality models**, each for a different purpose.
+Capacity MC uses a **component-by-component** approach (analogous to `compute_utility_bulk_tx_signal` in bulk TX). Each NYISO ICAP locality identifies its own peak hours independently from its own raw load profile; `capacity_weight` scales only the ICAP *cost*, never the load used for peak identification. This avoids the distortion that arises from blending differently-sized zone footprints before picking peaks.
 
-### 1) Nested localities for capacity peak loads (hour-shape)
+Each `(icap_locality, gen_capacity_zone, capacity_weight)` row from the zone mapping is one component. All components are summed to produce the utility-level hourly signal. Non-zero hours equal the union of all localities' peak hours (up to `8 × 12 × n_localities` distinct hours).
 
-These are overlapping nested localities used only to build the hourly load profile that determines peak-hour weights:
+### Locality models
+
+**Nested localities** (used for peak-hour identification via raw zone-sum load profiles):
 
 - `NYCA = WEST, GENESE, CENTRAL, NORTH, MHK_VL, CAPITL, HUD_VL, MILLWD, DUNWOD, N.Y.C., LONGIL`
 - `LHV = HUD_VL, MILLWD, DUNWOD, N.Y.C.`
 - `NYC = N.Y.C.`
 - `LI = LONGIL`
 
-`icap_locality` from mapping is normalized as:
+`icap_locality` from mapping is normalized to nested locality:
 
-- `NYCA -> NYCA`
-- `GHIJ -> LHV`
-- `NYC -> NYC`
-- `LI -> LI`
+- `NYCA → NYCA`
+- `GHIJ → LHV`
+- `NYC → NYC`
+- `LI → LI`
 
-For split utilities (like ConEd), locality load profiles are blended by `capacity_weight` before peak identification.
+**Partitioned localities** (used for ICAP price lookup, non-overlapping):
 
-### 2) Partitioned localities for ICAP prices (monthly $/kW-mo)
+- `ROS → NYCA` (zones A–F)
+- `LHV → LHV` (zones G–I)
+- `NYC → NYC` (zone J)
+- `LI → LI` (zone K)
 
-Prices use non-overlapping localities after applying utility splits via `gen_capacity_zone`:
+`gen_capacity_zone` from the zone mapping selects which partitioned locality's price applies to a component.
 
-- `ROS -> NYCA` (WEST through CAPITL)
-- `LHV -> LHV` (HUD_VL through N.Y.C.)
-- `NYC -> NYC` (N.Y.C.)
-- `LI -> LI` (LONGIL)
+### Allocation (per-component)
 
-This is the "nested to partitioned" transform used for prices. ICAP source localities are read from NYISO as `NYCA/GHIJ/NYC/LI`, with `GHIJ` mapped to partitioned `LHV`.
+For each `(icap_locality, gen_capacity_zone, capacity_weight)` component:
 
-### Allocation
+1. Build raw unweighted load profile: sum zone loads for the nested locality footprint.
+2. Normalize to Cairo-compatible 8760 hours.
+3. For each month, sort hours by load (descending); select top 8.
+4. Threshold = highest load strictly below the 8th-highest hour (tie-safe).
+5. Exceedance_h = load_h − threshold for each top-8 hour.
+6. Weight_h = exceedance_h / Σ(exceedance in month).
+7. capacity_cost_h ($/kW) = weight_h × (icap_price_month × capacity_weight).
 
-Monthly ICAP Spot prices ($/kW-month) are allocated to individual hours using threshold-exceedance weighting on the nested-locality blended load profile:
+Sum all component `capacity_cost_h` values to get the utility-level hourly capacity cost. Convert to $/MWh by multiplying by 1000.
 
-1. For each month, sort hours by load (descending).
-2. Threshold = load of the 9th-highest hour (i.e., the hour just below the top 8).
-3. Exceedance_h = max(load_h − threshold, 0) for each hour.
-4. Weight_h = exceedance_h / Σ(exceedance in month).
-5. capacity_cost_h ($/kW) = weight_h × icap_price_month ($/kW-month).
-6. Convert to $/MWh: multiply by 1000.
+**ConEd example** (NYC: weight=0.87, GHIJ→LHV: weight=0.13):
 
-Non-peak hours get zero capacity cost. Only the top 8 load hours per month carry capacity costs.
+- Component 1: peaks identified from raw NYC (J) load; cost = NYC ICAP price × 0.87
+- Component 2: peaks identified from raw LHV (G–J) load; cost = LHV ICAP price × 0.13
+- Final signal: sum of both components; non-zero hours = union (up to 192 distinct hours/year)
 
-**ConEd example**:
-
-- Peak-load shape: `0.87 × NYC(J) + 0.13 × LHV(G-J)` (nested localities)
-- Price blend: `0.87 × NYC + 0.13 × LHV` (partitioned localities; `GHIJ` source mapped to `LHV`)
-
-**Validation**: a 1 kW constant load must recover the sum of 12 monthly ICAP prices exactly (within tolerance). This validates that the hourly allocation sums back to the correct annual total.
+**Validation**: the sum of all hourly `capacity_cost_per_kw` values must equal `Σ_locality(capacity_weight × Σ_month(icap_price_per_kw_month))` within 0.01%. Computed via `compute_weighted_icap_prices` + `validate_capacity_allocation`.
 
 ## NYISO load pipeline
 
