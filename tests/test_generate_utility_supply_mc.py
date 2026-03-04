@@ -6,9 +6,11 @@ import polars as pl
 import pytest
 
 from utils.pre.generate_utility_supply_mc import (
+    allocate_icap_to_hours,
     build_capacity_peak_load_profile_from_zone_loads,
     compute_weighted_icap_prices,
     get_partitioned_price_locality_weights,
+    validate_capacity_allocation,
 )
 
 
@@ -96,3 +98,86 @@ def test_weighted_icap_prices_uses_partitioned_localities() -> None:
     )
     result = compute_weighted_icap_prices(icap_df, locality_weights).sort("month")
     assert result["icap_price_per_kw_month"].to_list() == pytest.approx([27.4] * 12)
+
+
+# ── allocate_icap_to_hours tie-breaking ──────────────────────────────────────
+
+
+def _make_monthly_load(
+    year: int = 2025, n_peak_hours: int = 8, tie_months: list[int] | None = None
+) -> pl.DataFrame:
+    """Build a synthetic 8760 load profile.
+
+    For months in ``tie_months``, the Nth and (N+1)th highest loads are set equal.
+    """
+    from datetime import datetime, timedelta
+
+    tie_months = tie_months or []
+    start = datetime(year, 1, 1, 0, 0, 0)
+    timestamps = [start + timedelta(hours=h) for h in range(8760)]
+    loads: list[float] = []
+    for ts in timestamps:
+        month = ts.month
+        base = 1000.0 + month * 100.0
+        hour_offset = ts.timetuple().tm_yday * 24 + ts.hour
+        load = base + hour_offset * 0.01
+        loads.append(load)
+
+    df = pl.DataFrame({"timestamp": timestamps, "load_mw": loads})
+
+    for m in tie_months:
+        month_mask = pl.col("timestamp").dt.month() == m
+        month_loads = df.filter(month_mask).sort("load_mw", descending=True)
+        nth_load = float(month_loads["load_mw"][n_peak_hours - 1])
+        next_load = float(month_loads["load_mw"][n_peak_hours])
+        # Set the (N+1)th highest load equal to the Nth
+        df = df.with_columns(
+            pl.when(pl.col("load_mw") == next_load)
+            .then(nth_load)
+            .otherwise(pl.col("load_mw"))
+            .alias("load_mw")
+        )
+
+    return df
+
+
+def test_allocate_icap_tie_at_nth_hour() -> None:
+    """When Nth and (N+1)th loads tie, exactly N hours per month get cost."""
+    n_peak = 8
+    load_df = _make_monthly_load(tie_months=[1, 6, 12], n_peak_hours=n_peak)
+    icap_prices = pl.DataFrame(
+        {"month": list(range(1, 13)), "icap_price_per_kw_month": [5.0] * 12}
+    )
+
+    result = allocate_icap_to_hours(load_df, icap_prices, n_peak_hours=n_peak)
+    nonzero = result.filter(pl.col("capacity_cost_per_kw") > 0)
+    assert nonzero.height == n_peak * 12
+
+    # Per-month: every month should have exactly n_peak nonzero hours
+    monthly_counts = (
+        nonzero.with_columns(pl.col("timestamp").dt.month().alias("month"))
+        .group_by("month")
+        .len()
+    )
+    for row in monthly_counts.iter_rows(named=True):
+        assert row["len"] == n_peak, (
+            f"month {row['month']}: expected {n_peak} nonzero, got {row['len']}"
+        )
+
+    # 1 kW recovery: sum should equal annual ICAP total
+    validate_capacity_allocation(result, icap_prices)
+
+
+def test_allocate_icap_no_tie_unchanged() -> None:
+    """Without ties, allocation produces the same result as before."""
+    n_peak = 8
+    load_df = _make_monthly_load(tie_months=[], n_peak_hours=n_peak)
+    icap_prices = pl.DataFrame(
+        {"month": list(range(1, 13)), "icap_price_per_kw_month": [5.0] * 12}
+    )
+
+    result = allocate_icap_to_hours(load_df, icap_prices, n_peak_hours=n_peak)
+    nonzero = result.filter(pl.col("capacity_cost_per_kw") > 0)
+    assert nonzero.height == n_peak * 12
+
+    validate_capacity_allocation(result, icap_prices)
