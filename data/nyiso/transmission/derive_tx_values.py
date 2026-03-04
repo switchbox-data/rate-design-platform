@@ -1,67 +1,9 @@
-"""Derive bulk transmission v_z ($/kW-yr) per gen_capacity_zone from NYISO studies.
+"""Derive NY bulk-transmission v_z ($/kW-yr) from project-level NYISO studies.
 
-Implements a three-step derivation:
-
-Step 1 — Discrete marginal values:
-    v_i = B_i / (ΔMW_i × 1000) for each project with a published ΔMW.
-
-Step 2 — Average secant of the diminishing-returns curve:
-    Within each (locality, scenario_family) group:
-
-    a. Collapse scenario variants: if multiple rows share the same (project,
-       delta_mw) — e.g. the same physical project evaluated under Baseline and
-       CES+Ret scenarios — average their annual_benefit_m_yr first so each
-       physical project contributes one data point.
-
-    b. Sort collapsed projects by ΔMW ascending.  This traces the "supply
-       curve" of capacity expansion: smaller-increment projects first.
-
-    c. Compute the cumulative secant at each step:
-           secant_i = cum_B_i × 1000 / cum_ΔMW_i   [$/kW-yr]
-
-    d. v_avg = mean(secant_i) across all steps.
-
-    This "average secant" represents the typical cost-effectiveness along the
-    diminishing-returns curve.  A single large-ΔMW low-v project only affects
-    the last cumulative secant, not every term — so it has less influence than
-    in a simple mean(v_i) or MW-weighted average.
-
-Step 3 — Aggregate to gen_capacity_zone via receiving_locality:
-    Zone membership is determined by the receiving_locality column in the
-    project table (where the benefit actually accrues), not by study locality.
-
-    receiving_locality → gen_capacity_zone(s):
-      G-K  → LHV and LI   (G-K spans zones G–K; K = Long Island)
-      G-J  → LHV           (G–J corridor; J is part of LHV, not LI)
-      J    → NYC            (explicit UPNY→ConEd interface studies, J only)
-      ROS  → ROS
-
-    G-J projects go to LHV only (not NYC): the MMU J-only studies are the
-    dedicated NYC data source.  Adding G-J projects would dilute NYC with a
-    mixed G-through-J corridor value.
-
-    G-K projects contribute to BOTH LHV and LI because G-K includes zone K
-    (Long Island).  LI has no projects with receiving_locality=K, so the G-K
-    projects are the only basis for LI's v_z.
-
-    LI Export projects (locality=K, direction K→G-J) have receiving_locality
-    =G-J and therefore count toward LHV, not LI — the benefit of increased
-    export capability accrues to the mainland (G-J) load, not LI load.
-
-    The addendum_optimizer_gj_elim family (G-J Elimination sensitivity) is
-    excluded from all zones; it is a scenario sensitivity, not a primary study.
-
-Input:
-    ny_bulk_tx_projects.csv — raw project-level data from NYISO studies.
-
-Output:
-    ny_bulk_tx_values.csv — v_z per gen_capacity_zone:
-        gen_capacity_zone, v_avg_kw_yr
-
-Usage:
-    uv run python data/nyiso/transmission/derive_tx_values.py \\
-        --path-projects-csv data/nyiso/transmission/csv/ny_bulk_tx_projects.csv \\
-        --path-output-csv data/nyiso/transmission/csv/ny_bulk_tx_values.csv
+Pipeline:
+1) load/filter/enrich project rows
+2) compute family v_avg with cumulative secants
+3) map nested footprints to paying zones and aggregate zone means
 """
 
 from __future__ import annotations
@@ -72,7 +14,9 @@ from pathlib import Path
 
 import polars as pl
 
-# ── Scenario family classification ────────────────────────────────────────────
+# ── Constants ─────────────────────────────────────────────────────────────────
+
+VALID_FOOTPRINT_TOKENS: frozenset[str] = frozenset({"NYCA", "LHV", "NYC", "LI"})
 
 SCENARIO_FAMILY_MAP: dict[str, str] = {
     "AC Primary": "ac_primary",
@@ -84,135 +28,235 @@ SCENARIO_FAMILY_MAP: dict[str, str] = {
     "NiMo MCOS (Bulk TX)": "nimo_mcos",
 }
 
-# ── receiving_locality → gen_capacity_zone(s) ─────────────────────────────────
-# Determines which zone(s) each project family contributes to in Step 3.
-# G-K spans zones G through K (includes LI = zone K), so it goes to both
-# LHV and LI.  G-J spans G through J (no K), so LHV only.  J alone = NYC.
-
-RECEIVING_LOCALITY_ZONES: dict[str, list[str]] = {
-    "ROS": ["ROS"],
-    "G-K": ["LHV", "LI"],  # includes zone K → contributes to both
-    "G-J": ["LHV"],  # corridor only; J is included in LHV, not NYC
-    "J": ["NYC"],  # UPNY-ConEd interface; explicitly NYC-only
-    "K": ["LI"],  # K-only (no current projects; for completeness)
+# Nested-footprint -> disjoint paying-zone assignment.
+NESTED_TO_PAYING_ZONES: dict[frozenset[str], list[str]] = {
+    frozenset({"NYCA"}): ["ROS"],
+    frozenset({"NYCA", "LHV"}): ["LHV"],
+    frozenset({"NYCA", "LHV", "NYC"}): ["NYC", "LHV"],
+    frozenset({"NYCA", "LHV", "LI"}): ["LHV", "LI"],
+    frozenset({"NYCA", "LI"}): ["LI"],
+    frozenset({"NYCA", "LHV", "NYC", "LI"}): ["NYC", "LHV", "LI"],
+    frozenset({"LHV"}): ["LHV"],
+    frozenset({"LHV", "NYC"}): ["NYC", "LHV"],
+    frozenset({"NYC"}): ["NYC"],
+    frozenset({"LI"}): ["LI"],
 }
 
-# Scenario families excluded from zone aggregation (sensitivities, not primary)
-EXCLUDED_FAMILIES: frozenset[str] = frozenset({"addendum_optimizer_gj_elim"})
+# ── Parsing helpers ───────────────────────────────────────────────────────────
 
 
-# ── Step 1: Discrete marginal values ─────────────────────────────────────────
-
-
-def compute_discrete_v(df: pl.DataFrame) -> pl.DataFrame:
-    """Compute v = B / (ΔMW × 1000) for rows with published ΔMW.
+def parse_receiving_localities(raw: str) -> frozenset[str]:
+    """Parse and validate a pipe-delimited receiving-localities string.
 
     Args:
-        df: Raw projects DataFrame.
+        raw: Pipe-delimited locality tokens (e.g. ``"NYCA|LHV|NYC"``).
 
     Returns:
-        DataFrame filtered to rows with ΔMW, with added v_kw_yr column.
-    """
-    with_delta = df.filter(pl.col("delta_mw").is_not_null())
+        Frozenset of validated locality tokens.
 
-    result = with_delta.with_columns(
-        (pl.col("annual_benefit_m_yr") * 1_000_000 / (pl.col("delta_mw") * 1000)).alias(
-            "v_kw_yr"
+    Raises:
+        ValueError: If the string is empty or contains invalid tokens.
+    """
+    stripped = raw.strip()
+    if not stripped:
+        raise ValueError(
+            "Empty receiving_localities string. "
+            f"Expected pipe-delimited subset of {sorted(VALID_FOOTPRINT_TOKENS)}."
         )
-    )
-
-    for row in result.iter_rows(named=True):
-        v = row["v_kw_yr"]
-        if v > 100:
-            warnings.warn(
-                f"High v = ${v:.1f}/kW-yr for {row['project']} ({row['locality']})",
-                stacklevel=2,
-            )
-        elif v < -20:
-            warnings.warn(
-                f"Negative v = ${v:.1f}/kW-yr for {row['project']} ({row['locality']})",
-                stacklevel=2,
-            )
-
-    print("\n" + "=" * 70)
-    print("STEP 1: Discrete marginal values (v = B / ΔMW × 1000)")
-    print("=" * 70)
-    print(
-        result.select(
-            "scenario",
-            "project",
-            "locality",
-            "receiving_locality",
-            "delta_mw",
-            "v_kw_yr",
-        ).sort("locality", "scenario", "delta_mw")
-    )
-
-    return result
+    tokens = frozenset(stripped.split("|"))
+    invalid = tokens - VALID_FOOTPRINT_TOKENS
+    if invalid:
+        raise ValueError(
+            f"Invalid footprint tokens: {sorted(invalid)}. "
+            f"Expected subset of {sorted(VALID_FOOTPRINT_TOKENS)}."
+        )
+    return tokens
 
 
-# ── Step 2: Average secant of the diminishing-returns curve ──────────────────
-
-
-def compute_avg_secant(df: pl.DataFrame) -> pl.DataFrame:
-    """Compute v_avg per (locality, scenario_family) via cumulative secants.
-
-    Also captures receiving_locality for each group (used in zone aggregation).
-
-    Within each (locality, scenario_family) group:
-      1. Collapse scenario variants by (project, delta_mw) → average B.
-      2. Sort by ΔMW ascending (diminishing-returns order).
-      3. Accumulate; compute secant_i = cum_B_i × 1000 / cum_ΔMW_i.
-      4. v_avg = mean(secant_i).
+def footprint_to_str(fp: frozenset[str]) -> str:
+    """Convert a footprint token set to canonical sorted string form.
 
     Args:
-        df: Step 1 output (rows with delta_mw only).
+        fp: Footprint tokens as a frozenset.
 
     Returns:
-        DataFrame with locality, scenario_family, receiving_locality,
-        v_avg_kw_yr, n_projects.
+        Sorted pipe-delimited footprint string.
     """
-    df_with_family = df.with_columns(
-        pl.col("scenario").replace_strict(SCENARIO_FAMILY_MAP).alias("scenario_family")
+    return "|".join(sorted(fp))
+
+
+def tightest_footprint(fp: frozenset[str]) -> str:
+    """Select the tightest locality token from a footprint.
+
+    Priority is ``NYC > LHV > LI > NYCA``.
+
+    Args:
+        fp: Footprint tokens as a frozenset.
+
+    Returns:
+        Tightest locality token.
+    """
+    if "NYC" in fp:
+        return "NYC"
+    if "LHV" in fp:
+        return "LHV"
+    if "LI" in fp:
+        return "LI"
+    return "NYCA"
+
+
+def paying_zones_for_footprint_str(benefit_footprint_str: str) -> list[str]:
+    """Map a canonical footprint string to disjoint paying zones.
+
+    Args:
+        benefit_footprint_str: Canonical footprint string (sorted tokens).
+
+    Returns:
+        List of paying zones. Empty list if no mapping exists.
+    """
+    return NESTED_TO_PAYING_ZONES.get(frozenset(benefit_footprint_str.split("|")), [])
+
+
+# ── Step 1: Load / validate / clean / enrich ─────────────────────────────────
+
+
+REQUIRED_PROJECT_COLUMNS: set[str] = {
+    "year",
+    "scenario",
+    "project",
+    "study_locality",
+    "direction",
+    "receiving_localities",
+    "annual_benefit_m_yr",
+    "delta_mw",
+    "exclude",
+    "notes",
+}
+
+
+def prepare_projects_for_derivation(path_projects: Path) -> pl.DataFrame:
+    """Load and normalize project rows for the family/zone derivation.
+
+    Steps:
+    - load CSV and validate required columns
+    - drop excluded rows
+    - drop rows with null/non-positive ``delta_mw``
+    - add ``scenario_family`` and canonical ``benefit_footprint_str``
+
+    Args:
+        path_projects: Path to ``ny_bulk_tx_projects.csv``.
+
+    Returns:
+        Cleaned/enriched project DataFrame ready for variant collapse.
+
+    Raises:
+        ValueError: If required columns are missing.
+    """
+    df = pl.read_csv(
+        path_projects,
+        schema_overrides={
+            "annual_benefit_m_yr": pl.Float64,
+            "delta_mw": pl.Float64,
+            "exclude": pl.Boolean,
+        },
+    )
+    missing = REQUIRED_PROJECT_COLUMNS - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing columns in projects CSV: {sorted(missing)}")
+
+    print(f"Loaded {len(df)} rows from {path_projects}")
+    print(f"  Unique scenarios: {sorted(df['scenario'].unique().to_list())}")
+
+    n_before = len(df)
+    df = df.filter(~pl.col("exclude"))
+    n_excluded = n_before - len(df)
+    print(f"\n  Excluded (exclude=True):        {n_excluded} rows")
+
+    invalid = df.filter(pl.col("delta_mw").is_null() | (pl.col("delta_mw") <= 0))
+    for row in invalid.iter_rows(named=True):
+        warnings.warn(
+            f"Missing or non-positive delta_mw for {row['project']} "
+            f"({row['scenario']}); dropping row.",
+            stacklevel=2,
+        )
+    df = df.filter(pl.col("delta_mw").is_not_null() & (pl.col("delta_mw") > 0))
+    n_invalid_mw = invalid.height
+    print(f"  Dropped missing/nonpositive MW: {n_invalid_mw} rows")
+    print(f"  Remaining for derivation:       {len(df)} rows")
+
+    df = df.with_columns(
+        pl.col("scenario").replace_strict(SCENARIO_FAMILY_MAP).alias("scenario_family"),
+        pl.col("receiving_localities")
+        .map_elements(
+            lambda raw: footprint_to_str(parse_receiving_localities(str(raw))),
+            return_dtype=pl.String,
+        )
+        .alias("benefit_footprint_str"),
     )
 
+    print(
+        f"\n  Unique benefit footprints: "
+        f"{sorted(df['benefit_footprint_str'].unique().to_list())}"
+    )
+    print(
+        f"  Unique scenario families:  "
+        f"{sorted(df['scenario_family'].unique().to_list())}"
+    )
+    return df
+
+
+# ── Step 2a: Collapse scenario variants ───────────────────────────────────────
+
+
+def collapse_variants(df: pl.DataFrame) -> pl.DataFrame:
+    """Collapse scenario variants into one mean-benefit point per project.
+
+    Args:
+        df: Prepared project DataFrame with scenario family and footprint columns.
+
+    Returns:
+        DataFrame grouped by project/footprint/family with ``mean_benefit_m_yr``.
+    """
+    return (
+        df.group_by("project", "delta_mw", "benefit_footprint_str", "scenario_family")
+        .agg(pl.col("annual_benefit_m_yr").mean().alias("mean_benefit_m_yr"))
+        .sort("benefit_footprint_str", "scenario_family", "delta_mw")
+    )
+
+
+# ── Step 2b: Compute family secant v_avg ──────────────────────────────────────
+
+
+def compute_family_secant_vavg(df: pl.DataFrame) -> pl.DataFrame:
+    """Compute family-level v_avg using cumulative secants.
+
+    For each (benefit footprint, scenario family), projects are sorted by
+    ``delta_mw`` and cumulative secants are averaged.
+
+    Args:
+        df: Collapsed variant DataFrame from :func:`collapse_variants`.
+
+    Returns:
+        Family-level DataFrame with ``v_family_kw_yr`` and audit metadata.
+    """
     results: list[dict[str, object]] = []
 
-    for (locality, scenario_family), group_df in df_with_family.group_by(
-        "locality", "scenario_family"
+    for (footprint_str, scenario_family), group_df in df.group_by(
+        "benefit_footprint_str", "scenario_family"
     ):
-        # Step 2a: collapse scenario variants of the same physical project
-        project_df = (
-            group_df.group_by("project", "delta_mw")
-            .agg(
-                pl.col("annual_benefit_m_yr").mean().alias("mean_benefit_m"),
-                pl.col("receiving_locality").first().alias("receiving_locality"),
-            )
-            .sort("delta_mw")
-        )
-
-        # Verify receiving_locality is consistent across collapsed project rows
-        recv_locs = project_df["receiving_locality"].unique().to_list()
-        if len(recv_locs) != 1:
-            warnings.warn(
-                f"Mixed receiving_locality in {locality}/{scenario_family}: {recv_locs}. "
-                "Using first.",
-                stacklevel=2,
-            )
-        receiving_locality = recv_locs[0]
-
-        delta_mws: list[float] = project_df["delta_mw"].to_list()
-        benefits: list[float] = project_df["mean_benefit_m"].to_list()
+        group_df = group_df.sort("delta_mw")
+        delta_mws: list[float] = group_df["delta_mw"].to_list()
+        benefits: list[float] = group_df["mean_benefit_m_yr"].to_list()
+        projects: list[str] = group_df["project"].to_list()
         n = len(delta_mws)
 
         if n < 2:
             warnings.warn(
-                f"Only {n} project(s) for {locality}/{scenario_family}: "
+                f"Only {n} project(s) for {footprint_str}/{scenario_family}: "
                 "secant curve is a single point.",
                 stacklevel=2,
             )
 
-        # Steps 2b–2d: cumulative secants, sorted by ΔMW ascending
         cum_mw = 0.0
         cum_b = 0.0
         secants: list[float] = []
@@ -221,65 +265,69 @@ def compute_avg_secant(df: pl.DataFrame) -> pl.DataFrame:
             cum_b += b
             secants.append(cum_b * 1000.0 / cum_mw)  # $/kW-yr
 
-        v_avg = sum(secants) / len(secants)
-
-        zones = RECEIVING_LOCALITY_ZONES.get(receiving_locality, [])
-        excluded = scenario_family in EXCLUDED_FAMILIES
-        print(
-            f"  {locality}/{scenario_family} (recv={receiving_locality}): "
-            f"n={n}, secants=[{', '.join(f'{s:.2f}' for s in secants)}], "
-            f"v_avg={v_avg:.2f} $/kW-yr"
-            + (f" → zones: {zones}" if not excluded else " → EXCLUDED (sensitivity)")
-        )
+        v_family = sum(secants) / len(secants)
+        fp = frozenset(str(footprint_str).split("|"))
 
         results.append(
             {
-                "locality": locality,
-                "scenario_family": scenario_family,
-                "receiving_locality": receiving_locality,
-                "v_avg_kw_yr": round(v_avg, 2),
-                "n_projects": n,
+                "benefit_footprint_str": str(footprint_str),
+                "scenario_family": str(scenario_family),
+                "v_family_kw_yr": round(v_family, 2),
+                "n_points": n,
+                "project_list": "|".join(projects),
+                "tightest_footprint": tightest_footprint(fp),
             }
         )
 
-    result_df = pl.DataFrame(results)
+    result_df = pl.DataFrame(results).sort("benefit_footprint_str", "scenario_family")
 
     print("\n" + "=" * 70)
-    print("STEP 2: Average secant per (locality, scenario_family)")
+    print("STEP 2: Family-level secant v_avg (per benefit_footprint / scenario_family)")
     print("=" * 70)
-    print(
-        result_df.sort("locality", "scenario_family").select(
-            "locality",
-            "scenario_family",
-            "receiving_locality",
-            "v_avg_kw_yr",
-            "n_projects",
+    for row in result_df.iter_rows(named=True):
+        print(
+            f"  {row['benefit_footprint_str']}/{row['scenario_family']}: "
+            f"n={row['n_points']}, "
+            f"v_family={row['v_family_kw_yr']:.2f} $/kW-yr, "
+            f"tightest={row['tightest_footprint']}"
         )
-    )
 
     return result_df
 
 
-# ── Step 3: Aggregate to gen_capacity_zone ───────────────────────────────────
-
-
-def aggregate_to_zones(avg_df: pl.DataFrame) -> pl.DataFrame:
-    """Map family-level v_avg to gen_capacity_zones via receiving_locality.
-
-    Zone assignment (from receiving_locality column):
-      G-K  → LHV and LI   (G-K spans G–K; K = LI zone)
-      G-J  → LHV           (G–J corridor; not LI)
-      J    → NYC            (UPNY-ConEd interface, J-only studies)
-      ROS  → ROS
-
-    Zone v_avg = mean of contributing family v_avg values.
-    The addendum_optimizer_gj_elim family is excluded (sensitivity scenario).
+def annotate_family_paying_zones(family_df: pl.DataFrame) -> pl.DataFrame:
+    """Add paying-zone annotations to each family row.
 
     Args:
-        avg_df: Step 2 output.
+        family_df: Family-level DataFrame with ``benefit_footprint_str``.
 
     Returns:
-        DataFrame with gen_capacity_zone, v_avg_kw_yr.
+        Family DataFrame with ``paying_zones`` added.
+    """
+    return family_df.with_columns(
+        pl.col("benefit_footprint_str")
+        .map_elements(
+            lambda fp: "|".join(paying_zones_for_footprint_str(str(fp))),
+            return_dtype=pl.String,
+        )
+        .alias("paying_zones")
+    )
+
+
+# ── Step 3: Paying-zone assignment ────────────────────────────────────────────
+
+
+def assign_families_to_paying_zones(
+    family_df: pl.DataFrame,
+) -> dict[str, list[float]]:
+    """Collect family ``v_family`` values into paying-zone contribution lists.
+
+    Args:
+        family_df: Family-level DataFrame with footprint, family, and v_family.
+
+    Returns:
+        Dict keyed by ``ROS``, ``LHV``, ``NYC``, ``LI`` containing lists of
+        contributing family values.
     """
     zone_contributions: dict[str, list[float]] = {
         "ROS": [],
@@ -289,26 +337,19 @@ def aggregate_to_zones(avg_df: pl.DataFrame) -> pl.DataFrame:
     }
 
     print("\n" + "=" * 70)
-    print("STEP 3: Zone assignments from receiving_locality")
+    print("STEP 3: Paying-zone assignment (nested → partitioned)")
     print("=" * 70)
 
-    for row in avg_df.iter_rows(named=True):
+    for row in family_df.iter_rows(named=True):
+        fp_str = str(row["benefit_footprint_str"])
         family = row["scenario_family"]
-        if family in EXCLUDED_FAMILIES:
-            print(
-                f"  SKIP {row['locality']}/{family} (recv={row['receiving_locality']}): "
-                "excluded sensitivity"
-            )
-            continue
-
-        recv = row["receiving_locality"]
-        zones = RECEIVING_LOCALITY_ZONES.get(recv, [])
-        v = row["v_avg_kw_yr"]
-
+        v = float(row["v_family_kw_yr"])
+        zones = paying_zones_for_footprint_str(fp_str)
         if not zones:
             warnings.warn(
-                f"No zone mapping for receiving_locality='{recv}' "
-                f"({row['locality']}/{family}); skipping.",
+                f"No paying-zone rule found for footprint '{fp_str}' "
+                f"({family}); skipping.",
+                UserWarning,
                 stacklevel=2,
             )
             continue
@@ -317,57 +358,63 @@ def aggregate_to_zones(avg_df: pl.DataFrame) -> pl.DataFrame:
             if zone in zone_contributions:
                 zone_contributions[zone].append(v)
 
-        print(
-            f"  {row['locality']}/{family} (recv={recv}): "
-            f"v_avg=${v:.2f}/kW-yr → {zones}"
-        )
+        print(f"  {fp_str}/{family}: v_family=${v:.2f}/kW-yr → pays to {zones}")
 
-    # Build final zone table
+    return zone_contributions
+
+
+# ── Step 4: Zone-level aggregation ────────────────────────────────────────────
+
+
+def compute_zone_vavg(
+    zone_contributions: dict[str, list[float]],
+) -> pl.DataFrame:
+    """Compute zone-level v_avg as the mean of contributing family values.
+
+    Args:
+        zone_contributions: Output of :func:`assign_families_to_paying_zones`.
+
+    Returns:
+        DataFrame with ``gen_capacity_zone`` and ``v_avg_kw_yr``.
+
+    Raises:
+        ValueError: If any required zone has no contributions.
+    """
     zone_results: list[dict[str, object]] = []
+
+    print("\n" + "=" * 70)
+    print("STEP 4: Zone-level v_avg")
+    print("=" * 70)
+
     for zone in ("ROS", "LHV", "NYC", "LI"):
         vs = zone_contributions[zone]
         if not vs:
             raise ValueError(
                 f"No projects contributed to zone {zone}. "
-                "Check ny_bulk_tx_projects.csv and RECEIVING_LOCALITY_ZONES."
+                "Check ny_bulk_tx_projects.csv and NESTED_TO_PAYING_ZONES."
             )
         v_zone = round(sum(vs) / len(vs), 2)
         zone_results.append({"gen_capacity_zone": zone, "v_avg_kw_yr": v_zone})
         print(
-            f"\n  {zone}: mean of [{', '.join(f'${v:.2f}' for v in vs)}] "
+            f"  {zone}: mean of [{', '.join(f'${v:.2f}' for v in vs)}] "
             f"= ${v_zone:.2f}/kW-yr"
         )
 
-    result_df = pl.DataFrame(zone_results)
-
-    # Validation
-    lhv_val = float(
-        result_df.filter(pl.col("gen_capacity_zone") == "LHV")["v_avg_kw_yr"][0]
-    )
-    nyc_val = float(
-        result_df.filter(pl.col("gen_capacity_zone") == "NYC")["v_avg_kw_yr"][0]
-    )
-    ros_val = float(
-        result_df.filter(pl.col("gen_capacity_zone") == "ROS")["v_avg_kw_yr"][0]
-    )
-
-    assert lhv_val < nyc_val, (
-        f"Expected LHV < NYC ordering, got LHV={lhv_val:.2f}, NYC={nyc_val:.2f}"
-    )
-    assert ros_val > 0, f"ROS v_avg must be positive, got {ros_val:.2f}"
-
-    print("\n" + "=" * 70)
-    print("STEP 3: Final v_avg per gen_capacity_zone")
-    print("=" * 70)
-    print(result_df)
-
-    return result_df
+    return pl.DataFrame(zone_results)
 
 
-# ── CLI ──────────────────────────────────────────────────────────────────────
+# ── CLI ───────────────────────────────────────────────────────────────────────
 
 
 def _parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for input and output paths.
+
+    Args:
+        None.
+
+    Returns:
+        Parsed CLI namespace.
+    """
     parser = argparse.ArgumentParser(
         description="Derive bulk transmission v_z per gen_capacity_zone."
     )
@@ -381,81 +428,83 @@ def _parse_args() -> argparse.Namespace:
         "--path-output-csv",
         type=str,
         required=True,
-        help="Path to write ny_bulk_tx_values.csv.",
+        help="Path to write ny_bulk_tx_values.csv (zone-level output).",
+    )
+    parser.add_argument(
+        "--path-families-csv",
+        type=str,
+        default=None,
+        help=(
+            "Path to write ny_bulk_tx_families.csv (family-level audit table). "
+            "Defaults to <parent of --path-output-csv>/ny_bulk_tx_families.csv."
+        ),
     )
     return parser.parse_args()
 
 
 def main() -> None:
+    """Run the end-to-end derivation and write zone/family CSV outputs.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+    """
     args = _parse_args()
     path_projects = Path(args.path_projects_csv)
     path_output = Path(args.path_output_csv)
 
-    for p in (path_projects, path_output):
+    # Default families CSV alongside the zone-level output
+    if args.path_families_csv:
+        path_families = Path(args.path_families_csv)
+    else:
+        path_families = path_output.parent / "ny_bulk_tx_families.csv"
+
+    for p in (path_projects, path_output, path_families):
         if "{{" in str(p) or "}}" in str(p):
             raise ValueError(f"Path looks like an uninterpolated Just variable: {p}")
 
-    # ── Load raw data ────────────────────────────────────────────────────
-    df = pl.read_csv(
-        path_projects,
-        schema_overrides={
-            "annual_benefit_m_yr": pl.Float64,
-            "delta_mw": pl.Float64,
-        },
-    )
+    prepared_df = prepare_projects_for_derivation(path_projects)
 
-    required_cols = {
-        "year",
-        "scenario",
-        "project",
-        "locality",
-        "direction",
-        "receiving_locality",
-        "annual_benefit_m_yr",
-        "delta_mw",
-        "notes",
-    }
-    missing = required_cols - set(df.columns)
-    assert not missing, f"Missing columns: {missing}"
-
-    expected_localities = {"G-K", "G-J", "K", "UPNY-ConEd", "ROS"}
-    actual_localities = set(df["locality"].unique().to_list())
-    unexpected = actual_localities - expected_localities
-    assert not unexpected, f"Unexpected localities: {unexpected}"
-
-    expected_recv = set(RECEIVING_LOCALITY_ZONES.keys())
-    actual_recv = set(df["receiving_locality"].unique().to_list())
-    unknown_recv = actual_recv - expected_recv
-    assert not unknown_recv, (
-        f"Unknown receiving_locality values: {unknown_recv}. "
-        f"Add to RECEIVING_LOCALITY_ZONES."
-    )
-
-    print(f"Loaded {len(df)} rows from {path_projects}")
-    print(f"  Unique scenarios:           {sorted(df['scenario'].unique().to_list())}")
-    print(f"  Unique localities:          {sorted(actual_localities)}")
-    print(f"  Unique receiving_localities: {sorted(actual_recv)}")
-    print(
-        f"  Annual benefit range: "
-        f"${df['annual_benefit_m_yr'].min():.2f}M – ${df['annual_benefit_m_yr'].max():.2f}M"
-    )
-
-    # ── Step 1 ───────────────────────────────────────────────────────────
-    projects_with_v = compute_discrete_v(df)
-
-    # ── Step 2 ───────────────────────────────────────────────────────────
     print("\n" + "=" * 70)
-    print("STEP 2: Average secant of diminishing-returns curve")
+    print("STEP 2a: Collapse scenario variants")
     print("=" * 70)
-    avg_df = compute_avg_secant(projects_with_v)
+    collapsed = collapse_variants(prepared_df)
+    print(f"  {len(prepared_df)} rows → {len(collapsed)} collapsed project points")
 
-    # ── Step 3 ───────────────────────────────────────────────────────────
-    final_df = aggregate_to_zones(avg_df)
+    family_df = annotate_family_paying_zones(compute_family_secant_vavg(collapsed))
+    zone_df = compute_zone_vavg(assign_families_to_paying_zones(family_df))
 
-    # ── Write output ─────────────────────────────────────────────────────
+    # Sanity checks
+    lhv_val = float(
+        zone_df.filter(pl.col("gen_capacity_zone") == "LHV")["v_avg_kw_yr"][0]
+    )
+    nyc_val = float(
+        zone_df.filter(pl.col("gen_capacity_zone") == "NYC")["v_avg_kw_yr"][0]
+    )
+    ros_val = float(
+        zone_df.filter(pl.col("gen_capacity_zone") == "ROS")["v_avg_kw_yr"][0]
+    )
+    assert lhv_val < nyc_val, (
+        f"Expected LHV < NYC ordering, got LHV={lhv_val:.2f}, NYC={nyc_val:.2f}"
+    )
+    assert ros_val > 0, f"ROS v_avg must be positive, got {ros_val:.2f}"
+
+    # ── Write outputs ────────────────────────────────────────────────────
     path_output.parent.mkdir(parents=True, exist_ok=True)
-    final_df.write_csv(path_output)
-    print(f"\n✓ Wrote {len(final_df)} rows to {path_output}")
+    path_families.parent.mkdir(parents=True, exist_ok=True)
+
+    zone_df.write_csv(path_output)
+    print(f"\n✓ Wrote {len(zone_df)} zone rows to {path_output}")
+
+    family_df.write_csv(path_families)
+    print(f"✓ Wrote {len(family_df)} family rows to {path_families}")
+
+    print("\n" + "=" * 70)
+    print("FINAL ZONE VALUES")
+    print("=" * 70)
+    print(zone_df)
 
 
 if __name__ == "__main__":
