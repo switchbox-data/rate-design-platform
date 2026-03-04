@@ -29,6 +29,7 @@ from plotnine import (
     ggplot,
     labs,
     scale_fill_cmap,
+    scale_x_continuous,
     scale_y_reverse,
     theme,
     theme_minimal,
@@ -329,27 +330,66 @@ def print_check_results(r: dict) -> None:
 
 
 def prepare_heatmap_df(df: pl.DataFrame) -> pl.DataFrame:
-    """Add hour-of-day and day-of-year columns for heatmap plotting."""
+    """Add hour-of-day and day-of-year columns for heatmap plotting.
+
+    Zero values are replaced with null so the heatmap renders them as gray
+    (via ``na_value``) rather than mapping them onto the color scale.
+    """
     return df.with_columns(
         pl.col("timestamp").dt.hour().alias("hour"),
         pl.col("timestamp").dt.ordinal_day().alias("day_of_year"),
-    ).rename({NORMALIZED_COL: "value"})
+        pl.when(pl.col(NORMALIZED_COL) == 0.0)
+        .then(None)
+        .otherwise(pl.col(NORMALIZED_COL))
+        .alias("value"),
+    )
 
 
 # ── Plotting ──────────────────────────────────────────────────────────────────
 
 
+def _month_breaks(year: int) -> tuple[list[int], list[str]]:
+    """Return (day-of-year breaks, month abbreviation labels) for the 1st of each month."""
+    import datetime
+
+    breaks: list[int] = []
+    labels: list[str] = []
+    for m in range(1, 13):
+        dt = datetime.date(year, m, 1)
+        breaks.append(dt.timetuple().tm_yday)
+        labels.append(dt.strftime("%b"))
+    return breaks, labels
+
+
 def _make_heatmap(
     heatmap_df: pl.DataFrame,
     title: str,
+    year: int,
 ) -> ggplot:
     """Create a single plotnine heatmap (hour-of-day x day-of-year)."""
+    breaks, labels = _month_breaks(year)
+
+    non_null = heatmap_df.filter(pl.col("value").is_not_null())["value"]
+    vmin = float(non_null.min()) if non_null.len() > 0 else 0.0  # type: ignore[arg-type]
+    vmax = float(non_null.max()) if non_null.len() > 0 else 1.0  # type: ignore[arg-type]
+    n_intervals = 4
+    step = (vmax - vmin) / n_intervals if vmax != vmin else 1.0
+    fill_breaks = [vmin + i * step for i in range(n_intervals + 1)]
+    fill_labels = [f"{v:.3f}" for v in fill_breaks]
+
     return (
         ggplot(heatmap_df, aes(x="day_of_year", y="hour", fill="value"))
         + geom_tile()
-        + scale_fill_cmap("magma")
+        + scale_fill_cmap(
+            "plasma",
+            na_value="#cccccc",
+            limits=(vmin, vmax),
+            breaks=fill_breaks,
+            labels=fill_labels,
+        )
+        + scale_x_continuous(breaks=breaks, labels=labels)
         + scale_y_reverse()
-        + labs(x="Day of Year", y="Hour of Day", title=title, fill="")
+        + labs(x="", y="Hour of Day", title=title, fill="$/kWh")
         + theme_minimal()
         + theme(
             figure_size=(10, 4),
@@ -366,6 +406,7 @@ def make_four_quadrant_plot(
     mc_data: dict[str, pl.DataFrame],
     check_results: dict[str, dict],
     utility: str,
+    year: int,
 ) -> ggplot:
     """Compose 4 plotnine heatmaps into a 2x2 grid using | and / operators."""
     plots: list[ggplot] = []
@@ -377,7 +418,7 @@ def make_four_quadrant_plot(
             f"nonzero={r['n_nonzero']}h  sum={r['total_sum']:.4f}"
         )
         heatmap_df = prepare_heatmap_df(mc_data[mc_key])
-        plots.append(_make_heatmap(heatmap_df, subtitle))
+        plots.append(_make_heatmap(heatmap_df, subtitle, year=r["year"]))
 
     top_row = plots[0] | plots[1]
     bottom_row = plots[2] | plots[3]
@@ -555,7 +596,7 @@ def main() -> None:
 
         # Generate 4-quadrant heatmap
         if len(mc_data) == 4:
-            grid = make_four_quadrant_plot(mc_data, all_checks, utility)
+            grid = make_four_quadrant_plot(mc_data, all_checks, utility, year)
             path_png = output_dir / f"mc_heatmap_{utility}.png"
             grid.save(str(path_png), dpi=150, verbose=False)
             print(f"\n  Saved heatmap: {path_png}")
