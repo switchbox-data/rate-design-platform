@@ -201,7 +201,7 @@ def main() -> None:
     if (start_year, start_month) > (end_year, end_month):
         raise SystemExit("--start must be <= --end")
 
-    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+    load_dotenv(Path(__file__).resolve().parents[3] / ".env")
     app_id = os.environ.get("ARCADIA_APP_ID")
     app_key = os.environ.get("ARCADIA_APP_KEY")
     if not app_id or not app_key:
@@ -246,6 +246,7 @@ def main() -> None:
             "variableRateKey": info.get("variableRateKey"),
             "rate_name": info.get("rate_name"),
             "decision": decision,
+            "charge_unit": info.get("charge_unit"),
         }
         if info.get("rider_id"):
             rider_ids_for_trid[trid] = int(info["rider_id"])
@@ -281,15 +282,20 @@ def main() -> None:
 
     unrecognized_rates: dict[tuple[str], set[str]] = defaultdict(set)
 
-    charges_data: dict[str, dict] = {
-        slug: {
+    charges_data: dict[str, dict] = {}
+    for slug, (trid, mc) in slug_to_charge.items():
+        entry: dict = {
             "tariff_rate_id": trid,
             "master_charge": mc,
             "decision": classified_charges[trid]["decision"],
             "monthly_rates": {},
         }
-        for slug, (trid, mc) in slug_to_charge.items()
-    }
+        cu = classified_charges[trid].get("charge_unit")
+        if cu:
+            entry["charge_unit"] = cu
+        else:
+            entry["charge_unit"] = "$/kWh"
+        charges_data[slug] = entry
 
     rider_id_to_slug: dict[int, str] = {}
     for trid, rid in rider_ids_for_trid.items():
@@ -322,6 +328,29 @@ def main() -> None:
                 if rn:
                     slug = name_to_slug.get(rn)
             if not slug:
+                continue
+            resolved = _resolve_effective_rate(info["entries"], from_dt, to_dt)
+            if resolved is None:
+                continue
+            charges_data[slug]["monthly_rates"][month_key] = round(resolved, 10)
+
+        # --- Fixed per-customer charges (non-CONSUMPTION_BASED, $/day or $/month) ---
+        for api_trid, info in rate_map.items():
+            if info.get("chargeType") == "CONSUMPTION_BASED":
+                continue
+            slug = trid_to_slug.get(api_trid)
+            if not slug:
+                vrk = info.get("variableRateKey")
+                if vrk:
+                    slug = vrk_to_slug.get(vrk)
+            if not slug:
+                rn = info.get("rateName", "").lower().strip()
+                if rn:
+                    slug = name_to_slug.get(rn)
+            if not slug:
+                continue
+            cu = charges_data.get(slug, {}).get("charge_unit")
+            if cu not in ("$/day", "$/month"):
                 continue
             resolved = _resolve_effective_rate(info["entries"], from_dt, to_dt)
             if resolved is None:

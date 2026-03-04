@@ -64,6 +64,45 @@ def get_residential_customer_count_from_utility_stats(
     return int(value)
 
 
+def get_residential_sales_revenue_from_utility_stats(
+    path: str | Path,
+    utility: str,
+    *,
+    storage_options: dict[str, str] | None = None,
+) -> float:
+    """Read EIA-861 utility stats parquet and return residential sales revenue in dollars.
+
+    The parquet column ``residential_sales_revenue`` is already in whole dollars
+    (PUDL converts from EIA's original thousands-of-dollars reporting).
+
+    Raises:
+        ValueError: If path has no row for that utility, or more than one row.
+    """
+    path_str = str(path)
+    opts = storage_options if path_str.startswith("s3://") else None
+    lf = (
+        pl.scan_parquet(path_str, storage_options=opts)
+        .filter(pl.col("utility_code") == utility)
+        .select("residential_sales_revenue")
+    )
+    df = cast(pl.DataFrame, lf.collect())
+    if df.height == 0:
+        raise ValueError(
+            f"No row with utility_code={utility!r} in {path_str}. "
+            "Check path_electric_utility_stats and utility in the scenario YAML."
+        )
+    if df.height > 1:
+        raise ValueError(
+            f"Expected one row for utility_code={utility!r} in {path_str}, got {df.height}"
+        )
+    value = df.item(0, 0)
+    if value is None:
+        raise ValueError(
+            f"residential_sales_revenue is null for utility_code={utility!r} in {path_str}"
+        )
+    return float(value)
+
+
 MWH_TO_KWH = 1000
 
 
@@ -186,7 +225,7 @@ def _parse_utility_revenue_requirement(
     add_supply: bool,
     run_includes_subclasses: bool = False,
 ) -> RevenueRequirementConfig:
-    """Parse utility_delivery_revenue_requirement from a YAML path.
+    """Parse utility_revenue_requirement from a YAML path.
 
     Returns a RevenueRequirementConfig with:
       - rr_total: scalar from total_delivery[_and_supply]_revenue_requirement
@@ -195,15 +234,15 @@ def _parse_utility_revenue_requirement(
     """
     if not isinstance(value, str):
         raise ValueError(
-            "utility_delivery_revenue_requirement must be a YAML path string "
+            "utility_revenue_requirement must be a YAML path string "
             f"(.yaml/.yml), got {type(value).__name__}"
         )
     raw = value.strip()
     if raw == "":
-        raise ValueError("Missing required field: utility_delivery_revenue_requirement")
+        raise ValueError("Missing required field: utility_revenue_requirement")
     if not (raw.endswith(".yaml") or raw.endswith(".yml")):
         raise ValueError(
-            "utility_delivery_revenue_requirement must be a YAML file path "
+            "utility_revenue_requirement must be a YAML file path "
             f"(.yaml/.yml), got {value!r}"
         )
 

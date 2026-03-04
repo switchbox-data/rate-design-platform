@@ -164,7 +164,7 @@ def test_load_run_fields_from_scenario_config(tmp_path: Path) -> None:
                     1: {
                         "state": "RI",
                         "utility": "rie",
-                        "utility_delivery_revenue_requirement": 241869601,
+                        "utility_revenue_requirement": 241869601,
                     }
                 }
             },

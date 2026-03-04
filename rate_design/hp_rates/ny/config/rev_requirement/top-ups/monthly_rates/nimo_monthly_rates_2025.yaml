@@ -6,7 +6,7 @@ charges:
   supply_commodity_bundled_1:
     tariff_rate_id: 5244
     master_charge: Supply commodity (bundled)
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.08982
       2025-02: 0.08715
@@ -20,10 +20,11 @@ charges:
       2025-10: 0.06753
       2025-11: 0.06494
       2025-12: 0.10739
+    charge_unit: $/kWh
   supply_commodity_bundled_2:
     tariff_rate_id: 5246
     master_charge: Supply commodity (bundled)
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.11437
       2025-02: 0.12124
@@ -37,6 +38,7 @@ charges:
       2025-10: 0.07016
       2025-11: 0.07042
       2025-12: 0.13183
+    charge_unit: $/kWh
   supply_commodity_bundled_3:
     tariff_rate_id: 5248
     master_charge: Supply commodity (bundled)
@@ -54,10 +56,11 @@ charges:
       2025-10: 0.06854
       2025-11: 0.06498
       2025-12: 0.11251
+    charge_unit: $/kWh
   supply_commodity_bundled_4:
     tariff_rate_id: 5250
     master_charge: Supply commodity (bundled)
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.08768
       2025-02: 0.08374
@@ -71,10 +74,11 @@ charges:
       2025-10: 0.06669
       2025-11: 0.06216
       2025-12: 0.10646
+    charge_unit: $/kWh
   supply_commodity_bundled_5:
     tariff_rate_id: 5252
     master_charge: Supply commodity (bundled)
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.09054
       2025-02: 0.08928
@@ -88,10 +92,11 @@ charges:
       2025-10: 0.06722
       2025-11: 0.06341
       2025-12: 0.10948
+    charge_unit: $/kWh
   supply_commodity_bundled_6:
     tariff_rate_id: 5254
     master_charge: Supply commodity (bundled)
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.09499
       2025-02: 0.09248
@@ -105,6 +110,25 @@ charges:
       2025-10: 0.06992
       2025-11: 0.06689
       2025-12: 0.11579
+    charge_unit: $/kWh
+  customer_charge:
+    tariff_rate_id: 20715134
+    master_charge: Customer Charge
+    decision: already_in_drr
+    monthly_rates:
+      2025-01: 17.33
+      2025-02: 17.33
+      2025-03: 17.33
+      2025-04: 17.33
+      2025-05: 17.33
+      2025-06: 17.33
+      2025-07: 17.33
+      2025-08: 17.33
+      2025-09: 19.0
+      2025-10: 19.0
+      2025-11: 19.0
+      2025-12: 19.0
+    charge_unit: $/month
   core_delivery_rate_1:
     tariff_rate_id: 20715135
     master_charge: Core Delivery Rate
@@ -114,6 +138,7 @@ charges:
       2025-10: 0.08889
       2025-11: 0.08889
       2025-12: 0.08889
+    charge_unit: $/kWh
   revenue_decoupling_rdm:
     tariff_rate_id: 20715137
     master_charge: Revenue Decoupling (RDM)
@@ -131,6 +156,7 @@ charges:
       2025-10: -0.00421
       2025-11: -0.00421
       2025-12: -0.00421
+    charge_unit: $/kWh
   transmission_revenue_adjustment:
     tariff_rate_id: 20715138
     master_charge: Transmission Revenue Adjustment
@@ -148,6 +174,7 @@ charges:
       2025-10: -0.0083245161
       2025-11: -0.00426
       2025-12: -0.0034129032
+    charge_unit: $/kWh
   transition_restructuring:
     tariff_rate_id: 20715139
     master_charge: Transition / Restructuring
@@ -165,6 +192,7 @@ charges:
       2025-10: -0.000724
       2025-11: 0.000154
       2025-12: -0.00387
+    charge_unit: $/kWh
   supply_cost_true_up_1:
     tariff_rate_id: 20715140
     master_charge: Supply cost true-up
@@ -174,6 +202,7 @@ charges:
       2025-10: 0.018298
       2025-11: 0.008037
       2025-12: -0.025002
+    charge_unit: $/kWh
   supply_cost_true_up_2:
     tariff_rate_id: 20715141
     master_charge: Supply cost true-up
@@ -183,6 +212,7 @@ charges:
       2025-10: 0.018023
       2025-11: 0.004986
       2025-12: -0.025388
+    charge_unit: $/kWh
   supply_cost_true_up_3:
     tariff_rate_id: 20715142
     master_charge: Supply cost true-up
@@ -192,6 +222,7 @@ charges:
       2025-10: 0.021694
       2025-11: 0.015664
       2025-12: -0.024524
+    charge_unit: $/kWh
   supply_cost_true_up_4:
     tariff_rate_id: 20715143
     master_charge: Supply cost true-up
@@ -201,6 +232,7 @@ charges:
       2025-10: 0.01497
       2025-11: 0.005709
       2025-12: -0.025325
+    charge_unit: $/kWh
   supply_cost_true_up_5:
     tariff_rate_id: 20715144
     master_charge: Supply cost true-up
@@ -210,6 +242,7 @@ charges:
       2025-10: 0.025974
       2025-11: 0.011229
       2025-12: -0.026391
+    charge_unit: $/kWh
   supply_cost_true_up_6:
     tariff_rate_id: 20715145
     master_charge: Supply cost true-up
@@ -219,6 +252,7 @@ charges:
       2025-10: 0.014973
       2025-11: 0.0047
       2025-12: -0.025481
+    charge_unit: $/kWh
   system_benefits_charge:
     tariff_rate_id: 20715146
     master_charge: System Benefits Charge
@@ -236,6 +270,7 @@ charges:
       2025-10: 0.003024
       2025-11: 0.003024
       2025-12: 0.003024
+    charge_unit: $/kWh
   ces_supply_surcharge:
     tariff_rate_id: 20715147
     master_charge: CES Supply Surcharge
@@ -245,6 +280,7 @@ charges:
       2025-10: 0.00741
       2025-11: 0.00741
       2025-12: 0.00741
+    charge_unit: $/kWh
   ces_delivery:
     tariff_rate_id: 20715148
     master_charge: CES Delivery
@@ -262,6 +298,7 @@ charges:
       2025-10: 0.00025
       2025-11: 0.00025
       2025-12: 0.00025
+    charge_unit: $/kWh
   dlm_surcharge:
     tariff_rate_id: 20715149
     master_charge: DLM Surcharge
@@ -279,6 +316,7 @@ charges:
       2025-10: 0.000649
       2025-11: 0.000649
       2025-12: 0.000649
+    charge_unit: $/kWh
   earnings_adjustment_mechanism:
     tariff_rate_id: 20715150
     master_charge: Earnings Adjustment Mechanism
@@ -296,10 +334,21 @@ charges:
       2025-10: -1.0e-05
       2025-11: -1.0e-05
       2025-12: -1.0e-05
+    charge_unit: $/kWh
+  minimum_charge:
+    tariff_rate_id: 20715151
+    master_charge: Minimum Charge
+    decision: already_in_drr
+    monthly_rates:
+      2025-09: 19.0
+      2025-10: 19.0
+      2025-11: 19.0
+      2025-12: 19.0
+    charge_unit: $/month
   merchant_function_charge_1:
     tariff_rate_id: 19819734
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.08982
       2025-02: 0.08715
@@ -313,10 +362,11 @@ charges:
       2025-10: 0.06753
       2025-11: 0.06494
       2025-12: 0.10739
+    charge_unit: $/kWh
   merchant_function_charge_2:
     tariff_rate_id: 19819735
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.11437
       2025-02: 0.12124
@@ -330,10 +380,11 @@ charges:
       2025-10: 0.07016
       2025-11: 0.07042
       2025-12: 0.13183
+    charge_unit: $/kWh
   merchant_function_charge_3:
     tariff_rate_id: 19819736
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.09303
       2025-02: 0.09041
@@ -347,10 +398,11 @@ charges:
       2025-10: 0.06854
       2025-11: 0.06498
       2025-12: 0.11251
+    charge_unit: $/kWh
   merchant_function_charge_4:
     tariff_rate_id: 19819737
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.08768
       2025-02: 0.08374
@@ -364,10 +416,11 @@ charges:
       2025-10: 0.06669
       2025-11: 0.06216
       2025-12: 0.10646
+    charge_unit: $/kWh
   merchant_function_charge_5:
     tariff_rate_id: 19819738
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.09054
       2025-02: 0.08928
@@ -381,10 +434,11 @@ charges:
       2025-10: 0.06722
       2025-11: 0.06341
       2025-12: 0.10948
+    charge_unit: $/kWh
   merchant_function_charge_6:
     tariff_rate_id: 19819739
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: 0.09499
       2025-02: 0.09248
@@ -398,10 +452,11 @@ charges:
       2025-10: 0.06992
       2025-11: 0.06689
       2025-12: 0.11579
+    charge_unit: $/kWh
   merchant_function_charge_7:
     tariff_rate_id: 19819740
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: -0.014274
       2025-02: 0.001168
@@ -415,10 +470,11 @@ charges:
       2025-10: 0.021694
       2025-11: 0.015664
       2025-12: -0.024524
+    charge_unit: $/kWh
   merchant_function_charge_8:
     tariff_rate_id: 19819741
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: -0.0193
       2025-02: -0.016957
@@ -432,6 +488,7 @@ charges:
       2025-10: 0.025974
       2025-11: 0.011229
       2025-12: -0.026391
+    charge_unit: $/kWh
   merchant_function_charge_9:
     tariff_rate_id: 19819742
     master_charge: Merchant Function Charge
@@ -449,10 +506,11 @@ charges:
       2025-10: 0.014973
       2025-11: 0.0047
       2025-12: -0.025481
+    charge_unit: $/kWh
   merchant_function_charge_10:
     tariff_rate_id: 19819743
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: -0.012606
       2025-02: -0.00048
@@ -466,10 +524,11 @@ charges:
       2025-10: 0.018298
       2025-11: 0.008037
       2025-12: -0.025002
+    charge_unit: $/kWh
   merchant_function_charge_11:
     tariff_rate_id: 19819744
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: -0.01528
       2025-02: -0.006705
@@ -483,10 +542,11 @@ charges:
       2025-10: 0.018023
       2025-11: 0.004986
       2025-12: -0.025388
+    charge_unit: $/kWh
   merchant_function_charge_12:
     tariff_rate_id: 19819745
     master_charge: Merchant Function Charge
-    decision: add_to_srr
+    decision: exclude
     monthly_rates:
       2025-01: -0.014622
       2025-02: -0.003318
@@ -500,6 +560,7 @@ charges:
       2025-10: 0.01497
       2025-11: 0.005709
       2025-12: -0.025325
+    charge_unit: $/kWh
   merchant_function_charge_13:
     tariff_rate_id: 19819758
     master_charge: Merchant Function Charge
@@ -517,6 +578,7 @@ charges:
       2025-10: 0.00741
       2025-11: 0.00741
       2025-12: 0.00741
+    charge_unit: $/kWh
   merchant_function_charge_14:
     tariff_rate_id: 19819759
     master_charge: Merchant Function Charge
@@ -534,6 +596,7 @@ charges:
       2025-10: 0.0001
       2025-11: 0.0001
       2025-12: 0.0001
+    charge_unit: $/kWh
   merchant_function_charge_15:
     tariff_rate_id: 19819760
     master_charge: Merchant Function Charge
@@ -551,6 +614,7 @@ charges:
       2025-10: 0.00033
       2025-11: 0.00033
       2025-12: 0.00033
+    charge_unit: $/kWh
   core_delivery_rate_2:
     tariff_rate_id: 20775852
     master_charge: Core Delivery Rate
@@ -560,6 +624,7 @@ charges:
       2025-10: 0.00671
       2025-11: 0.00671
       2025-12: 0.00671
+    charge_unit: $/kWh
   greenup:
     tariff_rate_id: 20761838
     master_charge: GreenUp
@@ -577,6 +642,7 @@ charges:
       2025-10: 0.035
       2025-11: 0.035
       2025-12: 0.035
+    charge_unit: $/kWh
   ev_make_ready:
     tariff_rate_id: 20059189
     master_charge: EV Make Ready
@@ -594,6 +660,7 @@ charges:
       2025-10: 0.00036
       2025-11: 0.00036
       2025-12: 0.00036
+    charge_unit: $/kWh
   arrears_covid_forgiveness_1:
     tariff_rate_id: 20260236
     master_charge: Arrears / COVID forgiveness
@@ -611,6 +678,7 @@ charges:
       2025-10: 0.00087
       2025-11: 0.00087
       2025-12: 0.00087
+    charge_unit: $/kWh
   arrears_covid_forgiveness_2:
     tariff_rate_id: 20260237
     master_charge: Arrears / COVID forgiveness
@@ -623,6 +691,7 @@ charges:
       2025-05: 0.0009
       2025-06: 0.0009
       2025-07: 0.0009
+    charge_unit: $/kWh
   net_utility_plant_depreciation_recon:
     tariff_rate_id: 20288265
     master_charge: Net Utility Plant / Depreciation Recon
@@ -640,3 +709,4 @@ charges:
       2025-10: 0.0
       2025-11: 0.0
       2025-12: 0.0
+    charge_unit: $/kWh

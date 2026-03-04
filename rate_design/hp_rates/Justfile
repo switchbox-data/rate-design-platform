@@ -66,19 +66,17 @@ path_rev_requirement                := path_config / "rev_requirement"
 path_default_rev_requirement        := path_rev_requirement / utility + ".yaml"
 path_differentiated_rev_requirement := path_rev_requirement / utility + "_hp_vs_nonhp.yaml"
 path_tariff_maps                    := path_config / "tariff_maps"
-path_dist_and_sub_tx_mc             := "s3://data.sb/switchbox/marginal_costs/" + state + "/dist_and_sub_tx/utility=" + utility + "/year=" + mc_year + "/data.parquet"
+path_dist_and_sub_tx_mc             := "s3://data.sb/switchbox/marginal_costs/" + state + "/dist_and_sub_tx/utility=" + utility + "/year=" + load_year + "/00000000.parquet"
 path_bulk_tx_mc                     := ""
-# Supply MC: defaults to Cambium path (used by RI and other Cambium-based states).
-# States using separate NYISO-style supply MCs (NY) override these in their Justfile.
-path_supply_energy_mc               := path_cambium
-path_supply_capacity_mc             := path_cambium
+# Supply MC: default to per-utility S3 parquets (NY-style).
+# Cambium-based states (RI) override via SUPPLY_ENERGY_MC / SUPPLY_CAPACITY_MC in state.env.
+path_supply_energy_mc               := env_var_or_default('SUPPLY_ENERGY_MC', "s3://data.sb/switchbox/marginal_costs/" + state + "/supply/energy/utility=" + utility + "/year=" + year + "/00000000.parquet")
+path_supply_capacity_mc             := env_var_or_default('SUPPLY_CAPACITY_MC', "s3://data.sb/switchbox/marginal_costs/" + state + "/supply/capacity/utility=" + utility + "/year=" + year + "/00000000.parquet")
 path_resstock_release               := "/ebs/data/nrel/resstock/res_2024_amy2018_2_sb"
 path_resstock_metadata              := path_resstock_release + "/metadata"
 path_utility_assignment             := path_resstock_release + "/metadata_utility"
 path_resstock_loads_00              := path_resstock_release + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
-path_cambium                        := "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025" + "/gea=" + uppercase(region) + "/r=" + cambium_ba + "/data.parquet"
-mc_table_filename                   := env_var_or_default('MC_TABLE', state + "_marginal_costs_" + year + ".csv")
-path_mc_table                       := path_config / "marginal_costs" / mc_table_filename
+path_mc_table                       := env_var_or_default('MC_TABLE', path_config / "marginal_costs" / state + "_marginal_costs_" + year + ".csv")
 path_s3_mc_output                   := "s3://data.sb/switchbox/marginal_costs/" + state + "/dist_and_sub_tx/"
 path_s3_utility_loads               := "s3://data.sb/eia/hourly_demand/utilities/"
 path_electric_utility_stats         := "s3://data.sb/eia/861/electric_utility_stats/year=2024/state=" + state_upper + "/data.parquet"
@@ -87,9 +85,11 @@ path_genability_yaml                := path_genability / "tariffs_by_utility.yam
 path_charge_decisions               := path_genability / "charge_decisions" / (utility + "_charge_decisions.json")
 path_monthly_rates                  := path_genability / "monthly_rates" / (utility + "_monthly_rates_" + monthly_rates_year + ".yaml")
 path_rate_case_delivery_rr          := path_rev_requirement / "delivery_rev_requirements_from_rate_cases.yaml"
+path_supply_base                    := path_rev_requirement / "supply_base_overrides.yaml"
 path_default_tariff                 := path_genability / "default_tariffs" / default_tariff
 path_default_supply_tariff          := path_tariffs_electric / default_tariff_supply
 tou_tariff_key                      := utility + "_hp_seasonalTOU"
+path_outputs_base                   := "/data.sb/switchbox/cairo/outputs/hp_rates/" + state + "/" + utility
 latest_output                       := path_repo / "utils/mid/latest_run_output.sh"
 
 # =============================================================================
@@ -105,7 +105,8 @@ validate-config mode="warn":
     --year "{{year}}" \
     --path-dist-and-sub-tx-mc "{{path_dist_and_sub_tx_mc}}" \
     {{ if path_bulk_tx_mc != "" { "--path-bulk-tx-mc \"" + path_bulk_tx_mc + "\"" } else { "" } }} \
-    {{ if path_supply_energy_mc != "" { "--path-supply-energy-mc \"" + path_supply_energy_mc + "\"" } else { "" } }} \
+    --path-supply-energy-mc "{{path_supply_energy_mc}}" \
+    --path-supply-capacity-mc "{{path_supply_capacity_mc}}" \
     --path-electric-utility-stats "{{path_electric_utility_stats}}" \
     --path-resstock-loads "{{path_resstock_loads_00}}" \
     {{ if mode == "strict" { "--strict" } else { "" } }}
@@ -119,14 +120,14 @@ create-scenario-yamls:
 
 # Revenue requirement top-ups
 fetch-genability-tariffs effective_date="2025-01-01":
-  uv run python {{path_repo}}/utils/pre/fetch_electric_tariffs_genability.py \
+  uv run python {{path_repo}}/utils/pre/rev_requirement/fetch_electric_tariffs_genability.py \
     "{{path_genability_yaml}}" \
     "{{path_genability}}/default_tariffs" \
     --state "{{state_upper}}" \
     --effective-date "{{effective_date}}"
 
 fetch-monthly-rates start=(monthly_rates_year + "-01") end=(monthly_rates_year + "-12"):
-  uv run python {{path_repo}}/utils/pre/fetch_monthly_rates.py \
+  uv run python {{path_repo}}/utils/pre/rev_requirement/fetch_monthly_rates.py \
     --utility "{{utility}}" \
     --start "{{start}}" \
     --end "{{end}}" \
@@ -134,12 +135,21 @@ fetch-monthly-rates start=(monthly_rates_year + "-01") end=(monthly_rates_year +
     --output "{{path_monthly_rates}}"
 
 compute-rr:
-  uv run python {{path_repo}}/utils/pre/compute_rr.py \
+  uv run python {{path_repo}}/utils/pre/rev_requirement/compute_rr.py \
     --utility {{utility}} \
     --path-monthly-rates "{{path_monthly_rates}}" \
     --path-electric-utility-stats "{{path_electric_utility_stats}}" \
     --path-rate-case-rr "{{path_rate_case_delivery_rr}}" \
+    --path-supply-base "{{path_supply_base}}" \
     --output "{{path_default_rev_requirement}}"
+
+estimate-psegli-rr:
+  uv run python {{path_repo}}/utils/pre/rev_requirement/estimate_psegli_rr.py \
+    --path-budget-md "{{path_repo}}/context/papers/lipa_2025_2026_budget_one_pager.md" \
+    --path-electric-utility-stats "{{path_electric_utility_stats}}" \
+    --path-rate-case-rr "{{path_rate_case_delivery_rr}}" \
+    --path-supply-base "{{path_supply_base}}" \
+    --output-key psegli
 
 # Pre-calibrated tariffs
 create-flat-tariff:
@@ -191,14 +201,21 @@ create-dist-and-sub-tx-mc-data:
   uv run python {{path_repo}}/utils/pre/generate_utility_tx_dx_mc.py \
     --state {{state_upper}} \
     --utility {{utility}} \
-    --mc-year {{mc_year}} \
     --load-year {{load_year}} \
     --mc-table-path {{path_mc_table}} \
     --utility-load-s3-base {{path_s3_utility_loads}} \
     --output-s3-base {{path_s3_mc_output}} \
-    --upstream-hours {{upstream_hours}} \
-    --dist-hours {{dist_hours}} \
+    --n-hours {{upstream_hours}} \
     --upload
+
+create-dist-and-sub-tx-mc-data-all:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    IFS=',' read -ra utils <<< "{{utilities}}"
+    for util in "${utils[@]}"; do
+        echo ">> Running create-dist-and-sub-tx-mc-data for utility: $util" >&2
+        UTILITY="$util" just create-dist-and-sub-tx-mc-data
+    done
 
 # =============================================================================
 # MID-CONFIG: generate between runs (using outputs from earlier runs)
@@ -262,11 +279,16 @@ compute-rev-requirements:
 # =============================================================================
 
 run-scenario run_num:
-  uv run python {{path_repo}}/rate_design/hp_rates/run_scenario.py \
-    --state "{{state}}" \
-    --run-num "{{run_num}}" \
-    --utility "{{utility}}" \
-    {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Use RDP_EXECUTION_TIME from orchestration recipe, or generate one for standalone calls
+    : "${RDP_EXECUTION_TIME:=$(date -u +%Y%m%dT%H%M%SZ)}"
+    uv run python {{path_repo}}/rate_design/hp_rates/run_scenario.py \
+        --state "{{state}}" \
+        --run-num "{{run_num}}" \
+        --utility "{{utility}}" \
+        --output-dir "{{path_outputs_base}}/${RDP_EXECUTION_TIME}" \
+        {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }}
 
 run-1:
     # just create-flat-tariff
@@ -343,6 +365,10 @@ run-9:
         echo ">> run-9: calibrated tariff missing, copying from run-1" >&2
         just copy-calibrated-tariff-from-run "${run1_dir}"
     fi
+    echo ">> run-9: path_supply_energy_mc={{path_supply_energy_mc}}" >&2
+    echo ">> run-9: path_supply_capacity_mc={{path_supply_capacity_mc}}" >&2
+    echo ">> run-9: path_dist_and_sub_tx_mc={{path_dist_and_sub_tx_mc}}" >&2
+    echo ">> run-9: path_bulk_tx_mc={{path_bulk_tx_mc}}" >&2
     just create-seasonal-tou {{tou_tariff_key}} "${ref_tariff}" "${run1_dir}"
     just run-scenario 9
 
@@ -356,6 +382,10 @@ run-10:
         echo ">> run-10: calibrated supply tariff missing, copying from run-2" >&2
         just copy-calibrated-tariff-from-run "${run2_dir}"
     fi
+    echo ">> run-10: path_supply_energy_mc={{path_supply_energy_mc}}" >&2
+    echo ">> run-10: path_supply_capacity_mc={{path_supply_capacity_mc}}" >&2
+    echo ">> run-10: path_dist_and_sub_tx_mc={{path_dist_and_sub_tx_mc}}" >&2
+    echo ">> run-10: path_bulk_tx_mc={{path_bulk_tx_mc}}" >&2
     just create-seasonal-tou {{tou_tariff_key}}_supply "${ref_tariff}" "${run2_dir}"
     just run-scenario 10
 
@@ -434,6 +464,8 @@ all-pre:
 run-all-utilities-sequential:
     #!/usr/bin/env bash
     set -euo pipefail
+    export RDP_EXECUTION_TIME="${RDP_EXECUTION_TIME:-$(date -u +%Y%m%dT%H%M%SZ)}"
+    echo ">> run-all-utilities-sequential [${RDP_EXECUTION_TIME}]" >&2
     IFS=',' read -ra utils <<< "{{utilities}}"
     for util in "${utils[@]}"; do
         echo ">> ======================================" >&2
@@ -444,6 +476,10 @@ run-all-utilities-sequential:
     done
 
 run-all-sequential:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export RDP_EXECUTION_TIME="${RDP_EXECUTION_TIME:-$(date -u +%Y%m%dT%H%M%SZ)}"
+    echo ">> run-all-sequential [${RDP_EXECUTION_TIME}]" >&2
     just run-1
     just run-2
     just compute-rev-requirements
@@ -465,10 +501,11 @@ run-all-sequential:
 run-all-parallel-tracks:
     #!/usr/bin/env bash
     set -euo pipefail
+    export RDP_EXECUTION_TIME="${RDP_EXECUTION_TIME:-$(date -u +%Y%m%dT%H%M%SZ)}"
     WORKERS=$(( $(nproc) / 2 ))
     [ "$WORKERS" -lt 1 ] && WORKERS=1
     export RDP_NUM_WORKERS="$WORKERS"
-    echo ">> run-all-parallel-tracks: ${WORKERS} workers/track on $(nproc) total vCPUs" >&2
+    echo ">> run-all-parallel-tracks [${RDP_EXECUTION_TIME}]: ${WORKERS} workers/track on $(nproc) total vCPUs" >&2
 
     just create-flat-tariff
 
@@ -515,6 +552,17 @@ run-all-parallel-tracks:
     wait $PID16 || { echo "ERROR: run-16 failed" >&2; exit 1; }
 
     echo ">> run-all-parallel-tracks: all 16 runs complete" >&2
+
+run-subset runs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export RDP_EXECUTION_TIME="${RDP_EXECUTION_TIME:-$(date -u +%Y%m%dT%H%M%SZ)}"
+    echo ">> run-subset [${RDP_EXECUTION_TIME}]: runs={{runs}}" >&2
+    IFS=',' read -ra nums <<< "{{runs}}"
+    for num in "${nums[@]}"; do
+        echo ">> run-subset: run-${num}" >&2
+        just "run-${num}"
+    done
 
 # =============================================================================
 # HELPERS

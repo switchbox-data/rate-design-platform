@@ -1,4 +1,4 @@
-"""Allocate marginal transmission and distribution costs to hourly price signals.
+"""Allocate marginal sub-transmission and distribution costs to hourly price signals.
 
 This script implements the diluted marginal cost allocation methodology using
 the Probability of Peak (PoP) method to allocate $/kW-yr costs to $/kWh hourly
@@ -6,24 +6,27 @@ price signals.
 
 Input:
     - Utility hourly load profile: s3://data.sb/eia/hourly_demand/utilities/region=<iso_region>/utility=X/year=YYYY/month=M/data.parquet
-    - Marginal cost table CSV ($/kW-yr)
-    - Target year (2026-2035)
+    - Marginal cost table CSV with columns: utility, sub_tx_and_dist_mc_kw_yr
+    - Load year (determines which load profile year to use)
 
-Output: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=X/year=YYYY/data.parquet
 Output partitions written as:
     - NY default base: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/
     - RI default base: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
     - Partition path: utility=X/year=YYYY/data.parquet
 
 Usage:
-    # Inspect results (no upload) - uses 2026 MC with 2026 loads
-    python generate_utility_tx_dx_MC.py --utility nyseg --mc-year 2026 --mc-table-path data/marginal_costs/ny_marginal_costs_2026_2035.csv
-
-    # Apply 2026 MC to 2024 loads
-    python generate_utility_tx_dx_MC.py --utility nyseg --mc-year 2026 --load-year 2024 --mc-table-path data/marginal_costs/ny_marginal_costs_2026_2035.csv
+    # Inspect results (no upload) - uses 2025 loads
+    python generate_utility_tx_dx_mc.py --state RI --utility rie --load-year 2025 \
+        --mc-table-path rate_design/hp_rates/ri/config/marginal_costs/ri_marginal_costs_2025.csv \
+        --utility-load-s3-base s3://data.sb/eia/hourly_demand/utilities/ \
+        --output-s3-base s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
 
     # Upload to S3
-    python generate_utility_tx_dx_MC.py --utility nyseg --mc-year 2026 --mc-table-path data/marginal_costs/ny_marginal_costs_2026_2035.csv --upload
+    python generate_utility_tx_dx_mc.py --state NY --utility nyseg --load-year 2024 \
+        --mc-table-path rate_design/hp_rates/ny/config/marginal_costs/ny_sub_tx_and_dist_mc_levelized.csv \
+        --utility-load-s3-base s3://data.sb/eia/hourly_demand/utilities/ \
+        --output-s3-base s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/ \
+        --upload
 """
 
 import argparse
@@ -204,8 +207,7 @@ def load_marginal_cost_table(mc_table_path: str) -> pl.DataFrame:
         mc_table_path: Path to CSV file (local or S3)
 
     Returns:
-        DataFrame with columns: Utility, Year, Upstream, Distribution Substation,
-                                Primary Feeder, Total MC
+        DataFrame with columns: utility, sub_tx_and_dist_mc_kw_yr
     """
     if mc_table_path.startswith("s3://"):
         s3_path = S3Path(mc_table_path)
@@ -230,225 +232,131 @@ def validate_mc_table_path(mc_table_path: str) -> None:
         raise FileNotFoundError(f"Marginal cost table not found: {mc_table_path}")
 
 
-def get_marginal_costs_for_year(
-    mc_df: pl.DataFrame, utility: str, year: int
-) -> tuple[float, float]:
-    """Extract upstream and distribution marginal costs for a utility and year.
+def get_marginal_cost_for_utility(mc_df: pl.DataFrame, utility: str) -> float:
+    """Extract sub-transmission and distribution marginal cost for a utility.
 
     Args:
-        mc_df: Marginal cost table DataFrame
+        mc_df: Marginal cost table DataFrame with columns: utility, sub_tx_and_dist_mc_kw_yr
         utility: Utility name
-        year: Target year
 
     Returns:
-        Tuple of (mc_upstream, mc_dist) in $/kW-yr
+        mc_sub_tx_and_dist in $/kW-yr
     """
-    row = mc_df.filter((pl.col("utility") == utility) & (pl.col("year") == year))
+    row = mc_df.filter(pl.col("utility") == utility)
 
     if len(row) == 0:
-        raise ValueError(f"No marginal cost data found for {utility} in year {year}")
+        raise ValueError(f"No marginal cost data found for {utility}")
 
     if len(row) > 1:
-        raise ValueError(
-            f"Multiple marginal cost entries found for {utility} in year {year}"
-        )
+        raise ValueError(f"Multiple marginal cost entries found for {utility}")
 
-    mc_upstream = float(row["upstream"][0])
-    mc_dist_substation = float(row["distribution_substation"][0])
-    mc_dist_feeder = float(row["primary_feeder"][0])
-    mc_dist = mc_dist_substation + mc_dist_feeder
+    mc = float(row["sub_tx_and_dist_mc_kw_yr"][0])
 
-    print(f"\nMarginal Costs for {utility} - {year}:")
-    print(f"  Upstream (Tx/Sub-Tx): ${mc_upstream:.2f}/kW-yr")
-    print(f"  Distribution Substation: ${mc_dist_substation:.2f}/kW-yr")
-    print(f"  Primary Feeder: ${mc_dist_feeder:.2f}/kW-yr")
-    print(f"  Total Distribution: ${mc_dist:.2f}/kW-yr")
-    print(f"  Total MC: ${mc_upstream + mc_dist:.2f}/kW-yr")
+    print(f"\nMarginal Cost for {utility}:")
+    print(f"  Sub-Tx and Distribution: ${mc:.2f}/kW-yr")
 
-    return mc_upstream, mc_dist
+    return mc
 
 
-def calculate_pop_weights(
-    load_df: pl.DataFrame, n_upstream_hours: int = 100, n_dist_hours: int = 100
-) -> pl.DataFrame:
+def calculate_pop_weights(load_df: pl.DataFrame, n_hours: int = 100) -> pl.DataFrame:
     """Calculate Probability of Peak (PoP) weights using load-weighted method.
 
     Args:
         load_df: DataFrame with timestamp and load_mw columns
-        n_upstream_hours: Number of top hours for upstream allocation (default: 100)
-        n_dist_hours: Number of top hours for distribution allocation (default: 50)
+        n_hours: Number of top hours for allocation (default: 100)
 
     Returns:
-        DataFrame with added columns: w_upstream, w_dist, is_upstream_peak, is_dist_peak
+        DataFrame with added columns: w_sub_tx_and_dist, is_peak
     """
-    # Sort by load to identify peak hours
     sorted_df = load_df.sort("load_mw", descending=True)
 
-    # Identify top hours
-    top_upstream_indices = sorted_df.head(n_upstream_hours)["timestamp"]
-    top_dist_indices = sorted_df.head(n_dist_hours)["timestamp"]
-
-    # Calculate sum of loads in peak windows
-    sum_top_upstream = sorted_df.head(n_upstream_hours)["load_mw"].sum()
-    sum_top_dist = sorted_df.head(n_dist_hours)["load_mw"].sum()
+    top_indices = sorted_df.head(n_hours)["timestamp"]
+    sum_top = sorted_df.head(n_hours)["load_mw"].sum()
 
     print("\nPeak Hour Identification:")
-    print(f"  Top {n_upstream_hours} hours sum: {sum_top_upstream:.2f} MW")
-    print(f"  Top {n_dist_hours} hours sum: {sum_top_dist:.2f} MW")
+    print(f"  Top {n_hours} hours sum: {sum_top:.2f} MW")
 
-    # Add peak flags and weights
     result_df = load_df.with_columns(
-        [
-            pl.col("timestamp")
-            .is_in(top_upstream_indices.implode())
-            .alias("is_upstream_peak"),
-            pl.col("timestamp").is_in(top_dist_indices.implode()).alias("is_dist_peak"),
-        ]
+        pl.col("timestamp").is_in(top_indices.implode()).alias("is_peak")
     )
 
-    # Calculate load-weighted PoP weights
     result_df = result_df.with_columns(
-        [
-            pl.when(pl.col("is_upstream_peak"))
-            .then(pl.col("load_mw") / sum_top_upstream)
-            .otherwise(0.0)
-            .alias("w_upstream"),
-            pl.when(pl.col("is_dist_peak"))
-            .then(pl.col("load_mw") / sum_top_dist)
-            .otherwise(0.0)
-            .alias("w_dist"),
-        ]
+        pl.when(pl.col("is_peak"))
+        .then(pl.col("load_mw") / sum_top)
+        .otherwise(0.0)
+        .alias("w_sub_tx_and_dist")
     )
 
-    # Verify weights sum to 1.0
-    sum_w_upstream = result_df["w_upstream"].sum()
-    sum_w_dist = result_df["w_dist"].sum()
+    sum_w = result_df["w_sub_tx_and_dist"].sum()
 
     print("\nWeight Verification:")
-    print(f"  Sum of w_upstream: {sum_w_upstream:.6f} (should be 1.0)")
-    print(f"  Sum of w_dist: {sum_w_dist:.6f} (should be 1.0)")
+    print(f"  Sum of w_sub_tx_and_dist: {sum_w:.6f} (should be 1.0)")
 
-    if abs(sum_w_upstream - 1.0) > 1e-6:
-        raise ValueError(f"Upstream weights do not sum to 1.0: {sum_w_upstream}")
-
-    if abs(sum_w_dist - 1.0) > 1e-6:
-        raise ValueError(f"Distribution weights do not sum to 1.0: {sum_w_dist}")
+    if abs(sum_w - 1.0) > 1e-6:
+        raise ValueError(f"Weights do not sum to 1.0: {sum_w}")
 
     return result_df
 
 
 def allocate_costs_to_hours(
     load_df: pl.DataFrame,
-    mc_upstream: float,
-    mc_dist: float,
+    mc_sub_tx_and_dist: float,
 ) -> pl.DataFrame:
     """Allocate marginal costs to hourly price signals.
 
     Args:
-        load_df: DataFrame with PoP weights (w_upstream, w_dist)
-        mc_upstream: Upstream marginal cost ($/kW-yr)
-        mc_dist: Distribution marginal cost ($/kW-yr)
+        load_df: DataFrame with PoP weights (w_sub_tx_and_dist)
+        mc_sub_tx_and_dist: Sub-transmission and distribution marginal cost ($/kW-yr)
 
     Returns:
-        DataFrame with added columns: mc_upstream_per_kwh, mc_dist_per_kwh, mc_total_per_kwh
+        DataFrame with added column: mc_total_per_kwh
     """
-    # Convert $/kW-yr to $/kWh using PoP weights
-    # Formula: P_h = (MC * W_h) / 8760
-    # But we want it in $/kWh, and the customer usage is in kWh
-    # The proper formula is: P_h = MC * W_h (in $/kWh)
-    # Because MC is in $/kW-yr and W_h is probability, the result needs no division by 8760
-
-    result_df = load_df.with_columns(
-        [
-            (pl.lit(mc_upstream) * pl.col("w_upstream")).alias("mc_upstream_per_kwh"),
-            (pl.lit(mc_dist) * pl.col("w_dist")).alias("mc_dist_per_kwh"),
-        ]
+    return load_df.with_columns(
+        (pl.lit(mc_sub_tx_and_dist) * pl.col("w_sub_tx_and_dist")).alias(
+            "mc_total_per_kwh"
+        )
     )
-
-    result_df = result_df.with_columns(
-        [
-            (pl.col("mc_upstream_per_kwh") + pl.col("mc_dist_per_kwh")).alias(
-                "mc_total_per_kwh"
-            )
-        ]
-    )
-
-    return result_df
 
 
 def validate_allocation(
     df: pl.DataFrame,
-    mc_upstream: float,
-    mc_dist: float,
+    mc_sub_tx_and_dist: float,
 ) -> dict:
     """Validate that a constant 1 kW load results in correct annual cost.
 
     The validation checks that:
-    sum(1 kW * P_h * 1 hour) for all hours = MC_upstream + MC_dist ($/kW-yr)
+    sum(1 kW * P_h * 1 hour) for all hours = mc_sub_tx_and_dist ($/kW-yr)
 
     Args:
         df: DataFrame with hourly marginal costs
-        mc_upstream: Expected upstream marginal cost ($/kW-yr)
-        mc_dist: Expected distribution marginal cost ($/kW-yr)
+        mc_sub_tx_and_dist: Expected sub-tx and distribution marginal cost ($/kW-yr)
 
     Returns:
         Dictionary with validation results
     """
-    # Calculate total cost for 1 kW constant load
-    # For each hour: cost = 1 kW * P_h ($/kWh) * 1 hour = P_h ($)
-    # Annual cost = sum of all hourly costs
-
-    total_upstream_cost = df["mc_upstream_per_kwh"].sum()
-    total_dist_cost = df["mc_dist_per_kwh"].sum()
     total_cost = df["mc_total_per_kwh"].sum()
 
-    expected_total = mc_upstream + mc_dist
-
     validation_results = {
-        "expected_upstream": mc_upstream,
-        "actual_upstream": total_upstream_cost,
-        "upstream_error": abs(total_upstream_cost - mc_upstream),
-        "upstream_error_pct": abs(total_upstream_cost - mc_upstream) / mc_upstream * 100
-        if mc_upstream > 0
-        else 0,
-        "expected_dist": mc_dist,
-        "actual_dist": total_dist_cost,
-        "dist_error": abs(total_dist_cost - mc_dist),
-        "dist_error_pct": abs(total_dist_cost - mc_dist) / mc_dist * 100
-        if mc_dist > 0
-        else 0,
-        "expected_total": expected_total,
+        "expected_total": mc_sub_tx_and_dist,
         "actual_total": total_cost,
-        "total_error": abs(total_cost - expected_total),
-        "total_error_pct": abs(total_cost - expected_total) / expected_total * 100
-        if expected_total > 0
+        "total_error": abs(total_cost - mc_sub_tx_and_dist),
+        "total_error_pct": abs(total_cost - mc_sub_tx_and_dist)
+        / mc_sub_tx_and_dist
+        * 100
+        if mc_sub_tx_and_dist > 0
         else 0,
     }
 
     print("\n" + "=" * 60)
     print("VALIDATION: 1 kW Constant Load Test")
     print("=" * 60)
-    print("Upstream:")
-    print(f"  Expected: ${validation_results['expected_upstream']:.4f}/kW-yr")
-    print(f"  Actual:   ${validation_results['actual_upstream']:.4f}/kW-yr")
-    print(
-        f"  Error:    ${validation_results['upstream_error']:.4f} ({validation_results['upstream_error_pct']:.4f}%)"
-    )
-    print("\nDistribution:")
-    print(f"  Expected: ${validation_results['expected_dist']:.4f}/kW-yr")
-    print(f"  Actual:   ${validation_results['actual_dist']:.4f}/kW-yr")
-    print(
-        f"  Error:    ${validation_results['dist_error']:.4f} ({validation_results['dist_error_pct']:.4f}%)"
-    )
-    print("\nTotal:")
     print(f"  Expected: ${validation_results['expected_total']:.4f}/kW-yr")
     print(f"  Actual:   ${validation_results['actual_total']:.4f}/kW-yr")
     print(
         f"  Error:    ${validation_results['total_error']:.4f} ({validation_results['total_error_pct']:.4f}%)"
     )
 
-    # Check if validation passed (within 0.01% tolerance)
-    tolerance = 0.01  # 0.01% error tolerance
+    tolerance = 0.01
     if validation_results["total_error_pct"] > tolerance:
         print("\n✗ Validation FAILED")
         print("=" * 60)
@@ -482,14 +390,13 @@ def save_allocated_costs(
 
     Args:
         df: DataFrame with allocated costs
-        iso_region: ISO region partition key (nyiso/isone) - used for validation only
+        iso_region: ISO region (unused in output path, kept for interface consistency)
         utility: Utility name
-        year: Target year
-        s3_base: Base S3 path for marginal costs (should include dist_and_sub_tx subdirectory)
-        validation_results: Validation results to include in metadata
+        year: Load year used
+        s3_base: Base S3 path for marginal costs
+        validation_results: Validation results (unused, kept for interface consistency)
         storage_options: Polars S3 storage options with AWS bucket region
     """
-    # Select final columns
     output_df = df.select(
         [
             "timestamp",
@@ -500,14 +407,16 @@ def save_allocated_costs(
     )
 
     s3_base = s3_base.rstrip("/") + "/"
-    # Write directly to the partition path with data.parquet filename
-    output_path = f"{s3_base}utility={utility}/year={year}/data.parquet"
     output_df.write_parquet(
-        output_path,
+        s3_base,
+        partition_by=["utility", "year"],
         storage_options=storage_options,
     )
 
-    print(f"\n✓ Saved allocated costs to {output_path}")
+    print(
+        "\n✓ Saved allocated costs to "
+        f"{s3_base}utility={utility}/year={year}/00000000.parquet"
+    )
     print(f"  Rows: {len(output_df):,}")
     print(f"  Columns: {', '.join(output_df.columns)}")
 
@@ -531,15 +440,10 @@ def main():
         help="Utility name (lowercase short code: nyseg, rge, cenhud, nationalgrid)",
     )
     parser.add_argument(
-        "--mc-year",
-        type=int,
-        required=True,
-        help="Marginal cost year (2026-2035) - which year's MC table to use",
-    )
-    parser.add_argument(
         "--load-year",
         type=int,
-        help="Year of load profile to use (defaults to same as --mc-year). Use this to apply future MC to historical load shapes.",
+        required=True,
+        help="Year of load profile to use for PoP allocation",
     )
     parser.add_argument(
         "--mc-table-path",
@@ -565,18 +469,11 @@ def main():
         help="Base S3 path for output (e.g., s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/)",
     )
     parser.add_argument(
-        "--upstream-hours",
+        "--n-hours",
         type=int,
         choices=range(0, 8761),
         default=100,
-        help="Number of top load hours for upstream allocation (0-8760, default: 100)",
-    )
-    parser.add_argument(
-        "--dist-hours",
-        type=int,
-        choices=range(0, 8761),
-        default=50,
-        help="Number of top load hours for distribution allocation (0-8760, default: 50)",
+        help="Number of top load hours for PoP allocation (0-8760, default: 100)",
     )
     parser.add_argument(
         "--upload",
@@ -590,9 +487,6 @@ def main():
     config = get_state_config(args.state)
     storage_options = get_aws_storage_options()
 
-    # Default load_year to mc_year if not specified
-    load_year = args.load_year if args.load_year else args.mc_year
-
     print("=" * 60)
     print("MARGINAL COST ALLOCATION")
     print(f"State: {config.state}")
@@ -600,44 +494,27 @@ def main():
     print(f"AWS bucket region: {storage_options.get('region')}")
     print("=" * 60)
     print(f"Utility: {args.utility}")
-    print(f"MC Year: {args.mc_year}")
-    print(f"Load Year: {load_year}")
-    print(f"Upstream allocation window: Top {args.upstream_hours} hours")
-    print(f"Distribution allocation window: Top {args.dist_hours} hours")
+    print(f"Load Year: {args.load_year}")
+    print(f"Allocation window: Top {args.n_hours} hours")
     print(f"Upload to S3: {'Yes' if args.upload else 'No (inspection only)'}")
     print("=" * 60)
 
-    utility_load_s3_base = args.utility_load_s3_base
-    output_s3_base = args.output_s3_base
-
-    # Load utility load profile
     load_df = load_utility_load_profile(
-        utility_load_s3_base,
+        args.utility_load_s3_base,
         config.iso_region,
-        load_year,
+        args.load_year,
         args.utility,
         storage_options,
     )
-    load_df = normalize_load_to_cairo_8760(load_df, args.utility, load_year)
+    load_df = normalize_load_to_cairo_8760(load_df, args.utility, args.load_year)
 
-    # Load marginal cost table
     mc_df = load_marginal_cost_table(args.mc_table_path)
+    mc_sub_tx_and_dist = get_marginal_cost_for_utility(mc_df, args.utility)
 
-    # Get marginal costs for this utility and year
-    mc_upstream, mc_dist = get_marginal_costs_for_year(
-        mc_df, args.utility, args.mc_year
-    )
+    load_df = calculate_pop_weights(load_df, args.n_hours)
+    load_df = allocate_costs_to_hours(load_df, mc_sub_tx_and_dist)
+    validation_results = validate_allocation(load_df, mc_sub_tx_and_dist)
 
-    # Calculate PoP weights
-    load_df = calculate_pop_weights(load_df, args.upstream_hours, args.dist_hours)
-
-    # Allocate costs to hours
-    load_df = allocate_costs_to_hours(load_df, mc_upstream, mc_dist)
-
-    # Validate allocation
-    validation_results = validate_allocation(load_df, mc_upstream, mc_dist)
-
-    # Display sample results
     print("\n" + "=" * 60)
     print("SAMPLE RESULTS")
     print("=" * 60)
@@ -648,23 +525,20 @@ def main():
             [
                 "timestamp",
                 "load_mw",
-                "mc_upstream_per_kwh",
-                "mc_dist_per_kwh",
+                "w_sub_tx_and_dist",
                 "mc_total_per_kwh",
-                "is_upstream_peak",
-                "is_dist_peak",
+                "is_peak",
             ]
         )
     )
 
-    # Save results if upload flag is set
     if args.upload:
         save_allocated_costs(
             load_df,
             config.iso_region,
             args.utility,
-            args.mc_year,
-            output_s3_base,
+            args.load_year,
+            args.output_s3_base,
             validation_results,
             storage_options,
         )

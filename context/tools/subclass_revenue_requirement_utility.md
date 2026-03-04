@@ -78,7 +78,7 @@ Output behavior:
 
 - Writes differentiated subclass RR YAML:
   `rate_design/hp_rates/ri/config/rev_requirement/rie_hp_vs_nonhp.yaml`
-- Writes default RIE RR YAML (from `scenarios.yaml.utility_delivery_revenue_requirement`):
+- Writes default RIE RR YAML (from `scenarios.yaml.utility_revenue_requirement`):
   `rate_design/hp_rates/ri/config/rev_requirement/rie.yaml`
 - Both output paths are overrideable via:
   - `--differentiated-yaml-path`

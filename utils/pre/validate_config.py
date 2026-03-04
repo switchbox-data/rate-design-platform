@@ -39,7 +39,8 @@ def main() -> None:
     parser.add_argument("--year", required=True)
     parser.add_argument("--path-dist-and-sub-tx-mc", required=True)
     parser.add_argument("--path-bulk-tx-mc", default=None)
-    parser.add_argument("--path-supply-energy-mc", default=None)
+    parser.add_argument("--path-supply-energy-mc", required=True)
+    parser.add_argument("--path-supply-capacity-mc", required=True)
     parser.add_argument("--path-electric-utility-stats", required=True)
     parser.add_argument("--path-resstock-loads", required=True)
     parser.add_argument("--strict", action="store_true")
@@ -83,16 +84,21 @@ def main() -> None:
             )
         )
 
-    # Optional: check path_supply_energy_mc against run2's YAML value.
-    # Skipped when --path-supply-energy-mc is not provided (e.g. states without
-    # a fixed supply energy MC Justfile variable).
-    if args.path_supply_energy_mc is not None and run2:
-        yaml_supply_energy = run2.get("path_supply_energy_mc", "")
+    # Check supply MC paths against run2 (the first supply run).
+    # Run1 uses zero_marginal_costs for delivery-only; run2 has the real paths.
+    if run2:
         checks.append(
             (
                 "path_supply_energy_mc",
                 _normalize_data_path(args.path_supply_energy_mc),
-                _normalize_data_path(str(yaml_supply_energy)),
+                _normalize_data_path(str(run2.get("path_supply_energy_mc", ""))),
+            )
+        )
+        checks.append(
+            (
+                "path_supply_capacity_mc",
+                _normalize_data_path(args.path_supply_capacity_mc),
+                _normalize_data_path(str(run2.get("path_supply_capacity_mc", ""))),
             )
         )
 

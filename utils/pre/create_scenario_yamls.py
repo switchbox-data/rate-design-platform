@@ -63,6 +63,15 @@ path_tou_supply_mc formula (for runs where num = 13 or 14):
     - Backward compatibility: old column names path_td_marginal_costs and
       path_dist_and_sub_tx_marginal_costs are still supported
 
+    path_dist_and_sub_tx_mc formula (NY):
+    ="s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=" & LOWER($C18) & "/year=2025/data.parquet"
+
+    path_dist_and_sub_tx_mc formula (RI):
+    ="s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=" & LOWER($C18) & "/year=2025/data.parquet"
+
+    Where:
+    - $C18 is the utility column
+
     After updating the Google Sheet, run: just create-scenario-yamls
 """
 
@@ -224,32 +233,21 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         "path_tariff_maps_gas",
         "path_resstock_metadata",
         "path_resstock_loads",
+        "path_dist_and_sub_tx_mc",
         "path_utility_assignment",
         "path_tariffs_gas",
         "path_outputs",
     ):
         run[key] = get(key)
 
-    run["path_dist_and_sub_tx_mc"] = get("path_dist_and_sub_tx_mc")
-
-    # Handle separate energy and capacity paths (required)
-    try:
-        run["path_supply_energy_mc"] = get_optional("path_supply_energy_mc")
-    except ValueError:
-        run["path_supply_energy_mc"] = None
-
-    try:
-        run["path_supply_capacity_mc"] = get_optional("path_supply_capacity_mc")
-    except ValueError:
-        run["path_supply_capacity_mc"] = None
+    run["path_supply_energy_mc"] = require_non_empty("path_supply_energy_mc")
+    run["path_supply_capacity_mc"] = require_non_empty("path_supply_capacity_mc")
 
     run["path_tariffs_electric"] = _path_tariffs_to_dict(
         require_non_empty("path_tariffs_electric")
     )
 
-    run["utility_delivery_revenue_requirement"] = get(
-        "utility_delivery_revenue_requirement"
-    )
+    run["utility_revenue_requirement"] = get("utility_revenue_requirement")
 
     # Accept either the new column name or the old one for backward compatibility
     supply_raw = get_optional("run_includes_supply")

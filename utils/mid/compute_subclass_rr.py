@@ -469,12 +469,12 @@ def _load_run_fields(
     scenario_config_path: Path,
     run_num: int,
 ) -> tuple[str, str, float]:
-    """Read state, utility, and delivery revenue requirement from a scenario run.
+    """Read state, utility, and revenue requirement from a scenario run.
 
     Raises KeyError if any required field is missing.
     """
     run = _load_run_from_scenario_config(scenario_config_path, run_num)
-    for field in ("state", "utility", "utility_delivery_revenue_requirement"):
+    for field in ("state", "utility", "utility_revenue_requirement"):
         if field not in run:
             raise KeyError(
                 f"Run {run_num} in {scenario_config_path} is missing "
@@ -482,7 +482,7 @@ def _load_run_fields(
             )
     state = str(run["state"]).upper()
     utility = str(run["utility"]).lower()
-    raw_rr = run["utility_delivery_revenue_requirement"]
+    raw_rr = run["utility_revenue_requirement"]
     if isinstance(raw_rr, str) and raw_rr.endswith(".yaml"):
         rr_path = scenario_config_path.parent.parent / raw_rr
         with open(rr_path) as f:
@@ -621,8 +621,8 @@ def main() -> None:
         type=Path,
         default=DEFAULT_SCENARIO_CONFIG_PATH,
         help=(
-            "Path to RI scenarios YAML used to read default utility delivery revenue "
-            "requirement."
+            "Path to scenario YAML used to read state, utility, and base "
+            "revenue requirement for the run."
         ),
     )
     parser.add_argument(
