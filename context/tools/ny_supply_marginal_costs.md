@@ -50,7 +50,7 @@ Capacity MC now uses **two locality models**, each for a different purpose.
 
 ### 1) Nested localities for capacity peak loads (hour-shape)
 
-These are overlapping footprints used only to build the hourly load profile that determines peak-hour weights:
+These are overlapping nested localities used only to build the hourly load profile that determines peak-hour weights:
 
 - `NYCA = A-K`
 - `LHV = G-J`
@@ -92,7 +92,7 @@ Non-peak hours get zero capacity cost. Only the top 8 load hours per month carry
 
 **ConEd example**:
 
-- Peak-load shape: `0.87 × NYC(J) + 0.13 × LHV(G-J)` (nested footprints)
+- Peak-load shape: `0.87 × NYC(J) + 0.13 × LHV(G-J)` (nested localities)
 - Price blend: `0.87 × NYC + 0.13 × LHV` (partitioned localities; `GHIJ` source mapped to `LHV`)
 
 **Validation**: a 1 kW constant load must recover the sum of 12 monthly ICAP prices exactly (within tolerance). This validates that the hourly allocation sums back to the correct annual total.

@@ -19,7 +19,7 @@ def _base_row() -> dict[str, str]:
         "path_tariffs_gas": "tariffs/gas",
         "path_outputs": "/data.sb/switchbox/cairo/outputs/hp_rates/ri/test",
         "path_tariffs_electric": "hp: tariffs/electric/rie_hp_seasonalTOU_supply.json, non-hp: tariffs/electric/rie_flat_supply.json",
-        "utility_delivery_revenue_requirement": "rev_requirement/rie_hp_vs_nonhp.yaml",
+        "utility_revenue_requirement": "rev_requirement/rie_hp_vs_nonhp.yaml",
         "add_supply_revenue_requirement": "FALSE",
         "path_electric_utility_stats": "s3://example/eia861.parquet",
         "solar_pv_compensation": "net_metering",
