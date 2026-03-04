@@ -21,7 +21,7 @@ import pandas as pd
 from cairo.rates_tool.systemsimulator import _return_revenue_requirement_target
 
 from utils.cairo import (
-    _load_cambium_marginal_costs,
+    _load_supply_marginal_costs,
     apply_runtime_tou_demand_response,
 )
 from utils.pre.compute_tou import (
@@ -242,7 +242,6 @@ def apply_demand_flex(
     run_type: str,
     year_run: int,
     path_tariffs_electric: dict[str, Path],
-    path_tou_supply_mc: str | Path | None,
     tou_derivation_dir: Path,
     raw_load_elec: pd.DataFrame,
     customer_metadata: pd.DataFrame,
@@ -251,6 +250,8 @@ def apply_demand_flex(
     rr_total: float,
     bulk_marginal_costs: pd.DataFrame,
     dist_and_sub_tx_marginal_costs: pd.Series,
+    path_tou_supply_energy_mc: str | Path | None = None,
+    path_tou_supply_capacity_mc: str | Path | None = None,
 ) -> DemandFlexResult:
     """Run the full demand-flex pipeline (phases 1a, 1.5, 1.75, 2).
 
@@ -372,17 +373,27 @@ def apply_demand_flex(
     # runs use a pre-calibrated tariff and skip this.
     updated_precalc = precalc_mapping
     if tou_season_specs and run_type == "precalc":
-        # Delivery-only scenarios may have zeroed-out Cambium; use the real
-        # supply MC file if provided so cost-causation ratios are meaningful.
-        if path_tou_supply_mc is not None:
-            tou_bulk_mc = _load_cambium_marginal_costs(path_tou_supply_mc, year_run)
+        # TOU cost-causation must always use real (non-zero) bulk supply MCs so that
+        # delivery-only and supply runs share identical TOU windows and peak/off-peak
+        # ratios. If the Justfile-level real supply MC paths were passed in (via CLI),
+        # load them specifically for this step; otherwise fall back to the scenario's
+        # already-loaded bulk_marginal_costs (correct for supply runs).
+        tou_bulk_mc = bulk_marginal_costs
+        if (
+            path_tou_supply_energy_mc is not None
+            and path_tou_supply_capacity_mc is not None
+        ):
             log.info(
-                ".... Phase 1.75: using real supply MC from %s",
-                path_tou_supply_mc,
+                ".... Phase 1.75: loading real supply MC for TOU recalibration "
+                "(energy=%s, capacity=%s)",
+                path_tou_supply_energy_mc,
+                path_tou_supply_capacity_mc,
             )
-        else:
-            tou_bulk_mc = bulk_marginal_costs
-            log.info(".... Phase 1.75: using scenario bulk MC (no path_tou_supply_mc)")
+            tou_bulk_mc = _load_supply_marginal_costs(
+                path_tou_supply_energy_mc,
+                path_tou_supply_capacity_mc,
+                target_year=year_run,
+            )
 
         log.info(".... Phase 1.75: recomputing TOU precalc mapping from shifted load")
         # Sum individual building loads into one system-level hourly curve,
