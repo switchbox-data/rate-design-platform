@@ -33,19 +33,9 @@ HOURLY_TOTAL_ELECTRICITY_INTENSITY_COL = (
     "out.electricity.total.energy_consumption_intensity"
 )
 MF_NON_HVAC_ELECTRICITY_ADJUSTED_COL = "mf_non_hvac_electricity_adjusted"
-
 BUILDING_TYPE_RECS_COL = "in.geometry_building_type_recs"
 FLOOR_AREA_COL = "in.geometry_floor_area"
 
-HVAC_RELATED_ELECTRICITY_COLS = (
-    "out.electricity.cooling.energy_consumption.kwh",
-    "out.electricity.cooling_fans_pumps.energy_consumption.kwh",
-    "out.electricity.heating.energy_consumption.kwh",
-    "out.electricity.heating_fans_pumps.energy_consumption.kwh",
-    "out.electricity.heating_hp_bkup.energy_consumption.kwh",
-    "out.electricity.heating_hp_bkup_fa.energy_consumption.kwh",
-    "out.electricity.mech_vent.energy_consumption.kwh",
-)
 NON_HVAC_RELATED_ELECTRICITY_COLS = (
     "out.electricity.ceiling_fan.energy_consumption.kwh",
     "out.electricity.clothes_dryer.energy_consumption.kwh",
@@ -252,63 +242,7 @@ def _adjust_mf_electricity_hourly_one_bldg(
         new_total_intensity.alias(HOURLY_TOTAL_ELECTRICITY_INTENSITY_COL)
     )
 
-    hvac_consumption_cols = [
-        annual_to_hourly_cols(c)[0]
-        for c in HVAC_RELATED_ELECTRICITY_COLS
-        if annual_to_hourly_cols(c)
-    ]
-    hvac_intensity_cols = [
-        annual_to_hourly_cols(c)[1]
-        for c in HVAC_RELATED_ELECTRICITY_COLS
-        if annual_to_hourly_cols(c)
-    ]
-    hvac_consumption_cols = [
-        c for c in hvac_consumption_cols if c in load_curve_hourly_schema
-    ]
-    hvac_intensity_cols = [
-        c for c in hvac_intensity_cols if c in load_curve_hourly_schema
-    ]
-    hvac_consumption = (
-        pl.sum_horizontal([pl.col(c) for c in hvac_consumption_cols])
-        if hvac_consumption_cols
-        else pl.lit(0.0)
-    )
-    hvac_intensity = (
-        pl.sum_horizontal([pl.col(c) for c in hvac_intensity_cols])
-        if hvac_intensity_cols
-        else pl.lit(0.0)
-    )
-
     adjusted_hourly = load_curve_hourly.with_columns(update_exprs)
-    totals = cast(
-        pl.DataFrame,
-        load_curve_hourly.select(
-            old_non_hvac.alias("_old_c"),
-            adjusted_non_hvac.alias("_adj_c"),
-            old_non_hvac_intensity.alias("_old_i"),
-            adjusted_non_hvac_intensity.alias("_adj_i"),
-            hvac_consumption.alias("_hvac_c"),
-            hvac_intensity.alias("_hvac_i"),
-        )
-        .select(
-            pl.col("_old_c").sum().alias("non_hvac_consumption_before"),
-            pl.col("_adj_c").sum().alias("non_hvac_consumption_after"),
-            pl.col("_old_i").sum().alias("non_hvac_intensity_before"),
-            pl.col("_adj_i").sum().alias("non_hvac_intensity_after"),
-            pl.col("_hvac_c").sum().alias("hvac_consumption"),
-            pl.col("_hvac_i").sum().alias("hvac_intensity"),
-        )
-        .collect(),
-    )
-    row = totals.row(0)
-    print("Non-HVAC total (consumption) before adjustment:", row[0])
-    print("Non-HVAC total (consumption) after adjustment:", row[1])
-    print("Non-HVAC total (intensity) before adjustment:", row[2])
-    print("Non-HVAC total (intensity) after adjustment:", row[3])
-    print("HVAC total (consumption) before adjustment:", row[4])
-    print("HVAC total (consumption) after adjustment:", row[4])
-    print("HVAC total (intensity) before adjustment:", row[5])
-    print("HVAC total (intensity) after adjustment:", row[5])
     return adjusted_hourly
 
 
