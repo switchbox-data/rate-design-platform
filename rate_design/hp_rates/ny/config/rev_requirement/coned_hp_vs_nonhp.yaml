@@ -1,15 +1,15 @@
 utility: coned
 group_col: has_hp
 cross_subsidy_col: BAT_percustomer
-source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/20260225_195750_ny_coned_run1_up00_precalc__flat__n100
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/20260304_000440_ny_coned_run1_up00_precalc__flat__n100
 total_delivery_revenue_requirement: 1146303899.55
 total_delivery_and_supply_revenue_requirement: 5326386645.89
 subclass_revenue_requirements:
-  hp:
-    delivery: 538576849.4163599
-    supply: 0.0
-    total: 538576849.4163599
   non-hp:
-    delivery: 18008658092.37018
-    supply: 0.0
-    total: 18008658092.37018
+    delivery: 1122962277.7271938
+    supply: 4081919492.9550123
+    total: 5204881770.682206
+  hp:
+    delivery: 23341621.82280618
+    supply: 98163253.38498792
+    total: 121504875.2077941
