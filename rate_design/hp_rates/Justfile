@@ -89,6 +89,7 @@ path_supply_base                    := path_rev_requirement / "supply_base_overr
 path_default_tariff                 := path_genability / "default_tariffs" / default_tariff
 path_default_supply_tariff          := path_tariffs_electric / default_tariff_supply
 tou_tariff_key                      := utility + "_hp_seasonalTOU"
+path_outputs_base                   := "/data.sb/switchbox/cairo/outputs/hp_rates/" + state + "/" + utility
 latest_output                       := path_repo / "utils/mid/latest_run_output.sh"
 
 # =============================================================================
@@ -278,11 +279,16 @@ compute-rev-requirements:
 # =============================================================================
 
 run-scenario run_num:
-  uv run python {{path_repo}}/rate_design/hp_rates/run_scenario.py \
-    --state "{{state}}" \
-    --run-num "{{run_num}}" \
-    --utility "{{utility}}" \
-    {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Use RDP_EXECUTION_TIME from orchestration recipe, or generate one for standalone calls
+    : "${RDP_EXECUTION_TIME:=$(date -u +%Y%m%dT%H%M%SZ)}"
+    uv run python {{path_repo}}/rate_design/hp_rates/run_scenario.py \
+        --state "{{state}}" \
+        --run-num "{{run_num}}" \
+        --utility "{{utility}}" \
+        --output-dir "{{path_outputs_base}}/${RDP_EXECUTION_TIME}" \
+        {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }}
 
 run-1:
     # just create-flat-tariff
@@ -458,6 +464,8 @@ all-pre:
 run-all-utilities-sequential:
     #!/usr/bin/env bash
     set -euo pipefail
+    export RDP_EXECUTION_TIME="${RDP_EXECUTION_TIME:-$(date -u +%Y%m%dT%H%M%SZ)}"
+    echo ">> run-all-utilities-sequential [${RDP_EXECUTION_TIME}]" >&2
     IFS=',' read -ra utils <<< "{{utilities}}"
     for util in "${utils[@]}"; do
         echo ">> ======================================" >&2
@@ -468,6 +476,10 @@ run-all-utilities-sequential:
     done
 
 run-all-sequential:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export RDP_EXECUTION_TIME="${RDP_EXECUTION_TIME:-$(date -u +%Y%m%dT%H%M%SZ)}"
+    echo ">> run-all-sequential [${RDP_EXECUTION_TIME}]" >&2
     just run-1
     just run-2
     just compute-rev-requirements
@@ -489,10 +501,11 @@ run-all-sequential:
 run-all-parallel-tracks:
     #!/usr/bin/env bash
     set -euo pipefail
+    export RDP_EXECUTION_TIME="${RDP_EXECUTION_TIME:-$(date -u +%Y%m%dT%H%M%SZ)}"
     WORKERS=$(( $(nproc) / 2 ))
     [ "$WORKERS" -lt 1 ] && WORKERS=1
     export RDP_NUM_WORKERS="$WORKERS"
-    echo ">> run-all-parallel-tracks: ${WORKERS} workers/track on $(nproc) total vCPUs" >&2
+    echo ">> run-all-parallel-tracks [${RDP_EXECUTION_TIME}]: ${WORKERS} workers/track on $(nproc) total vCPUs" >&2
 
     just create-flat-tariff
 
@@ -539,6 +552,17 @@ run-all-parallel-tracks:
     wait $PID16 || { echo "ERROR: run-16 failed" >&2; exit 1; }
 
     echo ">> run-all-parallel-tracks: all 16 runs complete" >&2
+
+run-subset runs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export RDP_EXECUTION_TIME="${RDP_EXECUTION_TIME:-$(date -u +%Y%m%dT%H%M%SZ)}"
+    echo ">> run-subset [${RDP_EXECUTION_TIME}]: runs={{runs}}" >&2
+    IFS=',' read -ra nums <<< "{{runs}}"
+    for num in "${nums[@]}"; do
+        echo ">> run-subset: run-${num}" >&2
+        just "run-${num}"
+    done
 
 # =============================================================================
 # HELPERS
