@@ -665,9 +665,12 @@ def allocate_icap_to_hours(
     """Allocate monthly ICAP $/kW-month to hourly $/kW using threshold-exceedance.
 
     For each month:
-    1. Sort hours by load (descending).
-    2. Threshold = load of the (n_peak_hours+1)-th highest hour.
-    3. Exceedance = max(load_h - threshold, 0).
+    1. Sort hours by load (descending); take the top N.
+    2. Threshold = max(load_mw where load_mw < load of the Nth hour).
+       This avoids ties: when the Nth and (N+1)th hours have equal load,
+       the threshold drops to the next genuinely lower value so the Nth
+       hour always gets positive exceedance.
+    3. Exceedance_h = load_h - threshold (for top-N hours only).
     4. Weight_h = exceedance_h / sum(exceedance in month).
     5. capacity_cost_h = weight_h * icap_price_m.
 
@@ -702,24 +705,26 @@ def allocate_icap_to_hours(
         sorted_load = month_load.sort("load_mw", descending=True)
         n_hours = sorted_load.height
 
-        if n_hours <= n_peak_hours:
+        if n_hours < n_peak_hours:
             raise ValueError(
                 f"Month {month_num} has only {n_hours} hours, "
-                f"need at least {n_peak_hours + 1} for threshold computation"
+                f"need at least {n_peak_hours} for threshold computation"
             )
 
-        # Threshold = load of the (n_peak_hours+1)-th highest hour (0-indexed: n_peak_hours)
-        threshold = float(sorted_load["load_mw"][n_peak_hours])
+        top_n = sorted_load.head(n_peak_hours)
+        load_nth = float(top_n["load_mw"][-1])
 
-        # Compute exceedance for all hours
-        month_result = month_load.with_columns(
-            pl.when(pl.col("load_mw") > threshold)
-            .then(pl.col("load_mw") - threshold)
-            .otherwise(0.0)
-            .alias("exceedance")
+        # Threshold = max load strictly below the Nth highest hour.
+        # When the Nth and (N+1)th hours tie, this drops to the next genuinely
+        # lower value so the Nth hour always gets positive exceedance.
+        below = month_load.filter(pl.col("load_mw") < load_nth)["load_mw"]
+        threshold = float(below.max()) if not below.is_empty() else 0.0  # type: ignore[arg-type]
+
+        month_result = top_n.with_columns(
+            (pl.col("load_mw") - threshold).alias("exceedance")
         )
 
-        total_exceedance = month_result["exceedance"].sum()
+        total_exceedance = float(month_result["exceedance"].sum())
         if total_exceedance <= 0:
             raise ValueError(
                 f"Month {month_num}: total exceedance is zero or negative. "
