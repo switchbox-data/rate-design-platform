@@ -193,7 +193,7 @@ def run(settings: ScenarioSettings) -> None:
         solar_pv_export_import_ratio=1.0,
         tariff_dict=tariffs_params,
     )
-    rr_setting = settings.utility_delivery_revenue_requirement
+    rr_setting = settings.utility_revenue_requirement
     if isinstance(rr_setting, dict):
         rr_total = sum(rr_setting.values())
         rr_ratios: dict[str, float] | None = {

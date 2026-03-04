@@ -236,7 +236,7 @@ def _build_settings_from_yaml_run(
         "run_includes_subclasses",
     )
     rr_config: RevenueRequirementConfig = _parse_utility_revenue_requirement(
-        _require_value(run, "utility_delivery_revenue_requirement"),
+        _require_value(run, "utility_revenue_requirement"),
         path_config,
         raw_path_tariffs_electric,
         add_supply=run_includes_supply,

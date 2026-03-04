@@ -247,9 +247,7 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         require_non_empty("path_tariffs_electric")
     )
 
-    run["utility_delivery_revenue_requirement"] = get(
-        "utility_delivery_revenue_requirement"
-    )
+    run["utility_revenue_requirement"] = get("utility_revenue_requirement")
 
     # Accept either the new column name or the old one for backward compatibility
     supply_raw = get_optional("run_includes_supply")

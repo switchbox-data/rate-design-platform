@@ -17,7 +17,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_tariffs_electric:
       all: tariffs/electric/nyseg_flat.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg.yaml
+    utility_revenue_requirement: rev_requirement/nyseg.yaml
     run_includes_supply: false
     run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -47,7 +47,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2025/00000000.parquet
     path_tariffs_electric:
       all: tariffs/electric/nyseg_flat_supply.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg.yaml
+    utility_revenue_requirement: rev_requirement/nyseg.yaml
     run_includes_supply: true
     run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -77,7 +77,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_tariffs_electric:
       all: tariffs/electric/nyseg_flat_calibrated.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
+    utility_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     run_includes_supply: false
     run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -107,7 +107,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2025/00000000.parquet
     path_tariffs_electric:
       all: tariffs/electric/nyseg_flat_supply_calibrated.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
+    utility_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     run_includes_supply: true
     run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -138,7 +138,7 @@ runs:
     path_tariffs_electric:
       hp: tariffs/electric/nyseg_hp_seasonal.json
       non-hp: tariffs/electric/nyseg_flat.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
+    utility_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -169,7 +169,7 @@ runs:
     path_tariffs_electric:
       hp: tariffs/electric/nyseg_hp_seasonal_supply.json
       non-hp: tariffs/electric/nyseg_flat_supply.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
+    utility_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -199,7 +199,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_tariffs_electric:
       all: tariffs/electric/nyseg_hp_seasonal_calibrated.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
+    utility_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     run_includes_supply: false
     run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -229,7 +229,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2025/00000000.parquet
     path_tariffs_electric:
       all: tariffs/electric/nyseg_hp_seasonal_supply_calibrated.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
+    utility_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     run_includes_supply: true
     run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -260,7 +260,7 @@ runs:
     path_tariffs_electric:
       hp: tariffs/electric/nyseg_hp_seasonalTOU.json
       non-hp: tariffs/electric/nyseg_flat.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
+    utility_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -291,7 +291,7 @@ runs:
     path_tariffs_electric:
       hp: tariffs/electric/nyseg_hp_seasonalTOU_supply.json
       non-hp: tariffs/electric/nyseg_flat_supply.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
+    utility_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -321,7 +321,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_tariffs_electric:
       all: tariffs/electric/nyseg_hp_seasonalTOU_calibrated.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
+    utility_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     run_includes_supply: false
     run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -351,7 +351,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2025/00000000.parquet
     path_tariffs_electric:
       all: tariffs/electric/nyseg_hp_seasonalTOU_supply_calibrated.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
+    utility_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     run_includes_supply: true
     run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -382,7 +382,7 @@ runs:
     path_tariffs_electric:
       hp: tariffs/electric/nyseg_hp_seasonalTOU_flex.json
       non-hp: tariffs/electric/nyseg_flat.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
+    utility_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -413,7 +413,7 @@ runs:
     path_tariffs_electric:
       hp: tariffs/electric/nyseg_hp_seasonalTOU_flex_supply.json
       non-hp: tariffs/electric/nyseg_flat_supply.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
+    utility_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -443,7 +443,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/zero_marginal_costs.csv
     path_tariffs_electric:
       all: tariffs/electric/nyseg_hp_seasonalTOU_flex_calibrated.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
+    utility_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     run_includes_supply: false
     run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -473,7 +473,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2025/00000000.parquet
     path_tariffs_electric:
       all: tariffs/electric/nyseg_hp_seasonalTOU_flex_supply_calibrated.json
-    utility_delivery_revenue_requirement: rev_requirement/nyseg_large_number.yaml
+    utility_revenue_requirement: rev_requirement/nyseg_large_number.yaml
     run_includes_supply: true
     run_includes_subclasses: false
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet

@@ -225,7 +225,7 @@ def _parse_utility_revenue_requirement(
     add_supply: bool,
     run_includes_subclasses: bool = False,
 ) -> RevenueRequirementConfig:
-    """Parse utility_delivery_revenue_requirement from a YAML path.
+    """Parse utility_revenue_requirement from a YAML path.
 
     Returns a RevenueRequirementConfig with:
       - rr_total: scalar from total_delivery[_and_supply]_revenue_requirement
@@ -234,15 +234,15 @@ def _parse_utility_revenue_requirement(
     """
     if not isinstance(value, str):
         raise ValueError(
-            "utility_delivery_revenue_requirement must be a YAML path string "
+            "utility_revenue_requirement must be a YAML path string "
             f"(.yaml/.yml), got {type(value).__name__}"
         )
     raw = value.strip()
     if raw == "":
-        raise ValueError("Missing required field: utility_delivery_revenue_requirement")
+        raise ValueError("Missing required field: utility_revenue_requirement")
     if not (raw.endswith(".yaml") or raw.endswith(".yml")):
         raise ValueError(
-            "utility_delivery_revenue_requirement must be a YAML file path "
+            "utility_revenue_requirement must be a YAML file path "
             f"(.yaml/.yml), got {value!r}"
         )
 
