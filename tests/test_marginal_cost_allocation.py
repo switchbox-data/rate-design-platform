@@ -4,7 +4,7 @@ These tests validate the core allocation algorithms without requiring S3 access.
 """
 
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import polars as pl
@@ -195,6 +195,42 @@ def test_different_allocation_windows():
         assert abs(total_cost - 18.0) < 0.001, (
             f"Validation failed for window {n_hours}: {total_cost}"
         )
+
+
+def test_pop_timestamp_remap_preserves_allocation() -> None:
+    """Remapping 2018->2025 timestamps preserves peak hour ordinals and totals."""
+    start = datetime(2018, 1, 1)
+    timestamps = [start + timedelta(hours=h) for h in range(8760)]
+    loads = [100.0 + (h % 24) * 10.0 + h * 0.001 for h in range(8760)]
+    df = pl.DataFrame(
+        {
+            "timestamp": timestamps,
+            "load_mw": loads,
+            "utility": ["test"] * 8760,
+        }
+    )
+
+    df = calculate_pop_weights(df, n_hours=100)
+    df = allocate_costs_to_hours(df, 18.0)
+
+    remapped = df.with_columns(pl.col("timestamp").dt.offset_by(f"{2025 - 2018}y"))
+
+    years = remapped["timestamp"].dt.year().unique().to_list()
+    assert years == [2025]
+
+    peak_orig = df.filter(pl.col("is_peak"))
+    peak_remap = remapped.filter(pl.col("is_peak"))
+    assert peak_remap.height == peak_orig.height
+
+    assert float(remapped["mc_total_per_kwh"].sum()) == pytest.approx(
+        float(df["mc_total_per_kwh"].sum())
+    )
+
+    def ordinals(frame: pl.DataFrame) -> list[tuple[int, int, int]]:
+        ts = frame.filter(frame["is_peak"]).sort("timestamp")["timestamp"]
+        return [(t.month, t.day, t.hour) for t in ts.to_list()]
+
+    assert ordinals(df) == ordinals(remapped)
 
 
 if __name__ == "__main__":

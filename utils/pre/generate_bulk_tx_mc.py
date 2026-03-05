@@ -40,20 +40,32 @@ DEFAULT_CONSTRAINT_GROUP_TABLE_PATH = (
 DEFAULT_ZONE_MAPPING_PATH = (
     "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
 )
-DEFAULT_ZONE_LOADS_S3_BASE = "s3://data.sb/eia/hourly_demand/zones/"
+DEFAULT_ZONE_LOADS_S3_BASE = "s3://data.sb/nyiso/hourly_demand/zones/"
 DEFAULT_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/"
 
 N_SCR_HOURS_PER_SEASON = 40
 DEFAULT_SCR_WINTER_MONTHS: tuple[int, ...] = DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS
 VALID_UTILITIES = frozenset({"cenhud", "coned", "nimo", "nyseg", "or", "rge", "psegli"})
 
-NESTED_LOCALITY_ZONE_LETTERS: dict[str, list[str]] = {
-    "NYCA": ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"],
-    "LHV": ["G", "H", "I", "J"],
-    "NYC": ["J"],
-    "LI": ["K"],
+NESTED_LOCALITY_ZONES: dict[str, list[str]] = {
+    "NYCA": [
+        "WEST",
+        "GENESE",
+        "CENTRAL",
+        "NORTH",
+        "MHK_VL",
+        "CAPITL",
+        "HUD_VL",
+        "MILLWD",
+        "DUNWOD",
+        "N.Y.C.",
+        "LONGIL",
+    ],
+    "LHV": ["HUD_VL", "MILLWD", "DUNWOD", "N.Y.C."],
+    "NYC": ["N.Y.C."],
+    "LI": ["LONGIL"],
 }
-VALID_NESTED_LOCALITIES = frozenset(NESTED_LOCALITY_ZONE_LETTERS)
+VALID_NESTED_LOCALITIES = frozenset(NESTED_LOCALITY_ZONES)
 VALID_PAYING_LOCALITIES = frozenset({"ROS", "LHV", "NYC", "LI"})
 
 
@@ -221,16 +233,16 @@ def build_nested_locality_load_profiles(
     """Build load profile per nested locality from NYISO zone loads."""
     profiles: dict[str, pl.DataFrame] = {}
     for locality in nested_localities:
-        zone_letters = NESTED_LOCALITY_ZONE_LETTERS[locality]
+        zone_names = NESTED_LOCALITY_ZONES[locality]
         profile = (
-            zone_loads_df.filter(pl.col("zone").is_in(zone_letters))
+            zone_loads_df.filter(pl.col("zone").is_in(zone_names))
             .group_by("timestamp")
             .agg(pl.col("load_mw").sum().alias("load_mw"))
             .sort("timestamp")
         )
         if profile.is_empty():
             raise ValueError(
-                f"No zone loads found for nested locality {locality} (zones={zone_letters})"
+                f"No zone loads found for nested locality {locality} (zones={zone_names})"
             )
         profiles[locality] = profile
     return profiles
@@ -564,19 +576,19 @@ def main() -> None:
     nested_localities = sorted(
         constraint_group_df["tightest_nested_locality"].unique().to_list()
     )
-    zone_letters_needed = sorted(
+    zone_names_needed = sorted(
         {
             zone
             for locality in nested_localities
-            for zone in NESTED_LOCALITY_ZONE_LETTERS[str(locality)]
+            for zone in NESTED_LOCALITY_ZONES[str(locality)]
         }
     )
 
     print("\n── Locality Load Profiles ──")
-    print(f"Loading zone loads for year={load_year}, zones={zone_letters_needed}")
+    print(f"Loading zone loads for year={load_year}, zones={zone_names_needed}")
     zone_loads_df = load_zone_loads(
         args.zone_loads_s3_base,
-        zone_letters_needed,
+        zone_names_needed,
         load_year,
         storage_options,
     )
@@ -614,6 +626,12 @@ def main() -> None:
         utility,
         paying_locality_hourly,
     )
+
+    if load_year != year:
+        print(f"\n  Remapping timestamps: {load_year} → {year}")
+        utility_hourly = utility_hourly.with_columns(
+            pl.col("timestamp").dt.offset_by(f"{year - load_year}y")
+        )
 
     output_df = prepare_output(utility_hourly, year)
 
