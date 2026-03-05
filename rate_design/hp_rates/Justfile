@@ -526,12 +526,12 @@ run-all-sequential:
     just run-1
     just run-2
     just compute-rev-requirements
-    # just run-3
-    # just run-4
-    # just run-5
-    # just run-6
-    # just run-7
-    # just run-8
+    just run-3
+    just run-4
+    just run-5
+    just run-6
+    just run-7
+    just run-8
     # just run-9
     # just run-10
     # just run-11
