@@ -105,7 +105,7 @@ class ScenarioSettings:
     year_run: int
     year_dollar_conversion: int
     process_workers: int
-    path_bulk_tx_mc: str | Path
+    path_bulk_tx_mc: str | Path | None = None
     solar_pv_compensation: str = "net_metering"
     run_includes_supply: bool = False
     sample_size: int | None = None
