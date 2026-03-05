@@ -46,45 +46,47 @@ from data.eia.hourly_loads.eia_region_config import (
 
 def load_utility_load_profile(
     s3_base: str,
-    iso_region: str,
+    iso_region: str | None,
     year_load: int,
     utility: str,
     storage_options: dict[str, str],
 ) -> pl.DataFrame:
     """Load utility 8760 load profile from S3.
 
-    Reads from Hive-style partitioned structure:
-    region=<iso_region>/utility=X/year=YYYY/month=M/data.parquet
+    Supports two partition layouts:
+    - EIA: region=<iso_region>/utility=X/year=YYYY/month=M/data.parquet
+    - NYISO: utility=X/year=YYYY/month=M/data.parquet (no region partition)
+
+    When iso_region is None, the region filter is skipped.
 
     Args:
-        s3_base: Base S3 path for utility loads (e.g., s3://data.sb/eia/hourly_demand/utilities)
-        iso_region: ISO region partition key (nyiso/isone)
-        year_load: Year of the load profile to use
-        utility: Utility name
-        storage_options: Polars S3 storage options with AWS bucket region
+        s3_base: Base S3 path for utility loads.
+        iso_region: ISO region partition key (nyiso/isone), or None to skip.
+        year_load: Year of the load profile to use.
+        utility: Utility name.
+        storage_options: Polars S3 storage options with AWS bucket region.
 
     Returns:
         DataFrame with columns: timestamp, utility, load_mw
     """
     s3_base = s3_base.rstrip("/") + "/"
-    collected = (
-        pl.scan_parquet(
-            s3_base,
-            hive_partitioning=True,
-            storage_options=storage_options,
-        )
-        .filter(pl.col("region") == iso_region)
-        .filter(pl.col("utility") == utility)
-        .filter(pl.col("year") == year_load)
-        .collect()
+    lf = pl.scan_parquet(
+        s3_base,
+        hive_partitioning=True,
+        storage_options=storage_options,
     )
+    if iso_region is not None:
+        lf = lf.filter(pl.col("region") == iso_region)
+    lf = lf.filter(pl.col("utility") == utility).filter(pl.col("year") == year_load)
+    collected = lf.collect()
     if not isinstance(collected, pl.DataFrame):
         raise TypeError("Expected DataFrame from utility load collect()")
     df = collected
     if df.is_empty():
+        region_msg = f"region={iso_region}, " if iso_region else ""
         raise FileNotFoundError(
-            "Utility load profile not found for "
-            f"region={iso_region}, utility={utility}, year={year_load} under {s3_base}"
+            f"Utility load profile not found for "
+            f"{region_msg}utility={utility}, year={year_load} under {s3_base}"
         )
 
     print(f"Loaded {len(df):,} hourly load records for {utility} (year {year_load})")
@@ -440,10 +442,16 @@ def main():
         help="Utility name (lowercase short code: nyseg, rge, cenhud, nationalgrid)",
     )
     parser.add_argument(
-        "--load-year",
+        "--year",
         type=int,
         required=True,
-        help="Year of load profile to use for PoP allocation",
+        help="Output year for partition key and timestamps (e.g. 2025).",
+    )
+    parser.add_argument(
+        "--load-year",
+        type=int,
+        default=None,
+        help=("Year of load profile to use for PoP allocation (defaults to --year)."),
     )
     parser.add_argument(
         "--mc-table-path",
@@ -487,26 +495,43 @@ def main():
     config = get_state_config(args.state)
     storage_options = get_aws_storage_options()
 
+    output_year = args.year
+    load_year = args.load_year if args.load_year else output_year
+
+    # Detect whether load path uses EIA layout (with region partition) or
+    # NYISO layout (no region partition) based on path prefix.
+    s3_base = args.utility_load_s3_base
+    iso_region: str | None = config.iso_region
+    if "nyiso/hourly_demand" in s3_base:
+        iso_region = None
+
     print("=" * 60)
     print("MARGINAL COST ALLOCATION")
     print(f"State: {config.state}")
-    print(f"ISO region partition: {config.iso_region}")
+    print(f"ISO region partition: {iso_region or '(none — NYISO native path)'}")
     print(f"AWS bucket region: {storage_options.get('region')}")
     print("=" * 60)
     print(f"Utility: {args.utility}")
-    print(f"Load Year: {args.load_year}")
+    print(f"Output year: {output_year}")
+    print(f"Load year:   {load_year}")
     print(f"Allocation window: Top {args.n_hours} hours")
     print(f"Upload to S3: {'Yes' if args.upload else 'No (inspection only)'}")
     print("=" * 60)
 
     load_df = load_utility_load_profile(
-        args.utility_load_s3_base,
-        config.iso_region,
-        args.load_year,
+        s3_base,
+        iso_region,
+        load_year,
         args.utility,
         storage_options,
     )
-    load_df = normalize_load_to_cairo_8760(load_df, args.utility, args.load_year)
+    load_df = normalize_load_to_cairo_8760(load_df, args.utility, load_year)
+
+    if load_year != output_year:
+        print(f"\n  Remapping load timestamps: {load_year} → {output_year}")
+        load_df = load_df.with_columns(
+            pl.col("timestamp").dt.offset_by(f"{output_year - load_year}y")
+        )
 
     mc_df = load_marginal_cost_table(args.mc_table_path)
     mc_sub_tx_and_dist = get_marginal_cost_for_utility(mc_df, args.utility)
@@ -537,7 +562,7 @@ def main():
             load_df,
             config.iso_region,
             args.utility,
-            args.load_year,
+            output_year,
             args.output_s3_base,
             validation_results,
             storage_options,

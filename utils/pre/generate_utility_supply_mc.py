@@ -11,10 +11,8 @@ Input data:
         s3://data.sb/nyiso/lbmp/real_time/zones/zone={NAME}/year={YYYY}/month={MM}/data.parquet
     - ICAP spot prices (4 localities):
         s3://data.sb/nyiso/icap/year={YYYY}/month={M}/data.parquet
-    - EIA zone-level hourly loads (for LBMP load-weighting):
-        s3://data.sb/eia/hourly_demand/zones/region=nyiso/zone={letter}/year={YYYY}/month={M}/data.parquet
-    - EIA zone-level hourly loads (for ICAP peak identification by capacity locality):
-        s3://data.sb/eia/hourly_demand/zones/region=nyiso/zone={letter}/year={YYYY}/month={M}/data.parquet
+    - NYISO zone-level hourly loads (for LBMP load-weighting and ICAP peak identification):
+        s3://data.sb/nyiso/hourly_demand/zones/zone={NAME}/year={YYYY}/month={M}/data.parquet
     - Utility zone mapping CSV (utility → LBMP zone, ICAP locality, capacity_weight):
         s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv
 
@@ -56,7 +54,7 @@ from utils.pre.generate_utility_tx_dx_mc import normalize_load_to_cairo_8760
 
 DEFAULT_LBMP_S3_BASE = "s3://data.sb/nyiso/lbmp/real_time/zones/"
 DEFAULT_ICAP_S3_BASE = "s3://data.sb/nyiso/icap/"
-DEFAULT_ZONE_LOADS_S3_BASE = "s3://data.sb/eia/hourly_demand/zones/"
+DEFAULT_ZONE_LOADS_S3_BASE = "s3://data.sb/nyiso/hourly_demand/zones/"
 DEFAULT_ZONE_MAPPING_PATH = (
     "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
 )
@@ -70,11 +68,24 @@ VALID_UTILITIES = frozenset({"cenhud", "coned", "nimo", "nyseg", "or", "rge", "p
 
 # Nested locality footprints used for capacity-peak load profiles.
 # These are overlapping by design (NYCA ⊃ LHV ⊃ NYC, and LI=K).
-NESTED_LOCALITY_ZONE_LETTERS: dict[str, list[str]] = {
-    "NYCA": ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"],
-    "LHV": ["G", "H", "I", "J"],
-    "NYC": ["J"],
-    "LI": ["K"],
+# Keyed by canonical NYISO zone names (matching s3://data.sb/nyiso/hourly_demand/zones/).
+NESTED_LOCALITY_ZONES: dict[str, list[str]] = {
+    "NYCA": [
+        "WEST",
+        "GENESE",
+        "CENTRAL",
+        "NORTH",
+        "MHK_VL",
+        "CAPITL",
+        "HUD_VL",
+        "MILLWD",
+        "DUNWOD",
+        "N.Y.C.",
+        "LONGIL",
+    ],
+    "LHV": ["HUD_VL", "MILLWD", "DUNWOD", "N.Y.C."],
+    "NYC": ["N.Y.C."],
+    "LI": ["LONGIL"],
 }
 
 # Raw ICAP locality names in the source dataset mapped to internal nested names.
@@ -96,7 +107,7 @@ GEN_CAPACITY_ZONE_TO_PARTITIONED_LOCALITY = {
     "LI": "LI",  # K
 }
 
-VALID_NESTED_LOCALITIES = frozenset(NESTED_LOCALITY_ZONE_LETTERS)
+VALID_NESTED_LOCALITIES = frozenset(NESTED_LOCALITY_ZONES)
 VALID_PARTITIONED_LOCALITIES = frozenset(NESTED_LOCALITY_TO_ICAP_RAW)
 
 
@@ -246,15 +257,16 @@ def load_lbmp_for_zones(
 
 def load_zone_loads(
     zone_loads_s3_base: str,
-    zone_letters: list[str],
+    zone_names: list[str],
     year: int,
     storage_options: dict[str, str],
 ) -> pl.DataFrame:
-    """Load EIA zone-level hourly loads for LBMP weighting.
+    """Load NYISO zone-level hourly loads.
 
     Args:
-        zone_loads_s3_base: S3 base path for zone loads.
-        zone_letters: Zone letters (e.g. ["A", "C", "D"]).
+        zone_loads_s3_base: S3 base path for zone loads
+            (e.g. s3://data.sb/nyiso/hourly_demand/zones/).
+        zone_names: Canonical NYISO zone names (e.g. ["WEST", "GENESE"]).
         year: Target year.
         storage_options: AWS storage options.
 
@@ -269,8 +281,7 @@ def load_zone_loads(
             storage_options=storage_options,
         )
         .filter(
-            pl.col("region") == "nyiso",
-            pl.col("zone").is_in(zone_letters),
+            pl.col("zone").is_in(zone_names),
             pl.col("year") == year,
         )
         .select("timestamp", "zone", "load_mw")
@@ -280,7 +291,7 @@ def load_zone_loads(
         raise TypeError("Expected DataFrame from zone loads collect()")
     if collected.is_empty():
         raise FileNotFoundError(
-            f"No zone load data found for zones={zone_letters}, year={year} "
+            f"No zone load data found for zones={zone_names}, year={year} "
             f"under {zone_loads_s3_base}"
         )
 
@@ -304,6 +315,7 @@ def compute_energy_mc(
     zone_loads_s3_base: str,
     year: int,
     storage_options: dict[str, str],
+    zone_load_year: int | None = None,
 ) -> pl.DataFrame:
     """Compute hourly energy marginal costs from real-time LBMP data.
 
@@ -316,27 +328,22 @@ def compute_energy_mc(
     Args:
         utility_mapping: Zone mapping rows for this utility.
         lbmp_s3_base: S3 base for real-time LBMP data.
-        zone_loads_s3_base: S3 base for EIA zone loads.
-        year: Target year.
+        zone_loads_s3_base: S3 base for zone loads.
+        year: LBMP price year (also determines output timestamps).
         storage_options: AWS storage options.
+        zone_load_year: Year to use for zone loads (for multi-zone weighting).
+            Defaults to ``year``. When different from ``year``, load timestamps
+            are remapped to ``year`` before joining with LBMP.
 
     Returns:
         DataFrame with columns: timestamp, energy_cost_enduse ($/MWh).
         Timestamps are hourly.
     """
-    # Get unique zone names and letters for this utility
-    zone_info = utility_mapping.select("lbmp_zone_name", "load_zone_letter").unique()
-    zone_names = sorted(zone_info["lbmp_zone_name"].unique().to_list())
-    zone_letters = sorted(zone_info["load_zone_letter"].unique().to_list())
+    if zone_load_year is None:
+        zone_load_year = year
 
-    # Map zone letters to LBMP zone names
-    letter_to_name: dict[str, str] = dict(
-        zip(
-            zone_info["load_zone_letter"].to_list(),
-            zone_info["lbmp_zone_name"].to_list(),
-            strict=False,
-        )
-    )
+    # Get unique LBMP zone names for this utility
+    zone_names = sorted(utility_mapping["lbmp_zone_name"].unique().to_list())
 
     # Load LBMP data for all relevant zones (5-minute intervals)
     lbmp_df = load_lbmp_for_zones(lbmp_s3_base, zone_names, year, storage_options)
@@ -355,21 +362,20 @@ def compute_energy_mc(
         # Multi-zone utility: load-weighted average
         print(f"  Multi-zone utility → load-weighting across {zone_names}")
         zone_loads = load_zone_loads(
-            zone_loads_s3_base, zone_letters, year, storage_options
+            zone_loads_s3_base, zone_names, zone_load_year, storage_options
         )
 
-        # Map zone load letters to LBMP zone names for joining
-        zone_loads = zone_loads.with_columns(
-            pl.col("zone")
-            .replace_strict(letter_to_name, default=pl.col("zone"))
-            .alias("lbmp_zone_name")
-        )
+        if zone_load_year != year:
+            offset = f"{year - zone_load_year}y"
+            print(f"  Remapping zone load timestamps: {zone_load_year} → {year}")
+            zone_loads = zone_loads.with_columns(
+                pl.col("timestamp").dt.offset_by(offset)
+            )
 
-        # Join LBMP prices with zone loads on (timestamp, zone)
+        # Join LBMP prices with zone loads on (timestamp, zone name)
         joined = lbmp_df.join(
-            zone_loads.select("timestamp", "lbmp_zone_name", "load_mw"),
-            left_on=["timestamp", "zone"],
-            right_on=["timestamp", "lbmp_zone_name"],
+            zone_loads.select("timestamp", "zone", "load_mw"),
+            on=["timestamp", "zone"],
             how="inner",
         )
 
@@ -494,17 +500,6 @@ def _resolve_locality_weights(
     return locality_weights
 
 
-def get_capacity_peak_locality_weights(utility_mapping: pl.DataFrame) -> pl.DataFrame:
-    """Resolve nested locality weights for capacity-peak load profile construction."""
-    return _resolve_locality_weights(
-        utility_mapping=utility_mapping,
-        source_col="icap_locality",
-        source_to_locality=ICAP_RAW_TO_NESTED_LOCALITY,
-        valid_localities=VALID_NESTED_LOCALITIES,
-        purpose="capacity peak load profile",
-    )
-
-
 def get_partitioned_price_locality_weights(
     utility_mapping: pl.DataFrame,
 ) -> pl.DataFrame:
@@ -565,96 +560,170 @@ def compute_weighted_icap_prices(
     return result
 
 
-def build_capacity_peak_load_profile_from_zone_loads(
-    locality_weights: pl.DataFrame,
+def build_locality_load_profiles(
+    icap_locality_names: list[str],
     zone_loads_df: pl.DataFrame,
-) -> pl.DataFrame:
-    """Build ICAP peak-identification load profile from capacity localities.
+) -> dict[str, pl.DataFrame]:
+    """Build raw load profile per nested locality from NYISO zone loads.
 
-    Capacity peak identification follows nested locality footprints:
-    NYCA=A-K, LHV=G-J, NYC=J, LI=K.
+    Each locality's profile is the unweighted sum of its constituent zone loads.
+    No ``capacity_weight`` is applied here; weights are only used later when
+    scaling ICAP prices in ``compute_capacity_mc_components``.
 
     Args:
-        locality_weights: DataFrame with columns locality, capacity_weight.
+        icap_locality_names: Raw ICAP locality names from the zone mapping
+            (e.g. ``["GHIJ", "NYC"]``).  Duplicates are silently de-duplicated.
         zone_loads_df: Zone hourly loads with columns: timestamp, zone, load_mw.
 
     Returns:
-        DataFrame with columns: timestamp, load_mw.
+        Dictionary keyed by nested locality name (e.g. ``"LHV"``, ``"NYC"``) to
+        a DataFrame with columns: timestamp, load_mw (raw unweighted MW sum).
     """
-    missing_localities = sorted(
-        set(locality_weights["locality"].to_list()) - set(VALID_NESTED_LOCALITIES)
-    )
-    if missing_localities:
-        raise ValueError(
-            "Unknown capacity locality value(s): "
-            f"{missing_localities}. Expected one of "
-            f"{sorted(VALID_NESTED_LOCALITIES)}."
-        )
-
-    locality_frames: list[pl.DataFrame] = []
-    for row in locality_weights.iter_rows(named=True):
-        locality = row["locality"]
-        if not isinstance(locality, str):
-            raise TypeError("locality must be string")
-        weight = float(row["capacity_weight"])
-        zone_letters = NESTED_LOCALITY_ZONE_LETTERS[locality]
-
-        locality_load = (
-            zone_loads_df.filter(pl.col("zone").is_in(zone_letters))
-            .group_by("timestamp")
-            .agg(pl.col("load_mw").sum().alias("locality_load_mw"))
-            .with_columns(
-                (pl.col("locality_load_mw") * weight).alias("weighted_load_mw"),
-            )
-        )
-        if locality_load.is_empty():
+    profiles: dict[str, pl.DataFrame] = {}
+    for raw_name in icap_locality_names:
+        if raw_name not in ICAP_RAW_TO_NESTED_LOCALITY:
             raise ValueError(
-                f"No zone load rows found for locality={locality} "
-                f"(zones={zone_letters})."
+                f"Unknown ICAP locality name: {raw_name!r}. "
+                f"Expected one of {sorted(ICAP_RAW_TO_NESTED_LOCALITY)}."
             )
-        locality_frames.append(locality_load)
+        nested = ICAP_RAW_TO_NESTED_LOCALITY[raw_name]
+        if nested in profiles:
+            # Already computed (two rows mapping to the same nested locality).
+            continue
+        zone_names = NESTED_LOCALITY_ZONES[nested]
+        profile = (
+            zone_loads_df.filter(pl.col("zone").is_in(zone_names))
+            .group_by("timestamp")
+            .agg(pl.col("load_mw").sum().alias("load_mw"))
+            .sort("timestamp")
+        )
+        if profile.is_empty():
+            raise ValueError(
+                f"No zone load rows found for nested locality={nested!r} "
+                f"(zones={zone_names}). Raw ICAP name: {raw_name!r}."
+            )
+        profiles[nested] = profile
+    return profiles
 
-    blended = (
-        pl.concat(locality_frames)
+
+def compute_capacity_mc_components(
+    utility_icap_rows: pl.DataFrame,
+    icap_df: pl.DataFrame,
+    locality_profiles: dict[str, pl.DataFrame],
+    n_peak_hours: int = N_PEAK_HOURS_PER_MONTH,
+) -> pl.DataFrame:
+    """Compute capacity MC by summing per-locality components.
+
+    For each ``(icap_locality, gen_capacity_zone, capacity_weight)`` row:
+
+    1. Map ``icap_locality`` (raw ICAP name) → nested locality → load profile
+       for independent peak identification.
+    2. Map ``gen_capacity_zone`` → partitioned locality → filter ``icap_df``
+       → scale ``price_per_kw_month`` by ``capacity_weight``.
+    3. Allocate scaled ICAP price to the locality's own peak hours using
+       threshold-exceedance weights (via :func:`allocate_icap_to_hours`).
+    4. Sum all per-locality cost contributions.
+
+    This is analogous to ``compute_utility_bulk_tx_signal`` in
+    ``generate_bulk_tx_mc.py``:  each NYISO ICAP locality identifies its own
+    peak hours independently; the ``capacity_weight`` only scales the *cost*,
+    not the load used for peak identification.
+
+    Args:
+        utility_icap_rows: DataFrame with columns: icap_locality (raw ICAP
+            name), gen_capacity_zone (partitioned locality), capacity_weight.
+            These are the zone-mapping rows filtered to a single utility.
+        icap_df: ICAP Spot prices DataFrame with columns: month (int),
+            locality (nested/partitioned name: NYCA/LHV/NYC/LI),
+            price_per_kw_month (float).
+        locality_profiles: Dictionary mapping nested locality name to a
+            normalized load profile DataFrame (timestamp, load_mw).
+        n_peak_hours: Number of peak hours per month for allocation (default: 8).
+
+    Returns:
+        DataFrame with columns: timestamp, capacity_cost_per_kw ($/kW per hour).
+        Non-zero hours equal the union of all localities' peak hours (up to
+        ``n_peak_hours × 12 × n_localities`` distinct hours).
+    """
+    component_frames: list[pl.DataFrame] = []
+
+    for row in utility_icap_rows.iter_rows(named=True):
+        icap_locality_raw = str(row["icap_locality"])
+        gen_capacity_zone = str(row["gen_capacity_zone"])
+        capacity_weight = float(row["capacity_weight"])
+
+        # Map raw ICAP locality → nested locality (for load profile / peak ID)
+        if icap_locality_raw not in ICAP_RAW_TO_NESTED_LOCALITY:
+            raise ValueError(
+                f"Unknown icap_locality {icap_locality_raw!r}. "
+                f"Expected one of {sorted(ICAP_RAW_TO_NESTED_LOCALITY)}."
+            )
+        nested_locality = ICAP_RAW_TO_NESTED_LOCALITY[icap_locality_raw]
+
+        # Map gen_capacity_zone → partitioned locality (for ICAP price lookup)
+        if gen_capacity_zone not in GEN_CAPACITY_ZONE_TO_PARTITIONED_LOCALITY:
+            raise ValueError(
+                f"Unknown gen_capacity_zone {gen_capacity_zone!r}. "
+                f"Expected one of {sorted(GEN_CAPACITY_ZONE_TO_PARTITIONED_LOCALITY)}."
+            )
+        partitioned_locality = GEN_CAPACITY_ZONE_TO_PARTITIONED_LOCALITY[
+            gen_capacity_zone
+        ]
+
+        # Get load profile for this nested locality
+        if nested_locality not in locality_profiles:
+            raise ValueError(
+                f"No load profile for nested locality {nested_locality!r}. "
+                f"Available: {sorted(locality_profiles)}"
+            )
+        load_profile = locality_profiles[nested_locality]
+
+        # Filter ICAP prices to this component's partitioned locality and scale by weight
+        component_icap = icap_df.filter(pl.col("locality") == partitioned_locality)
+        if component_icap.is_empty():
+            raise ValueError(
+                f"No ICAP prices found for partitioned locality {partitioned_locality!r}. "
+                f"Available: {sorted(icap_df['locality'].unique().to_list())}"
+            )
+        component_prices = component_icap.select(
+            pl.col("month"),
+            (pl.col("price_per_kw_month") * capacity_weight).alias(
+                "icap_price_per_kw_month"
+            ),
+        )
+
+        print(
+            f"  Component: icap_locality={icap_locality_raw!r} → "
+            f"nested={nested_locality!r}, "
+            f"gen_capacity_zone={gen_capacity_zone!r} → "
+            f"partitioned={partitioned_locality!r}, "
+            f"weight={capacity_weight:.4f}"
+        )
+
+        # Allocate this component's scaled ICAP prices to the locality's peak hours
+        component_hourly = allocate_icap_to_hours(
+            load_profile, component_prices, n_peak_hours
+        )
+        component_frames.append(component_hourly)
+
+    if not component_frames:
+        raise ValueError("No ICAP locality components found for utility")
+
+    # Sum all component costs; non-zero hours = union of all localities' peak hours
+    utility_hourly = (
+        pl.concat(component_frames)
         .group_by("timestamp")
-        .agg(pl.col("weighted_load_mw").sum().alias("load_mw"))
+        .agg(pl.col("capacity_cost_per_kw").sum().alias("capacity_cost_per_kw"))
         .sort("timestamp")
     )
-    if blended.is_empty():
-        raise ValueError("Computed capacity peak load profile is empty")
-    return blended
+    return utility_hourly
 
 
-def _zone_letters_for_localities(
+def _zone_names_for_localities(
     localities: list[str], locality_zone_map: dict[str, list[str]]
 ) -> list[str]:
-    """Return sorted unique zone letters covered by the given localities."""
+    """Return sorted unique zone names covered by the given localities."""
     return sorted({z for loc in localities for z in locality_zone_map[loc]})
-
-
-def load_capacity_peak_load_profile(
-    utility_mapping: pl.DataFrame,
-    zone_loads_s3_base: str,
-    year: int,
-    storage_options: dict[str, str],
-) -> pl.DataFrame:
-    """Load and assemble the ICAP peak-identification load profile."""
-    locality_weights = get_capacity_peak_locality_weights(utility_mapping)
-    zones_needed = _zone_letters_for_localities(
-        locality_weights["locality"].to_list(), NESTED_LOCALITY_ZONE_LETTERS
-    )
-
-    print(
-        "  Capacity peak load basis: "
-        f"{locality_weights.to_dicts()} → zone letters {zones_needed}"
-    )
-
-    zone_loads_df = load_zone_loads(
-        zone_loads_s3_base, zones_needed, year, storage_options
-    )
-    return build_capacity_peak_load_profile_from_zone_loads(
-        locality_weights, zone_loads_df
-    )
 
 
 def allocate_icap_to_hours(
@@ -665,9 +734,12 @@ def allocate_icap_to_hours(
     """Allocate monthly ICAP $/kW-month to hourly $/kW using threshold-exceedance.
 
     For each month:
-    1. Sort hours by load (descending).
-    2. Threshold = load of the (n_peak_hours+1)-th highest hour.
-    3. Exceedance = max(load_h - threshold, 0).
+    1. Sort hours by load (descending); take the top N.
+    2. Threshold = max(load_mw where load_mw < load of the Nth hour).
+       This avoids ties: when the Nth and (N+1)th hours have equal load,
+       the threshold drops to the next genuinely lower value so the Nth
+       hour always gets positive exceedance.
+    3. Exceedance_h = load_h - threshold (for top-N hours only).
     4. Weight_h = exceedance_h / sum(exceedance in month).
     5. capacity_cost_h = weight_h * icap_price_m.
 
@@ -702,24 +774,26 @@ def allocate_icap_to_hours(
         sorted_load = month_load.sort("load_mw", descending=True)
         n_hours = sorted_load.height
 
-        if n_hours <= n_peak_hours:
+        if n_hours < n_peak_hours:
             raise ValueError(
                 f"Month {month_num} has only {n_hours} hours, "
-                f"need at least {n_peak_hours + 1} for threshold computation"
+                f"need at least {n_peak_hours} for threshold computation"
             )
 
-        # Threshold = load of the (n_peak_hours+1)-th highest hour (0-indexed: n_peak_hours)
-        threshold = float(sorted_load["load_mw"][n_peak_hours])
+        top_n = sorted_load.head(n_peak_hours)
+        load_nth = float(top_n["load_mw"][-1])
 
-        # Compute exceedance for all hours
-        month_result = month_load.with_columns(
-            pl.when(pl.col("load_mw") > threshold)
-            .then(pl.col("load_mw") - threshold)
-            .otherwise(0.0)
-            .alias("exceedance")
+        # Threshold = max load strictly below the Nth highest hour.
+        # When the Nth and (N+1)th hours tie, this drops to the next genuinely
+        # lower value so the Nth hour always gets positive exceedance.
+        below = month_load.filter(pl.col("load_mw") < load_nth)["load_mw"]
+        threshold = float(below.max()) if not below.is_empty() else 0.0  # type: ignore[arg-type]
+
+        month_result = top_n.with_columns(
+            (pl.col("load_mw") - threshold).alias("exceedance")
         )
 
-        total_exceedance = month_result["exceedance"].sum()
+        total_exceedance = float(month_result["exceedance"].sum())
         if total_exceedance <= 0:
             raise ValueError(
                 f"Month {month_num}: total exceedance is zero or negative. "
@@ -1139,7 +1213,7 @@ def _parse_args() -> argparse.Namespace:
         "--zone-loads-s3-base",
         type=str,
         default=DEFAULT_ZONE_LOADS_S3_BASE,
-        help=f"S3 base for EIA zone loads (default: {DEFAULT_ZONE_LOADS_S3_BASE}).",
+        help=f"S3 base for NYISO zone loads (default: {DEFAULT_ZONE_LOADS_S3_BASE}).",
     )
     parser.add_argument(
         "--output-s3-base",
@@ -1193,59 +1267,80 @@ def main() -> None:
         utility_mapping,
         args.lbmp_s3_base,
         args.zone_loads_s3_base,
-        price_year if price_year == load_year else load_year,
+        price_year,
         storage_options,
+        zone_load_year=load_year if load_year != price_year else None,
     )
-
-    # If price_year != load_year, we use load_year's zone loads for weighting
-    # but price_year's LBMP prices. Reload LBMP for price_year.
-    if price_year != load_year:
-        print(f"\n  Note: Using {load_year} load shapes with {price_year} LBMP prices.")
-        energy_df = compute_energy_mc(
-            utility_mapping,
-            args.lbmp_s3_base,
-            args.zone_loads_s3_base,
-            price_year,
-            storage_options,
-        )
-        # For the output timestamps, we want load_year's timestamps
-        # but price_year's LBMP prices. For now, use price_year as the
-        # primary (LBMP and ICAP are both for price_year).
 
     # ── 3. Capacity MC (ICAP MCOS) ──────────────────────────────────────
     print("\n── Capacity MC (ICAP MCOS) ──")
 
-    # Resolve partitioned locality weights for ICAP price blending
-    price_locality_weights = get_partitioned_price_locality_weights(utility_mapping)
-    localities = sorted(price_locality_weights["locality"].to_list())
-    print(f"  Partitioned ICAP localities: {localities}")
-    print(f"  Locality weights: {price_locality_weights.to_dicts()}")
+    # Get unique (icap_locality, gen_capacity_zone, capacity_weight) rows for this utility
+    utility_icap_rows = utility_mapping.select(
+        "icap_locality", "gen_capacity_zone", "capacity_weight"
+    ).unique()
+    print(f"  Utility ICAP rows:\n{utility_icap_rows}")
 
-    # Load ICAP Spot prices
+    # Determine all partitioned localities needed (for ICAP price loading)
+    partitioned_localities = sorted(
+        {
+            GEN_CAPACITY_ZONE_TO_PARTITIONED_LOCALITY[z]
+            for z in utility_icap_rows["gen_capacity_zone"].to_list()
+        }
+    )
+    print(f"  Loading ICAP prices for partitioned localities: {partitioned_localities}")
+
+    # Load ICAP Spot prices (unblended, one row per locality per month)
     icap_df = load_icap_spot_prices(
-        args.icap_s3_base, localities, price_year, storage_options
+        args.icap_s3_base, partitioned_localities, price_year, storage_options
     )
 
-    # Compute weighted monthly prices
-    icap_prices = compute_weighted_icap_prices(icap_df, price_locality_weights)
-    print(icap_prices)
-
-    # Build capacity locality load profile for peak identification
-    print(f"\n  Building capacity locality load profile for year {load_year}...")
-    utility_load_df = load_capacity_peak_load_profile(
-        utility_mapping,
-        args.zone_loads_s3_base,
-        load_year,
-        storage_options,
+    # Determine all nested localities needed (for zone load loading)
+    icap_locality_names = utility_icap_rows["icap_locality"].to_list()
+    nested_localities = sorted(
+        {ICAP_RAW_TO_NESTED_LOCALITY[raw] for raw in icap_locality_names}
     )
-    utility_load_df = normalize_load_to_cairo_8760(utility_load_df, utility, load_year)
+    zones_needed = _zone_names_for_localities(nested_localities, NESTED_LOCALITY_ZONES)
+    print(
+        f"\n  Building locality load profiles for year {load_year}..."
+        f"\n  Nested localities: {nested_localities}"
+        f"\n  Zones needed: {zones_needed}"
+    )
 
-    # Allocate ICAP to hours
-    print("\n  Allocating ICAP to hours (threshold-exceedance):")
-    capacity_df = allocate_icap_to_hours(utility_load_df, icap_prices, args.peak_hours)
+    # Load zone loads and build raw per-locality profiles (unweighted MW sums)
+    zone_loads_df = load_zone_loads(
+        args.zone_loads_s3_base, zones_needed, load_year, storage_options
+    )
+    raw_profiles = build_locality_load_profiles(icap_locality_names, zone_loads_df)
 
-    # Validate capacity allocation
-    validate_capacity_allocation(capacity_df, icap_prices)
+    # Normalize each locality profile to Cairo-compatible 8760 hours
+    locality_profiles: dict[str, pl.DataFrame] = {}
+    for loc, profile in raw_profiles.items():
+        locality_profiles[loc] = normalize_load_to_cairo_8760(
+            profile, utility, load_year
+        )
+
+    # Compute capacity MC component-by-component (each locality picks its own peaks)
+    print("\n  Computing capacity MC (component-by-component):")
+    capacity_df = compute_capacity_mc_components(
+        utility_icap_rows, icap_df, locality_profiles, args.peak_hours
+    )
+
+    # Validate: expected annual total = Σ_locality(weight × Σ_month(price))
+    price_locality_weights = get_partitioned_price_locality_weights(utility_mapping)
+    icap_prices_for_validation = compute_weighted_icap_prices(
+        icap_df, price_locality_weights
+    )
+    validate_capacity_allocation(capacity_df, icap_prices_for_validation)
+
+    # Remap capacity timestamps from load_year → price_year when they differ.
+    # offset_by("Ny") shifts by N calendar years on naive datetimes; safe because
+    # Cairo 8760 normalization already handled leap years and DST.
+    if load_year != price_year:
+        print(f"\n  Remapping capacity timestamps: {load_year} → {price_year}")
+        capacity_df = capacity_df.with_columns(
+            pl.col("timestamp").dt.offset_by(f"{price_year - load_year}y")
+        )
 
     # ── 4. Prepare separate outputs ──────────────────────────────────────
     print("\n── Output Preparation ──")

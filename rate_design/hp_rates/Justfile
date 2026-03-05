@@ -231,6 +231,7 @@ create-dist-and-sub-tx-mc-data:
   uv run python {{path_repo}}/utils/pre/generate_utility_tx_dx_mc.py \
     --state {{state_upper}} \
     --utility {{utility}} \
+    --year {{year}} \
     --load-year {{load_year}} \
     --mc-table-path {{path_mc_table}} \
     --utility-load-s3-base {{path_s3_utility_loads}} \
@@ -447,7 +448,15 @@ run-13:
     fi
     cp "${source_tou}" "${target_tou}"
     echo ">> run-13: copied ${source_tou} -> ${target_tou}" >&2
-    just run-scenario 13
+    : "${RDP_EXECUTION_TIME:=$(date -u +%Y%m%dT%H%M%SZ)}"
+    uv run python {{path_repo}}/rate_design/hp_rates/run_scenario.py \
+        --state "{{state}}" \
+        --run-num 13 \
+        --utility "{{utility}}" \
+        --output-dir "{{path_outputs_base}}/${RDP_EXECUTION_TIME}" \
+        --path-tou-supply-energy-mc "{{path_supply_energy_mc}}" \
+        --path-tou-supply-capacity-mc "{{path_supply_capacity_mc}}" \
+        {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }}
 
 run-14:
     #!/usr/bin/env bash

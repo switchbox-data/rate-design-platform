@@ -32,19 +32,19 @@ Key columns:
 
 ## Locality model
 
-Nested localities (overlapping):
+Nested localities (overlapping, canonical NYISO zone names):
 
-- `NYCA = A-K`
-- `LHV = G-J`
-- `NYC = J`
-- `LI = K`
+- `NYCA = WEST, GENESE, CENTRAL, NORTH, MHK_VL, CAPITL, HUD_VL, MILLWD, DUNWOD, N.Y.C., LONGIL`
+- `LHV = HUD_VL, MILLWD, DUNWOD, N.Y.C.`
+- `NYC = N.Y.C.`
+- `LI = LONGIL`
 
 Paying localities (disjoint):
 
-- `ROS = A-F`
-- `LHV = G-I`
-- `NYC = J`
-- `LI = K`
+- `ROS` (WEST through CAPITL)
+- `LHV` (HUD_VL through N.Y.C.)
+- `NYC` (N.Y.C.)
+- `LI` (LONGIL)
 
 Mapping from nested-locality sets to paying-locality sets is implemented in
 `NESTED_TO_PAYING_LOCALITIES`.
@@ -71,15 +71,23 @@ Mapping from nested-locality sets to paying-locality sets is implemented in
 `utils/pre/generate_bulk_tx_mc.py`
 
 CLI:
-`--utility <name> --year <YYYY> --constraint-group-table-path <path> [--upload]`
+`--utility <name> --year <YYYY> [--load-year <YYYY>] --constraint-group-table-path <path> [--upload]`
 
 High-level flow:
 
 1. Load `ny_bulk_tx_constraint_groups.csv`.
-2. Build load profiles for required `tightest_nested_locality` values from NYISO zone loads.
+2. Build load profiles for required `tightest_nested_locality` values from NYISO zone loads (`s3://data.sb/nyiso/hourly_demand/zones/`). When `--load-year` differs from `--year`, timestamps are remapped after allocation.
 3. Compute SCR weights per nested locality.
 4. Allocate each `constraint_group` value to hours using its tightest locality SCR weights.
 5. Aggregate hourly signals to paying localities.
 6. Blend paying localities to utility-level signal via `gen_capacity_zone` + `capacity_weight`.
 7. Save 8760 output to:
    `s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility={utility}/year={year}/data.parquet`
+
+## Load year / output year separation
+
+The `--year` argument controls the output year (partition key, output timestamps). The `--load-year` argument controls which year's NYISO zone loads are used for SCR peak identification. When they differ, timestamps are remapped from load_year to year via `dt.offset_by()` after allocation.
+
+### Justfile control
+
+A single `LOAD_YEAR` in `rate_design/hp_rates/ny/state.env` controls the load year for all three MC pipelines (supply, bulk TX, dist/sub-TX). The shared Justfile reads it via `env_var_or_default('LOAD_YEAR', year)`, and the NY Justfile assigns `tx_load_year := load_year`. To switch load years for all pipelines, change the one `LOAD_YEAR` line in `state.env`.

@@ -379,7 +379,7 @@ runs:
     year_run: 2026
     year_dollar_conversion: 2025
     process_workers: 8
-    elasticity: 0.0
+    elasticity: -0.1
 
   14:
     run_name: ny_nyseg_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_flat
@@ -409,7 +409,7 @@ runs:
     year_run: 2026
     year_dollar_conversion: 2025
     process_workers: 8
-    elasticity: 0.0
+    elasticity: -0.1
 
   15:
     run_name: ny_nyseg_run15_up02_default__hp_seasonalTOU_flex
