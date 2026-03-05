@@ -126,14 +126,22 @@ fetch-genability-tariffs effective_date="2025-01-01":
     --state "{{state_upper}}" \
     --effective-date "{{effective_date}}"
 
-fetch-default-electric-tariffs effective_date="2025-01-01":
-  uv run python {{path_repo}}/utils/pre/rev_requirement/fetch_electric_tariffs_genability.py \
-    "{{path_genability_yaml}}" \
-    "{{path_tariffs_electric}}" \
-    --state "{{state_upper}}" \
-    --effective-date "{{effective_date}}" \
-    --urdb \
-    --path-urdb-dir "{{path_tariffs_electric}}"
+# Disabled: Arcadia-to-URDB conversion in tariff-fetch 0.4.1 fails for several
+# utilities.  We filed bug reports and will re-enable once they are fixed:
+#   - #38  Broken import in fixedcharge.py (`from t import Library, Scenario`)
+#   - #39  Pydantic schemas too strict for real Arcadia API responses
+#   - #41  RateConversionError: Bands with calculation_factor not supported
+#   - #42  RateConversionError: Fixed charges should be monthly (fails on PSEG-LI)
+# See https://github.com/switchbox-data/tariff_fetch/issues
+#
+# fetch-default-electric-tariffs effective_date="2025-01-01":
+#   uv run python {{path_repo}}/utils/pre/rev_requirement/fetch_electric_tariffs_genability.py \
+#     "{{path_genability_yaml}}" \
+#     "{{path_tariffs_electric}}" \
+#     --state "{{state_upper}}" \
+#     --effective-date "{{effective_date}}" \
+#     --urdb \
+#     --path-urdb-dir "{{path_tariffs_electric}}"
 
 fetch-monthly-rates start=(monthly_rates_year + "-01") end=(monthly_rates_year + "-12"):
   uv run python {{path_repo}}/utils/pre/rev_requirement/fetch_monthly_rates.py \
