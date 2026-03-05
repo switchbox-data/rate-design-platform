@@ -586,7 +586,7 @@ def add_bulk_tx_and_dist_and_sub_tx_marginal_cost(
     else:
         delivery_mc = dist_and_sub_tx_mc
 
-    delivery_mc.name = "Marginal Delivery Costs ($/kWh)"
+    delivery_mc.name = "Marginal Distribution Costs ($/kWh)"
     return delivery_mc
 
 
