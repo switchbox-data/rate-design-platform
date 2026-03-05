@@ -1,15 +1,15 @@
 utility: nimo
 group_col: has_hp
 cross_subsidy_col: BAT_percustomer
-source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/20260305T160239Z/20260305_160552_ny_nimo_run1_up00_precalc__flat
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/20260305T190123Z/20260305_190426_ny_nimo_run1_up00_precalc__flat
 total_delivery_revenue_requirement: 1410617489.89
 total_delivery_and_supply_revenue_requirement: 2476879336.48
 subclass_revenue_requirements:
   non-hp:
-    delivery: 1362099882.6105597
-    supply: 992588743.5346262
-    total: 2354688626.145186
+    delivery: 1362494702.8754883
+    supply: 993167779.0796018
+    total: 2355662481.95509
   hp:
-    delivery: 48517607.279440716
-    supply: 73673103.05537438
-    total: 122190710.3348151
+    delivery: 48122787.01451196
+    supply: 73094067.51039974
+    total: 121216854.5249117

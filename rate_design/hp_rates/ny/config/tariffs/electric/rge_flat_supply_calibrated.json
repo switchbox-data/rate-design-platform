@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "nyseg_flat",
-      "name": "nyseg_flat",
+      "label": "rge_flat_supply",
+      "name": "rge_flat_supply",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,13 +640,13 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.10869461323034689,
+            "rate": 0.15814216828229302,
             "adj": 0.0,
             "unit": "kWh"
           }
         ]
       ],
-      "fixedchargefirstmeter": 19.89,
+      "fixedchargefirstmeter": 23.99,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
       "minchargeunits": "$/month"
