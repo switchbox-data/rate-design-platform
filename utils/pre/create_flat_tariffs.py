@@ -34,18 +34,35 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+def _s3_storage_options(path: str) -> dict[str, str] | None:
+    """Return AWS storage options when *path* is an S3 URI, else None."""
+    if not path.startswith("s3://"):
+        return None
+    try:
+        from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+
+        return get_aws_storage_options()
+    except ImportError:
+        return None
+
+
 def _resolve_customer_count(eia_path: str, year: int, utility: str) -> tuple[int, int]:
     """Return (customer_count, actual_year) with year-fallback."""
+    storage_options = _s3_storage_options(eia_path)
     pattern = re.compile(r"year=\d{4}")
     if not pattern.search(eia_path):
-        count = get_residential_customer_count_from_utility_stats(eia_path, utility)
+        count = get_residential_customer_count_from_utility_stats(
+            eia_path, utility, storage_options=storage_options
+        )
         return count, year
 
     for offset in range(21):
         try_year = year - offset
         path = pattern.sub(f"year={try_year}", eia_path, count=1)
         try:
-            count = get_residential_customer_count_from_utility_stats(path, utility)
+            count = get_residential_customer_count_from_utility_stats(
+                path, utility, storage_options=storage_options
+            )
             if offset > 0:
                 log.warning(
                     "EIA-861 year %d unavailable for %s; fell back to %d",
