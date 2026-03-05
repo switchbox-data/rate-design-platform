@@ -49,17 +49,39 @@ This classification was done through extensive manual research documented in
 - **`add_to_drr`** — volumetric surcharge that should be "topped up" into the delivery revenue requirement (e.g. SBC, CES Delivery, DLM Surcharge)
 - **`add_to_srr`** — supply-side surcharge for the supply revenue requirement (e.g. CES Supply, MFC, bundled commodity)
 - **`already_in_drr`** — base delivery rate already covered by the rate-case revenue requirement (e.g. core delivery $/kWh, customer charge)
-- **`exclude`** — true-up mechanisms, tax surcharges, or pass-through adjustments that should not be in the BAT (e.g. RDM, MAC, GRT)
-- **`skip`** — not applicable (e.g. solar-only credits)
+- **`exclude_trueup`** — cost reconciliation or revenue true-up (uniform $/kWh noise): MAC, RAM, DSA, RDM, transition charges, GRT, PILOTs, etc.
+- **`exclude_negligible`** — structurally a cross-subsidy but negligible in magnitude (e.g. Earnings Adjustment Mechanism)
+- **`exclude_expired`** — stale or expired charge (e.g. Tax Sur-Credit)
+- **`exclude_zonal`** — zonal duplicate or VRK overlap duplicate excluded solely to prevent double-counting (e.g. ConEd MSC Zone I when Zone H is the representative, NiMo MFC entries whose VRK duplicates supply commodity rates)
+- **`exclude_percentage`** — QUANTITY/% charge the pipeline cannot process; `fetch_monthly_rates.py` only handles $/kWh, $/month, and $/day (e.g. GRT when QUANTITY type, CBC, PSEG-LI Shoreham SPT, NY State Assessment)
+- **`exclude_redundant`** — structurally redundant charge (e.g. minimum charge / bill floor that rarely binds and is redundant with the customer charge)
+- **`exclude_eligibility`** — eligibility-gated or optional charge; $0 for the default residential customer (e.g. low-income discounts, solar CBC, agricultural discounts, GreenUp)
 
 ### 3. Fetch actual monthly rates
 
 `utils/pre/rev_requirement/fetch_monthly_rates.py` reads the charge decisions file, then hits the
 Genability API once per month to get the actual $/kWh rate for every classified
 CONSUMPTION_BASED charge. It handles rider fallback, variable rate resolution, and
-tariffRateId version drift. Each charge in the output YAML is labeled with its
-`decision`, so downstream consumers (e.g. `compute_rr.py`) can filter for
-`add_to_drr` or `add_to_srr` as needed.
+tariffRateId version drift.
+
+The output YAML groups charges by decision (`add_to_drr`, `add_to_srr`,
+`already_in_drr`, `excluded`). Each active decision section carries a
+`rate_structure` discriminator that tells consumer code how to interpret the
+charge data:
+
+- **`flat`** — standard `monthly_rates: {month: rate}` per charge. Used by
+  NiMo, NYSEG, RG&E, CenHud (all sections) and by ConEd/O&R/PSEG-LI for
+  `add_to_drr` surcharges.
+- **`seasonal_tiered`** — tiered rates with per-season monthly values. ConEd
+  and O&R delivery rates have a 250 kWh first-tier / unlimited second-tier
+  structure where the summer second tier carries a premium. Each charge has
+  `tiers: [{upper_limit_kwh, monthly_rates: {season: {month: rate}}}]`.
+- **`seasonal_tou`** — time-of-use rates with per-season×TOU-period monthly
+  values. PSEG-LI delivery and supply have on-peak/off-peak × summer/winter
+  structure. Each charge has `monthly_rates: {season_tou: {month: rate}}`.
+
+Non-tiered charges within a `seasonal_tiered` or `seasonal_tou` section
+(e.g. customer charge, MFC) use the simple flat schema.
 
 ```bash
 UTILITY=coned just s ny fetch-monthly-rates
@@ -69,121 +91,61 @@ Output goes to `monthly_rates/`. The year defaults to `MONTHLY_RATES_YEAR` (2025
 
 ### 4. Compute topped-up revenue requirement
 
-The monthly rates YAML feeds into `utils/pre/rev_requirement/compute_rr.py`, which filters for
-`add_to_drr` and `add_to_srr` charges, multiplies each day-weighted average monthly
-rate by EIA-861 residential kWh to get an annual budget, then adds it to the rate-case
-delivery revenue requirement. The output lives in the parent `rev_requirement/`
-directory (e.g. `rev_requirement/<utility>.yaml`).
+The monthly rates YAML feeds into `utils/pre/rev_requirement/compute_rr.py`, which reads
+the `add_to_drr` and `add_to_srr` sections. For sections with `rate_structure: flat`,
+it multiplies each day-weighted average monthly rate by EIA-861 residential kWh to get
+an annual budget, then adds it to the rate-case delivery revenue requirement.
+
+Sections with non-flat `rate_structure` (e.g. PSEG-LI's `seasonal_tou` supply charges)
+are **skipped with a WARNING** — use the `supply_base_overrides.yaml` mechanism for
+those utilities instead. This avoids double-counting TOU charges that can't be naively
+summed as flat $/kWh.
 
 ```bash
 UTILITY=coned just s ny compute-rr
 ```
 
-## Handling multiple entries for the same charge (zonal duplicates)
+## Handling zonal duplicates and seasonal variants
 
 Genability tariffs often contain **multiple tariffRateIds for the same conceptual
-charge**, each representing a different pricing zone or service territory variant.
-When this happens, the monthly rates YAML will have entries like:
+charge**. These fall into two categories:
 
-```yaml
-supply_commodity_bundled_1:
-  tariff_rate_id: 20918171
-  master_charge: Supply commodity (bundled)
-  decision: add_to_srr
-  monthly_rates: { 2025-01: 0.0968, ... }
+### Zonal duplicates (exclude)
 
-supply_commodity_bundled_2:
-  tariff_rate_id: 20918172
-  master_charge: Supply commodity (bundled)
-  decision: add_to_srr
-  monthly_rates: { 2025-01: 0.1020, ... }
+Zone-specific variants (e.g. ConEd supply for Zones H/I/J, NiMo 6 service areas,
+NYSEG Regular/West/LHV) where each customer is in exactly one zone. Summing all
+zones would overcount. The `classify_charges.py` script handles these automatically:
 
-supply_commodity_bundled_3:
-  tariff_rate_id: 20918173
-  master_charge: Supply commodity (bundled)
-  decision: add_to_srr
-  monthly_rates: { 2025-01: 0.1247, ... }
-```
+- **Phase 2 (zonal supply dedup)**: Uses `variableRateKey` prefixes to identify
+  zonal supply entries; keeps the representative zone (H for ConEd, Central for
+  NiMo, Regular for NYSEG), marks others `exclude_zonal`.
+- **Phase 4 (post-classification dedup)**: Catches remaining zone duplicates
+  where entries share the same `(rate_name, decision, charge_class,
+  rate_group_name, season, tou)` tuple. This handles ConEd's 3 Summer Rate
+  entries (zones H/I/J) → keeps 1, marks 2 as `exclude_zonal`.
 
-`compute_rr.py` emits a **WARNING** whenever multiple charges share the same
-`master_charge` and `add_to_*` decision, so you'll see it every time the pipeline
-runs. The warning doesn't auto-fix anything — it requires human review to decide
-whether the entries are **true duplicates** (zonal variants that would overcount)
-or **distinct additive components** (separate line items every customer pays).
+### Seasonal/TOU variants (keep)
 
-### How to tell the difference
+Entries with distinct season or TOU metadata (e.g. ConEd's Summer Rate vs Winter
+Rate, PSEG-LI's 4 season×TOU delivery entries) represent genuinely different rate
+periods. The classify pipeline preserves these, and `fetch_monthly_rates.py` merges
+them into a single combined charge entry in the YAML output:
 
-**Zonal duplicates** (each customer is in exactly one zone; summing overcounts):
+- **`seasonal_tiered`**: ConEd/O&R delivery — Summer Rate + Winter Rate entries
+  become a single `core_delivery_rate` with per-season per-tier monthly rates.
+- **`seasonal_tou`**: PSEG-LI delivery and supply — 4 season×TOU entries become
+  a single charge with `summer_on_peak`, `summer_off_peak`, `winter_on_peak`,
+  `winter_off_peak` monthly rates.
 
-- The `variableRateKey` in charge_decisions.json contains a geographic suffix:
-  `marketSupplyChargeResidentialZoneH`, `...ZoneI`, `...ZoneJ` (ConEd NYISO zones),
-  `supplyChargeSC1West`, `...SC1LHV` (NYSEG pricing zones),
-  `electricSupplyChargeSC1Central`, `...SC1Capital` (NiMo service areas).
-- Rates are similar in magnitude but not identical (they reflect local cost
-  differences within the utility's territory).
-- Multiplying all of them by total utility kWh produces a 2–3x overcount.
+### Other multi-entry cases
 
-**Distinct additive components** (every customer pays all of them; summing is correct):
-
-- The `variableRateKey` names reflect different functions, not geography:
-  `AllocationMFCLostRevenueSC1`, `BaseMFCSupplyChargeSC1`, `MFCAdminChargeSC1`
-  (CenHud's three MFC subcomponents).
-- Rates may differ by orders of magnitude (one is tiny, another is the bulk).
-- Regulatory filings confirm they are separate line items on the bill.
-
-**Temporal phases** (overlapping but genuinely concurrent surcharges):
-
-- Entries like `Arrears / COVID forgiveness` Phase 1 and Phase 2 may overlap
-  in time (both billed Jan–Jul) but are separate PSC-authorized recovery
-  surcharges. Each recovers a different pool of costs.
-- Key signal: one phase changes rate or expires independently of the other
-  (e.g. Phase 1 drops from $0.0012 to $0.00087 in August while Phase 2 expires
-  entirely in July).
-
-**CES tier splits** (distinct regulatory tiers, additive):
-
-- RGE's two CES Supply Surcharge entries ($0.00103 and $0.00299) are Tier 1 and
-  Tier 2 of the Clean Energy Standard. Their sum ($0.00402) matches the
-  predecessor single-rate entry. Both are billed to every customer.
-
-### What to do when you find duplicates
-
-For confirmed zonal duplicates:
-
-1. **Pick a representative zone.** Choose the zone that covers the largest share
-   of the utility's residential load. Examples: Zone H (NYC) for ConEd, Regular
-   zone for NYSEG, Central for NiMo.
-2. **Exclude the others in charge_decisions.json.** Change the decision from
-   `add_to_srr` (or `add_to_drr`) to `exclude` and add a `_note` explaining
-   the choice:
-   ```json
-   "20918172": {
-     "master_charge": "Supply commodity (bundled)",
-     "decision": "exclude",
-     "variableRateKey": "marketSupplyChargeResidentialZoneI",
-     "_note": "Zonal duplicate — Zone H kept as representative; Zone I excluded to avoid overcount"
-   }
-   ```
-3. **Update the monthly rates YAML** to match (change the `decision` field for
-   the same entries).
-4. **Regenerate** by re-running `compute-rr`.
-
-Alternatively, if zone-level kWh data is available, you could population-weight
-the rates. In practice, the rates within a utility are close enough (~5–15% spread)
-that picking the largest zone introduces minimal error.
-
-### Cases we've resolved
-
-| Utility | Charge                       | Entries | Verdict                                           | Resolution                                  |
-| ------- | ---------------------------- | ------: | ------------------------------------------------- | ------------------------------------------- |
-| ConEd   | Supply commodity (bundled)   |       3 | Zonal (Zones H/I/J)                               | Keep H, exclude I + J (J is LIPA territory) |
-| NYSEG   | Supply commodity (bundled)   |       3 | Zonal (Regular/West/LHV)                          | Keep Regular, exclude West + LHV            |
-| NiMo    | Merchant Function Charge     |      27 | Zonal (6 zones × 2 rate components + 3 non-zonal) | Keep Central zone + non-zonal components    |
-| CenHud  | Merchant Function Charge     |       3 | Distinct components (allocation/base/admin)       | Keep all 3 — not duplicates                 |
-| NiMo    | Arrears / COVID forgiveness  |       2 | Temporal phases (Phase 1 + Phase 2)               | Keep both — genuinely concurrent            |
-| NYSEG   | Arrears / COVID forgiveness  |       2 | Temporal phases (Phase 1 + Phase 2)               | Keep both — genuinely concurrent            |
-| RGE     | CES Supply Surcharge         |       2 | Distinct tiers (Tier 1 + Tier 2)                  | Keep both — additive                        |
-| PSEG-LI | Securitization Charge/Offset |       2 | Charge + equal-and-opposite offset                | Keep both — they net to $0                  |
+| Utility | Charge                       | Entries | Verdict                                          |
+| ------- | ---------------------------- | ------: | ------------------------------------------------ |
+| CenHud  | Merchant Function Charge     |       3 | Distinct components (allocation/base/admin)      |
+| NiMo    | Arrears / COVID forgiveness  |       2 | Temporal phases (Phase 1 + Phase 2)              |
+| NYSEG   | Arrears / COVID forgiveness  |       2 | Temporal phases (Phase 1 + Phase 2)              |
+| RGE     | CES Supply Surcharge         |       2 | Distinct tiers (Tier 1 + Tier 2)                 |
+| PSEG-LI | Securitization Charge/Offset |       2 | Charge + equal-and-opposite offset (nets to \$0) |
 
 ## Adding a new state
 

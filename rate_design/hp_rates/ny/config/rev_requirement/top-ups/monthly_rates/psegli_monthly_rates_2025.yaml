@@ -2,191 +2,245 @@ utility: psegli
 master_tariff_id: 3439408
 start_month: 2025-01
 end_month: 2025-12
-charges:
-  customer_charge:
-    tariff_rate_id: 20850767
-    master_charge: Customer Charge
-    decision: already_in_drr
-    monthly_rates:
-      2025-01: 0.54
-      2025-02: 0.54
-      2025-03: 0.54
-      2025-04: 0.54
-      2025-05: 0.54
-      2025-06: 0.54
-      2025-07: 0.54
-      2025-08: 0.54
-      2025-09: 0.54
-      2025-10: 0.54
-      2025-11: 0.54
-      2025-12: 0.54
-    charge_unit: $/day
-  core_delivery_rate_1:
-    tariff_rate_id: 20850768
-    master_charge: Core Delivery Rate
-    decision: already_in_drr
-    monthly_rates:
-      2025-01: 0.2127
-      2025-02: 0.2127
-      2025-03: 0.2127
-      2025-04: 0.2127
-      2025-05: 0.2127
-      2025-06: 0.2127
-      2025-07: 0.2127
-      2025-08: 0.2127
-      2025-09: 0.2127
-      2025-10: 0.2127
-      2025-11: 0.2127
-      2025-12: 0.2127
-    charge_unit: $/kWh
-  core_delivery_rate_2:
-    tariff_rate_id: 20850769
-    master_charge: Core Delivery Rate
-    decision: already_in_drr
-    monthly_rates:
-      2025-01: 0.1049
-      2025-02: 0.1049
-      2025-03: 0.1049
-      2025-04: 0.1049
-      2025-05: 0.1049
-      2025-06: 0.1049
-      2025-07: 0.1049
-      2025-08: 0.1049
-      2025-09: 0.1049
-      2025-10: 0.1049
-      2025-11: 0.1049
-      2025-12: 0.1049
-    charge_unit: $/kWh
-  core_delivery_rate_3:
-    tariff_rate_id: 20850770
-    master_charge: Core Delivery Rate
-    decision: already_in_drr
-    monthly_rates:
-      2025-01: 0.1809
-      2025-02: 0.1809
-      2025-03: 0.1809
-      2025-04: 0.1809
-      2025-05: 0.1809
-      2025-06: 0.1809
-      2025-07: 0.1809
-      2025-08: 0.1809
-      2025-09: 0.1809
-      2025-10: 0.1809
-      2025-11: 0.1809
-      2025-12: 0.1809
-    charge_unit: $/kWh
-  core_delivery_rate_4:
-    tariff_rate_id: 20850771
-    master_charge: Core Delivery Rate
-    decision: already_in_drr
-    monthly_rates:
-      2025-01: 0.0891
-      2025-02: 0.0891
-      2025-03: 0.0891
-      2025-04: 0.0891
-      2025-05: 0.0891
-      2025-06: 0.0891
-      2025-07: 0.0891
-      2025-08: 0.0891
-      2025-09: 0.0891
-      2025-10: 0.0891
-      2025-11: 0.0891
-      2025-12: 0.0891
-    charge_unit: $/kWh
-  vder_der_cost_recovery:
-    tariff_rate_id: 20850774
-    master_charge: VDER / DER Cost Recovery
-    decision: add_to_drr
-    monthly_rates:
-      2025-01: 0.005554
-      2025-02: 0.005554
-      2025-03: 0.005554
-      2025-04: 0.005554
-      2025-05: 0.005554
-      2025-06: 0.005554
-      2025-07: 0.005554
-      2025-08: 0.005554
-      2025-09: 0.005554
-      2025-10: 0.005554
-      2025-11: 0.005554
-      2025-12: 0.005554
-    charge_unit: $/kWh
-  securitization_charge_offset_udsa_1:
-    tariff_rate_id: 20850777
-    master_charge: Securitization Charge / Offset (UDSA)
-    decision: add_to_srr
-    monthly_rates:
-      2025-01: -0.020031
-      2025-02: -0.020031
-      2025-03: -0.020031
-      2025-04: -0.020031
-      2025-05: -0.0204313226
-      2025-06: -0.020761
-      2025-07: -0.020761
-      2025-08: -0.020761
-      2025-09: -0.020761
-      2025-10: -0.020761
-      2025-11: -0.0206319333
-      2025-12: -0.0218466452
-    charge_unit: $/kWh
-  securitization_charge_offset_udsa_2:
-    tariff_rate_id: 20850778
-    master_charge: Securitization Charge / Offset (UDSA)
-    decision: add_to_srr
-    monthly_rates:
-      2025-01: 0.020031
-      2025-02: 0.020031
-      2025-03: 0.020031
-      2025-04: 0.020031
-      2025-05: 0.0204313226
-      2025-06: 0.020761
-      2025-07: 0.020761
-      2025-08: 0.020761
-      2025-09: 0.020761
-      2025-10: 0.020761
-      2025-11: 0.0206319333
-      2025-12: 0.0218466452
-    charge_unit: $/kWh
-  merchant_function_charge:
-    tariff_rate_id: 20416295
-    master_charge: Merchant Function Charge
-    decision: add_to_srr
-    monthly_rates:
-      2025-01: 0.001885
-      2025-02: 0.001885
-      2025-03: 0.001885
-      2025-04: 0.001885
-      2025-05: 0.001885
-      2025-06: 0.001885
-      2025-07: 0.001885
-      2025-08: 0.001885
-      2025-09: 0.001885
-      2025-10: 0.001885
-      2025-11: 0.001885
-      2025-12: 0.001885
-    charge_unit: $/kWh
-  supply_commodity_bundled_1:
-    tariff_rate_id: 20436694
-    master_charge: Supply commodity (bundled)
-    decision: exclude
-    monthly_rates:
-      2025-01: 0.241457
-      2025-02: 0.687405
-      2025-03: 0.743136
-      2025-04: 0.695507
-      2025-05: 0.700075
-      2025-06: 0.742615
-      2025-07: 0.676235
-      2025-08: 0.729739
-      2025-09: 0.743324
-      2025-10: 0.740515
-      2025-11: 0.729772
-      2025-12: 0.716766
-    charge_unit: $/kWh
-  supply_commodity_bundled_2:
-    tariff_rate_id: 20436695
-    master_charge: Supply commodity (bundled)
-    decision: exclude
-    monthly_rates:
-      2025-01: 0.102959
-    charge_unit: $/kWh
+add_to_drr:
+  rate_structure: flat
+  charges:
+    vder_der_cost_recovery:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.005554
+        2025-02: 0.005554
+        2025-03: 0.005554
+        2025-04: 0.005554
+        2025-05: 0.005554
+        2025-06: 0.005554
+        2025-07: 0.005554
+        2025-08: 0.005554
+        2025-09: 0.005554
+        2025-10: 0.005554
+        2025-11: 0.005554
+        2025-12: 0.005554
+add_to_srr:
+  rate_structure: seasonal_tou
+  seasons:
+    summer:
+      from_month: 6
+      from_day: 1
+      to_month: 9
+      to_day: 30
+    winter:
+      from_month: 10
+      from_day: 1
+      to_month: 5
+      to_day: 31
+  tou_periods:
+    on_peak:
+      name: On-Peak
+      from_hour: 15
+      to_hour: 19
+      weekdays_only: true
+    off_peak:
+      name: Off-Peak
+      from_hour: 19
+      to_hour: 15
+      weekdays_only: true
+  charges:
+    merchant_function_charge:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.001885
+        2025-02: 0.001885
+        2025-03: 0.001885
+        2025-04: 0.001885
+        2025-05: 0.001885
+        2025-06: 0.001885
+        2025-07: 0.001885
+        2025-08: 0.001885
+        2025-09: 0.001885
+        2025-10: 0.001885
+        2025-11: 0.001885
+        2025-12: 0.001885
+    securitization_charge_offset_udsa:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: -0.020031
+        2025-02: -0.020031
+        2025-03: -0.020031
+        2025-04: -0.020031
+        2025-05: -0.0204313226
+        2025-06: -0.020761
+        2025-07: -0.020761
+        2025-08: -0.020761
+        2025-09: -0.020761
+        2025-10: -0.020761
+        2025-11: -0.0206319333
+        2025-12: -0.0218466452
+    supply_commodity_bundled:
+      charge_unit: $/kWh
+      monthly_rates:
+        summer_on_peak:
+          2025-01: 0.241457
+          2025-02: 0.234327
+          2025-03: 0.253325
+          2025-04: 0.23709
+          2025-05: 0.238647
+          2025-06: 0.253148
+          2025-07: 0.23052
+          2025-08: 0.248759
+          2025-09: 0.25339
+          2025-10: 0.252432
+          2025-11: 0.24877
+          2025-12: 0.244336
+        summer_off_peak:
+          2025-01: 0.102959
+          2025-02: 0.099919
+          2025-03: 0.10802
+          2025-04: 0.101096
+          2025-05: 0.10176
+          2025-06: 0.107944
+          2025-07: 0.098295
+          2025-08: 0.106072
+          2025-09: 0.108047
+          2025-10: 0.107639
+          2025-11: 0.106077
+          2025-12: 0.104187
+        winter_on_peak:
+          2025-01: 0.241457
+          2025-02: 0.25324
+          2025-03: 0.273771
+          2025-04: 0.256225
+          2025-05: 0.257908
+          2025-06: 0.273579
+          2025-07: 0.249125
+          2025-08: 0.268836
+          2025-09: 0.27384
+          2025-10: 0.272805
+          2025-11: 0.268848
+          2025-12: 0.264056
+        winter_off_peak:
+          2025-01: 0.102959
+          2025-02: 0.099919
+          2025-03: 0.10802
+          2025-04: 0.101096
+          2025-05: 0.10176
+          2025-06: 0.107944
+          2025-07: 0.098295
+          2025-08: 0.106072
+          2025-09: 0.108047
+          2025-10: 0.107639
+          2025-11: 0.106077
+          2025-12: 0.104187
+already_in_drr:
+  rate_structure: seasonal_tou
+  seasons:
+    summer:
+      from_month: 6
+      from_day: 1
+      to_month: 9
+      to_day: 30
+    winter:
+      from_month: 10
+      from_day: 1
+      to_month: 5
+      to_day: 31
+  tou_periods:
+    on_peak:
+      name: On-Peak
+      from_hour: 15
+      to_hour: 19
+      weekdays_only: true
+    off_peak:
+      name: Off-Peak
+      from_hour: 19
+      to_hour: 15
+      weekdays_only: true
+  charges:
+    customer_charge:
+      charge_unit: $/day
+      monthly_rates:
+        2025-01: 0.54
+        2025-02: 0.54
+        2025-03: 0.54
+        2025-04: 0.54
+        2025-05: 0.54
+        2025-06: 0.54
+        2025-07: 0.54
+        2025-08: 0.54
+        2025-09: 0.54
+        2025-10: 0.54
+        2025-11: 0.54
+        2025-12: 0.54
+    core_delivery_rate:
+      charge_unit: $/kWh
+      monthly_rates:
+        summer_on_peak:
+          2025-01: 0.2127
+          2025-02: 0.2127
+          2025-03: 0.2127
+          2025-04: 0.2127
+          2025-05: 0.2127
+          2025-06: 0.2127
+          2025-07: 0.2127
+          2025-08: 0.2127
+          2025-09: 0.2127
+          2025-10: 0.2127
+          2025-11: 0.2127
+          2025-12: 0.2127
+        summer_off_peak:
+          2025-01: 0.1049
+          2025-02: 0.1049
+          2025-03: 0.1049
+          2025-04: 0.1049
+          2025-05: 0.1049
+          2025-06: 0.1049
+          2025-07: 0.1049
+          2025-08: 0.1049
+          2025-09: 0.1049
+          2025-10: 0.1049
+          2025-11: 0.1049
+          2025-12: 0.1049
+        winter_on_peak:
+          2025-01: 0.1809
+          2025-02: 0.1809
+          2025-03: 0.1809
+          2025-04: 0.1809
+          2025-05: 0.1809
+          2025-06: 0.1809
+          2025-07: 0.1809
+          2025-08: 0.1809
+          2025-09: 0.1809
+          2025-10: 0.1809
+          2025-11: 0.1809
+          2025-12: 0.1809
+        winter_off_peak:
+          2025-01: 0.0891
+          2025-02: 0.0891
+          2025-03: 0.0891
+          2025-04: 0.0891
+          2025-05: 0.0891
+          2025-06: 0.0891
+          2025-07: 0.0891
+          2025-08: 0.0891
+          2025-09: 0.0891
+          2025-10: 0.0891
+          2025-11: 0.0891
+          2025-12: 0.0891
+excluded:
+  rate_for_cities_and_incorporated_villages_transportation:
+    decision: exclude_percentage
+  rate_for_cities_and_incorporated_villages_commodity:
+    decision: exclude_percentage
+  shoreham_property_tax_spt_settlement_factors:
+    decision: exclude_percentage
+  shoreham_property_tax_spt_settlement_factors_1:
+    decision: exclude_percentage
+  new_york_state_assessment:
+    decision: exclude_percentage
+  revenue_decoupling_mechanism:
+    decision: exclude_percentage
+  delivery_service_adjustment:
+    decision: exclude_percentage
+  minimum:
+    decision: exclude_redundant
+  costumer_benefit_contribution:
+    decision: exclude_percentage

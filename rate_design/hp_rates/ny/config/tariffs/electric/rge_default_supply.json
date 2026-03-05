@@ -2,179 +2,145 @@
   "energyratestructure": [
     [
       {
-        "rate": 0.19079,
+        "rate": 0.174213,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.186971,
+        "rate": 0.186097,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.182906,
+        "rate": 0.19804,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.183569,
+        "rate": 0.216129,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.168858,
+        "rate": 0.203778,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.188631,
-        "max": 250.0,
-        "unit": "kWh"
-      },
-      {
-        "rate": 0.212741,
+        "rate": 0.185961,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.185786,
-        "max": 250.0,
-        "unit": "kWh"
-      },
-      {
-        "rate": 0.209897,
+        "rate": 0.188924,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.180609,
-        "max": 250.0,
-        "unit": "kWh"
-      },
-      {
-        "rate": 0.204719,
+        "rate": 0.174395,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.181812,
-        "max": 250.0,
-        "unit": "kWh"
-      },
-      {
-        "rate": 0.205922,
+        "rate": 0.194955,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.181937,
+        "rate": 0.21769,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.185893,
+        "rate": 0.198751,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.180111,
+        "rate": 0.180116,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.191211,
+        "rate": 0.182031,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.185981,
+        "rate": 0.191184,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.1828,
+        "rate": 0.206035,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.18675,
+        "rate": 0.221699,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.18885,
-        "max": 250.0,
-        "unit": "kWh"
-      },
-      {
-        "rate": 0.21296,
+        "rate": 0.210484,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.185773,
-        "max": 250.0,
-        "unit": "kWh"
-      },
-      {
-        "rate": 0.209883,
+        "rate": 0.196862,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.180715,
-        "max": 250.0,
-        "unit": "kWh"
-      },
-      {
-        "rate": 0.204825,
+        "rate": 0.206043,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.174524,
-        "max": 250.0,
-        "unit": "kWh"
-      },
-      {
-        "rate": 0.197538,
+        "rate": 0.199334,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.182116,
+        "rate": 0.215939,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.185794,
+        "rate": 0.219346,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.180076,
+        "rate": 0.204476,
+        "unit": "kWh"
+      }
+    ],
+    [
+      {
+        "rate": 0.209709,
         "unit": "kWh"
       }
     ]
@@ -573,32 +539,6 @@
       14
     ],
     [
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3,
-      3
-    ],
-    [
       15,
       15,
       15,
@@ -805,12 +745,38 @@
       22,
       22,
       22
+    ],
+    [
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23
     ]
   ],
-  "fixedchargefirstmeter": 21.28,
+  "fixedchargefirstmeter": 23.99,
   "fixedchargeunits": "$/month",
-  "label": "ConEd",
-  "utility": "Consolidated Edison Co-NY Inc",
-  "name": "Residential and Religious",
+  "label": "RGE",
+  "utility": "Rochester Gas & Electric Corp",
+  "name": "Residential",
   "country": "USA"
 }

@@ -1,208 +1,648 @@
 {
-  "20850767": {
-    "master_charge": "Customer Charge",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/day",
-    "rate_name": "Service Charge",
-    "_note": "Part of 'Delivery & System' in LIPA bill; covered by budget-estimated rate-case DRR"
-  },
-  "20850768": {
-    "master_charge": "Core Delivery Rate",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "rate_name": "Energy Charge - Summer Peak",
-    "charge_unit": "$/kWh",
-    "_note": "TOU delivery; covered by budget-estimated rate-case DRR"
-  },
-  "20850769": {
-    "master_charge": "Core Delivery Rate",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "rate_name": "Energy Charge - Summer Off-Peak",
-    "charge_unit": "$/kWh",
-    "_note": "TOU delivery; covered by budget-estimated rate-case DRR"
-  },
-  "20850770": {
-    "master_charge": "Core Delivery Rate",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "rate_name": "Energy Charge - Winter Peak",
-    "charge_unit": "$/kWh",
-    "_note": "TOU delivery; covered by budget-estimated rate-case DRR"
-  },
-  "20850771": {
-    "master_charge": "Core Delivery Rate",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "rate_name": "Energy Charge - Winter Off-Peak",
-    "charge_unit": "$/kWh",
-    "_note": "TOU delivery; covered by budget-estimated rate-case DRR"
-  },
-  "20850772": {
-    "master_charge": "Shoreham Property Tax Settlement",
-    "master_type": "Sunk-cost recovery",
-    "decision": "exclude",
-    "variableRateKey": "shorehamPropertyTaxSettlementFactorSuffolkCounty",
-    "charge_unit": "%",
-    "_note": "Pass-through to taxing jurisdictions; part of 'Taxes, PILOTs, Assessments' in LIPA bill"
-  },
-  "20850773": {
-    "master_charge": "Shoreham Property Tax Settlement",
-    "master_type": "Sunk-cost recovery",
-    "decision": "exclude",
-    "rate_name": "Shoreham Property Tax (SPT) Settlement Factors",
-    "charge_unit": "%",
-    "_note": "Pass-through to taxing jurisdictions; part of 'Taxes, PILOTs, Assessments' in LIPA bill"
-  },
-  "20850774": {
-    "master_charge": "VDER / DER Cost Recovery",
-    "master_type": "DER credit recovery",
-    "decision": "add_to_drr",
-    "variableRateKey": "distributedEnergyResourcesCostRecoveryRateSmall",
-    "charge_unit": "$/kWh",
-    "_note": "Separate 'DER' line in LIPA bill ($4.04/mo); delivery surcharge outside 'Delivery & System'"
-  },
-  "20850775": {
-    "master_charge": "NY State Surcharge (\u00a718-a)",
-    "master_type": "Program surcharge",
-    "decision": "exclude",
-    "variableRateKey": "newYorkStateAssessment",
-    "charge_unit": "%",
-    "_note": "Pass-through to NY State; part of 'Taxes, PILOTs, Assessments' in LIPA bill"
-  },
-  "20850776": {
-    "master_charge": "Revenue Decoupling (RDM)",
-    "master_type": "Revenue true-up",
-    "decision": "exclude",
-    "variableRateKey": "revenueDecouplingMechanismResidential200",
-    "charge_unit": "$/kWh"
-  },
-  "20850777": {
-    "master_charge": "Securitization Charge / Offset (UDSA)",
-    "master_type": "Sunk-cost recovery",
-    "decision": "add_to_srr",
-    "variableRateKey": "securitizationOffsetCharge",
-    "charge_unit": "$/kWh"
-  },
-  "20850778": {
-    "master_charge": "Securitization Charge / Offset (UDSA)",
-    "master_type": "Sunk-cost recovery",
-    "decision": "add_to_srr",
-    "variableRateKey": "securitizationCharge200",
-    "charge_unit": "$/kWh"
-  },
-  "20850779": {
-    "master_charge": "Delivery cost true-up (MAC / RAM / DSA)",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "variableRateKey": "deliveryServiceAdjustment200",
-    "charge_unit": "$/kWh"
-  },
-  "20850780": {
-    "master_charge": "Minimum Charge",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/month"
-  },
   "17165508": {
-    "master_charge": "PILOTs (Cities/Villages)",
-    "master_type": "Tax pass-through",
-    "decision": "exclude",
-    "rider_id": 764,
-    "charge_unit": "$/kWh"
+    "rate_name": "Rate for Cities and Incorporated Villages - Transportation",
+    "charge_type": "QUANTITY",
+    "charge_class": null,
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Rates and Charges to Recover Pilot Payments",
+    "rider_tariff_id": 3179224,
+    "master_tariff_rate_id": null,
+    "charge_unit": "%",
+    "sample_rate": 3.5921,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 3.5921,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_percentage",
+    "master_charge": "Rate for Cities and Incorporated Villages - Transportation",
+    "master_type": "Percentage of bill"
   },
   "17165509": {
-    "master_charge": "PILOTs (Cities/Villages)",
-    "master_type": "Tax pass-through",
-    "decision": "exclude",
-    "rider_id": 764,
-    "charge_unit": "$/kWh"
-  },
-  "20837514": {
-    "master_charge": "CBC (solar only)",
-    "master_type": "Eligibility",
-    "decision": "skip",
-    "charge_unit": "$/kWh"
-  },
-  "20851245": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
-    "decision": "add_to_srr",
-    "charge_unit": "$/kWh"
-  },
-  "20912744": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
-    "decision": "exclude",
-    "charge_unit": "$/kWh",
-    "_note": "TOU supply (base tariff); covered by supply_base_overrides from LIPA budget estimate"
-  },
-  "20912745": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
-    "decision": "exclude",
-    "charge_unit": "$/kWh",
-    "_note": "TOU supply (base tariff); covered by supply_base_overrides from LIPA budget estimate"
-  },
-  "20912746": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
-    "decision": "exclude",
-    "charge_unit": "$/kWh",
-    "_note": "TOU supply (base tariff); covered by supply_base_overrides from LIPA budget estimate"
-  },
-  "20912747": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
-    "decision": "exclude",
-    "charge_unit": "$/kWh",
-    "_note": "TOU supply (base tariff); covered by supply_base_overrides from LIPA budget estimate"
-  },
-  "20437624": {
-    "master_charge": "CBC (solar only)",
-    "master_type": "Eligibility / optional",
-    "decision": "skip",
-    "rider_id": 3399169,
-    "charge_unit": "$/kWh"
+    "rate_name": "Rate for Cities and Incorporated Villages - Commodity",
+    "charge_type": "QUANTITY",
+    "charge_class": null,
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Rates and Charges to Recover Pilot Payments",
+    "rider_tariff_id": 3179224,
+    "master_tariff_rate_id": null,
+    "charge_unit": "%",
+    "sample_rate": 1.1404,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 1.1404,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_percentage",
+    "master_charge": "Rate for Cities and Incorporated Villages - Commodity",
+    "master_type": "Percentage of bill"
   },
   "20416295": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
+    "rate_name": "Merchant Function Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3493168,
+    "master_tariff_rate_id": 19599272,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.001885,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.001885,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
     "decision": "add_to_srr",
-    "rider_id": 3426799,
-    "charge_unit": "$/kWh"
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
+  },
+  "20423251": {
+    "rate_name": "Service Charge",
+    "charge_type": "FIXED_PRICE",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "DAILY",
+    "variable_rate_key": null,
+    "rate_group_name": "Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 19741935,
+    "charge_unit": "$/day",
+    "sample_rate": 0.54,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.54,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Customer Charge",
+    "master_type": "Base delivery"
+  },
+  "20423252": {
+    "rate_name": "Energy Charge - Summer Peak",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Energy Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 19741936,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.2127,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.2127,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Summer",
+      "from_month": 6,
+      "from_day": 1,
+      "to_month": 9,
+      "to_day": 30
+    },
+    "time_of_use": {
+      "name": "On-Peak",
+      "type": "ON_PEAK",
+      "from_hour": 15,
+      "to_hour": 19,
+      "weekdays_only": true
+    },
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery"
+  },
+  "20423253": {
+    "rate_name": "Energy Charge - Summer Off-Peak",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Energy Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 19741937,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.1049,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.1049,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Summer",
+      "from_month": 6,
+      "from_day": 1,
+      "to_month": 9,
+      "to_day": 30
+    },
+    "time_of_use": {
+      "name": "Off-Peak",
+      "type": "OFF_PEAK",
+      "from_hour": 19,
+      "to_hour": 15,
+      "weekdays_only": true
+    },
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery"
+  },
+  "20423254": {
+    "rate_name": "Energy Charge - Winter Peak",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Energy Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 19741938,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.1809,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.1809,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Winter",
+      "from_month": 10,
+      "from_day": 1,
+      "to_month": 5,
+      "to_day": 31
+    },
+    "time_of_use": {
+      "name": "On-Peak",
+      "type": "ON_PEAK",
+      "from_hour": 15,
+      "to_hour": 19,
+      "weekdays_only": true
+    },
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery"
+  },
+  "20423255": {
+    "rate_name": "Energy Charge - Winter Off-Peak",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Energy Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 19741939,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0891,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0891,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Winter",
+      "from_month": 10,
+      "from_day": 1,
+      "to_month": 5,
+      "to_day": 31
+    },
+    "time_of_use": {
+      "name": "Off-Peak",
+      "type": "OFF_PEAK",
+      "from_hour": 19,
+      "to_hour": 15,
+      "weekdays_only": true
+    },
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery"
+  },
+  "20423256": {
+    "rate_name": "Shoreham Property Tax (SPT) Settlement Factors",
+    "charge_type": "QUANTITY",
+    "charge_class": null,
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "shorehamPropertyTaxSettlementFactorSuffolkCounty",
+    "rate_group_name": "Shoreham Property Tax (SPT) Settlement Factors",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 19741941,
+    "charge_unit": "%",
+    "sample_rate": 2.3534,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 2.3534,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_percentage",
+    "master_charge": "Shoreham Property Tax (SPT) Settlement Factors",
+    "master_type": "Percentage of bill"
+  },
+  "20423257": {
+    "rate_name": "Shoreham Property Tax (SPT) Settlement Factors",
+    "charge_type": "QUANTITY",
+    "charge_class": null,
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Shoreham Property Tax (SPT) Settlement Factors",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 19741942,
+    "charge_unit": "%",
+    "sample_rate": 0.0,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_percentage",
+    "master_charge": "Shoreham Property Tax (SPT) Settlement Factors",
+    "master_type": "Percentage of bill"
+  },
+  "20423258": {
+    "rate_name": "Distributed Energy Resources Cost Recovery Rate",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": null,
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "distributedEnergyResourcesCostRecoveryRateSmall",
+    "rate_group_name": "Distributed Energy Resources Cost Recovery Rate",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 19741943,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.005554,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.005554,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "VDER / DER Cost Recovery",
+    "master_type": "DER credit recovery"
+  },
+  "20423259": {
+    "rate_name": "New York State Assessment",
+    "charge_type": "QUANTITY",
+    "charge_class": null,
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "newYorkStateAssessment",
+    "rate_group_name": "New York State Assessment",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 19741944,
+    "charge_unit": "%",
+    "sample_rate": 0.212,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.212,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_percentage",
+    "master_charge": "New York State Assessment",
+    "master_type": "Percentage of bill"
+  },
+  "20423260": {
+    "rate_name": "Revenue Decoupling Mechanism",
+    "charge_type": "QUANTITY",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "revenueDecouplingMechanismResidential200",
+    "rate_group_name": "Revenue Decoupling Mechanism",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 19741945,
+    "charge_unit": "%",
+    "sample_rate": -1.0039,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -1.0039,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_percentage",
+    "master_charge": "Revenue Decoupling Mechanism",
+    "master_type": "Percentage of bill"
+  },
+  "20423261": {
+    "rate_name": "Securitization Offset Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "securitizationOffsetCharge",
+    "rate_group_name": "Securitization Offset Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 19741946,
+    "charge_unit": "$/kWh",
+    "sample_rate": -0.020031,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.020031,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_srr",
+    "master_charge": "Securitization Charge / Offset (UDSA)",
+    "master_type": "Sunk-cost recovery"
+  },
+  "20423262": {
+    "rate_name": "Securitization Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "securitizationCharge200",
+    "rate_group_name": "Securitization Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 19757845,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.020031,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.020031,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_srr",
+    "master_charge": "Securitization Charge / Offset (UDSA)",
+    "master_type": "Sunk-cost recovery"
+  },
+  "20423263": {
+    "rate_name": "Delivery Service Adjustment",
+    "charge_type": "QUANTITY",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "deliveryServiceAdjustment200",
+    "rate_group_name": "Delivery Service Adjustment",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 19741947,
+    "charge_unit": "%",
+    "sample_rate": -0.5153,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.5153,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_percentage",
+    "master_charge": "Delivery Service Adjustment",
+    "master_type": "Percentage of bill"
+  },
+  "20423264": {
+    "rate_name": "Minimum",
+    "charge_type": "MINIMUM",
+    "charge_class": null,
+    "charge_period": "DAILY",
+    "variable_rate_key": null,
+    "rate_group_name": "Minimum",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 19741948,
+    "charge_unit": "$/month",
+    "sample_rate": 0.54,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.54,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_redundant",
+    "master_charge": "Minimum Charge",
+    "master_type": "Bill floor (rarely binds)"
   },
   "20436694": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
-    "decision": "exclude",
-    "rider_id": 3440884,
+    "rate_name": "Power Supply Charge - Summer Peak",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Power Supply Charge",
+    "rider_tariff_id": 3494441,
+    "master_tariff_rate_id": 19753914,
     "charge_unit": "$/kWh",
-    "_note": "TOU supply (rider); covered by supply_base_overrides from LIPA budget estimate"
+    "sample_rate": 0.241457,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.241457,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Summer",
+      "from_month": 6,
+      "from_day": 1,
+      "to_month": 9,
+      "to_day": 30
+    },
+    "time_of_use": {
+      "name": "On-Peak",
+      "type": "ON_PEAK",
+      "from_hour": 15,
+      "to_hour": 19,
+      "weekdays_only": true
+    },
+    "source": "rider_resolved",
+    "decision": "add_to_srr",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
   },
   "20436695": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
-    "decision": "exclude",
-    "rider_id": 3440884,
+    "rate_name": "Power Supply Charge - Summer Off-Peak",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Power Supply Charge",
+    "rider_tariff_id": 3494441,
+    "master_tariff_rate_id": 19753987,
     "charge_unit": "$/kWh",
-    "_note": "TOU supply (rider); covered by supply_base_overrides from LIPA budget estimate"
+    "sample_rate": 0.102959,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.102959,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Summer",
+      "from_month": 6,
+      "from_day": 1,
+      "to_month": 9,
+      "to_day": 30
+    },
+    "time_of_use": {
+      "name": "Off-Peak",
+      "type": "OFF_PEAK",
+      "from_hour": 19,
+      "to_hour": 15,
+      "weekdays_only": true
+    },
+    "source": "rider_resolved",
+    "decision": "add_to_srr",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
   },
   "20436696": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
-    "decision": "exclude",
-    "rider_id": 3440884,
+    "rate_name": "Power Supply Charge - Winter On-Peak",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Power Supply Charge",
+    "rider_tariff_id": 3494441,
+    "master_tariff_rate_id": 19753988,
     "charge_unit": "$/kWh",
-    "_note": "TOU supply (rider); covered by supply_base_overrides from LIPA budget estimate"
+    "sample_rate": 0.241457,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.241457,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Winter",
+      "from_month": 10,
+      "from_day": 1,
+      "to_month": 5,
+      "to_day": 31
+    },
+    "time_of_use": {
+      "name": "On-Peak",
+      "type": "ON_PEAK",
+      "from_hour": 15,
+      "to_hour": 19,
+      "weekdays_only": true
+    },
+    "source": "rider_resolved",
+    "decision": "add_to_srr",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
   },
   "20436697": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
-    "decision": "exclude",
-    "rider_id": 3440884,
+    "rate_name": "Power Supply Charge - Winter Off-Peak",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Power Supply Charge",
+    "rider_tariff_id": 3494441,
+    "master_tariff_rate_id": 19753989,
     "charge_unit": "$/kWh",
-    "_note": "TOU supply (rider); covered by supply_base_overrides from LIPA budget estimate"
+    "sample_rate": 0.102959,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.102959,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Winter",
+      "from_month": 10,
+      "from_day": 1,
+      "to_month": 5,
+      "to_day": 31
+    },
+    "time_of_use": {
+      "name": "Off-Peak",
+      "type": "OFF_PEAK",
+      "from_hour": 19,
+      "to_hour": 15,
+      "weekdays_only": true
+    },
+    "source": "rider_resolved",
+    "decision": "add_to_srr",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
+  },
+  "20437624": {
+    "rate_name": "Costumer Benefit Contribution",
+    "charge_type": "QUANTITY",
+    "charge_class": null,
+    "charge_period": "DAILY",
+    "variable_rate_key": null,
+    "rate_group_name": "Costumer Benefit Contribution",
+    "rider_tariff_id": 3494571,
+    "master_tariff_rate_id": 19242497,
+    "charge_unit": "%",
+    "sample_rate": 0.033,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.033,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_percentage",
+    "master_charge": "Costumer Benefit Contribution",
+    "master_type": "Percentage of bill"
   }
 }

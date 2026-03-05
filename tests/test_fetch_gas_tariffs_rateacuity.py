@@ -88,7 +88,7 @@ def test_load_config_ny() -> None:
     assert state == "NY"
     assert "coned" in utilities
     assert utilities["coned"]["coned_nonheating"] == (
-        "1-RESIDENTIAL AND RELIGIOUS FIRM SALES SERVICE---"
+        "-ON HOLD-1-RESIDENTIAL AND RELIGIOUS FIRM SALES SERVICE---"
     )
     assert "rie" not in utilities
 
