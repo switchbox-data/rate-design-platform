@@ -1,15 +1,15 @@
 utility: nyseg
 group_col: has_hp
 cross_subsidy_col: BAT_percustomer
-source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/20260226_201519_ny_nyseg_run1_up00_precalc__flat__n100
-total_delivery_revenue_requirement: 1157858878.88
-total_delivery_and_supply_revenue_requirement: 3134465707.21
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/nyseg/20260305T155829Z/20260305_160000_ny_nyseg_run1_up00_precalc__flat
+total_delivery_revenue_requirement: 912329349.16
+total_delivery_and_supply_revenue_requirement: 1605391381.33
 subclass_revenue_requirements:
-  hp:
-    delivery: 50037497.47527368
-    supply: 0.0
-    total: 50037497.47527368
   non-hp:
-    delivery: 949962501.5247264
-    supply: 0.0
-    total: 949962501.5247264
+    delivery: 880621652.5031681
+    supply: 649583739.4332619
+    total: 1530205391.93643
+  hp:
+    delivery: 31707696.65683252
+    supply: 43478292.73673728
+    total: 75185989.3935698
