@@ -11,7 +11,7 @@ delivery_top_ups:
     charge_unit: $/kWh
     avg_monthly_rate: 0.00788
     total_budget: 23855399.11
-  arrearage_management_adjustment_factor:
+  arrears_arrearage_recovery:
     charge_unit: $/kWh
     avg_monthly_rate: 7.48767e-05
     total_budget: 226676.89
@@ -36,7 +36,7 @@ delivery_top_ups:
     avg_monthly_rate: 0.01098
     total_budget: 33240137.33
 supply_top_ups:
-  standard_offer_service_charge:
+  supply_commodity_bundled:
     charge_unit: $/kWh
     avg_monthly_rate: 0.114146274
     total_budget: 345559000.27

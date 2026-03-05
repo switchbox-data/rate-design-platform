@@ -10,21 +10,22 @@ Every charge on a Rhode Island default residential electric bill — Rhode Islan
 
 Charges are classified into families based on their economic structure, not their tariff name.
 
-| Type                       | What it is                                                                          | Cross-subsidy?                             | Decision pattern            |
-| -------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------ | --------------------------- |
-| **Base delivery**          | Rates set in the rate case that collect the delivery revenue requirement            | Yes (the BAT's core subject)               | Already in d.r.r.           |
-| **Cost reconciliation**    | Uniform $/kWh true-ups of costs already embedded in base rates (delivery or supply) | No — shifts all bills equally              | Exclude                     |
-| **Revenue true-up**        | Revenue decoupling and temporary over/under-collection corrections                  | No — shifts all bills equally              | Exclude                     |
-| **Program surcharge**      | Fixed state-mandated program budgets recovered via uniform $/kWh or $/mo            | Yes — fixed pool ÷ kWh (or ÷ customers)    | Add to d.r.r.               |
-| **Sunk-cost recovery**     | Fixed debt, storm fund, or settlement pools recovered via $/kWh                     | Yes — fixed pool ÷ kWh                     | Add to d.r.r.               |
-| **DER credit recovery**    | Fixed net metering / RE Growth program costs recovered via uniform $/kWh            | Yes — fixed pool ÷ kWh                     | Add to d.r.r.               |
-| **LMI cost recovery**      | Recovery from non-LMI customers of low-income discount costs                        | Yes — but income transfer, not rate design | Exclude (LMI; post-process) |
-| **Performance incentive**  | PUC-approved performance incentive (e.g. EE program performance)                    | Yes in structure, negligible in magnitude  | Exclude (negligible)        |
-| **Supply commodity**       | LRS (Standard Offer) bundling ISO-NE wholesale energy, capacity, ancillary, admin   | Mixed — see sub-components                 | Add to s.r.r.               |
-| **Merchant function**      | LRS administrative cost adjustment (procurement, working capital)                   | Weak                                       | Add to s.r.r.               |
-| **RES supply**             | Per-MWh REC obligation (Renewable Energy Standard); cost scales with load           | No                                         | Add to s.r.r. + MC 8760     |
-| **Tax pass-through**       | Gross Earnings Tax (% of bill)                                                      | No                                         | Exclude (tax)               |
-| **Eligibility / optional** | A-60 low-income discount; $0 for default A-16 customer                              | N/A                                        | Skip for BAT (use in LMI)   |
+| Type                       | What it is                                                                          | Cross-subsidy?                             | Decision               |
+| -------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------ | ---------------------- |
+| **Base delivery**          | Rates set in the rate case that collect the delivery revenue requirement            | Yes (the BAT's core subject)               | `already_in_drr`       |
+| **Cost reconciliation**    | Uniform $/kWh true-ups of costs already embedded in base rates (delivery or supply) | No — shifts all bills equally              | `exclude_trueup`       |
+| **Revenue true-up**        | Revenue decoupling and temporary over/under-collection corrections                  | No — shifts all bills equally              | `exclude_trueup`       |
+| **Program surcharge**      | Fixed state-mandated program budgets recovered via uniform $/kWh or $/mo            | Yes — fixed pool ÷ kWh (or ÷ customers)    | `add_to_drr`           |
+| **Sunk-cost recovery**     | Fixed debt, storm fund, or settlement pools recovered via $/kWh                     | Yes — fixed pool ÷ kWh                     | `add_to_drr`           |
+| **DER credit recovery**    | Fixed net metering / RE Growth program costs recovered via uniform $/kWh            | Yes — fixed pool ÷ kWh                     | `add_to_drr`           |
+| **LMI cost recovery**      | Recovery from non-LMI customers of low-income discount costs                        | Yes — but income transfer, not rate design | `exclude_eligibility`  |
+| **Performance incentive**  | PUC-approved performance incentive (e.g. EE program performance)                    | Yes in structure, negligible in magnitude  | `exclude_negligible`   |
+| **Redundant**              | Minimum charge / bill floor; structurally redundant with customer charge            | N/A                                        | `exclude_redundant`    |
+| **Supply commodity**       | LRS (Standard Offer) bundling ISO-NE wholesale energy, capacity, ancillary, admin   | Mixed — see sub-components                 | `add_to_srr`           |
+| **Merchant function**      | LRS administrative cost adjustment (procurement, working capital)                   | Weak                                       | `add_to_srr`           |
+| **RES supply**             | Per-MWh REC obligation (Renewable Energy Standard); cost scales with load           | No                                         | `add_to_srr` + MC 8760 |
+| **Tax pass-through**       | Gross Earnings Tax (% of bill); pipeline cannot handle %-of-bill charges            | No                                         | `exclude_percentage`   |
+| **Eligibility / optional** | A-60 low-income discount; $0 for default A-16 customer                              | N/A                                        | `exclude_eligibility`  |
 
 ---
 
@@ -32,37 +33,37 @@ Charges are classified into families based on their economic structure, not thei
 
 The Standard Offer Service (LRS) charge bundles several ISO-NE cost components. We decompose it here because the sub-components have different cross-subsidy properties. Rates below reflect the Genability tariff and April 2025 RI PUC compliance filing where noted; many factors use lookups (variable rates).
 
-| Charge                                        | Type                  | Unit             | In rev req?   | Fixed budget?        | HP cross-subsidy?   | Why                                                                            | Decision                    | MC 8760?               |
-| --------------------------------------------- | --------------------- | ---------------- | ------------- | -------------------- | ------------------- | ------------------------------------------------------------------------------ | --------------------------- | ---------------------- |
-| **Customer Charge**                           | Base delivery         | $/mo             | Yes           | —                    | Yes                 | Base rate; part of tariff                                                      | Already in d.r.r.           | No—residual            |
-| **Distribution Charge**                       | Base delivery         | $/kWh            | Yes           | —                    | Yes                 | Rate CAIRO calibrates                                                          | Already in d.r.r.           | Yes—sub-tx + dx MCs    |
-| **Operating & Maintenance Exp Charge**        | Base delivery         | $/kWh            | Yes           | —                    | Yes                 | O&M in rate case                                                               | Already in d.r.r.           | Yes—sub-tx + dx MCs    |
-| **CapEx Factor Charge**                       | Base delivery         | $/kWh            | Yes           | —                    | Yes                 | ISR plan capital recovery                                                      | Already in d.r.r.           | Yes—sub-tx + dx MCs    |
-| **Pension Adjustment Factor**                 | Base delivery         | $/kWh (credit)   | Yes           | —                    | Yes                 | Pension/benefit cost recovery                                                  | Already in d.r.r.           | No—residual            |
-| **Transmission Charge**                       | Base delivery         | $/kWh            | Yes           | —                    | Yes                 | FERC/ISO-NE OATT pass-through                                                  | Already in d.r.r.           | Yes—transmission MCs   |
-| **Minimum Charge**                            | Base delivery         | $/mo (floor)     | Yes           | —                    | N/A                 | Bill floor; equals customer charge                                             | N/A                         | —                      |
-| **O&M Reconciliation Factor**                 | Cost recon            | $/kWh            | N/A (true-up) | —                    | No                  | Uniform $/kWh; true-up noise                                                   | Exclude                     | —                      |
-| **CapEx Reconciliation Factor**               | Cost recon            | $/kWh            | N/A (true-up) | —                    | No                  | Capital spending vs ISR forecast                                               | Exclude                     | —                      |
-| **RDM Adjustment Factor**                     | Revenue true-up       | $/kWh            | N/A (revenue) | —                    | No                  | Load forecast error; decoupling true-up                                        | Exclude                     | —                      |
-| **Energy Efficiency Programs Charge**         | Program surcharge     | $/kWh            | **No**        | Yes                  | **Yes**             | Fixed EE budget (LCP) ÷ kWh                                                    | Add to d.r.r.               | No—residual            |
-| **Net Metering Charge**                       | DER credit recovery   | $/kWh            | **No**        | Yes                  | **Yes**             | Fixed net metering cost recovery ÷ kWh                                         | Add to d.r.r.               | No—residual            |
-| **Long Term Contracting Charge**              | Program surcharge     | $/kWh            | **No**        | Yes (contracts)      | **Yes**             | Long-term renewable PPAs (e.g. offshore wind) ÷ kWh                            | Add to d.r.r.               | No—residual            |
-| **RE Growth Charge**                          | Program surcharge     | $/mo (or lookup) | **No**        | Yes                  | **Yes**             | RE Growth Program (distributed gen) ÷ customers                                | Add to d.r.r.               | No—residual            |
-| **LIHEAP Enhancement Charge**                 | Program surcharge     | $/mo             | **No**        | Yes (capped)         | **No**              | Fixed per-customer; cap $10/yr                                                 | Add to d.r.r.               | No—residual            |
-| **Storm Fund Replenishment Factor**           | Sunk-cost recovery    | $/kWh            | **No**        | Yes (replenishment)  | **Yes**             | Storm contingency fund ÷ kWh                                                   | Add to d.r.r.               | No—residual            |
-| **Arrearage Management Adjustment Factor**    | Sunk-cost recovery    | $/kWh            | **No**        | Yes (finite)         | **Yes** (temporary) | Arrearage forgiveness / AMP cost recovery ÷ kWh                                | Add to d.r.r.               | No—residual            |
-| **Transition Charge**                         | Cost recon            | $/kWh            | N/A (true-up) | —                    | No                  | Legacy restructuring; balance paid down                                        | Exclude                     | —                      |
-| **Low-Income Discount Recovery Factor**       | LMI cost recovery     | $/kWh            | **No**        | Yes                  | **Yes**             | A-60 discount cost from all; exclude so BAT isolates rate-design cross-subsidy | Exclude (LMI; post-process) | —                      |
-| **Performance Incentive Factor**              | Performance incentive | $/kWh            | **No**        | Yes (once earned)    | **Negligible**      | EE performance bonus; small magnitude                                          | Exclude (negligible)        | —                      |
-| **Last Resort Adjustment Factor**             | Cost recon / supply   | $/kWh            | N/A (true-up) | —                    | No                  | LRS cost reconciliation                                                        | Exclude                     | —                      |
-| **Supply commodity (LRS bundled)**            | Supply commodity      | $/kWh            | **No**        | Mixed                | Mixed               | Energy + capacity + ancillary bundled                                          | Add to s.r.r.               | See sub-components     |
-| **↳ LRS: Energy (LMP)**                       | Supply sub-component  | $/kWh            | **No**        | **No**               | **No**              | True marginal cost; scales 1:1                                                 | (in s.r.r.)                 | No—residual            |
-| **↳ LRS: Capacity (FCM)**                     | Supply sub-component  | $/kWh (embedded) | **No**        | Yes (FCM obligation) | **Yes**             | Peak-determined CLO; volumetric recovery                                       | (in s.r.r.)                 | Yes—zonal/peak         |
-| **↳ LRS: Ancillary / ISO-NE**                 | Supply sub-component  | $/kWh (embedded) | **No**        | Mostly               | **Yes** (small)     | Reserves, regulation, admin ÷ load                                             | (in s.r.r.)                 | Yes / No—residual      |
-| **↳ LRS: Working capital / admin**            | Supply sub-component  | $/kWh (embedded) | **No**        | **No**               | **No**              | Scales with procurement volume                                                 | (in s.r.r.)                 | No—residual            |
-| **LRS Administrative Cost Adjustment Factor** | Merchant function     | $/kWh            | **No**        | Mixed                | **Weak**            | Procurement, admin; part scales with load                                      | Add to s.r.r.               | No—residual            |
-| **Renewable Standard Energy Charge**          | RES supply            | $/kWh            | **No**        | **No**               | **No**              | Per-MWh REC obligation; cost scales with load                                  | Add to s.r.r.               | Yes—flat $/kWh all hrs |
-| **Gross Earnings Tax**                        | Tax pass-through      | % of charges     | **No**        | **No**               | **No**              | % of own bill; no fixed pool                                                   | Exclude (tax)               | —                      |
+| Charge                                        | Type                  | Unit             | In rev req?   | Fixed budget?        | HP cross-subsidy?   | Why                                                                            | Decision              | MC 8760?               |
+| --------------------------------------------- | --------------------- | ---------------- | ------------- | -------------------- | ------------------- | ------------------------------------------------------------------------------ | --------------------- | ---------------------- |
+| **Customer Charge**                           | Base delivery         | $/mo             | Yes           | —                    | Yes                 | Base rate; part of tariff                                                      | `already_in_drr`      | No—residual            |
+| **Distribution Charge**                       | Base delivery         | $/kWh            | Yes           | —                    | Yes                 | Rate CAIRO calibrates                                                          | `already_in_drr`      | Yes—sub-tx + dx MCs    |
+| **Operating & Maintenance Exp Charge**        | Base delivery         | $/kWh            | Yes           | —                    | Yes                 | O&M in rate case                                                               | `already_in_drr`      | Yes—sub-tx + dx MCs    |
+| **CapEx Factor Charge**                       | Base delivery         | $/kWh            | Yes           | —                    | Yes                 | ISR plan capital recovery                                                      | `already_in_drr`      | Yes—sub-tx + dx MCs    |
+| **Pension Adjustment Factor**                 | Base delivery         | $/kWh (credit)   | Yes           | —                    | Yes                 | Pension/benefit cost recovery                                                  | `already_in_drr`      | No—residual            |
+| **Transmission Charge**                       | Base delivery         | $/kWh            | Yes           | —                    | Yes                 | FERC/ISO-NE OATT pass-through                                                  | `already_in_drr`      | Yes—transmission MCs   |
+| **Minimum Charge**                            | Redundant             | $/mo (floor)     | Yes           | —                    | N/A                 | Bill floor; equals customer charge                                             | `exclude_redundant`   | —                      |
+| **O&M Reconciliation Factor**                 | Cost recon            | $/kWh            | N/A (true-up) | —                    | No                  | Uniform $/kWh; true-up noise                                                   | `exclude_trueup`      | —                      |
+| **CapEx Reconciliation Factor**               | Cost recon            | $/kWh            | N/A (true-up) | —                    | No                  | Capital spending vs ISR forecast                                               | `exclude_trueup`      | —                      |
+| **RDM Adjustment Factor**                     | Revenue true-up       | $/kWh            | N/A (revenue) | —                    | No                  | Load forecast error; decoupling true-up                                        | `exclude_trueup`      | —                      |
+| **Energy Efficiency Programs Charge**         | Program surcharge     | $/kWh            | **No**        | Yes                  | **Yes**             | Fixed EE budget (LCP) ÷ kWh                                                    | `add_to_drr`          | No—residual            |
+| **Net Metering Charge**                       | DER credit recovery   | $/kWh            | **No**        | Yes                  | **Yes**             | Fixed net metering cost recovery ÷ kWh                                         | `add_to_drr`          | No—residual            |
+| **Long Term Contracting Charge**              | Program surcharge     | $/kWh            | **No**        | Yes (contracts)      | **Yes**             | Long-term renewable PPAs (e.g. offshore wind) ÷ kWh                            | `add_to_drr`          | No—residual            |
+| **RE Growth Charge**                          | Program surcharge     | $/mo (or lookup) | **No**        | Yes                  | **Yes**             | RE Growth Program (distributed gen) ÷ customers                                | `add_to_drr`          | No—residual            |
+| **LIHEAP Enhancement Charge**                 | Program surcharge     | $/mo             | **No**        | Yes (capped)         | **No**              | Fixed per-customer; cap $10/yr                                                 | `add_to_drr`          | No—residual            |
+| **Storm Fund Replenishment Factor**           | Sunk-cost recovery    | $/kWh            | **No**        | Yes (replenishment)  | **Yes**             | Storm contingency fund ÷ kWh                                                   | `add_to_drr`          | No—residual            |
+| **Arrearage Management Adjustment Factor**    | Sunk-cost recovery    | $/kWh            | **No**        | Yes (finite)         | **Yes** (temporary) | Arrearage forgiveness / AMP cost recovery ÷ kWh                                | `add_to_drr`          | No—residual            |
+| **Transition Charge**                         | Cost recon            | $/kWh            | N/A (true-up) | —                    | No                  | Legacy restructuring; balance paid down                                        | `exclude_trueup`      | —                      |
+| **Low-Income Discount Recovery Factor**       | LMI cost recovery     | $/kWh            | **No**        | Yes                  | **Yes**             | A-60 discount cost from all; exclude so BAT isolates rate-design cross-subsidy | `exclude_eligibility` | —                      |
+| **Performance Incentive Factor**              | Performance incentive | $/kWh            | **No**        | Yes (once earned)    | **Negligible**      | EE performance bonus; small magnitude                                          | `exclude_negligible`  | —                      |
+| **Last Resort Adjustment Factor**             | Cost recon / supply   | $/kWh            | N/A (true-up) | —                    | No                  | LRS cost reconciliation                                                        | `exclude_trueup`      | —                      |
+| **Supply commodity (LRS bundled)**            | Supply commodity      | $/kWh            | **No**        | Mixed                | Mixed               | Energy + capacity + ancillary bundled                                          | `add_to_srr`          | See sub-components     |
+| **↳ LRS: Energy (LMP)**                       | Supply sub-component  | $/kWh            | **No**        | **No**               | **No**              | True marginal cost; scales 1:1                                                 | (in s.r.r.)           | No—residual            |
+| **↳ LRS: Capacity (FCM)**                     | Supply sub-component  | $/kWh (embedded) | **No**        | Yes (FCM obligation) | **Yes**             | Peak-determined CLO; volumetric recovery                                       | (in s.r.r.)           | Yes—zonal/peak         |
+| **↳ LRS: Ancillary / ISO-NE**                 | Supply sub-component  | $/kWh (embedded) | **No**        | Mostly               | **Yes** (small)     | Reserves, regulation, admin ÷ load                                             | (in s.r.r.)           | Yes / No—residual      |
+| **↳ LRS: Working capital / admin**            | Supply sub-component  | $/kWh (embedded) | **No**        | **No**               | **No**              | Scales with procurement volume                                                 | (in s.r.r.)           | No—residual            |
+| **LRS Administrative Cost Adjustment Factor** | Merchant function     | $/kWh            | **No**        | Mixed                | **Weak**            | Procurement, admin; part scales with load                                      | `add_to_srr`          | No—residual            |
+| **Renewable Standard Energy Charge**          | RES supply            | $/kWh            | **No**        | **No**               | **No**              | Per-MWh REC obligation; cost scales with load                                  | `add_to_srr`          | Yes—flat $/kWh all hrs |
+| **Gross Earnings Tax**                        | Tax pass-through      | % of charges     | **No**        | **No**               | **No**              | % of own bill; no fixed pool                                                   | `exclude_percentage`  | —                      |
 
 ---
 
@@ -94,9 +95,9 @@ These charges define the tariff structure that collects the delivery revenue req
 
 **Transmission Charge.** **$0.04773/kWh** (April 2025; tariff shows Base Transmission + Transmission Adjustment Factor + Transmission Uncollectible Factor). Recovers cost of high-voltage transmission (FERC-regulated, ISO-NE Open Access Transmission Tariff). Pass-through of Regional Network Service (RNS) and related OATT charges to distribution customers. Set by FERC/ISO-NE; RIE passes through. Same transmission marginal cost logic as in the BAT (transmission MC 8760).
 
-**Minimum Charge.** **$6.00/month** — equals the customer charge. Bill floor for very low usage or net-generation months. Rarely binds for typical residential consumption. Not a separate cost for cross-subsidy purposes.
+**Minimum Charge.** **$6.00/month** — equals the customer charge. Bill floor for very low usage or net-generation months. Rarely binds for typical residential consumption. Structurally redundant with the customer charge.
 
-**Decision.** All base delivery rates are already in d.r.r. They define the tariff. Sub-transmission and distribution marginal costs (MC 8760) apply to the volumetric delivery components; transmission MCs apply to the transmission charge.
+**Decision.** All base delivery rates are `already_in_drr`. Minimum Charge is `exclude_redundant`. Sub-transmission and distribution marginal costs (MC 8760) apply to the volumetric delivery components; transmission MCs apply to the transmission charge.
 
 ---
 
@@ -110,7 +111,7 @@ These charges define the tariff structure that collects the delivery revenue req
 
 **Last Resort Adjustment Factor.** Variable (often $0 or small credit, e.g. ($0.00355)/kWh in filing). Reconciles LRS (Standard Offer) actual costs vs. the base LRS rate. Supply-side cost true-up. Exclude.
 
-**Decision.** Exclude all cost reconciliation and the transition charge. Uniform $/kWh true-ups; no change to BAT cross-subsidy rankings.
+**Decision.** `exclude_trueup` for all cost reconciliation and the transition charge. Uniform $/kWh true-ups; no change to BAT cross-subsidy rankings.
 
 ---
 
@@ -134,7 +135,7 @@ These charges define the tariff structure that collects the delivery revenue req
 
 **Low-Income Discount Recovery Factor.** **$0.00251/kWh** (A-16; A-60 customers do not pay this factor). Recovers the cost of the A-60 low-income discount from **all other customers**. Fixed discount cost pool ÷ kWh of non-A-60 customers. We **exclude** this from the BAT so the BAT isolates rate-design cross-subsidization (HP vs. non-HP) and is not distorted by the intentional income-based transfer. LMI discounts and this recovery are applied in post-processing of bills; see [cairo_lmi_and_bat_analysis.md](../tools/cairo_lmi_and_bat_analysis.md).
 
-**Decision.** Add all program surcharges and DER recovery to d.r.r. Exclude LMI cost recovery from BAT; include in bill post-processing. No MC 8760 for the added riders.
+**Decision.** `add_to_drr` for all program surcharges and DER recovery. `exclude_eligibility` for LMI cost recovery (handled in bill post-processing). No MC 8760 for the added riders.
 
 ---
 
@@ -150,7 +151,7 @@ These charges define the tariff structure that collects the delivery revenue req
 
 ### Performance incentive
 
-**Performance Incentive Factor.** Variable (often $0). Ties delivery rates to performance metrics (e.g. reliability, customer service, EE program performance). When non-zero, it is a small utility bonus recovered via $/kWh. Same as NY EAM: structurally a fixed pool ÷ kWh but negligible magnitude. **Exclude (negligible).**
+**Performance Incentive Factor.** Variable (often $0). Ties delivery rates to performance metrics (e.g. reliability, customer service, EE program performance). When non-zero, it is a small utility bonus recovered via $/kWh. Same as NY EAM: structurally a fixed pool ÷ kWh but negligible magnitude. **`exclude_negligible`.**
 
 ---
 
@@ -165,7 +166,7 @@ Rhode Island Energy procures default supply through **Last Resort Service (LRS)*
 - **Ancillary services / ISO-NE admin.** Reserves, regulation, ISO-NE Schedule 2/3 and other admin. Largely fixed or load-ratio allocated; recovered in the bundled LRS rate. **Cross-subsidy: yes (small).** MC 8760: partially (e.g. reserves by load share); admin typically residual.
 - **Working capital / procurement admin.** LRS Administrative Cost Adjustment Factor (~$0.00256/kWh in filing). Procurement and administration; part scales with volume. **Weak** cross-subsidy. **Add to s.r.r.** No MC 8760 — treat as residual.
 
-**Decision.** Add total LRS (Standard Offer) to s.r.r. Decomposition drives MC 8760: energy already marginal; capacity needs peak/zonal treatment; ancillary/admin largely residual or small.
+**Decision.** `add_to_srr` for total LRS (Standard Offer). Decomposition drives MC 8760: energy already marginal; capacity needs peak/zonal treatment; ancillary/admin largely residual or small.
 
 ---
 
@@ -177,13 +178,21 @@ Rhode Island Energy procures default supply through **Last Resort Service (LRS)*
 
 ### Tax pass-through
 
-**Gross Earnings Tax (GET).** **4.166667%** of charges (Genability: QUANTITY, PERCENTAGE). Rhode Island's public service corporation gross earnings tax (R.I. Gen. Laws Ch. 44-13) on electric (and gas) utilities, passed through to customers. Percentage of each customer's bill; no fixed pool. **Exclude (tax).**
+**Gross Earnings Tax (GET).** **4.166667%** of charges (Genability: QUANTITY, PERCENTAGE). Rhode Island's public service corporation gross earnings tax (R.I. Gen. Laws Ch. 44-13) on electric (and gas) utilities, passed through to customers. Percentage of each customer's bill; no fixed pool. **`exclude_percentage`** — the pipeline cannot handle percentage-of-bill charges.
 
 ---
 
 ### Eligibility-gated and optional
 
 **A-60 rate (low-income discount).** Customers on the A-60 discount rate receive a percentage reduction (e.g. 25% or 30%) on delivery and supply. The **Low-Income Discount Recovery Factor** on A-16 (and other non-A-60) bills recovers that cost. We **exclude both** the discount and the recovery factor from the BAT so the BAT isolates rate-design cross-subsidy; **include in LMI post-processing** of bills (e.g. `utils/post/` LMI logic). See [cairo_lmi_and_bat_analysis.md](../tools/cairo_lmi_and_bat_analysis.md).
+
+---
+
+## Rate structures
+
+RIE's A-16 tariff is entirely **flat** — no seasonal tiers, no time-of-use periods. All charges (delivery and supply) are flat $/kWh, flat $/month, or percentage-of-bill. The `monthly_rates` YAML has `rate_structure: flat` for every section (`add_to_drr`, `add_to_srr`, `already_in_drr`). `compute_rr.py` processes all sections directly; no `supply_base_overrides` needed.
+
+This contrasts with NY, where ConEd and O&R have seasonal-tiered delivery rates (`seasonal_tiered`) and PSEG-LI has seasonal TOU rates (`seasonal_tou`) for both delivery and supply.
 
 ---
 

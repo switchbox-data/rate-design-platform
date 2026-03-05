@@ -1518,7 +1518,7 @@
     "time_of_use": null,
     "source": "rider_resolved",
     "decision": "add_to_drr",
-    "master_charge": "Arrears / COVID forgiveness",
+    "master_charge": "Arrears / Arrearage recovery",
     "master_type": "Sunk-cost recovery"
   },
   "20260237": {
@@ -1543,7 +1543,7 @@
     "time_of_use": null,
     "source": "rider_resolved",
     "decision": "add_to_drr",
-    "master_charge": "Arrears / COVID forgiveness",
+    "master_charge": "Arrears / Arrearage recovery",
     "master_type": "Sunk-cost recovery"
   },
   "20288265": {

@@ -3,8 +3,12 @@
 
 Reads a *_discovered.json (output of ``fetch_monthly_rates.py --discover``),
 applies pattern-based classification rules derived from
-``context/domain/ny_residential_charges_in_bat.md`` and utility-specific
+``context/domain/ny_residential_charges_in_bat.md`` and
+``context/domain/ri_residential_charges_in_bat.md``, plus utility-specific
 zonal/overlap dedup logic, then writes a hydrated charge_decisions.json.
+
+Supports all NY utilities (CenHud, ConEd, NiMo, NYSEG, O&R, PSEG-LI, RGE)
+and RI (RIE).
 
 Classification phases (applied per entry, first match wins):
 
@@ -14,7 +18,7 @@ Classification phases (applied per entry, first match wins):
 2. **Zonal supply dedup** — ConEd (H/I/J), NiMo (6 zones), NYSEG
    (Regular/West/LHV) each have zone-specific supply commodity rates.
    One representative zone is kept; others get ``exclude_zonal``.
-3. **General name-based matching** — ~40 regex rules on ``rate_name``
+3. **General name-based matching** — regex rules on ``rate_name``
    map to ``(decision, master_charge, master_type)``.
 
 Any entry that doesn't match a rule keeps ``decision: null`` and a
@@ -87,6 +91,40 @@ _NAME_RULES: list[tuple[re.Pattern[str], str, str, str]] = [
         re.compile(r"^(Summer|Winter) Rate$", re.I),
         "already_in_drr",
         "Core Delivery Rate",
+        "Base delivery",
+    ),
+    # RI: Distribution Charge (main volumetric delivery rate)
+    (
+        re.compile(r"^Distribution Charge$", re.I),
+        "already_in_drr",
+        "Core Delivery Rate",
+        "Base delivery",
+    ),
+    # RI: O&M and CapEx components of base delivery (ISR plan)
+    (
+        re.compile(r"Operating.*Maintenance", re.I),
+        "already_in_drr",
+        "O&M Charge",
+        "Base delivery",
+    ),
+    (
+        re.compile(r"CapEx Factor", re.I),
+        "already_in_drr",
+        "CapEx Factor",
+        "Base delivery",
+    ),
+    # RI: Pension Adjustment Factor (labor cost recovery in rate case)
+    (
+        re.compile(r"Pension Adjustment", re.I),
+        "already_in_drr",
+        "Pension Adjustment Factor",
+        "Base delivery",
+    ),
+    # RI: Transmission Charge (FERC/ISO-NE OATT pass-through)
+    (
+        re.compile(r"^Transmission Charge$", re.I),
+        "already_in_drr",
+        "Transmission Charge",
         "Base delivery",
     ),
     (
@@ -186,8 +224,28 @@ _NAME_RULES: list[tuple[re.Pattern[str], str, str, str]] = [
         "Reliability Support Service",
         "Cost recon",
     ),
+    # RI: O&M / CapEx reconciliation factors (ISR true-ups)
     (
-        re.compile(r"Revenue Decoupling", re.I),
+        re.compile(r"O&?M Reconciliation", re.I),
+        "exclude_trueup",
+        "O&M Reconciliation Factor",
+        "Cost recon",
+    ),
+    (
+        re.compile(r"CapEx Reconciliation", re.I),
+        "exclude_trueup",
+        "CapEx Reconciliation Factor",
+        "Cost recon",
+    ),
+    # RI: Last Resort Adjustment Factor (LRS supply cost true-up)
+    (
+        re.compile(r"Last Resort Adjustment", re.I),
+        "exclude_trueup",
+        "Last Resort Adjustment Factor",
+        "Cost recon",
+    ),
+    (
+        re.compile(r"Revenue Decoupling|RDM Adjustment", re.I),
         "exclude_trueup",
         "Revenue Decoupling (RDM)",
         "Revenue true-up",
@@ -211,8 +269,20 @@ _NAME_RULES: list[tuple[re.Pattern[str], str, str, str]] = [
         "Earnings Adjustment Mechanism",
         "Performance incentive",
     ),
+    (
+        re.compile(r"Performance Incentive", re.I),
+        "exclude_negligible",
+        "Performance Incentive Factor",
+        "Performance incentive",
+    ),
     # --- exclude_trueup: tax ($/kWh variants; QUANTITY/% ones hit exclude_percentage first) ---
     (re.compile(r"^GRT\b", re.I), "exclude_trueup", "GRT", "Tax pass-through"),
+    (
+        re.compile(r"Gross Earnings Tax", re.I),
+        "exclude_trueup",
+        "Gross Earnings Tax",
+        "Tax pass-through",
+    ),
     (
         re.compile(r"Rate for Cities and Incorporated Villages", re.I),
         "exclude_trueup",
@@ -276,11 +346,53 @@ _NAME_RULES: list[tuple[re.Pattern[str], str, str, str]] = [
         "Central Hudson Misc Charges",
         "Program surcharge",
     ),
+    # RI: Energy Efficiency Programs Charge (Least Cost Procurement)
+    (
+        re.compile(r"Energy Efficiency Program", re.I),
+        "add_to_drr",
+        "Energy Efficiency Programs Charge",
+        "Program surcharge",
+    ),
+    # RI: Net Metering Charge (DER credit recovery)
+    (
+        re.compile(r"Net Metering", re.I),
+        "add_to_drr",
+        "Net Metering Charge",
+        "DER credit recovery",
+    ),
+    # RI: Long Term Contracting Charge (offshore wind / renewable PPAs)
+    (
+        re.compile(r"Long Term Contracting", re.I),
+        "add_to_drr",
+        "Long Term Contracting Charge",
+        "Program surcharge",
+    ),
+    # RI: RE Growth Charge (distributed gen program)
+    (
+        re.compile(r"RE Growth", re.I),
+        "add_to_drr",
+        "RE Growth Charge",
+        "Program surcharge",
+    ),
+    # RI: LIHEAP Enhancement Charge (low-income energy assistance supplement)
+    (
+        re.compile(r"LIHEAP", re.I),
+        "add_to_drr",
+        "LIHEAP Enhancement Charge",
+        "Program surcharge",
+    ),
+    # RI: Storm Fund Replenishment Factor
+    (
+        re.compile(r"Storm Fund", re.I),
+        "add_to_drr",
+        "Storm Fund Replenishment Factor",
+        "Sunk-cost recovery",
+    ),
     # --- add_to_drr: sunk-cost recovery ---
     (
-        re.compile(r"Arrears", re.I),
+        re.compile(r"Arrear(s|age)", re.I),
         "add_to_drr",
-        "Arrears / COVID forgiveness",
+        "Arrears / Arrearage recovery",
         "Sunk-cost recovery",
     ),
     (
@@ -347,6 +459,13 @@ _NAME_RULES: list[tuple[re.Pattern[str], str, str, str]] = [
         "Supply commodity (bundled)",
         "Supply commodity",
     ),
+    # RI: Standard Offer Service (Last Resort Service bundled supply)
+    (
+        re.compile(r"Standard Offer Service", re.I),
+        "add_to_srr",
+        "Supply commodity (bundled)",
+        "Supply commodity",
+    ),
     # --- add_to_srr: securitization ---
     (
         re.compile(r"Securitization", re.I),
@@ -372,6 +491,13 @@ _NAME_RULES: list[tuple[re.Pattern[str], str, str, str]] = [
         "add_to_srr",
         "CES Supply Surcharge",
         "CES supply",
+    ),
+    # RI: Renewable Standard Energy Charge (REC obligation per MWh)
+    (
+        re.compile(r"Renewable (Standard )?Energy", re.I),
+        "add_to_srr",
+        "Renewable Standard Energy Charge",
+        "RES supply",
     ),
     # --- add_to_srr: merchant function ---
     (
@@ -410,6 +536,13 @@ _NAME_RULES: list[tuple[re.Pattern[str], str, str, str]] = [
         "Merchant Function Charge",
         "Merchant function",
     ),
+    # RI: LRS Administrative Cost Adjustment Factor
+    (
+        re.compile(r"LRS Administrative|Last Resort.*Admin", re.I),
+        "add_to_srr",
+        "LRS Administrative Cost",
+        "Merchant function",
+    ),
     # --- exclude_eligibility: eligibility-gated / optional ($0 for default customer) ---
     (
         re.compile(
@@ -420,7 +553,9 @@ _NAME_RULES: list[tuple[re.Pattern[str], str, str, str]] = [
         "Eligibility / optional",
     ),
     (
-        re.compile(r"Low Income|Income Eligible|Enhanced Energy Affordability", re.I),
+        re.compile(
+            r"Low[\s-]Income|Income Eligible|Enhanced Energy Affordability", re.I
+        ),
         "exclude_eligibility",
         "Low-income discounts",
         "Eligibility",

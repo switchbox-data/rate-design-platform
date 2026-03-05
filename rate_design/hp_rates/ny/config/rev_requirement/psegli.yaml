@@ -1,9 +1,9 @@
 utility: psegli
 delivery_revenue_requirement_from_rate_case: 1116520087.6
 delivery_revenue_requirement_topups: 50704848.62
-supply_revenue_requirement_topups: 1002475793.57
+supply_revenue_requirement_topups: 985266819.92
 total_delivery_revenue_requirement: 1167224936.22
-total_delivery_and_supply_revenue_requirement: 2169700729.79
+total_delivery_and_supply_revenue_requirement: 2152491756.14
 total_residential_kwh: 9129428992.0
 eia_year: 2024
 delivery_top_ups:
@@ -12,18 +12,6 @@ delivery_top_ups:
     avg_monthly_rate: 0.005554
     total_budget: 50704848.62
 supply_top_ups:
-  securitization_charge_offset_udsa_1:
-    charge_unit: $/kWh
-    avg_monthly_rate: -0.0205745973
-    total_budget: -187834324.75
-  securitization_charge_offset_udsa_2:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.0205745973
-    total_budget: 187834324.75
-  merchant_function_charge:
-    charge_unit: $/kWh
-    avg_monthly_rate: 0.001885
-    total_budget: 17208973.65
   supply_base_from_budget:
     source: supply_base_overrides.yaml
     total_budget: 985266819.92
