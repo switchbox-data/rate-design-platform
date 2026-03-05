@@ -15,6 +15,8 @@ from utils.pre.generate_bulk_tx_mc import (
     allocate_bulk_tx_to_hours,
     build_nested_locality_load_profiles,
     compute_nested_locality_scr_weights,
+    compute_paying_locality_costs,
+    compute_utility_bulk_tx_signal,
     identify_scr_hours,
     load_constraint_group_table,
     prepare_output,
@@ -239,6 +241,148 @@ class TestTimestampRemap:
             return [(t.month, t.day, t.hour) for t in ts.to_list()]
 
         assert ordinals(allocated) == ordinals(remapped)
+
+
+class TestPayingLocalityCosts:
+    def test_compute_paying_locality_costs_returns_mean(self) -> None:
+        """Test that compute_paying_locality_costs returns correct mean per locality."""
+        constraint_group_df = pl.DataFrame(
+            {
+                "constraint_group": ["cg1", "cg2", "cg3", "cg4"],
+                "v_constraint_group_kw_yr": [10.0, 20.0, 30.0, 40.0],
+                "paying_localities": ["ROS", "ROS|LHV", "LHV", "NYC"],
+                "tightest_nested_locality": ["NYCA", "NYCA", "LHV", "NYC"],
+                "nested_localities_str": ["NYCA", "NYCA|LHV", "LHV", "NYC"],
+            }
+        )
+
+        costs = compute_paying_locality_costs(constraint_group_df)
+
+        # ROS: cg1 (10.0), cg2 (20.0) => mean = 15.0
+        assert abs(costs["ROS"] - 15.0) < 1e-9
+        # LHV: cg2 (20.0), cg3 (30.0) => mean = 25.0
+        assert abs(costs["LHV"] - 25.0) < 1e-9
+        # NYC: cg4 (40.0) => mean = 40.0
+        assert abs(costs["NYC"] - 40.0) < 1e-9
+        # LI: not present
+        assert "LI" not in costs
+
+    def test_compute_paying_locality_costs_single_locality(self) -> None:
+        """Test with constraint groups that all pay to the same locality."""
+        constraint_group_df = pl.DataFrame(
+            {
+                "constraint_group": ["cg1", "cg2"],
+                "v_constraint_group_kw_yr": [50.0, 100.0],
+                "paying_localities": ["ROS", "ROS"],
+                "tightest_nested_locality": ["NYCA", "NYCA"],
+                "nested_localities_str": ["NYCA", "NYCA"],
+            }
+        )
+
+        costs = compute_paying_locality_costs(constraint_group_df)
+
+        # ROS: mean of [50.0, 100.0] = 75.0
+        assert abs(costs["ROS"] - 75.0) < 1e-9
+        assert len(costs) == 1
+
+
+class TestUtilityBulkTxSignal:
+    def test_single_icap_locality_produces_80_hours(self) -> None:
+        """Test that single-ICAP-locality utility produces exactly 80 non-zero hours."""
+        # Single ICAP locality utility (e.g., nimo: NYCA -> ROS)
+        utility_icap_rows = pl.DataFrame(
+            {
+                "icap_locality": ["NYCA"],
+                "gen_capacity_zone": ["ROS"],
+                "capacity_weight": [1.0],
+            }
+        )
+
+        paying_locality_costs = {"ROS": 100.0}
+
+        # Build NYCA load profile
+        zone_loads = _make_zone_loads()
+        locality_profiles = build_nested_locality_load_profiles(zone_loads, ["NYCA"])
+
+        utility_hourly = compute_utility_bulk_tx_signal(
+            utility_icap_rows,
+            paying_locality_costs,
+            locality_profiles,
+            n_scr=40,
+            winter_months=list(DEFAULT_SCR_WINTER_MONTHS),
+        )
+
+        # Should have exactly 80 non-zero hours (40 per season)
+        nonzero = utility_hourly.filter(pl.col("bulk_tx_cost_enduse") > 0)
+        assert nonzero.height == 80
+
+        # Total cost should equal the paying locality cost
+        total_cost = float(utility_hourly["bulk_tx_cost_enduse"].sum())
+        assert abs(total_cost - 100.0) < 1e-3
+
+    def test_two_icap_localities_produces_at_most_160_hours(self) -> None:
+        """Test coned-style utility (two ICAP localities) produces ≤160 non-zero hours."""
+        # Coned-style: NYC (0.87) + GHIJ/LHV (0.13)
+        utility_icap_rows = pl.DataFrame(
+            {
+                "icap_locality": ["NYC", "GHIJ"],
+                "gen_capacity_zone": ["NYC", "LHV"],
+                "capacity_weight": [0.87, 0.13],
+            }
+        )
+
+        paying_locality_costs = {"NYC": 200.0, "LHV": 150.0}
+
+        # Build both NYC and LHV load profiles
+        zone_loads = _make_zone_loads()
+        locality_profiles = build_nested_locality_load_profiles(
+            zone_loads, ["NYC", "LHV"]
+        )
+
+        utility_hourly = compute_utility_bulk_tx_signal(
+            utility_icap_rows,
+            paying_locality_costs,
+            locality_profiles,
+            n_scr=40,
+            winter_months=list(DEFAULT_SCR_WINTER_MONTHS),
+        )
+
+        # Should have at most 160 non-zero hours (80 from NYC + 80 from LHV, with overlap)
+        nonzero = utility_hourly.filter(pl.col("bulk_tx_cost_enduse") > 0)
+        assert nonzero.height <= 160
+        assert nonzero.height >= 80  # At least one full set
+
+        # Total cost should equal weighted sum: 0.87 * 200.0 + 0.13 * 150.0 = 174.0 + 19.5 = 193.5
+        total_cost = float(utility_hourly["bulk_tx_cost_enduse"].sum())
+        expected_total = 0.87 * 200.0 + 0.13 * 150.0
+        assert abs(total_cost - expected_total) < 1e-3
+
+    def test_utility_bulk_tx_signal_handles_missing_locality(self) -> None:
+        """Test that missing paying locality raises appropriate error."""
+        utility_icap_rows = pl.DataFrame(
+            {
+                "icap_locality": ["NYCA"],
+                "gen_capacity_zone": ["ROS"],
+                "capacity_weight": [1.0],
+            }
+        )
+
+        # Missing ROS in costs
+        paying_locality_costs = {"LHV": 100.0}
+
+        zone_loads = _make_zone_loads()
+        locality_profiles = build_nested_locality_load_profiles(zone_loads, ["NYCA"])
+
+        with pytest.raises(
+            ValueError, match="No cost available for paying locality ROS"
+        ):
+            compute_utility_bulk_tx_signal(
+                utility_icap_rows,
+                paying_locality_costs,
+                locality_profiles,
+                n_scr=40,
+                winter_months=list(DEFAULT_SCR_WINTER_MONTHS),
+            )
 
 
 class TestErrors:

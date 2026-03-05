@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils.pre.generate_utility_supply_mc import (
+    ICAP_RAW_TO_NESTED_LOCALITY,
     build_cairo_8760_timestamps,
     load_zone_loads,
     load_zone_mapping,
@@ -223,6 +224,58 @@ def allocate_bulk_tx_to_hours(
     return result
 
 
+# ── Paying locality cost computation ─────────────────────────────────────────
+
+
+def compute_paying_locality_costs(
+    constraint_group_df: pl.DataFrame,
+) -> dict[str, float]:
+    """Compute mean annual cost per paying locality from constraint groups.
+
+    For each paying locality (gen_capacity_zone), returns the mean of
+    `v_constraint_group_kw_yr` across all constraint groups where that locality
+    appears in `paying_localities`. This is a scalar cost—no hourly allocation
+    at this stage.
+
+    Args:
+        constraint_group_df: DataFrame with columns: constraint_group,
+            v_constraint_group_kw_yr, paying_localities.
+
+    Returns:
+        Dictionary mapping paying locality (ROS, LHV, NYC, LI) to mean annual
+        cost ($/kW-yr).
+    """
+    exploded = (
+        constraint_group_df.with_columns(
+            pl.col("paying_localities").str.split("|").alias("paying_locality_list")
+        )
+        .explode("paying_locality_list")
+        .rename({"paying_locality_list": "paying_locality"})
+    )
+
+    invalid = sorted(
+        set(exploded["paying_locality"].drop_nulls().to_list())
+        - set(VALID_PAYING_LOCALITIES)
+    )
+    if invalid:
+        raise ValueError(
+            f"Invalid paying_locality values in constraint groups: {invalid}. "
+            f"Expected {sorted(VALID_PAYING_LOCALITIES)}"
+        )
+
+    locality_costs = (
+        exploded.group_by("paying_locality")
+        .agg(pl.col("v_constraint_group_kw_yr").mean().alias("mean_cost_kw_yr"))
+        .sort("paying_locality")
+    )
+
+    result: dict[str, float] = {}
+    for row in locality_costs.iter_rows(named=True):
+        result[str(row["paying_locality"])] = float(row["mean_cost_kw_yr"])
+
+    return result
+
+
 # ── Constraint-group engine ──────────────────────────────────────────────────
 
 
@@ -387,6 +440,94 @@ def resolve_utility_paying_locality_signal(
     )
 
     return blended
+
+
+def compute_utility_bulk_tx_signal(
+    utility_icap_rows: pl.DataFrame,
+    paying_locality_costs: dict[str, float],
+    locality_profiles: dict[str, pl.DataFrame],
+    n_scr: int,
+    winter_months: list[int],
+) -> pl.DataFrame:
+    """Compute utility-level bulk transmission signal from ICAP-locality components.
+
+    For each (icap_locality, gen_capacity_zone, capacity_weight) row in the
+    utility's zone mapping:
+    1. Scale the paying locality cost by capacity_weight
+    2. Identify SCR hours from the nested locality load profile (via icap_locality)
+    3. Allocate the scaled cost to those SCR hours
+    4. Sum all components to produce the utility-level hourly signal
+
+    This ensures each ICAP locality contributes exactly 80 non-zero hours
+    (40 per season), preventing the union-of-SCR-hours issue from the old approach.
+
+    Args:
+        utility_icap_rows: DataFrame with columns: icap_locality, gen_capacity_zone,
+            capacity_weight (filtered to one utility).
+        paying_locality_costs: Dictionary mapping gen_capacity_zone to mean annual
+            cost ($/kW-yr).
+        locality_profiles: Dictionary mapping nested locality name to load profile
+            DataFrame (timestamp, load_mw).
+        n_scr: Number of SCR hours per season.
+        winter_months: List of winter month numbers.
+
+    Returns:
+        DataFrame with columns: timestamp, bulk_tx_cost_enduse ($/kWh).
+    """
+    component_frames: list[pl.DataFrame] = []
+
+    for row in utility_icap_rows.iter_rows(named=True):
+        icap_locality_raw = str(row["icap_locality"])
+        gen_capacity_zone = str(row["gen_capacity_zone"])
+        capacity_weight = float(row["capacity_weight"])
+
+        # Map ICAP locality to nested locality for SCR hours
+        nested_locality = ICAP_RAW_TO_NESTED_LOCALITY[icap_locality_raw]
+
+        # Get cost for this paying locality
+        if gen_capacity_zone not in paying_locality_costs:
+            raise ValueError(
+                f"No cost available for paying locality {gen_capacity_zone}. "
+                f"Available: {sorted(paying_locality_costs)}"
+            )
+        cost_component = paying_locality_costs[gen_capacity_zone] * capacity_weight
+
+        # Get load profile for this nested locality
+        if nested_locality not in locality_profiles:
+            raise ValueError(
+                f"No load profile for nested locality {nested_locality}. "
+                f"Available: {sorted(locality_profiles)}"
+            )
+        load_profile = locality_profiles[nested_locality]
+
+        # Compute SCR weights for this nested locality
+        with_scr = identify_scr_hours(
+            load_profile,
+            n_hours_per_season=n_scr,
+            winter_months=winter_months,
+        )
+
+        # Allocate cost component to hours
+        component_hourly = allocate_bulk_tx_to_hours(
+            with_scr,
+            v_constraint_group_kw_yr=cost_component,
+            n_hours_per_season=n_scr,
+        )
+
+        component_frames.append(component_hourly)
+
+    # Sum all components
+    if not component_frames:
+        raise ValueError("No ICAP locality components found for utility")
+
+    utility_hourly = (
+        pl.concat(component_frames)
+        .group_by("timestamp")
+        .agg(pl.col("bulk_tx_cost_enduse").sum().alias("bulk_tx_cost_enduse"))
+        .sort("timestamp")
+    )
+
+    return utility_hourly
 
 
 # ── Output assembly ──────────────────────────────────────────────────────────
@@ -573,19 +714,44 @@ def main() -> None:
     mapping_df = load_zone_mapping(args.zone_mapping_path, storage_options)
     constraint_group_df = load_constraint_group_table(args.constraint_group_table_path)
 
-    nested_localities = sorted(
-        constraint_group_df["tightest_nested_locality"].unique().to_list()
+    # Step 1: Compute paying locality costs (scalar dict)
+    print("\n── Paying Locality Costs ──")
+    paying_locality_costs = compute_paying_locality_costs(constraint_group_df)
+    print(f"Computed costs for paying localities: {sorted(paying_locality_costs)}")
+    for locality, cost in sorted(paying_locality_costs.items()):
+        print(f"  {locality}: ${cost:.6f}/kW-yr")
+
+    # Step 2: Get utility's ICAP locality rows from zone mapping
+    utility_icap_rows = mapping_df.filter(pl.col("utility") == utility).select(
+        "icap_locality", "gen_capacity_zone", "capacity_weight"
     )
+    if utility_icap_rows.is_empty():
+        available = sorted(mapping_df["utility"].unique().to_list())
+        raise ValueError(
+            f"Utility '{utility}' not found in zone mapping. Available: {available}"
+        )
+
+    # Step 3: Determine which ICAP localities (nested) this utility needs
+    icap_localities_raw = sorted(utility_icap_rows["icap_locality"].unique().to_list())
+    nested_localities_needed = sorted(
+        {ICAP_RAW_TO_NESTED_LOCALITY[raw] for raw in icap_localities_raw}
+    )
+
+    # Step 4: Load zone data for the ICAP locality zones the utility needs
     zone_names_needed = sorted(
         {
             zone
-            for locality in nested_localities
-            for zone in NESTED_LOCALITY_ZONES[str(locality)]
+            for locality in nested_localities_needed
+            for zone in NESTED_LOCALITY_ZONES[locality]
         }
     )
 
     print("\n── Locality Load Profiles ──")
-    print(f"Loading zone loads for year={load_year}, zones={zone_names_needed}")
+    print(
+        f"Loading zone loads for year={load_year}, "
+        f"ICAP localities={icap_localities_raw} → nested={nested_localities_needed}, "
+        f"zones={zone_names_needed}"
+    )
     zone_loads_df = load_zone_loads(
         args.zone_loads_s3_base,
         zone_names_needed,
@@ -593,38 +759,20 @@ def main() -> None:
         storage_options,
     )
 
+    # Step 5: Build locality profiles for those ICAP nested localities
     locality_profiles = build_nested_locality_load_profiles(
         zone_loads_df,
-        [str(x) for x in nested_localities],
+        nested_localities_needed,
     )
 
-    locality_weights: dict[str, pl.DataFrame] = {}
-    for locality, profile in locality_profiles.items():
-        locality_weights[locality] = compute_nested_locality_scr_weights(
-            profile,
-            n_hours_per_season=n_scr,
-            winter_months=winter_months,
-        )
-
-    print("\n── Constraint-group Allocation ──")
-    group_hourly_parts: list[pl.DataFrame] = []
-    for row in constraint_group_df.iter_rows(named=True):
-        group_hourly_parts.append(
-            allocate_constraint_group_to_hours(row, locality_weights)
-        )
-
-    constraint_group_hourly = pl.concat(group_hourly_parts)
-
-    paying_locality_hourly = (
-        aggregate_paying_locality_hourly_signals_from_constraint_groups(
-            constraint_group_hourly
-        )
-    )
-
-    utility_hourly = resolve_utility_paying_locality_signal(
-        mapping_df,
-        utility,
-        paying_locality_hourly,
+    # Step 6: Compute utility-level bulk transmission signal
+    print("\n── Utility Bulk Transmission Signal ──")
+    utility_hourly = compute_utility_bulk_tx_signal(
+        utility_icap_rows,
+        paying_locality_costs,
+        locality_profiles,
+        n_scr,
+        winter_months,
     )
 
     if load_year != year:
