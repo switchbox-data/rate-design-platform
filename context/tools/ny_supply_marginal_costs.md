@@ -46,7 +46,7 @@ Real-time LBMP prices (5-minute intervals) are aggregated to hourly averages by 
 
 ## Capacity MC (ICAP MCOS)
 
-Capacity MC uses a **component-by-component** approach (analogous to `compute_utility_bulk_tx_signal` in bulk TX). Each NYISO ICAP locality identifies its own peak hours independently from its own raw load profile; `capacity_weight` scales only the ICAP *cost*, never the load used for peak identification. This avoids the distortion that arises from blending differently-sized zone footprints before picking peaks.
+Capacity MC uses a **component-by-component** approach (analogous to `compute_utility_bulk_tx_signal` in bulk TX). Each NYISO ICAP locality identifies its own peak hours independently from its own raw load profile; `capacity_weight` scales only the ICAP _cost_, never the load used for peak identification. This avoids the distortion that arises from blending differently-sized zone footprints before picking peaks.
 
 Each `(icap_locality, gen_capacity_zone, capacity_weight)` row from the zone mapping is one component. All components are summed to produce the utility-level hourly signal. Non-zero hours equal the union of all localities' peak hours (up to `8 × 12 × n_localities` distinct hours).
 
