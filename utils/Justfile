@@ -25,14 +25,6 @@ write-tariff-maps-all scenarios_dir:
             --scenario-config "$f"; \
     done
 
-# Create flat and flat_supply tariffs from default tariffs.
-create-flat-tariff default_tariff_json supply_default_tariff_json flat_label flat_supply_label output_dir:
-  uv run python {{project_root}}/utils/pre/create_flat_tariff.py \
-    --default-tariff-json "{{default_tariff_json}}" \
-    --supply-default-tariff-json "{{supply_default_tariff_json}}" \
-    --flat-label "{{flat_label}}" \
-    --flat-supply-label "{{flat_supply_label}}" \
-    --output-dir "{{output_dir}}"
 
 # Create gas tariff map for a given electric utility.
 create-gas-tariff-map metadata_path utility_assignment_path state electric_utility upgrade_id output_dir:

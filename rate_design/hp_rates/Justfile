@@ -42,8 +42,6 @@ mc_year               := env_var_or_default('MC_YEAR', year)
 load_year             := env_var_or_default('LOAD_YEAR', year)
 upgrade               := env_var_or_default('UPGRADE', '00')
 monthly_rates_year    := env_var_or_default('MONTHLY_RATES_YEAR', '2025')
-default_tariff        := utility + "_default_2025-01-01.json"
-default_tariff_supply := utility + "_default_supply.json"
 upstream_hours        := env_var_or_default('UPSTREAM_HOURS', '100')
 dist_hours            := env_var_or_default('DIST_HOURS', '100')
 utilities             := env_var_or_default('UTILITIES', utility)
@@ -86,8 +84,6 @@ path_charge_decisions               := path_genability / "charge_decisions" / (u
 path_monthly_rates                  := path_genability / "monthly_rates" / (utility + "_monthly_rates_" + monthly_rates_year + ".yaml")
 path_rate_case_delivery_rr          := path_rev_requirement / "delivery_rev_requirements_from_rate_cases.yaml"
 path_supply_base                    := path_rev_requirement / "supply_base_overrides.yaml"
-path_default_tariff                 := path_genability / "default_tariffs" / default_tariff
-path_default_supply_tariff          := path_tariffs_electric / default_tariff_supply
 tou_tariff_key                      := utility + "_hp_seasonalTOU"
 path_outputs_base                   := "/data.sb/switchbox/cairo/outputs/hp_rates/" + state + "/" + utility
 latest_output                       := path_repo / "utils/mid/latest_run_output.sh"
@@ -190,15 +186,6 @@ create-flat-tariffs:
     --eia-path "{{path_electric_utility_stats}}" \
     --year "{{monthly_rates_year}}"
 
-# Disabled: old template-based recipe depends on *_default_supply.json files
-# that no longer exist (removed while tariff-fetch URDB bugs are open).
-# create-flat-tariff:
-#   just -f {{path_repo}}/utils/Justfile create-flat-tariff \
-#     "{{path_default_tariff}}" \
-#     "{{path_default_supply_tariff}}" \
-#     "{{utility}}_flat" \
-#     "{{utility}}_flat_supply" \
-#     "{{path_tariffs_electric}}"
 
 create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
   just -f {{path_repo}}/utils/Justfile create-seasonal-tou \
@@ -332,7 +319,6 @@ run-scenario run_num:
         {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }}
 
 run-1:
-    # just create-flat-tariff
     just run-scenario 1
 
 run-2:
