@@ -39,7 +39,7 @@ region                := env_var_or_default('REGION', 'isone')
 cambium_ba            := env_var_or_default('CAMBIUM_BA', 'p133')
 year                  := env_var_or_default('YEAR', '2025')
 mc_year               := env_var_or_default('MC_YEAR', year)
-load_year             := env_var_or_default('LOAD_YEAR', year)
+dist_load_year        := env_var_or_default('DIST_LOAD_YEAR', year)
 upgrade               := env_var_or_default('UPGRADE', '00')
 monthly_rates_year    := env_var_or_default('MONTHLY_RATES_YEAR', '2025')
 upstream_hours        := env_var_or_default('UPSTREAM_HOURS', '100')
@@ -64,12 +64,12 @@ path_rev_requirement                := path_config / "rev_requirement"
 path_default_rev_requirement        := path_rev_requirement / utility + ".yaml"
 path_differentiated_rev_requirement := path_rev_requirement / utility + "_hp_vs_nonhp.yaml"
 path_tariff_maps                    := path_config / "tariff_maps"
-path_dist_and_sub_tx_mc             := "s3://data.sb/switchbox/marginal_costs/" + state + "/dist_and_sub_tx/utility=" + utility + "/year=" + load_year + "/00000000.parquet"
+path_dist_and_sub_tx_mc             := "s3://data.sb/switchbox/marginal_costs/" + state + "/dist_and_sub_tx/utility=" + utility + "/year=" + mc_year + "/00000000.parquet"
 path_bulk_tx_mc                     := ""
 # Supply MC: default to per-utility S3 parquets (NY-style).
 # Cambium-based states (RI) override via SUPPLY_ENERGY_MC / SUPPLY_CAPACITY_MC in state.env.
-path_supply_energy_mc               := env_var_or_default('SUPPLY_ENERGY_MC', "s3://data.sb/switchbox/marginal_costs/" + state + "/supply/energy/utility=" + utility + "/year=" + year + "/00000000.parquet")
-path_supply_capacity_mc             := env_var_or_default('SUPPLY_CAPACITY_MC', "s3://data.sb/switchbox/marginal_costs/" + state + "/supply/capacity/utility=" + utility + "/year=" + year + "/00000000.parquet")
+path_supply_energy_mc               := env_var_or_default('SUPPLY_ENERGY_MC', "s3://data.sb/switchbox/marginal_costs/" + state + "/supply/energy/utility=" + utility + "/year=" + mc_year + "/00000000.parquet")
+path_supply_capacity_mc             := env_var_or_default('SUPPLY_CAPACITY_MC', "s3://data.sb/switchbox/marginal_costs/" + state + "/supply/capacity/utility=" + utility + "/year=" + mc_year + "/00000000.parquet")
 path_resstock_release               := "/ebs/data/nrel/resstock/res_2024_amy2018_2_sb"
 path_resstock_metadata              := path_resstock_release + "/metadata"
 path_utility_assignment             := path_resstock_release + "/metadata_utility"
@@ -223,13 +223,16 @@ create-gas-tariff-maps-all:
   just create-gas-tariff-map {{utility}} "00" {{path_tariff_maps}}/gas
   just create-gas-tariff-map {{utility}} "02" {{path_tariff_maps}}/gas
 
+ensure-gas-tariff-envelope:
+  uv run python {{path_repo}}/utils/pre/ensure_urdb_envelope.py "{{path_tariffs_gas}}"
+
 # Distribution marginal costs
 create-dist-and-sub-tx-mc-data:
   uv run python {{path_repo}}/utils/pre/generate_utility_tx_dx_mc.py \
     --state {{state_upper}} \
     --utility {{utility}} \
     --year {{year}} \
-    --load-year {{load_year}} \
+    --load-year {{dist_load_year}} \
     --mc-table-path {{path_mc_table}} \
     --utility-load-s3-base {{path_s3_utility_loads}} \
     --output-s3-base {{path_s3_mc_output}} \
@@ -309,14 +312,18 @@ compute-rev-requirements:
 run-scenario run_num:
     #!/usr/bin/env bash
     set -euo pipefail
-    # Use RDP_EXECUTION_TIME from orchestration recipe, or generate one for standalone calls
     : "${RDP_EXECUTION_TIME:=$(date -u +%Y%m%dT%H%M%SZ)}"
+    log_dir="{{path_repo}}/run_logs"
+    mkdir -p "${log_dir}"
+    log_file="${log_dir}/{{utility}}_run{{run_num}}_${RDP_EXECUTION_TIME}.log"
+    echo ">> run-scenario {{run_num}}: logging to ${log_file}" >&2
     uv run python {{path_repo}}/rate_design/hp_rates/run_scenario.py \
         --state "{{state}}" \
         --run-num "{{run_num}}" \
         --utility "{{utility}}" \
         --output-dir "{{path_outputs_base}}/${RDP_EXECUTION_TIME}" \
-        {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }}
+        {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }} \
+        2>&1 | tee "${log_file}"
 
 run-1:
     just run-scenario 1
@@ -492,6 +499,7 @@ all-pre:
     just create-scenario-yamls
     just create-electric-tariff-maps-all
     just create-gas-tariff-maps-all
+    just ensure-gas-tariff-envelope
     just compute-rr
     just create-flat-tariffs
     just validate-config
@@ -518,20 +526,20 @@ run-all-sequential:
     just run-1
     just run-2
     just compute-rev-requirements
-    just run-3
-    just run-4
-    just run-5
-    just run-6
-    just run-7
-    just run-8
-    just run-9
-    just run-10
-    just run-11
-    just run-12
-    just run-13
-    just run-14
-    just run-15
-    just run-16
+    # just run-3
+    # just run-4
+    # just run-5
+    # just run-6
+    # just run-7
+    # just run-8
+    # just run-9
+    # just run-10
+    # just run-11
+    # just run-12
+    # just run-13
+    # just run-14
+    # just run-15
+    # just run-16
 
 run-all-parallel-tracks:
     #!/usr/bin/env bash
@@ -542,10 +550,8 @@ run-all-parallel-tracks:
     export RDP_NUM_WORKERS="$WORKERS"
     echo ">> run-all-parallel-tracks [${RDP_EXECUTION_TIME}]: ${WORKERS} workers/track on $(nproc) total vCPUs" >&2
 
-    just create-flat-tariffs
-
-    just run-scenario 1 & PID1=$!
-    just run-scenario 2 & PID2=$!
+    just run-1 & PID1=$!
+    just run-2 & PID2=$!
     wait $PID1 || { echo "ERROR: run-1 failed" >&2; exit 1; }
     wait $PID2 || { echo "ERROR: run-2 failed" >&2; exit 1; }
 
