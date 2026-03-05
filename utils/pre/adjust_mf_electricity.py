@@ -300,7 +300,6 @@ def adjust_mf_electricity_parquet(
             f"Number of metadata rows ({meta_collected.height}) does not match number of bldg_ids in the load curve annual ({len(bldg_ids_in_annual)})"
         )
     ratios = _get_non_hvac_mf_to_sf_ratios(annual_for_ratio, meta_subset)
-    print(ratios)
     unadjusted_multifamily_bldg_ids = (
         cast(
             pl.DataFrame,
@@ -324,19 +323,26 @@ def adjust_mf_electricity_parquet(
         adjusted.sink_parquet(str(path_hourly), storage_options=opts)
         return bldg_id
 
-    with ThreadPoolExecutor() as executor:
-        adjusted_bldg_ids = list(
-            executor.map(_adjust_and_sink_one_bldg, unadjusted_multifamily_bldg_ids)
-        )
+    n_bldgs = len(unadjusted_multifamily_bldg_ids)
+    adjusted_bldg_ids = []
+    with ThreadPoolExecutor(max_workers=128) as executor:
+        for i, bldg_id in enumerate(
+            executor.map(_adjust_and_sink_one_bldg, unadjusted_multifamily_bldg_ids),
+            1,
+        ):
+            adjusted_bldg_ids.append(bldg_id)
+            print(f"{i} out of {n_bldgs} bldg_id's processed")
 
     if adjusted_bldg_ids:
-        updated_metadata = metadata.with_columns(
+        metadata = metadata.with_columns(
             pl.when(pl.col(BLDG_ID_COL).is_in(adjusted_bldg_ids))
             .then(True)
             .otherwise(pl.col(MF_NON_HVAC_ELECTRICITY_ADJUSTED_COL))
             .alias(MF_NON_HVAC_ELECTRICITY_ADJUSTED_COL)
         )
-        updated_metadata.sink_parquet(str(path_metadata), storage_options=opts)
+    # Persist metadata so the schema (including mf_non_hvac_electricity_adjusted) is on disk
+    # even when no buildings were adjusted this run (e.g. upgrade 02 with zero unadjusted MF).
+    metadata.sink_parquet(str(path_metadata), storage_options=opts)
 
 
 if __name__ == "__main__":
