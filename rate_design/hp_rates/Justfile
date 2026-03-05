@@ -493,7 +493,7 @@ all-pre:
     just create-electric-tariff-maps-all
     just create-gas-tariff-maps-all
     just compute-rr
-    just create-flat-tariff
+    just create-flat-tariffs
     just validate-config
 
 run-all-utilities-sequential:
@@ -542,7 +542,7 @@ run-all-parallel-tracks:
     export RDP_NUM_WORKERS="$WORKERS"
     echo ">> run-all-parallel-tracks [${RDP_EXECUTION_TIME}]: ${WORKERS} workers/track on $(nproc) total vCPUs" >&2
 
-    just create-flat-tariff
+    just create-flat-tariffs
 
     just run-scenario 1 & PID1=$!
     just run-scenario 2 & PID2=$!
