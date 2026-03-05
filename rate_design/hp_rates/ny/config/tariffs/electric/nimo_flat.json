@@ -1,7 +1,7 @@
 {
   "items": [
     {
-      "label": "nyseg_flat",
+      "label": "nimo_flat",
       "uri": "",
       "sector": "Residential",
       "energyweekdayschedule": [
@@ -635,19 +635,19 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.10451445,
+            "rate": 0.09140912,
             "adj": 0.0,
             "unit": "kWh"
           }
         ]
       ],
-      "fixedchargefirstmeter": 19.89,
+      "fixedchargefirstmeter": 17.89,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
       "minchargeunits": "$/month",
-      "utility": "nyseg",
+      "utility": "nimo",
       "servicetype": "Bundled",
-      "name": "nyseg_flat",
+      "name": "nimo_flat",
       "is_default": false,
       "country": "USA",
       "demandunits": "kW",

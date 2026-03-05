@@ -1,7 +1,7 @@
 {
   "items": [
     {
-      "label": "nyseg_flat",
+      "label": "psegli_flat_supply",
       "uri": "",
       "sector": "Residential",
       "energyweekdayschedule": [
@@ -635,19 +635,19 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.10451445,
+            "rate": 0.21353883,
             "adj": 0.0,
             "unit": "kWh"
           }
         ]
       ],
-      "fixedchargefirstmeter": 19.89,
+      "fixedchargefirstmeter": 16.43,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
       "minchargeunits": "$/month",
-      "utility": "nyseg",
+      "utility": "psegli",
       "servicetype": "Bundled",
-      "name": "nyseg_flat",
+      "name": "psegli_flat_supply",
       "is_default": false,
       "country": "USA",
       "demandunits": "kW",

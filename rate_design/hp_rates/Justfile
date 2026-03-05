@@ -182,13 +182,23 @@ estimate-psegli-rr:
     --output-key psegli
 
 # Pre-calibrated tariffs
-create-flat-tariff:
-  just -f {{path_repo}}/utils/Justfile create-flat-tariff \
-    "{{path_default_tariff}}" \
-    "{{path_default_supply_tariff}}" \
-    "{{utility}}_flat" \
-    "{{utility}}_flat_supply" \
-    "{{path_tariffs_electric}}"
+create-flat-tariffs:
+  uv run python {{path_repo}}/utils/pre/create_flat_tariffs.py \
+    --monthly-rates-dir "{{path_genability}}/monthly_rates" \
+    --rev-requirement-dir "{{path_rev_requirement}}" \
+    --output-dir "{{path_tariffs_electric}}" \
+    --eia-path "{{path_electric_utility_stats}}" \
+    --year "{{monthly_rates_year}}"
+
+# Disabled: old template-based recipe depends on *_default_supply.json files
+# that no longer exist (removed while tariff-fetch URDB bugs are open).
+# create-flat-tariff:
+#   just -f {{path_repo}}/utils/Justfile create-flat-tariff \
+#     "{{path_default_tariff}}" \
+#     "{{path_default_supply_tariff}}" \
+#     "{{utility}}_flat" \
+#     "{{utility}}_flat_supply" \
+#     "{{path_tariffs_electric}}"
 
 create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
   just -f {{path_repo}}/utils/Justfile create-seasonal-tou \
