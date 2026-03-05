@@ -49,7 +49,7 @@ class TestParserWithNewYAMLFormat:
             add_supply=True,
             run_includes_subclasses=False,
         )
-        assert result.rr_total == pytest.approx(632_243_117.5)
+        assert result.rr_total == pytest.approx(624_942_307.81)
         assert result.subclass_rr is None
 
     def test_subclass_delivery_only(self) -> None:

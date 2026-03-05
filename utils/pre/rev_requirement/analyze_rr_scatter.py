@@ -175,7 +175,7 @@ ConEd (Consolidated Edison) shows significant divergence from other utilities in
 
 2. **Regulatory Environment**: NY PSC may have different rate-setting methodologies or cost recovery mechanisms that result in higher delivery charges.
 
-3. **Service Territory Characteristics**: 
+3. **Service Territory Characteristics**:
    - High-rise buildings require more complex distribution infrastructure
    - Higher peak demand per customer
    - More complex load patterns
@@ -186,14 +186,16 @@ ConEd (Consolidated Edison) shows significant divergence from other utilities in
 """
 
         if similar_kwh.height > 0:
-            analysis += "\n| Utility | State | kWh | Delivery RR | Delivery Rate/kWh |\n"
+            analysis += (
+                "\n| Utility | State | kWh | Delivery RR | Delivery Rate/kWh |\n"
+            )
             analysis += "|---------|-------|-----|-------------|-------------------|\n"
             for row in similar_kwh.iter_rows(named=True):
                 analysis += f"| {row['utility']} | {row['state']} | {row['total_residential_kwh']:,.0f} | ${row['delivery_rr']:,.2f} | ${row['delivery_rate_per_kwh']:.6f} |\n"
         else:
             analysis += "\nNo other utilities found with similar kWh volumes.\n"
 
-        analysis += f"""
+        analysis += """
 
 ## All Utilities Summary
 
