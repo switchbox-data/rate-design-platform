@@ -550,7 +550,7 @@ def add_bulk_tx_and_dist_and_sub_tx_marginal_cost(
 
     Returns:
         Combined delivery MC Series (dist+sub-tx + bulk transmission) aligned to target_index,
-        named "Marginal Delivery Costs ($/kWh)".
+        named "Marginal Distribution Costs ($/kWh)".
 
     Raises:
         ValueError: If combined series contains nulls after alignment.
@@ -586,7 +586,7 @@ def add_bulk_tx_and_dist_and_sub_tx_marginal_cost(
     else:
         delivery_mc = dist_and_sub_tx_mc
 
-    delivery_mc.name = "Marginal Delivery Costs ($/kWh)"
+    delivery_mc.name = "Marginal Distribution Costs ($/kWh)"
     return delivery_mc
 
 

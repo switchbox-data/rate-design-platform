@@ -1182,13 +1182,21 @@ def _parse_args() -> argparse.Namespace:
         help="Target year for supply MC generation (e.g. 2025).",
     )
     parser.add_argument(
-        "--load-year",
+        "--energy-load-year",
         type=int,
         default=None,
         help=(
-            "Year of load profile to use for weighting/peak identification "
-            "(defaults to --year). Use to apply one year's prices to another "
-            "year's load shape."
+            "Year of zone load profile for LBMP weighting (multi-zone utilities). "
+            "Defaults to --year. Single-zone utilities ignore this."
+        ),
+    )
+    parser.add_argument(
+        "--capacity-load-year",
+        type=int,
+        default=None,
+        help=(
+            "Year of zone load profile for ICAP peak identification. "
+            "Defaults to --year."
         ),
     )
     parser.add_argument(
@@ -1243,16 +1251,18 @@ def main() -> None:
 
     utility = args.utility
     price_year = args.year
-    load_year = args.load_year if args.load_year else price_year
+    energy_load_year = args.energy_load_year or price_year
+    capacity_load_year = args.capacity_load_year or price_year
 
     print("=" * 60)
     print("SUPPLY MARGINAL COST GENERATION")
     print("=" * 60)
-    print(f"  Utility:       {utility}")
-    print(f"  Price year:    {price_year} (LBMP + ICAP)")
-    print(f"  Load year:     {load_year} (for weighting / peak ID)")
-    print(f"  Peak hours:    {args.peak_hours}/month")
-    print(f"  Upload to S3:  {'Yes' if args.upload else 'No (inspect only)'}")
+    print(f"  Utility:              {utility}")
+    print(f"  Price year:           {price_year} (LBMP + ICAP)")
+    print(f"  Energy load year:     {energy_load_year} (for LBMP zone weighting)")
+    print(f"  Capacity load year:   {capacity_load_year} (for ICAP peak ID)")
+    print(f"  Peak hours:           {args.peak_hours}/month")
+    print(f"  Upload to S3:         {'Yes' if args.upload else 'No (inspect only)'}")
     print("=" * 60)
 
     # ── 1. Load zone mapping ─────────────────────────────────────────────
@@ -1269,7 +1279,7 @@ def main() -> None:
         args.zone_loads_s3_base,
         price_year,
         storage_options,
-        zone_load_year=load_year if load_year != price_year else None,
+        zone_load_year=energy_load_year if energy_load_year != price_year else None,
     )
 
     # ── 3. Capacity MC (ICAP MCOS) ──────────────────────────────────────
@@ -1302,14 +1312,14 @@ def main() -> None:
     )
     zones_needed = _zone_names_for_localities(nested_localities, NESTED_LOCALITY_ZONES)
     print(
-        f"\n  Building locality load profiles for year {load_year}..."
+        f"\n  Building locality load profiles for year {capacity_load_year}..."
         f"\n  Nested localities: {nested_localities}"
         f"\n  Zones needed: {zones_needed}"
     )
 
     # Load zone loads and build raw per-locality profiles (unweighted MW sums)
     zone_loads_df = load_zone_loads(
-        args.zone_loads_s3_base, zones_needed, load_year, storage_options
+        args.zone_loads_s3_base, zones_needed, capacity_load_year, storage_options
     )
     raw_profiles = build_locality_load_profiles(icap_locality_names, zone_loads_df)
 
@@ -1317,7 +1327,7 @@ def main() -> None:
     locality_profiles: dict[str, pl.DataFrame] = {}
     for loc, profile in raw_profiles.items():
         locality_profiles[loc] = normalize_load_to_cairo_8760(
-            profile, utility, load_year
+            profile, utility, capacity_load_year
         )
 
     # Compute capacity MC component-by-component (each locality picks its own peaks)
@@ -1333,13 +1343,13 @@ def main() -> None:
     )
     validate_capacity_allocation(capacity_df, icap_prices_for_validation)
 
-    # Remap capacity timestamps from load_year → price_year when they differ.
+    # Remap capacity timestamps from capacity_load_year → price_year when they differ.
     # offset_by("Ny") shifts by N calendar years on naive datetimes; safe because
     # Cairo 8760 normalization already handled leap years and DST.
-    if load_year != price_year:
-        print(f"\n  Remapping capacity timestamps: {load_year} → {price_year}")
+    if capacity_load_year != price_year:
+        print(f"\n  Remapping capacity timestamps: {capacity_load_year} → {price_year}")
         capacity_df = capacity_df.with_columns(
-            pl.col("timestamp").dt.offset_by(f"{price_year - load_year}y")
+            pl.col("timestamp").dt.offset_by(f"{price_year - capacity_load_year}y")
         )
 
     # ── 4. Prepare separate outputs ──────────────────────────────────────

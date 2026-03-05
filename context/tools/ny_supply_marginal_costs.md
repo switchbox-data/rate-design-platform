@@ -6,7 +6,7 @@ How energy (LBMP) and capacity (ICAP) supply marginal costs are generated for NY
 
 `utils/pre/generate_utility_supply_mc.py`
 
-CLI: `--utility cenhud --year 2025 [--load-year 2018] --zone-mapping-path s3://... [--upload]`
+CLI: `--utility cenhud --year 2025 [--energy-load-year 2018] [--capacity-load-year 2018] --zone-mapping-path s3://... [--upload]`
 
 Output: `s3://data.sb/switchbox/marginal_costs/ny/supply/utility={utility}/year={YYYY}/data.parquet`
 Schema: `timestamp` (datetime), `energy_cost_enduse` ($/MWh), `capacity_cost_enduse` ($/MWh)
@@ -112,13 +112,25 @@ Supply MC uses zone-level hourly loads for:
 
 ## Load year / output year separation
 
-The `--year` argument controls the output year (ICAP/LBMP prices, output partition, timestamps). The `--load-year` argument controls which year's load profile is used for LBMP weighting and ICAP peak identification.
+The `--year` argument controls the output year (ICAP/LBMP prices, output partition, timestamps). Two separate load-year arguments control which year's zone load profiles are used:
 
-When `load_year != year`, capacity timestamps are remapped from load_year to year after allocation using `dt.offset_by()`. This allows using e.g. 2018 AMY load shapes (matching ResStock AMY2018 weather) with 2025 prices.
+- `--energy-load-year`: Zone loads for LBMP weighting (multi-zone utilities only; single-zone utilities ignore this). Defaults to `--year`.
+- `--capacity-load-year`: Zone loads for ICAP peak identification per locality. Defaults to `--year`.
+
+When `capacity_load_year != year`, capacity timestamps are remapped from capacity_load_year to year after allocation using `dt.offset_by()`. The same applies to energy load timestamps for multi-zone utilities when `energy_load_year != year`. This allows using e.g. 2018 AMY load shapes (matching ResStock AMY2018 weather) with 2025 prices.
 
 ### Justfile control
 
-Both `--year` and `--load-year` are wired through the NY Justfile (`rate_design/hp_rates/ny/Justfile`). A single `LOAD_YEAR` variable in `rate_design/hp_rates/ny/state.env` controls the load year for all three MC pipelines (supply, bulk TX, dist/sub-TX). The shared Justfile reads `LOAD_YEAR` via `env_var_or_default('LOAD_YEAR', year)`, and the NY Justfile assigns `supply_load_year := load_year` and `tx_load_year := load_year` from that value. To switch load years, change the one `LOAD_YEAR` line in `state.env`.
+Each MC pipeline has its own load year variable in `rate_design/hp_rates/ny/state.env`:
+
+| Env var                     | MC type                        | Script arg             |
+| --------------------------- | ------------------------------ | ---------------------- |
+| `SUPPLY_ENERGY_LOAD_YEAR`   | Supply energy (LBMP weighting) | `--energy-load-year`   |
+| `SUPPLY_CAPACITY_LOAD_YEAR` | Supply capacity (ICAP peaks)   | `--capacity-load-year` |
+| `BULK_TX_LOAD_YEAR`         | Bulk transmission (SCR peaks)  | `--load-year`          |
+| `DIST_LOAD_YEAR`            | Dist/sub-TX (PoP peaks)        | `--load-year`          |
+
+The NY Justfile reads the first two and passes them to `generate_utility_supply_mc.py`. The shared Justfile reads `DIST_LOAD_YEAR` via `env_var_or_default('DIST_LOAD_YEAR', year)` for the dist/sub-TX recipe.
 
 ## 8760 normalization
 

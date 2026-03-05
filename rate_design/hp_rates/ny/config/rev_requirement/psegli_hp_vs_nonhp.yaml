@@ -1,0 +1,15 @@
+utility: psegli
+group_col: has_hp
+cross_subsidy_col: BAT_percustomer
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/psegli/20260305T184555Z/20260305_184747_ny_psegli_run1_up00_precalc__flat
+total_delivery_revenue_requirement: 1167224936.22
+total_delivery_and_supply_revenue_requirement: 2152491756.14
+subclass_revenue_requirements:
+  non-hp:
+    delivery: 1150733263.0856392
+    supply: 959472648.3151507
+    total: 2110205911.40079
+  hp:
+    delivery: 16491673.134361185
+    supply: 25794171.604849406
+    total: 42285844.73921059

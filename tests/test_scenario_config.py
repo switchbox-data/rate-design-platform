@@ -69,8 +69,8 @@ class TestParserWithNewYAMLFormat:
         assert result.subclass_rr is not None
         assert result.subclass_rr == pytest.approx(
             {
-                "cenhud_hp_seasonal": 27_636_715.922075193,
-                "cenhud_flat": 366_751_347.0779246,
+                "cenhud_hp_seasonal": 16_679_308.107715957,
+                "cenhud_flat": 399_514_375.92228407,
             }
         )
 
@@ -86,12 +86,12 @@ class TestParserWithNewYAMLFormat:
             add_supply=True,
             run_includes_subclasses=True,
         )
-        assert result.rr_total == pytest.approx(632_243_117.5)
+        assert result.rr_total == pytest.approx(624_942_307.81)
         assert result.subclass_rr is not None
         assert result.subclass_rr == pytest.approx(
             {
-                "cenhud_hp_seasonal_supply": 27_636_715.922075193,
-                "cenhud_flat_supply": 366_751_347.0779246,
+                "cenhud_hp_seasonal_supply": 34_622_554.44978167,
+                "cenhud_flat_supply": 590_319_753.360218,
             }
         )
 
@@ -111,8 +111,8 @@ class TestParserWithNewYAMLFormat:
         assert result.subclass_rr is not None
         assert result.subclass_rr == pytest.approx(
             {
-                "cenhud_hp_seasonalTOU_flex": 27_636_715.922075193,
-                "cenhud_flat": 366_751_347.0779246,
+                "cenhud_hp_seasonalTOU_flex": 16_679_308.107715957,
+                "cenhud_flat": 399_514_375.92228407,
             }
         )
 
