@@ -83,3 +83,11 @@ High-level flow:
 6. Blend paying localities to utility-level signal via `gen_capacity_zone` + `capacity_weight`.
 7. Save 8760 output to:
    `s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility={utility}/year={year}/data.parquet`
+
+## Load year / output year separation
+
+The `--year` argument controls the output year (partition key, output timestamps). The `--load-year` argument controls which year's NYISO zone loads are used for SCR peak identification. When they differ, timestamps are remapped from load_year to year via `dt.offset_by()` after allocation.
+
+### Justfile control
+
+A single `LOAD_YEAR` in `rate_design/hp_rates/ny/state.env` controls the load year for all three MC pipelines (supply, bulk TX, dist/sub-TX). The shared Justfile reads it via `env_var_or_default('LOAD_YEAR', year)`, and the NY Justfile assigns `tx_load_year := load_year`. To switch load years for all pipelines, change the one `LOAD_YEAR` line in `state.env`.

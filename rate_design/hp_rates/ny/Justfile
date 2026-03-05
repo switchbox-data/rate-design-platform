@@ -32,7 +32,7 @@ aggregate-dist-mc-bat-inputs:
 # =============================================================================
 
 supply_mc_year := "2025"
-supply_load_year := env_var_or_default('SUPPLY_LOAD_YEAR', '2018')
+supply_load_year := load_year
 zone_mapping_path := "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
 
 create-supply-mc-data utility_arg:
@@ -57,7 +57,7 @@ create-supply-mc-data-all:
 # =============================================================================
 
 tx_mc_year            := "2025"
-tx_load_year          := env_var_or_default('TX_LOAD_YEAR', '2018')
+tx_load_year          := load_year
 path_constraint_group_table := "s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_constraint_groups.csv"
 path_bulk_tx_mc       := "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=" + utility + "/year=" + tx_mc_year + "/data.parquet"
 

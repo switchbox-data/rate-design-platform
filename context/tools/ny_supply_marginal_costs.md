@@ -112,9 +112,13 @@ Supply MC uses zone-level hourly loads for:
 
 ## Load year / output year separation
 
-The `--year` argument controls the output year (ICAP/LBMP prices, output partition, timestamps). The optional `--load-year` argument (defaults to `--year`) controls which year's load profile is used for LBMP weighting and ICAP peak identification.
+The `--year` argument controls the output year (ICAP/LBMP prices, output partition, timestamps). The `--load-year` argument controls which year's load profile is used for LBMP weighting and ICAP peak identification.
 
 When `load_year != year`, capacity timestamps are remapped from load_year to year after allocation using `dt.offset_by()`. This allows using e.g. 2018 AMY load shapes (matching ResStock AMY2018 weather) with 2025 prices.
+
+### Justfile control
+
+Both `--year` and `--load-year` are wired through the NY Justfile (`rate_design/hp_rates/ny/Justfile`). A single `LOAD_YEAR` variable in `rate_design/hp_rates/ny/state.env` controls the load year for all three MC pipelines (supply, bulk TX, dist/sub-TX). The shared Justfile reads `LOAD_YEAR` via `env_var_or_default('LOAD_YEAR', year)`, and the NY Justfile assigns `supply_load_year := load_year` and `tx_load_year := load_year` from that value. To switch load years, change the one `LOAD_YEAR` line in `state.env`.
 
 ## 8760 normalization
 
