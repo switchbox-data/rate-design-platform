@@ -35,6 +35,7 @@ from utils.post.validate import (
     compute_bill_deltas,
     load_bat,
     load_bills,
+    load_hourly_loads_by_subclass,
     load_metadata,
     load_revenue_requirement,
     load_tariff_config,
@@ -42,13 +43,16 @@ from utils.post.validate import (
     plot_bat_by_subclass,
     plot_bat_heatmap,
     plot_bill_deltas,
+    plot_hourly_loads_by_subclass,
     plot_nonhp_composition,
     plot_revenue_vs_rr,
     plot_subclass_rr_stacked,
     plot_tariff_comparison,
     plot_tariff_stability,
+    plot_weighted_customer_counts,
     summarize_bat_by_subclass,
     summarize_bills_by_subclass,
+    summarize_customer_counts,
     summarize_nonhp_composition,
     summarize_revenue,
     summarize_tariff_rates,
@@ -83,9 +87,15 @@ def _parse_args() -> argparse.Namespace:
         help="Output directory (default: validation_outputs/{utility})",
     )
     p.add_argument(
+        "--resstock-base",
+        default=None,
+        help="Local path to ResStock release root for hourly load plots "
+        "(e.g. /ebs/data/nrel/resstock/res_2024_amy2018_2_sb)",
+    )
+    p.add_argument(
         "--skip-loads",
         action="store_true",
-        help="Skip hourly load plots (reserved for future use)",
+        help="Skip hourly load plots (auto-set for large utilities like coned)",
     )
     return p.parse_args()
 
@@ -108,6 +118,9 @@ def _validate_block(
     state: str,
     utility: str,
     output_dir: Path,
+    *,
+    skip_loads: bool = False,
+    resstock_base: str | None = None,
 ) -> list[CheckResult]:
     nums = list(block.run_nums)
     dirs_opt = [run_dirs.get(n) for n in nums]
@@ -302,6 +315,25 @@ def _validate_block(
                     )
                 )
 
+    # --- Weighted customer counts (always) + hourly loads by subclass (when not skip_loads) ---
+    for run_num, _, _, meta, _ in runs:
+        counts = summarize_customer_counts(meta)
+        _save(
+            plot_weighted_customer_counts(counts, f"Customer Counts — Run {run_num}"),
+            plots / f"customer_counts_run{run_num}.png",
+        )
+        if not skip_loads and resstock_base is not None:
+            upgrade = block.configs[0].upgrade
+            loads_df = load_hourly_loads_by_subclass(
+                meta, resstock_base, state.upper(), upgrade
+            )
+            _save(
+                plot_hourly_loads_by_subclass(
+                    loads_df, f"Hourly Loads by Subclass — Run {run_num}"
+                ),
+                plots / "loads" / f"hourly_loads_run{run_num}.png",
+            )
+
     pl.DataFrame(
         [{"check": r.name, "status": r.status, "message": r.message} for r in results]
     ).write_csv(block_dir / "checks_summary.csv")
@@ -333,7 +365,17 @@ def main() -> None:
 
     all_results: list[CheckResult] = []
     for block in define_run_blocks(configs):
-        all_results.extend(_validate_block(block, run_dirs, state, utility, output_dir))
+        all_results.extend(
+            _validate_block(
+                block,
+                run_dirs,
+                state,
+                utility,
+                output_dir,
+                skip_loads=args.skip_loads,
+                resstock_base=args.resstock_base,
+            )
+        )
 
     by_status = {
         s: sum(1 for r in all_results if r.status == s)

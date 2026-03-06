@@ -218,6 +218,32 @@ def summarize_tariff_rates(tariff_config: dict[str, Any]) -> pl.DataFrame:
     return pl.DataFrame(rows)
 
 
+def summarize_customer_counts(metadata: pl.LazyFrame) -> pl.DataFrame:
+    """Weighted customer count by HP/non-HP subclass.
+
+    Args:
+        metadata: LazyFrame with ``bldg_id``, ``weight``, and
+            ``postprocess_group.has_hp`` columns.
+
+    Returns:
+        DataFrame with columns: ``subclass`` (``"HP"`` / ``"Non-HP"``),
+        ``customers_weighted`` (sum of building weights).
+    """
+    return (
+        _collect(
+            metadata.group_by(_HP).agg(pl.col(_WEIGHT).sum().alias("customers_weighted"))
+        )
+        .with_columns(
+            pl.when(pl.col(_HP))
+            .then(pl.lit("HP"))
+            .otherwise(pl.lit("Non-HP"))
+            .alias("subclass")
+        )
+        .select(["subclass", "customers_weighted"])
+        .sort("subclass")
+    )
+
+
 def summarize_nonhp_composition(metadata: pl.LazyFrame) -> pl.DataFrame:
     """Count non-HP customers by heating type, weighted and unweighted.
 

@@ -22,6 +22,7 @@ import polars as pl
 import yaml
 
 from utils import get_project_root
+from utils.loads import ELECTRIC_LOAD_COL, scan_resstock_loads
 
 BillType = Literal["elec", "gas", "comb"]
 
@@ -122,3 +123,74 @@ def load_revenue_requirement(
 def load_seasonal_discount_inputs(s3_dir: str) -> pl.LazyFrame:
     """Lazily scan ``seasonal_discount_rate_inputs.csv`` (produced only for runs 5-6)."""
     return pl.scan_csv(_s3_join(s3_dir, _REL_SEASONAL_DISCOUNT_INPUTS))
+
+
+def load_hourly_loads_by_subclass(
+    metadata: pl.LazyFrame,
+    resstock_base: str,
+    state: str,
+    upgrade: str,
+) -> pl.DataFrame:
+    """Compute weighted mean hourly electric load by HP/non-HP subclass from local ResStock.
+
+    Reads local hive-partitioned ResStock load curves (no S3), joins with metadata
+    weights, and returns a weighted mean load per hour per subclass.
+
+    Args:
+        metadata: LazyFrame with ``bldg_id``, ``weight``, and
+            ``postprocess_group.has_hp`` columns.
+        resstock_base: Local path to the ResStock release root
+            (e.g. ``/ebs/data/nrel/resstock/res_2024_amy2018_2_sb``).
+        state: State partition value (e.g. ``"NY"``).
+        upgrade: Upgrade value from :class:`~config.RunConfig` (``"0"`` or ``"2"``);
+            zero-padded automatically to match hive partition dirs (``"00"``, ``"02"``).
+
+    Returns:
+        DataFrame with columns: ``hour`` (int, 0–8759), ``subclass``
+        (``"HP"`` / ``"Non-HP"``), ``load_kwh`` (weighted mean kWh per hour).
+    """
+    _HP = "postprocess_group.has_hp"
+    _BLDG = "bldg_id"
+    _WEIGHT = "weight"
+    # Hive partition directories use zero-padded upgrade strings ("00", "02").
+    upgrade_padded = str(upgrade).zfill(2)
+
+    meta = metadata.select([_BLDG, _WEIGHT, _HP]).collect()
+    loads_lf = scan_resstock_loads(resstock_base, state, upgrade_padded)
+
+    frames = []
+    for hp_val, label in [(True, "HP"), (False, "Non-HP")]:
+        group_meta = meta.filter(pl.col(_HP) == hp_val)
+        if group_meta.is_empty():
+            continue
+        bldg_ids = group_meta[_BLDG].cast(pl.Int64).to_list()
+        weights_lf = group_meta.select(
+            pl.col(_BLDG).cast(pl.Int64),
+            pl.col(_WEIGHT).cast(pl.Float64),
+        ).lazy()
+        group_df = (
+            loads_lf.filter(pl.col(_BLDG).cast(pl.Int64).is_in(bldg_ids))
+            .join(weights_lf, on=_BLDG, how="inner")
+            .select(
+                pl.col("timestamp")
+                .cast(pl.String, strict=False)
+                .str.to_datetime(strict=False)
+                .alias("_ts"),
+                (pl.col(ELECTRIC_LOAD_COL).cast(pl.Float64) * pl.col(_WEIGHT)).alias("_wload"),
+                pl.col(_WEIGHT).cast(pl.Float64),
+            )
+            .group_by("_ts")
+            .agg(
+                pl.col("_wload").sum(),
+                pl.col(_WEIGHT).sum().alias("_weight_sum"),
+            )
+            .with_columns((pl.col("_wload") / pl.col("_weight_sum")).alias("load_kwh"))
+            .sort("_ts")
+            .with_row_index("hour")
+            .select(["hour", "load_kwh"])
+            .with_columns(pl.lit(label).alias("subclass"))
+            .collect()
+        )
+        frames.append(group_df)
+
+    return pl.concat(frames)

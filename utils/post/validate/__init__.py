@@ -23,6 +23,7 @@ from utils.post.validate.checks import (
 from utils.post.validate.load import (
     load_bat,
     load_bills,
+    load_hourly_loads_by_subclass,
     load_input_tariff,
     load_metadata,
     load_revenue_requirement,
@@ -46,6 +47,7 @@ from utils.post.validate.tables import (
     compute_bill_deltas,
     summarize_bat_by_subclass,
     summarize_bills_by_subclass,
+    summarize_customer_counts,
     summarize_nonhp_composition,
     summarize_revenue,
     summarize_tariff_rates,
@@ -67,6 +69,7 @@ __all__ = [
     # load
     "load_bat",
     "load_bills",
+    "load_hourly_loads_by_subclass",
     "load_input_tariff",
     "load_metadata",
     "load_revenue_requirement",
@@ -76,6 +79,7 @@ __all__ = [
     "compute_bill_deltas",
     "summarize_bat_by_subclass",
     "summarize_bills_by_subclass",
+    "summarize_customer_counts",
     "summarize_nonhp_composition",
     "summarize_revenue",
     "summarize_tariff_rates",
