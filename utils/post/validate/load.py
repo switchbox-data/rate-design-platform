@@ -63,8 +63,15 @@ def load_bat(s3_dir: str) -> pl.LazyFrame:
 
 
 def load_metadata(s3_dir: str) -> pl.LazyFrame:
-    """Lazily scan ``customer_metadata.csv`` (ResStock metadata with ``bldg_id``, ``weight``)."""
-    return pl.scan_csv(_s3_join(s3_dir, _REL_METADATA))
+    """Lazily scan ``customer_metadata.csv`` (ResStock metadata with ``bldg_id``, ``weight``).
+    
+    The ``in.occupants`` column contains values like ``"10+"`` which cannot be parsed as integers,
+    so it is read as a string (Utf8) to avoid parsing errors.
+    """
+    return pl.scan_csv(
+        _s3_join(s3_dir, _REL_METADATA),
+        schema_overrides={"in.occupants": pl.Utf8},
+    )
 
 
 def load_tariff_config(s3_dir: str) -> dict[str, Any]:
