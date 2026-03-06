@@ -11,15 +11,23 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get upgrade -y
 
-# Resize root filesystem if volume was increased (runs on every boot)
-# Get root device (could be /dev/sda1, /dev/nvme0n1p1, etc.)
-ROOT_DEVICE=$(findmnt -n -o SOURCE / | sed 's/p[0-9]*$//' || echo "")
-if [ -n "$ROOT_DEVICE" ] && [ -b "$ROOT_DEVICE" ]; then
-  ROOT_VOLUME_SIZE=$(blockdev --getsize64 "$ROOT_DEVICE" 2>/dev/null || echo "0")
-  ROOT_FS_SIZE=$(df -B1 / | tail -1 | awk '{print $2}')
-  if [ "$ROOT_VOLUME_SIZE" -gt "$ROOT_FS_SIZE" ] && [ "$ROOT_VOLUME_SIZE" -gt 0 ]; then
-    echo "Root volume size ($ROOT_VOLUME_SIZE) is larger than filesystem ($ROOT_FS_SIZE), resizing..."
-    resize2fs "$ROOT_DEVICE" 2>&1 || echo "Resize may have failed, but continuing..."
+# Resize root filesystem if volume was increased (first-boot only).
+# growpart expands the partition table, resize2fs expands the filesystem.
+PART_DEVICE=$(findmnt -n -o SOURCE / || echo "")
+if [ -n "$PART_DEVICE" ] && [ -b "$PART_DEVICE" ]; then
+  if echo "$PART_DEVICE" | grep -q "nvme"; then
+    DISK_DEVICE=$(echo "$PART_DEVICE" | sed 's/p[0-9]*$//')
+    PART_NUM=$(echo "$PART_DEVICE" | grep -o 'p[0-9]*$' | tr -d 'p')
+  else
+    DISK_DEVICE=$(echo "$PART_DEVICE" | sed 's/[0-9]*$//')
+    PART_NUM=$(echo "$PART_DEVICE" | grep -o '[0-9]*$')
+  fi
+  DISK_SIZE=$(blockdev --getsize64 "$DISK_DEVICE" 2>/dev/null || echo "0")
+  FS_SIZE=$(df -B1 / | tail -1 | awk '{print $2}')
+  if [ "$DISK_SIZE" -gt "$FS_SIZE" ] && [ "$DISK_SIZE" -gt 0 ]; then
+    echo "Root volume ($DISK_SIZE) > filesystem ($FS_SIZE), resizing..."
+    growpart "$DISK_DEVICE" "$PART_NUM" 2>&1 || echo "growpart skipped (partition may already be full size)"
+    resize2fs "$PART_DEVICE" 2>&1 || echo "resize2fs may have failed, but continuing..."
   fi
 fi
 
@@ -228,13 +236,11 @@ if ! grep -q "^user_allow_other" /etc/fuse.conf; then
   sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf || echo "user_allow_other" >>/etc/fuse.conf
 fi
 
-# Create cache directory for s3fs BEFORE mounting
-mkdir -p /tmp/s3fs-cache
-chmod 1777 /tmp/s3fs-cache
-
-# Ensure cache directory is recreated on every boot (since /tmp is cleared on reboot)
-# This is needed for the fstab mount to work automatically on boot
-echo "d /tmp/s3fs-cache 1777 root root -" >/etc/tmpfiles.d/s3fs-cache.conf
+# Create cache directory for s3fs on the EBS volume (not root volume).
+# Using /tmp/s3fs-cache on the 30-60GB root volume caused disk-full crashes
+# when multiple users accessed large S3 files through the mount.
+mkdir -p /ebs/tmp/s3fs-cache
+chmod 1777 /ebs/tmp/s3fs-cache
 
 # Mount S3 bucket using IAM instance profile
 # s3fs automatically uses IAM role when no credentials are specified
@@ -242,7 +248,7 @@ echo "d /tmp/s3fs-cache 1777 root root -" >/etc/tmpfiles.d/s3fs-cache.conf
 # Note: endpoint and url are required because bucket is in us-west-2
 # umask=0000 allows all users to write to the S3 mount (files appear as 777)
 # Without this, files appear as 775 owned by root:root, blocking non-root writes
-S3FS_OPTS="_netdev,allow_other,use_cache=/tmp/s3fs-cache,iam_role=auto,umask=0000,use_path_request_style,endpoint=us-west-2,url=https://s3.us-west-2.amazonaws.com"
+S3FS_OPTS="_netdev,allow_other,use_cache=/ebs/tmp/s3fs-cache,iam_role=auto,umask=0000,use_path_request_style,endpoint=us-west-2,url=https://s3.us-west-2.amazonaws.com"
 echo "${s3_bucket_name} ${s3_mount_path} fuse.s3fs $S3FS_OPTS 0 0" >>/etc/fstab
 
 # Try to mount S3 with retries (IAM role may take a moment to be available)
@@ -315,17 +321,34 @@ OMZ_SCRIPT
   fi
 fi
 
-# Create a per-boot script to resize root filesystem if needed
+# Create a per-boot script to resize root filesystem if needed.
+# Two steps: growpart expands the partition, resize2fs expands the filesystem.
 cat >/usr/local/bin/resize-root-fs.sh <<'RESIZE_SCRIPT'
 #!/bin/bash
-ROOT_DEVICE=$(findmnt -n -o SOURCE / | sed 's/p[0-9]*$//' || echo "")
-if [ -n "$ROOT_DEVICE" ] && [ -b "$ROOT_DEVICE" ]; then
-    ROOT_VOLUME_SIZE=$(blockdev --getsize64 "$ROOT_DEVICE" 2>/dev/null || echo "0")
-    ROOT_FS_SIZE=$(df -B1 / | tail -1 | awk '{print $2}')
-    if [ "$ROOT_VOLUME_SIZE" -gt "$ROOT_FS_SIZE" ] && [ "$ROOT_VOLUME_SIZE" -gt 0 ]; then
-        echo "Resizing root filesystem from $ROOT_FS_SIZE to $ROOT_VOLUME_SIZE..."
-        resize2fs "$ROOT_DEVICE" 2>&1
-    fi
+PART_DEVICE=$(findmnt -n -o SOURCE /)  # e.g. /dev/nvme0n1p1
+if [ -z "$PART_DEVICE" ] || [ ! -b "$PART_DEVICE" ]; then
+    echo "Could not determine root partition device"
+    exit 0
+fi
+
+# Derive disk device and partition number from the partition device.
+# NVMe: /dev/nvme0n1p1 -> disk=/dev/nvme0n1, partnum=1
+# SCSI: /dev/sda1       -> disk=/dev/sda,     partnum=1
+if echo "$PART_DEVICE" | grep -q "nvme"; then
+    DISK_DEVICE=$(echo "$PART_DEVICE" | sed 's/p[0-9]*$//')
+    PART_NUM=$(echo "$PART_DEVICE" | grep -o 'p[0-9]*$' | tr -d 'p')
+else
+    DISK_DEVICE=$(echo "$PART_DEVICE" | sed 's/[0-9]*$//')
+    PART_NUM=$(echo "$PART_DEVICE" | grep -o '[0-9]*$')
+fi
+
+DISK_SIZE=$(blockdev --getsize64 "$DISK_DEVICE" 2>/dev/null || echo "0")
+FS_SIZE=$(df -B1 / | tail -1 | awk '{print $2}')
+
+if [ "$DISK_SIZE" -gt "$FS_SIZE" ] && [ "$DISK_SIZE" -gt 0 ]; then
+    echo "Disk $DISK_DEVICE ($DISK_SIZE) > filesystem ($FS_SIZE), resizing..."
+    growpart "$DISK_DEVICE" "$PART_NUM" 2>&1 || true
+    resize2fs "$PART_DEVICE" 2>&1
 fi
 RESIZE_SCRIPT
 chmod +x /usr/local/bin/resize-root-fs.sh
