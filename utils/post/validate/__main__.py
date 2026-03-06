@@ -117,7 +117,9 @@ def _validate_block(
         print(f"  WARNING: Skipping {block.name} — missing run dirs for: {missing}")
         return []
 
-    dirs: list[str] = [d for d in dirs_opt if d is not None]  # all present after guard above
+    dirs: list[str] = [
+        d for d in dirs_opt if d is not None
+    ]  # all present after guard above
 
     print(f"\n  {block.name}: {block.description}")
     block_dir = output_dir / block.name

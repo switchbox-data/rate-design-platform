@@ -88,7 +88,9 @@ def summarize_bills_by_subclass(
         )
         for bill_type, lf in bills.items()
     ]
-    return pl.concat(frames).select(["bill_type", _HP, "bill_mean_weighted", "customers_weighted"])
+    return pl.concat(frames).select(
+        ["bill_type", _HP, "bill_mean_weighted", "customers_weighted"]
+    )
 
 
 def summarize_bat_by_subclass(
@@ -178,8 +180,12 @@ def compute_bill_deltas(
 
     return _collect(
         _mean_by_subclass(bills_a, "bill_mean_a")
-        .join(_mean_by_subclass(bills_b, "bill_mean_b").drop("customers_weighted"), on=_HP)
-        .with_columns((pl.col("bill_mean_b") - pl.col("bill_mean_a")).alias("bill_delta"))
+        .join(
+            _mean_by_subclass(bills_b, "bill_mean_b").drop("customers_weighted"), on=_HP
+        )
+        .with_columns(
+            (pl.col("bill_mean_b") - pl.col("bill_mean_a")).alias("bill_delta")
+        )
     )
 
 
