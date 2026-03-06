@@ -5,12 +5,12 @@
 #   latest_run_output.sh <scenario_config> <run_num>
 #
 # Reads run_name and path_outputs from the scenario YAML. path_outputs contains
-# an <execution_time> placeholder, e.g.:
-#   /data.sb/.../ny/coned/<execution_time>/ny_coned_run1_up00_precalc__flat
+# a <batch> placeholder, e.g.:
+#   /data.sb/.../ny/coned/<batch>/ny_coned_run1_up00_precalc__flat
 #
 # The script goes two levels up from path_outputs to get the utility base dir
-# (past <execution_time>/ and the run name), converts it to an S3 URI, finds the
-# latest execution_time directory, and searches ONLY within it for *_<run_name>/.
+# (past <batch>/ and the run name), converts it to an S3 URI, finds the
+# latest batch directory, and searches ONLY within it for *_<run_name>/.
 #
 # Prints the full S3 URI (no trailing slash) so callers can safely append /filename.
 # Exits non-zero with a helpful message on stderr if no match is found.
@@ -26,8 +26,8 @@ scenario_config="$1"
 run_num="$2"
 
 # Extract run_name and utility base dir from YAML via Python (pyyaml).
-# path_outputs contains <execution_time>, so we go two levels up to get the
-# utility-level directory (past <execution_time>/ and the run name basename).
+# path_outputs contains <batch>, so we go two levels up to get the
+# utility-level directory (past <batch>/ and the run name basename).
 read -r run_name base_dir < <(
   uv run python3 -c "
 import sys, yaml, os
@@ -57,8 +57,8 @@ s3_parent="${base_dir/#\/data.sb\//s3://data.sb/}"
 # Ensure trailing slash for S3 prefix listing
 [[ "$s3_parent" == */ ]] || s3_parent="${s3_parent}/"
 
-# Find the latest execution_time directory
-latest_et=$(
+# Find the latest batch directory
+latest_batch=$(
   aws s3 ls "$s3_parent" 2>/dev/null |
     grep -F "PRE" |
     awk '{print $NF}' |
@@ -66,14 +66,14 @@ latest_et=$(
     tail -1
 ) || true
 
-if [[ -z "$latest_et" ]]; then
-  echo "No execution-time directories found under ${s3_parent}" >&2
+if [[ -z "$latest_batch" ]]; then
+  echo "No batch directories found under ${s3_parent}" >&2
   exit 1
 fi
 
-# Search ONLY within the latest execution_time dir for *_<run_name>/
+# Search ONLY within the latest batch dir for *_<run_name>/
 match=$(
-  aws s3 ls "${s3_parent}${latest_et}" 2>/dev/null |
+  aws s3 ls "${s3_parent}${latest_batch}" 2>/dev/null |
     grep -F "PRE" |
     awk '{print $NF}' |
     grep -F "${run_name}" |
@@ -82,12 +82,12 @@ match=$(
 ) || true
 
 if [[ -z "$match" ]]; then
-  echo "Run '${run_name}' not found in latest batch ${latest_et%/}" >&2
-  echo "  Searched: ${s3_parent}${latest_et}" >&2
+  echo "Run '${run_name}' not found in latest batch ${latest_batch%/}" >&2
+  echo "  Searched: ${s3_parent}${latest_batch}" >&2
   echo "  Re-run it in the current batch, or run a full batch." >&2
   exit 1
 fi
 
 # Strip trailing slash so "${run_dir}/filename" does not produce double slash
-result="${s3_parent}${latest_et}${match}"
+result="${s3_parent}${latest_batch}${match}"
 echo "${result%/}"
