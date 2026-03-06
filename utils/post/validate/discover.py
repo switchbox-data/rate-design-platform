@@ -94,9 +94,7 @@ def _find_run_dir(
     run_name_suffix = f"_{run_name}"  # Run dirs are named {cairo_ts}_{run_name}
 
     paginator = s3_client.get_paginator("list_objects_v2")
-    for page in paginator.paginate(
-        Bucket=bucket, Prefix=batch_prefix, Delimiter="/"
-    ):
+    for page in paginator.paginate(Bucket=bucket, Prefix=batch_prefix, Delimiter="/"):
         for entry in page.get("CommonPrefixes", []):
             entry_prefix = entry["Prefix"]
             dir_name = entry_prefix[len(batch_prefix) :].rstrip("/")
@@ -202,8 +200,7 @@ def resolve_batch(
         )
     if not batch_name.startswith(f"{state_lower}_"):
         raise ValueError(
-            f"batch_name must start with state '{state_lower}_', "
-            f"got: {batch_name!r}"
+            f"batch_name must start with state '{state_lower}_', got: {batch_name!r}"
         )
 
     s3_client = boto3.client("s3")

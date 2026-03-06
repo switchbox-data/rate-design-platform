@@ -22,15 +22,13 @@ from utils.post.validate.checks import (
     check_weights_sum_to_n_customers,
 )
 from utils.post.validate.load import (
-    compute_weighted_loads_by_subclass,
+    compute_weighted_loads_by_subclass_from_collected,
     load_all_mc_components,
     load_bat,
     load_bills,
-    load_hourly_loads_by_subclass,
     load_input_tariff,
     load_metadata,
     load_revenue_requirement,
-    load_seasonal_discount_inputs,
     load_tariff_config,
     scan_utility_loads,
 )
@@ -75,15 +73,13 @@ __all__ = [
     "check_tariff_unchanged",
     "check_weights_sum_to_n_customers",
     # load
-    "compute_weighted_loads_by_subclass",
+    "compute_weighted_loads_by_subclass_from_collected",
     "load_all_mc_components",
     "load_bat",
     "load_bills",
-    "load_hourly_loads_by_subclass",
     "load_input_tariff",
     "load_metadata",
     "load_revenue_requirement",
-    "load_seasonal_discount_inputs",
     "load_tariff_config",
     "scan_utility_loads",
     # tables
