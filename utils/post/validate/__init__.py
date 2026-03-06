@@ -29,6 +29,19 @@ from utils.post.validate.load import (
     load_seasonal_discount_inputs,
     load_tariff_config,
 )
+from utils.post.validate.plots import (
+    plot_avg_bills_by_subclass,
+    plot_bat_by_subclass,
+    plot_bat_heatmap,
+    plot_bill_deltas,
+    plot_hourly_loads_by_subclass,
+    plot_nonhp_composition,
+    plot_revenue_vs_rr,
+    plot_subclass_rr_stacked,
+    plot_tariff_comparison,
+    plot_tariff_stability,
+    plot_weighted_customer_counts,
+)
 from utils.post.validate.tables import (
     compute_bill_deltas,
     summarize_bat_by_subclass,
@@ -66,4 +79,16 @@ __all__ = [
     "summarize_nonhp_composition",
     "summarize_revenue",
     "summarize_tariff_rates",
+    # plots
+    "plot_avg_bills_by_subclass",
+    "plot_bat_by_subclass",
+    "plot_bat_heatmap",
+    "plot_bill_deltas",
+    "plot_hourly_loads_by_subclass",
+    "plot_nonhp_composition",
+    "plot_revenue_vs_rr",
+    "plot_subclass_rr_stacked",
+    "plot_tariff_comparison",
+    "plot_tariff_stability",
+    "plot_weighted_customer_counts",
 ]
