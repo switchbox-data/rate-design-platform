@@ -114,7 +114,7 @@ def plot_bill_deltas(
     return (
         ggplot(df, aes("subclass", "bill_delta", fill="subclass"))
         + geom_col(width=0.6)
-        + geom_hline(yintercept=0, linetype="dashed", color="grey40")
+        + geom_hline(yintercept=0, linetype="dashed", color="#666666")
         + scale_fill_manual(values=_HP_COLORS)
         + labs(x=None, y="Bill Change ($/yr)", fill="Subclass", title=title)
         + theme_minimal()
@@ -144,7 +144,7 @@ def plot_bat_by_subclass(
     return (
         ggplot(df, aes("subclass", "BAT_percustomer_wavg", fill="subclass"))
         + geom_col(width=0.6)
-        + geom_hline(yintercept=0, linetype="dashed", color="grey40")
+        + geom_hline(yintercept=0, linetype="dashed", color="#666666")
         + scale_fill_manual(values=_HP_COLORS)
         + labs(x=None, y="Weighted Avg BAT ($/cust-yr)", fill="Subclass", title=title)
         + theme_minimal()
