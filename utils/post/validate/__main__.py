@@ -7,7 +7,7 @@ Usage::
 
     uv run python -m utils.post.validate \\
         --state ny --utility coned \\
-        [--batch-name ny_20250115_a] \\
+        [--batch-name ny_20260305a_r1-2] \\
         [--runs 1,2,3,4,5,6,7,8] \\
         [--output-dir validation_outputs/coned]
 """
@@ -83,7 +83,7 @@ def _parse_args() -> argparse.Namespace:
         "--batch-name",
         default=None,
         dest="batch_name",
-        help="Batch name in {state}_{YYYYMMDD}_{letter} format (e.g. 'ny_20250115_a'); "
+        help="Batch name in {state}_{YYYYMMDD}{letter}_r{run_range} format (e.g. 'ny_20260305a_r1-2'); "
         "omit to use latest complete batch",
     )
     p.add_argument(

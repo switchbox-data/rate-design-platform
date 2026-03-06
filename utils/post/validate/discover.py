@@ -6,7 +6,7 @@ Locates the latest complete batch of runs under:
 Each batch_name directory contains one subdirectory per CAIRO run, named:
   {cairo_ts}_{run_name}/
 
-Batch names follow the format: {state}_{YYYYMMDD}_{letter} (e.g., "ny_20250115_a").
+Batch names follow the format: {state}_{YYYYMMDD}{letter}_r{run_range} (e.g., "ny_20260305a_r1-2").
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ import boto3
 # S3 bucket that holds all CAIRO outputs for this platform.
 _CAIRO_OUTPUT_BUCKET = "data.sb"
 
-# Batch name format: {state}_{YYYYMMDD}_{letter} (e.g., "ny_20250115_a")
-_BATCH_NAME_RE = re.compile(r"^[a-z]{2}_\d{8}_[a-z]$")
+# Batch name format: {state}_{YYYYMMDD}{letter}_r{run_range} (e.g., "ny_20260305a_r1-2")
+_BATCH_NAME_RE = re.compile(r"^[a-z]{2}_\d{8}[a-z]_r\d+-\d+$")
 
 
 def _cairo_output_prefix(state: str, utility: str) -> str:
@@ -36,7 +36,7 @@ def _list_batch_names(
 ) -> list[str]:
     """List CAIRO batch name directories under a utility prefix, sorted ascending.
 
-    Filters to entries matching the {state}_{YYYYMMDD}_{letter} pattern so stray objects
+    Filters to entries matching the {state}_{YYYYMMDD}{letter}_r{run_range} pattern so stray objects
     or unrelated prefixes are ignored. Only includes batches for the given state.
 
     Args:
@@ -46,7 +46,7 @@ def _list_batch_names(
         state: State abbreviation (e.g. ``"ny"``, ``"ri"``) to filter batch names.
 
     Returns:
-        Sorted list of batch name strings (e.g. ``["ny_20250115_a", ...]``).
+        Sorted list of batch name strings (e.g. ``["ny_20260305a_r1-2", ...]``).
     """
     utility_prefix = utility_prefix.rstrip("/") + "/"
     batch_names: list[str] = []
@@ -127,7 +127,7 @@ def find_latest_complete_batch(
 
     Returns:
         ``(batch_name, {run_num: s3_dir})`` where:
-        - ``batch_name`` is the batch name string (e.g. ``"ny_20250115_a"``).
+        - ``batch_name`` is the batch name string (e.g. ``"ny_20260305a_r1-2"``).
         - ``s3_dir`` is the full ``s3://`` URI to each run directory (no trailing slash).
 
     Raises:
@@ -183,8 +183,8 @@ def resolve_batch(
     Args:
         state: State abbreviation (e.g. ``"ny"``, ``"ri"``; case-insensitive).
         utility: Utility identifier (e.g. ``"coned"``, ``"rie"``; case-insensitive).
-        batch_name: Batch name string in {state}_{YYYYMMDD}_{letter} format
-            (e.g. ``"ny_20250115_a"``).
+        batch_name: Batch name string in {state}_{YYYYMMDD}{letter}_r{run_range} format
+            (e.g. ``"ny_20260305a_r1-2"``).
         run_names: ``{run_num: run_name}`` mapping to resolve.
 
     Returns:
@@ -197,8 +197,8 @@ def resolve_batch(
     state_lower = state.lower()
     if not _BATCH_NAME_RE.match(batch_name):
         raise ValueError(
-            f"batch_name must be in {{state}}_{{YYYYMMDD}}_{{letter}} format "
-            f"(e.g. 'ny_20250115_a'), got: {batch_name!r}"
+            f"batch_name must be in {{state}}_{{YYYYMMDD}}{{letter}}_r{{run_range}} format "
+            f"(e.g. 'ny_20260305a_r1-2'), got: {batch_name!r}"
         )
     if not batch_name.startswith(f"{state_lower}_"):
         raise ValueError(
