@@ -93,12 +93,12 @@ latest_output                       := path_repo / "utils/mid/latest_run_output.
 # =============================================================================
 
 # Validate runs 1-8 for the current utility.
-# Omit timestamp to auto-detect the latest complete batch (runs 1-8) from S3.
-# Pass timestamp (YYYYMMDDTHHMMSSZ) to pin a specific execution_time cohort.
-validate-runs timestamp="" runs="1,2,3,4,5,6,7,8" path_output_dir="" path_resstock=path_resstock_release:
-    uv run python -m utils.post.validate \
+# Omit batch-name to auto-detect the latest complete batch (runs 1-8) from S3.
+# Pass batch-name (e.g. ny_20260305a_r1-2) to pin a specific batch.
+validate-runs batch_name="" runs="1,2,3,4,5,6,7,8" path_output_dir="" path_resstock=path_resstock_release:
+    cd "{{path_repo}}" && uv run python -m utils.post.validate \
         --state "{{state}}" --utility "{{utility}}" \
-        {{ if timestamp != "" { "--timestamp \"" + timestamp + "\"" } else { "" } }} \
+        {{ if batch_name != "" { "--batch-name \"" + batch_name + "\"" } else { "" } }} \
         --runs "{{runs}}" \
         {{ if path_output_dir != "" { "--output-dir \"" + path_output_dir + "\"" } else { "" } }} \
         --skip-loads

@@ -37,6 +37,8 @@ rate_design/hp_rates/ny/config/resstock/loads/
 rate_design/hp_rates/ny/config/resstock/results_*.parquet
 outputs/
 site/
+validation_outputs/
+rate_design/hp_rates/*/validation_outputs/
 
 # Python packaging/build artifacts
 *.pyc
