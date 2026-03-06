@@ -162,7 +162,7 @@ add-vulnerability-columns release state upgrade_ids input_metadata_filename outp
         --state "{{state}}" \
         --upgrade_ids "{{upgrade_ids}}"
 
-add-vulneratbility-columns-NY-all-upgrades:
+add-vulnerability-columns-NY-all-upgrades:
     just add-vulnerability-columns {{resstock_release}} NY "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet" "{{pums_survey}}" "{{pums_year}}"
 
 
