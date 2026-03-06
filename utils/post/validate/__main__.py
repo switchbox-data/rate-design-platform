@@ -25,10 +25,13 @@ from utils.post.validate import (
     CheckResult,
     check_bat_direction,
     check_bat_near_zero,
+    check_bills_increase_with_supply,
+    check_hp_bat_increases_with_supply,
     check_nonhp_calibrated_above_original,
     check_nonhp_customers_in_upgrade02,
     check_output_completeness,
     check_revenue_neutrality,
+    check_seasonal_winter_below_summer,
     check_subclass_revenue_neutrality,
     check_subclass_rr_sums_to_total,
     check_tariff_unchanged,
@@ -219,6 +222,40 @@ def _validate_block(
             except Exception as e:
                 print(f"    ERROR creating bills plot for run {run_num}: {e}")
 
+    # --- Cross-run sanity checks (precalc blocks 1-2 and 5-6) ---
+    if block.revenue_neutral and len(runs) == 2:
+        (num_a, dir_a, _, meta_a, bills_a), (num_b, dir_b, _, _, bills_b) = runs[0], runs[1]
+        print(f"\n    Cross-run checks: run {num_a} vs run {num_b}")
+
+        # Bills must rise for both subclasses when supply is added
+        check_result, ok = _safe_execute(
+            f"check_bills_increase_with_supply(run {num_a}→{num_b})",
+            check_bills_increase_with_supply,
+            bills_a["comb"],
+            bills_b["comb"],
+            meta_a,
+            num_a,
+            num_b,
+        )
+        if ok and check_result is not None:
+            results.append(_emit(check_result))
+
+        # HP cross-subsidy should deepen (WARN only)
+        bat_a, bat_a_ok = _safe_execute(f"load_bat(run {num_a})", load_bat, dir_a)
+        bat_b, bat_b_ok = _safe_execute(f"load_bat(run {num_b})", load_bat, dir_b)
+        if bat_a_ok and bat_b_ok and bat_a is not None and bat_b is not None:
+            check_result, ok = _safe_execute(
+                f"check_hp_bat_increases_with_supply(run {num_a}→{num_b})",
+                check_hp_bat_increases_with_supply,
+                bat_a,
+                bat_b,
+                meta_a,
+                num_a,
+                num_b,
+            )
+            if ok and check_result is not None:
+                results.append(_emit(check_result))
+
     # --- Revenue neutrality (precalc runs 1-2, 5-6) ---
     if block.revenue_neutral:
         has_sub = block.configs[0].has_subclasses
@@ -376,6 +413,26 @@ def _validate_block(
                     )
                 except Exception as e:
                     print(f"    ERROR creating BAT plots for run {run_num}: {e}")
+
+    # --- Seasonal rate ordering: winter rate < summer rate (seasonal precalc blocks) ---
+    _seasonal_types = {"seasonal", "seasonalTOU", "seasonalTOU_flex"}
+    if block.bat_relevant and any(c.tariff_type in _seasonal_types for c in block.configs):
+        print(f"\n    Seasonal rate ordering check — period→season mapping:")
+        for run_num, run_dir, config, _, _ in runs:
+            if config.tariff_type not in _seasonal_types:
+                continue
+            tariff, tariff_ok = _safe_execute(
+                f"load_tariff_config(run {run_num})", load_tariff_config, run_dir
+            )
+            if tariff_ok and tariff is not None:
+                check_result, ok = _safe_execute(
+                    f"check_seasonal_winter_below_summer(run {run_num})",
+                    check_seasonal_winter_below_summer,
+                    tariff,
+                    run_num,
+                )
+                if ok and check_result is not None:
+                    results.append(_emit(check_result))
 
     # --- Tariff stability + bill deltas (default runs 3-4, 7-8) ---
     if block.tariff_should_be_unchanged:

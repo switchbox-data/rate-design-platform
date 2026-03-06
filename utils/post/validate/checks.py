@@ -586,6 +586,261 @@ def check_nonhp_customers_in_upgrade02(metadata: pl.LazyFrame) -> CheckResult:
     )
 
 
+# ---------------------------------------------------------------------------
+# Cross-run check helpers
+# ---------------------------------------------------------------------------
+
+# Month indices for season classification (0 = Jan … 11 = Dec)
+_SUMMER_MONTHS: frozenset[int] = frozenset({5, 6, 7, 8})   # Jun–Sep
+_WINTER_MONTHS: frozenset[int] = frozenset({11, 0, 1, 2})  # Dec–Mar
+
+
+def _period_season_map(schedule: list[list[int]]) -> dict[int, str]:
+    """Map 1-based CAIRO period IDs to ``'summer'`` or ``'winter'``.
+
+    Args:
+        schedule: ``ur_ec_sched_weekday`` — a 12×24 list of 1-based period IDs
+            (one row per month, one value per hour).  Months with indices in
+            ``_SUMMER_MONTHS`` (Jun–Sep) count toward summer; months in
+            ``_WINTER_MONTHS`` (Dec–Mar) count toward winter.  Shoulder months
+            (Apr–May, Oct–Nov) are ignored for classification purposes.
+
+    Returns:
+        ``{period_id: 'summer' | 'winter'}`` for every period that appears in
+        a summer or winter month.  Periods that appear only in shoulder months
+        are omitted.
+    """
+    counts: dict[int, dict[str, int]] = {}
+    for month_idx, hours in enumerate(schedule):
+        season = (
+            "summer" if month_idx in _SUMMER_MONTHS
+            else "winter" if month_idx in _WINTER_MONTHS
+            else None
+        )
+        if season is None:
+            continue
+        for period_id in set(hours):
+            bucket = counts.setdefault(period_id, {"summer": 0, "winter": 0})
+            bucket[season] += 1
+    return {
+        pid: ("summer" if c["summer"] >= c["winter"] else "winter")
+        for pid, c in counts.items()
+    }
+
+
+# ---------------------------------------------------------------------------
+# Cross-run check functions
+# ---------------------------------------------------------------------------
+
+
+def check_bills_increase_with_supply(
+    bills_a: pl.LazyFrame,
+    bills_b: pl.LazyFrame,
+    metadata: pl.LazyFrame,
+    run_a: int,
+    run_b: int,
+) -> CheckResult:
+    """Check that weighted mean combined bills rise for both subclasses when supply is added.
+
+    Expected when comparing delivery+supply run (B) against a delivery-only run (A)
+    at the same upgrade level (e.g. run 2 vs run 1, or run 6 vs run 5).  Adding
+    supply cost recovery should push bills up for every subclass.
+
+    Args:
+        bills_a: Combined (elec+gas) bills LazyFrame for the delivery-only run.
+        bills_b: Combined (elec+gas) bills LazyFrame for the delivery+supply run.
+        metadata: LazyFrame with ``bldg_id``, ``weight``, and
+            ``postprocess_group.has_hp`` columns (same customers in both runs).
+        run_a: Run number for the delivery-only run (for logging).
+        run_b: Run number for the delivery+supply run (for logging).
+
+    Returns:
+        PASS when both HP and non-HP weighted mean annual bills are strictly
+        higher in run B; FAIL if either subclass shows equal or lower bills.
+    """
+    def _wavg_by_subclass(bills: pl.LazyFrame) -> dict[bool, float]:
+        rows = _collect(
+            bills.filter(pl.col(_MONTH_COL) == _ANNUAL_MONTH)
+            .join(metadata.select([_BLDG_COL, _WEIGHT_COL, _HP_COL]), on=_BLDG_COL)
+            .group_by(_HP_COL)
+            .agg(
+                (
+                    (pl.col(_BILL_COL) * pl.col(_WEIGHT_COL)).sum()
+                    / pl.col(_WEIGHT_COL).sum()
+                ).alias("wavg_bill")
+            )
+        )
+        return {row[_HP_COL]: row["wavg_bill"] for row in rows.iter_rows(named=True)}
+
+    a_by_sub = _wavg_by_subclass(bills_a)
+    b_by_sub = _wavg_by_subclass(bills_b)
+
+    details: list[dict[str, Any]] = []
+    failures: list[str] = []
+    for hp_val in sorted(a_by_sub.keys() | b_by_sub.keys()):
+        label = "HP" if hp_val else "Non-HP"
+        a_val = a_by_sub.get(hp_val, float("nan"))
+        b_val = b_by_sub.get(hp_val, float("nan"))
+        ok = b_val > a_val
+        details.append(
+            {"subclass": label, f"run{run_a}_avg_bill": a_val, f"run{run_b}_avg_bill": b_val, "increased": ok}
+        )
+        if not ok:
+            failures.append(f"{label}: ${a_val:,.2f} → ${b_val:,.2f}")
+
+    subclass_summary = "; ".join(
+        f"{'HP' if d['subclass'] == 'HP' else 'Non-HP'} ${d[f'run{run_a}_avg_bill']:,.2f} → ${d[f'run{run_b}_avg_bill']:,.2f}"
+        for d in details
+    )
+    return CheckResult(
+        name=f"bills_increase_run{run_a}_to_run{run_b}",
+        status="PASS" if not failures else "FAIL",
+        message=f"Combined bills run {run_a}→{run_b} — {subclass_summary}"
+        + (f" — FAIL: {'; '.join(failures)}" if failures else ""),
+        details={"subclasses": details, "run_a": run_a, "run_b": run_b},
+    )
+
+
+def check_seasonal_winter_below_summer(
+    tariff_config: dict[str, Any],
+    run_num: int,
+) -> CheckResult:
+    """Check that calibrated winter rates are below summer rates for seasonal tariffs.
+
+    Derives the period-to-season mapping from ``ur_ec_sched_weekday`` (CAIRO's
+    12×24 1-based schedule) and compares tier-1 rates from ``ur_ec_tou_mat``.
+    Prints the full period mapping to stdout so the reviewer can verify it.
+
+    Summer = Jun–Sep (month indices 5–8); Winter = Dec–Mar (indices 11, 0, 1, 2).
+    Shoulder months (Apr–May, Oct–Nov) are excluded from classification.
+
+    Args:
+        tariff_config: CAIRO internal tariff config dict (from
+            :func:`~utils.post.validate.load.load_tariff_config`).
+        run_num: Run number, used in the check name and log lines.
+
+    Returns:
+        PASS when every winter period rate (tier 1) is strictly below every
+        summer period rate (tier 1) across all tariff keys; FAIL otherwise.
+    """
+    failures: list[str] = []
+    all_period_lines: list[str] = []
+
+    for key, entry in tariff_config.items():
+        schedule = entry.get("ur_ec_sched_weekday")
+        tou_mat = entry.get("ur_ec_tou_mat", [])
+        if not schedule or not tou_mat:
+            continue
+
+        season_map = _period_season_map(schedule)
+
+        # Collect tier-1 rates per period (1-based period IDs in ur_ec_tou_mat)
+        tier1_rates: dict[int, float] = {
+            int(row[0]): float(row[4])
+            for row in tou_mat
+            if int(row[1]) == 1  # tier == 1
+        }
+
+        # Log period → season → rate mapping
+        for pid in sorted(season_map):
+            season = season_map[pid]
+            rate = tier1_rates.get(pid, float("nan"))
+            line = f"    run {run_num} {key} period {pid} → {season}: ${rate:.6f}/kWh"
+            all_period_lines.append(line)
+
+        summer_rates = {pid: r for pid, r in tier1_rates.items() if season_map.get(pid) == "summer"}
+        winter_rates = {pid: r for pid, r in tier1_rates.items() if season_map.get(pid) == "winter"}
+
+        for w_pid, w_rate in winter_rates.items():
+            for s_pid, s_rate in summer_rates.items():
+                if w_rate >= s_rate:
+                    failures.append(
+                        f"{key}: winter period {w_pid} (${w_rate:.6f}) ≥ summer period {s_pid} (${s_rate:.6f})"
+                    )
+
+    for line in all_period_lines:
+        print(line)
+
+    return CheckResult(
+        name=f"seasonal_winter_below_summer_run{run_num}",
+        status="PASS" if not failures else "FAIL",
+        message=(
+            f"Seasonal rates run {run_num}: winter < summer"
+            if not failures
+            else f"Seasonal rate ordering FAIL — {'; '.join(failures)}"
+        ),
+        details={"failures": failures, "period_mapping": all_period_lines},
+    )
+
+
+def check_hp_bat_increases_with_supply(
+    bat_a: pl.LazyFrame,
+    bat_b: pl.LazyFrame,
+    metadata: pl.LazyFrame,
+    run_a: int,
+    run_b: int,
+) -> CheckResult:
+    """Warn if HP cross-subsidy magnitude does not increase when supply is added.
+
+    HP customers underpay under a flat rate (``BAT_percustomer < 0``).  Adding
+    supply costs (run B vs run A) exposes additional cost causation, so the
+    per-customer cross-subsidy for HP customers should deepen — i.e.
+    ``|BAT_percustomer_wavg|`` should be larger in run B.
+
+    This is a sanity signal, not a hard contract: WARN (never FAIL).
+
+    Args:
+        bat_a: BAT LazyFrame for the delivery-only run.
+        bat_b: BAT LazyFrame for the delivery+supply run.
+        metadata: LazyFrame with ``bldg_id``, ``weight``, and
+            ``postprocess_group.has_hp`` columns (same customers in both runs).
+        run_a: Run number for the delivery-only run (for logging).
+        run_b: Run number for the delivery+supply run (for logging).
+
+    Returns:
+        PASS when ``|BAT_percustomer_wavg|`` is strictly larger for HP in run B;
+        WARN otherwise.
+    """
+    if "BAT_percustomer" not in bat_a.collect_schema() or "BAT_percustomer" not in bat_b.collect_schema():
+        return CheckResult(
+            name=f"hp_bat_increases_run{run_a}_to_run{run_b}",
+            status="WARN",
+            message=f"BAT_percustomer column missing, cannot compare run {run_a} vs {run_b}",
+            details={},
+        )
+
+    def _hp_bat_wavg(bat: pl.LazyFrame) -> float:
+        rows = _collect(
+            bat.join(metadata.select([_BLDG_COL, _WEIGHT_COL, _HP_COL]), on=_BLDG_COL)
+            .filter(pl.col(_HP_COL))
+            .select(
+                (
+                    (pl.col("BAT_percustomer") * pl.col(_WEIGHT_COL)).sum()
+                    / pl.col(_WEIGHT_COL).sum()
+                ).alias("wavg")
+            )
+        )
+        return float(rows["wavg"][0])
+
+    bat_a_hp = _hp_bat_wavg(bat_a)
+    bat_b_hp = _hp_bat_wavg(bat_b)
+    increased = abs(bat_b_hp) > abs(bat_a_hp)
+    return CheckResult(
+        name=f"hp_bat_increases_run{run_a}_to_run{run_b}",
+        status="PASS" if increased else "WARN",
+        message=(
+            f"HP BAT_percustomer run {run_a}→{run_b}: "
+            f"${bat_a_hp:+.2f} → ${bat_b_hp:+.2f} "
+            f"(|Δ|={'increased' if increased else 'did NOT increase'})"
+        ),
+        details={
+            f"hp_bat_wavg_run{run_a}": bat_a_hp,
+            f"hp_bat_wavg_run{run_b}": bat_b_hp,
+            "magnitude_increased": increased,
+        },
+    )
+
+
 def check_weights_sum_to_n_customers(metadata: pl.LazyFrame) -> CheckResult:
     """Check that HP + non-HP weights sum to the total weight.
 
