@@ -35,7 +35,7 @@ from utils.post.validate import (
     check_weights_sum_to_n_customers,
     compute_bill_deltas,
     compute_hourly_cost_of_service,
-    compute_weighted_loads_by_subclass,
+    compute_weighted_loads_by_subclass_from_collected,
     load_all_mc_components,
     load_bat,
     load_bills,
@@ -123,7 +123,6 @@ def _validate_block(
     output_dir: Path,
     *,
     skip_loads: bool = False,
-    loads_lf: pl.LazyFrame | None = None,
     mc_components: dict[str, pl.Series] | None = None,
 ) -> list[CheckResult]:
     nums = list(block.run_nums)
@@ -138,7 +137,8 @@ def _validate_block(
         d for d in dirs_opt if d is not None
     ]  # all present after guard above
 
-    print(f"\n  {block.name}: {block.description}")
+    run_nums_str = ", ".join(map(str, sorted(nums)))
+    print(f"\n  {block.name} (runs {run_nums_str}): {block.description}")
     block_dir = output_dir / block.name
     block_dir.mkdir(parents=True, exist_ok=True)
     plots = block_dir / "plots"
@@ -161,8 +161,13 @@ def _validate_block(
 
     # --- Bills summary + plots ---
     for run_num, _, _, meta, bills in runs:
+        run_dir = block_dir / f"run_{run_num}"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        print(
+            f"    Run {run_num}: Saving diagnostics to {run_dir.relative_to(output_dir)}/"
+        )
         summary = summarize_bills_by_subclass(bills, meta)
-        summary.write_csv(block_dir / f"bills_summary_run{run_num}.csv")
+        summary.write_csv(run_dir / "bills_summary.csv")
         _save(
             plot_avg_bills_by_subclass(
                 summary, f"Annual Bills by Subclass — Run {run_num}"
@@ -181,6 +186,11 @@ def _validate_block(
         )
 
         for run_num, _, config, meta, bills in runs:
+            run_dir = block_dir / f"run_{run_num}"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            print(
+                f"    Run {run_num}: Saving revenue diagnostics to {run_dir.relative_to(output_dir)}/"
+            )
             results.append(
                 _emit(
                     check_revenue_neutrality(
@@ -222,7 +232,7 @@ def _validate_block(
                 )
 
                 rev = summarize_revenue(bills["elec"], meta)
-                rev.write_csv(block_dir / f"revenue_summary_run{run_num}.csv")
+                rev.write_csv(run_dir / "revenue_summary.csv")
                 _save(
                     plot_revenue_vs_rr(rev, rr_vals, f"Revenue vs RR — Run {run_num}"),
                     plots / "revenue_neutrality" / f"revenue_vs_rr_run{run_num}.png",
@@ -239,12 +249,17 @@ def _validate_block(
     # --- BAT direction and magnitude (precalc runs 1-2, 5-6) ---
     if block.bat_relevant:
         for run_num, s3_dir, config, meta, _ in runs:
+            run_dir = block_dir / f"run_{run_num}"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            print(
+                f"    Run {run_num}: Saving BAT diagnostics to {run_dir.relative_to(output_dir)}/"
+            )
             bat = load_bat(s3_dir)
             results.append(_emit(check_bat_direction(bat, meta)))
             if config.has_subclasses:
                 results.append(_emit(check_bat_near_zero(bat, meta)))
             bat_summary = summarize_bat_by_subclass(bat, meta)
-            bat_summary.write_csv(block_dir / f"bat_summary_run{run_num}.csv")
+            bat_summary.write_csv(run_dir / "bat_summary.csv")
             _save(
                 plot_bat_by_subclass(bat_summary, f"Per-Customer BAT — Run {run_num}"),
                 plots / "cross_subsidy" / f"bat_by_subclass_run{run_num}.png",
@@ -261,6 +276,11 @@ def _validate_block(
             if (prev_dir := run_dirs.get(prev_num)) is None:
                 continue
 
+            run_output_dir = block_dir / f"run_{run_num}"
+            run_output_dir.mkdir(parents=True, exist_ok=True)
+            print(
+                f"    Run {run_num}: Saving tariff and bill delta diagnostics to {run_output_dir.relative_to(output_dir)}/"
+            )
             in_tariff, out_tariff = (
                 load_tariff_config(prev_dir),
                 load_tariff_config(run_dir),
@@ -270,8 +290,8 @@ def _validate_block(
                 summarize_tariff_rates(out_tariff),
             )
             results.append(_emit(check_tariff_unchanged(in_tariff, out_tariff)))
-            in_rates.write_csv(block_dir / f"tariff_rates_input_run{prev_num}.csv")
-            out_rates.write_csv(block_dir / f"tariff_rates_output_run{run_num}.csv")
+            in_rates.write_csv(run_output_dir / f"tariff_rates_input_run{prev_num}.csv")
+            out_rates.write_csv(run_output_dir / "tariff_rates_output.csv")
             _save(
                 plot_tariff_comparison(
                     in_rates, out_rates, f"Tariff: Run {prev_num} → {run_num}"
@@ -288,7 +308,7 @@ def _validate_block(
             delta = compute_bill_deltas(
                 load_bills(prev_dir, "elec"), bills["elec"], meta
             )
-            delta.write_csv(block_dir / f"bill_deltas_run{run_num}.csv")
+            delta.write_csv(run_output_dir / "bill_deltas.csv")
             _save(
                 plot_bill_deltas(delta, f"Bill Change — Run {run_num} vs {prev_num}"),
                 plots / f"bill_deltas_run{run_num}.png",
@@ -297,8 +317,13 @@ def _validate_block(
     # --- Non-HP composition (upgrade 02 runs 3-4, 7-8) ---
     if block.configs[0].upgrade == "2":
         for run_num, _, _, meta, _ in runs:
+            run_dir = block_dir / f"run_{run_num}"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            print(
+                f"    Run {run_num}: Saving non-HP composition diagnostics to {run_dir.relative_to(output_dir)}/"
+            )
             comp = summarize_nonhp_composition(meta)
-            comp.write_csv(block_dir / f"nonhp_composition_run{run_num}.csv")
+            comp.write_csv(run_dir / "nonhp_composition.csv")
             results.append(_emit(check_nonhp_customers_in_upgrade02(meta)))
             _save(
                 plot_nonhp_composition(comp, f"Non-HP Composition — Run {run_num}"),
@@ -317,60 +342,6 @@ def _validate_block(
                             load_tariff_config(orig_dir),
                         )
                     )
-                )
-
-    # --- Hourly loads by subclass + cost-of-service plots (when not skip_loads) ---
-    if not skip_loads and loads_lf is not None:
-        for run_num, _, _, meta, _ in runs:
-            meta_collected = meta.collect()
-            loads_df = compute_weighted_loads_by_subclass(loads_lf, meta_collected)
-            loads_df.write_csv(block_dir / f"loads_by_subclass_run{run_num}.csv")
-            _save(
-                plot_hourly_loads_by_subclass(
-                    loads_df, f"Hourly Loads by Subclass — Run {run_num}"
-                ),
-                plots / "loads" / f"hourly_loads_run{run_num}.png",
-            )
-
-            # Three cost-of-service plots per run (if MC components available)
-            if mc_components is not None:
-                # Delivery: dist_sub_tx + bulk_tx
-                mc_delivery = mc_components["dist_sub_tx"] + mc_components["bulk_tx"]
-                cos_delivery = compute_hourly_cost_of_service(loads_df, mc_delivery)
-                _save(
-                    plot_hourly_cost_of_service(
-                        cos_delivery,
-                        f"Hourly Cost of Service (Delivery) — Run {run_num}",
-                    ),
-                    plots / "loads" / f"hourly_cos_delivery_run{run_num}.png",
-                )
-
-                # Supply: supply_energy + supply_capacity
-                mc_supply = (
-                    mc_components["supply_energy"] + mc_components["supply_capacity"]
-                )
-                cos_supply = compute_hourly_cost_of_service(loads_df, mc_supply)
-                _save(
-                    plot_hourly_cost_of_service(
-                        cos_supply, f"Hourly Cost of Service (Supply) — Run {run_num}"
-                    ),
-                    plots / "loads" / f"hourly_cos_supply_run{run_num}.png",
-                )
-
-                # Combined: all four MC components
-                mc_combined = (
-                    mc_components["dist_sub_tx"]
-                    + mc_components["bulk_tx"]
-                    + mc_components["supply_energy"]
-                    + mc_components["supply_capacity"]
-                )
-                cos_combined = compute_hourly_cost_of_service(loads_df, mc_combined)
-                _save(
-                    plot_hourly_cost_of_service(
-                        cos_combined,
-                        f"Hourly Cost of Service (Combined) — Run {run_num}",
-                    ),
-                    plots / "loads" / f"hourly_cos_combined_run{run_num}.png",
                 )
 
     pl.DataFrame(
@@ -441,8 +412,10 @@ def main() -> None:
     else:
         print("  WARNING: Run 1 not found, skipping preprocessing")
 
-    # --- Load utility loads once (if not skip_loads) ---
-    loads_lf: pl.LazyFrame | None = None
+    # --- Load utility loads once per utility (if not skip_loads) ---
+    # All runs use the same upgrade-00 loads, so collect once for all buildings
+    # that appear in any run for this utility
+    loads_df: pl.DataFrame | None = None
     if not args.skip_loads:
         if 1 in configs:
             run1_config = configs[1]
@@ -452,6 +425,28 @@ def main() -> None:
             if path_loads:
                 print(f"  Loading ResStock loads from: {path_loads}")
                 loads_lf = scan_utility_loads(path_loads)
+
+                # Collect all metadata from all runs to get all bldg_ids for this utility
+                all_bldg_ids: set[int] = set()
+                for run_num in run_nums:
+                    if run_num in run_dirs:
+                        meta = load_metadata(run_dirs[run_num])
+                        meta_collected = meta.select("bldg_id").unique().collect()
+                        if isinstance(meta_collected, pl.DataFrame):
+                            bldg_ids = meta_collected.to_series().to_list()
+                            all_bldg_ids.update(bldg_ids)
+
+                # Collect loads once for all buildings across all runs
+                print(
+                    f"  Collecting loads for {len(all_bldg_ids)} buildings (once per utility)"
+                )
+                loads_df_collected = loads_lf.filter(
+                    pl.col("bldg_id").cast(pl.Int64).is_in(list(all_bldg_ids))
+                ).collect()
+                if isinstance(loads_df_collected, pl.DataFrame):
+                    loads_df = loads_df_collected
+                else:
+                    loads_df = None
             else:
                 print("  WARNING: path_resstock_loads not found in run 1 config")
         else:
@@ -467,6 +462,88 @@ def main() -> None:
         else:
             print("  WARNING: Run 2 config not found, skipping MC component load")
 
+    # --- Generate load-related outputs once per utility (if not skip_loads) ---
+    if not args.skip_loads and loads_df is not None:
+        # Use run 1 metadata (upgrade 00) for load outputs - same loads used by all runs
+        if 1 in run_dirs:
+            print("\n  Generating load-related outputs (once per utility)")
+            loads_output_dir = output_dir / "loads"
+            loads_output_dir.mkdir(parents=True, exist_ok=True)
+            loads_plots_dir = loads_output_dir / "plots"
+            loads_plots_dir.mkdir(parents=True, exist_ok=True)
+
+            meta_run1 = load_metadata(run_dirs[1])
+            meta_run1_collected = meta_run1.collect()
+
+            # Compute weighted loads by subclass
+            if isinstance(meta_run1_collected, pl.DataFrame) and loads_df is not None:
+                loads_by_subclass_df = (
+                    compute_weighted_loads_by_subclass_from_collected(
+                        loads_df, meta_run1_collected
+                    )
+                )
+                loads_by_subclass_df.write_csv(
+                    loads_output_dir / "loads_by_subclass.csv"
+                )
+                _save(
+                    plot_hourly_loads_by_subclass(
+                        loads_by_subclass_df, "Hourly Loads by Subclass"
+                    ),
+                    loads_plots_dir / "hourly_loads_by_subclass.png",
+                )
+
+                # Three cost-of-service plots (if MC components available)
+                if mc_components is not None:
+                    # Delivery: dist_sub_tx + bulk_tx
+                    mc_delivery = (
+                        mc_components["dist_sub_tx"] + mc_components["bulk_tx"]
+                    )
+                    cos_delivery = compute_hourly_cost_of_service(
+                        loads_by_subclass_df, mc_delivery
+                    )
+                    _save(
+                        plot_hourly_cost_of_service(
+                            cos_delivery, "Hourly Cost of Service (Delivery)"
+                        ),
+                        loads_plots_dir / "hourly_cos_delivery.png",
+                    )
+
+                    # Supply: supply_energy + supply_capacity
+                    mc_supply = (
+                        mc_components["supply_energy"]
+                        + mc_components["supply_capacity"]
+                    )
+                    cos_supply = compute_hourly_cost_of_service(
+                        loads_by_subclass_df, mc_supply
+                    )
+                    _save(
+                        plot_hourly_cost_of_service(
+                            cos_supply, "Hourly Cost of Service (Supply)"
+                        ),
+                        loads_plots_dir / "hourly_cos_supply.png",
+                    )
+
+                    # Combined: all four MC components
+                    mc_combined = (
+                        mc_components["dist_sub_tx"]
+                        + mc_components["bulk_tx"]
+                        + mc_components["supply_energy"]
+                        + mc_components["supply_capacity"]
+                    )
+                    cos_combined = compute_hourly_cost_of_service(
+                        loads_by_subclass_df, mc_combined
+                    )
+                    _save(
+                        plot_hourly_cost_of_service(
+                            cos_combined, "Hourly Cost of Service (Combined)"
+                        ),
+                        loads_plots_dir / "hourly_cos_combined.png",
+                    )
+            else:
+                print(
+                    "  WARNING: Could not collect metadata or loads, skipping load outputs"
+                )
+
     # --- Validate blocks ---
     all_results: list[CheckResult] = []
     for block in define_run_blocks(configs):
@@ -478,7 +555,6 @@ def main() -> None:
                 utility,
                 output_dir,
                 skip_loads=args.skip_loads,
-                loads_lf=loads_lf,
                 mc_components=mc_components,
             )
         )
