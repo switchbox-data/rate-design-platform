@@ -30,7 +30,7 @@ from plotnine import (
     theme_minimal,
 )
 
-RESSTOCK_LOCAL = "/ebs/data/nrel/resstock/res_2024_amy2018_2"
+RESSTOCK_LOCAL = "/ebs/data/nrel/resstock/res_2024_amy2018_2_sb"
 LOAD_COL = "out.electricity.total.energy_consumption"
 
 
