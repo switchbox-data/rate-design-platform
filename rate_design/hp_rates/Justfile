@@ -101,7 +101,7 @@ validate-runs timestamp="" runs="1,2,3,4,5,6,7,8" path_output_dir="" path_ressto
         {{ if timestamp != "" { "--timestamp \"" + timestamp + "\"" } else { "" } }} \
         --runs "{{runs}}" \
         {{ if path_output_dir != "" { "--output-dir \"" + path_output_dir + "\"" } else { "" } }} \
-        {{ if utility == "coned" { "--skip-loads" } else { "--resstock-base \"" + path_resstock + "\"" } }}
+        {{ if utility == "coned" { "--skip-loads" } else { "" } }}
 
 validate-config mode="warn":
   uv run python {{path_repo}}/utils/pre/validate_config.py \
