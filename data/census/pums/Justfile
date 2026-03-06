@@ -17,14 +17,14 @@
 # Paths use justfile_directory() so they work regardless of cwd.
 
 path_local_base := justfile_directory()
-path_local_zip := "{{path_local_base}}/zips"
-path_local_csv := "{{path_local_base}}/csv"
-path_local_parquet := "{{path_local_base}}/parquet"
+path_local_zip := path_local_base + "/zips"
+path_local_csv := path_local_base + "/csv"
+path_local_parquet := path_local_base + "/parquet"
 path_s3_parquet := "s3://data.sb/census/pums/"
 
 # Top-level defaults (override on CLI: just survey=acs1 end_year=2024 state=DC fetch)
 survey := "acs5"
-end_year := "2023"
+end_year := "2021"
 state := "all"
 record_type := "both"
 
