@@ -7,7 +7,7 @@ Usage::
 
     uv run python -m utils.post.validate \\
         --state ny --utility coned \\
-        [--timestamp 20260305T211404Z] \\
+        [--batch-name ny_20250115_a] \\
         [--runs 1,2,3,4,5,6,7,8] \\
         [--output-dir validation_outputs/coned]
 """
@@ -80,8 +80,9 @@ def _parse_args() -> argparse.Namespace:
         "--utility", required=True, help="Utility identifier (e.g. 'coned', 'rie')"
     )
     p.add_argument(
-        "--timestamp",
+        "--batch-name",
         default=None,
+        dest="batch_name",
         help="Batch name in {state}_{YYYYMMDD}_{letter} format (e.g. 'ny_20250115_a'); "
         "omit to use latest complete batch",
     )
@@ -391,12 +392,12 @@ def main() -> None:
     configs = load_run_configs_from_yaml(state, utility, run_nums)
     run_names = {n: c.run_name for n, c in configs.items()}
 
-    if args.timestamp:
-        execution_time = args.timestamp
-        run_dirs = resolve_batch(state, utility, execution_time, run_names)
+    if args.batch_name:
+        batch_name = args.batch_name
+        run_dirs = resolve_batch(state, utility, batch_name, run_names)
     else:
-        execution_time, run_dirs = find_latest_complete_batch(state, utility, run_names)
-        print(f"  Batch: {execution_time}")
+        batch_name, run_dirs = find_latest_complete_batch(state, utility, run_names)
+        print(f"  Batch: {batch_name}")
 
     if missing := sorted(set(run_nums) - run_dirs.keys()):
         print(f"  WARNING: Missing run dirs for runs: {missing}")
