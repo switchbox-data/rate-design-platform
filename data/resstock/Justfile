@@ -10,10 +10,12 @@
 
 path_local_repo := `git rev-parse --show-toplevel`
 resstock_release := "res_2024_amy2018_2"
+resstock_release_sb := "res_2024_amy2018_2_sb"
 resstock_upgrade_ids := "0 1 2 3 4 5"
 resstock_upgrade_ids_padded := "00 01 02 03 04 05"
 path_s3_parquet := "s3://data.sb/nrel/resstock"
 path_local_parquet := "/data.sb/nrel/resstock"
+path_s3_pums := "s3://data.sb/census/pums"
 
 # Download ResStock metadata and loads via bsf. Pass state: NY or RI (or both as space-separated).
 fetch state:
@@ -53,6 +55,23 @@ fetch-load-curve-annual state:
         --upgrade_id "{{resstock_upgrade_ids}}" \
         --output_directory {{path_local_parquet}} \
         --sample 0
+
+# Copy resstock data from one release to another.
+copy-resstock-data release_from release_to state upgrade_ids file_types:
+	uv run python "{{path_local_repo}}/utils/pre/copy_resstock_data.py" \
+		--data_path "{{path_s3_parquet}}" \
+		--release_from "{{release_from}}" \
+		--release_to "{{release_to}}" \
+		--state "{{state}}" \
+		--upgrade_ids "{{upgrade_ids}}" \
+		--file_types "{{file_types}}"
+
+copy-resstock-data-2024-amy2018-2-NY upgrade_ids file_types:
+	just copy-resstock-data {{resstock_release}} {{resstock_release_sb}} NY "{{upgrade_ids}}" "{{file_types}}"
+
+copy-resstock-data-2024-amy2018-2-RI upgrade_ids file_types:
+	just copy-resstock-data {{resstock_release}} {{resstock_release_sb}} RI "{{upgrade_ids}}" "{{file_types}}"
+
 
 # Verify ResStock download. Pass state (NY or RI).
 test-download state:
@@ -129,27 +148,33 @@ resstock-identify-hp-customers state:
 
 # Add vulnerability columns (random placeholder) to metadata-sb.parquet.
 # Safe to re-run: drops pre-existing vulnerability columns before adding.
-add-vulnerability-columns release state upgrade_ids input_filename output_filename:
-    #!/usr/bin/env bash
-    set -e
-    for upgrade_id in {{upgrade_ids}}; do
-        uv run python "{{path_local_repo}}/data/resstock/add_vulnerability_columns.py" \
-            --input_dir "{{path_s3_parquet}}/{{release}}/metadata/state={{state}}/upgrade=$upgrade_id" \
-            --output_dir "{{path_s3_parquet}}/{{release}}/metadata/state={{state}}/upgrade=$upgrade_id" \
-            --input_filename "{{input_filename}}" \
-            --output_filename "{{output_filename}}" \
-            --upgrade_id "$upgrade_id"
-    done
+add-vulnerability-columns release state upgrade_ids input_metadata_filename output_metadata_filename pums_type pums_year:
+    uv run python "{{path_local_repo}}/data/resstock/add_vulnerability_columns.py" \
+        --input_metadata_dir "{{path_s3_parquet}}/{{release}}/metadata/" \
+        --output_metadata_dir "{{path_s3_parquet}}/{{release}}/metadata/" \
+        --input_pums_dir "{{path_s3_pums}}/{{pums_type}}/{{pums_year}}/person/" \
+        --input_metadata_filename "{{input_metadata_filename}}" \
+        --output_metadata_filename "{{output_metadata_filename}}" \
+        --state "{{state}}" \
+        --upgrade_ids "{{upgrade_ids}}"
 
-add-vulnerability-columns-all-upgrades state:
-    just add-vulnerability-columns {{resstock_release}} {{state}} "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet"
+add-vulneratbility-columns-NY-all-upgrades:
+    just add-vulnerability-columns {{resstock_release}} NY "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet" "acs5" "2023"
 
-# Full NY metadata pipeline: HP customers → heating type → vulnerability columns.
+
+# Full NY metadata pipeline: HP customers → heating type → natural gas connection → vulnerability columns.
 # Pass lmi="false" to skip vulnerability (e.g. for runs that don't need LMI discounts).
 prepare-metadata-ny lmi="true":
     just identify-hp-customers {{resstock_release}} NY "{{resstock_upgrade_ids_padded}}" "metadata.parquet" "metadata-sb.parquet"
     just identify-heating-type {{resstock_release}} NY "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet"
+    just identify-natgas-connection {{resstock_release}} NY "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet"
     {{ if lmi == "true" { "just add-vulnerability-columns " + resstock_release + " NY \"" + resstock_upgrade_ids_padded + "\" \"metadata-sb.parquet\" \"metadata-sb.parquet\"" } else { "echo 'Skipping vulnerability columns (lmi=false)'" } }}
+
+# Full RI metadata pipeline: HP customers → heating type → natural gas connection.
+prepare-metadata-ri:
+    just identify-hp-customers {{resstock_release}} RI "{{resstock_upgrade_ids_padded}}" "metadata.parquet" "metadata-sb.parquet"
+    just identify-heating-type {{resstock_release}} RI "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet"
+    just identify-natgas-connection {{resstock_release}} RI "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet"
 
 # =============================================================================
 # NY-only: polygon downloads (data prep for utility assignment)
@@ -193,3 +218,51 @@ assign-utility-ri release upgrade:
         --input_metadata_filename "metadata-sb.parquet" \
         --output_metadata_dir "{{path_s3_parquet}}/{{release}}/metadata_utility/state=RI/" \
         --output_utility_assignment_filename "utility_assignment.parquet" \
+
+# Approximate non-HP load for a state
+approximate-non-hp-load state upgrade_id input_release output_release k update_MF update_other_fuel_types:
+    uv run python "{{path_local_repo}}/utils/pre/approximate_non_hp_load.py" \
+        --path_s3 "{{path_s3_parquet}}" \
+        --state "{{state}}" \
+        --upgrade_id "{{upgrade_id}}" \
+        --input_release "{{input_release}}" \
+        --output_release "{{output_release}}" \
+        --k "{{k}}" \
+        --update_MF "{{update_MF}}" \
+        --update_other_fuel_types "{{update_other_fuel_types}}"
+
+adjust-mf-electricity state input_release output_release upgrade_ids:
+    uv run python "{{path_local_repo}}/utils/pre/adjust_mf_electricity.py" \
+        --path_s3 "{{path_s3_parquet}}" \
+        --state "{{state}}" \
+        --input_release "{{input_release}}" \
+        --output_release "{{output_release}}" \
+        --upgrade_ids "{{upgrade_ids}}"
+
+adjust-mf-electricity-NY-upgrade-00:
+    just adjust-mf-electricity NY res_2024_amy2018_2 res_2024_amy2018_2_sb "00"
+
+adjust-mf-electricity-NY-upgrade-02:
+    just adjust-mf-electricity NY res_2024_amy2018_2 res_2024_amy2018_2_sb "02"
+
+adjust-mf-electricity-RI-upgrade-00:
+    just adjust-mf-electricity RI res_2024_amy2018_2 res_2024_amy2018_2_sb "00"
+
+adjust-mf-electricity-RI-upgrade-02:
+    just adjust-mf-electricity RI res_2024_amy2018_2 res_2024_amy2018_2_sb "02"
+
+create-sb-release-for-upgrade-02-NY:
+    just prepare-metadata-ny lmi="true"
+    just copy-resstock-data-2024-amy2018-2-NY "00 02" "metadata metadata_utility load_curve_hourly" # Copy data to new sb release
+    just approximate-non-hp-load NY 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True # Approximate non-HP load for upgrade 02
+    just adjust-mf-electricity-NY-upgrade-00
+    just adjust-mf-electricity-NY-upgrade-02
+    sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/
+
+create-sb-release-for-upgrade-02-RI:
+    just prepare-metadata-ri
+    just copy-resstock-data-2024-amy2018-2-RI "00 02" "metadata metadata_utility load_curve_hourly" # Copy data to new sb release
+    just approximate-non-hp-load RI 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True # Approximate non-HP load for upgrade 02
+    just adjust-mf-electricity-RI-upgrade-00
+    just adjust-mf-electricity-RI-upgrade-02
+    sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/
