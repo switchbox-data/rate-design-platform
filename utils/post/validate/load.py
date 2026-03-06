@@ -23,6 +23,7 @@ import yaml
 
 from utils import get_project_root
 from utils.loads import ELECTRIC_LOAD_COL, scan_resstock_loads
+from utils.post.validate.config import RunConfig
 
 BillType = Literal["elec", "gas", "comb"]
 
@@ -176,7 +177,9 @@ def load_hourly_loads_by_subclass(
                 .cast(pl.String, strict=False)
                 .str.to_datetime(strict=False)
                 .alias("_ts"),
-                (pl.col(ELECTRIC_LOAD_COL).cast(pl.Float64) * pl.col(_WEIGHT)).alias("_wload"),
+                (pl.col(ELECTRIC_LOAD_COL).cast(pl.Float64) * pl.col(_WEIGHT)).alias(
+                    "_wload"
+                ),
                 pl.col(_WEIGHT).cast(pl.Float64),
             )
             .group_by("_ts")
@@ -194,3 +197,138 @@ def load_hourly_loads_by_subclass(
         frames.append(group_df)
 
     return pl.concat(frames)
+
+
+def scan_utility_loads(path_resstock_loads: str) -> pl.LazyFrame:
+    """Scan ResStock load curves from a local directory path.
+
+    The path should point to the upgrade-00 partition directory
+    (e.g. /ebs/data/.../load_curve_hourly/state=NY/upgrade=00/).
+
+    Args:
+        path_resstock_loads: Local path to the ResStock load curves directory
+            for upgrade 00 (already partitioned, no hive kwargs needed).
+
+    Returns:
+        LazyFrame of hourly load data with columns including ``bldg_id``,
+        ``timestamp``, and ``out.electricity.net.energy_consumption``.
+    """
+    return pl.scan_parquet(path_resstock_loads)
+
+
+def compute_weighted_loads_by_subclass(
+    loads_lf: pl.LazyFrame,
+    metadata_df: pl.DataFrame,
+) -> pl.DataFrame:
+    """Compute weighted hourly loads by HP/non-HP subclass from pre-scanned loads.
+
+    Mirrors the per-group logic in ``load_hourly_loads_by_subclass`` but accepts
+    a pre-scanned ``loads_lf`` and an already-collected ``metadata_df``.
+
+    Args:
+        loads_lf: Pre-scanned LazyFrame of ResStock load curves (upgrade 00).
+        metadata_df: Collected DataFrame with ``bldg_id``, ``weight``, and
+            ``postprocess_group.has_hp`` columns.
+
+    Returns:
+        DataFrame with columns: ``hour`` (int, 0–8759), ``subclass``
+        (``"HP"`` / ``"Non-HP"``), ``total_weighted_load_kwh`` (sum, for
+        cost-of-service), and ``load_kwh`` (weighted mean, for the load plot).
+    """
+    _HP = "postprocess_group.has_hp"
+    _BLDG = "bldg_id"
+    _WEIGHT = "weight"
+
+    frames = []
+    for hp_val, label in [(True, "HP"), (False, "Non-HP")]:
+        group_meta = metadata_df.filter(pl.col(_HP) == hp_val)
+        if group_meta.is_empty():
+            continue
+        bldg_ids = group_meta[_BLDG].cast(pl.Int64).to_list()
+        weights_lf = group_meta.select(
+            pl.col(_BLDG).cast(pl.Int64),
+            pl.col(_WEIGHT).cast(pl.Float64),
+        ).lazy()
+        group_df = (
+            loads_lf.filter(pl.col(_BLDG).cast(pl.Int64).is_in(bldg_ids))
+            .join(weights_lf, on=_BLDG, how="inner")
+            .select(
+                pl.col("timestamp")
+                .cast(pl.String, strict=False)
+                .str.to_datetime(strict=False)
+                .alias("_ts"),
+                (pl.col(ELECTRIC_LOAD_COL).cast(pl.Float64) * pl.col(_WEIGHT)).alias(
+                    "_wload"
+                ),
+                pl.col(_WEIGHT).cast(pl.Float64),
+            )
+            .group_by("_ts")
+            .agg(
+                pl.col("_wload").sum().alias("total_weighted_load_kwh"),
+                pl.col(_WEIGHT).sum().alias("_weight_sum"),
+            )
+            .with_columns(
+                (pl.col("total_weighted_load_kwh") / pl.col("_weight_sum")).alias(
+                    "load_kwh"
+                )
+            )
+            .sort("_ts")
+            .with_row_index("hour")
+            .select(["hour", "total_weighted_load_kwh", "load_kwh"])
+            .with_columns(pl.lit(label).alias("subclass"))
+            .collect()
+        )
+        frames.append(group_df)
+
+    return pl.concat(frames)
+
+
+def load_all_mc_components(run2_config: RunConfig) -> dict[str, pl.Series]:
+    """Load all four marginal cost components from run 2 config paths.
+
+    Run 2 is used because it is the first run with ``run_includes_supply: true``,
+    giving real (non-zero) supply MC paths.
+
+    Args:
+        run2_config: RunConfig for run 2 (has real supply MCs).
+
+    Returns:
+        Dict with keys: ``"dist_sub_tx"``, ``"bulk_tx"``, ``"supply_energy"``,
+        ``"supply_capacity"``. Each value is a Series of 8760 floats ($/kWh)
+        aligned to hour index (0–8759). Supply components are converted from
+        $/MWh to $/kWh (÷1000).
+    """
+    # Load dist+sub-tx MC
+    dist_sub_tx_df = pl.read_parquet(run2_config.path_dist_and_sub_tx_mc)
+    dist_sub_tx_df = dist_sub_tx_df.sort("timestamp").with_row_index("hour")
+    dist_sub_tx_series = dist_sub_tx_df["mc_total_per_kwh"].cast(pl.Float64)
+
+    # Load bulk TX MC (optional, may be None)
+    if run2_config.path_bulk_tx_mc:
+        bulk_tx_df = pl.read_parquet(run2_config.path_bulk_tx_mc)
+        bulk_tx_df = bulk_tx_df.sort("timestamp").with_row_index("hour")
+        bulk_tx_series = bulk_tx_df["bulk_tx_cost_enduse"].cast(pl.Float64)
+    else:
+        # Create zero series if bulk_tx_mc is not provided
+        bulk_tx_series = pl.Series("bulk_tx", [0.0] * 8760)
+
+    # Load supply energy MC (convert $/MWh → $/kWh)
+    supply_energy_df = pl.read_parquet(run2_config.path_supply_energy_mc)
+    supply_energy_df = supply_energy_df.sort("timestamp").with_row_index("hour")
+    supply_energy_series = (
+        supply_energy_df["energy_cost_enduse"].cast(pl.Float64) / 1000.0
+    )
+
+    # Load supply capacity MC (convert $/MWh → $/kWh)
+    supply_capacity_df = pl.read_parquet(run2_config.path_supply_capacity_mc)
+    supply_capacity_df = supply_capacity_df.sort("timestamp").with_row_index("hour")
+    supply_capacity_series = (
+        supply_capacity_df["capacity_cost_enduse"].cast(pl.Float64) / 1000.0
+    )
+
+    return {
+        "dist_sub_tx": dist_sub_tx_series,
+        "bulk_tx": bulk_tx_series,
+        "supply_energy": supply_energy_series,
+        "supply_capacity": supply_capacity_series,
+    }

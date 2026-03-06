@@ -231,7 +231,9 @@ def summarize_customer_counts(metadata: pl.LazyFrame) -> pl.DataFrame:
     """
     return (
         _collect(
-            metadata.group_by(_HP).agg(pl.col(_WEIGHT).sum().alias("customers_weighted"))
+            metadata.group_by(_HP).agg(
+                pl.col(_WEIGHT).sum().alias("customers_weighted")
+            )
         )
         .with_columns(
             pl.when(pl.col(_HP))
@@ -266,4 +268,80 @@ def summarize_nonhp_composition(metadata: pl.LazyFrame) -> pl.DataFrame:
             pl.col(_WEIGHT).sum().alias("customers_weighted"),
         )
         .sort("customers_weighted", descending=True)
+    )
+
+
+def summarize_customer_weight_stats(metadata: pl.LazyFrame) -> pl.DataFrame:
+    """Summarize per-customer weight statistics by HP/non-HP subclass.
+
+    Uses re-weighted weights from ``customer_metadata.csv`` (CAIRO re-weighted,
+    not raw ResStock).
+
+    Args:
+        metadata: LazyFrame with ``bldg_id``, ``weight``, and
+            ``postprocess_group.has_hp`` columns.
+
+    Returns:
+        DataFrame with columns: ``subclass`` (``"HP"`` / ``"Non-HP"`` / ``"Total"``),
+        ``n_buildings`` (count), ``n_customers_weighted`` (sum of weight),
+        ``weight_mean``, ``weight_min``, ``weight_max``.
+    """
+    meta_collected = _collect(metadata)
+    by_subclass = (
+        meta_collected.with_columns(
+            pl.when(pl.col(_HP))
+            .then(pl.lit("HP"))
+            .otherwise(pl.lit("Non-HP"))
+            .alias("subclass")
+        )
+        .group_by("subclass")
+        .agg(
+            pl.len().alias("n_buildings"),
+            pl.col(_WEIGHT).sum().alias("n_customers_weighted"),
+            pl.col(_WEIGHT).mean().alias("weight_mean"),
+            pl.col(_WEIGHT).min().alias("weight_min"),
+            pl.col(_WEIGHT).max().alias("weight_max"),
+        )
+        .sort("subclass")
+    )
+    # Add Total row
+    total = (
+        meta_collected.select(
+            pl.len().alias("n_buildings"),
+            pl.col(_WEIGHT).sum().alias("n_customers_weighted"),
+            pl.col(_WEIGHT).mean().alias("weight_mean"),
+            pl.col(_WEIGHT).min().alias("weight_min"),
+            pl.col(_WEIGHT).max().alias("weight_max"),
+        )
+        .with_columns(pl.lit("Total").alias("subclass"))
+    )
+    return pl.concat([by_subclass, total]).select(
+        ["subclass", "n_buildings", "n_customers_weighted", "weight_mean", "weight_min", "weight_max"]
+    )
+
+
+def compute_hourly_cost_of_service(
+    loads_by_subclass_df: pl.DataFrame,
+    mc_kwh: pl.Series,
+) -> pl.DataFrame:
+    """Compute hourly cost of service (MC × weighted load) by subclass.
+
+    Args:
+        loads_by_subclass_df: DataFrame with columns ``hour`` (int, 0–8759),
+            ``subclass`` (``"HP"`` / ``"Non-HP"``), and ``total_weighted_load_kwh``
+            (sum of weighted loads per hour per subclass).
+        mc_kwh: Series of 8760 floats ($/kWh) aligned to hour index (0–8759).
+
+    Returns:
+        DataFrame with columns: ``hour``, ``subclass``, ``cost_usd`` (MC × load).
+    """
+    # Create a DataFrame from the MC series with hour index
+    mc_df = pl.DataFrame({"hour": range(8760), "mc_kwh": mc_kwh})
+    # Join loads with MC on hour, compute cost
+    return (
+        loads_by_subclass_df.join(mc_df, on="hour", how="inner")
+        .with_columns(
+            (pl.col("mc_kwh") * pl.col("total_weighted_load_kwh")).alias("cost_usd")
+        )
+        .select(["hour", "subclass", "cost_usd"])
     )

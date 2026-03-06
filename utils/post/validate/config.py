@@ -27,6 +27,11 @@ class RunConfig:
     has_subclasses: bool  # True if the run uses HP/non-HP subclasses
     tariff_type: str  # "flat", "seasonal", "seasonalTOU", or "seasonalTOU_flex"
     elasticity: float  # 0.0 = no demand response, -0.1 = flex variant
+    path_resstock_loads: str  # Local path to ResStock load curves directory
+    path_dist_and_sub_tx_mc: str  # S3 URI to dist+sub-TX marginal costs parquet
+    path_bulk_tx_mc: str | None  # S3 URI to bulk TX marginal costs parquet (optional)
+    path_supply_energy_mc: str  # S3 URI to supply energy marginal costs parquet
+    path_supply_capacity_mc: str  # S3 URI to supply capacity marginal costs parquet
 
     @classmethod
     def from_yaml_run(cls, run_num: int, run_dict: dict[str, Any]) -> RunConfig:
@@ -65,6 +70,17 @@ class RunConfig:
             elif "seasonal" in tariff_suffix:
                 tariff_type = "seasonal"
 
+        # Parse path fields from YAML (all keys exist in every run entry)
+        path_resstock_loads = str(run_dict.get("path_resstock_loads", ""))
+        path_dist_and_sub_tx_mc = str(run_dict.get("path_dist_and_sub_tx_mc", ""))
+        path_bulk_tx_mc = (
+            str(run_dict["path_bulk_tx_mc"])
+            if run_dict.get("path_bulk_tx_mc")
+            else None
+        )
+        path_supply_energy_mc = str(run_dict.get("path_supply_energy_mc", ""))
+        path_supply_capacity_mc = str(run_dict.get("path_supply_capacity_mc", ""))
+
         return cls(
             run_num=run_num,
             run_name=run_name,
@@ -74,6 +90,11 @@ class RunConfig:
             has_subclasses=has_subclasses,
             tariff_type=tariff_type,
             elasticity=elasticity,
+            path_resstock_loads=path_resstock_loads,
+            path_dist_and_sub_tx_mc=path_dist_and_sub_tx_mc,
+            path_bulk_tx_mc=path_bulk_tx_mc,
+            path_supply_energy_mc=path_supply_energy_mc,
+            path_supply_capacity_mc=path_supply_capacity_mc,
         )
 
 

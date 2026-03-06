@@ -394,6 +394,17 @@ def check_bat_near_zero(
     )
 
 
+def _norm_tariff_key(key: str) -> str:
+    """Strip the ``_calibrated`` suffix CAIRO appends when copying a tariff.
+
+    Precalc runs emit ``tariff_final_config.json`` with the original key (e.g.
+    ``cenhud_flat``), while the default run that inherits that tariff emits the
+    same JSON with the key renamed to ``cenhud_flat_calibrated``.  Normalizing
+    both sides lets us compare numeric values across that rename.
+    """
+    return key.removesuffix("_calibrated")
+
+
 def check_tariff_unchanged(
     input_tariff: dict[str, Any],
     output_tariff: dict[str, Any],
@@ -406,6 +417,17 @@ def check_tariff_unchanged(
     applies the inherited tariff without modification.  Compares all numeric leaf
     values in the CAIRO tariff JSON recursively using an absolute tolerance.
 
+    Keys are compared after stripping the ``_calibrated`` suffix that CAIRO
+    appends when a tariff is copied from a precalc run to a default run, so a
+    rename of ``cenhud_flat`` → ``cenhud_flat_calibrated`` does not cause a false
+    failure.
+
+    The comparison is anchored on the **output** keys: every tariff key emitted
+    by the default run must match the corresponding precalc input key.  Input keys
+    that are absent from the output are not flagged — an upgrade 02 run, for
+    example, only emits the HP-subclass tariff key and omits the non-HP flat-rate
+    key, which is expected behaviour and should not produce a false failure.
+
     Args:
         input_tariff: Tariff config dict (e.g. from the precalc
             ``tariff_final_config.json`` or a ``*_calibrated.json`` file).
@@ -413,25 +435,34 @@ def check_tariff_unchanged(
         tolerance: Absolute tolerance for numeric comparisons.
 
     Returns:
-        PASS when every numeric value matches within ``tolerance``; FAIL if any
-        differ or if a key is missing from the output.
+        PASS when every numeric value in the output matches the input within
+        ``tolerance``; FAIL if any value differs or if an output key has no
+        corresponding entry in the input.
     """
+    # Build a normalized lookup for the input so output keys (which may carry
+    # the _calibrated suffix) can be matched against their precalc counterparts.
+    input_by_norm: dict[str, Any] = {
+        _norm_tariff_key(k): v for k, v in input_tariff.items()
+    }
+
     diffs: list[dict[str, Any]] = []
-    for key in input_tariff:
-        if key not in output_tariff:
-            diffs.append({"path": key, "issue": "key missing from output"})
+    for key in output_tariff:
+        norm_key = _norm_tariff_key(key)
+        if norm_key not in input_by_norm:
+            diffs.append({"path": key, "issue": "key in output not found in input"})
             continue
-        for path, in_val in _flatten_numeric(input_tariff[key]).items():
-            out_val = _flatten_numeric(output_tariff[key]).get(path)
-            if out_val is None:
-                diffs.append({"path": f"{key}.{path}", "input": in_val, "output": None})
+        in_entry = input_by_norm[norm_key]
+        for path, out_val in _flatten_numeric(output_tariff[key]).items():
+            in_val = _flatten_numeric(in_entry).get(path)
+            if in_val is None:
+                diffs.append({"path": f"{key}.{path}", "input": None, "output": out_val})
             elif abs(in_val - out_val) > tolerance:
                 diffs.append(
                     {
                         "path": f"{key}.{path}",
                         "input": in_val,
                         "output": out_val,
-                        "diff": in_val - out_val,
+                        "diff": out_val - in_val,
                     }
                 )
     return CheckResult(
@@ -552,4 +583,48 @@ def check_nonhp_customers_in_upgrade02(metadata: pl.LazyFrame) -> CheckResult:
         status="PASS",
         message=f"Non-HP customers ({total_weighted:,.0f} weighted total): {summary}",
         details={"by_heating_type": rows, "total_weighted": total_weighted},
+    )
+
+
+def check_weights_sum_to_n_customers(metadata: pl.LazyFrame) -> CheckResult:
+    """Check that HP + non-HP weights sum to the total weight.
+
+    Validates consistency of CAIRO re-weighted metadata: the sum of weights for
+    HP customers plus the sum of weights for non-HP customers should equal the
+    total sum of all weights (within floating-point tolerance).
+
+    Args:
+        metadata: LazyFrame with ``bldg_id``, ``weight``, and
+            ``postprocess_group.has_hp`` columns.
+
+    Returns:
+        PASS when HP + non-HP weights sum to total within tolerance (1e-3);
+        FAIL otherwise. Details contain ``n_buildings``, ``n_customers_weighted_hp``,
+        ``n_customers_weighted_nonhp``, ``n_customers_weighted_total``.
+    """
+    meta_collected = _collect(metadata)
+    total_buildings = len(meta_collected)
+    total_weighted = meta_collected[_WEIGHT_COL].sum()
+
+    hp_weighted = meta_collected.filter(pl.col(_HP_COL))[_WEIGHT_COL].sum()
+    nonhp_weighted = meta_collected.filter(~pl.col(_HP_COL))[_WEIGHT_COL].sum()
+
+    sum_hp_nonhp = hp_weighted + nonhp_weighted
+    diff = abs(sum_hp_nonhp - total_weighted)
+    tolerance = 1e-3
+
+    return CheckResult(
+        name="weights_sum_to_n_customers",
+        status="PASS" if diff <= tolerance else "FAIL",
+        message=(
+            f"Weight sum check: HP ({hp_weighted:,.0f}) + Non-HP ({nonhp_weighted:,.0f}) "
+            f"= {sum_hp_nonhp:,.0f} vs Total ({total_weighted:,.0f}), diff={diff:.6f}"
+        ),
+        details={
+            "n_buildings": total_buildings,
+            "n_customers_weighted_hp": hp_weighted,
+            "n_customers_weighted_nonhp": nonhp_weighted,
+            "n_customers_weighted_total": total_weighted,
+            "diff": diff,
+        },
     )

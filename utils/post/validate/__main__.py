@@ -32,10 +32,13 @@ from utils.post.validate import (
     check_subclass_revenue_neutrality,
     check_subclass_rr_sums_to_total,
     check_tariff_unchanged,
+    check_weights_sum_to_n_customers,
     compute_bill_deltas,
+    compute_hourly_cost_of_service,
+    compute_weighted_loads_by_subclass,
+    load_all_mc_components,
     load_bat,
     load_bills,
-    load_hourly_loads_by_subclass,
     load_metadata,
     load_revenue_requirement,
     load_tariff_config,
@@ -43,6 +46,7 @@ from utils.post.validate import (
     plot_bat_by_subclass,
     plot_bat_heatmap,
     plot_bill_deltas,
+    plot_hourly_cost_of_service,
     plot_hourly_loads_by_subclass,
     plot_nonhp_composition,
     plot_revenue_vs_rr,
@@ -50,9 +54,11 @@ from utils.post.validate import (
     plot_tariff_comparison,
     plot_tariff_stability,
     plot_weighted_customer_counts,
+    scan_utility_loads,
     summarize_bat_by_subclass,
     summarize_bills_by_subclass,
     summarize_customer_counts,
+    summarize_customer_weight_stats,
     summarize_nonhp_composition,
     summarize_revenue,
     summarize_tariff_rates,
@@ -87,15 +93,10 @@ def _parse_args() -> argparse.Namespace:
         help="Output directory (default: validation_outputs/{utility})",
     )
     p.add_argument(
-        "--resstock-base",
-        default=None,
-        help="Local path to ResStock release root for hourly load plots "
-        "(e.g. /ebs/data/nrel/resstock/res_2024_amy2018_2_sb)",
-    )
-    p.add_argument(
         "--skip-loads",
         action="store_true",
-        help="Skip hourly load plots (auto-set for large utilities like coned)",
+        help="Skip hourly load plots and cost-of-service plots "
+        "(auto-set for large utilities like coned)",
     )
     return p.parse_args()
 
@@ -120,7 +121,8 @@ def _validate_block(
     output_dir: Path,
     *,
     skip_loads: bool = False,
-    resstock_base: str | None = None,
+    loads_lf: pl.LazyFrame | None = None,
+    mc_components: dict[str, pl.Series] | None = None,
 ) -> list[CheckResult]:
     nums = list(block.run_nums)
     dirs_opt = [run_dirs.get(n) for n in nums]
@@ -315,24 +317,59 @@ def _validate_block(
                     )
                 )
 
-    # --- Weighted customer counts (always) + hourly loads by subclass (when not skip_loads) ---
-    for run_num, _, _, meta, _ in runs:
-        counts = summarize_customer_counts(meta)
-        _save(
-            plot_weighted_customer_counts(counts, f"Customer Counts — Run {run_num}"),
-            plots / f"customer_counts_run{run_num}.png",
-        )
-        if not skip_loads and resstock_base is not None:
-            upgrade = block.configs[0].upgrade
-            loads_df = load_hourly_loads_by_subclass(
-                meta, resstock_base, state.upper(), upgrade
-            )
+    # --- Hourly loads by subclass + cost-of-service plots (when not skip_loads) ---
+    if not skip_loads and loads_lf is not None:
+        for run_num, _, _, meta, _ in runs:
+            meta_collected = meta.collect()
+            loads_df = compute_weighted_loads_by_subclass(loads_lf, meta_collected)
+            loads_df.write_csv(block_dir / f"loads_by_subclass_run{run_num}.csv")
             _save(
                 plot_hourly_loads_by_subclass(
                     loads_df, f"Hourly Loads by Subclass — Run {run_num}"
                 ),
                 plots / "loads" / f"hourly_loads_run{run_num}.png",
             )
+
+            # Three cost-of-service plots per run (if MC components available)
+            if mc_components is not None:
+                # Delivery: dist_sub_tx + bulk_tx
+                mc_delivery = mc_components["dist_sub_tx"] + mc_components["bulk_tx"]
+                cos_delivery = compute_hourly_cost_of_service(loads_df, mc_delivery)
+                _save(
+                    plot_hourly_cost_of_service(
+                        cos_delivery,
+                        f"Hourly Cost of Service (Delivery) — Run {run_num}",
+                    ),
+                    plots / "loads" / f"hourly_cos_delivery_run{run_num}.png",
+                )
+
+                # Supply: supply_energy + supply_capacity
+                mc_supply = (
+                    mc_components["supply_energy"] + mc_components["supply_capacity"]
+                )
+                cos_supply = compute_hourly_cost_of_service(loads_df, mc_supply)
+                _save(
+                    plot_hourly_cost_of_service(
+                        cos_supply, f"Hourly Cost of Service (Supply) — Run {run_num}"
+                    ),
+                    plots / "loads" / f"hourly_cos_supply_run{run_num}.png",
+                )
+
+                # Combined: all four MC components
+                mc_combined = (
+                    mc_components["dist_sub_tx"]
+                    + mc_components["bulk_tx"]
+                    + mc_components["supply_energy"]
+                    + mc_components["supply_capacity"]
+                )
+                cos_combined = compute_hourly_cost_of_service(loads_df, mc_combined)
+                _save(
+                    plot_hourly_cost_of_service(
+                        cos_combined,
+                        f"Hourly Cost of Service (Combined) — Run {run_num}",
+                    ),
+                    plots / "loads" / f"hourly_cos_combined_run{run_num}.png",
+                )
 
     pl.DataFrame(
         [{"check": r.name, "status": r.status, "message": r.message} for r in results]
@@ -363,6 +400,72 @@ def main() -> None:
     if missing := sorted(set(run_nums) - run_dirs.keys()):
         print(f"  WARNING: Missing run dirs for runs: {missing}")
 
+    # --- Preprocessing block (always) ---
+    print("\n  preprocessing: Customer weight statistics and validation")
+    preprocess_dir = output_dir / "preprocessing"
+    preprocess_dir.mkdir(parents=True, exist_ok=True)
+    preprocess_plots_dir = preprocess_dir / "plots"
+    preprocess_plots_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load run-1 metadata for preprocessing (upgrade 00)
+    if 1 in run_dirs:
+        meta_run1 = load_metadata(run_dirs[1])
+
+        # Summarize customer weight stats
+        weight_stats = summarize_customer_weight_stats(meta_run1)
+        weight_stats.write_csv(preprocess_dir / "customer_weight_stats.csv")
+
+        # Check weights sum to N customers
+        weight_check = check_weights_sum_to_n_customers(meta_run1)
+        _emit(weight_check)
+        pl.DataFrame(
+            [
+                {
+                    "check": weight_check.name,
+                    "status": weight_check.status,
+                    "message": weight_check.message,
+                }
+            ]
+        ).write_csv(preprocess_dir / "checks.csv")
+
+        # Plot weighted customer counts (upgrade 00, once)
+        counts = summarize_customer_counts(meta_run1)
+        _save(
+            plot_weighted_customer_counts(
+                counts, "Weighted Customer Counts by Subclass (Upgrade 00)"
+            ),
+            preprocess_plots_dir / "customer_counts.png",
+        )
+    else:
+        print("  WARNING: Run 1 not found, skipping preprocessing")
+
+    # --- Load utility loads once (if not skip_loads) ---
+    loads_lf: pl.LazyFrame | None = None
+    if not args.skip_loads:
+        if 1 in configs:
+            run1_config = configs[1]
+            # Extract upgrade-00 path from run1's path_resstock_loads
+            # Path format: /ebs/data/.../load_curve_hourly/state=NY/upgrade=00/
+            path_loads = run1_config.path_resstock_loads
+            if path_loads:
+                print(f"  Loading ResStock loads from: {path_loads}")
+                loads_lf = scan_utility_loads(path_loads)
+            else:
+                print("  WARNING: path_resstock_loads not found in run 1 config")
+        else:
+            print("  WARNING: Run 1 config not found, skipping load scan")
+
+    # --- Load MC components once from run 2 (if not skip_loads) ---
+    mc_components: dict[str, pl.Series] | None = None
+    if not args.skip_loads:
+        if 2 in configs:
+            run2_config = configs[2]
+            print("  Loading marginal cost components from run 2")
+            mc_components = load_all_mc_components(run2_config)
+        else:
+            print("  WARNING: Run 2 config not found, skipping MC component load")
+
+    # --- Validate blocks ---
     all_results: list[CheckResult] = []
     for block in define_run_blocks(configs):
         all_results.extend(
@@ -373,7 +476,8 @@ def main() -> None:
                 utility,
                 output_dir,
                 skip_loads=args.skip_loads,
-                resstock_base=args.resstock_base,
+                loads_lf=loads_lf,
+                mc_components=mc_components,
             )
         )
 

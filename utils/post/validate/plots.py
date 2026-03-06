@@ -455,3 +455,33 @@ def plot_weighted_customer_counts(
         + labs(x=None, y="Weighted Customers", fill=None, title=title)
         + theme_minimal()
     )
+
+
+def plot_hourly_cost_of_service(
+    cos_df: pl.DataFrame,
+    title: str = "Hourly Cost of Service by Subclass",
+) -> ggplot:
+    """Line chart of hourly cost of service (MC × weighted load) by HP/non-HP subclass.
+
+    Args:
+        cos_df: DataFrame with columns ``hour`` (int, 0–8759), ``subclass``
+            (``"HP"`` / ``"Non-HP"``), and ``cost_usd`` (float, $).
+        title: Plot title.
+
+    Returns:
+        ggplot line chart with x=hour, y=cost_usd, color=subclass (thin,
+        semi-transparent lines), using the Wong palette.
+    """
+    df = cos_df.to_pandas()
+    return (
+        ggplot(df, aes("hour", "cost_usd", color="subclass"))
+        + geom_line(size=0.3, alpha=0.7)
+        + scale_color_manual(values=_HP_COLORS)
+        + labs(
+            x="Hour of Year",
+            y="Weighted Hourly Cost of Service ($)",
+            color="Subclass",
+            title=title,
+        )
+        + theme_minimal()
+    )
