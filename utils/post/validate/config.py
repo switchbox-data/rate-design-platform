@@ -235,7 +235,13 @@ def define_run_blocks(configs: dict[int, RunConfig]) -> list[RunBlock]:
     ]
 
     blocks: list[RunBlock] = []
-    for run_nums, revenue_neutral, bat_relevant, tariff_unchanged, description in block_specs:
+    for (
+        run_nums,
+        revenue_neutral,
+        bat_relevant,
+        tariff_unchanged,
+        description,
+    ) in block_specs:
         r1, r2 = run_nums
         if r1 in configs and r2 in configs:
             blocks.append(

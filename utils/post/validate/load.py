@@ -38,7 +38,7 @@ def _s3_join(s3_dir: str, relative: str) -> str:
 
 def _s3_get_bytes(s3_uri: str) -> bytes:
     """Fetch raw bytes from an S3 URI."""
-    without_scheme = s3_uri[len("s3://"):]
+    without_scheme = s3_uri[len("s3://") :]
     bucket, _, key = without_scheme.partition("/")
     return boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
 
@@ -77,8 +77,13 @@ def load_input_tariff(state: str, utility: str, tariff_filename: str) -> dict[st
     """
     path = (
         get_project_root()
-        / "rate_design" / "hp_rates" / state.lower()
-        / "config" / "tariffs" / "electric" / tariff_filename
+        / "rate_design"
+        / "hp_rates"
+        / state.lower()
+        / "config"
+        / "tariffs"
+        / "electric"
+        / tariff_filename
     )
     if not path.exists():
         raise FileNotFoundError(
@@ -100,8 +105,12 @@ def load_revenue_requirement(
     filename = rr_filename if rr_filename is not None else f"{utility.lower()}.yaml"
     path = (
         get_project_root()
-        / "rate_design" / "hp_rates" / state.lower()
-        / "config" / "rev_requirement" / filename
+        / "rate_design"
+        / "hp_rates"
+        / state.lower()
+        / "config"
+        / "rev_requirement"
+        / filename
     )
     if not path.exists():
         raise FileNotFoundError(

@@ -29,7 +29,9 @@ def _cairo_output_prefix(state: str, utility: str) -> str:
     return f"switchbox/cairo/outputs/hp_rates/{state.lower()}/{utility.lower()}/"
 
 
-def _list_execution_times(s3_client: Any, bucket: str, utility_prefix: str) -> list[str]:
+def _list_execution_times(
+    s3_client: Any, bucket: str, utility_prefix: str
+) -> list[str]:
     """List CAIRO execution_time directories under a utility prefix, sorted ascending.
 
     Filters to entries matching the YYYYMMDDTHHMMSSZ pattern so stray objects or
@@ -135,7 +137,9 @@ def find_latest_complete_batch(
             f"No execution_time directories found under s3://{bucket}/{utility_prefix}"
         )
 
-    required_count = expected_run_count if expected_run_count is not None else len(run_names)
+    required_count = (
+        expected_run_count if expected_run_count is not None else len(run_names)
+    )
 
     # Search newest-first so we return the most recent complete batch.
     for execution_time in reversed(execution_times):
@@ -195,5 +199,6 @@ def resolve_batch(
     return {
         run_num: run_dir
         for run_num, run_name in run_names.items()
-        if (run_dir := _find_run_dir(s3_client, bucket, et_prefix, run_name)) is not None
+        if (run_dir := _find_run_dir(s3_client, bucket, et_prefix, run_name))
+        is not None
     }
