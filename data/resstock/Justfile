@@ -17,6 +17,10 @@ path_s3_parquet := "s3://data.sb/nrel/resstock"
 path_local_parquet := "/data.sb/nrel/resstock"
 path_s3_pums := "s3://data.sb/census/pums"
 
+# Top-level defaults
+pums_survey := "acs5"
+pums_year := "2021"
+
 # Download ResStock metadata and loads via bsf. Pass state: NY or RI (or both as space-separated).
 fetch state:
     #!/usr/bin/env bash
@@ -159,7 +163,7 @@ add-vulnerability-columns release state upgrade_ids input_metadata_filename outp
         --upgrade_ids "{{upgrade_ids}}"
 
 add-vulneratbility-columns-NY-all-upgrades:
-    just add-vulnerability-columns {{resstock_release}} NY "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet" "acs5" "2023"
+    just add-vulnerability-columns {{resstock_release}} NY "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet" "{{pums_survey}}" "{{pums_year}}"
 
 
 # Full NY metadata pipeline: HP customers → heating type → natural gas connection → vulnerability columns.
@@ -168,7 +172,7 @@ prepare-metadata-ny lmi="true":
     just identify-hp-customers {{resstock_release}} NY "{{resstock_upgrade_ids_padded}}" "metadata.parquet" "metadata-sb.parquet"
     just identify-heating-type {{resstock_release}} NY "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet"
     just identify-natgas-connection {{resstock_release}} NY "{{resstock_upgrade_ids_padded}}" "metadata-sb.parquet" "metadata-sb.parquet"
-    {{ if lmi == "true" { "just add-vulnerability-columns " + resstock_release + " NY \"" + resstock_upgrade_ids_padded + "\" \"metadata-sb.parquet\" \"metadata-sb.parquet\"" } else { "echo 'Skipping vulnerability columns (lmi=false)'" } }}
+    {{ if lmi == "true" { "just add-vulnerability-columns " + resstock_release + " NY \"" + resstock_upgrade_ids_padded + "\" \"metadata-sb.parquet\" \"metadata-sb.parquet\" " + pums_survey + " " + pums_year } else { "echo 'Skipping vulnerability columns (lmi=false)'" } }}
 
 # Full RI metadata pipeline: HP customers → heating type → natural gas connection.
 prepare-metadata-ri:
