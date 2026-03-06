@@ -248,7 +248,7 @@ chmod 1777 /ebs/tmp/s3fs-cache
 # Note: endpoint and url are required because bucket is in us-west-2
 # umask=0000 allows all users to write to the S3 mount (files appear as 777)
 # Without this, files appear as 775 owned by root:root, blocking non-root writes
-S3FS_OPTS="_netdev,allow_other,use_cache=/ebs/tmp/s3fs-cache,iam_role=auto,umask=0000,use_path_request_style,endpoint=us-west-2,url=https://s3.us-west-2.amazonaws.com"
+S3FS_OPTS="_netdev,allow_other,use_cache=/ebs/tmp/s3fs-cache,tmpdir=/ebs/tmp,iam_role=auto,umask=0000,use_path_request_style,endpoint=us-west-2,url=https://s3.us-west-2.amazonaws.com"
 echo "${s3_bucket_name} ${s3_mount_path} fuse.s3fs $S3FS_OPTS 0 0" >>/etc/fstab
 
 # Try to mount S3 with retries (IAM role may take a moment to be available)
