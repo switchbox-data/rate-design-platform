@@ -109,7 +109,7 @@ def _bat_wavg_by_group(bat: pl.LazyFrame, metadata: pl.LazyFrame) -> pl.DataFram
     ``customers_weighted``.  Only BAT columns present in ``bat.schema`` are
     included in the aggregation.
     """
-    bat_cols = [c for c in _BAT_COLS if c in bat.schema]
+    bat_cols = [c for c in _BAT_COLS if c in bat.collect_schema()]
     return _collect(
         bat.join(metadata.select([_BLDG_COL, _WEIGHT_COL, _HP_COL]), on=_BLDG_COL)
         .group_by(_HP_COL)

@@ -111,7 +111,7 @@ def summarize_bat_by_subclass(
         DataFrame with columns: ``postprocess_group.has_hp``,
         ``{bat_col}_wavg`` for each present BAT column, ``customers_weighted``.
     """
-    bat_cols = [c for c in _BAT_COLS if c in bat.schema]
+    bat_cols = [c for c in _BAT_COLS if c in bat.collect_schema()]
     return _collect(
         _with_meta(bat, metadata, _HP)
         .group_by(_HP)
