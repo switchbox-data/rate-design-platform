@@ -151,7 +151,7 @@ apply-ny-lmi-discounts run_dir utility_arg fpl_year cpi_s3_path participation_ra
 validate-cenhud timestamp="":
     UTILITY=cenhud just validate-runs "{{timestamp}}"
 
-# --skip-loads is applied automatically for coned (large utility; hourly load plots skipped)
+# --skip-loads is applied automatically for all utilities (EC2 instance down; hourly load plots skipped)
 validate-coned timestamp="":
     UTILITY=coned just validate-runs "{{timestamp}}"
 

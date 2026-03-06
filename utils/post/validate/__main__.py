@@ -426,7 +426,7 @@ def _validate_block(
                 try:
                     _save(
                         plot_tariff_comparison(
-                            in_rates, out_rates, f"Tariff: Run {prev_num} → {run_num}"
+                            in_rates, out_rates, f"Tariff: Run {prev_num} -> {run_num}"
                         ),
                         plots / "tariff_diffs" / f"tariff_comparison_run{run_num}.png",
                     )
