@@ -29,6 +29,14 @@ from utils.post.validate.load import (
     load_seasonal_discount_inputs,
     load_tariff_config,
 )
+from utils.post.validate.tables import (
+    compute_bill_deltas,
+    summarize_bat_by_subclass,
+    summarize_bills_by_subclass,
+    summarize_nonhp_composition,
+    summarize_revenue,
+    summarize_tariff_rates,
+)
 
 __all__ = [
     # checks
@@ -51,4 +59,11 @@ __all__ = [
     "load_revenue_requirement",
     "load_seasonal_discount_inputs",
     "load_tariff_config",
+    # tables
+    "compute_bill_deltas",
+    "summarize_bat_by_subclass",
+    "summarize_bills_by_subclass",
+    "summarize_nonhp_composition",
+    "summarize_revenue",
+    "summarize_tariff_rates",
 ]
