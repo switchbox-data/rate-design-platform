@@ -82,7 +82,8 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--timestamp",
         default=None,
-        help="YYYYMMDDTHHMMSSZ; omit to use latest complete batch",
+        help="Batch name in {state}_{YYYYMMDD}_{letter} format (e.g. 'ny_20250115_a'); "
+        "omit to use latest complete batch",
     )
     p.add_argument(
         "--runs", default="1,2,3,4,5,6,7,8", help="Comma-separated run numbers"

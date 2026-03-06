@@ -5,6 +5,8 @@ Locates the latest complete batch of runs under:
 
 Each execution_time directory contains one subdirectory per CAIRO run, named:
   {cairo_ts}_{run_name}/
+
+Batch names follow the format: {state}_{YYYYMMDD}_{letter} (e.g., "ny_20250115_a").
 """
 
 from __future__ import annotations
@@ -17,8 +19,8 @@ import boto3
 # S3 bucket that holds all CAIRO outputs for this platform.
 _CAIRO_OUTPUT_BUCKET = "data.sb"
 
-# UTC timestamp format used as execution_time directory names: YYYYMMDDTHHMMSSZ
-_EXECUTION_TIME_RE = re.compile(r"^\d{8}T\d{6}Z$")
+# Batch name format: {state}_{YYYYMMDD}_{letter} (e.g., "ny_20250115_a")
+_BATCH_NAME_RE = re.compile(r"^[a-z]{2}_\d{8}_[a-z]$")
 
 
 def _cairo_output_prefix(state: str, utility: str) -> str:
@@ -30,30 +32,35 @@ def _cairo_output_prefix(state: str, utility: str) -> str:
 
 
 def _list_execution_times(
-    s3_client: Any, bucket: str, utility_prefix: str
+    s3_client: Any, bucket: str, utility_prefix: str, state: str
 ) -> list[str]:
     """List CAIRO execution_time directories under a utility prefix, sorted ascending.
 
-    Filters to entries matching the YYYYMMDDTHHMMSSZ pattern so stray objects or
-    unrelated prefixes are ignored.
+    Filters to entries matching the {state}_{YYYYMMDD}_{letter} pattern so stray objects
+    or unrelated prefixes are ignored. Only includes batches for the given state.
 
     Args:
         s3_client: Boto3 S3 client (``boto3.client("s3")``).
         bucket: S3 bucket name.
         utility_prefix: S3 key prefix ending with ``"/"`` for the utility directory.
+        state: State abbreviation (e.g. ``"ny"``, ``"ri"``) to filter batch names.
 
     Returns:
-        Sorted list of execution_time strings (e.g. ``["20260301T120000Z", ...]``).
+        Sorted list of execution_time strings (e.g. ``["ny_20250115_a", ...]``).
     """
     utility_prefix = utility_prefix.rstrip("/") + "/"
     execution_times: list[str] = []
+    state_lower = state.lower()
 
     paginator = s3_client.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=bucket, Prefix=utility_prefix, Delimiter="/"):
         for entry in page.get("CommonPrefixes", []):
             # Strip the parent prefix and trailing slash to isolate the dir name.
             dir_name = entry["Prefix"][len(utility_prefix) :].rstrip("/")
-            if _EXECUTION_TIME_RE.match(dir_name):
+            # Match batch name format and ensure it starts with the correct state
+            if _BATCH_NAME_RE.match(dir_name) and dir_name.startswith(
+                f"{state_lower}_"
+            ):
                 execution_times.append(dir_name)
 
     return sorted(execution_times)
@@ -120,7 +127,7 @@ def find_latest_complete_batch(
 
     Returns:
         ``(execution_time, {run_num: s3_dir})`` where:
-        - ``execution_time`` is the timestamp string (e.g. ``"20260305T211404Z"``).
+        - ``execution_time`` is the batch name string (e.g. ``"ny_20250115_a"``).
         - ``s3_dir`` is the full ``s3://`` URI to each run directory (no trailing slash).
 
     Raises:
@@ -131,7 +138,7 @@ def find_latest_complete_batch(
     bucket = _CAIRO_OUTPUT_BUCKET
     utility_prefix = _cairo_output_prefix(state, utility)
 
-    execution_times = _list_execution_times(s3_client, bucket, utility_prefix)
+    execution_times = _list_execution_times(s3_client, bucket, utility_prefix, state)
     if not execution_times:
         raise FileNotFoundError(
             f"No execution_time directories found under s3://{bucket}/{utility_prefix}"
@@ -176,20 +183,27 @@ def resolve_batch(
     Args:
         state: State abbreviation (e.g. ``"ny"``, ``"ri"``; case-insensitive).
         utility: Utility identifier (e.g. ``"coned"``, ``"rie"``; case-insensitive).
-        execution_time: Execution time string in YYYYMMDDTHHMMSSZ format
-            (e.g. ``"20260305T211404Z"``).
+        execution_time: Batch name string in {state}_{YYYYMMDD}_{letter} format
+            (e.g. ``"ny_20250115_a"``).
         run_names: ``{run_num: run_name}`` mapping to resolve.
 
     Returns:
         ``{run_num: s3_dir}`` for each run found in S3.  Missing runs are omitted.
 
     Raises:
-        ValueError: If ``execution_time`` does not match the YYYYMMDDTHHMMSSZ format.
+        ValueError: If ``execution_time`` does not match the batch name format or
+            does not start with the given state.
     """
-    if not _EXECUTION_TIME_RE.match(execution_time):
+    state_lower = state.lower()
+    if not _BATCH_NAME_RE.match(execution_time):
         raise ValueError(
-            f"execution_time must be in YYYYMMDDTHHMMSSZ format "
-            f"(e.g. '20260305T211404Z'), got: {execution_time!r}"
+            f"execution_time must be in {{state}}_{{YYYYMMDD}}_{{letter}} format "
+            f"(e.g. 'ny_20250115_a'), got: {execution_time!r}"
+        )
+    if not execution_time.startswith(f"{state_lower}_"):
+        raise ValueError(
+            f"execution_time batch name must start with state '{state_lower}_', "
+            f"got: {execution_time!r}"
         )
 
     s3_client = boto3.client("s3")
