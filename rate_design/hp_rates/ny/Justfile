@@ -126,8 +126,6 @@ map-gas-all-utilities:
   just map-gas-psegli
   just map-gas-rge
 
-
-
 # =============================================================================
 # NY-only: post-run LMI discounts
 # =============================================================================
@@ -142,3 +140,43 @@ apply-ny-lmi-discounts run_dir utility_arg fpl_year cpi_s3_path participation_ra
     --participation-rate {{participation_rate}} \
     {{ if rider == "true" { "--rider" } else { "" } }} \
     --upload
+
+# =============================================================================
+# NY-only: post-processing validation
+# Each recipe validates runs 1-8 for that utility.
+# Omit timestamp to auto-detect the latest complete batch from S3;
+# pass a YYYYMMDDTHHMMSSZ string to pin a specific execution_time cohort.
+# =============================================================================
+
+validate-cenhud timestamp="":
+    UTILITY=cenhud just validate-runs "{{timestamp}}"
+
+# --skip-loads is applied automatically for all utilities (EC2 instance down; hourly load plots skipped)
+validate-coned timestamp="":
+    UTILITY=coned just validate-runs "{{timestamp}}"
+
+validate-nimo timestamp="":
+    UTILITY=nimo just validate-runs "{{timestamp}}"
+
+validate-nyseg timestamp="":
+    UTILITY=nyseg just validate-runs "{{timestamp}}"
+
+validate-or timestamp="":
+    UTILITY=or just validate-runs "{{timestamp}}"
+
+validate-psegli timestamp="":
+    UTILITY=psegli just validate-runs "{{timestamp}}"
+
+validate-rge timestamp="":
+    UTILITY=rge just validate-runs "{{timestamp}}"
+
+# Validate all NY utilities sequentially (runs 1-8 each).
+# Omit timestamp to use each utility's latest complete batch independently.
+validate-all-runs-ny timestamp="":
+    just validate-cenhud "{{timestamp}}"
+    just validate-coned "{{timestamp}}"
+    just validate-nimo "{{timestamp}}"
+    just validate-nyseg "{{timestamp}}"
+    just validate-or "{{timestamp}}"
+    just validate-psegli "{{timestamp}}"
+    just validate-rge "{{timestamp}}"

@@ -1,0 +1,114 @@
+"""Run validation framework for HP rate design CAIRO runs.
+
+This package validates CAIRO runs 1-8 for any utility by reading outputs from S3,
+running structured checks (revenue neutrality, BAT direction, tariff stability),
+and generating plotnine plots + summary CSVs.
+
+See issue #324 for implementation plan.
+"""
+
+from utils.post.validate.checks import (
+    CheckResult,
+    CheckStatus,
+    check_bat_direction,
+    check_bat_near_zero,
+    check_bills_increase_with_supply,
+    check_hp_bat_increases_with_supply,
+    check_nonhp_calibrated_above_original,
+    check_nonhp_customers_in_upgrade02,
+    check_output_completeness,
+    check_revenue_neutrality,
+    check_seasonal_winter_below_summer,
+    check_subclass_revenue_neutrality,
+    check_subclass_rr_sums_to_total,
+    check_tariff_unchanged,
+    check_weights_sum_to_n_customers,
+)
+from utils.post.validate.load import (
+    compute_weighted_loads_by_subclass_from_collected,
+    load_all_mc_components,
+    load_bat,
+    load_bills,
+    load_input_tariff,
+    load_metadata,
+    load_revenue_requirement,
+    load_tariff_config,
+    scan_utility_loads,
+)
+from utils.post.validate.plots import (
+    plot_avg_bills_by_subclass,
+    plot_bat_by_subclass,
+    plot_bat_heatmap,
+    plot_bill_deltas,
+    plot_hourly_cost_of_service,
+    plot_hourly_loads_by_subclass,
+    plot_nonhp_composition,
+    plot_revenue_vs_rr,
+    plot_subclass_rr_stacked,
+    plot_tariff_comparison,
+    plot_tariff_stability,
+    plot_weighted_customer_counts,
+)
+from utils.post.validate.tables import (
+    compute_bill_deltas,
+    compute_hourly_cost_of_service,
+    summarize_bat_by_subclass,
+    summarize_bills_by_subclass,
+    summarize_customer_counts,
+    summarize_customer_weight_stats,
+    summarize_nonhp_composition,
+    summarize_revenue,
+    summarize_tariff_rates,
+)
+
+__all__ = [
+    # checks
+    "CheckResult",
+    "CheckStatus",
+    "check_bat_direction",
+    "check_bat_near_zero",
+    "check_bills_increase_with_supply",
+    "check_hp_bat_increases_with_supply",
+    "check_nonhp_calibrated_above_original",
+    "check_nonhp_customers_in_upgrade02",
+    "check_output_completeness",
+    "check_revenue_neutrality",
+    "check_seasonal_winter_below_summer",
+    "check_subclass_revenue_neutrality",
+    "check_subclass_rr_sums_to_total",
+    "check_tariff_unchanged",
+    "check_weights_sum_to_n_customers",
+    # load
+    "compute_weighted_loads_by_subclass_from_collected",
+    "load_all_mc_components",
+    "load_bat",
+    "load_bills",
+    "load_input_tariff",
+    "load_metadata",
+    "load_revenue_requirement",
+    "load_tariff_config",
+    "scan_utility_loads",
+    # tables
+    "compute_bill_deltas",
+    "compute_hourly_cost_of_service",
+    "summarize_bat_by_subclass",
+    "summarize_bills_by_subclass",
+    "summarize_customer_counts",
+    "summarize_customer_weight_stats",
+    "summarize_nonhp_composition",
+    "summarize_revenue",
+    "summarize_tariff_rates",
+    # plots
+    "plot_avg_bills_by_subclass",
+    "plot_bat_by_subclass",
+    "plot_bat_heatmap",
+    "plot_bill_deltas",
+    "plot_hourly_cost_of_service",
+    "plot_hourly_loads_by_subclass",
+    "plot_nonhp_composition",
+    "plot_revenue_vs_rr",
+    "plot_subclass_rr_stacked",
+    "plot_tariff_comparison",
+    "plot_tariff_stability",
+    "plot_weighted_customer_counts",
+]

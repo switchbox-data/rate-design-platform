@@ -30,7 +30,7 @@ from plotnine import (
     theme_minimal,
 )
 
-RESSTOCK_LOCAL = "/ebs/data/nrel/resstock/res_2024_amy2018_2"
+RESSTOCK_LOCAL = "/ebs/data/nrel/resstock/res_2024_amy2018_2_sb"
 LOAD_COL = "out.electricity.total.energy_consumption"
 
 
@@ -51,7 +51,7 @@ def sample_bldg_ids(n: int) -> list[int]:
     """
     all_ids = (
         pl.scan_parquet(
-            f"{RESSTOCK_LOCAL}/metadata/state=NY/upgrade=00/metadata.parquet",
+            f"{RESSTOCK_LOCAL}/metadata/state=NY/upgrade=00/metadata-sb.parquet",
         )
         .filter(
             ~pl.col("in.hvac_heating_type_and_fuel").is_in(ELECTRIC_RESISTANCE_TYPES)
