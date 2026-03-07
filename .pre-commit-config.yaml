@@ -33,6 +33,11 @@ repos:
     hooks:
       - id: yamlfmt
         name: YAML formatter (yamlfmt)
+  - repo: https://github.com/instrumentl/pre-commit-just
+    rev: v0.1
+    hooks:
+      - id: format-justfile
+        name: Justfile formatter (format-justfile)
   - repo: https://github.com/scop/pre-commit-shfmt
     rev: v3.10.0-1
     hooks:
