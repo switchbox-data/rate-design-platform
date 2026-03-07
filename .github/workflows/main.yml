@@ -5,14 +5,12 @@
 # To re-enable: restore the "on:" block below and remove or disable ci-runner-native.yml.
 # -----------------------------------------------------------------------------
 name: Main (devcontainer — disabled)
-
 on:
-  workflow_dispatch:  # Only manual trigger; push/PR use ci-runner-native.yml
+  workflow_dispatch: # Only manual trigger; push/PR use ci-runner-native.yml
   # push:
   #   branches: [ main ]
   # pull_request:
   #   types: [ opened, synchronize, reopened, ready_for_review ]
-
 # ============================================================================
 # CI/CD ARCHITECTURE: Multi-Arch Devcontainer Build + Parallel Test Execution
 # ============================================================================
@@ -101,7 +99,6 @@ on:
 #   - Full rebuild (no cache):     ~10min (everything from scratch)
 #
 # ============================================================================
-
 jobs:
   build-devcontainer-amd64:
     # Builds and publishes the AMD64 devcontainer image using DevPod CLI.
@@ -112,33 +109,28 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write  # Needed to push image to ghcr.io
+      packages: write # Needed to push image to ghcr.io
       # Note: GITHUB_TOKEN is automatically provided by GitHub Actions
       # It should have access to repos in the same organization (switchbox-data)
       # If it doesn't work, you'll need to create a PAT and add it as a repository secret
     steps:
       - uses: actions/checkout@v5
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       # Install DevPod CLI (skevetter's maintained fork)
       - name: Install DevPod CLI
         run: |
           curl -L -o devpod "https://github.com/skevetter/devpod/releases/latest/download/devpod-linux-amd64"
           chmod +x devpod
           sudo mv devpod /usr/local/bin/
-
       - name: Initialize Docker provider
         run: devpod provider add docker
-
       # Configure BuildKit layer caching via DevPod
       # This enables Layer 2 caching (incremental builds when hash changes)
       - name: Configure DevPod to use GHCR as a build cache backend
@@ -157,7 +149,6 @@ jobs:
           # This turns an 8-minute full rebuild into a ~2-minute incremental rebuild.
 
           devpod context set-options -o REGISTRY_CACHE=ghcr.io/switchbox-data/rate-design-platform:buildcache-amd64
-
       # Build the devcontainer image with DevPod
       # DevPod provides two-tier caching (see workflow header for details)
       - name: Build and push devcontainer image with DevPod
@@ -235,7 +226,6 @@ jobs:
 
           # Restore original devcontainer.json (remove token to avoid committing it)
           git checkout .devcontainer/devcontainer.json || true
-
   build-devcontainer-arm64:
     # Builds and publishes the ARM64 devcontainer image using DevPod CLI.
     # This image is used by DevPod users on ARM64 machines (usually Apple Silicon machines) via local Docker provider.
@@ -245,33 +235,28 @@ jobs:
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
-      packages: write  # Needed to push image to ghcr.io
+      packages: write # Needed to push image to ghcr.io
       # Note: GITHUB_TOKEN is automatically provided by GitHub Actions
       # It should have access to repos in the same organization (switchbox-data)
       # If it doesn't work, you'll need to create a PAT and add it as a repository secret
     steps:
       - uses: actions/checkout@v5
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       # Install DevPod CLI (skevetter's maintained fork) - ARM64 version for native runner
       - name: Install DevPod CLI
         run: |
           curl -L -o devpod "https://github.com/skevetter/devpod/releases/latest/download/devpod-linux-arm64"
           chmod +x devpod
           sudo mv devpod /usr/local/bin/
-
       - name: Initialize Docker provider
         run: devpod provider add docker
-
       # Configure BuildKit layer caching via DevPod
       # Uses separate cache tag from AMD64 to avoid cross-platform cache conflicts
       - name: Configure DevPod to use GHCR as a build cache backend
@@ -280,7 +265,6 @@ jobs:
           #   - BuildKit layer caches are platform-specific
           #   - Mixing AMD64 and ARM64 layers would cause cache misses or errors
           devpod context set-options -o REGISTRY_CACHE=ghcr.io/switchbox-data/rate-design-platform:buildcache-arm64
-
       # Build the ARM64 devcontainer image with DevPod
       # Note: No --tag latest here - only AMD64 gets :latest (used by CI jobs)
       - name: Build and push devcontainer image with DevPod
@@ -310,7 +294,6 @@ jobs:
             --debug
 
           git checkout .devcontainer/devcontainer.json || true
-
   quality-checks:
     # Runs quality checks (lock file validation + pre-commit hooks) in parallel with tests.
     #
@@ -336,15 +319,12 @@ jobs:
       # Running as root avoids permission issues between the runner (UID 1001) and container.
     steps:
       - uses: actions/checkout@v5
-
       # When git commands, running as UID 0 (root), see the repo is owned by UID 1001 (runner),
       #it throws a "dubious ownership" error. This configures Git to trust the directory, avoiding the error.
       - name: Configure Git safe directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
       - name: Run quality checks
         run: just check
-
   tests:
     # Runs test suite in parallel with quality-checks.
     # Uses the same container approach as quality-checks (see comments there).
@@ -358,9 +338,7 @@ jobs:
       options: --user root
     steps:
       - uses: actions/checkout@v5
-
       - name: Configure Git safe directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
       - name: Run tests
         run: just test
