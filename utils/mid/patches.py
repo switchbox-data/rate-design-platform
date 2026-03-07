@@ -236,11 +236,11 @@ def _vectorized_process_building_demand_by_period(
     # Use the saved-before-patching original to avoid infinite recursion.
     _orig_pbdbp = _orig_process_building_demand_by_period
 
-    # Gas loads: handled in the vectorized path below.
-    # prepassed_load for gas has column ['load_data'] in therms (converted in _return_loads_combined).
-    # By handling gas here we bypass aggregate_load_worker → _adjust_gas_loads, which would
-    # otherwise convert therms to therms×0.034 (a bug present in the original CAIRO path).
-    # This is intentional: gas bills will now be correct (not doubly-scaled).
+    # Gas loads arrive in therms (converted from kWh in _return_loads_combined).
+    # The vectorized flat/TOU path below uses therms directly, bypassing CAIRO's
+    # _adjust_gas_loads.  When we fall back to CAIRO's original path for tiered
+    # tariffs, we must undo the conversion first because _load_worker will apply
+    # _adjust_gas_loads (×0.0341) again — see the tiered fallback block below.
     is_gas = load_col_key == "total_fuel_gas"
     log.info(
         "PATCH_CALL _vectorized_process_building_demand_by_period load_col_key=%s buildings=%s is_gas=%s",
@@ -268,6 +268,13 @@ def _vectorized_process_building_demand_by_period(
         log.info(
             "PATCH_FALLBACK _vectorized_process_building_demand_by_period reason=tiered_or_combined"
         )
+        if is_gas:
+            # _return_loads_combined already converted kWh → therms, but CAIRO's
+            # original path will call _load_worker → _adjust_gas_loads which
+            # multiplies by _GAS_KWH_TO_THERM again.  Undo the first conversion
+            # so that CAIRO sees kWh and performs a single correct conversion.
+            # In-place is safe: the caller never reads prepassed_load after this.
+            prepassed_load["load_data"] /= _GAS_KWH_TO_THERM
         return _orig_pbdbp(
             target_year=target_year,
             load_col_key=load_col_key,
