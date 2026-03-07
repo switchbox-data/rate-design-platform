@@ -7,7 +7,6 @@ repos:
         args: [--fix]
       # Run the formatter.
       - id: ruff-format
-
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
@@ -29,13 +28,11 @@ repos:
         exclude: uv.lock|rate_design/.*/config/marginal_costs/.*\.csv|context/papers/nyiso_gold_book_2025\.md
       - id: check-merge-conflict
       - id: check-case-conflict
-
   - repo: https://github.com/scop/pre-commit-shfmt
     rev: v3.10.0-1
     hooks:
       - id: shfmt
         args: ['-w', '-i', '2']
-
   - repo: local
     hooks:
       - id: dprint
@@ -49,3 +46,7 @@ repos:
         entry: uv run ty check .
         language: system
         pass_filenames: false
+  - repo: https://github.com/google/yamlfmt
+    rev: v0.21.0
+    hooks:
+      - id: yamlfmt
