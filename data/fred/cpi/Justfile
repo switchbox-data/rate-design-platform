@@ -13,17 +13,18 @@ path_local_parquet := path_local_repo + "/data/fred/cpi/parquet/"
 path_s3_parquet := "s3://data.sb/fred/cpi/"
 
 # Fetch FRED CPI series to local parquet. Requires FRED_API_KEY.
+
 # Writes parquet/<series_lower>_<start>_<end>_<YYYYMMDD>.parquet
 fetch-cpi series="CPIAUCSL" start_year="2020" end_year="2025":
-    uv run python "{{path_local_repo}}/data/fred/cpi/fetch_cpi_parquet.py" \
-        --series {{series}} --start-year {{start_year}} --end-year {{end_year}} \
-        --output "{{path_local_parquet}}"
+    uv run python "{{ path_local_repo }}/data/fred/cpi/fetch_cpi_parquet.py" \
+        --series {{ series }} --start-year {{ start_year }} --end-year {{ end_year }} \
+        --output "{{ path_local_parquet }}"
 
 # Sync local parquet/ to s3://data.sb/fred/cpi/
 upload:
-    aws s3 sync "{{path_local_parquet}}" "{{path_s3_parquet}}"
+    aws s3 sync "{{ path_local_parquet }}" "{{ path_s3_parquet }}"
 
 # Remove local parquet/
 clean:
-    rm -rf "{{path_local_parquet}}"
-    @echo "Removed {{path_local_parquet}}"
+    rm -rf "{{ path_local_parquet }}"
+    @echo "Removed {{ path_local_parquet }}"
