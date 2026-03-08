@@ -197,11 +197,11 @@ def _build_output_path_suffix(batch: str, overrides: dict[str, str]) -> str:
 
 def _upgrade_for_run(run_delivery: int) -> str:
     """Infer the upgrade id from the delivery run number."""
-    if run_delivery in (1, 2):
+    if run_delivery in (1, 2, 5, 6):
         return "00"
-    if run_delivery in (3, 4):
+    if run_delivery in (3, 4, 7, 8):
         return "02"
-    raise ValueError(f"Cannot infer upgrade for run {run_delivery}; expected 1-4")
+    raise ValueError(f"Cannot infer upgrade for run {run_delivery}; expected 1-8")
 
 
 def _assert_building_match(
