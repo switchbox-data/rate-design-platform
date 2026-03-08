@@ -10,10 +10,12 @@ Output schema (13 rows per building: Jan..Dec + Annual):
     postprocess_group.heating_type, heats_with_electricity, heats_with_natgas,
     heats_with_oil, heats_with_propane, month, weight,
     elec_fixed_charge, elec_delivery_bill, elec_supply_bill, elec_total_bill,
-    gas_total_bill, propane_total_bill, oil_total_bill, energy_total_bill
+    gas_fixed_charge, gas_volumetric_bill, gas_total_bill,
+    propane_total_bill, oil_total_bill, energy_total_bill
 
 Identities:
     elec_total_bill = elec_fixed_charge + elec_delivery_bill + elec_supply_bill
+    gas_total_bill = gas_fixed_charge + gas_volumetric_bill
     energy_total_bill = elec_total_bill + gas_total_bill + propane_total_bill + oil_total_bill
 """
 
@@ -31,6 +33,13 @@ from typing import cast
 import polars as pl
 
 from utils.post.delivered_fuel_bills import compute_fuel_bills, load_monthly_fuel_prices
+from utils.post.gas_bills import (
+    build_fixed_charge_table,
+    build_rate_table,
+    compute_gas_bills,
+    load_gas_tariff_map,
+    load_gas_tariffs,
+)
 from utils.post.io import (
     ANNUAL_MONTH,
     BLDG_ID,
@@ -40,7 +49,6 @@ from utils.post.io import (
 )
 
 ELEC_BILLS_CSV = "bills/elec_bills_year_target.csv"
-GAS_BILLS_CSV = "bills/gas_bills_year_target.csv"
 
 META_COLS = [
     BLDG_ID,
@@ -72,6 +80,8 @@ OUTPUT_COLS = [
     "elec_delivery_bill",
     "elec_supply_bill",
     "elec_total_bill",
+    "gas_fixed_charge",
+    "gas_volumetric_bill",
     "gas_total_bill",
     "propane_total_bill",
     "oil_total_bill",
@@ -276,6 +286,8 @@ def _process_utility(
     monthly_prices: pl.DataFrame,
     path_load_curves_local: str,
     upgrade: str,
+    gas_rate_table: pl.DataFrame,
+    gas_fixed_charges: pl.DataFrame,
 ) -> pl.DataFrame:
     """Build the master table fragment for a single utility."""
     meta_bldg_ids = set(metadata_for_utility[BLDG_ID].to_list())
@@ -375,24 +387,39 @@ def _process_utility(
     )
     _log_done("  Electric decomposition", t, f"{elec.height} rows")
 
-    # --- Gas bills ---
-    t = _log("  Reading gas_bills_year_target.csv (supply)...")
-    gas_df = cast(pl.DataFrame, scan(f"{dir_supply}/{GAS_BILLS_CSV}").collect())
-    _log_done("  Reading gas", t, f"{gas_df.height} rows")
+    # --- Gas bills (computed post-hoc from tariff JSONs + ResStock consumption) ---
+    t = _log("  Computing gas bills from tariff JSONs...")
+    gas_tariff_map = load_gas_tariff_map(state, utility, upgrade)
+    gas_map_ids = set(gas_tariff_map[BLDG_ID].to_list())
+    _assert_building_match(
+        "gas_tariff_map", gas_map_ids, "metadata", meta_bldg_ids, utility
+    )
 
-    gas_ids = set(gas_df[BLDG_ID].unique().to_list())
-    _assert_building_match("gas_bills", gas_ids, "elec_bills", elec_d_ids, utility)
-    _assert_rows_per_building(gas_df, 13, "gas_bills", utility)
-
-    gas = gas_df.select(BLDG_ID, "month", pl.col(BILL_LEVEL).alias("gas_total_bill"))
-
-    # --- Oil and propane bills ---
+    # --- Load curves (shared by gas + oil/propane) ---
     t = _log(f"  Reading load_curve_monthly (local, {n_bldgs} buildings)...")
     load_curves = scan_load_curves_for_utility(
         path_load_curves_local, state.upper(), upgrade, utility, "monthly"
     )
     _log_done("  Reading load curves", t)
 
+    gas = cast(
+        pl.DataFrame,
+        compute_gas_bills(
+            load_curves, gas_tariff_map, gas_rate_table, gas_fixed_charges
+        ).collect(),
+    )
+    _log_done("  Gas bills", t, f"{gas.height} rows")
+
+    gas_ids = set(gas[BLDG_ID].unique().to_list())
+    _assert_building_match("gas_bills", gas_ids, "elec_bills", elec_d_ids, utility)
+    _assert_rows_per_building(gas, 13, "gas_bills", utility)
+
+    n_gas = gas.filter(
+        (pl.col("month") != ANNUAL_MONTH) & (pl.col("gas_total_bill") > 0)
+    )[BLDG_ID].n_unique()
+    _log(f"  Buildings with nonzero gas: {n_gas}")
+
+    # --- Oil and propane bills ---
     t = _log("  Computing oil and propane bills...")
     fuel_bills = cast(
         pl.DataFrame, compute_fuel_bills(load_curves, monthly_prices).collect()
@@ -449,12 +476,21 @@ def _process_utility(
         FLOAT_TOL,
         utility,
     )
+    _assert_identity(
+        joined,
+        "gas_total_bill",
+        ["gas_fixed_charge", "gas_volumetric_bill"],
+        FLOAT_TOL,
+        utility,
+    )
     bill_cols = [
         "weight",
         "elec_fixed_charge",
         "elec_delivery_bill",
         "elec_supply_bill",
         "elec_total_bill",
+        "gas_fixed_charge",
+        "gas_volumetric_bill",
         "gas_total_bill",
         "propane_total_bill",
         "oil_total_bill",
@@ -543,6 +579,16 @@ def main() -> None:
         _log(f"  Batch overrides: {batch_overrides}")
 
     # --- Load shared data ---
+    t = _log(f"Loading gas tariffs for {state}...")
+    gas_tariffs = load_gas_tariffs(state)
+    gas_rate_table = build_rate_table(gas_tariffs)
+    gas_fixed_charges = build_fixed_charge_table(gas_tariffs)
+    _log_done(
+        "Loading gas tariffs",
+        t,
+        f"{len(gas_tariffs)} tariffs, {gas_rate_table.height} rate rows",
+    )
+
     t = _log(
         f"Loading EIA fuel prices (state={state_upper}, year={args.price_year})..."
     )
@@ -584,6 +630,8 @@ def main() -> None:
             monthly_prices=monthly_prices,
             path_load_curves_local=args.path_load_curves_local,
             upgrade=upgrade,
+            gas_rate_table=gas_rate_table,
+            gas_fixed_charges=gas_fixed_charges,
         )
         all_dfs.append(df)
 
