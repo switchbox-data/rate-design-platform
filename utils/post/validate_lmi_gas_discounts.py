@@ -42,7 +42,9 @@ def _section_header(title: str) -> None:
 
 def _gas_summary_stats(df: pl.DataFrame) -> None:
     """Print per-gas-utility summary stats for p100 annual gas bills."""
-    _section_header("Section 1.1: Gas Discount Summary Stats (p100, Annual, gas_total_bill > 0)")
+    _section_header(
+        "Section 1.1: Gas Discount Summary Stats (p100, Annual, gas_total_bill > 0)"
+    )
 
     stats = (
         df.group_by("sb.gas_utility")
@@ -88,7 +90,9 @@ def _gas_discount_histogram(df: pl.DataFrame) -> None:
     for idx, util in enumerate(utilities):
         ax = axes[idx // ncols][idx % ncols]
         subset = participants.filter(pl.col("sb.gas_utility") == util)
-        discount = (subset["gas_total_bill"] - subset["gas_total_bill_lmi_100"]).to_numpy()
+        discount = (
+            subset["gas_total_bill"] - subset["gas_total_bill_lmi_100"]
+        ).to_numpy()
         ax.hist(discount, bins=40, color="steelblue", edgecolor="white")
         ax.set_title(util)
         ax.set_xlabel("Gas discount ($)")
@@ -128,8 +132,22 @@ def _gas_before_after_histogram(df: pl.DataFrame) -> None:
         lo = min(before.min(), after.min())
         hi = max(before.max(), after.max())
         bins = np.linspace(lo, hi, 41)
-        ax.hist(before, bins=bins, alpha=0.5, color="coral", label="Original", edgecolor="white")
-        ax.hist(after, bins=bins, alpha=0.5, color="steelblue", label="After LMI", edgecolor="white")
+        ax.hist(
+            before,
+            bins=bins,
+            alpha=0.5,
+            color="coral",
+            label="Original",
+            edgecolor="white",
+        )
+        ax.hist(
+            after,
+            bins=bins,
+            alpha=0.5,
+            color="steelblue",
+            label="After LMI",
+            edgecolor="white",
+        )
         ax.set_title(util)
         ax.set_xlabel("Annual gas bill ($)")
         ax.set_ylabel("Count")
@@ -138,7 +156,9 @@ def _gas_before_after_histogram(df: pl.DataFrame) -> None:
     for idx in range(n_utils, nrows * ncols):
         axes[idx // ncols][idx % ncols].set_visible(False)
 
-    fig.suptitle("Gas Bill Before vs After Discount — p100 Participants", fontsize=14, y=1.01)
+    fig.suptitle(
+        "Gas Bill Before vs After Discount — p100 Participants", fontsize=14, y=1.01
+    )
     fig.tight_layout()
     out = PLOTS_DIR / "gas_bill_before_after_p100.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
@@ -199,7 +219,7 @@ def _p40_overview(df: pl.DataFrame) -> None:
     rate = total_participating / total_eligible if total_eligible > 0 else 0.0
     print(f"Total eligible (is_lmi=True): {total_eligible}")
     print(f"Total participating (applied_discount_40=True): {total_participating}")
-    print(f"Actual participation rate: {rate:.4f} ({rate*100:.1f}%)")
+    print(f"Actual participation rate: {rate:.4f} ({rate * 100:.1f}%)")
 
 
 def _p40_tier_comparison(df: pl.DataFrame) -> None:
@@ -213,7 +233,9 @@ def _p40_tier_comparison(df: pl.DataFrame) -> None:
             pl.col("applied_discount_40").sum().alias("n_participating"),
         )
         .with_columns(
-            (pl.col("n_participating") / pl.col("n_eligible")).alias("participation_rate")
+            (pl.col("n_participating") / pl.col("n_eligible")).alias(
+                "participation_rate"
+            )
         )
         .sort("lmi_tier")
     )
@@ -241,11 +263,19 @@ def _p40_participant_vs_excluded_hist(df: pl.DataFrame) -> None:
     bins = np.linspace(all_vals.min(), all_vals.max(), 50)
     ax.hist(
         parts["gas_total_bill"].to_numpy(),
-        bins=bins, alpha=0.5, color="steelblue", label="Participants", edgecolor="white",
+        bins=bins,
+        alpha=0.5,
+        color="steelblue",
+        label="Participants",
+        edgecolor="white",
     )
     ax.hist(
         excluded["gas_total_bill"].to_numpy(),
-        bins=bins, alpha=0.5, color="coral", label="Excluded", edgecolor="white",
+        bins=bins,
+        alpha=0.5,
+        color="coral",
+        label="Excluded",
+        edgecolor="white",
     )
     ax.set_xlabel("Annual gas bill ($)")
     ax.set_ylabel("Count")
@@ -269,7 +299,9 @@ def _p40_participation_rate_by_tier(df: pl.DataFrame) -> None:
             pl.col("applied_discount_40").sum().alias("n_participating"),
         )
         .with_columns(
-            (pl.col("n_participating") / pl.col("n_eligible")).alias("participation_rate")
+            (pl.col("n_participating") / pl.col("n_eligible")).alias(
+                "participation_rate"
+            )
         )
         .sort("lmi_tier")
     )
@@ -316,14 +348,20 @@ def _p40_participation_by_bill_size(df: pl.DataFrame) -> None:
             ax.scatter(
                 jitter_e,
                 excluded["gas_total_bill"].to_numpy(),
-                alpha=0.3, s=8, color="coral", label="Excluded",
+                alpha=0.3,
+                s=8,
+                color="coral",
+                label="Excluded",
             )
         if len(parts) > 0:
             jitter_p = rng.uniform(-0.15, 0.15, size=len(parts))
             ax.scatter(
                 jitter_p,
                 parts["gas_total_bill"].to_numpy(),
-                alpha=0.5, s=12, color="steelblue", label="Participant",
+                alpha=0.5,
+                s=12,
+                color="steelblue",
+                label="Participant",
             )
         ax.set_title(util)
         ax.set_ylabel("Annual gas bill ($)")
@@ -374,9 +412,7 @@ def main() -> None:
     _tier_distribution_bar(p100_annual_gas)
 
     # --- Section 2: Participation weighting (p40) ---
-    p40_annual_lmi = p40.filter(
-        (pl.col("month") == "Annual") & (pl.col("is_lmi"))
-    )
+    p40_annual_lmi = p40.filter((pl.col("month") == "Annual") & (pl.col("is_lmi")))
     print(f"\np40 annual LMI-eligible rows: {len(p40_annual_lmi)}")
 
     _p40_overview(p40_annual_lmi)
