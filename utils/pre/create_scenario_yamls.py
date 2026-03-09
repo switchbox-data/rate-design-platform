@@ -10,20 +10,23 @@ path_supply_energy_mc (required):
     NY supply runs (add_supply_revenue_requirement=TRUE):
         "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" & LOWER($B18) & "/year=2025/data.parquet"
     NY delivery-only runs:
-        "s3://data.sb/nrel/cambium/zero_marginal_costs.csv"
+        "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" & LOWER($B18) & "/year=2025/zero.parquet"
     RI supply runs (add_supply_revenue_requirement=TRUE):
         "s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=" & LOWER($B18) & "/year=2025/data.parquet"
     RI delivery-only runs:
-        "s3://data.sb/nrel/cambium/zero_marginal_costs.csv"
+        "s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=" & LOWER($B18) & "/year=2025/zero.parquet"
 
     Full formula (where E18 = add_supply_revenue_requirement column, X = TRUE):
     =IF(AND($A18="NY", E18="X"),
         "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" & LOWER($B18) & "/year=2025/data.parquet",
         IF(AND($A18="NY", E18<>"X"),
-            "s3://data.sb/nrel/cambium/zero_marginal_costs.csv",
+            "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" & LOWER($B18) & "/year=2025/zero.parquet",
             IF(AND($A18="RI", E18="X"),
                 "s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=" & LOWER($B18) & "/year=2025/data.parquet",
-                "s3://data.sb/nrel/cambium/zero_marginal_costs.csv")))
+                "s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=" & LOWER($B18) & "/year=2025/zero.parquet")))
+
+    Note: RI supply energy MC uses ISO-NE real-time zonal LMP data (not Cambium).
+    Zero parquets are placeholders for delivery-only runs where supply MCs are not needed.
 
 path_supply_capacity_mc (required):
     NY supply runs (add_supply_revenue_requirement=TRUE):
@@ -31,8 +34,8 @@ path_supply_capacity_mc (required):
     NY delivery-only runs:
         "s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=" & LOWER($B18) & "/year=2025/zero.parquet"
     RI supply runs (add_supply_revenue_requirement=TRUE):
-        "s3://data.sb/nrel/cambium/zero_marginal_costs.csv"
-    RI delivery-only runs (placeholder until FCM integration):
+        "s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=" & LOWER($B18) & "/year=2025/zero.parquet"
+    RI delivery-only runs:
         "s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=" & LOWER($B18) & "/year=2025/zero.parquet"
 
     Full formula (where E18 = add_supply_revenue_requirement column, X = TRUE):
@@ -41,13 +44,28 @@ path_supply_capacity_mc (required):
         IF(AND($A18="NY", E18<>"X"),
             "s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=" & LOWER($B18) & "/year=2025/zero.parquet",
             IF(AND($A18="RI", E18="X"),
-                "s3://data.sb/nrel/cambium/zero_marginal_costs.csv",
+                "s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=" & LOWER($B18) & "/year=2025/zero.parquet",
                 "s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=" & LOWER($B18) & "/year=2025/zero.parquet")))
 
     Note: Zero parquets are ONLY placeholders for capacity in delivery-only runs.
     For supply runs, actual ISO-NE supply MCs (energy from LMP) should be loaded.
-    RI capacity MC zero.parquet is ONLY for delivery-only runs (FCM integration parked).
+    RI capacity MC uses zero.parquet for all runs (FCM integration parked).
     NY uses separate NYISO LBMP + ICAP parquets for supply runs, and zero-filled parquets for delivery-only runs.
+
+path_supply_ancillary_mc (optional):
+    RI supply runs (add_supply_revenue_requirement=TRUE):
+        "s3://data.sb/switchbox/marginal_costs/ri/supply/ancillary/utility=" & LOWER($B18) & "/year=2025/data.parquet"
+    RI delivery-only runs:
+        "" (empty, not used)
+    NY runs:
+        "" (empty, not used)
+
+    Full formula (where E18 = add_supply_revenue_requirement column, X = TRUE):
+    =IF(AND($A18="RI", E18="X"),
+        "s3://data.sb/switchbox/marginal_costs/ri/supply/ancillary/utility=" & LOWER($B18) & "/year=2025/data.parquet",
+        "")
+
+    Note: RI ancillary MC uses ISO-NE regulation clearing prices (reg_service_price + reg_capacity_price).
 
 path_tou_supply_mc formula (for runs where num = 13 or 14):
     =IF(AND($A18="NY", OR($C18=13, $C18=14)),
