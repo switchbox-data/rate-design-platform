@@ -318,7 +318,9 @@ def _load_supply_marginal_costs(
 
         combined = pd.concat([energy_df, capacity_df], axis=1)
         if len(combined) != 8760:
-            raise ValueError(f"Combined supply MC has {len(combined)} rows, expected 8760")
+            raise ValueError(
+                f"Combined supply MC has {len(combined)} rows, expected 8760"
+            )
 
     if ancillary_path is not None and str(ancillary_path).strip():
         ancillary_df = _load_supply_mc_column(

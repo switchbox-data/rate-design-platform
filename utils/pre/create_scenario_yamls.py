@@ -34,7 +34,7 @@ path_supply_capacity_mc (required):
     NY delivery-only runs:
         "s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=" & LOWER($B18) & "/year=2025/zero.parquet"
     RI supply runs (add_supply_revenue_requirement=TRUE):
-        "s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=" & LOWER($B18) & "/year=2025/zero.parquet"
+        "s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=" & LOWER($B18) & "/year=2025/data.parquet"
     RI delivery-only runs:
         "s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=" & LOWER($B18) & "/year=2025/zero.parquet"
 
@@ -44,12 +44,12 @@ path_supply_capacity_mc (required):
         IF(AND($A18="NY", E18<>"X"),
             "s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=" & LOWER($B18) & "/year=2025/zero.parquet",
             IF(AND($A18="RI", E18="X"),
-                "s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=" & LOWER($B18) & "/year=2025/zero.parquet",
+                "s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=" & LOWER($B18) & "/year=2025/data.parquet",
                 "s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=" & LOWER($B18) & "/year=2025/zero.parquet")))
 
     Note: Zero parquets are ONLY placeholders for capacity in delivery-only runs.
-    For supply runs, actual ISO-NE supply MCs (energy from LMP) should be loaded.
-    RI capacity MC uses zero.parquet for all runs (FCM integration parked).
+    For supply runs, actual ISO-NE supply MCs (energy from LMP, capacity from FCA) should be loaded.
+    RI capacity MC uses data.parquet for supply runs (FCA-based allocation) and zero.parquet for delivery-only runs.
     NY uses separate NYISO LBMP + ICAP parquets for supply runs, and zero-filled parquets for delivery-only runs.
 
 path_supply_ancillary_mc (optional):

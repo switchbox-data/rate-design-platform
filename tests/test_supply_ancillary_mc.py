@@ -9,7 +9,6 @@ import pytest
 
 from utils.pre.marginal_costs.supply_ancillary import (
     compute_supply_ancillary_mc,
-    load_ancillary_for_year,
 )
 from utils.pre.marginal_costs.supply_utils import build_cairo_8760_timestamps
 
@@ -47,12 +46,16 @@ def test_load_ancillary_sums_reg_service_and_capacity() -> None:
     """ancillary_cost_enduse should equal reg_service + reg_capacity."""
     raw = _make_ancillary_df(year=2025)
     # Simulate what load_ancillary_for_year does without hitting S3
-    result = raw.rename({"interval_start_et": "timestamp"}).with_columns(
-        (
-            pl.col("reg_service_price_usd_per_mwh")
-            + pl.col("reg_capacity_price_usd_per_mwh")
-        ).alias("ancillary_cost_enduse")
-    ).select("timestamp", "ancillary_cost_enduse")
+    result = (
+        raw.rename({"interval_start_et": "timestamp"})
+        .with_columns(
+            (
+                pl.col("reg_service_price_usd_per_mwh")
+                + pl.col("reg_capacity_price_usd_per_mwh")
+            ).alias("ancillary_cost_enduse")
+        )
+        .select("timestamp", "ancillary_cost_enduse")
+    )
 
     # spot-check first row
     expected_first = 10.0 + 5.0  # reg_service[0] + reg_capacity[0]
@@ -70,12 +73,16 @@ def test_load_ancillary_sums_reg_service_and_capacity() -> None:
 def test_load_ancillary_columns() -> None:
     """Returned DataFrame must have exactly timestamp and ancillary_cost_enduse."""
     raw = _make_ancillary_df(year=2025)
-    result = raw.rename({"interval_start_et": "timestamp"}).with_columns(
-        (
-            pl.col("reg_service_price_usd_per_mwh")
-            + pl.col("reg_capacity_price_usd_per_mwh")
-        ).alias("ancillary_cost_enduse")
-    ).select("timestamp", "ancillary_cost_enduse")
+    result = (
+        raw.rename({"interval_start_et": "timestamp"})
+        .with_columns(
+            (
+                pl.col("reg_service_price_usd_per_mwh")
+                + pl.col("reg_capacity_price_usd_per_mwh")
+            ).alias("ancillary_cost_enduse")
+        )
+        .select("timestamp", "ancillary_cost_enduse")
+    )
 
     assert result.columns == ["timestamp", "ancillary_cost_enduse"]
 
@@ -150,9 +157,7 @@ def test_compute_ancillary_mc_constant_price(monkeypatch: pytest.MonkeyPatch) ->
     result = _make_compute_ancillary_mc_with_patch(
         monkeypatch, year=2025, reg_service=reg_service, reg_capacity=reg_capacity
     )
-    assert result["ancillary_cost_enduse"].to_list() == pytest.approx(
-        [expected] * 8760
-    )
+    assert result["ancillary_cost_enduse"].to_list() == pytest.approx([expected] * 8760)
 
 
 def test_compute_ancillary_mc_timestamps_match_cairo_8760(
