@@ -16,6 +16,7 @@ import polars as pl
 from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.post.lmi_common import get_ny_eap_credits_df
 
 matplotlib.use("Agg")
 
@@ -24,6 +25,7 @@ PLOTS_DIR = Path(__file__).resolve().parents[2] / "dev_plots"
 S3_BASE = "s3://data.sb/switchbox/lmi/ny/ny_20260307_r1-8_gascalcfix/run_1+2"
 P100_PATH = f"{S3_BASE}/p100/comb_bills_year_target/"
 P40_PATH = f"{S3_BASE}/p40/comb_bills_year_target/"
+PROD_PATH = "s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/all_utilities/ny_20260307_r1-8_gascalcfix/run_1+2/comb_bills_year_target/"
 
 
 def _load_staging(path: str, opts: dict[str, str]) -> pl.DataFrame:
@@ -61,9 +63,11 @@ def _gas_summary_stats(df: pl.DataFrame) -> None:
             pl.col("gas_total_bill_lmi_100").min().alias("gas_lmi_min"),
             pl.col("gas_total_bill_lmi_100").max().alias("gas_lmi_max"),
             (pl.col("gas_total_bill") - pl.col("gas_total_bill_lmi_100"))
+            .filter(pl.col("applied_discount_100"))
             .mean()
             .alias("discount_mean"),
             (pl.col("gas_total_bill") - pl.col("gas_total_bill_lmi_100"))
+            .filter(pl.col("applied_discount_100"))
             .median()
             .alias("discount_median"),
         )
@@ -200,6 +204,115 @@ def _tier_distribution_bar(df: pl.DataFrame) -> None:
     ax.legend(fontsize=8)
     fig.tight_layout()
     out = PLOTS_DIR / "gas_tier_distribution.png"
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved {out}")
+
+
+# ---------------------------------------------------------------------------
+# Section 1.5: Expected vs actual gas credit
+# ---------------------------------------------------------------------------
+
+EXPECTED_VS_ACTUAL_TOL = 0.02
+
+
+def _merge_expected_gas_credit(
+    df: pl.DataFrame, credits_df: pl.DataFrame
+) -> pl.DataFrame:
+    """Join staging with NY EAP credits; add expected_annual_credit (gas, 12x monthly)."""
+    gas_credits = credits_df.select(
+        pl.col("utility").alias("sb.gas_utility"),
+        pl.col("tier").alias("lmi_tier"),
+        pl.col("gas_heat").fill_null(0.0).alias("_gas_heat"),
+        pl.col("gas_nonheat").fill_null(0.0).alias("_gas_nonheat"),
+    )
+    merged = df.join(gas_credits, on=["sb.gas_utility", "lmi_tier"], how="left")
+    merged = merged.with_columns(
+        pl.when(pl.col("heats_with_natgas").fill_null(False))
+        .then(pl.col("_gas_heat") * 12.0)
+        .otherwise(pl.col("_gas_nonheat") * 12.0)
+        .fill_null(0.0)
+        .alias("expected_annual_credit")
+    ).drop(["_gas_heat", "_gas_nonheat"])
+    return merged
+
+
+def _gas_expected_vs_actual_summary(participants: pl.DataFrame) -> None:
+    """Print summary: expected (from EAP table) vs actual gas discount by utility+tier."""
+    _section_header(
+        "Section 1.5a: Expected vs Actual Gas Discount (p100 participants)"
+    )
+
+    participants = participants.with_columns(
+        (pl.col("gas_total_bill") - pl.col("gas_total_bill_lmi_100")).alias(
+            "actual_discount"
+        )
+    )
+
+    summary = (
+        participants.group_by("sb.gas_utility", "lmi_tier")
+        .agg(
+            pl.len().alias("n"),
+            pl.col("expected_annual_credit").mean().alias("expected_mean"),
+            pl.col("expected_annual_credit").median().alias("expected_median"),
+            pl.col("actual_discount").mean().alias("actual_mean"),
+            pl.col("actual_discount").median().alias("actual_median"),
+            (pl.col("actual_discount") - pl.col("expected_annual_credit"))
+            .mean()
+            .alias("diff_mean"),
+            (pl.col("actual_discount") - pl.col("expected_annual_credit"))
+            .abs()
+            .mean()
+            .alias("abs_diff_mean"),
+        )
+        .sort("sb.gas_utility", "lmi_tier")
+    )
+    with pl.Config(tbl_rows=100):
+        print(summary)
+    n_mismatch = participants.filter(
+        (pl.col("actual_discount") - pl.col("expected_annual_credit")).abs()
+        > EXPECTED_VS_ACTUAL_TOL
+    ).height
+    n_total = participants.height
+    print(
+        f"\nRows with |actual - expected| > ${EXPECTED_VS_ACTUAL_TOL}: "
+        f"{n_mismatch} / {n_total}"
+    )
+    if n_total > 0:
+        print(
+            "  (Small differences are normal when bill < expected credit: "
+            "discount is capped at bill amount.)"
+        )
+
+
+def _gas_expected_vs_actual_scatter(participants: pl.DataFrame) -> None:
+    """Scatter: expected (capped) vs actual gas discount; 1:1 line."""
+    _section_header(
+        "Section 1.5b: Expected (capped) vs Actual Gas Discount Scatter (p100)"
+    )
+
+    participants = participants.with_columns(
+        (pl.col("gas_total_bill") - pl.col("gas_total_bill_lmi_100")).alias(
+            "actual_discount"
+        ),
+        pl.min_horizontal("expected_annual_credit", "gas_total_bill").alias(
+            "expected_capped"
+        ),
+    )
+
+    exp = participants["expected_capped"].to_numpy()
+    act = participants["actual_discount"].to_numpy()
+    hi = max(exp.max(), act.max()) * 1.05
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.scatter(exp, act, alpha=0.3, s=10, color="steelblue", label="Participants")
+    ax.plot([0, hi], [0, hi], "k--", alpha=0.5, label="1:1 (expected_capped = actual)")
+    ax.set_xlabel("Expected (capped) ($) — min(expected annual credit, gas_total_bill)")
+    ax.set_ylabel("Actual discount ($) — gas_total_bill - gas_total_bill_lmi_100")
+    ax.set_title("Gas LMI: Expected-With-Cap vs Actual — on line = correct zero-flooring")
+    ax.legend()
+    fig.tight_layout()
+    out = PLOTS_DIR / "gas_expected_vs_actual_scatter.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved {out}")
@@ -380,6 +493,74 @@ def _p40_participation_by_bill_size(df: pl.DataFrame) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Section 3: Cross-run and source integrity checks
+# ---------------------------------------------------------------------------
+
+
+def _cross_check_p100_p40(p100: pl.DataFrame, p40: pl.DataFrame) -> None:
+    """Verify lmi_tier and is_lmi are identical between p100 and p40."""
+    _section_header("Section 3.1: p100 vs p40 tier/eligibility consistency")
+
+    p100_ann = p100.filter(pl.col("month") == "Annual").select("bldg_id", "lmi_tier", "is_lmi")
+    p40_ann = p40.filter(pl.col("month") == "Annual").select("bldg_id", "lmi_tier", "is_lmi")
+
+    joined = p100_ann.join(p40_ann, on="bldg_id", suffix="_p40")
+
+    tier_mismatch = joined.filter(pl.col("lmi_tier") != pl.col("lmi_tier_p40")).height
+    lmi_mismatch = joined.filter(pl.col("is_lmi") != pl.col("is_lmi_p40")).height
+
+    print(f"Buildings compared: {joined.height}")
+    print(f"lmi_tier mismatches: {tier_mismatch}")
+    print(f"is_lmi mismatches: {lmi_mismatch}")
+    if tier_mismatch == 0 and lmi_mismatch == 0:
+        print("PASS: p100 and p40 have identical tier assignments")
+    else:
+        print("FAIL: tier assignments differ between p100 and p40")
+
+
+def _check_source_columns(
+    staging: pl.DataFrame, prod: pl.DataFrame, label: str
+) -> None:
+    """Verify pass-through columns in staging match the production source."""
+    _section_header(f"Section 3.2: Source column integrity ({label})")
+
+    lmi_cols = {
+        "lmi_tier", "is_lmi",
+        "elec_total_bill_lmi_100", "gas_total_bill_lmi_100", "applied_discount_100",
+        "elec_total_bill_lmi_40", "gas_total_bill_lmi_40", "applied_discount_40",
+    }
+    shared_cols = [c for c in prod.columns if c in staging.columns and c not in lmi_cols]
+    print(f"Checking {len(shared_cols)} pass-through columns: {shared_cols}")
+
+    staging_sub = staging.select(shared_cols).sort("bldg_id", "month")
+    prod_sub = prod.select(shared_cols).sort("bldg_id", "month")
+
+    if staging_sub.height != prod_sub.height:
+        print(f"FAIL: row count mismatch: staging={staging_sub.height}, prod={prod_sub.height}")
+        return
+
+    n_diffs = 0
+    for col in shared_cols:
+        if col in ("bldg_id", "month"):
+            continue
+        if staging_sub[col].dtype.is_float():
+            diff = float((staging_sub[col] - prod_sub[col]).abs().max())  # type: ignore[arg-type]
+            if diff > 1e-10:
+                print(f"  FAIL: {col} max diff = {diff}")
+                n_diffs += 1
+        else:
+            mismatches = int((staging_sub[col] != prod_sub[col]).sum())
+            if mismatches > 0:
+                print(f"  FAIL: {col} has {mismatches} mismatches")
+                n_diffs += 1
+
+    if n_diffs == 0:
+        print("PASS: all pass-through columns match production source")
+    else:
+        print(f"FAIL: {n_diffs} columns differ from production")
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -411,6 +592,13 @@ def main() -> None:
     _gas_before_after_histogram(p100_annual_gas)
     _tier_distribution_bar(p100_annual_gas)
 
+    # Expected vs actual gas credit (Section 1.5)
+    credits_df = get_ny_eap_credits_df()
+    p100_annual_gas_merged = _merge_expected_gas_credit(p100_annual_gas, credits_df)
+    gas_participants = p100_annual_gas_merged.filter(pl.col("applied_discount_100"))
+    _gas_expected_vs_actual_summary(gas_participants)
+    _gas_expected_vs_actual_scatter(gas_participants)
+
     # --- Section 2: Participation weighting (p40) ---
     p40_annual_lmi = p40.filter((pl.col("month") == "Annual") & (pl.col("is_lmi")))
     print(f"\np40 annual LMI-eligible rows: {len(p40_annual_lmi)}")
@@ -420,6 +608,14 @@ def main() -> None:
     _p40_participant_vs_excluded_hist(p40_annual_lmi)
     _p40_participation_rate_by_tier(p40_annual_lmi)
     _p40_participation_by_bill_size(p40_annual_lmi)
+
+    # --- Section 3: Cross-run and source integrity ---
+    _cross_check_p100_p40(p100, p40)
+
+    _section_header("Loading production source data")
+    prod = _load_staging(PROD_PATH, opts)
+    print(f"prod shape: {prod.shape}")
+    _check_source_columns(p100, prod, "p100 vs production")
 
     _section_header("Done")
     print(f"All plots saved to {PLOTS_DIR}/")
