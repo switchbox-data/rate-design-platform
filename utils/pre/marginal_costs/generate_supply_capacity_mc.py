@@ -17,10 +17,14 @@ from utils.pre.marginal_costs.supply_utils import (
     DEFAULT_ZONE_LOADS_S3_BASE,
     DEFAULT_ZONE_MAPPING_PATH,
     VALID_UTILITIES,
+    generate_zero_capacity_mc,
+    generate_zero_energy_mc,
     get_utility_mapping,
     load_zone_mapping,
     prepare_component_output,
     save_component_output,
+    save_zero_capacity_mc,
+    save_zero_energy_mc,
 )
 
 
@@ -148,6 +152,28 @@ def main() -> None:
             storage_options=storage_options,
             component="capacity",
         )
+        # Generate zero-filled parquets for delivery-only runs
+        # Note: These are ONLY placeholders for delivery-only runs.
+        # For supply runs, actual supply MCs should be loaded.
+        print("\n── Zero-Filled Supply MCs (Placeholders for delivery-only runs) ──")
+        # Zero-filled energy MC
+        zero_energy_output = generate_zero_energy_mc(year=price_year)
+        save_zero_energy_mc(
+            energy_df=zero_energy_output,
+            utility=utility,
+            year=price_year,
+            output_s3_base=args.output_s3_base,
+            storage_options=storage_options,
+        )
+        # Zero-filled capacity MC
+        zero_capacity_output = generate_zero_capacity_mc(year=price_year)
+        save_zero_capacity_mc(
+            capacity_df=zero_capacity_output,
+            utility=utility,
+            year=price_year,
+            output_s3_base=args.output_s3_base,
+            storage_options=storage_options,
+        )
         print("\n" + "=" * 60)
         print("✓ Supply capacity marginal cost generation completed and uploaded")
         print("=" * 60)
@@ -155,6 +181,10 @@ def main() -> None:
         print("\n" + "=" * 60)
         print("✓ Supply capacity marginal cost generation completed (inspect only)")
         print("⚠️  No data uploaded to S3 (use --upload flag to enable)")
+        print(
+            "\nNote: When uploading, zero-filled energy and capacity parquets "
+            "(placeholders for delivery-only runs) will also be generated."
+        )
         print("=" * 60)
 
 
