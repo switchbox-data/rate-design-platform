@@ -38,6 +38,7 @@ PLOTS_DIR = Path(__file__).resolve().parents[2] / "dev_plots"
 
 # Default staging base; same layout as gas (comb_bills_year_target with p100/p40).
 DEFAULT_S3_BASE = "s3://data.sb/switchbox/lmi/ny/ny_20260307_r1-8_gascalcfix/run_1+2"
+DEFAULT_PROD_PATH = "s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/all_utilities/ny_20260307_r1-8_gascalcfix/run_1+2/comb_bills_year_target/"
 
 ANNUAL_MONTH = "Annual"
 
@@ -77,9 +78,11 @@ def _elec_summary_stats(df: pl.DataFrame) -> None:
             pl.col("elec_total_bill_lmi_100").min().alias("elec_lmi_min"),
             pl.col("elec_total_bill_lmi_100").max().alias("elec_lmi_max"),
             (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100"))
+            .filter(pl.col("applied_discount_100"))
             .mean()
             .alias("discount_mean"),
             (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100"))
+            .filter(pl.col("applied_discount_100"))
             .median()
             .alias("discount_median"),
         )
@@ -1016,6 +1019,83 @@ def _p40_participation_by_bill_size(df: pl.DataFrame) -> None:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Section 3: Cross-run and source integrity checks
+# ---------------------------------------------------------------------------
+
+
+def _cross_check_p100_p40(p100: pl.DataFrame, p40: pl.DataFrame) -> None:
+    """Verify lmi_tier and is_lmi are identical between p100 and p40."""
+    _section_header("Section 3.1: p100 vs p40 tier/eligibility consistency")
+
+    p100_ann = p100.filter(pl.col("month") == ANNUAL_MONTH).select(
+        "bldg_id", "lmi_tier", "is_lmi"
+    )
+    p40_ann = p40.filter(pl.col("month") == ANNUAL_MONTH).select(
+        "bldg_id", "lmi_tier", "is_lmi"
+    )
+
+    joined = p100_ann.join(p40_ann, on="bldg_id", suffix="_p40")
+
+    tier_mismatch = joined.filter(pl.col("lmi_tier") != pl.col("lmi_tier_p40")).height
+    lmi_mismatch = joined.filter(pl.col("is_lmi") != pl.col("is_lmi_p40")).height
+
+    print(f"Buildings compared: {joined.height}")
+    print(f"lmi_tier mismatches: {tier_mismatch}")
+    print(f"is_lmi mismatches: {lmi_mismatch}")
+    if tier_mismatch == 0 and lmi_mismatch == 0:
+        print("PASS: p100 and p40 have identical tier assignments")
+    else:
+        print("FAIL: tier assignments differ between p100 and p40")
+
+
+def _check_source_columns(
+    staging: pl.DataFrame, prod: pl.DataFrame, label: str
+) -> None:
+    """Verify pass-through columns in staging match the production source."""
+    _section_header(f"Section 3.2: Source column integrity ({label})")
+
+    lmi_cols = {
+        "lmi_tier", "is_lmi",
+        "elec_total_bill_lmi_100", "gas_total_bill_lmi_100", "applied_discount_100",
+        "elec_total_bill_lmi_40", "gas_total_bill_lmi_40", "applied_discount_40",
+    }
+    shared_cols = [
+        c for c in prod.columns if c in staging.columns and c not in lmi_cols
+    ]
+    print(f"Checking {len(shared_cols)} pass-through columns: {shared_cols}")
+
+    staging_sub = staging.select(shared_cols).sort("bldg_id", "month")
+    prod_sub = prod.select(shared_cols).sort("bldg_id", "month")
+
+    if staging_sub.height != prod_sub.height:
+        print(
+            f"FAIL: row count mismatch: staging={staging_sub.height}, "
+            f"prod={prod_sub.height}"
+        )
+        return
+
+    n_diffs = 0
+    for col in shared_cols:
+        if col in ("bldg_id", "month"):
+            continue
+        if staging_sub[col].dtype.is_float():
+            diff = float((staging_sub[col] - prod_sub[col]).abs().max())  # type: ignore[arg-type]
+            if diff > 1e-10:
+                print(f"  FAIL: {col} max diff = {diff}")
+                n_diffs += 1
+        else:
+            mismatches = int((staging_sub[col] != prod_sub[col]).sum())
+            if mismatches > 0:
+                print(f"  FAIL: {col} has {mismatches} mismatches")
+                n_diffs += 1
+
+    if n_diffs == 0:
+        print("PASS: all pass-through columns match production source")
+    else:
+        print(f"FAIL: {n_diffs} columns differ from production")
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Validate and explore LMI electric bill discounts from staging outputs.",
@@ -1111,6 +1191,14 @@ def main() -> None:
     _p40_participant_vs_excluded_hist(p40_annual_lmi)
     _p40_participation_rate_by_tier(p40_annual_lmi)
     _p40_participation_by_bill_size(p40_annual_lmi)
+
+    # --- Section 3: Cross-run and source integrity ---
+    _cross_check_p100_p40(p100, p40)
+
+    _section_header("Loading production source data")
+    prod = _load_staging(DEFAULT_PROD_PATH, opts)
+    print(f"prod shape: {prod.shape}")
+    _check_source_columns(p100, prod, "p100 vs production")
 
     _section_header("Done")
     print(f"All plots saved to {PLOTS_DIR}/")
