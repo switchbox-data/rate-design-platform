@@ -67,9 +67,10 @@ path_tariff_maps                    := path_config / "tariff_maps"
 path_dist_and_sub_tx_mc             := "s3://data.sb/switchbox/marginal_costs/" + state + "/dist_and_sub_tx/utility=" + utility + "/year=" + mc_year + "/00000000.parquet"
 path_bulk_tx_mc                     := ""
 # Supply MC: default to per-utility S3 parquets (NY-style).
-# Cambium-based states (RI) override via SUPPLY_ENERGY_MC / SUPPLY_CAPACITY_MC in state.env.
+# Cambium-based states (RI) override via SUPPLY_ENERGY_MC / SUPPLY_CAPACITY_MC / SUPPLY_ANCILLARY_MC in state.env.
 path_supply_energy_mc               := env_var_or_default('SUPPLY_ENERGY_MC', "s3://data.sb/switchbox/marginal_costs/" + state + "/supply/energy/utility=" + utility + "/year=" + mc_year + "/00000000.parquet")
 path_supply_capacity_mc             := env_var_or_default('SUPPLY_CAPACITY_MC', "s3://data.sb/switchbox/marginal_costs/" + state + "/supply/capacity/utility=" + utility + "/year=" + mc_year + "/00000000.parquet")
+path_supply_ancillary_mc            := env_var_or_default('SUPPLY_ANCILLARY_MC', "")
 path_resstock_release               := "/ebs/data/nrel/resstock/res_2024_amy2018_2_sb"
 path_resstock_metadata              := path_resstock_release + "/metadata"
 path_utility_assignment             := path_resstock_release + "/metadata_utility"
@@ -343,6 +344,7 @@ run-scenario run_num:
         --utility "{{utility}}" \
         --output-dir "{{path_outputs_base}}/${RDP_BATCH}" \
         {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }} \
+        {{ if path_supply_ancillary_mc != "" { "--path-supply-ancillary-mc \"" + path_supply_ancillary_mc + "\"" } else { "" } }} \
         2>&1 | tee "${log_file}"
 
 run-1:

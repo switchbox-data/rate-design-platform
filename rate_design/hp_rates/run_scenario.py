@@ -265,6 +265,12 @@ def _build_settings_from_yaml_run(
     bulk_tx_raw = run.get("path_bulk_tx_mc")
     if bulk_tx_raw and str(bulk_tx_raw).strip():
         path_bulk_tx_mc = _resolve_path_or_uri(str(bulk_tx_raw).strip(), path_config)
+    path_supply_ancillary_mc: str | Path | None = None
+    ancillary_raw = run.get("path_supply_ancillary_mc")
+    if ancillary_raw and str(ancillary_raw).strip():
+        path_supply_ancillary_mc = _resolve_path_or_uri(
+            str(ancillary_raw).strip(), path_config
+        )
     output_dir = _resolve_output_dir(run, run_num, output_dir_override)
     run_name = run_name_override or run.get("run_name") or f"run_{run_num}"
     return ScenarioSettings(
@@ -313,6 +319,7 @@ def _build_settings_from_yaml_run(
         run_includes_supply=run_includes_supply,
         elasticity=elasticity,
         path_bulk_tx_mc=path_bulk_tx_mc,
+        path_supply_ancillary_mc=path_supply_ancillary_mc,
     )
 
 
