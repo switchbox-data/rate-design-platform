@@ -1,9 +1,8 @@
 """Generate utility-level NY bulk transmission marginal costs using constraint groups.
 
-This script allocates each NYISO bulk-tx constraint group's annual value
-(`v_constraint_group_kw_yr`) to hourly signals using SCR (top-N per season)
-weights from its `tightest_nested_locality` load profile, then aggregates those
-signals to paying localities and finally to utility-level hourly costs.
+This script derives scalar costs for paying localities (ROS/LHV/NYC/LI) from
+constraint groups, then allocates each utility's weighted locality costs onto
+SCR hours identified from that utility's mapped ICAP localities.
 """
 
 from __future__ import annotations
@@ -67,6 +66,12 @@ NESTED_LOCALITY_ZONES: dict[str, list[str]] = {
 }
 VALID_NESTED_LOCALITIES = frozenset(NESTED_LOCALITY_ZONES)
 VALID_PAYING_LOCALITIES = frozenset({"ROS", "LHV", "NYC", "LI"})
+ICAP_RAW_TO_NESTED_LOCALITY = {
+    "NYCA": "NYCA",
+    "GHIJ": "LHV",
+    "NYC": "NYC",
+    "LI": "LI",
+}
 
 
 # ── Constraint-group table ───────────────────────────────────────────────────
@@ -224,6 +229,39 @@ def allocate_bulk_tx_to_hours(
 
 
 # ── Constraint-group engine ──────────────────────────────────────────────────
+
+
+def compute_paying_locality_costs(constraint_group_df: pl.DataFrame) -> dict[str, float]:
+    """Compute mean annual cost per paying locality from constraint groups."""
+    exploded = (
+        constraint_group_df.with_columns(
+            pl.col("paying_localities").str.split("|").alias("paying_locality_list")
+        )
+        .explode("paying_locality_list")
+        .rename({"paying_locality_list": "paying_locality"})
+    )
+
+    invalid = sorted(
+        set(exploded["paying_locality"].drop_nulls().to_list())
+        - set(VALID_PAYING_LOCALITIES)
+    )
+    if invalid:
+        raise ValueError(
+            f"Invalid paying_locality values in constraint groups: {invalid}. "
+            f"Expected {sorted(VALID_PAYING_LOCALITIES)}"
+        )
+
+    locality_costs = (
+        exploded.group_by("paying_locality")
+        .agg(pl.col("v_constraint_group_kw_yr").mean().alias("mean_cost_kw_yr"))
+        .sort("paying_locality")
+    )
+
+    result: dict[str, float] = {}
+    for row in locality_costs.iter_rows(named=True):
+        result[str(row["paying_locality"])] = float(row["mean_cost_kw_yr"])
+
+    return result
 
 
 def build_nested_locality_load_profiles(
@@ -387,6 +425,64 @@ def resolve_utility_paying_locality_signal(
     )
 
     return blended
+
+
+def compute_utility_bulk_tx_signal(
+    utility_icap_rows: pl.DataFrame,
+    paying_locality_costs: dict[str, float],
+    locality_profiles: dict[str, pl.DataFrame],
+    n_scr: int,
+    winter_months: list[int],
+) -> pl.DataFrame:
+    """Compute utility bulk TX hourly signal from utility ICAP locality rows."""
+    component_frames: list[pl.DataFrame] = []
+
+    for row in utility_icap_rows.iter_rows(named=True):
+        icap_locality_raw = str(row["icap_locality"])
+        gen_capacity_zone = str(row["gen_capacity_zone"])
+        capacity_weight = float(row["capacity_weight"])
+
+        if icap_locality_raw not in ICAP_RAW_TO_NESTED_LOCALITY:
+            raise ValueError(
+                f"Unknown icap_locality {icap_locality_raw!r}. "
+                f"Expected one of {sorted(ICAP_RAW_TO_NESTED_LOCALITY)}."
+            )
+        nested_locality = ICAP_RAW_TO_NESTED_LOCALITY[icap_locality_raw]
+
+        if gen_capacity_zone not in paying_locality_costs:
+            raise ValueError(
+                f"No cost available for paying locality {gen_capacity_zone!r}. "
+                f"Available: {sorted(paying_locality_costs)}"
+            )
+        if nested_locality not in locality_profiles:
+            raise ValueError(
+                f"No load profile for nested locality {nested_locality!r}. "
+                f"Available: {sorted(locality_profiles)}"
+            )
+
+        component_value = paying_locality_costs[gen_capacity_zone] * capacity_weight
+        load_profile = locality_profiles[nested_locality]
+        with_scr = identify_scr_hours(
+            load_profile,
+            n_hours_per_season=n_scr,
+            winter_months=winter_months,
+        )
+        component_hourly = allocate_bulk_tx_to_hours(
+            with_scr,
+            v_constraint_group_kw_yr=component_value,
+            n_hours_per_season=n_scr,
+        )
+        component_frames.append(component_hourly)
+
+    if not component_frames:
+        raise ValueError("No ICAP locality components found for utility")
+
+    return (
+        pl.concat(component_frames)
+        .group_by("timestamp")
+        .agg(pl.col("bulk_tx_cost_enduse").sum().alias("bulk_tx_cost_enduse"))
+        .sort("timestamp")
+    )
 
 
 # ── Output assembly ──────────────────────────────────────────────────────────
@@ -573,8 +669,23 @@ def main() -> None:
     mapping_df = load_zone_mapping(args.zone_mapping_path, storage_options)
     constraint_group_df = load_constraint_group_table(args.constraint_group_table_path)
 
+    paying_locality_costs = compute_paying_locality_costs(constraint_group_df)
+    utility_icap_rows = (
+        mapping_df.filter(pl.col("utility") == utility)
+        .select("icap_locality", "gen_capacity_zone", "capacity_weight")
+        .unique()
+    )
+    if utility_icap_rows.is_empty():
+        available = sorted(mapping_df["utility"].unique().to_list())
+        raise ValueError(
+            f"Utility '{utility}' not found in zone mapping. Available: {available}"
+        )
+
     nested_localities = sorted(
-        constraint_group_df["tightest_nested_locality"].unique().to_list()
+        {
+            ICAP_RAW_TO_NESTED_LOCALITY[str(locality)]
+            for locality in utility_icap_rows["icap_locality"].to_list()
+        }
     )
     zone_names_needed = sorted(
         {
@@ -598,33 +709,12 @@ def main() -> None:
         [str(x) for x in nested_localities],
     )
 
-    locality_weights: dict[str, pl.DataFrame] = {}
-    for locality, profile in locality_profiles.items():
-        locality_weights[locality] = compute_nested_locality_scr_weights(
-            profile,
-            n_hours_per_season=n_scr,
-            winter_months=winter_months,
-        )
-
-    print("\n── Constraint-group Allocation ──")
-    group_hourly_parts: list[pl.DataFrame] = []
-    for row in constraint_group_df.iter_rows(named=True):
-        group_hourly_parts.append(
-            allocate_constraint_group_to_hours(row, locality_weights)
-        )
-
-    constraint_group_hourly = pl.concat(group_hourly_parts)
-
-    paying_locality_hourly = (
-        aggregate_paying_locality_hourly_signals_from_constraint_groups(
-            constraint_group_hourly
-        )
-    )
-
-    utility_hourly = resolve_utility_paying_locality_signal(
-        mapping_df,
-        utility,
-        paying_locality_hourly,
+    utility_hourly = compute_utility_bulk_tx_signal(
+        utility_icap_rows=utility_icap_rows,
+        paying_locality_costs=paying_locality_costs,
+        locality_profiles=locality_profiles,
+        n_scr=n_scr,
+        winter_months=winter_months,
     )
 
     if load_year != year:

@@ -14,6 +14,8 @@ from utils.pre.marginal_costs.generate_bulk_tx_mc import (
     aggregate_paying_locality_hourly_signals_from_constraint_groups,
     allocate_bulk_tx_to_hours,
     build_nested_locality_load_profiles,
+    compute_paying_locality_costs,
+    compute_utility_bulk_tx_signal,
     compute_nested_locality_scr_weights,
     identify_scr_hours,
     load_constraint_group_table,
@@ -67,6 +69,27 @@ def _make_zone_loads(year: int = 2025) -> pl.DataFrame:
             ).select("timestamp", "zone", "load_mw")
         )
     return pl.concat(frames)
+
+
+def _make_hourly_load_profile_with_peak_hour(
+    peak_hour: int,
+    year: int = 2025,
+) -> pl.DataFrame:
+    timestamps = pl.datetime_range(
+        datetime(year, 1, 1, 0, 0, 0),
+        datetime(year, 12, 31, 23, 0, 0),
+        interval="1h",
+        eager=True,
+    )
+    return pl.DataFrame({"timestamp": timestamps}).with_columns(
+        (
+            (pl.col("timestamp").dt.ordinal_day() * 10.0)
+            + pl.col("timestamp").dt.hour().cast(pl.Float64)
+            + pl.when(pl.col("timestamp").dt.hour() == peak_hour)
+            .then(10_000.0)
+            .otherwise(0.0)
+        ).alias("load_mw")
+    )
 
 
 def _make_constraint_group_hourly() -> pl.DataFrame:
@@ -197,6 +220,69 @@ class TestAggregationAndUtilityResolution:
         # u1 = 0.6*ROS + 0.4*LHV; first hour: 0.6*1 + 0.4*3 = 1.8
         first = float(utility_hourly.sort("timestamp")["bulk_tx_cost_enduse"][0])
         assert abs(first - 1.8) < 1e-9
+
+
+class TestUtilityAllocationBehavior:
+    def test_compute_paying_locality_costs(self) -> None:
+        constraint_df = pl.DataFrame(
+            {
+                "constraint_group": ["cg1", "cg2", "cg3"],
+                "v_constraint_group_kw_yr": [10.0, 30.0, 50.0],
+                "paying_localities": ["LHV|LI", "LHV", "NYC|LHV"],
+            }
+        )
+
+        costs = compute_paying_locality_costs(constraint_df)
+        assert costs["LHV"] == pytest.approx((10.0 + 30.0 + 50.0) / 3)
+        assert costs["LI"] == pytest.approx(10.0)
+        assert costs["NYC"] == pytest.approx(50.0)
+
+    def test_single_locality_utility_has_80_nonzero_hours(self) -> None:
+        utility_icap_rows = pl.DataFrame(
+            {
+                "icap_locality": ["GHIJ"],
+                "gen_capacity_zone": ["LHV"],
+                "capacity_weight": [1.0],
+            }
+        )
+        paying_locality_costs = {"LHV": 50.0}
+        locality_profiles = {"LHV": _make_hourly_load_profile_with_peak_hour(0)}
+
+        utility_hourly = compute_utility_bulk_tx_signal(
+            utility_icap_rows=utility_icap_rows,
+            paying_locality_costs=paying_locality_costs,
+            locality_profiles=locality_profiles,
+            n_scr=40,
+            winter_months=list(DEFAULT_SCR_WINTER_MONTHS),
+        )
+
+        n_nonzero = utility_hourly.filter(pl.col("bulk_tx_cost_enduse") > 0).height
+        assert n_nonzero == 80
+
+    def test_two_locality_blend_can_exceed_80_nonzero_hours(self) -> None:
+        utility_icap_rows = pl.DataFrame(
+            {
+                "icap_locality": ["NYC", "GHIJ"],
+                "gen_capacity_zone": ["NYC", "LHV"],
+                "capacity_weight": [0.87, 0.13],
+            }
+        )
+        paying_locality_costs = {"NYC": 80.0, "LHV": 20.0}
+        locality_profiles = {
+            "NYC": _make_hourly_load_profile_with_peak_hour(0),
+            "LHV": _make_hourly_load_profile_with_peak_hour(1),
+        }
+
+        utility_hourly = compute_utility_bulk_tx_signal(
+            utility_icap_rows=utility_icap_rows,
+            paying_locality_costs=paying_locality_costs,
+            locality_profiles=locality_profiles,
+            n_scr=40,
+            winter_months=list(DEFAULT_SCR_WINTER_MONTHS),
+        )
+
+        n_nonzero = utility_hourly.filter(pl.col("bulk_tx_cost_enduse") > 0).height
+        assert n_nonzero > 80
 
 
 class TestPrepareOutput:
