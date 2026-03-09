@@ -6,7 +6,7 @@ vulnerability, and heating fuel, then applies per-utility fixed monthly
 credits from the NY EAP credit table.
 
 Output adds columns to the master table:
-  - lmi_tier (Int8): assigned EAP tier (0 = ineligible)
+  - lmi_tier (Int8): raw EAP tier (0 = ineligible, 1-7 = eligible regardless of participation)
   - is_lmi (Bool): True if building is EAP-eligible (tier > 0)
   - applied_discount_{pct} (Bool): True if discount was actually applied
   - elec_total_bill_lmi_{pct} (Float64): max(0, elec_total_bill - credit)
@@ -210,14 +210,9 @@ def _build_tier_for_utility(
             .alias("participates")
         )
 
-    # lmi_tier: effective tier (0 if not participating)
-    meta = meta.with_columns(
-        pl.when(pl.col("participates"))
-        .then(pl.col(tier_col))
-        .otherwise(pl.lit(0))
-        .alias("lmi_tier")
-    )
-    # is_lmi: eligible regardless of participation
+    # lmi_tier: raw tier (0 = ineligible, 1-7 = eligible) regardless of participation.
+    # Use applied_discount_{pct} to distinguish who actually received the discount.
+    meta = meta.with_columns(pl.col(tier_col).alias("lmi_tier"))
     meta = meta.with_columns(eligible.alias("is_lmi"))
 
     return cast(
@@ -392,21 +387,22 @@ def _validate(df: pl.DataFrame, pct_label: int, participation_rate: float) -> No
     if elec_neg > 0 or gas_neg > 0:
         raise AssertionError(f"Negative bills: {elec_neg} electric, {gas_neg} gas")
 
-    # Tier-0 identity: buildings with lmi_tier=0 should have discounted == original
-    tier0 = df.filter(pl.col("lmi_tier") == 0)
-    if tier0.height > 0:
-        tier0_elec_diff = cast(
+    # Non-discounted identity: buildings without the discount applied should have
+    # discounted == original (covers both ineligible tier-0 and eligible-but-excluded)
+    no_discount = df.filter(~pl.col(applied_col))
+    if no_discount.height > 0:
+        nd_elec_diff = cast(
             float,
-            (tier0["elec_total_bill"] - tier0[elec_col]).abs().max(),
+            (no_discount["elec_total_bill"] - no_discount[elec_col]).abs().max(),
         )
-        tier0_gas_diff = cast(
+        nd_gas_diff = cast(
             float,
-            (tier0["gas_total_bill"] - tier0[gas_col]).abs().max(),
+            (no_discount["gas_total_bill"] - no_discount[gas_col]).abs().max(),
         )
-        if tier0_elec_diff > 1e-6 or tier0_gas_diff > 1e-6:
+        if nd_elec_diff > 1e-6 or nd_gas_diff > 1e-6:
             raise AssertionError(
-                f"Tier-0 bills differ: elec diff={tier0_elec_diff}, "
-                f"gas diff={tier0_gas_diff}"
+                f"Non-discounted bills differ: elec diff={nd_elec_diff}, "
+                f"gas diff={nd_gas_diff}"
             )
 
     # Monotonicity: discounted <= original
