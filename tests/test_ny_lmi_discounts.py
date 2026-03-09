@@ -14,7 +14,7 @@ from typing import cast
 import polars as pl
 import pytest
 
-from utils.post.apply_ny_lmi_discounts_to_bills import (
+from utils.post.apply_ny_lmi_discounts_to_cairo_bills import (
     _apply_discounts_to_bills,
     _build_smi_threshold_column,
 )

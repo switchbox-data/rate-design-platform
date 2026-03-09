@@ -239,9 +239,7 @@ def _merge_expected_gas_credit(
 
 def _gas_expected_vs_actual_summary(participants: pl.DataFrame) -> None:
     """Print summary: expected (from EAP table) vs actual gas discount by utility+tier."""
-    _section_header(
-        "Section 1.5a: Expected vs Actual Gas Discount (p100 participants)"
-    )
+    _section_header("Section 1.5a: Expected vs Actual Gas Discount (p100 participants)")
 
     participants = participants.with_columns(
         (pl.col("gas_total_bill") - pl.col("gas_total_bill_lmi_100")).alias(
@@ -309,7 +307,9 @@ def _gas_expected_vs_actual_scatter(participants: pl.DataFrame) -> None:
     ax.plot([0, hi], [0, hi], "k--", alpha=0.5, label="1:1 (expected_capped = actual)")
     ax.set_xlabel("Expected (capped) ($) — min(expected annual credit, gas_total_bill)")
     ax.set_ylabel("Actual discount ($) — gas_total_bill - gas_total_bill_lmi_100")
-    ax.set_title("Gas LMI: Expected-With-Cap vs Actual — on line = correct zero-flooring")
+    ax.set_title(
+        "Gas LMI: Expected-With-Cap vs Actual — on line = correct zero-flooring"
+    )
     ax.legend()
     fig.tight_layout()
     out = PLOTS_DIR / "gas_expected_vs_actual_scatter.png"
@@ -501,8 +501,12 @@ def _cross_check_p100_p40(p100: pl.DataFrame, p40: pl.DataFrame) -> None:
     """Verify lmi_tier and is_lmi are identical between p100 and p40."""
     _section_header("Section 3.1: p100 vs p40 tier/eligibility consistency")
 
-    p100_ann = p100.filter(pl.col("month") == "Annual").select("bldg_id", "lmi_tier", "is_lmi")
-    p40_ann = p40.filter(pl.col("month") == "Annual").select("bldg_id", "lmi_tier", "is_lmi")
+    p100_ann = p100.filter(pl.col("month") == "Annual").select(
+        "bldg_id", "lmi_tier", "is_lmi"
+    )
+    p40_ann = p40.filter(pl.col("month") == "Annual").select(
+        "bldg_id", "lmi_tier", "is_lmi"
+    )
 
     joined = p100_ann.join(p40_ann, on="bldg_id", suffix="_p40")
 
@@ -525,18 +529,27 @@ def _check_source_columns(
     _section_header(f"Section 3.2: Source column integrity ({label})")
 
     lmi_cols = {
-        "lmi_tier", "is_lmi",
-        "elec_total_bill_lmi_100", "gas_total_bill_lmi_100", "applied_discount_100",
-        "elec_total_bill_lmi_40", "gas_total_bill_lmi_40", "applied_discount_40",
+        "lmi_tier",
+        "is_lmi",
+        "elec_total_bill_lmi_100",
+        "gas_total_bill_lmi_100",
+        "applied_discount_100",
+        "elec_total_bill_lmi_40",
+        "gas_total_bill_lmi_40",
+        "applied_discount_40",
     }
-    shared_cols = [c for c in prod.columns if c in staging.columns and c not in lmi_cols]
+    shared_cols = [
+        c for c in prod.columns if c in staging.columns and c not in lmi_cols
+    ]
     print(f"Checking {len(shared_cols)} pass-through columns: {shared_cols}")
 
     staging_sub = staging.select(shared_cols).sort("bldg_id", "month")
     prod_sub = prod.select(shared_cols).sort("bldg_id", "month")
 
     if staging_sub.height != prod_sub.height:
-        print(f"FAIL: row count mismatch: staging={staging_sub.height}, prod={prod_sub.height}")
+        print(
+            f"FAIL: row count mismatch: staging={staging_sub.height}, prod={prod_sub.height}"
+        )
         return
 
     n_diffs = 0

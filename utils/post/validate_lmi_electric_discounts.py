@@ -1056,9 +1056,14 @@ def _check_source_columns(
     _section_header(f"Section 3.2: Source column integrity ({label})")
 
     lmi_cols = {
-        "lmi_tier", "is_lmi",
-        "elec_total_bill_lmi_100", "gas_total_bill_lmi_100", "applied_discount_100",
-        "elec_total_bill_lmi_40", "gas_total_bill_lmi_40", "applied_discount_40",
+        "lmi_tier",
+        "is_lmi",
+        "elec_total_bill_lmi_100",
+        "gas_total_bill_lmi_100",
+        "applied_discount_100",
+        "elec_total_bill_lmi_40",
+        "gas_total_bill_lmi_40",
+        "applied_discount_40",
     }
     shared_cols = [
         c for c in prod.columns if c in staging.columns and c not in lmi_cols

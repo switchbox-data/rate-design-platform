@@ -16,13 +16,13 @@ It is designed to run **twice per run pair**: once at 100% participation (p100) 
 
 Each invocation adds rate-specific columns (where `{pct}` = `int(participation_rate * 100)`):
 
-| Column | Type | Description |
-| --- | --- | --- |
-| `lmi_tier` | Int32 | Raw EAP tier (0 = ineligible, 1–7 = eligible). Same across p100 and p40 — reflects eligibility, not participation. Written by the first invocation; verified on subsequent ones. |
-| `is_lmi` | Bool | `lmi_tier > 0`. Convenience flag for filtering. |
-| `applied_discount_{pct}` | Bool | True if the discount was actually applied (depends on participation sampling). At p100, identical to `is_lmi`. |
-| `elec_total_bill_lmi_{pct}` | Float64 | `max(0, elec_total_bill - monthly_credit)` for monthly rows; `sum(Jan..Dec clamped)` for the Annual row. |
-| `gas_total_bill_lmi_{pct}` | Float64 | Same logic for gas. |
+| Column                      | Type    | Description                                                                                                                                                                      |
+| --------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lmi_tier`                  | Int32   | Raw EAP tier (0 = ineligible, 1–7 = eligible). Same across p100 and p40 — reflects eligibility, not participation. Written by the first invocation; verified on subsequent ones. |
+| `is_lmi`                    | Bool    | `lmi_tier > 0`. Convenience flag for filtering.                                                                                                                                  |
+| `applied_discount_{pct}`    | Bool    | True if the discount was actually applied (depends on participation sampling). At p100, identical to `is_lmi`.                                                                   |
+| `elec_total_bill_lmi_{pct}` | Float64 | `max(0, elec_total_bill - monthly_credit)` for monthly rows; `sum(Jan..Dec clamped)` for the Annual row.                                                                         |
+| `gas_total_bill_lmi_{pct}`  | Float64 | Same logic for gas.                                                                                                                                                              |
 
 After both runs, the table grows from ~22 to **30 columns** (22 original + 2 shared + 3 per rate × 2 rates).
 

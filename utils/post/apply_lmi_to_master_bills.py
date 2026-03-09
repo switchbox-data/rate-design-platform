@@ -322,9 +322,7 @@ def _apply_credits(
     # Unpublished credits (null in YAML) are treated as $0 for bill calculation —
     # we can't give a discount we don't know the amount of.
     elec_credit_monthly = (
-        pl.when(pl.col("participates"))
-        .then(elec_monthly.fill_null(0.0))
-        .otherwise(0.0)
+        pl.when(pl.col("participates")).then(elec_monthly.fill_null(0.0)).otherwise(0.0)
     )
 
     # --- Gas credits ---
@@ -347,9 +345,7 @@ def _apply_credits(
         .otherwise(pl.col("_cr_gas_nonheat"))
     )
     gas_credit_monthly = (
-        pl.when(pl.col("participates"))
-        .then(gas_monthly.fill_null(0.0))
-        .otherwise(0.0)
+        pl.when(pl.col("participates")).then(gas_monthly.fill_null(0.0)).otherwise(0.0)
     )
 
     # Warn about null credits only for the cases that indicate missing data:
@@ -423,15 +419,11 @@ def _apply_credits(
 
     joined = joined.with_columns(
         pl.when(pl.col("month") != ANNUAL_MONTH)
-        .then(
-            (pl.col("elec_total_bill") - elec_credit_monthly).clip(lower_bound=0.0)
-        )
+        .then((pl.col("elec_total_bill") - elec_credit_monthly).clip(lower_bound=0.0))
         .otherwise(pl.lit(None))
         .alias(elec_col),
         pl.when(pl.col("month") != ANNUAL_MONTH)
-        .then(
-            (pl.col("gas_total_bill") - gas_credit_monthly).clip(lower_bound=0.0)
-        )
+        .then((pl.col("gas_total_bill") - gas_credit_monthly).clip(lower_bound=0.0))
         .otherwise(pl.lit(None))
         .alias(gas_col),
         pl.col("participates").alias(applied_col),
@@ -529,19 +521,13 @@ def _validate(df: pl.DataFrame, pct_label: int, participation_rate: float) -> No
         )
 
     # is_lmi == (lmi_tier > 0) consistency
-    is_lmi_mismatch = df.filter(
-        pl.col("is_lmi") != (pl.col("lmi_tier") > 0)
-    ).height
+    is_lmi_mismatch = df.filter(pl.col("is_lmi") != (pl.col("lmi_tier") > 0)).height
     if is_lmi_mismatch > 0:
-        raise AssertionError(
-            f"is_lmi != (lmi_tier > 0) for {is_lmi_mismatch} rows"
-        )
+        raise AssertionError(f"is_lmi != (lmi_tier > 0) for {is_lmi_mismatch} rows")
 
     # p100: applied_discount should equal is_lmi (every eligible building participates)
     if participation_rate >= 1.0:
-        applied_vs_lmi = df.filter(
-            pl.col(applied_col) != pl.col("is_lmi")
-        ).height
+        applied_vs_lmi = df.filter(pl.col(applied_col) != pl.col("is_lmi")).height
         if applied_vs_lmi > 0:
             raise AssertionError(
                 f"At 100% participation, {applied_col} != is_lmi "
@@ -793,21 +779,19 @@ def main() -> None:
     has_existing_shared = all(c in master.columns for c in shared_cols)
     if has_existing_shared:
         _log("  lmi_tier/is_lmi already present — verifying consistency...")
-        check = master.select(BLDG_ID, "lmi_tier", "is_lmi").unique(
-            subset=[BLDG_ID]
-        ).join(
-            tier_info.select(BLDG_ID, "lmi_tier", "is_lmi").rename(
-                {"lmi_tier": "_new_tier", "is_lmi": "_new_lmi"}
-            ),
-            on=BLDG_ID,
-            how="inner",
+        check = (
+            master.select(BLDG_ID, "lmi_tier", "is_lmi")
+            .unique(subset=[BLDG_ID])
+            .join(
+                tier_info.select(BLDG_ID, "lmi_tier", "is_lmi").rename(
+                    {"lmi_tier": "_new_tier", "is_lmi": "_new_lmi"}
+                ),
+                on=BLDG_ID,
+                how="inner",
+            )
         )
-        tier_mismatch = check.filter(
-            pl.col("lmi_tier") != pl.col("_new_tier")
-        ).height
-        lmi_mismatch = check.filter(
-            pl.col("is_lmi") != pl.col("_new_lmi")
-        ).height
+        tier_mismatch = check.filter(pl.col("lmi_tier") != pl.col("_new_tier")).height
+        lmi_mismatch = check.filter(pl.col("is_lmi") != pl.col("_new_lmi")).height
         if tier_mismatch > 0 or lmi_mismatch > 0:
             raise AssertionError(
                 f"Existing lmi_tier/is_lmi mismatch with recomputed values: "
