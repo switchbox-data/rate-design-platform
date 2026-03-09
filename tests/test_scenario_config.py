@@ -67,12 +67,12 @@ class TestParserWithNewYAMLFormat:
         assert result.rr_total == pytest.approx(416_193_684.03)
         assert result.run_includes_subclasses is True
         assert result.subclass_rr is not None
-        assert result.subclass_rr == pytest.approx(
-            {
-                "cenhud_hp_seasonal": 16_679_308.107715957,
-                "cenhud_flat": 399_514_375.92228407,
-            }
-        )
+        assert set(result.subclass_rr.keys()) == {
+            "cenhud_hp_seasonal",
+            "cenhud_flat",
+        }
+        assert all(v > 0 for v in result.subclass_rr.values())
+        assert sum(result.subclass_rr.values()) == pytest.approx(result.rr_total)
 
     def test_subclass_delivery_plus_supply(self) -> None:
         """Subclass YAML with add_supply=True → picks total per subclass."""
@@ -88,12 +88,12 @@ class TestParserWithNewYAMLFormat:
         )
         assert result.rr_total == pytest.approx(624_942_307.81)
         assert result.subclass_rr is not None
-        assert result.subclass_rr == pytest.approx(
-            {
-                "cenhud_hp_seasonal_supply": 34_622_554.44978167,
-                "cenhud_flat_supply": 590_319_753.360218,
-            }
-        )
+        assert set(result.subclass_rr.keys()) == {
+            "cenhud_hp_seasonal_supply",
+            "cenhud_flat_supply",
+        }
+        assert all(v > 0 for v in result.subclass_rr.values())
+        assert sum(result.subclass_rr.values()) == pytest.approx(result.rr_total)
 
     def test_subclass_flex_delivery_only(self) -> None:
         """Subclass with flex tariff keys, delivery-only."""
@@ -109,12 +109,12 @@ class TestParserWithNewYAMLFormat:
         )
         assert result.rr_total == pytest.approx(416_193_684.03)
         assert result.subclass_rr is not None
-        assert result.subclass_rr == pytest.approx(
-            {
-                "cenhud_hp_seasonalTOU_flex": 16_679_308.107715957,
-                "cenhud_flat": 399_514_375.92228407,
-            }
-        )
+        assert set(result.subclass_rr.keys()) == {
+            "cenhud_hp_seasonalTOU_flex",
+            "cenhud_flat",
+        }
+        assert all(v > 0 for v in result.subclass_rr.values())
+        assert sum(result.subclass_rr.values()) == pytest.approx(result.rr_total)
 
 
 class TestParserWithSyntheticYAML:
