@@ -38,6 +38,7 @@ VALID_UTILITIES = VALID_NYISO_UTILITIES
 DEFAULT_ISONE_LMP_S3_BASE = "s3://data.sb/isone/lmp/real_time/zones/"
 DEFAULT_ISONE_ANCILLARY_S3_BASE = "s3://data.sb/isone/ancillary/"
 DEFAULT_ISONE_ZONE_LOADS_S3_BASE = "s3://data.sb/isone/hourly_demand/zones/"
+DEFAULT_ISONE_FCA_S3_PATH = "s3://data.sb/isone/capacity/fca/data.parquet"
 DEFAULT_ISONE_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/ri/supply/"
 
 VALID_ISONE_UTILITIES = frozenset({"rie"})
@@ -45,6 +46,19 @@ VALID_ISONE_UTILITIES = frozenset({"rie"})
 # Maps each ISO-NE utility to its single load zone. ISO-NE utilities are
 # single-zone, so no load-weighting is needed (unlike NYISO multi-zone).
 ISONE_UTILITY_ZONES: dict[str, str] = {"rie": "RI"}
+
+# ISO-NE FCA (Forward Capacity Auction) capacity zone mappings.
+# Maps each ISO-NE utility to its capacity zone ID for FCA price resolution.
+ISONE_UTILITY_CAPACITY_ZONES: dict[str, int] = {"rie": 8506}  # SENE
+
+# Fallback capacity zone ID when utility-specific zone price is absent.
+ISONE_CAPACITY_ZONE_FALLBACK: int = 8500  # System / Rest-of-Pool
+
+# Maps each ISO-NE utility to its load zones for aggregate peak identification.
+# For SENE (Southeast New England), aggregate RI + SEMA zones.
+ISONE_CAPACITY_ZONE_LOAD_ZONES: dict[str, list[str]] = {
+    "rie": ["RI", "SEMA"]
+}  # SENE aggregate
 
 
 def load_zone_mapping(path: str, storage_options: dict[str, str]) -> pl.DataFrame:
