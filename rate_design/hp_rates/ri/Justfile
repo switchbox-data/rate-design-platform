@@ -55,6 +55,14 @@ create-supply-ancillary-mc:
     --year {{year}} \
     --upload
 
+create-supply-capacity-mc:
+  uv run python {{path_repo}}/utils/pre/marginal_costs/generate_supply_capacity_mc.py \
+    --iso isone \
+    --utility {{utility}} \
+    --zone RI \
+    --year {{year}} \
+    --upload
+
 create-supply-mc-data:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -62,4 +70,6 @@ create-supply-mc-data:
   just create-supply-energy-mc
   echo ">> Generating ISO-NE supply ancillary MC" >&2
   just create-supply-ancillary-mc
+  echo ">> Generating ISO-NE supply capacity MC (FCA)" >&2
+  just create-supply-capacity-mc
   echo ">> Supply MC data generation completed" >&2
