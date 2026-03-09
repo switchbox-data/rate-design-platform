@@ -455,7 +455,9 @@ def check_tariff_unchanged(
         for path, out_val in _flatten_numeric(output_tariff[key]).items():
             in_val = _flatten_numeric(in_entry).get(path)
             if in_val is None:
-                diffs.append({"path": f"{key}.{path}", "input": None, "output": out_val})
+                diffs.append(
+                    {"path": f"{key}.{path}", "input": None, "output": out_val}
+                )
             elif abs(in_val - out_val) > tolerance:
                 diffs.append(
                     {
@@ -591,7 +593,7 @@ def check_nonhp_customers_in_upgrade02(metadata: pl.LazyFrame) -> CheckResult:
 # ---------------------------------------------------------------------------
 
 # Month indices for season classification (0 = Jan … 11 = Dec)
-_SUMMER_MONTHS: frozenset[int] = frozenset({5, 6, 7, 8})   # Jun–Sep
+_SUMMER_MONTHS: frozenset[int] = frozenset({5, 6, 7, 8})  # Jun–Sep
 _WINTER_MONTHS: frozenset[int] = frozenset({11, 0, 1, 2})  # Dec–Mar
 
 
@@ -613,8 +615,10 @@ def _period_season_map(schedule: list[list[int]]) -> dict[int, str]:
     counts: dict[int, dict[str, int]] = {}
     for month_idx, hours in enumerate(schedule):
         season = (
-            "summer" if month_idx in _SUMMER_MONTHS
-            else "winter" if month_idx in _WINTER_MONTHS
+            "summer"
+            if month_idx in _SUMMER_MONTHS
+            else "winter"
+            if month_idx in _WINTER_MONTHS
             else None
         )
         if season is None:
@@ -658,6 +662,7 @@ def check_bills_increase_with_supply(
         PASS when both HP and non-HP weighted mean annual bills are strictly
         higher in run B; FAIL if either subclass shows equal or lower bills.
     """
+
     def _wavg_by_subclass(bills: pl.LazyFrame) -> dict[bool, float]:
         rows = _collect(
             bills.filter(pl.col(_MONTH_COL) == _ANNUAL_MONTH)
@@ -683,7 +688,12 @@ def check_bills_increase_with_supply(
         b_val = b_by_sub.get(hp_val, float("nan"))
         ok = b_val > a_val
         details.append(
-            {"subclass": label, f"run{run_a}_avg_bill": a_val, f"run{run_b}_avg_bill": b_val, "increased": ok}
+            {
+                "subclass": label,
+                f"run{run_a}_avg_bill": a_val,
+                f"run{run_b}_avg_bill": b_val,
+                "increased": ok,
+            }
         )
         if not ok:
             failures.append(f"{label}: ${a_val:,.2f} → ${b_val:,.2f}")
@@ -748,8 +758,12 @@ def check_seasonal_winter_below_summer(
             line = f"    run {run_num} {key} period {pid} → {season}: ${rate:.6f}/kWh"
             all_period_lines.append(line)
 
-        summer_rates = {pid: r for pid, r in tier1_rates.items() if season_map.get(pid) == "summer"}
-        winter_rates = {pid: r for pid, r in tier1_rates.items() if season_map.get(pid) == "winter"}
+        summer_rates = {
+            pid: r for pid, r in tier1_rates.items() if season_map.get(pid) == "summer"
+        }
+        winter_rates = {
+            pid: r for pid, r in tier1_rates.items() if season_map.get(pid) == "winter"
+        }
 
         for w_pid, w_rate in winter_rates.items():
             for s_pid, s_rate in summer_rates.items():
@@ -801,7 +815,10 @@ def check_hp_bat_increases_with_supply(
         PASS when ``|BAT_percustomer_wavg|`` is strictly larger for HP in run B;
         WARN otherwise.
     """
-    if "BAT_percustomer" not in bat_a.collect_schema() or "BAT_percustomer" not in bat_b.collect_schema():
+    if (
+        "BAT_percustomer" not in bat_a.collect_schema()
+        or "BAT_percustomer" not in bat_b.collect_schema()
+    ):
         return CheckResult(
             name=f"hp_bat_increases_run{run_a}_to_run{run_b}",
             status="WARN",

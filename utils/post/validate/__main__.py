@@ -122,7 +122,7 @@ def _safe_execute(
     operation_name: str, func: Any, *args: Any, **kwargs: Any
 ) -> tuple[Any, bool]:
     """Execute a function safely, logging errors but not raising exceptions.
-    
+
     Returns:
         Tuple of (result, success) where result is the function return value
         (or None if it failed) and success is a boolean.
@@ -174,16 +174,18 @@ def _validate_block(
             metas.append(meta)
         else:
             metas.append(pl.LazyFrame())  # Empty frame as placeholder
-        
+
         bills_dict: dict[str, pl.LazyFrame] = {}
         for bill_type in ["elec", "gas", "comb"]:
-            bills, bills_ok = _safe_execute(f"load_bills({d}, {bill_type})", load_bills, d, bill_type)
+            bills, bills_ok = _safe_execute(
+                f"load_bills({d}, {bill_type})", load_bills, d, bill_type
+            )
             if bills_ok and bills is not None:
                 bills_dict[bill_type] = bills
             else:
                 bills_dict[bill_type] = pl.LazyFrame()  # Empty frame as placeholder
         all_bills.append(bills_dict)
-    
+
     runs = list(zip(nums, dirs, block.configs, metas, all_bills))
 
     # --- Output completeness ---
@@ -224,7 +226,10 @@ def _validate_block(
 
     # --- Cross-run sanity checks (precalc blocks 1-2 and 5-6) ---
     if block.revenue_neutral and len(runs) == 2:
-        (num_a, dir_a, _, meta_a, bills_a), (num_b, dir_b, _, _, bills_b) = runs[0], runs[1]
+        (num_a, dir_a, _, meta_a, bills_a), (num_b, dir_b, _, _, bills_b) = (
+            runs[0],
+            runs[1],
+        )
         print(f"\n    Cross-run checks: run {num_a} vs run {num_b}")
 
         # Bills must rise for both subclasses when supply is added
@@ -263,9 +268,11 @@ def _validate_block(
             "load_revenue_requirement", load_revenue_requirement, state, utility
         )
         if not rr_ok or total_rr is None:
-            print("    ERROR: Failed to load revenue requirement, skipping revenue checks")
+            print(
+                "    ERROR: Failed to load revenue requirement, skipping revenue checks"
+            )
             total_rr = None
-        
+
         subclass_rr = None
         if has_sub and total_rr is not None:
             subclass_rr, sub_rr_ok = _safe_execute(
@@ -307,7 +314,7 @@ def _validate_block(
                 )
                 if ok and check_result is not None:
                     results.append(_emit(check_result))
-                
+
                 check_result, ok = _safe_execute(
                     f"check_subclass_rr_sums_to_total(run {run_num})",
                     check_subclass_rr_sums_to_total,
@@ -323,7 +330,9 @@ def _validate_block(
                         raise ValueError("total_rr is None")
                     sub_rrs = subclass_rr["subclass_revenue_requirements"]
                     rr_key = (
-                        "total" if config.cost_scope == "delivery+supply" else "delivery"
+                        "total"
+                        if config.cost_scope == "delivery+supply"
+                        else "delivery"
                     )
                     rr_vals = {
                         "HP": float(sub_rrs["hp"][rr_key]),
@@ -347,22 +356,32 @@ def _validate_block(
                         try:
                             rev.write_csv(run_dir / "revenue_summary.csv")
                         except Exception as e:
-                            print(f"    ERROR writing revenue_summary.csv for run {run_num}: {e}")
+                            print(
+                                f"    ERROR writing revenue_summary.csv for run {run_num}: {e}"
+                            )
                         try:
                             _save(
-                                plot_revenue_vs_rr(rev, rr_vals, f"Revenue vs RR — Run {run_num}"),
-                                plots / "revenue_neutrality" / f"revenue_vs_rr_run{run_num}.png",
+                                plot_revenue_vs_rr(
+                                    rev, rr_vals, f"Revenue vs RR — Run {run_num}"
+                                ),
+                                plots
+                                / "revenue_neutrality"
+                                / f"revenue_vs_rr_run{run_num}.png",
                             )
                             _save(
                                 plot_subclass_rr_stacked(
-                                    rr_vals, total_rr_val, f"Subclass RR vs Total — Run {run_num}"
+                                    rr_vals,
+                                    total_rr_val,
+                                    f"Subclass RR vs Total — Run {run_num}",
                                 ),
                                 plots
                                 / "revenue_neutrality"
                                 / f"subclass_rr_stacked_run{run_num}.png",
                             )
                         except Exception as e:
-                            print(f"    ERROR creating revenue plots for run {run_num}: {e}")
+                            print(
+                                f"    ERROR creating revenue plots for run {run_num}: {e}"
+                            )
                 except Exception as e:
                     print(f"    ERROR processing revenue data for run {run_num}: {e}")
 
@@ -377,20 +396,23 @@ def _validate_block(
             bat, bat_ok = _safe_execute(f"load_bat(run {run_num})", load_bat, s3_dir)
             if not bat_ok or bat is None:
                 continue
-            
+
             check_result, ok = _safe_execute(
                 f"check_bat_direction(run {run_num})", check_bat_direction, bat, meta
             )
             if ok and check_result is not None:
                 results.append(_emit(check_result))
-            
+
             if config.has_subclasses:
                 check_result, ok = _safe_execute(
-                    f"check_bat_near_zero(run {run_num})", check_bat_near_zero, bat, meta
+                    f"check_bat_near_zero(run {run_num})",
+                    check_bat_near_zero,
+                    bat,
+                    meta,
                 )
                 if ok and check_result is not None:
                     results.append(_emit(check_result))
-            
+
             bat_summary, summary_ok = _safe_execute(
                 f"summarize_bat_by_subclass(run {run_num})",
                 summarize_bat_by_subclass,
@@ -404,7 +426,9 @@ def _validate_block(
                     print(f"    ERROR writing bat_summary.csv for run {run_num}: {e}")
                 try:
                     _save(
-                        plot_bat_by_subclass(bat_summary, f"Per-Customer BAT — Run {run_num}"),
+                        plot_bat_by_subclass(
+                            bat_summary, f"Per-Customer BAT — Run {run_num}"
+                        ),
                         plots / "cross_subsidy" / f"bat_by_subclass_run{run_num}.png",
                     )
                     _save(
@@ -416,8 +440,10 @@ def _validate_block(
 
     # --- Seasonal rate ordering: winter rate < summer rate (seasonal precalc blocks) ---
     _seasonal_types = {"seasonal", "seasonalTOU", "seasonalTOU_flex"}
-    if block.bat_relevant and any(c.tariff_type in _seasonal_types for c in block.configs):
-        print(f"\n    Seasonal rate ordering check — period→season mapping:")
+    if block.bat_relevant and any(
+        c.tariff_type in _seasonal_types for c in block.configs
+    ):
+        print("\n    Seasonal rate ordering check — period→season mapping:")
         for run_num, run_dir, config, _, _ in runs:
             if config.tariff_type not in _seasonal_types:
                 continue
@@ -453,9 +479,11 @@ def _validate_block(
                 f"load_tariff_config(run {run_num})", load_tariff_config, run_dir
             )
             if not in_ok or not out_ok or in_tariff is None or out_tariff is None:
-                print(f"    ERROR: Failed to load tariffs for run {run_num}, skipping tariff checks")
+                print(
+                    f"    ERROR: Failed to load tariffs for run {run_num}, skipping tariff checks"
+                )
                 continue
-            
+
             in_rates, in_rates_ok = _safe_execute(
                 f"summarize_tariff_rates(run {prev_num})",
                 summarize_tariff_rates,
@@ -466,7 +494,12 @@ def _validate_block(
                 summarize_tariff_rates,
                 out_tariff,
             )
-            if in_rates_ok and out_rates_ok and in_rates is not None and out_rates is not None:
+            if (
+                in_rates_ok
+                and out_rates_ok
+                and in_rates is not None
+                and out_rates is not None
+            ):
                 check_result, ok = _safe_execute(
                     f"check_tariff_unchanged(run {run_num})",
                     check_tariff_unchanged,
@@ -476,7 +509,9 @@ def _validate_block(
                 if ok and check_result is not None:
                     results.append(_emit(check_result))
                 try:
-                    in_rates.write_csv(run_output_dir / f"tariff_rates_input_run{prev_num}.csv")
+                    in_rates.write_csv(
+                        run_output_dir / f"tariff_rates_input_run{prev_num}.csv"
+                    )
                     out_rates.write_csv(run_output_dir / "tariff_rates_output.csv")
                 except Exception as e:
                     print(f"    ERROR writing tariff rates CSV for run {run_num}: {e}")
@@ -489,7 +524,9 @@ def _validate_block(
                     )
                     _save(
                         plot_tariff_stability(
-                            in_rates, out_rates, f"Tariff Diff — Run {run_num} vs {prev_num}"
+                            in_rates,
+                            out_rates,
+                            f"Tariff Diff — Run {run_num} vs {prev_num}",
                         ),
                         plots / "tariff_diffs" / f"tariff_stability_run{run_num}.png",
                     )
@@ -511,14 +548,20 @@ def _validate_block(
                     try:
                         delta.write_csv(run_output_dir / "bill_deltas.csv")
                     except Exception as e:
-                        print(f"    ERROR writing bill_deltas.csv for run {run_num}: {e}")
+                        print(
+                            f"    ERROR writing bill_deltas.csv for run {run_num}: {e}"
+                        )
                     try:
                         _save(
-                            plot_bill_deltas(delta, f"Bill Change — Run {run_num} vs {prev_num}"),
+                            plot_bill_deltas(
+                                delta, f"Bill Change — Run {run_num} vs {prev_num}"
+                            ),
                             plots / f"bill_deltas_run{run_num}.png",
                         )
                     except Exception as e:
-                        print(f"    ERROR creating bill deltas plot for run {run_num}: {e}")
+                        print(
+                            f"    ERROR creating bill deltas plot for run {run_num}: {e}"
+                        )
 
     # --- Non-HP composition (upgrade 02 runs 3-4, 7-8) ---
     if block.configs[0].upgrade == "2":
@@ -537,7 +580,9 @@ def _validate_block(
                 try:
                     comp.write_csv(run_dir / "nonhp_composition.csv")
                 except Exception as e:
-                    print(f"    ERROR writing nonhp_composition.csv for run {run_num}: {e}")
+                    print(
+                        f"    ERROR writing nonhp_composition.csv for run {run_num}: {e}"
+                    )
                 check_result, ok = _safe_execute(
                     f"check_nonhp_customers_in_upgrade02(run {run_num})",
                     check_nonhp_customers_in_upgrade02,
@@ -547,11 +592,15 @@ def _validate_block(
                     results.append(_emit(check_result))
                 try:
                     _save(
-                        plot_nonhp_composition(comp, f"Non-HP Composition — Run {run_num}"),
+                        plot_nonhp_composition(
+                            comp, f"Non-HP Composition — Run {run_num}"
+                        ),
                         plots / f"nonhp_composition_run{run_num}.png",
                     )
                 except Exception as e:
-                    print(f"    ERROR creating non-HP composition plot for run {run_num}: {e}")
+                    print(
+                        f"    ERROR creating non-HP composition plot for run {run_num}: {e}"
+                    )
 
     # --- Non-HP rate calibrated above original (subclass precalc runs 5-6) ---
     if block.configs[0].has_subclasses and block.revenue_neutral:
@@ -564,7 +613,12 @@ def _validate_block(
                 orig_tariff, orig_tariff_ok = _safe_execute(
                     f"load_tariff_config(run {orig_num})", load_tariff_config, orig_dir
                 )
-                if run_tariff_ok and orig_tariff_ok and run_tariff is not None and orig_tariff is not None:
+                if (
+                    run_tariff_ok
+                    and orig_tariff_ok
+                    and run_tariff is not None
+                    and orig_tariff is not None
+                ):
                     check_result, ok = _safe_execute(
                         f"check_nonhp_calibrated_above_original(run {run_num})",
                         check_nonhp_calibrated_above_original,
@@ -577,7 +631,10 @@ def _validate_block(
     # Always write checks summary, even if empty
     try:
         pl.DataFrame(
-            [{"check": r.name, "status": r.status, "message": r.message} for r in results]
+            [
+                {"check": r.name, "status": r.status, "message": r.message}
+                for r in results
+            ]
         ).write_csv(block_dir / "checks_summary.csv")
     except Exception as e:
         print(f"    ERROR writing checks_summary.csv: {e}")
@@ -616,11 +673,15 @@ def main() -> None:
 
     # Load run-1 metadata for preprocessing (upgrade 00)
     if 1 in run_dirs:
-        meta_run1, meta_ok = _safe_execute("load_metadata(run 1)", load_metadata, run_dirs[1])
+        meta_run1, meta_ok = _safe_execute(
+            "load_metadata(run 1)", load_metadata, run_dirs[1]
+        )
         if meta_ok and meta_run1 is not None:
             # Summarize customer weight stats
             weight_stats, stats_ok = _safe_execute(
-                "summarize_customer_weight_stats", summarize_customer_weight_stats, meta_run1
+                "summarize_customer_weight_stats",
+                summarize_customer_weight_stats,
+                meta_run1,
             )
             if stats_ok and weight_stats is not None:
                 try:
@@ -630,7 +691,9 @@ def main() -> None:
 
             # Check weights sum to N customers
             weight_check, check_ok = _safe_execute(
-                "check_weights_sum_to_n_customers", check_weights_sum_to_n_customers, meta_run1
+                "check_weights_sum_to_n_customers",
+                check_weights_sum_to_n_customers,
+                meta_run1,
             )
             if check_ok and weight_check is not None:
                 _emit(weight_check)
@@ -685,16 +748,22 @@ def main() -> None:
                     for run_num in run_nums:
                         if run_num in run_dirs:
                             meta, meta_ok = _safe_execute(
-                                f"load_metadata(run {run_num})", load_metadata, run_dirs[run_num]
+                                f"load_metadata(run {run_num})",
+                                load_metadata,
+                                run_dirs[run_num],
                             )
                             if meta_ok and meta is not None:
                                 try:
-                                    meta_collected = meta.select("bldg_id").unique().collect()
+                                    meta_collected = (
+                                        meta.select("bldg_id").unique().collect()
+                                    )
                                     if isinstance(meta_collected, pl.DataFrame):
                                         bldg_ids = meta_collected.to_series().to_list()
                                         all_bldg_ids.update(bldg_ids)
                                 except Exception as e:
-                                    print(f"    ERROR collecting bldg_ids from run {run_num}: {e}")
+                                    print(
+                                        f"    ERROR collecting bldg_ids from run {run_num}: {e}"
+                                    )
 
                     # Collect loads once for all buildings across all runs
                     if all_bldg_ids:
@@ -703,7 +772,9 @@ def main() -> None:
                         )
                         try:
                             loads_df_collected = loads_lf.filter(
-                                pl.col("bldg_id").cast(pl.Int64).is_in(list(all_bldg_ids))
+                                pl.col("bldg_id")
+                                .cast(pl.Int64)
+                                .is_in(list(all_bldg_ids))
                             ).collect()
                             if isinstance(loads_df_collected, pl.DataFrame):
                                 loads_df = loads_df_collected
@@ -738,7 +809,9 @@ def main() -> None:
             loads_plots_dir = loads_output_dir / "plots"
             loads_plots_dir.mkdir(parents=True, exist_ok=True)
 
-            meta_run1, meta_ok = _safe_execute("load_metadata(run 1)", load_metadata, run_dirs[1])
+            meta_run1, meta_ok = _safe_execute(
+                "load_metadata(run 1)", load_metadata, run_dirs[1]
+            )
             if meta_ok and meta_run1 is not None:
                 try:
                     meta_run1_collected = meta_run1.collect()
@@ -747,7 +820,10 @@ def main() -> None:
                     meta_run1_collected = None
 
                 # Compute weighted loads by subclass
-                if isinstance(meta_run1_collected, pl.DataFrame) and loads_df is not None:
+                if (
+                    isinstance(meta_run1_collected, pl.DataFrame)
+                    and loads_df is not None
+                ):
                     loads_by_subclass_df, loads_ok = _safe_execute(
                         "compute_weighted_loads_by_subclass_from_collected",
                         compute_weighted_loads_by_subclass_from_collected,
@@ -776,7 +852,8 @@ def main() -> None:
                             try:
                                 # Delivery: dist_sub_tx + bulk_tx
                                 mc_delivery = (
-                                    mc_components["dist_sub_tx"] + mc_components["bulk_tx"]
+                                    mc_components["dist_sub_tx"]
+                                    + mc_components["bulk_tx"]
                                 )
                                 cos_delivery, cos_ok = _safe_execute(
                                     "compute_hourly_cost_of_service (delivery)",
@@ -788,12 +865,15 @@ def main() -> None:
                                     try:
                                         _save(
                                             plot_hourly_cost_of_service(
-                                                cos_delivery, "Hourly Cost of Service (Delivery)"
+                                                cos_delivery,
+                                                "Hourly Cost of Service (Delivery)",
                                             ),
                                             loads_plots_dir / "hourly_cos_delivery.png",
                                         )
                                     except Exception as e:
-                                        print(f"    ERROR creating delivery COS plot: {e}")
+                                        print(
+                                            f"    ERROR creating delivery COS plot: {e}"
+                                        )
 
                                 # Supply: supply_energy + supply_capacity
                                 mc_supply = (
@@ -810,12 +890,15 @@ def main() -> None:
                                     try:
                                         _save(
                                             plot_hourly_cost_of_service(
-                                                cos_supply, "Hourly Cost of Service (Supply)"
+                                                cos_supply,
+                                                "Hourly Cost of Service (Supply)",
                                             ),
                                             loads_plots_dir / "hourly_cos_supply.png",
                                         )
                                     except Exception as e:
-                                        print(f"    ERROR creating supply COS plot: {e}")
+                                        print(
+                                            f"    ERROR creating supply COS plot: {e}"
+                                        )
 
                                 # Combined: all four MC components
                                 mc_combined = (
@@ -834,12 +917,15 @@ def main() -> None:
                                     try:
                                         _save(
                                             plot_hourly_cost_of_service(
-                                                cos_combined, "Hourly Cost of Service (Combined)"
+                                                cos_combined,
+                                                "Hourly Cost of Service (Combined)",
                                             ),
                                             loads_plots_dir / "hourly_cos_combined.png",
                                         )
                                     except Exception as e:
-                                        print(f"    ERROR creating combined COS plot: {e}")
+                                        print(
+                                            f"    ERROR creating combined COS plot: {e}"
+                                        )
                             except Exception as e:
                                 print(f"    ERROR processing MC components: {e}")
                 else:

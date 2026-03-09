@@ -315,7 +315,14 @@ def summarize_customer_weight_stats(metadata: pl.LazyFrame) -> pl.DataFrame:
         )
         .with_columns(pl.lit("Total").alias("subclass"))
         .select(
-            ["subclass", "n_buildings", "n_customers_weighted", "weight_mean", "weight_min", "weight_max"]
+            [
+                "subclass",
+                "n_buildings",
+                "n_customers_weighted",
+                "weight_mean",
+                "weight_min",
+                "weight_max",
+            ]
         )
     )
     return pl.concat([by_subclass, total])
