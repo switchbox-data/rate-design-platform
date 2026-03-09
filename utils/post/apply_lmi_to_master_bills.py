@@ -290,65 +290,174 @@ def _apply_credits(
         pl.col("participates").fill_null(False),
     )
 
+    n_before_joins = joined.height
+
     # --- Electric credits ---
+    # Nulls in the credit table (unpublished amounts) are preserved so that
+    # unconfigured utilities propagate null to the discounted bill columns
+    # instead of silently becoming $0.
     elec_credits = credits_df.select(
         pl.col("utility").alias("sb.electric_utility"),
         pl.col("tier").alias("lmi_tier"),
-        pl.col("elec_heat").fill_null(0.0).alias("_cr_elec_heat"),
-        pl.col("elec_nonheat").fill_null(0.0).alias("_cr_elec_nonheat"),
+        pl.col("elec_heat").alias("_cr_elec_heat"),
+        pl.col("elec_nonheat").alias("_cr_elec_nonheat"),
     )
     joined = joined.join(
         elec_credits, on=["sb.electric_utility", "lmi_tier"], how="left"
     )
+    if joined.height != n_before_joins:
+        raise AssertionError(
+            f"Electric credit join changed row count: {n_before_joins} → "
+            f"{joined.height} (duplicate (utility, tier) in credits_df?)"
+        )
 
     elec_monthly = (
         pl.when(pl.col("heats_with_electricity").fill_null(False))
-        .then(pl.col("_cr_elec_heat").fill_null(0.0))
-        .otherwise(pl.col("_cr_elec_nonheat").fill_null(0.0))
+        .then(pl.col("_cr_elec_heat"))
+        .otherwise(pl.col("_cr_elec_nonheat"))
     )
-    elec_credit = (
-        pl.when(pl.col("month") == ANNUAL_MONTH)
-        .then(elec_monthly * 12.0)
-        .otherwise(elec_monthly)
-    )
-    elec_credit_applied = (
-        pl.when(pl.col("participates")).then(elec_credit).otherwise(0.0)
+    # Unpublished credits (null in YAML) are treated as $0 for bill calculation —
+    # we can't give a discount we don't know the amount of.
+    elec_credit_monthly = (
+        pl.when(pl.col("participates"))
+        .then(elec_monthly.fill_null(0.0))
+        .otherwise(0.0)
     )
 
     # --- Gas credits ---
     gas_credits = credits_df.select(
         pl.col("utility").alias("sb.gas_utility"),
         pl.col("tier").alias("lmi_tier"),
-        pl.col("gas_heat").fill_null(0.0).alias("_cr_gas_heat"),
-        pl.col("gas_nonheat").fill_null(0.0).alias("_cr_gas_nonheat"),
+        pl.col("gas_heat").alias("_cr_gas_heat"),
+        pl.col("gas_nonheat").alias("_cr_gas_nonheat"),
     )
     joined = joined.join(gas_credits, on=["sb.gas_utility", "lmi_tier"], how="left")
+    if joined.height != n_before_joins:
+        raise AssertionError(
+            f"Gas credit join changed row count: {n_before_joins} → "
+            f"{joined.height} (duplicate (utility, tier) in credits_df?)"
+        )
 
     gas_monthly = (
         pl.when(pl.col("heats_with_natgas").fill_null(False))
-        .then(pl.col("_cr_gas_heat").fill_null(0.0))
-        .otherwise(pl.col("_cr_gas_nonheat").fill_null(0.0))
+        .then(pl.col("_cr_gas_heat"))
+        .otherwise(pl.col("_cr_gas_nonheat"))
     )
-    gas_credit = (
-        pl.when(pl.col("month") == ANNUAL_MONTH)
-        .then(gas_monthly * 12.0)
-        .otherwise(gas_monthly)
+    gas_credit_monthly = (
+        pl.when(pl.col("participates"))
+        .then(gas_monthly.fill_null(0.0))
+        .otherwise(0.0)
     )
-    gas_credit_applied = pl.when(pl.col("participates")).then(gas_credit).otherwise(0.0)
 
-    # Compute discounted bills, clamped >= 0
+    # Warn about null credits only for the cases that indicate missing data:
+    # utilities that ARE in the YAML but have null credits for specific tiers
+    # (i.e., unpublished EEAP amounts). Expected nulls we suppress:
+    #   - No utility assigned (sb.gas_utility is None): no gas service
+    #   - Utility not in YAML at all (small municipals like corning, fillmore)
+    #   - Tier 0 (ineligible): no match in credit table by design
+    configured_elec_utils = set(
+        credits_df.filter(
+            pl.col("elec_heat").is_not_null() | pl.col("elec_nonheat").is_not_null()
+        )["utility"]
+        .unique()
+        .to_list()
+    )
+    configured_gas_utils = set(
+        credits_df.filter(
+            pl.col("gas_heat").is_not_null() | pl.col("gas_nonheat").is_not_null()
+        )["utility"]
+        .unique()
+        .to_list()
+    )
+
+    eligible_participants = joined.filter(
+        pl.col("participates") & (pl.col("lmi_tier") > 0)
+    )
+    if eligible_participants.height > 0:
+        # Electric: only warn for utilities that have SOME electric credits
+        # configured (i.e., they're in the YAML with non-null electric values
+        # for other tiers) but this specific tier is null.
+        null_elec = eligible_participants.filter(
+            pl.col("sb.electric_utility").is_in(list(configured_elec_utils))
+            & pl.col("_cr_elec_heat").is_null()
+            & pl.col("_cr_elec_nonheat").is_null()
+        )
+        # Gas: skip None utility (no gas service) and unconfigured utilities
+        null_gas = eligible_participants.filter(
+            pl.col("sb.gas_utility").is_not_null()
+            & pl.col("sb.gas_utility").is_in(list(configured_gas_utils))
+            & pl.col("_cr_gas_heat").is_null()
+            & pl.col("_cr_gas_nonheat").is_null()
+        )
+        if null_elec.height > 0:
+            combos = (
+                null_elec.select("sb.electric_utility", "lmi_tier")
+                .unique()
+                .sort("sb.electric_utility", "lmi_tier")
+            )
+            _log(
+                f"  WARNING: {null_elec.height} participant rows have unpublished "
+                f"electric credits (treated as $0): {combos.to_dicts()}"
+            )
+        if null_gas.height > 0:
+            combos = (
+                null_gas.select("sb.gas_utility", "lmi_tier")
+                .unique()
+                .sort("sb.gas_utility", "lmi_tier")
+            )
+            _log(
+                f"  WARNING: {null_gas.height} participant rows have unpublished "
+                f"gas credits (treated as $0): {combos.to_dicts()}"
+            )
+
+    # Apply monthly credit per row, clamped >= 0.
+    # For the Annual row, we do NOT multiply the monthly credit by 12 and clamp
+    # once — instead, after computing all monthly rows, we derive the Annual row
+    # as the sum of the 12 clamped monthly values (below).
     elec_col = f"elec_total_bill_lmi_{pct_label}"
     gas_col = f"gas_total_bill_lmi_{pct_label}"
     applied_col = f"applied_discount_{pct_label}"
 
     joined = joined.with_columns(
-        (pl.col("elec_total_bill") - elec_credit_applied)
-        .clip(lower_bound=0.0)
+        pl.when(pl.col("month") != ANNUAL_MONTH)
+        .then(
+            (pl.col("elec_total_bill") - elec_credit_monthly).clip(lower_bound=0.0)
+        )
+        .otherwise(pl.lit(None))
         .alias(elec_col),
-        (pl.col("gas_total_bill") - gas_credit_applied)
-        .clip(lower_bound=0.0)
+        pl.when(pl.col("month") != ANNUAL_MONTH)
+        .then(
+            (pl.col("gas_total_bill") - gas_credit_monthly).clip(lower_bound=0.0)
+        )
+        .otherwise(pl.lit(None))
         .alias(gas_col),
         pl.col("participates").alias(applied_col),
+    )
+
+    # Derive Annual rows as the sum of the 12 monthly discounted bills, so that
+    # per-month clamping is respected and Annual == sum(Jan..Dec).
+    monthly_sums = (
+        joined.filter(pl.col("month") != ANNUAL_MONTH)
+        .group_by(BLDG_ID)
+        .agg(
+            pl.col(elec_col).sum().alias("_annual_elec_lmi"),
+            pl.col(gas_col).sum().alias("_annual_gas_lmi"),
+        )
+    )
+    joined = joined.join(monthly_sums, on=BLDG_ID, how="left")
+    if joined.height != n_before_joins:
+        raise AssertionError(
+            f"Annual sum join changed row count: {n_before_joins} → {joined.height}"
+        )
+    joined = joined.with_columns(
+        pl.when(pl.col("month") == ANNUAL_MONTH)
+        .then(pl.col("_annual_elec_lmi"))
+        .otherwise(pl.col(elec_col))
+        .alias(elec_col),
+        pl.when(pl.col("month") == ANNUAL_MONTH)
+        .then(pl.col("_annual_gas_lmi"))
+        .otherwise(pl.col(gas_col))
+        .alias(gas_col),
     )
 
     # Drop helper columns
@@ -357,6 +466,8 @@ def _apply_credits(
         "_cr_elec_nonheat",
         "_cr_gas_heat",
         "_cr_gas_nonheat",
+        "_annual_elec_lmi",
+        "_annual_gas_lmi",
         "participates",
     ]
     joined = joined.drop([c for c in drop_cols if c in joined.columns])
@@ -412,6 +523,49 @@ def _validate(df: pl.DataFrame, pct_label: int, participation_rate: float) -> No
     if elec_over > 0 or gas_over > 0:
         raise AssertionError(
             f"Discounted > original: {elec_over} elec rows, {gas_over} gas rows"
+        )
+
+    # is_lmi == (lmi_tier > 0) consistency
+    is_lmi_mismatch = df.filter(
+        pl.col("is_lmi") != (pl.col("lmi_tier") > 0)
+    ).height
+    if is_lmi_mismatch > 0:
+        raise AssertionError(
+            f"is_lmi != (lmi_tier > 0) for {is_lmi_mismatch} rows"
+        )
+
+    # p100: applied_discount should equal is_lmi (every eligible building participates)
+    if participation_rate >= 1.0:
+        applied_vs_lmi = df.filter(
+            pl.col(applied_col) != pl.col("is_lmi")
+        ).height
+        if applied_vs_lmi > 0:
+            raise AssertionError(
+                f"At 100% participation, {applied_col} != is_lmi "
+                f"for {applied_vs_lmi} rows"
+            )
+
+    # Annual row == sum of 12 monthly rows for discounted bill columns
+    monthly = df.filter(pl.col("month") != ANNUAL_MONTH)
+    monthly_sums = monthly.group_by(BLDG_ID).agg(
+        pl.col(elec_col).sum().alias("_check_elec_sum"),
+        pl.col(gas_col).sum().alias("_check_gas_sum"),
+    )
+    annual_check = df.filter(pl.col("month") == ANNUAL_MONTH).join(
+        monthly_sums, on=BLDG_ID, how="left"
+    )
+    elec_annual_diff = cast(
+        float,
+        (annual_check[elec_col] - annual_check["_check_elec_sum"]).abs().max(),
+    )
+    gas_annual_diff = cast(
+        float,
+        (annual_check[gas_col] - annual_check["_check_gas_sum"]).abs().max(),
+    )
+    if elec_annual_diff > 1e-6 or gas_annual_diff > 1e-6:
+        raise AssertionError(
+            f"Annual != sum(monthly) for discounted bills: "
+            f"elec max diff={elec_annual_diff}, gas max diff={gas_annual_diff}"
         )
 
     # Participation rate achieved
