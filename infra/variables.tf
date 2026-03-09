@@ -4,6 +4,12 @@ variable "instance_type" {
   default     = "m7i.2xlarge"
 }
 
+variable "root_volume_size" {
+  description = "Size in GB for the root EBS volume (OS, packages, logs)"
+  type        = number
+  default     = 60
+}
+
 variable "ebs_volume_size" {
   description = "Size in GB for persistent EBS volume"
   type        = number

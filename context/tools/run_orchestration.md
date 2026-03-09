@@ -99,21 +99,21 @@ runs.
 
 ## How `latest_run_output.sh` works
 
-CAIRO outputs are grouped by execution-time batch under a utility directory:
-`s3://data.sb/.../hp_rates/{state}/{utility}/{execution_time}/{cairo_ts}_{run_name}/`.
-The scenario YAML `path_outputs` contains an explicit `<execution_time>` placeholder,
-e.g. `/data.sb/.../ny/coned/<execution_time>/ny_coned_run1_up00_precalc__flat`.
+CAIRO outputs are grouped by batch under a utility directory:
+`s3://data.sb/.../hp_rates/{state}/{utility}/{batch}/{cairo_ts}_{run_name}/`.
+The scenario YAML `path_outputs` contains an explicit `<batch>` placeholder,
+e.g. `/data.sb/.../ny/coned/<batch>/ny_coned_run1_up00_precalc__flat`.
 
 After a run completes, downstream runs need to find that directory. The script:
 
 1. Parses the scenario YAML for the given `run_num` to extract `run_name`
    and `path_outputs`.
-2. Goes two levels up from `path_outputs` (past `<execution_time>/` and the
+2. Goes two levels up from `path_outputs` (past `<batch>/` and the
    run name) to get the utility base dir.
 3. Converts the local FUSE mount path (`/data.sb/...`) to an S3 URI
    (`s3://data.sb/...`).
-4. Finds the **latest** execution_time directory under the utility dir.
-5. Searches **only within** that execution_time dir for a CAIRO output
+4. Finds the **latest** batch directory under the utility dir.
+5. Searches **only within** that batch dir for a CAIRO output
    matching `run_name`. Crashes with a helpful error if not found (prevents
    silently picking up stale outputs from a prior batch).
 6. Prints the full S3 URI to stdout. Downstream recipes capture it via
@@ -145,42 +145,103 @@ From `rate_design/hp_rates/ri/`:
 # Just the pre-processing + validation
 just all-pre
 
-# Runs 1-16 in sequential order (single execution-time batch)
+# Set batch name, then run all 16 in order
+export RDP_BATCH=ri_20260306_r1-16
 just run-all-sequential
 
 # Subset of runs as a single batch
-just run-subset 1,2,5,6
+RDP_BATCH=ri_20260306_r1-8 just run-subset 1,2,5,6
 
 # Individual run (after its dependencies have completed)
-just run-5
+RDP_BATCH=ri_20260306_r1-8 just run-5
 ```
 
-## Execution-time batching
+## Batch naming
 
-All runs in a batch share a single execution-time timestamp (`YYYYMMDDTHHMMSSZ`
-format, UTC), which determines the output directory:
-`s3://data.sb/.../hp_rates/{state}/{utility}/{execution_time}/`.
+All runs in a batch share a single **batch name**, which determines the output
+directory: `s3://data.sb/.../hp_rates/{state}/{utility}/{batch}/`.
 
-The `RDP_EXECUTION_TIME` environment variable propagates the batch timestamp:
+The `RDP_BATCH` environment variable is **required** (no auto-generation
+fallback). If unset, `run-scenario` errors immediately before invoking CAIRO.
 
+### Naming convention
+
+```
+{state}_{YYYYMMDD}[{letter}]_r{run_range}
+```
+
+- **state**: 2-letter lowercase (e.g. `ny`, `ri`)
+- **date**: date the batch was dispatched, `YYYYMMDD` format
+- **letter**: disambiguator when multiple batches share a date (`a`, `b`, `c`, ...)
+- **run range**: which runs are included (e.g. `r1-2`, `r1-8`, `r1-16`)
+
+Examples:
+
+| Batch name          | Meaning                                  |
+| ------------------- | ---------------------------------------- |
+| `ny_20260304_r1-16` | NY, March 4 2026, runs 1-16              |
+| `ny_20260305a_r1-2` | NY, March 5 (first batch), runs 1-2 only |
+| `ny_20260305c_r1-8` | NY, March 5 (third batch), runs 1-8      |
+
+### How it propagates
+
+- **`run-scenario`** requires `RDP_BATCH` via
+  `${RDP_BATCH:?Set RDP_BATCH before running}`. It also checks S3 for an
+  existing run directory under the batch before invoking CAIRO — if the
+  utility+run combo already exists, it errors out.
 - **Orchestration recipes** (`run-all-sequential`, `run-all-parallel-tracks`,
-  `run-subset`, `run-all-utilities-sequential`) set
-  `export RDP_EXECUTION_TIME="${RDP_EXECUTION_TIME:-$(date -u +%Y%m%dT%H%M%SZ)}"`
-  at the top. The `:-` fallback means: generate a new timestamp when called
-  standalone, inherit the parent's timestamp when called from a higher-level
-  recipe.
-- **`run-scenario`** reads `RDP_EXECUTION_TIME` (with the same fallback) and
-  passes `--output-dir {path_outputs_base}/{execution_time}` to
-  `run_scenario.py`.
-- **Individual `run-<N>` recipes** don't touch `RDP_EXECUTION_TIME` — they
-  inherit it from whatever called them.
+  `run-subset`, `run-all-utilities-sequential`) propagate `RDP_BATCH` via
+  `export`. The required check happens in `run-scenario`.
+- **Individual `run-<N>` recipes** inherit `RDP_BATCH` from whatever called them.
+
+### Usage
+
+```bash
+# Set once, dispatch everything
+export RDP_BATCH=ny_20260305c_r1-8
+just s ny run-all-sequential
+
+# Or inline
+RDP_BATCH=ny_20260305c_r1-8 just s ny run-scenario 1
+
+# Subset
+RDP_BATCH=ny_20260305c_r1-8 just s ny run-subset 1,2,5,6
+```
+
+### Duplicate protection
+
+Before CAIRO runs, `run-scenario` checks S3 for an existing run directory
+matching the utility+run combo under the batch. If found, the recipe errors:
+
+```
+ERROR: run 1 already exists under batch 'ny_20260305c_r1-8' for coned:
+  PRE 20260305_212408_ny_coned_run1_up00_precalc__flat/
+Use a different RDP_BATCH name.
+```
+
+### Mixed-batch master tables
+
+When building master tables (`build_master_bills.py`), you can combine
+utilities from different batches using `--batch-override`:
+
+```bash
+uv run python build_master_bills.py \
+    --batch ny_20260305c_r1-8 \
+    --batch-override cenhud=ny_20260306_r1-8 \
+    --run-delivery 1 --run-supply 2 ...
+```
+
+The output path is auto-constructed from the batch name plus sorted overrides:
+
+- No overrides: `all_utilities/ny_20260305c_r1-8/run_1+2/...`
+- With overrides: `all_utilities/ny_20260305c_r1-8-cenhud=ny_20260306_r1-8/run_1+2/...`
 
 ### `run-subset`
 
 Runs a comma-separated list of runs as a single batch:
 
 ```bash
-just run-subset 1,2,5,6
+RDP_BATCH=ny_20260305c_r1-8 just run-subset 1,2,5,6
 ```
 
 Delegates to `run-<N>` recipes, so dependency logic (copy calibrated tariffs,
@@ -196,10 +257,10 @@ stderr:
 >> run-3: resolved run-1 output -> s3://data.sb/.../ny/coned/20260304T120000Z/20260304_120001_ny_coned_run1.../
 ```
 
-Orchestration recipes also print the batch execution_time at startup:
+Orchestration recipes also print the batch name at startup:
 
 ```text
->> run-all-sequential [20260304T120000Z]
+>> run-all-sequential [ny_20260304_r1-16]
 ```
 
 This lets you confirm at a glance that each run is picking up the correct

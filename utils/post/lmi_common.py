@@ -334,7 +334,7 @@ def assign_ny_tier_expr(
         pl.when((fpl <= 130.0) & vuln & ~deliverable_fuel)
         .then(pl.lit(3))
         # Tier 2: ≤130% FPL, not vulnerable, utility-heated
-        .when((fpl <= 130.0) & ~deliverable_fuel)
+        .when((fpl <= 130.0) & ~vuln & ~deliverable_fuel)
         .then(pl.lit(2))
         # Tier 2: 131% FPL to 60% SMI, vulnerable, utility-heated
         .when((fpl > 130.0) & (smi <= 60.0) & vuln & ~deliverable_fuel)

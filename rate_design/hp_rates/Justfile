@@ -323,16 +323,25 @@ compute-rev-requirements:
 run-scenario run_num:
     #!/usr/bin/env bash
     set -euo pipefail
-    : "${RDP_EXECUTION_TIME:=$(date -u +%Y%m%dT%H%M%SZ)}"
+    : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
+    # Pre-flight: abort if this utility+run combo already exists under the batch
+    s3_batch_dir="s3://data.sb/switchbox/cairo/outputs/hp_rates/{{state}}/{{utility}}/${RDP_BATCH}/"
+    existing=$(aws s3 ls "${s3_batch_dir}" 2>/dev/null | grep -i "_run{{run_num}}_" || true)
+    if [ -n "${existing}" ]; then
+        echo "ERROR: run {{run_num}} already exists under batch '${RDP_BATCH}' for {{utility}}:" >&2
+        echo "  ${existing}" >&2
+        echo "Use a different RDP_BATCH name." >&2
+        exit 1
+    fi
     log_dir="${HOME}/rdp_run_logs"
     mkdir -p "${log_dir}"
-    log_file="${log_dir}/{{utility}}_run{{run_num}}_${RDP_EXECUTION_TIME}.log"
+    log_file="${log_dir}/{{utility}}_run{{run_num}}_${RDP_BATCH}.log"
     echo ">> run-scenario {{run_num}}: logging to ${log_file}" >&2
     uv run python {{path_repo}}/rate_design/hp_rates/run_scenario.py \
         --state "{{state}}" \
         --run-num "{{run_num}}" \
         --utility "{{utility}}" \
-        --output-dir "{{path_outputs_base}}/${RDP_EXECUTION_TIME}" \
+        --output-dir "{{path_outputs_base}}/${RDP_BATCH}" \
         {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }} \
         2>&1 | tee "${log_file}"
 
@@ -462,12 +471,12 @@ run-13:
     fi
     cp "${source_tou}" "${target_tou}"
     echo ">> run-13: copied ${source_tou} -> ${target_tou}" >&2
-    : "${RDP_EXECUTION_TIME:=$(date -u +%Y%m%dT%H%M%SZ)}"
+    : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
     uv run python {{path_repo}}/rate_design/hp_rates/run_scenario.py \
         --state "{{state}}" \
         --run-num 13 \
         --utility "{{utility}}" \
-        --output-dir "{{path_outputs_base}}/${RDP_EXECUTION_TIME}" \
+        --output-dir "{{path_outputs_base}}/${RDP_BATCH}" \
         --path-tou-supply-energy-mc "{{path_supply_energy_mc}}" \
         --path-tou-supply-capacity-mc "{{path_supply_capacity_mc}}" \
         {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }}
@@ -518,8 +527,9 @@ all-pre:
 run-all-utilities-sequential:
     #!/usr/bin/env bash
     set -euo pipefail
-    export RDP_EXECUTION_TIME="${RDP_EXECUTION_TIME:-$(date -u +%Y%m%dT%H%M%SZ)}"
-    echo ">> run-all-utilities-sequential [${RDP_EXECUTION_TIME}]" >&2
+    : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
+    export RDP_BATCH
+    echo ">> run-all-utilities-sequential [${RDP_BATCH}]" >&2
     IFS=',' read -ra utils <<< "{{utilities}}"
     for util in "${utils[@]}"; do
         echo ">> ======================================" >&2
@@ -532,8 +542,9 @@ run-all-utilities-sequential:
 run-all-sequential:
     #!/usr/bin/env bash
     set -euo pipefail
-    export RDP_EXECUTION_TIME="${RDP_EXECUTION_TIME:-$(date -u +%Y%m%dT%H%M%SZ)}"
-    echo ">> run-all-sequential [${RDP_EXECUTION_TIME}]" >&2
+    : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
+    export RDP_BATCH
+    echo ">> run-all-sequential [${RDP_BATCH}]" >&2
     just run-1
     just run-2
     just compute-rev-requirements
@@ -555,11 +566,12 @@ run-all-sequential:
 run-all-parallel-tracks:
     #!/usr/bin/env bash
     set -euo pipefail
-    export RDP_EXECUTION_TIME="${RDP_EXECUTION_TIME:-$(date -u +%Y%m%dT%H%M%SZ)}"
+    : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
+    export RDP_BATCH
     WORKERS=$(( $(nproc) / 2 ))
     [ "$WORKERS" -lt 1 ] && WORKERS=1
     export RDP_NUM_WORKERS="$WORKERS"
-    echo ">> run-all-parallel-tracks [${RDP_EXECUTION_TIME}]: ${WORKERS} workers/track on $(nproc) total vCPUs" >&2
+    echo ">> run-all-parallel-tracks [${RDP_BATCH}]: ${WORKERS} workers/track on $(nproc) total vCPUs" >&2
 
     just run-1 & PID1=$!
     just run-2 & PID2=$!
@@ -608,8 +620,9 @@ run-all-parallel-tracks:
 run-subset runs:
     #!/usr/bin/env bash
     set -euo pipefail
-    export RDP_EXECUTION_TIME="${RDP_EXECUTION_TIME:-$(date -u +%Y%m%dT%H%M%SZ)}"
-    echo ">> run-subset [${RDP_EXECUTION_TIME}]: runs={{runs}}" >&2
+    : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
+    export RDP_BATCH
+    echo ">> run-subset [${RDP_BATCH}]: runs={{runs}}" >&2
     IFS=',' read -ra nums <<< "{{runs}}"
     for num in "${nums[@]}"; do
         echo ">> run-subset: run-${num}" >&2
@@ -627,3 +640,57 @@ list-states:
 
 list-utilities:
     @echo "{{utilities}}" | tr ',' '\n'
+
+# =============================================================================
+# POST-PROCESSING: master bills and validation
+# =============================================================================
+
+path_load_curves_local := env_var_or_default('PATH_LOAD_CURVES_LOCAL', path_repo / "data/nrel/resstock/res_2024_amy2018_2")
+path_heating_fuel_prices := "s3://data.sb/eia/heating_fuel_prices/"
+price_year := "2024"
+
+build-master-bills batch run_delivery run_supply *batch_overrides:
+    uv run python {{path_repo}}/utils/post/build_master_bills.py \
+        --state "{{state}}" \
+        --batch "{{batch}}" \
+        --run-delivery "{{run_delivery}}" \
+        --run-supply "{{run_supply}}" \
+        --path-resstock-release "s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb" \
+        --path-load-curves-local "{{path_load_curves_local}}" \
+        --path-heating-fuel-prices "{{path_heating_fuel_prices}}" \
+        --price-year "{{price_year}}" \
+        {{batch_overrides}}
+
+build-master-bat batch run_delivery run_supply *batch_overrides:
+    uv run python {{path_repo}}/utils/post/build_master_bat.py \
+        --state "{{state}}" \
+        --batch "{{batch}}" \
+        --run-delivery "{{run_delivery}}" \
+        --run-supply "{{run_supply}}" \
+        --path-resstock-release "s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb" \
+        {{batch_overrides}}
+
+validate-master-bills batch filter *batch_overrides:
+    uv run python {{path_repo}}/utils/post/validate_master_bills.py \
+        --state "{{state}}" \
+        --utility "{{utility}}" \
+        --batch "{{batch}}" \
+        --path-resstock-release "s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb" \
+        --path-load-curves-local "{{path_load_curves_local}}" \
+        --path-heating-fuel-prices "{{path_heating_fuel_prices}}" \
+        --price-year "{{price_year}}" \
+        --filter "{{filter}}" \
+        {{batch_overrides}}
+
+validate-master-bills-standalone batch run_delivery run_supply *batch_overrides:
+    uv run python {{path_repo}}/utils/post/validate_master_bills_standalone.py \
+        --state "{{state}}" \
+        --utility "{{utility}}" \
+        --batch "{{batch}}" \
+        --run-delivery "{{run_delivery}}" \
+        --run-supply "{{run_supply}}" \
+        --path-resstock-release "s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb" \
+        --path-load-curves-local "{{path_load_curves_local}}" \
+        --path-heating-fuel-prices "{{path_heating_fuel_prices}}" \
+        --price-year "{{price_year}}" \
+        {{batch_overrides}}
