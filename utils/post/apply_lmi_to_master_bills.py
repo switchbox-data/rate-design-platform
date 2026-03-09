@@ -670,8 +670,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--output-path",
-        required=True,
-        help="S3 path for staging output (Hive-partitioned parquet)",
+        default=None,
+        help="S3 path for output (Hive-partitioned parquet). "
+        "Defaults to --master-bills-path (in-place update).",
     )
     parser.add_argument("--state", required=True, help="State abbreviation (NY)")
     parser.add_argument(
@@ -708,6 +709,7 @@ def main() -> None:
     args = parser.parse_args()
 
     state = args.state.upper()
+    output_path = args.output_path or args.master_bills_path
     upgrade = _infer_upgrade_from_run_pair(args.master_bills_path)
     pct_label = int(round(args.participation_rate * 100))
     opts = get_aws_storage_options()
@@ -718,7 +720,9 @@ def main() -> None:
         f"mode={args.participation_mode}, seed={args.seed}"
     )
     _log(f"  Master bills: {args.master_bills_path}")
-    _log(f"  Output:       {args.output_path}")
+    _log(f"  Output:       {output_path}")
+    if output_path == args.master_bills_path:
+        _log("  (in-place update)")
 
     # 1. Load master bills
     t = _log("Loading master bills...")
@@ -769,19 +773,59 @@ def main() -> None:
     )
     _log(f"Total tier assignments: {tier_info.height} buildings")
 
-    # 4. Apply credits to master bills
+    # 4. Idempotency: drop existing columns for this rate (safe re-run)
+    rate_cols = [
+        f"elec_total_bill_lmi_{pct_label}",
+        f"gas_total_bill_lmi_{pct_label}",
+        f"applied_discount_{pct_label}",
+    ]
+    existing_rate_cols = [c for c in rate_cols if c in master.columns]
+    if existing_rate_cols:
+        _log(f"  Dropping existing rate columns for re-run: {existing_rate_cols}")
+        master = master.drop(existing_rate_cols)
+
+    # If lmi_tier / is_lmi already present (from a prior rate run), verify
+    # consistency with recomputed values then keep the existing columns.
+    shared_cols = ["lmi_tier", "is_lmi"]
+    has_existing_shared = all(c in master.columns for c in shared_cols)
+    if has_existing_shared:
+        _log("  lmi_tier/is_lmi already present — verifying consistency...")
+        check = master.select(BLDG_ID, "lmi_tier", "is_lmi").unique(
+            subset=[BLDG_ID]
+        ).join(
+            tier_info.select(BLDG_ID, "lmi_tier", "is_lmi").rename(
+                {"lmi_tier": "_new_tier", "is_lmi": "_new_lmi"}
+            ),
+            on=BLDG_ID,
+            how="inner",
+        )
+        tier_mismatch = check.filter(
+            pl.col("lmi_tier") != pl.col("_new_tier")
+        ).height
+        lmi_mismatch = check.filter(
+            pl.col("is_lmi") != pl.col("_new_lmi")
+        ).height
+        if tier_mismatch > 0 or lmi_mismatch > 0:
+            raise AssertionError(
+                f"Existing lmi_tier/is_lmi mismatch with recomputed values: "
+                f"{tier_mismatch} tier mismatches, {lmi_mismatch} is_lmi mismatches"
+            )
+        _log("  Verified: existing lmi_tier/is_lmi match recomputed values")
+        master = master.drop(shared_cols)
+
+    # 5. Apply credits to master bills
     t = _log("Applying credits to master bills...")
     result = _apply_credits(master, tier_info, pct_label, credits_df)
     _log_done("Applying credits", t, f"{result.height} rows")
 
-    # 5. Validate
+    # 6. Validate
     t = _log("Validating...")
     _validate(result, pct_label, args.participation_rate)
     _log_done("Validation", t)
 
-    # 6. Write staging output
-    t = _log(f"Writing to {args.output_path}...")
-    _write_hive_partitioned(result, args.output_path)
+    # 7. Write output
+    t = _log(f"Writing to {output_path}...")
+    _write_hive_partitioned(result, output_path)
     _log_done("Writing", t)
 
     total_elapsed = time.monotonic() - _t0
