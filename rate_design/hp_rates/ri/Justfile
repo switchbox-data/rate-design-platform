@@ -35,3 +35,31 @@ apply-ri-lmi-discounts run_dir run_state run_utility fpl_year cpi_s3_path partic
     --participation-rate {{participation_rate}} \
     {{ if rider == "true" { "--rider" } else { "" } }} \
     --upload
+
+# =============================================================================
+# RI-only: supply marginal cost generation (ISO-NE)
+# =============================================================================
+
+create-supply-energy-mc:
+  uv run python {{path_repo}}/utils/pre/marginal_costs/generate_supply_energy_mc.py \
+    --iso isone \
+    --utility {{utility}} \
+    --zone RI \
+    --year {{year}} \
+    --upload
+
+create-supply-ancillary-mc:
+  uv run python {{path_repo}}/utils/pre/marginal_costs/generate_supply_ancillary_mc.py \
+    --utility {{utility}} \
+    --zone RI \
+    --year {{year}} \
+    --upload
+
+create-supply-mc-data:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  echo ">> Generating ISO-NE supply energy MC (includes zero-filled capacity placeholder)" >&2
+  just create-supply-energy-mc
+  echo ">> Generating ISO-NE supply ancillary MC" >&2
+  just create-supply-ancillary-mc
+  echo ">> Supply MC data generation completed" >&2
