@@ -264,6 +264,16 @@ def _load_supply_marginal_costs(
                         ``ancillary_cost_enduse`` ($/MWh) and appends it as a third
                         column ``"Marginal Ancillary Costs ($/kWh)"``.
 
+    Note — delivery-only RR top-up excludes ancillary:
+        CAIRO's ``_return_revenue_requirement_target`` has a ``delivery_only_rev_req_passed``
+        flag that tops up a delivery-only revenue requirement with estimated supply costs
+        before decomposition. That top-up filters columns by
+        ``"Energy" in col or "Capacity" in col``, which does NOT match
+        ``"Marginal Ancillary Costs ($/kWh)"``. Ancillary costs are therefore excluded
+        from the top-up amount. In practice this codebase never sets
+        ``delivery_only_rev_req_passed=True`` (RRs are pre-topped-up in the YAML), so
+        this has no runtime effect — but it would matter if that flag were ever used.
+
     Returns:
         Combined DataFrame with energy and capacity costs (and ancillary when
         ancillary_path is provided), indexed by DatetimeIndex (EST-localized, 8760 rows).
