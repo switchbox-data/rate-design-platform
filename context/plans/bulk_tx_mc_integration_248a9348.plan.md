@@ -15,7 +15,7 @@ todos:
     content: Add tx_locality column to zone mapping generator
     status: completed
   - id: generate-module
-    content: Create utils/pre/generate_bulk_tx_mc.py with SCR allocation
+    content: Create utils/pre/marginal_costs/generate_bulk_tx_mc.py with SCR allocation
     status: completed
   - id: cairo-loader
     content: Add load_bulk_tx_marginal_costs(), load_dist_and_sub_tx_marginal_costs(), add_bulk_tx_and_dist_and_sub_tx_marginal_cost() to utils/cairo.py
@@ -75,7 +75,7 @@ Closes #302. This adds bulk transmission marginal costs derived from NYISO AC Tr
 
 | `path_transmission_mc` (Justfile variable) | Not in shared Justfile; `path_bulk_tx_mc` in `ny/Justfile` (overrides shared empty default) |
 
-| S3: `.../transmission/` | S3: `.../bulk_tx/` (output from `generate_bulk_tx_mc.py`) |
+| S3: `.../transmission/` | S3: `.../bulk_tx/` (output from `utils/pre/marginal_costs/generate_bulk_tx_mc.py`) |
 
 | `transmission_cost_enduse` (output column) | `bulk_tx_cost_enduse` (output parquet column in bulk tx files) |
 
@@ -111,7 +111,7 @@ Note: supply MC files use `00000000.parquet` (written by Polars `write_parquet` 
 flowchart TD
     RawCSV["ny_bulk_tx_projects.csv"] --> Derive["derive_tx_values.py"]
     Derive -->|"isotonic + P25/P50/P75"| VzTable["ny_bulk_tx_values.csv"]
-    VzTable --> GenModule["generate_bulk_tx_mc.py"]
+    VzTable --> GenModule["utils/pre/marginal_costs/generate_bulk_tx_mc.py"]
     ZoneMap["ny_utility_zone_mapping.csv"] --> GenModule
     UtilLoads["EIA utility loads"] --> GenModule
     GenModule -->|"SCR top-40/season allocation"| S3Tx["S3: .../bulk_tx/utility={u}/year={y}/data.parquet"]
@@ -201,11 +201,11 @@ Default column used for 8760 smearing: `v_avg_kw_yr`. CLI `--v-z-quantile avg` (
 
 `data/nyiso/transmission/Justfile` with recipes: `derive` (runs `derive_tx_values.py`), `upload` (syncs CSVs to S3).
 
-## 2. New module: `utils/pre/generate_bulk_tx_mc.py`
+## 2. New module: `utils/pre/marginal_costs/generate_bulk_tx_mc.py`
 
-Mirrors [`utils/pre/generate_utility_supply_mc.py`](utils/pre/generate_utility_supply_mc.py) pattern:
+Mirrors [`utils/pre/marginal_costs/generate_supply_capacity_mc.py`](utils/pre/marginal_costs/generate_supply_capacity_mc.py) pattern:
 
-- **Inputs**: Zone mapping (same CSV), utility loads (same S3 base + load functions imported from [`generate_utility_tx_dx_mc.py`](utils/pre/generate_utility_tx_dx_mc.py)), derived v_z table (CSV on S3 or local), year
+- **Inputs**: Zone mapping (same CSV), utility loads (same S3 base + load functions imported from [`generate_utility_tx_dx_mc.py`](utils/pre/marginal_costs/generate_utility_tx_dx_mc.py)), derived v_z table (CSV on S3 or local), year
 - **v_z lookup**: Load `ny_bulk_tx_values.csv`, join utility -> `gen_capacity_zone` via zone mapping (with `capacity_weight` for multi-locality utilities like ConEd: 87% NYC + 13% LHV), select the chosen quantile column
 
 **Validation (v_z lookup)**:
@@ -229,7 +229,7 @@ Mirrors [`utils/pre/generate_utility_supply_mc.py`](utils/pre/generate_utility_s
 **Validation (smeared trace)**:
 
 - Weights sum to 1.0 within tolerance (0.01%)
-- 1 kW constant load test: `sum(pi_t * 1 kW * 1 hour) == v_z` (same pattern as [`validate_capacity_allocation`](utils/pre/generate_utility_supply_mc.py) at line 548 and [`validate_allocation`](utils/pre/generate_utility_tx_dx_mc.py) at line 379)
+- 1 kW constant load test: `sum(pi_t * 1 kW * 1 hour) == v_z` (same pattern as [`validate_allocation`](utils/pre/marginal_costs/supply_capacity.py) and [`validate_allocation`](utils/pre/marginal_costs/generate_utility_tx_dx_mc.py))
 - Non-zero hours == 80
 - All non-zero values are positive
 - Average non-zero cost is in a reasonable range (v_z / 80 * some factor)
@@ -302,7 +302,7 @@ Add delivery MC loading utilities with shared index alignment logic:
 - `path_bulk_tx_mc := ""` (empty default; NY overrides)
 - `path_supply_energy_mc := path_cambium` (default for RI; NY overrides to NYISO path)
 - `path_supply_capacity_mc := path_cambium` (default for RI; NY overrides to NYISO path)
-- `create-dist-and-sub-tx-mc-data` recipe: invokes `generate_utility_tx_dx_mc.py`
+- `create-dist-and-sub-tx-mc-data` recipe: invokes `utils/pre/marginal_costs/generate_utility_tx_dx_mc.py`
 - `s` dispatch: fixed to invoke `just -f <state>/Justfile` so state-specific overrides are active
 
 ### NY-specific Justfile (`rate_design/hp_rates/ny/Justfile`)
@@ -310,7 +310,7 @@ Add delivery MC loading utilities with shared index alignment logic:
 - `path_bulk_tx_mc`: `s3://.../bulk_tx/utility={u}/year=2025/data.parquet`
 - `path_supply_energy_mc`: `s3://.../supply/energy/utility={u}/year=2025/00000000.parquet`
 - `path_supply_capacity_mc`: `s3://.../supply/capacity/utility={u}/year=2025/00000000.parquet`
-- `create-bulk-tx-mc-data utility_arg` recipe: calls `generate_bulk_tx_mc.py`
+- `create-bulk-tx-mc-data utility_arg` recipe: calls `utils/pre/marginal_costs/generate_bulk_tx_mc.py`
 - `create-bulk-tx-mc-data-all` recipe: runs for all 7 NY utilities
 
 ## 8. Validate config

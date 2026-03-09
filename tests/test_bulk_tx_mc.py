@@ -9,7 +9,7 @@ from typing import cast
 import polars as pl
 import pytest
 
-from utils.pre.generate_bulk_tx_mc import (
+from utils.pre.marginal_costs.generate_bulk_tx_mc import (
     DEFAULT_SCR_WINTER_MONTHS,
     aggregate_paying_locality_hourly_signals_from_constraint_groups,
     allocate_bulk_tx_to_hours,
