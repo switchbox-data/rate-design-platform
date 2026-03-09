@@ -10,6 +10,19 @@ delivery-only bill alignment, while the paired supply run (e.g. run 2) produces
 BAT values reflecting delivery+supply (total) bill alignment.  The supply-only
 component is the column-wise delta: supply = total - delivery.
 
+In addition to the BAT metrics, the table includes the three cost-allocation
+components that CAIRO computes before deriving BAT:
+
+- **annual_bill** — the customer's annual electric bill (the ``Annual`` column
+  in CAIRO's output).
+- **economic_burden** — the customer's marginal-cost allocation
+  (``customer_level_economic_burden``): Σ(hourly_load × hourly_MC).
+- **residual_share** — the customer's per-customer residual-cost allocation
+  (``customer_level_residual_share_percustomer``).
+
+All three are decomposed into delivery / supply / total using the same identity
+as the BAT metrics.
+
 Output schema (1 row per building):
     bldg_id, sb.electric_utility, sb.gas_utility, upgrade,
     postprocess_group.has_hp, postprocess_group.heating_type,
@@ -17,10 +30,17 @@ Output schema (1 row per building):
     heats_with_propane, weight,
     BAT_vol_delivery, BAT_vol_supply, BAT_vol_total,
     BAT_peak_delivery, BAT_peak_supply, BAT_peak_total,
-    BAT_percustomer_delivery, BAT_percustomer_supply, BAT_percustomer_total
+    BAT_percustomer_delivery, BAT_percustomer_supply, BAT_percustomer_total,
+    annual_bill_delivery, annual_bill_supply, annual_bill_total,
+    economic_burden_delivery, economic_burden_supply, economic_burden_total,
+    residual_share_delivery, residual_share_supply, residual_share_total
 
 Identities (per metric m in {vol, peak, percustomer}):
     BAT_m_total = BAT_m_delivery + BAT_m_supply
+
+Identities (per component c in {annual_bill, economic_burden, residual_share}):
+    c_total = c_delivery + c_supply
+    annual_bill_total ≈ economic_burden_total + residual_share_total + BAT_percustomer_total
 """
 
 from __future__ import annotations
@@ -40,6 +60,15 @@ from utils.post.io import BLDG_ID, scan
 BAT_CSV = "cross_subsidization/cross_subsidization_BAT_values.csv"
 
 BAT_METRICS = ["BAT_vol", "BAT_peak", "BAT_percustomer"]
+
+# CAIRO source columns → short output names for the cost-allocation components.
+# These follow the same delivery/supply/total decomposition as BAT_METRICS.
+COST_COMPONENTS_SRC = {
+    "Annual": "annual_bill",
+    "customer_level_economic_burden": "economic_burden",
+    "customer_level_residual_share_percustomer": "residual_share",
+}
+COST_COMPONENTS = list(COST_COMPONENTS_SRC.values())
 
 META_COLS = [
     BLDG_ID,
@@ -75,6 +104,15 @@ OUTPUT_COLS = [
     "BAT_percustomer_delivery",
     "BAT_percustomer_supply",
     "BAT_percustomer_total",
+    "annual_bill_delivery",
+    "annual_bill_supply",
+    "annual_bill_total",
+    "economic_burden_delivery",
+    "economic_burden_supply",
+    "economic_burden_total",
+    "residual_share_delivery",
+    "residual_share_supply",
+    "residual_share_total",
 ]
 
 FLOAT_TOL = 1e-4
@@ -237,6 +275,38 @@ def _assert_bat_identity(
         )
 
 
+def _assert_bill_decomposition(df: pl.DataFrame, tol: float, utility: str) -> None:
+    """Assert annual_bill_total ≈ economic_burden_total + residual_share_total + BAT_percustomer_total."""
+    diff = (
+        pl.col("annual_bill_total")
+        - pl.col("economic_burden_total")
+        - pl.col("residual_share_total")
+        - pl.col("BAT_percustomer_total")
+    ).abs()
+    violations = df.filter(diff > tol)
+    if not violations.is_empty():
+        n = violations.height
+        max_diff = cast(float, violations.select(diff.alias("d"))["d"].max())
+        example = (
+            violations.head(3)
+            .select(
+                BLDG_ID,
+                "annual_bill_total",
+                "economic_burden_total",
+                "residual_share_total",
+                "BAT_percustomer_total",
+            )
+            .to_dicts()
+        )
+        raise AssertionError(
+            f"[{utility}] Bill decomposition violation: "
+            f"annual_bill_total != economic_burden_total + residual_share_total "
+            f"+ BAT_percustomer_total. "
+            f"{n} rows exceed tolerance {tol}, max diff={max_diff:.6f}. "
+            f"Examples: {example}"
+        )
+
+
 def _assert_no_nulls(df: pl.DataFrame, cols: list[str], utility: str) -> None:
     for c in cols:
         n_null = df[c].null_count()
@@ -310,12 +380,28 @@ def _process_utility(
     _assert_no_nulls(bat_delivery_df, BAT_METRICS, utility)
     _assert_no_nulls(bat_supply_df, BAT_METRICS, utility)
 
+    # --- Validate no nulls in cost-component source columns ---
+    _assert_no_nulls(bat_delivery_df, list(COST_COMPONENTS_SRC.keys()), utility)
+    _assert_no_nulls(bat_supply_df, list(COST_COMPONENTS_SRC.keys()), utility)
+
     # --- Join delivery and supply, compute decomposition ---
     t = _log("  Computing BAT decomposition (delivery / supply / total)...")
-    delivery_select = [BLDG_ID, "weight"] + [
-        pl.col(m).alias(f"{m}_delivery") for m in BAT_METRICS
-    ]
-    supply_select = [BLDG_ID] + [pl.col(m).alias(f"{m}_total") for m in BAT_METRICS]
+    delivery_select = (
+        [BLDG_ID, "weight"]
+        + [pl.col(m).alias(f"{m}_delivery") for m in BAT_METRICS]
+        + [
+            pl.col(src).alias(f"{short}_delivery")
+            for src, short in COST_COMPONENTS_SRC.items()
+        ]
+    )
+    supply_select = (
+        [BLDG_ID]
+        + [pl.col(m).alias(f"{m}_total") for m in BAT_METRICS]
+        + [
+            pl.col(src).alias(f"{short}_total")
+            for src, short in COST_COMPONENTS_SRC.items()
+        ]
+    )
     bat = (
         bat_delivery_df.select(delivery_select)
         .join(
@@ -327,6 +413,10 @@ def _process_utility(
             [
                 (pl.col(f"{m}_total") - pl.col(f"{m}_delivery")).alias(f"{m}_supply")
                 for m in BAT_METRICS
+            ]
+            + [
+                (pl.col(f"{c}_total") - pl.col(f"{c}_delivery")).alias(f"{c}_supply")
+                for c in COST_COMPONENTS
             ]
         )
     )
@@ -353,13 +443,21 @@ def _process_utility(
     # --- Validate identities and nulls ---
     for m in BAT_METRICS:
         _assert_bat_identity(joined, m, FLOAT_TOL, utility)
+    for c in COST_COMPONENTS:
+        _assert_bat_identity(joined, c, FLOAT_TOL, utility)
+    _assert_bill_decomposition(joined, FLOAT_TOL, utility)
 
     bat_output_cols = [
         f"{m}_{component}"
         for m in BAT_METRICS
         for component in ("delivery", "supply", "total")
     ]
-    _assert_no_nulls(joined, ["weight"] + bat_output_cols, utility)
+    cost_output_cols = [
+        f"{c}_{component}"
+        for c in COST_COMPONENTS
+        for component in ("delivery", "supply", "total")
+    ]
+    _assert_no_nulls(joined, ["weight"] + bat_output_cols + cost_output_cols, utility)
 
     return joined
 
@@ -498,6 +596,9 @@ def main() -> None:
 
     for m in BAT_METRICS:
         _assert_bat_identity(master, m, FLOAT_TOL, "ALL")
+    for c in COST_COMPONENTS:
+        _assert_bat_identity(master, c, FLOAT_TOL, "ALL")
+    _assert_bill_decomposition(master, FLOAT_TOL, "ALL")
     _log_done("Validation", t)
 
     # --- Write output (Hive-partitioned parquet) ---
