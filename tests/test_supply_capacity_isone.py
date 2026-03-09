@@ -78,7 +78,9 @@ def test_get_fca_price_primary_zone() -> None:
             }
         ]
     )
-    price, zone_used = _get_fca_price_for_ccp(fca_df, 2024, primary_zone_id=8506, fallback_zone_id=8500)
+    price, zone_used = _get_fca_price_for_ccp(
+        fca_df, 2024, primary_zone_id=8506, fallback_zone_id=8500
+    )
     assert price == pytest.approx(3.98)
     assert zone_used == 8506
 
@@ -97,7 +99,9 @@ def test_get_fca_price_fallback_zone_when_primary_absent() -> None:
             }
         ]
     )
-    price, zone_used = _get_fca_price_for_ccp(fca_df, 2027, primary_zone_id=8506, fallback_zone_id=8500)
+    price, zone_used = _get_fca_price_for_ccp(
+        fca_df, 2027, primary_zone_id=8506, fallback_zone_id=8500
+    )
     assert price == pytest.approx(2.50)
     assert zone_used == 8500  # fallback was used
 
@@ -117,7 +121,9 @@ def test_get_fca_price_raises_when_neither_zone_present() -> None:
         ]
     )
     with pytest.raises(ValueError, match="No FCA price found"):
-        _get_fca_price_for_ccp(fca_df, 2024, primary_zone_id=8506, fallback_zone_id=8500)
+        _get_fca_price_for_ccp(
+            fca_df, 2024, primary_zone_id=8506, fallback_zone_id=8500
+        )
 
 
 def test_get_fca_price_primary_takes_precedence_over_fallback() -> None:
@@ -142,7 +148,9 @@ def test_get_fca_price_primary_takes_precedence_over_fallback() -> None:
             },
         ]
     )
-    price, zone_used = _get_fca_price_for_ccp(fca_df, 2024, primary_zone_id=8506, fallback_zone_id=8500)
+    price, zone_used = _get_fca_price_for_ccp(
+        fca_df, 2024, primary_zone_id=8506, fallback_zone_id=8500
+    )
     assert price == pytest.approx(3.98)
     assert zone_used == 8506
 
@@ -177,7 +185,9 @@ def test_resolve_fca_price_two_ccp_blend() -> None:
             },
         ]
     )
-    result = resolve_fca_price_for_calendar_year(fca_df, capacity_zone_id=8506, calendar_year=2025)
+    result = resolve_fca_price_for_calendar_year(
+        fca_df, capacity_zone_id=8506, calendar_year=2025
+    )
     expected = 3.980 * 5 + 2.639 * 7  # = 19.90 + 18.473 = 38.373
     assert result == pytest.approx(expected, abs=1e-4)
 
@@ -235,7 +245,9 @@ def test_resolve_fca_price_symmetric_months() -> None:
             },
         ]
     )
-    result = resolve_fca_price_for_calendar_year(fca_df, capacity_zone_id=8506, calendar_year=2023)
+    result = resolve_fca_price_for_calendar_year(
+        fca_df, capacity_zone_id=8506, calendar_year=2023
+    )
     # With price = 1.00/kW-month: total = 1*5 + 1*7 = 12 (= 12 months * 1)
     assert result == pytest.approx(12.0, abs=1e-6)
 
@@ -249,16 +261,22 @@ def test_allocate_fca_exactly_n_nonzero_hours() -> None:
     """Allocation produces exactly n_peak_hours nonzero rows."""
     n_peak = 100
     load_df = _make_annual_load(n_hours=8760)
-    result = allocate_fca_to_hours(load_df, capacity_cost_kw_year=38.373, n_peak_hours=n_peak)
+    result = allocate_fca_to_hours(
+        load_df, capacity_cost_kw_year=38.373, n_peak_hours=n_peak
+    )
     nonzero = result.filter(pl.col("capacity_cost_per_kw") > 0)
-    assert nonzero.height == n_peak, f"Expected {n_peak} nonzero hours, got {nonzero.height}"
+    assert nonzero.height == n_peak, (
+        f"Expected {n_peak} nonzero hours, got {nonzero.height}"
+    )
 
 
 def test_allocate_fca_cost_sums_to_annual_total() -> None:
     """Sum of all hourly capacity_cost_per_kw equals capacity_cost_kw_year."""
     capacity_cost_kw_year = 38.373
     load_df = _make_annual_load(n_hours=8760)
-    result = allocate_fca_to_hours(load_df, capacity_cost_kw_year=capacity_cost_kw_year, n_peak_hours=100)
+    result = allocate_fca_to_hours(
+        load_df, capacity_cost_kw_year=capacity_cost_kw_year, n_peak_hours=100
+    )
     actual_sum = float(result["capacity_cost_per_kw"].sum())
     assert actual_sum == pytest.approx(capacity_cost_kw_year, rel=1e-6)
 
@@ -268,7 +286,9 @@ def test_allocate_fca_weights_sum_to_one() -> None:
     load_df = _make_annual_load(n_hours=8760)
     capacity_cost = 50.0
     n_peak = 10
-    result = allocate_fca_to_hours(load_df, capacity_cost_kw_year=capacity_cost, n_peak_hours=n_peak)
+    result = allocate_fca_to_hours(
+        load_df, capacity_cost_kw_year=capacity_cost, n_peak_hours=n_peak
+    )
     # Implied weight = capacity_cost_per_kw / capacity_cost_kw_year
     weights = result["capacity_cost_per_kw"] / capacity_cost
     assert float(weights.sum()) == pytest.approx(1.0, abs=1e-6)
@@ -286,7 +306,9 @@ def test_allocate_fca_only_peak_hours_have_cost() -> None:
     """Non-peak hours are absent from the output (they carry no capacity cost)."""
     n_peak = 5
     load_df = _make_annual_load(n_hours=8760, base_mw=1000.0, ramp=0.01)
-    result = allocate_fca_to_hours(load_df, capacity_cost_kw_year=20.0, n_peak_hours=n_peak)
+    result = allocate_fca_to_hours(
+        load_df, capacity_cost_kw_year=20.0, n_peak_hours=n_peak
+    )
     # All returned rows should have positive cost (non-peak hours are excluded)
     assert (result["capacity_cost_per_kw"] > 0).all()
     assert result.height == n_peak
@@ -303,7 +325,9 @@ def test_allocate_fca_selects_highest_load_hours() -> None:
     """The peak hours selected are indeed the top-N by load_mw."""
     n_peak = 5
     load_df = _make_annual_load(n_hours=8760, base_mw=1000.0, ramp=1.0)
-    result = allocate_fca_to_hours(load_df, capacity_cost_kw_year=10.0, n_peak_hours=n_peak)
+    result = allocate_fca_to_hours(
+        load_df, capacity_cost_kw_year=10.0, n_peak_hours=n_peak
+    )
     peak_timestamps = set(result["timestamp"].to_list())
 
     # The top-N timestamps are the last n_peak hours (highest load due to ramp=1.0)
@@ -348,7 +372,9 @@ def test_allocate_fca_tie_at_nth_hour_exactly_n_nonzero() -> None:
     """When Nth and (N+1)th loads tie, exactly N hours get nonzero cost."""
     n_peak = 10
     load_df = _make_load_with_tie_at_nth(n_peak=n_peak)
-    result = allocate_fca_to_hours(load_df, capacity_cost_kw_year=30.0, n_peak_hours=n_peak)
+    result = allocate_fca_to_hours(
+        load_df, capacity_cost_kw_year=30.0, n_peak_hours=n_peak
+    )
     nonzero = result.filter(pl.col("capacity_cost_per_kw") > 0)
     assert nonzero.height == n_peak, (
         f"Expected exactly {n_peak} nonzero hours with tie at Nth, got {nonzero.height}"
@@ -360,7 +386,9 @@ def test_allocate_fca_tie_at_nth_hour_cost_sum_correct() -> None:
     n_peak = 10
     capacity_cost = 25.0
     load_df = _make_load_with_tie_at_nth(n_peak=n_peak)
-    result = allocate_fca_to_hours(load_df, capacity_cost_kw_year=capacity_cost, n_peak_hours=n_peak)
+    result = allocate_fca_to_hours(
+        load_df, capacity_cost_kw_year=capacity_cost, n_peak_hours=n_peak
+    )
     actual_sum = float(result["capacity_cost_per_kw"].sum())
     assert actual_sum == pytest.approx(capacity_cost, rel=1e-6)
 
@@ -387,7 +415,9 @@ def test_validate_fca_allocation_passes_for_correct_sum() -> None:
     """validate_fca_allocation passes when sum matches capacity_cost_kw_year."""
     capacity_cost = 38.373
     load_df = _make_annual_load(n_hours=8760)
-    result = allocate_fca_to_hours(load_df, capacity_cost_kw_year=capacity_cost, n_peak_hours=100)
+    result = allocate_fca_to_hours(
+        load_df, capacity_cost_kw_year=capacity_cost, n_peak_hours=100
+    )
     # Should not raise
     validate_fca_allocation(result, capacity_cost)
 
@@ -440,6 +470,8 @@ def test_full_resolution_with_fallback_zone_gives_correct_annual_cost() -> None:
     assert capacity_cost_kw_year == pytest.approx(expected, abs=1e-4)
 
     load_df = _make_annual_load(n_hours=8760)
-    result = allocate_fca_to_hours(load_df, capacity_cost_kw_year=capacity_cost_kw_year, n_peak_hours=100)
+    result = allocate_fca_to_hours(
+        load_df, capacity_cost_kw_year=capacity_cost_kw_year, n_peak_hours=100
+    )
     actual_sum = float(result["capacity_cost_per_kw"].sum())
     assert actual_sum == pytest.approx(capacity_cost_kw_year, rel=1e-6)
