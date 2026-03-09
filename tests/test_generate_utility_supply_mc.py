@@ -5,13 +5,13 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-from utils.pre.generate_utility_supply_mc import (
+from utils.pre.marginal_costs.supply_capacity import (
     allocate_icap_to_hours,
     build_locality_load_profiles,
-    compute_capacity_mc_components,
+    compute_components,
     compute_weighted_icap_prices,
     get_partitioned_price_locality_weights,
-    validate_capacity_allocation,
+    validate_allocation,
 )
 
 
@@ -102,7 +102,7 @@ def test_compute_capacity_mc_components_two_locality_utility() -> None:
         }
     )
 
-    result = compute_capacity_mc_components(
+    result = compute_components(
         utility_icap_rows, icap_df, locality_profiles, n_peak_hours=8
     )
 
@@ -126,7 +126,7 @@ def test_compute_capacity_mc_components_two_locality_utility() -> None:
     icap_prices_validation = compute_weighted_icap_prices(
         icap_df, price_locality_weights
     )
-    validate_capacity_allocation(result, icap_prices_validation)
+    validate_allocation(result, icap_prices_validation)
 
     # Costs sum correctly: total should equal weighted ICAP annual total
     expected_annual = 0.87 * 10.0 * 12 + 0.13 * 8.0 * 12
@@ -237,7 +237,7 @@ def test_allocate_icap_tie_at_nth_hour() -> None:
         )
 
     # 1 kW recovery: sum should equal annual ICAP total
-    validate_capacity_allocation(result, icap_prices)
+    validate_allocation(result, icap_prices)
 
 
 def test_allocate_icap_no_tie_unchanged() -> None:
@@ -252,7 +252,7 @@ def test_allocate_icap_no_tie_unchanged() -> None:
     nonzero = result.filter(pl.col("capacity_cost_per_kw") > 0)
     assert nonzero.height == n_peak * 12
 
-    validate_capacity_allocation(result, icap_prices)
+    validate_allocation(result, icap_prices)
 
 
 # ── timestamp remap when load_year != price_year ─────────────────────────────
