@@ -30,22 +30,22 @@ path_s3 := "s3://data.sb/nyiso/gold_book/"
 
 # Extract Table VII from Gold Book markdown into raw CSV
 extract:
-    uv run python "{{path_local_base}}/extract_proposed_transmission_facilities.py" \
-        --path-gold-book-md "{{path_gold_book_md}}" \
-        --path-output "{{path_local_input}}"
+    uv run python "{{ path_local_base }}/extract_proposed_transmission_facilities.py" \
+        --path-gold-book-md "{{ path_gold_book_md }}" \
+        --path-output "{{ path_local_input }}"
 
 # Classify projects: reads raw CSV, writes classified output to csv/
 classify:
-    uv run python "{{path_local_base}}/classify_proposed_transmission_facilities.py" \
-        --path-input "{{path_local_input}}" \
-        --path-output "{{path_local_csv}}/2025_proposed_transmission_facilities.csv"
+    uv run python "{{ path_local_base }}/classify_proposed_transmission_facilities.py" \
+        --path-input "{{ path_local_input }}" \
+        --path-output "{{ path_local_csv }}/2025_proposed_transmission_facilities.csv"
 
 # Upload classified CSV to S3
 upload:
-    aws s3 sync "{{path_local_csv}}/" "{{path_s3}}" --exclude "*" --include "*.csv"
-    echo "✓ Uploaded to {{path_s3}}"
+    aws s3 sync "{{ path_local_csv }}/" "{{ path_s3 }}" --exclude "*" --include "*.csv"
+    echo "✓ Uploaded to {{ path_s3 }}"
 
 # Remove classified output
 clean:
-    rm -rf "{{path_local_csv}}"
-    echo "✓ Removed {{path_local_csv}}"
+    rm -rf "{{ path_local_csv }}"
+    echo "✓ Removed {{ path_local_csv }}"
