@@ -2,14 +2,18 @@
 
 How energy (LBMP) and capacity (ICAP) supply marginal costs are generated for NY utilities.
 
-## Script
+## Scripts
 
-`utils/pre/generate_utility_supply_mc.py`
+- `utils/pre/marginal_costs/generate_supply_energy_mc.py`
+- `utils/pre/marginal_costs/generate_supply_capacity_mc.py`
 
-CLI: `--utility cenhud --year 2025 [--energy-load-year 2018] [--capacity-load-year 2018] --zone-mapping-path s3://... [--upload]`
+CLI (energy): `--utility cenhud --year 2025 [--energy-load-year 2018] --zone-mapping-path s3://... [--upload]`
+CLI (capacity): `--utility cenhud --year 2025 [--capacity-load-year 2018] --zone-mapping-path s3://... [--upload]`
 
-Output: `s3://data.sb/switchbox/marginal_costs/ny/supply/utility={utility}/year={YYYY}/data.parquet`
-Schema: `timestamp` (datetime), `energy_cost_enduse` ($/MWh), `capacity_cost_enduse` ($/MWh)
+Output (energy): `s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility={utility}/year={YYYY}/00000000.parquet`
+Schema: `timestamp` (datetime), `energy_cost_enduse` ($/MWh)
+Output (capacity): `s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility={utility}/year={YYYY}/00000000.parquet`
+Schema: `timestamp` (datetime), `capacity_cost_enduse` ($/MWh)
 
 ## Data sources
 
@@ -95,7 +99,7 @@ Sum all component `capacity_cost_h` values to get the utility-level hourly capac
 - Component 2: peaks identified from raw LHV (G–J) load; cost = LHV ICAP price × 0.13
 - Final signal: sum of both components; non-zero hours = union (up to 192 distinct hours/year)
 
-**Validation**: the sum of all hourly `capacity_cost_per_kw` values must equal `Σ_locality(capacity_weight × Σ_month(icap_price_per_kw_month))` within 0.01%. Computed via `compute_weighted_icap_prices` + `validate_capacity_allocation`.
+**Validation**: the sum of all hourly `capacity_cost_per_kw` values must equal `Σ_locality(capacity_weight × Σ_month(icap_price_per_kw_month))` within 0.01%. Computed via `compute_weighted_icap_prices` + `validate_allocation`.
 
 ## NYISO load pipeline
 
@@ -130,7 +134,7 @@ Each MC pipeline has its own load year variable in `rate_design/hp_rates/ny/stat
 | `BULK_TX_LOAD_YEAR`         | Bulk transmission (SCR peaks)  | `--load-year`          |
 | `DIST_LOAD_YEAR`            | Dist/sub-TX (PoP peaks)        | `--load-year`          |
 
-The NY Justfile reads the first two and passes them to `generate_utility_supply_mc.py`. The shared Justfile reads `DIST_LOAD_YEAR` via `env_var_or_default('DIST_LOAD_YEAR', year)` for the dist/sub-TX recipe.
+The NY Justfile reads the first two and passes them to `generate_supply_energy_mc.py` and `generate_supply_capacity_mc.py`. The shared Justfile reads `DIST_LOAD_YEAR` via `env_var_or_default('DIST_LOAD_YEAR', year)` for the dist/sub-TX recipe.
 
 ## 8760 normalization
 
