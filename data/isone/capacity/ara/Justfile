@@ -1,0 +1,40 @@
+# ISO-NE ARA (Annual Reconfiguration Auction) clearing prices pipeline
+#
+# Fetch ARA results (ARA1, ARA2, ARA3) for each commitment period from ISO Express,
+# write to Hive-partitioned parquet, and upload to S3.
+#
+# Run from repo root: just -f data/isone/capacity/ara/Justfile <recipe>
+# Or from this dir:   just <recipe>
+
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_base := justfile_directory()
+path_local_parquet := path_local_base + "/parquet"
+path_s3_parquet := "s3://data.sb/isone/capacity/ara/"
+
+start_cp := "2019-20"
+end_cp := "2032-33"
+
+fetch:
+    uv run python "{{path_local_base}}/fetch_isone_ara.py" \
+        --start-cp "{{start_cp}}" --end-cp "{{end_cp}}" \
+        --path-local-parquet "{{path_local_parquet}}"
+
+validate:
+    uv run python "{{path_local_base}}/validate_isone_ara.py" \
+        --path-local-parquet "{{path_local_parquet}}"
+
+prepare: fetch validate
+
+upload:
+    aws s3 sync "{{path_local_parquet}}/" "{{path_s3_parquet}}" \
+        --exclude "*" --include "*.parquet"
+    @echo "Uploaded to {{path_s3_parquet}}"
+
+update:
+    uv run python "{{path_local_base}}/update_isone_ara.py" \
+        --path-local-parquet "{{path_local_parquet}}" \
+        --path-s3-parquet "{{path_s3_parquet}}"
+
+clean:
+    rm -rf "{{path_local_parquet}}"
+    @echo "Removed parquet/"
