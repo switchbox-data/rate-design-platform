@@ -350,17 +350,10 @@ def save_component_output(
 ) -> None:
     """Write a single component parquet to S3 with Hive-style partitioning."""
     base = output_s3_base.rstrip("/") + f"/{component}/"
-    partitioned = component_df.with_columns(
-        pl.lit(utility).alias("utility"),
-        pl.lit(year).alias("year"),
-    )
-    partitioned.write_parquet(
-        base,
-        partition_by=["utility", "year"],
-        storage_options=storage_options,
-    )
-
+    # Write directly to data.parquet path (not using partition_by which creates 00000000.parquet)
     output_path = f"{base}utility={utility}/year={year}/data.parquet"
+    component_df.write_parquet(output_path, storage_options=storage_options)
+
     print(f"\n✓ Saved {component} MC to {output_path}")
     print(f"  Rows: {len(component_df):,}")
     print(f"  Columns: {', '.join(component_df.columns)}")

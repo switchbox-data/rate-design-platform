@@ -409,16 +409,11 @@ def save_allocated_costs(
     )
 
     s3_base = s3_base.rstrip("/") + "/"
-    output_df.write_parquet(
-        s3_base,
-        partition_by=["utility", "year"],
-        storage_options=storage_options,
-    )
+    # Write directly to data.parquet path (not using partition_by which creates 00000000.parquet)
+    output_path = f"{s3_base}utility={utility}/year={year}/data.parquet"
+    output_df.write_parquet(output_path, storage_options=storage_options)
 
-    print(
-        "\n✓ Saved allocated costs to "
-        f"{s3_base}utility={utility}/year={year}/00000000.parquet"
-    )
+    print(f"\n✓ Saved allocated costs to {output_path}")
     print(f"  Rows: {len(output_df):,}")
     print(f"  Columns: {', '.join(output_df.columns)}")
 

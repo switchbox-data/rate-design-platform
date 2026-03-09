@@ -9,7 +9,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run1_up00_precalc__flat
@@ -38,7 +38,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run2_up00_precalc_supply__flat
@@ -67,7 +67,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run3_up02_default__flat
@@ -96,7 +96,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run4_up02_default_supply__flat
@@ -125,7 +125,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run5_up00_precalc__hp_seasonal_vs_flat
@@ -155,7 +155,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run6_up00_precalc_supply__hp_seasonal_vs_flat
@@ -185,7 +185,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run7_up02_default__hp_seasonal
@@ -214,7 +214,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run8_up02_default_supply__hp_seasonal
@@ -243,7 +243,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run9_up00_precalc__hp_seasonalTOU_vs_flat
@@ -273,7 +273,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run10_up00_precalc_supply__hp_seasonalTOU_vs_flat
@@ -303,7 +303,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run11_up02_default__hp_seasonalTOU
@@ -332,7 +332,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run12_up02_default_supply__hp_seasonalTOU
@@ -361,7 +361,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run13_up00_precalc__hp_seasonalTOU_flex_vs_flat
@@ -391,7 +391,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_flat
@@ -421,7 +421,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run15_up02_default__hp_seasonalTOU_flex
@@ -450,7 +450,7 @@ runs:
     path_tariff_maps_gas: tariff_maps/gas/nimo_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/00000000.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run16_up02_default_supply__hp_seasonalTOU_flex
