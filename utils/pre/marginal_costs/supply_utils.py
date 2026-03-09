@@ -238,6 +238,24 @@ def assemble_output(
     return output
 
 
+def generate_zero_energy_mc(year: int) -> pl.DataFrame:
+    """Generate a zero-filled energy MC DataFrame with 8760 hours.
+
+    Creates a placeholder energy marginal cost file with all zeros.
+    Used for delivery-only runs where supply energy MC is not needed.
+
+    Args:
+        year: Target year for timestamp generation.
+
+    Returns:
+        DataFrame with columns: `timestamp` (datetime), `energy_cost_enduse` ($/MWh, all zeros).
+        Exactly 8760 rows matching Cairo's expected format.
+    """
+    timestamps_df = build_cairo_8760_timestamps(year)
+    energy_df = timestamps_df.with_columns(pl.lit(0.0).alias("energy_cost_enduse"))
+    return energy_df
+
+
 def generate_zero_capacity_mc(year: int) -> pl.DataFrame:
     """Generate a zero-filled capacity MC DataFrame with 8760 hours.
 
@@ -254,6 +272,39 @@ def generate_zero_capacity_mc(year: int) -> pl.DataFrame:
     timestamps_df = build_cairo_8760_timestamps(year)
     capacity_df = timestamps_df.with_columns(pl.lit(0.0).alias("capacity_cost_enduse"))
     return capacity_df
+
+
+def save_zero_energy_mc(
+    energy_df: pl.DataFrame,
+    utility: str,
+    year: int,
+    output_s3_base: str,
+    storage_options: dict[str, str],
+) -> None:
+    """Write zero-filled energy MC parquet to S3 with custom filename zero.parquet.
+
+    Writes directly to a specific path with filename zero.parquet (instead of using
+    Hive partitioning which would create data.parquet).
+
+    Args:
+        energy_df: DataFrame with timestamp and energy_cost_enduse columns.
+        utility: Utility short name.
+        year: Target year.
+        output_s3_base: S3 base path for output.
+        storage_options: AWS storage options for S3 access.
+    """
+    base = output_s3_base.rstrip("/") + "/energy/"
+    output_path = f"{base}utility={utility}/year={year}/zero.parquet"
+
+    # Write directly to the specific path (not using partitioning)
+    energy_df.write_parquet(
+        output_path,
+        storage_options=storage_options,
+    )
+
+    print(f"\n✓ Saved zero-filled energy MC to {output_path}")
+    print(f"  Rows: {len(energy_df):,}")
+    print(f"  Columns: {', '.join(energy_df.columns)}")
 
 
 def save_zero_capacity_mc(
