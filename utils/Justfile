@@ -6,6 +6,11 @@ project_root := `git rev-parse --show-toplevel`
 # PRE: run before any CAIRO runs
 # =============================================================================
 
+# Update Google Sheet formulas for supply MC paths (requires G_* env and browser auth).
+# Adds path_supply_ancillary_mc column if missing and updates all supply MC formulas.
+update-sheet-formulas:
+    uv run python {{project_root}}/utils/pre/update_sheet_formulas.py
+
 # Create scenario YAMLs from the Runs & Charts Google Sheet (requires G_* env and browser auth).
 # Writes rate_design/hp_rates/<state>/config/scenarios/scenarios_<utility>.yaml.
 # Pass state="" to generate for all states.
