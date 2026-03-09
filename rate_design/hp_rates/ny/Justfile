@@ -83,19 +83,6 @@ create-supply_capacity-mc-data-all:
   just create-supply_capacity-mc-data rge
   just create-supply_capacity-mc-data psegli
 
-# Backward-compatible aliases (prefer supply_energy / supply_capacity forms above)
-create-supply-energy-mc-data utility_arg:
-  just create-supply_energy-mc-data {{utility_arg}}
-
-create-supply-capacity-mc-data utility_arg:
-  just create-supply_capacity-mc-data {{utility_arg}}
-
-create-supply-energy-mc-data-all:
-  just create-supply_energy-mc-data-all
-
-create-supply-capacity-mc-data-all:
-  just create-supply_capacity-mc-data-all
-
 # =============================================================================
 # NY-only: bulk transmission marginal costs (NYISO AC Tx / LI Export, SCR)
 # =============================================================================
