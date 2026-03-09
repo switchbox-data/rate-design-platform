@@ -35,7 +35,7 @@ just -f data/resstock/Justfile identify-hp-and-heating-type-all-upgrades-and-nat
 
 ## 3. Add utility assignment (standard release)
 
-Assign electric and gas utilities to buildings in the **standard** release so that downstream steps (and the copy) use utility-aware metadata. Run once for upgrade 00, the utility assignment values should stay constant.
+Assign electric and gas utilities to buildings in the **standard** release so that downstream steps (and the copy) use utility-aware metadata. Run once for upgrade 00, the utility assignment values should stay constant. For NY, small gas utilities are excluded and PUMAs with no remaining gas probability use a nearest-neighbor donor; see `context/tools/ny_utility_assignment_resstock.md`.
 
 **NY:**
 
