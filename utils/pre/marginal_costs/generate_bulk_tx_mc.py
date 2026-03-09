@@ -231,7 +231,9 @@ def allocate_bulk_tx_to_hours(
 # ── Constraint-group engine ──────────────────────────────────────────────────
 
 
-def compute_paying_locality_costs(constraint_group_df: pl.DataFrame) -> dict[str, float]:
+def compute_paying_locality_costs(
+    constraint_group_df: pl.DataFrame,
+) -> dict[str, float]:
     """Compute mean annual cost per paying locality from constraint groups."""
     exploded = (
         constraint_group_df.with_columns(
