@@ -1,14 +1,19 @@
-"""Energy (LBMP) marginal cost computation for NY utility supply MCs."""
+"""Energy marginal cost computation for supply MCs (NYISO LBMP & ISO-NE LMP)."""
 
 from __future__ import annotations
 
 import polars as pl
 
 from utils.pre.marginal_costs.supply_utils import (
+    DEFAULT_ISONE_LMP_S3_BASE,
     load_zone_loads,
     remap_year_if_needed,
     strip_tz_if_needed,
 )
+
+# ---------------------------------------------------------------------------
+# NYISO LBMP helpers
+# ---------------------------------------------------------------------------
 
 
 def aggregate_lbmp_to_hourly(lbmp_df: pl.DataFrame) -> pl.DataFrame:
@@ -31,7 +36,7 @@ def load_lbmp_for_zones(
     year: int,
     storage_options: dict[str, str],
 ) -> pl.DataFrame:
-    """Load real-time LBMP data for the given zones and year."""
+    """Load NYISO real-time LBMP data for the given zones and year."""
     base = lbmp_s3_base.rstrip("/") + "/"
     collected = (
         pl.scan_parquet(
@@ -60,6 +65,81 @@ def load_lbmp_for_zones(
     return collected
 
 
+# ---------------------------------------------------------------------------
+# ISO-NE LMP helpers
+# ---------------------------------------------------------------------------
+
+
+def load_lmp_for_zone(
+    zone: str,
+    year: int,
+    storage_options: dict[str, str],
+    lmp_s3_base: str = DEFAULT_ISONE_LMP_S3_BASE,
+) -> pl.DataFrame:
+    """Load ISO-NE hourly real-time LMP for a single zone and year.
+
+    ISO-NE LMP data is already hourly (unlike NYISO's 5-min LBMP), so no
+    sub-hourly aggregation is needed.  Reads from the Hive-partitioned
+    ``s3://data.sb/isone/lmp/real_time/zones/`` tree, filters by *zone* and
+    *year*, and returns a DataFrame with columns ``timestamp`` and
+    ``lmp_usd_per_mwh``.
+    """
+    base = lmp_s3_base.rstrip("/") + "/"
+    collected = (
+        pl.scan_parquet(
+            base,
+            hive_partitioning=True,
+            storage_options=storage_options,
+        )
+        .filter(pl.col("zone") == zone, pl.col("year") == year)
+        .select("interval_start_et", "zone", "lmp_usd_per_mwh")
+        .collect()
+    )
+    if not isinstance(collected, pl.DataFrame):
+        raise TypeError("Expected DataFrame from ISO-NE LMP collect()")
+    if collected.is_empty():
+        raise FileNotFoundError(
+            f"No ISO-NE LMP data found for zone={zone!r}, year={year} under {base}"
+        )
+
+    collected = strip_tz_if_needed(collected, "interval_start_et").rename(
+        {"interval_start_et": "timestamp"}
+    )
+    print(
+        f"Loaded ISO-NE LMP data: {len(collected):,} hourly rows "
+        f"for zone {zone!r}, year {year}"
+    )
+    return collected
+
+
+def compute_isone_supply_energy_mc(
+    zone: str,
+    year: int,
+    storage_options: dict[str, str],
+    lmp_s3_base: str = DEFAULT_ISONE_LMP_S3_BASE,
+) -> pl.DataFrame:
+    """Compute hourly supply energy MC from ISO-NE real-time LMP.
+
+    ISO-NE utilities are single-zone, so no load-weighting is needed.
+    The LMP is used directly as ``energy_cost_enduse`` ($/MWh).
+    """
+    lmp_df = load_lmp_for_zone(zone, year, storage_options, lmp_s3_base)
+
+    result = lmp_df.select(
+        "timestamp",
+        pl.col("lmp_usd_per_mwh").alias("energy_cost_enduse"),
+    ).sort("timestamp")
+
+    avg_lmp = result["energy_cost_enduse"].mean()
+    print(f"  Energy MC (ISO-NE): {result.height} hours, avg LMP = ${avg_lmp:.2f}/MWh")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# NYISO LBMP computation (multi-zone load-weighted)
+# ---------------------------------------------------------------------------
+
+
 def compute_supply_energy_mc(
     utility_mapping: pl.DataFrame,
     lbmp_s3_base: str,
@@ -68,7 +148,7 @@ def compute_supply_energy_mc(
     storage_options: dict[str, str],
     zone_load_year: int | None = None,
 ) -> pl.DataFrame:
-    """Compute hourly utility-level supply energy MC from LBMP."""
+    """Compute hourly utility-level supply energy MC from NYISO LBMP."""
     zone_load_year = year if zone_load_year is None else zone_load_year
     zone_names = sorted(utility_mapping["lbmp_zone_name"].unique().to_list())
 
