@@ -1,4 +1,4 @@
-"""Shared utility helpers for NY supply marginal cost pipelines."""
+"""Shared utility helpers for supply marginal cost pipelines (NYISO & ISO-NE)."""
 
 from __future__ import annotations
 
@@ -9,15 +9,42 @@ from datetime import datetime, timedelta
 import polars as pl
 from cloudpathlib import S3Path
 
-DEFAULT_LBMP_S3_BASE = "s3://data.sb/nyiso/lbmp/real_time/zones/"
-DEFAULT_ICAP_S3_BASE = "s3://data.sb/nyiso/icap/"
-DEFAULT_ZONE_LOADS_S3_BASE = "s3://data.sb/nyiso/hourly_demand/zones/"
-DEFAULT_ZONE_MAPPING_PATH = (
+# ---------------------------------------------------------------------------
+# NYISO defaults
+# ---------------------------------------------------------------------------
+DEFAULT_NYISO_LBMP_S3_BASE = "s3://data.sb/nyiso/lbmp/real_time/zones/"
+DEFAULT_NYISO_ICAP_S3_BASE = "s3://data.sb/nyiso/icap/"
+DEFAULT_NYISO_ZONE_LOADS_S3_BASE = "s3://data.sb/nyiso/hourly_demand/zones/"
+DEFAULT_NYISO_ZONE_MAPPING_PATH = (
     "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
 )
-DEFAULT_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/ny/supply/"
+DEFAULT_NYISO_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/ny/supply/"
 
-VALID_UTILITIES = frozenset({"cenhud", "coned", "nimo", "nyseg", "or", "rge", "psegli"})
+VALID_NYISO_UTILITIES = frozenset(
+    {"cenhud", "coned", "nimo", "nyseg", "or", "rge", "psegli"}
+)
+
+# Backward-compatible aliases (used by generate scripts and other importers)
+DEFAULT_LBMP_S3_BASE = DEFAULT_NYISO_LBMP_S3_BASE
+DEFAULT_ICAP_S3_BASE = DEFAULT_NYISO_ICAP_S3_BASE
+DEFAULT_ZONE_LOADS_S3_BASE = DEFAULT_NYISO_ZONE_LOADS_S3_BASE
+DEFAULT_ZONE_MAPPING_PATH = DEFAULT_NYISO_ZONE_MAPPING_PATH
+DEFAULT_OUTPUT_S3_BASE = DEFAULT_NYISO_OUTPUT_S3_BASE
+VALID_UTILITIES = VALID_NYISO_UTILITIES
+
+# ---------------------------------------------------------------------------
+# ISO-NE defaults
+# ---------------------------------------------------------------------------
+DEFAULT_ISONE_LMP_S3_BASE = "s3://data.sb/isone/lmp/real_time/zones/"
+DEFAULT_ISONE_ANCILLARY_S3_BASE = "s3://data.sb/isone/ancillary/"
+DEFAULT_ISONE_ZONE_LOADS_S3_BASE = "s3://data.sb/isone/hourly_demand/zones/"
+DEFAULT_ISONE_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/ri/supply/"
+
+VALID_ISONE_UTILITIES = frozenset({"rie"})
+
+# Maps each ISO-NE utility to its single load zone. ISO-NE utilities are
+# single-zone, so no load-weighting is needed (unlike NYISO multi-zone).
+ISONE_UTILITY_ZONES: dict[str, str] = {"rie": "RI"}
 
 
 def load_zone_mapping(path: str, storage_options: dict[str, str]) -> pl.DataFrame:
@@ -209,6 +236,57 @@ def assemble_output(
     print(f"  Capacity: avg=${avg_capacity:.2f}/MWh, max=${max_capacity:.2f}/MWh")
     print(f"  Capacity: {nonzero_cap} non-zero hours out of 8760")
     return output
+
+
+def generate_zero_capacity_mc(year: int) -> pl.DataFrame:
+    """Generate a zero-filled capacity MC DataFrame with 8760 hours.
+
+    Creates a placeholder capacity marginal cost file with all zeros.
+    Used for ISO-NE utilities where capacity MC (FCM) integration is not yet implemented.
+
+    Args:
+        year: Target year for timestamp generation.
+
+    Returns:
+        DataFrame with columns: `timestamp` (datetime), `capacity_cost_enduse` ($/MWh, all zeros).
+        Exactly 8760 rows matching Cairo's expected format.
+    """
+    timestamps_df = build_cairo_8760_timestamps(year)
+    capacity_df = timestamps_df.with_columns(pl.lit(0.0).alias("capacity_cost_enduse"))
+    return capacity_df
+
+
+def save_zero_capacity_mc(
+    capacity_df: pl.DataFrame,
+    utility: str,
+    year: int,
+    output_s3_base: str,
+    storage_options: dict[str, str],
+) -> None:
+    """Write zero-filled capacity MC parquet to S3 with custom filename zero.parquet.
+
+    Writes directly to a specific path with filename zero.parquet (instead of using
+    Hive partitioning which would create data.parquet).
+
+    Args:
+        capacity_df: DataFrame with timestamp and capacity_cost_enduse columns.
+        utility: Utility short name.
+        year: Target year.
+        output_s3_base: S3 base path for output.
+        storage_options: AWS storage options for S3 access.
+    """
+    base = output_s3_base.rstrip("/") + "/capacity/"
+    output_path = f"{base}utility={utility}/year={year}/zero.parquet"
+
+    # Write directly to the specific path (not using partitioning)
+    capacity_df.write_parquet(
+        output_path,
+        storage_options=storage_options,
+    )
+
+    print(f"\n✓ Saved zero-filled capacity MC to {output_path}")
+    print(f"  Rows: {len(capacity_df):,}")
+    print(f"  Columns: {', '.join(capacity_df.columns)}")
 
 
 def save_component_output(
