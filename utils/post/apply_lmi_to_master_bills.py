@@ -6,14 +6,17 @@ vulnerability, and heating fuel, then applies per-utility fixed monthly
 credits from the NY EAP credit table.
 
 Output adds columns to the master table:
-  - lmi_tier (Int8): raw EAP tier (0 = ineligible, 1-7 = eligible regardless of participation)
+  - lmi_tier (Int32): raw EAP tier (0 = ineligible, 1-7 = eligible regardless of participation)
   - is_lmi (Bool): True if building is EAP-eligible (tier > 0)
   - applied_discount_{pct} (Bool): True if discount was actually applied
   - elec_total_bill_lmi_{pct} (Float64): max(0, elec_total_bill - credit)
   - gas_total_bill_lmi_{pct} (Float64): max(0, gas_total_bill - credit)
 
-Writes to a staging S3 prefix for inspection before merging into production.
-Does NOT touch the production master tables.
+By default writes in-place (back to --master-bills-path). Pass --output-path
+to redirect. Handles idempotent re-runs: drops existing rate-specific columns
+before recomputing, and verifies shared lmi_tier/is_lmi if already present.
+
+See context/tools/lmi_master_bills_workflow.md for full documentation.
 """
 
 from __future__ import annotations
