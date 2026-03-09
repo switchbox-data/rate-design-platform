@@ -37,13 +37,8 @@ supply_capacity_load_year := env_var('SUPPLY_CAPACITY_LOAD_YEAR')
 zone_mapping_path := "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
 
 create-supply-mc-data utility_arg:
-  cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_utility_supply_mc.py \
-    --utility {{utility_arg}} \
-    --year {{supply_mc_year}} \
-    --energy-load-year {{supply_energy_load_year}} \
-    --capacity-load-year {{supply_capacity_load_year}} \
-    --zone-mapping-path {{zone_mapping_path}} \
-    --upload
+  just create-supply_energy-mc-data {{utility_arg}}
+  just create-supply_capacity-mc-data {{utility_arg}}
 
 create-supply-mc-data-all:
   just create-supply-mc-data cenhud
@@ -53,6 +48,40 @@ create-supply-mc-data-all:
   just create-supply-mc-data or
   just create-supply-mc-data rge
   just create-supply-mc-data psegli
+
+create-supply_energy-mc-data utility_arg:
+  cd {{project_root}} && uv run python {{project_root}}/utils/pre/marginal_costs/generate_supply_energy_mc.py \
+    --utility {{utility_arg}} \
+    --year {{supply_mc_year}} \
+    --energy-load-year {{supply_energy_load_year}} \
+    --zone-mapping-path {{zone_mapping_path}} \
+    --upload
+
+create-supply_capacity-mc-data utility_arg:
+  cd {{project_root}} && uv run python {{project_root}}/utils/pre/marginal_costs/generate_supply_capacity_mc.py \
+    --utility {{utility_arg}} \
+    --year {{supply_mc_year}} \
+    --capacity-load-year {{supply_capacity_load_year}} \
+    --zone-mapping-path {{zone_mapping_path}} \
+    --upload
+
+create-supply_energy-mc-data-all:
+  just create-supply_energy-mc-data cenhud
+  just create-supply_energy-mc-data coned
+  just create-supply_energy-mc-data nimo
+  just create-supply_energy-mc-data nyseg
+  just create-supply_energy-mc-data or
+  just create-supply_energy-mc-data rge
+  just create-supply_energy-mc-data psegli
+
+create-supply_capacity-mc-data-all:
+  just create-supply_capacity-mc-data cenhud
+  just create-supply_capacity-mc-data coned
+  just create-supply_capacity-mc-data nimo
+  just create-supply_capacity-mc-data nyseg
+  just create-supply_capacity-mc-data or
+  just create-supply_capacity-mc-data rge
+  just create-supply_capacity-mc-data psegli
 
 # =============================================================================
 # NY-only: bulk transmission marginal costs (NYISO AC Tx / LI Export, SCR)
@@ -64,7 +93,7 @@ path_constraint_group_table := "s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_constraint
 path_bulk_tx_mc       := "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=" + utility + "/year=" + tx_mc_year + "/data.parquet"
 
 create-bulk-tx-mc-data utility_arg:
-  cd {{project_root}} && uv run python {{project_root}}/utils/pre/generate_bulk_tx_mc.py \
+  cd {{project_root}} && uv run python {{project_root}}/utils/pre/marginal_costs/generate_bulk_tx_mc.py \
     --utility {{utility_arg}} \
     --year {{tx_mc_year}} \
     --load-year {{tx_load_year}} \

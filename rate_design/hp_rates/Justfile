@@ -239,7 +239,7 @@ ensure-gas-tariff-envelope:
 
 # Distribution marginal costs
 create-dist-and-sub-tx-mc-data:
-  uv run python {{path_repo}}/utils/pre/generate_utility_tx_dx_mc.py \
+  uv run python {{path_repo}}/utils/pre/marginal_costs/generate_utility_tx_dx_mc.py \
     --state {{state_upper}} \
     --utility {{utility}} \
     --year {{year}} \
