@@ -12,7 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.pre.generate_utility_tx_dx_mc import (
+from utils.pre.marginal_costs.generate_utility_tx_dx_mc import (
     allocate_costs_to_hours,
     calculate_pop_weights,
     get_marginal_cost_for_utility,

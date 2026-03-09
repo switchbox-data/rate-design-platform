@@ -18,7 +18,7 @@ from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.pre.generate_utility_supply_mc import (
+from utils.pre.marginal_costs.supply_utils import (
     build_cairo_8760_timestamps,
     load_zone_loads,
     load_zone_mapping,
