@@ -49,6 +49,21 @@ def load_ancillary_for_year(
     collected = strip_tz_if_needed(collected, "interval_start_et").rename(
         {"interval_start_et": "timestamp"}
     )
+
+    # Report DST fallback duplicates explicitly. Stripping the tz from an
+    # America/New_York timestamp makes the two 1:00 AM fall-back hours collide
+    # on the same naive timestamp. We surface that here; prepare_component_output
+    # will average the pair and align the series to exactly 8760 hours.
+    n_rows = collected.height
+    n_unique_ts = collected.select(pl.col("timestamp").n_unique()).item()
+    if n_rows != n_unique_ts:
+        n_dst_dup = n_rows - n_unique_ts
+        print(
+            f"  DST fallback: {n_dst_dup} duplicate naive timestamp(s) detected "
+            f"({n_rows} rows, {n_unique_ts} unique). Both fallback-hour values will be "
+            f"preserved and averaged during alignment to 8760."
+        )
+
     result = collected.with_columns(
         (
             pl.col("reg_service_price_usd_per_mwh")
