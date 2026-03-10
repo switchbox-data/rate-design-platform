@@ -556,14 +556,14 @@ run-all-sequential:
     just run-6
     just run-7
     just run-8
-    # just run-9
-    # just run-10
-    # just run-11
-    # just run-12
-    # just run-13
-    # just run-14
-    # just run-15
-    # just run-16
+    just run-9
+    just run-10
+    just run-11
+    just run-12
+    just run-13
+    just run-14
+    just run-15
+    just run-16
 
 run-all-parallel-tracks:
     #!/usr/bin/env bash
