@@ -407,7 +407,7 @@ def save_allocated_costs(
             "mc_total_per_kwh",
         ]
     )
-    
+
     # Final validation: must have exactly 8760 rows with unique timestamps
     if output_df.height != 8760:
         raise ValueError(
