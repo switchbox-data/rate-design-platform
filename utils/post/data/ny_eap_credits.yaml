@@ -12,12 +12,19 @@
 #
 # TODO: Find and fill in missing EEAP Tier 5-7 credit amounts for utilities
 # where they show as null. These were not published at time of research.
-# AMI territories: coned, kedny, kedli use Area Median Income for EEAP thresholds.
+# AMI territories: utilities that use Area Median Income for EEAP thresholds.
 # All other utilities use State Median Income.
+# Each entry maps to a reference_county_fips (stable Census FIPS code) used to
+# look up the correct HUD income limits from s3://data.sb/hud/ami/ at runtime.
+# The county is an anchor into the HUD data; all counties in the same HUD FMR
+# area share identical income limits.
 ami_territories:
-  - coned
-  - kedny
-  - kedli
+  coned:
+    reference_county_fips: "36061" # New York County (Manhattan) — NYC FMR area
+  kedny:
+    reference_county_fips: "36047" # Kings County (Brooklyn) — NYC FMR area
+  kedli:
+    reference_county_fips: "36059" # Nassau County — Nassau-Suffolk FMR area
 # Per-utility credit tables.
 # Each utility has a list of tier entries with elec_heat, elec_nonheat,
 # gas_heat, gas_nonheat credits in $/month.
