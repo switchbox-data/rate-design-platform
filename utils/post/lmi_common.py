@@ -217,7 +217,10 @@ def get_ami_territories(config: dict[str, Any] | None = None) -> list[str]:
     """Return utility std_names that use AMI (not SMI) for EEAP thresholds."""
     if config is None:
         config = load_ny_eap_config()
-    return list(config.get("ami_territories", []))
+    ami = config.get("ami_territories", {})
+    if isinstance(ami, list):
+        return ami
+    return list(ami.keys())
 
 
 def load_smi_for_state(
@@ -265,21 +268,55 @@ def get_ami_threshold_for_utility(
     fy: int,
     pct: float,
     storage_options: dict[str, str],
+    config: dict[str, Any] | None = None,
+    s3_base: str = "s3://data.sb/hud/ami",
 ) -> dict[int, float]:
     """Get AMI threshold at a given % for a utility in an AMI territory.
 
-    TODO: Implement proper AMI lookup. This requires:
-    1. Mapping utility service territory to HUD CBSA/county areas
-    2. Loading area-level AMI data from s3://data.sb/hud/ami/
-    3. Aggregating across areas that overlap the utility territory
+    Looks up the utility's reference_county_fips from ny_eap_credits.yaml,
+    loads the HUD Section 8 Income Limits for that county and fiscal year,
+    and scales the l50 (50%-of-median) values to the requested percentage.
 
-    For now, falls back to SMI thresholds for NY as a conservative estimate
-    (AMI thresholds in NYC/LI are typically higher than SMI).
+    The reference county is a stable Census FIPS anchor into the HUD data;
+    all counties in the same HUD FMR area share identical income limits.
+
+    Returns {hh_size: annual_threshold} for household sizes 1-8.
     """
-    return smi_threshold_by_hh_size(
-        load_smi_for_state("NY", fy, storage_options),
-        pct,
+    if config is None:
+        config = load_ny_eap_config()
+
+    ami_cfg = config.get("ami_territories", {})
+    if utility not in ami_cfg:
+        raise ValueError(f"Utility '{utility}' is not in ami_territories config")
+
+    full_fips = ami_cfg[utility]["reference_county_fips"]
+    state_fips = full_fips[:2]
+    county_fips = full_fips[2:]
+
+    path = f"{s3_base}/fy={fy}/data.parquet"
+    df = pl.read_parquet(path, storage_options=storage_options)
+    matched = df.filter(
+        (pl.col("state_fips") == state_fips) & (pl.col("county_fips") == county_fips)
     )
+    if matched.is_empty():
+        raise ValueError(
+            f"No AMI data for state_fips={state_fips}, county_fips={county_fips} "
+            f"(utility={utility}) at {path}"
+        )
+    if matched.height > 1:
+        raise ValueError(
+            f"Multiple AMI rows for state_fips={state_fips}, county_fips={county_fips} "
+            f"(utility={utility}) at {path}: expected 1, got {matched.height}"
+        )
+
+    scale = pct / 50.0
+    result: dict[int, float] = {}
+    for hh_size in range(1, 9):
+        col = f"l50_{hh_size}"
+        val = matched[col][0]
+        if val is not None:
+            result[hh_size] = float(val) * scale
+    return result
 
 
 def smi_pct_expr(income_col: str, threshold_col: str) -> pl.Expr:
@@ -293,12 +330,13 @@ def assign_ny_tier_expr(
     is_vulnerable_col: str,
     heats_with_oil_col: str,
     heats_with_propane_col: str,
+    ami_pct_col: str | None = None,
 ) -> pl.Expr:
     """Assign NY EAP/EEAP tier (0-7) from FPL%, SMI%, vulnerability, fuel.
 
     Tier logic (see context/domain/lmi_discounts_in_ny.md):
 
-    Traditional EAP (Tiers 1-3):
+    Traditional EAP (Tiers 1-3) — always use SMI:
       - ≤130% FPL + vulnerable + utility-heated → Tier 3
       - ≤130% FPL + not vulnerable + utility-heated → Tier 2
       - 131% FPL to 60% SMI + vulnerable + utility-heated → Tier 2
@@ -308,22 +346,22 @@ def assign_ny_tier_expr(
       HEAP-based Tier 2/3 enrollment is impossible.
     Tier 4 (DSS) is NOT assigned (requires program enrollment data).
 
-    EEAP (Tiers 5-7):
-      - >60% SMI but ≤60% SMI/AMI → Tier 5 (note: for SMI territories
-        this is vacuous; for AMI territories AMI > SMI so there's a gap)
-      - 60-80% SMI/AMI → Tier 6
-      - 80-100% SMI/AMI → Tier 7
+    EEAP (Tiers 5-7) — use AMI in AMI territories, else SMI:
+      - >60% SMI but ≤60% AMI → Tier 5 (AMI gap; vacuous for SMI
+        territories since >60% SMI & ≤60% SMI is impossible)
+      - 60-80% AMI → Tier 6
+      - 80-100% AMI → Tier 7
 
-    For SMI territories, Tier 5 uses the same 60% SMI threshold as EAP
-    (so only customers NOT eligible for Tiers 1-3 but under 60% AMI in
-    AMI territories would land here). In this implementation we use the
-    smi_pct_col for both — the caller should set this to AMI% for AMI
-    territory utilities.
+    Args:
+        ami_pct_col: Column with income as % of AMI.  Pass for utilities in
+            AMI territories (ConEd, KEDNY, KEDLI).  When None (SMI
+            territories), EEAP thresholds fall back to smi_pct_col.
 
     Returns 0 for ineligible (>100% SMI/AMI or vacant).
     """
     fpl = pl.col(fpl_pct_col)
     smi = pl.col(smi_pct_col)
+    eeap = pl.col(ami_pct_col) if ami_pct_col else smi
     vuln = pl.col(is_vulnerable_col).fill_null(False)
     deliverable_fuel = pl.col(heats_with_oil_col).fill_null(False) | pl.col(
         heats_with_propane_col
@@ -343,16 +381,15 @@ def assign_ny_tier_expr(
         # non-vulnerable >130% FPL, etc.)
         .when(smi <= 60.0)
         .then(pl.lit(1))
-        # EEAP Tier 5: >60% SMI but ≤60% AMI (for AMI territories, caller
-        # sets smi_pct_col to AMI%; for SMI territories this clause is
-        # unreachable since >60% SMI AND ≤60% SMI is impossible).
-        # Will activate once get_ami_threshold_for_utility() returns real AMI.
-        # Tier 6: 60-80% SMI/AMI
-        .when((smi > 60.0) & (smi <= 80.0))
+        # EEAP Tier 5: >60% SMI but ≤60% EEAP threshold (AMI or SMI)
+        .when((smi > 60.0) & (eeap <= 60.0))
+        .then(pl.lit(5))
+        # Tier 6: 60-80% EEAP threshold
+        .when((eeap > 60.0) & (eeap <= 80.0))
         .then(pl.lit(6))
-        # Tier 7: 80-100% SMI/AMI
-        .when((smi > 80.0) & (smi <= 100.0))
+        # Tier 7: 80-100% EEAP threshold
+        .when((eeap > 80.0) & (eeap <= 100.0))
         .then(pl.lit(7))
-        # Ineligible: >100% SMI/AMI
+        # Ineligible: >100% EEAP threshold
         .otherwise(pl.lit(0))
     )
