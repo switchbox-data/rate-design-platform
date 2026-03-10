@@ -485,8 +485,8 @@ def compute_isone_supply_capacity_mc(
     Returns:
         DataFrame with columns ``timestamp`` (naive datetime) and
         ``capacity_cost_per_kw`` ($/kW per hour, nonzero only at peak hours).
-        The timestamp column covers only the n_peak_hours peak hours; non-peak
-        hours are absent (prepare_component_output fills nulls with 0).
+        Contains all 8760 hours for the calendar year, with non-peak hours
+        filled with 0.0.
     """
     capacity_load_year = capacity_load_year if capacity_load_year is not None else year
 
@@ -564,18 +564,35 @@ def compute_isone_supply_capacity_mc(
 
     # 5. Allocate FCA cost to top-N annual peak hours
     print("\n── FCA Exceedance Allocation ──")
-    capacity_df = allocate_fca_to_hours(
+    peak_hours_df = allocate_fca_to_hours(
         load_df=load_df,
         capacity_cost_kw_year=capacity_cost_kw_year,
         n_peak_hours=n_peak_hours,
     )
 
     # 6. Validate 1-kW constant load recovery
-    validate_fca_allocation(capacity_df, capacity_cost_kw_year)
+    validate_fca_allocation(peak_hours_df, capacity_cost_kw_year)
 
-    # Final check: ensure no duplicate timestamps before returning
+    # 7. Expand to full 8760 hours: join with reference timestamps and fill non-peak hours with 0.0
+    print("\n── Expanding to Full 8760 Hours ──")
+    ref_8760 = build_cairo_8760_timestamps(year)
+    capacity_df = (
+        ref_8760.join(peak_hours_df, on="timestamp", how="left")
+        .with_columns(pl.col("capacity_cost_per_kw").fill_null(0.0))
+        .sort("timestamp")
+    )
+    print(
+        f"  Expanded from {peak_hours_df.height} peak hours to {capacity_df.height} hours"
+    )
+
+    # Final check: ensure no duplicate timestamps and correct row count
     n_rows = capacity_df.height
     n_unique = capacity_df.select(pl.col("timestamp").n_unique()).item()
+    if n_rows != 8760:
+        raise ValueError(
+            f"Capacity MC DataFrame has {n_rows} rows, expected 8760. "
+            f"Check timestamp expansion logic."
+        )
     if n_rows != n_unique:
         raise ValueError(
             f"Capacity MC DataFrame has {n_rows} rows but only {n_unique} unique timestamps. "

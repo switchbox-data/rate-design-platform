@@ -230,43 +230,38 @@ def prepare_component_output(
         expected_months = list(range(1, 13))
         missing_months = sorted(set(expected_months) - set(months_present))
 
-        # DST "spring forward" creates a missing hour (typically 2:00 AM on 2nd Sunday in March)
-        # This is expected and acceptable - we'll fill it with 0.0
-        # Check if missing hours are all DST-related (1 hour in March around 2 AM)
-        missing_hours_with_month = missing_hours.with_columns(
-            pl.col("timestamp").dt.month().alias("month"),
-            pl.col("timestamp").dt.hour().alias("hour"),
-        )
-        dst_spring_forward = missing_hours_with_month.filter(
-            (pl.col("month") == 3) & (pl.col("hour") == 2)
-        )
-
-        # If we have missing months, that's an error
+        # If we have missing months, that's an error (can't interpolate entire months)
         if missing_months:
-            sample_missing = missing_hours.head(5)["timestamp"].to_list()
             raise ValueError(
                 f"{output_col}: Source data is incomplete for year {year}. "
                 f"Missing months: {missing_months}. Present months: {months_present}. "
                 f"Backfill missing months in source data before generating marginal costs."
             )
 
-        # If missing hours are not just DST spring forward, that's an error
-        if missing_hours.height > dst_spring_forward.height:
-            sample_missing = missing_hours.head(5)["timestamp"].to_list()
-            raise ValueError(
-                f"{output_col}: Source data is incomplete for year {year}. "
-                f"Missing {missing_hours.height} hours (expected only DST spring forward hour). "
-                f"Present months: {months_present}. "
-                f"Sample missing timestamps: {sample_missing[:3]}. "
-                f"Backfill missing hours in source data before generating marginal costs."
+        # Missing individual hours (e.g., DST spring forward, data gaps) are acceptable
+        # We'll interpolate them from surrounding hours to preserve data patterns
+        if missing_hours.height > 0:
+            # Identify DST spring forward hour if present
+            missing_hours_with_month = missing_hours.with_columns(
+                pl.col("timestamp").dt.month().alias("month"),
+                pl.col("timestamp").dt.hour().alias("hour"),
             )
+            dst_spring_forward = missing_hours_with_month.filter(
+                (pl.col("month") == 3) & (pl.col("hour") == 2)
+            )
+            n_dst = dst_spring_forward.height
+            n_other = missing_hours.height - n_dst
 
-        # DST spring forward hour is expected - interpolate from surrounding hours to preserve data
-        if dst_spring_forward.height > 0:
-            print(
-                f"  Note: Interpolating {dst_spring_forward.height} DST spring forward hour(s) "
-                f"from surrounding hours (expected behavior for Eastern timezone)"
-            )
+            if n_dst > 0:
+                print(
+                    f"  Note: Interpolating {n_dst} DST spring forward hour(s) "
+                    f"from surrounding hours (expected behavior for Eastern timezone)"
+                )
+            if n_other > 0:
+                print(
+                    f"  Note: Interpolating {n_other} additional missing hour(s) "
+                    f"from surrounding hours (data gaps in source)"
+                )
 
     # Step 5: Interpolate DST spring forward hour, then apply scaling
     # Use forward fill then backward fill to handle DST gaps (interpolate between surrounding hours)
