@@ -30,6 +30,18 @@ def test_get_ami_territories() -> None:
     assert "nyseg" not in territories
 
 
+def test_get_ami_territories_has_reference_fips() -> None:
+    """Each AMI territory utility should have a reference_county_fips."""
+    config = load_ny_eap_config()
+    ami_cfg = config["ami_territories"]
+    for utility, data in ami_cfg.items():
+        assert "reference_county_fips" in data, (
+            f"{utility} missing reference_county_fips"
+        )
+        fips = data["reference_county_fips"]
+        assert len(fips) == 5, f"{utility} FIPS should be 5 digits: {fips}"
+
+
 def test_get_ny_eap_credits_df_shape() -> None:
     df = get_ny_eap_credits_df()
     assert "utility" in df.columns
@@ -231,3 +243,105 @@ def test_assign_ny_tier_deliverable_fuel_all_cases() -> None:
         ).alias("tier")
     )
     assert out["tier"].to_list() == [1, 1, 1, 1]
+
+
+def test_assign_ny_tier_ami_gap_tier5() -> None:
+    """Tier 5: income >60% SMI but ≤60% AMI (AMI gap in AMI territories)."""
+    df = pl.DataFrame(
+        {
+            "fpl_pct": [200.0, 200.0, 200.0],
+            "smi_pct": [65.0, 65.0, 65.0],
+            "ami_pct": [55.0, 60.0, 65.0],
+            "is_vulnerable": [False, False, False],
+            "heats_with_oil": [False, False, False],
+            "heats_with_propane": [False, False, False],
+        }
+    )
+    out = df.with_columns(
+        assign_ny_tier_expr(
+            "fpl_pct",
+            "smi_pct",
+            "is_vulnerable",
+            "heats_with_oil",
+            "heats_with_propane",
+            ami_pct_col="ami_pct",
+        ).alias("tier")
+    )
+    # 55% AMI (≤60%) → Tier 5; 60% AMI (≤60%) → Tier 5; 65% AMI (>60%, ≤80%) → Tier 6
+    assert out["tier"].to_list() == [5, 5, 6]
+
+
+def test_assign_ny_tier_ami_eeap_tiers() -> None:
+    """EEAP tiers 5-7 use AMI when ami_pct_col is provided."""
+    df = pl.DataFrame(
+        {
+            "fpl_pct": [200.0, 200.0, 200.0, 200.0],
+            "smi_pct": [70.0, 70.0, 70.0, 70.0],
+            "ami_pct": [55.0, 75.0, 95.0, 110.0],
+            "is_vulnerable": [False, False, False, False],
+            "heats_with_oil": [False, False, False, False],
+            "heats_with_propane": [False, False, False, False],
+        }
+    )
+    out = df.with_columns(
+        assign_ny_tier_expr(
+            "fpl_pct",
+            "smi_pct",
+            "is_vulnerable",
+            "heats_with_oil",
+            "heats_with_propane",
+            ami_pct_col="ami_pct",
+        ).alias("tier")
+    )
+    # 55% AMI → Tier 5; 75% → Tier 6; 95% → Tier 7; 110% → ineligible
+    assert out["tier"].to_list() == [5, 6, 7, 0]
+
+
+def test_assign_ny_tier_no_ami_col_smi_fallback() -> None:
+    """Without ami_pct_col, EEAP uses SMI (no Tier 5 gap possible)."""
+    df = pl.DataFrame(
+        {
+            "fpl_pct": [200.0, 200.0, 200.0],
+            "smi_pct": [70.0, 90.0, 110.0],
+            "is_vulnerable": [False, False, False],
+            "heats_with_oil": [False, False, False],
+            "heats_with_propane": [False, False, False],
+        }
+    )
+    out = df.with_columns(
+        assign_ny_tier_expr(
+            "fpl_pct",
+            "smi_pct",
+            "is_vulnerable",
+            "heats_with_oil",
+            "heats_with_propane",
+        ).alias("tier")
+    )
+    # 70% SMI → Tier 6; 90% → Tier 7; 110% → ineligible
+    assert out["tier"].to_list() == [6, 7, 0]
+
+
+def test_assign_ny_tier_eap_unaffected_by_ami() -> None:
+    """EAP tiers 1-3 always use SMI, not AMI, even when ami_pct_col is provided."""
+    df = pl.DataFrame(
+        {
+            "fpl_pct": [50.0, 50.0, 140.0],
+            "smi_pct": [30.0, 30.0, 50.0],
+            "ami_pct": [20.0, 20.0, 35.0],
+            "is_vulnerable": [True, False, True],
+            "heats_with_oil": [False, False, False],
+            "heats_with_propane": [False, False, False],
+        }
+    )
+    out = df.with_columns(
+        assign_ny_tier_expr(
+            "fpl_pct",
+            "smi_pct",
+            "is_vulnerable",
+            "heats_with_oil",
+            "heats_with_propane",
+            ami_pct_col="ami_pct",
+        ).alias("tier")
+    )
+    # Same as without ami_pct_col: Tier 3, Tier 2, Tier 2
+    assert out["tier"].to_list() == [3, 2, 2]
