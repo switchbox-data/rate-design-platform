@@ -172,12 +172,15 @@ National Grid Long Island (KEDLI) serves gas customers in Nassau, Suffolk, and t
 
 ### National Grid Upstate / Niagara Mohawk (effective December 1, 2025
 
-| Tier | Elec. heat | Elec. non-heat | Gas heat | Gas non-heat | Source                                                                                                                  |
-| ---- | ---------- | -------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| 1    | $22.46     | $22.46         | $3.00    | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program) |
-| 2    | $39.64     | $39.64         | $3.00    | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program) |
-| 3    | $62.45     | $62.45         | $22.49   | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program) |
-| 4    | $60.26     | $60.26         | $20.30   | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program) |
+| Tier        | Elec. heat | Elec. non-heat | Gas heat | Gas non-heat | Source                                                                                                                   |
+|-------------|:----------:|:--------------:|:--------:|:------------:|--------------------------------------------------------------------------------------------------------------------------|
+| 1           | $22.46     | $22.46         | $3.00    | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)  |
+| 2           | $39.64     | $39.64         | $3.00    | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)  |
+| 3           | $62.45     | $62.45         | $22.49   | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)  |
+| 4           | $60.26     | $60.26         | $20.30   | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)  |
+| 5 (EEAP)    | $26.89     | $26.89         | ?        | ?            | [NG Statement](https://www.nationalgridus.com/media/pdfs/billing-payments/electric-rates/upstate-ny/2026/stat_eeac_1_v2.pdf) |
+| 6 (EEAP)    | $3.00      | $3.00          | ?        | ?            | [NG Statement](https://www.nationalgridus.com/media/pdfs/billing-payments/electric-rates/upstate-ny/2026/stat_eeac_1_v2.pdf) |
+| 7 (EEAP)    | $1.00      | $1.00          | ?        | ?            | [NG Statement](https://www.nationalgridus.com/media/pdfs/billing-payments/electric-rates/upstate-ny/2026/stat_eeac_1_v2.pdf) |
 
 National Grid Upstate provides **identical electric credits for heating and non-heating customers** at each tier.
 
@@ -268,9 +271,9 @@ The following tables compare monthly credit amounts across all utilities at ever
 | 2        | $80.58  | $39.64     | $67.01 | $42.21 | $92.67  | $75.84      | $45.00  |
 | 3        | $126.21 | $62.45     | $88.99 | $65.03 | $114.52 | $110.75     | $45.00  |
 | 4        | $121.84 | $60.26     | $86.16 | $62.84 | $111.36 | $104.03     | $45.00  |
-| 5 (EEAP) | $33.47  | ?          | $47.26 | $25.04 | $76.81  | $67.99      | N/A     |
-| 6 (EEAP) | $3.00   | ?          | $18.53 | $3.00  | $43.44  | $39.27      | N/A     |
-| 7 (EEAP) | $1.00   | ?          | $0.80  | $1.00  | $1.00   | $1.00       | N/A     |
+| 5 (EEAP) | $33.47  | $26.89     | $47.26 | $25.04 | $76.81  | $67.99      | N/A     |
+| 6 (EEAP) | $3.00   | $3.00      | $18.53 | $3.00  | $43.44  | $39.27      | N/A     |
+| 7 (EEAP) | $1.00   | $1.00      | $0.80  | $1.00  | $1.00   | $1.00       | N/A     |
 
 Notes: At most utilities, electric heating and non-heating credits are **identical** (Con Edison is the major exception — its non-heating electric credits are substantially lower: $33.47/$50.66/$73.47/$71.29 for Tiers 1–4). Central Hudson is the only utility where electric-heating exceeds non-heating credits at Tiers 3–4 ($110.75 vs. $97.48 at Tier 3). PSEG Long Island provides a flat $45/month regardless of tier or heating status.
 
