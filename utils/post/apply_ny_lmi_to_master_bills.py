@@ -818,31 +818,38 @@ def main() -> None:
         _log(f"  Dropping existing rate columns for re-run: {existing_rate_cols}")
         master = master.drop(existing_rate_cols)
 
-    # If lmi_tier / is_lmi already present (from a prior rate run), verify
-    # consistency with recomputed values then keep the existing columns.
+    # If lmi_tier / is_lmi already present (from a prior rate run on the same
+    # data), verify consistency with recomputed values then drop so they get
+    # re-added below. Skip the check when writing to a different output path
+    # (staging mode) — the source data may have stale values from a previous
+    # code version, and we intentionally recompute from scratch.
     shared_cols = ["lmi_tier", "is_lmi"]
     has_existing_shared = all(c in master.columns for c in shared_cols)
+    in_place = output_path == args.master_bills_path
     if has_existing_shared:
-        _log("  lmi_tier/is_lmi already present — verifying consistency...")
-        check = (
-            master.select(BLDG_ID, "lmi_tier", "is_lmi")
-            .unique(subset=[BLDG_ID])
-            .join(
-                tier_info.select(BLDG_ID, "lmi_tier", "is_lmi").rename(
-                    {"lmi_tier": "_new_tier", "is_lmi": "_new_lmi"}
-                ),
-                on=BLDG_ID,
-                how="inner",
+        if in_place:
+            _log("  lmi_tier/is_lmi already present — verifying consistency...")
+            check = (
+                master.select(BLDG_ID, "lmi_tier", "is_lmi")
+                .unique(subset=[BLDG_ID])
+                .join(
+                    tier_info.select(BLDG_ID, "lmi_tier", "is_lmi").rename(
+                        {"lmi_tier": "_new_tier", "is_lmi": "_new_lmi"}
+                    ),
+                    on=BLDG_ID,
+                    how="inner",
+                )
             )
-        )
-        tier_mismatch = check.filter(pl.col("lmi_tier") != pl.col("_new_tier")).height
-        lmi_mismatch = check.filter(pl.col("is_lmi") != pl.col("_new_lmi")).height
-        if tier_mismatch > 0 or lmi_mismatch > 0:
-            raise AssertionError(
-                f"Existing lmi_tier/is_lmi mismatch with recomputed values: "
-                f"{tier_mismatch} tier mismatches, {lmi_mismatch} is_lmi mismatches"
-            )
-        _log("  Verified: existing lmi_tier/is_lmi match recomputed values")
+            tier_mismatch = check.filter(pl.col("lmi_tier") != pl.col("_new_tier")).height
+            lmi_mismatch = check.filter(pl.col("is_lmi") != pl.col("_new_lmi")).height
+            if tier_mismatch > 0 or lmi_mismatch > 0:
+                raise AssertionError(
+                    f"Existing lmi_tier/is_lmi mismatch with recomputed values: "
+                    f"{tier_mismatch} tier mismatches, {lmi_mismatch} is_lmi mismatches"
+                )
+            _log("  Verified: existing lmi_tier/is_lmi match recomputed values")
+        else:
+            _log("  Staging mode: dropping existing lmi_tier/is_lmi to recompute from scratch")
         master = master.drop(shared_cols)
 
     # 5. Apply credits to master bills
