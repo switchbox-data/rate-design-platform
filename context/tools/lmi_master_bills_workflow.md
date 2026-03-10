@@ -1,6 +1,6 @@
 # LMI discount application to master bills
 
-How `utils/post/apply_lmi_to_master_bills.py` enriches the master `comb_bills_year_target` tables with NY EAP/EEAP bill discounts.
+How `utils/post/apply_ny_lmi_to_master_bills.py` enriches the master `comb_bills_year_target` tables with NY EAP/EEAP bill discounts.
 
 ---
 
@@ -51,7 +51,7 @@ done
 ### Direct CLI
 
 ```bash
-uv run python utils/post/apply_lmi_to_master_bills.py \
+uv run python utils/post/apply_ny_lmi_to_master_bills.py \
   --master-bills-path "s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/all_utilities/<batch>/run_<d>+<s>/comb_bills_year_target/" \
   --state NY --fpl-year 2025 \
   --cpi-s3-path "s3://data.sb/fred/cpi/" \

@@ -172,15 +172,15 @@ National Grid Long Island (KEDLI) serves gas customers in Nassau, Suffolk, and t
 
 ### National Grid Upstate / Niagara Mohawk (effective December 1, 2025
 
-| Tier        | Elec. heat | Elec. non-heat | Gas heat | Gas non-heat | Source                                                                                                                   |
-|-------------|:----------:|:--------------:|:--------:|:------------:|--------------------------------------------------------------------------------------------------------------------------|
-| 1           | $22.46     | $22.46         | $3.00    | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)  |
-| 2           | $39.64     | $39.64         | $3.00    | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)  |
-| 3           | $62.45     | $62.45         | $22.49   | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)  |
-| 4           | $60.26     | $60.26         | $20.30   | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)  |
-| 5 (EEAP)    | $26.89     | $26.89         | ?        | ?            | [NG Statement](https://www.nationalgridus.com/media/pdfs/billing-payments/electric-rates/upstate-ny/2026/stat_eeac_1_v2.pdf) |
-| 6 (EEAP)    | $3.00      | $3.00          | ?        | ?            | [NG Statement](https://www.nationalgridus.com/media/pdfs/billing-payments/electric-rates/upstate-ny/2026/stat_eeac_1_v2.pdf) |
-| 7 (EEAP)    | $1.00      | $1.00          | ?        | ?            | [NG Statement](https://www.nationalgridus.com/media/pdfs/billing-payments/electric-rates/upstate-ny/2026/stat_eeac_1_v2.pdf) |
+| Tier     | Elec. heat | Elec. non-heat | Gas heat | Gas non-heat | Source                                                                                                                       |
+| -------- | :--------: | :------------: | :------: | :----------: | ---------------------------------------------------------------------------------------------------------------------------- |
+| 1        |   $22.46   |     $22.46     |  $3.00   |    $3.00     | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)      |
+| 2        |   $39.64   |     $39.64     |  $3.00   |    $3.00     | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)      |
+| 3        |   $62.45   |     $62.45     |  $22.49  |    $3.00     | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)      |
+| 4        |   $60.26   |     $60.26     |  $20.30  |    $3.00     | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)      |
+| 5 (EEAP) |   $26.89   |     $26.89     |    ?     |      ?       | [NG Statement](https://www.nationalgridus.com/media/pdfs/billing-payments/electric-rates/upstate-ny/2026/stat_eeac_1_v2.pdf) |
+| 6 (EEAP) |   $3.00    |     $3.00      |    ?     |      ?       | [NG Statement](https://www.nationalgridus.com/media/pdfs/billing-payments/electric-rates/upstate-ny/2026/stat_eeac_1_v2.pdf) |
+| 7 (EEAP) |   $1.00    |     $1.00      |    ?     |      ?       | [NG Statement](https://www.nationalgridus.com/media/pdfs/billing-payments/electric-rates/upstate-ny/2026/stat_eeac_1_v2.pdf) |
 
 National Grid Upstate provides **identical electric credits for heating and non-heating customers** at each tier.
 
@@ -230,9 +230,9 @@ RGE and NYSEG are both Avangrid subsidiaries and follow the same tier logic, but
 | 2        | $75.84     | $75.84         | $58.58   | $3.00        | [CenHud DPS filing, Jan 2025](https://documents.dps.ny.gov/public/Common/ViewDoc.aspx?DocRefId=%7B30DDB194-0000-C335-A7B8-3015D0864D00%7D) |
 | 3        | $110.75    | $97.48         | $80.22   | $3.00        | [CenHud DPS filing, Jan 2025](https://documents.dps.ny.gov/public/Common/ViewDoc.aspx?DocRefId=%7B30DDB194-0000-C335-A7B8-3015D0864D00%7D) |
 | 4        | $104.03    | $94.13         | $76.86   | $3.00        | [CenHud DPS filing, Jan 2025](https://documents.dps.ny.gov/public/Common/ViewDoc.aspx?DocRefId=%7B30DDB194-0000-C335-A7B8-3015D0864D00%7D) |
-| 5 (EEAP) | $67.99     | $67.99         | $34.28   | $3.00        | [CenHud EEAP](https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/)                                                                             |
-| 6 (EEAP) | 	$39.27    | 	$39.27       | $20.14   | $3.00        | [CenHud EEAP](https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/)                                                           |
-| 7 (EEAP) | $1.00      | $1.00          | $1.00    | $1.00        | [CenHud EEAP](https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/)                                                                 |
+| 5 (EEAP) | $67.99     | $67.99         | $34.28   | $3.00        | [CenHud EEAP](https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/)                 |
+| 6 (EEAP) | $39.27     | $39.27         | $20.14   | $3.00        | [CenHud EEAP](https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/)                 |
+| 7 (EEAP) | $1.00      | $1.00          | $1.00    | $1.00        | [CenHud EEAP](https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/)                 |
 
 Central Hudson is the **only utility where Tier 3 electric-heating credits exceed electric non-heating credits** ($110.75 vs. $97.48), likely reflecting higher average usage among electric-heating customers in its territory. Application portal: [cenhud.nyeeap.com](https://cenhud.nyeeap.com/program).
 
