@@ -28,7 +28,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import polars as pl
 from dotenv import load_dotenv
@@ -38,6 +38,8 @@ from utils.post.lmi_common import (
     assign_ny_tier_expr,
     fpl_pct_expr,
     fpl_threshold_expr,
+    get_ami_territories,
+    get_ami_threshold_for_utility,
     get_ny_eap_credits_df,
     inflate_income_expr,
     load_cpi_ratio,
@@ -124,12 +126,18 @@ def _build_tier_for_utility(
     cpi_ratio: float,
     fpl: dict[str, int],
     smi_100: dict[int, float],
+    ami_100: dict[int, float] | None,
     participation_rate: float,
     participation_mode: str,
     seed: int,
     opts: dict[str, str],
 ) -> pl.DataFrame:
     """Compute tier assignment and participation for one electric utility.
+
+    Args:
+        ami_100: AMI thresholds at 100% by household size, or None for SMI
+            territories.  When provided, an ami_pct column is computed and
+            used for EEAP tier assignment (Tiers 5-7).
 
     Returns a collected DataFrame with bldg_id, lmi_tier, is_lmi, participates.
     """
@@ -173,13 +181,31 @@ def _build_tier_for_utility(
         smi_pct_expr(income_inflated, smi_threshold).alias(smi_pct)
     )
 
+    # AMI threshold and percentage (AMI territories only)
+    ami_pct_col_name: str | None = None
+    if ami_100 is not None:
+        ami_threshold = "ami_threshold"
+        ami_pct_name = "ami_pct"
+        ami_pct_col_name = ami_pct_name
+        meta = meta.with_columns(
+            _build_smi_threshold_column(occupants_num, ami_100).alias(ami_threshold)
+        )
+        meta = meta.with_columns(
+            smi_pct_expr(income_inflated, ami_threshold).alias(ami_pct_name)
+        )
+
     # Filter out vacant units
     meta = meta.filter(pl.col("in.vacancy_status") != "Vacant")
 
     # Assign tier
     meta = meta.with_columns(
         assign_ny_tier_expr(
-            fpl_pct, smi_pct, "is_vulnerable", "heats_with_oil", "heats_with_propane"
+            fpl_pct,
+            smi_pct,
+            "is_vulnerable",
+            "heats_with_oil",
+            "heats_with_propane",
+            ami_pct_col=ami_pct_col_name,
         ).alias(tier_col)
     )
 
@@ -232,14 +258,31 @@ def _build_all_tiers(
     cpi_ratio: float,
     fpl: dict[str, int],
     smi_100: dict[int, float],
+    ny_eap_config: dict[str, Any],
     participation_rate: float,
     participation_mode: str,
     seed: int,
     opts: dict[str, str],
 ) -> pl.DataFrame:
-    """Build tier assignments for all utilities."""
+    """Build tier assignments for all utilities.
+
+    For AMI-territory utilities, loads area-level AMI thresholds so that
+    EEAP tiers 5-7 use AMI instead of SMI.
+    """
+    ami_territory_set = set(get_ami_territories(ny_eap_config))
+    ami_cache: dict[str, dict[int, float]] = {}
+
     all_tiers: list[pl.DataFrame] = []
     for i, utility in enumerate(utilities, 1):
+        ami_100: dict[int, float] | None = None
+        if utility in ami_territory_set:
+            if utility not in ami_cache:
+                _log(f"  Loading AMI thresholds for {utility}...")
+                ami_cache[utility] = get_ami_threshold_for_utility(
+                    utility, inflation_year, 100.0, opts, ny_eap_config
+                )
+            ami_100 = ami_cache[utility]
+
         t = _log(f"  Assigning tiers for {utility} ({i}/{len(utilities)})...")
         tier_df = _build_tier_for_utility(
             electric_utility=utility,
@@ -249,6 +292,7 @@ def _build_all_tiers(
             cpi_ratio=cpi_ratio,
             fpl=fpl,
             smi_100=smi_100,
+            ami_100=ami_100,
             participation_rate=participation_rate,
             participation_mode=participation_mode,
             seed=seed,
@@ -755,6 +799,7 @@ def main() -> None:
         cpi_ratio=cpi_ratio,
         fpl=fpl,
         smi_100=smi_100,
+        ny_eap_config=ny_eap_config,
         participation_rate=args.participation_rate,
         participation_mode=args.participation_mode,
         seed=args.seed,
