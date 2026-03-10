@@ -163,20 +163,20 @@ utilities:
         elec_nonheat: 60.26
         gas_heat: 20.30
         gas_nonheat: 3.00
-      # TODO: NiMo EEAP Tiers 5-7 not yet published
+      # TODO: NiMo EEAP Tiers 5-7 not yet published for gas
       - tier: 5
-        elec_heat: null
-        elec_nonheat: null
+        elec_heat: 26.89
+        elec_nonheat: 26.89
         gas_heat: null
         gas_nonheat: null
       - tier: 6
-        elec_heat: null
-        elec_nonheat: null
+        elec_heat: 3.00
+        elec_nonheat: 3.00
         gas_heat: null
         gas_nonheat: null
       - tier: 7
-        elec_heat: null
-        elec_nonheat: null
+        elec_heat: 1.00
+        elec_nonheat: 1.00
         gas_heat: null
         gas_nonheat: null
   nyseg:
@@ -316,17 +316,17 @@ utilities:
         elec_nonheat: 94.13
         gas_heat: 76.86
         gas_nonheat: 3.00
-      # TODO: Central Hudson EEAP Tiers 5-6 not yet published
+      # Source: https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/
       - tier: 5
-        elec_heat: null
-        elec_nonheat: null
-        gas_heat: null
-        gas_nonheat: null
+        elec_heat: 67.99
+        elec_nonheat: 67.99
+        gas_heat: 34.28
+        gas_nonheat: 3.00
       - tier: 6
-        elec_heat: null
-        elec_nonheat: null
-        gas_heat: null
-        gas_nonheat: null
+        elec_heat: 39.27
+        elec_nonheat: 39.27
+        gas_heat: 20.14
+        gas_nonheat: 3.00
       - tier: 7
         elec_heat: 1.00
         elec_nonheat: 1.00

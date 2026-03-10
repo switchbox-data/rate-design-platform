@@ -670,6 +670,9 @@ build-master-bat batch run_delivery run_supply *batch_overrides:
         --path-resstock-release "s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb" \
         {{batch_overrides}}
 
+# batch_overrides: optional trailing args passed to the script as-is. Use to pass
+# per-utility batch overrides, e.g. --batch-override cenhud=ny_20260306_r1-8 (repeatable).
+
 validate-master-bills batch filter *batch_overrides:
     uv run python {{path_repo}}/utils/post/validate_master_bills.py \
         --state "{{state}}" \
@@ -693,4 +696,11 @@ validate-master-bills-standalone batch run_delivery run_supply *batch_overrides:
         --path-load-curves-local "{{path_load_curves_local}}" \
         --path-heating-fuel-prices "{{path_heating_fuel_prices}}" \
         --price-year "{{price_year}}" \
+        {{batch_overrides}}
+
+validate-ny-lmi-electric-bills batch *batch_overrides:
+    uv run python {{path_repo}}/utils/post/validate_ny_lmi_electric_bills.py \
+        --state "{{state}}" \
+        --batch "{{batch}}" \
+        --path-resstock-release "s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb" \
         {{batch_overrides}}
