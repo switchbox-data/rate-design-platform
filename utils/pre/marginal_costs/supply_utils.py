@@ -176,24 +176,123 @@ def prepare_component_output(
     output_col: str,
     scale: float,
 ) -> pl.DataFrame:
-    """Prepare a single hourly component as Cairo-compatible 8760 output."""
+    """Prepare a single hourly component as Cairo-compatible 8760 output.
+
+    This function ensures exactly 8760 unique timestamps corresponding to 8760 hours
+    in the year, properly handling DST transitions (fallback hour creates duplicates).
+
+    Steps:
+    1. Truncate timestamps to hour precision
+    2. Collapse any duplicate timestamps (e.g., from DST fallback) by taking mean
+    3. Join with Cairo's reference 8760 timestamps (handles leap years by dropping Dec 31)
+    4. Validate data completeness - raise error if any months are missing
+    5. Apply scaling and validate final output has exactly 8760 unique timestamps
+
+    Raises:
+        ValueError: If source data is incomplete (missing months or hours).
+    """
     ref_8760 = build_cairo_8760_timestamps(year)
+
+    # Step 1-2: Truncate to hour and collapse duplicates (e.g., DST fallback hour)
+    # This ensures we have at most one row per unique timestamp before joining
+    n_before = df.height
+    n_unique_before = df.select(pl.col("timestamp").n_unique()).item()
     hourly = (
         df.with_columns(pl.col("timestamp").dt.truncate("1h").alias("timestamp"))
         .group_by("timestamp")
         .agg(pl.col(input_col).mean().alias(input_col))
         .sort("timestamp")
     )
-    output = (
-        ref_8760.join(hourly, on="timestamp", how="left")
-        .with_columns((pl.col(input_col).fill_null(0.0) * scale).alias(output_col))
-        .select("timestamp", output_col)
+    n_after = hourly.height
+    if n_before != n_after or n_unique_before != n_after:
+        print(
+            f"  Collapsed duplicate timestamps in {input_col}: {n_before} rows "
+            f"({n_unique_before} unique) → {n_after} rows"
+        )
+
+    # Step 3: Join with reference 8760 timestamps (Cairo-compatible, handles leap years)
+    output = ref_8760.join(hourly, on="timestamp", how="left").select(
+        "timestamp", input_col
     )
 
+    # Step 4: Validate data completeness - check for missing months (allow DST transitions)
+    missing_hours = output.filter(pl.col(input_col).is_null())
+    if missing_hours.height > 0:
+        # Check which months are present in source data
+        months_present = (
+            hourly.with_columns(pl.col("timestamp").dt.month().alias("month"))
+            .select("month")
+            .unique()
+            .sort("month")
+            .to_series()
+            .to_list()
+        )
+        expected_months = list(range(1, 13))
+        missing_months = sorted(set(expected_months) - set(months_present))
+
+        # DST "spring forward" creates a missing hour (typically 2:00 AM on 2nd Sunday in March)
+        # This is expected and acceptable - we'll fill it with 0.0
+        # Check if missing hours are all DST-related (1 hour in March around 2 AM)
+        missing_hours_with_month = missing_hours.with_columns(
+            pl.col("timestamp").dt.month().alias("month"),
+            pl.col("timestamp").dt.hour().alias("hour"),
+        )
+        dst_spring_forward = missing_hours_with_month.filter(
+            (pl.col("month") == 3) & (pl.col("hour") == 2)
+        )
+
+        # If we have missing months, that's an error
+        if missing_months:
+            sample_missing = missing_hours.head(5)["timestamp"].to_list()
+            raise ValueError(
+                f"{output_col}: Source data is incomplete for year {year}. "
+                f"Missing months: {missing_months}. Present months: {months_present}. "
+                f"Backfill missing months in source data before generating marginal costs."
+            )
+
+        # If missing hours are not just DST spring forward, that's an error
+        if missing_hours.height > dst_spring_forward.height:
+            sample_missing = missing_hours.head(5)["timestamp"].to_list()
+            raise ValueError(
+                f"{output_col}: Source data is incomplete for year {year}. "
+                f"Missing {missing_hours.height} hours (expected only DST spring forward hour). "
+                f"Present months: {months_present}. "
+                f"Sample missing timestamps: {sample_missing[:3]}. "
+                f"Backfill missing hours in source data before generating marginal costs."
+            )
+
+        # DST spring forward hour is expected - interpolate from surrounding hours to preserve data
+        if dst_spring_forward.height > 0:
+            print(
+                f"  Note: Interpolating {dst_spring_forward.height} DST spring forward hour(s) "
+                f"from surrounding hours (expected behavior for Eastern timezone)"
+            )
+
+    # Step 5: Interpolate DST spring forward hour, then apply scaling
+    # Use forward fill then backward fill to handle DST gaps (interpolate between surrounding hours)
+    output = output.with_columns(
+        (
+            pl.col(input_col)
+            .interpolate()  # Linear interpolation for gaps
+            .forward_fill()  # Forward fill any remaining nulls at start
+            .backward_fill()  # Backward fill any remaining nulls at end
+            * scale
+        ).alias(output_col)
+    ).select("timestamp", output_col)
+
     if output.height != 8760:
-        raise ValueError(f"{output_col} output has {output.height} rows, expected 8760")
+        raise ValueError(
+            f"{output_col} output has {output.height} rows, expected 8760. "
+            f"Check DST handling and timestamp alignment."
+        )
+    n_unique = output.select(pl.col("timestamp").n_unique()).item()
+    if n_unique != 8760:
+        raise ValueError(
+            f"{output_col} output has {n_unique} unique timestamps, expected 8760. "
+            f"Duplicate timestamps detected after join."
+        )
     if output.filter(pl.col(output_col).is_null()).height > 0:
-        raise ValueError(f"{output_col} output has nulls")
+        raise ValueError(f"{output_col} output has nulls after processing")
     return output
 
 
@@ -363,6 +462,19 @@ def save_component_output(
     component: str,
 ) -> None:
     """Write a single component parquet to S3 with Hive-style partitioning."""
+    # Final validation: must have exactly 8760 rows with unique timestamps
+    if component_df.height != 8760:
+        raise ValueError(
+            f"Expected 8760 rows before writing {component} MC, got {component_df.height} rows. "
+            f"Check prepare_component_output logic."
+        )
+    n_unique = component_df.select(pl.col("timestamp").n_unique()).item()
+    if n_unique != 8760:
+        raise ValueError(
+            f"Expected 8760 unique timestamps before writing {component} MC, got {n_unique}. "
+            f"Data contains duplicate timestamps."
+        )
+
     base = output_s3_base.rstrip("/") + f"/{component}/"
     # Write directly to data.parquet path (not using partition_by which creates 00000000.parquet)
     output_path = f"{base}utility={utility}/year={year}/data.parquet"

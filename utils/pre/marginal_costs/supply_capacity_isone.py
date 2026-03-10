@@ -273,11 +273,43 @@ def load_isone_zone_loads(
         )
 
     # Sum across zones for SENE aggregate (or any multi-zone request)
+    # This also collapses duplicate timestamps (e.g., from DST fallback) by summing
+    # First group by (timestamp, zone) to handle any duplicates within a zone,
+    # then sum across zones
+    n_before = collected.height
+    n_unique_before = collected.select(pl.col("timestamp").n_unique()).item()
     aggregate = (
-        collected.group_by("timestamp")
+        collected.group_by("timestamp", "zone")
+        .agg(pl.col("load_mw").sum().alias("load_mw"))
+        .group_by("timestamp")
         .agg(pl.col("load_mw").sum().alias("load_mw"))
         .sort("timestamp")
     )
+    n_after = aggregate.height
+    if n_before != n_after or n_unique_before != n_after:
+        print(
+            f"  Collapsed duplicate timestamps in zone loads: {n_before} rows "
+            f"({n_unique_before} unique) → {n_after} rows"
+        )
+
+    # Validate data completeness - check for missing months
+    months_present = (
+        aggregate.with_columns(pl.col("timestamp").dt.month().alias("month"))
+        .select("month")
+        .unique()
+        .sort("month")
+        .to_series()
+        .to_list()
+    )
+    expected_months = list(range(1, 13))
+    missing_months = sorted(set(expected_months) - set(months_present))
+    if missing_months:
+        raise ValueError(
+            f"ISO-NE zone load data is incomplete for year {year}, zones {zone_names}. "
+            f"Missing months: {missing_months}. Present months: {months_present}. "
+            f"Backfill missing months in source data (s3://data.sb/isone/hourly_demand/zones/) "
+            f"before generating marginal costs. Peak hour identification requires full year data."
+        )
 
     print(
         f"Loaded ISO-NE zone loads: {collected.height:,} zone-hour rows for zones "
@@ -540,5 +572,14 @@ def compute_isone_supply_capacity_mc(
 
     # 6. Validate 1-kW constant load recovery
     validate_fca_allocation(capacity_df, capacity_cost_kw_year)
+
+    # Final check: ensure no duplicate timestamps before returning
+    n_rows = capacity_df.height
+    n_unique = capacity_df.select(pl.col("timestamp").n_unique()).item()
+    if n_rows != n_unique:
+        raise ValueError(
+            f"Capacity MC DataFrame has {n_rows} rows but only {n_unique} unique timestamps. "
+            f"Duplicate timestamps detected before prepare_component_output."
+        )
 
     return capacity_df

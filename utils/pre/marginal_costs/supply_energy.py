@@ -105,8 +105,26 @@ def load_lmp_for_zone(
     collected = strip_tz_if_needed(collected, "interval_start_et").rename(
         {"interval_start_et": "timestamp"}
     )
+
+    # Collapse duplicate timestamps (e.g., from DST fallback hour) by taking mean LMP.
+    # This ensures we have at most one value per unique timestamp before further processing.
+    # The final alignment to exactly 8760 hours happens in prepare_component_output.
+    n_before = collected.height
+    n_unique_before = collected.select(pl.col("timestamp").n_unique()).item()
+    collected = (
+        collected.group_by("timestamp")
+        .agg(pl.col("lmp_usd_per_mwh").mean().alias("lmp_usd_per_mwh"))
+        .sort("timestamp")
+    )
+    n_after = collected.height
+    if n_before != n_after or n_unique_before != n_after:
+        print(
+            f"  Collapsed duplicate timestamps: {n_before} rows "
+            f"({n_unique_before} unique) → {n_after} rows"
+        )
+
     print(
-        f"Loaded ISO-NE LMP data: {len(collected):,} hourly rows "
+        f"Loaded ISO-NE LMP data: {n_after:,} hourly rows "
         f"for zone {zone!r}, year {year}"
     )
     return collected
@@ -129,6 +147,15 @@ def compute_isone_supply_energy_mc(
         "timestamp",
         pl.col("lmp_usd_per_mwh").alias("energy_cost_enduse"),
     ).sort("timestamp")
+
+    # Final check: ensure no duplicate timestamps before returning
+    n_rows = result.height
+    n_unique = result.select(pl.col("timestamp").n_unique()).item()
+    if n_rows != n_unique:
+        raise ValueError(
+            f"Energy MC DataFrame has {n_rows} rows but only {n_unique} unique timestamps. "
+            f"Duplicate timestamps detected before prepare_component_output."
+        )
 
     avg_lmp = result["energy_cost_enduse"].mean()
     print(f"  Energy MC (ISO-NE): {result.height} hours, avg LMP = ${avg_lmp:.2f}/MWh")

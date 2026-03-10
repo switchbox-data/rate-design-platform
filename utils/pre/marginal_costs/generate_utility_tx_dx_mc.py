@@ -407,6 +407,19 @@ def save_allocated_costs(
             "mc_total_per_kwh",
         ]
     )
+    
+    # Final validation: must have exactly 8760 rows with unique timestamps
+    if output_df.height != 8760:
+        raise ValueError(
+            f"Expected 8760 rows before writing, got {output_df.height} rows. "
+            f"Check normalization logic."
+        )
+    n_unique = output_df.select(pl.col("timestamp").n_unique()).item()
+    if n_unique != 8760:
+        raise ValueError(
+            f"Expected 8760 unique timestamps before writing, got {n_unique}. "
+            f"Data contains duplicate timestamps."
+        )
 
     s3_base = s3_base.rstrip("/") + "/"
     # Write directly to data.parquet path (not using partition_by which creates 00000000.parquet)

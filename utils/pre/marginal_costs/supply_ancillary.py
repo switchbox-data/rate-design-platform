@@ -56,6 +56,25 @@ def load_ancillary_for_year(
         ).alias("ancillary_cost_enduse")
     ).select("timestamp", "ancillary_cost_enduse")
 
+    # Validate data completeness - check for missing months
+    months_present = (
+        result.with_columns(pl.col("timestamp").dt.month().alias("month"))
+        .select("month")
+        .unique()
+        .sort("month")
+        .to_series()
+        .to_list()
+    )
+    expected_months = list(range(1, 13))
+    missing_months = sorted(set(expected_months) - set(months_present))
+    if missing_months:
+        raise ValueError(
+            f"ISO-NE ancillary data is incomplete for year {year}. "
+            f"Missing months: {missing_months}. Present months: {months_present}. "
+            f"Backfill missing months in source data (s3://data.sb/isone/ancillary/) "
+            f"before generating marginal costs."
+        )
+
     avg_ancillary = result["ancillary_cost_enduse"].mean()
     print(
         f"Loaded ISO-NE ancillary data: {len(result):,} hourly rows, year {year}, "
@@ -75,7 +94,8 @@ def compute_supply_ancillary_mc(
     and returns a Cairo-compatible 8760 hourly DataFrame with columns
     ``timestamp`` and ``ancillary_cost_enduse`` ($/MWh).
 
-    Any hours missing from the source data are filled with 0.0.
+    Raises:
+        ValueError: If source data is incomplete (missing months).
     """
     ancillary_df = load_ancillary_for_year(year, storage_options, ancillary_s3_base)
     output = prepare_component_output(
