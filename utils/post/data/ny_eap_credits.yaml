@@ -92,12 +92,12 @@ utilities:
         elec_nonheat: null
         gas_heat: 139.38
         gas_nonheat: 1.92
-      # TODO: KEDNY EEAP Tiers 5-7 not yet published
+      # TODO: KEDNY EEAP Tiers 6-7 not yet published
       - tier: 5
         elec_heat: null
         elec_nonheat: null
-        gas_heat: null
-        gas_nonheat: null
+        gas_heat: 77.27
+        gas_nonheat: 1.92
       - tier: 6
         elec_heat: null
         elec_nonheat: null
@@ -131,12 +131,12 @@ utilities:
         elec_nonheat: null
         gas_heat: 116.14
         gas_nonheat: 3.00
-      # TODO: KEDLI EEAP Tiers 5-7 not yet published
+      # TODO: KEDLI EEAP Tiers 6-7 not yet published
       - tier: 5
         elec_heat: null
         elec_nonheat: null
-        gas_heat: null
-        gas_nonheat: null
+        gas_heat: 63.76
+        gas_nonheat: 3.00
       - tier: 6
         elec_heat: null
         elec_nonheat: null
@@ -364,6 +364,7 @@ utilities:
         gas_heat: 22.14
         gas_nonheat: 1.92
       # TODO: NFG EEAP Tiers 5-7 not yet published
+      #tier 5 should be same as tier 1
       - tier: 5
         elec_heat: null
         elec_nonheat: null
