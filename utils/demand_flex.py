@@ -91,7 +91,7 @@ def find_tou_derivation_path(tariff_key: str, tou_derivation_dir: Path) -> Path 
 
 def recompute_tou_precalc_mapping(
     precalc_mapping: pd.DataFrame,
-    shifted_system_load_raw: pd.Series,
+    shifted_load_raw: pd.Series,
     bulk_marginal_costs: pd.DataFrame,
     dist_and_sub_tx_marginal_costs: pd.Series,
     tou_season_specs: dict[str, list[SeasonTouSpec]],
@@ -107,7 +107,7 @@ def recompute_tou_precalc_mapping(
     Non-TOU tariff entries in the mapping are left unchanged.
 
     Args:
-        shifted_system_load_raw: Pre-aggregated system-level hourly demand
+        shifted_load_raw: Pre-aggregated hourly demand
             (weight x kWh summed across buildings, indexed by time).
     """
     combined_mc_raw = combine_marginal_costs(
@@ -118,10 +118,10 @@ def recompute_tou_precalc_mapping(
     combined_mc = pd.Series(
         combined_mc_raw.values, index=mc_index, name="total_mc_per_kwh"
     )
-    shifted_system_load = pd.Series(
-        shifted_system_load_raw.values[: len(mc_index)],
+    shifted_load = pd.Series(
+        shifted_load_raw.values[: len(mc_index)],
         index=mc_index,
-        name="system_load",
+        name="load",
     )
 
     updated = precalc_mapping.copy()
@@ -135,7 +135,7 @@ def recompute_tou_precalc_mapping(
         for spec in specs:
             mask = season_mask(mc_index, spec.season)
             mc_season = combined_mc[mask]
-            load_season = shifted_system_load[mask]
+            load_season = shifted_load[mask]
 
             season_mc_total = float((mc_season * load_season).sum())
             if abs(season_mc_total) < 1e-12:
@@ -155,10 +155,10 @@ def recompute_tou_precalc_mapping(
                     spec.peak_hours,
                 )
 
-        total_load_all = float(shifted_system_load.sum())
+        total_load_all = float(shifted_load.sum())
         raw_weighted = sum(
             new_season_rates[spec.season.name]
-            * float(shifted_system_load[season_mask(mc_index, spec.season)].sum())
+            * float(shifted_load[season_mask(mc_index, spec.season)].sum())
             for spec in specs
         )
         scale = (
@@ -322,6 +322,7 @@ def apply_demand_flex(
     effective_load_elec = raw_load_elec
     elasticity_tracker = pd.DataFrame()
     tou_season_specs: dict[str, list[SeasonTouSpec]] = {}
+    all_tou_bldg_ids: set[int] = set()
 
     # A scenario may have multiple TOU tariffs (e.g. HP TOU + seasonal TOU),
     # each with its own rate structure and set of assigned buildings.
@@ -334,6 +335,7 @@ def apply_demand_flex(
         # everyone else's loads pass through unchanged.
         tou_rows = tariff_map_df[tariff_map_df["tariff_key"] == tou_key]
         tou_bldg_ids = cast(list[int], tou_rows["bldg_id"].astype(int).tolist())
+        all_tou_bldg_ids.update(tou_bldg_ids)
 
         derivation_path = find_tou_derivation_path(tou_key, tou_derivation_dir)
         season_specs = None
@@ -396,19 +398,26 @@ def apply_demand_flex(
             )
 
         log.info(".... Phase 1.75: recomputing TOU precalc mapping from shifted load")
-        # Sum individual building loads into one system-level hourly curve,
-        # then ask: given this new load shape, what's the cost per kWh in
-        # peak vs. off-peak? That gives us the updated TOU ratio.
+        # Aggregate only TOU-assigned buildings (the HP class) into the
+        # hourly load curve used for cost-causation ratio recomputation.
+        # The welfare derivation proves HP demand is the correct weight
+        # for the HP tariff — non-HP terms vanish because those customers
+        # face a flat rate, not the TOU price.
         sample_weights = customer_metadata[["bldg_id", "weight"]]
-        shifted_weighted = effective_load_elec.reset_index().merge(
-            sample_weights, on="bldg_id"
-        )
+        bldg_level = effective_load_elec.index.get_level_values("bldg_id")
+        tou_load = effective_load_elec.loc[bldg_level.isin(all_tou_bldg_ids)]
+        shifted_weighted = tou_load.reset_index().merge(sample_weights, on="bldg_id")
         shifted_weighted["electricity_net"] *= shifted_weighted["weight"]
-        shifted_system_load = shifted_weighted.groupby("time")["electricity_net"].sum()
+        shifted_load = shifted_weighted.groupby("time")["electricity_net"].sum()
+        log.info(
+            ".... Phase 1.75: using %d TOU buildings (of %d total) for load aggregation",
+            len(all_tou_bldg_ids),
+            bldg_level.nunique(),
+        )
 
         updated_precalc = recompute_tou_precalc_mapping(
             precalc_mapping=precalc_mapping,
-            shifted_system_load_raw=shifted_system_load,
+            shifted_load_raw=shifted_load,
             bulk_marginal_costs=tou_bulk_mc,
             dist_and_sub_tx_marginal_costs=dist_and_sub_tx_marginal_costs,
             tou_season_specs=tou_season_specs,
