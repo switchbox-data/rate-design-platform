@@ -73,7 +73,7 @@ def scan_resstock_loads(
     return lf
 
 
-def hourly_system_load_from_resstock(
+def hourly_resstock_load_from_parquet(
     loads_lf: pl.LazyFrame,
     weights: pl.DataFrame,
     *,
@@ -82,7 +82,7 @@ def hourly_system_load_from_resstock(
     bldg_id_col: str = BLDG_ID_COL,
     weight_col: str = "weight",
 ) -> pd.Series:
-    """Compute weighted hourly system load (one value per hour) from loads and weights.
+    """Compute weighted hourly ResStock load (one value per hour) from loads and weights.
 
     Joins loads with weights on bldg_id, multiplies load by weight, and sums by
     timestamp. Returns a pandas Series indexed by datetime (tz-aware EST, matching
@@ -98,7 +98,8 @@ def hourly_system_load_from_resstock(
             f"Load column '{load_col}' not found; available: {schema_names[:15]}"
         )
     aggregated = (
-        loads_lf.join(weights_lf, on=bldg_id_col, how="inner")
+        loads_lf.select(bldg_id_col, timestamp_col, load_col)
+        .join(weights_lf, on=bldg_id_col, how="inner")
         .with_columns(
             pl.col(timestamp_col)
             .cast(pl.String, strict=False)
