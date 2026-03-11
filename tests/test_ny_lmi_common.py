@@ -74,9 +74,9 @@ def test_get_ny_eap_credits_nfg_gas_only() -> None:
 def test_get_ny_eap_credits_null_for_unpublished() -> None:
     """Unpublished EEAP tiers should be null."""
     df = get_ny_eap_credits_df()
-    # NiMo Tier 5 should be null (not published)
-    nimo_t5 = df.filter((pl.col("utility") == "nimo") & (pl.col("tier") == 5))
-    assert nimo_t5["elec_heat"][0] is None
+    # KEDNY Tier 5 EEAP gas credits not yet published
+    kedny_t5 = df.filter((pl.col("utility") == "kedny") & (pl.col("tier") == 5))
+    assert kedny_t5["gas_heat"][0] is None
 
 
 def test_smi_threshold_by_hh_size() -> None:

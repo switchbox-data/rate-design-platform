@@ -635,17 +635,17 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.06455,
-            "adj": 0.1477,
+            "rate": 0.23790954,
+            "adj": 0.0,
             "unit": "kWh"
           }
         ]
       ],
-      "fixedchargefirstmeter": 6.75,
+      "fixedchargefirstmeter": 11.47,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
       "minchargeunits": "$/month",
-      "utility": "Rhode Island Energy",
+      "utility": "rie",
       "servicetype": "Bundled",
       "name": "rie_flat_supply",
       "is_default": false,

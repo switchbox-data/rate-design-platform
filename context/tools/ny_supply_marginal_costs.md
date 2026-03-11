@@ -2,23 +2,27 @@
 
 How energy (LBMP) and capacity (ICAP) supply marginal costs are generated for NY utilities.
 
-## Script
+## Scripts
 
-`utils/pre/generate_utility_supply_mc.py`
+- `utils/pre/marginal_costs/generate_supply_energy_mc.py`
+- `utils/pre/marginal_costs/generate_supply_capacity_mc.py`
 
-CLI: `--utility cenhud --year 2025 --zone-mapping-path s3://... [--upload]`
+CLI (energy): `--utility cenhud --year 2025 [--energy-load-year 2018] --zone-mapping-path s3://... [--upload]`
+CLI (capacity): `--utility cenhud --year 2025 [--capacity-load-year 2018] --zone-mapping-path s3://... [--upload]`
 
-Output: `s3://data.sb/switchbox/marginal_costs/ny/supply/utility={utility}/year={YYYY}/data.parquet`
-Schema: `timestamp` (datetime), `energy_cost_enduse` ($/MWh), `capacity_cost_enduse` ($/MWh)
+Output (energy): `s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility={utility}/year={YYYY}/00000000.parquet`
+Schema: `timestamp` (datetime), `energy_cost_enduse` ($/MWh)
+Output (capacity): `s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility={utility}/year={YYYY}/00000000.parquet`
+Schema: `timestamp` (datetime), `capacity_cost_enduse` ($/MWh)
 
 ## Data sources
 
-| Dataset                | S3 path                                                                                           | Schema key columns                                                                  |
-| ---------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| LBMP (energy prices)   | `s3://data.sb/nyiso/lbmp/real_time/zones/zone={ZONE_NAME}/year={Y}/month={M}/data.parquet`        | `interval_start_est`, `zone`, `lbmp_usd_per_mwh` (5-minute intervals)               |
-| ICAP (capacity prices) | `s3://data.sb/nyiso/icap/year={Y}/month={M}/data.parquet`                                         | `locality` (Categorical), `auction_type` (Categorical), `price_per_kw_month`        |
-| EIA zone loads         | `s3://data.sb/eia/hourly_demand/zones/region=nyiso/zone={LETTER}/year={Y}/month={M}/data.parquet` | `timestamp`, `zone`, `load_mw`                                                      |
-| Zone mapping           | `s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv`                                     | `utility`, `load_zone_letter`, `lbmp_zone_name`, `icap_locality`, `capacity_weight` |
+| Dataset                | S3 path                                                                                    | Schema key columns                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| LBMP (energy prices)   | `s3://data.sb/nyiso/lbmp/real_time/zones/zone={ZONE_NAME}/year={Y}/month={M}/data.parquet` | `interval_start_est`, `zone`, `lbmp_usd_per_mwh` (5-minute intervals)               |
+| ICAP (capacity prices) | `s3://data.sb/nyiso/icap/year={Y}/month={M}/data.parquet`                                  | `locality` (Categorical), `auction_type` (Categorical), `price_per_kw_month`        |
+| NYISO zone loads       | `s3://data.sb/nyiso/hourly_demand/zones/zone={NAME}/year={Y}/month={M}/data.parquet`       | `timestamp`, `zone`, `load_mw`                                                      |
+| Zone mapping           | `s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv`                              | `utility`, `load_zone_letter`, `lbmp_zone_name`, `icap_locality`, `capacity_weight` |
 
 ## Utility-to-zone mapping
 
@@ -30,7 +34,7 @@ Defined in two places that **must stay consistent** (enforced by `test_eia_zones
 | Utility | Load Zones       | ICAP Locality         | Capacity Weight |
 | ------- | ---------------- | --------------------- | --------------- |
 | cenhud  | G                | GHIJ                  | 1.0             |
-| coned   | G, H, J          | NYC: 0.87, GHIJ: 0.13 | split           |
+| coned   | G, H, I, J       | NYC: 0.87, GHIJ: 0.13 | split           |
 | nimo    | A, B, C, D, E, F | NYCA                  | 1.0             |
 | nyseg   | A, B, C, D, E, F | NYCA                  | 1.0             |
 | or      | G                | GHIJ                  | 1.0             |
@@ -42,73 +46,95 @@ Defined in two places that **must stay consistent** (enforced by `test_eia_zones
 Real-time LBMP prices (5-minute intervals) are aggregated to hourly averages by taking the mean of all 5-minute intervals within each hour. These hourly prices are then used to compute energy marginal costs.
 
 - **Single-zone utility** (rge, cenhud, or, psegli): uses that zone's hourly real-time LBMP directly.
-- **Multi-zone utility** (nyseg, nimo, coned): load-weighted average across zones. For each hour: `Σ(LBMP_zone × load_zone) / Σ(load_zone)`, where zone loads come from EIA zone-level hourly data.
+- **Multi-zone utility** (nyseg, nimo, coned): load-weighted average across zones. For each hour: `Σ(LBMP_zone × load_zone) / Σ(load_zone)`, where zone loads come from NYISO zone-level hourly data.
 
 ## Capacity MC (ICAP MCOS)
 
-Capacity MC now uses **two locality models**, each for a different purpose.
+Capacity MC uses a **component-by-component** approach (analogous to `compute_utility_bulk_tx_signal` in bulk TX). Each NYISO ICAP locality identifies its own peak hours independently from its own raw load profile; `capacity_weight` scales only the ICAP _cost_, never the load used for peak identification. This avoids the distortion that arises from blending differently-sized zone footprints before picking peaks.
 
-### 1) Nested localities for capacity peak loads (hour-shape)
+Each `(icap_locality, gen_capacity_zone, capacity_weight)` row from the zone mapping is one component. All components are summed to produce the utility-level hourly signal. Non-zero hours equal the union of all localities' peak hours (up to `8 × 12 × n_localities` distinct hours).
 
-These are overlapping footprints used only to build the hourly load profile that determines peak-hour weights:
+### Locality models
 
-- `NYCA = A-K`
-- `LHV = G-J`
-- `NYC = J`
-- `LI = K`
+**Nested localities** (used for peak-hour identification via raw zone-sum load profiles):
 
-`icap_locality` from mapping is normalized as:
+- `NYCA = WEST, GENESE, CENTRAL, NORTH, MHK_VL, CAPITL, HUD_VL, MILLWD, DUNWOD, N.Y.C., LONGIL`
+- `LHV = HUD_VL, MILLWD, DUNWOD, N.Y.C.`
+- `NYC = N.Y.C.`
+- `LI = LONGIL`
 
-- `NYCA -> NYCA`
-- `GHIJ -> LHV`
-- `NYC -> NYC`
-- `LI -> LI`
+`icap_locality` from mapping is normalized to nested locality:
 
-For split utilities (like ConEd), locality load profiles are blended by `capacity_weight` before peak identification.
+- `NYCA → NYCA`
+- `GHIJ → LHV`
+- `NYC → NYC`
+- `LI → LI`
 
-### 2) Partitioned localities for ICAP prices (monthly $/kW-mo)
+**Partitioned localities** (used for ICAP price lookup, non-overlapping):
 
-Prices use non-overlapping localities after applying utility splits via `gen_capacity_zone`:
+- `ROS → NYCA` (zones A–F)
+- `LHV → LHV` (zones G–I)
+- `NYC → NYC` (zone J)
+- `LI → LI` (zone K)
 
-- `ROS -> NYCA` (A-F block)
-- `LHV -> LHV` (G-I block)
-- `NYC -> NYC` (J block)
-- `LI -> LI` (K block)
+`gen_capacity_zone` from the zone mapping selects which partitioned locality's price applies to a component.
 
-This is the "nested to partitioned" transform used for prices. ICAP source localities are read from NYISO as `NYCA/GHIJ/NYC/LI`, with `GHIJ` mapped to partitioned `LHV`.
+### Allocation (per-component)
 
-### Allocation
+For each `(icap_locality, gen_capacity_zone, capacity_weight)` component:
 
-Monthly ICAP Spot prices ($/kW-month) are allocated to individual hours using threshold-exceedance weighting on the nested-locality blended load profile:
+1. Build raw unweighted load profile: sum zone loads for the nested locality footprint.
+2. Normalize to Cairo-compatible 8760 hours.
+3. For each month, sort hours by load (descending); select top 8.
+4. Threshold = highest load strictly below the 8th-highest hour (tie-safe).
+5. Exceedance_h = load_h − threshold for each top-8 hour.
+6. Weight_h = exceedance_h / Σ(exceedance in month).
+7. capacity_cost_h ($/kW) = weight_h × (icap_price_month × capacity_weight).
 
-1. For each month, sort hours by load (descending).
-2. Threshold = load of the 9th-highest hour (i.e., the hour just below the top 8).
-3. Exceedance_h = max(load_h − threshold, 0) for each hour.
-4. Weight_h = exceedance_h / Σ(exceedance in month).
-5. capacity_cost_h ($/kW) = weight_h × icap_price_month ($/kW-month).
-6. Convert to $/MWh: multiply by 1000.
+Sum all component `capacity_cost_h` values to get the utility-level hourly capacity cost. Convert to $/MWh by multiplying by 1000.
 
-Non-peak hours get zero capacity cost. Only the top 8 load hours per month carry capacity costs.
+**ConEd example** (NYC: weight=0.87, GHIJ→LHV: weight=0.13):
 
-**ConEd example**:
+- Component 1: peaks identified from raw NYC (J) load; cost = NYC ICAP price × 0.87
+- Component 2: peaks identified from raw LHV (G–J) load; cost = LHV ICAP price × 0.13
+- Final signal: sum of both components; non-zero hours = union (up to 192 distinct hours/year)
 
-- Peak-load shape: `0.87 × NYC(J) + 0.13 × LHV(G-J)` (nested footprints)
-- Price blend: `0.87 × NYC + 0.13 × LHV` (partitioned localities; `GHIJ` source mapped to `LHV`)
+**Validation**: the sum of all hourly `capacity_cost_per_kw` values must equal `Σ_locality(capacity_weight × Σ_month(icap_price_per_kw_month))` within 0.01%. Computed via `compute_weighted_icap_prices` + `validate_allocation`.
 
-**Validation**: a 1 kW constant load must recover the sum of 12 monthly ICAP prices exactly (within tolerance). This validates that the hourly allocation sums back to the correct annual total.
+## NYISO load pipeline
 
-## EIA load pipeline
+Zone loads are fetched/managed via `data/nyiso/hourly_demand/`:
 
-Zone loads are fetched/managed via `data/eia/hourly_loads/`:
+- `fetch-zone-data` — fetches from NYISO MIS portal to local parquet (canonical zone names)
+- `aggregate-utility-loads` / `aggregate-all-utility-loads` — aggregate zones to utility profiles
+- `download` / `upload` — sync local parquet to/from S3
 
-- `fetch-zone-data` — fetches from EIA API to local parquet
-- `download` — syncs zone/utility parquet from S3 to local
-- `upload` — syncs local to S3
-
-Supply MC currently uses zone-level hourly loads directly for:
+Supply MC uses zone-level hourly loads for:
 
 - utility-zone LBMP weighting (energy MC)
 - nested locality capacity peak profiling (capacity MC)
+
+## Load year / output year separation
+
+The `--year` argument controls the output year (ICAP/LBMP prices, output partition, timestamps). Two separate load-year arguments control which year's zone load profiles are used:
+
+- `--energy-load-year`: Zone loads for LBMP weighting (multi-zone utilities only; single-zone utilities ignore this). Defaults to `--year`.
+- `--capacity-load-year`: Zone loads for ICAP peak identification per locality. Defaults to `--year`.
+
+When `capacity_load_year != year`, capacity timestamps are remapped from capacity_load_year to year after allocation using `dt.offset_by()`. The same applies to energy load timestamps for multi-zone utilities when `energy_load_year != year`. This allows using e.g. 2018 AMY load shapes (matching ResStock AMY2018 weather) with 2025 prices.
+
+### Justfile control
+
+Each MC pipeline has its own load year variable in `rate_design/hp_rates/ny/state.env`:
+
+| Env var                     | MC type                        | Script arg             |
+| --------------------------- | ------------------------------ | ---------------------- |
+| `SUPPLY_ENERGY_LOAD_YEAR`   | Supply energy (LBMP weighting) | `--energy-load-year`   |
+| `SUPPLY_CAPACITY_LOAD_YEAR` | Supply capacity (ICAP peaks)   | `--capacity-load-year` |
+| `BULK_TX_LOAD_YEAR`         | Bulk transmission (SCR peaks)  | `--load-year`          |
+| `DIST_LOAD_YEAR`            | Dist/sub-TX (PoP peaks)        | `--load-year`          |
+
+The NY Justfile reads the first two and passes them to `generate_supply_energy_mc.py` and `generate_supply_capacity_mc.py`. The shared Justfile reads `DIST_LOAD_YEAR` via `env_var_or_default('DIST_LOAD_YEAR', year)` for the dist/sub-TX recipe.
 
 ## 8760 normalization
 

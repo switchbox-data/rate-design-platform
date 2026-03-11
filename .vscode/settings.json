@@ -12,5 +12,19 @@
       "source.fixAll": "explicit",
       "source.organizeImports": "explicit"
     }
-  }
+  },
+  "python.testing.pytestArgs": [
+    "tests"
+  ],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "python.analysis.exclude": [
+    "run_logs",
+    "**/config/tariffs/**",
+    "**/config/scenarios/**",
+    "**/config/tariff_maps/**",
+    "**/config/rev_requirement/**",
+    "dev_plots",
+    "infra"
+  ]
 }

@@ -20,7 +20,7 @@ The main inputs are:
 - ISO loads: EIA zone loads (data/eia/hourly_loads/), EIA-861 utility stats (data/eia/861/)
 - Census ACS PUMS (person and housing microdata) in parquet on S3 at `s3://data.sb/census/pums/`. There are two surveys (**acs1** 1-year and **acs5** 5-year), each identified by **end_year** (e.g. 2023). Under each survey/year, data is split into **person**- and **housing**-level tables; within each, data is Hive-partitioned by **state** (51 partitions: 50 states + DC). Path pattern: `s3://data.sb/census/pums/{survey}/{end_year}/{person|housing}/state={XX}/data.parquet` (e.g. `s3://data.sb/census/pums/acs1/2023/housing/state=NY/data.parquet`). Pipeline: `data/census/pums/` Justfile (fetch zips → unzip → convert CSV to parquet → upload).
 
-The main outputs are calibrated tariffs (when CAIRO is run in pre-calc mode), customer-level bills / marginal cost / residual cost allocation / bill alignments, aggregated bill alignment tariffs grouped by post-processing group, and so on. This data lives on s3 at `s3://data.sb/switchbox/cairo/outputs/hp_rates/<state>/<utility>/<execution_time>/<cairo_ts>_<run_name>/`, where `<execution_time>` is a UTC timestamp (`YYYYMMDDTHHMMSSZ`) shared by all runs in a batch and `<cairo_ts>` is CAIRO's per-run timestamp. Each run directory contains the following files:
+The main outputs are calibrated tariffs (when CAIRO is run in pre-calc mode), customer-level bills / marginal cost / residual cost allocation / bill alignments, aggregated bill alignment tariffs grouped by post-processing group, and so on. This data lives on s3 at `s3://data.sb/switchbox/cairo/outputs/hp_rates/<state>/<utility>/<batch>/<cairo_ts>_<run_name>/`, where `<batch>` is a human-readable batch name (e.g. `ny_20260305c_r1-8`; see `context/tools/run_orchestration.md` for the naming convention) and `<cairo_ts>` is CAIRO's per-run timestamp. Each run directory contains the following files:
 
 | Path                                                   | Purpose                                                                                                                                                           |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -36,6 +36,42 @@ The main outputs are calibrated tariffs (when CAIRO is run in pre-calc mode), cu
 | cross_subsidization/cross_subsidization_BAT_values.csv | Customer-level bill alignment metrics showing marginal cost recovery and cross-subsidies                                                                          |
 | customer_metadata.csv                                  | ResStock building metadata (heating type, location, demographics, etc.) for each customer                                                                         |
 | tariff_final_config.json                               | Final calibrated tariff structure (CAIRO internal shape; one key per tariff). Copy utility writes one \<key\>_calibrated.json per key to config/tariffs/electric. |
+
+### Master tables (cross-utility, post-processed)
+
+After individual CAIRO runs complete, post-processing scripts consolidate results across all utilities in a batch into **master tables** at `s3://data.sb/switchbox/cairo/outputs/hp_rates/<state>/all_utilities/<batch>/run_<delivery>+<supply>/`. These are Hive-partitioned Parquet datasets (partitioned by `sb.electric_utility`) and are the primary data source for analysis notebooks and reports.
+
+**Master bills** (`comb_bills_year_target/`) — one row per building per month (Jan–Dec + Annual). Created by `utils/post/build_master_bills.py`, invoked via `just build-master-bills <batch> <run_delivery> <run_supply>`. Combines the delivery-only run's `comb_bills_year_target.csv` (for electric delivery and gas/propane/oil bills) with the delivery+supply run's electric supply bills. Joins ResStock metadata (`metadata_sb`, `utility_assignment`) for building attributes.
+
+| Column                                                                        | Description                                     |
+| ----------------------------------------------------------------------------- | ----------------------------------------------- |
+| bldg_id                                                                       | ResStock building identifier                    |
+| sb.electric_utility, sb.gas_utility                                           | Utility assignments                             |
+| upgrade                                                                       | ResStock upgrade ID (0 = baseline, 2 = HP)      |
+| postprocess_group.has_hp, postprocess_group.heating_type                      | HP status and heating classification            |
+| heats_with_electricity, heats_with_natgas, heats_with_oil, heats_with_propane | Fuel flags                                      |
+| month                                                                         | "Jan"–"Dec" or "Annual"                         |
+| weight                                                                        | CAIRO sample weight                             |
+| elec_fixed_charge                                                             | Electric fixed charge component                 |
+| elec_delivery_bill                                                            | Electric delivery volumetric bill               |
+| elec_supply_bill                                                              | Electric supply bill (from supply run)          |
+| elec_total_bill                                                               | Total electric bill (fixed + delivery + supply) |
+| gas_total_bill                                                                | Total gas bill                                  |
+| propane_total_bill, oil_total_bill                                            | Delivered fuel bills                            |
+| energy_total_bill                                                             | Sum of all fuel bills                           |
+
+**Master BAT** (`cross_subsidization_BAT_values/`) — one row per building (annual). Created by `utils/post/build_master_bat.py`, invoked via `just build-master-bat <batch> <run_delivery> <run_supply>`. Computes delivery, supply, and total bill alignment by taking the delivery-only run's BAT values as delivery, the delivery+supply run's values as total, and deriving supply = total − delivery.
+
+| Column                                                                        | Description                                           |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------- |
+| bldg_id                                                                       | ResStock building identifier                          |
+| sb.electric_utility, sb.gas_utility                                           | Utility assignments                                   |
+| upgrade, postprocess_group.has_hp, postprocess_group.heating_type             | Building classification                               |
+| heats_with_electricity, heats_with_natgas, heats_with_oil, heats_with_propane | Fuel flags                                            |
+| weight                                                                        | CAIRO sample weight                                   |
+| BAT_vol_delivery, BAT_vol_supply, BAT_vol_total                               | Volumetric bill alignment (delivery / supply / total) |
+| BAT_peak_delivery, BAT_peak_supply, BAT_peak_total                            | Peak bill alignment                                   |
+| BAT_percustomer_delivery, BAT_percustomer_supply, BAT_percustomer_total       | Per-customer bill alignment                           |
 
 ## Layout
 

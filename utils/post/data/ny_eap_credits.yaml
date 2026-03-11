@@ -12,20 +12,17 @@
 #
 # TODO: Find and fill in missing EEAP Tier 5-7 credit amounts for utilities
 # where they show as null. These were not published at time of research.
-
 # AMI territories: coned, kedny, kedli use Area Median Income for EEAP thresholds.
 # All other utilities use State Median Income.
 ami_territories:
   - coned
   - kedny
   - kedli
-
 # Per-utility credit tables.
 # Each utility has a list of tier entries with elec_heat, elec_nonheat,
 # gas_heat, gas_nonheat credits in $/month.
 # For gas-only utilities, elec_heat and elec_nonheat are null.
 # For electric-only utilities, gas_heat and gas_nonheat are null.
-
 utilities:
   coned:
     effective_date: "2026-02-01"
@@ -65,7 +62,6 @@ utilities:
         elec_nonheat: 1.00
         gas_heat: 1.00
         gas_nonheat: 1.00
-
   kedny:
     effective_date: "2025-12-01"
     tiers:
@@ -105,7 +101,6 @@ utilities:
         elec_nonheat: null
         gas_heat: null
         gas_nonheat: null
-
   kedli:
     effective_date: "2025-12-01"
     tiers:
@@ -145,7 +140,6 @@ utilities:
         elec_nonheat: null
         gas_heat: null
         gas_nonheat: null
-
   nimo:
     effective_date: "2025-12-01"
     tiers:
@@ -169,23 +163,22 @@ utilities:
         elec_nonheat: 60.26
         gas_heat: 20.30
         gas_nonheat: 3.00
-      # TODO: NiMo EEAP Tiers 5-7 not yet published
+      # TODO: NiMo EEAP Tiers 5-7 not yet published for gas
       - tier: 5
-        elec_heat: null
-        elec_nonheat: null
+        elec_heat: 26.89
+        elec_nonheat: 26.89
         gas_heat: null
         gas_nonheat: null
       - tier: 6
-        elec_heat: null
-        elec_nonheat: null
+        elec_heat: 3.00
+        elec_nonheat: 3.00
         gas_heat: null
         gas_nonheat: null
       - tier: 7
-        elec_heat: null
-        elec_nonheat: null
+        elec_heat: 1.00
+        elec_nonheat: 1.00
         gas_heat: null
         gas_nonheat: null
-
   nyseg:
     effective_date: "2025-12-01"
     tiers:
@@ -224,7 +217,6 @@ utilities:
         elec_nonheat: 0.80
         gas_heat: 1.00
         gas_nonheat: 1.00
-
   rge:
     effective_date: "2025-12-01"
     tiers:
@@ -263,7 +255,6 @@ utilities:
         elec_nonheat: 1.00
         gas_heat: 1.00
         gas_nonheat: 1.00
-
   or:
     effective_date: "2026-01-13"
     tiers:
@@ -302,7 +293,6 @@ utilities:
         elec_nonheat: 1.00
         gas_heat: 1.00
         gas_nonheat: 1.00
-
   cenhud:
     effective_date: "2024-12-01"
     tiers:
@@ -326,23 +316,22 @@ utilities:
         elec_nonheat: 94.13
         gas_heat: 76.86
         gas_nonheat: 3.00
-      # TODO: Central Hudson EEAP Tiers 5-6 not yet published
+      # Source: https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/
       - tier: 5
-        elec_heat: null
-        elec_nonheat: null
-        gas_heat: null
-        gas_nonheat: null
+        elec_heat: 67.99
+        elec_nonheat: 67.99
+        gas_heat: 34.28
+        gas_nonheat: 3.00
       - tier: 6
-        elec_heat: null
-        elec_nonheat: null
-        gas_heat: null
-        gas_nonheat: null
+        elec_heat: 39.27
+        elec_nonheat: 39.27
+        gas_heat: 20.14
+        gas_nonheat: 3.00
       - tier: 7
         elec_heat: 1.00
         elec_nonheat: 1.00
         gas_heat: 1.00
         gas_nonheat: 1.00
-
   nfg:
     effective_date: "2025-12-01"
     tiers:
@@ -383,7 +372,6 @@ utilities:
         elec_nonheat: null
         gas_heat: null
         gas_nonheat: null
-
   # PSEG Long Island - Household Assistance Program (HAP)
   # Not PSC-regulated; flat $45/month regardless of tier or heating status.
   # Electric-only utility (no gas service).

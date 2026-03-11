@@ -635,17 +635,17 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.06455,
+            "rate": 0.18177029,
             "adj": 0.0,
             "unit": "kWh"
           }
         ]
       ],
-      "fixedchargefirstmeter": 6.75,
+      "fixedchargefirstmeter": 21.28,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
       "minchargeunits": "$/month",
-      "utility": "ConEdison",
+      "utility": "coned",
       "servicetype": "Bundled",
       "name": "coned_flat",
       "is_default": false,

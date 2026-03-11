@@ -1,0 +1,15 @@
+utility: or
+group_col: has_hp
+cross_subsidy_col: BAT_percustomer
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/or/ny_20260307_r1-8_gascalcfix/20260307_011333_ny_or_run1_up00_precalc__flat
+total_delivery_revenue_requirement: 263890440.84
+total_delivery_and_supply_revenue_requirement: 434707558.3
+subclass_revenue_requirements:
+  non-hp:
+    delivery: 255486171.9543403
+    supply: 161524084.11420974
+    total: 417010256.06855005
+  hp:
+    delivery: 8404268.885659745
+    supply: 9293033.345790235
+    total: 17697302.23144998

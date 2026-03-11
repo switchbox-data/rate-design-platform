@@ -1,138 +1,484 @@
 {
-  "20910536": {
-    "master_charge": "Customer Charge",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/month",
-    "rate_name": "Customer Charge"
-  },
-  "20910537": {
-    "master_charge": "Core Delivery Rate",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/kWh"
-  },
-  "20910538": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
-    "decision": "add_to_srr",
-    "variableRateKey": "AllocationMFCLostRevenueSC1",
-    "charge_unit": "$/kWh"
-  },
-  "20910539": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
-    "decision": "add_to_srr",
-    "variableRateKey": "BaseMFCSupplyChargeSC1",
-    "charge_unit": "$/kWh"
-  },
-  "20910540": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
-    "decision": "add_to_srr",
-    "variableRateKey": "MFCAdminChargeSC1",
-    "charge_unit": "$/kWh"
-  },
-  "20910541": {
-    "master_charge": "Central Hudson Misc Charges",
-    "master_type": "Program surcharge",
-    "decision": "add_to_drr",
-    "variableRateKey": "miscellaneousChargesSC1Res2033",
-    "charge_unit": "$/kWh"
-  },
-  "20910542": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
-    "decision": "add_to_srr",
-    "variableRateKey": "marketPriceCharge",
-    "charge_unit": "$/kWh"
-  },
-  "20910543": {
-    "master_charge": "Revenue Decoupling (RDM)",
-    "master_type": "Revenue true-up",
-    "decision": "exclude",
-    "variableRateKey": "RevenueDecouplingMechanismSc1LSE2033",
-    "charge_unit": "$/kWh"
-  },
-  "20910544": {
-    "master_charge": "Transition / Restructuring",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "variableRateKey": "TransitionAdjSc1",
-    "charge_unit": "$/kWh"
-  },
-  "20910545": {
-    "master_charge": "Purchased Power Adjustment",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "variableRateKey": "purchasedPowerAdjustmentSC1Residential",
-    "charge_unit": "$/kWh"
-  },
-  "20910546": {
-    "master_charge": "Delivery Revenue Surcharge / Electric Bill Credit",
-    "master_type": "Revenue true-up",
-    "decision": "exclude",
-    "variableRateKey": "electricBillCreditSC12033",
-    "charge_unit": "$/kWh"
-  },
-  "20910547": {
-    "master_charge": "Supply cost true-up",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "variableRateKey": "marketPriceAdjustment",
-    "charge_unit": "$/kWh"
-  },
-  "20910548": {
-    "master_charge": "System Benefits Charge",
-    "master_type": "Program surcharge",
-    "decision": "add_to_drr",
-    "variableRateKey": "systemsBenefitsChargeResidential2033",
-    "charge_unit": "$/kWh"
-  },
-  "20910549": {
-    "master_charge": "Earnings Adjustment Mechanism",
-    "master_type": "Performance incentive",
-    "decision": "exclude",
-    "variableRateKey": "earningsAdjMechanismSurSc1",
-    "charge_unit": "$/kWh"
-  },
-  "20910550": {
-    "master_charge": "Delivery cost true-up (MAC / RAM / DSA)",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "variableRateKey": "rateOfAdjMechanismSurSc1",
-    "charge_unit": "$/kWh"
-  },
-  "20910551": {
-    "master_charge": "Minimum Charge",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/month"
-  },
-  "20871983": {
-    "master_charge": "Low-income discounts",
-    "master_type": "Eligibility",
-    "decision": "skip",
-    "charge_unit": "$/kWh"
-  },
-  "20880129": {
-    "master_charge": "CBC (solar only)",
-    "master_type": "Eligibility",
-    "decision": "skip",
-    "charge_unit": "$/kWh"
+  "20028318": {
+    "rate_name": "Customer Benefit Contribution",
+    "charge_type": "QUANTITY",
+    "charge_class": null,
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Customer Benefit Contribution",
+    "rider_tariff_id": 3462518,
+    "master_tariff_rate_id": 19244672,
+    "charge_unit": "%",
+    "sample_rate": 1.37,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 1.37,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_percentage",
+    "master_charge": "Customer Benefit Contribution",
+    "master_type": "Percentage of bill"
   },
   "20380245": {
+    "rate_name": "Low Income Discount",
+    "charge_type": "FIXED_PRICE",
+    "charge_class": null,
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Low Income Discount",
+    "rider_tariff_id": 3490214,
+    "master_tariff_rate_id": 17938299,
+    "charge_unit": "$/month",
+    "sample_rate": 0.0,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 60.46,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 75.84,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 110.75,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 104.03,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 60.46,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 75.84,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 97.48,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 94.13,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_eligibility",
     "master_charge": "Low-income discounts",
-    "master_type": "Eligibility / optional",
-    "decision": "skip",
-    "rider_id": 3292959,
-    "charge_unit": "$/kWh"
+    "master_type": "Eligibility"
   },
-  "20028318": {
-    "master_charge": "CBC (solar only)",
-    "master_type": "Eligibility / optional",
-    "decision": "skip",
-    "rider_id": 3399332,
-    "charge_unit": "$/kWh"
+  "20466522": {
+    "rate_name": "Customer Charge",
+    "charge_type": "FIXED_PRICE",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Customer Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17893744,
+    "charge_unit": "$/month",
+    "sample_rate": 21.5,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 21.5,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Customer Charge",
+    "master_type": "Base delivery"
+  },
+  "20466523": {
+    "rate_name": "Energy Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Energy Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17893745,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.12777,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.12777,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery"
+  },
+  "20466524": {
+    "rate_name": "Allocation of MFC Lost Revenue Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "AllocationMFCLostRevenueSC1",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17893746,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00043,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00043,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_srr",
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
+  },
+  "20466525": {
+    "rate_name": "Base MFC Supply Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "BaseMFCSupplyChargeSC1",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17893747,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00206,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00206,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_srr",
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
+  },
+  "20466526": {
+    "rate_name": "MFC Administration Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "MFCAdminChargeSC1",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17893748,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00087,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00087,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_srr",
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
+  },
+  "20466527": {
+    "rate_name": "Miscellaneous Charges\u00a0",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "miscellaneousChargesSC1Res2033",
+    "rate_group_name": "Miscellaneous Charges\u00a0",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17893749,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0079,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0079,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "Central Hudson Misc Charges",
+    "master_type": "Program surcharge"
+  },
+  "20466528": {
+    "rate_name": "Market Price Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "marketPriceCharge",
+    "rate_group_name": "Market Price Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17893750,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.05431,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.05431,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_srr",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
+  },
+  "20466529": {
+    "rate_name": "Revenue Decoupling Mechanism",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "RevenueDecouplingMechanismSc1LSE2033",
+    "rate_group_name": "Revenue Decoupling Mechanism",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17893754,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00038,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00038,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Revenue Decoupling (RDM)",
+    "master_type": "Revenue true-up"
+  },
+  "20466530": {
+    "rate_name": "Transition Adjustment",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "TransitionAdjSc1",
+    "rate_group_name": "Transition Adjustment",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17893755,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00036,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00036,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Transition / Restructuring",
+    "master_type": "Cost recon"
+  },
+  "20466531": {
+    "rate_name": "Purchased Power Adjustment\u00a0",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "purchasedPowerAdjustmentSC1Residential",
+    "rate_group_name": "Purchased Power Adjustment\u00a0",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17893756,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Purchased Power Adjustment",
+    "master_type": "Cost recon"
+  },
+  "20466532": {
+    "rate_name": "Electric Bill Credit\u00a0",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricBillCreditSC12033",
+    "rate_group_name": "Electric Bill Credit\u00a0",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17893757,
+    "charge_unit": "$/kWh",
+    "sample_rate": -0.00491,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.00491,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Delivery Revenue Surcharge / Electric Bill Credit",
+    "master_type": "Revenue true-up"
+  },
+  "20466533": {
+    "rate_name": "Market Price Adjustment",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "marketPriceAdjustment",
+    "rate_group_name": "Market Price Adjustment",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17893758,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0061,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0061,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon"
+  },
+  "20466534": {
+    "rate_name": "System Benefits Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "systemsBenefitsChargeResidential2033",
+    "rate_group_name": "System Benefits Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17893759,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0086,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0086,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "System Benefits Charge",
+    "master_type": "Program surcharge"
+  },
+  "20466535": {
+    "rate_name": "Earnings Adjustment Mechanism Surcharge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "earningsAdjMechanismSurSc1",
+    "rate_group_name": "Earnings Adjustment Mechanism Surcharge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 18439769,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00071,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00071,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_negligible",
+    "master_charge": "Earnings Adjustment Mechanism",
+    "master_type": "Performance incentive"
+  },
+  "20466536": {
+    "rate_name": "Rate Adjustment Mechanism Surcharge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "rateOfAdjMechanismSurSc1",
+    "rate_group_name": "Rate Adjustment Mechanism Surcharge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 18439770,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00348,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00348,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Delivery cost true-up (MAC / RAM / DSA)",
+    "master_type": "Cost recon"
+  },
+  "20466537": {
+    "rate_name": "Minimum Charge",
+    "charge_type": "MINIMUM",
+    "charge_class": null,
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Minimum Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17893760,
+    "charge_unit": "$/month",
+    "sample_rate": 21.5,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 21.5,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_redundant",
+    "master_charge": "Minimum Charge",
+    "master_type": "Bill floor (rarely binds)"
   }
 }

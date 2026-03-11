@@ -635,17 +635,17 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.06455,
+            "rate": 0.10451445,
             "adj": 0.0,
             "unit": "kWh"
           }
         ]
       ],
-      "fixedchargefirstmeter": 6.75,
+      "fixedchargefirstmeter": 19.89,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
       "minchargeunits": "$/month",
-      "utility": "NYSEG",
+      "utility": "nyseg",
       "servicetype": "Bundled",
       "name": "nyseg_flat",
       "is_default": false,

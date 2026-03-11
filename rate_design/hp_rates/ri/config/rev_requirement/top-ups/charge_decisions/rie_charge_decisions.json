@@ -1,165 +1,602 @@
 {
-  "20870462": {
-    "master_charge": "Customer Charge",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/month",
-    "rate_name": "Customer Charge"
-  },
-  "20870463": {
-    "master_charge": "Distribution Charge",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/kWh"
-  },
-  "20870464": {
-    "master_charge": "Operating & Maintenance Exp Charge",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/kWh"
-  },
-  "20870465": {
-    "master_charge": "O&M Reconciliation Factor",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "variableRateKey": "oAndMReconciliationFactor",
-    "charge_unit": "$/kWh"
-  },
-  "20870466": {
-    "master_charge": "CapEx Factor Charge",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/kWh"
-  },
-  "20870467": {
-    "master_charge": "CapEx Reconciliation Factor",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "variableRateKey": "capExReconciliationFactorA16",
-    "charge_unit": "$/kWh"
-  },
-  "20870468": {
-    "master_charge": "RDM Adjustment Factor",
-    "master_type": "Revenue true-up",
-    "decision": "exclude",
-    "variableRateKey": "rDMAdjustmentFactor",
-    "charge_unit": "$/kWh"
-  },
-  "20870469": {
-    "master_charge": "Pension Adjustment Factor",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/kWh"
-  },
-  "20870470": {
-    "master_charge": "Storm Fund Replenishment Factor",
-    "master_type": "Sunk-cost recovery",
-    "decision": "add_to_drr",
-    "rate_name": "Storm Fund Replenishment Factor",
-    "charge_unit": "$/kWh"
-  },
-  "20870471": {
-    "master_charge": "Arrearage Management Adjustment Factor",
-    "master_type": "Sunk-cost recovery",
-    "decision": "add_to_drr",
-    "rate_name": "Arrearage Management Adjustment Factor",
-    "charge_unit": "$/kWh"
-  },
-  "20870472": {
-    "master_charge": "Low-Income Discount Recovery Factor",
-    "master_type": "LMI cost recovery",
-    "decision": "exclude",
-    "charge_unit": "$/kWh"
-  },
-  "20870473": {
-    "master_charge": "Performance Incentive Factor",
-    "master_type": "Performance incentive",
-    "decision": "exclude",
-    "charge_unit": "$/kWh"
-  },
-  "20870474": {
-    "master_charge": "Last Resort Adjustment Factor",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "charge_unit": "$/kWh"
-  },
-  "20870475": {
-    "master_charge": "Net Metering Charge",
-    "master_type": "DER credit recovery",
-    "decision": "add_to_drr",
-    "rate_name": "Net Metering Charge",
-    "charge_unit": "$/kWh"
-  },
-  "20870476": {
-    "master_charge": "Long Term Contracting Charge",
-    "master_type": "Program surcharge",
-    "decision": "add_to_drr",
-    "variableRateKey": "longTermContractingCharge",
-    "charge_unit": "$/kWh"
-  },
-  "20870477": {
-    "master_charge": "RE Growth Charge",
-    "master_type": "Program surcharge",
-    "decision": "add_to_drr",
-    "variableRateKey": "rEGrowthChargeA16",
-    "charge_unit": "$/month"
-  },
-  "20870478": {
-    "master_charge": "LIHEAP Enhancement Charge",
-    "master_type": "Program surcharge",
-    "decision": "add_to_drr",
-    "variableRateKey": "lIHEAPEnhancementCharge",
-    "charge_unit": "$/month"
-  },
-  "20870479": {
-    "master_charge": "Transmission Charge",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/kWh"
-  },
-  "20870480": {
-    "master_charge": "Transition Charge",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "charge_unit": "$/kWh"
-  },
-  "20870481": {
-    "master_charge": "Energy Efficiency Programs Charge",
-    "master_type": "Program surcharge",
-    "decision": "add_to_drr",
-    "variableRateKey": "energyEfficiencyProgramCharge",
-    "charge_unit": "$/kWh"
-  },
-  "20870482": {
-    "master_charge": "Standard Offer Service Charge",
-    "master_type": "Supply commodity",
-    "decision": "add_to_srr",
-    "variableRateKey": "standardOfferServiceResidential",
-    "charge_unit": "$/kWh"
-  },
-  "20870483": {
-    "master_charge": "Minimum",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/month"
-  },
-  "20870484": {
-    "master_charge": "Renewable Standard Energy Charge",
-    "master_type": "CES supply",
-    "decision": "add_to_srr",
-    "variableRateKey": "renewableStandardEnergyCharge",
-    "charge_unit": "$/kWh"
-  },
-  "20870485": {
-    "master_charge": "Gross Earnings Tax",
-    "master_type": "Tax pass-through",
-    "decision": "exclude",
-    "charge_unit": "%"
-  },
   "20110087": {
+    "rate_name": "Gross Earnings Tax",
+    "charge_type": "QUANTITY",
+    "charge_class": null,
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Gross Earnings Tax",
+    "rider_tariff_id": 3469071,
+    "master_tariff_rate_id": 20109375,
+    "charge_unit": "%",
+    "sample_rate": 4.166667,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 4.166667,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_percentage",
     "master_charge": "Gross Earnings Tax",
-    "master_type": "Tax pass-through",
-    "decision": "exclude",
-    "charge_unit": "%"
+    "master_type": "Percentage of bill"
+  },
+  "20233340": {
+    "rate_name": "Customer Charge",
+    "charge_type": "FIXED_PRICE",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Delivery Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17059105,
+    "charge_unit": "$/month",
+    "sample_rate": 6.0,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 6.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Customer Charge",
+    "master_type": "Base delivery"
+  },
+  "20233341": {
+    "rate_name": "Distribution Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Delivery Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17059106,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0458,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0458,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery"
+  },
+  "20233342": {
+    "rate_name": "Operating & Maintenance Exp Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Delivery Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17059107,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00227,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00227,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "O&M Charge",
+    "master_type": "Base delivery"
+  },
+  "20233343": {
+    "rate_name": "O&M Reconciliation Factor",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "oAndMReconciliationFactor",
+    "rate_group_name": "Delivery Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17059108,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0001,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0001,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "O&M Reconciliation Factor",
+    "master_type": "Cost recon"
+  },
+  "20233344": {
+    "rate_name": "CapEx Factor Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Delivery Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17059279,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00709,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00709,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "CapEx Factor",
+    "master_type": "Base delivery"
+  },
+  "20233345": {
+    "rate_name": "CapEx Reconciliation Factor",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "capExReconciliationFactorA16",
+    "rate_group_name": "Delivery Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17059280,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0001,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0001,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "CapEx Reconciliation Factor",
+    "master_type": "Cost recon"
+  },
+  "20233346": {
+    "rate_name": "RDM Adjustment Factor",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "rDMAdjustmentFactor",
+    "rate_group_name": "Delivery Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17059111,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00123,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00123,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Revenue Decoupling (RDM)",
+    "master_type": "Revenue true-up"
+  },
+  "20233347": {
+    "rate_name": "Pension Adjustment Factor",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Delivery Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17449124,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00274,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00274,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Pension Adjustment Factor",
+    "master_type": "Base delivery"
+  },
+  "20233348": {
+    "rate_name": "Storm Fund Replenishment Factor",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Delivery Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17893780,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00788,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00788,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "Storm Fund Replenishment Factor",
+    "master_type": "Sunk-cost recovery"
+  },
+  "20233349": {
+    "rate_name": "Arrearage Management Adjustment Factor",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Delivery Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 18122719,
+    "charge_unit": "$/kWh",
+    "sample_rate": 9e-05,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 9e-05,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "Arrears / Arrearage recovery",
+    "master_type": "Sunk-cost recovery"
+  },
+  "20233350": {
+    "rate_name": "Low-Income Discount Recovery Factor",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Delivery Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 18181740,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00277,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00277,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_eligibility",
+    "master_charge": "Low-income discounts",
+    "master_type": "Eligibility"
+  },
+  "20233351": {
+    "rate_name": "Performance Incentive Factor",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Delivery Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 18752087,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_negligible",
+    "master_charge": "Performance Incentive Factor",
+    "master_type": "Performance incentive"
+  },
+  "20233352": {
+    "rate_name": "Last Resort Adjustment Factor",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Delivery Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 19735302,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Last Resort Adjustment Factor",
+    "master_type": "Cost recon"
+  },
+  "20233353": {
+    "rate_name": "Net Metering Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Renewable Energy Distribution Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17059283,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.01253,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.01253,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "Net Metering Charge",
+    "master_type": "DER credit recovery"
+  },
+  "20233354": {
+    "rate_name": "Long Term Contracting Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "longTermContractingCharge",
+    "rate_group_name": "Renewable Energy Distribution Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17059113,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.01191,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.01191,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "Long Term Contracting Charge",
+    "master_type": "Program surcharge"
+  },
+  "20233355": {
+    "rate_name": "RE Growth Charge",
+    "charge_type": "FIXED_PRICE",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "rEGrowthChargeA16",
+    "rate_group_name": "RE Growth Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17404118,
+    "charge_unit": "$/month",
+    "sample_rate": 4.02,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 4.02,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "RE Growth Charge",
+    "master_type": "Program surcharge"
+  },
+  "20233356": {
+    "rate_name": "LIHEAP Enhancement Charge",
+    "charge_type": "FIXED_PRICE",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "lIHEAPEnhancementCharge",
+    "rate_group_name": "LIHEAP Enhancement Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17059117,
+    "charge_unit": "$/month",
+    "sample_rate": 0.79,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.79,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "LIHEAP Enhancement Charge",
+    "master_type": "Program surcharge"
+  },
+  "20233357": {
+    "rate_name": "Transmission Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "TRANSMISSION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Transmission Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17059115,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.04161,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.04161,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Transmission Charge",
+    "master_type": "Base delivery"
+  },
+  "20233358": {
+    "rate_name": "Transition Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Transition Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17059114,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Transition / Restructuring",
+    "master_type": "Cost recon"
+  },
+  "20233359": {
+    "rate_name": "Energy Efficiency Programs Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "energyEfficiencyProgramCharge",
+    "rate_group_name": "Energy Efficiency Programs Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17059116,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.01334,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.01334,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "Energy Efficiency Programs Charge",
+    "master_type": "Program surcharge"
+  },
+  "20233360": {
+    "rate_name": "Standard Offer Service Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "standardOfferServiceResidential",
+    "rate_group_name": "Standard Offer Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17059118,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.15187,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.15187,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_srr",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
+  },
+  "20233361": {
+    "rate_name": "Minimum",
+    "charge_type": "MINIMUM",
+    "charge_class": null,
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Minimum",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17072439,
+    "charge_unit": "$/month",
+    "sample_rate": 6.0,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 6.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_redundant",
+    "master_charge": "Minimum Charge",
+    "master_type": "Bill floor (rarely binds)"
+  },
+  "20233362": {
+    "rate_name": "Renewable Standard Energy Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "renewableStandardEnergyCharge",
+    "rate_group_name": "Renewable Standard Energy Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17059119,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.012,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.012,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_srr",
+    "master_charge": "Renewable Standard Energy Charge",
+    "master_type": "RES supply"
   }
 }

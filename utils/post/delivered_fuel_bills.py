@@ -106,34 +106,91 @@ def load_monthly_fuel_prices(
     return result
 
 
-def _assert_no_null_fuel_bills(fuel: pl.LazyFrame) -> pl.LazyFrame:
-    """Raise if any rows have null delivered_fuel_bill (price join failed to match)."""
+def _assert_no_null_fuel_bills(
+    fuel: pl.LazyFrame, col: str = "delivered_fuel_bill"
+) -> None:
+    """Raise if any rows have null in the given fuel bill column (price join failed)."""
     null_count = cast(
         pl.DataFrame,
-        fuel.filter(pl.col("delivered_fuel_bill").is_null()).select(pl.len()).collect(),
+        fuel.filter(pl.col(col).is_null()).select(pl.len()).collect(),
     ).item()
     if null_count > 0:
         raise ValueError(
-            f"{null_count} rows have null delivered_fuel_bill after joining "
+            f"{null_count} rows have null {col} after joining "
             "load_curve_monthly to monthly_prices. Check that all months in "
             "load_curve_monthly (1-12) have matching price data."
         )
-    return fuel
 
 
-def _assert_fuel_join_complete(combined: pl.LazyFrame) -> None:
-    """Raise if any comb_bills rows lack a matching fuel record from load_curve_monthly."""
+def _assert_fuel_join_complete(combined: pl.LazyFrame, col: str) -> None:
+    """Raise if any bill rows lack a matching fuel record from load_curve_monthly."""
     null_count = cast(
         pl.DataFrame,
-        combined.filter(pl.col("delivered_fuel_bill").is_null())
-        .select(pl.len())
-        .collect(),
+        combined.filter(pl.col(col).is_null()).select(pl.len()).collect(),
     ).item()
     if null_count > 0:
         raise ValueError(
-            f"{null_count} rows in comb_bills have no matching fuel record after joining "
-            "all_fuel. Every (bldg_id, month) in comb_bills should exist in load_curve_monthly."
+            f"{null_count} rows in bills have no matching fuel record after joining "
+            f"on {col}. Every (bldg_id, month) in bills should exist in load_curve_monthly."
         )
+
+
+def compute_fuel_bills(
+    load_curve_monthly: pl.LazyFrame,
+    monthly_prices: pl.DataFrame,
+) -> pl.LazyFrame:
+    """Compute per-building per-month oil and propane bills as separate columns.
+
+    Returns a LazyFrame with 13 rows per building (Jan...Dec + Annual):
+        bldg_id, month [str: "Jan"..."Dec","Annual"], oil_total_bill, propane_total_bill
+
+    load_curve_monthly: LazyFrame with (bldg_id, month [Int8: 1..12],
+        out.fuel_oil.total.energy_consumption, out.propane.total.energy_consumption).
+    monthly_prices: DataFrame from load_monthly_fuel_prices with (month [Int8],
+        oil_price_per_gallon, propane_price_per_gallon).
+    """
+    fuel_with_prices = (
+        load_curve_monthly.select(
+            pl.col(BLDG_ID),
+            pl.col("month"),
+            pl.col(OIL_CONSUMPTION_COL).fill_null(0),
+            pl.col(PROPANE_CONSUMPTION_COL).fill_null(0),
+        )
+        .join(monthly_prices.lazy(), on="month", how="left")
+        .with_columns(
+            (
+                pl.col(OIL_CONSUMPTION_COL)
+                / KWH_PER_GAL_HEATING_OIL
+                * pl.col("oil_price_per_gallon")
+            ).alias("oil_total_bill"),
+            (
+                pl.col(PROPANE_CONSUMPTION_COL)
+                / KWH_PER_GAL_PROPANE
+                * pl.col("propane_price_per_gallon")
+            ).alias("propane_total_bill"),
+        )
+    )
+    _assert_no_null_fuel_bills(fuel_with_prices, "oil_total_bill")
+    _assert_no_null_fuel_bills(fuel_with_prices, "propane_total_bill")
+
+    fuel_monthly = fuel_with_prices.select(
+        pl.col(BLDG_ID),
+        pl.col("month").replace_strict(MONTH_INT_TO_STR, return_dtype=pl.String),
+        pl.col("oil_total_bill"),
+        pl.col("propane_total_bill"),
+    )
+
+    fuel_annual = (
+        fuel_monthly.group_by(BLDG_ID)
+        .agg(
+            pl.col("oil_total_bill").sum(),
+            pl.col("propane_total_bill").sum(),
+        )
+        .with_columns(pl.lit(ANNUAL_MONTH).alias("month"))
+        .select(BLDG_ID, "month", "oil_total_bill", "propane_total_bill")
+    )
+
+    return pl.concat([fuel_monthly, fuel_annual])
 
 
 def add_delivered_fuel_bills(
@@ -153,58 +210,15 @@ def add_delivered_fuel_bills(
     monthly_prices: DataFrame from load_monthly_fuel_prices with (month [Int8],
         oil_price_per_gallon, propane_price_per_gallon).
     """
-    fuel_with_prices = (
-        load_curve_monthly.select(
-            pl.col(BLDG_ID),
-            pl.col("month"),
-            pl.col(OIL_CONSUMPTION_COL).fill_null(0),
-            pl.col(PROPANE_CONSUMPTION_COL).fill_null(0),
+    fuel_bills = compute_fuel_bills(load_curve_monthly, monthly_prices)
+    all_fuel = fuel_bills.with_columns(
+        (pl.col("oil_total_bill") + pl.col("propane_total_bill")).alias(
+            "delivered_fuel_bill"
         )
-        .join(monthly_prices.lazy(), on="month", how="left")
-        .with_columns(
-            (
-                pl.col(OIL_CONSUMPTION_COL)
-                / KWH_PER_GAL_HEATING_OIL
-                * pl.col("oil_price_per_gallon")
-            ).alias("oil_bill"),
-            (
-                pl.col(PROPANE_CONSUMPTION_COL)
-                / KWH_PER_GAL_PROPANE
-                * pl.col("propane_price_per_gallon")
-            ).alias("propane_bill"),
-        )
-        .with_columns(
-            (pl.col("oil_bill") + pl.col("propane_bill")).alias("delivered_fuel_bill")
-        )
-    )
-    _assert_no_null_fuel_bills(fuel_with_prices)
-
-    # comb_bills has 13 rows per building: "Jan"..."Dec" + "Annual", each with its own
-    # bill_level. We need fuel costs for every row so the join on (bldg_id, month) matches:
-    #   bldg_id | month  | bill_level
-    #   134     | Jan    | 355.78
-    #   134     | Feb    | 207.37
-    #   ...     | ...    | ...
-    #   134     | Annual | 1995.31
-    fuel_monthly = fuel_with_prices.select(
-        pl.col(BLDG_ID),
-        pl.col("month").replace_strict(
-            MONTH_INT_TO_STR, return_dtype=pl.String
-        ),  # CAIRO comb_bills uses "Jan"..."Dec", not Int8
-        pl.col("delivered_fuel_bill"),
-    )
-
-    fuel_annual = (
-        fuel_monthly.group_by(BLDG_ID)
-        .agg(pl.col("delivered_fuel_bill").sum())
-        .with_columns(pl.lit(ANNUAL_MONTH).alias("month"))
-        .select(BLDG_ID, "month", "delivered_fuel_bill")
-    )
-
-    all_fuel = pl.concat([fuel_monthly, fuel_annual])
+    ).select(BLDG_ID, "month", "delivered_fuel_bill")
 
     combined = comb_bills.join(all_fuel, on=[BLDG_ID, "month"], how="left")
-    _assert_fuel_join_complete(combined)
+    _assert_fuel_join_complete(combined, "delivered_fuel_bill")
 
     result = combined.with_columns(
         (pl.col(BILL_LEVEL) + pl.col("delivered_fuel_bill")).alias(BILL_LEVEL)

@@ -635,17 +635,17 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.06455,
+            "rate": 0.25529977,
             "adj": 0.0,
             "unit": "kWh"
           }
         ]
       ],
-      "fixedchargefirstmeter": 6.75,
+      "fixedchargefirstmeter": 22.0,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
       "minchargeunits": "$/month",
-      "utility": "Central Hudson",
+      "utility": "cenhud",
       "servicetype": "Bundled",
       "name": "cenhud_flat_supply",
       "is_default": false,

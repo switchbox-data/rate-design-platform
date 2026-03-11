@@ -1,546 +1,1628 @@
 {
   "5244": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
-    "decision": "exclude",
-    "variableRateKey": "electricSupplyChargeSC1Adirondack",
+    "rate_name": "Electricity Supply Charge - Adirondack Zone",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Adirondack",
+    "rate_group_name": "Delivery Charge Adjustment",
+    "rider_tariff_id": 801,
+    "master_tariff_rate_id": 5244,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": 0.0624,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0624,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
   },
   "5245": {
-    "master_charge": "Core Delivery Rate",
-    "master_type": "Base delivery",
-    "decision": "exclude",
-    "variableRateKey": "electricSupplyChargeSc1DeliveryAdjAdirondack",
+    "rate_name": "Delivery Charge Adjustment - Adirondack Zone",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSc1DeliveryAdjAdirondack",
+    "rate_group_name": "Delivery Charge Adjustment",
+    "rider_tariff_id": 801,
+    "master_tariff_rate_id": 5245,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": 0.0,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Delivery Charge Adjustment",
+    "master_type": "Base delivery"
   },
   "5246": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
-    "decision": "exclude",
-    "variableRateKey": "electricSupplyChargeSC1Capital",
+    "rate_name": "Electric Supply Charge - Capital Zone",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Capital",
+    "rate_group_name": "Delivery Charge Adjustment",
+    "rider_tariff_id": 801,
+    "master_tariff_rate_id": 5246,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": 0.07894,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.07894,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
   },
   "5247": {
-    "master_charge": "Core Delivery Rate",
-    "master_type": "Base delivery",
-    "decision": "exclude",
-    "variableRateKey": "electricSupplyChargeSc1DeliveryAdjCapital",
+    "rate_name": "Delivery Charge Adjustment- Capital Zone",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSc1DeliveryAdjCapital",
+    "rate_group_name": "Delivery Charge Adjustment",
+    "rider_tariff_id": 801,
+    "master_tariff_rate_id": 5247,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": 0.0,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Delivery Charge Adjustment",
+    "master_type": "Base delivery"
   },
   "5248": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
+    "rate_name": "Electric Supply Charge - Central Zone",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Central",
+    "rate_group_name": "Delivery Charge Adjustment",
+    "rider_tariff_id": 801,
+    "master_tariff_rate_id": 5248,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.06821,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.06821,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
     "decision": "add_to_srr",
-    "variableRateKey": "electricSupplyChargeSC1Central",
-    "charge_unit": "$/kWh"
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
   },
   "5249": {
-    "master_charge": "Core Delivery Rate",
-    "master_type": "Base delivery",
+    "rate_name": "Delivery Charge Adjustment - Central Zone",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSc1DeliveryAdjCentral",
+    "rate_group_name": "Delivery Charge Adjustment",
+    "rider_tariff_id": 801,
+    "master_tariff_rate_id": 5249,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
     "decision": "already_in_drr",
-    "variableRateKey": "electricSupplyChargeSc1DeliveryAdjCentral",
-    "charge_unit": "$/kWh"
+    "master_charge": "Delivery Charge Adjustment",
+    "master_type": "Base delivery"
   },
   "5250": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
-    "decision": "exclude",
-    "variableRateKey": "electricSupplyChargeSC1Frontier",
+    "rate_name": "Electric Supply Charge - Frontier Zone",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Frontier",
+    "rate_group_name": "Delivery Charge Adjustment",
+    "rider_tariff_id": 801,
+    "master_tariff_rate_id": 5250,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": 0.06488,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.06488,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
   },
   "5251": {
-    "master_charge": "Core Delivery Rate",
-    "master_type": "Base delivery",
-    "decision": "exclude",
-    "variableRateKey": "electricSupplyChargeSc1DeliveryAdjFrontier",
+    "rate_name": "Delivery Charge Adjustment - Frontier Zone",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSc1DeliveryAdjFrontier",
+    "rate_group_name": "Delivery Charge Adjustment",
+    "rider_tariff_id": 801,
+    "master_tariff_rate_id": 5251,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": 0.0,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Delivery Charge Adjustment",
+    "master_type": "Base delivery"
   },
   "5252": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
-    "decision": "exclude",
-    "variableRateKey": "electricSupplyChargeSC1Genesee",
+    "rate_name": "Electric Supply Charge - Genesee Zone",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Genesee",
+    "rate_group_name": "Delivery Charge Adjustment",
+    "rider_tariff_id": 801,
+    "master_tariff_rate_id": 5252,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": 0.06772,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.06772,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
   },
   "5253": {
-    "master_charge": "Core Delivery Rate",
-    "master_type": "Base delivery",
-    "decision": "exclude",
-    "variableRateKey": "electricSupplyChargeSc1DeliveryAdjGenesee",
+    "rate_name": "Delivery Charge Adjustment - Genesee Zone",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSc1DeliveryAdjGenesee",
+    "rate_group_name": "Delivery Charge Adjustment",
+    "rider_tariff_id": 801,
+    "master_tariff_rate_id": 5253,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": 0.0,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Delivery Charge Adjustment",
+    "master_type": "Base delivery"
   },
   "5254": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
-    "decision": "exclude",
-    "variableRateKey": "electricSupplyChargeSC1Utica",
+    "rate_name": "Electric Supply Charge - Utica Zone",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Utica",
+    "rate_group_name": "Delivery Charge Adjustment",
+    "rider_tariff_id": 801,
+    "master_tariff_rate_id": 5254,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": 0.07126,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.07126,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
   },
   "5255": {
-    "master_charge": "Core Delivery Rate",
-    "master_type": "Base delivery",
-    "decision": "exclude",
-    "variableRateKey": "electricSupplyChargeSc1DeliveryAdjUtica",
+    "rate_name": "Delivery Charge Adjustment - Utica Zone",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSc1DeliveryAdjUtica",
+    "rate_group_name": "Delivery Charge Adjustment",
+    "rider_tariff_id": 801,
+    "master_tariff_rate_id": 5255,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
-  },
-  "20715134": {
-    "master_charge": "Customer Charge",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/month",
-    "rate_name": "Basic Service Charge"
-  },
-  "20715135": {
-    "master_charge": "Core Delivery Rate",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/kWh"
-  },
-  "20715136": {
-    "master_charge": "Low-income discounts",
-    "master_type": "Eligibility",
-    "decision": "skip",
-    "charge_unit": "$/kWh"
-  },
-  "20715137": {
-    "master_charge": "Revenue Decoupling (RDM)",
-    "master_type": "Revenue true-up",
-    "decision": "exclude",
-    "variableRateKey": "revenueDecouplingMechanism",
-    "charge_unit": "$/kWh"
-  },
-  "20715138": {
-    "master_charge": "Transmission Revenue Adjustment",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "variableRateKey": "TransmissionRevenueAdjSC1579",
-    "charge_unit": "$/kWh"
-  },
-  "20715139": {
-    "master_charge": "Transition / Restructuring",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "variableRateKey": "legacyTransitionChargeSC1",
-    "charge_unit": "$/kWh"
-  },
-  "20715140": {
-    "master_charge": "Supply cost true-up",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "variableRateKey": "esrMechanismSC1Frontier",
-    "charge_unit": "$/kWh"
-  },
-  "20715141": {
-    "master_charge": "Supply cost true-up",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "variableRateKey": "esrMechanismSC1Genesee",
-    "charge_unit": "$/kWh"
-  },
-  "20715142": {
-    "master_charge": "Supply cost true-up",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "variableRateKey": "esrMechanismSC1Adirondack",
-    "charge_unit": "$/kWh"
-  },
-  "20715143": {
-    "master_charge": "Supply cost true-up",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "variableRateKey": "esrMechanismSC1Utica",
-    "charge_unit": "$/kWh"
-  },
-  "20715144": {
-    "master_charge": "Supply cost true-up",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "variableRateKey": "esrMechanismSC1Capital",
-    "charge_unit": "$/kWh"
-  },
-  "20715145": {
-    "master_charge": "Supply cost true-up",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "variableRateKey": "esrMechanismSC1Central",
-    "charge_unit": "$/kWh"
-  },
-  "20715146": {
-    "master_charge": "System Benefits Charge",
-    "master_type": "Program surcharge",
-    "decision": "add_to_drr",
-    "variableRateKey": "systemBenefitsCharge579",
-    "charge_unit": "$/kWh"
-  },
-  "20715147": {
-    "master_charge": "CES Supply Surcharge",
-    "master_type": "CES supply",
-    "decision": "add_to_srr",
-    "variableRateKey": "cleanEnergyStandardSupply579",
-    "charge_unit": "$/kWh"
-  },
-  "20715148": {
-    "master_charge": "CES Delivery",
-    "master_type": "Program surcharge",
-    "decision": "add_to_drr",
-    "variableRateKey": "cleanEnergyStandardDelivery579",
-    "charge_unit": "$/kWh"
-  },
-  "20715149": {
-    "master_charge": "DLM Surcharge",
-    "master_type": "Program surcharge",
-    "decision": "add_to_drr",
-    "variableRateKey": "dynamicLoadManagementSurchargeSC1",
-    "charge_unit": "$/kWh"
-  },
-  "20715150": {
-    "master_charge": "Earnings Adjustment Mechanism",
-    "master_type": "Performance incentive",
-    "decision": "exclude",
-    "variableRateKey": "earningsAdjustmentMechanismSC1",
-    "charge_unit": "$/kWh"
-  },
-  "20715151": {
-    "master_charge": "Minimum Charge",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/month"
+    "sample_rate": 0.0,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Delivery Charge Adjustment",
+    "master_type": "Base delivery"
   },
   "19819734": {
+    "rate_name": "Working Capital on Purchased Power Costs Factor - Supply Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Adirondack",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948573,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0624,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0624,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "electricSupplyChargeSC1Adirondack",
-    "charge_unit": "$/kWh",
     "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819735": {
+    "rate_name": "Working Capital on Purchased Power Costs Factor - Supply Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Capital",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948574,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.07894,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.07894,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "electricSupplyChargeSC1Capital",
-    "charge_unit": "$/kWh",
     "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819736": {
+    "rate_name": "Working Capital on Purchased Power Costs Factor - Supply Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Central",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948575,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.06821,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.06821,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "electricSupplyChargeSC1Central",
-    "charge_unit": "$/kWh",
     "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819737": {
+    "rate_name": "Working Capital on Purchased Power Costs Factor - Supply Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Frontier",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948576,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.06488,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.06488,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "electricSupplyChargeSC1Frontier",
-    "charge_unit": "$/kWh",
     "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819738": {
+    "rate_name": "Working Capital on Purchased Power Costs Factor - Supply Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Genesee",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948577,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.06772,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.06772,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "electricSupplyChargeSC1Genesee",
-    "charge_unit": "$/kWh",
     "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819739": {
+    "rate_name": "Working Capital on Purchased Power Costs Factor - Supply Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Utica",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948578,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.07126,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.07126,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "electricSupplyChargeSC1Utica",
-    "charge_unit": "$/kWh",
     "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819740": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "esrMechanismSC1Adirondack",
+    "rate_name": "Working Capital on Purchased Power Costs Factor - ESRM",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Adirondack",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948579,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": 0.00159,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00159,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
   },
   "19819741": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "esrMechanismSC1Capital",
+    "rate_name": "Working Capital on Purchased Power Costs Factor - ESRM",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Capital",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948580,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": 0.01253,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.01253,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
   },
   "19819742": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
+    "rate_name": "Working Capital on Purchased Power Costs Factor - ESRM",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Central",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948581,
+    "charge_unit": "$/kWh",
+    "sample_rate": -0.002678,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.002678,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
     "decision": "add_to_srr",
-    "rider_id": 3293827,
-    "variableRateKey": "esrMechanismSC1Central",
-    "charge_unit": "$/kWh"
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
   },
   "19819743": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "esrMechanismSC1Frontier",
+    "rate_name": "Working Capital on Purchased Power Costs Factor - ESRM",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Frontier",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948582,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": -0.002072,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.002072,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
   },
   "19819744": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "esrMechanismSC1Genesee",
+    "rate_name": "Working Capital on Purchased Power Costs Factor - ESRM",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Genesee",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948583,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": -0.000657,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.000657,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
   },
   "19819745": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "esrMechanismSC1Utica",
+    "rate_name": "Working Capital on Purchased Power Costs Factor - ESRM",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Utica",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948584,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": -0.000448,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.000448,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
   },
   "19819746": {
+    "rate_name": "Electricity Supply Uncollectible Expense Factor - Supply Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Adirondack",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948585,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0624,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0624,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "electricSupplyChargeSC1Adirondack",
-    "charge_unit": "$/kWh",
     "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819747": {
+    "rate_name": "Electricity Supply Uncollectible Expense Factor - Supply Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Capital",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948586,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.07894,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.07894,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "electricSupplyChargeSC1Capital",
-    "charge_unit": "$/kWh",
     "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819748": {
+    "rate_name": "Electricity Supply Uncollectible Expense Factor - Supply Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Central",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948587,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.06821,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.06821,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "electricSupplyChargeSC1Central",
-    "charge_unit": "$/kWh",
     "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819749": {
+    "rate_name": "Electricity Supply Uncollectible Expense Factor - Supply Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Frontier",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948588,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.06488,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.06488,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "electricSupplyChargeSC1Frontier",
-    "charge_unit": "$/kWh",
     "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819750": {
+    "rate_name": "Electricity Supply Uncollectible Expense Factor - Supply Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Genesee",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948589,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.06772,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.06772,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "electricSupplyChargeSC1Genesee",
-    "charge_unit": "$/kWh",
     "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819751": {
+    "rate_name": "Electricity Supply Uncollectible Expense Factor - Supply Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricSupplyChargeSC1Utica",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948590,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.07126,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.07126,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "electricSupplyChargeSC1Utica",
-    "charge_unit": "$/kWh",
     "_exclude_reason": "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count"
   },
   "19819752": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "esrMechanismSC1Adirondack",
+    "rate_name": "Electricity Supply Uncollectible Expense Factor - ESRM",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Adirondack",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948591,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": 0.00159,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00159,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
   },
   "19819753": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "esrMechanismSC1Capital",
+    "rate_name": "Electricity Supply Uncollectible Expense Factor - ESRM",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Capital",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948592,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": 0.01253,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.01253,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
   },
   "19819754": {
+    "rate_name": "Electricity Supply Uncollectible Expense Factor - ESRM",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Central",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948593,
+    "charge_unit": "$/kWh",
+    "sample_rate": -0.002678,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.002678,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "esrMechanismSC1Central",
-    "charge_unit": "$/kWh",
     "_exclude_reason": "Duplicate rider entry (same VRK as another MFC entry)"
   },
   "19819755": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "esrMechanismSC1Frontier",
+    "rate_name": "Electricity Supply Uncollectible Expense Factor - ESRM",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Frontier",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948594,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": -0.002072,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.002072,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
   },
   "19819756": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "esrMechanismSC1Genesee",
+    "rate_name": "Electricity Supply Uncollectible Expense Factor - ESRM",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Genesee",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948595,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": -0.000657,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.000657,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
   },
   "19819757": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
-    "decision": "exclude",
-    "rider_id": 3293827,
-    "variableRateKey": "esrMechanismSC1Utica",
+    "rate_name": "Electricity Supply Uncollectible Expense Factor - ESRM",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Utica",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948596,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "Zone-specific; Central zone chosen as closest to simple avg of all 6 zones"
+    "sample_rate": -0.000448,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.000448,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
   },
   "19819758": {
+    "rate_name": "Electricity Supply Uncollectible Expense Factor - CESS",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "cleanEnergyStandardSupply579",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948597,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0057,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0057,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_zonal",
     "master_charge": "Merchant Function Charge",
     "master_type": "Merchant function",
-    "decision": "add_to_srr",
-    "rider_id": 3293827,
-    "variableRateKey": "cleanEnergyStandardSupply579",
-    "charge_unit": "$/kWh"
+    "_exclude_reason": "MFC CES Supply VRK duplicates CES Supply base rate; excluding to avoid double-count"
   },
   "19819759": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
+    "rate_name": "Electricity Supply Procurement Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "merchantFunctionChargeElectricitySupplyProcurementCharge",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948598,
+    "charge_unit": "$/kWh",
+    "sample_rate": 9e-05,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 9e-05,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
     "decision": "add_to_srr",
-    "rider_id": 3293827,
-    "variableRateKey": "merchantFunctionChargeElectricitySupplyProcurementCharge",
-    "charge_unit": "$/kWh"
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
   },
   "19819760": {
-    "master_charge": "Merchant Function Charge",
-    "master_type": "Merchant function",
-    "decision": "add_to_srr",
-    "rider_id": 3293827,
-    "variableRateKey": "merchantFunctionChargeElectricitySupplyCreditCollectionCharg",
-    "charge_unit": "$/kWh"
-  },
-  "20879424": {
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity",
-    "decision": "exclude",
+    "rate_name": "Electricity Supply Credit and Collection Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "merchantFunctionChargeElectricitySupplyCreditCollectionCharg",
+    "rate_group_name": "Merchant Function Charge",
+    "rider_tariff_id": 3445398,
+    "master_tariff_rate_id": 17948599,
     "charge_unit": "$/kWh",
-    "_exclude_reason": "No VRK; does not resolve to any rate"
-  },
-  "20879425": {
-    "master_charge": "Customer Benefit Contribution",
-    "master_type": "Other",
-    "decision": "exclude",
-    "charge_unit": "$/kWh"
-  },
-  "20915138": {
-    "master_charge": "EV Make Ready",
-    "master_type": "Program surcharge",
-    "decision": "add_to_drr",
-    "rate_name": "Electric Vehicle Make Ready Surcharge",
-    "charge_unit": "$/kWh"
-  },
-  "20684525": {
-    "master_charge": "Arrears / COVID forgiveness",
-    "master_type": "Sunk-cost recovery",
-    "decision": "add_to_drr",
-    "rate_name": "Arrears Management Program Recovery Surcharge - Phase 1",
-    "charge_unit": "$/kWh"
-  },
-  "20684526": {
-    "master_charge": "Arrears / COVID forgiveness",
-    "master_type": "Sunk-cost recovery",
-    "decision": "add_to_drr",
-    "rate_name": "Arrears Management Program Recovery Surcharge - Phase 2",
-    "charge_unit": "$/kWh"
-  },
-  "20718608": {
-    "master_charge": "Net Utility Plant / Depreciation Recon",
-    "master_type": "Cost recon",
-    "decision": "exclude",
-    "charge_unit": "$/kWh"
-  },
-  "20775852": {
-    "master_charge": "Core Delivery Rate",
-    "master_type": "Base delivery",
-    "decision": "already_in_drr",
-    "charge_unit": "$/kWh"
-  },
-  "20761838": {
-    "master_charge": "GreenUp",
-    "master_type": "Eligibility / optional",
-    "decision": "skip",
-    "rider_id": 3315516,
-    "charge_unit": "$/kWh"
-  },
-  "20416783": {
-    "master_charge": "CBC (solar only)",
-    "master_type": "Eligibility / optional",
-    "decision": "skip",
-    "rider_id": 3399323,
-    "charge_unit": "$/kWh"
+    "sample_rate": 0.00012,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00012,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "add_to_srr",
+    "master_charge": "Merchant Function Charge",
+    "master_type": "Merchant function"
   },
   "20059189": {
-    "master_charge": "EV Make Ready",
-    "master_type": "Program surcharge",
+    "rate_name": "Electric Vehicle Make Ready Surcharge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Electric Vehicle Make Ready Surcharge",
+    "rider_tariff_id": 3465463,
+    "master_tariff_rate_id": 19277118,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00022,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00022,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
     "decision": "add_to_drr",
-    "rider_id": 3402224,
-    "charge_unit": "$/kWh"
+    "master_charge": "EV Make Ready",
+    "master_type": "Program surcharge"
+  },
+  "20254222": {
+    "rate_name": "Basic Service Charge",
+    "charge_type": "FIXED_PRICE",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Customer Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 16959377,
+    "charge_unit": "$/month",
+    "sample_rate": 17.33,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 17.33,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Customer Charge",
+    "master_type": "Base delivery"
+  },
+  "20254223": {
+    "rate_name": "Energy Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Energy Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 16959380,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.07576,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.07576,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery"
+  },
+  "20254224": {
+    "rate_name": "Income Eligible Basic Service Credit",
+    "charge_type": "FIXED_PRICE",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Income Eligible Basic Service Credit",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17938371,
+    "charge_unit": "$/month",
+    "sample_rate": 0.0,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 5.0,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 15.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_eligibility",
+    "master_charge": "Low-income discounts",
+    "master_type": "Eligibility"
+  },
+  "20254225": {
+    "rate_name": "Revenue Decoupling Mechanism",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "revenueDecouplingMechanism",
+    "rate_group_name": "RDM",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17009596,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00101,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00101,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Revenue Decoupling (RDM)",
+    "master_type": "Revenue true-up"
+  },
+  "20254226": {
+    "rate_name": "Transmission Revenue Adjustment",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "TRANSMISSION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "TransmissionRevenueAdjSC1579",
+    "rate_group_name": "Transmission Revenue Adjustment",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17009597,
+    "charge_unit": "$/kWh",
+    "sample_rate": -0.00677,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.00677,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Transmission Revenue Adjustment",
+    "master_type": "Cost recon"
+  },
+  "20254227": {
+    "rate_name": "Legacy Transition Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "legacyTransitionChargeSC1",
+    "rate_group_name": "Legacy Transition Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17075100,
+    "charge_unit": "$/kWh",
+    "sample_rate": -0.000254,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.000254,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Transition / Restructuring",
+    "master_type": "Cost recon"
+  },
+  "20254228": {
+    "rate_name": "Electricity Supply Reconciliation Mechanism",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Frontier",
+    "rate_group_name": "Electricity Supply Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17125261,
+    "charge_unit": "$/kWh",
+    "sample_rate": -0.002072,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.002072,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon"
+  },
+  "20254229": {
+    "rate_name": "Electricity Supply Reconciliation Mechanism",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Genesee",
+    "rate_group_name": "Electricity Supply Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17125262,
+    "charge_unit": "$/kWh",
+    "sample_rate": -0.000657,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.000657,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon"
+  },
+  "20254230": {
+    "rate_name": "Electricity Supply Reconciliation Mechanism",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Adirondack",
+    "rate_group_name": "Electricity Supply Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17125258,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00159,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00159,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon"
+  },
+  "20254231": {
+    "rate_name": "Electricity Supply Reconciliation Mechanism",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Utica",
+    "rate_group_name": "Electricity Supply Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17125263,
+    "charge_unit": "$/kWh",
+    "sample_rate": -0.000448,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.000448,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon"
+  },
+  "20254232": {
+    "rate_name": "Electricity Supply Reconciliation Mechanism",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Capital",
+    "rate_group_name": "Electricity Supply Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17125259,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.01253,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.01253,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon"
+  },
+  "20254233": {
+    "rate_name": "Electricity Supply Reconciliation Mechanism",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "esrMechanismSC1Central",
+    "rate_group_name": "Electricity Supply Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17125260,
+    "charge_unit": "$/kWh",
+    "sample_rate": -0.002678,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.002678,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_trueup",
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon"
+  },
+  "20254234": {
+    "rate_name": "System Benefits Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "systemBenefitsCharge579",
+    "rate_group_name": "SBC",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17009599,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.007379,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.007379,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "System Benefits Charge",
+    "master_type": "Program surcharge"
+  },
+  "20254235": {
+    "rate_name": "Clean Energy Standard Supply Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "cleanEnergyStandardSupply579",
+    "rate_group_name": "Clean Energy Standard",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17824698,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0057,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0057,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_srr",
+    "master_charge": "CES Supply Surcharge",
+    "master_type": "CES supply"
+  },
+  "20254236": {
+    "rate_name": "Clean Energy Standard Delivery Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "cleanEnergyStandardDelivery579",
+    "rate_group_name": "Clean Energy Standard",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17824699,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00021,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00021,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "CES Delivery",
+    "master_type": "Program surcharge"
+  },
+  "20254237": {
+    "rate_name": "Dynamic Load Management Surcharge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "dynamicLoadManagementSurchargeSC1",
+    "rate_group_name": "Dynamic Load Management Surcharge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17948572,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.000166,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.000166,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "DLM Surcharge",
+    "master_type": "Program surcharge"
+  },
+  "20254238": {
+    "rate_name": "Earnings Adjustment Mechanism",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "earningsAdjustmentMechanismSC1",
+    "rate_group_name": "Earnings Adjustment Mechanism",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 18330240,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00077,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00077,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_negligible",
+    "master_charge": "Earnings Adjustment Mechanism",
+    "master_type": "Performance incentive"
+  },
+  "20254239": {
+    "rate_name": "Minimum",
+    "charge_type": "MINIMUM",
+    "charge_class": null,
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Minimum",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17072428,
+    "charge_unit": "$/month",
+    "sample_rate": 17.33,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 17.33,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_redundant",
+    "master_charge": "Minimum Charge",
+    "master_type": "Bill floor (rarely binds)"
+  },
+  "20257057": {
+    "rate_name": "Late Payment Charge & Other",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Late Payment Charge & Other",
+    "rider_tariff_id": 3480738,
+    "master_tariff_rate_id": 20257057,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00037,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00037,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "add_to_drr",
+    "master_charge": "Late Payment / Waived Fees",
+    "master_type": "Sunk-cost recovery"
   },
   "20260236": {
-    "master_charge": "Arrears / COVID forgiveness",
-    "master_type": "Sunk-cost recovery",
+    "rate_name": "Arrears Management Program Recovery Surcharge - Phase 1",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Arrears Management Program Recovery Surcharge",
+    "rider_tariff_id": 3480927,
+    "master_tariff_rate_id": 19706086,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0012,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0012,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
     "decision": "add_to_drr",
-    "rider_id": 3435425,
-    "charge_unit": "$/kWh"
+    "master_charge": "Arrears / Arrearage recovery",
+    "master_type": "Sunk-cost recovery"
   },
   "20260237": {
-    "master_charge": "Arrears / COVID forgiveness",
-    "master_type": "Sunk-cost recovery",
+    "rate_name": "Arrears Management Program Recovery Surcharge - Phase 2",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Arrears Management Program Recovery Surcharge",
+    "rider_tariff_id": 3480927,
+    "master_tariff_rate_id": 19706141,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0009,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0009,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
     "decision": "add_to_drr",
-    "rider_id": 3435425,
-    "charge_unit": "$/kWh"
+    "master_charge": "Arrears / Arrearage recovery",
+    "master_type": "Sunk-cost recovery"
   },
   "20288265": {
+    "rate_name": "Net Utility Plant and Depreciation Expense Reconciliation Mechanism",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Net Utility Plant and Depreciation Expense Reconciliation Mechanism",
+    "rider_tariff_id": 3482945,
+    "master_tariff_rate_id": 20288265,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00267,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00267,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_trueup",
     "master_charge": "Net Utility Plant / Depreciation Recon",
-    "master_type": "Cost reconciliation",
-    "decision": "exclude",
-    "rider_id": 3482945,
-    "charge_unit": "$/kWh"
+    "master_type": "Cost recon"
+  },
+  "20416783": {
+    "rate_name": "Customer Benefit Contribution",
+    "charge_type": "QUANTITY",
+    "charge_class": null,
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Customer Benefit Contribution",
+    "rider_tariff_id": 3493258,
+    "master_tariff_rate_id": 19244555,
+    "charge_unit": "%",
+    "sample_rate": 1.49,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 1.49,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_percentage",
+    "master_charge": "Customer Benefit Contribution",
+    "master_type": "Percentage of bill"
+  },
+  "20761838": {
+    "rate_name": "GreenUp Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "GreenUp Charge",
+    "rider_tariff_id": 3524469,
+    "master_tariff_rate_id": 18179658,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.035,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.035,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_eligibility",
+    "master_charge": "GreenUp",
+    "master_type": "Eligibility / optional"
   }
 }

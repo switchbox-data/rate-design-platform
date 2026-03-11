@@ -19,6 +19,7 @@ data/census/pums/data_dict_cache/
 data/eia/861/electric_utility_stats/
 data/eia/861/parquet/
 data/eia/heating_fuel_prices/parquet/
+data/nrel/
 data/eia/hourly_loads/zone_parquet/
 data/eia/hourly_loads/utility_parquet/
 data/fred/cpi/parquet/
@@ -27,6 +28,8 @@ data/nyiso/lbmp/zips/
 data/nyiso/lbmp/parquet/
 data/nyiso/gold_book/csv/
 data/nyiso/transmission/csv/
+data/nyiso/hourly_demand/zones/
+data/nyiso/hourly_demand/utilities/
 data/nyiso/zone_mapping/csv/
 rate_design/hp_rates/ny/config/buildstock_raw/
 rate_design/hp_rates/ny/config/buildstock_processed/
@@ -35,6 +38,8 @@ rate_design/hp_rates/ny/config/resstock/loads/
 rate_design/hp_rates/ny/config/resstock/results_*.parquet
 outputs/
 site/
+validation_outputs/
+rate_design/hp_rates/*/validation_outputs/
 
 # Python packaging/build artifacts
 *.pyc
@@ -70,3 +75,6 @@ infra/.terraform.lock.hcl
 utils/pre/update_sheet_formulas.py
 
 CLAUDE.md
+
+dev_plots/
+run_logs/

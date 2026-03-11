@@ -268,8 +268,36 @@ def main() -> None:
         raise SystemExit(
             f"{args.path_monthly_rates} must have start_month and end_month."
         )
-    charges = monthly_rates_data.get("charges") or {}
-    _warn_potential_zonal_duplicates(charges, utility)
+    # Read charges from the decision-grouped YAML format.
+    # Each decision section has {rate_structure, charges}.  We only process
+    # flat sections; non-flat sections (seasonal_tiered, seasonal_tou) are
+    # skipped with a warning — use supply_base_overrides for those utilities.
+    charges: dict[str, dict] = {}
+    for decision_key in ("add_to_drr", "add_to_srr"):
+        section = monthly_rates_data.get(decision_key) or {}
+        if isinstance(section, dict) and "rate_structure" in section:
+            rs = section.get("rate_structure", "flat")
+            section_charges = section.get("charges") or {}
+            if rs != "flat":
+                logging.warning(
+                    "Skipping %d %s charge(s) for %s: rate_structure is %r, "
+                    "not 'flat'. Use supply_base_overrides or equivalent for "
+                    "this utility's %s revenue.",
+                    len(section_charges),
+                    decision_key,
+                    utility,
+                    rs,
+                    decision_key,
+                )
+                continue
+            for slug, data in section_charges.items():
+                charges[slug] = {**data, "decision": decision_key}
+        else:
+            # Backwards compatibility: old format with decision field per charge
+            for slug, data in section.items():
+                if isinstance(data, dict):
+                    charges[slug] = data
+
     year_for_eia = _parse_month(start_month)[0]
 
     total_residential_kwh, eia_year = _resolve_path_eia_with_year_fallback(
@@ -300,7 +328,7 @@ def main() -> None:
 
     for slug, data in charges.items():
         decision = data.get("decision")
-        if decision not in ("add_to_drr", "add_to_srr"):
+        if not decision:
             continue
         monthly = data.get("monthly_rates") or {}
         if not monthly:

@@ -10,20 +10,24 @@ Every charge on a New York default residential electric bill — across all seve
 
 Charges are classified into families based on their economic structure, not their tariff name. Many charges that appear under different names on different utility bills are structurally identical.
 
-| Type                       | What it is                                                                          | Cross-subsidy?                            | Decision pattern          |
-| -------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------- |
-| **Base delivery**          | Rates set in the rate case that collect the delivery revenue requirement            | Yes (the BAT's core subject)              | Already in d.r.r.         |
-| **Cost reconciliation**    | Uniform $/kWh true-ups of costs already embedded in base rates (delivery or supply) | No — shifts all bills equally             | Exclude                   |
-| **Revenue true-up**        | Revenue decoupling and temporary over/under-collection corrections                  | No — shifts all bills equally             | Exclude                   |
-| **Program surcharge**      | Fixed PSC-mandated program budgets recovered via uniform $/kWh                      | Yes — fixed pool ÷ kWh                    | Add to d.r.r.             |
-| **Sunk-cost recovery**     | Fixed debt, bond, or settlement pools recovered via $/kWh or % of charges           | Yes — fixed pool ÷ kWh                    | Add to d.r.r. (or s.r.r.) |
-| **DER credit recovery**    | Fixed DER/VDER credit payments recovered via uniform $/kWh                          | Yes — fixed pool ÷ kWh                    | Add to d.r.r.             |
-| **Performance incentive**  | REV Earnings Adjustment Mechanism — utility bonus for hitting PSC targets           | Yes in structure, negligible in magnitude | Exclude (negligible)      |
-| **Supply commodity**       | Main supply charge (MSC or equivalent) bundling NYISO wholesale costs               | Mixed — see sub-components                | Add to s.r.r.             |
-| **Merchant function**      | Supply administration costs (procurement, working capital, bad debt)                | Weak                                      | Add to s.r.r.             |
-| **CES supply**             | Per-MWh LSE obligation to NYSERDA for RECs/ZECs — cost scales with load             | No                                        | Add to s.r.r. + MC 8760   |
-| **Tax pass-through**       | GRT (% of bill) or PILOTs (fixed per-customer)                                      | No                                        | Exclude (tax)             |
-| **Eligibility / optional** | Solar CBC, agricultural discounts, LMI credits, GreenUp — $0 for default customer   | N/A                                       | Skip                      |
+| Type                       | What it is                                                                            | Cross-subsidy?                            | Decision pattern               |
+| -------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------ |
+| **Base delivery**          | Rates set in the rate case that collect the delivery revenue requirement              | Yes (the BAT's core subject)              | Already in d.r.r.              |
+| **Cost reconciliation**    | Uniform $/kWh true-ups of costs already embedded in base rates (delivery or supply)   | No — shifts all bills equally             | `exclude_trueup`               |
+| **Revenue true-up**        | Revenue decoupling and temporary over/under-collection corrections                    | No — shifts all bills equally             | `exclude_trueup`               |
+| **Program surcharge**      | Fixed PSC-mandated program budgets recovered via uniform $/kWh                        | Yes — fixed pool ÷ kWh                    | `add_to_drr`                   |
+| **Sunk-cost recovery**     | Fixed debt, bond, or settlement pools recovered via $/kWh or % of charges             | Yes — fixed pool ÷ kWh                    | `add_to_drr` (or `add_to_srr`) |
+| **DER credit recovery**    | Fixed DER/VDER credit payments recovered via uniform $/kWh                            | Yes — fixed pool ÷ kWh                    | `add_to_drr`                   |
+| **Performance incentive**  | REV Earnings Adjustment Mechanism — utility bonus for hitting PSC targets             | Yes in structure, negligible in magnitude | `exclude_negligible`           |
+| **Supply commodity**       | Main supply charge (MSC or equivalent) bundling NYISO wholesale costs                 | Mixed — see sub-components                | `add_to_srr`                   |
+| **Merchant function**      | Supply administration costs (procurement, working capital, bad debt)                  | Weak                                      | `add_to_srr`                   |
+| **CES supply**             | Per-MWh LSE obligation to NYSERDA for RECs/ZECs — cost scales with load               | No                                        | `add_to_srr` + MC 8760         |
+| **Tax pass-through**       | GRT (% of bill) or PILOTs (fixed per-customer)                                        | No                                        | `exclude_trueup` (tax)         |
+| **Eligibility / optional** | Solar CBC, agricultural discounts, LMI credits, GreenUp — $0 for default customer     | N/A                                       | `exclude_eligibility`          |
+| **Zonal duplicate**        | Same charge repeated per geographic zone/territory; only one representative is needed | No — already counted via representative   | `exclude_zonal`                |
+| **Percentage of bill**     | QUANTITY/% charges the pipeline can't process (only $/kWh, $/month, $/day supported)  | Varies                                    | `exclude_percentage`           |
+| **Redundant**              | Bill floor (minimum charge) that rarely binds; redundant with customer charge         | N/A                                       | `exclude_redundant`            |
+| **Expired**                | Stale/expired charge; zero or near-zero value                                         | N/A                                       | `exclude_expired`              |
 
 ---
 
@@ -31,52 +35,52 @@ Charges are classified into families based on their economic structure, not thei
 
 The MSC (Market Supply Charge) bundles several NYISO cost components into one $/kWh line item. We decompose it here because the sub-components have different cross-subsidy properties. The decomposition was done on ConEd's MSC but generalizes to all NYISO utilities — see [Supply charge decomposition generalizes](#supply-charge-decomposition-generalizes-to-all-nyiso-utilities).
 
-| Charge                                                      | Type                  | Utilities                 | Unit                             | In rev req?     | Fixed budget?        | HP cross-subsidy?    | Why                                                          | Decision             | MC 8760?               |
-| ----------------------------------------------------------- | --------------------- | ------------------------- | -------------------------------- | --------------- | -------------------- | -------------------- | ------------------------------------------------------------ | -------------------- | ---------------------- |
-| **Customer Charge**                                         | Base delivery         | All 7                     | $/mo or $/day                    | Yes             | —                    | Yes                  | Base rate; part of tariff                                    | Already in d.r.r.    | No—residual            |
-| **Billing & Payment Processing**                            | Base delivery         | CE, NY, RG, OR            | $/mo                             | Yes             | —                    | Yes                  | Affects fixed/vol split                                      | Already in d.r.r.    | No—residual            |
-| **Core Delivery Rate**                                      | Base delivery         | All 7                     | $/kWh                            | Yes             | —                    | Yes                  | Rate CAIRO calibrates                                        | Already in d.r.r.    | Yes—sub-tx + dx MCs    |
-| **Make-Whole Energy**                                       | Base delivery         | NY, RG                    | $/kWh                            | Yes             | —                    | Yes                  | Supplemental delivery rate, fixed in rate case               | Already in d.r.r.    | Yes—sub-tx + dx MCs    |
-| **Minimum Charge**                                          | Base delivery         | All 7                     | $/mo (floor)                     | Yes             | —                    | N/A                  | Bill floor; rarely binds                                     | N/A                  | —                      |
-| **Delivery cost true-up (MAC / RAM / DSA)**                 | Cost recon            | All 7                     | $/kWh                            | N/A (true-up)   | —                    | No                   | Uniform $/kWh; true-up noise                                 | Exclude              | —                      |
-| **MAC sub-components (Uncollectible, Reconciliation Rate)** | Cost recon            | CE                        | $/kWh                            | N/A (true-up)   | —                    | No                   | Sub-components of MAC statement                              | Exclude              | —                      |
-| **Transition / Restructuring**                              | Cost recon            | All 7                     | $/kWh                            | N/A (true-up)   | —                    | No                   | Legacy stranded costs; balance paid down                     | Exclude              | —                      |
-| **Transmission Revenue Adjustment**                         | Cost recon            | NG                        | $/kWh                            | N/A (true-up)   | —                    | No                   | FERC formula rate tx cost reconciliation                     | Exclude              | —                      |
-| **Net Utility Plant / Depreciation Recon**                  | Cost recon            | NG                        | $/kWh                            | N/A (true-up)   | —                    | No                   | Capital spending vs rate-case forecast                       | Exclude              | —                      |
-| **Purchased Power Adjustment**                              | Cost recon            | CH                        | $/kWh                            | N/A (true-up)   | —                    | No                   | Retained gen + mandatory IPP true-up                         | Exclude              | —                      |
-| **Supply cost true-up (MSC I/II, ECA, MPA, ESR)**           | Cost recon            | CE, NG, OR, CH            | $/kWh                            | N/A (true-up)   | —                    | No                   | Wholesale cost forecast error                                | Exclude              | —                      |
-| **Revenue Decoupling (RDM)**                                | Revenue true-up       | All 7                     | $/kWh                            | N/A (revenue)   | —                    | No                   | Load forecast error; true-up noise                           | Exclude              | —                      |
-| **Delivery Revenue Surcharge / Electric Bill Credit**       | Revenue true-up       | CE, OR, CH                | $/kWh                            | N/A (temporary) | —                    | No                   | Rate-delay or over-collection correction                     | Exclude              | —                      |
-| **System Benefits Charge**                                  | Program surcharge     | All except LI             | $/kWh                            | **No**          | Yes                  | **Yes**              | Fixed NYSERDA budget ÷ kWh                                   | Add to d.r.r.        | No—residual            |
-| **CES Delivery**                                            | Program surcharge     | CE, NY, NG                | $/kWh                            | **No**          | Yes                  | **Yes**              | Fixed CES program budget ÷ kWh                               | Add to d.r.r.        | No—residual            |
-| **NY State Surcharge (§18-a)**                              | Program surcharge     | CE, LI                    | % of total bill (LI); $/kWh (CE) | **No**          | Yes                  | **Yes**              | Fixed PSL §18-a assessment; LI: % of bill (tariff Leaf 182H) | Add to d.r.r.        | No—residual            |
-| **DLM Surcharge**                                           | Program surcharge     | CE, RG, NY, NG, OR        | $/kWh                            | **No**          | Yes                  | **Yes**              | Fixed DR program costs ÷ kWh                                 | Add to d.r.r.        | No—residual            |
-| **EV Make Ready**                                           | Program surcharge     | CE, NY, NG, OR            | $/kWh                            | **No**          | Yes                  | **Yes**              | Fixed EV infra program ÷ kWh                                 | Add to d.r.r.        | No—residual            |
-| **Energy Storage Surcharge**                                | Program surcharge     | OR (+ CH bundled)         | $/kWh                            | **No**          | Yes                  | **Yes** (negligible) | Fixed storage program ÷ kWh; $0.00002/kWh                    | Add to d.r.r.        | No—residual            |
-| **Central Hudson Misc Charges**                             | Program surcharge     | CH                        | $/kWh                            | **No**          | Mostly yes           | **Yes** (mixed)      | Umbrella: arrears, EV, storage, VDER, DR, make-whole         | Add to d.r.r.        | No—residual            |
-| **Arrears / COVID forgiveness**                             | Sunk-cost recovery    | CE, NY, NG (+ CH bundled) | $/kWh                            | **No**          | Yes (finite)         | **Yes** (temporary)  | COVID debt forgiveness ÷ kWh                                 | Add to d.r.r.        | No—residual            |
-| **Late Payment / Waived Fees**                              | Sunk-cost recovery    | NY                        | $/kWh                            | **No**          | Yes (finite)         | **Yes** (temporary)  | Waived COVID-era fees ÷ kWh                                  | Add to d.r.r.        | No—residual            |
-| **Recovery Charge (storm bonds)**                           | Sunk-cost recovery    | NY                        | $/kWh                            | **No**          | Yes (bond schedule)  | **Yes** (temporary)  | $710.6M securitized storm bonds ÷ kWh                        | Add to d.r.r.        | No—residual            |
-| **Shoreham Property Tax Settlement**                        | Sunk-cost recovery    | LI (Suffolk only)         | % of total bill                  | **No**          | Yes (settlement)     | **Yes** (temporary)  | $620M settlement; % of total bill (tariff Leaf 172)          | Add to d.r.r.        | No—residual            |
-| **Securitization Charge / Offset (UDSA)**                   | Sunk-cost recovery    | LI                        | $/kWh                            | **No**          | Yes (bond schedule)  | **Yes**              | Fixed UDSA bond debt service ÷ kWh                           | Add net to s.r.r.    | No—residual            |
-| **VDER / DER Cost Recovery**                                | DER credit recovery   | CE, LI                    | $/kWh                            | **No**          | Yes                  | **Yes**              | Fixed DER credit payments ÷ kWh                              | Add to d.r.r.        | No—residual            |
-| **Earnings Adjustment Mechanism**                           | Performance incentive | NY, RG, NG, CH            | $/kWh                            | **No**          | Yes (once earned)    | **Negligible**       | Performance bonus; ~$0.02–0.16/mo                            | Exclude (negligible) | —                      |
-| **Supply commodity (bundled)**                              | Supply commodity      | All 7                     | $/kWh                            | **No**          | Mixed                | Mixed                | Energy + capacity + ancillary bundled                        | Add to s.r.r.        | See sub-components     |
-| **↳ MSC: Energy (LBMP)**                                    | Supply sub-component  | All 7                     | $/kWh                            | **No**          | **No**               | **No**               | True marginal cost; scales 1:1                               | (in s.r.r.)          | No—residual            |
-| **↳ MSC: Capacity (ICAP/UCAP)**                             | Supply sub-component  | All 7                     | $/kWh (embedded)                 | **No**          | Yes (current period) | **Yes**              | Peak-determined cost, volumetric recovery                    | (in s.r.r.)          | Yes—zonal LBMPs        |
-| **↳ MSC: Ancillary Services**                               | Supply sub-component  | All 7                     | $/kWh (embedded)                 | **No**          | Mostly               | **Yes** (small)      | Hourly pool ÷ hourly load                                    | (in s.r.r.)          | Yes—???                |
-| **↳ MSC: Uplift (BPCG)**                                    | Supply sub-component  | All 7                     | $/kWh (embedded)                 | **No**          | Yes                  | **Yes** (tiny)       | Reliability dispatch costs ÷ load                            | (in s.r.r.)          | No—residual            |
-| **↳ MSC: NYISO Schedule 1**                                 | Supply sub-component  | All 7                     | $/kWh (embedded)                 | **No**          | Yes                  | **Yes** (tiny)       | Fixed NYISO admin budget ÷ MWh                               | (in s.r.r.)          | No—residual            |
-| **↳ MSC: Working Capital**                                  | Supply sub-component  | All 7                     | $/kWh (embedded)                 | **No**          | **No**               | **No**               | Scales with procurement volume                               | (in s.r.r.)          | No—residual            |
-| **Merchant Function Charge**                                | Merchant function     | All 7                     | $/kWh                            | **No**          | Mixed                | **Weak**             | Fixed admin + load-proportional costs                        | Add to s.r.r.        | No—residual            |
-| **CES Supply Surcharge**                                    | CES supply            | CE, RG, NY, NG            | $/kWh                            | **No**          | **No**               | **No**               | Per-MWh LSE obligation; cost scales with load                | Add to s.r.r.        | Yes—flat $/kWh all hrs |
-| **GRT**                                                     | Tax pass-through      | CE                        | % of charges                     | **No**          | **No**               | **No**               | % of own bill; no fixed pool                                 | Exclude (tax)        | —                      |
-| **PILOTs (Cities/Villages)**                                | Tax pass-through      | LI                        | $/mo (fixed)                     | **No**          | Yes (PILOT)          | **No**               | Fixed per-customer; not volumetric                           | Exclude (tax)        | —                      |
-| _**CBC (solar only)**_                                      | _Eligibility_         | _All 7_                   | _$/kW_                           | _No_            | _N/A_                | _N/A_                | _Solar-only; $0 for non-solar_                               | _N/A (skip)_         | _—_                    |
-| _**RAD (agricultural)**_                                    | _Eligibility_         | _NY, RG_                  | _$/kWh credit_                   | _N/A_           | _—_                  | _N/A_                | _$0 for non-ag customers_                                    | _N/A (skip)_         | _—_                    |
-| _**Low-income discounts**_                                  | _Eligibility_         | _RG, OR, CH, NG_          | _$/mo or $/kWh credit_           | _N/A_           | _—_                  | _N/A_                | _$0 for non-LMI; use in LMI analysis_                        | _N/A (skip for BAT)_ | _—_                    |
-| _**GreenUp**_                                               | _Eligibility_         | _NG_                      | _$/kWh_                          | _N/A_           | _—_                  | _N/A_                | _Voluntary opt-in; $0 for default_                           | _N/A (skip)_         | _—_                    |
-| _**Tax Sur-Credit**_                                        | _Expired_             | _CE_                      | _$/kWh_                          | _N/A_           | _N/A_                | _N/A_                | _Expired_                                                    | _Exclude (expired)_  | _—_                    |
+| Charge                                                      | Type                  | Utilities                 | Unit                             | In rev req?     | Fixed budget?        | HP cross-subsidy?    | Why                                                          | Decision                | MC 8760?               |
+| ----------------------------------------------------------- | --------------------- | ------------------------- | -------------------------------- | --------------- | -------------------- | -------------------- | ------------------------------------------------------------ | ----------------------- | ---------------------- |
+| **Customer Charge**                                         | Base delivery         | All 7                     | $/mo or $/day                    | Yes             | —                    | Yes                  | Base rate; part of tariff                                    | Already in d.r.r.       | No—residual            |
+| **Billing & Payment Processing**                            | Base delivery         | CE, NY, RG, OR            | $/mo                             | Yes             | —                    | Yes                  | Affects fixed/vol split                                      | Already in d.r.r.       | No—residual            |
+| **Core Delivery Rate**                                      | Base delivery         | All 7                     | $/kWh                            | Yes             | —                    | Yes                  | Rate CAIRO calibrates                                        | Already in d.r.r.       | Yes—sub-tx + dx MCs    |
+| **Make-Whole Energy**                                       | Base delivery         | NY, RG                    | $/kWh                            | Yes             | —                    | Yes                  | Supplemental delivery rate, fixed in rate case               | Already in d.r.r.       | Yes—sub-tx + dx MCs    |
+| **Minimum Charge**                                          | Redundant             | All 7                     | $/mo (floor)                     | Yes             | —                    | N/A                  | Bill floor; rarely binds; redundant with customer charge     | `exclude_redundant`     | —                      |
+| **Delivery cost true-up (MAC / RAM / DSA)**                 | Cost recon            | All 7                     | $/kWh                            | N/A (true-up)   | —                    | No                   | Uniform $/kWh; true-up noise                                 | `exclude_trueup`        | —                      |
+| **MAC sub-components (Uncollectible, Reconciliation Rate)** | Cost recon            | CE                        | $/kWh                            | N/A (true-up)   | —                    | No                   | Sub-components of MAC statement                              | `exclude_trueup`        | —                      |
+| **Transition / Restructuring**                              | Cost recon            | All 7                     | $/kWh                            | N/A (true-up)   | —                    | No                   | Legacy stranded costs; balance paid down                     | `exclude_trueup`        | —                      |
+| **Transmission Revenue Adjustment**                         | Cost recon            | NG                        | $/kWh                            | N/A (true-up)   | —                    | No                   | FERC formula rate tx cost reconciliation                     | `exclude_trueup`        | —                      |
+| **Net Utility Plant / Depreciation Recon**                  | Cost recon            | NG                        | $/kWh                            | N/A (true-up)   | —                    | No                   | Capital spending vs rate-case forecast                       | `exclude_trueup`        | —                      |
+| **Purchased Power Adjustment**                              | Cost recon            | CH                        | $/kWh                            | N/A (true-up)   | —                    | No                   | Retained gen + mandatory IPP true-up                         | `exclude_trueup`        | —                      |
+| **Supply cost true-up (MSC I/II, ECA, MPA, ESR)**           | Cost recon            | CE, NG, OR, CH            | $/kWh                            | N/A (true-up)   | —                    | No                   | Wholesale cost forecast error                                | `exclude_trueup`        | —                      |
+| **Revenue Decoupling (RDM)**                                | Revenue true-up       | All 7                     | $/kWh                            | N/A (revenue)   | —                    | No                   | Load forecast error; true-up noise                           | `exclude_trueup`        | —                      |
+| **Delivery Revenue Surcharge / Electric Bill Credit**       | Revenue true-up       | CE, OR, CH                | $/kWh                            | N/A (temporary) | —                    | No                   | Rate-delay or over-collection correction                     | `exclude_trueup`        | —                      |
+| **System Benefits Charge**                                  | Program surcharge     | All except LI             | $/kWh                            | **No**          | Yes                  | **Yes**              | Fixed NYSERDA budget ÷ kWh                                   | Add to d.r.r.           | No—residual            |
+| **CES Delivery**                                            | Program surcharge     | CE, NY, NG                | $/kWh                            | **No**          | Yes                  | **Yes**              | Fixed CES program budget ÷ kWh                               | Add to d.r.r.           | No—residual            |
+| **NY State Surcharge (§18-a)**                              | Program surcharge     | CE, LI                    | % of total bill (LI); $/kWh (CE) | **No**          | Yes                  | **Yes**              | Fixed PSL §18-a assessment; LI: % of bill (tariff Leaf 182H) | Add to d.r.r.           | No—residual            |
+| **DLM Surcharge**                                           | Program surcharge     | CE, RG, NY, NG, OR        | $/kWh                            | **No**          | Yes                  | **Yes**              | Fixed DR program costs ÷ kWh                                 | Add to d.r.r.           | No—residual            |
+| **EV Make Ready**                                           | Program surcharge     | CE, NY, NG, OR            | $/kWh                            | **No**          | Yes                  | **Yes**              | Fixed EV infra program ÷ kWh                                 | Add to d.r.r.           | No—residual            |
+| **Energy Storage Surcharge**                                | Program surcharge     | OR (+ CH bundled)         | $/kWh                            | **No**          | Yes                  | **Yes** (negligible) | Fixed storage program ÷ kWh; $0.00002/kWh                    | Add to d.r.r.           | No—residual            |
+| **Central Hudson Misc Charges**                             | Program surcharge     | CH                        | $/kWh                            | **No**          | Mostly yes           | **Yes** (mixed)      | Umbrella: arrears, EV, storage, VDER, DR, make-whole         | Add to d.r.r.           | No—residual            |
+| **Arrears / COVID forgiveness**                             | Sunk-cost recovery    | CE, NY, NG (+ CH bundled) | $/kWh                            | **No**          | Yes (finite)         | **Yes** (temporary)  | COVID debt forgiveness ÷ kWh                                 | Add to d.r.r.           | No—residual            |
+| **Late Payment / Waived Fees**                              | Sunk-cost recovery    | NY                        | $/kWh                            | **No**          | Yes (finite)         | **Yes** (temporary)  | Waived COVID-era fees ÷ kWh                                  | Add to d.r.r.           | No—residual            |
+| **Recovery Charge (storm bonds)**                           | Sunk-cost recovery    | NY                        | $/kWh                            | **No**          | Yes (bond schedule)  | **Yes** (temporary)  | $710.6M securitized storm bonds ÷ kWh                        | Add to d.r.r.           | No—residual            |
+| **Shoreham Property Tax Settlement**                        | Sunk-cost recovery    | LI (Suffolk only)         | % of total bill                  | **No**          | Yes (settlement)     | **Yes** (temporary)  | $620M settlement; % of total bill (tariff Leaf 172)          | Add to d.r.r.           | No—residual            |
+| **Securitization Charge / Offset (UDSA)**                   | Sunk-cost recovery    | LI                        | $/kWh                            | **No**          | Yes (bond schedule)  | **Yes**              | Fixed UDSA bond debt service ÷ kWh                           | Add net to s.r.r.       | No—residual            |
+| **VDER / DER Cost Recovery**                                | DER credit recovery   | CE, LI                    | $/kWh                            | **No**          | Yes                  | **Yes**              | Fixed DER credit payments ÷ kWh                              | Add to d.r.r.           | No—residual            |
+| **Earnings Adjustment Mechanism**                           | Performance incentive | NY, RG, NG, CH            | $/kWh                            | **No**          | Yes (once earned)    | **Negligible**       | Performance bonus; ~$0.02–0.16/mo                            | `exclude_negligible`    | —                      |
+| **Supply commodity (bundled)**                              | Supply commodity      | All 7                     | $/kWh                            | **No**          | Mixed                | Mixed                | Energy + capacity + ancillary bundled                        | Add to s.r.r.           | See sub-components     |
+| **↳ MSC: Energy (LBMP)**                                    | Supply sub-component  | All 7                     | $/kWh                            | **No**          | **No**               | **No**               | True marginal cost; scales 1:1                               | (in s.r.r.)             | No—residual            |
+| **↳ MSC: Capacity (ICAP/UCAP)**                             | Supply sub-component  | All 7                     | $/kWh (embedded)                 | **No**          | Yes (current period) | **Yes**              | Peak-determined cost, volumetric recovery                    | (in s.r.r.)             | Yes—zonal LBMPs        |
+| **↳ MSC: Ancillary Services**                               | Supply sub-component  | All 7                     | $/kWh (embedded)                 | **No**          | Mostly               | **Yes** (small)      | Hourly pool ÷ hourly load                                    | (in s.r.r.)             | Yes—???                |
+| **↳ MSC: Uplift (BPCG)**                                    | Supply sub-component  | All 7                     | $/kWh (embedded)                 | **No**          | Yes                  | **Yes** (tiny)       | Reliability dispatch costs ÷ load                            | (in s.r.r.)             | No—residual            |
+| **↳ MSC: NYISO Schedule 1**                                 | Supply sub-component  | All 7                     | $/kWh (embedded)                 | **No**          | Yes                  | **Yes** (tiny)       | Fixed NYISO admin budget ÷ MWh                               | (in s.r.r.)             | No—residual            |
+| **↳ MSC: Working Capital**                                  | Supply sub-component  | All 7                     | $/kWh (embedded)                 | **No**          | **No**               | **No**               | Scales with procurement volume                               | (in s.r.r.)             | No—residual            |
+| **Merchant Function Charge**                                | Merchant function     | All 7                     | $/kWh                            | **No**          | Mixed                | **Weak**             | Fixed admin + load-proportional costs                        | Add to s.r.r.           | No—residual            |
+| **CES Supply Surcharge**                                    | CES supply            | CE, RG, NY, NG            | $/kWh                            | **No**          | **No**               | **No**               | Per-MWh LSE obligation; cost scales with load                | Add to s.r.r.           | Yes—flat $/kWh all hrs |
+| **GRT**                                                     | Tax pass-through      | CE                        | % of charges                     | **No**          | **No**               | **No**               | % of own bill; no fixed pool                                 | `exclude_trueup`        | —                      |
+| **PILOTs (Cities/Villages)**                                | Tax pass-through      | LI                        | $/mo (fixed)                     | **No**          | Yes (PILOT)          | **No**               | Fixed per-customer; not volumetric                           | `exclude_trueup`        | —                      |
+| _**CBC (solar only)**_                                      | _Eligibility_         | _All 7_                   | _$/kW_                           | _No_            | _N/A_                | _N/A_                | _Solar-only; $0 for non-solar_                               | _`exclude_eligibility`_ | _—_                    |
+| _**RAD (agricultural)**_                                    | _Eligibility_         | _NY, RG_                  | _$/kWh credit_                   | _N/A_           | _—_                  | _N/A_                | _$0 for non-ag customers_                                    | _`exclude_eligibility`_ | _—_                    |
+| _**Low-income discounts**_                                  | _Eligibility_         | _RG, OR, CH, NG_          | _$/mo or $/kWh credit_           | _N/A_           | _—_                  | _N/A_                | _$0 for non-LMI; use in LMI analysis_                        | _`exclude_eligibility`_ | _—_                    |
+| _**GreenUp**_                                               | _Eligibility_         | _NG_                      | _$/kWh_                          | _N/A_           | _—_                  | _N/A_                | _Voluntary opt-in; $0 for default_                           | _`exclude_eligibility`_ | _—_                    |
+| _**Tax Sur-Credit**_                                        | _Expired_             | _CE_                      | _$/kWh_                          | _N/A_           | _N/A_                | _N/A_                | _Expired_                                                    | _`exclude_expired`_     | _—_                    |
 
 ---
 
@@ -171,7 +175,7 @@ Same logic as the delivery side — these reconcile the forecasted supply rate a
 
 **Equivalent mechanisms at other utilities:** O&R's Energy Cost Adjustment (ECA), Central Hudson's Market Price Adjustment (MPA), National Grid's Electricity Supply Reconciliation (ESR). All are supply-side wholesale cost true-ups under different names.
 
-**Decision for all cost reconciliation.** Exclude. Uniform $/kWh true-ups of costs already in base rates (or the supply charge). They don't change cross-subsidy rankings. Including them would overfit the BAT to whichever period's cost variance happened to show up.
+**Decision for all cost reconciliation.** `exclude_trueup`. Uniform $/kWh true-ups of costs already in base rates (or the supply charge). They don't change cross-subsidy rankings. Including them would overfit the BAT to whichever period's cost variance happened to show up.
 
 ---
 
@@ -183,7 +187,7 @@ Same logic as the delivery side — these reconcile the forecasted supply rate a
 
 **Electric Bill Credit — Central Hudson.** The inverse of DRS: returned $16.351 million in accumulated regulatory liabilities (over-collection). Incorporated into Case 24-E-0461, reduced the revenue increase request by ~32% for the rate year ending June 30, 2025. Expired June 30, 2025.
 
-**Decision.** Exclude all. Revenue true-ups are noise, not structural rate design signal.
+**Decision.** `exclude_trueup` for all. Revenue true-ups are noise, not structural rate design signal.
 
 ---
 
@@ -260,7 +264,7 @@ The EAM is a performance-based incentive created by the NY PSC under REV (Reform
 
 **Cross-subsidy analysis.** Technically, once the EAM amount is determined, it is a fixed dollar pool recovered volumetrically — same structure as SBC. However: (1) amounts are negligible — doubling consumption shifts ~$1.60/year at NYSEG, ~$0.24/year at RG&E; (2) it's conceptually different — a reward for utility behavior, not a customer-caused cost; (3) one of the EAM metrics is HP adoption itself, so more HP customers could _increase_ the EAM (utility hits its electrification target), partially offsetting the volumetric effect.
 
-**Decision.** Exclude. Cross-subsidy is real in structure but negligible in magnitude. No cost-of-service story to tell. Complexity for no meaningful BAT change.
+**Decision.** `exclude_negligible`. Cross-subsidy is real in structure but negligible in magnitude. No cost-of-service story to tell. Complexity for no meaningful BAT change.
 
 ---
 
@@ -334,7 +338,7 @@ Present at ConEd, RG&E, NYSEG, and National Grid. Recovers the cost of RECs (Tie
 
 **PILOTs (Rates to Recover Costs for Cities/Villages) — PSEG-LI.** LIPA makes Payments in Lieu of Taxes (~$346–351M/year, ~8% of operating budget) to municipalities. The bulk is in base delivery rates. This separate line item recovers incremental PILOT obligations for customers in cities and incorporated villages on Long Island. Two fixed per-customer charges: $1.1404/mo + $3.5921/mo (combined ~$4.73/mo). Because these are fixed per-customer (not $/kWh), there is no HP cross-subsidy — doubling consumption doesn't change the PILOT charge. Structurally the safest type of charge from a cross-subsidy perspective.
 
-**Decision.** Exclude. Tax pass-throughs are not utility cost-of-service and don't belong in the BAT.
+**Decision.** `exclude_trueup` (tax pass-throughs are not utility cost-of-service and don't belong in the BAT; $/kWh variants get `exclude_trueup`, QUANTITY/% variants get `exclude_percentage` in Phase 0 of the classifier).
 
 ---
 
@@ -352,7 +356,7 @@ These charges are $0 for the default residential customer and irrelevant to the 
 
 **Tax Sur-Credit — ConEd.** Expired. The joint proposal (22-E-0064) eliminates obsolete references. Stale Genability entry with zero/near-zero value.
 
-**Decision.** Skip all for BAT purposes.
+**Decision.** `exclude_eligibility` for all — $0 for default residential customer; irrelevant to BAT.
 
 ---
 
@@ -384,3 +388,252 @@ All seven utilities buy power from the NYISO wholesale market. The same cost com
 ### National Grid's Delivery Charge Adjustment is a Genability umbrella
 
 In Genability, National Grid's "Delivery Charge Adjustment" (riderId 801) bundles two distinct things per zone (12 sub-rates across 6 zones): a zone-specific delivery rate adjustment (DISTRIBUTION) and the zone-specific default supply charge (SUPPLY,CONTRACTED). This mirrors National Grid's tariff book, which presents both in one rider statement. No separate BAT action needed — the delivery portion is already in d.r.r. (it IS the zone-specific delivery rate) and the supply portion is the main supply charge (add to s.r.r.).
+
+---
+
+## Genability data quirks and pitfalls
+
+Lessons learned from the 2025-01-01 effective date period. These apply to the Genability API generally but were discovered in the NY context.
+
+### tariffRateId is version-specific, not persistent
+
+A `tariffRateId` uniquely identifies a rate **within a specific tariff version**. When a tariff is updated (new effective date, rate case update, rider refresh), the tariffRateIds change — old IDs become invalid. This means `charge_decisions.json` files keyed by `tariffRateId` will break silently whenever the underlying Genability tariff is refreshed: lookup misses, entries disappear from monthly rates, revenue requirements shrink.
+
+**Stable identifiers to prefer:**
+
+- `masterTariffRateId` — persistent across tariff versions for the same conceptual rate. Requires `fields=ext` in the API call (not returned by default).
+- `variableRateKey` — stable string identifier for variable/lookup rates. Present only when the rate uses Genability's variable rate system (supply charges, some surcharges).
+- `rateName` — human-readable; generally stable across versions but can change with tariff redesigns or Genability re-labeling.
+
+**Recommendation:** The discovery → classify workflow (`fetch_monthly_rates.py --discover` then `classify_charges.py`) uses `tariffRateId` as the JSON key (because the API returns it), but classification rules should match on `rate_name`, `variable_rate_key`, and `charge_class` — not on the tariffRateId itself. This makes classifications portable across tariff versions.
+
+### SC1 placeholder stubs (riderId entries)
+
+When the Genability API resolves rider tariffs (e.g., EV Make Ready, CBC), it returns two entries per rider rate: a **resolved entry** (with actual rate data, tagged with `riderTariffId`) and an **unresolved placeholder stub** (tagged with `riderId`, no rate data, and a rate name suffixed "- SC1"). The placeholder is an API artifact — a reference to the parent tariff's slot where the rider is plugged in.
+
+Example: EV Make Ready Surcharge appears as:
+
+- `tariffRateId=20041688`: "Electric Vehicle Make Ready Surcharge" (resolved, `riderTariffId=3463699`) — **keep this**
+- A separate entry: "Electric Vehicle Make Ready Surcharge - SC1" (unresolved, `riderId=3463699`) — **discard this**
+
+`fetch_monthly_rates.py --discover` filters these out by checking `r.get("riderId")` and skipping entries with it. If placeholders slip through, they create shadow entries that duplicate resolved riders.
+
+### Zonal duplicates and overcounting risk (2025 period)
+
+Three NY utilities have zone- or territory-specific rates that appear as separate entries in Genability. If all zone variants are included in `add_to_srr` or `add_to_drr`, the revenue requirement is inflated by 2–6× for those charges. The `exclude_zonal` decision marks non-representative zone entries so they are excluded from revenue calculations but remain distinguishable from entries excluded for substantive reasons.
+
+**ConEd — 3 NYISO zones (H, I, J):**
+
+| Charge           | Zone H (representative) | Zone I                 | Zone J                 |
+| ---------------- | ----------------------- | ---------------------- | ---------------------- |
+| MSC Rate         | `add_to_srr`            | `exclude_zonal`        | `exclude_zonal`        |
+| MSC I Adjustment | `exclude_trueup`        | `exclude_trueup`       | `exclude_trueup`       |
+| GRT Distribution | `exclude_trueup` (tax)  | `exclude_trueup` (tax) | `exclude_trueup` (tax) |
+| GRT Supply       | `exclude_trueup` (tax)  | `exclude_trueup` (tax) | `exclude_trueup` (tax) |
+
+Zone H is the representative zone for ConEd supply. The MSC I Adjustments and GRT entries are excluded for substantive reasons regardless of zone, so they don't need `exclude_zonal`. Zonal entries are identifiable by `rate_name` containing "Zone H/I/J".
+
+**National Grid (NiMo) — 6 zones (Adirondack, Capital, Central, Frontier, Genesee, Utica):**
+
+| Charge family                           | Central (representative) | Other 5 zones    |
+| --------------------------------------- | ------------------------ | ---------------- |
+| Electric Supply Charge (rider 801)      | `add_to_srr`             | `exclude_zonal`  |
+| Delivery Charge Adjustment (rider 801)  | `already_in_drr`         | `exclude_zonal`  |
+| Electricity Supply Reconciliation (ESR) | `exclude_trueup`         | `exclude_trueup` |
+
+Central is the representative zone because it is NiMo's largest service territory in the NY residential population. Rider 801 entries are identifiable by zone name in `rate_name` (e.g., "Electric Supply Charge - Central Zone"). ESR entries are excluded for substantive reasons (supply cost true-up) regardless of zone.
+
+The VRK pattern for NiMo zonal entries is: `electricSupplyChargeSC1{Zone}` (supply), `electricSupplyChargeSc1DeliveryAdj{Zone}` (delivery adj), `esrMechanismSC1{Zone}` (ESR).
+
+**NYSEG — 3 territories (Regular, West, Lower Hudson Valley):**
+
+| Charge                | Regular (representative) | West            | LHV             |
+| --------------------- | ------------------------ | --------------- | --------------- |
+| Supply Service Charge | `add_to_srr`             | `exclude_zonal` | `exclude_zonal` |
+
+Regular is the representative territory for NYSEG. Unlike ConEd and NiMo, NYSEG's zonal entries are **not** distinguishable by `rate_name` — all three are named "Supply Service Charge". They can only be distinguished by `variable_rate_key`: `supplyChargeResidentialRegularSchedule1` (Regular), `supplyChargeSC1West` (West), `supplyChargeSC1LHV` (LHV).
+
+**CenHud, O&R, PSEG-LI, RG&E** do not have zone-specific supply entries in Genability.
+
+### National Grid MFC overlap duplicates (2025 period)
+
+National Grid's Merchant Function Charge rider (tariffId 3445398) contains 27 sub-entries in the 2025 period. Many of these share `variableRateKey` values with rates that already appear elsewhere in the tariff (supply commodity or ESR), creating a double-counting risk.
+
+**Category 1: MFC entries with supply commodity VRKs.** Six "Working Capital on Purchased Power Costs Factor - Supply Charge" entries and six "Electricity Supply Uncollectible Expense Factor - Supply Charge" entries. Each has a VRK like `electricSupplyChargeSC1{Zone}`, identical to the main supply commodity entries from rider 801. Sample rates are also identical — Genability is echoing the underlying supply rate into the MFC sub-entry. **Decision: `exclude_zonal` for all 12** (VRK overlap with supply commodity rates).
+
+**Category 2: MFC entries with ESR VRKs.** Six "Working Capital on ... ESRM" and six "Uncollectible Expense ... ESRM" entries, with VRKs like `esrMechanismSC1{Zone}`. These overlap with the base ESR entries. **Decision:** Keep Working Capital ESRM for Central zone (`add_to_srr`); `exclude_zonal` for other 5 zones; `exclude_zonal` Uncollectible Expense ESRM Central (duplicate VRK of Working Capital); `exclude_zonal` for other 5 zones.
+
+**Category 3: MFC entry with CES Supply VRK.** One "Electricity Supply Uncollectible Expense Factor - CESS" entry with VRK `cleanEnergyStandardSupply579`, matching the CES Supply base rate. **Decision: `exclude_zonal`** (VRK overlap with CES Supply).
+
+**Category 4: Non-overlapping MFC entries.** "Electricity Supply Procurement Charge" (VRK `merchantFunction...Procurement`) and "Electricity Supply Credit and Collection Charge" (VRK `merchantFunction...CreditCollection`) are genuine, unique MFC sub-components with their own VRKs. **Decision: `add_to_srr`.**
+
+The pattern: any NiMo MFC entry whose `variable_rate_key` starts with `electricSupplyChargeSC1`, `esrMechanismSC1`, or `cleanEnergyStandardSupply` is an overlap duplicate and should be `exclude_zonal` (both VRK-overlap entries and non-representative zones of ESR entries use this decision).
+
+---
+
+## Genability charge name variants by utility (2025 period)
+
+Future agents classifying charges need to know the various names Genability uses for the same conceptual charge across utilities. These were observed for the `effectiveOn=2025-01-01` period.
+
+### Supply commodity
+
+| Utility | rate_name                                           | variable_rate_key pattern                                  |
+| ------- | --------------------------------------------------- | ---------------------------------------------------------- |
+| CE      | "MSC Rate - Zone H/I/J"                             | `marketSupplyChargeResidentialZone{H,I,J}`                 |
+| LI      | "Power Supply Charge - Summer/Winter Peak/Off-Peak" | (none — fixed rates)                                       |
+| NY      | "Supply Service Charge"                             | `supplyCharge{ResidentialRegularSchedule1,SC1West,SC1LHV}` |
+| NG      | "Electri(city/c) Supply Charge - {Zone} Zone"       | `electricSupplyChargeSC1{Zone}`                            |
+| OR      | "Market Supply Charge"                              | `marketSupplyChargeResidential1`                           |
+| CH      | "Market Price Charge"                               | `marketPriceCharge`                                        |
+| RG      | "Supply Charge"                                     | `SupplySc1Residential`                                     |
+
+### CES delivery
+
+| Utility | rate_name                                                                                   |
+| ------- | ------------------------------------------------------------------------------------------- |
+| CE      | "Clean Energy Standard Delivery Surcharge"                                                  |
+| NY      | "Clean Energy Standard Surcharge" (no "Delivery" — charge_class=DISTRIBUTION disambiguates) |
+| NG      | "Clean Energy Standard Delivery Charge"                                                     |
+
+### CES supply
+
+| Utility | rate_name(s)                                                              |
+| ------- | ------------------------------------------------------------------------- |
+| CE      | "Clean Energy Standard Supply Surcharge"                                  |
+| NG      | "Clean Energy Standard Supply Charge"                                     |
+| RG      | "Renewable Energy Credit" + "Zero Emission Credit" (two separate entries) |
+
+### Low-income discounts
+
+| Utility | rate_name                              |
+| ------- | -------------------------------------- |
+| CE      | (not in Genability default tariff)     |
+| CH      | "Low Income Discount"                  |
+| NG      | "Income Eligible Basic Service Credit" |
+| OR      | "Low Income Bill Credit"               |
+| RG      | "Low Income Program Discount"          |
+
+### Arrears / COVID forgiveness
+
+| Utility | rate_name(s)                                                               |
+| ------- | -------------------------------------------------------------------------- |
+| CE      | "Arrears Management Program Recovery Surcharge"                            |
+| NG      | "Arrears Management Program Recovery Surcharge - Phase 1", "... - Phase 2" |
+| NY      | "Arrears Relief Program - Phase 1", "... - Phase 2"                        |
+
+### Late payment / waived fees
+
+| Utility | rate_name                                             |
+| ------- | ----------------------------------------------------- |
+| NY      | "Late Payment Charge and Other Waived Fees Surcharge" |
+| NG      | "Late Payment Charge & Other"                         |
+
+### Transition / restructuring
+
+| Utility | rate_name                                                                                      |
+| ------- | ---------------------------------------------------------------------------------------------- |
+| CE      | "Transition Adjustment"                                                                        |
+| CH      | "Transition Adjustment"                                                                        |
+| NG      | "Legacy Transition Charge"                                                                     |
+| NY      | "Transition Charge Statement"                                                                  |
+| OR      | "Transition Adjustment for Competitive Services" (may appear 2×: full-service + retail access) |
+| RG      | "Transition Charge"                                                                            |
+
+### Miscellaneous and utility-specific
+
+- **CH**: "Miscellaneous Charges" (note: trailing non-breaking space `\u00a0` in Genability data)
+- **CH**: "Purchased Power Adjustment" (also has trailing `\u00a0`), "Electric Bill Credit" (trailing `\u00a0`)
+- **NG**: "Net Utility Plant and Depreciation Expense Reconciliation Mechanism"
+- **NG**: "GreenUp Charge" (optional rider)
+- **NY**: "Make-Whole Energy Charge", "Reliability Support Service Charge" (rate=$0, inactive/placeholder)
+- **RG**: "Make-Whole Energy" (no "Charge" suffix)
+- **LI**: "Costumer Benefit Contribution" (typo — "Costumer" not "Customer")
+- **LI**: "Shoreham Property Tax (SPT) Settlement Factors" (two entries: Suffolk County + Outside Suffolk at $0)
+- **LI**: "Securitization Charge", "Securitization Offset Charge"
+- **LI**: "Distributed Energy Resources Cost Recovery Rate"
+- **LI**: "Rate for Cities and Incorporated Villages - Transportation/Commodity" (PILOTs)
+- **LI**: "New York State Assessment" (CE calls it "New York State Surcharge")
+- **NY**: "Residential Agricultural Discount" (VRK `residentialAgriculturalDiscount562`)
+- **RG**: "Residential Agricultural Discount" (VRK `residentialAgriculturalDiscount1007`)
+
+---
+
+## Rate structures across utilities
+
+NY utilities have three delivery rate structures, which the `monthly_rates` YAML
+represents using a `rate_structure` discriminator on each decision section.
+
+### `flat` (NiMo, NYSEG, RG&E, CenHud)
+
+Single-band, non-seasonal delivery rate. All charges have a simple
+`monthly_rates: {month: rate}` shape.
+
+### `seasonal_tiered` (ConEd, O&R)
+
+Two-tier, seasonal delivery rate. The first 250 kWh per month are billed at
+one rate; usage above 250 kWh at a higher rate. The summer second-tier
+premium is the seasonal component:
+
+| Utility | Season | Tier 1 (≤250 kWh) | Tier 2 (>250 kWh) |
+| ------- | ------ | ----------------- | ----------------- |
+| ConEd   | Summer | \$0.16107/kWh     | \$0.18518/kWh     |
+| ConEd   | Winter | \$0.16107/kWh     | \$0.16107/kWh     |
+| O&R     | Summer | \$0.10409/kWh     | \$0.13018/kWh     |
+| O&R     | Winter | \$0.10409/kWh     | \$0.10409/kWh     |
+
+(Rates as of Jan 2025 snapshot.)
+
+In the YAML, these appear as:
+
+```yaml
+already_in_drr:
+  rate_structure: seasonal_tiered
+  seasons:
+    summer: {from_month: 6, from_day: 1, to_month: 9, to_day: 30}
+    winter: {from_month: 10, from_day: 1, to_month: 5, to_day: 31}
+  charges:
+    core_delivery_rate:
+      charge_unit: $/kWh
+      tiers:
+        - upper_limit_kwh: 250.0
+          monthly_rates:
+            summer: {2025-06: 0.16107, ...}
+            winter: {2025-01: 0.16107, ...}
+        - upper_limit_kwh: null
+          monthly_rates:
+            summer: {2025-06: 0.18518, ...}
+            winter: {2025-01: 0.16107, ...}
+```
+
+### `seasonal_tou` (PSEG-LI)
+
+Seasonal time-of-use rates for both delivery and supply. Four rate periods:
+summer on-peak, summer off-peak, winter on-peak, winter off-peak. On-peak is
+weekdays 3–7 PM.
+
+PSEG-LI is the only utility where supply charges also have a TOU structure.
+Its `add_to_srr` section uses `rate_structure: seasonal_tou`, with the supply
+commodity charge having 4 period-specific monthly rate series. `compute_rr.py`
+skips non-flat `add_to_srr` sections and relies on the
+`supply_base_overrides.yaml` mechanism (estimated from LIPA budget data via
+`estimate_psegli_rr.py`).
+
+---
+
+## Updating charge_decisions for a new period
+
+When tariffs are refreshed (new effective date), charge_decisions must be regenerated because `tariffRateId`s change. The workflow:
+
+1. **Discover** — Run `just s ny discover-charges effective_date=YYYY-MM-DD` for each utility. This calls `fetch_monthly_rates.py --discover`, which queries the Genability API for all rates active on that date and writes a `*_discovered.json` with null decisions but rich metadata (rate_name, charge_class, variable_rate_key, master_tariff_rate_id, sample_rate, etc.).
+
+2. **Classify** — Run `just s ny classify-charges` for each utility. This calls `classify_charges.py`, which applies ~40 regex rules on rate_name, plus utility-specific zonal dedup and NiMo MFC overlap logic, to produce hydrated `*_charge_decisions.json` files.
+
+3. **Verify** — Spot-check the output. The script warns about any unclassified entries. Pay attention to:
+   - New charges that don't match any regex (the PSC adds new surcharges periodically)
+   - Changes to zonal structure (new zones, renamed zones, merged zones)
+   - Changes to NiMo MFC sub-entries (new overlap patterns, removed entries)
+   - Changes to charge names (Genability may relabel charges when tariffs update)
+
+4. **Fetch monthly rates** — Run the standard `fetch-monthly-rates` recipe to populate the monthly YAML files using the new charge_decisions.
+
+The discovered JSON files are kept as intermediate artifacts alongside the charge_decisions files. The old charge_decisions (renamed `*_charge_decisions_old.json`) can be deleted once the new ones are verified.
