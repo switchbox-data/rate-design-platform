@@ -9,7 +9,7 @@
 
 set dotenv-path := "state.env"
 
-state   := env_var_or_default('STATE', 'ny')
+state := env_var_or_default('STATE', 'ny')
 utility := env_var_or_default('UTILITY', 'nyseg')
 
 import '../Justfile'
@@ -19,13 +19,12 @@ import '../Justfile'
 # =============================================================================
 
 path_s3_utility_loads := "s3://data.sb/nyiso/hourly_demand/utilities/"
-
 path_dist_mc := path_repo / "utils/pre/dist_mc"
 path_bat_inputs := path_config / "marginal_costs" / "ny_sub_tx_and_dist_mc_levelized.csv"
 
 aggregate-dist-mc-bat-inputs:
-  uv run python {{path_dist_mc}}/aggregate_bat_inputs.py \
-    --path-output "{{path_bat_inputs}}"
+    uv run python {{ path_dist_mc }}/aggregate_bat_inputs.py \
+      --path-output "{{ path_bat_inputs }}"
 
 # =============================================================================
 # NY-only: supply marginal costs (LBMP + ICAP MCOS)
@@ -37,152 +36,154 @@ supply_capacity_load_year := env_var('SUPPLY_CAPACITY_LOAD_YEAR')
 zone_mapping_path := "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
 
 create-supply-mc-data utility_arg:
-  just create-supply_energy-mc-data {{utility_arg}}
-  just create-supply_capacity-mc-data {{utility_arg}}
+    just create-supply_energy-mc-data {{ utility_arg }}
+    just create-supply_capacity-mc-data {{ utility_arg }}
 
 create-supply-mc-data-all:
-  just create-supply-mc-data cenhud
-  just create-supply-mc-data coned
-  just create-supply-mc-data nimo
-  just create-supply-mc-data nyseg
-  just create-supply-mc-data or
-  just create-supply-mc-data rge
-  just create-supply-mc-data psegli
+    just create-supply-mc-data cenhud
+    just create-supply-mc-data coned
+    just create-supply-mc-data nimo
+    just create-supply-mc-data nyseg
+    just create-supply-mc-data or
+    just create-supply-mc-data rge
+    just create-supply-mc-data psegli
 
 create-supply_energy-mc-data utility_arg:
-  cd {{project_root}} && uv run python {{project_root}}/utils/pre/marginal_costs/generate_supply_energy_mc.py \
-    --utility {{utility_arg}} \
-    --year {{supply_mc_year}} \
-    --energy-load-year {{supply_energy_load_year}} \
-    --zone-mapping-path {{zone_mapping_path}} \
-    --upload
+    cd {{ project_root }} && uv run python {{ project_root }}/utils/pre/marginal_costs/generate_supply_energy_mc.py \
+      --utility {{ utility_arg }} \
+      --year {{ supply_mc_year }} \
+      --energy-load-year {{ supply_energy_load_year }} \
+      --zone-mapping-path {{ zone_mapping_path }} \
+      --upload
 
 create-supply_capacity-mc-data utility_arg:
-  cd {{project_root}} && uv run python {{project_root}}/utils/pre/marginal_costs/generate_supply_capacity_mc.py \
-    --utility {{utility_arg}} \
-    --year {{supply_mc_year}} \
-    --capacity-load-year {{supply_capacity_load_year}} \
-    --zone-mapping-path {{zone_mapping_path}} \
-    --upload
+    cd {{ project_root }} && uv run python {{ project_root }}/utils/pre/marginal_costs/generate_supply_capacity_mc.py \
+      --utility {{ utility_arg }} \
+      --year {{ supply_mc_year }} \
+      --capacity-load-year {{ supply_capacity_load_year }} \
+      --zone-mapping-path {{ zone_mapping_path }} \
+      --upload
 
 create-supply_energy-mc-data-all:
-  just create-supply_energy-mc-data cenhud
-  just create-supply_energy-mc-data coned
-  just create-supply_energy-mc-data nimo
-  just create-supply_energy-mc-data nyseg
-  just create-supply_energy-mc-data or
-  just create-supply_energy-mc-data rge
-  just create-supply_energy-mc-data psegli
+    just create-supply_energy-mc-data cenhud
+    just create-supply_energy-mc-data coned
+    just create-supply_energy-mc-data nimo
+    just create-supply_energy-mc-data nyseg
+    just create-supply_energy-mc-data or
+    just create-supply_energy-mc-data rge
+    just create-supply_energy-mc-data psegli
 
 create-supply_capacity-mc-data-all:
-  just create-supply_capacity-mc-data cenhud
-  just create-supply_capacity-mc-data coned
-  just create-supply_capacity-mc-data nimo
-  just create-supply_capacity-mc-data nyseg
-  just create-supply_capacity-mc-data or
-  just create-supply_capacity-mc-data rge
-  just create-supply_capacity-mc-data psegli
+    just create-supply_capacity-mc-data cenhud
+    just create-supply_capacity-mc-data coned
+    just create-supply_capacity-mc-data nimo
+    just create-supply_capacity-mc-data nyseg
+    just create-supply_capacity-mc-data or
+    just create-supply_capacity-mc-data rge
+    just create-supply_capacity-mc-data psegli
 
 # =============================================================================
 # NY-only: bulk transmission marginal costs (NYISO AC Tx / LI Export, SCR)
 # =============================================================================
 
-tx_mc_year            := "2025"
-tx_load_year          := env_var('BULK_TX_LOAD_YEAR')
+tx_mc_year := "2025"
+tx_load_year := env_var('BULK_TX_LOAD_YEAR')
 path_constraint_group_table := "s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_constraint_groups.csv"
-path_bulk_tx_mc       := "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=" + utility + "/year=" + tx_mc_year + "/data.parquet"
+path_bulk_tx_mc := "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=" + utility + "/year=" + tx_mc_year + "/data.parquet"
 
 create-bulk-tx-mc-data utility_arg:
-  cd {{project_root}} && uv run python {{project_root}}/utils/pre/marginal_costs/generate_bulk_tx_mc.py \
-    --utility {{utility_arg}} \
-    --year {{tx_mc_year}} \
-    --load-year {{tx_load_year}} \
-    --zone-mapping-path {{zone_mapping_path}} \
-    --constraint-group-table-path {{path_constraint_group_table}} \
-    --upload
+    cd {{ project_root }} && uv run python {{ project_root }}/utils/pre/marginal_costs/generate_bulk_tx_mc.py \
+      --utility {{ utility_arg }} \
+      --year {{ tx_mc_year }} \
+      --load-year {{ tx_load_year }} \
+      --zone-mapping-path {{ zone_mapping_path }} \
+      --constraint-group-table-path {{ path_constraint_group_table }} \
+      --upload
 
 create-bulk-tx-mc-data-all:
-  just create-bulk-tx-mc-data cenhud
-  just create-bulk-tx-mc-data coned
-  just create-bulk-tx-mc-data nimo
-  just create-bulk-tx-mc-data nyseg
-  just create-bulk-tx-mc-data or
-  just create-bulk-tx-mc-data rge
-  just create-bulk-tx-mc-data psegli
+    just create-bulk-tx-mc-data cenhud
+    just create-bulk-tx-mc-data coned
+    just create-bulk-tx-mc-data nimo
+    just create-bulk-tx-mc-data nyseg
+    just create-bulk-tx-mc-data or
+    just create-bulk-tx-mc-data rge
+    just create-bulk-tx-mc-data psegli
 
 # =============================================================================
 # NY-only: multi-utility gas tariff mapping shortcuts
 # =============================================================================
 
 map-gas-tariff gas_utility upgrade_id output_dir:
-  just create-gas-tariff-map "{{gas_utility}}" "{{upgrade_id}}" "{{output_dir}}"
+    just create-gas-tariff-map "{{ gas_utility }}" "{{ upgrade_id }}" "{{ output_dir }}"
 
 map-gas-bath:
-  just map-gas-tariff bath 00 {{path_tariff_maps}}/gas
+    just map-gas-tariff bath 00 {{ path_tariff_maps }}/gas
 
 map-gas-cenhud:
-  just map-gas-tariff cenhud 00 {{path_tariff_maps}}/gas
+    just map-gas-tariff cenhud 00 {{ path_tariff_maps }}/gas
 
 map-gas-chautauqua:
-  just map-gas-tariff chautauqua 00 {{path_tariff_maps}}/gas
+    just map-gas-tariff chautauqua 00 {{ path_tariff_maps }}/gas
 
 map-gas-coned:
-  just map-gas-tariff coned 00 {{path_tariff_maps}}/gas
+    just map-gas-tariff coned 00 {{ path_tariff_maps }}/gas
 
 map-gas-national-grid:
-  just map-gas-tariff nimo 00 {{path_tariff_maps}}/gas
+    just map-gas-tariff nimo 00 {{ path_tariff_maps }}/gas
 
 map-gas-nyseg:
-  just map-gas-tariff nyseg 00 {{path_tariff_maps}}/gas
+    just map-gas-tariff nyseg 00 {{ path_tariff_maps }}/gas
 
 map-gas-or:
-  just map-gas-tariff or 00 {{path_tariff_maps}}/gas
+    just map-gas-tariff or 00 {{ path_tariff_maps }}/gas
 
 map-gas-psegli:
-  just map-gas-tariff psegli 00 {{path_tariff_maps}}/gas
+    just map-gas-tariff psegli 00 {{ path_tariff_maps }}/gas
 
 map-gas-rge:
-  just map-gas-tariff rge 00 {{path_tariff_maps}}/gas
+    just map-gas-tariff rge 00 {{ path_tariff_maps }}/gas
 
 map-gas-all-utilities:
-  just map-gas-bath
-  just map-gas-cenhud
-  just map-gas-chautauqua
-  just map-gas-coned
-  just map-gas-national-grid
-  just map-gas-nyseg
-  just map-gas-or
-  just map-gas-psegli
-  just map-gas-rge
+    just map-gas-bath
+    just map-gas-cenhud
+    just map-gas-chautauqua
+    just map-gas-coned
+    just map-gas-national-grid
+    just map-gas-nyseg
+    just map-gas-or
+    just map-gas-psegli
+    just map-gas-rge
 
 # =============================================================================
 # NY-only: post-run LMI discounts
 # =============================================================================
 
 apply-ny-lmi-discounts run_dir utility_arg fpl_year cpi_s3_path participation_rate="1.0" rider="false":
-  uv run python {{path_repo}}/utils/post/apply_ny_lmi_discounts_to_bills.py \
-    --run-dir "{{run_dir}}" \
-    --state {{state_upper}} \
-    --utility {{utility_arg}} \
-    --fpl-year {{fpl_year}} \
-    --cpi-s3-path "{{cpi_s3_path}}" \
-    --participation-rate {{participation_rate}} \
-    {{ if rider == "true" { "--rider" } else { "" } }} \
-    --upload
+    uv run python {{ path_repo }}/utils/post/apply_ny_lmi_discounts_to_bills.py \
+      --run-dir "{{ run_dir }}" \
+      --state {{ state_upper }} \
+      --utility {{ utility_arg }} \
+      --fpl-year {{ fpl_year }} \
+      --cpi-s3-path "{{ cpi_s3_path }}" \
+      --participation-rate {{ participation_rate }} \
+      {{ if rider == "true" { "--rider" } else { "" } }} \
+      --upload
 
 # Apply LMI discounts to master bills (in-place by default; pass output_path to redirect)
+
 path_cpi_s3 := "s3://data.sb/fred/cpi/"
 
 apply-lmi-to-master-bills batch run_delivery run_supply participation_rate="1.0" seed="42" output_path="":
-  uv run python {{path_repo}}/utils/post/apply_lmi_to_master_bills.py \
-    --master-bills-path "s3://data.sb/switchbox/cairo/outputs/hp_rates/{{state}}/all_utilities/{{batch}}/run_{{run_delivery}}+{{run_supply}}/comb_bills_year_target/" \
-    --state {{state_upper}} \
-    --fpl-year 2025 \
-    --cpi-s3-path "{{path_cpi_s3}}" \
-    --participation-rate "{{participation_rate}}" \
-    --participation-mode weighted \
-    --seed "{{seed}}" \
-    {{ if output_path != "" { "--output-path " + output_path } else { "" } }}
+    uv run python {{ path_repo }}/utils/post/apply_ny_lmi_to_master_bills.py \
+      --master-bills-path "s3://data.sb/switchbox/cairo/outputs/hp_rates/{{ state }}/all_utilities/{{ batch }}/run_{{ run_delivery }}+{{ run_supply }}/comb_bills_year_target/" \
+      --state {{ state_upper }} \
+      --fpl-year 2025 \
+      --cpi-s3-path "{{ path_cpi_s3 }}" \
+      --participation-rate "{{ participation_rate }}" \
+      --participation-mode weighted \
+      --seed "{{ seed }}" \
+      {{ if output_path != "" { "--output-path " + output_path } else { "" } }}
+
 # =============================================================================
 # NY-only: post-processing validation
 # Each recipe validates runs 1-8 for that utility.
@@ -191,34 +192,35 @@ apply-lmi-to-master-bills batch run_delivery run_supply participation_rate="1.0"
 # =============================================================================
 
 validate-cenhud timestamp="":
-    UTILITY=cenhud just validate-runs "{{timestamp}}"
+    UTILITY=cenhud just validate-runs "{{ timestamp }}"
 
 # --skip-loads is applied automatically for all utilities (EC2 instance down; hourly load plots skipped)
 validate-coned timestamp="":
-    UTILITY=coned just validate-runs "{{timestamp}}"
+    UTILITY=coned just validate-runs "{{ timestamp }}"
 
 validate-nimo timestamp="":
-    UTILITY=nimo just validate-runs "{{timestamp}}"
+    UTILITY=nimo just validate-runs "{{ timestamp }}"
 
 validate-nyseg timestamp="":
-    UTILITY=nyseg just validate-runs "{{timestamp}}"
+    UTILITY=nyseg just validate-runs "{{ timestamp }}"
 
 validate-or timestamp="":
-    UTILITY=or just validate-runs "{{timestamp}}"
+    UTILITY=or just validate-runs "{{ timestamp }}"
 
 validate-psegli timestamp="":
-    UTILITY=psegli just validate-runs "{{timestamp}}"
+    UTILITY=psegli just validate-runs "{{ timestamp }}"
 
 validate-rge timestamp="":
-    UTILITY=rge just validate-runs "{{timestamp}}"
+    UTILITY=rge just validate-runs "{{ timestamp }}"
 
 # Validate all NY utilities sequentially (runs 1-8 each).
+
 # Omit timestamp to use each utility's latest complete batch independently.
 validate-all-runs-ny timestamp="":
-    just validate-cenhud "{{timestamp}}"
-    just validate-coned "{{timestamp}}"
-    just validate-nimo "{{timestamp}}"
-    just validate-nyseg "{{timestamp}}"
-    just validate-or "{{timestamp}}"
-    just validate-psegli "{{timestamp}}"
-    just validate-rge "{{timestamp}}"
+    just validate-cenhud "{{ timestamp }}"
+    just validate-coned "{{ timestamp }}"
+    just validate-nimo "{{ timestamp }}"
+    just validate-nyseg "{{ timestamp }}"
+    just validate-or "{{ timestamp }}"
+    just validate-psegli "{{ timestamp }}"
+    just validate-rge "{{ timestamp }}"
