@@ -174,7 +174,7 @@ apply-ny-lmi-discounts run_dir utility_arg fpl_year cpi_s3_path participation_ra
 path_cpi_s3 := "s3://data.sb/fred/cpi/"
 
 apply-lmi-to-master-bills batch run_delivery run_supply participation_rate="1.0" seed="42" output_path="":
-    uv run python {{ path_repo }}/utils/post/apply_lmi_to_master_bills.py \
+    uv run python {{ path_repo }}/utils/post/apply_ny_lmi_to_master_bills.py \
       --master-bills-path "s3://data.sb/switchbox/cairo/outputs/hp_rates/{{ state }}/all_utilities/{{ batch }}/run_{{ run_delivery }}+{{ run_supply }}/comb_bills_year_target/" \
       --state {{ state_upper }} \
       --fpl-year 2025 \

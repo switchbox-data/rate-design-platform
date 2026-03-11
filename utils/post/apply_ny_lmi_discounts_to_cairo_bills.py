@@ -35,6 +35,7 @@ from utils.post.lmi_common import (
     fpl_pct_expr,
     fpl_threshold_expr,
     get_ami_territories,
+    get_ami_threshold_for_utility,
     get_ny_eap_credits_df,
     inflate_income_expr,
     load_cpi_ratio,
@@ -108,23 +109,18 @@ def _build_tier_consumption(
 
     fpl = load_fpl_guidelines(inflation_year)
 
-    # Load SMI thresholds for NY at 100% (we'll compute %-of-SMI in the expression)
     ny_eap_config = load_ny_eap_config()
     ami_territories = get_ami_territories(ny_eap_config)
 
-    # For SMI/AMI threshold: use 100% SMI as the denominator so smi_pct = income/threshold*100
-    # gives us the percentage of SMI directly
     smi_row = load_smi_for_state("NY", inflation_year, opts)
     smi_100 = smi_threshold_by_hh_size(smi_row, pct=100.0)
 
-    # TODO: For AMI territories (coned, kedny, kedli), use area-level AMI
-    # instead of state-level SMI. Currently falls back to SMI for all utilities.
-    # This means EEAP thresholds will be conservative (lower) for AMI territories
-    # where true AMI > SMI. See get_ami_threshold_for_utility() in lmi_common.py.
+    # For AMI territories, load area-level AMI thresholds at 100%
+    ami_100: dict[int, float] | None = None
     if electric_utility in ami_territories:
-        income_thresholds = smi_100  # TODO: replace with AMI thresholds
-    else:
-        income_thresholds = smi_100
+        ami_100 = get_ami_threshold_for_utility(
+            electric_utility, inflation_year, 100.0, opts, ny_eap_config
+        )
 
     meta = pl.scan_parquet(meta_path, storage_options=opts)
     util = pl.scan_parquet(util_path, storage_options=opts, hive_partitioning=True)
@@ -156,13 +152,24 @@ def _build_tier_consumption(
 
     # SMI threshold by household size
     meta = meta.with_columns(
-        _build_smi_threshold_column(occupants_num, income_thresholds).alias(
-            smi_threshold
-        )
+        _build_smi_threshold_column(occupants_num, smi_100).alias(smi_threshold)
     )
     meta = meta.with_columns(
         smi_pct_expr(income_inflated, smi_threshold).alias(smi_pct)
     )
+
+    # AMI threshold and percentage (AMI territories only)
+    ami_pct_col_name: str | None = None
+    if ami_100 is not None:
+        ami_threshold_col = "ami_threshold"
+        ami_pct_name = "ami_pct"
+        ami_pct_col_name = ami_pct_name
+        meta = meta.with_columns(
+            _build_smi_threshold_column(occupants_num, ami_100).alias(ami_threshold_col)
+        )
+        meta = meta.with_columns(
+            smi_pct_expr(income_inflated, ami_threshold_col).alias(ami_pct_name)
+        )
 
     # Filter out vacant units (income = 0, demographics unavailable)
     meta = meta.filter(pl.col("in.vacancy_status") != "Vacant")
@@ -170,7 +177,12 @@ def _build_tier_consumption(
     # Assign tier
     meta = meta.with_columns(
         assign_ny_tier_expr(
-            fpl_pct, smi_pct, "is_vulnerable", "heats_with_oil", "heats_with_propane"
+            fpl_pct,
+            smi_pct,
+            "is_vulnerable",
+            "heats_with_oil",
+            "heats_with_propane",
+            ami_pct_col=ami_pct_col_name,
         ).alias(tier_col)
     )
 
