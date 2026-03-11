@@ -83,7 +83,7 @@ There is no `path_tou_supply_mc` field in scenario YAMLs or Google Sheet columns
 The main supply MC loader (`utils.cairo._load_supply_marginal_costs()`) supports both separate energy/capacity files and Cambium files for backward compatibility:
 
 - **Separate files**: If both `path_supply_energy_mc` and `path_supply_capacity_mc` are provided and neither contains "cambium", they're loaded separately and combined.
-- **Cambium files**: If either path contains "cambium", the loader automatically uses `_load_cambium_marginal_costs()` to load the combined file, skipping the separate file loading. This provides backward compatibility for RI runs and zero_marginal_costs cases that use Cambium paths in both columns.
+- **Cambium files**: If either path contains "cambium", the loader automatically uses `_load_cambium_marginal_costs()` to load the combined file, skipping the separate file loading. This provides backward compatibility for legacy RI runs that used Cambium paths.
 
 ## Standalone CLI
 

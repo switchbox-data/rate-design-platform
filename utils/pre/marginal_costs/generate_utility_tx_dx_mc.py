@@ -408,17 +408,25 @@ def save_allocated_costs(
         ]
     )
 
-    s3_base = s3_base.rstrip("/") + "/"
-    output_df.write_parquet(
-        s3_base,
-        partition_by=["utility", "year"],
-        storage_options=storage_options,
-    )
+    # Final validation: must have exactly 8760 rows with unique timestamps
+    if output_df.height != 8760:
+        raise ValueError(
+            f"Expected 8760 rows before writing, got {output_df.height} rows. "
+            f"Check normalization logic."
+        )
+    n_unique = output_df.select(pl.col("timestamp").n_unique()).item()
+    if n_unique != 8760:
+        raise ValueError(
+            f"Expected 8760 unique timestamps before writing, got {n_unique}. "
+            f"Data contains duplicate timestamps."
+        )
 
-    print(
-        "\n✓ Saved allocated costs to "
-        f"{s3_base}utility={utility}/year={year}/00000000.parquet"
-    )
+    s3_base = s3_base.rstrip("/") + "/"
+    # Write directly to data.parquet path (not using partition_by which creates 00000000.parquet)
+    output_path = f"{s3_base}utility={utility}/year={year}/data.parquet"
+    output_df.write_parquet(output_path, storage_options=storage_options)
+
+    print(f"\n✓ Saved allocated costs to {output_path}")
     print(f"  Rows: {len(output_df):,}")
     print(f"  Columns: {', '.join(output_df.columns)}")
 

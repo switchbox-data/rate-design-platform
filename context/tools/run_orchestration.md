@@ -130,7 +130,7 @@ avoiding staleness.
 
 Compares Justfile top-level variables against canonical values in the scenario
 YAML (run 1 for most fields, run 2 for the Cambium path since delivery runs
-use `zero_marginal_costs.csv`). Checked fields: `state`, `utility`, `upgrade`,
+use `zero.parquet`). Checked fields: `state`, `utility`, `upgrade`,
 `year`, `path_td_mc`, `path_cambium`, `path_electric_utility_stats`,
 `path_resstock_loads`.
 

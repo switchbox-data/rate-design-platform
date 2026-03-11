@@ -2,7 +2,7 @@
 
 Compares expected values (passed as CLI args from Just variables) against the
 canonical scenario YAML.  Run 1 is used for most fields; run 2 (first supply
-run) is used for the Cambium path since delivery runs use zero_marginal_costs.
+run) is used for the supply MC paths since delivery runs use zero.parquet.
 """
 
 from __future__ import annotations
@@ -85,7 +85,7 @@ def main() -> None:
         )
 
     # Check supply MC paths against run2 (the first supply run).
-    # Run1 uses zero_marginal_costs for delivery-only; run2 has the real paths.
+    # Run1 uses zero.parquet for delivery-only; run2 has the real paths.
     if run2:
         checks.append(
             (

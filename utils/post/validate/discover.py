@@ -19,8 +19,9 @@ import boto3
 # S3 bucket that holds all CAIRO outputs for this platform.
 _CAIRO_OUTPUT_BUCKET = "data.sb"
 
-# Batch name format: {state}_{YYYYMMDD}{letter}_r{run_range} (e.g., "ny_20260305a_r1-2")
-_BATCH_NAME_RE = re.compile(r"^[a-z]{2}_\d{8}[a-z]_r\d+-\d+$")
+# Batch name format: {state}_{YYYYMMDD}[letter]_r{run_range} (e.g., "ny_20260305a_r1-2" or "ri_20260309_r1-16")
+# Letter is optional to support batch names without it
+_BATCH_NAME_RE = re.compile(r"^[a-z]{2}_\d{8}[a-z]?_r\d+-\d+$")
 
 
 def _cairo_output_prefix(state: str, utility: str) -> str:

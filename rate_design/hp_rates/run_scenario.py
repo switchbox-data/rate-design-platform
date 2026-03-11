@@ -116,6 +116,7 @@ class ScenarioSettings:
     # still share the same TOU windows as supply runs.
     path_tou_supply_energy_mc: str | Path | None = None
     path_tou_supply_capacity_mc: str | Path | None = None
+    path_supply_ancillary_mc: str | Path | None = None
 
 
 def apply_prototype_sample(
@@ -264,6 +265,12 @@ def _build_settings_from_yaml_run(
     bulk_tx_raw = run.get("path_bulk_tx_mc")
     if bulk_tx_raw and str(bulk_tx_raw).strip():
         path_bulk_tx_mc = _resolve_path_or_uri(str(bulk_tx_raw).strip(), path_config)
+    path_supply_ancillary_mc: str | Path | None = None
+    ancillary_raw = run.get("path_supply_ancillary_mc")
+    if ancillary_raw and str(ancillary_raw).strip():
+        path_supply_ancillary_mc = _resolve_path_or_uri(
+            str(ancillary_raw).strip(), path_config
+        )
     output_dir = _resolve_output_dir(run, run_num, output_dir_override)
     run_name = run_name_override or run.get("run_name") or f"run_{run_num}"
     return ScenarioSettings(
@@ -312,6 +319,7 @@ def _build_settings_from_yaml_run(
         run_includes_supply=run_includes_supply,
         elasticity=elasticity,
         path_bulk_tx_mc=path_bulk_tx_mc,
+        path_supply_ancillary_mc=path_supply_ancillary_mc,
     )
 
 
@@ -390,6 +398,17 @@ def _parse_args() -> argparse.Namespace:
             "cost-causation recalibration during demand flex."
         ),
     )
+    parser.add_argument(
+        "--path-supply-ancillary-mc",
+        default=None,
+        dest="path_supply_ancillary_mc",
+        help=(
+            "Optional path to ancillary supply MC parquet (local or S3). "
+            "When provided, ancillary_cost_enduse ($/MWh) is loaded and added as a "
+            "third column 'Marginal Ancillary Costs ($/kWh)' in bulk_marginal_costs. "
+            "CAIRO sums all supply MC columns automatically."
+        ),
+    )
     args = parser.parse_args()
     if args.scenario_config is None and args.utility is None:
         parser.error("Provide either --scenario-config or --utility.")
@@ -418,6 +437,8 @@ def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
         settings.path_tou_supply_energy_mc = args.path_tou_supply_energy_mc
     if args.path_tou_supply_capacity_mc:
         settings.path_tou_supply_capacity_mc = args.path_tou_supply_capacity_mc
+    if args.path_supply_ancillary_mc:
+        settings.path_supply_ancillary_mc = args.path_supply_ancillary_mc
     return settings
 
 
@@ -567,6 +588,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         settings.path_supply_energy_mc,
         settings.path_supply_capacity_mc,
         settings.year_run,
+        ancillary_path=settings.path_supply_ancillary_mc,
     )
 
     # Load and combine delivery MCs: Bulk Tx + Dist+Sub-Tx
