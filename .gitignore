@@ -52,6 +52,7 @@ build/
 *.csv
 !data/nyiso/gold_book/2025_proposed_transmission_facilities_raw.csv
 *.json
+*.png
 !dprint.json
 !.markdownlint.json
 !rate_design/hp_rates/ny/config/tariffs/**
