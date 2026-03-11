@@ -110,3 +110,5 @@ aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/res
 | 5    | `just -f data/resstock/Justfile approximate-non-hp-load <STATE> <UPGRADE_ID> res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True` (per upgrade); then `aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/` |
 
 After step 5, the sb release is ready for rate-design runs (e.g. CAIRO) using `res_2024_amy2018_2_sb` and the chosen state/upgrade.
+
+**Next step: TOU window sweep.** With `utility_assignment.parquet` and load curves on local disk, the TOU window width optimization (`sweep-tou-window-all`) can now be run to select the optimal on-peak window width per utility. This is a manual pre-processing step that writes `tou_window_hours` to each utility's `periods.yaml`, consumed by `create-seasonal-tou` at runtime (runs 9/10). See `context/tools/tou_window_optimization.md`.

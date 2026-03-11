@@ -132,7 +132,7 @@ The choice also depends on the customer population and the elasticity model. A w
 
 In practice, N is usually a regulatory/practical judgment rather than a derived quantity: regulators set it based on precedent, customer communication considerations, and stakeholder input. The cost-causation analysis informs where to place the window and what ratio to use, but the width is typically an exogenous design choice.
 
-> **Implementation note:** We use N = 4 for all utilities, set in per-utility periods YAMLs (`rate_design/hp_rates/<state>/config/periods/<utility>.yaml`). The value is configurable (the `tou_window_hours` field), but currently every utility uses the same 4-hour default. There's no automated elbow-detection or optimization over N — it's a fixed input.
+> **Implementation note:** The optimal N is selected per utility by `utils/pre/derive_seasonal_tou_window.py`, which sweeps N = 1–23 and picks the width that minimizes load-weighted squared MC residuals (a welfare-loss proxy) across winter and summer. The result is written to per-utility periods YAMLs (`rate_design/hp_rates/<state>/config/periods/<utility>.yaml`) as `tou_window_hours`. See `context/tools/tou_window_optimization.md` for the derivation, metric, and NY results.
 
 ### How period selection and ratio computation fit together
 
