@@ -342,7 +342,11 @@ def adjust_mf_electricity_parquet(
         )
     # Persist metadata so the schema (including mf_non_hvac_electricity_adjusted) is on disk
     # even when no buildings were adjusted this run (e.g. upgrade 02 with zero unadjusted MF).
-    metadata.sink_parquet(str(path_metadata), storage_options=opts)
+    #
+    # Collect before writing: writing a LazyFrame back to the same parquet path it scans
+    # from can trigger a Polars panic when the source and sink overlap.
+    metadata_df = cast(pl.DataFrame, metadata.collect())
+    metadata_df.write_parquet(str(path_metadata), storage_options=opts)
 
 
 if __name__ == "__main__":
