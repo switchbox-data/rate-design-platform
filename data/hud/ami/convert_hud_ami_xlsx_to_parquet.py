@@ -113,6 +113,12 @@ def _map_to_canonical(df: pl.DataFrame, fy: int) -> pl.DataFrame:
     for col in str_cols:
         if col in out.columns:
             out = out.with_columns(pl.col(col).cast(pl.Utf8))
+    # Zero-pad FIPS codes to standard widths (state=2, county=3) so they are
+    # consistent across all fiscal years and compatible with Census/ResStock.
+    if "state_fips" in out.columns:
+        out = out.with_columns(pl.col("state_fips").str.zfill(2))
+    if "county_fips" in out.columns:
+        out = out.with_columns(pl.col("county_fips").str.zfill(3))
     num_cols = (
         ["median_income"]
         + [f"l50_{i}" for i in range(1, 9)]

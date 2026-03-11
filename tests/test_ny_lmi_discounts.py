@@ -189,7 +189,7 @@ def test_apply_discounts_gas_by_gas_utility(tmp_path: Path) -> None:
 
 
 def test_apply_discounts_null_credit(tmp_path: Path) -> None:
-    """Unpublished EEAP tier (KEDNY Tier 5): null → $0 credit applied."""
+    """Unpublished EEAP tier (KEDNY Tier 6): null → $0 credit applied."""
     run_dir = tmp_path
     bills_dir = run_dir / "bills"
     bills_dir.mkdir()
@@ -199,7 +199,7 @@ def test_apply_discounts_null_credit(tmp_path: Path) -> None:
 
     tc = _make_tier_consumption(
         [1],
-        [5],
+        [6],
         [True],
         [True],
         [True],

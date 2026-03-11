@@ -173,6 +173,7 @@ prepare-metadata-ny lmi="true":
     just identify-hp-customers {{ resstock_release }} NY "{{ resstock_upgrade_ids_padded }}" "metadata.parquet" "metadata-sb.parquet"
     just identify-heating-type {{ resstock_release }} NY "{{ resstock_upgrade_ids_padded }}" "metadata-sb.parquet" "metadata-sb.parquet"
     just identify-natgas-connection {{ resstock_release }} NY "{{ resstock_upgrade_ids_padded }}" "metadata-sb.parquet" "metadata-sb.parquet"
+    just assign-utility-ny {{ resstock_release }} 00 "ny_electric_utilities_20260309.csv" "ny_gas_utilities_20260309.csv"
     {{ if lmi == "true" { "just add-vulnerability-columns " + resstock_release + " NY \"" + resstock_upgrade_ids_padded + "\" \"metadata-sb.parquet\" \"metadata-sb.parquet\" " + pums_survey + " " + pums_year } else { "echo 'Skipping vulnerability columns (lmi=false)'" } }}
 
 # Full RI metadata pipeline: HP customers → heating type → natural gas connection.
@@ -180,6 +181,7 @@ prepare-metadata-ri:
     just identify-hp-customers {{ resstock_release }} RI "{{ resstock_upgrade_ids_padded }}" "metadata.parquet" "metadata-sb.parquet"
     just identify-heating-type {{ resstock_release }} RI "{{ resstock_upgrade_ids_padded }}" "metadata-sb.parquet" "metadata-sb.parquet"
     just identify-natgas-connection {{ resstock_release }} RI "{{ resstock_upgrade_ids_padded }}" "metadata-sb.parquet" "metadata-sb.parquet"
+    just assign-utility-ri {{ resstock_release }} 00
 
 # =============================================================================
 # NY-only: polygon downloads (data prep for utility assignment)
