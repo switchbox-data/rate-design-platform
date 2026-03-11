@@ -224,7 +224,7 @@ def fetch_all_zones_from_eia(
     offset = 0
 
     while True:
-        params = {
+        params: dict[str, str | int | list[str]] = {
             "api_key": api_key,
             "frequency": "hourly",  # Returns UTC timestamps
             "data[]": "value",

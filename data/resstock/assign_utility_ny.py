@@ -27,6 +27,10 @@ CONFIGS: dict = {
     "state_crs": 2260,  # New York state plane (meters)
 }
 
+SMALL_GAS_UTILITIES = frozenset(
+    {"bath", "chautauqua", "corning", "fillmore", "reserve", "stlaw"}
+)
+
 
 def _select_puma_and_heating_fuel_metadata(metadata: pl.LazyFrame) -> pl.LazyFrame:
     """
@@ -114,6 +118,11 @@ def create_hh_utilities(
         utility_name_map,
         handle_municipal=False,
         filter_none=False,
+    )
+    # Zero prior probability for small gas utilities; renormalize. If a PUMA has no
+    # gas utilities left, use the nearest neighbor PUMA's distribution (requires pumas).
+    puma_gas_probs = _zero_small_gas_utilities_and_renormalize(
+        puma_gas_probs, pumas=pumas, puma_and_heating_fuel=puma_and_heating_fuel
     )
 
     # Calculate prior probability distributions
@@ -615,6 +624,243 @@ def _calculate_utility_probabilities(
     return probs
 
 
+def _puma_id_series_for_join(pumas: gpd.GeoDataFrame) -> pd.Series | None:
+    """Return a Series of puma_id values that match assign_utility_ny puma_id (e.g. 5-char)."""
+    if "PUMACE10" in pumas.columns:
+        return pumas["PUMACE10"].astype(str).str.zfill(5)
+    if "GEOID" in pumas.columns:
+        return pumas["GEOID"].astype(str).str[-5:]
+    return None
+
+
+def _zero_small_gas_utilities_and_renormalize(
+    puma_gas_probs: pl.LazyFrame,
+    pumas: gpd.GeoDataFrame | None = None,
+    puma_and_heating_fuel: pl.LazyFrame | None = None,
+) -> pl.LazyFrame:
+    """Set prior probability to zero for utilities in SMALL_GAS_UTILITIES; renormalize.
+
+    For each PUMA row, columns corresponding to SMALL_GAS_UTILITIES are set to 0,
+    then the row is renormalized so probabilities sum to 1. If any PUMA would have
+    all gas utilities zeroed (no gas utility left with positive probability), either
+    raises ValueError (when pumas is None) or uses the nearest neighbor PUMA's
+    gas probability distribution (when pumas is provided). When puma_and_heating_fuel
+    is provided, prints how many gas buildings (has_natgas_connection) are in each
+    affected PUMA.
+    """
+    gas_probs_df = cast(pl.DataFrame, puma_gas_probs.collect())
+    utility_cols = [c for c in gas_probs_df.columns if c != "puma_id"]
+    small_cols = [c for c in utility_cols if c in SMALL_GAS_UTILITIES]
+
+    if not small_cols:
+        return puma_gas_probs
+
+    # Keep a copy of probabilities before zeroing (for debug output)
+    gas_probs_df_before_zero = gas_probs_df.clone()
+
+    # Zero out small gas utility columns
+    gas_probs_df = gas_probs_df.with_columns([pl.lit(0.0).alias(c) for c in small_cols])
+
+    # Row-wise sum of probabilities (all utility columns)
+    row_sums = gas_probs_df.select(pl.sum_horizontal(utility_cols)).to_series()
+    gas_probs_df = gas_probs_df.with_columns(row_sums.alias("_row_sum"))
+    bad_mask = row_sums == 0
+
+    if bad_mask.any():
+        bad_puma_ids = gas_probs_df.filter(bad_mask)["puma_id"].to_list()
+        if pumas is None:
+            raise ValueError(
+                "Zero gas probability for all utilities in PUMA(s) after excluding "
+                f"small gas utilities {sorted(SMALL_GAS_UTILITIES)}. Affected puma_id(s): {bad_puma_ids}. "
+                "Assigning these small utilities to zero leaves no gas utility with positive probability."
+            )
+
+        # Building counts per PUMA (gas-only) for debug output
+        gas_bldg_counts: dict[str, int] = {}
+        if puma_and_heating_fuel is not None:
+            counts_df = cast(
+                pl.DataFrame,
+                puma_and_heating_fuel.filter(pl.col("has_natgas_connection"))
+                .group_by("puma")
+                .agg(pl.len().alias("n_bldgs"))
+                .collect(),
+            )
+            for row in counts_df.iter_rows(named=True):
+                puma_val = row["puma"]
+                key = str(puma_val).zfill(5) if puma_val is not None else ""
+                gas_bldg_counts[key] = int(row["n_bldgs"])
+
+        # Resolve PUMA id column in pumas for matching and geometry
+        puma_id_in_pumas = _puma_id_series_for_join(pumas)
+        if puma_id_in_pumas is None:
+            raise ValueError(
+                "pumas GeoDataFrame has no PUMACE10 or GEOID column; cannot find nearest neighbor."
+            )
+        pumas = pumas.copy()
+        pumas["_puma_id"] = puma_id_in_pumas.values
+
+        good_df = gas_probs_df.filter(~bad_mask)
+        good_puma_ids = good_df["puma_id"].to_list()
+        if not good_puma_ids:
+            raise ValueError(
+                "No PUMA has non-zero gas probability after excluding small utilities; "
+                "cannot assign nearest neighbor."
+            )
+
+        # Use full geometry for adjacency; centroids only as fallback/tiebreaker
+        pumas_geom = pumas.set_geometry("geometry")
+        pumas_geom = pumas_geom[pumas_geom.geometry.notna()].copy()
+        centroids = pumas_geom.geometry.centroid
+
+        fixed_rows = []
+        for bad_puma_id in bad_puma_ids:
+            bad_str = str(bad_puma_id).zfill(5)
+            bad_idx = pumas_geom["_puma_id"].astype(str) == bad_str
+            if not bad_idx.any():
+                raise ValueError(
+                    f"Bad PUMA id {bad_puma_id!r} not found in pumas GeoDataFrame."
+                )
+            bad_geom = pumas_geom.loc[bad_idx, "geometry"].iloc[0]
+            bad_centroid = centroids[bad_idx].iloc[0]
+
+            # Prefer PUMAs that touch the bad PUMA (adjacent); fall back to nearest centroid
+            adjacent_good: list[str] = []
+            for good_puma_id in good_puma_ids:
+                good_str = str(good_puma_id).zfill(5)
+                good_idx = pumas_geom["_puma_id"].astype(str) == good_str
+                if not good_idx.any():
+                    continue
+                good_geom = pumas_geom.loc[good_idx, "geometry"].iloc[0]
+                if bad_geom.touches(good_geom):
+                    adjacent_good.append(good_str)
+
+            if adjacent_good:
+                # Among adjacent PUMAs, pick nearest by centroid (tiebreaker)
+                best_donor = None
+                best_dist = float("inf")
+                for good_str in adjacent_good:
+                    good_idx = pumas_geom["_puma_id"].astype(str) == good_str
+                    good_centroid = centroids[good_idx].iloc[0]
+                    d = bad_centroid.distance(good_centroid)
+                    if d < best_dist:
+                        best_dist = d
+                        best_donor = good_str
+                nn_note = "adjacent (touching boundary)"
+            else:
+                # No adjacent good PUMA; fall back to nearest centroid
+                best_donor = None
+                best_dist = float("inf")
+                for good_puma_id in good_puma_ids:
+                    good_str = str(good_puma_id).zfill(5)
+                    good_idx = pumas_geom["_puma_id"].astype(str) == good_str
+                    if not good_idx.any():
+                        continue
+                    good_centroid = centroids[good_idx].iloc[0]
+                    d = bad_centroid.distance(good_centroid)
+                    if d < best_dist:
+                        best_dist = d
+                        best_donor = good_str
+                nn_note = (
+                    "no adjacent PUMA with gas; using nearest by centroid (fallback)"
+                )
+
+            if best_donor is None:
+                raise ValueError(f"No donor PUMA found for bad PUMA {bad_puma_id!r}.")
+            donor_row = good_df.filter(
+                pl.col("puma_id").cast(pl.Utf8).str.zfill(5) == best_donor
+            )
+            if donor_row.height == 0:
+                donor_row = good_df.filter(
+                    pl.col("puma_id").cast(pl.Utf8) == best_donor
+                )
+            if donor_row.height == 0:
+                donor_row = good_df.filter(pl.col("puma_id") == best_donor)
+            if donor_row.height == 0:
+                raise ValueError(f"Donor PUMA {best_donor!r} not found in good_df.")
+            # Copy donor's utility columns into a row for this bad puma_id
+            donor_vals = donor_row.select(utility_cols).row(0)
+            fixed_rows.append(
+                pl.DataFrame(
+                    {
+                        "puma_id": [bad_puma_id],
+                        **{c: [donor_vals[i]] for i, c in enumerate(utility_cols)},
+                        "_row_sum": [donor_row["_row_sum"][0]],
+                    }
+                )
+            )
+
+            # Debug: original row (before zeroing) for this PUMA
+            orig_row_df = gas_probs_df_before_zero.filter(
+                pl.col("puma_id").cast(pl.Utf8).str.zfill(5) == bad_str
+            )
+            if orig_row_df.height == 0:
+                orig_row_df = gas_probs_df_before_zero.filter(
+                    pl.col("puma_id").cast(pl.Utf8) == bad_str
+                )
+            if orig_row_df.height == 0:
+                orig_row_df = gas_probs_df_before_zero.filter(
+                    pl.col("puma_id") == bad_puma_id
+                )
+            orig_vals = (
+                orig_row_df.select(utility_cols).row(0) if orig_row_df.height else None
+            )
+            orig_probs = (
+                {utility_cols[i]: orig_vals[i] for i in range(len(utility_cols))}
+                if orig_vals
+                else {}
+            )
+            small_that_had_prob = [c for c in small_cols if orig_probs.get(c, 0.0) > 0]
+            small_probs_before = {c: orig_probs[c] for c in small_that_had_prob}
+            donor_probs = {
+                utility_cols[i]: donor_vals[i] for i in range(len(utility_cols))
+            }
+            prior_before_str = ", ".join(
+                f"{u}={orig_probs.get(u, 0):.3f}"
+                for u in utility_cols
+                if orig_probs.get(u, 0) > 0
+            )
+            after_nn_str = ", ".join(
+                f"{u}={donor_probs.get(u, 0):.3f}"
+                for u in utility_cols
+                if donor_probs.get(u, 0) > 0
+            )
+            row_sum_before = sum(orig_probs.get(u, 0) for u in utility_cols)
+
+            n_bldgs = gas_bldg_counts.get(bad_str, 0)
+            print(
+                f"[assign_utility_ny] PUMA {bad_puma_id!r} had zero gas probability "
+                f"after excluding small utilities; using donor PUMA {best_donor!r} "
+                f"({nn_note}; distance={best_dist:.0f} m). "
+                f"Affected bldg_ids (gas buildings in this PUMA): {n_bldgs}."
+            )
+            print(
+                f"  Small gas utilities zeroed in this PUMA: {small_that_had_prob}; "
+                f"their prior probs before removal: {small_probs_before}."
+            )
+            print(
+                f"  Prior (before removal): {prior_before_str} (row sum={row_sum_before:.3f})"
+            )
+            if set(small_that_had_prob) == set(
+                u for u in utility_cols if orig_probs.get(u, 0) > 0
+            ):
+                print(
+                    "  → So before the fix, all gas bldg_ids in this PUMA would have been "
+                    f"assigned to one of {small_that_had_prob}."
+                )
+            print(f"  After nearest-neighbor approximation: {after_nn_str}")
+
+        gas_probs_df = pl.concat([good_df, pl.concat(fixed_rows)])
+
+    gas_probs_df = gas_probs_df.drop("_row_sum")
+
+    # Renormalize so each row sums to 1
+    row_sums = gas_probs_df.select(pl.sum_horizontal(utility_cols)).to_series()
+    gas_probs_df = gas_probs_df.with_columns(
+        [(pl.col(c) / row_sums).alias(c) for c in utility_cols]
+    )
+    return gas_probs_df.lazy()
+
+
 def _sample_utility_per_building(
     bldgs: pl.LazyFrame,
     puma_probs: pl.LazyFrame,
@@ -855,7 +1101,7 @@ if __name__ == "__main__":
         config=CONFIGS,
     )
 
-    # Write back to the same location using sink_parquet
-    metadata_with_utility_assignment.sink_parquet(
-        str(output_path_s3), compression="zstd", storage_options=STORAGE_OPTIONS
-    )
+    # Write back to the same location using sink_parquet (commented out for testing)
+    # metadata_with_utility_assignment.sink_parquet(
+    #     str(output_path_s3), compression="zstd", storage_options=STORAGE_OPTIONS
+    # )
