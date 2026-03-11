@@ -319,6 +319,7 @@ def _apply_credits(
     tier_info: pl.DataFrame,
     pct_label: int,
     credits_df: pl.DataFrame,
+    calculation_type: str = "budget",
 ) -> pl.DataFrame:
     """Join tier info to master bills, look up credits, compute discounted bills.
 
@@ -453,50 +454,13 @@ def _apply_credits(
                 f"gas credits (treated as $0): {combos.to_dicts()}"
             )
 
-    # Apply monthly credit per row, clamped >= 0.
-    # For the Annual row, we do NOT multiply the monthly credit by 12 and clamp
-    # once — instead, after computing all monthly rows, we derive the Annual row
-    # as the sum of the 12 clamped monthly values (below).
-    elec_col = f"elec_total_bill_lmi_{pct_label}"
-    gas_col = f"gas_total_bill_lmi_{pct_label}"
-    applied_col = f"applied_discount_{pct_label}"
-
-    joined = joined.with_columns(
-        pl.when(pl.col("month") != ANNUAL_MONTH)
-        .then((pl.col("elec_total_bill") - elec_credit_monthly).clip(lower_bound=0.0))
-        .otherwise(pl.lit(None))
-        .alias(elec_col),
-        pl.when(pl.col("month") != ANNUAL_MONTH)
-        .then((pl.col("gas_total_bill") - gas_credit_monthly).clip(lower_bound=0.0))
-        .otherwise(pl.lit(None))
-        .alias(gas_col),
-        pl.col("participates").alias(applied_col),
-    )
-
-    # Derive Annual rows as the sum of the 12 monthly discounted bills, so that
-    # per-month clamping is respected and Annual == sum(Jan..Dec).
-    monthly_sums = (
-        joined.filter(pl.col("month") != ANNUAL_MONTH)
-        .group_by(BLDG_ID)
-        .agg(
-            pl.col(elec_col).sum().alias("_annual_elec_lmi"),
-            pl.col(gas_col).sum().alias("_annual_gas_lmi"),
-        )
-    )
-    joined = joined.join(monthly_sums, on=BLDG_ID, how="left")
-    if joined.height != n_before_joins:
-        raise AssertionError(
-            f"Annual sum join changed row count: {n_before_joins} → {joined.height}"
-        )
-    joined = joined.with_columns(
-        pl.when(pl.col("month") == ANNUAL_MONTH)
-        .then(pl.col("_annual_elec_lmi"))
-        .otherwise(pl.col(elec_col))
-        .alias(elec_col),
-        pl.when(pl.col("month") == ANNUAL_MONTH)
-        .then(pl.col("_annual_gas_lmi"))
-        .otherwise(pl.col(gas_col))
-        .alias(gas_col),
+    joined = _apply_discounted_bill_calculation(
+        joined=joined,
+        elec_credit_monthly=elec_credit_monthly,
+        gas_credit_monthly=gas_credit_monthly,
+        pct_label=pct_label,
+        calculation_type=calculation_type,
+        n_expected_rows=n_before_joins,
     )
 
     # Drop helper columns
@@ -505,6 +469,8 @@ def _apply_credits(
         "_cr_elec_nonheat",
         "_cr_gas_heat",
         "_cr_gas_nonheat",
+        "_annual_elec_bill_base",
+        "_annual_gas_bill_base",
         "_annual_elec_lmi",
         "_annual_gas_lmi",
         "participates",
@@ -512,6 +478,135 @@ def _apply_credits(
     joined = joined.drop([c for c in drop_cols if c in joined.columns])
 
     return joined
+
+
+def _apply_discounted_bill_calculation(
+    joined: pl.DataFrame,
+    elec_credit_monthly: pl.Expr,
+    gas_credit_monthly: pl.Expr,
+    pct_label: int,
+    calculation_type: str,
+    n_expected_rows: int,
+) -> pl.DataFrame:
+    """Apply the selected discount calculation and populate output bill columns."""
+    elec_col = f"elec_total_bill_lmi_{pct_label}"
+    gas_col = f"gas_total_bill_lmi_{pct_label}"
+    applied_col = f"applied_discount_{pct_label}"
+
+    if calculation_type == "monthly":
+        # Apply monthly credit per row, clamped >= 0.
+        # For the Annual row, we do NOT multiply the monthly credit by 12 and clamp
+        # once — instead, after computing all monthly rows, we derive the Annual row
+        # as the sum of the 12 clamped monthly values (below).
+        joined = joined.with_columns(
+            pl.when(pl.col("month") != ANNUAL_MONTH)
+            .then(
+                (pl.col("elec_total_bill") - elec_credit_monthly).clip(lower_bound=0.0)
+            )
+            .otherwise(pl.lit(None))
+            .alias(elec_col),
+            pl.when(pl.col("month") != ANNUAL_MONTH)
+            .then((pl.col("gas_total_bill") - gas_credit_monthly).clip(lower_bound=0.0))
+            .otherwise(pl.lit(None))
+            .alias(gas_col),
+            pl.col("participates").alias(applied_col),
+        )
+
+        # Derive Annual rows as the sum of the 12 monthly discounted bills, so that
+        # per-month clamping is respected and Annual == sum(Jan..Dec).
+        monthly_sums = (
+            joined.filter(pl.col("month") != ANNUAL_MONTH)
+            .group_by(BLDG_ID)
+            .agg(
+                pl.col(elec_col).sum().alias("_annual_elec_lmi"),
+                pl.col(gas_col).sum().alias("_annual_gas_lmi"),
+            )
+        )
+        joined = joined.join(monthly_sums, on=BLDG_ID, how="left")
+        if joined.height != n_expected_rows:
+            raise AssertionError(
+                "Annual sum join changed row count: "
+                f"{n_expected_rows} → {joined.height}"
+            )
+        return joined.with_columns(
+            pl.when(pl.col("month") == ANNUAL_MONTH)
+            .then(pl.col("_annual_elec_lmi"))
+            .otherwise(pl.col(elec_col))
+            .alias(elec_col),
+            pl.when(pl.col("month") == ANNUAL_MONTH)
+            .then(pl.col("_annual_gas_lmi"))
+            .otherwise(pl.col(gas_col))
+            .alias(gas_col),
+        )
+
+    if calculation_type == "budget":
+        # For budget billing, replace each Jan-Dec bill with 1/12 of the building's
+        # annual bill, then apply the monthly credit and re-sum those discounted
+        # budget months back into the Annual row.
+        annual_bills = (
+            joined.filter(pl.col("month") == ANNUAL_MONTH)
+            .group_by(BLDG_ID)
+            .agg(
+                pl.col("elec_total_bill").first().alias("_annual_elec_bill_base"),
+                pl.col("gas_total_bill").first().alias("_annual_gas_bill_base"),
+            )
+        )
+        joined = joined.join(annual_bills, on=BLDG_ID, how="left")
+        if joined.height != n_expected_rows:
+            raise AssertionError(
+                "Annual bill join changed row count: "
+                f"{n_expected_rows} → {joined.height}"
+            )
+
+        joined = joined.with_columns(
+            pl.when(pl.col("month") != ANNUAL_MONTH)
+            .then(
+                ((pl.col("_annual_elec_bill_base") / 12.0) - elec_credit_monthly).clip(
+                    lower_bound=0.0
+                )
+            )
+            .otherwise(pl.lit(None))
+            .alias(elec_col),
+            pl.when(pl.col("month") != ANNUAL_MONTH)
+            .then(
+                ((pl.col("_annual_gas_bill_base") / 12.0) - gas_credit_monthly).clip(
+                    lower_bound=0.0
+                )
+            )
+            .otherwise(pl.lit(None))
+            .alias(gas_col),
+            pl.col("participates").alias(applied_col),
+        )
+
+        monthly_sums = (
+            joined.filter(pl.col("month") != ANNUAL_MONTH)
+            .group_by(BLDG_ID)
+            .agg(
+                pl.col(elec_col).sum().alias("_annual_elec_lmi"),
+                pl.col(gas_col).sum().alias("_annual_gas_lmi"),
+            )
+        )
+        joined = joined.join(monthly_sums, on=BLDG_ID, how="left")
+        if joined.height != n_expected_rows:
+            raise AssertionError(
+                "Budget annual sum join changed row count: "
+                f"{n_expected_rows} → {joined.height}"
+            )
+        return joined.with_columns(
+            pl.when(pl.col("month") == ANNUAL_MONTH)
+            .then(pl.col("_annual_elec_lmi"))
+            .otherwise(pl.col(elec_col))
+            .alias(elec_col),
+            pl.when(pl.col("month") == ANNUAL_MONTH)
+            .then(pl.col("_annual_gas_lmi"))
+            .otherwise(pl.col(gas_col))
+            .alias(gas_col),
+        )
+
+    raise ValueError(
+        "calculation_type must be one of {'monthly', 'budget'}; "
+        f"got {calculation_type!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -840,7 +935,9 @@ def main() -> None:
                     how="inner",
                 )
             )
-            tier_mismatch = check.filter(pl.col("lmi_tier") != pl.col("_new_tier")).height
+            tier_mismatch = check.filter(
+                pl.col("lmi_tier") != pl.col("_new_tier")
+            ).height
             lmi_mismatch = check.filter(pl.col("is_lmi") != pl.col("_new_lmi")).height
             if tier_mismatch > 0 or lmi_mismatch > 0:
                 raise AssertionError(
@@ -849,7 +946,9 @@ def main() -> None:
                 )
             _log("  Verified: existing lmi_tier/is_lmi match recomputed values")
         else:
-            _log("  Staging mode: dropping existing lmi_tier/is_lmi to recompute from scratch")
+            _log(
+                "  Staging mode: dropping existing lmi_tier/is_lmi to recompute from scratch"
+            )
         master = master.drop(shared_cols)
 
     # 5. Apply credits to master bills
