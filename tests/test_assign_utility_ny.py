@@ -5,11 +5,18 @@ from typing import cast
 import numpy as np
 import pandas as pd
 import polars as pl
+import pytest
+
+import geopandas as gpd
+from shapely.geometry import box
 
 from data.resstock.assign_utility_ny import (
+    SMALL_GAS_UTILITIES,
     _calculate_prior_distributions,
     _calculate_utility_probabilities,
+    _puma_id_series_for_join,
     _sample_utility_per_building,
+    _zero_small_gas_utilities_and_renormalize,
 )
 from utils.utility_codes import get_ny_open_data_to_std_name
 
@@ -408,3 +415,124 @@ def test_sample_utility_per_building_deterministic_with_varying_probs():
     }
 
     assert actual == expected, f"Expected {expected}, got {actual}"
+
+
+# ---------------------------------------------------------------------------
+# SMALL_GAS_UTILITIES and _zero_small_gas_utilities_and_renormalize
+# ---------------------------------------------------------------------------
+
+
+def test_small_gas_utilities_constant():
+    """SMALL_GAS_UTILITIES is the expected frozenset of small gas utility std names."""
+    expected = {"bath", "chautauqua", "corning", "fillmore", "reserve", "stlaw"}
+    assert SMALL_GAS_UTILITIES == frozenset(expected)
+
+
+def test_puma_id_series_for_join_pumace10():
+    """_puma_id_series_for_join returns 5-char zero-padded ids from PUMACE10."""
+    gdf = gpd.GeoDataFrame(
+        {"PUMACE10": [100, 200, 3600], "geometry": [box(0, 0, 1, 1)] * 3}
+    )
+    out = _puma_id_series_for_join(gdf)
+    assert out is not None
+    assert list(out) == ["00100", "00200", "03600"]
+
+
+def test_puma_id_series_for_join_geoid():
+    """_puma_id_series_for_join uses last 5 chars of GEOID when PUMACE10 missing."""
+    gdf = gpd.GeoDataFrame(
+        {"GEOID": ["3600100", "3600200"], "geometry": [box(0, 0, 1, 1)] * 2}
+    )
+    out = _puma_id_series_for_join(gdf)
+    assert out is not None
+    assert list(out) == ["00100", "00200"]
+
+
+def test_puma_id_series_for_join_no_id_column_returns_none():
+    """_puma_id_series_for_join returns None when neither PUMACE10 nor GEOID present."""
+    gdf = gpd.GeoDataFrame({"other": [1], "geometry": [box(0, 0, 1, 1)]})
+    assert _puma_id_series_for_join(gdf) is None
+
+
+def test_zero_small_gas_utilities_no_small_cols_unchanged():
+    """When gas probs have no columns in SMALL_GAS_UTILITIES, result is unchanged."""
+    puma_gas_probs = pl.LazyFrame(
+        {
+            "puma_id": ["00100", "00200"],
+            "coned": [0.5, 0.0],
+            "nyseg": [0.5, 1.0],
+        }
+    )
+    out = _zero_small_gas_utilities_and_renormalize(puma_gas_probs)
+    df = cast(pl.DataFrame, out.collect())
+    assert df.shape == (2, 3)
+    assert df.filter(pl.col("puma_id") == "00100").to_dicts()[0]["coned"] == 0.5
+    assert df.filter(pl.col("puma_id") == "00100").to_dicts()[0]["nyseg"] == 0.5
+
+
+def test_zero_small_gas_utilities_renormalize():
+    """Small gas columns are zeroed and rows renormalized so each row sums to 1."""
+    puma_gas_probs = pl.LazyFrame(
+        {
+            "puma_id": ["00100", "00200"],
+            "stlaw": [0.4, 0.0],
+            "nyseg": [0.4, 0.7],
+            "nimo": [0.2, 0.3],
+        }
+    )
+    out = _zero_small_gas_utilities_and_renormalize(puma_gas_probs)
+    df = cast(pl.DataFrame, out.collect())
+    # 00100: stlaw zeroed, nyseg+nimo renormalized from 0.4+0.2 to sum 1
+    row1 = df.filter(pl.col("puma_id") == "00100").to_dicts()[0]
+    assert row1["stlaw"] == 0.0
+    assert abs(row1["nyseg"] + row1["nimo"] - 1.0) < 1e-9
+    assert abs(row1["nyseg"] - 0.4 / 0.6) < 1e-9
+    # 00200: stlaw already 0, nyseg+nimo renormalized
+    row2 = df.filter(pl.col("puma_id") == "00200").to_dicts()[0]
+    assert row2["stlaw"] == 0.0
+    assert abs(row2["nyseg"] + row2["nimo"] - 1.0) < 1e-9
+
+
+def test_zero_small_gas_utilities_bad_puma_raises_without_pumas():
+    """When a PUMA has only small gas utilities and pumas is None, raises ValueError."""
+    puma_gas_probs = pl.LazyFrame(
+        {
+            "puma_id": ["00100"],
+            "stlaw": [1.0],
+        }
+    )
+    with pytest.raises(ValueError) as exc_info:
+        _zero_small_gas_utilities_and_renormalize(puma_gas_probs, pumas=None)
+    assert "00100" in str(exc_info.value)
+    assert "small gas utilities" in str(exc_info.value).lower()
+
+
+def test_zero_small_gas_utilities_bad_puma_uses_donor_with_pumas():
+    """When a PUMA has only small gas utils, donor PUMA distribution is used (adjacent)."""
+    # Two PUMAs: 00100 only stlaw (bad), 00200 has nyseg (good). Geometries touch.
+    puma_gas_probs = pl.LazyFrame(
+        {
+            "puma_id": ["00100", "00200"],
+            "stlaw": [1.0, 0.0],
+            "nyseg": [0.0, 1.0],
+        }
+    )
+    # Two boxes that share an edge (x=1): box(0,0,1,1) and box(1,0,2,1)
+    pumas = gpd.GeoDataFrame(
+        {
+            "PUMACE10": ["00100", "00200"],
+            "geometry": [box(0, 0, 1, 1), box(1, 0, 2, 1)],
+        }
+    )
+    out = _zero_small_gas_utilities_and_renormalize(
+        puma_gas_probs, pumas=pumas, puma_and_heating_fuel=None
+    )
+    df = cast(pl.DataFrame, out.collect())
+    # 00100 should get donor 00200's row: stlaw=0, nyseg=1
+    row_bad = df.filter(pl.col("puma_id") == "00100").to_dicts()[0]
+    assert row_bad["stlaw"] == 0.0
+    assert row_bad["nyseg"] == 1.0
+    # Each row sums to 1
+    for row in df.iter_rows(named=True):
+        utility_cols = [c for c in row if c != "puma_id"]
+        assert abs(sum(row[c] for c in utility_cols) - 1.0) < 1e-9
