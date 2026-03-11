@@ -172,12 +172,15 @@ National Grid Long Island (KEDLI) serves gas customers in Nassau, Suffolk, and t
 
 ### National Grid Upstate / Niagara Mohawk (effective December 1, 2025
 
-| Tier | Elec. heat | Elec. non-heat | Gas heat | Gas non-heat | Source                                                                                                                  |
-| ---- | ---------- | -------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| 1    | $22.46     | $22.46         | $3.00    | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program) |
-| 2    | $39.64     | $39.64         | $3.00    | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program) |
-| 3    | $62.45     | $62.45         | $22.49   | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program) |
-| 4    | $60.26     | $60.26         | $20.30   | $3.00        | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program) |
+| Tier     | Elec. heat | Elec. non-heat | Gas heat | Gas non-heat | Source                                                                                                                       |
+| -------- | :--------: | :------------: | :------: | :----------: | ---------------------------------------------------------------------------------------------------------------------------- |
+| 1        |   $22.46   |     $22.46     |  $3.00   |    $3.00     | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)      |
+| 2        |   $39.64   |     $39.64     |  $3.00   |    $3.00     | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)      |
+| 3        |   $62.45   |     $62.45     |  $22.49  |    $3.00     | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)      |
+| 4        |   $60.26   |     $60.26     |  $20.30  |    $3.00     | [NG Upstate EAP page](https://www.nationalgridus.com/Upstate-NY-Home/Monthly-Bill-Credits/Energy-Affordability-Program)      |
+| 5 (EEAP) |   $26.89   |     $26.89     |    ?     |      ?       | [NG Statement](https://www.nationalgridus.com/media/pdfs/billing-payments/electric-rates/upstate-ny/2026/stat_eeac_1_v2.pdf) |
+| 6 (EEAP) |   $3.00    |     $3.00      |    ?     |      ?       | [NG Statement](https://www.nationalgridus.com/media/pdfs/billing-payments/electric-rates/upstate-ny/2026/stat_eeac_1_v2.pdf) |
+| 7 (EEAP) |   $1.00    |     $1.00      |    ?     |      ?       | [NG Statement](https://www.nationalgridus.com/media/pdfs/billing-payments/electric-rates/upstate-ny/2026/stat_eeac_1_v2.pdf) |
 
 National Grid Upstate provides **identical electric credits for heating and non-heating customers** at each tier.
 
@@ -227,9 +230,9 @@ RGE and NYSEG are both Avangrid subsidiaries and follow the same tier logic, but
 | 2        | $75.84     | $75.84         | $58.58   | $3.00        | [CenHud DPS filing, Jan 2025](https://documents.dps.ny.gov/public/Common/ViewDoc.aspx?DocRefId=%7B30DDB194-0000-C335-A7B8-3015D0864D00%7D) |
 | 3        | $110.75    | $97.48         | $80.22   | $3.00        | [CenHud DPS filing, Jan 2025](https://documents.dps.ny.gov/public/Common/ViewDoc.aspx?DocRefId=%7B30DDB194-0000-C335-A7B8-3015D0864D00%7D) |
 | 4        | $104.03    | $94.13         | $76.86   | $3.00        | [CenHud DPS filing, Jan 2025](https://documents.dps.ny.gov/public/Common/ViewDoc.aspx?DocRefId=%7B30DDB194-0000-C335-A7B8-3015D0864D00%7D) |
-| 5 (EEAP) | ?          | ?              | ?        | ?            | EEAP launched Jan 2026; exact amounts not yet publicly posted                                                                              |
-| 6 (EEAP) | ?          | ?              | ?        | ?            | [EEAP range: $20–$68/mo](https://highlandscurrent.org/2026/01/27/central-hudson-offers-new-discount/)                                      |
-| 7 (EEAP) | $1.00      | $1.00          | $1.00    | $1.00        | [Highlands Current](https://highlandscurrent.org/2026/01/27/central-hudson-offers-new-discount/)                                           |
+| 5 (EEAP) | $67.99     | $67.99         | $34.28   | $3.00        | [CenHud EEAP](https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/)                 |
+| 6 (EEAP) | $39.27     | $39.27         | $20.14   | $3.00        | [CenHud EEAP](https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/)                 |
+| 7 (EEAP) | $1.00      | $1.00          | $1.00    | $1.00        | [CenHud EEAP](https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/)                 |
 
 Central Hudson is the **only utility where Tier 3 electric-heating credits exceed electric non-heating credits** ($110.75 vs. $97.48), likely reflecting higher average usage among electric-heating customers in its territory. Application portal: [cenhud.nyeeap.com](https://cenhud.nyeeap.com/program).
 
@@ -268,9 +271,9 @@ The following tables compare monthly credit amounts across all utilities at ever
 | 2        | $80.58  | $39.64     | $67.01 | $42.21 | $92.67  | $75.84      | $45.00  |
 | 3        | $126.21 | $62.45     | $88.99 | $65.03 | $114.52 | $110.75     | $45.00  |
 | 4        | $121.84 | $60.26     | $86.16 | $62.84 | $111.36 | $104.03     | $45.00  |
-| 5 (EEAP) | $33.47  | ?          | $47.26 | $25.04 | $76.81  | ?           | N/A     |
-| 6 (EEAP) | $3.00   | ?          | $18.53 | $3.00  | $43.44  | ?           | N/A     |
-| 7 (EEAP) | $1.00   | ?          | $0.80  | $1.00  | $1.00   | $1.00       | N/A     |
+| 5 (EEAP) | $33.47  | $26.89     | $47.26 | $25.04 | $76.81  | $67.99      | N/A     |
+| 6 (EEAP) | $3.00   | $3.00      | $18.53 | $3.00  | $43.44  | $39.27      | N/A     |
+| 7 (EEAP) | $1.00   | $1.00      | $0.80  | $1.00  | $1.00   | $1.00       | N/A     |
 
 Notes: At most utilities, electric heating and non-heating credits are **identical** (Con Edison is the major exception — its non-heating electric credits are substantially lower: $33.47/$50.66/$73.47/$71.29 for Tiers 1–4). Central Hudson is the only utility where electric-heating exceeds non-heating credits at Tiers 3–4 ($110.75 vs. $97.48 at Tier 3). PSEG Long Island provides a flat $45/month regardless of tier or heating status.
 
@@ -282,8 +285,8 @@ Notes: At most utilities, electric heating and non-heating credits are **identic
 | 2        | $50.66            | $75.84                 |
 | 3        | $73.47            | $97.48                 |
 | 4        | $71.29            | $94.13                 |
-| 5 (EEAP) | $33.47            | ?                      |
-| 6 (EEAP) | $3.00             | ?                      |
+| 5 (EEAP) | $33.47            | $67.99                 |
+| 6 (EEAP) | $3.00             | $39.27                 |
 | 7 (EEAP) | $1.00             | $1.00                  |
 
 For all other electric utilities (NG Upstate, NYSEG, RGE, OR), non-heating credits equal the heating credits shown in the table above.
@@ -296,8 +299,8 @@ For all other electric utilities (NG Upstate, NYSEG, RGE, OR), non-heating credi
 | 2        | $167.01 | $112.97  | $95.52   | $3.00      | $5.83  | $3.00  | $37.52 | $58.58      | $21.73    |
 | 3        | $189.83 | $138.67  | $118.33  | $22.49     | $28.64 | $18.14 | $69.42 | $80.22      | $34.70    |
 | 4        | $187.65 | $139.38  | $116.14  | $20.30     | $26.45 | $15.64 | $76.33 | $76.86      | $22.14    |
-| 5 (EEAP) | $135.24 | ?        | ?        | ?          | $3.00  | $3.00  | $9.79  | ?           | ?         |
-| 6 (EEAP) | $44.50  | ?        | ?        | ?          | $3.00  | $3.00  | $23.00 | ?           | ?         |
+| 5 (EEAP) | $135.24 | ?        | ?        | ?          | $3.00  | $3.00  | $9.79  | $34.28      | ?         |
+| 6 (EEAP) | $44.50  | ?        | ?        | ?          | $3.00  | $3.00  | $23.00 | $20.14      | ?         |
 | 7 (EEAP) | $1.00   | ?        | ?        | ?          | $1.00  | $1.00  | $1.00  | $1.00       | ?         |
 
 Notes: For National Fuel we use a single Tier 2 credit of $21.73 (we do not distinguish sub-tiers 2.1 vs 2.2). Gas non-heating credits are uniformly minimal across all utilities ($1.92–$3.00/month at all tiers), so a separate table is not warranted.
@@ -410,9 +413,9 @@ The table below is designed to be loaded directly into a pandas DataFrame (or eq
 | cenhud  | 2    | 75.84    | 75.84       | 58.58   | 3.00       | 2024-12-01    | [https://documents.dps.ny.gov/public/Common/ViewDoc.aspx?DocRefId=%7B30DDB194-0000-C335-A7B8-3015D0864D00%7D](https://documents.dps.ny.gov/public/Common/ViewDoc.aspx?DocRefId=%7B30DDB194-0000-C335-A7B8-3015D0864D00%7D) |
 | cenhud  | 3    | 110.75   | 97.48       | 80.22   | 3.00       | 2024-12-01    | [https://documents.dps.ny.gov/public/Common/ViewDoc.aspx?DocRefId=%7B30DDB194-0000-C335-A7B8-3015D0864D00%7D](https://documents.dps.ny.gov/public/Common/ViewDoc.aspx?DocRefId=%7B30DDB194-0000-C335-A7B8-3015D0864D00%7D) |
 | cenhud  | 4    | 104.03   | 94.13       | 76.86   | 3.00       | 2024-12-01    | [https://documents.dps.ny.gov/public/Common/ViewDoc.aspx?DocRefId=%7B30DDB194-0000-C335-A7B8-3015D0864D00%7D](https://documents.dps.ny.gov/public/Common/ViewDoc.aspx?DocRefId=%7B30DDB194-0000-C335-A7B8-3015D0864D00%7D) |
-| cenhud  | 5    | ?        | ?           | ?       | ?          | 2026-01-13    | [https://highlandscurrent.org/2026/01/27/central-hudson-offers-new-discount/](https://highlandscurrent.org/2026/01/27/central-hudson-offers-new-discount/)                                                                 |
-| cenhud  | 6    | ?        | ?           | ?       | ?          | 2026-01-13    | [https://highlandscurrent.org/2026/01/27/central-hudson-offers-new-discount/](https://highlandscurrent.org/2026/01/27/central-hudson-offers-new-discount/)                                                                 |
-| cenhud  | 7    | 1.00     | 1.00        | 1.00    | 1.00       | 2026-01-13    | [https://highlandscurrent.org/2026/01/27/central-hudson-offers-new-discount/](https://highlandscurrent.org/2026/01/27/central-hudson-offers-new-discount/)                                                                 |
+| cenhud  | 5    | 67.99    | 67.99       | 34.28   | 3.00       | 2026-01-13    | [https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/](https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/) |
+| cenhud  | 6    | 39.27    | 39.27       | 20.14   | 3.00       | 2026-01-13    | [https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/](https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/) |
+| cenhud  | 7    | 1.00     | 1.00        | 1.00    | 1.00       | 2026-01-13    | [https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/](https://www.cenhud.com/en/account-resources/assistance-programs/enhanced-energy-affordability-program-eeap/) |
 
 ### National Fuel Gas (gas only, Western NY) — implementation uses integer tiers
 

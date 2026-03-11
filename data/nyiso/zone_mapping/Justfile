@@ -12,15 +12,15 @@ path_s3_zone_mapping := "s3://data.sb/nyiso/zone_mapping/"
 
 # Generate: build the zone mapping CSV locally
 generate:
-    uv run python "{{path_local_base}}/generate_zone_mapping_csv.py" \
-        --path-output-csv "{{path_local_csv}}/ny_utility_zone_mapping.csv"
+    uv run python "{{ path_local_base }}/generate_zone_mapping_csv.py" \
+        --path-output-csv "{{ path_local_csv }}/ny_utility_zone_mapping.csv"
 
 # Upload: sync local CSV to S3
 upload:
-    aws s3 sync "{{path_local_csv}}/" "{{path_s3_zone_mapping}}" --exclude "*" --include "*.csv"
-    echo "✓ Uploaded zone mapping to {{path_s3_zone_mapping}}"
+    aws s3 sync "{{ path_local_csv }}/" "{{ path_s3_zone_mapping }}" --exclude "*" --include "*.csv"
+    echo "✓ Uploaded zone mapping to {{ path_s3_zone_mapping }}"
 
 # Clean: remove local CSV staging dir
 clean:
-    rm -rf "{{path_local_csv}}"
+    rm -rf "{{ path_local_csv }}"
     echo "✓ Removed csv/"

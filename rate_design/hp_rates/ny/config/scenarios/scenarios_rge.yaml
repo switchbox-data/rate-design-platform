@@ -27,7 +27,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-
   2:
     run_name: ny_rge_run2_up00_precalc_supply__flat
     state: NY
@@ -56,7 +55,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-
   3:
     run_name: ny_rge_run3_up02_default__flat
     state: NY
@@ -85,7 +83,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-
   4:
     run_name: ny_rge_run4_up02_default_supply__flat
     state: NY
@@ -114,7 +111,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-
   5:
     run_name: ny_rge_run5_up00_precalc__hp_seasonal_vs_flat
     state: NY
@@ -144,7 +140,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-
   6:
     run_name: ny_rge_run6_up00_precalc_supply__hp_seasonal_vs_flat
     state: NY
@@ -174,7 +169,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-
   7:
     run_name: ny_rge_run7_up02_default__hp_seasonal
     state: NY
@@ -203,7 +197,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-
   8:
     run_name: ny_rge_run8_up02_default_supply__hp_seasonal
     state: NY
@@ -232,7 +225,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-
   9:
     run_name: ny_rge_run9_up00_precalc__hp_seasonalTOU_vs_flat
     state: NY
@@ -262,7 +254,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-
   10:
     run_name: ny_rge_run10_up00_precalc_supply__hp_seasonalTOU_vs_flat
     state: NY
@@ -292,7 +283,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-
   11:
     run_name: ny_rge_run11_up02_default__hp_seasonalTOU
     state: NY
@@ -321,7 +311,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-
   12:
     run_name: ny_rge_run12_up02_default_supply__hp_seasonalTOU
     state: NY
@@ -350,7 +339,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-
   13:
     run_name: ny_rge_run13_up00_precalc__hp_seasonalTOU_flex_vs_flat
     state: NY
@@ -380,7 +368,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: -0.1
-
   14:
     run_name: ny_rge_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_flat
     state: NY
@@ -410,7 +397,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: -0.1
-
   15:
     run_name: ny_rge_run15_up02_default__hp_seasonalTOU_flex
     state: NY
@@ -439,7 +425,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: -0.1
-
   16:
     run_name: ny_rge_run16_up02_default_supply__hp_seasonalTOU_flex
     state: NY

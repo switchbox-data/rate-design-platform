@@ -170,6 +170,19 @@ apply-ny-lmi-discounts run_dir utility_arg fpl_year cpi_s3_path participation_ra
     {{ if rider == "true" { "--rider" } else { "" } }} \
     --upload
 
+# Apply LMI discounts to master bills (in-place by default; pass output_path to redirect)
+path_cpi_s3 := "s3://data.sb/fred/cpi/"
+
+apply-lmi-to-master-bills batch run_delivery run_supply participation_rate="1.0" seed="42" output_path="":
+  uv run python {{path_repo}}/utils/post/apply_lmi_to_master_bills.py \
+    --master-bills-path "s3://data.sb/switchbox/cairo/outputs/hp_rates/{{state}}/all_utilities/{{batch}}/run_{{run_delivery}}+{{run_supply}}/comb_bills_year_target/" \
+    --state {{state_upper}} \
+    --fpl-year 2025 \
+    --cpi-s3-path "{{path_cpi_s3}}" \
+    --participation-rate "{{participation_rate}}" \
+    --participation-mode weighted \
+    --seed "{{seed}}" \
+    {{ if output_path != "" { "--output-path " + output_path } else { "" } }}
 # =============================================================================
 # NY-only: post-processing validation
 # Each recipe validates runs 1-8 for that utility.

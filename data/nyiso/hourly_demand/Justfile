@@ -22,41 +22,41 @@ path_zone_mapping_csv := "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mappin
 
 # Fetch zonal load data from NYISO MIS portal; write to local parquet.
 fetch-zone-data year:
-    uv run python "{{path_local_base}}/fetch_nyiso_zone_loads.py" \
-        --year {{year}} \
-        --path-local-zones "{{path_local_zones}}"
+    uv run python "{{ path_local_base }}/fetch_nyiso_zone_loads.py" \
+        --year {{ year }} \
+        --path-local-zones "{{ path_local_zones }}"
 
 # Aggregate zone loads to a single utility profile; read/write local parquet.
 aggregate-utility-loads year utility:
-    uv run python "{{path_local_base}}/aggregate_nyiso_utility_loads.py" \
-        --year {{year}} \
-        --utility {{utility}} \
-        --path-zone-mapping-csv "{{path_zone_mapping_csv}}" \
-        --path-local-zones "{{path_local_zones}}" \
-        --path-local-utilities "{{path_local_utilities}}"
+    uv run python "{{ path_local_base }}/aggregate_nyiso_utility_loads.py" \
+        --year {{ year }} \
+        --utility {{ utility }} \
+        --path-zone-mapping-csv "{{ path_zone_mapping_csv }}" \
+        --path-local-zones "{{ path_local_zones }}" \
+        --path-local-utilities "{{ path_local_utilities }}"
 
 # Aggregate zone loads for ALL NY utilities; read/write local parquet.
 aggregate-all-utility-loads year:
-    uv run python "{{path_local_base}}/aggregate_nyiso_utility_loads.py" \
-        --year {{year}} \
+    uv run python "{{ path_local_base }}/aggregate_nyiso_utility_loads.py" \
+        --year {{ year }} \
         --utility all \
-        --path-zone-mapping-csv "{{path_zone_mapping_csv}}" \
-        --path-local-zones "{{path_local_zones}}" \
-        --path-local-utilities "{{path_local_utilities}}"
+        --path-zone-mapping-csv "{{ path_zone_mapping_csv }}" \
+        --path-local-zones "{{ path_local_zones }}" \
+        --path-local-utilities "{{ path_local_utilities }}"
 
 # Download zone and utility parquet from S3 to local.
 download:
-    aws s3 sync "{{path_s3_zone_parquet}}" "{{path_local_zones}}" --exclude "*" --include "*.parquet"
-    aws s3 sync "{{path_s3_utility_parquet}}" "{{path_local_utilities}}" --exclude "*" --include "*.parquet"
+    aws s3 sync "{{ path_s3_zone_parquet }}" "{{ path_local_zones }}" --exclude "*" --include "*.parquet"
+    aws s3 sync "{{ path_s3_utility_parquet }}" "{{ path_local_utilities }}" --exclude "*" --include "*.parquet"
     @echo "Synced zone and utility parquet from S3 to local"
 
 # Sync local zone and utility parquet to S3.
 upload:
-    aws s3 sync "{{path_local_zones}}" "{{path_s3_zone_parquet}}" --exclude "*" --include "*.parquet"
-    aws s3 sync "{{path_local_utilities}}" "{{path_s3_utility_parquet}}" --exclude "*" --include "*.parquet"
+    aws s3 sync "{{ path_local_zones }}" "{{ path_s3_zone_parquet }}" --exclude "*" --include "*.parquet"
+    aws s3 sync "{{ path_local_utilities }}" "{{ path_s3_utility_parquet }}" --exclude "*" --include "*.parquet"
     @echo "Synced zone and utility parquet to S3"
 
 # Remove local parquet dirs.
 clean:
-    rm -rf "{{path_local_zones}}" "{{path_local_utilities}}"
+    rm -rf "{{ path_local_zones }}" "{{ path_local_utilities }}"
     @echo "Removed zones/, utilities/"
