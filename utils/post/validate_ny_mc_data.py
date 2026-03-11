@@ -1,4 +1,4 @@
-"""Validate the four marginal cost input datasets used by CAIRO for each NY utility.
+"""Validate marginal cost input datasets used by CAIRO for a state's utilities.
 
 For each utility, loads supply energy, supply capacity, bulk TX, and dist/sub-TX
 marginal cost parquets from S3, runs sanity checks (row counts, nulls, non-negative
@@ -9,16 +9,18 @@ generates:
   2. A faceted histogram of supply energy MC across all utilities.
 
 Usage:
-    uv run python utils/post/validate_ny_mc_data.py --output-dir /tmp/mc_validation
-    uv run python utils/post/validate_ny_mc_data.py --utilities coned,nyseg --year 2025
-    uv run python utils/post/validate_ny_mc_data.py --year 2025 # all utilities
+    uv run python utils/post/validate_ny_mc_data.py --state ny --output-dir /tmp/mc_validation
+    uv run python utils/post/validate_ny_mc_data.py --state ri --utilities rie --year 2025
+    uv run python utils/post/validate_ny_mc_data.py --state ny --year 2025 # all utilities in state
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import polars as pl
 from plotnine import (
@@ -35,37 +37,59 @@ from plotnine import (
     theme,
     theme_minimal,
 )
+from plotnine.composition import Compose
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-NY_UTILITIES = ("cenhud", "coned", "nimo", "nyseg", "or", "psegli", "rge")
 
-MC_TYPES: dict[str, dict[str, str]] = {
+@dataclass(frozen=True, slots=True)
+class StateValidationConfig:
+    utilities: tuple[str, ...]
+    default_mc_table_relpath: str
+
+
+STATE_CONFIGS: dict[str, StateValidationConfig] = {
+    "ny": StateValidationConfig(
+        utilities=("cenhud", "coned", "nimo", "nyseg", "or", "psegli", "rge"),
+        default_mc_table_relpath=(
+            "rate_design/hp_rates/ny/config/marginal_costs/"
+            "ny_sub_tx_and_dist_mc_levelized.csv"
+        ),
+    ),
+    "ri": StateValidationConfig(
+        utilities=("rie",),
+        default_mc_table_relpath=(
+            "rate_design/hp_rates/ri/config/marginal_costs/ri_marginal_costs_2025.csv"
+        ),
+    ),
+}
+
+MC_TYPE_DEFS: dict[str, dict[str, str]] = {
     "supply_energy": {
-        "s3_base": "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/",
+        "s3_suffix": "supply/energy/",
         "value_col": "energy_cost_enduse",
         "raw_units": "$/MWh",
-        "label": "Supply Energy (LBMP)",
+        "label": "Supply Energy",
     },
     "supply_capacity": {
-        "s3_base": "s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/",
+        "s3_suffix": "supply/capacity/",
         "value_col": "capacity_cost_enduse",
         "raw_units": "$/MWh",
-        "label": "Supply Capacity (ICAP)",
+        "label": "Supply Capacity",
     },
     "bulk_tx": {
-        "s3_base": "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/",
+        "s3_suffix": "bulk_tx/",
         "value_col": "bulk_tx_cost_enduse",
         "raw_units": "$/kWh",
-        "label": "Bulk Transmission (SCR)",
+        "label": "Bulk Transmission",
     },
     "dist_sub_tx": {
-        "s3_base": "s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/",
+        "s3_suffix": "dist_and_sub_tx/",
         "value_col": "mc_total_per_kwh",
         "raw_units": "$/kWh",
-        "label": "Dist & Sub-TX (PoP)",
+        "label": "Dist & Sub-TX",
     },
 }
 
@@ -91,6 +115,7 @@ QUADRANT_ORDER = ["supply_energy", "supply_capacity", "bulk_tx", "dist_sub_tx"]
 
 def load_mc(
     mc_key: str,
+    state: str,
     utility: str,
     year: int,
     storage_options: dict[str, str],
@@ -101,8 +126,8 @@ def load_mc(
     $/MWh on S3, so they are divided by 1000). The value column is renamed to
     ``NORMALIZED_COL`` ("mc_kwh") regardless of MC type.
     """
-    info = MC_TYPES[mc_key]
-    s3_base = info["s3_base"]
+    info = MC_TYPE_DEFS[mc_key]
+    s3_base = f"s3://data.sb/switchbox/marginal_costs/{state}/{info['s3_suffix']}"
     value_col = info["value_col"]
 
     collected = (
@@ -154,7 +179,7 @@ def check_mc(
     year: int,
 ) -> dict:
     """Run sanity checks on one MC DataFrame. Returns a results dict."""
-    info = MC_TYPES[mc_key]
+    info = MC_TYPE_DEFS[mc_key]
     col = NORMALIZED_COL
     results: dict = {
         "mc_type": mc_key,
@@ -196,12 +221,12 @@ def check_mc(
 
     # Value stats
     vals = df[col]
-    results["min"] = float(vals.min())  # type: ignore[arg-type]
-    results["max"] = float(vals.max())  # type: ignore[arg-type]
-    results["mean"] = float(vals.mean())  # type: ignore[arg-type]
-    results["median"] = float(vals.median())  # type: ignore[arg-type]
-    results["p05"] = float(vals.quantile(0.05))  # type: ignore[arg-type]
-    results["p95"] = float(vals.quantile(0.95))  # type: ignore[arg-type]
+    results["min"] = cast(float, vals.min() or 0.0)
+    results["max"] = cast(float, vals.max() or 0.0)
+    results["mean"] = cast(float, vals.mean() or 0.0)
+    results["median"] = cast(float, vals.median() or 0.0)
+    results["p05"] = cast(float, vals.quantile(0.05) or 0.0)
+    results["p95"] = cast(float, vals.quantile(0.95) or 0.0)
 
     # Non-zero hours
     n_nonzero = df.filter(pl.col(col) != 0.0).height
@@ -371,8 +396,8 @@ def _make_heatmap(
     breaks, labels = _month_breaks(year)
 
     non_null = heatmap_df.filter(pl.col("value").is_not_null())["value"]
-    vmin = float(non_null.min()) if non_null.len() > 0 else 0.0  # type: ignore[arg-type]
-    vmax = float(non_null.max()) if non_null.len() > 0 else 1.0  # type: ignore[arg-type]
+    vmin = cast(float, non_null.min()) if non_null.len() > 0 else 0.0
+    vmax = cast(float, non_null.max()) if non_null.len() > 0 else 1.0
     n_intervals = 4
     step = (vmax - vmin) / n_intervals if vmax != vmin else 1.0
     fill_breaks = [vmin + i * step for i in range(n_intervals + 1)]
@@ -408,11 +433,11 @@ def make_four_quadrant_plot(
     check_results: dict[str, dict],
     utility: str,
     year: int,
-) -> ggplot:
+) -> Compose:
     """Compose 4 plotnine heatmaps into a 2x2 grid using | and / operators."""
     plots: list[ggplot] = []
     for mc_key in QUADRANT_ORDER:
-        info = MC_TYPES[mc_key]
+        info = MC_TYPE_DEFS[mc_key]
         r = check_results[mc_key]
         subtitle = (
             f"{info['label']} ({NORMALIZED_UNITS})  "
@@ -423,7 +448,7 @@ def make_four_quadrant_plot(
 
     top_row = plots[0] | plots[1]
     bottom_row = plots[2] | plots[3]
-    return top_row / bottom_row  # type: ignore[return-value]
+    return top_row / bottom_row
 
 
 def make_energy_histogram(energy_frames: list[pl.DataFrame]) -> ggplot:
@@ -448,13 +473,20 @@ def make_energy_histogram(energy_frames: list[pl.DataFrame]) -> ggplot:
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Validate NY marginal cost datasets and generate diagnostic plots.",
+        description="Validate state marginal cost datasets and generate diagnostic plots.",
+    )
+    parser.add_argument(
+        "--state",
+        type=str,
+        choices=sorted(STATE_CONFIGS.keys()),
+        default="ny",
+        help="State abbreviation (default: ny).",
     )
     parser.add_argument(
         "--utilities",
         type=str,
-        default=",".join(NY_UTILITIES),
-        help=f"Comma-separated utility list (default: {','.join(NY_UTILITIES)}).",
+        default=None,
+        help="Comma-separated utility list (default: all utilities for --state).",
     )
     parser.add_argument(
         "--year",
@@ -480,8 +512,7 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Path to dist MC CSV for expected totals "
-            "(default: rate_design/hp_rates/ny/config/marginal_costs/"
-            "ny_sub_tx_and_dist_mc_levelized.csv)."
+            "(default: state-specific marginal_costs CSV)."
         ),
     )
     return parser.parse_args()
@@ -490,7 +521,17 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     args = _parse_args()
 
-    utilities = [u.strip() for u in args.utilities.split(",")]
+    state = args.state.lower()
+    state_cfg = STATE_CONFIGS[state]
+
+    utilities_arg = args.utilities or ",".join(state_cfg.utilities)
+    utilities = [u.strip() for u in utilities_arg.split(",") if u.strip()]
+    unknown_utils = sorted(set(utilities) - set(state_cfg.utilities))
+    if unknown_utils:
+        raise ValueError(
+            f"Utilities {unknown_utils} are not in configured {state.upper()} utilities "
+            f"{list(state_cfg.utilities)}"
+        )
     year = args.year
     load_year = args.load_year or year
     output_dir = Path(args.output_dir)
@@ -503,11 +544,7 @@ def main() -> None:
     if mc_table_path is None:
         from utils import get_project_root
 
-        mc_table_path = str(
-            get_project_root()
-            / "rate_design/hp_rates/ny/config/marginal_costs"
-            / "ny_sub_tx_and_dist_mc_levelized.csv"
-        )
+        mc_table_path = str(get_project_root() / state_cfg.default_mc_table_relpath)
     expected_dist = pl.read_csv(mc_table_path)
 
     energy_frames: list[pl.DataFrame] = []
@@ -532,7 +569,7 @@ def main() -> None:
         for mc_key in QUADRANT_ORDER:
             mc_year = year_for_mc[mc_key]
             try:
-                df = load_mc(mc_key, utility, mc_year, storage_options)
+                df = load_mc(mc_key, state, utility, mc_year, storage_options)
             except Exception as e:
                 print(f"\n  ERROR loading {mc_key} for {utility}: {e}")
                 summary_rows.append((utility, mc_key, "ERROR", str(e)[:60]))

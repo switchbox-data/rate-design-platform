@@ -1,4 +1,4 @@
-"""Capacity (ICAP) marginal cost computation for NY utility supply MCs."""
+"""Capacity (ICAP) marginal cost computation for NY (NYISO) utility supply MCs."""
 
 from __future__ import annotations
 

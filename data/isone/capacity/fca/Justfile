@@ -1,0 +1,39 @@
+# ISO-NE Forward Capacity Auction (FCA) clearing prices pipeline
+#
+# This is a curated reference dataset (no API fetch). The CSV is version-controlled.
+# Validate the CSV, convert to parquet, and upload to S3.
+#
+# Run from repo root: just -f data/isone/capacity/fca/Justfile <recipe>
+# Or from this dir:   just <recipe>
+
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_base := justfile_directory()
+path_local_csv := path_local_base + "/fca_clearing_prices.csv"
+path_local_parquet := path_local_base + "/parquet"
+path_s3_parquet := "s3://data.sb/isone/capacity/fca/"
+
+# Validate: run QA checks on the curated CSV
+validate:
+    uv run python "{{path_local_base}}/validate_fca_reference.py" \
+        --path-csv "{{path_local_csv}}"
+
+# Prepare: just validate (no fetch for curated data)
+prepare: validate
+
+# Upload: convert CSV to parquet and sync to S3
+upload: validate
+    mkdir -p "{{path_local_parquet}}"
+    uv run python -c "\
+        import polars as pl; \
+        df = pl.read_csv('{{path_local_csv}}', comment_prefix='#', try_parse_dates=True); \
+        df.write_parquet('{{path_local_parquet}}/data.parquet'); \
+        print(f'Wrote {df.height} rows to parquet') \
+    "
+    aws s3 sync "{{path_local_parquet}}/" "{{path_s3_parquet}}" \
+        --exclude "*" --include "*.parquet"
+    @echo "Uploaded to {{path_s3_parquet}}"
+
+# Clean: remove local parquet
+clean:
+    rm -rf "{{path_local_parquet}}"
+    @echo "Removed parquet/"

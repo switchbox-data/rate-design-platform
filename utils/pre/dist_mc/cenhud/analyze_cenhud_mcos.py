@@ -49,6 +49,7 @@ from pathlib import Path
 
 import fsspec
 import openpyxl
+import openpyxl.worksheet.worksheet
 import polars as pl
 
 
