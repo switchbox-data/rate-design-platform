@@ -74,7 +74,7 @@ def load_metadata(s3_dir: str) -> pl.LazyFrame:
 
 def load_tariff_config(s3_dir: str) -> dict[str, Any]:
     """Fetch and parse ``tariff_final_config.json`` from a run directory via boto3."""
-    return json.loads(_s3_get_bytes(_s3_join(s3_dir, _REL_TARIFF_CONFIG)))  # type: ignore[no-any-return]
+    return json.loads(_s3_get_bytes(_s3_join(s3_dir, _REL_TARIFF_CONFIG)))
 
 
 def load_input_tariff(state: str, utility: str, tariff_filename: str) -> dict[str, Any]:
@@ -96,7 +96,7 @@ def load_input_tariff(state: str, utility: str, tariff_filename: str) -> dict[st
         raise FileNotFoundError(
             f"Input tariff not found for state={state!r} utility={utility!r}: {path}"
         )
-    return json.loads(path.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def load_revenue_requirement(
@@ -123,7 +123,7 @@ def load_revenue_requirement(
         raise FileNotFoundError(
             f"Revenue requirement YAML not found for state={state!r} utility={utility!r}: {path}"
         )
-    return yaml.safe_load(path.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 def scan_utility_loads(path_resstock_loads: str) -> pl.LazyFrame:

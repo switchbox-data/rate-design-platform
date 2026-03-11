@@ -14,7 +14,7 @@ upgrade_ids = ["00", "01", "02", "03", "04", "05"]
 def test_identify_heating_type():
     for upgrade_id in upgrade_ids:
         # Create test data with 10 rows covering different heating types
-        test_metadata = {
+        test_metadata: dict[str, list[int] | list[str] | list[str | None]] = {
             "bldg_id": list(range(1, 11)),
             IN_HVAC_COLUMN: [
                 "MSHP Heat Pump",  # HP
@@ -139,7 +139,7 @@ def test_heating_fuel_boolean_columns_upgrade_00():
 
 def test_heating_fuel_boolean_columns_upgrade():
     """Boolean fuel columns for upgraded buildings — upgrade overrides in column."""
-    test_metadata = {
+    test_metadata: dict[str, list[int] | list[str] | list[str | None]] = {
         "bldg_id": [1, 2, 3, 4],
         IN_HVAC_COLUMN: [
             "Natural Gas Furnace",  # was gas
