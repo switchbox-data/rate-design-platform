@@ -649,7 +649,7 @@ path_load_curves_local := env_var_or_default('PATH_LOAD_CURVES_LOCAL', path_repo
 path_heating_fuel_prices := "s3://data.sb/eia/heating_fuel_prices/"
 price_year := "2024"
 
-build-master-bills batch run_delivery run_supply *batch_overrides:
+build-master-bills batch run_delivery run_supply *script_args:
     uv run python {{ path_repo }}/utils/post/build_master_bills.py \
         --state "{{ state }}" \
         --batch "{{ batch }}" \
@@ -659,7 +659,7 @@ build-master-bills batch run_delivery run_supply *batch_overrides:
         --path-load-curves-local "{{ path_load_curves_local }}" \
         --path-heating-fuel-prices "{{ path_heating_fuel_prices }}" \
         --price-year "{{ price_year }}" \
-        {{ batch_overrides }}
+        {{ script_args }}
 
 build-master-bat batch run_delivery run_supply *batch_overrides:
     uv run python {{ path_repo }}/utils/post/build_master_bat.py \
@@ -670,8 +670,9 @@ build-master-bat batch run_delivery run_supply *batch_overrides:
         --path-resstock-release "s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb" \
         {{ batch_overrides }}
 
-# batch_overrides: optional trailing args passed to the script as-is. Use to pass
-# per-utility batch overrides, e.g. --batch-override cenhud=ny_20260306_r1-8 (repeatable).
+# script_args: optional trailing args passed to the script as-is. Use to pass
+# per-utility batch overrides (for example, --batch-override cenhud=ny_20260306_r1-8)
+# and optional LMI flags (for example, --calculate-lmi --lmi-participation-rate 0.4).
 
 validate-master-bills batch filter *batch_overrides:
     uv run python {{ path_repo }}/utils/post/validate_master_bills.py \
