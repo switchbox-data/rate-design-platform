@@ -20,6 +20,7 @@ import argparse
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import polars as pl
 from plotnine import (
@@ -36,6 +37,7 @@ from plotnine import (
     theme,
     theme_minimal,
 )
+from plotnine.composition import Compose
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 
@@ -219,12 +221,12 @@ def check_mc(
 
     # Value stats
     vals = df[col]
-    results["min"] = float(vals.min())
-    results["max"] = float(vals.max())
-    results["mean"] = float(vals.mean())
-    results["median"] = float(vals.median())
-    results["p05"] = float(vals.quantile(0.05))
-    results["p95"] = float(vals.quantile(0.95))
+    results["min"] = cast(float, vals.min() or 0.0)
+    results["max"] = cast(float, vals.max() or 0.0)
+    results["mean"] = cast(float, vals.mean() or 0.0)
+    results["median"] = cast(float, vals.median() or 0.0)
+    results["p05"] = cast(float, vals.quantile(0.05) or 0.0)
+    results["p95"] = cast(float, vals.quantile(0.95) or 0.0)
 
     # Non-zero hours
     n_nonzero = df.filter(pl.col(col) != 0.0).height
@@ -394,8 +396,8 @@ def _make_heatmap(
     breaks, labels = _month_breaks(year)
 
     non_null = heatmap_df.filter(pl.col("value").is_not_null())["value"]
-    vmin = float(non_null.min()) if non_null.len() > 0 else 0.0
-    vmax = float(non_null.max()) if non_null.len() > 0 else 1.0
+    vmin = cast(float, non_null.min()) if non_null.len() > 0 else 0.0
+    vmax = cast(float, non_null.max()) if non_null.len() > 0 else 1.0
     n_intervals = 4
     step = (vmax - vmin) / n_intervals if vmax != vmin else 1.0
     fill_breaks = [vmin + i * step for i in range(n_intervals + 1)]
@@ -431,7 +433,7 @@ def make_four_quadrant_plot(
     check_results: dict[str, dict],
     utility: str,
     year: int,
-) -> ggplot:
+) -> Compose:
     """Compose 4 plotnine heatmaps into a 2x2 grid using | and / operators."""
     plots: list[ggplot] = []
     for mc_key in QUADRANT_ORDER:
