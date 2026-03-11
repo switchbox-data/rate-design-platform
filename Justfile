@@ -1,10 +1,10 @@
 # =============================================================================
 # ⭐ DEFAULT
 # =============================================================================
+
 # If you run `just`, you see all available commands
 default:
     @just --list
-
 
 # =============================================================================
 # 🔍 CODE QUALITY & TESTING
@@ -48,8 +48,8 @@ clean:
 # =============================================================================
 # 🔍 AWS
 # =============================================================================
-
 # Authenticate with AWS via SSO (for manual AWS CLI usage like S3 access)
+
 # Automatically configures SSO if not already configured
 aws:
     .devcontainer/devpod/aws.sh
@@ -69,13 +69,14 @@ up-aws-list:
 # =============================================================================
 # 🚀 DEVELOPMENT ENVIRONMENT
 # =============================================================================
-
 # Ensure Terraform is installed (internal dependency). Depends on aws so credentials
+
 # are valid before any Terraform or infra script runs.
 _terraform: aws
     bash infra/install-terraform.sh
 
 # Set up EC2 instance (run once by admin)
+
 # Idempotent: safe to run multiple times
 dev-setup: _terraform
     bash infra/dev-setup.sh

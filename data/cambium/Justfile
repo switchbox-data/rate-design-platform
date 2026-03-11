@@ -25,12 +25,13 @@
 #   - Output: Parquet (0.86 GB, 3.3x compression), partitioned by scenario/t/gea/r
 #   - Schema: 91 columns (11 metadata + 80 data fields)
 #   - Sorted: by timestamp within each partition
-
 # Cambium release year: used for fetch, paths, and S3 upload
-year := "2024"
-# Scenario to download (e.g. Mid-case, LowRE, Reference)
-scenario := "Mid-case"
 
+year := "2024"
+
+# Scenario to download (e.g. Mid-case, LowRE, Reference)
+
+scenario := "Mid-case"
 path_local_zip := "zips/{{year}}"
 path_local_csv := "csv/{{year}}"
 path_local_parquet := "parquet/{{year}}"
@@ -42,14 +43,14 @@ show:
 
 # Fetch hourly balancing areas for the chosen scenario to zips/<year>
 fetch:
-    uv run python fetch_cambium_csvs.py --year {{year}} --output {{path_local_zip}} --scenario "{{scenario}}" --resolution "Hourly" --location "Balancing Areas"
+    uv run python fetch_cambium_csvs.py --year {{ year }} --output {{ path_local_zip }} --scenario "{{ scenario }}" --resolution "Hourly" --location "Balancing Areas"
 
 # Extract ZIP files from zips/<year> to csv/<year>
 unzip:
     #!/usr/bin/env bash
     set -euo pipefail
-    zip_dir="{{path_local_zip}}"
-    csv_dir="{{path_local_csv}}"
+    zip_dir="{{ path_local_zip }}"
+    csv_dir="{{ path_local_csv }}"
     if [ ! -d "$zip_dir" ]; then
         echo "Error: $zip_dir not found. Run 'just fetch' first."
         exit 1
@@ -65,7 +66,7 @@ unzip:
 
 # Convert CSV files in csv/<year>/hourly_balancingArea to Parquet in parquet/<year>
 convert:
-    uv run python convert_cambium_csv_to_parquet.py --input {{path_local_csv}}/hourly_balancingArea --output {{path_local_parquet}}
+    uv run python convert_cambium_csv_to_parquet.py --input {{ path_local_csv }}/hourly_balancingArea --output {{ path_local_parquet }}
 
 # Full pipeline: fetch, extract, convert to Parquet
 prepare:
@@ -75,7 +76,7 @@ prepare:
 
 # Upload parquet/<year> to S3 (s3://data.sb/nrel/cambium/<year>/)
 upload:
-    aws s3 sync {{path_local_parquet}}/ {{path_s3_parquet}} --exclude "*" --include "*.parquet"
+    aws s3 sync {{ path_local_parquet }}/ {{ path_s3_parquet }} --exclude "*" --include "*.parquet"
 
 # Remove intermediate dirs for the current year (zips, csv, parquet)
 clean:

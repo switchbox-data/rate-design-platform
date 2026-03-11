@@ -15,20 +15,21 @@ path_s3_parquet := "s3://data.sb/eia/861/electric_utility_stats/"
 
 # Build utility stats for all states and years; write to year=<year>/state=<state>/data.parquet
 fetch:
-    uv run python "{{path_local_repo}}/data/eia/861/fetch_electric_utility_stat_parquets.py" --output-dir "{{path_local_parquet}}"
-    @echo "Wrote {{path_local_parquet}}year=<year>/state=<state>/data.parquet"
+    uv run python "{{ path_local_repo }}/data/eia/861/fetch_electric_utility_stat_parquets.py" --output-dir "{{ path_local_parquet }}"
+    @echo "Wrote {{ path_local_parquet }}year=<year>/state=<state>/data.parquet"
 
 # Upload local parquet to S3 (Hive-style partitions year=<year>/state=<state>/data.parquet).
 # sync only uploads new or changed files (compares size and mtime); objects already in S3
+
 # with the same content are skipped. No --delete, so extra objects in S3 are left as-is.
 upload:
-    aws s3 sync "{{path_local_parquet}}" "{{path_s3_parquet}}"
+    aws s3 sync "{{ path_local_parquet }}" "{{ path_s3_parquet }}"
 
 # Print one state's stats as CSV to stdout (no --output-dir)
 fetch-state-stats state:
-    uv run python "{{path_local_repo}}/data/eia/861/fetch_electric_utility_stat_parquets.py" {{state}}
+    uv run python "{{ path_local_repo }}/data/eia/861/fetch_electric_utility_stat_parquets.py" {{ state }}
 
 # Remove local parquet/
 clean:
-    rm -rf "{{path_local_parquet}}"
-    @echo "Removed {{path_local_parquet}}"
+    rm -rf "{{ path_local_parquet }}"
+    @echo "Removed {{ path_local_parquet }}"

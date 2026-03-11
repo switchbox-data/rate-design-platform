@@ -68,7 +68,7 @@ Mapping from nested-locality sets to paying-locality sets is implemented in
 
 ## Generation script
 
-`utils/pre/generate_bulk_tx_mc.py`
+`utils/pre/marginal_costs/generate_bulk_tx_mc.py`
 
 CLI:
 `--utility <name> --year <YYYY> [--load-year <YYYY>] --constraint-group-table-path <path> [--upload]`
@@ -90,4 +90,4 @@ The `--year` argument controls the output year (partition key, output timestamps
 
 ### Justfile control
 
-`BULK_TX_LOAD_YEAR` in `rate_design/hp_rates/ny/state.env` controls the load year for bulk TX MC generation. The NY Justfile reads it via `env_var('BULK_TX_LOAD_YEAR')` and passes it as `--load-year` to `generate_bulk_tx_mc.py`. Each MC pipeline (supply energy, supply capacity, bulk TX, dist/sub-TX) has its own load year variable in `state.env`.
+`BULK_TX_LOAD_YEAR` in `rate_design/hp_rates/ny/state.env` controls the load year for bulk TX MC generation. The NY Justfile reads it via `env_var('BULK_TX_LOAD_YEAR')` and passes it as `--load-year` to `utils/pre/marginal_costs/generate_bulk_tx_mc.py`. Each MC pipeline (supply energy, supply capacity, bulk TX, dist/sub-TX) has its own load year variable in `state.env`.

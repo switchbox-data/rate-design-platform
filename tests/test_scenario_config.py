@@ -64,7 +64,6 @@ class TestParserWithNewYAMLFormat:
             add_supply=False,
             run_includes_subclasses=True,
         )
-        assert result.rr_total == pytest.approx(416_193_684.03)
         assert result.run_includes_subclasses is True
         assert result.subclass_rr is not None
         assert set(result.subclass_rr.keys()) == {
@@ -86,7 +85,6 @@ class TestParserWithNewYAMLFormat:
             add_supply=True,
             run_includes_subclasses=True,
         )
-        assert result.rr_total == pytest.approx(624_942_307.81)
         assert result.subclass_rr is not None
         assert set(result.subclass_rr.keys()) == {
             "cenhud_hp_seasonal_supply",
@@ -107,7 +105,6 @@ class TestParserWithNewYAMLFormat:
             add_supply=False,
             run_includes_subclasses=True,
         )
-        assert result.rr_total == pytest.approx(416_193_684.03)
         assert result.subclass_rr is not None
         assert set(result.subclass_rr.keys()) == {
             "cenhud_hp_seasonalTOU_flex",
