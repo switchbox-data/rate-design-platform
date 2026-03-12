@@ -154,7 +154,6 @@ Both recipes accept optional overrides: `run_dir`, `output_dir`, `no_write_yaml`
 
 HP-only sweep across all 7 NY utilities:
 
-
 | Utility | Optimal $N$ | Winter peak hours  | Summer peak hours  | Winter ratio | Summer ratio |
 | ------- | ----------- | ------------------ | ------------------ | ------------ | ------------ |
 | cenhud  | 5           | 16, 17, 18, 19, 20 | 15, 16, 17, 18, 19 | 1.57         | 3.04         |
