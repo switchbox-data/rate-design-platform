@@ -13,6 +13,7 @@ path_s3_day_ahead := "s3://data.sb/isone/lmp/day_ahead/zones/"
 path_s3_real_time := "s3://data.sb/isone/lmp/real_time/zones/"
 
 # Defaults (override: just start=2020-01 end=2024-12 workers=2 fetch)
+
 start := "2018-01"
 end := ""
 series := "both"
@@ -20,32 +21,32 @@ workers := "4"
 
 # Fetch: download hourly LMP to parquet/{day_ahead,real_time}/zone=*/year=*/month=*/data.parquet
 fetch:
-    uv run python "{{path_local_base}}/fetch_isone_lmp_parquet.py" \
-        --start "{{start}}" --end "{{end}}" --series "{{series}}" \
-        --path-local-parquet "{{path_local_parquet}}" --workers "{{workers}}"
+    uv run python "{{ path_local_base }}/fetch_isone_lmp_parquet.py" \
+        --start "{{ start }}" --end "{{ end }}" --series "{{ series }}" \
+        --path-local-parquet "{{ path_local_parquet }}" --workers "{{ workers }}"
 
 # Validate: run QA on local parquet (schema, nulls, row counts, zones, decomposition, etc.)
 validate:
-    uv run python "{{path_local_base}}/validate_isone_lmp_parquet.py" \
-        --path-local-parquet "{{path_local_parquet}}"
+    uv run python "{{ path_local_base }}/validate_isone_lmp_parquet.py" \
+        --path-local-parquet "{{ path_local_parquet }}"
 
 # Prepare: fetch + validate (no upload)
 prepare: fetch validate
 
 # Upload: sync local parquet to S3 (manual step)
 upload:
-    aws s3 sync "{{path_local_parquet}}/day_ahead/" "{{path_s3_day_ahead}}" --exclude "*" --include "*.parquet"
-    aws s3 sync "{{path_local_parquet}}/real_time/" "{{path_s3_real_time}}" --exclude "*" --include "*.parquet"
+    aws s3 sync "{{ path_local_parquet }}/day_ahead/" "{{ path_s3_day_ahead }}" --exclude "*" --include "*.parquet"
+    aws s3 sync "{{ path_local_parquet }}/real_time/" "{{ path_s3_real_time }}" --exclude "*" --include "*.parquet"
     @echo "Uploaded day_ahead and real_time to S3"
 
 # Update: discover latest month on disk/S3, fetch newer months
 update:
-    uv run python "{{path_local_base}}/update_isone_lmp_to_latest.py" \
-        --path-local-parquet "{{path_local_parquet}}" \
-        --path-s3-day-ahead "{{path_s3_day_ahead}}" \
-        --path-s3-real-time "{{path_s3_real_time}}"
+    uv run python "{{ path_local_base }}/update_isone_lmp_to_latest.py" \
+        --path-local-parquet "{{ path_local_parquet }}" \
+        --path-s3-day-ahead "{{ path_s3_day_ahead }}" \
+        --path-s3-real-time "{{ path_s3_real_time }}"
 
 # Clean: remove local parquet
 clean:
-    rm -rf "{{path_local_parquet}}"
+    rm -rf "{{ path_local_parquet }}"
     @echo "Removed parquet/"

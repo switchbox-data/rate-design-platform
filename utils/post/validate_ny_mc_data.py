@@ -40,6 +40,11 @@ from plotnine import (
 from plotnine.composition import Compose
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.pre.marginal_costs.supply_utils import (
+    build_mc_partition_parquet_path,
+    build_mc_partition_path,
+    list_partition_parquet_paths,
+)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -103,6 +108,10 @@ EXPECTED_NONZERO: dict[str, int | None] = {
     "dist_sub_tx": 100,  # default N_HOURS for PoP
 }
 
+STATE_EXPECTED_NONZERO_OVERRIDES: dict[str, dict[str, int | None]] = {
+    "ri": {"bulk_tx": 100},
+}
+
 SUMMER_MONTHS = {4, 5, 6, 7, 8, 9}
 WINTER_MONTHS = {1, 2, 3, 10, 11, 12}
 
@@ -119,32 +128,50 @@ def load_mc(
     utility: str,
     year: int,
     storage_options: dict[str, str],
+    mc_base_path: str = "s3://data.sb/switchbox/marginal_costs",
 ) -> pl.DataFrame:
-    """Load a single MC parquet for one utility/year from S3 via hive partitions.
+    """Load a single canonical MC parquet for one utility/year.
 
     All values are normalized to $/kWh (supply energy and capacity are stored as
     $/MWh on S3, so they are divided by 1000). The value column is renamed to
     ``NORMALIZED_COL`` ("mc_kwh") regardless of MC type.
     """
     info = MC_TYPE_DEFS[mc_key]
-    s3_base = f"s3://data.sb/switchbox/marginal_costs/{state}/{info['s3_suffix']}"
     value_col = info["value_col"]
-
-    collected = (
-        pl.scan_parquet(
-            s3_base,
-            hive_partitioning=True,
-            storage_options=storage_options,
-        )
-        .filter(
-            pl.col("utility") == utility,
-            pl.col("year") == year,
-        )
-        .collect()
+    canonical_path = build_mc_partition_parquet_path(
+        state=state,
+        component=mc_key,
+        utility=utility,
+        year=year,
+        filename="data.parquet",
+        mc_base_path=mc_base_path,
     )
-    if not isinstance(collected, pl.DataFrame):
-        raise TypeError(f"Expected DataFrame from {mc_key} collect()")
-    df: pl.DataFrame = collected
+    try:
+        df = pl.read_parquet(canonical_path, storage_options=storage_options)
+    except Exception as e:
+        path_partition = build_mc_partition_path(
+            state=state,
+            component=mc_key,
+            utility=utility,
+            year=year,
+            mc_base_path=mc_base_path,
+        )
+        parquet_paths = list_partition_parquet_paths(path_partition)
+        if not parquet_paths:
+            raise FileNotFoundError(
+                f"{mc_key}: canonical file missing at {canonical_path}. "
+                f"No parquet files found in partition {path_partition}. "
+                "Remediation: generate/upload marginal costs for this "
+                "state/utility/year before running validation."
+            ) from e
+
+        filenames = ", ".join(Path(p).name for p in parquet_paths)
+        raise FileNotFoundError(
+            f"{mc_key}: canonical file missing at {canonical_path}. "
+            f"Found partition parquet files: {filenames}. "
+            "Remediation: write canonical data.parquet (or move stale files out of "
+            "the partition) so validation reads a deterministic input."
+        ) from e
 
     if "timestamp" in df.columns:
         ts_dtype = df.schema["timestamp"]
@@ -177,6 +204,7 @@ def check_mc(
     mc_key: str,
     utility: str,
     year: int,
+    state: str,
 ) -> dict:
     """Run sanity checks on one MC DataFrame. Returns a results dict."""
     info = MC_TYPE_DEFS[mc_key]
@@ -231,7 +259,7 @@ def check_mc(
     # Non-zero hours
     n_nonzero = df.filter(pl.col(col) != 0.0).height
     results["n_nonzero"] = n_nonzero
-    expected = EXPECTED_NONZERO[mc_key]
+    expected = _expected_nonzero_hours(state, mc_key)
     if expected is not None and n_nonzero != expected:
         results["issues"].append(
             f"WARN: expected {expected} nonzero hours, got {n_nonzero}"
@@ -259,6 +287,14 @@ def check_mc(
         _check_bulk_tx_seasonal(df, col, results)
 
     return results
+
+
+def _expected_nonzero_hours(state: str, mc_key: str) -> int | None:
+    """Return expected nonzero-hour count with optional state-level overrides."""
+    state_override = STATE_EXPECTED_NONZERO_OVERRIDES.get(state.lower(), {})
+    if mc_key in state_override:
+        return state_override[mc_key]
+    return EXPECTED_NONZERO[mc_key]
 
 
 def _check_capacity_monthly(df: pl.DataFrame, col: str, results: dict) -> None:
@@ -576,7 +612,7 @@ def main() -> None:
                 continue
 
             mc_data[mc_key] = df
-            r = check_mc(df, mc_key, utility, mc_year)
+            r = check_mc(df, mc_key, utility, mc_year, state)
 
             # Cross-reference dist MC total against expected CSV
             if mc_key == "dist_sub_tx":
