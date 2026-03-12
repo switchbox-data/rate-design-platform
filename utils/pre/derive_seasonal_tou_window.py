@@ -42,8 +42,8 @@ import yaml
 from utils.pre.compute_tou import (
     Season,
     combine_marginal_costs,
-    compute_tou_fit_metric,
     compute_tou_cost_causation_ratio,
+    compute_tou_fit_metric,
     find_tou_peak_window,
     make_winter_summer_seasons,
     season_mask,
@@ -87,6 +87,10 @@ def sweep_tou_window_hours(
     For each N in *window_range*, for each season: finds the optimal
     contiguous peak window, computes the cost-causation ratio, and evaluates
     the fit metric.  Returns results sorted by ``metric_total`` (ascending).
+
+    Filters out candidates where on-peak price is not strictly greater than
+    off-peak price (ratio <= 1.0) in any season, to avoid selecting flat-rate
+    or inverted-rate windows.
     """
     mc_index = pd.DatetimeIndex(combined_mc.index)
     results: list[TouWindowSweepResult] = []
@@ -109,15 +113,27 @@ def sweep_tou_window_hours(
             ratio_by_season[s.name] = ratio
             metric_by_season[s.name] = metric
 
-        results.append(
-            TouWindowSweepResult(
-                window_hours=n,
-                peak_hours_by_season=peak_hours_by_season,
-                ratio_by_season=ratio_by_season,
-                metric_by_season=metric_by_season,
-                metric_total=sum(metric_by_season.values()),
+        # Enforce constraint: on-peak price must be strictly greater than off-peak
+        # (ratio > 1.0) in all seasons
+        if all(ratio > 1.0 for ratio in ratio_by_season.values()):
+            results.append(
+                TouWindowSweepResult(
+                    window_hours=n,
+                    peak_hours_by_season=peak_hours_by_season,
+                    ratio_by_season=ratio_by_season,
+                    metric_by_season=metric_by_season,
+                    metric_total=sum(metric_by_season.values()),
+                )
             )
-        )
+        else:
+            # Log filtered-out candidates for debugging
+            invalid_seasons = [sn for sn, r in ratio_by_season.items() if r <= 1.0]
+            log.debug(
+                "Filtered out N=%d: ratio <= 1.0 in seasons %s (ratios: %s)",
+                n,
+                invalid_seasons,
+                ratio_by_season,
+            )
 
     results.sort(key=lambda r: r.metric_total)
     return results
@@ -312,6 +328,13 @@ def main() -> None:
     # -- Sweep ---------------------------------------------------------------
     log.info("Sweeping TOU window widths 1-23 for utility=%s", args.utility)
     results = sweep_tou_window_hours(combined_mc, hourly_load, seasons)
+
+    if not results:
+        raise SystemExit(
+            "No valid TOU window widths found: all candidates had on-peak price "
+            "<= off-peak price (ratio <= 1.0) in at least one season. This may "
+            "indicate flat or inverted marginal cost profiles."
+        )
 
     best = results[0]
 

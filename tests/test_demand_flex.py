@@ -12,7 +12,7 @@ from utils.pre.compute_tou import Season, SeasonTouSpec
 def _make_mc_index() -> pd.DatetimeIndex:
     winter = pd.date_range("2025-01-01", periods=24, freq="h", tz="UTC")
     summer = pd.date_range("2025-07-01", periods=24, freq="h", tz="UTC")
-    return winter.append(summer)
+    return pd.DatetimeIndex(list(winter) + list(summer))
 
 
 def _make_bulk_mc(
