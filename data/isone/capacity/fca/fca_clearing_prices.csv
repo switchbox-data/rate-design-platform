@@ -1,0 +1,44 @@
+# ISO-NE Forward Capacity Auction (FCA) Clearing Prices
+# Source: FCA Results Report PDF (https://www.iso-ne.com/static-assets/documents/2018/05/fca-results-report.pdf)
+# Official summary: https://www.iso-ne.com/about/key-stats/markets#fcaresults
+#
+# MAINTENANCE: To add a new FCA:
+# 1. Get clearing prices from the FCA Results Report PDF
+# 2. Add one row per capacity zone with resource_status=all
+# 3. If administrative pricing was triggered (Insufficient Competition
+#    or Inadequate Supply), add separate "existing" and "new" rows
+#    for affected zones instead of a single "all" row
+# 4. Run: just validate
+fca_number,ccp_start,ccp_end,capacity_zone_id,capacity_zone_name,resource_status,clearing_price_per_kw_month,notes
+1,2010-06-01,2011-05-31,8500,System,all,4.500,Floor price
+2,2011-06-01,2012-05-31,8500,System,all,3.600,Floor price
+3,2012-06-01,2013-05-31,8500,System,all,2.951,Floor price
+4,2013-06-01,2014-05-31,8500,System,all,2.951,Floor price
+5,2014-06-01,2015-05-31,8500,System,all,3.209,Floor price
+6,2015-06-01,2016-05-31,8500,System,all,3.434,Floor price
+7,2016-06-01,2017-05-31,8500,Rest-of-Pool,all,3.150,Floor price
+7,2016-06-01,2017-05-31,8505,NEMA/Boston,all,14.999,Import-constrained zone; closed in Round 1
+8,2017-06-01,2018-05-31,8500,System,existing,7.025,Insufficient Competition system-wide; administrative pricing
+8,2017-06-01,2018-05-31,8500,System,new,15.000,Insufficient Competition system-wide; administrative pricing
+9,2018-06-01,2019-05-31,8500,Rest-of-Pool,all,9.551,
+9,2018-06-01,2019-05-31,8506,SEMA-RI,existing,11.080,Inadequate Supply; administrative pricing
+9,2018-06-01,2019-05-31,8506,SEMA-RI,new,17.728,Inadequate Supply; administrative pricing
+10,2019-06-01,2020-05-31,8500,System,all,7.030,
+11,2020-06-01,2021-05-31,8500,System,all,5.297,
+12,2021-06-01,2022-05-31,8500,System,all,4.631,
+13,2022-06-01,2023-05-31,8500,System,all,3.800,
+14,2023-06-01,2024-05-31,8500,System,all,2.001,
+15,2024-06-01,2025-05-31,8500,Rest-of-Pool,all,2.611,
+15,2024-06-01,2025-05-31,8503,Maine,all,2.477,
+15,2024-06-01,2025-05-31,8505,Northern New England,all,2.477,
+15,2024-06-01,2025-05-31,8506,Southeast New England,all,3.980,
+16,2025-06-01,2026-05-31,8500,Rest-of-Pool,all,2.591,
+16,2025-06-01,2026-05-31,8503,Maine,all,2.531,
+16,2025-06-01,2026-05-31,8505,Northern New England,all,2.531,
+16,2025-06-01,2026-05-31,8506,Southeast New England,all,2.639,
+17,2026-06-01,2027-05-31,8500,Rest-of-Pool,all,2.590,
+17,2026-06-01,2027-05-31,8503,Maine,all,2.590,
+17,2026-06-01,2027-05-31,8505,Northern New England,all,2.590,
+18,2027-06-01,2028-05-31,8500,Rest-of-Pool,all,3.580,
+18,2027-06-01,2028-05-31,8503,Maine,all,3.580,
+18,2027-06-01,2028-05-31,8505,Northern New England,all,3.580,

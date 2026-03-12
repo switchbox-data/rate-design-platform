@@ -5,7 +5,7 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-from utils.pre.marginal_costs.supply_capacity import (
+from utils.pre.marginal_costs.supply_capacity_nyiso import (
     allocate_icap_to_hours,
     build_locality_load_profiles,
     compute_components,

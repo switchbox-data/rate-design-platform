@@ -40,7 +40,7 @@ create-gas-tariff-map metadata_path utility_assignment_path state electric_utili
 # base rate and fixed charge are extracted from it instead of using defaults.
 
 # Uses resstock_base + state + upgrade for hive-partitioned load scan (no globbing).
-create-seasonal-tou path_supply_energy_mc path_supply_capacity_mc state utility year dist_and_sub_tx_mc_path resstock_metadata_path resstock_base upgrade path_electric_utility_stats tou_tariff_key output_dir periods_yaml="" reference_tariff="" run_dir="" bulk_tx_mc_path="":
+create-seasonal-tou path_supply_energy_mc path_supply_capacity_mc state utility year dist_and_sub_tx_mc_path path_utility_assignment resstock_base upgrade path_electric_utility_stats tou_tariff_key output_dir periods_yaml="" reference_tariff="" run_dir="" bulk_tx_mc_path="" has_hp="true":
     uv run python {{ project_root }}/utils/pre/derive_seasonal_tou.py \
       --path-supply-energy-mc "{{ path_supply_energy_mc }}" \
       --path-supply-capacity-mc "{{ path_supply_capacity_mc }}" \
@@ -48,16 +48,37 @@ create-seasonal-tou path_supply_energy_mc path_supply_capacity_mc state utility 
       --utility "{{ utility }}" \
       --year "{{ year }}" \
       --path-dist-and-sub-tx-mc "{{ dist_and_sub_tx_mc_path }}" \
-      --resstock-metadata-path "{{ resstock_metadata_path }}" \
+      --path-utility-assignment "{{ path_utility_assignment }}" \
       --resstock-base "{{ resstock_base }}" \
       --upgrade "{{ upgrade }}" \
       --path-electric-utility-stats "{{ path_electric_utility_stats }}" \
       --tou-tariff-key "{{ tou_tariff_key }}" \
       --output-dir "{{ output_dir }}" \
+      --has-hp "{{ has_hp }}" \
       {{ if periods_yaml != "" { "--periods-yaml \"" + periods_yaml + "\"" } else { "" } }} \
       {{ if reference_tariff != "" { "--reference-tariff \"" + reference_tariff + "\"" } else { "" } }} \
       {{ if run_dir != "" { "--run-dir \"" + run_dir + "\"" } else { "" } }} \
       {{ if bulk_tx_mc_path != "" { "--path-bulk-tx-mc \"" + bulk_tx_mc_path + "\"" } else { "" } }}
+
+# Sweep TOU window widths (1-23) and write optimal tou_window_hours to periods YAML.
+sweep-tou-window path_supply_energy_mc path_supply_capacity_mc state utility year dist_and_sub_tx_mc_path path_utility_assignment resstock_base upgrade path_electric_utility_stats periods_yaml="" run_dir="" bulk_tx_mc_path="" output_dir="" no_write_yaml="" has_hp="true":
+    uv run python {{ project_root }}/utils/pre/derive_seasonal_tou_window.py \
+      --path-supply-energy-mc "{{ path_supply_energy_mc }}" \
+      --path-supply-capacity-mc "{{ path_supply_capacity_mc }}" \
+      --state "{{ state }}" \
+      --utility "{{ utility }}" \
+      --year "{{ year }}" \
+      --path-dist-and-sub-tx-mc "{{ dist_and_sub_tx_mc_path }}" \
+      --path-utility-assignment "{{ path_utility_assignment }}" \
+      --resstock-base "{{ resstock_base }}" \
+      --upgrade "{{ upgrade }}" \
+      --path-electric-utility-stats "{{ path_electric_utility_stats }}" \
+      --has-hp "{{ has_hp }}" \
+      {{ if periods_yaml != "" { "--periods-yaml \"" + periods_yaml + "\"" } else { "" } }} \
+      {{ if run_dir != "" { "--run-dir \"" + run_dir + "\"" } else { "" } }} \
+      {{ if bulk_tx_mc_path != "" { "--path-bulk-tx-mc \"" + bulk_tx_mc_path + "\"" } else { "" } }} \
+      {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }} \
+      {{ if no_write_yaml == "true" { "--no-write-yaml" } else { "" } }}
 
 # =============================================================================
 # MIDRUN: run between CAIRO runs (uses outputs from earlier runs)

@@ -23,6 +23,14 @@ data/nrel/
 data/eia/hourly_loads/zone_parquet/
 data/eia/hourly_loads/utility_parquet/
 data/fred/cpi/parquet/
+data/isone/capacity/cso/parquet/
+data/isone/capacity/cso/xlsx/
+data/isone/capacity/mra/parquet/
+data/isone/capacity/ara/parquet/
+data/isone/capacity/fca/parquet/
+data/isone/lmp/parquet/
+data/isone/hourly_demand/zones/
+data/isone/ancillary/parquet/
 data/nyiso/icap/parquet/
 data/nyiso/lbmp/zips/
 data/nyiso/lbmp/parquet/
@@ -51,6 +59,7 @@ build/
 
 *.csv
 !data/nyiso/gold_book/2025_proposed_transmission_facilities_raw.csv
+!data/isone/capacity/fca/fca_clearing_prices.csv
 *.json
 *.png
 !dprint.json
@@ -78,3 +87,4 @@ CLAUDE.md
 
 dev_plots/
 run_logs/
+utils/pre/tou_window/*.csv

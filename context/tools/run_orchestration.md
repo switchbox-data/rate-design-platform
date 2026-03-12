@@ -130,7 +130,7 @@ avoiding staleness.
 
 Compares Justfile top-level variables against canonical values in the scenario
 YAML (run 1 for most fields, run 2 for the Cambium path since delivery runs
-use `zero_marginal_costs.csv`). Checked fields: `state`, `utility`, `upgrade`,
+use `zero.parquet`). Checked fields: `state`, `utility`, `upgrade`,
 `year`, `path_td_mc`, `path_cambium`, `path_electric_utility_stats`,
 `path_resstock_loads`.
 
@@ -294,6 +294,15 @@ defined at the top of the Justfile. All paths (Tier 3) are derived from them
 via Just string composition. This avoids scattered hardcoded values and makes
 it possible to replicate the entire orchestration for a new utility by changing
 only the top section.
+
+**TOU window width (`periods.yaml`).** Runs 9 and 10 call `create-seasonal-tou`,
+which reads `tou_window_hours` from the utility's `periods.yaml`. That value is
+set by `sweep-tou-window`, a separate manual pre-processing step that sweeps
+window widths 1–23 and picks the welfare-minimizing $N$. The sweep is **not**
+part of `all-pre` because it is slow (~5–10 min per utility) and the result
+rarely changes between batches. Run it before the first batch that includes
+TOU runs, and re-run when MC data, ResStock loads, or load filtering change.
+See `context/tools/tou_window_optimization.md`.
 
 **Reference tariff for TOU derivation.** Runs 9 and 10 derive seasonal TOU
 tariffs using calibrated flat tariffs as references (from runs 1 and 2

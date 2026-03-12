@@ -224,9 +224,10 @@ def _load_supply_marginal_costs(
     energy_path: CambiumPathLike | None,
     capacity_path: CambiumPathLike | None,
     target_year: int,
+    ancillary_path: CambiumPathLike | None = None,
 ) -> pd.DataFrame:
     """
-    Load supply marginal costs: Energy + Capacity (bulk supply).
+    Load supply marginal costs: Energy + Capacity (bulk supply), plus optional Ancillary.
 
     Architecture:
     - Supply MCs = Energy + Capacity (bulk supply, from Cambium or NYISO)
@@ -247,6 +248,11 @@ def _load_supply_marginal_costs(
     Returns DataFrame with columns matching CAIRO convention:
     - Marginal Energy Costs ($/kWh)
     - Marginal Capacity Costs ($/kWh)
+    - Marginal Ancillary Costs ($/kWh)  [optional, only when ancillary_path is provided]
+
+    CAIRO's _calculate_system_revenue_target sums all columns via
+    ``marginal_system_prices.sum(axis=1)``, so the ancillary column is automatically
+    included in the total marginal cost when present.
 
     Args:
         energy_path: Path to energy MC parquet (or None). If path contains "cambium",
@@ -254,10 +260,23 @@ def _load_supply_marginal_costs(
         capacity_path: Path to capacity MC parquet (or None). If path contains "cambium",
                        treated as combined Cambium file.
         target_year: Target year for timeshifting.
+        ancillary_path: Optional path to ancillary MC parquet. When provided, loads
+                        ``ancillary_cost_enduse`` ($/MWh) and appends it as a third
+                        column ``"Marginal Ancillary Costs ($/kWh)"``.
+
+    Note — delivery-only RR top-up excludes ancillary:
+        CAIRO's ``_return_revenue_requirement_target`` has a ``delivery_only_rev_req_passed``
+        flag that tops up a delivery-only revenue requirement with estimated supply costs
+        before decomposition. That top-up filters columns by
+        ``"Energy" in col or "Capacity" in col``, which does NOT match
+        ``"Marginal Ancillary Costs ($/kWh)"``. Ancillary costs are therefore excluded
+        from the top-up amount. In practice this codebase never sets
+        ``delivery_only_rev_req_passed=True`` (RRs are pre-topped-up in the YAML), so
+        this has no runtime effect — but it would matter if that flag were ever used.
 
     Returns:
-        Combined DataFrame with both energy and capacity costs, indexed by DatetimeIndex
-        (EST-localized, 8760 rows).
+        Combined DataFrame with energy and capacity costs (and ancillary when
+        ancillary_path is provided), indexed by DatetimeIndex (EST-localized, 8760 rows).
     """
     if energy_path is None and capacity_path is None:
         raise ValueError(
@@ -279,27 +298,45 @@ def _load_supply_marginal_costs(
             "Detected Cambium path in supply MC: %s. Using _load_cambium_marginal_costs for backward compatibility.",
             cambium_path,
         )
-        return _load_cambium_marginal_costs(cambium_path, target_year)
+        combined = _load_cambium_marginal_costs(cambium_path, target_year)
+    else:
+        # Separate energy and capacity parquets (e.g. NYISO LBMP + ICAP).
+        energy_df = _load_supply_mc_column(
+            energy_path,
+            col="energy_cost_enduse",
+            label="Marginal Energy Costs ($/kWh)",
+            target_year=target_year,
+            context="Supply energy MC",
+        )
+        capacity_df = _load_supply_mc_column(
+            capacity_path,
+            col="capacity_cost_enduse",
+            label="Marginal Capacity Costs ($/kWh)",
+            target_year=target_year,
+            context="Supply capacity MC",
+        )
 
-    # Separate energy and capacity parquets (e.g. NYISO LBMP + ICAP).
-    energy_df = _load_supply_mc_column(
-        energy_path,
-        col="energy_cost_enduse",
-        label="Marginal Energy Costs ($/kWh)",
-        target_year=target_year,
-        context="Supply energy MC",
-    )
-    capacity_df = _load_supply_mc_column(
-        capacity_path,
-        col="capacity_cost_enduse",
-        label="Marginal Capacity Costs ($/kWh)",
-        target_year=target_year,
-        context="Supply capacity MC",
-    )
+        combined = pd.concat([energy_df, capacity_df], axis=1)
+        if len(combined) != 8760:
+            raise ValueError(
+                f"Combined supply MC has {len(combined)} rows, expected 8760"
+            )
 
-    combined = pd.concat([energy_df, capacity_df], axis=1)
-    if len(combined) != 8760:
-        raise ValueError(f"Combined supply MC has {len(combined)} rows, expected 8760")
+    if ancillary_path is not None and str(ancillary_path).strip():
+        ancillary_df = _load_supply_mc_column(
+            ancillary_path,
+            col="ancillary_cost_enduse",
+            label="Marginal Ancillary Costs ($/kWh)",
+            target_year=target_year,
+            context="Supply ancillary MC",
+        )
+        combined = pd.concat([combined, ancillary_df], axis=1)
+        log.info(
+            "Loaded ancillary supply MC: %d rows, avg=%.6f $/kWh",
+            len(ancillary_df),
+            float(ancillary_df["Marginal Ancillary Costs ($/kWh)"].mean()),
+        )
+
     return combined
 
 

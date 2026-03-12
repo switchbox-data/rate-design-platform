@@ -244,7 +244,7 @@ def combine_marginal_costs(
 
 def find_tou_peak_window(
     combined_mc: pd.Series,
-    hourly_system_load: pd.Series,
+    hourly_load: pd.Series,
     window_hours: int = 4,
 ) -> list[int]:
     """Find the contiguous *window_hours*-wide block with the highest
@@ -255,7 +255,7 @@ def find_tou_peak_window(
 
     Args:
         combined_mc: Hourly Series of total MC ($/kWh) indexed by time.
-        hourly_system_load: Matching hourly Series of system load.
+        hourly_load: Matching hourly load series for demand-weighting.
         window_hours: Width of the peak window (default 4).
 
     Returns:
@@ -265,7 +265,7 @@ def find_tou_peak_window(
         raise ValueError("window_hours must be between 1 and 23")
 
     # Demand-weighted MC: MC_h * load_h (caller must pass aligned indices)
-    dw_mc = combined_mc * hourly_system_load
+    dw_mc = combined_mc * hourly_load
 
     # Build a 24-hour profile: average demand-weighted MC by hour-of-day
     hour_of_day = combined_mc.index.hour  # type: ignore[union-attr]
@@ -294,7 +294,7 @@ def find_tou_peak_window(
 
 def compute_tou_cost_causation_ratio(
     combined_mc: pd.Series,
-    hourly_system_load: pd.Series,
+    hourly_load: pd.Series,
     peak_hours: list[int],
 ) -> float:
     """Compute the demand-weighted MC ratio: peak / off-peak.
@@ -304,7 +304,7 @@ def compute_tou_cost_causation_ratio(
 
     Args:
         combined_mc: Hourly total MC series.
-        hourly_system_load: Matching hourly system load series.
+        hourly_load: Matching hourly load series for demand-weighting.
         peak_hours: Hour-of-day integers defining the peak window.
 
     Returns:
@@ -313,11 +313,11 @@ def compute_tou_cost_causation_ratio(
     hour_of_day = combined_mc.index.hour  # type: ignore[union-attr]
     is_peak = np.isin(hour_of_day, peak_hours)
 
-    peak_dw = (combined_mc[is_peak] * hourly_system_load[is_peak]).sum()
-    peak_load = hourly_system_load[is_peak].sum()
+    peak_dw = (combined_mc[is_peak] * hourly_load[is_peak]).sum()
+    peak_load = hourly_load[is_peak].sum()
 
-    offpeak_dw = (combined_mc[~is_peak] * hourly_system_load[~is_peak]).sum()
-    offpeak_load = hourly_system_load[~is_peak].sum()
+    offpeak_dw = (combined_mc[~is_peak] * hourly_load[~is_peak]).sum()
+    offpeak_load = hourly_load[~is_peak].sum()
 
     if peak_load == 0 or offpeak_load == 0:
         raise ValueError("Peak or off-peak load is zero; cannot compute ratio")
@@ -345,7 +345,7 @@ def compute_tou_cost_causation_ratio(
 
 def compute_seasonal_base_rates(
     combined_mc: pd.Series,
-    hourly_system_load: pd.Series,
+    hourly_load: pd.Series,
     seasons: list[Season],
     base_rate: float,
 ) -> dict[str, float]:
@@ -357,7 +357,7 @@ def compute_seasonal_base_rates(
 
     Args:
         combined_mc: 8760-row Series of total MC ($/kWh) indexed by time.
-        hourly_system_load: 8760-row Series of system load indexed by time.
+        hourly_load: 8760-row Series of load indexed by time.
         seasons: List of :class:`Season` objects covering all 12 months.
         base_rate: Nominal annual average rate ($/kWh); precalc will
             calibrate the absolute level but the *seasonal ratios* are
@@ -368,7 +368,7 @@ def compute_seasonal_base_rates(
     """
     idx = pd.DatetimeIndex(combined_mc.index)
     mc_vals = combined_mc.values
-    load_vals = hourly_system_load.values
+    load_vals = hourly_load.values
 
     # Demand-weighted avg MC per season
     dw_avgs: dict[str, float] = {}

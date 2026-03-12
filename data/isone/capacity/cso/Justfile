@@ -1,0 +1,34 @@
+# ISO-NE CELT CSO (Capacity Supply Obligation) pipeline
+#
+# Download CELT Excel files from ISO-NE, extract Table 4.1 (Summary of CSOs),
+# and write to Hive-partitioned parquet.
+#
+# Run from repo root: just -f data/isone/capacity/cso/Justfile <recipe>
+# Or from this dir:   just <recipe>
+
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_base := justfile_directory()
+path_local_parquet := path_local_base + "/parquet"
+path_local_xlsx := path_local_base + "/xlsx"
+path_s3_parquet := "s3://data.sb/isone/capacity/cso/"
+
+fetch:
+    uv run python "{{path_local_base}}/fetch_isone_celt_cso.py" \
+        --all \
+        --path-local-parquet "{{path_local_parquet}}" \
+        --path-local-xlsx "{{path_local_xlsx}}"
+
+validate:
+    uv run python "{{path_local_base}}/validate_isone_celt_cso.py" \
+        --path-local-parquet "{{path_local_parquet}}"
+
+prepare: fetch validate
+
+upload:
+    aws s3 sync "{{path_local_parquet}}/" "{{path_s3_parquet}}" \
+        --exclude "*" --include "*.parquet"
+    @echo "Uploaded to {{path_s3_parquet}}"
+
+clean:
+    rm -rf "{{path_local_parquet}}" "{{path_local_xlsx}}"
+    @echo "Removed parquet/ and xlsx/"
