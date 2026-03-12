@@ -311,7 +311,9 @@ def main() -> None:
     elif has_hp_raw == "false":
         has_hp_filter = {False}
     else:
-        raise SystemExit(f"--has-hp must be 'true', 'false', or 'all', got '{args.has_hp}'")
+        raise SystemExit(
+            f"--has-hp must be 'true', 'false', or 'all', got '{args.has_hp}'"
+        )
 
     # -- Load data -----------------------------------------------------------
     bulk_mc, dist_mc, bulk_tx_mc, hourly_load = load_tou_inputs(
@@ -340,9 +342,7 @@ def main() -> None:
                 name=hourly_load.name,
             )
         else:
-            hourly_load = hourly_load.reindex(
-                combined_mc.index, method="ffill"
-            )
+            hourly_load = hourly_load.reindex(combined_mc.index, method="ffill")
 
     seasons = make_winter_summer_seasons(winter_months)
 
@@ -390,7 +390,9 @@ def main() -> None:
     border = "+" + "-" * 68 + "+"
     log.info("")
     log.info(border)
-    log.info("|  %-66s|", f"OPTIMAL TOU WINDOW for {args.utility}: {best.window_hours} hours")
+    log.info(
+        "|  %-66s|", f"OPTIMAL TOU WINDOW for {args.utility}: {best.window_hours} hours"
+    )
     log.info("|  %-66s|", "")
     for sn in [s.name for s in seasons]:
         peak = best.peak_hours_by_season.get(sn, [])

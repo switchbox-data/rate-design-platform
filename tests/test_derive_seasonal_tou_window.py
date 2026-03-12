@@ -6,9 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from utils.pre.compute_tou import Season, make_winter_summer_seasons, season_mask
+from utils.pre.compute_tou import make_winter_summer_seasons
 from utils.pre.derive_seasonal_tou_window import (
-    TouWindowSweepResult,
     compute_tou_fit_metric,
     sweep_tou_window_hours,
     update_periods_yaml,
@@ -99,9 +98,7 @@ class TestSweepTouWindowHours:
         mc, load = _spike_mc_profile(idx, spike_hours=[17, 18, 19])
         seasons = make_winter_summer_seasons()
 
-        results = sweep_tou_window_hours(
-            mc, load, seasons, window_range=range(1, 24)
-        )
+        results = sweep_tou_window_hours(mc, load, seasons, window_range=range(1, 24))
 
         assert len(results) == 23
         assert results[0].window_hours == 3
@@ -145,9 +142,7 @@ class TestSweepTouWindowHours:
         mc, load = _spike_mc_profile(idx, spike_hours=[17])
         seasons = make_winter_summer_seasons()
 
-        results = sweep_tou_window_hours(
-            mc, load, seasons, window_range=range(1, 24)
-        )
+        results = sweep_tou_window_hours(mc, load, seasons, window_range=range(1, 24))
 
         window_hours_set = {r.window_hours for r in results}
         assert 1 in window_hours_set
@@ -168,8 +163,7 @@ class TestSweepTouWindowHours:
                     continue
                 hours_sorted = sorted(peak_hours)
                 gaps = [
-                    (hours_sorted[(i + 1) % n] - hours_sorted[i]) % 24
-                    for i in range(n)
+                    (hours_sorted[(i + 1) % n] - hours_sorted[i]) % 24 for i in range(n)
                 ]
                 is_contiguous = all(g == 1 or g == 24 - n + 1 for g in gaps)
                 assert is_contiguous, (
