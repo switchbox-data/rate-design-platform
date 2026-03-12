@@ -37,6 +37,7 @@ from utils.pre.marginal_costs.supply_utils import (
     ISONE_CAPACITY_ZONE_FALLBACK,
     ISONE_CAPACITY_ZONE_LOAD_ZONES,
     ISONE_UTILITY_CAPACITY_ZONES,
+    allocate_annual_exceedance_to_hours,
     build_cairo_8760_timestamps,
     strip_tz_if_needed,
 )
@@ -355,14 +356,9 @@ def allocate_fca_to_hours(
 ) -> pl.DataFrame:
     """Allocate annual FCA $/kW-year to hourly $/kW via threshold exceedance.
 
-    Identifies the top-N hours by system load (SENE aggregate), computes a load
-    threshold as the maximum load strictly below the Nth-highest load (to handle
-    ties exactly), and allocates capacity_cost_kw_year proportionally to the
-    exceedance above that threshold.
-
-    This is the annual equivalent of NYISO's allocate_icap_to_hours (which operates
-    per-month). ISO-NE's FCA locks in a single price per CCP so the full annualized
-    cost is allocated over the full calendar year at once.
+    Thin wrapper around :func:`allocate_annual_exceedance_to_hours` that
+    preserves the ``capacity_cost_per_kw`` output column name expected by
+    downstream FCA pipeline code.
 
     Args:
         load_df: DataFrame with columns ``timestamp`` (datetime) and ``load_mw`` (float).
@@ -374,51 +370,13 @@ def allocate_fca_to_hours(
         DataFrame with columns ``timestamp`` and ``capacity_cost_per_kw``, containing
         exactly n_peak_hours nonzero rows (the rest are absent — non-peak hours carry
         no capacity cost). Sorted by timestamp.
-
-    Raises:
-        ValueError: If load_df has fewer rows than n_peak_hours, total exceedance is
-            non-positive, or weights fail to sum to 1.
     """
-    if load_df.height < n_peak_hours:
-        raise ValueError(
-            f"Load profile has only {load_df.height} hours, "
-            f"need at least {n_peak_hours} for exceedance allocation"
-        )
-
-    sorted_load = load_df.sort("load_mw", descending=True)
-    top_n = sorted_load.head(n_peak_hours)
-    load_nth = float(top_n["load_mw"][-1])
-
-    # Threshold = max load strictly below the Nth-highest (tiebreaker: exactly N hours)
-    below = load_df.filter(pl.col("load_mw") < load_nth)["load_mw"]
-    threshold = float(below.max()) if not below.is_empty() else 0.0  # type: ignore[arg-type]
-
-    result = top_n.with_columns((pl.col("load_mw") - threshold).alias("exceedance"))
-    total_exceedance = float(result["exceedance"].sum())
-    if total_exceedance <= 0:
-        raise ValueError(
-            f"Total exceedance is zero or negative. "
-            f"Threshold={threshold:.2f} MW, max load={float(sorted_load['load_mw'][0]):.2f} MW"
-        )
-
-    result = result.with_columns(
-        (pl.col("exceedance") / total_exceedance * capacity_cost_kw_year).alias(
-            "capacity_cost_per_kw"
-        )
+    return allocate_annual_exceedance_to_hours(
+        load_df=load_df,
+        annual_cost_kw_year=capacity_cost_kw_year,
+        n_peak_hours=n_peak_hours,
+        cost_col="capacity_cost_per_kw",
     )
-
-    weight_sum = float((result["exceedance"] / total_exceedance).sum())
-    if abs(weight_sum - 1.0) > 1e-6:
-        raise ValueError(f"Exceedance weights sum to {weight_sum:.6f}, expected 1.0")
-
-    n_nonzero = result.filter(pl.col("capacity_cost_per_kw") > 0).height
-    print(
-        f"  FCA annual allocation: ${capacity_cost_kw_year:.4f}/kW-yr, "
-        f"threshold={threshold:,.1f} MW, "
-        f"{n_nonzero} peak hours (of {n_peak_hours} requested)"
-    )
-
-    return result.select("timestamp", "capacity_cost_per_kw").sort("timestamp")
 
 
 # ---------------------------------------------------------------------------

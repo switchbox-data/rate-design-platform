@@ -84,10 +84,12 @@ path_tou_supply_mc formula (for runs where num = 13 or 14):
             "s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=" & LOWER($B18) & "/year=2025/data.parquet",
             ""))
 
-    path_bulk_tx_mc formula (optional for NY, blank for RI):
+    path_bulk_tx_mc formula (required for NY and RI):
     =IF($A18="NY",
         "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=" & LOWER($B18) & "/year=2025/data.parquet",
-        "")
+        IF($A18="RI",
+            "s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=" & LOWER($B18) & "/year=2025/data.parquet",
+            ""))
 
     Where:
     - $A18 is the state column (NY or RI)

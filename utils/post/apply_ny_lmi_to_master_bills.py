@@ -673,8 +673,14 @@ def _validate(
     # customer's July bill). Check the Annual row only for budget mode; monthly rows
     # for non-participants are still the original bill so they pass regardless.
     tol = 1e-6
-    mono_df = df.filter(pl.col("month") == ANNUAL_MONTH) if calculation_type == "budget" else df
-    elec_over = mono_df.filter(pl.col(elec_col) > pl.col("elec_total_bill") + tol).height
+    mono_df = (
+        df.filter(pl.col("month") == ANNUAL_MONTH)
+        if calculation_type == "budget"
+        else df
+    )
+    elec_over = mono_df.filter(
+        pl.col(elec_col) > pl.col("elec_total_bill") + tol
+    ).height
     gas_over = mono_df.filter(pl.col(gas_col) > pl.col("gas_total_bill") + tol).height
     if elec_over > 0 or gas_over > 0:
         scope = "Annual rows" if calculation_type == "budget" else "rows"
@@ -983,7 +989,9 @@ def main() -> None:
 
     # 5. Apply credits to master bills
     t = _log(f"Applying credits to master bills ({args.calculation_type})...")
-    result = _apply_credits(master, tier_info, pct_label, credits_df, args.calculation_type)
+    result = _apply_credits(
+        master, tier_info, pct_label, credits_df, args.calculation_type
+    )
     _log_done("Applying credits", t, f"{result.height} rows")
 
     # 6. Validate

@@ -154,15 +154,15 @@ Both recipes accept optional overrides: `run_dir`, `output_dir`, `no_write_yaml`
 
 HP-only sweep across all 7 NY utilities:
 
-| Utility | Optimal $N$ | Winter peak hours | Summer peak hours | Winter ratio | Summer ratio |
-| ------- | ----------- | ----------------- | ----------------- | ------------ | ------------ |
-| cenhud  | 4           | 17, 18, 19, 20    | 15, 16, 17, 18    | 1.63         | 2.56         |
-| coned   | 3           | 17, 18, 19        | 15, 16, 17        | 1.90         | 4.28         |
-| nimo    | 3           | 17, 18, 19        | 17, 18, 19        | 1.46         | 2.20         |
-| nyseg   | 3           | 17, 18, 19        | 17, 18, 19        | 1.75         | 2.93         |
-| or      | 5           | 16, 17, 18, 19, 20 | 15, 16, 17, 18, 19 | 1.72        | 3.39         |
-| psegli  | 5           | 17, 18, 19, 20, 21 | 15, 16, 17, 18, 19 | 1.74        | 3.95         |
-| rge     | 3           | 17, 18, 19        | 17, 18, 19        | 1.65         | 2.72         |
+| Utility | Optimal $N$ | Winter peak hours  | Summer peak hours  | Winter ratio | Summer ratio |
+| ------- | ----------- | ------------------ | ------------------ | ------------ | ------------ |
+| cenhud  | 4           | 17, 18, 19, 20     | 15, 16, 17, 18     | 1.63         | 2.56         |
+| coned   | 3           | 17, 18, 19         | 15, 16, 17         | 1.90         | 4.28         |
+| nimo    | 3           | 17, 18, 19         | 17, 18, 19         | 1.46         | 2.20         |
+| nyseg   | 3           | 17, 18, 19         | 17, 18, 19         | 1.75         | 2.93         |
+| or      | 5           | 16, 17, 18, 19, 20 | 15, 16, 17, 18, 19 | 1.72         | 3.39         |
+| psegli  | 5           | 17, 18, 19, 20, 21 | 15, 16, 17, 18, 19 | 1.74         | 3.95         |
+| rge     | 3           | 17, 18, 19         | 17, 18, 19         | 1.65         | 2.72         |
 
 Most utilities land on 3 hours; CenHud on 4; O&R and PSEG-LI on 5. Summer ratios are consistently higher than winter (driven by generation capacity scarcity and cooling load concentration). All peak windows cluster in the late afternoon / early evening.
 

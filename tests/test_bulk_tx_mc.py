@@ -1,4 +1,4 @@
-"""Tests for NY bulk transmission marginal cost generation (constraint-group engine)."""
+"""Tests for NYISO bulk transmission marginal cost logic (constraint-group engine)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import cast
 import polars as pl
 import pytest
 
-from utils.pre.marginal_costs.generate_bulk_tx_mc import (
+from utils.pre.marginal_costs.bulk_tx_nyiso import (
     DEFAULT_SCR_WINTER_MONTHS,
     aggregate_paying_locality_hourly_signals_from_constraint_groups,
     allocate_bulk_tx_to_hours,

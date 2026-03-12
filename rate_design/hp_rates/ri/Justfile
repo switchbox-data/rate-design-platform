@@ -37,6 +37,21 @@ apply-ri-lmi-discounts run_dir run_state run_utility fpl_year cpi_s3_path partic
       --upload
 
 # =============================================================================
+# RI-only: bulk transmission marginal cost generation (AESC PTF)
+# =============================================================================
+
+tx_mc_year := env_var_or_default('TX_MC_YEAR', '2025')
+tx_load_year := env_var_or_default('TX_LOAD_YEAR', tx_mc_year)
+
+create-bulk-tx-mc-data:
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/pre/marginal_costs/generate_bulk_tx_mc.py \
+      --iso isone \
+      --utility {{ utility }} \
+      --year {{ tx_mc_year }} \
+      --load-year {{ tx_load_year }} \
+      --upload
+
+# =============================================================================
 # RI-only: supply marginal cost generation (ISO-NE)
 # =============================================================================
 
