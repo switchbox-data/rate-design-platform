@@ -156,15 +156,15 @@ HP-only sweep across all 7 NY utilities:
 
 | Utility | Optimal $N$ | Winter peak hours  | Summer peak hours  | Winter ratio | Summer ratio |
 | ------- | ----------- | ------------------ | ------------------ | ------------ | ------------ |
-| cenhud  | 4           | 17, 18, 19, 20     | 15, 16, 17, 18     | 1.60         | 2.99         |
-| coned   | 3           | 17, 18, 19         | 15, 16, 17         | 1.90         | 4.28         |
+| cenhud  | 5           | 16, 17, 18, 19, 20 | 15, 16, 17, 18, 19 | 1.57         | 3.04         |
+| coned   | 3           | 16, 17, 18         | 15, 16, 17         | 1.99         | 4.28         |
 | nimo    | 3           | 17, 18, 19         | 17, 18, 19         | 1.75         | 2.91         |
 | nyseg   | 3           | 17, 18, 19         | 17, 18, 19         | 1.75         | 2.93         |
 | or      | 5           | 16, 17, 18, 19, 20 | 15, 16, 17, 18, 19 | 1.57         | 3.12         |
-| psegli  | 5           | 17, 18, 19, 20, 21 | 15, 16, 17, 18, 19 | 1.64         | 3.80         |
+| psegli  | 5           | 16, 17, 18, 19, 20 | 15, 16, 17, 18, 19 | 1.67         | 3.80         |
 | rge     | 3           | 17, 18, 19         | 17, 18, 19         | 1.75         | 2.87         |
 
-Most utilities land on 3 hours; CenHud on 4; O&R and PSEG-LI on 5. Summer ratios are consistently higher than winter (driven by generation capacity scarcity and cooling load concentration). All peak windows cluster in the late afternoon / early evening.
+Most utilities land on 3 hours; CenHud, O&R, and PSEG-LI on 5. Summer ratios are consistently higher than winter (driven by generation capacity scarcity and cooling load concentration). All peak windows cluster in the late afternoon / early evening.
 
 ## When to run
 

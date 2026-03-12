@@ -126,6 +126,15 @@ def recompute_tou_precalc_mapping(
 
     updated = precalc_mapping.copy()
 
+    if len(tou_season_specs) > 1:
+        log.warning(
+            ".... Phase 1.75 received %d TOU tariffs but only one aggregated "
+            "shifted TOU load curve. Recomputed rel_values will reuse the same "
+            "class weights across tariffs; this is only theory-consistent for "
+            "a single treated TOU class.",
+            len(tou_season_specs),
+        )
+
     for tou_key, specs in tou_season_specs.items():
         avg_base_rate = sum(spec.base_rate for spec in specs) / len(specs)
 
@@ -139,8 +148,11 @@ def recompute_tou_precalc_mapping(
 
             season_mc_total = float((mc_season * load_season).sum())
             if abs(season_mc_total) < 1e-12:
-                log.info(
-                    ".... Season %s has zero MC; using flat ratio 1.0",
+                log.warning(
+                    ".... Season %s has zero combined MC during Phase 1.75 "
+                    "recalibration; defaulting to flat ratio 1.0 and flat "
+                    "seasonal base rate. Original derivation values are not "
+                    "preserved in this fallback.",
                     spec.season.name,
                 )
                 new_season_rates[spec.season.name] = 1.0
