@@ -42,6 +42,7 @@ from data.eia.hourly_loads.eia_region_config import (
     get_aws_storage_options,
     get_state_config,
 )
+from utils.pre.marginal_costs.supply_utils import warn_if_multiple_partition_parquets
 
 
 def load_utility_load_profile(
@@ -423,8 +424,19 @@ def save_allocated_costs(
 
     s3_base = s3_base.rstrip("/") + "/"
     # Write directly to data.parquet path (not using partition_by which creates 00000000.parquet)
-    output_path = f"{s3_base}utility={utility}/year={year}/data.parquet"
+    path_partition = f"{s3_base}utility={utility}/year={year}"
+    output_path = f"{path_partition}/data.parquet"
+    warn_if_multiple_partition_parquets(
+        path_partition=path_partition,
+        expected_filename="data.parquet",
+        context="pre-write dist/sub-tx MC",
+    )
     output_df.write_parquet(output_path, storage_options=storage_options)
+    warn_if_multiple_partition_parquets(
+        path_partition=path_partition,
+        expected_filename="data.parquet",
+        context="post-write dist/sub-tx MC",
+    )
 
     print(f"\n✓ Saved allocated costs to {output_path}")
     print(f"  Rows: {len(output_df):,}")
