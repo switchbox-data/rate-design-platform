@@ -104,10 +104,7 @@ def build_mc_partition_path(
             f"Expected one of {sorted(MC_COMPONENT_RELATIVE_PATHS)}."
         )
     base = mc_base_path.rstrip("/")
-    return (
-        f"{base}/{state.lower()}/{component_relpath}/"
-        f"utility={utility}/year={year}"
-    )
+    return f"{base}/{state.lower()}/{component_relpath}/utility={utility}/year={year}"
 
 
 def build_mc_partition_parquet_path(

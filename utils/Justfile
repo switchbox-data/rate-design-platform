@@ -15,6 +15,7 @@ create-scenario-yamls state="":
 
 # Update Google Sheet with MC path formulas for all states (NY + RI).
 # Requires G_CLIENT_ID and G_CLIENT_SECRET in .env.
+
 # After running, call create-scenario-yamls to pull the updated paths into YAMLs.
 update-sheet-formulas:
     uv run python {{ project_root }}/utils/pre/update_sheet_formulas.py

@@ -363,7 +363,9 @@ def _apply_lmi_discounts_to_master(
     _log_done("Applying LMI discounts", t, f"{result.height} rows")
 
     t = _log("Validating LMI discount columns...")
-    _validate_ny_lmi_discounts(result, pct_label, lmi_participation_rate, lmi_calculation_type)
+    _validate_ny_lmi_discounts(
+        result, pct_label, lmi_participation_rate, lmi_calculation_type
+    )
     _log_done("Validating LMI discounts", t)
     return result
 
