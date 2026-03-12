@@ -242,13 +242,46 @@ def combine_marginal_costs(
 # ---------------------------------------------------------------------------
 
 
+def compute_tou_fit_metric(
+    combined_mc: pd.Series,
+    hourly_load: pd.Series,
+    peak_hours: list[int],
+) -> float:
+    """Load-weighted sum of squared MC residuals for a peak/off-peak split.
+
+    This is the fixed-width welfare-loss proxy used to compare candidate TOU
+    windows. Lower values mean the two-period TOU approximation better matches
+    the hourly MC profile for the class facing the tariff.
+    """
+    hour_of_day = combined_mc.index.hour  # type: ignore[union-attr]
+    is_peak = np.isin(hour_of_day, peak_hours)
+
+    peak_load = hourly_load[is_peak].sum()
+    offpeak_load = hourly_load[~is_peak].sum()
+
+    peak_avg = (
+        (combined_mc[is_peak] * hourly_load[is_peak]).sum() / peak_load
+        if peak_load > 0
+        else 0.0
+    )
+    offpeak_avg = (
+        (combined_mc[~is_peak] * hourly_load[~is_peak]).sum() / offpeak_load
+        if offpeak_load > 0
+        else 0.0
+    )
+
+    period_rate = np.where(is_peak, peak_avg, offpeak_avg)
+    residuals = (combined_mc.values - period_rate) ** 2 * hourly_load.values
+    return float(residuals.sum())
+
+
 def find_tou_peak_window(
     combined_mc: pd.Series,
     hourly_load: pd.Series,
     window_hours: int = 4,
 ) -> list[int]:
-    """Find the contiguous *window_hours*-wide block with the highest
-    demand-weighted average marginal cost across the 24-hour day.
+    """Find the contiguous *window_hours*-wide block that best fits a
+    two-period TOU approximation under a load-weighted squared-error objective.
 
     This is a **primitive**: it operates on whatever hourly slice is passed
     in.  For seasonal TOU, callers filter to a single season's hours first.
@@ -264,32 +297,21 @@ def find_tou_peak_window(
     if window_hours < 1 or window_hours > 23:
         raise ValueError("window_hours must be between 1 and 23")
 
-    # Demand-weighted MC: MC_h * load_h (caller must pass aligned indices)
-    dw_mc = combined_mc * hourly_load
-
-    # Build a 24-hour profile: average demand-weighted MC by hour-of-day
-    hour_of_day = combined_mc.index.hour  # type: ignore[union-attr]
-    profile = (
-        pd.DataFrame({"dw_mc": dw_mc.values, "hour": hour_of_day})
-        .groupby("hour")["dw_mc"]
-        .mean()
-    )
-
-    # Slide a contiguous window (wrapping around midnight)
-    best_sum = -np.inf
-    best_start = 0
+    best_metric = np.inf
+    best_peak_hours: list[int] = []
     for start in range(24):
-        hours = [(start + i) % 24 for i in range(window_hours)]
-        window_sum = profile.loc[hours].sum()
-        if window_sum > best_sum:
-            best_sum = window_sum
-            best_start = start
+        peak_hours = sorted((start + i) % 24 for i in range(window_hours))
+        metric = compute_tou_fit_metric(combined_mc, hourly_load, peak_hours)
+        if metric < best_metric:
+            best_metric = metric
+            best_peak_hours = peak_hours
 
-    peak_hours = sorted((best_start + i) % 24 for i in range(window_hours))
     log.info(
-        "TOU peak window (hours %d–%d): %s", peak_hours[0], peak_hours[-1], peak_hours
+        "TOU peak window %s minimizes load-weighted MC residual metric %.6e",
+        best_peak_hours,
+        best_metric,
     )
-    return peak_hours
+    return best_peak_hours
 
 
 def compute_tou_cost_causation_ratio(

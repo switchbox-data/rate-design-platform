@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from utils.pre.compute_tou import make_winter_summer_seasons
+from utils.pre.compute_tou import find_tou_peak_window, make_winter_summer_seasons
 from utils.pre.derive_seasonal_tou_window import (
     compute_tou_fit_metric,
     sweep_tou_window_hours,
@@ -92,6 +92,35 @@ class TestComputeTouFitMetric:
 
 
 class TestSweepTouWindowHours:
+    def test_find_tou_peak_window_minimizes_fit_metric(self) -> None:
+        """Peak-window selection should minimize the same metric the sweep reports."""
+        rng = np.random.default_rng(0)
+        idx = pd.date_range("2025-01-01", periods=24 * 30, freq="h", tz="UTC")
+        base_mc = rng.uniform(0.01, 0.3, 24)
+        base_load = rng.uniform(1.0, 10.0, 24)
+
+        mc = pd.Series(
+            [base_mc[ts.hour] + rng.normal(0, 0.02) for ts in idx],
+            index=idx,
+            name="total_mc_per_kwh",
+        )
+        load = pd.Series(
+            [max(0.1, base_load[ts.hour] + rng.normal(0, 1.5)) for ts in idx],
+            index=idx,
+            name="load",
+        )
+
+        peak_hours = find_tou_peak_window(mc, load, window_hours=1)
+
+        candidate_metrics = {
+            start: compute_tou_fit_metric(mc, load, [start]) for start in range(24)
+        }
+        best_metric = min(candidate_metrics.values())
+
+        assert compute_tou_fit_metric(mc, load, peak_hours) == pytest.approx(
+            best_metric
+        )
+
     def test_picks_correct_width_for_sharp_spike(self) -> None:
         """A 3-hour MC spike should yield N=3 as the best window width."""
         idx = _make_hourly_index()

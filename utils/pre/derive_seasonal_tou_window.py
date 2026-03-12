@@ -36,13 +36,13 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import yaml
 
 from utils.pre.compute_tou import (
     Season,
     combine_marginal_costs,
+    compute_tou_fit_metric,
     compute_tou_cost_causation_ratio,
     find_tou_peak_window,
     make_winter_summer_seasons,
@@ -58,43 +58,6 @@ from utils.pre.season_config import (
 )
 
 log = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Metric
-# ---------------------------------------------------------------------------
-
-
-def compute_tou_fit_metric(
-    combined_mc: pd.Series,
-    hourly_load: pd.Series,
-    peak_hours: list[int],
-) -> float:
-    """Load-weighted sum of squared MC residuals for a peak/off-peak split.
-
-    Measures how much hourly MC variation the two-rate TOU structure leaves
-    unexplained.  Lower values indicate a more cost-reflective window.
-    """
-    hour_of_day = combined_mc.index.hour  # type: ignore[union-attr]
-    is_peak = np.isin(hour_of_day, peak_hours)
-
-    peak_load = hourly_load[is_peak].sum()
-    offpeak_load = hourly_load[~is_peak].sum()
-
-    peak_avg = (
-        (combined_mc[is_peak] * hourly_load[is_peak]).sum() / peak_load
-        if peak_load > 0
-        else 0.0
-    )
-    offpeak_avg = (
-        (combined_mc[~is_peak] * hourly_load[~is_peak]).sum() / offpeak_load
-        if offpeak_load > 0
-        else 0.0
-    )
-
-    period_rate = np.where(is_peak, peak_avg, offpeak_avg)
-    residuals = (combined_mc.values - period_rate) ** 2 * hourly_load.values
-    return float(residuals.sum())
 
 
 # ---------------------------------------------------------------------------
