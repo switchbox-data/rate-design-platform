@@ -215,6 +215,40 @@ def _check_aggregate_sanity(
         (f"mean annual elec in $500-$5000 ({level})", ok, f"${mean_elec:,.0f}")
     )
 
+    # Gas-heated buildings must have positive gas bills
+    gas_heated_zero = annual.filter(
+        (pl.col("heats_with_natgas") == True) & (pl.col("gas_total_bill") <= FLOAT_TOL)  # noqa: E712
+    ).height
+    ok = gas_heated_zero == 0
+    results.append(
+        (
+            "gas-heated buildings have gas_total_bill > 0",
+            ok,
+            f"n_zero={gas_heated_zero}",
+        )
+    )
+
+    # energy_total_bill == elec + gas + oil + propane
+    identity_diff = (
+        annual["energy_total_bill"]
+        - annual["elec_total_bill"]
+        - annual["gas_total_bill"]
+        - annual["oil_total_bill"]
+        - annual["propane_total_bill"]
+    ).abs()
+    max_identity_diff = (
+        cast(float, identity_diff.max()) if identity_diff.len() > 0 else 0.0
+    )
+    n_bad_identity = (identity_diff > FLOAT_TOL).sum()
+    ok = n_bad_identity == 0
+    results.append(
+        (
+            "energy_total_bill == elec + gas + oil + propane",
+            ok,
+            f"max_diff={max_identity_diff:.8f}, n_bad={n_bad_identity}",
+        )
+    )
+
     # Zero/nonzero consistency
     for fuel, bill_col in [
         ("heats_with_oil", "oil_total_bill"),
@@ -279,6 +313,39 @@ def _check_aggregate_sanity(
         ("consistent weight per building", ok, f"exceptions={multi_weight.height}")
     )
 
+    return results
+
+
+def _check_building_ids_vs_utility_assignment(
+    master: pl.DataFrame,
+    utility: str,
+    utility_assignment: pl.DataFrame,
+) -> list[tuple[str, bool, str]]:
+    """Check that the set of building IDs in the master table matches the UA.
+
+    CAIRO computes its own weights (calibrated to utility customer counts), so
+    weight sums are not comparable between master and the UA.  Instead we compare
+    the *set* of unique bldg_ids per electric utility.
+    """
+    results: list[tuple[str, bool, str]] = []
+    annual = master.filter(
+        (pl.col("sb.electric_utility") == utility) & (pl.col("month") == ANNUAL_MONTH)
+    )
+    master_ids = set(annual[BLDG_ID].to_list())
+
+    ua_for_util = utility_assignment.filter(pl.col("sb.electric_utility") == utility)
+    ua_ids = set(ua_for_util[BLDG_ID].to_list())
+
+    in_master_not_ua = master_ids - ua_ids
+    in_ua_not_master = ua_ids - master_ids
+
+    ok = len(in_master_not_ua) == 0 and len(in_ua_not_master) == 0
+    detail = (
+        f"master={len(master_ids):,}, ua={len(ua_ids):,}, "
+        f"in_master_only={len(in_master_not_ua):,}, "
+        f"in_ua_only={len(in_ua_not_master):,}"
+    )
+    results.append(("bldg_ids match utility_assignment", ok, detail))
     return results
 
 
@@ -458,6 +525,16 @@ def main() -> None:
     _log("\n=== Aggregate sanity checks ===")
     sanity_results = _check_aggregate_sanity(master, args.utility)
     all_results.extend(sanity_results)
+
+    # 2b. Building ID coverage vs utility assignment
+    _log("\n=== Building ID coverage check ===")
+    meta_path = (
+        f"{args.path_resstock_release.rstrip('/')}"
+        f"/metadata_utility/state={state.upper()}/utility_assignment.parquet"
+    )
+    ua = cast(pl.DataFrame, pl.scan_parquet(meta_path).collect())
+    id_results = _check_building_ids_vs_utility_assignment(master, args.utility, ua)
+    all_results.extend(id_results)
 
     # 3. Spot-check report
     _spot_check_report(

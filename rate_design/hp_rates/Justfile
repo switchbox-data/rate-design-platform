@@ -730,9 +730,18 @@ validate-master-bills-standalone batch run_delivery run_supply *batch_overrides:
         --price-year "{{ price_year }}" \
         {{ batch_overrides }}
 
-validate-ny-lmi-electric-bills batch *batch_overrides:
-    uv run python {{ path_repo }}/utils/post/validate_ny_lmi_electric_bills.py \
+validate-lmi-electric batch run_delivery="1" run_supply="2" *extra_args:
+    uv run python {{ path_repo }}/utils/post/validate_lmi_electric_discounts.py \
         --state "{{ state }}" \
         --batch "{{ batch }}" \
-        --path-resstock-release "s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb" \
-        {{ batch_overrides }}
+        --run-delivery "{{ run_delivery }}" \
+        --run-supply "{{ run_supply }}" \
+        {{ extra_args }}
+
+validate-lmi-gas batch run_delivery="1" run_supply="2" *extra_args:
+    uv run python {{ path_repo }}/utils/post/validate_lmi_gas_discounts.py \
+        --state "{{ state }}" \
+        --batch "{{ batch }}" \
+        --run-delivery "{{ run_delivery }}" \
+        --run-supply "{{ run_supply }}" \
+        {{ extra_args }}
