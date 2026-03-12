@@ -1102,6 +1102,6 @@ if __name__ == "__main__":
     )
 
     # Write back to the same location using sink_parquet (commented out for testing)
-    # metadata_with_utility_assignment.sink_parquet(
-    #     str(output_path_s3), compression="zstd", storage_options=STORAGE_OPTIONS
-    # )
+    metadata_with_utility_assignment.sink_parquet(
+        str(output_path_s3), compression="zstd", storage_options=STORAGE_OPTIONS
+    )
