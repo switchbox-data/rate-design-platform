@@ -13,22 +13,22 @@ path_local_xlsx := path_local_base + "/xlsx"
 path_s3_parquet := "s3://data.sb/isone/capacity/cso/"
 
 fetch:
-    uv run python "{{path_local_base}}/fetch_isone_celt_cso.py" \
+    uv run python "{{ path_local_base }}/fetch_isone_celt_cso.py" \
         --all \
-        --path-local-parquet "{{path_local_parquet}}" \
-        --path-local-xlsx "{{path_local_xlsx}}"
+        --path-local-parquet "{{ path_local_parquet }}" \
+        --path-local-xlsx "{{ path_local_xlsx }}"
 
 validate:
-    uv run python "{{path_local_base}}/validate_isone_celt_cso.py" \
-        --path-local-parquet "{{path_local_parquet}}"
+    uv run python "{{ path_local_base }}/validate_isone_celt_cso.py" \
+        --path-local-parquet "{{ path_local_parquet }}"
 
 prepare: fetch validate
 
 upload:
-    aws s3 sync "{{path_local_parquet}}/" "{{path_s3_parquet}}" \
+    aws s3 sync "{{ path_local_parquet }}/" "{{ path_s3_parquet }}" \
         --exclude "*" --include "*.parquet"
-    @echo "Uploaded to {{path_s3_parquet}}"
+    @echo "Uploaded to {{ path_s3_parquet }}"
 
 clean:
-    rm -rf "{{path_local_parquet}}" "{{path_local_xlsx}}"
+    rm -rf "{{ path_local_parquet }}" "{{ path_local_xlsx }}"
     @echo "Removed parquet/ and xlsx/"
