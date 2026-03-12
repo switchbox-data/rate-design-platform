@@ -321,6 +321,13 @@ def derive_seasonal_tou(
             hourly_load[mask],
             peak_hours,
         )
+        if ratio <= 1.0:
+            raise ValueError(
+                "Invalid TOU derivation for "
+                f"utility={utility}, season={s.name}, tou_window_hours={tou_window_hours}: "
+                f"peak/off-peak ratio={ratio:.6f} (must be > 1.0). "
+                "Adjust tou_window_hours or seasonal configuration to avoid flat/inverted TOU."
+            )
         season_specs.append(
             SeasonTouSpec(
                 season=s,
