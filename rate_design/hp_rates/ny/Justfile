@@ -190,7 +190,7 @@ build-master-bills-with-lmi-p100 batch run_delivery run_supply calculation_type=
 build-master-bills-with-lmi-p40 batch run_delivery run_supply calculation_type="budget" *script_args:
     just build-master-bills-with-lmi "{{ batch }}" "{{ run_delivery }}" "{{ run_supply }}" "0.4" "weighted" "42" "{{ calculation_type }}" {{ script_args }}
 
-apply-lmi-to-existing-master-bills batch run_delivery run_supply participation_rate="1.0" participation_mode="weighted" seed="42" output_path="":
+apply-lmi-to-existing-master-bills batch run_delivery run_supply participation_rate="1.0" participation_mode="weighted" seed="42" calculation_type="budget" output_path="":
     uv run python {{ path_repo }}/utils/post/apply_ny_lmi_to_master_bills.py \
       --master-bills-path "s3://data.sb/switchbox/cairo/outputs/hp_rates/{{ state }}/all_utilities/{{ batch }}/run_{{ run_delivery }}+{{ run_supply }}/comb_bills_year_target/" \
       --state {{ state_upper }} \
@@ -199,6 +199,7 @@ apply-lmi-to-existing-master-bills batch run_delivery run_supply participation_r
       --participation-rate "{{ participation_rate }}" \
       --participation-mode "{{ participation_mode }}" \
       --seed "{{ seed }}" \
+      --calculation-type "{{ calculation_type }}" \
       {{ if output_path != "" { "--output-path \"" + output_path + "\"" } else { "" } }}
 
 # =============================================================================
