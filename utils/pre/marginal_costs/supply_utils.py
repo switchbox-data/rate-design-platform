@@ -5,6 +5,7 @@ from __future__ import annotations
 import calendar
 import io
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import polars as pl
 from cloudpathlib import S3Path
@@ -59,6 +60,178 @@ ISONE_CAPACITY_ZONE_FALLBACK: int = 8500  # System / Rest-of-Pool
 ISONE_CAPACITY_ZONE_LOAD_ZONES: dict[str, list[str]] = {
     "rie": ["RI", "SEMA"]
 }  # SENE aggregate
+
+# All eight ISO-NE load zones, used for New England system-wide peak identification
+# (e.g. RNS / bulk TX allocation is driven by NE coincident peak).
+ISONE_ALL_LOAD_ZONES: list[str] = [
+    "CT",
+    "ME",
+    "NEMA",
+    "NH",
+    "RI",
+    "SEMA",
+    "VT",
+    "WCMA",
+]
+
+DEFAULT_ISONE_BULK_TX_OUTPUT_S3_BASE = (
+    "s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/"
+)
+DEFAULT_NYISO_BULK_TX_OUTPUT_S3_BASE = (
+    "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/"
+)
+
+MC_COMPONENT_RELATIVE_PATHS: dict[str, str] = {
+    "supply_energy": "supply/energy",
+    "supply_capacity": "supply/capacity",
+    "bulk_tx": "bulk_tx",
+    "dist_sub_tx": "dist_and_sub_tx",
+}
+
+
+def build_mc_partition_path(
+    state: str,
+    component: str,
+    utility: str,
+    year: int,
+    mc_base_path: str = "s3://data.sb/switchbox/marginal_costs",
+) -> str:
+    """Build canonical MC partition path for one state/component/utility/year."""
+    component_relpath = MC_COMPONENT_RELATIVE_PATHS.get(component)
+    if component_relpath is None:
+        raise ValueError(
+            f"Unsupported marginal cost component '{component}'. "
+            f"Expected one of {sorted(MC_COMPONENT_RELATIVE_PATHS)}."
+        )
+    base = mc_base_path.rstrip("/")
+    return (
+        f"{base}/{state.lower()}/{component_relpath}/"
+        f"utility={utility}/year={year}"
+    )
+
+
+def build_mc_partition_parquet_path(
+    state: str,
+    component: str,
+    utility: str,
+    year: int,
+    filename: str = "data.parquet",
+    mc_base_path: str = "s3://data.sb/switchbox/marginal_costs",
+) -> str:
+    """Build canonical MC parquet object path for one partition."""
+    return (
+        f"{build_mc_partition_path(state, component, utility, year, mc_base_path)}/"
+        f"{filename}"
+    )
+
+
+def list_partition_parquet_paths(path_partition: str) -> list[str]:
+    """List parquet object paths in one partition directory."""
+    if path_partition.startswith("s3://"):
+        partition = S3Path(path_partition)
+        if not partition.exists():
+            return []
+        return sorted(str(p) for p in partition.glob("*.parquet"))
+
+    partition_local = Path(path_partition)
+    if not partition_local.exists():
+        return []
+    return sorted(str(p) for p in partition_local.glob("*.parquet"))
+
+
+def warn_if_multiple_partition_parquets(
+    path_partition: str,
+    expected_filename: str,
+    context: str,
+) -> None:
+    """Emit a non-destructive warning when a partition has multiple parquet files."""
+    parquet_paths = list_partition_parquet_paths(path_partition)
+    if len(parquet_paths) <= 1:
+        return
+
+    filenames = [Path(path).name for path in parquet_paths]
+    if expected_filename not in filenames:
+        print(
+            f"⚠️  WARNING [{context}]: partition has {len(parquet_paths)} parquet files, "
+            f"but expected canonical '{expected_filename}' is missing."
+        )
+    else:
+        print(
+            f"⚠️  WARNING [{context}]: partition has {len(parquet_paths)} parquet files; "
+            f"canonical file is '{expected_filename}'."
+        )
+    print(f"    Partition: {path_partition}")
+    print(f"    Files: {', '.join(filenames)}")
+
+
+def allocate_annual_exceedance_to_hours(
+    load_df: pl.DataFrame,
+    annual_cost_kw_year: float,
+    n_peak_hours: int = 100,
+    cost_col: str = "cost_per_kw",
+) -> pl.DataFrame:
+    """Allocate an annual $/kW-year cost to hours using top-N exceedance weighting.
+
+    Identifies the top-N hours by load, computes a threshold as the maximum load
+    strictly below the Nth-highest hour, and distributes the annual cost
+    proportionally to each hour's exceedance above that threshold.
+
+    This is a generic building block used by both supply capacity (FCA) and bulk
+    transmission marginal cost pipelines.
+
+    Args:
+        load_df: DataFrame with columns ``timestamp`` (datetime) and ``load_mw`` (float).
+        annual_cost_kw_year: Annual cost in $/kW-year to allocate.
+        n_peak_hours: Number of top-load hours over which to spread the cost.
+        cost_col: Name of the output cost column.
+
+    Returns:
+        DataFrame with columns ``timestamp`` and *cost_col*, containing only the
+        *n_peak_hours* rows with non-zero cost.  Sorted by timestamp.
+
+    Raises:
+        ValueError: If load_df has fewer rows than *n_peak_hours*, total exceedance
+            is non-positive, or weights fail to sum to 1.
+    """
+    if load_df.height < n_peak_hours:
+        raise ValueError(
+            f"Load profile has only {load_df.height} hours, "
+            f"need at least {n_peak_hours} for exceedance allocation"
+        )
+
+    sorted_load = load_df.sort("load_mw", descending=True)
+    top_n = sorted_load.head(n_peak_hours)
+    load_nth = float(top_n["load_mw"][-1])
+
+    # Threshold = max load strictly below the Nth-highest (tie-safe)
+    below = load_df.filter(pl.col("load_mw") < load_nth)["load_mw"]
+    threshold = float(below.max()) if not below.is_empty() else 0.0  # type: ignore[arg-type]
+
+    result = top_n.with_columns((pl.col("load_mw") - threshold).alias("exceedance"))
+    total_exceedance = float(result["exceedance"].sum())
+    if total_exceedance <= 0:
+        raise ValueError(
+            f"Total exceedance is zero or negative. "
+            f"Threshold={threshold:.2f} MW, "
+            f"max load={float(sorted_load['load_mw'][0]):.2f} MW"
+        )
+
+    result = result.with_columns(
+        (pl.col("exceedance") / total_exceedance * annual_cost_kw_year).alias(cost_col)
+    )
+
+    weight_sum = float((result["exceedance"] / total_exceedance).sum())
+    if abs(weight_sum - 1.0) > 1e-6:
+        raise ValueError(f"Exceedance weights sum to {weight_sum:.6f}, expected 1.0")
+
+    n_nonzero = result.filter(pl.col(cost_col) > 0).height
+    print(
+        f"  Annual exceedance allocation: ${annual_cost_kw_year:.4f}/kW-yr, "
+        f"threshold={threshold:,.1f} MW, "
+        f"{n_nonzero} peak hours (of {n_peak_hours} requested)"
+    )
+
+    return result.select("timestamp", cost_col).sort("timestamp")
 
 
 def load_zone_mapping(path: str, storage_options: dict[str, str]) -> pl.DataFrame:
@@ -402,12 +575,25 @@ def save_zero_energy_mc(
         storage_options: AWS storage options for S3 access.
     """
     base = output_s3_base.rstrip("/") + "/energy/"
-    output_path = f"{base}utility={utility}/year={year}/zero.parquet"
+    path_partition = f"{base}utility={utility}/year={year}"
+    output_path = f"{path_partition}/zero.parquet"
+
+    warn_if_multiple_partition_parquets(
+        path_partition=path_partition,
+        expected_filename="zero.parquet",
+        context="pre-write zero energy MC",
+    )
 
     # Write directly to the specific path (not using partitioning)
     energy_df.write_parquet(
         output_path,
         storage_options=storage_options,
+    )
+
+    warn_if_multiple_partition_parquets(
+        path_partition=path_partition,
+        expected_filename="zero.parquet",
+        context="post-write zero energy MC",
     )
 
     print(f"\n✓ Saved zero-filled energy MC to {output_path}")
@@ -435,12 +621,25 @@ def save_zero_capacity_mc(
         storage_options: AWS storage options for S3 access.
     """
     base = output_s3_base.rstrip("/") + "/capacity/"
-    output_path = f"{base}utility={utility}/year={year}/zero.parquet"
+    path_partition = f"{base}utility={utility}/year={year}"
+    output_path = f"{path_partition}/zero.parquet"
+
+    warn_if_multiple_partition_parquets(
+        path_partition=path_partition,
+        expected_filename="zero.parquet",
+        context="pre-write zero capacity MC",
+    )
 
     # Write directly to the specific path (not using partitioning)
     capacity_df.write_parquet(
         output_path,
         storage_options=storage_options,
+    )
+
+    warn_if_multiple_partition_parquets(
+        path_partition=path_partition,
+        expected_filename="zero.parquet",
+        context="post-write zero capacity MC",
     )
 
     print(f"\n✓ Saved zero-filled capacity MC to {output_path}")
@@ -472,8 +671,21 @@ def save_component_output(
 
     base = output_s3_base.rstrip("/") + f"/{component}/"
     # Write directly to data.parquet path (not using partition_by which creates 00000000.parquet)
-    output_path = f"{base}utility={utility}/year={year}/data.parquet"
+    path_partition = f"{base}utility={utility}/year={year}"
+    output_path = f"{path_partition}/data.parquet"
+
+    warn_if_multiple_partition_parquets(
+        path_partition=path_partition,
+        expected_filename="data.parquet",
+        context=f"pre-write {component} MC",
+    )
     component_df.write_parquet(output_path, storage_options=storage_options)
+
+    warn_if_multiple_partition_parquets(
+        path_partition=path_partition,
+        expected_filename="data.parquet",
+        context=f"post-write {component} MC",
+    )
 
     print(f"\n✓ Saved {component} MC to {output_path}")
     print(f"  Rows: {len(component_df):,}")
