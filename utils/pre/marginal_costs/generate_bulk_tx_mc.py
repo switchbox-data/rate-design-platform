@@ -224,9 +224,25 @@ def main() -> None:
     print(f"  Upload to S3:         {'Yes' if args.upload else 'No (inspect only)'}")
 
     if iso == "nyiso":
-        _run_nyiso(args, utility, year, load_year, output_s3_base, zone_loads_s3_base, storage_options)
+        _run_nyiso(
+            args,
+            utility,
+            year,
+            load_year,
+            output_s3_base,
+            zone_loads_s3_base,
+            storage_options,
+        )
     else:
-        _run_isone(args, utility, year, load_year, output_s3_base, zone_loads_s3_base, storage_options)
+        _run_isone(
+            args,
+            utility,
+            year,
+            load_year,
+            output_s3_base,
+            zone_loads_s3_base,
+            storage_options,
+        )
 
 
 def _run_nyiso(
@@ -320,7 +336,9 @@ def _run_nyiso(
         storage_options,
     )
 
-    from utils.pre.marginal_costs.bulk_tx_nyiso import build_nested_locality_load_profiles
+    from utils.pre.marginal_costs.bulk_tx_nyiso import (
+        build_nested_locality_load_profiles,
+    )
 
     locality_profiles = build_nested_locality_load_profiles(
         zone_loads_df,
