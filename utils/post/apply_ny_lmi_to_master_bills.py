@@ -558,20 +558,32 @@ def _apply_discounted_bill_calculation(
                 f"{n_expected_rows} → {joined.height}"
             )
 
+        # Participants: apply monthly credit against the flat budget base (annual/12).
+        # Non-participants: preserve the original monthly bill unchanged so the
+        # non-discounted identity check in _validate passes and analysis comparing
+        # lmi vs original bills is unaffected for the ineligible/excluded population.
         joined = joined.with_columns(
             pl.when(pl.col("month") != ANNUAL_MONTH)
             .then(
-                ((pl.col("_annual_elec_bill_base") / 12.0) - elec_credit_monthly).clip(
-                    lower_bound=0.0
+                pl.when(pl.col("participates"))
+                .then(
+                    (
+                        (pl.col("_annual_elec_bill_base") / 12.0) - elec_credit_monthly
+                    ).clip(lower_bound=0.0)
                 )
+                .otherwise(pl.col("elec_total_bill"))
             )
             .otherwise(pl.lit(None))
             .alias(elec_col),
             pl.when(pl.col("month") != ANNUAL_MONTH)
             .then(
-                ((pl.col("_annual_gas_bill_base") / 12.0) - gas_credit_monthly).clip(
-                    lower_bound=0.0
+                pl.when(pl.col("participates"))
+                .then(
+                    (
+                        (pl.col("_annual_gas_bill_base") / 12.0) - gas_credit_monthly
+                    ).clip(lower_bound=0.0)
                 )
+                .otherwise(pl.col("gas_total_bill"))
             )
             .otherwise(pl.lit(None))
             .alias(gas_col),
@@ -614,7 +626,12 @@ def _apply_discounted_bill_calculation(
 # ---------------------------------------------------------------------------
 
 
-def _validate(df: pl.DataFrame, pct_label: int, participation_rate: float) -> None:
+def _validate(
+    df: pl.DataFrame,
+    pct_label: int,
+    participation_rate: float,
+    calculation_type: str = "monthly",
+) -> None:
     """Run validation checks and print summary statistics."""
     elec_col = f"elec_total_bill_lmi_{pct_label}"
     gas_col = f"gas_total_bill_lmi_{pct_label}"
@@ -650,13 +667,19 @@ def _validate(df: pl.DataFrame, pct_label: int, participation_rate: float) -> No
                 f"gas diff={nd_gas_diff}"
             )
 
-    # Monotonicity: discounted <= original
+    # Monotonicity: discounted <= original.
+    # In budget mode, participants' monthly lmi values use annual/12 as the base,
+    # which can exceed the actual monthly bill in low-usage months (e.g. a heating
+    # customer's July bill). Check the Annual row only for budget mode; monthly rows
+    # for non-participants are still the original bill so they pass regardless.
     tol = 1e-6
-    elec_over = df.filter(pl.col(elec_col) > pl.col("elec_total_bill") + tol).height
-    gas_over = df.filter(pl.col(gas_col) > pl.col("gas_total_bill") + tol).height
+    mono_df = df.filter(pl.col("month") == ANNUAL_MONTH) if calculation_type == "budget" else df
+    elec_over = mono_df.filter(pl.col(elec_col) > pl.col("elec_total_bill") + tol).height
+    gas_over = mono_df.filter(pl.col(gas_col) > pl.col("gas_total_bill") + tol).height
     if elec_over > 0 or gas_over > 0:
+        scope = "Annual rows" if calculation_type == "budget" else "rows"
         raise AssertionError(
-            f"Discounted > original: {elec_over} elec rows, {gas_over} gas rows"
+            f"Discounted > original ({scope}): {elec_over} elec, {gas_over} gas"
         )
 
     # is_lmi == (lmi_tier > 0) consistency
@@ -834,6 +857,13 @@ def main() -> None:
         default="s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb",
         help="S3 path to ResStock release (must have is_vulnerable in metadata)",
     )
+    parser.add_argument(
+        "--calculation-type",
+        choices=["monthly", "budget"],
+        default="budget",
+        help="LMI bill calculation method: 'monthly' applies credit to actual monthly bills; "
+        "'budget' smooths the annual bill to annual/12 before applying the credit.",
+    )
     args = parser.parse_args()
 
     state = args.state.upper()
@@ -952,13 +982,13 @@ def main() -> None:
         master = master.drop(shared_cols)
 
     # 5. Apply credits to master bills
-    t = _log("Applying credits to master bills...")
-    result = _apply_credits(master, tier_info, pct_label, credits_df)
+    t = _log(f"Applying credits to master bills ({args.calculation_type})...")
+    result = _apply_credits(master, tier_info, pct_label, credits_df, args.calculation_type)
     _log_done("Applying credits", t, f"{result.height} rows")
 
     # 6. Validate
     t = _log("Validating...")
-    _validate(result, pct_label, args.participation_rate)
+    _validate(result, pct_label, args.participation_rate, args.calculation_type)
     _log_done("Validation", t)
 
     # 7. Write output

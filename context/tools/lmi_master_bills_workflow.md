@@ -1,30 +1,30 @@
-# LMI discount application to master bills
+# LMI discounts in master bills
 
-How `utils/post/apply_ny_lmi_to_master_bills.py` enriches the master `comb_bills_year_target` tables with NY EAP/EEAP bill discounts.
+How NY LMI discounts are built directly into `comb_bills_year_target` by `utils/post/build_master_bills.py`.
 
 ---
 
 ## What it does
 
-The script reads a Hive-partitioned master bills table from S3, assigns EAP tiers to each building using ResStock metadata, applies per-utility fixed monthly credits, validates the result, and writes back — by default in-place to the same S3 path.
+The script builds the Hive-partitioned master bills table, assigns EAP tiers to each building using ResStock metadata, applies per-utility fixed monthly credits, validates the result, and writes the final dataset to the standard master-bills output path.
 
-It is designed to run **twice per run pair**: once at 100% participation (p100) and once at 40% (p40). The second invocation detects the shared columns written by the first and verifies consistency before appending rate-specific columns.
+For analysis, it is commonly run **twice per run pair**: once at 100% participation (p100) and once at 40% (p40), typically using distinct batch names so each output lands in its own master-bills directory.
 
 ---
 
 ## Columns added
 
-Each invocation adds rate-specific columns (where `{pct}` = `int(participation_rate * 100)`):
+Each LMI-enabled build adds rate-specific columns (where `{pct}` = `int(participation_rate * 100)`):
 
-| Column                      | Type    | Description                                                                                                                                                                      |
-| --------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lmi_tier`                  | Int32   | Raw EAP tier (0 = ineligible, 1–7 = eligible). Same across p100 and p40 — reflects eligibility, not participation. Written by the first invocation; verified on subsequent ones. |
-| `is_lmi`                    | Bool    | `lmi_tier > 0`. Convenience flag for filtering.                                                                                                                                  |
-| `applied_discount_{pct}`    | Bool    | True if the discount was actually applied (depends on participation sampling). At p100, identical to `is_lmi`.                                                                   |
-| `elec_total_bill_lmi_{pct}` | Float64 | `max(0, elec_total_bill - monthly_credit)` for monthly rows; `sum(Jan..Dec clamped)` for the Annual row.                                                                         |
-| `gas_total_bill_lmi_{pct}`  | Float64 | Same logic for gas.                                                                                                                                                              |
+| Column                      | Type    | Description                                                                                                                 |
+| --------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `lmi_tier`                  | Int32   | Raw EAP tier (0 = ineligible, 1–7 = eligible). Same across p100 and p40 because it reflects eligibility, not participation. |
+| `is_lmi`                    | Bool    | `lmi_tier > 0`. Convenience flag for filtering.                                                                             |
+| `applied_discount_{pct}`    | Bool    | True if the discount was actually applied (depends on participation sampling). At p100, identical to `is_lmi`.              |
+| `elec_total_bill_lmi_{pct}` | Float64 | `max(0, elec_total_bill - monthly_credit)` for monthly rows; `sum(Jan..Dec clamped)` for the Annual row.                    |
+| `gas_total_bill_lmi_{pct}`  | Float64 | Same logic for gas.                                                                                                         |
 
-After both runs, the table grows from ~22 to **30 columns** (22 original + 2 shared + 3 per rate × 2 rates).
+Each LMI-enabled output contains the base master-bills columns plus the LMI columns for that participation scenario.
 
 ---
 
@@ -35,7 +35,7 @@ After both runs, the table grows from ~22 to **30 columns** (22 original + 2 sha
 From `rate_design/hp_rates/`:
 
 ```bash
-just s ny apply-lmi-to-master-bills <batch> <run_delivery> <run_supply> [participation_rate] [seed] [output_path]
+just s ny build-master-bills-with-lmi <batch> <run_delivery> <run_supply> [participation_rate] [participation_mode] [seed] [calculation_type]
 ```
 
 Example — run p100 then p40 for all 4 run pairs:
@@ -43,31 +43,35 @@ Example — run p100 then p40 for all 4 run pairs:
 ```bash
 cd rate_design/hp_rates
 for d s in 1 2 3 4 5 6 7 8; do
-  just s ny apply-lmi-to-master-bills ny_20260307_r1-8_gascalcfix $d $s 1.0
-  just s ny apply-lmi-to-master-bills ny_20260307_r1-8_gascalcfix $d $s 0.4
+  just s ny build-master-bills-with-lmi-p100 ny_20260307_r1-8_gascalcfix $d $s
+  just s ny build-master-bills-with-lmi-p40 ny_20260307_r1-8_gascalcfix $d $s
 done
 ```
 
 ### Direct CLI
 
 ```bash
-uv run python utils/post/apply_ny_lmi_to_master_bills.py \
-  --master-bills-path "s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/all_utilities/<batch>/run_<d>+<s>/comb_bills_year_target/" \
-  --state NY --fpl-year 2025 \
-  --cpi-s3-path "s3://data.sb/fred/cpi/" \
-  --participation-rate 1.0 --participation-mode weighted --seed 42
+uv run python utils/post/build_master_bills.py \
+  --state ny \
+  --batch <batch> \
+  --run-delivery <d> \
+  --run-supply <s> \
+  --path-resstock-release "s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb" \
+  --path-load-curves-local "<local_resstock_root>" \
+  --calculate-lmi \
+  --lmi-fpl-year 2025 \
+  --lmi-cpi-s3-path "s3://data.sb/fred/cpi/" \
+  --lmi-participation-rate 1.0 \
+  --lmi-participation-mode weighted \
+  --lmi-seed 42 \
+  --lmi-calculation-type budget
 ```
-
-Pass `--output-path <s3_path>` to redirect output instead of writing in-place.
 
 ---
 
-## Idempotency
+## Re-runs
 
-The script handles re-runs gracefully:
-
-- **Rate-specific columns** (`elec_total_bill_lmi_{pct}`, `gas_total_bill_lmi_{pct}`, `applied_discount_{pct}`): dropped and recomputed from scratch.
-- **Shared columns** (`lmi_tier`, `is_lmi`): if already present (from a prior rate run), the script recomputes tier assignments and verifies they match existing values. If they mismatch, it raises `AssertionError`. If they match, existing values are kept and the new tier_info is joined fresh.
+The build is deterministic for a fixed set of inputs, parameters, and seed. Re-running the same command rewrites the master-bills output for that batch/run pair.
 
 ---
 

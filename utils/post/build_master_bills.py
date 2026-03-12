@@ -17,6 +17,9 @@ Identities:
     elec_total_bill = elec_fixed_charge + elec_delivery_bill + elec_supply_bill
     gas_total_bill = gas_fixed_charge + gas_volumetric_bill
     energy_total_bill = elec_total_bill + gas_total_bill + propane_total_bill + oil_total_bill
+
+When ``--calculate-lmi`` is passed for NY, the script also appends the LMI
+discount columns before writing the final output.
 """
 
 from __future__ import annotations
@@ -32,6 +35,13 @@ from typing import cast
 
 import polars as pl
 
+from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.post import apply_ny_lmi_to_master_bills as ny_lmi_master_bills
+from utils.post.apply_ny_lmi_to_master_bills import (
+    _apply_credits as _apply_ny_lmi_credits,
+    _build_all_tiers as _build_all_ny_lmi_tiers,
+    _validate as _validate_ny_lmi_discounts,
+)
 from utils.post.delivered_fuel_bills import compute_fuel_bills, load_monthly_fuel_prices
 from utils.post.gas_bills import (
     build_fixed_charge_table,
@@ -46,6 +56,14 @@ from utils.post.io import (
     BILL_LEVEL,
     scan,
     scan_load_curves_for_utility,
+)
+from utils.post.lmi_common import (
+    get_ny_eap_credits_df,
+    load_cpi_ratio,
+    load_fpl_guidelines,
+    load_ny_eap_config,
+    load_smi_for_state,
+    smi_threshold_by_hh_size,
 )
 
 ELEC_BILLS_CSV = "bills/elec_bills_year_target.csv"
@@ -269,6 +287,85 @@ def _assert_no_nulls(df: pl.DataFrame, cols: list[str], utility: str) -> None:
         n_null = df[c].null_count()
         if n_null > 0:
             raise AssertionError(f"[{utility}] Column '{c}' has {n_null} null values.")
+
+
+def _apply_lmi_discounts_to_master(
+    master: pl.DataFrame,
+    *,
+    state_upper: str,
+    utilities: list[str],
+    upgrade: str,
+    path_resstock_release: str,
+    lmi_fpl_year: int,
+    lmi_cpi_s3_path: str,
+    lmi_participation_rate: float,
+    lmi_participation_mode: str,
+    lmi_seed: int,
+    lmi_calculation_type: str,
+) -> pl.DataFrame:
+    """Append NY LMI discount columns to an in-memory master bills table."""
+    if state_upper != "NY":
+        raise ValueError(
+            "--calculate-lmi is currently only supported for NY master bills"
+        )
+
+    # Keep the helper module's elapsed-time logging aligned with this script.
+    ny_lmi_master_bills._t0 = _t0
+
+    opts = get_aws_storage_options()
+    pct_label = int(round(lmi_participation_rate * 100))
+
+    t = _log("Loading CPI, FPL, SMI, and NY EAP config for LMI discounts...")
+    cpi_ratio = load_cpi_ratio(lmi_cpi_s3_path, lmi_fpl_year, opts)
+    fpl = load_fpl_guidelines(lmi_fpl_year)
+    ny_eap_config = load_ny_eap_config()
+    smi_row = load_smi_for_state(state_upper, lmi_fpl_year, opts)
+    smi_100 = smi_threshold_by_hh_size(smi_row, pct=100.0)
+    credits_df = get_ny_eap_credits_df(ny_eap_config)
+    _log_done("Loading LMI config", t, f"CPI ratio={cpi_ratio:.4f}")
+
+    release = path_resstock_release.rstrip("/")
+    meta_path = (
+        f"{release}/metadata/state={state_upper}/upgrade={upgrade}/metadata-sb.parquet"
+    )
+    util_assignment_path = (
+        f"{release}/metadata_utility/state={state_upper}/utility_assignment.parquet"
+    )
+
+    t = _log("Building LMI tier assignments for all utilities...")
+    tier_info = _build_all_ny_lmi_tiers(
+        utilities=utilities,
+        meta_path=meta_path,
+        util_assignment_path=util_assignment_path,
+        inflation_year=lmi_fpl_year,
+        cpi_ratio=cpi_ratio,
+        fpl=fpl,
+        smi_100=smi_100,
+        ny_eap_config=ny_eap_config,
+        participation_rate=lmi_participation_rate,
+        participation_mode=lmi_participation_mode,
+        seed=lmi_seed,
+        opts=opts,
+    )
+    _log_done("Building LMI tiers", t, f"{tier_info.height} buildings")
+
+    t = _log(
+        "Applying LMI discounts to master bills "
+        f"(p{pct_label}, {lmi_calculation_type})..."
+    )
+    result = _apply_ny_lmi_credits(
+        master=master,
+        tier_info=tier_info,
+        pct_label=pct_label,
+        credits_df=credits_df,
+        calculation_type=lmi_calculation_type,
+    )
+    _log_done("Applying LMI discounts", t, f"{result.height} rows")
+
+    t = _log("Validating LMI discount columns...")
+    _validate_ny_lmi_discounts(result, pct_label, lmi_participation_rate, lmi_calculation_type)
+    _log_done("Validating LMI discounts", t)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -556,6 +653,46 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Comma-separated list of utilities to process (default: all from state.env).",
     )
+    parser.add_argument(
+        "--calculate-lmi",
+        action="store_true",
+        help="If set, append NY LMI discount columns before writing master bills.",
+    )
+    parser.add_argument(
+        "--lmi-fpl-year",
+        type=int,
+        default=2025,
+        help="FPL/SMI guideline year for LMI discount calculation (used with --calculate-lmi).",
+    )
+    parser.add_argument(
+        "--lmi-cpi-s3-path",
+        default="s3://data.sb/fred/cpi/",
+        help="S3 path to CPI parquet for LMI discount calculation (used with --calculate-lmi).",
+    )
+    parser.add_argument(
+        "--lmi-participation-rate",
+        type=float,
+        default=1.0,
+        help="Fraction of eligible customers who participate in LMI discounts (used with --calculate-lmi).",
+    )
+    parser.add_argument(
+        "--lmi-participation-mode",
+        choices=["uniform", "weighted"],
+        default="weighted",
+        help="Participation sampling mode for LMI discounts (used with --calculate-lmi).",
+    )
+    parser.add_argument(
+        "--lmi-seed",
+        type=int,
+        default=42,
+        help="RNG seed for LMI participation sampling (used with --calculate-lmi).",
+    )
+    parser.add_argument(
+        "--lmi-calculation-type",
+        choices=["monthly", "budget"],
+        default="budget",
+        help="LMI bill calculation method (used with --calculate-lmi).",
+    )
     return parser.parse_args()
 
 
@@ -575,6 +712,14 @@ def main() -> None:
         f"Building master bills: state={state_upper}, runs {args.run_delivery}+{args.run_supply}, "
         f"upgrade={upgrade}, batch={args.batch}, utilities={utilities}"
     )
+    if args.calculate_lmi:
+        _log(
+            "  LMI discounts enabled: "
+            f"rate={args.lmi_participation_rate}, "
+            f"mode={args.lmi_participation_mode}, "
+            f"calculation={args.lmi_calculation_type}, "
+            f"seed={args.lmi_seed}"
+        )
     if batch_overrides:
         _log(f"  Batch overrides: {batch_overrides}")
 
@@ -674,6 +819,22 @@ def main() -> None:
         "ALL",
     )
     _log_done("Validation", t)
+
+    # --- Optional LMI discount augmentation ---
+    if args.calculate_lmi and state_upper == "NY":
+        master = _apply_lmi_discounts_to_master(
+            master,
+            state_upper=state_upper,
+            utilities=utilities,
+            upgrade=upgrade,
+            path_resstock_release=args.path_resstock_release,
+            lmi_fpl_year=args.lmi_fpl_year,
+            lmi_cpi_s3_path=args.lmi_cpi_s3_path,
+            lmi_participation_rate=args.lmi_participation_rate,
+            lmi_participation_mode=args.lmi_participation_mode,
+            lmi_seed=args.lmi_seed,
+            lmi_calculation_type=args.lmi_calculation_type,
+        )
 
     # --- Write output (Hive-partitioned parquet) ---
     batch_suffix = _build_output_path_suffix(args.batch, batch_overrides)
