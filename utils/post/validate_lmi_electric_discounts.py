@@ -53,6 +53,7 @@ def _build_master_path(state: str, batch: str, run_d: int, run_s: int) -> str:
         f"{batch}/run_{run_d}+{run_s}/comb_bills_year_target/"
     )
 
+
 ANNUAL_MONTH = "Annual"
 
 
@@ -1119,7 +1120,9 @@ def _parse_args() -> argparse.Namespace:
         description="Validate and explore LMI electric bill discounts from master-bills outputs.",
     )
     parser.add_argument("--state", default="ny", help="State code (default: ny).")
-    parser.add_argument("--batch", required=True, help="Batch name (e.g. ny_20260311b_r1-12).")
+    parser.add_argument(
+        "--batch", required=True, help="Batch name (e.g. ny_20260311b_r1-12)."
+    )
     parser.add_argument(
         "--run-delivery", type=int, default=1, help="Delivery run number (default: 1)."
     )
@@ -1239,9 +1242,7 @@ def main() -> None:
 
     # --- Section 2: Participation weighting (p40) ---
     if p40 is not None:
-        p40_annual_lmi = p40.filter(
-            (pl.col("month") == "Annual") & (pl.col("is_lmi"))
-        )
+        p40_annual_lmi = p40.filter((pl.col("month") == "Annual") & (pl.col("is_lmi")))
         print(f"\np40 annual LMI-eligible rows: {len(p40_annual_lmi)}")
 
         _p40_overview(p40_annual_lmi)
@@ -1254,7 +1255,9 @@ def main() -> None:
         _cross_check_p100_p40(p100, p40)
     else:
         _section_header("Section 2 & 3: p40 (skipped)")
-        print("p40 path set to 'skip' — skipping participation and cross-check sections.")
+        print(
+            "p40 path set to 'skip' — skipping participation and cross-check sections."
+        )
 
     # --- Source column integrity ---
     skip_prod = args.prod_path == args.p100_path
