@@ -36,18 +36,22 @@ CAP_DIFF_ZERO_TOL = 1e-6
 
 PLOTS_DIR = Path(__file__).resolve().parents[2] / "dev_plots"
 
-DEFAULT_P100_PATH = (
-    "s3://data.sb/switchbox/lmi/ny/ny_20260307_r1-8_gascalcfix/run_1+2/"
-    "p100/comb_bills_year_target/"
-)
-DEFAULT_P40_PATH = (
-    "s3://data.sb/switchbox/lmi/ny/ny_20260307_r1-8_gascalcfix/run_1+2/"
-    "p40/comb_bills_year_target/"
-)
-DEFAULT_PROD_PATH = (
-    "s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/all_utilities/"
-    "ny_20260307_r1-8_gascalcfix/run_1+2/comb_bills_year_target/"
-)
+LMI_S3_PREFIX = "s3://data.sb/switchbox/lmi"
+MASTER_S3_PREFIX = "s3://data.sb/switchbox/cairo/outputs/hp_rates"
+
+
+def _build_lmi_path(state: str, batch: str, run_d: int, run_s: int, pct: int) -> str:
+    return (
+        f"{LMI_S3_PREFIX}/{state}/{batch}/run_{run_d}+{run_s}/"
+        f"p{pct}/comb_bills_year_target/"
+    )
+
+
+def _build_master_path(state: str, batch: str, run_d: int, run_s: int) -> str:
+    return (
+        f"{MASTER_S3_PREFIX}/{state}/all_utilities/"
+        f"{batch}/run_{run_d}+{run_s}/comb_bills_year_target/"
+    )
 
 ANNUAL_MONTH = "Annual"
 
@@ -1114,22 +1118,45 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Validate and explore LMI electric bill discounts from master-bills outputs.",
     )
+    parser.add_argument("--state", default="ny", help="State code (default: ny).")
+    parser.add_argument("--batch", required=True, help="Batch name (e.g. ny_20260311b_r1-12).")
+    parser.add_argument(
+        "--run-delivery", type=int, default=1, help="Delivery run number (default: 1)."
+    )
+    parser.add_argument(
+        "--run-supply", type=int, default=2, help="Supply run number (default: 2)."
+    )
     parser.add_argument(
         "--p100-path",
-        default=DEFAULT_P100_PATH,
-        help=f"S3/local path to the p100 comb_bills_year_target dataset (default: {DEFAULT_P100_PATH}).",
+        help="Override: S3/local path to p100 comb_bills_year_target dataset. "
+        "If omitted, built from --state/--batch/--run-delivery/--run-supply.",
     )
     parser.add_argument(
         "--p40-path",
-        default=DEFAULT_P40_PATH,
-        help=f"S3/local path to the p40 comb_bills_year_target dataset (default: {DEFAULT_P40_PATH}).",
+        help="Override: S3/local path to p40 comb_bills_year_target dataset. "
+        "If omitted, built from batch args. Pass 'skip' to skip p40 sections.",
     )
     parser.add_argument(
         "--prod-path",
-        default=DEFAULT_PROD_PATH,
-        help=f"S3/local path to the production/source comb_bills_year_target dataset (default: {DEFAULT_PROD_PATH}).",
+        help="Override: S3/local path to the production/source comb_bills_year_target. "
+        "If omitted, built from batch args (the master bills path).",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    state = args.state.lower()
+    if not args.p100_path:
+        args.p100_path = _build_lmi_path(
+            state, args.batch, args.run_delivery, args.run_supply, 100
+        )
+    if not args.p40_path:
+        args.p40_path = _build_lmi_path(
+            state, args.batch, args.run_delivery, args.run_supply, 40
+        )
+    if not args.prod_path:
+        args.prod_path = _build_master_path(
+            state, args.batch, args.run_delivery, args.run_supply
+        )
+    return args
 
 
 def main() -> None:
@@ -1138,16 +1165,24 @@ def main() -> None:
     opts = get_aws_storage_options()
     PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
+    skip_p40 = args.p40_path.lower() == "skip"
+
+    print(f"p100 path: {args.p100_path}")
+    print(f"p40 path:  {'(skipped)' if skip_p40 else args.p40_path}")
+    print(f"prod path: {args.prod_path}")
+
     # --- Load data ---
     _section_header("Loading p100 staging data")
     p100 = _load_staging(args.p100_path, opts)
     print(f"p100 shape: {p100.shape}")
     print(f"p100 columns: {p100.columns}")
 
-    _section_header("Loading p40 staging data")
-    p40 = _load_staging(args.p40_path, opts)
-    print(f"p40 shape: {p40.shape}")
-    print(f"p40 columns: {p40.columns}")
+    p40: pl.DataFrame | None = None
+    if not skip_p40:
+        _section_header("Loading p40 staging data")
+        p40 = _load_staging(args.p40_path, opts)
+        print(f"p40 shape: {p40.shape}")
+        print(f"p40 columns: {p40.columns}")
 
     # --- Section 1: Electric discount EDA (p100) ---
     p100_annual_elec = p100.filter(
@@ -1203,22 +1238,34 @@ def main() -> None:
         print("No p100 monthly participant rows — skipping monthly plots.")
 
     # --- Section 2: Participation weighting (p40) ---
-    p40_annual_lmi = p40.filter((pl.col("month") == "Annual") & (pl.col("is_lmi")))
-    print(f"\np40 annual LMI-eligible rows: {len(p40_annual_lmi)}")
+    if p40 is not None:
+        p40_annual_lmi = p40.filter(
+            (pl.col("month") == "Annual") & (pl.col("is_lmi"))
+        )
+        print(f"\np40 annual LMI-eligible rows: {len(p40_annual_lmi)}")
 
-    _p40_overview(p40_annual_lmi)
-    _p40_tier_comparison(p40_annual_lmi)
-    _p40_participant_vs_excluded_hist(p40_annual_lmi)
-    _p40_participation_rate_by_tier(p40_annual_lmi)
-    _p40_participation_by_bill_size(p40_annual_lmi)
+        _p40_overview(p40_annual_lmi)
+        _p40_tier_comparison(p40_annual_lmi)
+        _p40_participant_vs_excluded_hist(p40_annual_lmi)
+        _p40_participation_rate_by_tier(p40_annual_lmi)
+        _p40_participation_by_bill_size(p40_annual_lmi)
 
-    # --- Section 3: Cross-run and source integrity ---
-    _cross_check_p100_p40(p100, p40)
+        # --- Section 3: Cross-run and source integrity ---
+        _cross_check_p100_p40(p100, p40)
+    else:
+        _section_header("Section 2 & 3: p40 (skipped)")
+        print("p40 path set to 'skip' — skipping participation and cross-check sections.")
 
-    _section_header("Loading production source data")
-    prod = _load_staging(args.prod_path, opts)
-    print(f"prod shape: {prod.shape}")
-    _check_source_columns(p100, prod, "p100 vs production")
+    # --- Source column integrity ---
+    skip_prod = args.prod_path == args.p100_path
+    if not skip_prod:
+        _section_header("Loading production source data")
+        prod = _load_staging(args.prod_path, opts)
+        print(f"prod shape: {prod.shape}")
+        _check_source_columns(p100, prod, "p100 vs production")
+    else:
+        _section_header("Source column integrity (skipped)")
+        print("prod path == p100 path (integrated mode) — skipping source comparison.")
 
     _section_header("Done")
     print(f"All plots saved to {PLOTS_DIR}/")
