@@ -199,7 +199,7 @@ create-flat-tariffs:
       --eia-path "{{ path_electric_utility_stats }}" \
       --year "{{ monthly_rates_year }}"
 
-create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
+create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="" has_hp="true":
     just -f {{ path_repo }}/utils/Justfile create-seasonal-tou \
       "{{ path_supply_energy_mc }}" \
       "{{ path_supply_capacity_mc }}" \
@@ -207,7 +207,7 @@ create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
       "{{ utility }}" \
       "{{ year }}" \
       "{{ path_dist_and_sub_tx_mc }}" \
-      "{{ path_resstock_release }}/metadata/state={{ state_upper }}/upgrade={{ upgrade }}/metadata-sb.parquet" \
+      "{{ path_utility_assignment }}" \
       "{{ path_resstock_release }}" \
       "{{ upgrade }}" \
       "{{ path_electric_utility_stats }}" \
@@ -216,7 +216,36 @@ create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
       "{{ path_periods_yaml }}" \
       "{{ reference_tariff }}" \
       "{{ run_dir }}" \
-      "{{ path_bulk_tx_mc }}"
+      "{{ path_bulk_tx_mc }}" \
+      "{{ has_hp }}"
+
+sweep-tou-window run_dir="" output_dir="" no_write_yaml="" has_hp="true":
+    uv run python {{ path_repo }}/utils/pre/derive_seasonal_tou_window.py \
+      --path-supply-energy-mc "{{ path_supply_energy_mc }}" \
+      --path-supply-capacity-mc "{{ path_supply_capacity_mc }}" \
+      --state "{{ state_upper }}" \
+      --utility "{{ utility }}" \
+      --year "{{ year }}" \
+      --path-dist-and-sub-tx-mc "{{ path_dist_and_sub_tx_mc }}" \
+      --path-utility-assignment "{{ path_utility_assignment }}" \
+      --resstock-base "{{ path_resstock_release }}" \
+      --upgrade "{{ upgrade }}" \
+      --path-electric-utility-stats "{{ path_electric_utility_stats }}" \
+      --has-hp "{{ has_hp }}" \
+      --periods-yaml "{{ path_periods_yaml }}" \
+      {{ if run_dir != "" { "--run-dir \"" + run_dir + "\"" } else { "" } }} \
+      {{ if path_bulk_tx_mc != "" { "--path-bulk-tx-mc \"" + path_bulk_tx_mc + "\"" } else { "" } }} \
+      {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }} \
+      {{ if no_write_yaml == "true" { "--no-write-yaml" } else { "" } }}
+
+sweep-tou-window-all run_dir="" output_dir="" no_write_yaml="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    IFS=',' read -ra utils <<< "{{ utilities }}"
+    for util in "${utils[@]}"; do
+        echo ">> sweep-tou-window for utility: $util" >&2
+        UTILITY="$util" just sweep-tou-window "{{ run_dir }}" "{{ output_dir }}" "{{ no_write_yaml }}"
+    done
 
 # Tariff maps
 create-electric-tariff-maps-all:
@@ -651,7 +680,7 @@ path_load_curves_local := env_var_or_default('PATH_LOAD_CURVES_LOCAL', path_repo
 path_heating_fuel_prices := "s3://data.sb/eia/heating_fuel_prices/"
 price_year := "2024"
 
-build-master-bills batch run_delivery run_supply *batch_overrides:
+build-master-bills batch run_delivery run_supply *script_args:
     uv run python {{ path_repo }}/utils/post/build_master_bills.py \
         --state "{{ state }}" \
         --batch "{{ batch }}" \
@@ -661,7 +690,7 @@ build-master-bills batch run_delivery run_supply *batch_overrides:
         --path-load-curves-local "{{ path_load_curves_local }}" \
         --path-heating-fuel-prices "{{ path_heating_fuel_prices }}" \
         --price-year "{{ price_year }}" \
-        {{ batch_overrides }}
+        {{ script_args }}
 
 build-master-bat batch run_delivery run_supply *batch_overrides:
     uv run python {{ path_repo }}/utils/post/build_master_bat.py \
@@ -672,8 +701,9 @@ build-master-bat batch run_delivery run_supply *batch_overrides:
         --path-resstock-release "s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb" \
         {{ batch_overrides }}
 
-# batch_overrides: optional trailing args passed to the script as-is. Use to pass
-# per-utility batch overrides, e.g. --batch-override cenhud=ny_20260306_r1-8 (repeatable).
+# script_args: optional trailing args passed to the script as-is. Use to pass
+# per-utility batch overrides (for example, --batch-override cenhud=ny_20260306_r1-8)
+# and optional LMI flags (for example, --calculate-lmi --lmi-participation-rate 0.4).
 
 validate-master-bills batch filter *batch_overrides:
     uv run python {{ path_repo }}/utils/post/validate_master_bills.py \

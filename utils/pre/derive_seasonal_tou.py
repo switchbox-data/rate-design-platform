@@ -18,8 +18,7 @@ Usage (via Justfile)::
         --state RI --utility rie --year 2025 \\
         --path-dist-and-sub-tx-mc s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet \\
         --path-bulk-tx-mc s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nyseg/year=2025/data.parquet \\
-        --resstock-metadata-path /data.sb/nrel/resstock/.../metadata-sb.parquet \\
-        --resstock-loads-path   /data.sb/nrel/resstock/.../load_curve_hourly/state=RI/upgrade=00 \\
+        --path-utility-assignment /data.sb/nrel/resstock/.../metadata_utility \\
         --path-electric-utility-stats s3://data.sb/eia/861/electric_utility_stats/state=RI/data.parquet \\
         --reference-tariff config/tariffs/electric/rie_flat_calibrated.json \\
         --tou-tariff-key rie_seasonal_tou_hp
@@ -41,7 +40,6 @@ from pathlib import Path
 
 import pandas as pd
 import polars as pl
-from cairo.rates_tool.loads import return_buildingstock
 
 from utils import get_aws_region
 from utils.cairo import (
@@ -51,7 +49,7 @@ from utils.cairo import (
 )
 from utils.loads import (
     ELECTRIC_LOAD_COL,
-    hourly_system_load_from_resstock,
+    hourly_resstock_load_from_parquet,
     scan_resstock_loads,
 )
 from utils.pre.compute_tou import (
@@ -84,6 +82,158 @@ log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Data loading
+# ---------------------------------------------------------------------------
+
+
+def load_tou_inputs(
+    path_supply_energy_mc: str,
+    path_supply_capacity_mc: str,
+    year: int,
+    path_dist_and_sub_tx_mc: str,
+    path_utility_assignment: str,
+    resstock_base: str,
+    state: str,
+    upgrade: str,
+    path_electric_utility_stats: str,
+    utility: str,
+    *,
+    path_bulk_tx_mc: str | None = None,
+    run_dir: str | None = None,
+    has_hp_filter: set[bool] | None = None,
+) -> tuple[pd.DataFrame, pd.Series, pd.Series | None, pd.Series]:
+    """Load marginal costs and hourly ResStock load for TOU derivation.
+
+    Building metadata always comes from ``utility_assignment.parquet``:
+
+    1. Filtered by ``sb.electric_utility == utility``.
+    2. Weights are rescaled to the EIA residential customer count (on
+       **all** utility buildings, before any subclass filter).
+    3. Optionally filtered by ``postprocess_group.has_hp`` via
+       *has_hp_filter*.  Because weight rescaling happens first, filtered
+       buildings keep weights representing their actual share of the
+       residential population, not the entire class.
+    4. If *run_dir* is provided, further restricted to ``bldg_id`` values
+       in ``{run_dir}/customer_metadata.csv`` (CAIRO's actual sample).
+
+    Returns:
+        ``(bulk_mc, dist_mc, bulk_tx_mc, hourly_resstock_load)`` where:
+
+        - *bulk_mc* is a DataFrame of supply energy + capacity MCs.
+        - *dist_mc* is a Series of dist+sub-tx MCs.
+        - *bulk_tx_mc* is an optional Series of bulk-tx MCs (or ``None``).
+        - *hourly_resstock_load* is a Series of weighted aggregate load.
+    """
+    log.info(
+        "Loading supply marginal costs (energy=%s, capacity=%s)",
+        path_supply_energy_mc,
+        path_supply_capacity_mc,
+    )
+    bulk_mc = _load_supply_marginal_costs(
+        path_supply_energy_mc,
+        path_supply_capacity_mc,
+        year,
+    )
+
+    log.info("Loading dist+sub-tx marginal costs from %s", path_dist_and_sub_tx_mc)
+    dist_mc = load_dist_and_sub_tx_marginal_costs(path_dist_and_sub_tx_mc)
+
+    bulk_tx_mc: pd.Series | None = None
+    if path_bulk_tx_mc:
+        log.info("Loading bulk transmission marginal costs from %s", path_bulk_tx_mc)
+        bulk_tx_mc = load_bulk_tx_marginal_costs(path_bulk_tx_mc)
+
+    # -- Building metadata from utility_assignment.parquet -------------------
+    # Weight rescaling must happen on ALL utility buildings before any
+    # subclass or run_dir filter, so that filtered subsets keep weights
+    # representing their actual share of the residential population (not
+    # the entire class).
+    log.info("Loading utility assignment from %s", path_utility_assignment)
+    storage_options = {"aws_region": get_aws_region()}
+    customer_count = get_residential_customer_count_from_utility_stats(
+        path_electric_utility_stats,
+        utility,
+        storage_options=storage_options,
+    )
+    log.info("Residential customer count: %d", customer_count)
+
+    ua_lf = pl.scan_parquet(path_utility_assignment)
+    ua_lf = ua_lf.filter(pl.col("sb.electric_utility") == utility)
+    ua_df: pl.DataFrame = ua_lf.select(  # type: ignore[assignment]
+        "bldg_id", "weight", "postprocess_group.has_hp"
+    ).collect()
+    log.info("All buildings for utility=%s: %d", utility, len(ua_df))
+
+    raw_weight_sum = float(ua_df["weight"].sum())
+    if raw_weight_sum > 0:
+        ua_df = ua_df.with_columns(
+            (pl.col("weight") / raw_weight_sum * customer_count).alias("weight")
+        )
+
+    if has_hp_filter is not None:
+        ua_df = ua_df.filter(
+            pl.col("postprocess_group.has_hp").is_in(list(has_hp_filter))
+        )
+        log.info("Filtered to has_hp in %s: %d buildings", has_hp_filter, len(ua_df))
+
+    if run_dir:
+        run_dir_path = run_dir.rstrip("/")
+        cm_path = f"{run_dir_path}/customer_metadata.csv"
+        log.info("Reading building IDs from %s", cm_path)
+        if cm_path.startswith("s3://"):
+            try:
+                run_bldg_ids = pl.read_csv(cm_path, columns=["bldg_id"])[
+                    "bldg_id"
+                ].to_list()
+            except TypeError:
+                run_bldg_ids = pl.read_csv(
+                    cm_path,
+                    columns=["bldg_id"],
+                    storage_options={
+                        "client_kwargs": {"region_name": get_aws_region()}
+                    },
+                )["bldg_id"].to_list()
+        else:
+            run_bldg_ids = pl.read_csv(cm_path, columns=["bldg_id"])[
+                "bldg_id"
+            ].to_list()
+        ua_df = ua_df.filter(pl.col("bldg_id").is_in(run_bldg_ids))
+        log.info("Restricted to %d buildings from run output", len(run_bldg_ids))
+
+    ua_df = ua_df.select("bldg_id", "weight")
+    log.info("Selected %d buildings for utility=%s", len(ua_df), utility)
+
+    building_ids = ua_df["bldg_id"].to_list()
+    weights_df = ua_df.select(
+        pl.col("bldg_id").cast(pl.Int64),
+        pl.col("weight").cast(pl.Float64),
+    )
+
+    log.info(
+        "Scanning ResStock loads (base=%s, state=%s, upgrade=%s, n_buildings=%d)",
+        resstock_base,
+        state,
+        upgrade,
+        len(building_ids),
+    )
+    loads_lf = scan_resstock_loads(
+        resstock_base,
+        state,
+        upgrade,
+        building_ids=building_ids,
+        storage_options=storage_options,
+    )
+    log.info("Computing hourly ResStock load from building loads")
+    hourly_resstock_load = hourly_resstock_load_from_parquet(
+        loads_lf,
+        weights_df,
+        load_col=ELECTRIC_LOAD_COL,
+    )
+
+    return bulk_mc, dist_mc, bulk_tx_mc, hourly_resstock_load
+
+
+# ---------------------------------------------------------------------------
 # Core derivation function
 # ---------------------------------------------------------------------------
 
@@ -91,7 +241,7 @@ log = logging.getLogger(__name__)
 def derive_seasonal_tou(
     bulk_marginal_costs: pd.DataFrame,
     dist_and_sub_tx_marginal_costs: pd.Series,
-    hourly_system_load: pd.Series,
+    hourly_load: pd.Series,
     *,
     bulk_tx_marginal_costs: pd.Series | None = None,
     winter_months: list[int] | None = None,
@@ -101,7 +251,7 @@ def derive_seasonal_tou(
     tou_tariff_key: str = "seasonal_tou_hp",
     utility: str = "GenericUtility",
 ) -> tuple[dict, list[SeasonTouSpec]]:
-    """Derive a seasonal TOU tariff from marginal costs and system load.
+    """Derive a seasonal TOU tariff from marginal costs and load.
 
     This is the pure-computation core — it takes pre-loaded data and
     returns the tariff and per-season derivation specs.
@@ -111,7 +261,7 @@ def derive_seasonal_tou(
             indexed by time.
         dist_and_sub_tx_marginal_costs: Dist+sub-tx MCs ($/kWh) Series,
             indexed by time.
-        hourly_system_load: Hourly aggregate system load (kW or kWh)
+        hourly_load: Hourly aggregate load (kW or kWh)
             for demand-weighting.
         bulk_tx_marginal_costs: Optional utility-level bulk transmission
             MCs ($/kWh) Series indexed by time.  When provided, this is
@@ -141,21 +291,19 @@ def derive_seasonal_tou(
 
     # Align load index to MC index so multiply in find_tou_peak_window is 1:1 (MC is
     # target_year e.g. 2025; ResStock load may be a different year).
-    if not hourly_system_load.index.equals(combined_mc.index):
-        if len(hourly_system_load) == len(combined_mc):
-            hourly_system_load = pd.Series(
-                hourly_system_load.values,
+    if not hourly_load.index.equals(combined_mc.index):
+        if len(hourly_load) == len(combined_mc):
+            hourly_load = pd.Series(
+                hourly_load.values,
                 index=combined_mc.index,
-                name=hourly_system_load.name,
+                name=hourly_load.name,
             )
         else:
-            hourly_system_load = hourly_system_load.reindex(
-                combined_mc.index, method="ffill"
-            )
+            hourly_load = hourly_load.reindex(combined_mc.index, method="ffill")
 
     seasons = make_winter_summer_seasons(winter_months)
     season_rates = compute_seasonal_base_rates(
-        combined_mc, hourly_system_load, seasons, tou_base_rate
+        combined_mc, hourly_load, seasons, tou_base_rate
     )
 
     season_specs: list[SeasonTouSpec] = []
@@ -165,12 +313,12 @@ def derive_seasonal_tou(
         mask = season_mask(mc_index, s)
         peak_hours = find_tou_peak_window(
             combined_mc[mask],
-            hourly_system_load[mask],
+            hourly_load[mask],
             tou_window_hours,
         )
         ratio = compute_tou_cost_causation_ratio(
             combined_mc[mask],
-            hourly_system_load[mask],
+            hourly_load[mask],
             peak_hours,
         )
         season_specs.append(
@@ -260,11 +408,11 @@ def _parse_args() -> argparse.Namespace:
         ),
     )
 
-    # -- ResStock inputs (for system load weighting) --------------------------
+    # -- ResStock inputs (for load weighting) ----------------------------------
     p.add_argument(
-        "--resstock-metadata-path",
+        "--path-utility-assignment",
         required=True,
-        help="Path to ResStock metadata parquet (metadata-sb.parquet).",
+        help="Path to utility_assignment.parquet (bldg_id, weight, sb.electric_utility, has_hp).",
     )
     p.add_argument(
         "--resstock-base",
@@ -350,10 +498,16 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Optional path (local or s3://) to a CAIRO output directory. "
-            "When provided, building IDs are read from "
-            "run_dir/customer_metadata.csv and passed as building_stock_sample "
-            "to return_buildingstock, restricting the TOU derivation to the "
-            "exact customer set from that run."
+            "When provided, building IDs from run_dir/customer_metadata.csv "
+            "further restrict the building set (on top of utility filtering)."
+        ),
+    )
+    p.add_argument(
+        "--has-hp",
+        default="true",
+        help=(
+            "Filter buildings by HP status: 'true' (HP only, default), "
+            "'false' (non-HP only), or 'all' (no filter)."
         ),
     )
 
@@ -408,6 +562,19 @@ def main() -> None:
     )
     output_dir = Path(args.output_dir)
 
+    # -- Parse has_hp filter ---------------------------------------------------
+    has_hp_raw = args.has_hp.strip().lower()
+    if has_hp_raw == "all":
+        has_hp_filter: set[bool] | None = None
+    elif has_hp_raw == "true":
+        has_hp_filter = {True}
+    elif has_hp_raw == "false":
+        has_hp_filter = {False}
+    else:
+        raise SystemExit(
+            f"--has-hp must be 'true', 'false', or 'all', got '{args.has_hp}'"
+        )
+
     # -- Resolve base rate and fixed charge ----------------------------------
     ref_base_rate: float | None = None
     ref_fixed_charge: float | None = None
@@ -436,101 +603,20 @@ def main() -> None:
         )
 
     # -- 1. Load data --------------------------------------------------------
-    log.info(
-        "Loading supply marginal costs (energy=%s, capacity=%s)",
-        args.path_supply_energy_mc,
-        args.path_supply_capacity_mc,
-    )
-    bulk_mc = _load_supply_marginal_costs(
-        args.path_supply_energy_mc,
-        args.path_supply_capacity_mc,
-        args.year,
-    )
-
-    log.info(
-        "Loading dist+sub-tx marginal costs from %s",
-        args.path_dist_and_sub_tx_mc,
-    )
-    dist_mc = load_dist_and_sub_tx_marginal_costs(args.path_dist_and_sub_tx_mc)
-
-    bulk_tx_mc: pd.Series | None = None
-    if args.path_bulk_tx_mc:
-        log.info(
-            "Loading bulk transmission marginal costs from %s",
-            args.path_bulk_tx_mc,
-        )
-        bulk_tx_mc = load_bulk_tx_marginal_costs(args.path_bulk_tx_mc)
-
-    log.info(
-        "Looking up residential customer count from %s for utility=%s",
-        args.path_electric_utility_stats,
-        args.utility,
-    )
-    storage_options = {"aws_region": get_aws_region()}
-    customer_count = get_residential_customer_count_from_utility_stats(
-        args.path_electric_utility_stats,
-        args.utility,
-        storage_options=storage_options,
-    )
-    log.info("Residential customer count: %d", customer_count)
-
-    building_stock_sample: list[int] | None = None
-    if args.run_dir:
-        run_dir_path = args.run_dir.rstrip("/")
-        cm_path = f"{run_dir_path}/customer_metadata.csv"
-        log.info("Reading building IDs from %s", cm_path)
-        if cm_path.startswith("s3://"):
-            try:
-                # Avoid get_aws_storage_options() here: its "region" key is not
-                # accepted by some fsspec/s3fs code paths used by read_csv.
-                run_bldg_ids = pl.read_csv(cm_path, columns=["bldg_id"])[
-                    "bldg_id"
-                ].to_list()
-            except TypeError:
-                # Compatibility fallback for older fsspec/s3fs stacks.
-                run_bldg_ids = pl.read_csv(
-                    cm_path,
-                    columns=["bldg_id"],
-                    storage_options={
-                        "client_kwargs": {"region_name": get_aws_region()}
-                    },
-                )["bldg_id"].to_list()
-        else:
-            run_bldg_ids = pl.read_csv(cm_path, columns=["bldg_id"])[
-                "bldg_id"
-            ].to_list()
-        building_stock_sample = run_bldg_ids
-        log.info("Restricting to %d buildings from run output", len(run_bldg_ids))
-
-    log.info("Loading ResStock metadata from %s", args.resstock_metadata_path)
-    customer_metadata = return_buildingstock(
-        load_scenario=Path(args.resstock_metadata_path),
-        customer_count=customer_count,
-        columns=["applicability", "postprocess_group.has_hp"],
-        building_stock_sample=building_stock_sample,
-    )
-
-    building_ids = customer_metadata["bldg_id"].tolist()
-    weights_df = pl.from_pandas(customer_metadata[["bldg_id", "weight"]].copy())
-    log.info(
-        "Scanning ResStock loads (base=%s, state=%s, upgrade=%s, n_buildings=%d)",
-        args.resstock_base,
-        args.state,
-        args.upgrade,
-        len(building_ids),
-    )
-    loads_lf = scan_resstock_loads(
-        args.resstock_base,
-        args.state,
-        args.upgrade,
-        building_ids=building_ids,
-        storage_options=storage_options,
-    )
-    log.info("Computing system load from building loads")
-    hourly_system_load = hourly_system_load_from_resstock(
-        loads_lf,
-        weights_df,
-        load_col=ELECTRIC_LOAD_COL,
+    bulk_mc, dist_mc, bulk_tx_mc, hourly_load = load_tou_inputs(
+        path_supply_energy_mc=args.path_supply_energy_mc,
+        path_supply_capacity_mc=args.path_supply_capacity_mc,
+        year=args.year,
+        path_dist_and_sub_tx_mc=args.path_dist_and_sub_tx_mc,
+        path_utility_assignment=args.path_utility_assignment,
+        resstock_base=args.resstock_base,
+        state=args.state,
+        upgrade=args.upgrade,
+        path_electric_utility_stats=args.path_electric_utility_stats,
+        utility=args.utility,
+        path_bulk_tx_mc=args.path_bulk_tx_mc,
+        run_dir=args.run_dir,
+        has_hp_filter=has_hp_filter,
     )
 
     # -- 2. Derive seasonal TOU ----------------------------------------------
@@ -544,7 +630,7 @@ def main() -> None:
     tou_tariff, season_specs = derive_seasonal_tou(
         bulk_marginal_costs=bulk_mc,
         dist_and_sub_tx_marginal_costs=dist_mc,
-        hourly_system_load=hourly_system_load,
+        hourly_load=hourly_load,
         bulk_tx_marginal_costs=bulk_tx_mc,
         winter_months=winter_months,
         tou_window_hours=tou_window_hours,

@@ -1,12 +1,15 @@
 """Validate and explore LMI gas bill discounts applied to master bills.
 
-Reads staging outputs for p100 and p40 participation scenarios, produces
-histograms, summary stats, and diagnostics about the weighted participation
-sampling. All plots saved to dev_plots/ with Agg backend (no display).
+Reads integrated master-bills outputs for p100 and p40 participation scenarios,
+plus an optional production-source master-bills dataset for pass-through column
+comparison. Produces histograms, summary stats, and diagnostics about weighted
+participation sampling. All plots are saved to ``dev_plots/`` with Agg backend
+(no display).
 """
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import matplotlib
@@ -22,10 +25,18 @@ matplotlib.use("Agg")
 
 PLOTS_DIR = Path(__file__).resolve().parents[2] / "dev_plots"
 
-S3_BASE = "s3://data.sb/switchbox/lmi/ny/ny_20260307_r1-8_gascalcfix/run_1+2"
-P100_PATH = f"{S3_BASE}/p100/comb_bills_year_target/"
-P40_PATH = f"{S3_BASE}/p40/comb_bills_year_target/"
-PROD_PATH = "s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/all_utilities/ny_20260307_r1-8_gascalcfix/run_1+2/comb_bills_year_target/"
+DEFAULT_P100_PATH = (
+    "s3://data.sb/switchbox/lmi/ny/ny_20260307_r1-8_gascalcfix/run_1+2/"
+    "p100/comb_bills_year_target/"
+)
+DEFAULT_P40_PATH = (
+    "s3://data.sb/switchbox/lmi/ny/ny_20260307_r1-8_gascalcfix/run_1+2/"
+    "p40/comb_bills_year_target/"
+)
+DEFAULT_PROD_PATH = (
+    "s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/all_utilities/"
+    "ny_20260307_r1-8_gascalcfix/run_1+2/comb_bills_year_target/"
+)
 
 
 def _load_staging(path: str, opts: dict[str, str]) -> pl.DataFrame:
@@ -578,19 +589,42 @@ def _check_source_columns(
 # ---------------------------------------------------------------------------
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Validate and explore LMI gas bill discounts from master-bills outputs.",
+    )
+    parser.add_argument(
+        "--p100-path",
+        default=DEFAULT_P100_PATH,
+        help=f"S3/local path to the p100 comb_bills_year_target dataset (default: {DEFAULT_P100_PATH}).",
+    )
+    parser.add_argument(
+        "--p40-path",
+        default=DEFAULT_P40_PATH,
+        help=f"S3/local path to the p40 comb_bills_year_target dataset (default: {DEFAULT_P40_PATH}).",
+    )
+    parser.add_argument(
+        "--prod-path",
+        default=DEFAULT_PROD_PATH,
+        help=f"S3/local path to the production/source comb_bills_year_target dataset (default: {DEFAULT_PROD_PATH}).",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
+    args = _parse_args()
     load_dotenv()
     opts = get_aws_storage_options()
     PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
     # --- Load data ---
     _section_header("Loading p100 staging data")
-    p100 = _load_staging(P100_PATH, opts)
+    p100 = _load_staging(args.p100_path, opts)
     print(f"p100 shape: {p100.shape}")
     print(f"p100 columns: {p100.columns}")
 
     _section_header("Loading p40 staging data")
-    p40 = _load_staging(P40_PATH, opts)
+    p40 = _load_staging(args.p40_path, opts)
     print(f"p40 shape: {p40.shape}")
     print(f"p40 columns: {p40.columns}")
 
@@ -626,7 +660,7 @@ def main() -> None:
     _cross_check_p100_p40(p100, p40)
 
     _section_header("Loading production source data")
-    prod = _load_staging(PROD_PATH, opts)
+    prod = _load_staging(args.prod_path, opts)
     print(f"prod shape: {prod.shape}")
     _check_source_columns(p100, prod, "p100 vs production")
 

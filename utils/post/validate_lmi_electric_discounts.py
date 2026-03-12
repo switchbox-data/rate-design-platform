@@ -1,16 +1,16 @@
 """Validate and explore LMI electric bill discounts applied to master bills.
 
-Reads the same staging outputs as validate_lmi_gas_discounts (p100 and p40
-participation scenarios from apply_lmi_to_master_bills). Produces histograms,
-summary stats, and diagnostics for electric bills: discount amounts, before/after
-distributions, tier distribution by electric utility, and p40 participation
-weighting. Section 1.5 compares actualized discounts to the expected EAP/EEAP
-credits from the NY credit table (utils/post/data/ny_eap_credits.yaml) by
-utility and tier, with expected-vs-actual plots (annual). Section 1.6 does
-month-by-month expected vs actual scatter plots and histograms (full and with cap at zero).
-All plots saved to dev_plots/ with Agg backend (no display).
+Reads integrated master-bills outputs for p100 and p40 participation scenarios,
+plus an optional production-source master-bills dataset for pass-through column
+comparison. Produces histograms, summary stats, and diagnostics for electric
+bills: discount amounts, before/after distributions, tier distribution by
+electric utility, and p40 participation weighting. Section 1.5 compares
+actualized discounts to the expected EAP/EEAP credits from the NY credit table
+(`utils/post/data/ny_eap_credits.yaml`) by utility and tier, with annual
+expected-vs-actual plots. Section 1.6 performs the same check month by month.
+All plots are saved to ``dev_plots/`` with Agg backend (no display).
 
-See context/domain/lmi_discounts_in_ny.md for EAP/EEAP tier and credit details.
+See `context/domain/lmi_discounts_in_ny.md` for EAP/EEAP tier and credit details.
 """
 
 from __future__ import annotations
@@ -36,9 +36,18 @@ CAP_DIFF_ZERO_TOL = 1e-6
 
 PLOTS_DIR = Path(__file__).resolve().parents[2] / "dev_plots"
 
-# Default staging base; same layout as gas (comb_bills_year_target with p100/p40).
-DEFAULT_S3_BASE = "s3://data.sb/switchbox/lmi/ny/ny_20260307_r1-8_gascalcfix/run_1+2"
-DEFAULT_PROD_PATH = "s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/all_utilities/ny_20260307_r1-8_gascalcfix/run_1+2/comb_bills_year_target/"
+DEFAULT_P100_PATH = (
+    "s3://data.sb/switchbox/lmi/ny/ny_20260307_r1-8_gascalcfix/run_1+2/"
+    "p100/comb_bills_year_target/"
+)
+DEFAULT_P40_PATH = (
+    "s3://data.sb/switchbox/lmi/ny/ny_20260307_r1-8_gascalcfix/run_1+2/"
+    "p40/comb_bills_year_target/"
+)
+DEFAULT_PROD_PATH = (
+    "s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/all_utilities/"
+    "ny_20260307_r1-8_gascalcfix/run_1+2/comb_bills_year_target/"
+)
 
 ANNUAL_MONTH = "Annual"
 
@@ -1103,13 +1112,22 @@ def _check_source_columns(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Validate and explore LMI electric bill discounts from staging outputs.",
+        description="Validate and explore LMI electric bill discounts from master-bills outputs.",
     )
     parser.add_argument(
-        "--s3-base",
-        default=DEFAULT_S3_BASE,
-        help=f"S3 base path to run (default: {DEFAULT_S3_BASE}). "
-        "p100 and p40 are read from <s3-base>/p100/comb_bills_year_target/ and .../p40/comb_bills_year_target/.",
+        "--p100-path",
+        default=DEFAULT_P100_PATH,
+        help=f"S3/local path to the p100 comb_bills_year_target dataset (default: {DEFAULT_P100_PATH}).",
+    )
+    parser.add_argument(
+        "--p40-path",
+        default=DEFAULT_P40_PATH,
+        help=f"S3/local path to the p40 comb_bills_year_target dataset (default: {DEFAULT_P40_PATH}).",
+    )
+    parser.add_argument(
+        "--prod-path",
+        default=DEFAULT_PROD_PATH,
+        help=f"S3/local path to the production/source comb_bills_year_target dataset (default: {DEFAULT_PROD_PATH}).",
     )
     return parser.parse_args()
 
@@ -1120,17 +1138,14 @@ def main() -> None:
     opts = get_aws_storage_options()
     PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    p100_path = f"{args.s3_base.rstrip('/')}/p100/comb_bills_year_target/"
-    p40_path = f"{args.s3_base.rstrip('/')}/p40/comb_bills_year_target/"
-
     # --- Load data ---
     _section_header("Loading p100 staging data")
-    p100 = _load_staging(p100_path, opts)
+    p100 = _load_staging(args.p100_path, opts)
     print(f"p100 shape: {p100.shape}")
     print(f"p100 columns: {p100.columns}")
 
     _section_header("Loading p40 staging data")
-    p40 = _load_staging(p40_path, opts)
+    p40 = _load_staging(args.p40_path, opts)
     print(f"p40 shape: {p40.shape}")
     print(f"p40 columns: {p40.columns}")
 
@@ -1201,7 +1216,7 @@ def main() -> None:
     _cross_check_p100_p40(p100, p40)
 
     _section_header("Loading production source data")
-    prod = _load_staging(DEFAULT_PROD_PATH, opts)
+    prod = _load_staging(args.prod_path, opts)
     print(f"prod shape: {prod.shape}")
     _check_source_columns(p100, prod, "p100 vs production")
 

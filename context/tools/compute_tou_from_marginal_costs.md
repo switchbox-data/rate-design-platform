@@ -13,8 +13,9 @@ This mirrors `utils/pre` conventions where `create_*` modules construct artifact
 ## Core derivation functions (`utils/pre/compute_tou.py`)
 
 - `combine_marginal_costs(bulk_mc, distribution_mc)` combines bulk and distribution MC into one hourly `$ / kWh` series.
-- `find_tou_peak_window(combined_mc, hourly_system_load, window_hours)` finds the contiguous peak window with the highest demand-weighted MC.
-- `compute_tou_cost_causation_ratio(combined_mc, hourly_system_load, peak_hours)` computes the peak/off-peak demand-weighted MC ratio.
+- `find_tou_peak_window(combined_mc, hourly_load, window_hours)` finds the contiguous peak window with the highest demand-weighted MC. Used by both runtime derivation and the window-width sweep.
+- `compute_tou_cost_causation_ratio(combined_mc, hourly_load, peak_hours)` computes the peak/off-peak demand-weighted MC ratio.
+- See `context/tools/tou_window_optimization.md` for how `window_hours` (the window width $N$) is selected per utility before runtime.
 - `compute_seasonal_base_rates(...)` derives season-specific base rates while preserving the configured annual average base rate.
 
 ## Tariff constructors (`utils/pre/create_tariff.py`)
@@ -92,8 +93,7 @@ uv run python -m utils.pre.derive_seasonal_tou \
   --path-supply-capacity-mc <path> \
   --state RI --utility rie --year 2025 \
   --path-dist-and-sub-tx-mc <path> \
-  --resstock-metadata-path <path> \
-  --resstock-loads-path <path> \
+  --path-utility-assignment <path> \
   --path-electric-utility-stats <path> \
   --reference-tariff <path-to-urdb-json> \
   --tou-tariff-key rie_seasonal_tou_hp \
