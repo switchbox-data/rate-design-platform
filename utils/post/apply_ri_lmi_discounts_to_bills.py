@@ -381,7 +381,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--resstock-release",
-        default="res_2024_amy2018_2",
+        default="res_2024_amy2018_2_sb",
         help="ResStock release name",
     )
     parser.add_argument("--upgrade", default="00", help="ResStock upgrade ID")

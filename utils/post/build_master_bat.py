@@ -58,6 +58,9 @@ import polars as pl
 from utils.post.io import BLDG_ID, scan
 
 BAT_CSV = "cross_subsidization/cross_subsidization_BAT_values.csv"
+UPGRADE_00_RUNS = {1, 2, 5, 6, 9, 10}
+UPGRADE_02_RUNS = {3, 4, 7, 8, 11, 12}
+VALID_RUN_PAIRS = {(r, r + 1) for r in (1, 3, 5, 7, 9, 11)}
 
 BAT_METRICS = ["BAT_vol", "BAT_peak", "BAT_percustomer"]
 
@@ -182,7 +185,7 @@ def _find_run_dir(s3_base: str, run_num: int) -> str:
 
 
 def _parse_batch_overrides(raw: list[str] | None) -> dict[str, str]:
-    """Parse --batch-override arguments like 'cenhud=ny_20260306_r1-8' into a dict."""
+    """Parse --batch-override arguments like 'cenhud=ny_20260312_r1-12' into a dict."""
     if not raw:
         return {}
     overrides: dict[str, str] = {}
@@ -199,8 +202,8 @@ def _parse_batch_overrides(raw: list[str] | None) -> dict[str, str]:
 def _build_output_path_suffix(batch: str, overrides: dict[str, str]) -> str:
     """Build the composite batch component of the output S3 path.
 
-    No overrides: 'ny_20260305c_r1-8'
-    With overrides: 'ny_20260305c_r1-8-cenhud=ny_20260306_r1-8'
+    No overrides: 'ny_20260311b_r1-12'
+    With overrides: 'ny_20260311b_r1-12-cenhud=ny_20260312_r1-12'
     """
     if not overrides:
         return batch
@@ -210,11 +213,20 @@ def _build_output_path_suffix(batch: str, overrides: dict[str, str]) -> str:
 
 def _upgrade_for_run(run_delivery: int) -> str:
     """Infer the upgrade id from the delivery run number."""
-    if run_delivery in (1, 2, 5, 6):
+    if run_delivery in UPGRADE_00_RUNS:
         return "00"
-    if run_delivery in (3, 4, 7, 8):
+    if run_delivery in UPGRADE_02_RUNS:
         return "02"
-    raise ValueError(f"Cannot infer upgrade for run {run_delivery}; expected 1-8")
+    raise ValueError(f"Cannot infer upgrade for run {run_delivery}; expected 1-12")
+
+
+def _validate_run_pair(run_delivery: int, run_supply: int) -> None:
+    """Require a valid delivery+supply pair (1+2, 3+4, ..., 11+12)."""
+    if (run_delivery, run_supply) not in VALID_RUN_PAIRS:
+        expected = ", ".join(f"{d}+{s}" for d, s in sorted(VALID_RUN_PAIRS))
+        raise ValueError(
+            f"Invalid run pair {run_delivery}+{run_supply}. Expected one of: {expected}"
+        )
 
 
 def _assert_building_match(
@@ -475,7 +487,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--batch",
         required=True,
-        help="Batch name (e.g. ny_20260305c_r1-8). Used as the default batch "
+        help="Batch name (e.g. ny_20260311b_r1-12). Used as the default batch "
         "for all utilities and as the base of the output path.",
     )
     parser.add_argument(
@@ -483,16 +495,19 @@ def _parse_args() -> argparse.Namespace:
         action="append",
         default=None,
         help="Per-utility batch override in UTILITY=BATCH format. "
-        "Repeatable (e.g. --batch-override cenhud=ny_20260306_r1-8).",
+        "Repeatable (e.g. --batch-override cenhud=ny_20260312_r1-12).",
     )
     parser.add_argument(
         "--run-delivery",
         type=int,
         required=True,
-        help="Delivery run number (e.g. 1 or 3)",
+        help="Delivery run number (valid pairs: 1+2, 3+4, ..., 11+12).",
     )
     parser.add_argument(
-        "--run-supply", type=int, required=True, help="Supply run number (e.g. 2 or 4)"
+        "--run-supply",
+        type=int,
+        required=True,
+        help="Supply run number paired to --run-delivery.",
     )
     parser.add_argument(
         "--path-resstock-release",
@@ -514,6 +529,7 @@ def main() -> None:
 
     state = args.state.lower()
     state_upper = state.upper()
+    _validate_run_pair(args.run_delivery, args.run_supply)
     upgrade = _upgrade_for_run(args.run_delivery)
     utilities = args.utilities.split(",") if args.utilities else _read_utilities(state)
     batch_overrides = _parse_batch_overrides(args.batch_override)

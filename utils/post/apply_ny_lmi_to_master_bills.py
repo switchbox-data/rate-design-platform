@@ -55,6 +55,8 @@ from utils.post.lmi_common import (
 
 ANNUAL_MONTH = "Annual"
 BLDG_ID = "bldg_id"
+UPGRADE_00_RUNS = {1, 2, 5, 6, 9, 10}
+UPGRADE_02_RUNS = {3, 4, 7, 8, 11, 12}
 
 # ---------------------------------------------------------------------------
 # Logging (same pattern as build_master_bills.py)
@@ -106,11 +108,11 @@ def _infer_upgrade_from_run_pair(master_bills_path: str) -> str:
             "Expected pattern 'run_X+Y'."
         )
     run_delivery = int(match.group(1))
-    if run_delivery in (1, 2, 5, 6):
+    if run_delivery in UPGRADE_00_RUNS:
         return "00"
-    if run_delivery in (3, 4, 7, 8):
+    if run_delivery in UPGRADE_02_RUNS:
         return "02"
-    raise ValueError(f"Cannot infer upgrade for run {run_delivery}; expected 1-8")
+    raise ValueError(f"Cannot infer upgrade for run {run_delivery}; expected 1-12")
 
 
 # ---------------------------------------------------------------------------

@@ -29,6 +29,7 @@ from utils.post.io import (
     scan_load_curves_for_utility,
 )
 from utils.post.build_master_bills import (
+    VALID_RUN_PAIRS,
     _build_output_path_suffix,
     _find_run_dir,
     _parse_batch_overrides,
@@ -98,6 +99,8 @@ def _validate_stacked_bar(
     util_batch: str,
     master_parquet_path: str,
     path_resstock_release: str,
+    run_delivery: int,
+    run_supply: int,
 ) -> bool:
     """Compare electric decomposition: old path vs master table."""
     _log("\n=== Stacked bar comparison (electric decomposition) ===")
@@ -106,18 +109,12 @@ def _validate_stacked_bar(
         pl.DataFrame,
         pl.scan_parquet(master_parquet_path, hive_partitioning=True).collect(),
     )
-    upgrade_val = master_df["upgrade"].unique().to_list()
-    if 0 in upgrade_val:
-        run_d, run_s = 1, 2
-    else:
-        run_d, run_s = 3, 4
-
     s3_base = (
         f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/{utility}/{util_batch}"
     )
     _log(f"  Using batch {util_batch} for {utility}")
-    dir_delivery = _find_run_dir(s3_base, run_d)
-    dir_supply = _find_run_dir(s3_base, run_s)
+    dir_delivery = _find_run_dir(s3_base, run_delivery)
+    dir_supply = _find_run_dir(s3_base, run_supply)
 
     repo_root = __import__("pathlib").Path(__file__).resolve().parents[2]
     tariff_path = str(
@@ -178,8 +175,10 @@ def _validate_histogram(
     utility: str,
     state: str,
     util_batch: str,
-    master_12_path: str,
-    master_34_path: str,
+    master_before_path: str,
+    master_after_path: str,
+    run_supply_before: int,
+    run_supply_after: int,
     path_resstock_release: str,
     path_load_curves_local: str,
     monthly_prices: pl.DataFrame,
@@ -193,8 +192,8 @@ def _validate_histogram(
         f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/{utility}/{util_batch}"
     )
     _log(f"  Using batch {util_batch} for {utility}")
-    dir_supply_before = _find_run_dir(s3_base, 2)
-    dir_supply_after = _find_run_dir(s3_base, 4)
+    dir_supply_before = _find_run_dir(s3_base, run_supply_before)
+    dir_supply_after = _find_run_dir(s3_base, run_supply_after)
 
     # --- Old path ---
     _log("  Old path: add_delivered_fuel_bills on comb_bills_year_target...")
@@ -242,11 +241,11 @@ def _validate_histogram(
     _log("  New path: reading master tables, computing delta...")
     m12 = cast(
         pl.DataFrame,
-        pl.scan_parquet(master_12_path, hive_partitioning=True).collect(),
+        pl.scan_parquet(master_before_path, hive_partitioning=True).collect(),
     )
     m34 = cast(
         pl.DataFrame,
-        pl.scan_parquet(master_34_path, hive_partitioning=True).collect(),
+        pl.scan_parquet(master_after_path, hive_partitioning=True).collect(),
     )
 
     new_before = m12.filter(
@@ -283,7 +282,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--batch",
         required=True,
-        help="Batch name (e.g. ny_20260305c_r1-8).",
+        help="Batch name (e.g. ny_20260311b_r1-12).",
     )
     parser.add_argument(
         "--batch-override",
@@ -303,25 +302,70 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--filter", default="non_hp", help="Population filter for histogram comparison."
     )
+    parser.add_argument(
+        "--run-delivery-before",
+        type=int,
+        default=1,
+        help="Baseline delivery run for before-period master table (default: 1).",
+    )
+    parser.add_argument(
+        "--run-supply-before",
+        type=int,
+        default=2,
+        help="Baseline supply run for before-period master table (default: 2).",
+    )
+    parser.add_argument(
+        "--run-delivery-after",
+        type=int,
+        default=3,
+        help="After-period delivery run for after master table (default: 3).",
+    )
+    parser.add_argument(
+        "--run-supply-after",
+        type=int,
+        default=4,
+        help="After-period supply run for after master table (default: 4).",
+    )
     return parser.parse_args()
+
+
+def _validate_run_pair(run_delivery: int, run_supply: int, label: str) -> None:
+    """Require a valid delivery+supply pair (1+2, 3+4, ..., 11+12)."""
+    if (run_delivery, run_supply) not in VALID_RUN_PAIRS:
+        expected = ", ".join(f"{d}+{s}" for d, s in sorted(VALID_RUN_PAIRS))
+        raise ValueError(
+            f"Invalid {label} run pair {run_delivery}+{run_supply}. Expected one of: {expected}"
+        )
 
 
 def main() -> None:
     args = _parse_args()
     state = args.state.lower()
+    _validate_run_pair(
+        args.run_delivery_before,
+        args.run_supply_before,
+        "before",
+    )
+    _validate_run_pair(
+        args.run_delivery_after,
+        args.run_supply_after,
+        "after",
+    )
     batch_overrides = _parse_batch_overrides(args.batch_override)
     batch_suffix = _build_output_path_suffix(args.batch, batch_overrides)
     util_batch = batch_overrides.get(args.utility, args.batch)
 
     s3_all_utils = f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/all_utilities/{batch_suffix}"
-    master_12_path = f"{s3_all_utils}/run_1+2/comb_bills_year_target/"
-    master_34_path = f"{s3_all_utils}/run_3+4/comb_bills_year_target/"
+    before_pair = f"{args.run_delivery_before}+{args.run_supply_before}"
+    after_pair = f"{args.run_delivery_after}+{args.run_supply_after}"
+    master_before_path = f"{s3_all_utils}/run_{before_pair}/comb_bills_year_target/"
+    master_after_path = f"{s3_all_utils}/run_{after_pair}/comb_bills_year_target/"
 
     _log(
         f"Validating master bills for {args.utility} (state={state}, batch={util_batch})"
     )
-    _log(f"  Master 1+2: {master_12_path}")
-    _log(f"  Master 3+4: {master_34_path}")
+    _log(f"  Master before ({before_pair}): {master_before_path}")
+    _log(f"  Master after ({after_pair}): {master_after_path}")
 
     monthly_prices = load_monthly_fuel_prices(
         args.path_heating_fuel_prices, state.upper(), args.price_year
@@ -334,33 +378,39 @@ def main() -> None:
 
     results: list[tuple[str, bool]] = []
 
-    # Stacked bar for run pair 1/2
+    # Stacked bar for before run pair
     ok = _validate_stacked_bar(
         args.utility,
         state,
         util_batch,
-        master_12_path,
+        master_before_path,
         args.path_resstock_release,
+        args.run_delivery_before,
+        args.run_supply_before,
     )
-    results.append(("stacked_bar_12", ok))
+    results.append((f"stacked_bar_{before_pair}", ok))
 
-    # Stacked bar for run pair 3/4
+    # Stacked bar for after run pair
     ok = _validate_stacked_bar(
         args.utility,
         state,
         util_batch,
-        master_34_path,
+        master_after_path,
         args.path_resstock_release,
+        args.run_delivery_after,
+        args.run_supply_after,
     )
-    results.append(("stacked_bar_34", ok))
+    results.append((f"stacked_bar_{after_pair}", ok))
 
     # Histogram
     ok = _validate_histogram(
         args.utility,
         state,
         util_batch,
-        master_12_path,
-        master_34_path,
+        master_before_path,
+        master_after_path,
+        args.run_supply_before,
+        args.run_supply_after,
         args.path_resstock_release,
         args.path_load_curves_local,
         monthly_prices,

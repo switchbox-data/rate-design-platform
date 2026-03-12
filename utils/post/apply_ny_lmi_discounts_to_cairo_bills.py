@@ -540,7 +540,9 @@ def main() -> None:
         "--utility", required=True, help="Electric utility std_name (e.g. coned, nimo)"
     )
     parser.add_argument(
-        "--resstock-release", default="res_2024_amy2018_2", help="ResStock release name"
+        "--resstock-release",
+        default="res_2024_amy2018_2_sb",
+        help="ResStock release name",
     )
     parser.add_argument("--upgrade", default="00", help="ResStock upgrade ID")
     parser.add_argument(
