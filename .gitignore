@@ -87,3 +87,4 @@ CLAUDE.md
 
 dev_plots/
 run_logs/
+utils/pre/tou_window/*.csv

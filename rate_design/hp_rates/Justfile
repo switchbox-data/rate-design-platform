@@ -197,7 +197,7 @@ create-flat-tariffs:
       --eia-path "{{ path_electric_utility_stats }}" \
       --year "{{ monthly_rates_year }}"
 
-create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
+create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="" has_hp="true":
     just -f {{ path_repo }}/utils/Justfile create-seasonal-tou \
       "{{ path_supply_energy_mc }}" \
       "{{ path_supply_capacity_mc }}" \
@@ -205,7 +205,7 @@ create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
       "{{ utility }}" \
       "{{ year }}" \
       "{{ path_dist_and_sub_tx_mc }}" \
-      "{{ path_resstock_release }}/metadata/state={{ state_upper }}/upgrade={{ upgrade }}/metadata-sb.parquet" \
+      "{{ path_utility_assignment }}" \
       "{{ path_resstock_release }}" \
       "{{ upgrade }}" \
       "{{ path_electric_utility_stats }}" \
@@ -214,7 +214,36 @@ create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="":
       "{{ path_periods_yaml }}" \
       "{{ reference_tariff }}" \
       "{{ run_dir }}" \
-      "{{ path_bulk_tx_mc }}"
+      "{{ path_bulk_tx_mc }}" \
+      "{{ has_hp }}"
+
+sweep-tou-window run_dir="" output_dir="" no_write_yaml="" has_hp="true":
+    uv run python {{ path_repo }}/utils/pre/derive_seasonal_tou_window.py \
+      --path-supply-energy-mc "{{ path_supply_energy_mc }}" \
+      --path-supply-capacity-mc "{{ path_supply_capacity_mc }}" \
+      --state "{{ state_upper }}" \
+      --utility "{{ utility }}" \
+      --year "{{ year }}" \
+      --path-dist-and-sub-tx-mc "{{ path_dist_and_sub_tx_mc }}" \
+      --path-utility-assignment "{{ path_utility_assignment }}" \
+      --resstock-base "{{ path_resstock_release }}" \
+      --upgrade "{{ upgrade }}" \
+      --path-electric-utility-stats "{{ path_electric_utility_stats }}" \
+      --has-hp "{{ has_hp }}" \
+      --periods-yaml "{{ path_periods_yaml }}" \
+      {{ if run_dir != "" { "--run-dir \"" + run_dir + "\"" } else { "" } }} \
+      {{ if path_bulk_tx_mc != "" { "--path-bulk-tx-mc \"" + path_bulk_tx_mc + "\"" } else { "" } }} \
+      {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }} \
+      {{ if no_write_yaml == "true" { "--no-write-yaml" } else { "" } }}
+
+sweep-tou-window-all run_dir="" output_dir="" no_write_yaml="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    IFS=',' read -ra utils <<< "{{ utilities }}"
+    for util in "${utils[@]}"; do
+        echo ">> sweep-tou-window for utility: $util" >&2
+        UTILITY="$util" just sweep-tou-window "{{ run_dir }}" "{{ output_dir }}" "{{ no_write_yaml }}"
+    done
 
 # Tariff maps
 create-electric-tariff-maps-all:
