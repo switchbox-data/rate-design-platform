@@ -837,7 +837,9 @@ def main() -> None:
         )
 
     # --- Write output (Hive-partitioned parquet) ---
-    output_batch = args.output_batch or _build_output_path_suffix(args.batch, batch_overrides)
+    output_batch = args.output_batch or _build_output_path_suffix(
+        args.batch, batch_overrides
+    )
     output_s3 = (
         f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/all_utilities/"
         f"{output_batch}/run_{args.run_delivery}+{args.run_supply}/"
