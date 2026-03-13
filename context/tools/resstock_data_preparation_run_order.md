@@ -1,6 +1,6 @@
 # ResStock data preparation: run order
 
-This document outlines the current `data/resstock/Justfile` workflow for preparing a Switchbox `sb` ResStock release from the standard NREL release. The current end state is not just HP identification and non-HP approximation: the canonical flow also copies `metadata_utility`, runs multifamily electricity adjustment on the `sb` release for upgrades `00` and `02`, and syncs the finished `sb` release to EBS.
+This document outlines the current `data/resstock/Justfile` workflow for preparing a Switchbox `sb` ResStock release from the standard NREL release. The current end state is not just HP identification and non-HP approximation: the canonical flow also copies `metadata_utility`, runs multifamily electricity adjustment on the `sb` release for upgrades `00` and `02`, adds monthly load curves (aggregated from hourly) for gas/oil/propane billing, and syncs the finished `sb` release to EBS.
 
 All commands assume the project root as the current working directory unless noted. ResStock Justfile: `data/resstock/Justfile`. Default release names: standard `res_2024_amy2018_2`, sb release `res_2024_amy2018_2_sb`.
 
@@ -152,13 +152,61 @@ just -f data/resstock/Justfile adjust-mf-electricity <STATE> res_2024_amy2018_2 
 
 ## 7. Sync the finished sb release to EBS
 
-After approximation and multifamily-electricity adjustment, sync the finished `sb` release from S3 to local EBS so it is available for rate-design runs.
+After approximation and multifamily-electricity adjustment, sync the finished `sb` release from S3 to local EBS so it is available for rate-design runs and for building monthly load curves.
 
 ```bash
 sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/
 ```
 
-- **Result:** Local path `/ebs/data/nrel/resstock/res_2024_amy2018_2_sb/` mirrors the sb release for use by CAIRO and other pipelines.
+- **Result:** Local path `/ebs/data/nrel/resstock/res_2024_amy2018_2_sb/` mirrors the sb release (including `load_curve_hourly`) for use by CAIRO and by step 8.
+
+---
+
+## 8. Add monthly load curves (EBS)
+
+Aggregate hourly load curves to monthly on local EBS (fast). Uses the same column-level aggregation rules as buildstock-fetch (sum for energy/emissions, mean for load/temperature). Output is written under `load_curve_monthly/state=<STATE>/upgrade=<ID>/` with one parquet per building (`{bldg_id}-{upgrade}.parquet`), consumed by gas/oil/propane bill logic in post-processing.
+
+**NY:**
+
+```bash
+just -f data/resstock/Justfile add-monthly-loads-NY
+```
+
+**RI:**
+
+```bash
+just -f data/resstock/Justfile add-monthly-loads RI "00 02"
+```
+
+**Generic:**
+
+```bash
+just -f data/resstock/Justfile add-monthly-loads <STATE> "<UPGRADE_IDS>"
+```
+
+- **Input:** `path_ebs_parquet` (default `/ebs/data/nrel/resstock/`) — expects `load_curve_hourly/state=<STATE>/upgrade=<ID>/` from step 7.
+- **Output:** `load_curve_monthly/state=<STATE>/upgrade=<ID>/` on EBS (12 rows per building, 140 columns).
+- **Result:** Local EBS has monthly load curves; upload to S3 in step 9 so the sb release on S3 is complete.
+
+---
+
+## 9. Upload monthly load curves to S3
+
+Sync the monthly load curves from EBS to S3 so the sb release on S3 includes `load_curve_monthly` for downstream (e.g. `build_master_bills`, gas/delivered-fuel bills).
+
+**NY:**
+
+```bash
+just -f data/resstock/Justfile upload-monthly-loads-NY
+```
+
+**Generic:**
+
+```bash
+just -f data/resstock/Justfile upload-monthly-loads <STATE> "<UPGRADE_IDS>"
+```
+
+- **Result:** `s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/load_curve_monthly/state=<STATE>/upgrade=<ID>/` is populated; the sb release on S3 is complete for rate-design and post-processing.
 
 ---
 
@@ -179,6 +227,8 @@ just -f data/resstock/Justfile create-sb-release-for-upgrade-02-NY
   - `adjust-mf-electricity-NY-upgrade-00`
   - `adjust-mf-electricity-NY-upgrade-02`
   - `sudo aws s3 sync ...`
+  - `add-monthly-loads-NY`
+  - `upload-monthly-loads-NY`
 
 **RI:**
 
@@ -193,6 +243,8 @@ just -f data/resstock/Justfile create-sb-release-for-upgrade-02-RI
   - `adjust-mf-electricity-RI-upgrade-00`
   - `adjust-mf-electricity-RI-upgrade-02`
   - `sudo aws s3 sync ...`
+  - `add-monthly-loads RI "00 02"`
+  - `upload-monthly-loads RI "00 02"`
 
 ---
 
@@ -207,5 +259,7 @@ just -f data/resstock/Justfile create-sb-release-for-upgrade-02-RI
 | 5    | `just -f data/resstock/Justfile approximate-non-hp-load <STATE> 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True`                                                                                                 |
 | 6    | Adjust MF electricity in `sb`: `adjust-mf-electricity-<STATE>-upgrade-00` and `adjust-mf-electricity-<STATE>-upgrade-02`                                                                                                  |
 | 7    | `sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/`                                                                                                       |
+| 8    | Add monthly load curves on EBS: `add-monthly-loads-NY` or `add-monthly-loads <STATE> "00 02"`                                                                                                                            |
+| 9    | Upload monthly load curves to S3: `upload-monthly-loads-NY` or `upload-monthly-loads <STATE> "00 02"`                                                                                                                     |
 
-After step 7, the `sb` release is ready for rate-design runs (e.g. CAIRO) using `res_2024_amy2018_2_sb` and the chosen state/upgrade.
+After step 9, the `sb` release on S3 and EBS includes `load_curve_monthly` and is ready for rate-design runs (e.g. CAIRO) and post-processing (master bills, gas/oil/propane bills) using `res_2024_amy2018_2_sb` and the chosen state/upgrade.
