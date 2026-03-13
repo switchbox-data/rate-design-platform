@@ -174,22 +174,19 @@ apply-ny-lmi-discounts run_dir utility_arg fpl_year cpi_s3_path participation_ra
 
 path_cpi_s3 := "s3://data.sb/fred/cpi/"
 
-build-master-bills-with-lmi batch run_delivery run_supply participation_rate="1.0" participation_mode="weighted" seed="42" calculation_type="budget" *script_args:
+# Build NY master bills with integrated LMI discount columns for one or more
+# participation rates in a single pass. Defaults to both p100 and p40.
+# Override participation_rates to pass a different space-separated list.
+build-master-bills-with-lmi batch run_delivery run_supply participation_rates="1.0 0.4" participation_mode="weighted" seed="42" calculation_type="budget" *script_args:
     just build-master-bills "{{ batch }}" "{{ run_delivery }}" "{{ run_supply }}" \
       --calculate-lmi \
       --lmi-fpl-year 2025 \
       --lmi-cpi-s3-path "{{ path_cpi_s3 }}" \
-      --lmi-participation-rate "{{ participation_rate }}" \
+      --lmi-participation-rates {{ participation_rates }} \
       --lmi-participation-mode "{{ participation_mode }}" \
       --lmi-seed "{{ seed }}" \
       --lmi-calculation-type "{{ calculation_type }}" \
       {{ script_args }}
-
-build-master-bills-with-lmi-p100 batch run_delivery run_supply calculation_type="budget" *script_args:
-    just build-master-bills-with-lmi "{{ batch }}" "{{ run_delivery }}" "{{ run_supply }}" "1.0" "weighted" "42" "{{ calculation_type }}" {{ script_args }}
-
-build-master-bills-with-lmi-p40 batch run_delivery run_supply calculation_type="budget" *script_args:
-    just build-master-bills-with-lmi "{{ batch }}" "{{ run_delivery }}" "{{ run_supply }}" "0.4" "weighted" "42" "{{ calculation_type }}" {{ script_args }}
 
 apply-lmi-to-existing-master-bills batch run_delivery run_supply participation_rate="1.0" participation_mode="weighted" seed="42" calculation_type="budget" output_path="":
     uv run python {{ path_repo }}/utils/post/apply_ny_lmi_to_master_bills.py \
