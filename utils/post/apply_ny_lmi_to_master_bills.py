@@ -254,9 +254,7 @@ def _sample_participation(
     # weighted: bias towards lowest-income eligible buildings
     eligible_df = (
         raw_tiers.filter(eligible)
-        .with_columns(
-            (1.0 / pl.col("fpl_pct").clip(lower_bound=1.0)).alias("weight")
-        )
+        .with_columns((1.0 / pl.col("fpl_pct").clip(lower_bound=1.0)).alias("weight"))
         .select(BLDG_ID, "fpl_pct", "lmi_tier", "weight")
     )
     part_df = select_participants_weighted(
