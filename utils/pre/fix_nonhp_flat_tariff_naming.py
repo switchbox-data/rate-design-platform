@@ -24,7 +24,6 @@ import argparse
 import json
 import shutil
 from pathlib import Path
-from typing import Any
 
 import yaml
 
@@ -119,10 +118,14 @@ def _update_scenario_yaml(scenario_path: Path, utility: str) -> int:
 
         # Update delivery flat
         if nonhp_path.endswith(f"{utility}_flat.json"):
-            new_path = nonhp_path.replace(f"{utility}_flat.json", f"{utility}_nonhp_flat.json")
+            new_path = nonhp_path.replace(
+                f"{utility}_flat.json", f"{utility}_nonhp_flat.json"
+            )
             path_tariffs["non-hp"] = new_path
             updates += 1
-            print(f"    Run {run_num}: {utility}_flat.json -> {utility}_nonhp_flat.json")
+            print(
+                f"    Run {run_num}: {utility}_flat.json -> {utility}_nonhp_flat.json"
+            )
 
         # Update supply flat
         elif nonhp_path.endswith(f"{utility}_flat_supply.json"):
@@ -131,7 +134,9 @@ def _update_scenario_yaml(scenario_path: Path, utility: str) -> int:
             )
             path_tariffs["non-hp"] = new_path
             updates += 1
-            print(f"    Run {run_num}: {utility}_flat_supply.json -> {utility}_nonhp_flat_supply.json")
+            print(
+                f"    Run {run_num}: {utility}_flat_supply.json -> {utility}_nonhp_flat_supply.json"
+            )
 
     if updates > 0:
         with scenario_path.open("w", encoding="utf-8") as f:
@@ -145,11 +150,7 @@ def fix_state(state: str, regenerate_maps: bool = True) -> None:
     """Fix non-HP flat tariff naming for all utilities in a state."""
     state_lower = state.lower()
     config_dir = (
-        get_project_root()
-        / "rate_design"
-        / "hp_rates"
-        / state_lower
-        / "config"
+        get_project_root() / "rate_design" / "hp_rates" / state_lower / "config"
     )
     tariffs_dir = config_dir / "tariffs" / "electric"
     scenarios_dir = config_dir / "scenarios"
