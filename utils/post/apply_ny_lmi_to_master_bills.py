@@ -219,7 +219,7 @@ def _build_raw_tiers_for_utility(
 
     return cast(
         pl.DataFrame,
-        meta.select(BLDG_ID, "lmi_tier", "is_lmi", fpl_pct).collect(),
+        meta.select(BLDG_ID, "lmi_tier", "is_lmi", fpl_pct).sort(BLDG_ID).collect(),
     )
 
 
