@@ -258,6 +258,33 @@ adjust-mf-electricity-RI-upgrade-00:
 adjust-mf-electricity-RI-upgrade-02:
     just adjust-mf-electricity RI res_2024_amy2018_2 res_2024_amy2018_2_sb "02"
 
+path_ebs_parquet := "/ebs/data/nrel/resstock"
+
+add-monthly-loads state upgrade_ids:
+    uv run python "{{ path_local_repo }}/data/resstock/add_monthly_loads.py" \
+        --path-input "{{ path_ebs_parquet }}/{{ resstock_release_sb }}" \
+        --path-output "{{ path_ebs_parquet }}/{{ resstock_release_sb }}" \
+        --state "{{ state }}" \
+        --upgrade-ids "{{ upgrade_ids }}" \
+        --bsf-release "{{ resstock_release }}" \
+        --workers 50
+
+add-monthly-loads-NY:
+    just add-monthly-loads NY "00 02"
+
+upload-monthly-loads state upgrade_ids:
+    #!/usr/bin/env bash
+    set -e
+    for upgrade_id in {{ upgrade_ids }}; do
+        echo "Uploading load_curve_monthly/state={{ state }}/upgrade=$upgrade_id to S3..."
+        aws s3 sync \
+            "{{ path_ebs_parquet }}/{{ resstock_release_sb }}/load_curve_monthly/state={{ state }}/upgrade=$upgrade_id/" \
+            "{{ path_s3_parquet }}/{{ resstock_release_sb }}/load_curve_monthly/state={{ state }}/upgrade=$upgrade_id/"
+    done
+
+upload-monthly-loads-NY:
+    just upload-monthly-loads NY "00 02"
+
 create-sb-release-for-upgrade-02-NY:
     just prepare-metadata-ny lmi="true"
     just copy-resstock-data-2024-amy2018-2-NY "00 02" "metadata metadata_utility load_curve_hourly" # Copy data to new sb release
@@ -265,6 +292,8 @@ create-sb-release-for-upgrade-02-NY:
     just adjust-mf-electricity-NY-upgrade-00
     just adjust-mf-electricity-NY-upgrade-02
     sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/
+    just add-monthly-loads-NY
+    just upload-monthly-loads-NY
 
 create-sb-release-for-upgrade-02-RI:
     just prepare-metadata-ri
@@ -273,3 +302,5 @@ create-sb-release-for-upgrade-02-RI:
     just adjust-mf-electricity-RI-upgrade-00
     just adjust-mf-electricity-RI-upgrade-02
     sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/
+    just add-monthly-loads RI "00 02"
+    just upload-monthly-loads RI "00 02"
