@@ -20,7 +20,21 @@ from utils.post.apply_ri_lmi_discounts_to_bills import (
 )
 from utils.post.lmi_common import get_ny_eap_credits_df, load_ny_eap_config
 
-MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Annual"]
+MONTHS = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+    "Annual",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -51,7 +65,7 @@ def _make_ri_raw_tiers(
     tiers: list[int],
     fpl_pcts: list[float] | None = None,
 ) -> pl.DataFrame:
-    """Minimal raw-tier DataFrame (RI schema: bldg_id, lmi_tier_raw, is_lmi, fpl_pct, elec_kwh, gas_therms)."""
+    """Minimal raw-tier DataFrame (RI schema: bldg_id, lmi_tier_raw, is_lmi, fpl_pct)."""
     if fpl_pcts is None:
         fpl_pcts = [50.0] * len(bldg_ids)
     return pl.DataFrame(
@@ -60,8 +74,6 @@ def _make_ri_raw_tiers(
             "lmi_tier_raw": tiers,
             "is_lmi": [t > 0 for t in tiers],
             "fpl_pct": fpl_pcts,
-            "elec_kwh": [1000.0] * len(bldg_ids),
-            "gas_therms": [50.0] * len(bldg_ids),
         }
     )
 
@@ -158,12 +170,16 @@ def test_sample_participation_preserves_raw_tier() -> None:
 def test_apply_credits_second_rate_no_duplicate_shared_cols() -> None:
     """Second _apply_credits call must add rate-specific cols without duplicating lmi_tier/is_lmi."""
     credits_df = get_ny_eap_credits_df(load_ny_eap_config())
-    master = _make_master_bills([1, 2, 3], electric_utility="coned", gas_utility="kedny")
+    master = _make_master_bills(
+        [1, 2, 3], electric_utility="coned", gas_utility="kedny"
+    )
 
     # First rate (p100)
     tier_info_100 = _sample_participation(
         _make_ny_raw_tiers([1, 2, 3], [1, 2, 0]),
-        1.0, "uniform", 42,
+        1.0,
+        "uniform",
+        42,
     )
     master_after_100 = _apply_credits(master, tier_info_100, 100, credits_df, "monthly")
     assert "lmi_tier" in master_after_100.columns
@@ -173,9 +189,13 @@ def test_apply_credits_second_rate_no_duplicate_shared_cols() -> None:
     # Second rate (p40) – lmi_tier/is_lmi already present
     tier_info_40 = _sample_participation(
         _make_ny_raw_tiers([1, 2, 3], [1, 2, 0]),
-        0.4, "uniform", 42,
+        0.4,
+        "uniform",
+        42,
     )
-    master_after_40 = _apply_credits(master_after_100, tier_info_40, 40, credits_df, "monthly")
+    master_after_40 = _apply_credits(
+        master_after_100, tier_info_40, 40, credits_df, "monthly"
+    )
     assert "lmi_tier" in master_after_40.columns
     assert "is_lmi" in master_after_40.columns
     assert "elec_total_bill_lmi_100" in master_after_40.columns
@@ -187,16 +207,26 @@ def test_apply_credits_second_rate_no_duplicate_shared_cols() -> None:
 def test_apply_credits_shared_cols_consistent_across_rates() -> None:
     """lmi_tier and is_lmi must be identical regardless of which rate added them."""
     credits_df = get_ny_eap_credits_df(load_ny_eap_config())
-    master = _make_master_bills([10, 20, 30], electric_utility="nyseg", gas_utility="nyseg")
+    master = _make_master_bills(
+        [10, 20, 30], electric_utility="nyseg", gas_utility="nyseg"
+    )
     raw = _make_ny_raw_tiers([10, 20, 30], [1, 3, 0])
 
     tier_100 = _sample_participation(raw, 1.0, "uniform", 42)
     after_100 = _apply_credits(master, tier_100, 100, credits_df, "monthly")
-    lmi_tier_100 = after_100.filter(pl.col("month") == "Annual").sort("bldg_id")["lmi_tier"].to_list()
+    lmi_tier_100 = (
+        after_100.filter(pl.col("month") == "Annual")
+        .sort("bldg_id")["lmi_tier"]
+        .to_list()
+    )
 
     tier_40 = _sample_participation(raw, 0.4, "uniform", 42)
     after_40 = _apply_credits(after_100, tier_40, 40, credits_df, "monthly")
-    lmi_tier_40 = after_40.filter(pl.col("month") == "Annual").sort("bldg_id")["lmi_tier"].to_list()
+    lmi_tier_40 = (
+        after_40.filter(pl.col("month") == "Annual")
+        .sort("bldg_id")["lmi_tier"]
+        .to_list()
+    )
 
     assert lmi_tier_100 == lmi_tier_40
 
@@ -211,8 +241,11 @@ def test_sample_ri_participation_p100() -> None:
     raw = _make_ri_raw_tiers([1, 2, 3], [1, 2, 0])
     result = _sample_ri_participation(raw, 1.0, "uniform", 42)
     assert set(result.columns) == {
-        "bldg_id", "lmi_tier", "lmi_tier_raw", "is_lmi", "participates",
-        "elec_kwh", "gas_therms",
+        "bldg_id",
+        "lmi_tier",
+        "lmi_tier_raw",
+        "is_lmi",
+        "participates",
     }
     by_id = {r["bldg_id"]: r for r in result.iter_rows(named=True)}
     assert by_id[1]["participates"] is True
@@ -272,28 +305,37 @@ def _fake_apply_ri_lmi_to_master_multi_rate(
         applied_col = f"applied_discount_{pct_label}"
 
         mult_elec = (
-            pl.when(pl.col("lmi_tier") == 3).then(pl.lit(1.0 - disc_elec[3]))
-            .when(pl.col("lmi_tier") == 2).then(pl.lit(1.0 - disc_elec[2]))
-            .when(pl.col("lmi_tier") == 1).then(pl.lit(1.0 - disc_elec[1]))
+            pl.when(pl.col("lmi_tier") == 3)
+            .then(pl.lit(1.0 - disc_elec[3]))
+            .when(pl.col("lmi_tier") == 2)
+            .then(pl.lit(1.0 - disc_elec[2]))
+            .when(pl.col("lmi_tier") == 1)
+            .then(pl.lit(1.0 - disc_elec[1]))
             .otherwise(pl.lit(1.0))
         )
         mult_gas = (
-            pl.when(pl.col("lmi_tier") == 3).then(pl.lit(1.0 - disc_gas[3]))
-            .when(pl.col("lmi_tier") == 2).then(pl.lit(1.0 - disc_gas[2]))
-            .when(pl.col("lmi_tier") == 1).then(pl.lit(1.0 - disc_gas[1]))
+            pl.when(pl.col("lmi_tier") == 3)
+            .then(pl.lit(1.0 - disc_gas[3]))
+            .when(pl.col("lmi_tier") == 2)
+            .then(pl.lit(1.0 - disc_gas[2]))
+            .when(pl.col("lmi_tier") == 1)
+            .then(pl.lit(1.0 - disc_gas[1]))
             .otherwise(pl.lit(1.0))
         )
 
         if "lmi_tier" in master.columns:
             enriched = master.join(
                 tier_info.select(BLDG_ID_COL, "participates"),
-                on=BLDG_ID_COL, how="left",
+                on=BLDG_ID_COL,
+                how="left",
             ).with_columns(pl.col("participates").fill_null(False))
         else:
             enriched = master.join(
-                tier_info.select(BLDG_ID_COL, "lmi_tier_raw", "is_lmi", "participates")
-                .rename({"lmi_tier_raw": "lmi_tier"}),
-                on=BLDG_ID_COL, how="left",
+                tier_info.select(
+                    BLDG_ID_COL, "lmi_tier_raw", "is_lmi", "participates"
+                ).rename({"lmi_tier_raw": "lmi_tier"}),
+                on=BLDG_ID_COL,
+                how="left",
             ).with_columns(
                 pl.col("lmi_tier").fill_null(0).cast(pl.Int32),
                 pl.col("is_lmi").fill_null(False),
@@ -339,10 +381,18 @@ def test_ri_master_bills_non_participants_bill_unchanged() -> None:
     result = _fake_apply_ri_lmi_to_master_multi_rate(master, [1.0])
     non_part = result.filter(~pl.col("applied_discount_100"))
     if non_part.height > 0:
-        elec_diff = (non_part["elec_total_bill"] - non_part["elec_total_bill_lmi_100"]).abs().max()
-        gas_diff = (non_part["gas_total_bill"] - non_part["gas_total_bill_lmi_100"]).abs().max()
-        assert elec_diff < 1e-6
-        assert gas_diff < 1e-6
+        elec_diff = (
+            (non_part["elec_total_bill"] - non_part["elec_total_bill_lmi_100"])
+            .abs()
+            .max()
+        )
+        gas_diff = (
+            (non_part["gas_total_bill"] - non_part["gas_total_bill_lmi_100"])
+            .abs()
+            .max()
+        )
+        assert elec_diff < 1e-6  # type: ignore[operator]
+        assert gas_diff < 1e-6  # type: ignore[operator]
 
 
 def test_ri_master_bills_no_negative_bills() -> None:
