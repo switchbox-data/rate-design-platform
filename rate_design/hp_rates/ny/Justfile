@@ -176,6 +176,7 @@ path_cpi_s3 := "s3://data.sb/fred/cpi/"
 
 # Build NY master bills with integrated LMI discount columns for one or more
 # participation rates in a single pass. Defaults to both p100 and p40.
+
 # Override participation_rates to pass a different space-separated list.
 build-master-bills-with-lmi batch run_delivery run_supply *script_args:
     just build-master-bills "{{ batch }}" "{{ run_delivery }}" "{{ run_supply }}" \
@@ -189,6 +190,7 @@ build-master-bills-with-lmi batch run_delivery run_supply *script_args:
       {{ script_args }}
 
 # Run build-master-bills-with-lmi for all 6 run pairs sequentially.
+
 # Sequential to avoid Polars file-cache race conditions on S3 reads.
 build-master-bills-with-lmi-all batch *script_args:
     just build-master-bills-with-lmi "{{ batch }}" 1 2 {{ script_args }}
