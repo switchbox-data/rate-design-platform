@@ -8,7 +8,8 @@ volumetric delivery + supply), gas, oil, and propane.
 Output schema (13 rows per building: Jan..Dec + Annual):
     bldg_id, sb.electric_utility, sb.gas_utility, upgrade, postprocess_group.has_hp,
     postprocess_group.heating_type, heats_with_electricity, heats_with_natgas,
-    heats_with_oil, heats_with_propane, month, weight,
+    heats_with_oil, heats_with_propane, in.representative_income,
+    in.hvac_cooling_partial_space_conditioning, month, weight,
     elec_fixed_charge, elec_delivery_bill, elec_supply_bill, elec_total_bill,
     gas_fixed_charge, gas_volumetric_bill, gas_total_bill,
     propane_total_bill, oil_total_bill, energy_total_bill
@@ -82,6 +83,8 @@ META_COLS = [
     "heats_with_natgas",
     "heats_with_oil",
     "heats_with_propane",
+    "in.representative_income",
+    "in.hvac_cooling_partial_space_conditioning",
 ]
 
 OUTPUT_COLS = [
@@ -95,6 +98,8 @@ OUTPUT_COLS = [
     "heats_with_natgas",
     "heats_with_oil",
     "heats_with_propane",
+    "in.representative_income",
+    "in.hvac_cooling_partial_space_conditioning",
     "month",
     "weight",
     "elec_fixed_charge",
