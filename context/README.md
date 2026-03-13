@@ -64,6 +64,7 @@ Research notes on tools, data, or implementation: CAIRO, ResStock metadata, BAT 
 | isone_fca_yaml_data_guide.md                 | ISO-NE FCA assumptions YAML data dictionary: what each field means (clearing price, CSO, months), where to find source data online (FCA results report, CELT Report Table 4.1), and how to update for a new year                                                                                         |
 | ny_utility_assignment_resstock.md            | NY ResStock utility assignment: small gas utilities (zero prior), renormalize, nearest-neighbor donor for PUMAs with no gas left, PUMA id normalization, Justfile/data flow, tests                                                                                                                       |
 | resstock_data_preparation_run_order.md       | Run order for ResStock data: fetch → identify HP/heating/natgas → utility assignment (standard) → copy to sb release (incl. metadata_utility) → approximate non-HP load → sync S3 sb release to EBS                                                                                                      |
+| er_bat_increase_under_hp_seasonal_rate.md    | Why electric resistance BAT increases under the HP seasonal rate: subclass RR split mechanics, non-HP flat rate rise, ER as collateral damage of HP-only fix                                                                                                                                             |
 
 ## docs/
 
