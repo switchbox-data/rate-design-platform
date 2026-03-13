@@ -205,7 +205,7 @@ apply-lmi-to-existing-master-bills batch run_delivery run_supply participation_r
 
 # =============================================================================
 # NY-only: post-processing validation
-# Each recipe validates runs 1-8 for that utility.
+# Each recipe validates all runs present in the utility scenario YAML.
 # Omit timestamp to auto-detect the latest complete batch from S3;
 # pass a YYYYMMDDTHHMMSSZ string to pin a specific execution_time cohort.
 # =============================================================================
@@ -232,7 +232,7 @@ validate-psegli timestamp="":
 validate-rge timestamp="":
     UTILITY=rge just validate-runs "{{ timestamp }}"
 
-# Validate all NY utilities sequentially (runs 1-8 each).
+# Validate all NY utilities sequentially (all scenario runs per utility).
 
 # Omit timestamp to use each utility's latest complete batch independently.
 validate-all-runs-ny timestamp="":
