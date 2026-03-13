@@ -103,7 +103,7 @@ def _build_ri_raw_tiers(
         fpl_pct,
         pl.col(elec_kwh_col).alias("elec_kwh"),
         "gas_therms",
-    ).collect()
+    ).sort(BLDG_ID_COL).collect()
     assert isinstance(result, pl.DataFrame)
     return result
 
