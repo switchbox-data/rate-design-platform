@@ -601,6 +601,13 @@ def _parse_args() -> argparse.Namespace:
         "for all utilities and as the base of the output path.",
     )
     parser.add_argument(
+        "--output-batch",
+        default=None,
+        help="Override the output batch name used in the output S3 path. "
+        "If omitted, defaults to --batch (with any --batch-override suffixes). "
+        "Use to write to a different batch directory, e.g. ny_20260311b_r1-12_lmi_fix.",
+    )
+    parser.add_argument(
         "--batch-override",
         action="append",
         default=None,
@@ -830,10 +837,10 @@ def main() -> None:
         )
 
     # --- Write output (Hive-partitioned parquet) ---
-    batch_suffix = _build_output_path_suffix(args.batch, batch_overrides)
+    output_batch = args.output_batch or _build_output_path_suffix(args.batch, batch_overrides)
     output_s3 = (
         f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/all_utilities/"
-        f"{batch_suffix}/run_{args.run_delivery}+{args.run_supply}/"
+        f"{output_batch}/run_{args.run_delivery}+{args.run_supply}/"
         f"comb_bills_year_target/"
     )
     t = _log(f"Writing to {output_s3}...")
