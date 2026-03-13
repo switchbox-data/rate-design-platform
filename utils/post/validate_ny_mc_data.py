@@ -135,6 +135,10 @@ def load_mc(
     All values are normalized to $/kWh (supply energy and capacity are stored as
     $/MWh on S3, so they are divided by 1000). The value column is renamed to
     ``NORMALIZED_COL`` ("mc_kwh") regardless of MC type.
+
+    IMPORTANT: This function reads ONLY the explicit 'data.parquet' file path.
+    It never scans directories to avoid accidentally reading multiple parquet files
+    (e.g., both data.parquet and zero.parquet in the same partition).
     """
     info = MC_TYPE_DEFS[mc_key]
     value_col = info["value_col"]
@@ -146,9 +150,18 @@ def load_mc(
         filename="data.parquet",
         mc_base_path=mc_base_path,
     )
+    # Explicitly validate we're reading a file, not a directory
+    if not canonical_path.endswith("data.parquet"):
+        raise ValueError(
+            f"Expected path ending with 'data.parquet', got: {canonical_path}"
+        )
+    # Use read_parquet (not scan_parquet) to read the explicit file path only
+    # This ensures we never accidentally read multiple files from a directory
     try:
         df = pl.read_parquet(canonical_path, storage_options=storage_options)
     except Exception as e:
+        # Error handling: check what files exist in the partition for diagnostic purposes
+        # but never read from directory - always require explicit data.parquet path
         path_partition = build_mc_partition_path(
             state=state,
             component=mc_key,
@@ -170,7 +183,8 @@ def load_mc(
             f"{mc_key}: canonical file missing at {canonical_path}. "
             f"Found partition parquet files: {filenames}. "
             "Remediation: write canonical data.parquet (or move stale files out of "
-            "the partition) so validation reads a deterministic input."
+            "the partition) so validation reads a deterministic input. "
+            "Note: Validation always reads explicit 'data.parquet' paths, never scans directories."
         ) from e
 
     if "timestamp" in df.columns:

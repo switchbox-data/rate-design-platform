@@ -102,11 +102,11 @@ class RunConfig:
 class RunBlock:
     """A pair (or set) of CAIRO runs validated together.
 
-    Run blocks correspond to the logical groups in the pipeline:
-    - Runs 1-2: precalc flat, delivery vs delivery+supply
-    - Runs 3-4: default flat on upgrade 02
-    - Runs 5-6: precalc seasonal with HP/non-HP subclasses
-    - Runs 7-8: default seasonal on upgrade 02
+    Run blocks correspond to delivery vs delivery+supply pairs discovered from
+    the scenario YAML.  Examples include:
+    - 1-2 (precalc flat), 3-4 (default flat)
+    - 5-6 (precalc seasonal), 7-8 (default seasonal)
+    - 9-10 / 11-12 (seasonal TOU), 13-14 / 15-16 (TOU flex)
     """
 
     run_nums: tuple[int, ...]
@@ -117,7 +117,7 @@ class RunBlock:
     bat_relevant: bool
     """True when BAT cross-subsidy direction / magnitude should be checked."""
     tariff_should_be_unchanged: bool
-    """True when the output tariff must match the input exactly (default runs 3-4, 7-8)."""
+    """True when the output tariff must match the input exactly for default paired blocks."""
     description: str
 
     @property
@@ -198,24 +198,21 @@ def load_run_configs_from_yaml(
 
 
 def define_run_blocks(configs: dict[int, RunConfig]) -> list[RunBlock]:
-    """Group RunConfig objects into RunBlock objects with their expected behaviors.
+    """Group RunConfig objects into delivery vs delivery+supply validation blocks.
 
-    Defines the four standard validation blocks (runs 1-2, 3-4, 5-6, 7-8).
-    A block is only created when all its constituent runs are present in ``configs``.
+    Blocks are discovered from the scenario itself instead of being hardcoded to
+    specific run numbers.  This supports both legacy 1-8 scenarios and newer
+    1-16 scenarios used by NY and RI.
 
-    Expected behaviors per block (from the plan):
+    A pair is formed when two runs share the same attributes except cost scope:
+    one run has ``cost_scope == "delivery"`` and the other has
+    ``cost_scope == "delivery+supply"``.
 
-    +----------+----------+---------+------------+-----------------+--------------+-----------------+
-    | Block    | Runs     | Type    | Upgrade    | Revenue neutral | BAT relevant | Tariff changes? |
-    +==========+==========+=========+============+=================+==============+=================+
-    | 1-2      | 1 and 2  | precalc | 00         | Yes (total RR)  | Yes          | Yes (calibrated)|
-    +----------+----------+---------+------------+-----------------+--------------+-----------------+
-    | 3-4      | 3 and 4  | default | 02         | No (large RR)   | No           | No (same as 1-2)|
-    +----------+----------+---------+------------+-----------------+--------------+-----------------+
-    | 5-6      | 5 and 6  | precalc | 00         | Yes (per-class) | Yes (~0)     | Partial (non-HP)|
-    +----------+----------+---------+------------+-----------------+--------------+-----------------+
-    | 7-8      | 7 and 8  | default | 02         | No (large RR)   | No           | No (same as 5-6)|
-    +----------+----------+---------+------------+-----------------+--------------+-----------------+
+    Expected behaviors are derived from run type:
+
+    - ``precalc`` pairs: revenue-neutral and BAT-relevant
+    - ``default`` pairs: tariff should be unchanged from the corresponding
+      precalc calibration
 
     Args:
         configs: ``{run_num: RunConfig}`` from :func:`load_run_configs_from_yaml`.
@@ -223,57 +220,71 @@ def define_run_blocks(configs: dict[int, RunConfig]) -> list[RunBlock]:
     Returns:
         List of RunBlock objects in ascending run-number order.
     """
-    block_specs: list[tuple[tuple[int, int], bool, bool, bool, str]] = [
-        # (run_nums, revenue_neutral, bat_relevant, tariff_unchanged, description)
-        (
-            (1, 2),
-            True,
-            True,
-            False,
-            "Precalc flat rates: delivery (run 1) and delivery+supply (run 2)",
-        ),
-        (
-            (3, 4),
-            False,
-            False,
-            True,
-            "Default flat rates on upgrade 02 — tariffs inherited from runs 1-2",
-        ),
-        (
-            (5, 6),
-            True,
-            True,
-            False,
-            "Precalc seasonal rates with HP/non-HP subclasses: delivery (run 5) and delivery+supply (run 6)",
-        ),
-        (
-            (7, 8),
-            False,
-            False,
-            True,
-            "Default seasonal rates on upgrade 02 — tariffs inherited from runs 5-6",
-        ),
-    ]
+
+    def _tariff_label(tariff_type: str) -> str:
+        labels = {
+            "flat": "flat",
+            "seasonal": "seasonal",
+            "seasonalTOU": "seasonal TOU",
+            "seasonalTOU_flex": "seasonal TOU flex",
+        }
+        return labels.get(tariff_type, tariff_type)
+
+    grouped: dict[tuple[str, str, bool, str, float], dict[str, list[int]]] = {}
+    for run_num, cfg in configs.items():
+        key = (
+            cfg.run_type,
+            cfg.upgrade,
+            cfg.has_subclasses,
+            cfg.tariff_type,
+            cfg.elasticity,
+        )
+        bucket = grouped.setdefault(key, {"delivery": [], "delivery+supply": []})
+        bucket[cfg.cost_scope].append(run_num)
 
     blocks: list[RunBlock] = []
     for (
-        run_nums,
-        revenue_neutral,
-        bat_relevant,
-        tariff_unchanged,
-        description,
-    ) in block_specs:
-        r1, r2 = run_nums
-        if r1 in configs and r2 in configs:
+        run_type,
+        upgrade,
+        has_subclasses,
+        tariff_type,
+        _elasticity,
+    ), scopes in grouped.items():
+        delivery_runs = sorted(scopes["delivery"])
+        supply_runs = sorted(scopes["delivery+supply"])
+
+        for r_delivery, r_supply in zip(delivery_runs, supply_runs, strict=False):
+            c_delivery = configs[r_delivery]
+            c_supply = configs[r_supply]
+            run_nums = (r_delivery, r_supply)
+
+            rate_desc = _tariff_label(tariff_type)
+            if run_type == "precalc":
+                if has_subclasses:
+                    desc = (
+                        f"Precalc {rate_desc} rates with HP/non-HP subclasses: "
+                        f"delivery (run {r_delivery}) and delivery+supply (run {r_supply})"
+                    )
+                else:
+                    desc = (
+                        f"Precalc {rate_desc} rates: delivery (run {r_delivery}) "
+                        f"and delivery+supply (run {r_supply})"
+                    )
+            else:
+                desc = (
+                    f"Default {rate_desc} rates on upgrade {int(upgrade):02d} "
+                    f"(runs {r_delivery}-{r_supply})"
+                )
+
             blocks.append(
                 RunBlock(
                     run_nums=run_nums,
-                    configs=(configs[r1], configs[r2]),
-                    revenue_neutral=revenue_neutral,
-                    bat_relevant=bat_relevant,
-                    tariff_should_be_unchanged=tariff_unchanged,
-                    description=description,
+                    configs=(c_delivery, c_supply),
+                    revenue_neutral=(run_type == "precalc"),
+                    bat_relevant=(run_type == "precalc"),
+                    tariff_should_be_unchanged=(run_type == "default"),
+                    description=desc,
                 )
             )
 
-    return blocks
+    return sorted(blocks, key=lambda b: min(b.run_nums))

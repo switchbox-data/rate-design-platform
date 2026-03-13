@@ -93,15 +93,16 @@ latest_output := path_repo / "utils/mid/latest_run_output.sh"
 # =============================================================================
 # VALIDATION
 # =============================================================================
-# Validate runs 1-8 for the current utility.
-# Omit batch-name to auto-detect the latest complete batch (runs 1-8) from S3.
+# Validate scenario runs for the current utility.
+# Omit runs to validate all runs present in the scenario YAML.
+# Omit batch-name to auto-detect the latest complete batch for the selected runs.
 
 # Pass batch-name (e.g. ny_20260305a_r1-2) to pin a specific batch.
-validate-runs batch_name="" runs="1,2,3,4,5,6,7,8" path_output_dir="" path_resstock=path_resstock_release:
+validate-runs batch_name="" runs="" path_output_dir="" path_resstock=path_resstock_release:
     cd "{{ path_repo }}" && uv run python -m utils.post.validate \
         --state "{{ state }}" --utility "{{ utility }}" \
         {{ if batch_name != "" { "--batch-name \"" + batch_name + "\"" } else { "" } }} \
-        --runs "{{ runs }}" \
+        {{ if runs != "" { "--runs \"" + runs + "\"" } else { "" } }} \
         {{ if path_output_dir != "" { "--output-dir \"" + path_output_dir + "\"" } else { "" } }} \
         --skip-loads
 

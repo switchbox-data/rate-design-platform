@@ -129,7 +129,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/zero.parquet
     path_tariffs_electric:
       hp: tariffs/electric/or_hp_seasonal.json
-      non-hp: tariffs/electric/or_flat.json
+      non-hp: tariffs/electric/or_nonhp_flat.json
     utility_revenue_requirement: rev_requirement/or_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
@@ -158,7 +158,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/data.parquet
     path_tariffs_electric:
       hp: tariffs/electric/or_hp_seasonal_supply.json
-      non-hp: tariffs/electric/or_flat_supply.json
+      non-hp: tariffs/electric/or_nonhp_flat_supply.json
     utility_revenue_requirement: rev_requirement/or_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
@@ -243,7 +243,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/zero.parquet
     path_tariffs_electric:
       hp: tariffs/electric/or_hp_seasonalTOU.json
-      non-hp: tariffs/electric/or_flat.json
+      non-hp: tariffs/electric/or_nonhp_flat.json
     utility_revenue_requirement: rev_requirement/or_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
@@ -272,7 +272,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/data.parquet
     path_tariffs_electric:
       hp: tariffs/electric/or_hp_seasonalTOU_supply.json
-      non-hp: tariffs/electric/or_flat_supply.json
+      non-hp: tariffs/electric/or_nonhp_flat_supply.json
     utility_revenue_requirement: rev_requirement/or_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
@@ -357,7 +357,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/zero.parquet
     path_tariffs_electric:
       hp: tariffs/electric/or_hp_seasonalTOU_flex.json
-      non-hp: tariffs/electric/or_flat.json
+      non-hp: tariffs/electric/or_nonhp_flat.json
     utility_revenue_requirement: rev_requirement/or_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
@@ -386,7 +386,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/data.parquet
     path_tariffs_electric:
       hp: tariffs/electric/or_hp_seasonalTOU_flex_supply.json
-      non-hp: tariffs/electric/or_flat_supply.json
+      non-hp: tariffs/electric/or_nonhp_flat_supply.json
     utility_revenue_requirement: rev_requirement/or_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
