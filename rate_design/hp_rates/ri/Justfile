@@ -42,14 +42,14 @@ apply-ri-lmi-discounts run_dir run_state run_utility fpl_year cpi_s3_path partic
 
 # Build RI master bills with integrated LMI discount columns for one or more
 # participation rates in a single pass. Defaults to both p100 and p40.
-build-master-bills-with-lmi batch run_delivery run_supply participation_rates="1.0 0.4" participation_mode="uniform" seed="42" *script_args:
+build-master-bills-with-lmi batch run_delivery run_supply *script_args:
     just build-master-bills "{{ batch }}" "{{ run_delivery }}" "{{ run_supply }}" \
       --calculate-lmi \
       --lmi-fpl-year 2025 \
       --lmi-cpi-s3-path "{{ path_cpi_s3 }}" \
-      --lmi-participation-rates {{ participation_rates }} \
-      --lmi-participation-mode "{{ participation_mode }}" \
-      --lmi-seed "{{ seed }}" \
+      --lmi-participation-rates 1.0 0.4 \
+      --lmi-participation-mode uniform \
+      --lmi-seed 42 \
       {{ script_args }}
 
 # =============================================================================
