@@ -33,7 +33,7 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 - `code` for technical terms, file paths, code snippets
 - Preserve numbered and bulleted lists with correct nesting. **When the source has an inline numbered list** (e.g. "commissions should 1) … 2) … 5)" or "(1) … (2)" in one paragraph), **convert it to a markdown list** (numbered or bullet) unless that would break the flow of the paragraph.
 - Keep paragraph structure and grouping exactly as in original
-- Convert hyperlinks to markdown format: `[link text](URL)`
+- Convert hyperlinks to markdown format: `[link text](URL)`. When a URL appears as a bare link without surrounding descriptive text (common in footnotes of legal/regulatory documents), wrap it with a short descriptive label: `[Short Description](URL)` (e.g. `[2022 NYISO Gold Book](https://...pdf)`).
 
 ### Tables
 
