@@ -47,20 +47,19 @@ def _run_dir_bills(run_dir: S3Path | Path, name: str) -> str:
     return str(run_dir / "bills" / name)
 
 
-def _build_tier_consumption(
+def _build_ri_raw_tiers(
     meta_path: str,
     util_path: str,
     utility: str,
     inflation_year: int,
     cpi_ratio: float,
-    participation_rate: float,
-    participation_mode: str,
-    seed: int,
     opts: dict[str, str],
-) -> pl.LazyFrame:
-    """
-    Load metadata for utility, add FPL/tier/participation, return lazy frame with
-    bldg_id, lmi_tier, participates, elec_kwh, gas_therms (and lmi_tier_raw for joins).
+) -> pl.DataFrame:
+    """Load metadata for utility and compute FPL% and eligibility tier (no participation).
+
+    Returns a collected DataFrame with bldg_id, lmi_tier_raw (raw eligibility
+    tier 0-3), is_lmi, fpl_pct, elec_kwh, gas_therms.  fpl_pct is retained so
+    _sample_ri_participation can do weighted sampling without re-reading metadata.
     """
     tier_col = "lmi_tier_raw"
     occupants_num = "occupants_num"
@@ -93,49 +92,113 @@ def _build_tier_consumption(
         fpl_pct_expr(income_inflated, pl.col(fpl_threshold)).alias(fpl_pct)
     )
     meta = meta.with_columns(assign_ri_tier_expr(fpl_pct).alias(tier_col))
+    meta = meta.with_columns(
+        (pl.col(gas_kwh_col) / KWH_PER_THERM).alias("gas_therms"),
+        (pl.col(tier_col) >= 1).alias("is_lmi"),
+    )
+    result = meta.select(
+        BLDG_ID_COL,
+        tier_col,
+        "is_lmi",
+        fpl_pct,
+        pl.col(elec_kwh_col).alias("elec_kwh"),
+        "gas_therms",
+    ).collect()
+    assert isinstance(result, pl.DataFrame)
+    return result
+
+
+def _sample_ri_participation(
+    raw_tiers: pl.DataFrame,
+    participation_rate: float,
+    participation_mode: str,
+    seed: int,
+) -> pl.DataFrame:
+    """Add participation flags to a raw-tier DataFrame.
+
+    Args:
+        raw_tiers: DataFrame from _build_ri_raw_tiers with bldg_id, lmi_tier_raw,
+            is_lmi, fpl_pct, elec_kwh, gas_therms.
+
+    Returns a DataFrame with bldg_id, lmi_tier (participation-adjusted: 0 for
+    non-participants), lmi_tier_raw, is_lmi, participates, elec_kwh, gas_therms.
+    """
+    tier_col = "lmi_tier_raw"
+    fpl_pct = "fpl_pct"
     eligible = pl.col(tier_col) >= 1
 
     if participation_rate >= 1.0:
-        meta = meta.with_columns(eligible.alias("participates"))
+        result = raw_tiers.with_columns(eligible.alias("participates"))
     elif participation_mode == "uniform":
-        participates = participation_uniform_expr(
-            BLDG_ID_COL, participation_rate, seed, eligible
+        result = raw_tiers.with_columns(
+            participation_uniform_expr(
+                BLDG_ID_COL, participation_rate, seed, eligible
+            ).alias("participates")
         )
-        meta = meta.with_columns(participates.alias("participates"))
     else:
         eligible_df = (
-            meta.filter(eligible)
-            .select(BLDG_ID_COL, fpl_pct, tier_col)
-            .with_columns((1.0 / pl.col(fpl_pct).clip(1.0, None)).alias("weight"))
-            .collect()
+            raw_tiers.filter(eligible)
+            .with_columns(
+                (1.0 / pl.col(fpl_pct).clip(lower_bound=1.0)).alias("weight")
+            )
+            .select(BLDG_ID_COL, fpl_pct, tier_col, "weight")
         )
-        assert isinstance(eligible_df, pl.DataFrame)
         part_df = select_participants_weighted(
             eligible_df, participation_rate, seed, "weight", BLDG_ID_COL
         )
-        meta = meta.join(part_df.lazy(), on=BLDG_ID_COL, how="left")
-        meta = meta.with_columns(
+        result = raw_tiers.join(part_df, on=BLDG_ID_COL, how="left")
+        result = result.with_columns(
             pl.when(eligible)
             .then(pl.col("participates").fill_null(False))
             .otherwise(pl.lit(False))
             .alias("participates")
         )
 
-    meta = meta.with_columns(
+    # lmi_tier (participation-adjusted): 0 for non-participants (used by CSV workflow)
+    result = result.with_columns(
         pl.when(pl.col("participates"))
         .then(pl.col(tier_col))
         .otherwise(pl.lit(0))
         .alias("lmi_tier")
     )
-    meta = meta.with_columns((pl.col(gas_kwh_col) / KWH_PER_THERM).alias("gas_therms"))
-    return meta.select(
+    return result.select(
         BLDG_ID_COL,
         "lmi_tier",
         tier_col,
+        "is_lmi",
         "participates",
-        pl.col(elec_kwh_col).alias("elec_kwh"),
-        pl.col("gas_therms"),
+        "elec_kwh",
+        "gas_therms",
     )
+
+
+def _build_tier_consumption(
+    meta_path: str,
+    util_path: str,
+    utility: str,
+    inflation_year: int,
+    cpi_ratio: float,
+    participation_rate: float,
+    participation_mode: str,
+    seed: int,
+    opts: dict[str, str],
+) -> pl.LazyFrame:
+    """Build per-building tier and consumption for the CSV discount workflow.
+
+    Delegates to _build_ri_raw_tiers + _sample_ri_participation, then returns
+    a LazyFrame for downstream lazy joins in _apply_discounts_to_bills.
+    """
+    raw = _build_ri_raw_tiers(
+        meta_path=meta_path,
+        util_path=util_path,
+        utility=utility,
+        inflation_year=inflation_year,
+        cpi_ratio=cpi_ratio,
+        opts=opts,
+    )
+    return _sample_ri_participation(
+        raw, participation_rate, participation_mode, seed
+    ).lazy()
 
 
 def _apply_discounts_to_bills(
@@ -299,6 +362,133 @@ def _apply_discounts_to_bills(
     return elec_bills, gas_bills
 
 
+def apply_ri_lmi_to_master(
+    master: pl.DataFrame,
+    *,
+    utility: str,
+    state_upper: str,
+    upgrade: str,
+    path_resstock_release: str,
+    lmi_fpl_year: int,
+    lmi_cpi_s3_path: str,
+    participation_rates: list[float],
+    participation_mode: str,
+    seed: int,
+    opts: dict[str, str],
+) -> pl.DataFrame:
+    """Append RI LIDR+ LMI columns to a master bills DataFrame.
+
+    Loads ResStock metadata and LIDR+ config once, builds eligibility tiers once,
+    then loops over each participation rate — adding a set of LMI columns per
+    rate — so multi-rate runs do not re-read S3 metadata.
+
+    Output columns added per rate (pct = int(rate * 100)):
+        lmi_tier (Int32)              — shared across all rates; added on first call
+        is_lmi (Bool)                 — shared across all rates; added on first call
+        applied_discount_{pct} (Bool)
+        elec_total_bill_lmi_{pct} (Float64)
+        gas_total_bill_lmi_{pct} (Float64)
+
+    Discounts are tier-based percentage reductions: bill * (1 - disc_frac).
+    The cost-recovery rider is not applied in the master-bills workflow.
+    """
+    s3_base = f"{path_resstock_release.rstrip('/')}"
+    meta_path = (
+        f"{s3_base}/metadata/state={state_upper}/upgrade={upgrade}/metadata-sb.parquet"
+    )
+    util_path = f"{s3_base}/metadata_utility/state={state_upper}"
+
+    print(f"[RI LMI] Loading CPI ratio (fpl_year={lmi_fpl_year})...")
+    cpi_ratio = load_cpi_ratio(lmi_cpi_s3_path, lmi_fpl_year, opts)
+
+    print(f"[RI LMI] Building eligibility tiers for {utility}...")
+    raw_tiers = _build_ri_raw_tiers(
+        meta_path=meta_path,
+        util_path=util_path,
+        utility=utility,
+        inflation_year=lmi_fpl_year,
+        cpi_ratio=cpi_ratio,
+        opts=opts,
+    )
+    print(f"[RI LMI] {raw_tiers.height} buildings, {raw_tiers['is_lmi'].sum()} eligible")
+
+    disc_elec, disc_gas = discount_fractions_for_ri()
+
+    for rate in participation_rates:
+        pct_label = int(round(rate * 100))
+        print(f"[RI LMI] Applying discounts (p{pct_label})...")
+        tier_info = _sample_ri_participation(raw_tiers, rate, participation_mode, seed)
+
+        elec_col = f"elec_total_bill_lmi_{pct_label}"
+        gas_col = f"gas_total_bill_lmi_{pct_label}"
+        applied_col = f"applied_discount_{pct_label}"
+
+        # Multipliers use the master bills lmi_tier column, which stores the raw
+        # eligibility tier (lmi_tier_raw was renamed to lmi_tier on the first join).
+        mult_elec = (
+            pl.when(pl.col("lmi_tier") == 3)
+            .then(pl.lit(1.0 - disc_elec[3]))
+            .when(pl.col("lmi_tier") == 2)
+            .then(pl.lit(1.0 - disc_elec[2]))
+            .when(pl.col("lmi_tier") == 1)
+            .then(pl.lit(1.0 - disc_elec[1]))
+            .otherwise(pl.lit(1.0))
+        )
+        mult_gas = (
+            pl.when(pl.col("lmi_tier") == 3)
+            .then(pl.lit(1.0 - disc_gas[3]))
+            .when(pl.col("lmi_tier") == 2)
+            .then(pl.lit(1.0 - disc_gas[2]))
+            .when(pl.col("lmi_tier") == 1)
+            .then(pl.lit(1.0 - disc_gas[1]))
+            .otherwise(pl.lit(1.0))
+        )
+
+        # First rate: join lmi_tier_raw, is_lmi, and participates together.
+        # Subsequent rates: lmi_tier/is_lmi already present; only join participates.
+        if "lmi_tier" in master.columns:
+            enriched = master.join(
+                tier_info.select(BLDG_ID_COL, "participates"),
+                on=BLDG_ID_COL,
+                how="left",
+            ).with_columns(pl.col("participates").fill_null(False))
+        else:
+            enriched = master.join(
+                tier_info.select(
+                    BLDG_ID_COL, "lmi_tier_raw", "is_lmi", "participates"
+                ).rename({"lmi_tier_raw": "lmi_tier"}),
+                on=BLDG_ID_COL,
+                how="left",
+            ).with_columns(
+                pl.col("lmi_tier").fill_null(0).cast(pl.Int32),
+                pl.col("is_lmi").fill_null(False),
+                pl.col("participates").fill_null(False),
+            )
+
+        master = enriched.with_columns(
+            pl.when(pl.col("participates"))
+            .then(
+                (pl.col("elec_total_bill") * mult_elec).clip(lower_bound=0.0)
+            )
+            .otherwise(pl.col("elec_total_bill"))
+            .alias(elec_col),
+            pl.when(pl.col("participates"))
+            .then(
+                (pl.col("gas_total_bill") * mult_gas).clip(lower_bound=0.0)
+            )
+            .otherwise(pl.col("gas_total_bill"))
+            .alias(gas_col),
+            pl.col("participates").alias(applied_col),
+        ).drop("participates")
+
+        n_part = master.filter(pl.col("month") == ANNUAL_MONTH_VALUE).filter(
+            pl.col(applied_col)
+        )[BLDG_ID_COL].n_unique()
+        print(f"[RI LMI] p{pct_label}: {n_part} participating buildings")
+
+    return master
+
+
 def _upload_discounted_bills(
     elec_bills: pl.LazyFrame,
     gas_bills: pl.LazyFrame,
@@ -397,10 +587,12 @@ def main() -> None:
         help="S3 path to CPI parquet (year, value) from data/fred/cpi/fetch_cpi_parquet.py (default series CPIAUCSL)",
     )
     parser.add_argument(
-        "--participation-rate",
+        "--participation-rates",
         type=float,
-        default=1.0,
-        help="Fraction of eligible customers who participate (0–1)",
+        nargs="+",
+        default=[1.0],
+        help="One or more participation fractions (0–1). Each rate produces a separate "
+        "set of LMI output files. Example: --participation-rates 1.0 0.4",
     )
     parser.add_argument(
         "--participation-mode",
@@ -431,37 +623,36 @@ def main() -> None:
     util_path = f"{s3_base}/metadata_utility/state={args.state}"
     opts = _storage_opts()
 
-    # 1. Load CPI and compute income-inflation ratio
+    # 1. Load CPI and build eligibility tiers once (shared across all rates)
     cpi_ratio = load_cpi_ratio(args.cpi_s3_path, args.fpl_year, opts)
-
-    # 2. Build per-bldg tier and consumption (metadata → FPL → tier → participation)
-    tier_consumption = _build_tier_consumption(
+    raw_tiers = _build_ri_raw_tiers(
         meta_path,
         util_path,
         args.utility,
         args.fpl_year,
         cpi_ratio,
-        args.participation_rate,
-        args.participation_mode,
-        args.seed,
         opts,
     )
 
-    # 3. Load bills, join tier, apply discounts and optional rider
-    elec_bills, gas_bills = _apply_discounts_to_bills(
-        run_dir, tier_consumption, args.rider, opts
-    )
+    # 2. For each participation rate: sample, apply discounts, write outputs
+    for rate in args.participation_rates:
+        tier_consumption = _sample_ri_participation(
+            raw_tiers, rate, args.participation_mode, args.seed
+        ).lazy()
 
-    # 4. Write outputs (or print paths)
-    _write_or_print_outputs(
-        elec_bills,
-        gas_bills,
-        run_dir,
-        args.participation_rate,
-        args.rider,
-        args.upload,
-        opts,
-    )
+        elec_bills, gas_bills = _apply_discounts_to_bills(
+            run_dir, tier_consumption, args.rider, opts
+        )
+
+        _write_or_print_outputs(
+            elec_bills,
+            gas_bills,
+            run_dir,
+            rate,
+            args.rider,
+            args.upload,
+            opts,
+        )
 
 
 if __name__ == "__main__":
