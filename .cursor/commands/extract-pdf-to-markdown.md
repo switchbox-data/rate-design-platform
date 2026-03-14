@@ -159,6 +159,7 @@ When the source PDF contains them, include short back-matter sections such as **
 - [ ] Equations preserved in original notation
 - [ ] All citations and references complete and linked
 - [ ] All footnotes and endnotes preserved
+- [ ] **Footnote count verified**: Count footnotes in the source PDF and in the extract; verify counts match. If the source has N footnotes, the extract must have exactly N footnote definitions (`[^n]:` lines). Run a count check (e.g. `grep -c '^\[^' extract.md`) before finalizing.
 - [ ] No orphaned content (mentioned but not included)
 - [ ] Section numbers, titles, labels preserved exactly
 - [ ] Document reads as complete, standalone resource
