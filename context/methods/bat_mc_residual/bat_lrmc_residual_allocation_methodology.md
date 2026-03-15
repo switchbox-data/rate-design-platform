@@ -119,10 +119,15 @@ For each ICAP locality $\ell$ and month $m$:
 
 1. Identify the top $K$ hours by system load (we use $K = 8$).
 2. Compute a threshold $T$ = the maximum load below the $K$-th hour.
-3. Compute exceedance weights: $w_h = \frac{\text{Load}_h - T}{\sum_{h' \in \text{top } K} (\text{Load}_{h'} - T)}$ for peak hours; $w_h = 0$ otherwise.
-4. Allocate the monthly capacity cost: $MC^{\text{gen cap}}_h = w_h \times P_{\ell,m} \times \alpha_\ell$
+3. Compute exceedance weights for peak hours ($w_h = 0$ otherwise):
 
-where $P_{\ell,m}$ is the ICAP spot price ($/kW-month) for locality $\ell$ in month $m$, and $\alpha_\ell$ is the capacity weight from the zone mapping (reflecting the fraction of the utility's load in that locality).
+   $$w_h = \frac{\text{Load}_h - T}{\sum_{h' \in \text{top } K} (\text{Load}_{h'} - T)}$$
+
+4. Allocate the monthly capacity cost:
+
+   $$MC^{\text{gen cap}}_h = w_h \times P_{\ell,m} \times \alpha_\ell$$
+
+where $P_{\ell,m}$ is the ICAP spot price (\$/kW-month) for locality $\ell$ in month $m$, and $\alpha_\ell$ is the capacity weight from the zone mapping (reflecting the fraction of the utility's load in that locality).
 
 For utilities spanning multiple ICAP localities, the signals are computed component-by-component and summed.
 
@@ -132,11 +137,11 @@ ICAP spot prices and Forward Capacity Auction (FCA) clearing prices represent th
 
 ### How it compares with the literature
 
-- **The BAT paper** uses "a generation CapEx of $30/kW-year based on resource adequacy cost estimates" (Appendix A). Our approach is more granular: we use actual ICAP market prices that vary by locality and month, reflecting geographic capacity scarcity.
+- **The BAT paper** uses "a generation CapEx of \$30/kW-year based on resource adequacy cost estimates" (Appendix A). Our approach is more granular: we use actual ICAP market prices that vary by locality and month, reflecting geographic capacity scarcity.
 - **Borenstein (2016)** includes generation capacity as a component of SMC, noting that the efficient price includes "the marginal investment cost of expanding system capacity."
 - **Pérez-Arriaga et al. (2017)** classify generation capacity costs as forward-looking and recommend they be recovered through cost-reflective charges rather than bundled into the residual.
 
-The exceedance-weighting method for allocating annual $/kW-yr costs to specific hours is standard in marginal cost-of-service studies. The BAT paper's Appendix A describes their allocation as "based on the 500 highest load hours of the year."
+The exceedance-weighting method for allocating annual \$/kW-yr costs to specific hours is standard in marginal cost-of-service studies. The BAT paper's Appendix A describes their allocation as "based on the 500 highest load hours of the year."
 
 ### Classification
 
@@ -150,7 +155,7 @@ The exceedance-weighting method for allocating annual $/kW-yr costs to specific 
 
 For each NYISO constraint group $g$ (a set of transmission projects serving a set of paying localities):
 
-1. Compute the incremental benefit per MW: for each project $p$ with annual benefit $B_p$ ($/yr) and incremental capacity $\Delta MW_p$:
+1. Compute the incremental benefit per MW: for each project $p$ with annual benefit $B_p$ (\$/yr) and incremental capacity $\Delta MW_p$:
 
 $$v_p = \frac{B_p}{\Delta MW_p \times 1000}$$
 
@@ -162,7 +167,7 @@ $$v_p = \frac{B_p}{\Delta MW_p \times 1000}$$
 
 $$MC^{\text{bulk TX}}_h = w_h \times v_z$$
 
-where $v_z$ is the paying locality's $/kW-yr value and $w_h$ is the SCR weight (zero in non-peak hours).
+where $v_z$ is the paying locality's \$/kW-yr value and $w_h$ is the SCR weight (zero in non-peak hours).
 
 ### What this captures
 
@@ -170,7 +175,7 @@ The incremental benefit per MW of planned bulk transmission projects — the for
 
 ### How it compares with the literature
 
-- **The BAT paper** (Appendix A) uses "avoided or deferred costs of transmission projects resulting from peak demand reductions, averaged across ten years, reported as marginal transmission capacity costs on a $/kW basis." For PG&E, this was $29.11/kW-yr. This is functionally the same concept: the forward-looking cost of transmission infrastructure per kW of peak demand.
+- **The BAT paper** (Appendix A) uses "avoided or deferred costs of transmission projects resulting from peak demand reductions, averaged across ten years, reported as marginal transmission capacity costs on a \$/kW basis." For PG&E, this was \$29.11/kW-yr. This is functionally the same concept: the forward-looking cost of transmission infrastructure per kW of peak demand.
 - **Pérez-Arriaga et al. (2017)** specifically distinguish incremental network costs (which should be priced at marginal cost) from embedded network costs (which belong in the residual). Our use of NYISO incremental benefit studies is the former.
 
 ### Classification
@@ -197,7 +202,7 @@ where $\text{Capital}(Y)$ is the capital of projects entering service in year $Y
 
 $$\overline{MC}^{\text{dist}} = \frac{1}{7} \sum_{Y=2026}^{2032} MC^{\text{dist}}_{\text{real}}(Y)$$
 
-The levelized value is the BAT input, reported as $/kW-yr. It represents the average annual forward-looking sub-TX and distribution investment cost per kW of system peak, in constant 2026 dollars.
+The levelized value is the BAT input, reported as \$/kW-yr. It represents the average annual forward-looking sub-TX and distribution investment cost per kW of system peak, in constant 2026 dollars.
 
 5. Allocate to hours using a **Probability of Peak (PoP)** method: identify the top 100 hours by utility load; weight proportionally to load:
 
@@ -215,7 +220,7 @@ See `context/methods/marginal_costs/ny_dist_mc_bat_methodology.md` for the full 
 
 ### How it compares with the literature
 
-- **The BAT paper** uses distribution CapEx of $54.46/kW-yr for PG&E, from the CPUC Avoided Cost Calculator, "averaged over ten years." Our approach is methodologically parallel: project-level capital from MCOS filings, converted to annualized $/kW-yr, levelized over a multi-year window.
+- **The BAT paper** uses distribution CapEx of \$54.46/kW-yr for PG&E, from the CPUC Avoided Cost Calculator, "averaged over ten years." Our approach is methodologically parallel: project-level capital from MCOS filings, converted to annualized \$/kW-yr, levelized over a multi-year window.
 - **Pérez-Arriaga et al. (2017)** advocate for forward-looking network charges based on "prospective costs of network capacity reinforcements," which is exactly what MCOS incremental diluted capital captures.
 - **Schittekatte & Meeus (2020)** find that the efficient tariff recovers incremental network costs via peak-coincident charges — consistent with our PoP allocation to peak hours.
 - **Dameto et al. (2023)** recommend that "long-term network costs driven by peak load reinforcement expenditures should be recovered through coincident peak demand charges" — matching our use of PoP-weighted peak-hour allocation.
@@ -354,15 +359,15 @@ The BAT, by making these dynamics visible at the individual customer level, prov
 
 ## 11. Summary: our methodology in the context of the literature
 
-| Design choice                  | Our approach                                      | BAT paper (Simeone et al. 2023)      | Pérez-Arriaga framework       | Borenstein (2016)                    |
-| ------------------------------ | ------------------------------------------------- | ------------------------------------ | ----------------------------- | ------------------------------------ |
-| **Energy MC**                  | NYISO real-time LBMP (hourly, zonal)              | CAISO day-ahead LMP                  | Wholesale spot price          | Wholesale price                      |
-| **Gen capacity MC**            | NYISO ICAP / ISO-NE FCA (market prices)           | $30/kW-yr resource adequacy estimate | Forward-looking capacity cost | Included in SMC                      |
-| **TX MC**                      | NYISO incremental benefit studies, SCR allocation | $29.11/kW-yr from CPUC ACC           | Forward-looking network cost  | Included in SMC                      |
-| **Dist MC**                    | MCOS incremental diluted capital, PoP allocation  | $54.46/kW-yr from CPUC ACC           | Forward-looking network cost  | Included in SMC                      |
-| **MC time profile**            | 8760 hourly; capacity allocated to peak hours     | 8760 hourly; top 500 hours           | Peak-coincident charges       | Hourly SMC                           |
-| **Residual definition**        | $TRR - \sum \text{Economic Burden}$               | Same (Eq. 1)                         | Same                          | Same                                 |
-| **Default residual allocator** | Per-customer (flat)                               | Per-customer and volumetric compared | Per-customer fixed charge     | Recommends fixed + modest volumetric |
+| Design choice                  | Our approach                                      | BAT paper (Simeone et al. 2023)       | Pérez-Arriaga framework       | Borenstein (2016)                    |
+| ------------------------------ | ------------------------------------------------- | ------------------------------------- | ----------------------------- | ------------------------------------ |
+| **Energy MC**                  | NYISO real-time LBMP (hourly, zonal)              | CAISO day-ahead LMP                   | Wholesale spot price          | Wholesale price                      |
+| **Gen capacity MC**            | NYISO ICAP / ISO-NE FCA (market prices)           | \$30/kW-yr resource adequacy estimate | Forward-looking capacity cost | Included in SMC                      |
+| **TX MC**                      | NYISO incremental benefit studies, SCR allocation | \$29.11/kW-yr from CPUC ACC           | Forward-looking network cost  | Included in SMC                      |
+| **Dist MC**                    | MCOS incremental diluted capital, PoP allocation  | \$54.46/kW-yr from CPUC ACC           | Forward-looking network cost  | Included in SMC                      |
+| **MC time profile**            | 8760 hourly; capacity allocated to peak hours     | 8760 hourly; top 500 hours            | Peak-coincident charges       | Hourly SMC                           |
+| **Residual definition**        | $TRR - \sum \text{Economic Burden}$               | Same (Eq. 1)                          | Same                          | Same                                 |
+| **Default residual allocator** | Per-customer (flat)                               | Per-customer and volumetric compared  | Per-customer fixed charge     | Recommends fixed + modest volumetric |
 
 The methodological parallels are close. The key differences are jurisdictional, not conceptual:
 
