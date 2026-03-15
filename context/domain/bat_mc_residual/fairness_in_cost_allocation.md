@@ -399,7 +399,7 @@ The argument of this document moves through three distinct layers that are often
 2. **Cost allocation** — the methodology that computes _how much each customer owes_
 3. **Rate design** — the tariff structure that _collects revenue_ from customers
 
-These are different questions. Who should pay is a question of justice and efficiency. How much each customer owes is a computational question given the principle. How we collect is a tariff design question that must also satisfy regulatory, administrative, and political constraints. Bill alignment — the central concept in the BAT framework — measures the gap between layers 2 and 3: between what a customer _should_ pay (per the allocation) and what they _do_ pay (per the tariff).
+These are different questions. Who should pay is a question of efficiency (instrumental) and justice (normative)—viwed as fairness or as equity. How much each customer owes is a computational question given the principle. How we collect is a tariff design question that must also satisfy regulatory, administrative, and political constraints. Bill alignment — the central concept in the BAT framework — measures the gap between layers 2 and 3: between what a customer _should_ pay (per the allocation) and what they _do_ pay (per the tariff).
 
 The following table maps these three layers across each cost type:
 
