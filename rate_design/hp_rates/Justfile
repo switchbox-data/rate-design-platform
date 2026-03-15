@@ -184,7 +184,7 @@ compute-rr:
 
 estimate-psegli-rr:
     uv run python {{ path_repo }}/utils/pre/rev_requirement/estimate_psegli_rr.py \
-      --path-budget-md "{{ path_repo }}/context/papers/lipa_2025_2026_budget_one_pager.md" \
+      --path-budget-md "{{ path_repo }}/context/sources/lipa_2025_2026_budget_one_pager.md" \
       --path-electric-utility-stats "{{ path_electric_utility_stats }}" \
       --path-rate-case-rr "{{ path_rate_case_delivery_rr }}" \
       --path-supply-base "{{ path_supply_base }}" \

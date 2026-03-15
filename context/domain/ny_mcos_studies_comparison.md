@@ -2,7 +2,7 @@
 
 Comparison of the seven Marginal Cost of Service studies filed under NY PSC Docket 19-E-0283 in 2025 (six filings covering seven utilities). All studies respond to the August 19, 2024 Order Addressing Marginal Cost of Service Studies, which directed the Joint Utilities to file MCOS studies using the NERA methodology with a 10-year planning horizon.
 
-Source extractions are in `context/papers/mcos/`. For how we derive BAT inputs from these studies, see `context/domain/ny_dist_mc_bat_methodology.md`.
+Source extractions are in `context/sources/mcos/`. For how we derive BAT inputs from these studies, see `context/methods/marginal_costs/ny_dist_mc_bat_methodology.md`.
 
 ---
 
@@ -522,7 +522,7 @@ The diluted MC starts at $3.60/kW-yr in FY2026 (only 142 MW in service) and grow
 
 **Substation coverage:** 152 named substations have MCOS projects. NiMo's System Data Portal lists 569 distribution substations → ~73% have no planned investment in the 11-year window. DPS Staff identified 151 non-zero-cost substations in their hybrid DRV calculation and arrived at **$146.59/kW-yr** (Staff Proposal, Dec 2025) — higher than NiMo's own $71.52 because Staff re-levelized costs using WACC and allocated transmission capacity to substations differently.
 
-**Sources:** NiMo 2025 MCOS workbook; project classifications (`utils/pre/dist_mc/nimo/nimo_project_classifications.csv`); NiMo Peak Load Forecast (March 2025, `context/papers/mcos/nimo_peak_load_forecast_2025.pdf`); NYISO Gold Book 2025 (`context/papers/nyiso_gold_book_2025.md`, Table VII); DPS Staff Proposal on DRV/LSRV (`context/papers/mcos/dps_staff_proposal_drv_lsrv_20251211.pdf`).
+**Sources:** NiMo 2025 MCOS workbook; project classifications (`utils/pre/dist_mc/nimo/nimo_project_classifications.csv`); NiMo Peak Load Forecast (March 2025, `context/sources/mcos/nimo_peak_load_forecast_2025.pdf`); NYISO Gold Book 2025 (`context/sources/nyiso_gold_book_2025.md`, Table VII); DPS Staff Proposal on DRV/LSRV (`context/sources/mcos/dps_staff_proposal_drv_lsrv_20251211.pdf`).
 
 ---
 

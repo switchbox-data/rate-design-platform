@@ -15,7 +15,7 @@ This mirrors `utils/pre` conventions where `create_*` modules construct artifact
 - `combine_marginal_costs(bulk_mc, distribution_mc)` combines bulk and distribution MC into one hourly `$ / kWh` series.
 - `find_tou_peak_window(combined_mc, hourly_load, window_hours)` finds the contiguous peak window with the highest demand-weighted MC. Used by both runtime derivation and the window-width sweep.
 - `compute_tou_cost_causation_ratio(combined_mc, hourly_load, peak_hours)` computes the peak/off-peak demand-weighted MC ratio.
-- See `context/tools/tou_window_optimization.md` for how `window_hours` (the window width $N$) is selected per utility before runtime.
+- See `context/methods/tou_and_rates/tou_window_optimization.md` for how `window_hours` (the window width $N$) is selected per utility before runtime.
 - `compute_seasonal_base_rates(...)` derives season-specific base rates while preserving the configured annual average base rate.
 
 ## Tariff constructors (`utils/pre/create_tariff.py`)

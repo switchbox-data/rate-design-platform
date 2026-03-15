@@ -211,7 +211,7 @@ MCOS studies present marginal costs using accumulated capital — the running to
 
 The BAT paper's own data source confirms this interpretation: its distribution CapEx input comes from the CPUC Avoided Cost Calculator, described as "deferrable distribution capacity costs related to peak demand reductions" (Simeone et al. 2023, Appendix A) — a prospective, deferral-based measure.
 
-See `context/domain/ny_dist_mc_bat_methodology.md` for the full rationale, per-utility deviations, and harmonization decisions across the seven NY MCOS studies.
+See `context/methods/marginal_costs/ny_dist_mc_bat_methodology.md` for the full rationale, per-utility deviations, and harmonization decisions across the seven NY MCOS studies.
 
 ### How it compares with the literature
 
@@ -258,7 +258,7 @@ The choice of residual allocator is a normative decision, not an economic one �
 
 The project defaults to per-customer allocation (`BAT_percustomer`) for subclass revenue requirement analysis, consistent with the efficiency-oriented recommendation of the Pérez-Arriaga framework and Schittekatte & Meeus (2020). All three metrics are always computed so that the sensitivity of cross-subsidy findings to the allocator choice is transparent.
 
-For the full survey of residual allocation methods — including demand-based, historical consumption, and Ramsey approaches not implemented in CAIRO — see `context/tools/residual_allocation_lit_review_and_cairo.md`.
+For the full survey of residual allocation methods — including demand-based, historical consumption, and Ramsey approaches not implemented in CAIRO — see `context/methods/bat_and_residual/residual_allocation_lit_review_and_cairo.md`.
 
 ---
 
@@ -314,7 +314,7 @@ This measurement is only as good as the MC signal that feeds it. If the MC signa
 
 ## 10. EPMC: the practitioner's alternative to explicit residual allocation
 
-The academic consensus (§8, and `context/tools/residual_allocation_lit_review_and_cairo.md`) treats residual recovery as a distinct, explicitly chosen allocation: volumetric, per-customer, peak, demand-based, historical consumption, or Ramsey. The regulator picks a method, computes each customer's residual share, and recovers it through a charge whose structure is separate from the cost-reflective charge. In practice, most U.S. jurisdictions do something quite different.
+The academic consensus (§8, and `context/methods/bat_and_residual/residual_allocation_lit_review_and_cairo.md`) treats residual recovery as a distinct, explicitly chosen allocation: volumetric, per-customer, peak, demand-based, historical consumption, or Ramsey. The regulator picks a method, computes each customer's residual share, and recovers it through a charge whose structure is separate from the cost-reflective charge. In practice, most U.S. jurisdictions do something quite different.
 
 ### What EPMC actually does
 

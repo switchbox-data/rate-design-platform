@@ -106,7 +106,7 @@ where $MC^{\text{capacity}}_h$ is nonzero only in peak hours and reflects the an
 
 **Example:** A new feeder costs $500,000 and adds 5 MW of capacity. The annualized FLIC is $50,000/year, or $10/kW-yr. Customers whose load contributes to the feeder's peak hours pay $10/kW-yr proportional to their peak contribution. A customer contributing 2 kW to the peak pays $20/year. This is both the cost they caused and the benefit they receive (2 kW of capacity available during peak hours).
 
-This is the basis for the marginal cost of capacity in our methodology (see `context/tools/bat_lrmc_residual_allocation_methodology.md`, §§5–7). ICAP prices, NYISO incremental benefit studies, and MCOS incremental diluted capital are all FLIC measures — they capture the cost of the next capacity increment and allocate it to peak hours. The literature uniformly classifies these as cost-reflective charges that should be priced at their marginal cost level.
+This is the basis for the marginal cost of capacity in our methodology (see `context/methods/bat_and_residual/bat_lrmc_residual_allocation_methodology.md`, §§5–7). ICAP prices, NYISO incremental benefit studies, and MCOS incremental diluted capital are all FLIC measures — they capture the cost of the next capacity increment and allocate it to peak hours. The literature uniformly classifies these as cost-reflective charges that should be priced at their marginal cost level.
 
 ---
 
@@ -387,7 +387,7 @@ Equity and fairness are not fully incompatible. A tariff can apply fairness to t
 └─────────────────────────────────────────────────────────┘
 ```
 
-Under this hybrid approach, the cost-reflective component sends the right price signal (efficiency), and the residual component addresses distributional concerns (equity). Neither component does double duty — which is exactly the problem with current U.S. rate design, where volumetric rates bundle both efficiency and equity objectives into a single price that serves neither well (see `context/tools/bat_lrmc_residual_allocation_methodology.md`, §10 on EPMC).
+Under this hybrid approach, the cost-reflective component sends the right price signal (efficiency), and the residual component addresses distributional concerns (equity). Neither component does double duty — which is exactly the problem with current U.S. rate design, where volumetric rates bundle both efficiency and equity objectives into a single price that serves neither well (see `context/methods/bat_and_residual/bat_lrmc_residual_allocation_methodology.md`, §10 on EPMC).
 
 ---
 

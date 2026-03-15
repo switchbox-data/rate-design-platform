@@ -99,7 +99,7 @@ residential kWh independently, which overcounts by 4x.
 
 Instead, `estimate_psegli_rr.py` uses LIPA's published budget data:
 
-**Source**: `context/papers/lipa_2025_2026_budget_one_pager.md`
+**Source**: `context/sources/lipa_2025_2026_budget_one_pager.md`
 (extracted from LIPA's "Fact Sheet: LIPA 2026 Budget as Compared to 2025")
 
 The "Average Residential Monthly Bill Impact" table breaks down a typical

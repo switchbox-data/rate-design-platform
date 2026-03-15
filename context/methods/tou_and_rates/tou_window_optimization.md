@@ -37,7 +37,7 @@ p_{on}^{HP,*} = \frac{\sum_{t \in \mathcal{P}} Q_t^{HP} \, MC_t}{\sum_{t \in \ma
 p_{off}^{HP,*} = \frac{\sum_{t \in \mathcal{O}} Q_t^{HP} \, MC_t}{\sum_{t \in \mathcal{O}} Q_t^{HP}}
 $$
 
-Each TOU price equals the HP-demand-weighted average marginal cost in that period — exactly the demand-weighted averages described in `context/domain/cost_reflective_tou_rate_design.md`, restricted to HP loads.
+Each TOU price equals the HP-demand-weighted average marginal cost in that period — exactly the demand-weighted averages described in `context/methods/tou_and_rates/cost_reflective_tou_rate_design.md`, restricted to HP loads.
 
 ### Window placement (fixed $N$)
 
@@ -176,7 +176,7 @@ The sweep is a manual pre-processing step, not part of `all-pre`. Its output (`t
 - **ResStock loads** — new ResStock release, updated load curves, changes to non-HP load approximation
 - **Load filtering** — changes to HP identification, utility assignment, or the `has_hp` filter setting
 
-**Prerequisites:** ResStock data preparation must be complete (needs `utility_assignment.parquet` and load curves on local disk; see `context/tools/resstock_data_preparation_run_order.md`). MC data must be generated (distribution/sub-TX, supply energy/capacity, and optionally bulk TX).
+**Prerequisites:** ResStock data preparation must be complete (needs `utility_assignment.parquet` and load curves on local disk; see `context/tools/data/resstock_data_preparation_run_order.md`). MC data must be generated (distribution/sub-TX, supply energy/capacity, and optionally bulk TX).
 
 **Run order relative to CAIRO batches:**
 

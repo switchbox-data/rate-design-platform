@@ -13,7 +13,7 @@ projects in the New York Control Area (NYCA).
 ## Source and processing
 
 The Gold Book PDF was converted to markdown
-(`context/papers/nyiso_gold_book_2025.md`) via `extract-pdf-to-markdown`.
+(`context/sources/nyiso_gold_book_2025.md`) via `extract-pdf-to-markdown`.
 Table VII's data rows were extracted from that markdown with a parsing script,
 then cleaned in several passes:
 

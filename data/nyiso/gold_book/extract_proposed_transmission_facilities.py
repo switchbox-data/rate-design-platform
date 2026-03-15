@@ -1,6 +1,6 @@
 """Extract Table VII from the NYISO Gold Book markdown into a clean CSV.
 
-Reads the PDF-extracted markdown at context/papers/nyiso_gold_book_2025.md,
+Reads the PDF-extracted markdown at context/sources/nyiso_gold_book_2025.md,
 parses the messy single-cell rows of Table VII ("Proposed Transmission
 Facilities"), and writes a structured CSV with numeric columns cleaned.
 

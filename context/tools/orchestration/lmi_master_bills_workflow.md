@@ -131,6 +131,6 @@ Both save plots to `dev_plots/` and print summary tables to stderr.
 ## Related context
 
 - `context/domain/lmi_discounts_in_ny.md` — EAP/EEAP program structure, tier definitions, credit amounts.
-- `context/tools/resstock_lmi_metadata_guide.md` — ResStock columns used for tier assignment.
+- `context/tools/data/resstock_lmi_metadata_guide.md` — ResStock columns used for tier assignment.
 - `utils/post/lmi_common.py` — Shared helpers: tier assignment expressions, credit loading, participation sampling.
 - `utils/post/data/ny_eap_credits.yaml` — Per-utility, per-tier fixed monthly credit amounts.

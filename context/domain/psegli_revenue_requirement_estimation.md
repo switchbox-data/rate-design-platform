@@ -23,7 +23,7 @@ annual budget fact sheet.
 ### Source
 
 LIPA's "Fact Sheet: LIPA 2026 Budget as Compared to 2025"
-(extracted to `context/papers/lipa_2025_2026_budget_one_pager.md`)
+(extracted to `context/sources/lipa_2025_2026_budget_one_pager.md`)
 
 ### Bill component breakdown (2025 Budget)
 
