@@ -17,7 +17,7 @@ There are two distinct and widely held answers, and they rest on different conce
 These principles can point in opposite directions. Consider a low-income family in a large, poorly insulated house drawing 8 kW during summer peak. Fairness says they should pay more than a wealthy retiree in a small efficient apartment drawing 1 kW — because they benefit more from the infrastructure. Equity says the opposite — because they can afford less. A rate that satisfies both principles simultaneously does not exist for this pair of customers.
 
 The resolution, developed over the rest of this document, is that fairness and equity need not govern the same costs. The electricity bill can be decomposed into components, and different principles can govern different components: fairness for the costs that track current behavior (marginal costs), equity for the costs that are sunk and must be recovered regardless (the residual). This decomposition—between marginal and residual costs—is the foundation of the modern economic literature on rate design, of the Bill Alignment Test and of the tariff design philosophy described here.
-
+https://github.com/switchbox-data/rate-design-platform/blob/main/context/methods/bat_mc_residual/bat_lrmc_residual_allocation_methodology.md#9-interpretation-what-the-mcresidual-split-means-and-the-steady-state-assumptioni
 ---
 
 ## 2. Why apply fairness to electricity cost allocation?
@@ -399,7 +399,7 @@ The argument of this document moves through three distinct layers that are often
 2. **Cost allocation** — the methodology that computes _how much each customer owes_
 3. **Rate design** — the tariff structure that _collects revenue_ from customers
 
-These are different questions. Who should pay is a question of efficiency (instrumental) and justice (normative)—viwed as fairness or as equity. How much each customer owes is a computational question given the principle. How we collect is a tariff design question that must also satisfy regulatory, administrative, and political constraints. Bill alignment — the central concept in the BAT framework — measures the gap between layers 2 and 3: between what a customer _should_ pay (per the allocation) and what they _do_ pay (per the tariff).
+These are different questions. Who should pay is a question of efficiency (instrumental) and justice (normative)—viewed as fairness or as equity. How much each customer owes is a computational question given the principle. How we collect is a tariff design question that must also satisfy regulatory, administrative, and political constraints. Bill alignment — the central concept in the BAT framework — measures the gap between layers 2 and 3: between what a customer _should_ pay (per the allocation) and what they _do_ pay (per the tariff).
 
 The following table maps these three layers across each cost type:
 
