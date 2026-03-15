@@ -8,14 +8,14 @@
 1. Open a fresh session in this repo
 2. Say: **"Execute the CAIRO speedup plan at `docs/plans/2026-02-23-cairo-speedup-plan.md`, subagent-driven, starting with Phase 0"**
 3. Claude will invoke `superpowers:subagent-driven-development` and dispatch Phase 0
-4. After Phase 0 completes, review the timing log at `context/tools/cairo_speedup_log.md`, then say **"proceed with Phase 1"**
+4. After Phase 0 completes, review the timing log at `context/code/cairo/cairo_speedup_log.md`, then say **"proceed with Phase 1"**
 5. Repeat through Phase 3
 
 ## Review gates
 
 | After phase | What to check before proceeding                                                                           |
 | ----------- | --------------------------------------------------------------------------------------------------------- |
-| Phase 0     | `context/tools/cairo_speedup_log.md` has baseline timings; `run_scenario.py` has TIMING log lines         |
+| Phase 0     | `context/code/cairo/cairo_speedup_log.md` has baseline timings; `run_scenario.py` has TIMING log lines         |
 | Phase 1     | Output CSVs for run 2 match pre-patch baseline; `_return_loads_combined` timing < combined original reads |
 | Phase 2     | Output CSVs for run 2 match; `bs.simulate` timing improved; all 3 unit tests pass                         |
 | Phase 3     | Output CSVs for runs 1 and 2 match; total time ≥ 3× faster than baseline                                  |
@@ -36,7 +36,7 @@ Key files:
 
 - `rate_design/ri/hp_rates/run_scenario.py` — entry point; `run()` function is what we time
 - `rate_design/ri/hp_rates/patches.py` — NEW: all monkey-patches live here
-- `context/tools/cairo_speedup_log.md` — NEW: benchmark log
+- `context/code/cairo/cairo_speedup_log.md` — NEW: benchmark log
 - `tests/test_patches.py` — NEW: unit/integration tests for patches
 - `.venv/lib/python3.13/site-packages/cairo/rates_tool/loads.py` — CAIRO source (read-only reference)
 - `.venv/lib/python3.13/site-packages/cairo/rates_tool/system_revenues.py` — CAIRO source (read-only reference)
@@ -61,7 +61,7 @@ Or via just: `just -f rate_design/ri/hp_rates/Justfile run-scenario N`
 
 **Files:**
 
-- Create: `context/tools/cairo_speedup_log.md`
+- Create: `context/code/cairo/cairo_speedup_log.md`
 
 **Step 1: Create the file**
 
@@ -78,7 +78,7 @@ Baseline: ~2.5 min/run before any patches
 **Step 2: Commit**
 
 ```bash
-git add context/tools/cairo_speedup_log.md
+git add context/code/cairo/cairo_speedup_log.md
 git commit -m "Add CAIRO speedup benchmark log"
 ```
 
@@ -293,7 +293,7 @@ Expected: lines like `TIMING _return_load(electricity): 45.2s`
 
 **Step 5: Record baseline timings in the log**
 
-Add a section to `context/tools/cairo_speedup_log.md`:
+Add a section to `context/code/cairo/cairo_speedup_log.md`:
 
 ```markdown
 ## Baseline — run 1 (pre-patch), DATE
@@ -315,7 +315,7 @@ Add a section to `context/tools/cairo_speedup_log.md`:
 **Step 6: Commit**
 
 ```bash
-git add rate_design/ri/hp_rates/run_scenario.py context/tools/cairo_speedup_log.md
+git add rate_design/ri/hp_rates/run_scenario.py context/code/cairo/cairo_speedup_log.md
 git commit -m "Phase 0: add per-stage timing to run_scenario.py"
 ```
 
@@ -339,7 +339,7 @@ git commit -m "Phase 0: add per-stage timing to run_scenario.py"
 ```python
 """
 Monkey-patches on top of CAIRO for performance.
-See docs/plans/2026-02-23-cairo-speedup-design.md and context/tools/cairo_speedup_log.md.
+See docs/plans/2026-02-23-cairo-speedup-design.md and context/code/cairo/cairo_speedup_log.md.
 
 Import this module at the top of run_scenario.py (after all other imports):
     import rate_design.ri.hp_rates.patches  # noqa: F401
@@ -446,7 +446,7 @@ Expected: `FAILED` with `ImportError: cannot import name '_return_loads_combined
 ```python
 """
 Monkey-patches on top of CAIRO for performance.
-See docs/plans/2026-02-23-cairo-speedup-design.md and context/tools/cairo_speedup_log.md.
+See docs/plans/2026-02-23-cairo-speedup-design.md and context/code/cairo/cairo_speedup_log.md.
 
 Import this module at the top of run_scenario.py (after all other imports):
     import rate_design.ri.hp_rates.patches  # noqa: F401  (currently no-op; patches added below)
@@ -681,7 +681,7 @@ for csv_file in ref_dir.glob("*.csv"):
 
 **Step 6: Record Phase 1 timings in log**
 
-Add to `context/tools/cairo_speedup_log.md`:
+Add to `context/code/cairo/cairo_speedup_log.md`:
 
 ```markdown
 ## Phase 1 — combined batch reader, DATE
@@ -698,7 +698,7 @@ Add to `context/tools/cairo_speedup_log.md`:
 **Step 7: Commit**
 
 ```bash
-git add rate_design/ri/hp_rates/patches.py rate_design/ri/hp_rates/run_scenario.py tests/test_patches.py context/tools/cairo_speedup_log.md
+git add rate_design/ri/hp_rates/patches.py rate_design/ri/hp_rates/run_scenario.py tests/test_patches.py context/code/cairo/cairo_speedup_log.md
 git commit -m "Phase 1: combined batch parquet reader, halves file I/O"
 ```
 
@@ -1067,12 +1067,12 @@ Compare all output CSVs against the Phase 1 baseline for run 2 (same comparison 
 
 **Step 4: Record Phase 2 timings in log**
 
-Add section to `context/tools/cairo_speedup_log.md` with updated timings.
+Add section to `context/code/cairo/cairo_speedup_log.md` with updated timings.
 
 **Step 5: Commit**
 
 ```bash
-git add rate_design/ri/hp_rates/patches.py tests/test_patches.py context/tools/cairo_speedup_log.md
+git add rate_design/ri/hp_rates/patches.py tests/test_patches.py context/code/cairo/cairo_speedup_log.md
 git commit -m "Phase 2: vectorized tariff aggregation, replaces per-building Dask loop"
 ```
 
@@ -1384,7 +1384,7 @@ cd rate_design/ri/hp_rates && just run-1 2>&1 | grep -E "TIMING|Completed"
 
 **Step 5: Record Phase 3 timings in log**
 
-Add final section to `context/tools/cairo_speedup_log.md`:
+Add final section to `context/code/cairo/cairo_speedup_log.md`:
 
 ```markdown
 ## Phase 3 — vectorized billing, DATE
@@ -1399,7 +1399,7 @@ Add final section to `context/tools/cairo_speedup_log.md`:
 **Step 6: Commit**
 
 ```bash
-git add rate_design/ri/hp_rates/patches.py tests/test_patches.py context/tools/cairo_speedup_log.md
+git add rate_design/ri/hp_rates/patches.py tests/test_patches.py context/code/cairo/cairo_speedup_log.md
 git commit -m "Phase 3: vectorized bill calculation, replaces per-building Dask loop"
 ```
 

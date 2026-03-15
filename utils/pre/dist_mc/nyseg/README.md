@@ -8,7 +8,7 @@ All values are at **primary distribution voltage** (no secondary loss adjustment
 
 CRA's native methodology computes MC at each substation using location-specific growth factors (W5), demand-related loss factors (W4), and N-0/N-1 capacity analysis — then aggregates upward through division-level tables (T4–T7) to system-wide tables (T1A, T2). This produces MCs that embed location-specific adjustments our other utilities don't use.
 
-By reading the **raw project data** from W2 (capital, capacity, in-service date) and applying the same `Capital / Peak × Composite Rate` formula used by NiMo/ConEd/O&R/CenHud, we get a consistent methodology across all NY utilities. The trade-off is that our output differs from CRA's published tables (T1A, T2) by a few percent — see `context/domain/ny_mcos_studies_comparison.md` §9 for the full rationale.
+By reading the **raw project data** from W2 (capital, capacity, in-service date) and applying the same `Capital / Peak × Composite Rate` formula used by NiMo/ConEd/O&R/CenHud, we get a consistent methodology across all NY utilities. The trade-off is that our output differs from CRA's published tables (T1A, T2) by a few percent — see `context/methods/marginal_costs/ny_mcos_studies_comparison.md` §9 for the full rationale.
 
 ## Cost centers
 
@@ -74,7 +74,7 @@ MC(Y) = Σ_{p: ISD(p)≤Y} [annualized(p) × cap(p) × (1.02)^(Y−ISD(p))]
          / Σ_{p: ISD(p)≤Y} [cap(p)]
 ```
 
-**Levelized** = mean of real MC over the 7-year levelization window (2026–2032), consistent across all utilities. See `context/domain/ny_mcos_studies_comparison.md` §10 for rationale.
+**Levelized** = mean of real MC over the 7-year levelization window (2026–2032), consistent across all utilities. See `context/methods/marginal_costs/ny_mcos_studies_comparison.md` §10 for rationale.
 
 ### Loss factors
 

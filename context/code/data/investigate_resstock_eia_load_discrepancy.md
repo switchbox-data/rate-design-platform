@@ -79,7 +79,7 @@ Helpers: `_bldg_ids_for_building_type`, `_parse_floor_area_sqft` (e.g. `750-999`
 
 ## Relationship to compare_resstock_eia861_loads
 
-- **`compare_resstock_eia861_loads.py`** (see `context/tools/data/compare_resstock_eia861_loads.md`): Simpler script; outputs a CSV of ResStock vs EIA totals and customer counts by utility (optionally with `--normalize-by-customer-count`). No MF adjustment, no SF/MF analysis.
+- **`compare_resstock_eia861_loads.py`** (see `context/code/data/compare_resstock_eia861_loads.md`): Simpler script; outputs a CSV of ResStock vs EIA totals and customer counts by utility (optionally with `--normalize-by-customer-count`). No MF adjustment, no SF/MF analysis.
 - **`investigate_resstock_eia_load_discrepancy.py`**: Investigation and correction; adds building-type and floor-area logic, SF vs MF comparison, non-HVAC column-wise ratios, and MF adjustment, then plots percent difference vs multifamily share before/after.
 
 For quick utility-level totals and ratios, use `compare_resstock_eia861_loads`. For understanding and reducing the MF-related bias, use `investigate_resstock_eia_load_discrepancy`.

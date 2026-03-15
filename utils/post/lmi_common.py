@@ -334,7 +334,7 @@ def assign_ny_tier_expr(
 ) -> pl.Expr:
     """Assign NY EAP/EEAP tier (0-7) from FPL%, SMI%, vulnerability, fuel.
 
-    Tier logic (see context/domain/lmi_discounts_in_ny.md):
+    Tier logic (see context/domain/charges/lmi_discounts_in_ny.md):
 
     Traditional EAP (Tiers 1-3) — always use SMI:
       - ≤130% FPL + vulnerable + utility-heated → Tier 3

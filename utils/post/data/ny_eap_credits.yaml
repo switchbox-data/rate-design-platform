@@ -1,6 +1,6 @@
 # NY EAP/EEAP monthly bill credits by utility, tier, and heating status.
 #
-# Source: context/domain/lmi_discounts_in_ny.md (compiled from utility filings
+# Source: context/domain/charges/lmi_discounts_in_ny.md (compiled from utility filings
 # and public EAP pages as of February 2026).
 #
 # Utility std_names match utils/utility_codes.py.

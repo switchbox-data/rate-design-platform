@@ -63,7 +63,7 @@ After zeroing small gas utilities (and optionally replacing bad-PUMA rows with d
 ## Justfile and data flow
 
 - **Recipe:** `assign-utility-ny` in `data/resstock/Justfile` (download polygons, then call `assign_utility_ny.py` with S3 paths for metadata and polygon CSVs).
-- **Run order:** After `identify-hp-and-heating-type-all-upgrades-and-natgas-connection` (metadata has `has_natgas_connection` and `in.puma`). See `context/tools/data/resstock_data_preparation_run_order.md` step 3.
+- **Run order:** After `identify-hp-and-heating-type-all-upgrades-and-natgas-connection` (metadata has `has_natgas_connection` and `in.puma`). See `context/code/data/resstock_data_preparation_run_order.md` step 3.
 - **Output:** Written to the standard release’s `metadata_utility` path; the copy step then brings `metadata_utility` into the sb release. The script’s `sink_parquet` call may be commented out for local testing.
 
 ---

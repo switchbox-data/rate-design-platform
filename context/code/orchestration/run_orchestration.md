@@ -92,7 +92,7 @@ When `elasticity != 0`, the scenario runner:
 4. **Phase 3:** Runs CAIRO simulation with the shifted loads and recalibrated
    RR.
 
-For full details see `context/tools/cairo/cairo_demand_flexibility_workflow.md`.
+For full details see `context/code/cairo/cairo_demand_flexibility_workflow.md`.
 
 `run-all-sequential` now executes runs 1-16 in order, including the demand-flex
 runs.

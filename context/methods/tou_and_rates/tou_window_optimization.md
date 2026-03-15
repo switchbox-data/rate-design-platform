@@ -176,7 +176,7 @@ The sweep is a manual pre-processing step, not part of `all-pre`. Its output (`t
 - **ResStock loads** — new ResStock release, updated load curves, changes to non-HP load approximation
 - **Load filtering** — changes to HP identification, utility assignment, or the `has_hp` filter setting
 
-**Prerequisites:** ResStock data preparation must be complete (needs `utility_assignment.parquet` and load curves on local disk; see `context/tools/data/resstock_data_preparation_run_order.md`). MC data must be generated (distribution/sub-TX, supply energy/capacity, and optionally bulk TX).
+**Prerequisites:** ResStock data preparation must be complete (needs `utility_assignment.parquet` and load curves on local disk; see `context/code/data/resstock_data_preparation_run_order.md`). MC data must be generated (distribution/sub-TX, supply energy/capacity, and optionally bulk TX).
 
 **Run order relative to CAIRO batches:**
 

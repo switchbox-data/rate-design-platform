@@ -10,7 +10,7 @@ actualized discounts to the expected EAP/EEAP credits from the NY credit table
 expected-vs-actual plots. Section 1.6 performs the same check month by month.
 All plots are saved to ``dev_plots/`` with Agg backend (no display).
 
-See `context/domain/lmi_discounts_in_ny.md` for EAP/EEAP tier and credit details.
+See `context/domain/charges/lmi_discounts_in_ny.md` for EAP/EEAP tier and credit details.
 """
 
 from __future__ import annotations

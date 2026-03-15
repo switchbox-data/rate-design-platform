@@ -215,7 +215,7 @@ If you care about the tariff being cost-reflective _with respect to the loads it
 
 What does this mean for the total revenue requirement? The lower total MC from shifted loads means a lower marginal cost component. Whether total system costs decrease depends on how the non-marginal component (embedded infrastructure costs, fixed overheads — the "residual") is treated. If the residual is held fixed and only the marginal component adjusts, the MC savings flow through as reduced total costs. See the discussion of residual treatment approaches below.
 
-> **Implementation note:** This is what Phase 1.75 in our demand-flex pipeline does: it recomputes the precalc `rel_values` from the shifted load shape so that the tariff structure matches post-flex cost responsibility. For the residual treatment, see `context/tools/demand_flex_residual_treatment.md`.
+> **Implementation note:** This is what Phase 1.75 in our demand-flex pipeline does: it recomputes the precalc `rel_values` from the shifted load shape so that the tariff structure matches post-flex cost responsibility. For the residual treatment, see `context/code/cairo/demand_flex_residual_treatment.md`.
 
 ### The circularity problem
 
@@ -229,7 +229,7 @@ The true self-consistent answer is the **fixed point**: the ratio where, given _
 
 A common practical approach is to do **one iteration** (original ratio → shift → recompute ratio) and stop. For small elasticities, one step is probably close to the fixed point — the ratio moves by a modest amount, and the second-order correction would be smaller still. But it's a first-order approximation, not the equilibrium.
 
-> **Implementation note:** Our demand-flex pipeline does exactly one iteration: derive the initial TOU, shift loads, recompute the ratio. It does not iterate to convergence. See `context/tools/cairo_demand_flexibility_workflow.md` for the full pipeline.
+> **Implementation note:** Our demand-flex pipeline does exactly one iteration: derive the initial TOU, shift loads, recompute the ratio. It does not iterate to convergence. See `context/code/cairo/cairo_demand_flexibility_workflow.md` for the full pipeline.
 
 ## From partial equilibrium to general equilibrium
 

@@ -258,7 +258,7 @@ The choice of residual allocator is a normative decision, not an economic one �
 
 The project defaults to per-customer allocation (`BAT_percustomer`) for subclass revenue requirement analysis, consistent with the efficiency-oriented recommendation of the Pérez-Arriaga framework and Schittekatte & Meeus (2020). All three metrics are always computed so that the sensitivity of cross-subsidy findings to the allocator choice is transparent.
 
-For the full survey of residual allocation methods — including demand-based, historical consumption, and Ramsey approaches not implemented in CAIRO — see `context/methods/bat_and_residual/residual_allocation_lit_review_and_cairo.md`.
+For the full survey of residual allocation methods — including demand-based, historical consumption, and Ramsey approaches not implemented in CAIRO — see `context/methods/bat_mc_residual/residual_allocation_lit_review_and_cairo.md`.
 
 ---
 
@@ -314,7 +314,7 @@ This measurement is only as good as the MC signal that feeds it. If the MC signa
 
 ## 10. EPMC: the practitioner's alternative to explicit residual allocation
 
-The academic consensus (§8, and `context/methods/bat_and_residual/residual_allocation_lit_review_and_cairo.md`) treats residual recovery as a distinct, explicitly chosen allocation: volumetric, per-customer, peak, demand-based, historical consumption, or Ramsey. The regulator picks a method, computes each customer's residual share, and recovers it through a charge whose structure is separate from the cost-reflective charge. In practice, most U.S. jurisdictions do something quite different.
+The academic consensus (§8, and `context/methods/bat_mc_residual/residual_allocation_lit_review_and_cairo.md`) treats residual recovery as a distinct, explicitly chosen allocation: volumetric, per-customer, peak, demand-based, historical consumption, or Ramsey. The regulator picks a method, computes each customer's residual share, and recovers it through a charge whose structure is separate from the cost-reflective charge. In practice, most U.S. jurisdictions do something quite different.
 
 ### What EPMC actually does
 
@@ -325,7 +325,7 @@ In a traditional MCOS-based rate design (e.g., California's CPUC proceedings, or
 3. Compute the EPMC scalar: $K = TRR / \text{MC Revenue}$.
 4. Set final rates: $r_p = K \times r^{MC}_p$ for each period.
 
-The result is a set of volumetric rates where every TOU period's price is scaled up by the same multiplicative constant $K$. For NY utilities, where FLIC-based MC revenue is 2–15% of TRR, $K$ would be roughly 7–50x. (In practice, NY doesn't use EPMC for inter-class allocation — see `context/domain/ny_psc_how_ecos_and_mcos_are_used.md` — but the mechanism is standard in California and Oregon, and is the reconciliation method used in the BAT paper's own tariff construction: "the equi-proportional rate adjustment method is used as a reconciliation method to cover noneconomic costs" (Simeone et al. 2023, Appendix B, Eq. B3).)
+The result is a set of volumetric rates where every TOU period's price is scaled up by the same multiplicative constant $K$. For NY utilities, where FLIC-based MC revenue is 2–15% of TRR, $K$ would be roughly 7–50x. (In practice, NY doesn't use EPMC for inter-class allocation — see `context/domain/bat_mc_residual/ny_psc_how_ecos_and_mcos_are_used.md` — but the mechanism is standard in California and Oregon, and is the reconciliation method used in the BAT paper's own tariff construction: "the equi-proportional rate adjustment method is used as a reconciliation method to cover noneconomic costs" (Simeone et al. 2023, Appendix B, Eq. B3).)
 
 ### Why EPMC is implicit volumetric residual allocation
 

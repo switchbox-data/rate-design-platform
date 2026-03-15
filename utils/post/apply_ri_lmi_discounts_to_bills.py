@@ -7,7 +7,7 @@ the run directory.
 Uses polars lazy execution; minimal collects for weighted participation.
 
 NOTE: A volumetric cost-recovery rider (spreading discount costs to
-non-participants) is described in context/domain/lmi_discounts_in_ri.md §4
+non-participants) is described in context/domain/charges/lmi_discounts_in_ri.md §4
 but is not implemented here. If needed in the future, it would require
 per-building consumption data (out.electricity.total.energy_consumption.kwh
 and out.natural_gas.total.energy_consumption.kwh from ResStock results).

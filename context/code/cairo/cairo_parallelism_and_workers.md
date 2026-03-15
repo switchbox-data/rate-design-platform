@@ -110,7 +110,7 @@ Re-run the timing if you change instance type, building count, or CAIRO version.
 | **Series vs 2 tracks (8 vCPUs)** | Depends on scaling. Linear (r ≈ 2) ⇒ series. Diminishing returns (r ≈ 1.2–1.5) ⇒ two tracks with 4 workers each can win. Use “How to test and find the sweet spot” to decide. |
 | **16+ vCPUs**                    | Two parallel tracks with N workers each (2N ≤ vCPUs) for clear win without relying on diminishing returns.                                                                    |
 
-Related: **`context/tools/cairo_performance_analysis.md`** (which stages use Dask, scheduler fix), **`context/tools/run_orchestration.md`** (dependency chain and Justfile).
+Related: **`context/code/cairo/cairo_performance_analysis.md`** (which stages use Dask, scheduler fix), **`context/code/orchestration/run_orchestration.md`** (dependency chain and Justfile).
 
 ## Measured scaling on m7i.2xlarge (2026-02-23)
 

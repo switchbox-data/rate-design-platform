@@ -37,7 +37,7 @@ def scan_load_curves_for_utility(
 
     Reads metadata_utility to get bldg_ids, then constructs per-building file
     paths and passes them directly to scan_parquet — no directory listing or
-    footer probing of irrelevant files. See context/tools/parquet_reads_local_vs_s3.md.
+    footer probing of irrelevant files. See context/code/data/parquet_reads_local_vs_s3.md.
 
     Parameters
     ----------

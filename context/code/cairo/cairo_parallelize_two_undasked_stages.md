@@ -32,7 +32,7 @@ These two are implemented as **single-pass pandas** operations on one big DataFr
 
 ## Background and source of truth
 
-- The overall performance picture (which stages use Dask, why they’re single-core, etc.) is in **context/tools/cairo_performance_analysis.md** in the rate-design-platform repo.
+- The overall performance picture (which stages use Dask, why they’re single-core, etc.) is in **context/code/cairo/cairo_performance_analysis.md** in the rate-design-platform repo.
 - CAIRO is a **separate package** (dependency of rate-design-platform). Its code lives in the environment at `site-packages/cairo/rates_tool/` (e.g. under `rate-design-platform/.venv/...` or wherever the agent’s CAIRO clone/vendor lives). The agent will work in the **CAIRO repo/codebase**, not in rate-design-platform.
 - This doc summarizes what we learned in rate-design-platform about _what_ to change and _how_; the agent should re-verify paths, line numbers, and call sites inside CAIRO.
 

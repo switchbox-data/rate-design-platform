@@ -16,7 +16,7 @@ By default writes in-place (back to --master-bills-path). Pass --output-path
 to redirect. Handles idempotent re-runs: drops existing rate-specific columns
 before recomputing, and verifies shared lmi_tier/is_lmi if already present.
 
-See context/tools/orchestration/lmi_master_bills_workflow.md for full documentation.
+See context/code/orchestration/lmi_master_bills_workflow.md for full documentation.
 """
 
 from __future__ import annotations

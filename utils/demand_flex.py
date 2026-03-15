@@ -5,7 +5,7 @@ optionally runs inside a CAIRO scenario when elasticity != 0.  It is called
 from run_scenario.py and delegates low-level per-building load shifting to
 utils.cairo.apply_runtime_tou_demand_response.
 
-See context/tools/cairo/cairo_demand_flexibility_workflow.md for design docs.
+See context/code/cairo/cairo_demand_flexibility_workflow.md for design docs.
 """
 
 from __future__ import annotations
@@ -300,7 +300,7 @@ def apply_demand_flex(
     # same raw loads, same MC prices → same total MC, same residual.
     # We capture the residual here and freeze it so that when loads shift
     # later, only the MC component changes — the residual (embedded infra
-    # costs) stays fixed. See context/tools/cairo/demand_flex_residual_treatment.md.
+    # costs) stays fixed. See context/code/cairo/demand_flex_residual_treatment.md.
     log.info(".... Phase 1a: computing frozen residual from original loads")
     (
         full_rr_orig,

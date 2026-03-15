@@ -1,6 +1,6 @@
 # Residual Allocation Methods: Literature Survey and CAIRO Implementation
 
-This document maps residual cost allocation methods from the cross-subsidization literature to CAIRO's three BAT allocators. It is organized by allocation method, not by paper. For the full paper-by-paper literature review with embedded cost frameworks, demand allocation formulas, and distribution cost classification, see `context/domain/residual_allocation_in_solar_cross_subsidy_studies.md`.
+This document maps residual cost allocation methods from the cross-subsidization literature to CAIRO's three BAT allocators. It is organized by allocation method, not by paper. For the full paper-by-paper literature review with embedded cost frameworks, demand allocation formulas, and distribution cost classification, see `context/domain/bat_mc_residual/residual_allocation_in_solar_cross_subsidy_studies.md`.
 
 ## Background: the two-part decomposition
 
