@@ -190,7 +190,7 @@ When the source PDF contains them, include short back-matter sections such as **
 ## Output filename and location
 
 - **Filename**: The markdown file **must** use the same base name as the PDF, with a `.md` extension. Example: `bill_alignment_test.pdf` → `bill_alignment_test.md`.
-- **Location**: Save under `context/docs/` for technical documentation (e.g. Cambium, ResStock) or `context/papers/` for academic papers (e.g. Bill Alignment Test). Update `context/README.md` when adding or changing files.
+- **Location**: Save under `context/docs/` for technical documentation (e.g. Cambium, ResStock) or `context/sources/papers/` for academic papers (e.g. Bill Alignment Test). Update `context/README.md` when adding or changing files.
 
 ## Process
 
@@ -204,6 +204,6 @@ The PDF file path is provided as: **$ARGUMENTS**
 6. Build complete References section
 7. Do final quality check against checklist
 8. Output complete markdown as ready-to-use document
-9. **Save the file** under `context/docs/` or `context/papers/` using the **same base name as the PDF** (e.g. `path/to/foo.pdf` → `context/.../foo.md`). Update `context/README.md` if needed.
+9. **Save the file** under `context/docs/` or `context/sources/papers/` using the **same base name as the PDF** (e.g. `path/to/foo.pdf` → `context/.../foo.md`). Update `context/README.md` if needed.
 
 **Provide the extracted markdown in full, ready to save to context/ with the matching filename and commit.**

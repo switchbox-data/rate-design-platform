@@ -7,7 +7,7 @@ argument-hint: <path-to-extract.md> [path-to-source.pdf]
 
 You are comparing an **existing markdown extract** to its **source PDF** to assess how well the extraction succeeded across all major categories. Your output is a **structured validation report** that other agents or humans can use to judge quality and decide on follow-up actions.
 
-**Inputs:** The user provides the path to the markdown file (e.g. `context/papers/bill_alignment_test.md`). The source PDF is either provided as a second argument or inferred from the markdown path by replacing the file with the same base name and `.pdf` extension in the same directory (e.g. `context/papers/bill_alignment_test.pdf`). Read both the PDF (or its text representation) and the markdown to perform the comparison.
+**Inputs:** The user provides the path to the markdown file (e.g. `context/sources/papers/bill_alignment_test.md`). The source PDF is either provided as a second argument or inferred from the markdown path by replacing the file with the same base name and `.pdf` extension in the same directory (e.g. `context/sources/papers/bill_alignment_test.pdf`). Read both the PDF (or its text representation) and the markdown to perform the comparison.
 
 **Output:** Produce the validation report **only in the chat** (in your response). **Do not** write the report to a file or save it to disk. The user reads the report in the conversation; they can copy or save it themselves if needed.
 

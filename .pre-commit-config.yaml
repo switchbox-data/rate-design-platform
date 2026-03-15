@@ -12,7 +12,7 @@ repos:
       - id: check-added-large-files
         name: "Git: block files over 600KB (check-added-large-files)"
         args: ["--maxkb=600"]
-        exclude: uv.lock|rate_design/.*/config/marginal_costs/.*\.csv|context/papers/nyiso_gold_book_2025\.md
+        exclude: uv.lock|rate_design/.*/config/marginal_costs/.*\.csv|context/sources/nyiso_gold_book_2025\.md
       - id: check-merge-conflict
         name: "Git: detect merge conflict markers (check-merge-conflict)"
       - id: check-case-conflict
