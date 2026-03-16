@@ -28,7 +28,6 @@ def test_derive_seasonal_tou_rejects_flat_or_inverted_ratio() -> None:
             hourly_load=hourly_load,
             winter_months=[1],
             tou_window_hours=4,
-            tou_base_rate=0.1,
             tou_fixed_charge=5.0,
             tou_tariff_key="test_tou",
             utility="test_utility",

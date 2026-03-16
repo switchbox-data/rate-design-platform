@@ -15,7 +15,7 @@
 
 | After phase | What to check before proceeding                                                                           |
 | ----------- | --------------------------------------------------------------------------------------------------------- |
-| Phase 0     | `context/code/cairo/cairo_speedup_log.md` has baseline timings; `run_scenario.py` has TIMING log lines         |
+| Phase 0     | `context/code/cairo/cairo_speedup_log.md` has baseline timings; `run_scenario.py` has TIMING log lines    |
 | Phase 1     | Output CSVs for run 2 match pre-patch baseline; `_return_loads_combined` timing < combined original reads |
 | Phase 2     | Output CSVs for run 2 match; `bs.simulate` timing improved; all 3 unit tests pass                         |
 | Phase 3     | Output CSVs for runs 1 and 2 match; total time ≥ 3× faster than baseline                                  |

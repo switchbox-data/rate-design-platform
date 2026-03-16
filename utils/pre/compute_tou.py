@@ -369,21 +369,17 @@ def compute_seasonal_base_rates(
     combined_mc: pd.Series,
     hourly_load: pd.Series,
     seasons: list[Season],
-    base_rate: float,
 ) -> dict[str, float]:
     """Derive a per-season flat rate from demand-weighted MC.
 
-    The ratio of demand-weighted average MC across seasons scales
-    ``base_rate`` so that the load-weighted average of the seasonal rates
-    equals ``base_rate``.
+    Returns the raw demand-weighted average MC for each season. CAIRO's
+    precalc will calibrate the absolute level; the seasonal ratios come
+    directly from the MC data.
 
     Args:
         combined_mc: 8760-row Series of total MC ($/kWh) indexed by time.
         hourly_load: 8760-row Series of load indexed by time.
         seasons: List of :class:`Season` objects covering all 12 months.
-        base_rate: Nominal annual average rate ($/kWh); precalc will
-            calibrate the absolute level but the *seasonal ratios* are
-            preserved.
 
     Returns:
         ``{season.name: rate}`` for each season.
@@ -392,9 +388,7 @@ def compute_seasonal_base_rates(
     mc_vals = combined_mc.values
     load_vals = hourly_load.values
 
-    # Demand-weighted avg MC per season
-    dw_avgs: dict[str, float] = {}
-    season_loads: dict[str, float] = {}
+    rates: dict[str, float] = {}
     for s in seasons:
         mask = season_mask(idx, s)
         mc_s = mc_vals[mask]
@@ -402,21 +396,11 @@ def compute_seasonal_base_rates(
         total_load = float(load_s.sum())
         if total_load == 0:
             raise ValueError(f"Load is zero for season '{s.name}'")
-        dw_avgs[s.name] = float((mc_s * load_s).sum() / total_load)
-        season_loads[s.name] = total_load
-
-    # Scale so load-weighted mean of seasonal rates == base_rate
-    total_load = sum(season_loads.values())
-    total_mc = sum(dw_avgs[s.name] * season_loads[s.name] for s in seasons)
-    scale = base_rate * total_load / total_mc if total_mc != 0 else 1.0
-
-    rates: dict[str, float] = {}
-    for s in seasons:
-        rates[s.name] = round(dw_avgs[s.name] * scale, 6)
+        dw_avg = float((mc_s * load_s).sum() / total_load)
+        rates[s.name] = round(dw_avg, 6)
         log.info(
-            "Seasonal base rate %s: $%.6f/kWh (dw avg MC=%.6f)",
+            "Seasonal base rate %s: $%.6f/kWh (demand-weighted avg MC)",
             s.name,
             rates[s.name],
-            dw_avgs[s.name],
         )
     return rates
