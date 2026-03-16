@@ -48,7 +48,7 @@ build-master-bills-with-lmi batch run_delivery run_supply *script_args:
       --calculate-lmi \
       --lmi-fpl-year 2025 \
       --lmi-cpi-s3-path "{{ path_cpi_s3 }}" \
-      --lmi-participation-rates 1.0 0.4 \
+      --lmi-participation-rates 1.0 0.32 \
       --lmi-participation-mode uniform \
       --lmi-seed 42 \
       {{ script_args }}
