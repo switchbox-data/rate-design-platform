@@ -230,7 +230,7 @@ Further meaningful speedup beyond ~1.5× would most likely require:
 | `utils/mid/patches.py`                          | New — all three patch phases           |
 | `rate_design/hp_rates/run_scenario.py`          | Import patches; add per-stage timing   |
 | `tests/test_patches.py`                         | New — 3 unit tests                     |
-| `context/code/cairo/cairo_speedup_log.md`            | Benchmark log updated after each phase |
+| `context/code/cairo/cairo_speedup_log.md`       | Benchmark log updated after each phase |
 | `docs/plans/2026-02-23-cairo-speedup-design.md` | Design doc                             |
 | `docs/plans/2026-02-23-cairo-speedup-plan.md`   | Implementation plan                    |
 
