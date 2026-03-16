@@ -199,18 +199,18 @@ create-flat-tariffs:
       --eia-path "{{ path_electric_utility_stats }}" \
       --year "{{ monthly_rates_year }}"
 
-# Derive TOU tariffs from MC rates (no dependency on calibrated flat run outputs).
+# Derive seasonal TOU tariffs from MC rates (no dependency on calibrated flat run outputs).
 # Uses the pre-calibrated flat tariff only to extract the fixed charge.
 # Writes {tou_tariff_key}.json and copies it to {tou_tariff_key}_supply.json.
-create-tou-tariffs:
+create-seasonal-tou-tariffs:
     #!/usr/bin/env bash
     set -euo pipefail
     ref_tariff="{{ path_tariffs_electric }}/{{ utility }}_flat.json"
-    echo ">> create-tou-tariffs: deriving TOU from MC (fixed charge from ${ref_tariff})" >&2
+    echo ">> create-seasonal-tou-tariffs: deriving TOU from MC (fixed charge from ${ref_tariff})" >&2
     just create-seasonal-tou {{ tou_tariff_key }} "${ref_tariff}"
     cp "{{ path_tariffs_electric }}/{{ tou_tariff_key }}.json" \
        "{{ path_tariffs_electric }}/{{ tou_tariff_key }}_supply.json"
-    echo ">> create-tou-tariffs: wrote {{ tou_tariff_key }}.json and {{ tou_tariff_key }}_supply.json" >&2
+    echo ">> create-seasonal-tou-tariffs: wrote {{ tou_tariff_key }}.json and {{ tou_tariff_key }}_supply.json" >&2
 
 create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="" has_hp="true":
     just -f {{ path_repo }}/utils/Justfile create-seasonal-tou \
@@ -538,7 +538,7 @@ all-pre:
     just ensure-gas-tariff-envelope
     just compute-rr
     just create-flat-tariffs
-    just create-tou-tariffs
+    just create-seasonal-tou-tariffs
     just validate-config
 
 run-all-utilities-sequential:
