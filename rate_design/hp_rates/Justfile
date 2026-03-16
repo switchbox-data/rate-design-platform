@@ -201,15 +201,24 @@ create-flat-tariffs:
 
 # Derive seasonal TOU tariffs from MC rates (no dependency on calibrated flat run outputs).
 # Uses the pre-calibrated flat tariff only to extract the fixed charge.
-# Writes {tou_tariff_key}.json and copies it to {tou_tariff_key}_supply.json.
+# Writes {tou_tariff_key}.json and creates {tou_tariff_key}_supply.json with updated label.
 create-seasonal-tou-tariffs:
     #!/usr/bin/env bash
     set -euo pipefail
     ref_tariff="{{ path_tariffs_electric }}/{{ utility }}_flat.json"
     echo ">> create-seasonal-tou-tariffs: deriving TOU from MC (fixed charge from ${ref_tariff})" >&2
     just create-seasonal-tou {{ tou_tariff_key }} "${ref_tariff}"
-    cp "{{ path_tariffs_electric }}/{{ tou_tariff_key }}.json" \
-       "{{ path_tariffs_electric }}/{{ tou_tariff_key }}_supply.json"
+    # Create supply version by copying JSON and updating label
+    base_path="{{ path_tariffs_electric }}/{{ tou_tariff_key }}.json"
+    supply_path="{{ path_tariffs_electric }}/{{ tou_tariff_key }}_supply.json"
+    supply_label="{{ tou_tariff_key }}_supply"
+    uv run python3 -c \
+        "import json; \
+        t = json.load(open('${base_path}')); \
+        t['items'][0]['label'] = '${supply_label}'; \
+        t['items'][0].get('name') and t['items'][0].update({'name': '${supply_label}'}); \
+        json.dump(t, open('${supply_path}', 'w'), indent=2); \
+        print('Created ${supply_path}')"
     echo ">> create-seasonal-tou-tariffs: wrote {{ tou_tariff_key }}.json and {{ tou_tariff_key }}_supply.json" >&2
 
 create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="" has_hp="true":
