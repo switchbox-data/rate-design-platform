@@ -67,8 +67,8 @@ def _gas_summary_stats(df: pl.DataFrame) -> None:
         df.group_by("sb.gas_utility")
         .agg(
             pl.len().alias("n_buildings"),
-            pl.col("is_lmi").sum().alias("n_lmi"),
-            pl.col("applied_discount_100").sum().alias("n_discounted"),
+            pl.col("is_lmi_gas").sum().alias("n_lmi"),
+            pl.col("applied_discount_gas_100").sum().alias("n_discounted"),
             pl.col("gas_total_bill").mean().alias("gas_bill_mean"),
             pl.col("gas_total_bill").median().alias("gas_bill_median"),
             pl.col("gas_total_bill").min().alias("gas_bill_min"),
@@ -78,11 +78,11 @@ def _gas_summary_stats(df: pl.DataFrame) -> None:
             pl.col("gas_total_bill_lmi_100").min().alias("gas_lmi_min"),
             pl.col("gas_total_bill_lmi_100").max().alias("gas_lmi_max"),
             (pl.col("gas_total_bill") - pl.col("gas_total_bill_lmi_100"))
-            .filter(pl.col("applied_discount_100"))
+            .filter(pl.col("applied_discount_gas_100"))
             .mean()
             .alias("discount_mean"),
             (pl.col("gas_total_bill") - pl.col("gas_total_bill_lmi_100"))
-            .filter(pl.col("applied_discount_100"))
+            .filter(pl.col("applied_discount_gas_100"))
             .median()
             .alias("discount_median"),
         )
@@ -95,11 +95,11 @@ def _gas_discount_histogram(df: pl.DataFrame) -> None:
     """Histogram of gas discount amount for LMI participants, faceted by gas utility."""
     _section_header("Section 1.2: Gas Discount Amount Histogram (p100)")
 
-    participants = df.filter(pl.col("applied_discount_100"))
+    participants = df.filter(pl.col("applied_discount_gas_100"))
     utilities = sorted(participants["sb.gas_utility"].unique().to_list())
     n_utils = len(utilities)
     if n_utils == 0:
-        print("No participants with applied_discount_100=True — skipping.")
+        print("No participants with applied_discount_gas_100=True — skipping.")
         return
 
     ncols = min(n_utils, 3)
@@ -132,7 +132,7 @@ def _gas_before_after_histogram(df: pl.DataFrame) -> None:
     """Overlapping histograms of gas bill before vs after discount, faceted by gas utility."""
     _section_header("Section 1.3: Gas Bill Before vs After Histogram (p100)")
 
-    participants = df.filter(pl.col("applied_discount_100"))
+    participants = df.filter(pl.col("applied_discount_gas_100"))
     utilities = sorted(participants["sb.gas_utility"].unique().to_list())
     n_utils = len(utilities)
     if n_utils == 0:
@@ -190,13 +190,13 @@ def _tier_distribution_bar(df: pl.DataFrame) -> None:
     _section_header("Section 1.4: Tier Distribution by Gas Utility")
 
     tier_counts = (
-        df.filter(pl.col("lmi_tier") > 0)
-        .group_by("sb.gas_utility", "lmi_tier")
+        df.filter(pl.col("gas_lmi_tier") > 0)
+        .group_by("sb.gas_utility", "gas_lmi_tier")
         .agg(pl.len().alias("count"))
-        .sort("sb.gas_utility", "lmi_tier")
+        .sort("sb.gas_utility", "gas_lmi_tier")
     )
     utilities = sorted(tier_counts["sb.gas_utility"].unique().to_list())
-    tiers = sorted(tier_counts["lmi_tier"].unique().to_list())
+    tiers = sorted(tier_counts["gas_lmi_tier"].unique().to_list())
     n_utils = len(utilities)
 
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -207,7 +207,7 @@ def _tier_distribution_bar(df: pl.DataFrame) -> None:
         util_data = tier_counts.filter(pl.col("sb.gas_utility") == util)
         counts = []
         for t in tiers:
-            row = util_data.filter(pl.col("lmi_tier") == t)
+            row = util_data.filter(pl.col("gas_lmi_tier") == t)
             counts.append(int(row["count"][0]) if len(row) > 0 else 0)
         ax.bar(x + i * width, counts, width, label=util)
 
@@ -237,11 +237,11 @@ def _merge_expected_gas_credit(
     """Join staging with NY EAP credits; add expected_annual_credit (gas, 12x monthly)."""
     gas_credits = credits_df.select(
         pl.col("utility").alias("sb.gas_utility"),
-        pl.col("tier").alias("lmi_tier"),
+        pl.col("tier").alias("gas_lmi_tier"),
         pl.col("gas_heat").fill_null(0.0).alias("_gas_heat"),
         pl.col("gas_nonheat").fill_null(0.0).alias("_gas_nonheat"),
     )
-    merged = df.join(gas_credits, on=["sb.gas_utility", "lmi_tier"], how="left")
+    merged = df.join(gas_credits, on=["sb.gas_utility", "gas_lmi_tier"], how="left")
     merged = merged.with_columns(
         pl.when(pl.col("heats_with_natgas").fill_null(False))
         .then(pl.col("_gas_heat") * 12.0)
@@ -263,7 +263,7 @@ def _gas_expected_vs_actual_summary(participants: pl.DataFrame) -> None:
     )
 
     summary = (
-        participants.group_by("sb.gas_utility", "lmi_tier")
+        participants.group_by("sb.gas_utility", "gas_lmi_tier")
         .agg(
             pl.len().alias("n"),
             pl.col("expected_annual_credit").mean().alias("expected_mean"),
@@ -278,7 +278,7 @@ def _gas_expected_vs_actual_summary(participants: pl.DataFrame) -> None:
             .mean()
             .alias("abs_diff_mean"),
         )
-        .sort("sb.gas_utility", "lmi_tier")
+        .sort("sb.gas_utility", "gas_lmi_tier")
     )
     with pl.Config(tbl_rows=100):
         print(summary)
@@ -343,10 +343,10 @@ def _p40_overview(df: pl.DataFrame) -> None:
     _section_header("Section 2.1: p40 Participation Overview")
 
     total_eligible = len(df)
-    total_participating = int(df["applied_discount_40"].sum())
+    total_participating = int(df["applied_discount_gas_40"].sum())
     rate = total_participating / total_eligible if total_eligible > 0 else 0.0
-    print(f"Total eligible (is_lmi=True): {total_eligible}")
-    print(f"Total participating (applied_discount_40=True): {total_participating}")
+    print(f"Total eligible (is_lmi_gas=True): {total_eligible}")
+    print(f"Total participating (applied_discount_gas_40=True): {total_participating}")
     print(f"Actual participation rate: {rate:.4f} ({rate * 100:.1f}%)")
 
 
@@ -355,17 +355,17 @@ def _p40_tier_comparison(df: pl.DataFrame) -> None:
     _section_header("Section 2.2: p40 Participation by Tier")
 
     tier_stats = (
-        df.group_by("lmi_tier")
+        df.group_by("gas_lmi_tier")
         .agg(
             pl.len().alias("n_eligible"),
-            pl.col("applied_discount_40").sum().alias("n_participating"),
+            pl.col("applied_discount_gas_40").sum().alias("n_participating"),
         )
         .with_columns(
             (pl.col("n_participating") / pl.col("n_eligible")).alias(
                 "participation_rate"
             )
         )
-        .sort("lmi_tier")
+        .sort("gas_lmi_tier")
     )
     print(tier_stats)
     print(
@@ -379,8 +379,8 @@ def _p40_participant_vs_excluded_hist(df: pl.DataFrame) -> None:
     _section_header("Section 2.3: p40 Participant vs Excluded Gas Bills")
 
     has_gas = df.filter(pl.col("gas_total_bill") > 0)
-    parts = has_gas.filter(pl.col("applied_discount_40"))
-    excluded = has_gas.filter(~pl.col("applied_discount_40"))
+    parts = has_gas.filter(pl.col("applied_discount_gas_40"))
+    excluded = has_gas.filter(~pl.col("applied_discount_gas_40"))
 
     if len(parts) == 0 or len(excluded) == 0:
         print("Insufficient data for comparison — skipping.")
@@ -421,19 +421,19 @@ def _p40_participation_rate_by_tier(df: pl.DataFrame) -> None:
     _section_header("Section 2.4: p40 Participation Rate by Tier")
 
     tier_stats = (
-        df.group_by("lmi_tier")
+        df.group_by("gas_lmi_tier")
         .agg(
             pl.len().alias("n_eligible"),
-            pl.col("applied_discount_40").sum().alias("n_participating"),
+            pl.col("applied_discount_gas_40").sum().alias("n_participating"),
         )
         .with_columns(
             (pl.col("n_participating") / pl.col("n_eligible")).alias(
                 "participation_rate"
             )
         )
-        .sort("lmi_tier")
+        .sort("gas_lmi_tier")
     )
-    tiers = tier_stats["lmi_tier"].to_list()
+    tiers = tier_stats["gas_lmi_tier"].to_list()
     rates = tier_stats["participation_rate"].to_list()
 
     fig, ax = plt.subplots(figsize=(8, 5))
@@ -467,8 +467,8 @@ def _p40_participation_by_bill_size(df: pl.DataFrame) -> None:
     for idx, util in enumerate(utilities):
         ax = axes[0][idx]
         subset = has_gas.filter(pl.col("sb.gas_utility") == util)
-        parts = subset.filter(pl.col("applied_discount_40"))
-        excluded = subset.filter(~pl.col("applied_discount_40"))
+        parts = subset.filter(pl.col("applied_discount_gas_40"))
+        excluded = subset.filter(~pl.col("applied_discount_gas_40"))
 
         rng = np.random.default_rng(42)
         if len(excluded) > 0:
@@ -513,24 +513,28 @@ def _p40_participation_by_bill_size(df: pl.DataFrame) -> None:
 
 
 def _cross_check_p100_p40(p100: pl.DataFrame, p40: pl.DataFrame) -> None:
-    """Verify lmi_tier and is_lmi are identical between p100 and p40."""
+    """Verify gas_lmi_tier and is_lmi_gas are identical between p100 and p40."""
     _section_header("Section 3.1: p100 vs p40 tier/eligibility consistency")
 
     p100_ann = p100.filter(pl.col("month") == "Annual").select(
-        "bldg_id", "lmi_tier", "is_lmi"
+        "bldg_id", "gas_lmi_tier", "is_lmi_gas"
     )
     p40_ann = p40.filter(pl.col("month") == "Annual").select(
-        "bldg_id", "lmi_tier", "is_lmi"
+        "bldg_id", "gas_lmi_tier", "is_lmi_gas"
     )
 
     joined = p100_ann.join(p40_ann, on="bldg_id", suffix="_p40")
 
-    tier_mismatch = joined.filter(pl.col("lmi_tier") != pl.col("lmi_tier_p40")).height
-    lmi_mismatch = joined.filter(pl.col("is_lmi") != pl.col("is_lmi_p40")).height
+    tier_mismatch = joined.filter(
+        pl.col("gas_lmi_tier") != pl.col("gas_lmi_tier_p40")
+    ).height
+    lmi_mismatch = joined.filter(
+        pl.col("is_lmi_gas") != pl.col("is_lmi_gas_p40")
+    ).height
 
     print(f"Buildings compared: {joined.height}")
-    print(f"lmi_tier mismatches: {tier_mismatch}")
-    print(f"is_lmi mismatches: {lmi_mismatch}")
+    print(f"gas_lmi_tier mismatches: {tier_mismatch}")
+    print(f"is_lmi_gas mismatches: {lmi_mismatch}")
     if tier_mismatch == 0 and lmi_mismatch == 0:
         print("PASS: p100 and p40 have identical tier assignments")
     else:
@@ -544,14 +548,19 @@ def _check_source_columns(
     _section_header(f"Section 3.2: Source column integrity ({label})")
 
     lmi_cols = {
-        "lmi_tier",
-        "is_lmi",
+        "elec_lmi_tier",
+        "gas_lmi_tier",
+        "is_lmi_elec",
+        "is_lmi_gas",
+        "is_lmi_any",
         "elec_total_bill_lmi_100",
         "gas_total_bill_lmi_100",
-        "applied_discount_100",
+        "applied_discount_elec_100",
+        "applied_discount_gas_100",
         "elec_total_bill_lmi_40",
         "gas_total_bill_lmi_40",
-        "applied_discount_40",
+        "applied_discount_elec_40",
+        "applied_discount_gas_40",
     }
     shared_cols = [
         c for c in prod.columns if c in staging.columns and c not in lmi_cols
@@ -679,13 +688,15 @@ def main() -> None:
     # Expected vs actual gas credit (Section 1.5)
     credits_df = get_ny_eap_credits_df()
     p100_annual_gas_merged = _merge_expected_gas_credit(p100_annual_gas, credits_df)
-    gas_participants = p100_annual_gas_merged.filter(pl.col("applied_discount_100"))
+    gas_participants = p100_annual_gas_merged.filter(pl.col("applied_discount_gas_100"))
     _gas_expected_vs_actual_summary(gas_participants)
     _gas_expected_vs_actual_scatter(gas_participants)
 
     # --- Section 2: Participation weighting (p40) ---
     if p40 is not None:
-        p40_annual_lmi = p40.filter((pl.col("month") == "Annual") & (pl.col("is_lmi")))
+        p40_annual_lmi = p40.filter(
+            (pl.col("month") == "Annual") & (pl.col("is_lmi_gas"))
+        )
         print(f"\np40 annual LMI-eligible rows: {len(p40_annual_lmi)}")
 
         _p40_overview(p40_annual_lmi)
