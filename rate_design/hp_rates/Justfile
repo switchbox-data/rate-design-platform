@@ -199,6 +199,19 @@ create-flat-tariffs:
       --eia-path "{{ path_electric_utility_stats }}" \
       --year "{{ monthly_rates_year }}"
 
+# Derive TOU tariffs from MC rates (no dependency on calibrated flat run outputs).
+# Uses the pre-calibrated flat tariff only to extract the fixed charge.
+# Writes {tou_tariff_key}.json and copies it to {tou_tariff_key}_supply.json.
+create-tou-tariffs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ref_tariff="{{ path_tariffs_electric }}/{{ utility }}_flat.json"
+    echo ">> create-tou-tariffs: deriving TOU from MC (fixed charge from ${ref_tariff})" >&2
+    just create-seasonal-tou {{ tou_tariff_key }} "${ref_tariff}"
+    cp "{{ path_tariffs_electric }}/{{ tou_tariff_key }}.json" \
+       "{{ path_tariffs_electric }}/{{ tou_tariff_key }}_supply.json"
+    echo ">> create-tou-tariffs: wrote {{ tou_tariff_key }}.json and {{ tou_tariff_key }}_supply.json" >&2
+
 create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="" has_hp="true":
     just -f {{ path_repo }}/utils/Justfile create-seasonal-tou \
       "{{ path_supply_energy_mc }}" \
@@ -441,37 +454,9 @@ run-8:
     just run-scenario 8
 
 run-9:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
-    echo ">> run-9: run-1 output → ${run1_dir}" >&2
-    ref_tariff="{{ path_tariffs_electric }}/{{ utility }}_flat_calibrated.json"
-    if [ ! -f "${ref_tariff}" ]; then
-        echo ">> run-9: calibrated tariff missing, copying from run-1" >&2
-        just copy-calibrated-tariff-from-run "${run1_dir}"
-    fi
-    echo ">> run-9: path_supply_energy_mc={{ path_supply_energy_mc }}" >&2
-    echo ">> run-9: path_supply_capacity_mc={{ path_supply_capacity_mc }}" >&2
-    echo ">> run-9: path_dist_and_sub_tx_mc={{ path_dist_and_sub_tx_mc }}" >&2
-    echo ">> run-9: path_bulk_tx_mc={{ path_bulk_tx_mc }}" >&2
-    just create-seasonal-tou {{ tou_tariff_key }} "${ref_tariff}" "${run1_dir}"
     just run-scenario 9
 
 run-10:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
-    echo ">> run-10: run-2 output → ${run2_dir}" >&2
-    ref_tariff="{{ path_tariffs_electric }}/{{ utility }}_flat_supply_calibrated.json"
-    if [ ! -f "${ref_tariff}" ]; then
-        echo ">> run-10: calibrated supply tariff missing, copying from run-2" >&2
-        just copy-calibrated-tariff-from-run "${run2_dir}"
-    fi
-    echo ">> run-10: path_supply_energy_mc={{ path_supply_energy_mc }}" >&2
-    echo ">> run-10: path_supply_capacity_mc={{ path_supply_capacity_mc }}" >&2
-    echo ">> run-10: path_dist_and_sub_tx_mc={{ path_dist_and_sub_tx_mc }}" >&2
-    echo ">> run-10: path_bulk_tx_mc={{ path_bulk_tx_mc }}" >&2
-    just create-seasonal-tou {{ tou_tariff_key }}_supply "${ref_tariff}" "${run2_dir}"
     just run-scenario 10
 
 run-11:
@@ -553,6 +538,7 @@ all-pre:
     just ensure-gas-tariff-envelope
     just compute-rr
     just create-flat-tariffs
+    just create-tou-tariffs
     just validate-config
 
 run-all-utilities-sequential:

@@ -42,9 +42,10 @@ create-gas-tariff-map metadata_path utility_assignment_path state electric_utili
       --electric_utility "{{ electric_utility }}" \
       --output_dir "{{ output_dir }}"
 
-# Derive seasonal TOU tariff + derivation spec.
-# reference_tariff: optional path to a calibrated tariff JSON; when provided,
-# base rate and fixed charge are extracted from it instead of using defaults.
+# Derive seasonal TOU tariff + derivation spec. Rates are derived directly from MC
+# without rescaling to any reference base rate (CAIRO precalc calibrates revenue neutrality).
+# reference_tariff: optional path to a tariff JSON; when provided, only the fixed charge
+# (fixedchargefirstmeter) is extracted from it. The base rate is ignored.
 
 # Uses resstock_base + state + upgrade for hive-partitioned load scan (no globbing).
 create-seasonal-tou path_supply_energy_mc path_supply_capacity_mc state utility year dist_and_sub_tx_mc_path path_utility_assignment resstock_base upgrade path_electric_utility_stats tou_tariff_key output_dir periods_yaml="" reference_tariff="" run_dir="" bulk_tx_mc_path="" has_hp="true":
