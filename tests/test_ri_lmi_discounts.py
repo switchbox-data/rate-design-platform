@@ -73,7 +73,9 @@ def test_discount_fractions_for_ri() -> None:
     assert elec[3] == 0.60
     assert elec[2] == 0.30
     assert elec[1] == 0.10
-    assert gas[3] == 0.60
+    assert gas[2] == 0.30
+    assert gas[1] == 0.25
+    assert 3 not in gas
 
 
 def test_participation_uniform_expr() -> None:
@@ -113,11 +115,15 @@ def test_select_participants_weighted() -> None:
 
 def test_load_ri_lidr_config() -> None:
     config = load_ri_lidr_config()
-    assert config["max_eligible_fpl"] == 250
-    tiers = config["tiers"]
-    assert len(tiers) == 3
-    assert tiers[0]["fpl_upper_bound"] == 75
-    assert tiers[0]["electric_discount_pct"] == 0.60
+    assert config["electric"]["max_eligible_fpl"] == 250
+    elec_tiers = config["electric"]["tiers"]
+    assert len(elec_tiers) == 3
+    assert elec_tiers[0]["fpl_upper_bound"] == 75
+    assert elec_tiers[0]["discount_pct"] == 0.60
+    gas_tiers = config["gas"]["tiers"]
+    assert len(gas_tiers) == 2
+    assert gas_tiers[0]["fpl_upper_bound"] == 138
+    assert gas_tiers[0]["discount_pct"] == 0.30
 
 
 def test_occupants_cap() -> None:

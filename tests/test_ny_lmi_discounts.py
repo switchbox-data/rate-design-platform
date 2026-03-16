@@ -68,7 +68,8 @@ def _make_tier_consumption(
     return pl.DataFrame(
         {
             "bldg_id": bldg_ids,
-            "lmi_tier": tiers,
+            "elec_lmi_tier": tiers,
+            "gas_lmi_tier": tiers,
             "lmi_tier_raw": tiers,
             "participates": participates,
             "heats_with_electricity": heats_elec,

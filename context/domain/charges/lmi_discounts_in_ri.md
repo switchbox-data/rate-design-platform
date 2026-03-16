@@ -80,16 +80,22 @@ RIE's direct testimony (Table 7 in Blazunas testimony) defines three income tier
 
 Press coverage of the filing describes the company's intention to tie discounts roughly to these levels, with deeper bill discounts for the lowest income households and smaller discounts for higher low-income bands. The filed testimony table itself labels the tiers ("Deepest," "Middle," "Smallest") with corresponding income bands; the numeric values above are from reporting summarizing the filing.
 
-### **2\. How LIDR+ Works**
+### **2\. How LIDR+ Works (Electric Only)**
 
-Under the proposed redesign:
+Under the proposed redesign, **LIDR+ applies to electric service only**. Natural gas customers remain on the existing flat LIDR (§II above).
+
+> "The Company proposes keeping the LIDR for gas customers unchanged."
+> — DeSousa direct testimony, Docket 25-45-GE, pg 95 ([filing](https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2025-11/25-45-GE%20RIE%20Book%201%20%28Cornett%2C%20Urban%2C%20DeSousa%2C%20Castro%2C%20Leone%2C%20Garrett%29%20%2811-26-2025%29.pdf))
+
+For **electric service** under LIDR+:
 
 - A customer must still **enroll in a qualifying assistance program** to be eligible to enter the low-income discount program.
 - Once enrolled, the customer would be **placed into an income tier** (as defined by % of FPL) based on income verification.
-- The LIDR+ discount would be applied as a **percentage reduction of the total bill** (after delivery and supply charges), with the percentage reduction being based on their tier.
-- The redesign does **not change the underlying structure of electric or gas tariffs**, including the distinction between electric delivery codes and gas heating vs. non-heating rate codes; it changes _how much discount_ is applied to a qualifying customer's bill.
-- For **electric service**, the LIDR+ discounts would apply to customers on the low-income electric delivery rate (A-60) who qualify and are placed into a tier.
-- For **natural gas service**, discounts would apply to customers on low-income gas rate codes (Rate 11 and Rate 13\) based on their income tier. The discount percentage would be applied after volumetric and fixed charges are calculated under those codes, and volumetric rates would still be lower for heating customers.
+- The LIDR+ discount would be applied as a **percentage reduction of the total electric bill** (after delivery and supply charges), with the percentage reduction being based on their tier.
+- The redesign does **not change the underlying structure of electric tariffs**; it changes _how much discount_ is applied to a qualifying customer's electric bill.
+- LIDR+ discounts apply to customers on the low-income electric delivery rate (A-60) who qualify and are placed into a tier.
+
+For **natural gas service**: the current flat LIDR (25%/30%, §II) remains unchanged. Gas customers on Rates 11 and 13 continue to receive discounts based on categorical program enrollment.
 
 ### **3\. Legislative Context (Separate from the Rate Case)**
 
@@ -103,3 +109,39 @@ When modeling LIDR+ with a cost-recovery rider (so that total revenue is unchang
 - **Gas:** rider ($/therm) = total gas discount cost ÷ total non-participant therms. Gas consumption is taken from ResStock in kWh and converted to therms (1 therm ≈ 29.3 kWh); the rider is added to each non-participant's gas bill in proportion to their annual therms.
 
 This matches the volumetric cost-recovery approach used in CAIRO's native LMI logic (see `context/code/cairo/cairo_lmi_and_bat_analysis.md`).
+
+### **5\. Gas LIDR Modeling Approach**
+
+Since LIDR+ is electric-only and gas stays on the existing flat LIDR, our model applies separate discount logic per fuel. The flat LIDR assigns 25% or 30% based on which categorical program a customer is enrolled in (§II). ResStock has no program enrollment data, so we proxy via FPL%:
+
+| FPL range            | Gas discount | Rationale                                                                                                                           |
+| :------------------- | :----------- | :---------------------------------------------------------------------------------------------------------------------------------- |
+| ≤ 138% FPL           | **30%**      | Medicaid-eligible under ACA expansion (138% FPL threshold). Medicaid, RI Works, and Public Assistance all qualify for the 30% tier. |
+| > 138% to ≤ 185% FPL | **25%**      | SNAP gross income limit is 185% FPL; LIHEAP is ~60% SMI. These programs qualify for the 25% tier.                                   |
+| > 185% FPL           | **0%**       | Above all major categorical program income thresholds.                                                                              |
+
+The 138% FPL breakpoint is the ACA Medicaid expansion threshold. Households below this are very likely Medicaid-enrolled; the utility applies the highest applicable discount, so Medicaid eligibility → 30%. Households between 138–185% FPL are more likely on SNAP or LIHEAP only → 25%.
+
+Gas eligibility (≤ 185% FPL) is a strict subset of electric eligibility (≤ 250% FPL under LIDR+). Households at 186–250% FPL qualify for electric LIDR+ only; they have no gas discount because they are above all categorical program income ceilings.
+
+Buildings with no gas service (e.g., all-electric or delivered fuel heating) still receive a `gas_lmi_tier` assignment. The gas discount is applied to `gas_total_bill`, which is $0 for these buildings, so the assignment is harmless.
+
+### **6\. Participation Sampling Model**
+
+Enrollment is a single event per household: a household either enrolls in the low-income program or doesn't. If enrolled, it receives whatever discounts it qualifies for (electric, gas, or both).
+
+- **Electric eligibility pool**: FPL ≤ 250% (LIDR+ tiers 1–3)
+- **Gas eligibility pool**: FPL ≤ 185% (flat LIDR), a strict subset of the electric pool
+
+At sub-100% participation (e.g., 32%):
+
+1. One draw at the specified rate from the electric-eligible pool — uniform or income-weighted.
+2. All sampled households receive electric LIDR+ discounts based on their electric tier.
+3. Sampled households that are also gas-eligible (FPL ≤ 185%) additionally receive gas LIDR discounts.
+4. Sampled households at 186–250% FPL receive electric discounts only.
+
+With uniform sampling, approximately the same fraction of each sub-group participates. With income-weighted sampling (biased toward lower FPL), the composition of participants shifts toward lower-income households, but the total participation rate stays at the specified level.
+
+### **7\. Current Participation Rate**
+
+As of July 2024, RIE reported 36,320 household participating in the A-60 rate [source](https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2024-06/2417-DIV-Memo_6-14-24.pdf). This is roughly 32 percent of the estimated 114,000 eligible households in Rhode Island [source](https://www.aceee.org/blog-post/2025/11/electric-costs-rise-more-states-should-cap-bills-low-income-families).
