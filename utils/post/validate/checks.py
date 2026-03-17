@@ -101,6 +101,34 @@ def _weighted_annual_bills(bills: pl.LazyFrame, metadata: pl.LazyFrame) -> pl.La
     )
 
 
+def _weighted_annual_revenue_by_subclass(
+    bills: pl.LazyFrame, metadata: pl.LazyFrame
+) -> dict[bool, float]:
+    """Return weighted annual electric revenue by HP/non-HP subclass."""
+    rows = _collect(
+        bills.filter(pl.col(_MONTH_COL) == _ANNUAL_MONTH)
+        .join(metadata.select([_BLDG_COL, _WEIGHT_COL, _HP_COL]), on=_BLDG_COL)
+        .group_by(_HP_COL)
+        .agg((pl.col(_BILL_COL) * pl.col(_WEIGHT_COL)).sum().alias("weighted_bills"))
+    )
+    return {
+        bool(row[_HP_COL]): float(row["weighted_bills"])
+        for row in rows.iter_rows(named=True)
+    }
+
+
+def _weighted_annual_revenue_by_named_subclass(
+    bills: pl.LazyFrame, metadata: pl.LazyFrame
+) -> dict[str, float]:
+    """Return weighted annual electric revenue keyed by subclass name."""
+    return {
+        ("hp" if is_hp else "non-hp"): revenue
+        for is_hp, revenue in _weighted_annual_revenue_by_subclass(
+            bills, metadata
+        ).items()
+    }
+
+
 def _bat_wavg_by_group(bat: pl.LazyFrame, metadata: pl.LazyFrame) -> pl.DataFrame:
     """Compute weighted-average BAT metrics grouped by HP/non-HP.
 
@@ -246,20 +274,24 @@ def check_subclass_revenue_neutrality(
         "subclass_revenue_requirements", subclass_rr
     )
     rr_key = "total" if cost_scope == "delivery+supply" else "delivery"
-    hp_to_subclass = {True: "hp", False: "non-hp"}
-
-    weighted = _collect(
-        bills.filter(pl.col(_MONTH_COL) == _ANNUAL_MONTH)
-        .join(metadata.select([_BLDG_COL, _WEIGHT_COL, _HP_COL]), on=_BLDG_COL)
-        .group_by(_HP_COL)
-        .agg((pl.col(_BILL_COL) * pl.col(_WEIGHT_COL)).sum().alias("weighted_bills"))
-    )
+    actual_by_subclass = _weighted_annual_revenue_by_named_subclass(bills, metadata)
 
     per_subclass: dict[str, dict[str, Any]] = {}
-    for row in weighted.iter_rows(named=True):
-        sub = hp_to_subclass.get(row[_HP_COL], str(row[_HP_COL]))
-        target = float(rr_sub[sub][rr_key])
-        actual: float = row["weighted_bills"]
+    missing_subclasses: list[str] = []
+    for sub, target_cfg in rr_sub.items():
+        target = float(target_cfg[rr_key])
+        actual = actual_by_subclass.get(sub)
+        if actual is None:
+            missing_subclasses.append(sub)
+            per_subclass[sub] = {
+                "actual": None,
+                "target": target,
+                "pct_diff": None,
+                "pass": False,
+                "missing": True,
+            }
+            continue
+
         pct_diff = (actual - target) / target * 100
         per_subclass[sub] = {
             "actual": actual,
@@ -268,13 +300,180 @@ def check_subclass_revenue_neutrality(
             "pass": abs(pct_diff) <= tolerance_pct,
         }
 
-    all_pass = all(v["pass"] for v in per_subclass.values())
-    summary = "; ".join(f"{s}: {v['pct_diff']:+.2f}%" for s, v in per_subclass.items())
+    all_pass = not missing_subclasses and all(v["pass"] for v in per_subclass.values())
+    summary = "; ".join(
+        f"{s}: missing" if v.get("missing") else f"{s}: {float(v['pct_diff']):+.2f}%"
+        for s, v in per_subclass.items()
+    )
+    message = f"Subclass revenue deviations — {summary}"
+    if missing_subclasses:
+        message += " — FAIL: missing subclasses " + ", ".join(
+            sorted(missing_subclasses)
+        )
     return CheckResult(
         name="subclass_revenue_neutrality",
         status="PASS" if all_pass else "FAIL",
-        message=f"Subclass revenue deviations — {summary}",
+        message=message,
         details={"subclasses": per_subclass, "cost_scope": cost_scope},
+    )
+
+
+def check_flex_subclass_revenue_expectations(
+    bills: pl.LazyFrame,
+    metadata: pl.LazyFrame,
+    subclass_rr: dict[str, Any],
+    cost_scope: str = "delivery",
+    nonhp_tolerance_pct: float = 0.5,
+    hp_positive_tolerance_pct: float = 0.05,
+) -> CheckResult:
+    """Check demand-flex subclass revenue behavior against the no-flex baseline.
+
+    Demand-flex runs intentionally do not preserve no-flex subclass revenue
+    neutrality. The model holds non-TOU subclasses harmless at their baseline RR
+    and lets the TOU subclass absorb the reduction in total RR from load shifting.
+
+    Expected behavior:
+    - ``non-hp`` remains approximately revenue-neutral relative to the baseline
+    - ``hp`` revenue deviation is non-positive relative to the baseline
+    """
+    rr_sub: dict[str, Any] = subclass_rr.get(
+        "subclass_revenue_requirements", subclass_rr
+    )
+    rr_key = "total" if cost_scope == "delivery+supply" else "delivery"
+    actual_by_subclass = _weighted_annual_revenue_by_named_subclass(bills, metadata)
+
+    per_subclass: dict[str, dict[str, Any]] = {}
+    missing_subclasses: list[str] = []
+    for sub, target_cfg in rr_sub.items():
+        target = float(target_cfg[rr_key])
+        actual = actual_by_subclass.get(sub)
+        if actual is None:
+            missing_subclasses.append(sub)
+            per_subclass[sub] = {
+                "actual": None,
+                "target": target,
+                "pct_diff": None,
+                "missing": True,
+            }
+            continue
+
+        pct_diff = (actual - target) / target * 100
+        per_subclass[sub] = {
+            "actual": actual,
+            "target": target,
+            "pct_diff": pct_diff,
+        }
+
+    nonhp = per_subclass.get("non-hp")
+    hp = per_subclass.get("hp")
+    nonhp_ok = (
+        nonhp is not None
+        and not nonhp.get("missing")
+        and abs(float(nonhp["pct_diff"])) <= nonhp_tolerance_pct
+    )
+    hp_ok = (
+        hp is not None
+        and not hp.get("missing")
+        and float(hp["pct_diff"]) <= hp_positive_tolerance_pct
+    )
+
+    parts: list[str] = []
+    if nonhp is not None:
+        parts.append(
+            "non-hp: missing"
+            if nonhp.get("missing")
+            else f"non-hp: {float(nonhp['pct_diff']):+.2f}%"
+        )
+    if hp is not None:
+        parts.append(
+            "hp: missing" if hp.get("missing") else f"hp: {float(hp['pct_diff']):+.2f}%"
+        )
+
+    failures: list[str] = []
+    if missing_subclasses:
+        failures.append("missing subclasses " + ", ".join(sorted(missing_subclasses)))
+    elif not nonhp_ok and nonhp is not None:
+        failures.append(
+            f"non-hp should stay within ±{nonhp_tolerance_pct:.2f}% "
+            f"(got {float(nonhp['pct_diff']):+.2f}%)"
+        )
+    if not hp_ok and hp is not None and not hp.get("missing"):
+        failures.append(
+            f"hp should not exceed baseline RR (got {float(hp['pct_diff']):+.2f}%)"
+        )
+
+    return CheckResult(
+        name="subclass_revenue_expectations_flex",
+        status="PASS" if not failures else "FAIL",
+        message="Demand-flex subclass revenue deviations — "
+        + "; ".join(parts)
+        + (f" — FAIL: {'; '.join(failures)}" if failures else ""),
+        details={
+            "subclasses": per_subclass,
+            "cost_scope": cost_scope,
+            "nonhp_tolerance_pct": nonhp_tolerance_pct,
+            "hp_positive_tolerance_pct": hp_positive_tolerance_pct,
+        },
+    )
+
+
+def check_hp_subclass_revenue_lower_with_flex(
+    bills_noflex: pl.LazyFrame,
+    bills_flex: pl.LazyFrame,
+    metadata_noflex: pl.LazyFrame,
+    metadata_flex: pl.LazyFrame,
+    run_noflex: int,
+    run_flex: int,
+) -> CheckResult:
+    """Check that demand flex lowers weighted HP subclass revenue.
+
+    Compares a flex run against the matching no-flex run with the same upgrade,
+    cost scope, and subclass structure. The HP subclass should collect less
+    weighted revenue after elasticity is applied.
+    """
+    revenue_noflex = _weighted_annual_revenue_by_subclass(bills_noflex, metadata_noflex)
+    revenue_flex = _weighted_annual_revenue_by_subclass(bills_flex, metadata_flex)
+    if True not in revenue_noflex or True not in revenue_flex:
+        missing_runs = [
+            str(run)
+            for run, revenue in (
+                (run_noflex, revenue_noflex),
+                (run_flex, revenue_flex),
+            )
+            if True not in revenue
+        ]
+        return CheckResult(
+            name=f"hp_revenue_lower_with_flex_run{run_noflex}_to_run{run_flex}",
+            status="FAIL",
+            message="Missing HP subclass revenue for run(s): "
+            + ", ".join(missing_runs),
+            details={
+                "run_noflex": run_noflex,
+                "run_flex": run_flex,
+                "missing_hp_runs": [int(run) for run in missing_runs],
+            },
+        )
+
+    hp_noflex = float(revenue_noflex.get(True, float("nan")))
+    hp_flex = float(revenue_flex.get(True, float("nan")))
+    delta = hp_flex - hp_noflex
+    pct_change = delta / hp_noflex * 100 if hp_noflex else float("nan")
+
+    return CheckResult(
+        name=f"hp_revenue_lower_with_flex_run{run_noflex}_to_run{run_flex}",
+        status="PASS" if hp_flex < hp_noflex else "FAIL",
+        message=(
+            f"HP weighted revenue run {run_noflex}→{run_flex}: "
+            f"${hp_noflex:,.0f} → ${hp_flex:,.0f} ({pct_change:+.2f}%)"
+        ),
+        details={
+            "run_noflex": run_noflex,
+            "run_flex": run_flex,
+            "hp_revenue_noflex": hp_noflex,
+            "hp_revenue_flex": hp_flex,
+            "delta": delta,
+            "pct_change": pct_change,
+        },
     )
 
 
@@ -632,6 +831,21 @@ def _period_season_map(schedule: list[list[int]]) -> dict[int, str]:
     }
 
 
+def _season_period_rates(
+    schedule: list[list[int]],
+    tier1_rates: dict[int, float],
+) -> dict[str, list[tuple[int, float]]]:
+    """Return tier-1 rates grouped by inferred season."""
+    season_map = _period_season_map(schedule)
+    grouped: dict[str, list[tuple[int, float]]] = {"winter": [], "summer": []}
+    for pid, season in season_map.items():
+        if pid in tier1_rates:
+            grouped[season].append((pid, tier1_rates[pid]))
+    for season in grouped:
+        grouped[season].sort(key=lambda item: item[0])
+    return grouped
+
+
 # ---------------------------------------------------------------------------
 # Cross-run check functions
 # ---------------------------------------------------------------------------
@@ -715,14 +929,27 @@ def check_seasonal_winter_below_summer(
     tariff_config: dict[str, Any],
     run_num: int,
 ) -> CheckResult:
-    """Check that calibrated winter rates are below summer rates for seasonal tariffs.
+    """Check seasonal tariff ordering for flat and TOU seasonal tariffs.
 
     Derives the period-to-season mapping from ``ur_ec_sched_weekday`` (CAIRO's
     12×24 1-based schedule) and compares tier-1 rates from ``ur_ec_tou_mat``.
     Prints the full period mapping to stdout so the reviewer can verify it.
 
-    Summer = Jun–Sep (month indices 5–8); Winter = Dec–Mar (indices 11, 0, 1, 2).
-    Shoulder months (Apr–May, Oct–Nov) are excluded from classification.
+    Period numbers are CAIRO's normalized 1-based IDs. They do not imply a
+    semantic season order: a source tariff whose raw schedule uses ``0`` for
+    summer and ``1`` for winter will appear here as period 1 = summer,
+    period 2 = winter after normalization.
+
+    Rules:
+    - Seasonal flat: summer rate must exceed winter rate.
+    - Seasonal TOU / flex:
+      - winter peak > winter off-peak
+      - summer peak > summer off-peak
+      - summer peak > winter peak
+
+    This intentionally does *not* require every summer period to exceed every
+    winter period. In a 4-period seasonal TOU tariff, summer off-peak may be
+    below winter peak by design.
 
     Args:
         tariff_config: CAIRO internal tariff config dict (from
@@ -730,8 +957,8 @@ def check_seasonal_winter_below_summer(
         run_num: Run number, used in the check name and log lines.
 
     Returns:
-        PASS when every winter period rate (tier 1) is strictly below every
-        summer period rate (tier 1) across all tariff keys; FAIL otherwise.
+        PASS when the tariff satisfies the season-appropriate ordering rules;
+        FAIL otherwise.
     """
     failures: list[str] = []
     all_period_lines: list[str] = []
@@ -758,19 +985,52 @@ def check_seasonal_winter_below_summer(
             line = f"    run {run_num} {key} period {pid} → {season}: ${rate:.6f}/kWh"
             all_period_lines.append(line)
 
-        summer_rates = {
-            pid: r for pid, r in tier1_rates.items() if season_map.get(pid) == "summer"
-        }
-        winter_rates = {
-            pid: r for pid, r in tier1_rates.items() if season_map.get(pid) == "winter"
-        }
+        season_rates = _season_period_rates(schedule, tier1_rates)
+        winter_rates = season_rates["winter"]
+        summer_rates = season_rates["summer"]
 
-        for w_pid, w_rate in winter_rates.items():
-            for s_pid, s_rate in summer_rates.items():
-                if w_rate >= s_rate:
-                    failures.append(
-                        f"{key}: winter period {w_pid} (${w_rate:.6f}) ≥ summer period {s_pid} (${s_rate:.6f})"
-                    )
+        # Skip non-seasonal companion tariffs (for example, the non-HP flat tariff
+        # that appears alongside HP seasonal/TOU tariffs in subclass runs).
+        if not winter_rates or not summer_rates:
+            continue
+
+        if len(winter_rates) == 1 and len(summer_rates) == 1:
+            winter_pid, winter_rate = winter_rates[0]
+            summer_pid, summer_rate = summer_rates[0]
+            if winter_rate >= summer_rate:
+                failures.append(
+                    f"{key}: winter period {winter_pid} (${winter_rate:.6f}) "
+                    f"≥ summer period {summer_pid} (${summer_rate:.6f})"
+                )
+            continue
+
+        if len(winter_rates) == 2 and len(summer_rates) == 2:
+            winter_off_pid, winter_off = min(winter_rates, key=lambda item: item[1])
+            winter_peak_pid, winter_peak = max(winter_rates, key=lambda item: item[1])
+            summer_off_pid, summer_off = min(summer_rates, key=lambda item: item[1])
+            summer_peak_pid, summer_peak = max(summer_rates, key=lambda item: item[1])
+
+            if winter_peak <= winter_off:
+                failures.append(
+                    f"{key}: winter peak period {winter_peak_pid} (${winter_peak:.6f}) "
+                    f"≤ winter off-peak period {winter_off_pid} (${winter_off:.6f})"
+                )
+            if summer_peak <= summer_off:
+                failures.append(
+                    f"{key}: summer peak period {summer_peak_pid} (${summer_peak:.6f}) "
+                    f"≤ summer off-peak period {summer_off_pid} (${summer_off:.6f})"
+                )
+            if summer_peak <= winter_peak:
+                failures.append(
+                    f"{key}: summer peak period {summer_peak_pid} (${summer_peak:.6f}) "
+                    f"≤ winter peak period {winter_peak_pid} (${winter_peak:.6f})"
+                )
+            continue
+
+        failures.append(
+            f"{key}: unexpected seasonal period structure "
+            f"(winter={len(winter_rates)} periods, summer={len(summer_rates)} periods)"
+        )
 
     for line in all_period_lines:
         print(line)
@@ -779,7 +1039,7 @@ def check_seasonal_winter_below_summer(
         name=f"seasonal_winter_below_summer_run{run_num}",
         status="PASS" if not failures else "FAIL",
         message=(
-            f"Seasonal rates run {run_num}: winter < summer"
+            f"Seasonal rates run {run_num}: ordering checks passed"
             if not failures
             else f"Seasonal rate ordering FAIL — {'; '.join(failures)}"
         ),

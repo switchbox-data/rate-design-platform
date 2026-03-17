@@ -1,14 +1,15 @@
 """CLI entrypoint for CAIRO run validation.
 
-Orchestrates validation blocks (runs 1-2, 3-4, 5-6, 7-8), runs checks, builds
-summary tables, generates plots, and saves outputs to a structured directory.
+Orchestrates validation blocks discovered from scenario runs (delivery vs
+delivery+supply pairs), runs checks, builds summary tables, generates plots,
+and saves outputs to a structured directory.
 
 Usage::
 
     uv run python -m utils.post.validate \\
         --state ny --utility coned \\
         [--batch-name ny_20260305a_r1-2] \\
-        [--runs 1,2,3,4,5,6,7,8] \\
+        [--runs 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16] \\
         [--output-dir validation_outputs/coned]
 """
 
@@ -26,6 +27,8 @@ from utils.post.validate import (
     check_bat_direction,
     check_bat_near_zero,
     check_bills_increase_with_supply,
+    check_flex_subclass_revenue_expectations,
+    check_hp_subclass_revenue_lower_with_flex,
     check_hp_bat_increases_with_supply,
     check_nonhp_calibrated_above_original,
     check_nonhp_customers_in_upgrade02,
@@ -68,6 +71,7 @@ from utils.post.validate import (
 )
 from utils.post.validate.config import (
     RunBlock,
+    RunConfig,
     define_run_blocks,
     load_run_configs_from_yaml,
 )
@@ -90,7 +94,9 @@ def _parse_args() -> argparse.Namespace:
         "omit to use latest complete batch",
     )
     p.add_argument(
-        "--runs", default="1,2,3,4,5,6,7,8", help="Comma-separated run numbers"
+        "--runs",
+        default=None,
+        help="Comma-separated run numbers (default: all runs in the scenario YAML)",
     )
     p.add_argument(
         "--output-dir",
@@ -118,6 +124,118 @@ def _emit(result: CheckResult) -> CheckResult:
     return result
 
 
+def _annotate_result(
+    result: CheckResult,
+    *,
+    block_name: str | None = None,
+    run_num: int | None = None,
+    run_nums: list[int] | tuple[int, ...] | None = None,
+) -> CheckResult:
+    """Return a copy of a result with block/run context in details."""
+    details = dict(result.details)
+    if block_name is not None:
+        details["block_name"] = block_name
+    if run_num is not None:
+        details["run_num"] = run_num
+    if run_nums is not None:
+        details["run_nums"] = list(run_nums)
+    return CheckResult(
+        name=result.name,
+        status=result.status,
+        message=result.message,
+        details=details,
+    )
+
+
+def _format_result_context(result: CheckResult) -> str:
+    """Format run context for summary output."""
+    run_num = result.details.get("run_num")
+    run_nums = result.details.get("run_nums")
+    if isinstance(run_num, int):
+        return f"[run {run_num}] "
+    if isinstance(run_nums, list) and run_nums:
+        return f"[runs {', '.join(str(n) for n in run_nums)}] "
+    return ""
+
+
+def _find_matching_noflex_run(
+    configs: dict[int, RunConfig],
+    *,
+    run_num: int,
+    config: RunConfig,
+) -> int | None:
+    """Find the matching no-flex run for a flex run with the same mechanism."""
+    if config.elasticity == 0.0 or not config.tariff_type.endswith("_flex"):
+        return None
+
+    base_tariff_type = config.tariff_type.removesuffix("_flex")
+    matches = sorted(
+        candidate_run_num
+        for candidate_run_num, candidate in configs.items()
+        if candidate_run_num != run_num
+        and candidate.run_type == config.run_type
+        and candidate.elasticity == 0.0
+        and candidate.upgrade == config.upgrade
+        and candidate.cost_scope == config.cost_scope
+        and candidate.has_subclasses == config.has_subclasses
+        and candidate.tariff_type == base_tariff_type
+    )
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _find_matching_precalc_run(
+    configs: dict[int, RunConfig],
+    *,
+    run_num: int,
+    config: RunConfig,
+) -> int | None:
+    """Find the precalc run that a default run should inherit from."""
+    if config.run_type != "default":
+        return None
+
+    matches = sorted(
+        candidate_run_num
+        for candidate_run_num, candidate in configs.items()
+        if candidate_run_num != run_num
+        and candidate.run_type == "precalc"
+        and candidate.cost_scope == config.cost_scope
+        and candidate.has_subclasses == config.has_subclasses
+        and candidate.tariff_type == config.tariff_type
+        and candidate.elasticity == config.elasticity
+    )
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _find_matching_original_flat_run(
+    configs: dict[int, RunConfig],
+    *,
+    run_num: int,
+    config: RunConfig,
+) -> int | None:
+    """Find the baseline flat precalc run used for non-HP tariff comparisons."""
+    if config.run_type != "precalc" or not config.has_subclasses:
+        return None
+
+    matches = sorted(
+        candidate_run_num
+        for candidate_run_num, candidate in configs.items()
+        if candidate_run_num != run_num
+        and candidate.run_type == "precalc"
+        and candidate.upgrade == "0"
+        and candidate.cost_scope == config.cost_scope
+        and not candidate.has_subclasses
+        and candidate.tariff_type == "flat"
+        and candidate.elasticity == 0.0
+    )
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
 def _safe_execute(
     operation_name: str, func: Any, *args: Any, **kwargs: Any
 ) -> tuple[Any, bool]:
@@ -142,6 +260,7 @@ def _validate_block(
     state: str,
     utility: str,
     output_dir: Path,
+    configs: dict[int, RunConfig],
     *,
     skip_loads: bool = False,
     mc_components: dict[str, pl.Series] | None = None,
@@ -164,6 +283,17 @@ def _validate_block(
     block_dir.mkdir(parents=True, exist_ok=True)
     plots = block_dir / "plots"
     results: list[CheckResult] = []
+
+    def _record(
+        result: CheckResult,
+        *,
+        run_num: int | None = None,
+        run_nums: list[int] | tuple[int, ...] | None = None,
+    ) -> None:
+        annotated = _annotate_result(
+            result, block_name=block.name, run_num=run_num, run_nums=run_nums
+        )
+        results.append(_emit(annotated))
 
     # Load metadata and bills with error handling
     metas: list[pl.LazyFrame] = []
@@ -196,7 +326,7 @@ def _validate_block(
             s3_dir,
         )
         if ok and check_result is not None:
-            results.append(_emit(check_result))
+            _record(check_result, run_num=run_num)
 
     # --- Bills summary + plots ---
     for run_num, _, _, meta, bills in runs:
@@ -243,23 +373,28 @@ def _validate_block(
             num_b,
         )
         if ok and check_result is not None:
-            results.append(_emit(check_result))
+            _record(check_result, run_nums=[num_a, num_b])
 
-        # HP cross-subsidy should deepen (WARN only)
-        bat_a, bat_a_ok = _safe_execute(f"load_bat(run {num_a})", load_bat, dir_a)
-        bat_b, bat_b_ok = _safe_execute(f"load_bat(run {num_b})", load_bat, dir_b)
-        if bat_a_ok and bat_b_ok and bat_a is not None and bat_b is not None:
-            check_result, ok = _safe_execute(
-                f"check_hp_bat_increases_with_supply(run {num_a}→{num_b})",
-                check_hp_bat_increases_with_supply,
-                bat_a,
-                bat_b,
-                meta_a,
-                num_a,
-                num_b,
-            )
-            if ok and check_result is not None:
-                results.append(_emit(check_result))
+        # For no-flex blocks, adding supply should deepen HP cross-subsidy. For
+        # demand-flex blocks, run A already uses supply-informed TOU ratios, so
+        # this comparison is not a meaningful contract.
+        if any(config.elasticity != 0.0 for config in block.configs):
+            print("    Skipping hp_bat_increases_with_supply for demand-flex block")
+        else:
+            bat_a, bat_a_ok = _safe_execute(f"load_bat(run {num_a})", load_bat, dir_a)
+            bat_b, bat_b_ok = _safe_execute(f"load_bat(run {num_b})", load_bat, dir_b)
+            if bat_a_ok and bat_b_ok and bat_a is not None and bat_b is not None:
+                check_result, ok = _safe_execute(
+                    f"check_hp_bat_increases_with_supply(run {num_a}→{num_b})",
+                    check_hp_bat_increases_with_supply,
+                    bat_a,
+                    bat_b,
+                    meta_a,
+                    num_a,
+                    num_b,
+                )
+                if ok and check_result is not None:
+                    _record(check_result, run_nums=[num_a, num_b])
 
     # --- Revenue neutrality (precalc runs 1-2, 5-6) ---
     if block.revenue_neutral:
@@ -291,7 +426,8 @@ def _validate_block(
             print(
                 f"    Run {run_num}: Saving revenue diagnostics to {run_dir.relative_to(output_dir)}/"
             )
-            if total_rr is not None:
+            is_flex_run = config.elasticity != 0.0
+            if total_rr is not None and not is_flex_run:
                 check_result, ok = _safe_execute(
                     f"check_revenue_neutrality(run {run_num})",
                     check_revenue_neutrality,
@@ -301,29 +437,87 @@ def _validate_block(
                     config.cost_scope,
                 )
                 if ok and check_result is not None:
-                    results.append(_emit(check_result))
+                    _record(check_result, run_num=run_num)
 
             if has_sub and subclass_rr is not None:
-                check_result, ok = _safe_execute(
-                    f"check_subclass_revenue_neutrality(run {run_num})",
-                    check_subclass_revenue_neutrality,
-                    bills["elec"],
-                    meta,
-                    subclass_rr,
-                    config.cost_scope,
-                )
+                if is_flex_run:
+                    check_result, ok = _safe_execute(
+                        f"check_flex_subclass_revenue_expectations(run {run_num})",
+                        check_flex_subclass_revenue_expectations,
+                        bills["elec"],
+                        meta,
+                        subclass_rr,
+                        config.cost_scope,
+                    )
+                else:
+                    check_result, ok = _safe_execute(
+                        f"check_subclass_revenue_neutrality(run {run_num})",
+                        check_subclass_revenue_neutrality,
+                        bills["elec"],
+                        meta,
+                        subclass_rr,
+                        config.cost_scope,
+                    )
                 if ok and check_result is not None:
-                    results.append(_emit(check_result))
+                    _record(check_result, run_num=run_num)
 
-                check_result, ok = _safe_execute(
-                    f"check_subclass_rr_sums_to_total(run {run_num})",
-                    check_subclass_rr_sums_to_total,
-                    subclass_rr,
-                    total_rr,
-                    config.cost_scope,
-                )
-                if ok and check_result is not None:
-                    results.append(_emit(check_result))
+                if is_flex_run:
+                    noflex_run_num = _find_matching_noflex_run(
+                        configs, run_num=run_num, config=config
+                    )
+                    noflex_run_dir = (
+                        run_dirs.get(noflex_run_num)
+                        if noflex_run_num is not None
+                        else None
+                    )
+                    if noflex_run_num is None or noflex_run_dir is None:
+                        print(
+                            f"    WARNING: No matching no-flex run found for flex run {run_num}"
+                        )
+                    else:
+                        noflex_meta, noflex_meta_ok = _safe_execute(
+                            f"load_metadata(run {noflex_run_num})",
+                            load_metadata,
+                            noflex_run_dir,
+                        )
+                        noflex_bills, noflex_bills_ok = _safe_execute(
+                            f"load_bills(run {noflex_run_num}, elec)",
+                            load_bills,
+                            noflex_run_dir,
+                            "elec",
+                        )
+                        if (
+                            noflex_meta_ok
+                            and noflex_bills_ok
+                            and noflex_meta is not None
+                            and noflex_bills is not None
+                        ):
+                            check_result, ok = _safe_execute(
+                                "check_hp_subclass_revenue_lower_with_flex"
+                                f"(run {noflex_run_num}→{run_num})",
+                                check_hp_subclass_revenue_lower_with_flex,
+                                noflex_bills,
+                                bills["elec"],
+                                noflex_meta,
+                                meta,
+                                noflex_run_num,
+                                run_num,
+                            )
+                            if ok and check_result is not None:
+                                _record(
+                                    check_result, run_nums=[noflex_run_num, run_num]
+                                )
+
+                if not is_flex_run:
+                    check_result, ok = _safe_execute(
+                        f"check_subclass_rr_sums_to_total(run {run_num})",
+                        check_subclass_rr_sums_to_total,
+                        subclass_rr,
+                        total_rr,
+                        config.cost_scope,
+                    )
+                    if ok and check_result is not None:
+                        _record(check_result, run_num=run_num)
 
                 try:
                     if total_rr is None:
@@ -401,17 +595,22 @@ def _validate_block(
                 f"check_bat_direction(run {run_num})", check_bat_direction, bat, meta
             )
             if ok and check_result is not None:
-                results.append(_emit(check_result))
+                _record(check_result, run_num=run_num)
 
             if config.has_subclasses:
-                check_result, ok = _safe_execute(
-                    f"check_bat_near_zero(run {run_num})",
-                    check_bat_near_zero,
-                    bat,
-                    meta,
-                )
-                if ok and check_result is not None:
-                    results.append(_emit(check_result))
+                if config.elasticity != 0.0 and config.cost_scope == "delivery":
+                    print(
+                        "    Skipping bat_near_zero for demand-flex delivery-only run"
+                    )
+                else:
+                    check_result, ok = _safe_execute(
+                        f"check_bat_near_zero(run {run_num})",
+                        check_bat_near_zero,
+                        bat,
+                        meta,
+                    )
+                    if ok and check_result is not None:
+                        _record(check_result, run_num=run_num)
 
             bat_summary, summary_ok = _safe_execute(
                 f"summarize_bat_by_subclass(run {run_num})",
@@ -458,12 +657,19 @@ def _validate_block(
                     run_num,
                 )
                 if ok and check_result is not None:
-                    results.append(_emit(check_result))
+                    _record(check_result, run_num=run_num)
 
-    # --- Tariff stability + bill deltas (default runs 3-4, 7-8) ---
+    # --- Tariff stability + bill deltas (all default paired blocks) ---
     if block.tariff_should_be_unchanged:
-        for run_num, run_dir, _, meta, bills in runs:
-            prev_num = run_num - 2  # 3→1, 4→2, 7→5, 8→6
+        for run_num, run_dir, config, meta, bills in runs:
+            prev_num = _find_matching_precalc_run(
+                configs, run_num=run_num, config=config
+            )
+            if prev_num is None:
+                print(
+                    f"    WARNING: No matching precalc run found for default run {run_num}"
+                )
+                continue
             if (prev_dir := run_dirs.get(prev_num)) is None:
                 continue
 
@@ -507,7 +713,7 @@ def _validate_block(
                     out_tariff,
                 )
                 if ok and check_result is not None:
-                    results.append(_emit(check_result))
+                    _record(check_result, run_num=run_num)
                 try:
                     in_rates.write_csv(
                         run_output_dir / f"tariff_rates_input_run{prev_num}.csv"
@@ -563,7 +769,7 @@ def _validate_block(
                             f"    ERROR creating bill deltas plot for run {run_num}: {e}"
                         )
 
-    # --- Non-HP composition (upgrade 02 runs 3-4, 7-8) ---
+    # --- Non-HP composition (all upgrade-02 blocks) ---
     if block.configs[0].upgrade == "2":
         for run_num, _, _, meta, _ in runs:
             run_dir = block_dir / f"run_{run_num}"
@@ -589,7 +795,7 @@ def _validate_block(
                     meta,
                 )
                 if ok and check_result is not None:
-                    results.append(_emit(check_result))
+                    _record(check_result, run_num=run_num)
                 try:
                     _save(
                         plot_nonhp_composition(
@@ -605,34 +811,49 @@ def _validate_block(
     # --- Non-HP rate calibrated above original (subclass precalc runs 5-6) ---
     if block.configs[0].has_subclasses and block.revenue_neutral:
         for run_num, run_dir, config, _, _ in runs:
-            orig_num = 1 if config.cost_scope == "delivery" else 2
-            if (orig_dir := run_dirs.get(orig_num)) is not None:
-                run_tariff, run_tariff_ok = _safe_execute(
-                    f"load_tariff_config(run {run_num})", load_tariff_config, run_dir
+            orig_num = _find_matching_original_flat_run(
+                configs, run_num=run_num, config=config
+            )
+            if orig_num is None:
+                print(
+                    f"    WARNING: No matching original flat run found for subclass run {run_num}"
                 )
-                orig_tariff, orig_tariff_ok = _safe_execute(
-                    f"load_tariff_config(run {orig_num})", load_tariff_config, orig_dir
+                continue
+            if (orig_dir := run_dirs.get(orig_num)) is None:
+                continue
+            run_tariff, run_tariff_ok = _safe_execute(
+                f"load_tariff_config(run {run_num})", load_tariff_config, run_dir
+            )
+            orig_tariff, orig_tariff_ok = _safe_execute(
+                f"load_tariff_config(run {orig_num})", load_tariff_config, orig_dir
+            )
+            if (
+                run_tariff_ok
+                and orig_tariff_ok
+                and run_tariff is not None
+                and orig_tariff is not None
+            ):
+                check_result, ok = _safe_execute(
+                    f"check_nonhp_calibrated_above_original(run {run_num})",
+                    check_nonhp_calibrated_above_original,
+                    run_tariff,
+                    orig_tariff,
                 )
-                if (
-                    run_tariff_ok
-                    and orig_tariff_ok
-                    and run_tariff is not None
-                    and orig_tariff is not None
-                ):
-                    check_result, ok = _safe_execute(
-                        f"check_nonhp_calibrated_above_original(run {run_num})",
-                        check_nonhp_calibrated_above_original,
-                        run_tariff,
-                        orig_tariff,
-                    )
-                    if ok and check_result is not None:
-                        results.append(_emit(check_result))
+                if ok and check_result is not None:
+                    _record(check_result, run_num=run_num)
 
     # Always write checks summary, even if empty
     try:
         pl.DataFrame(
             [
-                {"check": r.name, "status": r.status, "message": r.message}
+                {
+                    "check": r.name,
+                    "status": r.status,
+                    "message": r.message,
+                    "block_name": r.details.get("block_name"),
+                    "run_num": r.details.get("run_num"),
+                    "run_nums": ",".join(map(str, r.details.get("run_nums", []))),
+                }
                 for r in results
             ]
         ).write_csv(block_dir / "checks_summary.csv")
@@ -644,14 +865,18 @@ def _validate_block(
 def main() -> None:
     args = _parse_args()
     state, utility = args.state.lower(), args.utility.lower()
-    run_nums = sorted({int(n) for n in args.runs.split(",") if n.strip()})
     output_dir = Path(args.output_dir or f"validation_outputs/{utility}")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Validating runs {run_nums} for {state.upper()} / {utility}")
-    print(f"Output: {output_dir}")
+    run_nums: list[int] | None = None
+    if args.runs:
+        run_nums = sorted({int(n) for n in args.runs.split(",") if n.strip()})
 
     configs = load_run_configs_from_yaml(state, utility, run_nums)
+    resolved_run_nums = sorted(configs)
+
+    print(f"Validating runs {resolved_run_nums} for {state.upper()} / {utility}")
+    print(f"Output: {output_dir}")
     run_names = {n: c.run_name for n, c in configs.items()}
 
     if args.batch_name:
@@ -661,7 +886,7 @@ def main() -> None:
         batch_name, run_dirs = find_latest_complete_batch(state, utility, run_names)
         print(f"  Batch: {batch_name}")
 
-    if missing := sorted(set(run_nums) - run_dirs.keys()):
+    if missing := sorted(set(resolved_run_nums) - run_dirs.keys()):
         print(f"  WARNING: Missing run dirs for runs: {missing}")
 
     # --- Preprocessing block (always) ---
@@ -704,6 +929,9 @@ def main() -> None:
                                 "check": weight_check.name,
                                 "status": weight_check.status,
                                 "message": weight_check.message,
+                                "block_name": "preprocessing",
+                                "run_num": 1,
+                                "run_nums": "1",
                             }
                         ]
                     ).write_csv(preprocess_dir / "checks.csv")
@@ -745,7 +973,7 @@ def main() -> None:
                 if loads_lf_ok and loads_lf is not None:
                     # Collect all metadata from all runs to get all bldg_ids for this utility
                     all_bldg_ids: set[int] = set()
-                    for run_num in run_nums:
+                    for run_num in resolved_run_nums:
                         if run_num in run_dirs:
                             meta, meta_ok = _safe_execute(
                                 f"load_metadata(run {run_num})",
@@ -943,6 +1171,7 @@ def main() -> None:
                 state,
                 utility,
                 output_dir,
+                configs,
                 skip_loads=args.skip_loads,
                 mc_components=mc_components,
             )
@@ -963,7 +1192,7 @@ def main() -> None:
         print("\nFailed checks:")
         for r in all_results:
             if r.status == "FAIL":
-                print(f"  ✗ {r.name}: {r.message}")
+                print(f"  ✗ {_format_result_context(r)}{r.name}: {r.message}")
     print(f"\nResults saved to: {output_dir}")
     if by_status["FAIL"]:
         print("\n  WARNING: Some validation checks failed, but execution completed.")

@@ -105,3 +105,14 @@ create-supply-mc-data:
     echo ">> Generating ISO-NE supply capacity MC (FCA)" >&2
     just create-supply-capacity-mc
     echo ">> Supply MC data generation completed" >&2
+
+# =============================================================================
+# RI-only: MC validation
+# =============================================================================
+
+validate-mc-data output_dir="/tmp/mc_validation_ri":
+    uv run python {{ path_repo }}/utils/post/validate_ny_mc_data.py \
+      --state {{ state }} \
+      --utilities {{ utility }} \
+      --year {{ year }} \
+      --output-dir "{{ output_dir }}"

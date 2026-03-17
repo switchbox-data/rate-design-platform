@@ -1,14 +1,9 @@
 {
   "items": [
     {
-      "label": "rie_flat_supply",
-      "name": "rie_flat_supply",
+      "label": "nimo_nonhp_flat_supply",
       "uri": "",
       "sector": "Residential",
-      "servicetype": "Bundled",
-      "dgrules": "Net Metering",
-      "utility": "GenericUtility",
-      "country": "USA",
       "energyweekdayschedule": [
         [
           0,
@@ -640,16 +635,23 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.21047011001588198,
+            "rate": 0.18151148,
             "adj": 0.0,
             "unit": "kWh"
           }
         ]
       ],
-      "fixedchargefirstmeter": 11.47,
+      "fixedchargefirstmeter": 17.89,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
-      "minchargeunits": "$/month"
+      "minchargeunits": "$/month",
+      "utility": "nimo",
+      "servicetype": "Bundled",
+      "name": "nimo_nonhp_flat_supply",
+      "is_default": false,
+      "country": "USA",
+      "demandunits": "kW",
+      "demandrateunit": "kW"
     }
   ]
 }

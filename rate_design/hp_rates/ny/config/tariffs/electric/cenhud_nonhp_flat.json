@@ -1,14 +1,9 @@
 {
   "items": [
     {
-      "label": "rie_flat_supply",
-      "name": "rie_flat_supply",
+      "label": "cenhud_nonhp_flat",
       "uri": "",
       "sector": "Residential",
-      "servicetype": "Bundled",
-      "dgrules": "Net Metering",
-      "utility": "GenericUtility",
-      "country": "USA",
       "energyweekdayschedule": [
         [
           0,
@@ -640,16 +635,23 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.21047011001588198,
+            "rate": 0.15900405,
             "adj": 0.0,
             "unit": "kWh"
           }
         ]
       ],
-      "fixedchargefirstmeter": 11.47,
+      "fixedchargefirstmeter": 22.0,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
-      "minchargeunits": "$/month"
+      "minchargeunits": "$/month",
+      "utility": "cenhud",
+      "servicetype": "Bundled",
+      "name": "cenhud_nonhp_flat",
+      "is_default": false,
+      "country": "USA",
+      "demandunits": "kW",
+      "demandrateunit": "kW"
     }
   ]
 }
