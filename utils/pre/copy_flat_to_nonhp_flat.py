@@ -49,7 +49,9 @@ def main() -> None:
     flat_src = out / f"{util}_flat.json"
     flat_supply_src = out / f"{util}_flat_supply.json"
     if not flat_src.exists():
-        raise FileNotFoundError(f"Source not found: {flat_src} (run create-flat-tariffs first)")
+        raise FileNotFoundError(
+            f"Source not found: {flat_src} (run create-flat-tariffs first)"
+        )
     if not flat_supply_src.exists():
         raise FileNotFoundError(
             f"Source not found: {flat_supply_src} (run create-flat-tariffs first)"
