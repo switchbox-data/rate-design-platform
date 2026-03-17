@@ -99,7 +99,7 @@ residential kWh independently, which overcounts by 4x.
 
 Instead, `estimate_psegli_rr.py` uses LIPA's published budget data:
 
-**Source**: `context/papers/lipa_2025_2026_budget_one_pager.md`
+**Source**: `context/sources/lipa_2025_2026_budget_one_pager.md`
 (extracted from LIPA's "Fact Sheet: LIPA 2026 Budget as Compared to 2025")
 
 The "Average Residential Monthly Bill Impact" table breaks down a typical
@@ -140,7 +140,7 @@ in "Delivery & System" or "Power Supply".
 2. Add an entry to `tariffs_by_utility.yaml` in the state's `top-ups/` directory.
 3. Fetch the base tariff: `fetch-genability-tariffs`.
 4. Classify every charge (manual research). Document in
-   `context/domain/<state>_residential_charges_in_bat.md`.
+   `context/code/data/<state>_residential_charges_in_bat.md`.
 5. Fetch monthly rates: `fetch-monthly-rates`.
 6. Add a rate-case DRR entry in `delivery_rev_requirements_from_rate_cases.yaml`.
 7. Run `compute-rr` to produce `rev_requirement/<utility>.yaml`.

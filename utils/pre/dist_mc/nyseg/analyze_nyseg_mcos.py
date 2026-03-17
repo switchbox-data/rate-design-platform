@@ -7,7 +7,7 @@ MC tables from T1A/T2, which used CRA's location-specific growth
 factors, demand-loss-adjusted capacities, and within-division
 adjustments.  By aggregating project-level capital and capacity directly,
 NYSEG/RG&E now follow the same methodology as NiMo, ConEd, O&R, and
-CenHud (see context/domain/ny_mcos_studies_comparison.md §9).
+CenHud (see context/methods/marginal_costs/ny_mcos_studies_comparison.md §9).
 
 Cost centers (at primary voltage level):
   1. Upstream — substation (115 kV/46 kV) + feeder (115 kV/34.5 kV)

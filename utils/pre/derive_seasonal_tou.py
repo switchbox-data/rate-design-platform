@@ -246,7 +246,6 @@ def derive_seasonal_tou(
     bulk_tx_marginal_costs: pd.Series | None = None,
     winter_months: list[int] | None = None,
     tou_window_hours: int = 4,
-    tou_base_rate: float = 0.06,
     tou_fixed_charge: float = 6.75,
     tou_tariff_key: str = "seasonal_tou_hp",
     utility: str = "GenericUtility",
@@ -270,8 +269,6 @@ def derive_seasonal_tou(
         winter_months: 1-indexed months defining winter. Summer months are
             derived as the complement.
         tou_window_hours: Width of the peak window in hours.
-        tou_base_rate: Nominal base rate ($/kWh) — seasonal ratios are
-            preserved but precalc will calibrate the absolute level.
         tou_fixed_charge: Fixed monthly charge ($).
         tou_tariff_key: Tariff key for HP customers.
         utility: Utility name for the tariff label.
@@ -302,9 +299,7 @@ def derive_seasonal_tou(
             hourly_load = hourly_load.reindex(combined_mc.index, method="ffill")
 
     seasons = make_winter_summer_seasons(winter_months)
-    season_rates = compute_seasonal_base_rates(
-        combined_mc, hourly_load, seasons, tou_base_rate
-    )
+    season_rates = compute_seasonal_base_rates(combined_mc, hourly_load, seasons)
 
     season_specs: list[SeasonTouSpec] = []
     mc_index = pd.DatetimeIndex(combined_mc.index)
@@ -461,16 +456,11 @@ def _parse_args() -> argparse.Namespace:
         "--reference-tariff",
         default=None,
         help=(
-            "Path to a URDB v7 tariff JSON from which base rate and fixed "
-            "charge are inferred. Overridden by explicit --tou-base-rate / "
-            "--tou-fixed-charge when both are provided."
+            "Path to a URDB v7 tariff JSON from which the fixed charge "
+            "(`fixedchargefirstmeter`) is inferred. Overridden by explicit "
+            "--tou-fixed-charge when provided. The base rate from the reference "
+            "tariff is ignored — seasonal rates are derived directly from MC."
         ),
-    )
-    p.add_argument(
-        "--tou-base-rate",
-        type=float,
-        default=None,
-        help="Nominal base rate $/kWh. Overrides value from --reference-tariff.",
     )
     p.add_argument(
         "--tou-fixed-charge",
@@ -582,31 +572,25 @@ def main() -> None:
             f"--has-hp must be 'true', 'false', or 'all', got '{args.has_hp}'"
         )
 
-    # -- Resolve base rate and fixed charge ----------------------------------
-    ref_base_rate: float | None = None
+    # -- Resolve fixed charge ----------------------------------
     ref_fixed_charge: float | None = None
     if args.reference_tariff is not None:
-        ref_base_rate, ref_fixed_charge = extract_base_rate_and_fixed_charge(
+        _, ref_fixed_charge = extract_base_rate_and_fixed_charge(
             Path(args.reference_tariff)
         )
         log.info(
-            "Reference tariff %s: base_rate=%.6f, fixed_charge=%.2f",
+            "Reference tariff %s: fixed_charge=%.2f (base rate ignored; MC-derived)",
             args.reference_tariff,
-            ref_base_rate,
             ref_fixed_charge,
         )
 
-    tou_base_rate = (
-        args.tou_base_rate if args.tou_base_rate is not None else ref_base_rate
-    )
     tou_fixed_charge = (
         args.tou_fixed_charge if args.tou_fixed_charge is not None else ref_fixed_charge
     )
 
-    if tou_base_rate is None or tou_fixed_charge is None:
+    if tou_fixed_charge is None:
         raise SystemExit(
-            "Either --reference-tariff or both --tou-base-rate and "
-            "--tou-fixed-charge must be provided."
+            "Either --reference-tariff or --tou-fixed-charge must be provided."
         )
 
     # -- 1. Load data --------------------------------------------------------
@@ -628,11 +612,10 @@ def main() -> None:
 
     # -- 2. Derive seasonal TOU ----------------------------------------------
     log.info(
-        "Deriving seasonal TOU (winter=%s, summer=%s, window=%d h, base_rate=%.4f)",
+        "Deriving seasonal TOU (winter=%s, summer=%s, window=%d h, rates from MC)",
         winter_months,
         summer_months,
         tou_window_hours,
-        tou_base_rate,
     )
     tou_tariff, season_specs = derive_seasonal_tou(
         bulk_marginal_costs=bulk_mc,
@@ -641,7 +624,6 @@ def main() -> None:
         bulk_tx_marginal_costs=bulk_tx_mc,
         winter_months=winter_months,
         tou_window_hours=tou_window_hours,
-        tou_base_rate=tou_base_rate,
         tou_fixed_charge=tou_fixed_charge,
         tou_tariff_key=args.tou_tariff_key,
         utility=args.utility,

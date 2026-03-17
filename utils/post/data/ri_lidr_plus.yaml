@@ -1,20 +1,35 @@
-# RIE LIDR+ tier definitions (Docket 25-45-GE).
-# FPL bands and discount percentages (same for electric and gas per filing).
-# See context/domain/lmi_discounts_in_ri.md.
-max_eligible_fpl: 250
-tiers:
-  - tier: 3
-    name: Deepest
-    fpl_upper_bound: 75
-    electric_discount_pct: 0.60
-    gas_discount_pct: 0.60
-  - tier: 2
-    name: Middle
-    fpl_upper_bound: 150
-    electric_discount_pct: 0.30
-    gas_discount_pct: 0.30
-  - tier: 1
-    name: Smallest
-    fpl_upper_bound: 250
-    electric_discount_pct: 0.10
-    gas_discount_pct: 0.10
+# RIE LIDR+ / LIDR tier definitions (Docket 25-45-GE).
+#
+# Electric: LIDR+ redesign — tiered percentage discounts by FPL%.
+# Gas: unchanged flat LIDR — 25% or 30% based on categorical program enrollment,
+#   proxied here by FPL% (see context/domain/charges/lmi_discounts_in_ri.md §III.5).
+#
+# Source: DeSousa direct testimony, Docket 25-45-GE, pg 95:
+#   "The Company proposes keeping the LIDR for gas customers unchanged."
+#   https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2025-11/25-45-GE%20RIE%20Book%201%20(Cornett,%20Urban,%20DeSousa,%20Castro,%20Leone,%20Garrett)%20(11-26-2025).pdf
+electric:
+  max_eligible_fpl: 250
+  tiers:
+    - tier: 3
+      name: Deepest
+      fpl_upper_bound: 75
+      discount_pct: 0.60
+    - tier: 2
+      name: Middle
+      fpl_upper_bound: 150
+      discount_pct: 0.30
+    - tier: 1
+      name: Smallest
+      fpl_upper_bound: 250
+      discount_pct: 0.10
+gas:
+  max_eligible_fpl: 185
+  tiers:
+    - tier: 2
+      name: Higher
+      fpl_upper_bound: 138
+      discount_pct: 0.30
+    - tier: 1
+      name: Base
+      fpl_upper_bound: 185
+      discount_pct: 0.25

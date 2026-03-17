@@ -67,7 +67,7 @@ For **annual cost centers** (Primary, Transformer, Secondary), the workbook prov
 
 For **cumulative cost centers** (Transmission, Substation), the script reads each project's right-half cumulative cashflow columns (W–AF) and infers in-service year as the first year where cashflow stabilizes at its final value (CWIP ends). Capital and capacity are then built using **in-service-year scoping**: `Capital(Y) = sum(p.final_capital for projects where in_service_year ≤ Y)`, and likewise for capacity. This matches the NiMo/CenHud project-level methodology: each project's full capital and MW enter the MC calculation together when the project completes, excluding pre-completion CWIP. As a result, cumulative values are lower in early years (when many projects are under construction) but converge to the same total by the end of the study period.
 
-See `context/domain/ny_mcos_studies_comparison.md` §6–§7 for the rationale and cross-utility comparison.
+See `context/methods/marginal_costs/ny_mcos_studies_comparison.md` §6–§7 for the rationale and cross-utility comparison.
 
 ### Formulas for each variant
 
@@ -114,7 +114,7 @@ Non-zero only in years when projects complete. The value reflects the actual $/k
 
 For **annual cost centers** (Primary, Transformer, Secondary), the annual sample is constant, but cumulative variants accumulate it: `Cum_Capital(Y) = sample × N` (where N counts years 2025 through Y). This makes cumulative diluted grow over the study window while incremental diluted stays flat. For undiluted variants, capacity accumulates proportionally (`Cum_Capacity(Y) = sample_MW × N`), so the capital/capacity ratio — and real MC — is the same constant for both cumulative and incremental.
 
-**Levelized** = mean of real MC over the 7-year levelization window (2026–2032), chosen to capture near-term planned investment while excluding speculative back-loaded projects. See `context/domain/ny_mcos_studies_comparison.md` §10 for rationale.
+**Levelized** = mean of real MC over the 7-year levelization window (2026–2032), chosen to capture near-term planned investment while excluding speculative back-loaded projects. See `context/methods/marginal_costs/ny_mcos_studies_comparison.md` §10 for rationale.
 
 ## Study parameters
 

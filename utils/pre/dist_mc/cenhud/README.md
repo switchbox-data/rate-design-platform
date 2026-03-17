@@ -41,7 +41,7 @@ The script produces **four variants** by combining two capital perspectives with
 | Cumulative undiluted  | Accumulated in-service capital to Y | Cumulative project MW to Y   |
 | Incremental undiluted | New capital entering service in Y   | New project MW entering in Y |
 
-Levelized = mean(real MC) over the 7-year levelization window (2026–2032), consistent across all utilities. See `context/domain/ny_mcos_studies_comparison.md` §10 for rationale.
+Levelized = mean(real MC) over the 7-year levelization window (2026–2032), consistent across all utilities. See `context/methods/marginal_costs/ny_mcos_studies_comparison.md` §10 for rationale.
 
 **Diluted formula:**
 
@@ -51,7 +51,7 @@ MC_diluted(Y) = sum[ annual_cost_per_kW(p) × capacity_kW(p) ] / system_peak_kW
 
 This is `total annual cost / system peak` — the same approach used by ConEd, O&R, and NiMo.
 
-CenHud's workbook uses a different formula: `sum[ cost_per_kW × peak_share ]`, where `peak_share` is the project area's fraction of the system coincident peak load. That formula weights by area load share rather than project capacity; it produces different values because `peak_share(p) ≠ capacity(p) / system_peak`. We use the capacity-based formula for cross-utility consistency. See `context/domain/ny_mcos_studies_comparison.md` §7A for the full comparison.
+CenHud's workbook uses a different formula: `sum[ cost_per_kW × peak_share ]`, where `peak_share` is the project area's fraction of the system coincident peak load. That formula weights by area load share rather than project capacity; it produces different values because `peak_share(p) ≠ capacity(p) / system_peak`. We use the capacity-based formula for cross-utility consistency. See `context/methods/marginal_costs/ny_mcos_studies_comparison.md` §7A for the full comparison.
 
 **Undiluted formula:**
 
@@ -185,7 +185,7 @@ numerator = 4.976 × 13,400 + 70.168 × 24,000 + 109.513 × 7,250
 MC_diluted = 2,544,680 / 1,103,000 = $2.307/kW-yr
 ```
 
-Note: the workbook's Table 2 value for this cell is **$1.796** — that uses peak-share weighting, not capacity-based. Our value differs by design (see §7A in `context/domain/ny_mcos_studies_comparison.md`).
+Note: the workbook's Table 2 value for this cell is **$1.796** — that uses peak-share weighting, not capacity-based. Our value differs by design (see §7A in `context/methods/marginal_costs/ny_mcos_studies_comparison.md`).
 
 ### Cumulative undiluted — Feeder, year 2027
 

@@ -15,8 +15,8 @@ This mirrors `utils/pre` conventions where `create_*` modules construct artifact
 - `combine_marginal_costs(bulk_mc, distribution_mc)` combines bulk and distribution MC into one hourly `$ / kWh` series.
 - `find_tou_peak_window(combined_mc, hourly_load, window_hours)` finds the contiguous peak window with the highest demand-weighted MC. Used by both runtime derivation and the window-width sweep.
 - `compute_tou_cost_causation_ratio(combined_mc, hourly_load, peak_hours)` computes the peak/off-peak demand-weighted MC ratio.
-- See `context/tools/tou_window_optimization.md` for how `window_hours` (the window width $N$) is selected per utility before runtime.
-- `compute_seasonal_base_rates(...)` derives season-specific base rates while preserving the configured annual average base rate.
+- See `context/methods/tou_and_rates/tou_window_optimization.md` for how `window_hours` (the window width $N$) is selected per utility before runtime.
+- `compute_seasonal_base_rates(...)` derives season-specific base rates as raw demand-weighted average marginal costs per season. No rescaling to an external reference rate is applied — the absolute MC level is preserved directly. CAIRO's precalc calibrates revenue neutrality.
 
 ## Tariff constructors (`utils/pre/create_tariff.py`)
 
@@ -25,9 +25,9 @@ This mirrors `utils/pre` conventions where `create_*` modules construct artifact
 - `create_seasonal_tariff(...)` builds an N-period seasonal flat tariff.
 - `create_default_flat_tariff(...)` builds a single-period flat tariff.
 
-## Base rate and fixed charge: reference tariff
+## Fixed charge: reference tariff
 
-Instead of hardcoding `tou_base_rate` and `tou_fixed_charge`, the CLI accepts `--reference-tariff` — a path to an existing URDB v7 tariff JSON. The script infers the base rate and fixed charge from that tariff. Explicit `--tou-base-rate` / `--tou-fixed-charge` flags still exist as overrides but are optional when a reference tariff is provided.
+The CLI accepts an optional `--reference-tariff` — a path to an existing URDB v7 tariff JSON. Only the `fixedchargefirstmeter` (fixed charge) is read from it; the tariff's base rate is ignored entirely, since seasonal base rates are now derived directly from marginal costs. An explicit `--tou-fixed-charge` flag can also be used as an override. The `--tou-base-rate` flag has been removed; base rates come from MC, not from a reference tariff.
 
 ## Customer count: dynamic lookup
 
@@ -102,7 +102,7 @@ uv run python -m utils.pre.derive_seasonal_tou \
 
 For Cambium-based states (RI), pass the same Cambium path to both `--path-supply-energy-mc` and `--path-supply-capacity-mc`; the loader detects "cambium" in the path and routes to the combined Cambium loader automatically.
 
-Optional flags: `--winter-months`, `--tou-window-hours`, `--tou-base-rate` (override), `--tou-fixed-charge` (override), `--periods-yaml`, `--path-bulk-tx-mc` (NY-only).
+Optional flags: `--winter-months`, `--tou-window-hours`, `--tou-fixed-charge` (override), `--periods-yaml`, `--path-bulk-tx-mc` (NY-only).
 
 ## Justfile recipe
 
@@ -116,4 +116,4 @@ create-seasonal-tou reference_tariff:
       {{reference_tariff}}
 ```
 
-The `reference_tariff` argument is passed from recipes like `run-9` and `run-10` which resolve the calibrated flat tariff path from a prior CAIRO run.
+The `reference_tariff` argument is used only to extract the fixed charge; it is no longer used as a base-rate anchor. Seasonal base rates come directly from marginal costs.

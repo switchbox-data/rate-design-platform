@@ -118,4 +118,4 @@ CAIRO does **not** need to know about “the cluster”; it only needs to be abl
 | **Platform changes** | Build S3 URIs for loads (and metadata) when in cluster mode; pass `storage_options` into CAIRO; switch to a Distributed client instead of the process scheduler; orchestrate many runs in a loop using the same client. |
 | **Alternative**      | Shared mount (e.g. S3 FUSE or EFS) on driver and every worker so paths stay “local”; then no S3/storage_options changes, but worker deployment must provide the mount.                                                  |
 
-Related: **`context/tools/cairo_parallelism_and_workers.md`** (single-machine parallelism and worker count), **`context/tools/cairo_performance_analysis.md`** (which stages use Dask), **`context/tools/cairo_parallelize_two_undasked_stages.md`** (parallelizing the two undaskified stages in CAIRO).
+Related: **`context/code/cairo/cairo_parallelism_and_workers.md`** (single-machine parallelism and worker count), **`context/code/cairo/cairo_performance_analysis.md`** (which stages use Dask), **`context/code/cairo/cairo_parallelize_two_undasked_stages.md`** (parallelizing the two undaskified stages in CAIRO).

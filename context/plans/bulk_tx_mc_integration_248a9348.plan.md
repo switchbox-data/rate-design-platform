@@ -335,7 +335,7 @@ Add delivery MC loading utilities with shared index alignment logic:
 
 ## 10. Context doc
 
-[`context/tools/ny_bulk_tx_marginal_costs.md`](context/tools/ny_bulk_tx_marginal_costs.md) — complete. Added to [`context/README.md`](context/README.md).
+[`context/code/marginal_costs/ny_bulk_tx_marginal_costs.md`](context/code/marginal_costs/ny_bulk_tx_marginal_costs.md) — complete. Added to [`context/README.md`](context/README.md).
 
 ## 11. Branch and PR
 

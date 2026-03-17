@@ -8,6 +8,7 @@
     "dvirtz.parquet-viewer",
     "hashicorp.terraform",
     "davidanson.vscode-markdownlint",
+    "goessner.mdmath",
     "tombi-toml.tombi",
     "nefrob.vscode-just-syntax",
     "christian-kohler.path-intellisense"

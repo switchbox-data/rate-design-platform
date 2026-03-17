@@ -92,7 +92,7 @@ When `elasticity != 0`, the scenario runner:
 4. **Phase 3:** Runs CAIRO simulation with the shifted loads and recalibrated
    RR.
 
-For full details see `context/tools/cairo_demand_flexibility_workflow.md`.
+For full details see `context/code/cairo/cairo_demand_flexibility_workflow.md`.
 
 `run-all-sequential` now executes runs 1-16 in order, including the demand-flex
 runs.
@@ -302,7 +302,7 @@ window widths 1–23 and picks the welfare-minimizing $N$. The sweep is **not**
 part of `all-pre` because it is slow (~5–10 min per utility) and the result
 rarely changes between batches. Run it before the first batch that includes
 TOU runs, and re-run when MC data, ResStock loads, or load filtering change.
-See `context/tools/tou_window_optimization.md`.
+See `context/methods/tou_and_rates/tou_window_optimization.md`.
 
 **Reference tariff for TOU derivation.** Runs 9 and 10 derive seasonal TOU
 tariffs using calibrated flat tariffs as references (from runs 1 and 2
