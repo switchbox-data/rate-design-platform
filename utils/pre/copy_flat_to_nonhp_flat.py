@@ -39,13 +39,43 @@ def main() -> None:
     )
     parser.add_argument(
         "--utility",
-        required=True,
-        help="Utility identifier (e.g. rie)",
+        help="Utility identifier (e.g. rie). Omit if using --all.",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Create nonhp_flat / nonhp_flat_supply for every utility that has *_flat.json in output-dir.",
     )
     args = parser.parse_args()
-    out = args.output_dir
-    util = args.utility
+    out = args.output_dir.resolve()
+    if not out.is_dir():
+        raise FileNotFoundError(f"Output directory not found: {out}")
 
+    if args.all:
+        # Discover all {utility}_flat.json (exclude *_flat_supply, *_nonhp_flat, etc.).
+        flat_files = sorted(out.glob("*_flat.json"))
+        utilities = []
+        for p in flat_files:
+            stem = p.stem
+            # Only {utility}_flat (e.g. rie_flat, coned_flat), not rie_nonhp_flat or rie_flat_supply.
+            if stem.endswith("_flat") and "nonhp" not in stem and stem != "flat":
+                utilities.append(stem.removesuffix("_flat"))
+        if not utilities:
+            raise FileNotFoundError(
+                f"No *_flat.json (e.g. rie_flat.json) found in {out} (run create-flat-tariffs first)"
+            )
+        for util in utilities:
+            _process_one(out, util)
+        return
+
+    util = args.utility
+    if not util:
+        raise ValueError("Either --utility or --all is required")
+    _process_one(out, util)
+
+
+def _process_one(out: Path, util: str) -> None:
+    """Create nonhp_flat and nonhp_flat_supply for one utility."""
     flat_src = out / f"{util}_flat.json"
     flat_supply_src = out / f"{util}_flat_supply.json"
     if not flat_src.exists():
@@ -56,7 +86,6 @@ def main() -> None:
         raise FileNotFoundError(
             f"Source not found: {flat_supply_src} (run create-flat-tariffs first)"
         )
-
     _copy_with_label(flat_src, out / f"{util}_nonhp_flat.json", f"{util}_nonhp_flat")
     _copy_with_label(
         flat_supply_src,

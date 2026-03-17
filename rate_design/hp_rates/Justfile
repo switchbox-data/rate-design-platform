@@ -201,12 +201,18 @@ create-flat-tariffs:
       --year "{{ monthly_rates_year }}"
 
 # Copy default flat (and flat_supply) to nonhp_flat / nonhp_flat_supply with updated
-
 # labels so run 5/6 precalc have a dedicated non-HP flat input to calibrate.
 copy-default-flat-to-nonhp-flat:
     uv run python {{ path_repo }}/utils/pre/copy_flat_to_nonhp_flat.py \
       --output-dir "{{ path_tariffs_electric }}" \
       --utility "{{ utility }}"
+
+# Create nonhp_flat / nonhp_flat_supply for every utility in the state (all *_flat.json in tariffs dir).
+# Used in all-pre so differentiated runs 5/6 have inputs for every utility.
+copy-default-flat-to-nonhp-flat-all:
+    uv run python {{ path_repo }}/utils/pre/copy_flat_to_nonhp_flat.py \
+      --output-dir "{{ path_tariffs_electric }}" \
+      --all
 
 # Derive seasonal TOU tariffs from MC rates (no dependency on calibrated flat run outputs).
 # Uses the pre-calibrated flat tariff only to extract the fixed charge.
@@ -433,8 +439,6 @@ run-4:
 run-5:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo ">> run-5: copy default flat → nonhp_flat / nonhp_flat_supply for precalc input" >&2
-    just copy-default-flat-to-nonhp-flat
     run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
     echo ">> run-5: resolved run-1 output → ${run1_dir}" >&2
     just compute-seasonal-discount-inputs "${run1_dir}" "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}"
@@ -559,6 +563,7 @@ all-pre:
     just ensure-gas-tariff-envelope
     just compute-rr
     just create-flat-tariffs
+    just copy-default-flat-to-nonhp-flat-all
     just create-seasonal-tou-tariffs
     just validate-config
 
