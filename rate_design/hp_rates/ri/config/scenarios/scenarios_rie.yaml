@@ -129,7 +129,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/zero.parquet
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonal.json
-      non-hp: tariffs/electric/rie_flat.json
+      non-hp: tariffs/electric/rie_nonhp_flat.json
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
@@ -158,7 +158,7 @@ runs:
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/data.parquet
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonal_supply.json
-      non-hp: tariffs/electric/rie_flat_supply.json
+      non-hp: tariffs/electric/rie_nonhp_flat_supply.json
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
