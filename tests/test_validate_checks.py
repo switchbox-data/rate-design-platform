@@ -197,3 +197,33 @@ def test_hp_subclass_revenue_lower_with_flex_fails_when_hp_revenue_rises() -> No
     )
 
     assert result.status == "FAIL"
+
+
+def test_flex_subclass_revenue_expectations_fail_when_hp_subclass_missing() -> None:
+    bills = pl.DataFrame(
+        {
+            "bldg_id": [1],
+            "month": ["Annual"],
+            "bill_level": [99.7],
+        }
+    ).lazy()
+    metadata = pl.DataFrame(
+        {
+            "bldg_id": [1],
+            "weight": [1.0],
+            "postprocess_group.has_hp": [False],
+        }
+    ).lazy()
+    subclass_rr = {
+        "subclass_revenue_requirements": {
+            "non-hp": {"delivery": 100.0, "total": 100.0},
+            "hp": {"delivery": 100.0, "total": 100.0},
+        }
+    }
+
+    result = check_flex_subclass_revenue_expectations(
+        bills, metadata, subclass_rr, cost_scope="delivery"
+    )
+
+    assert result.status == "FAIL"
+    assert "missing subclasses hp" in result.message

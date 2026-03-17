@@ -248,12 +248,20 @@ def define_run_blocks(configs: dict[int, RunConfig]) -> list[RunBlock]:
         upgrade,
         has_subclasses,
         tariff_type,
-        _elasticity,
+        elasticity,
     ), scopes in grouped.items():
         delivery_runs = sorted(scopes["delivery"])
         supply_runs = sorted(scopes["delivery+supply"])
+        if len(delivery_runs) != len(supply_runs):
+            raise ValueError(
+                "Cannot pair validation runs into delivery vs delivery+supply blocks "
+                f"for run_type={run_type!r}, upgrade={upgrade!r}, "
+                f"has_subclasses={has_subclasses}, tariff_type={tariff_type!r}, "
+                f"elasticity={elasticity}: delivery={delivery_runs}, "
+                f"delivery+supply={supply_runs}"
+            )
 
-        for r_delivery, r_supply in zip(delivery_runs, supply_runs, strict=False):
+        for r_delivery, r_supply in zip(delivery_runs, supply_runs, strict=True):
             c_delivery = configs[r_delivery]
             c_supply = configs[r_supply]
             run_nums = (r_delivery, r_supply)

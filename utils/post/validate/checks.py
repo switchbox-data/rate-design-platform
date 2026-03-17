@@ -117,6 +117,18 @@ def _weighted_annual_revenue_by_subclass(
     }
 
 
+def _weighted_annual_revenue_by_named_subclass(
+    bills: pl.LazyFrame, metadata: pl.LazyFrame
+) -> dict[str, float]:
+    """Return weighted annual electric revenue keyed by subclass name."""
+    return {
+        ("hp" if is_hp else "non-hp"): revenue
+        for is_hp, revenue in _weighted_annual_revenue_by_subclass(
+            bills, metadata
+        ).items()
+    }
+
+
 def _bat_wavg_by_group(bat: pl.LazyFrame, metadata: pl.LazyFrame) -> pl.DataFrame:
     """Compute weighted-average BAT metrics grouped by HP/non-HP.
 
@@ -262,20 +274,24 @@ def check_subclass_revenue_neutrality(
         "subclass_revenue_requirements", subclass_rr
     )
     rr_key = "total" if cost_scope == "delivery+supply" else "delivery"
-    hp_to_subclass = {True: "hp", False: "non-hp"}
-
-    weighted = _collect(
-        bills.filter(pl.col(_MONTH_COL) == _ANNUAL_MONTH)
-        .join(metadata.select([_BLDG_COL, _WEIGHT_COL, _HP_COL]), on=_BLDG_COL)
-        .group_by(_HP_COL)
-        .agg((pl.col(_BILL_COL) * pl.col(_WEIGHT_COL)).sum().alias("weighted_bills"))
-    )
+    actual_by_subclass = _weighted_annual_revenue_by_named_subclass(bills, metadata)
 
     per_subclass: dict[str, dict[str, Any]] = {}
-    for row in weighted.iter_rows(named=True):
-        sub = hp_to_subclass.get(row[_HP_COL], str(row[_HP_COL]))
-        target = float(rr_sub[sub][rr_key])
-        actual: float = row["weighted_bills"]
+    missing_subclasses: list[str] = []
+    for sub, target_cfg in rr_sub.items():
+        target = float(target_cfg[rr_key])
+        actual = actual_by_subclass.get(sub)
+        if actual is None:
+            missing_subclasses.append(sub)
+            per_subclass[sub] = {
+                "actual": None,
+                "target": target,
+                "pct_diff": None,
+                "pass": False,
+                "missing": True,
+            }
+            continue
+
         pct_diff = (actual - target) / target * 100
         per_subclass[sub] = {
             "actual": actual,
@@ -284,12 +300,20 @@ def check_subclass_revenue_neutrality(
             "pass": abs(pct_diff) <= tolerance_pct,
         }
 
-    all_pass = all(v["pass"] for v in per_subclass.values())
-    summary = "; ".join(f"{s}: {v['pct_diff']:+.2f}%" for s, v in per_subclass.items())
+    all_pass = not missing_subclasses and all(v["pass"] for v in per_subclass.values())
+    summary = "; ".join(
+        f"{s}: missing"
+        if v.get("missing")
+        else f"{s}: {float(v['pct_diff']):+.2f}%"
+        for s, v in per_subclass.items()
+    )
+    message = f"Subclass revenue deviations — {summary}"
+    if missing_subclasses:
+        message += " — FAIL: missing subclasses " + ", ".join(sorted(missing_subclasses))
     return CheckResult(
         name="subclass_revenue_neutrality",
         status="PASS" if all_pass else "FAIL",
-        message=f"Subclass revenue deviations — {summary}",
+        message=message,
         details={"subclasses": per_subclass, "cost_scope": cost_scope},
     )
 
@@ -316,20 +340,23 @@ def check_flex_subclass_revenue_expectations(
         "subclass_revenue_requirements", subclass_rr
     )
     rr_key = "total" if cost_scope == "delivery+supply" else "delivery"
-    hp_to_subclass = {True: "hp", False: "non-hp"}
-
-    weighted = _collect(
-        bills.filter(pl.col(_MONTH_COL) == _ANNUAL_MONTH)
-        .join(metadata.select([_BLDG_COL, _WEIGHT_COL, _HP_COL]), on=_BLDG_COL)
-        .group_by(_HP_COL)
-        .agg((pl.col(_BILL_COL) * pl.col(_WEIGHT_COL)).sum().alias("weighted_bills"))
-    )
+    actual_by_subclass = _weighted_annual_revenue_by_named_subclass(bills, metadata)
 
     per_subclass: dict[str, dict[str, Any]] = {}
-    for row in weighted.iter_rows(named=True):
-        sub = hp_to_subclass.get(row[_HP_COL], str(row[_HP_COL]))
-        target = float(rr_sub[sub][rr_key])
-        actual: float = row["weighted_bills"]
+    missing_subclasses: list[str] = []
+    for sub, target_cfg in rr_sub.items():
+        target = float(target_cfg[rr_key])
+        actual = actual_by_subclass.get(sub)
+        if actual is None:
+            missing_subclasses.append(sub)
+            per_subclass[sub] = {
+                "actual": None,
+                "target": target,
+                "pct_diff": None,
+                "missing": True,
+            }
+            continue
+
         pct_diff = (actual - target) / target * 100
         per_subclass[sub] = {
             "actual": actual,
@@ -339,22 +366,40 @@ def check_flex_subclass_revenue_expectations(
 
     nonhp = per_subclass.get("non-hp")
     hp = per_subclass.get("hp")
-    nonhp_ok = nonhp is None or abs(float(nonhp["pct_diff"])) <= nonhp_tolerance_pct
-    hp_ok = hp is None or float(hp["pct_diff"]) <= hp_positive_tolerance_pct
+    nonhp_ok = (
+        nonhp is not None
+        and not nonhp.get("missing")
+        and abs(float(nonhp["pct_diff"])) <= nonhp_tolerance_pct
+    )
+    hp_ok = (
+        hp is not None
+        and not hp.get("missing")
+        and float(hp["pct_diff"]) <= hp_positive_tolerance_pct
+    )
 
     parts: list[str] = []
     if nonhp is not None:
-        parts.append(f"non-hp: {float(nonhp['pct_diff']):+.2f}%")
+        parts.append(
+            "non-hp: missing"
+            if nonhp.get("missing")
+            else f"non-hp: {float(nonhp['pct_diff']):+.2f}%"
+        )
     if hp is not None:
-        parts.append(f"hp: {float(hp['pct_diff']):+.2f}%")
+        parts.append(
+            "hp: missing"
+            if hp.get("missing")
+            else f"hp: {float(hp['pct_diff']):+.2f}%"
+        )
 
     failures: list[str] = []
-    if not nonhp_ok and nonhp is not None:
+    if missing_subclasses:
+        failures.append("missing subclasses " + ", ".join(sorted(missing_subclasses)))
+    elif not nonhp_ok and nonhp is not None:
         failures.append(
             f"non-hp should stay within ±{nonhp_tolerance_pct:.2f}% "
             f"(got {float(nonhp['pct_diff']):+.2f}%)"
         )
-    if not hp_ok and hp is not None:
+    if not hp_ok and hp is not None and not hp.get("missing"):
         failures.append(
             f"hp should not exceed baseline RR (got {float(hp['pct_diff']):+.2f}%)"
         )
@@ -390,6 +435,27 @@ def check_hp_subclass_revenue_lower_with_flex(
     """
     revenue_noflex = _weighted_annual_revenue_by_subclass(bills_noflex, metadata_noflex)
     revenue_flex = _weighted_annual_revenue_by_subclass(bills_flex, metadata_flex)
+    if True not in revenue_noflex or True not in revenue_flex:
+        missing_runs = [
+            str(run)
+            for run, revenue in (
+                (run_noflex, revenue_noflex),
+                (run_flex, revenue_flex),
+            )
+            if True not in revenue
+        ]
+        return CheckResult(
+            name=f"hp_revenue_lower_with_flex_run{run_noflex}_to_run{run_flex}",
+            status="FAIL",
+            message="Missing HP subclass revenue for run(s): "
+            + ", ".join(missing_runs),
+            details={
+                "run_noflex": run_noflex,
+                "run_flex": run_flex,
+                "missing_hp_runs": [int(run) for run in missing_runs],
+            },
+        )
+
     hp_noflex = float(revenue_noflex.get(True, float("nan")))
     hp_flex = float(revenue_flex.get(True, float("nan")))
     delta = hp_flex - hp_noflex

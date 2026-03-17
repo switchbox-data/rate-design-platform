@@ -169,16 +169,68 @@ def _find_matching_noflex_run(
         return None
 
     base_tariff_type = config.tariff_type.removesuffix("_flex")
-    matches = [
+    matches = sorted(
         candidate_run_num
         for candidate_run_num, candidate in configs.items()
         if candidate_run_num != run_num
+        and candidate.run_type == config.run_type
         and candidate.elasticity == 0.0
         and candidate.upgrade == config.upgrade
         and candidate.cost_scope == config.cost_scope
         and candidate.has_subclasses == config.has_subclasses
         and candidate.tariff_type == base_tariff_type
-    ]
+    )
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _find_matching_precalc_run(
+    configs: dict[int, RunConfig],
+    *,
+    run_num: int,
+    config: RunConfig,
+) -> int | None:
+    """Find the precalc run that a default run should inherit from."""
+    if config.run_type != "default":
+        return None
+
+    matches = sorted(
+        candidate_run_num
+        for candidate_run_num, candidate in configs.items()
+        if candidate_run_num != run_num
+        and candidate.run_type == "precalc"
+        and candidate.cost_scope == config.cost_scope
+        and candidate.has_subclasses == config.has_subclasses
+        and candidate.tariff_type == config.tariff_type
+        and candidate.elasticity == config.elasticity
+    )
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _find_matching_original_flat_run(
+    configs: dict[int, RunConfig],
+    *,
+    run_num: int,
+    config: RunConfig,
+) -> int | None:
+    """Find the baseline flat precalc run used for non-HP tariff comparisons."""
+    if config.run_type != "precalc" or not config.has_subclasses:
+        return None
+
+    matches = sorted(
+        candidate_run_num
+        for candidate_run_num, candidate in configs.items()
+        if candidate_run_num != run_num
+        and candidate.run_type == "precalc"
+        and candidate.upgrade == "0"
+        and candidate.cost_scope == config.cost_scope
+        and not candidate.has_subclasses
+        and candidate.tariff_type == "flat"
+        and candidate.elasticity == 0.0
+    )
     if len(matches) == 1:
         return matches[0]
     return None
@@ -609,8 +661,15 @@ def _validate_block(
 
     # --- Tariff stability + bill deltas (all default paired blocks) ---
     if block.tariff_should_be_unchanged:
-        for run_num, run_dir, _, meta, bills in runs:
-            prev_num = run_num - 2  # 3→1, 4→2, 7→5, 8→6
+        for run_num, run_dir, config, meta, bills in runs:
+            prev_num = _find_matching_precalc_run(
+                configs, run_num=run_num, config=config
+            )
+            if prev_num is None:
+                print(
+                    f"    WARNING: No matching precalc run found for default run {run_num}"
+                )
+                continue
             if (prev_dir := run_dirs.get(prev_num)) is None:
                 continue
 
@@ -752,28 +811,36 @@ def _validate_block(
     # --- Non-HP rate calibrated above original (subclass precalc runs 5-6) ---
     if block.configs[0].has_subclasses and block.revenue_neutral:
         for run_num, run_dir, config, _, _ in runs:
-            orig_num = 1 if config.cost_scope == "delivery" else 2
-            if (orig_dir := run_dirs.get(orig_num)) is not None:
-                run_tariff, run_tariff_ok = _safe_execute(
-                    f"load_tariff_config(run {run_num})", load_tariff_config, run_dir
+            orig_num = _find_matching_original_flat_run(
+                configs, run_num=run_num, config=config
+            )
+            if orig_num is None:
+                print(
+                    f"    WARNING: No matching original flat run found for subclass run {run_num}"
                 )
-                orig_tariff, orig_tariff_ok = _safe_execute(
-                    f"load_tariff_config(run {orig_num})", load_tariff_config, orig_dir
+                continue
+            if (orig_dir := run_dirs.get(orig_num)) is None:
+                continue
+            run_tariff, run_tariff_ok = _safe_execute(
+                f"load_tariff_config(run {run_num})", load_tariff_config, run_dir
+            )
+            orig_tariff, orig_tariff_ok = _safe_execute(
+                f"load_tariff_config(run {orig_num})", load_tariff_config, orig_dir
+            )
+            if (
+                run_tariff_ok
+                and orig_tariff_ok
+                and run_tariff is not None
+                and orig_tariff is not None
+            ):
+                check_result, ok = _safe_execute(
+                    f"check_nonhp_calibrated_above_original(run {run_num})",
+                    check_nonhp_calibrated_above_original,
+                    run_tariff,
+                    orig_tariff,
                 )
-                if (
-                    run_tariff_ok
-                    and orig_tariff_ok
-                    and run_tariff is not None
-                    and orig_tariff is not None
-                ):
-                    check_result, ok = _safe_execute(
-                        f"check_nonhp_calibrated_above_original(run {run_num})",
-                        check_nonhp_calibrated_above_original,
-                        run_tariff,
-                        orig_tariff,
-                    )
-                    if ok and check_result is not None:
-                        _record(check_result, run_num=run_num)
+                if ok and check_result is not None:
+                    _record(check_result, run_num=run_num)
 
     # Always write checks summary, even if empty
     try:
