@@ -115,7 +115,10 @@ def test_define_run_blocks_discovers_extended_pairs() -> None:
     assert blocks[0].revenue_neutral is True
     assert blocks[1].tariff_should_be_unchanged is True
     assert blocks[2].bat_relevant is True
-    assert blocks[3].description == "Default seasonal TOU flex rates on upgrade 02 (runs 15-16)"
+    assert (
+        blocks[3].description
+        == "Default seasonal TOU flex rates on upgrade 02 (runs 15-16)"
+    )
 
 
 def test_define_run_blocks_rejects_unpaired_runs() -> None:

@@ -201,6 +201,7 @@ create-flat-tariffs:
       --year "{{ monthly_rates_year }}"
 
 # Copy default flat (and flat_supply) to nonhp_flat / nonhp_flat_supply with updated
+
 # labels so run 5/6 precalc have a dedicated non-HP flat input to calibrate.
 copy-default-flat-to-nonhp-flat:
     uv run python {{ path_repo }}/utils/pre/copy_flat_to_nonhp_flat.py \
@@ -208,6 +209,7 @@ copy-default-flat-to-nonhp-flat:
       --utility "{{ utility }}"
 
 # Create nonhp_flat / nonhp_flat_supply for every utility in the state (all *_flat.json in tariffs dir).
+
 # Used in all-pre so differentiated runs 5/6 have inputs for every utility.
 copy-default-flat-to-nonhp-flat-all:
     uv run python {{ path_repo }}/utils/pre/copy_flat_to_nonhp_flat.py \

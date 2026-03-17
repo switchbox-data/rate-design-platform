@@ -302,14 +302,14 @@ def check_subclass_revenue_neutrality(
 
     all_pass = not missing_subclasses and all(v["pass"] for v in per_subclass.values())
     summary = "; ".join(
-        f"{s}: missing"
-        if v.get("missing")
-        else f"{s}: {float(v['pct_diff']):+.2f}%"
+        f"{s}: missing" if v.get("missing") else f"{s}: {float(v['pct_diff']):+.2f}%"
         for s, v in per_subclass.items()
     )
     message = f"Subclass revenue deviations — {summary}"
     if missing_subclasses:
-        message += " — FAIL: missing subclasses " + ", ".join(sorted(missing_subclasses))
+        message += " — FAIL: missing subclasses " + ", ".join(
+            sorted(missing_subclasses)
+        )
     return CheckResult(
         name="subclass_revenue_neutrality",
         status="PASS" if all_pass else "FAIL",
@@ -386,9 +386,7 @@ def check_flex_subclass_revenue_expectations(
         )
     if hp is not None:
         parts.append(
-            "hp: missing"
-            if hp.get("missing")
-            else f"hp: {float(hp['pct_diff']):+.2f}%"
+            "hp: missing" if hp.get("missing") else f"hp: {float(hp['pct_diff']):+.2f}%"
         )
 
     failures: list[str] = []
