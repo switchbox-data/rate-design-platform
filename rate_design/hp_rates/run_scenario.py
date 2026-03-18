@@ -319,7 +319,7 @@ def _build_settings_from_yaml_run(
         run_includes_supply=run_includes_supply,
         elasticity=elasticity,
         path_bulk_tx_mc=path_bulk_tx_mc,
-        path_supply_ancillary_mc=path_supply_ancillary_mc,
+        path_supply_ancillary_mc=path_supply_ancillary_mc if run_includes_supply else None,
     )
 
 
@@ -437,7 +437,7 @@ def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
         settings.path_tou_supply_energy_mc = args.path_tou_supply_energy_mc
     if args.path_tou_supply_capacity_mc:
         settings.path_tou_supply_capacity_mc = args.path_tou_supply_capacity_mc
-    if args.path_supply_ancillary_mc:
+    if args.path_supply_ancillary_mc and settings.run_includes_supply:
         settings.path_supply_ancillary_mc = args.path_supply_ancillary_mc
     return settings
 
@@ -588,7 +588,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         settings.path_supply_energy_mc,
         settings.path_supply_capacity_mc,
         settings.year_run,
-        ancillary_path=settings.path_supply_ancillary_mc if settings.run_includes_supply else None,
+        ancillary_path=settings.path_supply_ancillary_mc,
     )
 
     # Load and combine delivery MCs: Bulk Tx + Dist+Sub-Tx
