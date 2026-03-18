@@ -35,7 +35,7 @@ from utils.cairo import (
     add_bulk_tx_and_dist_and_sub_tx_marginal_cost,
     build_bldg_id_to_load_filepath,
 )
-from utils.demand_flex import apply_demand_flex, split_revenue_requirement_by_tou
+from utils.demand_flex import apply_demand_flex
 from utils.mid.patches import _return_loads_combined
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 from utils.scenario_config import (
@@ -588,7 +588,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         settings.path_supply_energy_mc,
         settings.path_supply_capacity_mc,
         settings.year_run,
-        ancillary_path=settings.path_supply_ancillary_mc,
+        ancillary_path=settings.path_supply_ancillary_mc if settings.run_includes_supply else None,
     )
 
     # Load and combine delivery MCs: Bulk Tx + Dist+Sub-Tx
@@ -651,10 +651,17 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         elasticity_tracker = flex.elasticity_tracker
         precalc_mapping = flex.precalc_mapping
         if settings.run_includes_subclasses and settings.subclass_rr is not None:
-            revenue_requirement = split_revenue_requirement_by_tou(
-                revenue_requirement_total=flex.revenue_requirement_raw,
-                subclass_baseline=settings.subclass_rr,
-                tou_tariff_keys=flex.tou_tariff_keys,
+            # Per-subclass frozen-residual approach:
+            #   new_RR_k = subclass_RR_k + (MC_shifted_k - MC_orig_k)
+            # TOU subclasses absorb their own MC delta; non-TOU subclasses are
+            # unchanged (calibrated identically to the no-flex run).
+            revenue_requirement = {
+                k: v + flex.mc_delta_by_tou_tariff.get(k, 0.0)
+                for k, v in settings.subclass_rr.items()
+            }
+            log.info(
+                "Subclass RR (demand-flex, per-subclass frozen residual): %s",
+                {k: f"${v:,.0f}" for k, v in revenue_requirement.items()},
             )
     else:
         (
