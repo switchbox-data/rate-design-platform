@@ -84,6 +84,7 @@ DEFAULT_NYISO_BULK_TX_OUTPUT_S3_BASE = (
 MC_COMPONENT_RELATIVE_PATHS: dict[str, str] = {
     "supply_energy": "supply/energy",
     "supply_capacity": "supply/capacity",
+    "supply_ancillary": "supply/ancillary",
     "bulk_tx": "bulk_tx",
     "dist_sub_tx": "dist_and_sub_tx",
 }
