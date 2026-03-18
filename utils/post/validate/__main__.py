@@ -195,6 +195,19 @@ def _find_matching_precalc_run(
     if config.run_type != "default":
         return None
 
+    # Explicit default->precalc pairing for the canonical 16-run orchestration.
+    # This intentionally allows pairs that differ in has_subclasses/upgrade,
+    # e.g. run 15/16 (upgrade-02 defaults) against run 13/14 (subclass precalc).
+    explicit_pairs = {3: 1, 4: 2, 7: 5, 8: 6, 11: 9, 12: 10, 15: 13, 16: 14}
+    if (paired_precalc := explicit_pairs.get(run_num)) is not None:
+        candidate = configs.get(paired_precalc)
+        if (
+            candidate is not None
+            and candidate.run_type == "precalc"
+            and candidate.cost_scope == config.cost_scope
+        ):
+            return paired_precalc
+
     matches = sorted(
         candidate_run_num
         for candidate_run_num, candidate in configs.items()
@@ -597,20 +610,17 @@ def _validate_block(
             if ok and check_result is not None:
                 _record(check_result, run_num=run_num)
 
-            if config.has_subclasses:
-                if config.elasticity != 0.0 and config.cost_scope == "delivery":
-                    print(
-                        "    Skipping bat_near_zero for demand-flex delivery-only run"
-                    )
-                else:
-                    check_result, ok = _safe_execute(
-                        f"check_bat_near_zero(run {run_num})",
-                        check_bat_near_zero,
-                        bat,
-                        meta,
-                    )
-                    if ok and check_result is not None:
-                        _record(check_result, run_num=run_num)
+            # Always enforce per-customer BAT near zero for flex runs, and keep
+            # the existing behavior for subclassed runs.
+            if config.has_subclasses or config.elasticity != 0.0:
+                check_result, ok = _safe_execute(
+                    f"check_bat_near_zero(run {run_num})",
+                    check_bat_near_zero,
+                    bat,
+                    meta,
+                )
+                if ok and check_result is not None:
+                    _record(check_result, run_num=run_num)
 
             bat_summary, summary_ok = _safe_execute(
                 f"summarize_bat_by_subclass(run {run_num})",
