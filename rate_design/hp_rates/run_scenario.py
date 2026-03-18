@@ -588,7 +588,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         settings.path_supply_energy_mc,
         settings.path_supply_capacity_mc,
         settings.year_run,
-        ancillary_path=settings.path_supply_ancillary_mc if settings.run_includes_supply else None,
+        ancillary_path=settings.path_supply_ancillary_mc,
     )
 
     # Load and combine delivery MCs: Bulk Tx + Dist+Sub-Tx
