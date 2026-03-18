@@ -319,7 +319,9 @@ def _build_settings_from_yaml_run(
         run_includes_supply=run_includes_supply,
         elasticity=elasticity,
         path_bulk_tx_mc=path_bulk_tx_mc,
-        path_supply_ancillary_mc=path_supply_ancillary_mc if run_includes_supply else None,
+        path_supply_ancillary_mc=path_supply_ancillary_mc
+        if run_includes_supply
+        else None,
     )
 
 
