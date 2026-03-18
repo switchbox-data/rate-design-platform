@@ -1,9 +1,9 @@
 utility: rie
 delivery_revenue_requirement_from_rate_case: 241869601.0
-delivery_revenue_requirement_topups: 152677333.17
+delivery_revenue_requirement_topups: 287984523.23
 supply_revenue_requirement_topups: 387840086.7
-total_delivery_revenue_requirement: 394546934.17
-total_delivery_and_supply_revenue_requirement: 782387020.87
+total_delivery_revenue_requirement: 529854124.23
+total_delivery_and_supply_revenue_requirement: 917694210.93
 total_residential_kwh: 3027334912.0
 eia_year: 2024
 delivery_top_ups:
@@ -35,6 +35,10 @@ delivery_top_ups:
     charge_unit: $/kWh
     avg_monthly_rate: 0.01098
     total_budget: 33240137.33
+  transmission_charge:
+    charge_unit: $/kWh
+    avg_monthly_rate: 0.0446951507
+    total_budget: 135307190.07
 supply_top_ups:
   supply_commodity_bundled:
     charge_unit: $/kWh
