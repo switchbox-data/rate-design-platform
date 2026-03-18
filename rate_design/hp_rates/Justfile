@@ -5,7 +5,7 @@
 # Usage (from rate_design/hp_rates/):
 #   just s ny list-utilities                                    # show valid utilities
 #   UTILITY=nyseg just s ny all-pre                             # single utility pre-processing
-#   UTILITY=nyseg just s ny run-all-sequential                  # single utility full run
+#   RDP_BATCH= {yyyymmdd_r1-N} UTILITY=nyseg just s ny run-all-sequential                  # single utility full run
 #   just s ny run-all-utilities-sequential                      # all utilities for a state
 #   UTILITY=rie just -f ri/Justfile all-pre                     # via state wrapper directly
 #   set -a && source ny/state.env && set +a && UTILITY=nyseg just all-pre  # manual source
