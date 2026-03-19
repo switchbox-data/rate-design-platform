@@ -259,7 +259,7 @@ just -f data/resstock/Justfile create-sb-release-for-upgrade-02-RI
 | 5    | `just -f data/resstock/Justfile approximate-non-hp-load <STATE> 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True`                                                                                                 |
 | 6    | Adjust MF electricity in `sb`: `adjust-mf-electricity-<STATE>-upgrade-00` and `adjust-mf-electricity-<STATE>-upgrade-02`                                                                                                  |
 | 7    | `sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/`                                                                                                       |
-| 8    | Add monthly load curves on EBS: `add-monthly-loads-NY` or `add-monthly-loads <STATE> "00 02"`                                                                                                                            |
+| 8    | Add monthly load curves on EBS: `add-monthly-loads-NY` or `add-monthly-loads <STATE> "00 02"`                                                                                                                             |
 | 9    | Upload monthly load curves to S3: `upload-monthly-loads-NY` or `upload-monthly-loads <STATE> "00 02"`                                                                                                                     |
 
 After step 9, the `sb` release on S3 and EBS includes `load_curve_monthly` and is ready for rate-design runs (e.g. CAIRO) and post-processing (master bills, gas/oil/propane bills) using `res_2024_amy2018_2_sb` and the chosen state/upgrade.
