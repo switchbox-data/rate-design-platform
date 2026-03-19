@@ -52,6 +52,11 @@ utilities := env_var_or_default('UTILITIES', utility)
 
 use_resstock_loads := env_var_or_default('USE_RESSTOCK_LOADS', 'false')
 
+# Which base tariff pattern runs 1-4 use (and thus which calibrated tariff
+# runs 5/6 derive the seasonal discount from).  "flat" = original behavior,
+# "default" = preserve the actual utility rate structure.
+base_tariff_pattern := env_var_or_default('BASE_TARIFF_PATTERN', 'flat')
+
 # =============================================================================
 # Tier 3: Derived paths (all computed from Tier 1 + 2)
 # =============================================================================
@@ -224,14 +229,30 @@ copy-default-flat-to-nonhp-flat-all:
       --output-dir "{{ path_tariffs_electric }}" \
       --all
 
+# Generate default-structure tariffs from filed rates in monthly_rates YAML.
+
+# Preserves seasonal, tiered, and TOU structure (unlike flat tariffs).
+create-default-structure-tariffs:
+    uv run python {{ path_repo }}/utils/pre/create_default_structure_tariffs.py \
+      --monthly-rates-dir "{{ path_genability }}/monthly_rates" \
+      --output-dir "{{ path_tariffs_electric }}" \
+      --year "{{ monthly_rates_year }}"
+
+# Create nonhp_default / nonhp_default_supply for every utility that has default-structure tariffs.
+copy-default-structure-to-nonhp-all:
+    uv run python {{ path_repo }}/utils/pre/copy_flat_to_nonhp_flat.py \
+      --output-dir "{{ path_tariffs_electric }}" \
+      --all --pattern default
+
 # Derive seasonal TOU tariffs from MC rates (no dependency on calibrated flat run outputs).
-# Uses the pre-calibrated flat tariff only to extract the fixed charge.
+# Uses a pre-calibrated tariff only to extract the fixed charge.
+# Set base_pattern to "default" to read from the default-structure tariff instead of flat.
 
 # Writes {tou_tariff_key}.json and creates {tou_tariff_key}_supply.json with updated label.
-create-seasonal-tou-tariffs:
+create-seasonal-tou-tariffs base_pattern="flat":
     #!/usr/bin/env bash
     set -euo pipefail
-    ref_tariff="{{ path_tariffs_electric }}/{{ utility }}_flat.json"
+    ref_tariff="{{ path_tariffs_electric }}/{{ utility }}_{{ base_pattern }}.json"
     echo ">> create-seasonal-tou-tariffs: deriving TOU from MC (fixed charge from ${ref_tariff})" >&2
     just create-seasonal-tou {{ tou_tariff_key }} "${ref_tariff}"
     # Create supply version by copying JSON and updating label
@@ -454,7 +475,7 @@ run-5:
     echo ">> run-5: resolved run-1 output → ${run1_dir}" >&2
     just compute-seasonal-discount-inputs "${run1_dir}" "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}"
     just create-seasonal-discount-tariff \
-        "{{ path_tariffs_electric }}/{{ utility }}_flat_calibrated.json" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
         "${run1_dir}/seasonal_discount_rate_inputs.csv" \
         {{ utility }}_hp_seasonal \
         "{{ path_tariffs_electric }}/{{ utility }}_hp_seasonal.json"
@@ -467,7 +488,7 @@ run-6:
     echo ">> run-6: resolved run-2 output → ${run2_dir}" >&2
     just compute-seasonal-discount-inputs "${run2_dir}" "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}"
     just create-seasonal-discount-tariff \
-        "{{ path_tariffs_electric }}/{{ utility }}_flat_supply_calibrated.json" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
         "${run2_dir}/seasonal_discount_rate_inputs.csv" \
         {{ utility }}_hp_seasonal_supply \
         "{{ path_tariffs_electric }}/{{ utility }}_hp_seasonal_supply.json"
@@ -568,8 +589,10 @@ all-pre:
     just ensure-gas-tariff-envelope
     just compute-rr
     just create-flat-tariffs
+    just create-default-structure-tariffs
     just copy-default-flat-to-nonhp-flat-all
-    just create-seasonal-tou-tariffs
+    just copy-default-structure-to-nonhp-all
+    just create-seasonal-tou-tariffs {{ base_tariff_pattern }}
     just validate-config
 
 run-all-utilities-sequential:
