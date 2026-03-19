@@ -55,7 +55,9 @@ def load_aggregation_rules(release: str) -> list[pl.Expr]:
             case "first":
                 exprs.append(pl.col(col).first())
             case _:
-                raise ValueError(f"Unknown aggregation function '{agg}' for column '{col}'")
+                raise ValueError(
+                    f"Unknown aggregation function '{agg}' for column '{col}'"
+                )
     return exprs
 
 
@@ -145,7 +147,9 @@ def process_upgrade(
             if done % 5000 == 0 or done == n_files:
                 elapsed = time.time() - t0
                 rate = done / elapsed if elapsed > 0 else 0
-                print(f"  {done:,}/{n_files:,} ({rate:.0f} files/s, {elapsed:.1f}s elapsed)")
+                print(
+                    f"  {done:,}/{n_files:,} ({rate:.0f} files/s, {elapsed:.1f}s elapsed)"
+                )
 
     elapsed = time.time() - t0
     print(f"  Done: {done:,} files in {elapsed:.1f}s ({errors} errors)")
@@ -197,10 +201,12 @@ def main() -> None:
     print(f"  {len(agg_rules)} column rules loaded")
 
     for upgrade in upgrade_ids:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Processing state={args.state}, upgrade={upgrade}")
-        print(f"{'='*60}")
-        process_upgrade(path_input, path_output, args.state, upgrade, agg_rules, args.workers)
+        print(f"{'=' * 60}")
+        process_upgrade(
+            path_input, path_output, args.state, upgrade, agg_rules, args.workers
+        )
 
     print("\nAll done.")
 

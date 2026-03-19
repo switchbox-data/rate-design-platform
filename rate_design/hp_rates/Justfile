@@ -45,6 +45,13 @@ upstream_hours := env_var_or_default('UPSTREAM_HOURS', '100')
 dist_hours := env_var_or_default('DIST_HOURS', '100')
 utilities := env_var_or_default('UTILITIES', utility)
 
+# Whether to use ResStock monthly loads (instead of EIA-861 annual kWh) for
+# volumetric budget calculation in compute-rr.  ResStock loads capture monthly
+# rate×load covariance; EIA-861 uses a flat annual average.  Set to "true" in
+# state.env to opt in; defaults to the original EIA-861 method.
+
+use_resstock_loads := env_var_or_default('USE_RESSTOCK_LOADS', 'false')
+
 # =============================================================================
 # Tier 3: Derived paths (all computed from Tier 1 + 2)
 # =============================================================================
@@ -181,7 +188,8 @@ compute-rr:
       --path-electric-utility-stats "{{ path_electric_utility_stats }}" \
       --path-rate-case-rr "{{ path_rate_case_delivery_rr }}" \
       --path-supply-base "{{ path_supply_base }}" \
-      --output "{{ path_default_rev_requirement }}"
+      --output "{{ path_default_rev_requirement }}" \
+      {{ if use_resstock_loads == "true" { '--use-resstock-loads --path-resstock-release "' + path_resstock_release + '" --state "' + state_upper + '"' } else { "" } }}
 
 estimate-psegli-rr:
     uv run python {{ path_repo }}/utils/pre/rev_requirement/estimate_psegli_rr.py \
