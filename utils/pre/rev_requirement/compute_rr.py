@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """Compute topped-up delivery and supply revenue requirements and write rev_requirement/<utility>.yaml.
 
-Reads EIA-861 residential kWh, monthly_rates YAML (per charge, with decision), and the
-existing rate-case delivery revenue requirement; filters charges by decision (add_to_drr,
-add_to_srr); computes day-weighted avg_monthly_rate per charge and total_budget =
-avg_monthly_rate * total_residential_kwh; writes the new schema with delivery and
-supply top-ups and derived totals.
+Reads monthly_rates YAML (per charge, with decision), and the existing rate-case delivery
+revenue requirement; filters charges by decision (add_to_drr, add_to_srr); computes
+total_budget per charge; writes the new schema with delivery and supply top-ups and
+derived totals.
 
-Every charge carries a ``charge_unit``: ``$/kWh`` (volumetric, multiplied by total
-residential kWh), ``$/day`` or ``$/month`` (fixed per-customer, multiplied by EIA-861
-customer count), or ``%`` (percentage-of-bill; skipped here, handled elsewhere).
+Two modes for volumetric ($/kWh) charges:
+
+  **EIA mode** (default): day-weighted avg rate × EIA-861 total residential kWh.
+  **ResStock mode** (``--use-resstock-loads``): monthly rate × monthly utility-level kWh
+  from ResStock, scaled to EIA-861 customer count.  Captures the covariance between
+  monthly rate variation and monthly load variation.
+
+Fixed charges ($/day, $/month) always use EIA-861 customer count in both modes.
+
+Every charge carries a ``charge_unit``: ``$/kWh`` (volumetric), ``$/day`` or ``$/month``
+(fixed per-customer), or ``%`` (percentage-of-bill; skipped here, handled elsewhere).
 """
 
 from __future__ import annotations
@@ -92,6 +99,101 @@ def _fixed_charge_annual_budget(
             logging.warning("Unknown charge_unit %r; treating as $/month", charge_unit)
             total += rate
     return total * customer_count
+
+
+ELEC_CONSUMPTION_COL = "out.electricity.total.energy_consumption"
+RESSTOCK_UPGRADE = "00"
+
+
+def _compute_monthly_kwh_from_resstock(
+    path_resstock_release: str,
+    state: str,
+    utility: str,
+    customer_count: int,
+) -> tuple[dict[int, float], float]:
+    """Load ResStock monthly loads and return utility-level kWh per month, scaled to EIA customer count.
+
+    Uses the "small data, collect once" strategy: builds a single lazy pipeline
+    (scan loads → join weights → group by month), collects once into a 12-row
+    DataFrame, then validates eagerly.
+
+    Returns (monthly_kwh dict {1: ..., 12: ...}, scale_factor).
+    """
+    from typing import cast
+
+    import polars as pl
+
+    from utils.post.io import scan_load_curves_for_utility
+
+    base = path_resstock_release.rstrip("/")
+    meta_path = f"{base}/metadata_utility/state={state}/utility_assignment.parquet"
+
+    weights_df = cast(
+        pl.DataFrame,
+        pl.scan_parquet(meta_path)
+        .filter(pl.col("sb.electric_utility") == utility)
+        .select("bldg_id", "weight")
+        .collect(),
+    )
+    if weights_df.is_empty():
+        raise ValueError(f"No buildings for utility {utility!r} in {meta_path}.")
+    weight_sum = float(weights_df["weight"].sum())
+    if weight_sum <= 0:
+        raise ValueError(
+            f"ResStock weight sum is {weight_sum} for utility {utility!r}; "
+            "cannot scale to customer count."
+        )
+    scale_factor = customer_count / weight_sum
+
+    loads_lf = scan_load_curves_for_utility(
+        path_resstock_release=path_resstock_release,
+        state=state,
+        upgrade=RESSTOCK_UPGRADE,
+        utility=utility,
+        load_curve_type="monthly",
+    )
+
+    monthly_df = cast(
+        pl.DataFrame,
+        loads_lf.join(weights_df.lazy(), on="bldg_id", how="inner")
+        .group_by("month")
+        .agg(
+            (pl.col(ELEC_CONSUMPTION_COL) * pl.col("weight"))
+            .sum()
+            .alias("weighted_kwh")
+        )
+        .sort("month")
+        .collect(),
+    )
+
+    if monthly_df.height != 12:
+        raise ValueError(
+            f"Expected 12 months from ResStock, got {monthly_df.height}. "
+            f"Months present: {sorted(monthly_df['month'].to_list())}"
+        )
+    if monthly_df["weighted_kwh"].null_count() > 0:
+        raise ValueError("Null weighted kWh values in ResStock monthly aggregation.")
+
+    monthly_kwh: dict[int, float] = {}
+    for row in monthly_df.iter_rows(named=True):
+        monthly_kwh[int(row["month"])] = float(row["weighted_kwh"]) * scale_factor
+
+    return monthly_kwh, scale_factor
+
+
+def _resstock_monthly_budget(
+    monthly_rates: dict[str, float],
+    month_list: list[tuple[int, int]],
+    monthly_kwh: dict[int, float],
+) -> float:
+    """Compute sum(rate_m * utility_kwh_m) for each month in the range."""
+    total = 0.0
+    for y, m in month_list:
+        month_key = f"{y:04d}-{m:02d}"
+        rate = monthly_rates.get(month_key, 0.0)
+        kwh = monthly_kwh.get(m, 0.0)
+        total += rate * kwh
+    return total
 
 
 def _resolve_customer_count_with_year_fallback(
@@ -245,7 +347,42 @@ def main() -> None:
     parser.add_argument(
         "--output", type=Path, required=True, help="Output rev_requirement YAML path"
     )
+    parser.add_argument(
+        "--use-resstock-loads",
+        action="store_true",
+        default=False,
+        help=(
+            "Use ResStock monthly loads × monthly rates for $/kWh charges "
+            "instead of day-weighted avg rate × EIA-861 annual kWh."
+        ),
+    )
+    parser.add_argument(
+        "--path-resstock-release",
+        type=str,
+        default=None,
+        help=(
+            "Root of the ResStock release (local or s3://). "
+            "Required when --use-resstock-loads is set."
+        ),
+    )
+    parser.add_argument(
+        "--state",
+        type=str,
+        default=None,
+        help=(
+            "Two-letter state code (uppercase, e.g. RI). "
+            "Required when --use-resstock-loads is set."
+        ),
+    )
     args = parser.parse_args()
+
+    if args.use_resstock_loads:
+        if not args.path_resstock_release:
+            parser.error(
+                "--path-resstock-release is required when --use-resstock-loads is set."
+            )
+        if not args.state:
+            parser.error("--state is required when --use-resstock-loads is set.")
 
     utility = args.utility.lower()
 
@@ -300,12 +437,42 @@ def main() -> None:
 
     year_for_eia = _parse_month(start_month)[0]
 
-    total_residential_kwh, eia_year = _resolve_path_eia_with_year_fallback(
+    eia_total_residential_kwh, eia_year = _resolve_path_eia_with_year_fallback(
         args.path_electric_utility_stats,
         year_for_eia,
         utility,
         storage_options,
     )
+
+    resstock_monthly_kwh: dict[int, float] | None = None
+    resstock_scale_factor: float | None = None
+
+    if args.use_resstock_loads:
+        residential_customer_count_for_scaling, _ = (
+            _resolve_customer_count_with_year_fallback(
+                args.path_electric_utility_stats,
+                year_for_eia,
+                utility,
+                storage_options,
+            )
+        )
+        resstock_monthly_kwh, resstock_scale_factor = (
+            _compute_monthly_kwh_from_resstock(
+                path_resstock_release=args.path_resstock_release,
+                state=args.state,
+                utility=utility,
+                customer_count=residential_customer_count_for_scaling,
+            )
+        )
+        total_residential_kwh = sum(resstock_monthly_kwh.values())
+        logging.info(
+            "ResStock total kWh: %s (scale factor %.4f) vs EIA %s",
+            f"{total_residential_kwh:,.0f}",
+            resstock_scale_factor,
+            f"{eia_total_residential_kwh:,.0f}",
+        )
+    else:
+        total_residential_kwh = eia_total_residential_kwh
 
     with open(args.path_rate_case_rr) as f:
         rate_case_data = yaml.safe_load(f)
@@ -354,13 +521,24 @@ def main() -> None:
                 "total_budget": round(total_budget, 2),
             }
         elif charge_unit == "$/kWh":
-            avg_rate = _day_weighted_avg_rate(monthly, month_list)
-            total_budget = avg_rate * total_residential_kwh
-            entry = {
-                "charge_unit": charge_unit,
-                "avg_monthly_rate": round(avg_rate, 10),
-                "total_budget": round(total_budget, 2),
-            }
+            if resstock_monthly_kwh is not None:
+                total_budget = _resstock_monthly_budget(
+                    monthly, month_list, resstock_monthly_kwh
+                )
+                entry = {
+                    "charge_unit": charge_unit,
+                    "budget_method": "resstock",
+                    "total_budget": round(total_budget, 2),
+                }
+            else:
+                avg_rate = _day_weighted_avg_rate(monthly, month_list)
+                total_budget = avg_rate * total_residential_kwh
+                entry = {
+                    "charge_unit": charge_unit,
+                    "budget_method": "eia",
+                    "avg_monthly_rate": round(avg_rate, 10),
+                    "total_budget": round(total_budget, 2),
+                }
         else:
             logging.warning(
                 "Skipping %s: unsupported charge_unit %r", slug, charge_unit
@@ -404,18 +582,32 @@ def main() -> None:
         total_delivery_revenue_requirement + supply_revenue_requirement_topups, 2
     )
 
+    load_method = "resstock" if args.use_resstock_loads else "eia"
+
     out: dict[str, object] = {
         "utility": utility,
+        "load_method": load_method,
         "delivery_revenue_requirement_from_rate_case": delivery_revenue_requirement_from_rate_case,
         "delivery_revenue_requirement_topups": delivery_revenue_requirement_topups,
         "supply_revenue_requirement_topups": supply_revenue_requirement_topups,
         "total_delivery_revenue_requirement": total_delivery_revenue_requirement,
         "total_delivery_and_supply_revenue_requirement": total_delivery_and_supply_revenue_requirement,
         "total_residential_kwh": round(total_residential_kwh, 2),
+        "eia_total_residential_kwh": round(eia_total_residential_kwh, 2),
         "eia_year": eia_year,
         "delivery_top_ups": delivery_top_ups,
         "supply_top_ups": supply_top_ups,
     }
+
+    if args.use_resstock_loads and resstock_monthly_kwh is not None:
+        out["resstock_monthly_kwh"] = {
+            m: round(kwh, 2) for m, kwh in sorted(resstock_monthly_kwh.items())
+        }
+        out["resstock_scale_factor"] = (
+            round(resstock_scale_factor, 6)
+            if resstock_scale_factor is not None
+            else None
+        )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w") as f:
         yaml.safe_dump(
