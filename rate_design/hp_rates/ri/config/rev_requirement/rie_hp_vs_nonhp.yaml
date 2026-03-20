@@ -1,15 +1,15 @@
 utility: rie
 group_col: has_hp
 cross_subsidy_col: BAT_percustomer
-source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/ri_20260319a_r1-8/20260319_164057_ri_rie_run1_up00_precalc__flat
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/ri_20260319b_r1-16/20260319_204553_ri_rie_run1_up00_precalc__default
 total_delivery_revenue_requirement: 542556587.55
 total_delivery_and_supply_revenue_requirement: 955506957.66
 subclass_revenue_requirements:
   non-hp:
-    delivery: 531018474.4165695
-    supply: 394774670.83571494
-    total: 925793145.2522844
+    delivery: 531018474.41656935
+    supply: 394774670.8357148
+    total: 925793145.2522842
   hp:
-    delivery: 11538113.133430582
-    supply: 18175699.27428508
-    total: 29713812.407715663
+    delivery: 11538113.133430585
+    supply: 18175699.274285063
+    total: 29713812.40771565
