@@ -2,7 +2,16 @@
 
 Reference docs and research notes for agents. **When you add or remove a file under `context/`, update this index.**
 
-See **AGENTS.md → Reference context** for conventions. Top-level dirs: **domain/** (how does this work in the real world?), **methods/** (how do we justify and operationalize this?), **code/** (how do I implement or run this?), **docs/** (extracted technical docs), **sources/** (PDF-extracted source material).
+See **AGENTS.md → Reference context** for conventions. Top-level dirs: **plans/** (implementation plans for multi-step decisions), **domain/** (how does this work in the real world?), **methods/** (how do we justify and operationalize this?), **code/** (how do I implement or run this?), **docs/** (extracted technical docs), **sources/** (PDF-extracted source material).
+
+## plans/
+
+Implementation plans for multi-step design decisions. These are living documents updated as decisions evolve.
+
+| File                                                | Purpose                                                                                                                                                                                                    |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| hp_seasonal_discount_plan_a_structure_preserving.md | Plan A (superseded): structure-preserving HP seasonal discount that clones default tariff structure and scales winter rates by a cross-subsidy factor. Rejected due to mixed-period splitting complexity.   |
+| hp_seasonal_discount_plan_b_simplified_flat.md      | Plan B (active): simplified flat seasonal discount using revenue-based rate derivation from run-1 bill outputs. Fixes `_extract_default_rate_from_tariff_config` bug for `BASE_TARIFF_PATTERN=default`. |
 
 ## domain/
 
