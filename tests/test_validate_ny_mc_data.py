@@ -7,7 +7,11 @@ from pathlib import Path
 
 import polars as pl
 
-from utils.post.validate_ny_mc_data import check_mc, load_mc
+from utils.post.validate_ny_mc_data import (
+    check_mc,
+    load_mc,
+    mc_data_to_timeseries_long,
+)
 
 
 def _timestamps_8760(year: int) -> list[datetime]:
@@ -95,3 +99,17 @@ def test_bulk_tx_expected_nonzero_is_state_aware_for_ri() -> None:
         "expected 100 nonzero hours" in issue for issue in ri_result["issues"]
     )
     assert any("expected 80 nonzero hours" in issue for issue in ny_result["issues"])
+
+
+def test_mc_data_to_timeseries_long_shape() -> None:
+    """Long timeseries table has one row per hour per component."""
+    year = 2025
+    ts = _timestamps_8760(year)
+    mc_data = {
+        "supply_energy": pl.DataFrame({"timestamp": ts, "mc_kwh": [0.1] * 8760}),
+        "bulk_tx": pl.DataFrame({"timestamp": ts, "mc_kwh": [0.0] * 8760}),
+    }
+    plot_keys = ["supply_energy", "bulk_tx"]
+    long_df = mc_data_to_timeseries_long(mc_data, plot_keys)
+    assert long_df.height == 8760 * 2
+    assert long_df["component"].n_unique() == 2
