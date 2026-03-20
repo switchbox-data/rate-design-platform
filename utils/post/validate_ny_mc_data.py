@@ -5,9 +5,18 @@ and dist/sub-TX
 marginal cost parquets from S3, runs sanity checks (row counts, nulls, non-negative
 values, expected nonzero hour counts, year matching), prints a text summary, and
 generates:
-  1. A 5-panel heatmap grid per utility (hour-of-day x day-of-year, magma colormap,
-     independent color scale per MC type).
-  2. A faceted histogram of supply energy MC across all utilities.
+  1. A heatmap grid per utility (hour-of-day x day-of-year, plasma colormap,
+     independent color scale per MC type). Uses all loaded types in
+     ``HEATMAP_ORDER``; **``supply_ancillary`` is optional** — plots run when the
+     same **four** components as ``analysis.qmd`` exist (energy, capacity,
+     bulk TX, dist/sub-TX).
+  2. A **total MC** heatmap (sum of all components) styled like
+     ``reports2/.../analyze_marginal_costs.qmd`` (green gradient).
+  3. A **faceted** heatmap (one panel per MC type) like
+     ``reports2/.../tou_investigation.qmd``.
+  4. A faceted histogram of supply energy MC across all utilities.
+  5. Per utility: **time series** of each MC component (faceted lines) and of **total**
+     MC (sum of loaded components).
 
 Usage:
     uv run python utils/post/validate_ny_mc_data.py --state ny --output-dir /tmp/mc_validation
@@ -23,18 +32,26 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
+import matplotlib
+
+matplotlib.use("Agg")  # headless-safe PNG writes (SSH / CI)
+
 import polars as pl
 from plotnine import (
     aes,
+    coord_cartesian,
     element_text,
     facet_wrap,
     geom_blank,
     geom_histogram,
+    geom_line,
     geom_tile,
     ggplot,
     labs,
     scale_fill_cmap,
+    scale_fill_gradient,
     scale_x_continuous,
+    scale_x_datetime,
     scale_y_reverse,
     theme,
     theme_minimal,
@@ -125,7 +142,7 @@ STATE_EXPECTED_NONZERO_OVERRIDES: dict[str, dict[str, int | None]] = {
 SUMMER_MONTHS = {4, 5, 6, 7, 8, 9}
 WINTER_MONTHS = {1, 2, 3, 10, 11, 12}
 
-# Heatmap panel order (row-major): top row then bottom row.
+# Heatmap / validation iteration order (ancillary last — optional on S3 for some vintages).
 HEATMAP_ORDER = [
     "supply_energy",
     "supply_capacity",
@@ -133,6 +150,16 @@ HEATMAP_ORDER = [
     "bulk_tx",
     "dist_sub_tx",
 ]
+
+# Minimum set to draw heatmaps (matches reports2 NY ``analysis.qmd`` MC_SOURCES; no ancillary).
+HEATMAP_REQUIRED_FOR_PLOTS: frozenset[str] = frozenset(
+    {
+        "supply_energy",
+        "supply_capacity",
+        "bulk_tx",
+        "dist_sub_tx",
+    }
+)
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
@@ -421,6 +448,79 @@ def print_check_results(r: dict) -> None:
 # ── Heatmap data prep ─────────────────────────────────────────────────────────
 
 
+def combine_mc_total(mc_data: dict[str, pl.DataFrame], keys: list[str]) -> pl.DataFrame:
+    """Join normalized MC types on ``timestamp`` and sum to total $/kWh."""
+    if not keys:
+        msg = "combine_mc_total: at least one mc key required"
+        raise ValueError(msg)
+    first = mc_data[keys[0]].select("timestamp", pl.col(NORMALIZED_COL).alias("_s0"))
+    joined = first
+    for i, mc_key in enumerate(keys[1:], start=1):
+        joined = joined.join(
+            mc_data[mc_key].select(
+                "timestamp",
+                pl.col(NORMALIZED_COL).alias(f"_s{i}"),
+            ),
+            on="timestamp",
+            how="inner",
+        )
+    sum_cols = [f"_s{i}" for i in range(len(keys))]
+    return joined.with_columns(pl.sum_horizontal(sum_cols).alias("mc_total")).select(
+        "timestamp",
+        "mc_total",
+    )
+
+
+def prepare_total_mc_heatmap_df(df: pl.DataFrame) -> pl.DataFrame:
+    """Long table for total-MC tile plot (matches notebook ``mc-heatmap`` cell)."""
+    return df.with_columns(
+        pl.col("timestamp").dt.hour().alias("hour"),
+        pl.col("timestamp").dt.ordinal_day().alias("day_of_year"),
+    ).select("hour", "day_of_year", pl.col("mc_total").alias("value"))
+
+
+def mc_data_to_long_faceted(
+    mc_data: dict[str, pl.DataFrame],
+    plot_keys: list[str],
+) -> pl.DataFrame:
+    """Unpivot MC types for ``facet_wrap`` heatmaps."""
+    frames: list[pl.DataFrame] = []
+    for mc_key in plot_keys:
+        info = MC_TYPE_DEFS[mc_key]
+        frames.append(
+            mc_data[mc_key]
+            .with_columns(
+                pl.col("timestamp").dt.hour().alias("hour"),
+                pl.col("timestamp").dt.ordinal_day().alias("day_of_year"),
+            )
+            .select(
+                "day_of_year",
+                "hour",
+                pl.col(NORMALIZED_COL).alias("value"),
+                pl.lit(info["label"]).alias("component"),
+            )
+        )
+    return pl.concat(frames)
+
+
+def mc_data_to_timeseries_long(
+    mc_data: dict[str, pl.DataFrame],
+    plot_keys: list[str],
+) -> pl.DataFrame:
+    """Unpivot MC types for time-series line plots (timestamp on x-axis)."""
+    frames: list[pl.DataFrame] = []
+    for mc_key in plot_keys:
+        info = MC_TYPE_DEFS[mc_key]
+        frames.append(
+            mc_data[mc_key].select(
+                "timestamp",
+                pl.col(NORMALIZED_COL).alias("value"),
+                pl.lit(info["label"]).alias("component"),
+            )
+        )
+    return pl.concat(frames)
+
+
 def prepare_heatmap_df(df: pl.DataFrame) -> pl.DataFrame:
     """Add hour-of-day and day-of-year columns for heatmap plotting.
 
@@ -506,15 +606,145 @@ def _make_blank_panel() -> ggplot:
     )
 
 
+def make_total_mc_heatmap(
+    mc_total_df: pl.DataFrame,
+    utility: str,
+    year: int,
+) -> ggplot:
+    """Total $/kWh by hour × day — same spirit as ``analyze_marginal_costs.qmd`` ``mc-heatmap``."""
+    heat_df = prepare_total_mc_heatmap_df(mc_total_df)
+    breaks, labels = _month_breaks(year)
+    return (
+        ggplot(heat_df, aes(x="day_of_year", y="hour", fill="value"))
+        + geom_tile()
+        + scale_fill_gradient(low="#f7fcf5", high="#005a32", name="$/kWh")
+        + scale_x_continuous(breaks=breaks, labels=labels)
+        + scale_y_reverse()
+        + coord_cartesian(expand=False)
+        + labs(
+            title=f"{utility}: total hourly MC ({year})",
+            x="Day of year",
+            y="Hour",
+        )
+        + theme_minimal()
+        + theme(figure_size=(10, 4), legend_position="right")
+    )
+
+
+def make_mc_timeseries_faceted(
+    long_df: pl.DataFrame,
+    utility: str,
+    year: int,
+    plot_keys: list[str],
+) -> ggplot:
+    """One line chart per MC component — hourly $/kWh vs time."""
+    comp_order = [MC_TYPE_DEFS[k]["label"] for k in plot_keys]
+    plot_df = long_df.with_columns(pl.col("component").cast(pl.Enum(comp_order)))
+    n_panels = len(plot_keys)
+    fig_h = min(2.8 * float(n_panels), 22.0)
+    return (
+        ggplot(plot_df, aes(x="timestamp", y="value"))
+        + geom_line(size=0.25, color="#023047", alpha=0.9)
+        + facet_wrap("component", ncol=1, scales="free_y")
+        + scale_x_datetime(date_breaks="1 month", date_labels="%b")
+        + labs(
+            title=f"{utility}: marginal cost time series ({year})",
+            x="",
+            y=NORMALIZED_UNITS,
+        )
+        + theme_minimal()
+        + theme(
+            figure_size=(12, fig_h),
+            plot_title=element_text(size=10),
+            axis_title=element_text(size=8),
+            axis_text=element_text(size=7),
+            strip_text=element_text(size=8),
+        )
+    )
+
+
+def make_mc_timeseries_total(
+    mc_total_df: pl.DataFrame,
+    utility: str,
+    year: int,
+) -> ggplot:
+    """Single line: sum of loaded MC components vs time."""
+    return (
+        ggplot(mc_total_df, aes(x="timestamp", y="mc_total"))
+        + geom_line(size=0.35, color="#005a32", alpha=0.9)
+        + scale_x_datetime(date_breaks="1 month", date_labels="%b")
+        + labs(
+            title=(f"{utility}: total marginal cost (sum of components) ({year})"),
+            x="",
+            y=NORMALIZED_UNITS,
+        )
+        + theme_minimal()
+        + theme(
+            figure_size=(14, 4),
+            plot_title=element_text(size=10),
+            axis_title=element_text(size=9),
+            axis_text=element_text(size=7),
+        )
+    )
+
+
+def make_faceted_mc_heatmaps(
+    long_df: pl.DataFrame,
+    utility: str,
+    year: int,
+    plot_keys: list[str],
+) -> ggplot:
+    """One tile heatmap per component — same layout as ``tou_investigation.qmd`` fig-coned-mc-heatmaps."""
+    comp_order = [MC_TYPE_DEFS[k]["label"] for k in plot_keys]
+    plot_df = long_df.with_columns(pl.col("component").cast(pl.Enum(comp_order)))
+    breaks_q = [1, 91, 182, 274, 365]
+    labels_q = ["Jan", "Apr", "Jul", "Oct", "Dec"]
+    return (
+        ggplot(plot_df, aes(x="day_of_year", y="hour", fill="value"))
+        + geom_tile()
+        + facet_wrap("component", ncol=2)
+        + scale_fill_gradient(low="#FFFFFF", high="#023047", name="$/kWh")
+        + scale_x_continuous(breaks=breaks_q, labels=labels_q)
+        + scale_y_reverse()
+        + coord_cartesian(expand=False)
+        + labs(
+            title=f"{utility}: marginal costs by hour and day ({year})",
+            x="",
+            y="Hour",
+            fill="$/kWh",
+        )
+        + theme_minimal()
+        + theme(figure_size=(10.5, 8))
+    )
+
+
+def _compose_heatmap_panels(plots: list[ggplot]) -> ggplot | Compose:
+    """Tile plots in rows of two (pad with a blank panel if odd count)."""
+    if not plots:
+        msg = "_compose_heatmap_panels: empty plot list"
+        raise ValueError(msg)
+    if len(plots) == 1:
+        return plots[0]
+    padded = list(plots)
+    if len(padded) % 2 == 1:
+        padded.append(_make_blank_panel())
+    rows: list = []
+    for i in range(0, len(padded), 2):
+        rows.append(padded[i] | padded[i + 1])
+    out = rows[0]
+    for row in rows[1:]:
+        out = out / row
+    return out
+
+
 def make_heatmap_grid(
     mc_data: dict[str, pl.DataFrame],
     check_results: dict[str, dict],
-    utility: str,
-    year: int,
-) -> Compose:
-    """Compose 5 plotnine heatmaps into a 2+2+1 panel grid."""
+    plot_keys: list[str],
+) -> ggplot | Compose:
+    """Compose one plotnine heatmap per loaded MC type (2 columns, as many rows as needed)."""
     plots: list[ggplot] = []
-    for mc_key in HEATMAP_ORDER:
+    for mc_key in plot_keys:
         info = MC_TYPE_DEFS[mc_key]
         r = check_results[mc_key]
         subtitle = (
@@ -524,11 +754,7 @@ def make_heatmap_grid(
         )
         heatmap_df = prepare_heatmap_df(mc_data[mc_key])
         plots.append(_make_heatmap(heatmap_df, subtitle, year=r["year"]))
-
-    row1 = plots[0] | plots[1]
-    row2 = plots[2] | plots[3]
-    row3 = plots[4] | _make_blank_panel()
-    return row1 / row2 / row3
+    return _compose_heatmap_panels(plots)
 
 
 def make_energy_histogram(energy_frames: list[pl.DataFrame]) -> ggplot:
@@ -713,18 +939,58 @@ def main() -> None:
                         f"{loaded_keys[0]} and {k}: {len(diff)} differences"
                     )
 
-        # Generate 5-panel heatmap grid
-        expected_panels = len(HEATMAP_ORDER)
-        if len(mc_data) == expected_panels:
-            grid = make_heatmap_grid(mc_data, all_checks, utility, year)
-            path_png = output_dir / f"mc_heatmap_{utility}.png"
-            grid.save(str(path_png), dpi=150, verbose=False)
-            print(f"\n  Saved heatmap: {path_png}")
-        else:
+        # Heatmaps: require the 4-component stack used in analysis.qmd; ancillary is optional.
+        plot_keys = [k for k in HEATMAP_ORDER if k in mc_data]
+        if not HEATMAP_REQUIRED_FOR_PLOTS.issubset(mc_data.keys()):
+            missing_req = sorted(HEATMAP_REQUIRED_FOR_PLOTS - mc_data.keys())
             print(
-                f"\n  Skipping heatmap for {utility}: "
-                f"only {len(mc_data)}/{expected_panels} MC types loaded"
+                f"\n  Skipping heatmaps for {utility}: missing {missing_req}. "
+                f"Required for plots: {sorted(HEATMAP_REQUIRED_FOR_PLOTS)}."
             )
+        else:
+            if "supply_ancillary" not in mc_data:
+                print(
+                    "\n  Note: supply_ancillary not loaded — heatmaps use loaded components only "
+                    "(four-way stack matches analysis.qmd when ancillary is absent)."
+                )
+            try:
+                grid = make_heatmap_grid(mc_data, all_checks, plot_keys)
+                path_png = output_dir / f"mc_heatmap_{utility}.png"
+                grid.save(str(path_png), dpi=150, verbose=False)
+                print(f"\n  Saved heatmap grid: {path_png}")
+
+                mc_total_df = combine_mc_total(mc_data, plot_keys)
+                path_total = output_dir / f"mc_heatmap_total_{utility}.png"
+                make_total_mc_heatmap(mc_total_df, utility, year).save(
+                    str(path_total), dpi=150, verbose=False
+                )
+                print(f"  Saved total MC heatmap: {path_total}")
+
+                long_faceted = mc_data_to_long_faceted(mc_data, plot_keys)
+                path_faceted = output_dir / f"mc_heatmap_faceted_{utility}.png"
+                make_faceted_mc_heatmaps(long_faceted, utility, year, plot_keys).save(
+                    str(path_faceted), dpi=150, verbose=False
+                )
+                print(f"  Saved faceted MC heatmap: {path_faceted}")
+
+                ts_long = mc_data_to_timeseries_long(mc_data, plot_keys)
+                path_ts = output_dir / f"mc_timeseries_{utility}.png"
+                make_mc_timeseries_faceted(ts_long, utility, year, plot_keys).save(
+                    str(path_ts), dpi=150, verbose=False
+                )
+                print(f"  Saved MC time series (by component): {path_ts}")
+
+                path_ts_total = output_dir / f"mc_timeseries_total_{utility}.png"
+                make_mc_timeseries_total(mc_total_df, utility, year).save(
+                    str(path_ts_total), dpi=150, verbose=False
+                )
+                print(f"  Saved MC time series (total): {path_ts_total}")
+            except Exception as exc:
+                print(
+                    f"\n  ERROR saving heatmaps for {utility}: {exc}",
+                    file=sys.stderr,
+                )
+                raise
 
     # Faceted energy histogram
     if energy_frames:

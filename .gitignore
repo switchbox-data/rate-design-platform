@@ -3,6 +3,7 @@ __pycache__/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+.prek-cache/
 .DS_Store
 dev_no_commit.py
 
