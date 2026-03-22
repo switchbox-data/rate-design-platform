@@ -130,6 +130,12 @@ Match existing style: Ruff for formatting/lint, **ty** for type checking, dprint
 
 **LaTeX in markdown:** GitHub's MathJax renderer does not support escaped underscores inside `\text{}` (e.g. `\text{avg\_mc\_peak}` will fail). Use proper math symbols instead: `\overline{MC}_{\text{peak}}`, `MC_h`, `L_h`, etc. Bare subscripts and `\text{}` with simple words (no underscores) are fine.
 
+## Git commits
+
+- **Never write commit messages via a temp file** (e.g. `/tmp/commit_msg.txt`). Pass the message directly with `-m "..."` or let the user commit manually.
+- **Never add co-author trailers** (`Co-authored-by: ...`) or any other generated-by attribution to commit messages or PR bodies.
+- **For `gh pr create` body**: use `--body-file -` with a shell heredoc (stdin) to avoid attribution injection — do NOT use `--body "..."` with multi-line strings or `--body-file /tmp/...`. Example: `gh pr create --body-file - <<'PRBODY'\n...\nPRBODY`
+
 ## Code Quality (required before every commit)
 
 - Run `just check` — no linter errors, no type errors, no warnings
