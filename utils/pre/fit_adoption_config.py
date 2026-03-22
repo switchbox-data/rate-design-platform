@@ -38,12 +38,14 @@ from plotnine import (
     aes,
     element_line,
     element_text,
+    geom_area,
     geom_line,
     geom_point,
     geom_vline,
     ggplot,
     labs,
     scale_color_manual,
+    scale_fill_manual,
     scale_x_continuous,
     scale_y_continuous,
     theme,
@@ -365,6 +367,80 @@ def make_plot(
     log.info("wrote %s", path_plot)
 
 
+def make_stacked_plot(
+    params: dict[int, tuple[float, float, float]],
+    run_years: list[int],
+    path_plot: Path,
+) -> None:
+    """Save a stacked area chart matching the NYISO Gold Book visual style."""
+    import pandas as pd  # noqa: PLC0415
+
+    # Stacking order bottom→top mirrors the NYISO chart.
+    stack_order = [_UPGRADE_LABELS[uid] for uid in [2, 4, 5, 1]]
+    fill_map = {_UPGRADE_LABELS[uid]: _UPGRADE_COLORS[uid] for uid in [2, 4, 5, 1]}
+
+    curve_rows: list[dict] = []
+    for uid, (L, k, t0) in params.items():
+        fracs = _logistic(_PLOT_YEARS_DENSE, L, k, t0)
+        for yr, frac in zip(_PLOT_YEARS_DENSE, fracs):
+            curve_rows.append(
+                {
+                    "year": float(yr),
+                    "technology": _UPGRADE_LABELS[uid],
+                    "pct": max(float(frac) * 100.0, 0.0),
+                }
+            )
+
+    curves_pd = pl.DataFrame(curve_rows).to_pandas()
+    # Reverse stack order so the first level sits at the bottom in geom_area.
+    curves_pd["technology"] = pd.Categorical(
+        curves_pd["technology"], categories=stack_order
+    )
+
+    vlines_df = pl.DataFrame(
+        {"year": [float(y) for y in run_years if y > 2025]}
+    ).to_pandas()
+
+    p = (
+        ggplot(curves_pd, aes(x="year", y="pct", fill="technology"))
+        + geom_area(position="stack", alpha=0.9)
+        + geom_vline(
+            data=vlines_df,
+            mapping=aes(xintercept="year"),
+            color="white",
+            linetype="dashed",
+            size=0.5,
+            alpha=0.7,
+        )
+        + scale_fill_manual(values=fill_map, breaks=stack_order)
+        + scale_x_continuous(
+            breaks=list(range(2025, 2060, 5)),
+            limits=(2024, 2058),
+        )
+        + scale_y_continuous(
+            labels=lambda x: [f"{v:.0f}%" for v in x],
+        )
+        + labs(
+            title="NYCA HP adoption trajectory — NYISO Gold Book 2025 logistic fit (stacked)",
+            x="Year",
+            y="Share of NYCA housing units",
+            fill="Technology",
+        )
+        + theme_minimal()
+        + theme(
+            plot_title=element_text(size=11),
+            axis_title=element_text(size=10),
+            legend_title=element_text(size=9),
+            legend_text=element_text(size=9),
+            panel_grid_minor=element_line(size=0),
+        )
+    )
+
+    path_plot.parent.mkdir(parents=True, exist_ok=True)
+    p.save(str(path_plot), dpi=150, width=9, height=5)
+    log.info("wrote %s", path_plot)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -386,7 +462,14 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         dest="path_plot",
         default=None,
-        help="Optional path for the curve-fit diagnostic plot (.png).",
+        help="Optional path for the curve-fit line plot (.png).",
+    )
+    parser.add_argument(
+        "--stacked-plot-output",
+        metavar="PATH",
+        dest="path_stacked_plot",
+        default=None,
+        help="Optional path for the stacked area plot (.png).",
     )
     parser.add_argument(
         "--run-years",
@@ -417,6 +500,9 @@ def main() -> None:
 
     if args.path_plot:
         make_plot(params, run_years, Path(args.path_plot))
+
+    if args.path_stacked_plot:
+        make_stacked_plot(params, run_years, Path(args.path_stacked_plot))
 
 
 if __name__ == "__main__":

@@ -691,7 +691,8 @@ path_adoption_config_dir := path_config / "adoption"
 fit-adoption-config config_name="nyca_electrification":
     uv run python {{ path_repo }}/utils/pre/fit_adoption_config.py \
         --output "{{ path_adoption_config_dir }}/{{ config_name }}.yaml" \
-        --plot-output "{{ path_adoption_config_dir }}/{{ config_name }}_curves.png"
+        --plot-output "{{ path_adoption_config_dir }}/{{ config_name }}_curves.png" \
+        --stacked-plot-output "{{ path_adoption_config_dir }}/{{ config_name }}_stacked.png"
 
 # Materialize per-year ResStock data for a mixed-upgrade adoption trajectory.
 # Reads the adoption config YAML, assigns buildings to upgrades per year, and
@@ -712,7 +713,7 @@ materialize-adoption config_name="default":
 #
 # Example:
 #   just s ny generate-adoption-scenarios nyca_electrification 1,2,5,6
-generate-adoption-scenarios config_name="default" runs="1,2":
+generate-adoption-scenarios config_name="default" runs="1,2,5,6":
     uv run python {{ path_repo }}/utils/pre/generate_adoption_scenario_yamls.py \
         --base-scenario "{{ path_scenario_config }}" \
         --runs "{{ runs }}" \
@@ -721,6 +722,8 @@ generate-adoption-scenarios config_name="default" runs="1,2":
         --output "{{ path_scenarios }}/scenarios_{{ utility }}_adoption.yaml"
 
 # Run a single adoption scenario by (year-indexed) run number.
+# Run keys use the scheme (year_index + 1) * 100 + base_run_num, matching the
+# output of generate_adoption_scenario_yamls.py (e.g. 101, 102, 201, 202, ...).
 #
 # Example:
 #   just s ny run-adoption-scenario 101
@@ -729,25 +732,45 @@ run-adoption-scenario run_num:
     set -euo pipefail
     : "${RDP_BATCH:?Set RDP_BATCH before running}"
     export RDP_BATCH
+    log_dir="${HOME}/rdp_run_logs"
+    mkdir -p "${log_dir}"
+    log_file="${log_dir}/{{ utility }}_adoption_run{{ run_num }}_${RDP_BATCH}.log"
+    echo ">> run-adoption-scenario {{ run_num }}: logging to ${log_file}" >&2
     uv run python {{ path_repo }}/rate_design/hp_rates/run_scenario.py \
+        --state "{{ state }}" \
         --scenario-config "{{ path_scenarios }}/scenarios_{{ utility }}_adoption.yaml" \
-        --run-num "{{ run_num }}"
+        --run-num "{{ run_num }}" \
+        --output-dir "{{ path_outputs_base }}/${RDP_BATCH}" \
+        2>&1 | tee "${log_file}"
 
 # Orchestrate the full adoption pipeline: materialize → generate scenarios → run all.
+# Iterates over all (year × run) combinations using the key scheme
+# (year_index + 1) * 100 + base_run_num produced by generate_adoption_scenario_yamls.py.
 #
 # Example:
 #   RDP_BATCH=ny_20260320_adoption just s ny run-adoption-all nyca_electrification 1,2
-run-adoption-all config_name="default" runs="1,2":
+run-adoption-all config_name="default" runs="1,2,5,6":
     #!/usr/bin/env bash
     set -euo pipefail
     : "${RDP_BATCH:?Set RDP_BATCH before running}"
     export RDP_BATCH
     just materialize-adoption "{{ config_name }}"
     just generate-adoption-scenarios "{{ config_name }}" "{{ runs }}"
-    IFS=',' read -ra nums <<< "{{ runs }}"
-    for num in "${nums[@]}"; do
-        echo ">> run-adoption-all: run-${num}" >&2
-        just run-adoption-scenario "${num}"
+    # Determine number of run years from the adoption config.
+    run_years_count=$(uv run python -c "
+import yaml
+with open('{{ path_adoption_config_dir }}/{{ config_name }}.yaml') as f:
+    cfg = yaml.safe_load(f)
+years = cfg.get('run_years', cfg.get('year_labels', []))
+print(len(years))
+")
+    IFS=',' read -ra base_nums <<< "{{ runs }}"
+    for yi in $(seq 1 "$run_years_count"); do
+        for base_run in "${base_nums[@]}"; do
+            key=$((yi * 100 + base_run))
+            echo ">> run-adoption-all: run-${key} (year_index=$((yi - 1)), base_run=${base_run})" >&2
+            just run-adoption-scenario "${key}"
+        done
     done
 
 # =============================================================================
