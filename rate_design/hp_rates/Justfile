@@ -683,6 +683,16 @@ run-subset runs:
 
 path_adoption_config_dir := path_config / "adoption"
 
+# Fit logistic S-curves to NYISO Gold Book 2025 digitized data and write the
+# adoption config YAML + a curve-fit diagnostic plot.
+#
+# Example:
+#   just s ny fit-adoption-config nyca_electrification
+fit-adoption-config config_name="nyca_electrification":
+    uv run python {{ path_repo }}/utils/pre/fit_adoption_config.py \
+        --output "{{ path_adoption_config_dir }}/{{ config_name }}.yaml" \
+        --plot-output "{{ path_adoption_config_dir }}/{{ config_name }}_curves.png"
+
 # Materialize per-year ResStock data for a mixed-upgrade adoption trajectory.
 # Reads the adoption config YAML, assigns buildings to upgrades per year, and
 # writes year=<N>/ directories under the adoption output path.
