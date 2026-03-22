@@ -738,12 +738,12 @@ run-adoption-scenario run_num:
 # Example:
 #   RDP_BATCH=ny_20260320_adoption just s ny run-adoption-all nyca_electrification 1,2
 run-adoption-all config_name="default" runs="1,2":
-    just materialize-adoption "{{ config_name }}"
-    just generate-adoption-scenarios "{{ config_name }}" "{{ runs }}"
     #!/usr/bin/env bash
     set -euo pipefail
     : "${RDP_BATCH:?Set RDP_BATCH before running}"
     export RDP_BATCH
+    just materialize-adoption "{{ config_name }}"
+    just generate-adoption-scenarios "{{ config_name }}" "{{ runs }}"
     IFS=',' read -ra nums <<< "{{ runs }}"
     for num in "${nums[@]}"; do
         echo ">> run-adoption-all: run-${num}" >&2
