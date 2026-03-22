@@ -678,6 +678,69 @@ run-subset runs:
     done
 
 # =============================================================================
+# ADOPTION TRAJECTORY (mixed-upgrade)
+# =============================================================================
+
+path_adoption_config_dir := path_config / "adoption"
+
+# Materialize per-year ResStock data for a mixed-upgrade adoption trajectory.
+# Reads the adoption config YAML, assigns buildings to upgrades per year, and
+# writes year=<N>/ directories under the adoption output path.
+#
+# Example:
+#   just s ny materialize-adoption nyca_electrification
+materialize-adoption config_name="default":
+    uv run python {{ path_repo }}/utils/pre/materialize_mixed_upgrade.py \
+        --state "{{ state }}" \
+        --utility "{{ utility }}" \
+        --adoption-config "{{ path_adoption_config_dir }}/{{ config_name }}.yaml" \
+        --path-resstock-release "{{ path_resstock_release }}" \
+        --output-dir "{{ path_resstock_release }}/adoption/{{ config_name }}"
+
+# Generate per-year scenario YAML entries for adoption runs.
+# Output: config/scenarios/scenarios_<utility>_adoption.yaml
+#
+# Example:
+#   just s ny generate-adoption-scenarios nyca_electrification 1,2,5,6
+generate-adoption-scenarios config_name="default" runs="1,2":
+    uv run python {{ path_repo }}/utils/pre/generate_adoption_scenario_yamls.py \
+        --base-scenario "{{ path_scenario_config }}" \
+        --runs "{{ runs }}" \
+        --adoption-config "{{ path_adoption_config_dir }}/{{ config_name }}.yaml" \
+        --materialized-dir "{{ path_resstock_release }}/adoption/{{ config_name }}" \
+        --output "{{ path_scenarios }}/scenarios_{{ utility }}_adoption.yaml"
+
+# Run a single adoption scenario by (year-indexed) run number.
+#
+# Example:
+#   just s ny run-adoption-scenario 101
+run-adoption-scenario run_num:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${RDP_BATCH:?Set RDP_BATCH before running}"
+    export RDP_BATCH
+    uv run python {{ path_repo }}/rate_design/hp_rates/run_scenario.py \
+        --scenario-config "{{ path_scenarios }}/scenarios_{{ utility }}_adoption.yaml" \
+        --run-num "{{ run_num }}"
+
+# Orchestrate the full adoption pipeline: materialize → generate scenarios → run all.
+#
+# Example:
+#   RDP_BATCH=ny_20260320_adoption just s ny run-adoption-all nyca_electrification 1,2
+run-adoption-all config_name="default" runs="1,2":
+    just materialize-adoption "{{ config_name }}"
+    just generate-adoption-scenarios "{{ config_name }}" "{{ runs }}"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${RDP_BATCH:?Set RDP_BATCH before running}"
+    export RDP_BATCH
+    IFS=',' read -ra nums <<< "{{ runs }}"
+    for num in "${nums[@]}"; do
+        echo ">> run-adoption-all: run-${num}" >&2
+        just run-adoption-scenario "${num}"
+    done
+
+# =============================================================================
 # HELPERS
 # =============================================================================
 

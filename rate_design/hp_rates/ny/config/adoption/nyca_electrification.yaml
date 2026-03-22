@@ -1,0 +1,25 @@
+# NYCA building electrification adoption trajectory (NYISO Gold Book 2025).
+#
+# Fractions represent the share of total buildings assigned to each ResStock
+# upgrade per year index.  Remaining buildings stay at upgrade 0 (baseline).
+# Year indices map to calendar years via year_labels.
+#
+# Technology → ResStock upgrade mapping:
+#   ASHP Full Capacity  → 2  (cold-climate ASHP, 90% capacity @ 5F, elec backup)
+#   ASHP Dual Fuel      → 4  (ENERGY STAR ASHP + existing fossil backup)
+#   Ground Source HP    → 5  (geothermal heat pump)
+#   Supplemental Heat   → 1  (ENERGY STAR ASHP, 50% capacity @ 5F, elec backup)
+#   Electric Resistance → baseline upgrade 0, already captured there
+
+scenario_name: nyca_electrification
+random_seed: 42
+
+# TODO: Replace placeholder fractions with values derived from NYISO Gold Book
+# 2025 NYCA electrification forecast once data extraction is complete.
+scenario:
+  2: [0.005, 0.015, 0.035, 0.060, 0.095, 0.130, 0.160] # ASHP full capacity
+  4: [0.002, 0.008, 0.018, 0.030, 0.045, 0.060, 0.075] # ASHP dual fuel
+  5: [0.001, 0.003, 0.005, 0.008, 0.012, 0.018, 0.025] # ground source HP
+  1: [0.002, 0.006, 0.015, 0.030, 0.055, 0.090, 0.130] # supplemental heat
+
+year_labels: [2025, 2028, 2031, 2034, 2037, 2040, 2043]
