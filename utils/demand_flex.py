@@ -52,6 +52,7 @@ class DemandFlexResult:
     costs_by_type: Any
     precalc_mapping: pd.DataFrame
     tou_tariff_keys: list[str]
+    mc_delta_by_tou_tariff: dict[str, float]
 
 
 # ---------------------------------------------------------------------------
@@ -205,42 +206,34 @@ def recompute_tou_precalc_mapping(
 
 
 # ---------------------------------------------------------------------------
-# Subclass RR split (demand-flex)
+# Per-TOU-subclass MC helper
 # ---------------------------------------------------------------------------
 
 
-def split_revenue_requirement_by_tou(
-    revenue_requirement_total: float,
-    subclass_baseline: dict[str, float],
-    tou_tariff_keys: list[str],
-) -> dict[str, float]:
-    """Split system RR so only TOU subclasses absorb the post-flex reduction.
+def _compute_tou_subclass_mc(
+    load_elec: pd.DataFrame,
+    tou_bldg_ids: set[int],
+    customer_metadata: pd.DataFrame,
+    mc_prices: pd.Series,
+) -> float:
+    """Compute the weighted annual marginal cost for one TOU subclass.
 
-    Non-TOU subclasses keep their baseline RR; the reduced total is allocated
-    among TOU subclasses proportionally by their baseline share.
+    Filters *load_elec* to *tou_bldg_ids*, weights by building sample weight,
+    aggregates to an hourly system load, and sums load × MC over the year.
+    The MC price series index is used for alignment (truncating the load to
+    match its length, consistent with how Phase 1.75 handles alignment).
     """
-    non_shifted_rr = sum(
-        subclass_baseline[k] for k in subclass_baseline if k not in tou_tariff_keys
+    sample_weights = customer_metadata[["bldg_id", "weight"]]
+    bldg_level = load_elec.index.get_level_values("bldg_id")
+    sub = load_elec.loc[bldg_level.isin(tou_bldg_ids)]
+    weighted = sub.reset_index().merge(sample_weights, on="bldg_id")
+    weighted["electricity_net"] = weighted["electricity_net"] * weighted["weight"]
+    sys_load_raw = weighted.groupby("time")["electricity_net"].sum()
+    sys_load = pd.Series(
+        sys_load_raw.values[: len(mc_prices)],
+        index=pd.DatetimeIndex(mc_prices.index),
     )
-    shifted_rr_total = revenue_requirement_total - non_shifted_rr
-    tou_baseline_total = sum(
-        subclass_baseline[k] for k in subclass_baseline if k in tou_tariff_keys
-    )
-    result: dict[str, float] = {}
-    for k in subclass_baseline:
-        if k in tou_tariff_keys:
-            result[k] = (
-                shifted_rr_total * (subclass_baseline[k] / tou_baseline_total)
-                if tou_baseline_total > 0
-                else shifted_rr_total
-            )
-        else:
-            result[k] = subclass_baseline[k]
-    log.info(
-        ".... Subclass RR (demand-flex): %s",
-        {k: f"${v:,.0f}" for k, v in result.items()},
-    )
-    return result
+    return float((mc_prices * sys_load).sum())
 
 
 # ---------------------------------------------------------------------------
@@ -465,6 +458,35 @@ def apply_demand_flex(
         frozen_residual,
     )
 
+    # -- Phase 2.5: per-TOU-subclass MC delta for revenue requirement splitting --
+    # For each TOU subclass independently:
+    #   frozen_residual_k = subclass_RR_k - subclass_MC_orig_k
+    #   new_RR_k = subclass_MC_shifted_k + frozen_residual_k
+    #            = subclass_RR_k + (MC_shifted_k - MC_orig_k)
+    # So the MC delta is all run_scenario.py needs to build per-subclass RRs.
+    mc_prices = marginal_system_prices["Total Marginal Costs ($/kWh)"]
+    mc_delta_by_tou_tariff: dict[str, float] = {}
+    for tou_key in tou_tariff_keys:
+        tou_bldg_ids_k = set(
+            tariff_map_df[tariff_map_df["tariff_key"] == tou_key]["bldg_id"]
+            .astype(int)
+            .tolist()
+        )
+        mc_orig_k = _compute_tou_subclass_mc(
+            raw_load_elec, tou_bldg_ids_k, customer_metadata, mc_prices
+        )
+        mc_shifted_k = _compute_tou_subclass_mc(
+            effective_load_elec, tou_bldg_ids_k, customer_metadata, mc_prices
+        )
+        mc_delta_by_tou_tariff[tou_key] = mc_shifted_k - mc_orig_k
+        log.info(
+            ".... Subclass MC delta for %s: $%.2f  (orig=$%.2f → shifted=$%.2f)",
+            tou_key,
+            mc_delta_by_tou_tariff[tou_key],
+            mc_orig_k,
+            mc_shifted_k,
+        )
+
     return DemandFlexResult(
         effective_load_elec=effective_load_elec,
         elasticity_tracker=elasticity_tracker,
@@ -474,4 +496,5 @@ def apply_demand_flex(
         costs_by_type=costs_by_type,
         precalc_mapping=updated_precalc,
         tou_tariff_keys=tou_tariff_keys,
+        mc_delta_by_tou_tariff=mc_delta_by_tou_tariff,
     )

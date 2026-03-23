@@ -35,7 +35,7 @@ from utils.cairo import (
     add_bulk_tx_and_dist_and_sub_tx_marginal_cost,
     build_bldg_id_to_load_filepath,
 )
-from utils.demand_flex import apply_demand_flex, split_revenue_requirement_by_tou
+from utils.demand_flex import apply_demand_flex
 from utils.mid.patches import _return_loads_combined
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 from utils.scenario_config import (
@@ -319,7 +319,9 @@ def _build_settings_from_yaml_run(
         run_includes_supply=run_includes_supply,
         elasticity=elasticity,
         path_bulk_tx_mc=path_bulk_tx_mc,
-        path_supply_ancillary_mc=path_supply_ancillary_mc,
+        path_supply_ancillary_mc=path_supply_ancillary_mc
+        if run_includes_supply
+        else None,
     )
 
 
@@ -437,7 +439,7 @@ def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
         settings.path_tou_supply_energy_mc = args.path_tou_supply_energy_mc
     if args.path_tou_supply_capacity_mc:
         settings.path_tou_supply_capacity_mc = args.path_tou_supply_capacity_mc
-    if args.path_supply_ancillary_mc:
+    if args.path_supply_ancillary_mc and settings.run_includes_supply:
         settings.path_supply_ancillary_mc = args.path_supply_ancillary_mc
     return settings
 
@@ -651,10 +653,17 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         elasticity_tracker = flex.elasticity_tracker
         precalc_mapping = flex.precalc_mapping
         if settings.run_includes_subclasses and settings.subclass_rr is not None:
-            revenue_requirement = split_revenue_requirement_by_tou(
-                revenue_requirement_total=flex.revenue_requirement_raw,
-                subclass_baseline=settings.subclass_rr,
-                tou_tariff_keys=flex.tou_tariff_keys,
+            # Per-subclass frozen-residual approach:
+            #   new_RR_k = subclass_RR_k + (MC_shifted_k - MC_orig_k)
+            # TOU subclasses absorb their own MC delta; non-TOU subclasses are
+            # unchanged (calibrated identically to the no-flex run).
+            revenue_requirement = {
+                k: v + flex.mc_delta_by_tou_tariff.get(k, 0.0)
+                for k, v in settings.subclass_rr.items()
+            }
+            log.info(
+                "Subclass RR (demand-flex, per-subclass frozen residual): %s",
+                {k: f"${v:,.0f}" for k, v in revenue_requirement.items()},
             )
     else:
         (

@@ -5,7 +5,7 @@
 # Usage (from rate_design/hp_rates/):
 #   just s ny list-utilities                                    # show valid utilities
 #   UTILITY=nyseg just s ny all-pre                             # single utility pre-processing
-#   UTILITY=nyseg just s ny run-all-sequential                  # single utility full run
+#   RDP_BATCH= {yyyymmdd_r1-N} UTILITY=nyseg just s ny run-all-sequential                  # single utility full run
 #   just s ny run-all-utilities-sequential                      # all utilities for a state
 #   UTILITY=rie just -f ri/Justfile all-pre                     # via state wrapper directly
 #   set -a && source ny/state.env && set +a && UTILITY=nyseg just all-pre  # manual source
@@ -44,6 +44,13 @@ monthly_rates_year := env_var_or_default('MONTHLY_RATES_YEAR', '2025')
 upstream_hours := env_var_or_default('UPSTREAM_HOURS', '100')
 dist_hours := env_var_or_default('DIST_HOURS', '100')
 utilities := env_var_or_default('UTILITIES', utility)
+
+# Whether to use ResStock monthly loads (instead of EIA-861 annual kWh) for
+# volumetric budget calculation in compute-rr.  ResStock loads capture monthly
+# rate×load covariance; EIA-861 uses a flat annual average.  Set to "true" in
+# state.env to opt in; defaults to the original EIA-861 method.
+
+use_resstock_loads := env_var_or_default('USE_RESSTOCK_LOADS', 'false')
 
 # =============================================================================
 # Tier 3: Derived paths (all computed from Tier 1 + 2)
@@ -181,7 +188,8 @@ compute-rr:
       --path-electric-utility-stats "{{ path_electric_utility_stats }}" \
       --path-rate-case-rr "{{ path_rate_case_delivery_rr }}" \
       --path-supply-base "{{ path_supply_base }}" \
-      --output "{{ path_default_rev_requirement }}"
+      --output "{{ path_default_rev_requirement }}" \
+      {{ if use_resstock_loads == "true" { '--use-resstock-loads --path-resstock-release "' + path_resstock_release + '" --state "' + state_upper + '"' } else { "" } }}
 
 estimate-psegli-rr:
     uv run python {{ path_repo }}/utils/pre/rev_requirement/estimate_psegli_rr.py \
@@ -390,7 +398,7 @@ compute-rev-requirements:
 # RUNS: scenario execution (run-1 through run-16)
 # =============================================================================
 
-run-scenario run_num:
+run-scenario run_num *extra_args:
     #!/usr/bin/env bash
     set -euo pipefail
     : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
@@ -414,6 +422,7 @@ run-scenario run_num:
         --output-dir "{{ path_outputs_base }}/${RDP_BATCH}" \
         {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }} \
         {{ if path_supply_ancillary_mc != "" { "--path-supply-ancillary-mc \"" + path_supply_ancillary_mc + "\"" } else { "" } }} \
+        {{ extra_args }} \
         2>&1 | tee "${log_file}"
 
 run-1:
@@ -514,15 +523,9 @@ run-13:
     fi
     cp "${source_tou}" "${target_tou}"
     echo ">> run-13: copied ${source_tou} -> ${target_tou}" >&2
-    : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
-    uv run python {{ path_repo }}/rate_design/hp_rates/run_scenario.py \
-        --state "{{ state }}" \
-        --run-num 13 \
-        --utility "{{ utility }}" \
-        --output-dir "{{ path_outputs_base }}/${RDP_BATCH}" \
+    just run-scenario 13 \
         --path-tou-supply-energy-mc "{{ path_supply_energy_mc }}" \
-        --path-tou-supply-capacity-mc "{{ path_supply_capacity_mc }}" \
-        {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }}
+        --path-tou-supply-capacity-mc "{{ path_supply_capacity_mc }}"
 
 run-14:
     #!/usr/bin/env bash
