@@ -1,17 +1,33 @@
 utility: psegli
+load_method: resstock
 delivery_revenue_requirement_from_rate_case: 1116520087.6
-delivery_revenue_requirement_topups: 50704848.62
+delivery_revenue_requirement_topups: 50541576.04
 supply_revenue_requirement_topups: 985266819.92
-total_delivery_revenue_requirement: 1167224936.22
-total_delivery_and_supply_revenue_requirement: 2152491756.14
-total_residential_kwh: 9129428992.0
+total_delivery_revenue_requirement: 1167061663.64
+total_delivery_and_supply_revenue_requirement: 2152328483.56
+total_residential_kwh: 9100031695.77
+eia_total_residential_kwh: 9129428992.0
 eia_year: 2024
 delivery_top_ups:
   vder_der_cost_recovery:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.005554
-    total_budget: 50704848.62
+    budget_method: resstock
+    total_budget: 50541576.04
 supply_top_ups:
   supply_base_from_budget:
     source: supply_base_overrides.yaml
     total_budget: 985266819.92
+resstock_monthly_kwh:
+  1: 883787979.37
+  2: 697599923.01
+  3: 745600095.11
+  4: 626724185.19
+  5: 626834863.41
+  6: 722924797.61
+  7: 994040610.55
+  8: 1021986602.71
+  9: 744028094.08
+  10: 622292967.32
+  11: 650291799.92
+  12: 763919777.5
+resstock_scale_factor: 0.922123
