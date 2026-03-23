@@ -8,8 +8,8 @@ See **AGENTS.md → Reference context** for conventions. Top-level dirs: **plans
 
 Implementation plans for multi-step design decisions. These are living documents updated as decisions evolve.
 
-| File                                           | Purpose                                                                                                                                                                                                 |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File                                           | Purpose                                                                                                                                                                                                            |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | hp_seasonal_discount_plan_b_simplified_flat.md | Plan B (active): simplified flat seasonal discount using revenue-based rate derivation from run-1 bill outputs. Uses base URDB JSON for summer/winter flat rates; documents orchestration (`BASE_TARIFF_PATTERN`). |
 
 ## domain/
