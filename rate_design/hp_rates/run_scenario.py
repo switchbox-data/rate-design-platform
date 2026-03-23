@@ -247,7 +247,11 @@ def _build_settings_from_yaml_run(
     if residual_cost_frac_raw is not None:
         residual_cost_frac = _parse_float(residual_cost_frac_raw, "residual_cost_frac")
     urr_raw = run.get("utility_revenue_requirement")
-    urr_present = urr_raw is not None and str(urr_raw).strip() not in ("", "none", "null")
+    urr_present = urr_raw is not None and str(urr_raw).strip() not in (
+        "",
+        "none",
+        "null",
+    )
     if residual_cost_frac is not None and urr_present:
         raise ValueError(
             "Specify exactly one of 'residual_cost_frac' or 'utility_revenue_requirement', "

@@ -321,7 +321,8 @@ adjust-mf-electricity-NY-upgrade-05:
 # Copy, adjust loads, and sync upgrades 01, 04, 05 into the _sb release for NY.
 # Assumes prepare-metadata-ny has already been run (it processes all upgrades 00-05).
 # metadata_utility (utility assignment) is upgrade-independent and is not re-copied here.
-# We are NOT running approximate-non-hp-load for upgrades 4 and 5 because they strictly only apply to certain building types. 
+
+# We are NOT running approximate-non-hp-load for upgrades 4 and 5 because they strictly only apply to certain building types.
 create-sb-release-for-adoption-upgrades-NY:
     just copy-resstock-data-2024-amy2018-2-NY "04 05" "metadata load_curve_hourly"
     just approximate-non-hp-load NY 01 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True

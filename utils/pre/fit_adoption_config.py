@@ -89,12 +89,12 @@ def load_total_hu(state: str = "NY", max_year: int | None = None) -> tuple[float
     storage_options = {"aws_region": get_aws_region()}
     base = S3Path(_EIA861_S3_BASE)
     year_dirs = sorted(
-        int(p.name.split("=")[1])
-        for p in base.iterdir()
-        if p.name.startswith("year=")
+        int(p.name.split("=")[1]) for p in base.iterdir() if p.name.startswith("year=")
     )
     if not year_dirs:
-        raise FileNotFoundError(f"No EIA-861 year partitions found at {_EIA861_S3_BASE}")
+        raise FileNotFoundError(
+            f"No EIA-861 year partitions found at {_EIA861_S3_BASE}"
+        )
     if max_year is not None:
         year_dirs = [y for y in year_dirs if y <= max_year]
     if not year_dirs:
@@ -381,7 +381,9 @@ def make_plot(
 
     # Ordered technology names for the legend (matches NYISO chart order, bottom→top).
     tech_order = [_UPGRADE_PLOT_LABELS[uid] for uid in [2, 4, 5, 1]]
-    color_map = {_UPGRADE_PLOT_LABELS[uid]: _UPGRADE_COLORS[uid] for uid in [2, 4, 5, 1]}
+    color_map = {
+        _UPGRADE_PLOT_LABELS[uid]: _UPGRADE_COLORS[uid] for uid in [2, 4, 5, 1]
+    }
 
     # Convert to pandas for plotnine; use pandas Categorical for legend order.
     import pandas as pd  # noqa: PLC0415

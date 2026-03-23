@@ -23,16 +23,13 @@
 #   upgrade 4 (ASHP dual fuel):  L=0.1087  k=0.2290  t0=2040.0
 #   upgrade 5 (ground source HP):  L=0.0115  k=0.2633  t0=2039.3
 #   upgrade 1 (supplemental heat):  L=0.1281  k=0.3098  t0=2040.2
-
 scenario_name: nyca_electrification
 random_seed: 42
-
 scenario:
-  2: [0.0000, 0.0128, 0.0339, 0.0767, 0.1340, 0.1794]  # ASHP full capacity
-  4: [0.0000, 0.0100, 0.0263, 0.0544, 0.0825, 0.0987]  # ASHP dual fuel
-  5: [0.0000, 0.0009, 0.0028, 0.0063, 0.0094, 0.0109]  # ground source HP
-  1: [0.0000, 0.0052, 0.0211, 0.0617, 0.1043, 0.1222]  # supplemental heat
-
+  2: [0.0000, 0.0128, 0.0339, 0.0767, 0.1340, 0.1794] # ASHP full capacity
+  4: [0.0000, 0.0100, 0.0263, 0.0544, 0.0825, 0.0987] # ASHP dual fuel
+  5: [0.0000, 0.0009, 0.0028, 0.0063, 0.0094, 0.0109] # ground source HP
+  1: [0.0000, 0.0052, 0.0211, 0.0617, 0.1043, 0.1222] # supplemental heat
 # Calendar years for each scenario index (= run years).
 # Aligns with Cambium 5-year MC intervals; 2025 is baseline.
 year_labels: [2025, 2030, 2035, 2040, 2045, 2050]
