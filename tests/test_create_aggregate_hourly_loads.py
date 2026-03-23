@@ -151,7 +151,9 @@ def test_electric_utility_passes_none_and_all(tmp_path) -> None:
             "sb.electric_utility": ["x", "y"],
         },
     ).write_parquet(path)
-    assert electric_utility_passes(None, path_utility_assignment=str(path), storage_options={}) == [None]
+    assert electric_utility_passes(
+        None, path_utility_assignment=str(path), storage_options={}
+    ) == [None]
     assert electric_utility_passes(
         "all",
         path_utility_assignment=str(path),

@@ -130,7 +130,9 @@ def _s3_fs(storage_options: dict[str, str]) -> s3fs.S3FileSystem:
     return s3fs.S3FileSystem(**kwargs)
 
 
-def _constructed_parquet_paths(partition_dir: str, bldg_ids: list[int], upgrade: str) -> list[str]:
+def _constructed_parquet_paths(
+    partition_dir: str, bldg_ids: list[int], upgrade: str
+) -> list[str]:
     """One path per building: ``{bldg_id}-{int(upgrade)}.parquet`` (ResStock on-disk layout)."""
     up_int = int(_normalize_upgrade(upgrade))
     root = partition_dir.rstrip("/")
@@ -153,7 +155,9 @@ def _parquet_paths_for_partition(
     return _constructed_parquet_paths(partition_dir, bldg_ids, upgrade)
 
 
-def _storage_options_for_path(path: str, storage_options: dict[str, str]) -> dict[str, str] | None:
+def _storage_options_for_path(
+    path: str, storage_options: dict[str, str]
+) -> dict[str, str] | None:
     return storage_options if path.startswith("s3://") else None
 
 
@@ -190,7 +194,9 @@ def _partial_aggregate_one_parquet(
 
     if weighted:
         df = df.join(weights_df, on=BLDG_ID_COL, how="inner")
-        expr_load = pl.col(load_col).cast(pl.Float64) * pl.col(_WEIGHT_COL).cast(pl.Float64)
+        expr_load = pl.col(load_col).cast(pl.Float64) * pl.col(_WEIGHT_COL).cast(
+            pl.Float64
+        )
     else:
         expr_load = pl.col(load_col).cast(pl.Float64)
 
@@ -570,9 +576,7 @@ def main() -> None:
                         f"_upgrade{up}.parquet"
                     )
                 else:
-                    name = (
-                        f"aggregate_hourly_load_{state_u}_{util_label}_upgrade{up}.parquet"
-                    )
+                    name = f"aggregate_hourly_load_{state_u}_{util_label}_upgrade{up}.parquet"
                 path_out = out_dir / name
                 df.write_parquet(path_out, storage_options=storage_options)
                 log.info("Wrote %s (%d rows)", path_out, df.height)
