@@ -207,32 +207,50 @@ def _extract_tou_supply_monthly(section: dict) -> dict[str, dict[str, float]]:
     """Extract per-TOU-slot, per-month supply rates from a seasonal_tou add_to_srr.
 
     Returns {slot_key: {month_key: rate_sum}}.
+
+    Two-pass approach: first collect TOU-structured charges (dict-of-dicts) to
+    establish slot keys, then distribute flat charges (simple month→rate dicts)
+    across all slots.  This avoids ordering dependence between TOU and flat
+    charges in the YAML.
     """
     charges: dict = section.get("charges", {})
-    result: dict[str, dict[str, float]] = {}
+
+    tou_items: list[dict[str, dict[str, float]]] = []
+    flat_items: list[dict[str, float]] = []
 
     for _slug, data in charges.items():
         if data.get("charge_unit") != "$/kWh":
             continue
         mr = data.get("monthly_rates")
-        if not isinstance(mr, dict):
+        if not isinstance(mr, dict) or not mr:
             continue
 
         first_val = next(iter(mr.values()))
         if isinstance(first_val, dict):
-            for slot_key, month_rates in mr.items():
-                if slot_key not in result:
-                    result[slot_key] = {}
-                for mk, v in month_rates.items():
-                    result[slot_key][mk] = result[slot_key].get(mk, 0.0) + v
+            tou_items.append(mr)
         else:
-            for mk, v in mr.items():
-                for slot_key in result:
+            flat_items.append(mr)
+
+    result: dict[str, dict[str, float]] = {}
+
+    for tou_mr in tou_items:
+        for slot_key, month_rates in tou_mr.items():
+            if slot_key not in result:
+                result[slot_key] = {}
+            for mk, v in month_rates.items():
+                result[slot_key][mk] = result[slot_key].get(mk, 0.0) + v
+
+    if result:
+        for flat_mr in flat_items:
+            for slot_key in result:
+                for mk, v in flat_mr.items():
                     result[slot_key][mk] = result[slot_key].get(mk, 0.0) + v
-                if not result:
-                    result["_flat"] = {}
-                    for mk2, v2 in mr.items():
-                        result["_flat"][mk2] = result["_flat"].get(mk2, 0.0) + v2
+    else:
+        for flat_mr in flat_items:
+            if "_flat" not in result:
+                result["_flat"] = {}
+            for mk, v in flat_mr.items():
+                result["_flat"][mk] = result["_flat"].get(mk, 0.0) + v
 
     return result
 

@@ -15,6 +15,7 @@ from utils.pre.create_default_structure_tariffs import (
     _detect_periods_from_monthly_rates,
     _extract_customer_fixed_charge,
     _extract_flat_kwh_rates,
+    _extract_tou_supply_monthly,
     _season_months,
     main,
     process_utility,
@@ -495,6 +496,201 @@ class TestBuildSeasonalTouTariff:
         jan_wd_10 = wd[0][10]
         assert jan_wd_15 != jan_wd_10
         assert we[0][15] == we[0][10]
+
+
+# ---------------------------------------------------------------------------
+# _extract_tou_supply_monthly
+# ---------------------------------------------------------------------------
+
+
+class TestExtractTouSupplyMonthly:
+    """Flat riders must be distributed across TOU slot keys, not lost in _flat."""
+
+    @staticmethod
+    def _make_psegli_like_srr() -> dict:
+        """Supply section with flat charges listed BEFORE the TOU charge."""
+        return {
+            "rate_structure": "seasonal_tou",
+            "charges": {
+                "merchant_function_charge": {
+                    "charge_unit": "$/kWh",
+                    "monthly_rates": _uniform(0.002),
+                },
+                "securitization_offset": {
+                    "charge_unit": "$/kWh",
+                    "monthly_rates": _uniform(-0.020),
+                },
+                "supply_commodity": {
+                    "charge_unit": "$/kWh",
+                    "monthly_rates": {
+                        "summer_on_peak": _uniform(0.24),
+                        "summer_off_peak": _uniform(0.10),
+                        "winter_on_peak": _uniform(0.25),
+                        "winter_off_peak": _uniform(0.10),
+                    },
+                },
+            },
+        }
+
+    def test_flat_riders_included_in_tou_slots(self) -> None:
+        result = _extract_tou_supply_monthly(self._make_psegli_like_srr())
+        assert "_flat" not in result
+        assert sorted(result.keys()) == [
+            "summer_off_peak",
+            "summer_on_peak",
+            "winter_off_peak",
+            "winter_on_peak",
+        ]
+        # Each slot should be commodity + merchant + securitization
+        assert result["summer_on_peak"]["2025-01"] == pytest.approx(
+            0.24 + 0.002 - 0.020
+        )
+        assert result["winter_off_peak"]["2025-06"] == pytest.approx(
+            0.10 + 0.002 - 0.020
+        )
+
+    def test_order_independence(self) -> None:
+        """Same result whether TOU charge comes first or last."""
+        srr_tou_first = {
+            "rate_structure": "seasonal_tou",
+            "charges": {
+                "supply_commodity": {
+                    "charge_unit": "$/kWh",
+                    "monthly_rates": {
+                        "summer_on_peak": _uniform(0.24),
+                        "summer_off_peak": _uniform(0.10),
+                        "winter_on_peak": _uniform(0.25),
+                        "winter_off_peak": _uniform(0.10),
+                    },
+                },
+                "flat_rider": {
+                    "charge_unit": "$/kWh",
+                    "monthly_rates": _uniform(0.005),
+                },
+            },
+        }
+        srr_flat_first = {
+            "rate_structure": "seasonal_tou",
+            "charges": {
+                "flat_rider": {
+                    "charge_unit": "$/kWh",
+                    "monthly_rates": _uniform(0.005),
+                },
+                "supply_commodity": {
+                    "charge_unit": "$/kWh",
+                    "monthly_rates": {
+                        "summer_on_peak": _uniform(0.24),
+                        "summer_off_peak": _uniform(0.10),
+                        "winter_on_peak": _uniform(0.25),
+                        "winter_off_peak": _uniform(0.10),
+                    },
+                },
+            },
+        }
+        result_a = _extract_tou_supply_monthly(srr_tou_first)
+        result_b = _extract_tou_supply_monthly(srr_flat_first)
+        for sk in result_a:
+            for mk in result_a[sk]:
+                assert result_a[sk][mk] == pytest.approx(result_b[sk][mk])
+
+    def test_flat_only_falls_back_to_flat_key(self) -> None:
+        srr = {
+            "rate_structure": "flat",
+            "charges": {
+                "supply": {
+                    "charge_unit": "$/kWh",
+                    "monthly_rates": _uniform(0.08),
+                },
+            },
+        }
+        result = _extract_tou_supply_monthly(srr)
+        assert "_flat" in result
+        assert result["_flat"]["2025-01"] == pytest.approx(0.08)
+
+
+class TestBuildSeasonalTouWithSupply:
+    """Integration: TOU supply tariff includes flat riders in rate structure."""
+
+    def test_supply_rates_include_flat_riders(self) -> None:
+        already = {
+            "rate_structure": "seasonal_tou",
+            "seasons": {
+                "summer": {"from_month": 6, "from_day": 1, "to_month": 9, "to_day": 30},
+                "winter": {
+                    "from_month": 10,
+                    "from_day": 1,
+                    "to_month": 5,
+                    "to_day": 31,
+                },
+            },
+            "tou_periods": {
+                "on_peak": {
+                    "from_hour": 15,
+                    "to_hour": 19,
+                    "weekdays_only": True,
+                },
+                "off_peak": {
+                    "from_hour": 19,
+                    "to_hour": 15,
+                    "weekdays_only": True,
+                },
+            },
+            "charges": {
+                "customer_charge": {
+                    "charge_unit": "$/day",
+                    "monthly_rates": _uniform(0.54),
+                },
+                "delivery_charge": {
+                    "charge_unit": "$/kWh",
+                    "monthly_rates": {
+                        "summer_off_peak": _uniform(0.10),
+                        "summer_on_peak": _uniform(0.21),
+                        "winter_off_peak": _uniform(0.09),
+                        "winter_on_peak": _uniform(0.18),
+                    },
+                },
+            },
+        }
+        add_drr = {
+            "rate_structure": "flat",
+            "charges": {
+                "surcharge": {
+                    "charge_unit": "$/kWh",
+                    "monthly_rates": _uniform(0.005),
+                },
+            },
+        }
+        add_srr = {
+            "rate_structure": "seasonal_tou",
+            "charges": {
+                "flat_rider": {
+                    "charge_unit": "$/kWh",
+                    "monthly_rates": _uniform(-0.018),
+                },
+                "supply_commodity": {
+                    "charge_unit": "$/kWh",
+                    "monthly_rates": {
+                        "summer_on_peak": _uniform(0.24),
+                        "summer_off_peak": _uniform(0.10),
+                        "winter_on_peak": _uniform(0.25),
+                        "winter_off_peak": _uniform(0.10),
+                    },
+                },
+            },
+        }
+        fixed = 0.54 * 365.25 / 12
+        _delivery, supply = _build_seasonal_tou_tariff(
+            "psegli", already, add_drr, add_srr, fixed
+        )
+
+        s_item = supply["items"][0]
+        rates = [p[0]["rate"] for p in s_item["energyratestructure"]]
+        # All 4 combined rates should include the -0.018 flat rider
+        # Winter off-peak = delivery(0.09+0.005) + supply(0.10-0.018) = 0.177
+        expected_winter_off = 0.09 + 0.005 + 0.10 - 0.018
+        assert any(abs(r - expected_winter_off) < 1e-4 for r in rates), (
+            f"Expected ~{expected_winter_off} in rates {rates}"
+        )
 
 
 # ---------------------------------------------------------------------------
