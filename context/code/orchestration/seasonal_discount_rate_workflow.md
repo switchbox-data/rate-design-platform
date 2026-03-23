@@ -26,7 +26,7 @@ Where:
 - `total_cross_subsidy_hp` comes from
   `cross_subsidization/cross_subsidization_BAT_values.csv` for `has_hp=true`.
 - `winter_kwh_hp` is the weighted sum of
-  `out.electricity.net.energy_consumption` across HP customers and winter months
+  `out.electricity.total.energy_consumption` across HP customers and winter months
   from ResStock hourly loads.
 
 ## CLI / Justfile Flow

@@ -24,7 +24,7 @@ from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.loads import scan_resstock_loads
+from utils.loads import ELECTRIC_PV_COL, grid_consumption_expr, scan_resstock_loads
 from utils.pre.season_config import (
     DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS,
     get_utility_periods_yaml_path,
@@ -42,7 +42,7 @@ DEFAULT_BAT_METRIC = "BAT_percustomer"
 GROUP_VALUE_COL = "subclass"
 ANNUAL_MONTH_VALUE = "Annual"
 DEFAULT_SEASONAL_OUTPUT_FILENAME = "seasonal_discount_rate_inputs.csv"
-ELECTRIC_LOAD_COL = "out.electricity.net.energy_consumption"
+ELECTRIC_LOAD_COL = "out.electricity.total.energy_consumption"
 MONTH_ABBREV_TO_NUM: dict[str, int] = {
     "Jan": 1,
     "Feb": 2,
@@ -365,7 +365,9 @@ def compute_hp_seasonal_discount_inputs(
             .cast(pl.String, strict=False)
             .str.to_datetime(strict=False)
             .alias("timestamp"),
-            pl.col(ELECTRIC_LOAD_COL).cast(pl.Float64).alias("demand_kwh"),
+            grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL).alias(
+                "demand_kwh"
+            ),
             pl.col(WEIGHT_COL).cast(pl.Float64),
         )
         .with_columns(pl.col("timestamp").dt.month().alias("month_num"))

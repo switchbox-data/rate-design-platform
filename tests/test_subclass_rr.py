@@ -127,14 +127,16 @@ def _write_sample_resstock_loads_dir(tmp_path: Path) -> Path:
                 "2025-02-01 00:00:00",
                 "2025-12-01 00:00:00",
             ],
-            "out.electricity.net.energy_consumption": [10.0, 999.0, 20.0, 30.0],
+            "out.electricity.total.energy_consumption": [10.0, 999.0, 20.0, 30.0],
+            "out.electricity.pv.energy_consumption": [0.0, 0.0, 0.0, 0.0],
         }
     ).write_parquet(partition_dir / "sample_hp_loads.parquet")
     pl.DataFrame(
         {
             "bldg_id": [2, 4],
             "timestamp": ["2025-01-01 00:00:00", "2025-01-01 00:00:00"],
-            "out.electricity.net.energy_consumption": [500.0, 600.0],
+            "out.electricity.total.energy_consumption": [500.0, 600.0],
+            "out.electricity.pv.energy_consumption": [0.0, 0.0],
         }
     ).write_parquet(partition_dir / "sample_nonhp_loads.parquet")
     return resstock_base
@@ -448,7 +450,7 @@ def test_compute_hp_seasonal_discount_inputs(tmp_path: Path) -> None:
                 "2025-02-01 00:00:00",
                 "2025-12-01 00:00:00",
             ],
-            "out.electricity.net.energy_consumption": [
+            "out.electricity.total.energy_consumption": [
                 200.0,
                 100.0,
                 500.0,
@@ -456,6 +458,7 @@ def test_compute_hp_seasonal_discount_inputs(tmp_path: Path) -> None:
                 200.0,
                 100.0,
             ],
+            "out.electricity.pv.energy_consumption": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         }
     ).write_parquet(part / "loads.parquet")
 
@@ -534,7 +537,8 @@ def test_compute_hp_seasonal_discount_inputs_applies_weights(tmp_path: Path) -> 
                 "2025-01-01 00:00:00",
                 "2025-07-01 00:00:00",
             ],
-            "out.electricity.net.energy_consumption": [100.0, 50.0, 100.0, 50.0],
+            "out.electricity.total.energy_consumption": [100.0, 50.0, 100.0, 50.0],
+            "out.electricity.pv.energy_consumption": [0.0, 0.0, 0.0, 0.0],
         }
     ).write_parquet(partition_dir / "sample.parquet")
 
@@ -625,12 +629,13 @@ def test_compute_hp_seasonal_discount_inputs_flat_equivalence(tmp_path: Path) ->
                 "2025-01-01 00:00:00",
                 "2025-07-01 00:00:00",
             ],
-            "out.electricity.net.energy_consumption": [
+            "out.electricity.total.energy_consumption": [
                 winter_kwh_1,
                 summer_kwh_1,
                 winter_kwh_2,
                 summer_kwh_2,
             ],
+            "out.electricity.pv.energy_consumption": [0.0, 0.0, 0.0, 0.0],
         }
     ).write_parquet(part / "loads.parquet")
 
@@ -740,12 +745,13 @@ def test_compute_hp_seasonal_discount_inputs_structured_tariff(tmp_path: Path) -
                 "2025-01-01 00:00:00",
                 "2025-07-01 00:00:00",
             ],
-            "out.electricity.net.energy_consumption": [
+            "out.electricity.total.energy_consumption": [
                 winter_kwh_1,
                 summer_kwh_1,
                 winter_kwh_2,
                 summer_kwh_2,
             ],
+            "out.electricity.pv.energy_consumption": [0.0, 0.0, 0.0, 0.0],
         }
     ).write_parquet(part / "loads.parquet")
 
@@ -849,7 +855,7 @@ def test_write_seasonal_inputs_csv_uses_output_dir_override(tmp_path: Path) -> N
                 "2025-02-01 00:00:00",
                 "2025-12-01 00:00:00",
             ],
-            "out.electricity.net.energy_consumption": [
+            "out.electricity.total.energy_consumption": [
                 200.0,
                 100.0,
                 500.0,
@@ -857,6 +863,7 @@ def test_write_seasonal_inputs_csv_uses_output_dir_override(tmp_path: Path) -> N
                 200.0,
                 100.0,
             ],
+            "out.electricity.pv.energy_consumption": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         }
     ).write_parquet(part / "loads.parquet")
     seasonal_inputs = compute_hp_seasonal_discount_inputs(
