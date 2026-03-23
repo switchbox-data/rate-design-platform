@@ -8,9 +8,10 @@ Fix the seasonal discount computation so it works correctly when runs 1-4 use de
 
 ## Context and motivation
 
-Runs 1-4 use the actual utility rate structure (tiered, seasonal, TOU) so that cross-subsidy quantification under the default rates is realistic -- this is the core finding of the analysis. The HP seasonal discount (runs 5-8) then proposes a simple seasonal rate that eliminates the cross-subsidy. We never expected to produce an actual rate a utility would adopt for NY; the point is to show the undue costs put on heat pump customers and the impact that has on reaching climate goals.
+Runs 1-4 use the actual utility rate structure (tiered, seasonal, TOU) so that cross-subsidy quantification under the default rates is realistic -- this is the core finding of the analysis. The HP seasonal discount (runs 5-8) then proposes a simple seasonal rate that eliminates the cross-subsidy.
 
 Plan A (structure-preserving) would maintain the default tariff's period/tier/TOU structure in the HP seasonal rate. It was rejected because:
+
 - Mixed-period splitting is the common case (6/7 NY utilities + RIE), adding substantial implementation complexity.
 - The analytical narrative already describes the HP seasonal rate as a "simple seasonal delivery rate" -- the reports and notebooks treat it as flat.
 - The compromise of using default structure for cross-subsidy measurement (runs 1-4) while flattening for the proposed rate (runs 5-8) is consistent with the analysis.
@@ -181,13 +182,13 @@ RI run-5 pairs a flat `hp_seasonal.json` with a structured `nonhp_default.json`.
 
 ## Comparison with Plan A
 
-| Dimension | Plan A (structure-preserving) | Plan B (simplified flat) |
-| --- | --- | --- |
-| HP tariff output | Preserves default structure (periods, tiers, TOU) | Flat 2-period (summer, winter) |
-| Code changes | New script with mixed-period splitting, winter revenue mapping, schedule manipulation | ~30 lines changed in existing functions |
-| Mixed-period handling | Must split 6/7 NY utilities + RIE | Not applicable |
-| Analytical consistency | HP rate uses same structure as default | HP rate is a deliberate simplification |
-| Revenue neutrality | By construction (scale factor) | By construction (revenue-based rates) |
-| Adversarial issues | Same fixed-charge residual | Same fixed-charge residual |
-| RI policy alignment | HP rate structure matches filing expectations | HP rate is simpler than filed structure |
-| Implementation risk | High (schedule manipulation, multi-tier, TOU) | Low (reading existing bill outputs) |
+| Dimension              | Plan A (structure-preserving)                                                         | Plan B (simplified flat)                |
+| ---------------------- | ------------------------------------------------------------------------------------- | --------------------------------------- |
+| HP tariff output       | Preserves default structure (periods, tiers, TOU)                                     | Flat 2-period (summer, winter)          |
+| Code changes           | New script with mixed-period splitting, winter revenue mapping, schedule manipulation | ~30 lines changed in existing functions |
+| Mixed-period handling  | Must split 6/7 NY utilities + RIE                                                     | Not applicable                          |
+| Analytical consistency | HP rate uses same structure as default                                                | HP rate is a deliberate simplification  |
+| Revenue neutrality     | By construction (scale factor)                                                        | By construction (revenue-based rates)   |
+| Adversarial issues     | Same fixed-charge residual                                                            | Same fixed-charge residual              |
+| RI policy alignment    | HP rate structure matches filing expectations                                         | HP rate is simpler than filed structure |
+| Implementation risk    | High (schedule manipulation, multi-tier, TOU)                                         | Low (reading existing bill outputs)     |
