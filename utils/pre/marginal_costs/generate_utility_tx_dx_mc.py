@@ -5,7 +5,8 @@ the Probability of Peak (PoP) method to allocate $/kW-yr costs to $/kWh hourly
 price signals.
 
 Input:
-    - Utility hourly load profile: s3://data.sb/eia/hourly_demand/utilities/region=<iso_region>/utility=X/year=YYYY/month=M/data.parquet
+    - Utility hourly load profile (EIA): s3://data.sb/eia/hourly_demand/utilities/region=<iso_region>/utility=X/year=YYYY/month=M/data.parquet
+    - OR Cambium busbar_load (--load-source cambium): s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=YYYY/gea=GEA/r=BA/data.parquet
     - Marginal cost table CSV with columns: utility, sub_tx_and_dist_mc_kw_yr
     - Load year (determines which load profile year to use)
 
@@ -15,17 +16,25 @@ Output partitions written as:
     - Partition path: utility=X/year=YYYY/data.parquet
 
 Usage:
-    # Inspect results (no upload) - uses 2025 loads
+    # EIA load source (default) - Inspect results (no upload) - uses 2025 loads
     python generate_utility_tx_dx_mc.py --state RI --utility rie --load-year 2025 \
         --mc-table-path rate_design/hp_rates/ri/config/marginal_costs/ri_marginal_costs_2025.csv \
         --utility-load-s3-base s3://data.sb/eia/hourly_demand/utilities/ \
         --output-s3-base s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
 
-    # Upload to S3
+    # EIA load source - Upload to S3
     python generate_utility_tx_dx_mc.py --state NY --utility nyseg --load-year 2024 \
         --mc-table-path rate_design/hp_rates/ny/config/marginal_costs/ny_sub_tx_and_dist_mc_levelized.csv \
         --utility-load-s3-base s3://data.sb/eia/hourly_demand/utilities/ \
         --output-s3-base s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/ \
+        --upload
+
+    # Cambium busbar_load source - Upload to S3
+    python generate_utility_tx_dx_mc.py --state NY --utility nyseg --year 2030 \
+        --load-source cambium \
+        --cambium-path s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2030/gea=NYISO/r=p127/data.parquet \
+        --mc-table-path rate_design/hp_rates/ny/config/marginal_costs/ny_sub_tx_and_dist_mc_levelized.csv \
+        --output-s3-base s3://data.sb/switchbox/marginal_costs/ny/cambium_dist_and_sub_tx/ \
         --upload
 """
 
@@ -91,6 +100,57 @@ def load_utility_load_profile(
         )
 
     print(f"Loaded {len(df):,} hourly load records for {utility} (year {year_load})")
+    return df
+
+
+def load_cambium_load_profile(
+    cambium_path: str,
+    utility: str,
+    storage_options: dict[str, str],
+) -> pl.DataFrame:
+    """Load Cambium busbar_load as a utility load profile for PoP allocation.
+
+    Reads the ``busbar_load`` column (MWh busbar-equivalent) from a Cambium
+    parquet file and returns it in the same format expected by
+    :func:`normalize_load_to_cairo_8760`.
+
+    Distribution infrastructure capacity is sized to busbar-level peaks (before
+    distribution losses), so ``busbar_load`` is the appropriate PoP allocation
+    load shape — analogous to the EIA utility ``load_mw`` column.
+
+    Args:
+        cambium_path: S3 or local path to a Cambium data.parquet file with
+            columns ``timestamp`` and ``busbar_load``.
+        utility: Utility short code (e.g. ``nyseg``) — written into the
+            ``utility`` column of the returned DataFrame.
+        storage_options: Polars S3 storage options with AWS bucket region.
+
+    Returns:
+        DataFrame with columns: timestamp, utility, load_mw  (8760 rows expected
+        after normalization; ``busbar_load`` is renamed to ``load_mw``).
+    """
+    print(f"Loading Cambium busbar_load from: {cambium_path}")
+    if cambium_path.startswith("s3://"):
+        df = pl.read_parquet(cambium_path, storage_options=storage_options)
+    else:
+        df = pl.read_parquet(cambium_path)
+
+    required = {"timestamp", "busbar_load"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"Cambium parquet is missing expected columns {missing}. "
+            f"Available: {df.columns}"
+        )
+
+    df = df.select(
+        [
+            pl.col("timestamp"),
+            pl.col("busbar_load").alias("load_mw"),
+        ]
+    ).with_columns(pl.lit(utility).alias("utility"))
+
+    print(f"Loaded {len(df):,} Cambium rows (busbar_load → load_mw) for {utility}")
     return df
 
 
@@ -480,14 +540,37 @@ def main():
         help="Path to marginal cost table CSV (local or s3://)",
     )
     parser.add_argument(
+        "--load-source",
+        type=str,
+        choices=["eia", "cambium"],
+        default="eia",
+        help=(
+            "Load profile source for PoP allocation. "
+            "'eia' uses EIA/NYISO utility hourly loads (default). "
+            "'cambium' uses Cambium busbar_load -- requires --cambium-path."
+        ),
+    )
+    parser.add_argument(
+        "--cambium-path",
+        type=str,
+        default=None,
+        dest="cambium_path",
+        help=(
+            "Path to Cambium data.parquet (S3 or local). Required when "
+            "--load-source cambium. "
+            "E.g. s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2030/gea=NYISO/r=p127/data.parquet"
+        ),
+    )
+    parser.add_argument(
         "--utility-load-s3-base",
         "--nyiso-s3-base",
         dest="utility_load_s3_base",
         type=str,
-        required=True,
+        default=None,
         help=(
             "Base S3 path for utility loads "
-            "(e.g. s3://data.sb/eia/hourly_demand/utilities/)"
+            "(e.g. s3://data.sb/eia/hourly_demand/utilities/). "
+            "Required when --load-source eia (the default)."
         ),
     )
     parser.add_argument(
@@ -511,6 +594,15 @@ def main():
 
     args = parser.parse_args()
     validate_mc_table_path(args.mc_table_path)
+
+    # Validate load-source-specific required args.
+    if args.load_source == "eia" and not args.utility_load_s3_base:
+        parser.error(
+            "--utility-load-s3-base is required when --load-source eia (the default)."
+        )
+    if args.load_source == "cambium" and not args.cambium_path:
+        parser.error("--cambium-path is required when --load-source cambium.")
+
     load_dotenv()
     config = get_state_config(args.state)
     storage_options = get_aws_storage_options()
@@ -518,17 +610,20 @@ def main():
     output_year = args.year
     load_year = args.load_year if args.load_year else output_year
 
-    # Detect whether load path uses EIA layout (with region partition) or
-    # NYISO layout (no region partition) based on path prefix.
-    s3_base = args.utility_load_s3_base
-    iso_region: str | None = config.iso_region
-    if "nyiso/hourly_demand" in s3_base:
-        iso_region = None
-
     print("=" * 60)
     print("MARGINAL COST ALLOCATION")
     print(f"State: {config.state}")
-    print(f"ISO region partition: {iso_region or '(none — NYISO native path)'}")
+    print(f"Load source: {args.load_source}")
+    if args.load_source == "cambium":
+        print(f"Cambium path: {args.cambium_path}")
+    else:
+        # Detect whether load path uses EIA layout (with region partition) or
+        # NYISO layout (no region partition) based on path prefix.
+        s3_base = args.utility_load_s3_base
+        iso_region: str | None = config.iso_region
+        if "nyiso/hourly_demand" in s3_base:
+            iso_region = None
+        print(f"ISO region partition: {iso_region or '(none — NYISO native path)'}")
     print(f"AWS bucket region: {storage_options.get('region')}")
     print("=" * 60)
     print(f"Utility: {args.utility}")
@@ -538,14 +633,22 @@ def main():
     print(f"Upload to S3: {'Yes' if args.upload else 'No (inspection only)'}")
     print("=" * 60)
 
-    load_df = load_utility_load_profile(
-        s3_base,
-        iso_region,
-        load_year,
-        args.utility,
-        storage_options,
-    )
-    load_df = normalize_load_to_cairo_8760(load_df, args.utility, load_year)
+    if args.load_source == "cambium":
+        load_df = load_cambium_load_profile(
+            args.cambium_path,
+            args.utility,
+            storage_options,
+        )
+        load_df = normalize_load_to_cairo_8760(load_df, args.utility, load_year)
+    else:
+        load_df = load_utility_load_profile(
+            s3_base,
+            iso_region,
+            load_year,
+            args.utility,
+            storage_options,
+        )
+        load_df = normalize_load_to_cairo_8760(load_df, args.utility, load_year)
 
     if load_year != output_year:
         print(f"\n  Remapping load timestamps: {load_year} → {output_year}")

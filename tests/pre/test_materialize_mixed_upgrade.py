@@ -181,7 +181,134 @@ class TestAssignBuildingsMonotonic:
 
 
 # ---------------------------------------------------------------------------
-# 3. Metadata combination — unit tests via main()
+# 3. Applicability-restricted assignment
+# ---------------------------------------------------------------------------
+
+
+class TestAssignBuildingsApplicability:
+    """assign_buildings() with applicable_bldg_ids_per_upgrade restricts pools."""
+
+    def test_only_applicable_buildings_assigned(self) -> None:
+        """No building outside its upgrade's applicable set should be assigned to it."""
+        bldg_ids = _bldg_ids(100)
+        # upgrade 2 applicable to first 60; upgrade 4 applicable to last 40
+        applicable = {2: set(range(1, 61)), 4: set(range(61, 101))}
+        scenario = {2: [0.10, 0.20], 4: [0.05, 0.10]}
+        assignments = assign_buildings(
+            bldg_ids,
+            scenario,
+            [0, 1],
+            random_seed=0,
+            applicable_bldg_ids_per_upgrade=applicable,
+        )
+        for t in [0, 1]:
+            for bid, uid in assignments[t].items():
+                if uid == 2:
+                    assert bid in applicable[2], (
+                        f"bldg {bid} assigned to upgrade 2 but not applicable"
+                    )
+                if uid == 4:
+                    assert bid in applicable[4], (
+                        f"bldg {bid} assigned to upgrade 4 but not applicable"
+                    )
+
+    def test_non_overlapping_applicable_sets(self) -> None:
+        """Buildings in only one applicable set are assigned to that upgrade."""
+        bldg_ids = _bldg_ids(100)
+        # Disjoint sets: upgrade 2 → 1-50, upgrade 4 → 51-100
+        applicable = {2: set(range(1, 51)), 4: set(range(51, 101))}
+        scenario = {2: [0.30], 4: [0.20]}
+        assignments = assign_buildings(
+            bldg_ids,
+            scenario,
+            [0],
+            random_seed=0,
+            applicable_bldg_ids_per_upgrade=applicable,
+        )
+        assigned_to_2 = {bid for bid, u in assignments[0].items() if u == 2}
+        assigned_to_4 = {bid for bid, u in assignments[0].items() if u == 4}
+        assert assigned_to_2.issubset(applicable[2])
+        assert assigned_to_4.issubset(applicable[4])
+        assert assigned_to_2.isdisjoint(assigned_to_4)
+
+    def test_applicable_smaller_than_target_warns_and_caps(self) -> None:
+        """When applicable pool is smaller than target count, a warning is emitted."""
+        bldg_ids = _bldg_ids(100)
+        # upgrade 5 only applicable to 5 buildings but scenario requests 30%
+        applicable = {5: set(range(1, 6))}
+        scenario = {5: [0.30]}
+        with pytest.warns(UserWarning, match="Upgrade 5"):
+            assignments = assign_buildings(
+                bldg_ids,
+                scenario,
+                [0],
+                random_seed=0,
+                applicable_bldg_ids_per_upgrade=applicable,
+            )
+        assigned_to_5 = sum(1 for u in assignments[0].values() if u == 5)
+        assert assigned_to_5 == 5  # capped at pool size
+
+    def test_overlapping_sets_no_double_assignment(self) -> None:
+        """When applicable sets overlap, each building gets at most one upgrade."""
+        bldg_ids = _bldg_ids(100)
+        # Both upgrades applicable to all 100 buildings; upgrade 2 (lower ID) gets
+        # first pick and claims all buildings, leaving upgrade 4 with an empty pool.
+        applicable = {2: set(range(1, 101)), 4: set(range(1, 101))}
+        scenario = {2: [0.20], 4: [0.15]}
+        with pytest.warns(UserWarning, match="Upgrade 4"):
+            assignments = assign_buildings(
+                bldg_ids,
+                scenario,
+                [0],
+                random_seed=0,
+                applicable_bldg_ids_per_upgrade=applicable,
+            )
+        for bid, uid in assignments[0].items():
+            assert uid in {0, 2, 4}, f"bldg {bid} assigned unknown upgrade {uid}"
+        # No building should be in two upgrade pools
+        assigned_to_2 = {bid for bid, u in assignments[0].items() if u == 2}
+        assigned_to_4 = {bid for bid, u in assignments[0].items() if u == 4}
+        assert assigned_to_2.isdisjoint(assigned_to_4)
+
+    def test_monotonicity_preserved_with_applicability(self) -> None:
+        """Monotonic adoption holds when using applicable_bldg_ids_per_upgrade."""
+        bldg_ids = _bldg_ids(N_BLDGS)
+        applicable = {2: set(range(1, 81))}  # 80 buildings applicable for upgrade 2
+        scenario = {2: [0.10, 0.20, 0.30]}
+        assignments = assign_buildings(
+            bldg_ids,
+            scenario,
+            [0, 1, 2],
+            random_seed=3,
+            applicable_bldg_ids_per_upgrade=applicable,
+        )
+        adopted_t0 = {bid for bid, u in assignments[0].items() if u == 2}
+        adopted_t1 = {bid for bid, u in assignments[1].items() if u == 2}
+        adopted_t2 = {bid for bid, u in assignments[2].items() if u == 2}
+        assert adopted_t0.issubset(adopted_t1)
+        assert adopted_t1.issubset(adopted_t2)
+
+    def test_none_applicable_fallback_identical_to_unrestricted(self) -> None:
+        """Passing applicable_bldg_ids_per_upgrade=None gives same result as omitting it."""
+        bldg_ids = _bldg_ids(N_BLDGS)
+        a_restricted = assign_buildings(
+            bldg_ids,
+            SCENARIO_2UP,
+            RUN_YEAR_INDICES,
+            random_seed=42,
+            applicable_bldg_ids_per_upgrade=None,
+        )
+        a_unrestricted = assign_buildings(
+            bldg_ids,
+            SCENARIO_2UP,
+            RUN_YEAR_INDICES,
+            random_seed=42,
+        )
+        assert a_restricted == a_unrestricted
+
+
+# ---------------------------------------------------------------------------
+# 4. Metadata combination — unit tests via main()
 # ---------------------------------------------------------------------------
 
 
@@ -204,7 +331,9 @@ class TestMetadataCombination:
                 / f"upgrade={uid:02d}"
                 / "metadata-sb.parquet"
             )
-            df = _make_metadata_df(bldg_ids, has_hp if uid == 0 else None)
+            # upgrade=02: eligible buildings (first 7) have has_hp=True (upgrade applied);
+            # already-HP buildings (last 3) also keep has_hp=True.
+            df = _make_metadata_df(bldg_ids, has_hp if uid == 0 else [True] * 10)
             _write_metadata(meta_path, df)
             loads_dir = (
                 release / "load_curve_hourly" / "state=NY" / f"upgrade={uid:02d}"
@@ -337,7 +466,7 @@ class TestMetadataCombination:
 
 
 # ---------------------------------------------------------------------------
-# 4. Symlink creation
+# 5. Symlink creation
 # ---------------------------------------------------------------------------
 
 
@@ -358,7 +487,8 @@ class TestSymlinkCreation:
                 / f"upgrade={uid:02d}"
                 / "metadata-sb.parquet"
             )
-            _write_metadata(meta, _make_metadata_df(bldg_ids))
+            has_hp = [False] * len(bldg_ids) if uid == 0 else [True] * len(bldg_ids)
+            _write_metadata(meta, _make_metadata_df(bldg_ids, has_hp))
             loads_dir = (
                 release / "load_curve_hourly" / "state=RI" / f"upgrade={uid:02d}"
             )
@@ -438,7 +568,7 @@ class TestSymlinkCreation:
 
 
 # ---------------------------------------------------------------------------
-# 5. Scenario CSV output
+# 6. Scenario CSV output
 # ---------------------------------------------------------------------------
 
 
@@ -458,7 +588,8 @@ class TestScenarioCsv:
                 / f"upgrade={uid:02d}"
                 / "metadata-sb.parquet"
             )
-            _write_metadata(meta, _make_metadata_df(bldg_ids))
+            has_hp = [False] * len(bldg_ids) if uid == 0 else [True] * len(bldg_ids)
+            _write_metadata(meta, _make_metadata_df(bldg_ids, has_hp))
             ld = release / "load_curve_hourly" / "state=NY" / f"upgrade={uid:02d}"
             for bid in bldg_ids:
                 _touch_load_file(ld, bid, uid)
@@ -530,7 +661,7 @@ class TestScenarioCsv:
 
 
 # ---------------------------------------------------------------------------
-# 6. Validation error paths
+# 7. Validation error paths
 # ---------------------------------------------------------------------------
 
 
@@ -633,7 +764,9 @@ class TestValidationErrors:
                 / f"upgrade={uid:02d}"
                 / "metadata-sb.parquet"
             )
-            _write_metadata(meta, _make_metadata_df(bldg_ids))
+            # upgrade=02 metadata must have has_hp=True so buildings are applicable.
+            has_hp = [False] * len(bldg_ids) if uid == 0 else [True] * len(bldg_ids)
+            _write_metadata(meta, _make_metadata_df(bldg_ids, has_hp))
             ld = release / "load_curve_hourly" / "state=NY" / f"upgrade={uid:02d}"
             for bid in bldg_ids:
                 _touch_load_file(ld, bid, uid)
@@ -677,7 +810,7 @@ class TestValidationErrors:
 
 
 # ---------------------------------------------------------------------------
-# 7. Config parsing: run_years snap + year indices
+# 8. Config parsing: run_years snap + year indices
 # ---------------------------------------------------------------------------
 
 
@@ -732,7 +865,7 @@ class TestParseAdoptionConfig:
 
 
 # ---------------------------------------------------------------------------
-# 8. _build_load_file_map
+# 9. _build_load_file_map
 # ---------------------------------------------------------------------------
 
 

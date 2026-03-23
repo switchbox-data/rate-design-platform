@@ -8,8 +8,10 @@ Parametric form: f(t) = L / (1 + exp(-k * (t - t0)))
   k  = growth rate
   t0 = inflection year
 
-Fractions are normalized by 7,900,000 total NYCA occupied housing units
-(Census ACS / NYISO Gold Book 2025 estimate). 2025 is forced to 0.0 — all
+Fractions are normalized by the total NY residential electric customer count
+derived from EIA-861 (PUDL), summing bundled and delivery-only service types
+for the most recent available year (excludes "energy" rows which duplicate
+delivery-only customers who switched to an ESCO). 2025 is forced to 0.0 — all
 buildings remain at upgrade-0 baseline — regardless of the logistic value.
 
 Technology → ResStock upgrade mapping:
@@ -34,6 +36,7 @@ from pathlib import Path
 
 import numpy as np
 import polars as pl
+from cloudpathlib import S3Path
 from plotnine import (
     aes,
     element_line,
@@ -65,8 +68,74 @@ log = logging.getLogger(__name__)
 SCENARIO_NAME = "nyca_electrification"
 RANDOM_SEED = 42
 
-# Total NYCA occupied housing units used as the fraction denominator.
-TOTAL_HU = 7_900_000.0
+# S3 path to EIA-861 electric utility stats (Hive-partitioned by year and state).
+_EIA861_S3_BASE = "s3://data.sb/eia/861/electric_utility_stats/"
+
+# ---------------------------------------------------------------------------
+# EIA-861 residential customer count
+# ---------------------------------------------------------------------------
+
+
+def load_total_hu(state: str = "NY", max_year: int | None = None) -> tuple[float, int]:
+    """Return (total_residential_customers, year) from EIA-861 on S3.
+
+    Sums bundled and delivery service types only — excludes "energy" rows
+    which duplicate delivery-only customers who switched to an ESCO supplier.
+    Uses the most recent partition year <= ``max_year`` (defaults to the
+    latest available year).
+    """
+    from utils import get_aws_region
+
+    storage_options = {"aws_region": get_aws_region()}
+    base = S3Path(_EIA861_S3_BASE)
+    year_dirs = sorted(
+        int(p.name.split("=")[1])
+        for p in base.iterdir()
+        if p.name.startswith("year=")
+    )
+    if not year_dirs:
+        raise FileNotFoundError(f"No EIA-861 year partitions found at {_EIA861_S3_BASE}")
+    if max_year is not None:
+        year_dirs = [y for y in year_dirs if y <= max_year]
+    if not year_dirs:
+        raise ValueError(f"No EIA-861 year partitions found <= {max_year}")
+    year = year_dirs[-1]
+
+    path = f"{_EIA861_S3_BASE}year={year}/state={state}/data.parquet"
+    df = pl.scan_parquet(path, storage_options=storage_options)
+
+    # The pre-aggregated parquet sums all service types (bundled + delivery + energy).
+    # We need bundled + delivery only, so we fall back to the PUDL source.
+    # Check whether a service_type column is present; if not, re-derive from PUDL.
+    schema = df.schema
+    if "service_type" in schema:
+        total = (
+            df.filter(pl.col("service_type").is_in(["bundled", "delivery"]))
+            .select(pl.col("residential_customers").sum())
+            .collect()["residential_customers"][0]
+        )
+    else:
+        # Pre-aggregated file has no service_type; it already summed all types.
+        # Re-derive from PUDL directly to exclude the "energy" double-count.
+        pudl_version = "v2026.2.0"
+        pudl_url = (
+            f"https://s3.us-west-2.amazonaws.com/pudl.catalyst.coop"
+            f"/{pudl_version}/core_eia861__yearly_sales.parquet"
+        )
+        total = (
+            pl.scan_parquet(pudl_url)
+            .filter(
+                (pl.col("state") == state)
+                & (pl.col("customer_class") == "residential")
+                & (pl.col("service_type").is_in(["bundled", "delivery"]))
+                & (pl.col("report_date").dt.year() == year)
+            )
+            .select(pl.col("customers").sum())
+            .collect()["customers"][0]
+        )
+
+    return float(total), year
+
 
 # Digitized from the NYISO Gold Book 2025 NYCA stacked-area chart.
 # Each entry: (calendar_year, individual_technology_housing_units_in_thousands).
@@ -113,6 +182,11 @@ _UPGRADE_LABELS: dict[int, str] = {
     1: "supplemental heat",
 }
 
+# Plot labels include the ResStock upgrade code so charts are self-documenting.
+_UPGRADE_PLOT_LABELS: dict[int, str] = {
+    uid: f"upgrade {uid} — {label}" for uid, label in _UPGRADE_LABELS.items()
+}
+
 # Wong colorblind-friendly palette matched to NYISO chart hues.
 _UPGRADE_COLORS: dict[int, str] = {
     2: "#D55E00",  # vermillion / orange
@@ -148,18 +222,23 @@ def _fit_logistic(years: np.ndarray, fracs: np.ndarray) -> tuple[float, float, f
 
 def fit_all(
     run_years: list[int],
+    total_hu: float,
 ) -> tuple[dict[int, list[float]], dict[int, tuple[float, float, float]]]:
     """Fit logistic curves; return ``(scenario_fracs, params)``.
 
     ``scenario_fracs[upgrade_id][i]`` is the adoption fraction at
     ``run_years[i]``.  2025 is forced to ``0.0``.
+
+    Args:
+        run_years: Calendar years to evaluate.
+        total_hu: Total residential customer count used as the fraction denominator.
     """
     scenario: dict[int, list[float]] = {}
     params: dict[int, tuple[float, float, float]] = {}
 
     for upgrade_id, pts in _RAW_DATA.items():
         years_arr = np.array([y for y, _ in pts], dtype=float)
-        fracs_arr = np.array([hu * 1_000 / TOTAL_HU for _, hu in pts])
+        fracs_arr = np.array([hu * 1_000 / total_hu for _, hu in pts])
 
         L, k, t0 = _fit_logistic(years_arr, fracs_arr)
         params[upgrade_id] = (L, k, t0)
@@ -194,6 +273,8 @@ def write_yaml(
     scenario: dict[int, list[float]],
     params: dict[int, tuple[float, float, float]],
     run_years: list[int],
+    total_hu: float,
+    eia_year: int,
 ) -> None:
     """Write adoption config YAML with full methodology commentary."""
     param_block = "\n".join(
@@ -227,9 +308,10 @@ def write_yaml(
         "#",
         "# Methodology: logistic S-curves  f(t) = L / (1 + exp(-k * (t - t0)))  fit",
         "# (scipy curve_fit) to housing-unit counts digitized from the NYISO Gold",
-        f"# Book 2025 NYCA stacked-area chart. Denominator: {TOTAL_HU:,.0f} total NYCA",
-        "# occupied housing units (Census ACS / NYISO estimate). 2025 forced to 0.0",
-        "# (all buildings at upgrade-0 baseline).",
+        f"# Book 2025 NYCA stacked-area chart. Denominator: {total_hu:,.0f} NY residential",
+        f"# electric customers (EIA-861 {eia_year}, bundled + delivery service types,",
+        "# excluding ESCO energy-only rows which duplicate delivery customers).",
+        "# 2025 forced to 0.0 (all buildings at upgrade-0 baseline).",
         "#",
         "# Fitted parameters:",
         param_block,
@@ -262,6 +344,8 @@ def make_plot(
     params: dict[int, tuple[float, float, float]],
     run_years: list[int],
     path_plot: Path,
+    total_hu: float,
+    eia_year: int,
 ) -> None:
     """Save a plotnine figure: continuous logistic curves + digitized points."""
     # Build long-format DataFrame for fitted curves.
@@ -274,7 +358,7 @@ def make_plot(
             curve_rows.append(
                 {
                     "year": float(yr),
-                    "technology": _UPGRADE_LABELS[uid],
+                    "technology": _UPGRADE_PLOT_LABELS[uid],
                     "pct": max(pct, 0.0),
                 }
             )
@@ -288,16 +372,16 @@ def make_plot(
             point_rows.append(
                 {
                     "year": float(yr),
-                    "technology": _UPGRADE_LABELS[uid],
-                    "pct": hu_k * 1_000 / TOTAL_HU * 100.0,
+                    "technology": _UPGRADE_PLOT_LABELS[uid],
+                    "pct": hu_k * 1_000 / total_hu * 100.0,
                 }
             )
 
     points_df = pl.DataFrame(point_rows)
 
     # Ordered technology names for the legend (matches NYISO chart order, bottom→top).
-    tech_order = [_UPGRADE_LABELS[uid] for uid in [2, 4, 5, 1]]
-    color_map = {_UPGRADE_LABELS[uid]: _UPGRADE_COLORS[uid] for uid in [2, 4, 5, 1]}
+    tech_order = [_UPGRADE_PLOT_LABELS[uid] for uid in [2, 4, 5, 1]]
+    color_map = {_UPGRADE_PLOT_LABELS[uid]: _UPGRADE_COLORS[uid] for uid in [2, 4, 5, 1]}
 
     # Convert to pandas for plotnine; use pandas Categorical for legend order.
     import pandas as pd  # noqa: PLC0415
@@ -348,13 +432,18 @@ def make_plot(
         )
         + labs(
             title="NYCA HP adoption trajectory — NYISO Gold Book 2025 logistic fit",
+            subtitle=(
+                f"Denominator: {total_hu:,.0f} NY residential electric customers"
+                f" (EIA-861 {eia_year}, bundled + delivery)"
+            ),
             x="Year",
-            y="Share of NYCA housing units",
-            color="Technology",
+            y="Share of NY residential electric customers",
+            color="Technology (ResStock upgrade)",
         )
         + theme_minimal()
         + theme(
             plot_title=element_text(size=11),
+            plot_subtitle=element_text(size=9),
             axis_title=element_text(size=10),
             legend_title=element_text(size=9),
             legend_text=element_text(size=9),
@@ -371,13 +460,15 @@ def make_stacked_plot(
     params: dict[int, tuple[float, float, float]],
     run_years: list[int],
     path_plot: Path,
+    total_hu: float,
+    eia_year: int,
 ) -> None:
     """Save a stacked area chart matching the NYISO Gold Book visual style."""
     import pandas as pd  # noqa: PLC0415
 
     # Stacking order bottom→top mirrors the NYISO chart.
-    stack_order = [_UPGRADE_LABELS[uid] for uid in [2, 4, 5, 1]]
-    fill_map = {_UPGRADE_LABELS[uid]: _UPGRADE_COLORS[uid] for uid in [2, 4, 5, 1]}
+    stack_order = [_UPGRADE_PLOT_LABELS[uid] for uid in [2, 4, 5, 1]]
+    fill_map = {_UPGRADE_PLOT_LABELS[uid]: _UPGRADE_COLORS[uid] for uid in [2, 4, 5, 1]}
 
     curve_rows: list[dict] = []
     for uid, (L, k, t0) in params.items():
@@ -386,7 +477,7 @@ def make_stacked_plot(
             curve_rows.append(
                 {
                     "year": float(yr),
-                    "technology": _UPGRADE_LABELS[uid],
+                    "technology": _UPGRADE_PLOT_LABELS[uid],
                     "pct": max(float(frac) * 100.0, 0.0),
                 }
             )
@@ -422,13 +513,18 @@ def make_stacked_plot(
         )
         + labs(
             title="NYCA HP adoption trajectory — NYISO Gold Book 2025 logistic fit (stacked)",
+            subtitle=(
+                f"Denominator: {total_hu:,.0f} NY residential electric customers"
+                f" (EIA-861 {eia_year}, bundled + delivery)"
+            ),
             x="Year",
-            y="Share of NYCA housing units",
-            fill="Technology",
+            y="Share of NY residential electric customers",
+            fill="Technology (ResStock upgrade)",
         )
         + theme_minimal()
         + theme(
             plot_title=element_text(size=11),
+            plot_subtitle=element_text(size=9),
             axis_title=element_text(size=10),
             legend_title=element_text(size=9),
             legend_text=element_text(size=9),
@@ -487,7 +583,15 @@ def main() -> None:
     args = build_parser().parse_args()
     run_years = [int(y.strip()) for y in args.run_years.split(",")]
 
-    scenario, params = fit_all(run_years)
+    log.info("loading NY residential customer count from EIA-861 (S3)…")
+    total_hu, eia_year = load_total_hu(state="NY")
+    log.info(
+        "EIA-861 %d: %,.0f NY residential electric customers (bundled + delivery)",
+        eia_year,
+        total_hu,
+    )
+
+    scenario, params = fit_all(run_years, total_hu)
 
     validate_scenario({uid: scenario[uid] for uid in scenario})
 
@@ -496,13 +600,15 @@ def main() -> None:
         total = sum(scenario[uid][i] for uid in scenario)
         log.info("year %d: total fraction = %.4f", yr, total)
 
-    write_yaml(Path(args.path_output), scenario, params, run_years)
+    write_yaml(Path(args.path_output), scenario, params, run_years, total_hu, eia_year)
 
     if args.path_plot:
-        make_plot(params, run_years, Path(args.path_plot))
+        make_plot(params, run_years, Path(args.path_plot), total_hu, eia_year)
 
     if args.path_stacked_plot:
-        make_stacked_plot(params, run_years, Path(args.path_stacked_plot))
+        make_stacked_plot(
+            params, run_years, Path(args.path_stacked_plot), total_hu, eia_year
+        )
 
 
 if __name__ == "__main__":

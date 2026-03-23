@@ -81,6 +81,52 @@ def build_parser() -> argparse.ArgumentParser:
         dest="path_output",
         help="Path to write the generated adoption scenario YAML.",
     )
+    p.add_argument(
+        "--residual-cost-frac",
+        type=float,
+        default=None,
+        dest="residual_cost_frac",
+        help=(
+            "When set, adds residual_cost_frac to every generated run entry and "
+            "sets utility_revenue_requirement: none.  Use 0.0 for a 0%% residual "
+            "(revenue requirement = total marginal costs only)."
+        ),
+    )
+    p.add_argument(
+        "--cambium-supply",
+        action="store_true",
+        dest="cambium_supply",
+        help=(
+            "When set, rewrites supply MC paths to Cambium for runs with "
+            "run_includes_supply: true, and clears path_bulk_tx_mc for all runs "
+            "(bulk TX is already embedded in Cambium enduse costs)."
+        ),
+    )
+    p.add_argument(
+        "--cambium-gea",
+        type=str,
+        default="NYISO",
+        dest="cambium_gea",
+        help="Cambium grid emission area (GEA) code, e.g. NYISO (default: NYISO).",
+    )
+    p.add_argument(
+        "--cambium-ba",
+        type=str,
+        default=None,
+        dest="cambium_ba",
+        help="Cambium balancing area code, e.g. p127.  Required when --cambium-supply is set.",
+    )
+    p.add_argument(
+        "--cambium-dist-mc-base",
+        type=str,
+        default=None,
+        dest="cambium_dist_mc_base",
+        help=(
+            "S3 base path for Cambium-based dist MCs.  When set, "
+            "path_dist_and_sub_tx_mc is replaced with "
+            "{base}/utility={utility}/year={calendar_year}/data.parquet."
+        ),
+    )
     return p
 
 
@@ -128,9 +174,15 @@ def _resolve_run_years(config: dict[str, Any]) -> list[tuple[int, int]]:
 
 
 def _replace_year_in_value(value: Any, old_year: int, new_year: int) -> Any:
-    """Recursively replace ``year={old_year}`` with ``year={new_year}`` in strings."""
+    """Recursively replace year tokens in strings.
+
+    Handles both ``year={old_year}`` (Hive partition keys) and
+    ``t={old_year}`` (Cambium path segment) patterns.
+    """
     if isinstance(value, str):
-        return value.replace(f"year={old_year}", f"year={new_year}")
+        value = value.replace(f"year={old_year}", f"year={new_year}")
+        value = value.replace(f"t={old_year}", f"t={new_year}")
+        return value
     if isinstance(value, dict):
         return {
             k: _replace_year_in_value(v, old_year, new_year) for k, v in value.items()
@@ -186,6 +238,10 @@ def main(argv: list[str] | None = None) -> None:
     path_materialized_dir = Path(args.path_materialized_dir)
     path_output = Path(args.path_output)
 
+    # Validate Cambium arg combinations.
+    if args.cambium_supply and not args.cambium_ba:
+        raise ValueError("--cambium-ba is required when --cambium-supply is set.")
+
     # Parse run numbers.
     try:
         run_nums = [int(r.strip()) for r in args.runs.split(",") if r.strip()]
@@ -220,6 +276,14 @@ def main(argv: list[str] | None = None) -> None:
         f"{len(year_run_pairs)} year(s) × {len(run_nums)} run(s) = "
         f"{len(year_run_pairs) * len(run_nums)} entries"
     )
+    if args.residual_cost_frac is not None:
+        print(
+            f"  residual_cost_frac={args.residual_cost_frac} (utility_revenue_requirement: none)"
+        )
+    if args.cambium_supply:
+        print(f"  Cambium supply MCs: gea={args.cambium_gea}, ba={args.cambium_ba}")
+    if args.cambium_dist_mc_base:
+        print(f"  Cambium dist MC base: {args.cambium_dist_mc_base}")
 
     # 3. Build generated run entries.
     output_runs: dict[int, dict[str, Any]] = {}
@@ -244,8 +308,8 @@ def main(argv: list[str] | None = None) -> None:
             # Update year_run to the calendar year for this adoption cohort.
             run_entry["year_run"] = calendar_year
 
-            # Replace year= tokens in all string path values so MC data resolves
-            # to the correct Cambium year.
+            # Replace year= and t= tokens in all string path values so MC data
+            # resolves to the correct year.
             run_entry = _replace_year_in_value(run_entry, old_year_run, calendar_year)
 
             # Update run_name to include year and mixed tag.
@@ -253,6 +317,31 @@ def main(argv: list[str] | None = None) -> None:
                 str(base_run.get("run_name", f"run{run_num}")),
                 calendar_year,
             )
+
+            # Apply Cambium-specific path overrides.
+            if args.cambium_supply:
+                cambium_path = (
+                    f"s3://data.sb/nrel/cambium/2024/scenario=MidCase"
+                    f"/t={calendar_year}/gea={args.cambium_gea}/r={args.cambium_ba}/data.parquet"
+                )
+                run_includes_supply = bool(run_entry.get("run_includes_supply", False))
+                if run_includes_supply:
+                    run_entry["path_supply_energy_mc"] = cambium_path
+                    run_entry["path_supply_capacity_mc"] = cambium_path
+                # Clear bulk TX for all runs: Cambium enduse costs already include it.
+                run_entry["path_bulk_tx_mc"] = ""
+
+            if args.cambium_dist_mc_base:
+                utility_val = str(run_entry.get("utility", ""))
+                base = args.cambium_dist_mc_base.rstrip("/")
+                run_entry["path_dist_and_sub_tx_mc"] = (
+                    f"{base}/utility={utility_val}/year={calendar_year}/data.parquet"
+                )
+
+            # Apply residual cost fraction override.
+            if args.residual_cost_frac is not None:
+                run_entry["residual_cost_frac"] = args.residual_cost_frac
+                run_entry["utility_revenue_requirement"] = None
 
             output_key = (year_index + 1) * 100 + run_num
             output_runs[output_key] = run_entry

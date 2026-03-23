@@ -208,6 +208,7 @@ def assign_buildings(
     scenario: dict[int, list[float]],
     run_year_indices: list[int],
     random_seed: int,
+    applicable_bldg_ids_per_upgrade: dict[int, set[int]] | None = None,
 ) -> dict[int, dict[int, int]]:
     """Assign buildings to upgrades per run-year index.
 
@@ -219,42 +220,86 @@ def assign_buildings(
         eligible_bldg_ids: Building IDs eligible for HP adoption (i.e. those
             whose ``postprocess_group.has_hp`` is not True in upgrade-0 metadata).
         scenario: Dict mapping upgrade_id → per-year cumulative adoption fractions.
-            Fractions are relative to the *total* building population, so the
-            caller is responsible for passing a proportionally correct subset.
+            Fractions are relative to the *total* building population (all upgrades
+            combined), so the caller is responsible for passing a proportionally
+            correct subset.
         run_year_indices: Indices into the scenario lists to materialise.
         random_seed: Seed for reproducible shuffling.
+        applicable_bldg_ids_per_upgrade: Optional per-upgrade sets of building IDs
+            that are actually applicable for each upgrade (i.e. buildings where
+            ``postprocess_group.has_hp`` is True in that upgrade's metadata).
+            When provided, each upgrade draws only from its applicable pool rather
+            than the full eligible pool, preventing non-applicable buildings (which
+            carry baseline loads regardless of upgrade assignment) from being counted
+            as HP adopters.  If two upgrades share applicable buildings, earlier
+            upgrades in sorted order take priority.  If ``None``, all eligible
+            buildings are candidates for every upgrade (original behaviour).
 
     Returns:
         ``{year_index: {bldg_id: upgrade_id}}`` — upgrade 0 means "baseline".
         Only covers ``eligible_bldg_ids``; already-HP buildings are not included.
     """
-    n_bldgs = len(eligible_bldg_ids)
-    if n_bldgs == 0:
+    n_total = len(eligible_bldg_ids)
+    if n_total == 0:
         return {t: {} for t in run_year_indices}
 
     rng = np.random.default_rng(random_seed)
-    bldg_array = np.array(sorted(eligible_bldg_ids), dtype=np.int64)
-    rng.shuffle(bldg_array)
-
     upgrades_sorted = sorted(scenario.keys())
     num_years = len(next(iter(scenario.values())))
     last_t = num_years - 1
 
-    # Pre-allocate contiguous slot ranges using the last year's fractions
-    # (max fractions since they are non-decreasing).  Slots don't overlap,
-    # and since total adoption <= 1.0 the ranges all fit within [0, N).
+    if applicable_bldg_ids_per_upgrade is not None:
+        # Build per-upgrade pools restricted to applicable buildings.
+        # Each eligible building goes to the first upgrade (by sorted ID) for
+        # which it is applicable, so pools are non-overlapping.
+        eligible_set = set(eligible_bldg_ids)
+        claimed: set[int] = set()
+        per_upgrade_pools: dict[int, np.ndarray] = {}
+        for u in upgrades_sorted:
+            applicable = applicable_bldg_ids_per_upgrade.get(u, set())
+            pool = sorted(applicable & eligible_set - claimed)
+            arr = np.array(pool, dtype=np.int64)
+            rng.shuffle(arr)
+            per_upgrade_pools[u] = arr
+            claimed.update(pool)
+
+        result: dict[int, dict[int, int]] = {}
+        for t in run_year_indices:
+            assignments: dict[int, int] = {bid: 0 for bid in eligible_bldg_ids}
+            for u in upgrades_sorted:
+                pool = per_upgrade_pools[u]
+                # Fractions are of total eligible population, not just the pool.
+                count_t = int(n_total * scenario[u][t])
+                actual_count = min(count_t, len(pool))
+                if actual_count < count_t:
+                    warnings.warn(
+                        f"Upgrade {u}: target {count_t} buildings "
+                        f"but only {len(pool)} are applicable; "
+                        f"capping at {actual_count}. "
+                        "Consider reducing the adoption fraction for this upgrade.",
+                        stacklevel=2,
+                    )
+                for i in range(actual_count):
+                    assignments[int(pool[i])] = u
+            result[t] = assignments
+        return result
+
+    # Original behaviour: one shuffled array, contiguous non-overlapping bands.
+    bldg_array = np.array(sorted(eligible_bldg_ids), dtype=np.int64)
+    rng.shuffle(bldg_array)
+
     upgrade_offsets: dict[int, int] = {}
     cumulative_offset = 0
     for u in upgrades_sorted:
         upgrade_offsets[u] = cumulative_offset
-        max_count = int(n_bldgs * scenario[u][last_t])
+        max_count = int(n_total * scenario[u][last_t])
         cumulative_offset += max_count
 
-    result: dict[int, dict[int, int]] = {}
+    result = {}
     for t in run_year_indices:
-        assignments: dict[int, int] = {int(bid): 0 for bid in bldg_array}
+        assignments = {int(bid): 0 for bid in bldg_array}
         for u in upgrades_sorted:
-            count_t = int(n_bldgs * scenario[u][t])
+            count_t = int(n_total * scenario[u][t])
             offset = upgrade_offsets[u]
             for i in range(count_t):
                 assignments[int(bldg_array[offset + i])] = u
@@ -351,9 +396,45 @@ def main(argv: list[str] | None = None) -> None:
         f"{len(already_hp_bldg_ids)} already have HP → kept at upgrade 0)"
     )
 
-    # 4. Assign only eligible buildings to upgrades per run year.
+    # 4. Load all upgrade metadata DataFrames now so applicability can be computed.
+    upgrade_dfs: dict[int, pl.DataFrame] = {0: baseline_df}
+    for uid in non_baseline_upgrades:
+        upgrade_dfs[uid] = pl.read_parquet(
+            _metadata_path(path_resstock_release, state_upper, uid)
+        )
+
+    # 5. Assign only eligible buildings to upgrades per run year.
+    # For each non-baseline upgrade, restrict the pool to buildings that actually
+    # received the upgrade in ResStock (postprocess_group.has_hp=True in that
+    # upgrade's metadata).  This prevents assigning e.g. GSHP to ductless buildings
+    # or dual-fuel ASHP to electrically-heated buildings — those buildings have
+    # baseline loads in the upgrade data regardless of which upgrade they're placed in.
+    applicable_bldg_ids_per_upgrade: dict[int, set[int]] | None = None
+    if all(has_hp_col in upgrade_dfs[uid].columns for uid in non_baseline_upgrades):
+        applicable_bldg_ids_per_upgrade = {}
+        eligible_set = set(eligible_bldg_ids)
+        for uid in non_baseline_upgrades:
+            applicable = (
+                set(upgrade_dfs[uid].filter(pl.col(has_hp_col))["bldg_id"].to_list())
+                & eligible_set
+            )
+            applicable_bldg_ids_per_upgrade[uid] = applicable
+            print(
+                f"  upgrade {uid}: {len(applicable)} applicable eligible buildings "
+                f"(has_hp=True in upgrade metadata, not already HP in baseline)"
+            )
+    else:
+        print(
+            "  Warning: postprocess_group.has_hp missing from one or more upgrade "
+            "metadata files; falling back to unrestricted pool for all upgrades."
+        )
+
     eligible_assignments_by_year = assign_buildings(
-        eligible_bldg_ids, scenario, run_year_indices, random_seed
+        eligible_bldg_ids,
+        scenario,
+        run_year_indices,
+        random_seed,
+        applicable_bldg_ids_per_upgrade=applicable_bldg_ids_per_upgrade,
     )
 
     # Merge already-HP buildings back in (pinned to upgrade 0 in all years).
@@ -362,13 +443,6 @@ def main(argv: list[str] | None = None) -> None:
         t: {**eligible_assignments_by_year[t], **already_hp_baseline}
         for t in run_year_indices
     }
-
-    # 5. Load all upgrade metadata DataFrames (indexed by bldg_id for fast lookup).
-    upgrade_dfs: dict[int, pl.DataFrame] = {0: baseline_df}
-    for uid in non_baseline_upgrades:
-        upgrade_dfs[uid] = pl.read_parquet(
-            _metadata_path(path_resstock_release, state_upper, uid)
-        )
 
     path_output_dir.mkdir(parents=True, exist_ok=True)
 
