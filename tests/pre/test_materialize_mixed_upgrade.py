@@ -9,6 +9,7 @@ import polars as pl
 import pytest
 
 from buildstock_fetch.scenarios import InvalidScenarioError, validate_scenario
+from utils.buildstock import SbMixedUpgradeScenario
 from utils.pre.materialize_mixed_upgrade import (
     _build_load_file_map,
     _parse_adoption_config,
@@ -251,24 +252,25 @@ class TestAssignBuildingsApplicability:
     def test_overlapping_sets_no_double_assignment(self) -> None:
         """When applicable sets overlap, each building gets at most one upgrade."""
         bldg_ids = _bldg_ids(100)
-        # Both upgrades applicable to all 100 buildings; upgrade 2 (lower ID) gets
-        # first pick and claims all buildings, leaving upgrade 4 with an empty pool.
+        # Both upgrades applicable to all 100 buildings.
         applicable = {2: set(range(1, 101)), 4: set(range(1, 101))}
         scenario = {2: [0.20], 4: [0.15]}
-        with pytest.warns(UserWarning, match="Upgrade 4"):
-            assignments = assign_buildings(
-                bldg_ids,
-                scenario,
-                [0],
-                random_seed=0,
-                applicable_bldg_ids_per_upgrade=applicable,
-            )
+        assignments = assign_buildings(
+            bldg_ids,
+            scenario,
+            [0],
+            random_seed=0,
+            applicable_bldg_ids_per_upgrade=applicable,
+        )
         for bid, uid in assignments[0].items():
             assert uid in {0, 2, 4}, f"bldg {bid} assigned unknown upgrade {uid}"
         # No building should be in two upgrade pools
         assigned_to_2 = {bid for bid, u in assignments[0].items() if u == 2}
         assigned_to_4 = {bid for bid, u in assignments[0].items() if u == 4}
         assert assigned_to_2.isdisjoint(assigned_to_4)
+        # Later upgrades overwrite overlapping assignments from earlier upgrades.
+        assert len(assigned_to_4) == 15
+        assert len(assigned_to_2) + len(assigned_to_4) == 20
 
     def test_monotonicity_preserved_with_applicability(self) -> None:
         """Monotonic adoption holds when using applicable_bldg_ids_per_upgrade."""
@@ -518,31 +520,40 @@ class TestSymlinkCreation:
         )
         return release, out_dir
 
+    def _loads_dir(self, out_dir: Path, year: int = 2025, state: str = "RI") -> Path:
+        return (
+            out_dir
+            / f"year={year}"
+            / "load_curve_hourly"
+            / f"state={state}"
+            / "upgrade=00"
+        )
+
     def test_loads_dir_exists(self, fs_and_out: tuple[Path, Path]) -> None:
         _, out_dir = fs_and_out
-        assert (out_dir / "year=2025" / "loads").is_dir()
+        assert self._loads_dir(out_dir).is_dir()
 
     def test_symlink_count_equals_building_count(
         self, fs_and_out: tuple[Path, Path]
     ) -> None:
         _, out_dir = fs_and_out
-        links = list((out_dir / "year=2025" / "loads").iterdir())
+        links = list(self._loads_dir(out_dir).iterdir())
         assert len(links) == 5
 
     def test_symlinks_are_actual_symlinks(self, fs_and_out: tuple[Path, Path]) -> None:
         _, out_dir = fs_and_out
-        for p in (out_dir / "year=2025" / "loads").iterdir():
+        for p in self._loads_dir(out_dir).iterdir():
             assert p.is_symlink(), f"{p} is not a symlink"
 
     def test_symlink_targets_exist(self, fs_and_out: tuple[Path, Path]) -> None:
         release, out_dir = fs_and_out
-        for p in (out_dir / "year=2025" / "loads").iterdir():
+        for p in self._loads_dir(out_dir).iterdir():
             assert p.resolve().exists(), f"Dangling symlink: {p}"
 
     def test_symlink_filename_convention(self, fs_and_out: tuple[Path, Path]) -> None:
         """All symlink names follow {bldg_id}-{upgrade_id}.parquet."""
         _, out_dir = fs_and_out
-        for p in (out_dir / "year=2025" / "loads").iterdir():
+        for p in self._loads_dir(out_dir).iterdir():
             stem = p.stem  # e.g. "3-02"
             parts = stem.split("-", maxsplit=1)
             assert len(parts) == 2, f"Unexpected filename: {p.name}"
@@ -555,8 +566,7 @@ class TestSymlinkCreation:
     ) -> None:
         """Buildings assigned to upgrade 2 must symlink to upgrade=02 load files."""
         release, out_dir = fs_and_out
-        loads_dir = out_dir / "year=2025" / "loads"
-        for link in loads_dir.iterdir():
+        for link in self._loads_dir(out_dir).iterdir():
             target = link.resolve()
             # The upgrade_id is encoded in the filename (e.g. "3-02.parquet").
             stem = link.stem
@@ -565,6 +575,14 @@ class TestSymlinkCreation:
             assert expected_upgrade_dir in str(target), (
                 f"Symlink {link.name} → {target} does not point into {expected_upgrade_dir}"
             )
+
+    def test_hive_partition_path(self, fs_and_out: tuple[Path, Path]) -> None:
+        """Symlinks live under load_curve_hourly/state=RI/upgrade=00/ (hive layout)."""
+        _, out_dir = fs_and_out
+        hive_dir = self._loads_dir(out_dir)
+        assert hive_dir.is_dir()
+        # No flat 'loads/' directory should exist.
+        assert not (out_dir / "year=2025" / "loads").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -676,7 +694,7 @@ class TestValidationErrors:
 
         adoption_yaml = tmp_path / "adoption.yaml"
         adoption_yaml.write_text(
-            "scenario_name: t\nrandom_seed: 0\nscenario:\n  2: [0.10]\n"
+            "scenario_name: t\nrandom_seed: 0\nscenario:\n  2: [1.00]\n"
             "year_labels: [2025]\n",
             encoding="utf-8",
         )
@@ -699,6 +717,7 @@ class TestValidationErrors:
     def test_missing_loads_dir_raises(self, tmp_path: Path) -> None:
         release = tmp_path / "release"
         # Create metadata for both upgrades but omit loads dir for upgrade=02.
+        bldg_ids = [1, 2]
         for uid in [0, 2]:
             meta = (
                 release
@@ -707,13 +726,16 @@ class TestValidationErrors:
                 / f"upgrade={uid:02d}"
                 / "metadata-sb.parquet"
             )
-            _write_metadata(meta, _make_metadata_df([1, 2]))
+            has_hp = [False] * len(bldg_ids) if uid == 0 else [True] * len(bldg_ids)
+            _write_metadata(meta, _make_metadata_df(bldg_ids, has_hp))
         loads_dir_0 = release / "load_curve_hourly" / "state=NY" / "upgrade=00"
         loads_dir_0.mkdir(parents=True)
+        for bid in bldg_ids:
+            _touch_load_file(loads_dir_0, bid, 0)
 
         adoption_yaml = tmp_path / "adoption.yaml"
         adoption_yaml.write_text(
-            "scenario_name: t\nrandom_seed: 0\nscenario:\n  2: [0.10]\n"
+            "scenario_name: t\nrandom_seed: 0\nscenario:\n  2: [1.00]\n"
             "year_labels: [2025]\n",
             encoding="utf-8",
         )
@@ -906,3 +928,135 @@ class TestBuildLoadFileMap:
         d.mkdir()
         result = _build_load_file_map(d, {1, 2})
         assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# 10. SbMixedUpgradeScenario wrapper behavior
+# ---------------------------------------------------------------------------
+
+
+class TestSbMixedUpgradeScenario:
+    def test_release_mapping_via_main_uses_subdir(self, tmp_path: Path) -> None:
+        root = tmp_path / "resstock_root"
+        release_name = "res_2024_amy2018_2_sb"
+        release = root / release_name
+        bldg_ids = [1, 2, 3, 4]
+
+        for uid in [0, 2]:
+            meta = (
+                release
+                / "metadata"
+                / "state=NY"
+                / f"upgrade={uid:02d}"
+                / "metadata-sb.parquet"
+            )
+            has_hp = [False] * len(bldg_ids) if uid == 0 else [True] * len(bldg_ids)
+            _write_metadata(meta, _make_metadata_df(bldg_ids, has_hp))
+            loads = release / "load_curve_hourly" / "state=NY" / f"upgrade={uid:02d}"
+            for bid in bldg_ids:
+                _touch_load_file(loads, bid, uid)
+
+        adoption_yaml = tmp_path / "adoption.yaml"
+        adoption_yaml.write_text(
+            "scenario_name: test\nrandom_seed: 0\nscenario:\n  2: [0.5]\n"
+            "year_labels: [2025]\n",
+            encoding="utf-8",
+        )
+
+        out_dir = tmp_path / "out"
+        main(
+            [
+                "--state",
+                "ny",
+                "--utility",
+                "test",
+                "--adoption-config",
+                str(adoption_yaml),
+                "--path-resstock-release",
+                str(root),
+                "--release",
+                release_name,
+                "--output-dir",
+                str(out_dir),
+            ]
+        )
+        assert (out_dir / "year=2025" / "metadata-sb.parquet").exists()
+
+    def test_uses_metadata_sb_variant(self, tmp_path: Path) -> None:
+        release = tmp_path / "release"
+        bldg_ids = [1, 2, 3]
+
+        for uid in [0, 2]:
+            meta = (
+                release
+                / "metadata"
+                / "state=RI"
+                / f"upgrade={uid:02d}"
+                / "metadata-sb.parquet"
+            )
+            has_hp = [False] * len(bldg_ids) if uid == 0 else [True] * len(bldg_ids)
+            _write_metadata(meta, _make_metadata_df(bldg_ids, has_hp))
+            loads = release / "load_curve_hourly" / "state=RI" / f"upgrade={uid:02d}"
+            for bid in bldg_ids:
+                _touch_load_file(loads, bid, uid)
+
+        adoption_yaml = tmp_path / "adoption.yaml"
+        adoption_yaml.write_text(
+            "scenario_name: test\nrandom_seed: 0\nscenario:\n  2: [0.34]\n"
+            "year_labels: [2025]\n",
+            encoding="utf-8",
+        )
+
+        out_dir = tmp_path / "out"
+        main(
+            [
+                "--state",
+                "ri",
+                "--utility",
+                "test",
+                "--adoption-config",
+                str(adoption_yaml),
+                "--path-resstock-release",
+                str(release),
+                "--output-dir",
+                str(out_dir),
+            ]
+        )
+        assert (out_dir / "year=2025" / "metadata-sb.parquet").exists()
+
+    def test_hp_filtering_integration_baseline_pin_and_applicability(
+        self, tmp_path: Path
+    ) -> None:
+        release = tmp_path / "release"
+        bldg_ids = [1, 2, 3, 4, 5, 6]
+        baseline_has_hp = [False, False, False, True, True, True]
+        upgrade_2_has_hp = [True, True, False, False, False, False]
+
+        _write_metadata(
+            release / "metadata" / "state=NY" / "upgrade=00" / "metadata-sb.parquet",
+            _make_metadata_df(bldg_ids, baseline_has_hp),
+        )
+        _write_metadata(
+            release / "metadata" / "state=NY" / "upgrade=02" / "metadata-sb.parquet",
+            _make_metadata_df(bldg_ids, upgrade_2_has_hp),
+        )
+
+        mixed = SbMixedUpgradeScenario(
+            path_resstock_release=release,
+            state="ny",
+            scenario_name="test",
+            scenario={2: [0.5]},
+            random_seed=0,
+            year_labels=[2025],
+            run_year_indices=[0],
+        )
+        assignments = mixed.build_assignments(assign_buildings)
+        year0 = assignments[0]
+
+        # Baseline-HP buildings must stay on upgrade 0.
+        for bldg_id in [4, 5, 6]:
+            assert year0[bldg_id] == 0
+
+        # Newly assigned HP buildings must come from upgrade-specific applicability.
+        assigned_to_2 = {bid for bid, uid in year0.items() if uid == 2}
+        assert assigned_to_2.issubset({1, 2})
