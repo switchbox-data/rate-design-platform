@@ -39,6 +39,7 @@ Usage:
 """
 
 import argparse
+import calendar
 import io
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -196,13 +197,16 @@ def normalize_load_to_cairo_8760(
     if df.is_empty():
         raise ValueError(f"No load rows found for load_year={year_load}")
 
-    # Cairo leap-year rule: if Feb 29 exists, drop Dec 31.
-    has_feb29 = df.select(
+    # Cairo leap-year rule: drop Dec 31 so the year has exactly 8760 hours.
+    # Check the calendar year (not just data) because some sources (e.g. Cambium)
+    # already omit Feb 29 for leap years, so the data won't contain it.
+    is_leap = calendar.isleap(year_load)
+    data_has_feb29 = df.select(
         ((pl.col("timestamp").dt.month() == 2) & (pl.col("timestamp").dt.day() == 29))
         .any()
         .alias("has_feb29")
     ).item()
-    if has_feb29:
+    if data_has_feb29:
         print(
             "  Leap-year pattern detected (Feb 29 present); dropping Dec 31 to match Cairo."
         )
@@ -224,7 +228,7 @@ def normalize_load_to_cairo_8760(
         agg_exprs.append(pl.col("utility").first().alias("utility"))
     df = df.group_by("timestamp").agg(agg_exprs).sort("timestamp")
 
-    # Build expected 8760 index for this year.
+    # Build expected 8760 index for this year (drop Dec 31 for leap years).
     start = datetime(year_load, 1, 1, 0, 0, 0)
     end = datetime(year_load, 12, 31, 23, 0, 0)
     expected = []
@@ -232,9 +236,13 @@ def normalize_load_to_cairo_8760(
     while cur <= end:
         expected.append(cur)
         cur += timedelta(hours=1)
-    if has_feb29:
+    if is_leap:
         expected = [t for t in expected if not (t.month == 12 and t.day == 31)]
     expected_df = pl.DataFrame({"timestamp": expected})
+
+    # Align timestamp precision so the join key dtypes match.
+    if df["timestamp"].dtype != expected_df["timestamp"].dtype:
+        expected_df = expected_df.cast({"timestamp": df["timestamp"].dtype})
 
     # Reindex and fill any missing hours.
     df = expected_df.join(df, on="timestamp", how="left").sort("timestamp")

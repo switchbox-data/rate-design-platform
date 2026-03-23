@@ -94,12 +94,14 @@ def _return_loads_combined(
 
     # 2. Read timestamps from the first file only — all ResStock buildings share
     #    the same 8760-hour series, so one file is sufficient.
-    first_table = pq.read_table(paths[0], columns=["timestamp"])
-    ts_first = first_table.column("timestamp").to_numpy()
+    #    Use ParquetFile to avoid dataset/Hive-partition inference that can
+    #    fail when the parent path contains partition keys (e.g. year=2025).
+    pf = pq.ParquetFile(paths[0])
+    ts_first = pf.read(columns=["timestamp"]).column("timestamp").to_numpy()
+    del pf
     assert len(ts_first) == 8760, (
         f"Expected 8760 rows in first file, got {len(ts_first)}"
     )
-    del first_table
 
     # 3. Compute timeshift parameters from source timestamps
     source_year = int(pd.Timestamp(ts_first[0]).year)
@@ -118,14 +120,15 @@ def _return_loads_combined(
         unique_times = unique_times.tz_localize(force_tz)
 
     # 5. Read only the 3 data columns from all files (skip bldg_id and timestamp).
-    #    Use the first file's schema — ResStock load files share identical schemas.
-    schema = pq.read_schema(paths[0])
+    #    Don't force a unified schema — mixed-upgrade symlinked files may have
+    #    different encodings for columns we don't need (e.g. dictionary-encoded
+    #    vs plain int32 for `year`). Omitting `schema` lets PyArrow unify per-file.
     _DATA_COLS = [
         "out.electricity.total.energy_consumption",
         "out.electricity.pv.energy_consumption",
         "out.natural_gas.total.energy_consumption",
     ]
-    ds = pad.dataset(paths, format="parquet", schema=schema)
+    ds = pad.dataset(paths, format="parquet")
     table = ds.to_table(columns=_DATA_COLS)
     _log_mem("after to_table (3 data cols, arrow)")
 
