@@ -419,9 +419,45 @@ def test_parse_group_value_to_subclass() -> None:
 
 
 def test_compute_hp_seasonal_discount_inputs(tmp_path: Path) -> None:
+    # Use _write_sample_run_dir for bills/metadata (HP bldgs 1 and 3, FC=2):
+    #   winter rev: (5-2) + (6-2) + (7-2) = 12.0 (Jan bldg1, Feb bldg3, Dec bldg3)
+    #   summer rev: (8-2) = 6.0 (Jul bldg1)
+    #   CS: BAT_percustomer bldg1=3, bldg3=4 → total 7.0
+    # Use balanced loads (winter-heavy) so equivalent_flat_rate > winter_discount.
     run_dir = _write_sample_run_dir(tmp_path)
-    resstock_base = _write_sample_resstock_loads_dir(tmp_path)
     tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
+
+    # Custom loads: bldg 1 (Jan=200, Jul=100), bldg 3 (Feb=200, Dec=100)
+    # winter_kwh = 200+200+100 = 500, summer_kwh = 100, total = 600
+    resstock_base = tmp_path / "resstock"
+    part = (
+        resstock_base
+        / "load_curve_hourly"
+        / f"state={_LOADS_STATE}"
+        / f"upgrade={_LOADS_UPGRADE}"
+    )
+    part.mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 1, 2, 4, 3, 3],
+            "timestamp": [
+                "2025-01-01 00:00:00",
+                "2025-07-01 00:00:00",
+                "2025-01-01 00:00:00",
+                "2025-01-01 00:00:00",
+                "2025-02-01 00:00:00",
+                "2025-12-01 00:00:00",
+            ],
+            "out.electricity.net.energy_consumption": [
+                200.0,
+                100.0,
+                500.0,
+                600.0,
+                200.0,
+                100.0,
+            ],
+        }
+    ).write_parquet(part / "loads.parquet")
 
     out = compute_hp_seasonal_discount_inputs(
         run_dir=run_dir,
@@ -436,19 +472,22 @@ def test_compute_hp_seasonal_discount_inputs(tmp_path: Path) -> None:
     assert out["subclass"][0] == "true"
     # HP ids are 1 and 3 -> BAT_percustomer = 3 + 4 = 7 (weighted by 1 each)
     assert out["total_cross_subsidy_hp"][0] == pytest.approx(7.0)
-    # Winter kWh (Oct-Mar): bldg 1 Jan=10, bldg 3 Feb=20 + Dec=30 → 60
-    assert out["winter_kwh_hp"][0] == pytest.approx(60.0)
-    # Summer kWh: bldg 1 Jul=999 → 999
-    assert out["summer_kwh_hp"][0] == pytest.approx(999.0)
-    # Revenue (fixed_charge=2.0):
-    #   winter: (5-2)*1 + (6-2)*1 + (7-2)*1 = 12.0
-    #   summer: (8-2)*1 = 6.0
-    assert out["rev_winter_energy_hp"][0] == pytest.approx(12.0)
-    assert out["rev_summer_energy_hp"][0] == pytest.approx(6.0)
-    # summer_rate = 6.0 / 999.0
-    assert out["summer_rate"][0] == pytest.approx(6.0 / 999.0)
-    # winter_rate = (12.0 - 7.0) / 60.0 = 5.0 / 60.0
-    assert out["winter_rate_hp"][0] == pytest.approx(5.0 / 60.0)
+    # Winter kWh (Oct-Mar): bldg 1 Jan=200, bldg 3 Feb=200 + Dec=100 → 500
+    assert out["winter_kwh_hp"][0] == pytest.approx(500.0)
+    # Summer kWh: bldg 1 Jul=100 → 100
+    assert out["summer_kwh_hp"][0] == pytest.approx(100.0)
+    # Annual energy revenue (fixed_charge=2.0, 12*FC=24):
+    #   bldg 1: Annual=100, energy=100-24=76
+    #   bldg 3: Annual=300, energy=300-24=276
+    #   total = 352.0
+    assert out["annual_energy_rev_hp"][0] == pytest.approx(352.0)
+    # equivalent_flat_rate = 352.0 / 600.0; winter_discount = 7.0 / 500.0
+    _flat = 352.0 / 600.0
+    assert out["equivalent_flat_rate"][0] == pytest.approx(_flat)
+    assert out["winter_discount"][0] == pytest.approx(7.0 / 500.0)
+    assert out["summer_rate"][0] == pytest.approx(_flat)
+    assert out["winter_rate_hp"][0] == pytest.approx(_flat - 7.0 / 500.0)
+    assert out["annual_kwh_hp"][0] == pytest.approx(600.0)
     assert out["winter_months"][0] == "10,11,12,1,2,3"
 
 
@@ -466,12 +505,14 @@ def test_compute_hp_seasonal_discount_inputs_applies_weights(tmp_path: Path) -> 
     pl.DataFrame({"bldg_id": [1, 2], "BAT_percustomer": [10.0, 10.0]}).write_csv(
         run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv"
     )
-    # Monthly bills: Jan (winter) and Jul (summer) for both buildings.
+    # Bills: Jan (winter 100 kWh), Jul (summer 50 kWh), and Annual.
+    # Tariff: FC=2, rate=0.21 → Jan bill=23, Jul bill=12.5.
+    # Annual bill = 12*FC + rate*(winter_kwh + summer_kwh) = 24 + 0.21*150 = 55.5
     pl.DataFrame(
         {
             "bldg_id": [1, 1, 1, 2, 2, 2],
             "month": ["Jan", "Jul", "Annual", "Jan", "Jul", "Annual"],
-            "bill_level": [23.0, 12.5, 0.0, 23.0, 12.5, 0.0],
+            "bill_level": [23.0, 12.5, 55.5, 23.0, 12.5, 55.5],
         }
     ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
     tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
@@ -511,13 +552,16 @@ def test_compute_hp_seasonal_discount_inputs_applies_weights(tmp_path: Path) -> 
     assert out["winter_kwh_hp"][0] == pytest.approx(1000.0)
     # Weighted summer kWh = 50*1 + 50*9 = 500
     assert out["summer_kwh_hp"][0] == pytest.approx(500.0)
-    # Winter revenue: (23-2)*1 + (23-2)*9 = 21 + 189 = 210
-    assert out["rev_winter_energy_hp"][0] == pytest.approx(210.0)
-    # Summer revenue: (12.5-2)*1 + (12.5-2)*9 = 10.5 + 94.5 = 105
-    assert out["rev_summer_energy_hp"][0] == pytest.approx(105.0)
-    # winter_rate = (210 - 100) / 1000 = 0.11
+    # Annual energy revenue from Annual row (55.5 - 12*2 = 31.5 per bldg):
+    #   weighted = 31.5*1 + 31.5*9 = 31.5 + 283.5 = 315.0
+    assert out["annual_energy_rev_hp"][0] == pytest.approx(315.0)
+    # equivalent_flat_rate = 315 / 1500 = 0.21 (flat tariff: same as single rate)
+    assert out["equivalent_flat_rate"][0] == pytest.approx(0.21)
+    # winter_discount = 100 / 1000 = 0.10
+    assert out["winter_discount"][0] == pytest.approx(0.10)
+    # winter_rate = 0.21 - 0.10 = 0.11
     assert out["winter_rate_hp"][0] == pytest.approx(0.11)
-    # summer_rate = 105 / 500 = 0.21
+    # summer_rate = equivalent_flat_rate = 0.21
     assert out["summer_rate"][0] == pytest.approx(0.21)
 
 
@@ -540,9 +584,12 @@ def test_compute_hp_seasonal_discount_inputs_flat_equivalence(tmp_path: Path) ->
         run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv"
     )
 
-    # Bills consistent with flat rate: bill = fixed_charge + rate * kwh
+    # Bills consistent with flat rate: bill = fixed_charge + rate * kwh.
+    # Annual bill = 12*FC + rate*(winter_kwh + summer_kwh).
     winter_kwh_1, summer_kwh_1 = 200.0, 100.0
     winter_kwh_2, summer_kwh_2 = 300.0, 150.0
+    annual_bill_1 = 12 * fixed_charge + flat_rate * (winter_kwh_1 + summer_kwh_1)
+    annual_bill_2 = 12 * fixed_charge + flat_rate * (winter_kwh_2 + summer_kwh_2)
     pl.DataFrame(
         {
             "bldg_id": [1, 1, 1, 2, 2, 2],
@@ -550,10 +597,10 @@ def test_compute_hp_seasonal_discount_inputs_flat_equivalence(tmp_path: Path) ->
             "bill_level": [
                 fixed_charge + flat_rate * winter_kwh_1,
                 fixed_charge + flat_rate * summer_kwh_1,
-                0.0,
+                annual_bill_1,
                 fixed_charge + flat_rate * winter_kwh_2,
                 fixed_charge + flat_rate * summer_kwh_2,
-                0.0,
+                annual_bill_2,
             ],
         }
     ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
@@ -598,11 +645,150 @@ def test_compute_hp_seasonal_discount_inputs_flat_equivalence(tmp_path: Path) ->
 
     total_cs = 5.0 + 3.0
     total_winter_kwh = winter_kwh_1 + winter_kwh_2
-    # For flat tariffs: summer_rate == flat_rate, winter_rate == flat_rate - CS/winter_kwh
+    total_summer_kwh = summer_kwh_1 + summer_kwh_2
+    total_kwh = total_winter_kwh + total_summer_kwh
+    # Annual energy revenue = (annual_bill - 12*FC) per building, summed.
+    # annual_bill_i = 12*FC + flat_rate * (winter_kwh_i + summer_kwh_i)
+    # → energy_i = flat_rate * (winter_kwh_i + summer_kwh_i)
+    # → total = flat_rate * total_kwh
+    expected_annual_energy_rev = flat_rate * total_kwh
+    assert out["annual_energy_rev_hp"][0] == pytest.approx(expected_annual_energy_rev)
+    # For flat tariffs: equivalent_flat_rate = flat_rate * total_kwh / total_kwh = flat_rate
+    assert out["equivalent_flat_rate"][0] == pytest.approx(flat_rate)
+    assert out["winter_discount"][0] == pytest.approx(total_cs / total_winter_kwh)
     assert out["summer_rate"][0] == pytest.approx(flat_rate)
     assert out["winter_rate_hp"][0] == pytest.approx(
         flat_rate - total_cs / total_winter_kwh
     )
+    assert out["annual_kwh_hp"][0] == pytest.approx(total_kwh)
+
+
+def test_compute_hp_seasonal_discount_inputs_structured_tariff(tmp_path: Path) -> None:
+    """Blended flat rate is used even when bills reflect a structured tariff.
+
+    Simulates a tariff where winter bills per kWh exceed summer bills per kWh
+    (e.g. a seasonal tiered tariff). The new formula produces the blended rate
+    for summer (not the season-specific summer rate), and the winter rate is the
+    blended rate minus the cross-subsidy discount.
+    """
+    fixed_charge = 2.0
+    # Two HP buildings with non-flat seasonal bills:
+    # bldg 1: Jan (winter) 100 kWh billed at $0.30/kWh + FC, Jul (summer) 100 kWh at $0.15/kWh + FC
+    # bldg 2: Jan (winter) 200 kWh at $0.30/kWh + FC, Jul (summer) 200 kWh at $0.15/kWh + FC
+    winter_rate_filed = 0.30
+    summer_rate_filed = 0.15
+    winter_kwh_1, summer_kwh_1 = 100.0, 100.0
+    winter_kwh_2, summer_kwh_2 = 200.0, 200.0
+    cs_1, cs_2 = 4.0, 8.0
+
+    run_dir = tmp_path / "run"
+    (run_dir / "bills").mkdir(parents=True)
+    (run_dir / "cross_subsidization").mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "weight": [1.0, 1.0],
+            "postprocess_group.has_hp": [True, True],
+        }
+    ).write_csv(run_dir / "customer_metadata.csv")
+    pl.DataFrame({"bldg_id": [1, 2], "BAT_percustomer": [cs_1, cs_2]}).write_csv(
+        run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv"
+    )
+    # Annual bill = 12*FC + winter_rate*winter_kwh + summer_rate*summer_kwh
+    annual_bill_1 = (
+        12 * fixed_charge
+        + winter_rate_filed * winter_kwh_1
+        + summer_rate_filed * summer_kwh_1
+    )
+    annual_bill_2 = (
+        12 * fixed_charge
+        + winter_rate_filed * winter_kwh_2
+        + summer_rate_filed * summer_kwh_2
+    )
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 1, 1, 2, 2, 2],
+            "month": ["Jan", "Jul", "Annual", "Jan", "Jul", "Annual"],
+            "bill_level": [
+                fixed_charge + winter_rate_filed * winter_kwh_1,
+                fixed_charge + summer_rate_filed * summer_kwh_1,
+                annual_bill_1,
+                fixed_charge + winter_rate_filed * winter_kwh_2,
+                fixed_charge + summer_rate_filed * summer_kwh_2,
+                annual_bill_2,
+            ],
+        }
+    ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
+    tariff_path = _write_urdb_tariff(
+        tmp_path / "base_tariff.json", fixed_charge=fixed_charge, rate=summer_rate_filed
+    )
+
+    resstock_base = tmp_path / "resstock"
+    part = (
+        resstock_base
+        / "load_curve_hourly"
+        / f"state={_LOADS_STATE}"
+        / f"upgrade={_LOADS_UPGRADE}"
+    )
+    part.mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 1, 2, 2],
+            "timestamp": [
+                "2025-01-01 00:00:00",
+                "2025-07-01 00:00:00",
+                "2025-01-01 00:00:00",
+                "2025-07-01 00:00:00",
+            ],
+            "out.electricity.net.energy_consumption": [
+                winter_kwh_1,
+                summer_kwh_1,
+                winter_kwh_2,
+                summer_kwh_2,
+            ],
+        }
+    ).write_parquet(part / "loads.parquet")
+
+    out = compute_hp_seasonal_discount_inputs(
+        run_dir=run_dir,
+        resstock_base=str(resstock_base),
+        state=_LOADS_STATE,
+        upgrade=_LOADS_UPGRADE,
+        cross_subsidy_col="BAT_percustomer",
+        base_tariff_json_path=tariff_path,
+    )
+
+    total_cs = cs_1 + cs_2
+    total_winter_kwh = winter_kwh_1 + winter_kwh_2
+    total_summer_kwh = summer_kwh_1 + summer_kwh_2
+    total_kwh = total_winter_kwh + total_summer_kwh
+    # Annual energy revenue = annual_bill - 12*FC per building
+    annual_energy_rev = (annual_bill_1 - 12 * fixed_charge) + (
+        annual_bill_2 - 12 * fixed_charge
+    )
+    expected_flat = annual_energy_rev / total_kwh
+
+    # Blended flat rate is between the filed summer and winter rates, not equal to either.
+    assert expected_flat != pytest.approx(summer_rate_filed)
+    assert expected_flat != pytest.approx(winter_rate_filed)
+
+    assert out["annual_energy_rev_hp"][0] == pytest.approx(annual_energy_rev)
+    assert out["equivalent_flat_rate"][0] == pytest.approx(expected_flat)
+    assert out["winter_discount"][0] == pytest.approx(total_cs / total_winter_kwh)
+    # summer_rate is the blended rate, NOT the filed summer rate
+    assert out["summer_rate"][0] == pytest.approx(expected_flat)
+    assert out["winter_rate_hp"][0] == pytest.approx(
+        expected_flat - total_cs / total_winter_kwh
+    )
+    # Revenue neutrality: CAIRO aggregate HP revenue at rate_unity=1 equals RR_HP
+    total_annual_bills = annual_bill_1 + annual_bill_2
+    rr_hp = total_annual_bills - total_cs
+    rev_hp = (
+        fixed_charge * 12 * 2  # 2 buildings, 12 months
+        + out["summer_rate"][0] * total_summer_kwh
+        + out["winter_rate_hp"][0] * total_winter_kwh
+    )
+    assert rev_hp == pytest.approx(rr_hp)
 
 
 def test_compute_hp_seasonal_discount_inputs_raises_when_non_positive_rate(
@@ -641,8 +827,38 @@ def test_compute_hp_seasonal_discount_inputs_raises_without_base_tariff(
 
 def test_write_seasonal_inputs_csv_uses_output_dir_override(tmp_path: Path) -> None:
     run_dir = _write_sample_run_dir(tmp_path)
-    resstock_base = _write_sample_resstock_loads_dir(tmp_path)
     tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
+    # Balanced loads so equivalent_flat_rate > winter_discount (same layout as
+    # test_compute_hp_seasonal_discount_inputs above).
+    resstock_base = tmp_path / "resstock"
+    part = (
+        resstock_base
+        / "load_curve_hourly"
+        / f"state={_LOADS_STATE}"
+        / f"upgrade={_LOADS_UPGRADE}"
+    )
+    part.mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 1, 2, 4, 3, 3],
+            "timestamp": [
+                "2025-01-01 00:00:00",
+                "2025-07-01 00:00:00",
+                "2025-01-01 00:00:00",
+                "2025-01-01 00:00:00",
+                "2025-02-01 00:00:00",
+                "2025-12-01 00:00:00",
+            ],
+            "out.electricity.net.energy_consumption": [
+                200.0,
+                100.0,
+                500.0,
+                600.0,
+                200.0,
+                100.0,
+            ],
+        }
+    ).write_parquet(part / "loads.parquet")
     seasonal_inputs = compute_hp_seasonal_discount_inputs(
         run_dir=run_dir,
         resstock_base=str(resstock_base),

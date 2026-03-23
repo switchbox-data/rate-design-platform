@@ -274,9 +274,6 @@ def compute_hp_seasonal_discount_inputs(
         if winter_months is not None
         else tuple(DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS)
     )
-    winter_month_names = frozenset(
-        NUM_TO_MONTH_ABBREV[m] for m in resolved_winter_months
-    )
 
     # --- HP metadata, weights, and cross-subsidy ---
     t0 = perf_counter()
@@ -316,48 +313,32 @@ def compute_hp_seasonal_discount_inputs(
     # --- Fixed charge from URDB base tariff ---
     fixed_charge = _extract_fixed_charge_from_urdb(base_tariff_json_path)
 
-    # --- Seasonal energy revenue from monthly bills ---
+    # --- Annual energy revenue from annual bills ---
+    # Use the Annual row (same source as compute_subclass_rr) so the flat rate
+    # is derived from exactly the same bills that produced RR_HP.  Subtracting
+    # 12*FC converts the annual total bill into the annual energy-only revenue.
     t1 = perf_counter()
     hp_ids_weights = hp_cross_subsidy.select(BLDG_ID_COL, WEIGHT_COL)
 
-    monthly_bills = (
-        pl.scan_csv(
-            _csv_path(run_dir, "bills/elec_bills_year_target.csv"),
-            storage_options=storage_options,
-        )
-        .filter(pl.col("month") != ANNUAL_MONTH_VALUE)
-        .select(
-            pl.col(BLDG_ID_COL).cast(pl.Int64),
-            pl.col("month"),
-            pl.col("bill_level").cast(pl.Float64),
-        )
-    )
-
-    seasonal_revenue = cast(
+    annual_energy_rev_row = cast(
         pl.DataFrame,
-        monthly_bills.join(hp_ids_weights.lazy(), on=BLDG_ID_COL, how="inner")
+        _load_annual_target_bills(run_dir, ANNUAL_MONTH_VALUE, storage_options)
+        .join(hp_ids_weights.lazy(), on=BLDG_ID_COL, how="inner")
         .with_columns(
-            pl.col("month").is_in(winter_month_names).alias("is_winter"),
-            ((pl.col("bill_level") - fixed_charge) * pl.col(WEIGHT_COL)).alias(
+            ((pl.col("annual_bill") - 12.0 * fixed_charge) * pl.col(WEIGHT_COL)).alias(
                 "weighted_energy_rev"
-            ),
+            )
         )
-        .group_by("is_winter")
-        .agg(pl.col("weighted_energy_rev").sum())
+        .select(pl.col("weighted_energy_rev").sum().alias("annual_energy_rev_hp"))
         .collect(),
     )
+    annual_energy_rev_hp = float(
+        annual_energy_rev_row["annual_energy_rev_hp"][0] or 0.0
+    )
     LOGGER.info(
-        "seasonal_inputs: computed seasonal revenue in %.2fs",
+        "seasonal_inputs: computed annual energy revenue in %.2fs",
         perf_counter() - t1,
     )
-
-    rev_winter = 0.0
-    rev_summer = 0.0
-    for row in seasonal_revenue.to_dicts():
-        if row["is_winter"]:
-            rev_winter = float(row["weighted_energy_rev"])
-        else:
-            rev_summer = float(row["weighted_energy_rev"])
 
     # --- Seasonal kWh from ResStock loads ---
     hp_weights = hp_cross_subsidy.select(pl.col(BLDG_ID_COL), pl.col(WEIGHT_COL))
@@ -421,16 +402,28 @@ def compute_hp_seasonal_discount_inputs(
         )
 
     # --- Derive effective seasonal rates ---
-    summer_rate = rev_summer / summer_kwh
-    winter_rate_raw = (rev_winter - total_cross_subsidy_hp) / winter_kwh
+    # Equivalent flat rate = HP annual energy revenue / HP annual kWh.
+    # This uses the same Annual row bills that produced RR_HP, ensuring the
+    # pre-calibrated hp_seasonal tariff is exactly subclass revenue neutral
+    # (rate_unity = 1.0 at CAIRO precalc, up to floating-point precision).
+    # Summer rate = flat rate; winter rate = flat rate - winter discount,
+    # where winter_discount = CS / winter_kWh eliminates the HP cross-subsidy.
+    total_kwh = summer_kwh + winter_kwh
+    equivalent_flat_rate = annual_energy_rev_hp / total_kwh
+    winter_discount = total_cross_subsidy_hp / winter_kwh
+    summer_rate = equivalent_flat_rate
+    winter_rate_raw = equivalent_flat_rate - winter_discount
     winter_rate_hp = winter_rate_raw
     if winter_rate_hp < 0:
         raise ValueError(
             "Computed winter_rate_hp is negative. "
             "Check formula inputs: "
-            f"rev_winter_energy_hp={rev_winter}, "
+            f"annual_energy_rev_hp={annual_energy_rev_hp}, "
             f"total_cross_subsidy_hp={total_cross_subsidy_hp}, "
             f"winter_kwh_hp={winter_kwh}, "
+            f"annual_kwh_hp={total_kwh}, "
+            f"equivalent_flat_rate={equivalent_flat_rate}, "
+            f"winter_discount={winter_discount}, "
             f"winter_rate_hp={winter_rate_hp}"
         )
 
@@ -439,12 +432,14 @@ def compute_hp_seasonal_discount_inputs(
         {
             "subclass": ["true"],
             "cross_subsidy_col": [cross_subsidy_col],
+            "equivalent_flat_rate": [equivalent_flat_rate],
+            "winter_discount": [winter_discount],
             "summer_rate": [summer_rate],
             "total_cross_subsidy_hp": [total_cross_subsidy_hp],
             "winter_kwh_hp": [winter_kwh],
             "summer_kwh_hp": [summer_kwh],
-            "rev_summer_energy_hp": [rev_summer],
-            "rev_winter_energy_hp": [rev_winter],
+            "annual_kwh_hp": [total_kwh],
+            "annual_energy_rev_hp": [annual_energy_rev_hp],
             "winter_rate_hp": [winter_rate_hp],
             "winter_rate_raw": [winter_rate_raw],
             "winter_months": [",".join(str(m) for m in resolved_winter_months)],

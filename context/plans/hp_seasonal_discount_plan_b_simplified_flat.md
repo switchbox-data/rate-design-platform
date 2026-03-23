@@ -41,14 +41,22 @@ Rev^{winter}_{energy,HP} = \sum_{i \in HP} \sum_{m \in winter} weight_i \times (
 Then:
 
 \[
-summer\_rate = \frac{Rev^{summer}_{energy,HP}}{summer\_kWh_{HP}}
+equivalent\_flat\_rate = \frac{Rev^{summer}_{energy,HP} + Rev^{winter}_{energy,HP}}{summer\_kWh_{HP} + winter\_kWh_{HP}}
 \]
 
 \[
-winter\_rate = \frac{Rev^{winter}_{energy,HP} - CS^{HP}}{winter\_kWh_{HP}}
+winter\_discount = \frac{CS^{HP}}{winter\_kWh_{HP}}
 \]
 
-For a flat tariff, \(Rev^{summer} / summer\_kWh = Rev^{winter} / winter\_kWh = flat\_rate\), so this reduces to the existing formula. For a structured tariff, it gives the correct load-weighted effective rates.
+\[
+summer\_rate = equivalent\_flat\_rate
+\]
+
+\[
+winter\_rate = equivalent\_flat\_rate - winter\_discount
+\]
+
+For a flat tariff, \(Rev^{summer} / summer\_kWh = Rev^{winter} / winter\_kWh = flat\_rate = equivalent\_flat\_rate\), so this reduces to the existing formula. For a structured tariff, it produces a flat starting point (erasing any seasonal revenue asymmetry from the default tariff) and applies the cross-subsidy discount only to winter, keeping `rate_unity` close to 1.0 during CAIRO precalc.
 
 ### Revenue neutrality proof
 
@@ -63,14 +71,16 @@ Aggregate weighted HP revenue:
 \[
 \begin{align}
 Rev_{HP,flat} &= 12 \times fixed\_charge \times N_{weighted} + summer\_rate \times summer\_kWh_{HP} + winter\_rate \times winter\_kWh_{HP} \\
-&= 12 \times fixed\_charge \times N_{weighted} + Rev^{summer}_{energy,HP} + (Rev^{winter}_{energy,HP} - CS^{HP}) \\
+&= 12 \times fixed\_charge \times N_{weighted} + flat \times summer\_kWh + (flat - \frac{CS^{HP}}{winter\_kWh}) \times winter\_kWh \\
+&= 12 \times fixed\_charge \times N_{weighted} + flat \times (summer\_kWh + winter\_kWh) - CS^{HP} \\
+&= 12 \times fixed\_charge \times N_{weighted} + (Rev^{summer}_{energy,HP} + Rev^{winter}_{energy,HP}) - CS^{HP} \\
 &= 12 \times fixed\_charge \times N_{weighted} + (Total\_Bills_{HP} - 12 \times fixed\_charge \times N_{weighted}) - CS^{HP} \\
 &= Total\_Bills_{HP} - CS^{HP} \\
 &= RR_{HP}
 \end{align}
 \]
 
-Revenue neutrality holds exactly by construction. The `rate_unity` for the HP key in run-5 should be essentially 1.0. The flattening redistributes revenue across individual buildings (some HP homes pay slightly more in summer, some less, compared to the structured default) but preserves the aggregate.
+Revenue neutrality holds exactly by construction. The `rate_unity` for the HP key in run-5 should be essentially 1.0. Using a blended flat rate for both seasons minimizes per-building redistribution (since the HP seasonal tariff is intentionally a "simple flat rate with a winter discount"), reducing the magnitude of any remaining `rate_unity` drift to only the fixed-charge cross-subsidy residual.
 
 **Non-HP side:** CAIRO calibrates the non-HP tariff to \(RR_{non-HP} = Total\_RR - RR_{HP}\) in run-5. Plan B doesn't touch the non-HP key or the RR split. Revenue neutral on the non-HP side too.
 
