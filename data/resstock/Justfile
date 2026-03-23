@@ -324,8 +324,6 @@ adjust-mf-electricity-NY-upgrade-05:
 create-sb-release-for-adoption-upgrades-NY:
     just copy-resstock-data-2024-amy2018-2-NY "01 04 05" "metadata load_curve_hourly"
     just approximate-non-hp-load NY 01 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True
-    just approximate-non-hp-load NY 04 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True
-    just approximate-non-hp-load NY 05 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True
     just adjust-mf-electricity-NY-upgrade-01
     just adjust-mf-electricity-NY-upgrade-04
     just adjust-mf-electricity-NY-upgrade-05
