@@ -98,7 +98,7 @@ def main() -> None:
         raise ValueError("Seasonal inputs CSV is empty.")
 
     row = seasonal_inputs.row(0, named=True)
-    summer_rate = float(row["default_rate"])
+    summer_rate = float(row["summer_rate"])
     winter_rate = float(row["winter_rate_hp"])
     winter_months = parse_months_arg(args.winter_months) if args.winter_months else None
     periods_winter: list[int] | None = None

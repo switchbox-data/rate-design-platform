@@ -55,6 +55,7 @@ use_resstock_loads := env_var_or_default('USE_RESSTOCK_LOADS', 'false')
 # Which base tariff pattern runs 1-4 use (and thus which calibrated tariff
 # runs 5/6 derive the seasonal discount from).  "flat" = original behavior,
 # "default" = preserve the actual utility rate structure.
+
 base_tariff_pattern := env_var_or_default('BASE_TARIFF_PATTERN', 'flat')
 
 # =============================================================================
@@ -377,14 +378,15 @@ compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" cross
       "{{ resstock_base }}" \
       "{{ upgrade }}"
 
-compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="":
+compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="":
     just -f {{ path_repo }}/utils/Justfile compute-seasonal-discount-inputs \
       "{{ run_dir }}" \
       "{{ resstock_base }}" \
       "{{ state_upper }}" \
       "{{ upgrade }}" \
       "{{ cross_subsidy_col }}" \
-      "{{ output_dir }}"
+      "{{ output_dir }}" \
+      "{{ base_tariff_json }}"
 
 create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label output_path periods_yaml=path_periods_yaml:
     just -f {{ path_repo }}/utils/Justfile create-seasonal-discount-tariff \
@@ -473,7 +475,10 @@ run-5:
     set -euo pipefail
     run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
     echo ">> run-5: resolved run-1 output → ${run1_dir}" >&2
-    just compute-seasonal-discount-inputs "${run1_dir}" "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}"
+    just compute-seasonal-discount-inputs "${run1_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_percustomer" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json"
     just create-seasonal-discount-tariff \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
         "${run1_dir}/seasonal_discount_rate_inputs.csv" \
@@ -486,7 +491,10 @@ run-6:
     set -euo pipefail
     run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
     echo ">> run-6: resolved run-2 output → ${run2_dir}" >&2
-    just compute-seasonal-discount-inputs "${run2_dir}" "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}"
+    just compute-seasonal-discount-inputs "${run2_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_percustomer" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json"
     just create-seasonal-discount-tariff \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
         "${run2_dir}/seasonal_discount_rate_inputs.csv" \

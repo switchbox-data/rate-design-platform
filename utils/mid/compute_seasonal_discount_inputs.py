@@ -69,10 +69,11 @@ def main() -> None:
         help="BAT column in cross_subsidization_BAT_values.csv to use.",
     )
     parser.add_argument(
-        "--tariff-final-config-path",
+        "--base-tariff-json",
+        required=True,
         help=(
-            "Optional override for tariff_final_config.json (local or s3://...). "
-            "Defaults to <run-dir>/tariff_final_config.json."
+            "Path to URDB-format base tariff JSON (e.g. <utility>_default_calibrated.json). "
+            "Used to extract fixedchargefirstmeter for seasonal discount computation."
         ),
     )
     parser.add_argument(
@@ -85,11 +86,7 @@ def main() -> None:
     args = parser.parse_args()
 
     run_dir = _resolve_path_or_s3(args.run_dir)
-    tariff_final_config_path = (
-        _resolve_path_or_s3(args.tariff_final_config_path)
-        if args.tariff_final_config_path
-        else None
-    )
+    base_tariff_json_path = _resolve_path_or_s3(args.base_tariff_json)
     output_dir = _resolve_path_or_s3(args.output_dir) if args.output_dir else run_dir
 
     storage_options = get_aws_storage_options() if isinstance(run_dir, S3Path) else None
@@ -100,7 +97,7 @@ def main() -> None:
         upgrade=args.upgrade,
         cross_subsidy_col=args.cross_subsidy_col,
         storage_options=storage_options,
-        tariff_final_config_path=tariff_final_config_path,
+        base_tariff_json_path=base_tariff_json_path,
     )
     print(seasonal_inputs)
 

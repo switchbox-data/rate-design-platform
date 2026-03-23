@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import polars as pl
@@ -19,6 +20,26 @@ from utils.mid.compute_subclass_rr import (
 )
 
 RUN2_SUPPLY_OFFSET = 50.0
+_FIXED_CHARGE = 2.0
+
+
+def _write_urdb_tariff(
+    path: Path, *, fixed_charge: float = _FIXED_CHARGE, rate: float = 0.21
+) -> Path:
+    """Write a minimal URDB v7 tariff JSON and return its path."""
+    tariff = {
+        "items": [
+            {
+                "label": "test_tariff",
+                "fixedchargefirstmeter": fixed_charge,
+                "energyratestructure": [[{"rate": rate, "adj": 0.0, "unit": "kWh"}]],
+                "energyweekdayschedule": [[0] * 24 for _ in range(12)],
+                "energyweekendschedule": [[0] * 24 for _ in range(12)],
+            }
+        ]
+    }
+    path.write_text(json.dumps(tariff), encoding="utf-8")
+    return path
 
 
 def _write_sample_run_dir(tmp_path: Path) -> Path:
@@ -26,11 +47,39 @@ def _write_sample_run_dir(tmp_path: Path) -> Path:
     (run_dir / "bills").mkdir(parents=True)
     (run_dir / "cross_subsidization").mkdir(parents=True)
 
+    # Monthly bills (winter: Jan/Feb/Dec, summer: Jul) + Annual rows.
+    # Annual values are used by compute_subclass_rr; monthly by seasonal discount.
     pl.DataFrame(
         {
-            "bldg_id": [1, 1, 2, 2, 3, 3, 4, 4],
-            "month": ["Jan", "Annual"] * 4,
-            "bill_level": [5.0, 100.0, 10.0, 200.0, 15.0, 300.0, 20.0, 400.0],
+            "bldg_id": [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4],
+            "month": [
+                "Jan",
+                "Jul",
+                "Annual",
+                "Jan",
+                "Jul",
+                "Annual",
+                "Feb",
+                "Dec",
+                "Annual",
+                "Jan",
+                "Jul",
+                "Annual",
+            ],
+            "bill_level": [
+                5.0,
+                8.0,
+                100.0,
+                10.0,
+                12.0,
+                200.0,
+                6.0,
+                7.0,
+                300.0,
+                20.0,
+                22.0,
+                400.0,
+            ],
         }
     ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
 
@@ -51,10 +100,6 @@ def _write_sample_run_dir(tmp_path: Path) -> Path:
         }
     ).write_csv(run_dir / "customer_metadata.csv")
 
-    (run_dir / "tariff_final_config.json").write_text(
-        '{"rie_a16":{"ur_ec_tou_mat":[[1,1,1e+38,0,0.21,0.0,0]]}}',
-        encoding="utf-8",
-    )
     return run_dir
 
 
@@ -376,6 +421,7 @@ def test_parse_group_value_to_subclass() -> None:
 def test_compute_hp_seasonal_discount_inputs(tmp_path: Path) -> None:
     run_dir = _write_sample_run_dir(tmp_path)
     resstock_base = _write_sample_resstock_loads_dir(tmp_path)
+    tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
 
     out = compute_hp_seasonal_discount_inputs(
         run_dir=run_dir,
@@ -383,16 +429,26 @@ def test_compute_hp_seasonal_discount_inputs(tmp_path: Path) -> None:
         state=_LOADS_STATE,
         upgrade=_LOADS_UPGRADE,
         cross_subsidy_col="BAT_percustomer",
+        base_tariff_json_path=tariff_path,
     )
 
     assert out.height == 1
     assert out["subclass"][0] == "true"
-    assert out["default_rate"][0] == pytest.approx(0.21)
     # HP ids are 1 and 3 -> BAT_percustomer = 3 + 4 = 7 (weighted by 1 each)
     assert out["total_cross_subsidy_hp"][0] == pytest.approx(7.0)
-    # Winter season (Oct-Mar) over this fixture still sums Jan + Feb + Dec = 60.
+    # Winter kWh (Oct-Mar): bldg 1 Jan=10, bldg 3 Feb=20 + Dec=30 → 60
     assert out["winter_kwh_hp"][0] == pytest.approx(60.0)
-    assert out["winter_rate_hp"][0] == pytest.approx(0.21 - (7.0 / 60.0))
+    # Summer kWh: bldg 1 Jul=999 → 999
+    assert out["summer_kwh_hp"][0] == pytest.approx(999.0)
+    # Revenue (fixed_charge=2.0):
+    #   winter: (5-2)*1 + (6-2)*1 + (7-2)*1 = 12.0
+    #   summer: (8-2)*1 = 6.0
+    assert out["rev_winter_energy_hp"][0] == pytest.approx(12.0)
+    assert out["rev_summer_energy_hp"][0] == pytest.approx(6.0)
+    # summer_rate = 6.0 / 999.0
+    assert out["summer_rate"][0] == pytest.approx(6.0 / 999.0)
+    # winter_rate = (12.0 - 7.0) / 60.0 = 5.0 / 60.0
+    assert out["winter_rate_hp"][0] == pytest.approx(5.0 / 60.0)
     assert out["winter_months"][0] == "10,11,12,1,2,3"
 
 
@@ -410,13 +466,15 @@ def test_compute_hp_seasonal_discount_inputs_applies_weights(tmp_path: Path) -> 
     pl.DataFrame({"bldg_id": [1, 2], "BAT_percustomer": [10.0, 10.0]}).write_csv(
         run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv"
     )
+    # Monthly bills: Jan (winter) and Jul (summer) for both buildings.
     pl.DataFrame(
-        {"bldg_id": [1, 2], "month": ["Annual", "Annual"], "bill_level": [0.0, 0.0]}
+        {
+            "bldg_id": [1, 1, 1, 2, 2, 2],
+            "month": ["Jan", "Jul", "Annual", "Jan", "Jul", "Annual"],
+            "bill_level": [23.0, 12.5, 0.0, 23.0, 12.5, 0.0],
+        }
     ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
-    (run_dir / "tariff_final_config.json").write_text(
-        '{"rie_a16":{"ur_ec_tou_mat":[[1,1,1e+38,0,0.2,0.0,0]]}}',
-        encoding="utf-8",
-    )
+    tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
 
     resstock_base = tmp_path / "resstock"
     partition_dir = (
@@ -428,9 +486,14 @@ def test_compute_hp_seasonal_discount_inputs_applies_weights(tmp_path: Path) -> 
     partition_dir.mkdir(parents=True)
     pl.DataFrame(
         {
-            "bldg_id": [1, 2],
-            "timestamp": ["2025-01-01 00:00:00", "2025-01-01 00:00:00"],
-            "out.electricity.net.energy_consumption": [100.0, 100.0],
+            "bldg_id": [1, 1, 2, 2],
+            "timestamp": [
+                "2025-01-01 00:00:00",
+                "2025-07-01 00:00:00",
+                "2025-01-01 00:00:00",
+                "2025-07-01 00:00:00",
+            ],
+            "out.electricity.net.energy_consumption": [100.0, 50.0, 100.0, 50.0],
         }
     ).write_parquet(partition_dir / "sample.parquet")
 
@@ -440,12 +503,106 @@ def test_compute_hp_seasonal_discount_inputs_applies_weights(tmp_path: Path) -> 
         state=_LOADS_STATE,
         upgrade=_LOADS_UPGRADE,
         cross_subsidy_col="BAT_percustomer",
+        base_tariff_json_path=tariff_path,
     )
     # Weighted cross subsidy = 10*1 + 10*9 = 100
     assert out["total_cross_subsidy_hp"][0] == pytest.approx(100.0)
     # Weighted winter kWh = 100*1 + 100*9 = 1000
     assert out["winter_kwh_hp"][0] == pytest.approx(1000.0)
-    assert out["winter_rate_hp"][0] == pytest.approx(0.2 - (100.0 / 1000.0))
+    # Weighted summer kWh = 50*1 + 50*9 = 500
+    assert out["summer_kwh_hp"][0] == pytest.approx(500.0)
+    # Winter revenue: (23-2)*1 + (23-2)*9 = 21 + 189 = 210
+    assert out["rev_winter_energy_hp"][0] == pytest.approx(210.0)
+    # Summer revenue: (12.5-2)*1 + (12.5-2)*9 = 10.5 + 94.5 = 105
+    assert out["rev_summer_energy_hp"][0] == pytest.approx(105.0)
+    # winter_rate = (210 - 100) / 1000 = 0.11
+    assert out["winter_rate_hp"][0] == pytest.approx(0.11)
+    # summer_rate = 105 / 500 = 0.21
+    assert out["summer_rate"][0] == pytest.approx(0.21)
+
+
+def test_compute_hp_seasonal_discount_inputs_flat_equivalence(tmp_path: Path) -> None:
+    """Revenue-based formula reproduces the old formula when the tariff is flat."""
+    flat_rate = 0.21
+    fixed_charge = 2.0
+    run_dir = tmp_path / "run"
+    (run_dir / "bills").mkdir(parents=True)
+    (run_dir / "cross_subsidization").mkdir(parents=True)
+
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "weight": [1.0, 1.0],
+            "postprocess_group.has_hp": [True, True],
+        }
+    ).write_csv(run_dir / "customer_metadata.csv")
+    pl.DataFrame({"bldg_id": [1, 2], "BAT_percustomer": [5.0, 3.0]}).write_csv(
+        run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv"
+    )
+
+    # Bills consistent with flat rate: bill = fixed_charge + rate * kwh
+    winter_kwh_1, summer_kwh_1 = 200.0, 100.0
+    winter_kwh_2, summer_kwh_2 = 300.0, 150.0
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 1, 1, 2, 2, 2],
+            "month": ["Jan", "Jul", "Annual", "Jan", "Jul", "Annual"],
+            "bill_level": [
+                fixed_charge + flat_rate * winter_kwh_1,
+                fixed_charge + flat_rate * summer_kwh_1,
+                0.0,
+                fixed_charge + flat_rate * winter_kwh_2,
+                fixed_charge + flat_rate * summer_kwh_2,
+                0.0,
+            ],
+        }
+    ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
+    tariff_path = _write_urdb_tariff(
+        tmp_path / "base_tariff.json", fixed_charge=fixed_charge, rate=flat_rate
+    )
+
+    resstock_base = tmp_path / "resstock"
+    part = (
+        resstock_base
+        / "load_curve_hourly"
+        / f"state={_LOADS_STATE}"
+        / f"upgrade={_LOADS_UPGRADE}"
+    )
+    part.mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 1, 2, 2],
+            "timestamp": [
+                "2025-01-01 00:00:00",
+                "2025-07-01 00:00:00",
+                "2025-01-01 00:00:00",
+                "2025-07-01 00:00:00",
+            ],
+            "out.electricity.net.energy_consumption": [
+                winter_kwh_1,
+                summer_kwh_1,
+                winter_kwh_2,
+                summer_kwh_2,
+            ],
+        }
+    ).write_parquet(part / "loads.parquet")
+
+    out = compute_hp_seasonal_discount_inputs(
+        run_dir=run_dir,
+        resstock_base=str(resstock_base),
+        state=_LOADS_STATE,
+        upgrade=_LOADS_UPGRADE,
+        cross_subsidy_col="BAT_percustomer",
+        base_tariff_json_path=tariff_path,
+    )
+
+    total_cs = 5.0 + 3.0
+    total_winter_kwh = winter_kwh_1 + winter_kwh_2
+    # For flat tariffs: summer_rate == flat_rate, winter_rate == flat_rate - CS/winter_kwh
+    assert out["summer_rate"][0] == pytest.approx(flat_rate)
+    assert out["winter_rate_hp"][0] == pytest.approx(
+        flat_rate - total_cs / total_winter_kwh
+    )
 
 
 def test_compute_hp_seasonal_discount_inputs_raises_when_non_positive_rate(
@@ -453,11 +610,8 @@ def test_compute_hp_seasonal_discount_inputs_raises_when_non_positive_rate(
 ) -> None:
     run_dir = _write_sample_run_dir(tmp_path)
     resstock_base = _write_sample_resstock_loads_dir(tmp_path)
-    # Force very low default rate so formula goes non-positive.
-    (run_dir / "tariff_final_config.json").write_text(
-        '{"rie_a16":{"ur_ec_tou_mat":[[1,1,1e+38,0,0.01,0.0,0]]}}',
-        encoding="utf-8",
-    )
+    # High fixed charge makes energy revenue negative → winter_rate < 0.
+    tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json", fixed_charge=20.0)
 
     with pytest.raises(ValueError, match="Computed winter_rate_hp is negative"):
         compute_hp_seasonal_discount_inputs(
@@ -466,17 +620,35 @@ def test_compute_hp_seasonal_discount_inputs_raises_when_non_positive_rate(
             state=_LOADS_STATE,
             upgrade=_LOADS_UPGRADE,
             cross_subsidy_col="BAT_percustomer",
+            base_tariff_json_path=tariff_path,
+        )
+
+
+def test_compute_hp_seasonal_discount_inputs_raises_without_base_tariff(
+    tmp_path: Path,
+) -> None:
+    run_dir = _write_sample_run_dir(tmp_path)
+    resstock_base = _write_sample_resstock_loads_dir(tmp_path)
+
+    with pytest.raises(ValueError, match="base_tariff_json_path is required"):
+        compute_hp_seasonal_discount_inputs(
+            run_dir=run_dir,
+            resstock_base=str(resstock_base),
+            state=_LOADS_STATE,
+            upgrade=_LOADS_UPGRADE,
         )
 
 
 def test_write_seasonal_inputs_csv_uses_output_dir_override(tmp_path: Path) -> None:
     run_dir = _write_sample_run_dir(tmp_path)
     resstock_base = _write_sample_resstock_loads_dir(tmp_path)
+    tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
     seasonal_inputs = compute_hp_seasonal_discount_inputs(
         run_dir=run_dir,
         resstock_base=str(resstock_base),
         state=_LOADS_STATE,
         upgrade=_LOADS_UPGRADE,
+        base_tariff_json_path=tariff_path,
     )
     output_dir = tmp_path / "out"
     output_dir.mkdir()

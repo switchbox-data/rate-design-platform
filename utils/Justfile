@@ -111,13 +111,14 @@ compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yam
 # Seasonal discount inputs from run outputs + ResStock loads.
 
 # Uses hive partitions (resstock_base + state + upgrade); building_ids from run metadata.
-compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="":
+compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="":
     uv run python {{ project_root }}/utils/mid/compute_seasonal_discount_inputs.py \
       --run-dir "{{ run_dir }}" \
       --resstock-base "{{ resstock_base }}" \
       --state "{{ state }}" \
       --upgrade "{{ upgrade }}" \
       --cross-subsidy-col "{{ cross_subsidy_col }}" \
+      --base-tariff-json "{{ base_tariff_json }}" \
       {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }}
 
 # Tariff JSON creation from seasonal_discount_rate_inputs.csv.
