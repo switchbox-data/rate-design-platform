@@ -127,6 +127,20 @@ def build_parser() -> argparse.ArgumentParser:
             "{base}/utility={utility}/year={calendar_year}/data.parquet."
         ),
     )
+    p.add_argument(
+        "--adoption-tariff-dir",
+        type=str,
+        default=None,
+        dest="adoption_tariff_dir",
+        help=(
+            "Base directory template for per-year adoption tariffs.  When set, "
+            "for run entries with run_includes_subclasses=true (runs 5/6), "
+            "path_tariffs_electric.hp is rewritten to "
+            "<adoption-tariff-dir>/year=<YYYY>/<utility>_hp_seasonal.json and "
+            ".non-hp to <adoption-tariff-dir>/year=<YYYY>/<utility>_nonhp_flat.json.  "
+            "The directory must exist before the run (created by run-adoption-all)."
+        ),
+    )
     return p
 
 
@@ -284,6 +298,8 @@ def main(argv: list[str] | None = None) -> None:
         print(f"  Cambium supply MCs: gea={args.cambium_gea}, ba={args.cambium_ba}")
     if args.cambium_dist_mc_base:
         print(f"  Cambium dist MC base: {args.cambium_dist_mc_base}")
+    if args.adoption_tariff_dir:
+        print(f"  Adoption tariff dir: {args.adoption_tariff_dir}/year=<YYYY>/")
 
     # 3. Build generated run entries.
     output_runs: dict[int, dict[str, Any]] = {}
@@ -292,14 +308,28 @@ def main(argv: list[str] | None = None) -> None:
         meta_path = str(
             path_materialized_dir / f"year={calendar_year}" / "metadata-sb.parquet"
         )
-        loads_path = str(path_materialized_dir / f"year={calendar_year}" / "loads" / "")
-
         for run_num in run_nums:
             base_run = base_runs[run_num]
             old_year_run = int(base_run.get("year_run", calendar_year))
 
             # Deep-copy so base configs remain unmodified.
             run_entry: dict[str, Any] = copy.deepcopy(base_run)
+
+            # Build the hive-leaf loads path for this run's state.
+            # materialize() writes symlinks under:
+            #   year=YYYY/load_curve_hourly/state=<STATE>/upgrade=00/
+            # CAIRO's build_bldg_id_to_load_filepath does a flat glob("*.parquet")
+            # on path_resstock_loads, so it must point at the upgrade=00 leaf.
+            # scan_resstock_loads receives the year=YYYY/ base via the Justfile.
+            run_state: str = str(run_entry.get("state", "")).upper()
+            loads_path = str(
+                path_materialized_dir
+                / f"year={calendar_year}"
+                / "load_curve_hourly"
+                / f"state={run_state}"
+                / "upgrade=00"
+                / ""
+            )
 
             # Replace ResStock data paths.
             run_entry["path_resstock_metadata"] = meta_path
@@ -342,6 +372,27 @@ def main(argv: list[str] | None = None) -> None:
             if args.residual_cost_frac is not None:
                 run_entry["residual_cost_frac"] = args.residual_cost_frac
                 run_entry["utility_revenue_requirement"] = None
+
+            # Rewrite seasonal tariff paths for subclass runs (5/6) to
+            # point at per-year files written by run-adoption-all.
+            if args.adoption_tariff_dir and bool(
+                run_entry.get("run_includes_subclasses", False)
+            ):
+                utility_val = str(run_entry.get("utility", ""))
+                tariff_dir = (
+                    f"{args.adoption_tariff_dir.rstrip('/')}/year={calendar_year}"
+                )
+                tariff_elec = run_entry.get("path_tariffs_electric", {})
+                if isinstance(tariff_elec, dict):
+                    if "hp" in tariff_elec:
+                        tariff_elec["hp"] = (
+                            f"{tariff_dir}/{utility_val}_hp_seasonal.json"
+                        )
+                    if "non-hp" in tariff_elec:
+                        tariff_elec["non-hp"] = (
+                            f"{tariff_dir}/{utility_val}_nonhp_flat.json"
+                        )
+                    run_entry["path_tariffs_electric"] = tariff_elec
 
             output_key = (year_index + 1) * 100 + run_num
             output_runs[output_key] = run_entry

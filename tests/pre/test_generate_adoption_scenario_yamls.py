@@ -433,3 +433,173 @@ class TestMainTTokenReplacement:
         # key 201: year_index 1 (2030) - t= should be updated to t=2030
         assert "t=2030" in result["runs"][201]["path_supply_energy_mc"]
         assert "t=2025" not in result["runs"][201]["path_supply_energy_mc"]
+
+
+class TestHiveLoadsPath:
+    """path_resstock_loads is the hive-leaf upgrade=00/ dir, not a flat loads/ dir."""
+
+    def _run(self, tmp_path: Path) -> dict[str, Any]:
+        path_base, path_adopt, path_mat, path_out = _make_test_inputs(tmp_path)
+        main(
+            [
+                "--base-scenario",
+                str(path_base),
+                "--runs",
+                "1",
+                "--adoption-config",
+                str(path_adopt),
+                "--materialized-dir",
+                str(path_mat),
+                "--output",
+                str(path_out),
+            ]
+        )
+        return yaml.safe_load(path_out.read_text())
+
+    def test_loads_path_contains_load_curve_hourly(self, tmp_path: Path) -> None:
+        result = self._run(tmp_path)
+        for entry in result["runs"].values():
+            assert "load_curve_hourly" in entry["path_resstock_loads"]
+
+    def test_loads_path_contains_state_partition(self, tmp_path: Path) -> None:
+        result = self._run(tmp_path)
+        for entry in result["runs"].values():
+            assert "state=NY" in entry["path_resstock_loads"]
+
+    def test_loads_path_contains_upgrade_partition(self, tmp_path: Path) -> None:
+        result = self._run(tmp_path)
+        for entry in result["runs"].values():
+            assert "upgrade=00" in entry["path_resstock_loads"]
+
+    def test_loads_path_does_not_contain_flat_loads(self, tmp_path: Path) -> None:
+        result = self._run(tmp_path)
+        for entry in result["runs"].values():
+            assert "/loads/" not in entry["path_resstock_loads"]
+
+    def test_loads_path_year_matches_run_year(self, tmp_path: Path) -> None:
+        result = self._run(tmp_path)
+        assert "year=2025" in result["runs"][101]["path_resstock_loads"]
+        assert "year=2030" in result["runs"][201]["path_resstock_loads"]
+
+
+# Base run with run_includes_subclasses=True for adoption-tariff-dir tests.
+BASE_RUNS_SUBCLASS: dict[str, Any] = {
+    "runs": {
+        5: {
+            "run_name": "ny_nyseg_run5_up00_precalc__hp_seasonal_vs_flat",
+            "state": "NY",
+            "utility": "nyseg",
+            "run_type": "precalc",
+            "upgrade": "0",
+            "path_resstock_metadata": "/old/metadata-sb.parquet",
+            "path_resstock_loads": "/old/loads/",
+            "path_dist_and_sub_tx_mc": "s3://dist/year=2025/data.parquet",
+            "path_supply_energy_mc": "s3://supply/year=2025/zero.parquet",
+            "path_supply_capacity_mc": "s3://supply/year=2025/zero.parquet",
+            "path_bulk_tx_mc": "",
+            "utility_revenue_requirement": None,
+            "run_includes_supply": False,
+            "run_includes_subclasses": True,
+            "year_run": 2025,
+            "path_tariffs_electric": {
+                "hp": "tariffs/electric/nyseg_hp_seasonal.json",
+                "non-hp": "tariffs/electric/nyseg_nonhp_flat.json",
+            },
+        },
+    }
+}
+
+
+class TestAdoptionTariffDir:
+    """--adoption-tariff-dir rewrites hp/non-hp paths for subclass runs only."""
+
+    def _run(
+        self,
+        tmp_path: Path,
+        adoption_tariff_dir: str | None = None,
+        runs: str = "5",
+    ) -> dict[str, Any]:
+        path_base = tmp_path / "scenarios_nyseg.yaml"
+        _write_yaml(path_base, BASE_RUNS_SUBCLASS)
+        path_adopt = tmp_path / "adoption.yaml"
+        _write_yaml(path_adopt, ADOPTION_CONFIG)
+        path_mat = tmp_path / "materialized"
+        for yr in [2025, 2030]:
+            (path_mat / f"year={yr}").mkdir(parents=True)
+        path_out = tmp_path / "out.yaml"
+        args = [
+            "--base-scenario",
+            str(path_base),
+            "--runs",
+            runs,
+            "--adoption-config",
+            str(path_adopt),
+            "--materialized-dir",
+            str(path_mat),
+            "--output",
+            str(path_out),
+        ]
+        if adoption_tariff_dir is not None:
+            args += ["--adoption-tariff-dir", adoption_tariff_dir]
+        main(args)
+        return yaml.safe_load(path_out.read_text())
+
+    def test_hp_path_rewritten_with_tariff_dir(self, tmp_path: Path) -> None:
+        result = self._run(tmp_path, adoption_tariff_dir="/tariffs/adoption/cfg")
+        entry = result["runs"][105]
+        assert "/tariffs/adoption/cfg/year=2025" in entry["path_tariffs_electric"]["hp"]
+        assert "nyseg_hp_seasonal.json" in entry["path_tariffs_electric"]["hp"]
+
+    def test_non_hp_path_rewritten_with_tariff_dir(self, tmp_path: Path) -> None:
+        result = self._run(tmp_path, adoption_tariff_dir="/tariffs/adoption/cfg")
+        entry = result["runs"][105]
+        assert (
+            "/tariffs/adoption/cfg/year=2025"
+            in entry["path_tariffs_electric"]["non-hp"]
+        )
+        assert "nyseg_nonhp_flat.json" in entry["path_tariffs_electric"]["non-hp"]
+
+    def test_tariff_dir_includes_correct_year(self, tmp_path: Path) -> None:
+        result = self._run(tmp_path, adoption_tariff_dir="/tariffs/adoption/cfg")
+        entry_2030 = result["runs"][205]
+        assert "year=2030" in entry_2030["path_tariffs_electric"]["hp"]
+        assert "year=2025" not in entry_2030["path_tariffs_electric"]["hp"]
+
+    def test_without_tariff_dir_paths_unchanged(self, tmp_path: Path) -> None:
+        result = self._run(tmp_path, adoption_tariff_dir=None)
+        entry = result["runs"][105]
+        assert (
+            entry["path_tariffs_electric"]["hp"]
+            == "tariffs/electric/nyseg_hp_seasonal.json"
+        )
+        assert (
+            entry["path_tariffs_electric"]["non-hp"]
+            == "tariffs/electric/nyseg_nonhp_flat.json"
+        )
+
+    def test_non_subclass_run_not_affected(self, tmp_path: Path) -> None:
+        """Runs without run_includes_subclasses keep their original tariff paths."""
+        path_base, path_adopt, path_mat, path_out = _make_test_inputs(tmp_path)
+        main(
+            [
+                "--base-scenario",
+                str(path_base),
+                "--runs",
+                "1",
+                "--adoption-config",
+                str(path_adopt),
+                "--materialized-dir",
+                str(path_mat),
+                "--output",
+                str(path_out),
+                "--adoption-tariff-dir",
+                "/tariffs/adoption/cfg",
+            ]
+        )
+        result = yaml.safe_load(path_out.read_text())
+        # Run 1 uses path_tariffs_electric.all (not hp/non-hp); must be untouched.
+        for entry in result["runs"].values():
+            tariff_elec = entry.get("path_tariffs_electric", {})
+            assert "hp" not in tariff_elec or "/tariffs/adoption/cfg" not in str(
+                tariff_elec.get("hp", "")
+            )
