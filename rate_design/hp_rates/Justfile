@@ -79,6 +79,8 @@ path_bulk_tx_mc := env_var_or_default('BULK_TX_MC', "")
 path_supply_energy_mc := env_var_or_default('SUPPLY_ENERGY_MC', "s3://data.sb/switchbox/marginal_costs/" + state + "/supply/energy/utility=" + utility + "/year=" + mc_year + "/data.parquet")
 path_supply_capacity_mc := env_var_or_default('SUPPLY_CAPACITY_MC', "s3://data.sb/switchbox/marginal_costs/" + state + "/supply/capacity/utility=" + utility + "/year=" + mc_year + "/data.parquet")
 path_supply_ancillary_mc := env_var_or_default('SUPPLY_ANCILLARY_MC', "")
+path_resstock_root := "/ebs/data/nrel/resstock"
+resstock_release_key := "res_2024_amy2018_2"
 path_resstock_release := "/ebs/data/nrel/resstock/res_2024_amy2018_2_sb"
 path_resstock_metadata := path_resstock_release + "/metadata"
 path_utility_assignment := path_resstock_release + "/metadata_utility"
@@ -342,7 +344,8 @@ create-dist-and-sub-tx-mc-data-all:
 # Writes to the cambium_dist_and_sub_tx/ prefix to avoid overwriting EIA-based dist MCs.
 #
 # Example:
-#   just s ny create-dist-mc-cambium 2030
+
+# just s ny create-dist-mc-cambium 2030
 create-dist-mc-cambium year_mc=year:
     uv run python {{ path_repo }}/utils/pre/marginal_costs/generate_utility_tx_dx_mc.py \
       --state {{ state_upper }} \
@@ -358,7 +361,8 @@ create-dist-mc-cambium year_mc=year:
 # Generate Cambium dist MCs for all adoption trajectory years (2025–2050).
 #
 # Example:
-#   just s ny create-cambium-dist-mc-all-years
+
+# just s ny create-cambium-dist-mc-all-years
 create-cambium-dist-mc-all-years:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -717,7 +721,8 @@ path_adoption_config_dir := path_config / "adoption"
 # adoption config YAML + a curve-fit diagnostic plot.
 #
 # Example:
-#   just s ny fit-adoption-config nyca_electrification
+
+# just s ny fit-adoption-config nyca_electrification
 fit-adoption-config config_name="nyca_electrification":
     uv run python {{ path_repo }}/utils/pre/fit_adoption_config.py \
         --output "{{ path_adoption_config_dir }}/{{ config_name }}.yaml" \
@@ -729,34 +734,51 @@ fit-adoption-config config_name="nyca_electrification":
 # writes year=<N>/ directories under the adoption output path.
 #
 # Example:
-#   just s ny materialize-adoption nyca_electrification
+
+# just s ny materialize-adoption nyca_electrification
 materialize-adoption config_name="default":
     uv run python {{ path_repo }}/utils/pre/materialize_mixed_upgrade.py \
         --state "{{ state }}" \
         --utility "{{ utility }}" \
         --adoption-config "{{ path_adoption_config_dir }}/{{ config_name }}.yaml" \
-        --path-resstock-release "{{ path_resstock_release }}" \
+        --path-resstock-release "{{ path_resstock_root }}" \
+        --release "{{ resstock_release_key }}" \
         --output-dir "{{ path_resstock_release }}/adoption/{{ config_name }}"
 
 # Generate per-year scenario YAML entries for adoption runs.
+# Uses Cambium supply MCs (energy_cost_enduse / capacity_cost_enduse), Cambium
+# busbar_load dist MCs, and 0% residual cost so revenue requirement = total MC.
 # Output: config/scenarios/scenarios_<utility>_adoption.yaml
 #
+# When config_name is set, --adoption-tariff-dir is passed so that runs 5/6
+# in the YAML reference per-year seasonal tariff files instead of the shared
+# static tariff.  Those files are written by run-adoption-all between run-2
+# and run-5 for each year.
+#
 # Example:
-#   just s ny generate-adoption-scenarios nyca_electrification 1,2,5,6
+
+# just s ny generate-adoption-scenarios nyca_electrification 1,2,5,6
 generate-adoption-scenarios config_name="default" runs="1,2,5,6":
     uv run python {{ path_repo }}/utils/pre/generate_adoption_scenario_yamls.py \
         --base-scenario "{{ path_scenario_config }}" \
         --runs "{{ runs }}" \
         --adoption-config "{{ path_adoption_config_dir }}/{{ config_name }}.yaml" \
         --materialized-dir "{{ path_resstock_release }}/adoption/{{ config_name }}" \
-        --output "{{ path_scenarios }}/scenarios_{{ utility }}_adoption.yaml"
+        --output "{{ path_scenarios }}/scenarios_{{ utility }}_adoption.yaml" \
+        --residual-cost-frac 0.0 \
+        --cambium-supply \
+        --cambium-gea NYISO \
+        --cambium-ba {{ cambium_ba }} \
+        --cambium-dist-mc-base "s3://data.sb/switchbox/marginal_costs/{{ state }}/cambium_dist_and_sub_tx" \
+        --adoption-tariff-dir "{{ path_tariffs_electric }}/adoption/{{ config_name }}"
 
 # Run a single adoption scenario by (year-indexed) run number.
 # Run keys use the scheme (year_index + 1) * 100 + base_run_num, matching the
 # output of generate_adoption_scenario_yamls.py (e.g. 101, 102, 201, 202, ...).
 #
 # Example:
-#   just s ny run-adoption-scenario 101
+
+# just s ny run-adoption-scenario 101
 run-adoption-scenario run_num:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -773,102 +795,98 @@ run-adoption-scenario run_num:
         --output-dir "{{ path_outputs_base }}/${RDP_BATCH}" \
         2>&1 | tee "${log_file}"
 
-# Orchestrate the full adoption pipeline: materialize → generate scenarios → run all.
+# Orchestrate the full adoption pipeline: materialize → Cambium dist MCs → generate scenarios → run all.
+# All runs use Cambium supply MCs, Cambium busbar_load dist MCs, and 0% residual cost.
 # Iterates over all (year × run) combinations using the key scheme
 # (year_index + 1) * 100 + base_run_num produced by generate_adoption_scenario_yamls.py.
 #
+# For each year the loop:
+#   1. Runs precalc-flat runs (1, 2) and copies their calibrated tariffs to
+#      tariffs/electric/adoption/<config_name>/year=<YYYY>/.
+#   2. Derives per-year seasonal tariffs from run-1/2 outputs + that year's
+#      mixed-upgrade loads (hive-partitioned under the materialized dir).
+#   3. Runs seasonal-precalc runs (5, 6) and copies their calibrated tariffs.
+#
 # Example:
-#   RDP_BATCH=ny_20260320_adoption just s ny run-adoption-all nyca_electrification 1,2
+
+# RDP_BATCH=ny_20260320_adoption just s ny run-adoption-all nyca_electrification 1,2,5,6
 run-adoption-all config_name="default" runs="1,2,5,6":
     #!/usr/bin/env bash
     set -euo pipefail
     : "${RDP_BATCH:?Set RDP_BATCH before running}"
     export RDP_BATCH
     just materialize-adoption "{{ config_name }}"
-    just generate-adoption-scenarios "{{ config_name }}" "{{ runs }}"
-    # Determine number of run years from the adoption config.
-    run_years_count=$(uv run python -c "
-import yaml
-with open('{{ path_adoption_config_dir }}/{{ config_name }}.yaml') as f:
-    cfg = yaml.safe_load(f)
-years = cfg.get('run_years', cfg.get('year_labels', []))
-print(len(years))
-")
-    IFS=',' read -ra base_nums <<< "{{ runs }}"
-    for yi in $(seq 1 "$run_years_count"); do
-        for base_run in "${base_nums[@]}"; do
-            key=$((yi * 100 + base_run))
-            echo ">> run-adoption-all: run-${key} (year_index=$((yi - 1)), base_run=${base_run})" >&2
-            just run-adoption-scenario "${key}"
-        done
-    done
-
-# Generate per-year Cambium scenario YAML entries for adoption runs.
-# Uses Cambium busbar_load dist MCs and Cambium supply MCs; 0% residual cost.
-# Output: config/scenarios/scenarios_<utility>_adoption_cambium.yaml
-#
-# Example:
-#   just s ny generate-adoption-scenarios-cambium nyca_electrification 1,2,5,6
-generate-adoption-scenarios-cambium config_name="default" runs="1,2,5,6":
-    uv run python {{ path_repo }}/utils/pre/generate_adoption_scenario_yamls.py \
-        --base-scenario "{{ path_scenario_config }}" \
-        --runs "{{ runs }}" \
-        --adoption-config "{{ path_adoption_config_dir }}/{{ config_name }}.yaml" \
-        --materialized-dir "{{ path_resstock_release }}/adoption/{{ config_name }}" \
-        --output "{{ path_scenarios }}/scenarios_{{ utility }}_adoption_cambium.yaml" \
-        --residual-cost-frac 0.0 \
-        --cambium-supply \
-        --cambium-gea NYISO \
-        --cambium-ba {{ cambium_ba }} \
-        --cambium-dist-mc-base "s3://data.sb/switchbox/marginal_costs/{{ state }}/cambium_dist_and_sub_tx"
-
-# Run a single Cambium adoption scenario by (year-indexed) run number.
-# Uses scenarios_<utility>_adoption_cambium.yaml generated by generate-adoption-scenarios-cambium.
-#
-# Example:
-#   just s ny run-adoption-scenario-cambium 101
-run-adoption-scenario-cambium run_num:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    : "${RDP_BATCH:?Set RDP_BATCH before running}"
-    export RDP_BATCH
-    log_dir="${HOME}/rdp_run_logs"
-    mkdir -p "${log_dir}"
-    log_file="${log_dir}/{{ utility }}_adoption_cambium_run{{ run_num }}_${RDP_BATCH}.log"
-    echo ">> run-adoption-scenario-cambium {{ run_num }}: logging to ${log_file}" >&2
-    uv run python {{ path_repo }}/rate_design/hp_rates/run_scenario.py \
-        --state "{{ state }}" \
-        --scenario-config "{{ path_scenarios }}/scenarios_{{ utility }}_adoption_cambium.yaml" \
-        --run-num "{{ run_num }}" \
-        --output-dir "{{ path_outputs_base }}/${RDP_BATCH}" \
-        2>&1 | tee "${log_file}"
-
-# Full Cambium adoption pipeline: materialize → dist MCs → scenarios → run all.
-#
-# Example:
-#   RDP_BATCH=ny_20260320_adoption just s ny run-adoption-all-cambium nyca_electrification 1,2,5,6
-run-adoption-all-cambium config_name="default" runs="1,2,5,6":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    : "${RDP_BATCH:?Set RDP_BATCH before running}"
-    export RDP_BATCH
-    just materialize-adoption "{{ config_name }}"
     just create-cambium-dist-mc-all-years
-    just generate-adoption-scenarios-cambium "{{ config_name }}" "{{ runs }}"
-    # Determine number of run years from the adoption config.
-    run_years_count=$(uv run python -c "
-import yaml
-with open('{{ path_adoption_config_dir }}/{{ config_name }}.yaml') as f:
-    cfg = yaml.safe_load(f)
-years = cfg.get('run_years', cfg.get('year_labels', []))
-print(len(years))
-")
-    IFS=',' read -ra base_nums <<< "{{ runs }}"
-    for yi in $(seq 1 "$run_years_count"); do
-        for base_run in "${base_nums[@]}"; do
-            key=$((yi * 100 + base_run))
-            echo ">> run-adoption-all-cambium: run-${key} (year_index=$((yi - 1)), base_run=${base_run})" >&2
-            just run-adoption-scenario-cambium "${key}"
+    just generate-adoption-scenarios "{{ config_name }}" "{{ runs }}"
+    adoption_yaml="{{ path_scenarios }}/scenarios_{{ utility }}_adoption.yaml"
+    adoption_base="{{ path_resstock_release }}/adoption/{{ config_name }}"
+    tariffs_adoption_base="{{ path_tariffs_electric }}/adoption/{{ config_name }}"
+    # Read calendar years from the adoption config (one per line).
+    mapfile -t year_list < <(uv run python "{{ path_repo }}/utils/pre/list_adoption_years.py" \
+        "{{ path_adoption_config_dir }}/{{ config_name }}.yaml")
+    IFS=',' read -ra all_runs <<< "{{ runs }}"
+    for yi in "${!year_list[@]}"; do
+        year="${year_list[$yi]}"
+        key_prefix=$(( (yi + 1) * 100 ))
+        tariff_dir="${tariffs_adoption_base}/year=${year}"
+        mkdir -p "${tariff_dir}"
+        loads_base="${adoption_base}/year=${year}"
+        echo ">> run-adoption-all: year=${year} (yi=${yi}, key_prefix=${key_prefix})" >&2
+        # --- Runs 1 and 2: precalc flat ---
+        for base_run in "${all_runs[@]}"; do
+            [[ "${base_run}" == "1" || "${base_run}" == "2" ]] || continue
+            key=$(( key_prefix + base_run ))
+            echo ">> run-adoption-all: run-${key} (year=${year}, base_run=${base_run})" >&2
+            just run-adoption-scenario "${key}"
+            run_dir=$(bash "{{ latest_output }}" "${adoption_yaml}" "${key}")
+            just copy-calibrated-tariff-from-run "${run_dir}" "${tariff_dir}"
+        done
+        # --- Derive per-year seasonal tariffs (only when runs 1,2 and 5 or 6 are present) ---
+        has_run1=false; has_run2=false; has_run5=false; has_run6=false
+        for r in "${all_runs[@]}"; do
+            [[ "$r" == "1" ]] && has_run1=true
+            [[ "$r" == "2" ]] && has_run2=true
+            [[ "$r" == "5" ]] && has_run5=true
+            [[ "$r" == "6" ]] && has_run6=true
+        done
+        if $has_run1 && $has_run5; then
+            run1_dir=$(bash "{{ latest_output }}" "${adoption_yaml}" $(( key_prefix + 1 )))
+            echo ">> run-adoption-all: deriving seasonal (delivery) from ${run1_dir}" >&2
+            just compute-seasonal-discount-inputs \
+                "${run1_dir}" "${loads_base}" "{{ state_upper }}" "{{ upgrade }}"
+            just create-seasonal-discount-tariff \
+                "${tariff_dir}/{{ utility }}_flat_calibrated.json" \
+                "${run1_dir}/seasonal_discount_rate_inputs.csv" \
+                "{{ utility }}_hp_seasonal" \
+                "${tariff_dir}/{{ utility }}_hp_seasonal.json"
+        fi
+        if $has_run2 && $has_run6; then
+            run2_dir=$(bash "{{ latest_output }}" "${adoption_yaml}" $(( key_prefix + 2 )))
+            echo ">> run-adoption-all: deriving seasonal (supply) from ${run2_dir}" >&2
+            just compute-seasonal-discount-inputs \
+                "${run2_dir}" "${loads_base}" "{{ state_upper }}" "{{ upgrade }}"
+            just create-seasonal-discount-tariff \
+                "${tariff_dir}/{{ utility }}_flat_supply_calibrated.json" \
+                "${run2_dir}/seasonal_discount_rate_inputs.csv" \
+                "{{ utility }}_hp_seasonal_supply" \
+                "${tariff_dir}/{{ utility }}_hp_seasonal_supply.json"
+        fi
+        # --- Runs 5 and 6: precalc seasonal ---
+        for base_run in "${all_runs[@]}"; do
+            [[ "${base_run}" == "5" || "${base_run}" == "6" ]] || continue
+            key=$(( key_prefix + base_run ))
+            echo ">> run-adoption-all: run-${key} (year=${year}, base_run=${base_run})" >&2
+            just run-adoption-scenario "${key}"
+            run_dir=$(bash "{{ latest_output }}" "${adoption_yaml}" "${key}")
+            just copy-calibrated-tariff-from-run "${run_dir}" "${tariff_dir}"
+        done
+        # --- Any remaining runs (not 1,2,5,6) ---
+        for base_run in "${all_runs[@]}"; do
+            [[ "${base_run}" == "1" || "${base_run}" == "2" ]] && continue
+            [[ "${base_run}" == "5" || "${base_run}" == "6" ]] && continue
+            key=$(( key_prefix + base_run ))
+            echo ">> run-adoption-all: run-${key} (year=${year}, base_run=${base_run})" >&2
+            just run-adoption-scenario "${key}"
         done
     done
 
