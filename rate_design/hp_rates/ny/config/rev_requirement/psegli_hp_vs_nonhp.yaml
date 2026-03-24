@@ -1,15 +1,15 @@
 utility: psegli
 group_col: has_hp
 cross_subsidy_col: BAT_percustomer
-source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/psegli/ny_20260311b_r1-12/20260312_141314_ny_psegli_run1_up00_precalc__flat
-total_delivery_revenue_requirement: 1167224936.22
-total_delivery_and_supply_revenue_requirement: 2152491756.14
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/psegli/ny_20260323a_r1-16/20260323_235231_ny_psegli_run1_up00_precalc__default
+total_delivery_revenue_requirement: 1167061663.64
+total_delivery_and_supply_revenue_requirement: 2152328483.56
 subclass_revenue_requirements:
   non-hp:
-    delivery: 1150750357.8862422
-    supply: 959472648.3151503
-    total: 2110223006.2013924
+    delivery: 1150589335.0526578
+    supply: 959472648.3151505
+    total: 2110061983.3678083
   hp:
-    delivery: 16474578.333757898
-    supply: 25794171.60484939
-    total: 42268749.93860729
+    delivery: 16472328.587342722
+    supply: 25794171.604849398
+    total: 42266500.19219212
