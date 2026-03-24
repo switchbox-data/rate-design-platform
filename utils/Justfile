@@ -142,12 +142,11 @@ compute-flat-discount-inputs run_dir resstock_base state upgrade cross_subsidy_c
       {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }}
 
 # Tariff JSON creation from flat_discount_rate_inputs.csv.
-create-flat-discount-tariff base_tariff_json flat_inputs_csv label output_path periods_yaml:
+create-flat-discount-tariff base_tariff_json flat_inputs_csv label output_path:
     uv run python {{ project_root }}/utils/mid/create_flat_discount_tariff.py \
       --base-tariff-json "{{ base_tariff_json }}" \
       --flat-inputs-csv "{{ flat_inputs_csv }}" \
       --label "{{ label }}" \
-      --periods-yaml "{{ periods_yaml }}" \
       --output-path "{{ output_path }}"
 
 # Promote calibrated tariffs from run output:

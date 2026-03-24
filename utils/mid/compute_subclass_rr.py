@@ -42,6 +42,7 @@ DEFAULT_BAT_METRIC = "BAT_percustomer"
 GROUP_VALUE_COL = "subclass"
 ANNUAL_MONTH_VALUE = "Annual"
 DEFAULT_SEASONAL_OUTPUT_FILENAME = "seasonal_discount_rate_inputs.csv"
+DEFAULT_FLAT_OUTPUT_FILENAME = "flat_discount_rate_inputs.csv"
 ELECTRIC_LOAD_COL = "out.electricity.total.energy_consumption"
 MONTH_ABBREV_TO_NUM: dict[str, int] = {
     "Jan": 1,
@@ -451,6 +452,170 @@ def compute_hp_seasonal_discount_inputs(
         "seasonal_inputs: finalized result frame in %.2fs",
         perf_counter() - t4,
     )
+    return result
+
+
+def compute_hp_flat_discount_inputs(
+    run_dir: S3Path | Path,
+    resstock_base: str,
+    state: str,
+    upgrade: str,
+    cross_subsidy_col: str = DEFAULT_BAT_METRIC,
+    storage_options: dict[str, str] | None = None,
+    base_tariff_json_path: S3Path | Path | None = None,
+) -> pl.DataFrame:
+    """Compute a fair flat volumetric rate for HP customers.
+
+    The flat rate eliminates the HP cross-subsidy uniformly across all hours::
+
+        equivalent_flat_rate = annual_energy_rev_hp / annual_kwh_hp
+        flat_discount        = total_cross_subsidy_hp / annual_kwh_hp
+        flat_rate_hp         = equivalent_flat_rate - flat_discount
+
+    Inputs are identical to :func:`compute_hp_seasonal_discount_inputs` but no
+    winter/summer split is needed.
+    """
+    if base_tariff_json_path is None:
+        raise ValueError(
+            "base_tariff_json_path is required: pass the URDB-format calibrated "
+            "tariff JSON to extract the fixed charge."
+        )
+
+    # --- HP metadata, weights, and cross-subsidy ---
+    t0 = perf_counter()
+    metadata = _load_metadata_for_group(
+        run_dir=run_dir,
+        group_col=DEFAULT_GROUP_COL,
+        storage_options=storage_options,
+    )
+    cross_sub = _load_cross_subsidy(run_dir, cross_subsidy_col, storage_options)
+
+    hp_cross_subsidy = (
+        metadata.filter(pl.col(GROUP_VALUE_COL) == "true")
+        .join(cross_sub, on=BLDG_ID_COL, how="left")
+        .collect()
+    )
+    LOGGER.info(
+        "flat_inputs: loaded metadata + cross-subsidy in %.2fs",
+        perf_counter() - t0,
+    )
+    hp_cross_subsidy = cast(pl.DataFrame, hp_cross_subsidy)
+    if hp_cross_subsidy.is_empty():
+        raise ValueError("No HP customers found in customer_metadata.csv.")
+
+    nulls_cs = hp_cross_subsidy.filter(pl.col("cross_subsidy").is_null()).height
+    if nulls_cs:
+        raise ValueError(f"Missing cross-subsidy values for {nulls_cs} HP buildings.")
+    nulls_weight = hp_cross_subsidy.filter(pl.col(WEIGHT_COL).is_null()).height
+    if nulls_weight:
+        raise ValueError(f"Missing sample weights for {nulls_weight} HP buildings.")
+
+    total_cross_subsidy_hp = float(
+        hp_cross_subsidy.select(
+            (pl.col("cross_subsidy") * pl.col(WEIGHT_COL)).sum().alias("weighted_cs")
+        )["weighted_cs"][0]
+    )
+
+    # --- Fixed charge from URDB base tariff ---
+    fixed_charge = _extract_fixed_charge_from_urdb(base_tariff_json_path)
+
+    # --- Annual energy revenue from annual bills ---
+    t1 = perf_counter()
+    hp_ids_weights = hp_cross_subsidy.select(BLDG_ID_COL, WEIGHT_COL)
+
+    annual_energy_rev_row = cast(
+        pl.DataFrame,
+        _load_annual_target_bills(run_dir, ANNUAL_MONTH_VALUE, storage_options)
+        .join(hp_ids_weights.lazy(), on=BLDG_ID_COL, how="inner")
+        .with_columns(
+            ((pl.col("annual_bill") - 12.0 * fixed_charge) * pl.col(WEIGHT_COL)).alias(
+                "weighted_energy_rev"
+            )
+        )
+        .select(pl.col("weighted_energy_rev").sum().alias("annual_energy_rev_hp"))
+        .collect(),
+    )
+    annual_energy_rev_hp = float(
+        annual_energy_rev_row["annual_energy_rev_hp"][0] or 0.0
+    )
+    LOGGER.info(
+        "flat_inputs: computed annual energy revenue in %.2fs",
+        perf_counter() - t1,
+    )
+
+    # --- Annual kWh from ResStock loads ---
+    building_ids = hp_cross_subsidy[BLDG_ID_COL].to_list()
+    hp_weights = hp_cross_subsidy.select(pl.col(BLDG_ID_COL), pl.col(WEIGHT_COL))
+    t2 = perf_counter()
+    loads = scan_resstock_loads(
+        resstock_base,
+        state,
+        upgrade,
+        building_ids=building_ids,
+        storage_options=storage_options,
+    )
+    LOGGER.info(
+        "flat_inputs: prepared loads scan for %d HP buildings in %.2fs",
+        len(building_ids),
+        perf_counter() - t2,
+    )
+    t3 = perf_counter()
+    kwh_agg = cast(
+        pl.DataFrame,
+        loads.join(hp_weights.lazy(), on=BLDG_ID_COL, how="inner")
+        .select(
+            grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL).alias(
+                "demand_kwh"
+            ),
+            pl.col(WEIGHT_COL).cast(pl.Float64),
+        )
+        .with_columns(
+            (pl.col("demand_kwh") * pl.col(WEIGHT_COL)).alias("weighted_kwh"),
+        )
+        .select(pl.col("weighted_kwh").sum().alias("annual_kwh_hp"))
+        .collect(engine="streaming"),
+    )
+    LOGGER.info(
+        "flat_inputs: collected annual kWh aggregate in %.2fs",
+        perf_counter() - t3,
+    )
+
+    annual_kwh_hp = float(kwh_agg["annual_kwh_hp"][0] or 0.0)
+    if annual_kwh_hp <= 0:
+        raise ValueError(
+            "Annual kWh for HP customers is zero; cannot compute flat rate."
+        )
+
+    # --- Derive fair flat rate ---
+    equivalent_flat_rate = annual_energy_rev_hp / annual_kwh_hp
+    flat_discount = total_cross_subsidy_hp / annual_kwh_hp
+    flat_rate_hp = equivalent_flat_rate - flat_discount
+
+    if flat_rate_hp < 0:
+        raise ValueError(
+            "Computed flat_rate_hp is negative. "
+            f"annual_energy_rev_hp={annual_energy_rev_hp}, "
+            f"total_cross_subsidy_hp={total_cross_subsidy_hp}, "
+            f"annual_kwh_hp={annual_kwh_hp}, "
+            f"equivalent_flat_rate={equivalent_flat_rate}, "
+            f"flat_discount={flat_discount}, "
+            f"flat_rate_hp={flat_rate_hp}"
+        )
+
+    result = pl.DataFrame(
+        {
+            "subclass": ["true"],
+            "cross_subsidy_col": [cross_subsidy_col],
+            "flat_rate_hp": [flat_rate_hp],
+            "equivalent_flat_rate": [equivalent_flat_rate],
+            "flat_discount": [flat_discount],
+            "total_cross_subsidy_hp": [total_cross_subsidy_hp],
+            "annual_kwh_hp": [annual_kwh_hp],
+            "annual_energy_rev_hp": [annual_energy_rev_hp],
+            "fixed_charge": [fixed_charge],
+        }
+    )
+    LOGGER.info("flat_inputs: done")
     return result
 
 

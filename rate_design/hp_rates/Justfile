@@ -406,13 +406,12 @@ compute-flat-discount-inputs run_dir resstock_base state upgrade cross_subsidy_c
       "{{ output_dir }}" \
       "{{ base_tariff_json }}"
 
-create-flat-discount-tariff base_tariff_json flat_inputs_csv label output_path periods_yaml=path_periods_yaml:
+create-flat-discount-tariff base_tariff_json flat_inputs_csv label output_path:
     just -f {{ path_repo }}/utils/Justfile create-flat-discount-tariff \
       "{{ base_tariff_json }}" \
       "{{ flat_inputs_csv }}" \
       "{{ label }}" \
-      "{{ output_path }}" \
-      "{{ periods_yaml }}"
+      "{{ output_path }}"
 
 copy-calibrated-tariff-from-run run_dir output_dir="":
     just -f {{ path_repo }}/utils/Justfile copy-calibrated-tariff-from-run \
@@ -707,6 +706,10 @@ run-all-sequential:
     just run-14
     just run-15
     just run-16
+    just run-17
+    just run-18
+    just run-19
+    just run-20
 
 run-all-parallel-tracks:
     #!/usr/bin/env bash
@@ -760,7 +763,17 @@ run-all-parallel-tracks:
     wait $PID15 || { echo "ERROR: run-15 failed" >&2; exit 1; }
     wait $PID16 || { echo "ERROR: run-16 failed" >&2; exit 1; }
 
-    echo ">> run-all-parallel-tracks: all 16 runs complete" >&2
+    just run-17 & PID17=$!
+    just run-18 & PID18=$!
+    wait $PID17 || { echo "ERROR: run-17 failed" >&2; exit 1; }
+    wait $PID18 || { echo "ERROR: run-18 failed" >&2; exit 1; }
+
+    just run-19 & PID19=$!
+    just run-20 & PID20=$!
+    wait $PID19 || { echo "ERROR: run-19 failed" >&2; exit 1; }
+    wait $PID20 || { echo "ERROR: run-20 failed" >&2; exit 1; }
+
+    echo ">> run-all-parallel-tracks: all 20 runs complete" >&2
 
 run-subset runs:
     #!/usr/bin/env bash

@@ -145,6 +145,34 @@ def _seasonal_schedule(winter_months: list[int]) -> list[list[int]]:
     return schedule
 
 
+def create_flat_rate(
+    base_tariff: dict[str, Any],
+    *,
+    label: str,
+    volumetric_rate: float,
+) -> dict[str, Any]:
+    """Create a single-period flat tariff from a base tariff template.
+
+    Deep-copies the base tariff, replaces the rate structure with a single flat
+    rate, and updates label/name.  Preserves ``fixedchargefirstmeter`` and all
+    other fields from the base.
+    """
+    if "items" not in base_tariff or not base_tariff["items"]:
+        raise ValueError("Base tariff must contain at least one item in `items`.")
+
+    new_tariff = json.loads(json.dumps(base_tariff))
+    item = new_tariff["items"][0]
+    item["label"] = label
+    item["name"] = label
+    schedule = [[0] * 24 for _ in range(12)]
+    item["energyweekdayschedule"] = schedule
+    item["energyweekendschedule"] = schedule
+    item["energyratestructure"] = [
+        [{"rate": float(volumetric_rate), "adj": 0.0, "unit": "kWh"}],
+    ]
+    return new_tariff
+
+
 def create_seasonal_rate(
     base_tariff: dict[str, Any],
     *,

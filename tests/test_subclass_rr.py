@@ -14,6 +14,7 @@ from utils.mid.compute_subclass_rr import (
     _load_run_fields,
     _write_revenue_requirement_yamls,
     _write_seasonal_inputs_csv,
+    compute_hp_flat_discount_inputs,
     compute_hp_seasonal_discount_inputs,
     compute_subclass_rr,
     parse_group_value_to_subclass,
@@ -885,3 +886,197 @@ def test_write_seasonal_inputs_csv_uses_output_dir_override(tmp_path: Path) -> N
     expected = output_dir / DEFAULT_SEASONAL_OUTPUT_FILENAME
     assert output_path == str(expected)
     assert expected.exists()
+
+
+# =============================================================================
+# Flat discount inputs tests
+# =============================================================================
+
+
+def test_compute_hp_flat_discount_inputs(tmp_path: Path) -> None:
+    """Basic flat discount rate computation using the same fixtures as the seasonal test."""
+    run_dir = _write_sample_run_dir(tmp_path)
+    tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
+
+    resstock_base = tmp_path / "resstock"
+    part = (
+        resstock_base
+        / "load_curve_hourly"
+        / f"state={_LOADS_STATE}"
+        / f"upgrade={_LOADS_UPGRADE}"
+    )
+    part.mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 1, 2, 4, 3, 3],
+            "timestamp": [
+                "2025-01-01 00:00:00",
+                "2025-07-01 00:00:00",
+                "2025-01-01 00:00:00",
+                "2025-01-01 00:00:00",
+                "2025-02-01 00:00:00",
+                "2025-12-01 00:00:00",
+            ],
+            "out.electricity.total.energy_consumption": [
+                200.0,
+                100.0,
+                500.0,
+                600.0,
+                200.0,
+                100.0,
+            ],
+            "out.electricity.pv.energy_consumption": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        }
+    ).write_parquet(part / "loads.parquet")
+
+    out = compute_hp_flat_discount_inputs(
+        run_dir=run_dir,
+        resstock_base=str(resstock_base),
+        state=_LOADS_STATE,
+        upgrade=_LOADS_UPGRADE,
+        cross_subsidy_col="BAT_percustomer",
+        base_tariff_json_path=tariff_path,
+    )
+
+    assert out.height == 1
+    assert out["subclass"][0] == "true"
+    # HP ids are 1 and 3 -> BAT_percustomer = 3 + 4 = 7 (weighted by 1 each)
+    assert out["total_cross_subsidy_hp"][0] == pytest.approx(7.0)
+    # Annual kWh HP: bldg 1 (200+100) + bldg 3 (200+100) = 600
+    assert out["annual_kwh_hp"][0] == pytest.approx(600.0)
+    # Annual energy revenue (fixed_charge=2.0, 12*FC=24):
+    #   bldg 1: Annual=100, energy=100-24=76
+    #   bldg 3: Annual=300, energy=300-24=276
+    #   total = 352.0
+    assert out["annual_energy_rev_hp"][0] == pytest.approx(352.0)
+    assert out["fixed_charge"][0] == pytest.approx(2.0)
+    # equivalent_flat_rate = 352 / 600, flat_discount = 7 / 600
+    equiv = 352.0 / 600.0
+    disc = 7.0 / 600.0
+    assert out["equivalent_flat_rate"][0] == pytest.approx(equiv)
+    assert out["flat_discount"][0] == pytest.approx(disc)
+    assert out["flat_rate_hp"][0] == pytest.approx(equiv - disc)
+
+
+def test_compute_hp_flat_discount_inputs_applies_weights(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    (run_dir / "cross_subsidization").mkdir(parents=True)
+    (run_dir / "bills").mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "month": ["Annual", "Annual"],
+            "bill_level": [120.0, 200.0],
+        }
+    ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
+    pl.DataFrame({"bldg_id": [1, 2], "BAT_percustomer": [10.0, 20.0]}).write_csv(
+        run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv"
+    )
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "weight": [2.0, 3.0],
+            "postprocess_group.has_hp": [True, True],
+        }
+    ).write_csv(run_dir / "customer_metadata.csv")
+
+    tariff_path = _write_urdb_tariff(tmp_path / "tariff.json", fixed_charge=5.0)
+
+    resstock_base = tmp_path / "resstock"
+    part = (
+        resstock_base
+        / "load_curve_hourly"
+        / f"state={_LOADS_STATE}"
+        / f"upgrade={_LOADS_UPGRADE}"
+    )
+    part.mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "timestamp": ["2025-06-01 00:00:00", "2025-06-01 00:00:00"],
+            "out.electricity.total.energy_consumption": [100.0, 200.0],
+            "out.electricity.pv.energy_consumption": [0.0, 0.0],
+        }
+    ).write_parquet(part / "loads.parquet")
+
+    out = compute_hp_flat_discount_inputs(
+        run_dir=run_dir,
+        resstock_base=str(resstock_base),
+        state=_LOADS_STATE,
+        upgrade=_LOADS_UPGRADE,
+        base_tariff_json_path=tariff_path,
+    )
+
+    # weighted CS = 10*2 + 20*3 = 80
+    assert out["total_cross_subsidy_hp"][0] == pytest.approx(80.0)
+    # weighted kWh = 100*2 + 200*3 = 800
+    assert out["annual_kwh_hp"][0] == pytest.approx(800.0)
+    # energy rev: (120-60)*2 + (200-60)*3 = 120 + 420 = 540
+    assert out["annual_energy_rev_hp"][0] == pytest.approx(540.0)
+    # flat_rate_hp = (540 - 80) / 800 = 0.575
+    assert out["flat_rate_hp"][0] == pytest.approx(0.575)
+
+
+def test_compute_hp_flat_discount_inputs_raises_without_base_tariff(
+    tmp_path: Path,
+) -> None:
+    run_dir = _write_sample_run_dir(tmp_path)
+    resstock_base = _write_sample_resstock_loads_dir(tmp_path)
+    with pytest.raises(ValueError, match="base_tariff_json_path is required"):
+        compute_hp_flat_discount_inputs(
+            run_dir=run_dir,
+            resstock_base=str(resstock_base),
+            state=_LOADS_STATE,
+            upgrade=_LOADS_UPGRADE,
+            base_tariff_json_path=None,
+        )
+
+
+def test_compute_hp_flat_discount_inputs_raises_when_negative_rate(
+    tmp_path: Path,
+) -> None:
+    """Negative flat rate should raise ValueError."""
+    run_dir = tmp_path / "run"
+    (run_dir / "bills").mkdir(parents=True)
+    (run_dir / "cross_subsidization").mkdir(parents=True)
+    pl.DataFrame({"bldg_id": [1], "month": ["Annual"], "bill_level": [50.0]}).write_csv(
+        run_dir / "bills" / "elec_bills_year_target.csv"
+    )
+    # Cross-subsidy larger than energy revenue forces negative rate
+    pl.DataFrame({"bldg_id": [1], "BAT_percustomer": [1000.0]}).write_csv(
+        run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv"
+    )
+    pl.DataFrame(
+        {
+            "bldg_id": [1],
+            "weight": [1.0],
+            "postprocess_group.has_hp": [True],
+        }
+    ).write_csv(run_dir / "customer_metadata.csv")
+    tariff_path = _write_urdb_tariff(tmp_path / "tariff.json", fixed_charge=1.0)
+
+    resstock_base = tmp_path / "resstock"
+    part = (
+        resstock_base
+        / "load_curve_hourly"
+        / f"state={_LOADS_STATE}"
+        / f"upgrade={_LOADS_UPGRADE}"
+    )
+    part.mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "bldg_id": [1],
+            "timestamp": ["2025-06-01 00:00:00"],
+            "out.electricity.total.energy_consumption": [100.0],
+            "out.electricity.pv.energy_consumption": [0.0],
+        }
+    ).write_parquet(part / "loads.parquet")
+
+    with pytest.raises(ValueError, match="flat_rate_hp is negative"):
+        compute_hp_flat_discount_inputs(
+            run_dir=run_dir,
+            resstock_base=str(resstock_base),
+            state=_LOADS_STATE,
+            upgrade=_LOADS_UPGRADE,
+            base_tariff_json_path=tariff_path,
+        )
