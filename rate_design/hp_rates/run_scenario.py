@@ -117,6 +117,7 @@ class ScenarioSettings:
     path_tou_supply_energy_mc: str | Path | None = None
     path_tou_supply_capacity_mc: str | Path | None = None
     path_supply_ancillary_mc: str | Path | None = None
+    residual_cost_frac: float | None = None
 
 
 def apply_prototype_sample(
@@ -241,13 +242,38 @@ def _build_settings_from_yaml_run(
         _require_value(run, "run_includes_subclasses"),
         "run_includes_subclasses",
     )
-    rr_config: RevenueRequirementConfig = _parse_utility_revenue_requirement(
-        _require_value(run, "utility_revenue_requirement"),
-        path_config,
-        raw_path_tariffs_electric,
-        add_supply=run_includes_supply,
-        run_includes_subclasses=run_includes_subclasses,
+    residual_cost_frac_raw = run.get("residual_cost_frac")
+    residual_cost_frac: float | None = None
+    if residual_cost_frac_raw is not None:
+        residual_cost_frac = _parse_float(residual_cost_frac_raw, "residual_cost_frac")
+    urr_raw = run.get("utility_revenue_requirement")
+    urr_present = urr_raw is not None and str(urr_raw).strip() not in (
+        "",
+        "none",
+        "null",
     )
+    if residual_cost_frac is not None and urr_present:
+        raise ValueError(
+            "Specify exactly one of 'residual_cost_frac' or 'utility_revenue_requirement', "
+            "not both. Set 'utility_revenue_requirement: none' (or omit it) when using "
+            "residual_cost_frac."
+        )
+    if residual_cost_frac is not None:
+        # When residual_cost_frac is set, revenue requirement is derived at runtime
+        # from ResStock loads × MC prices; no YAML RR file is needed.
+        rr_config = RevenueRequirementConfig(
+            rr_total=0.0,
+            subclass_rr=None,
+            run_includes_subclasses=run_includes_subclasses,
+        )
+    else:
+        rr_config = _parse_utility_revenue_requirement(
+            _require_value(run, "utility_revenue_requirement"),
+            path_config,
+            raw_path_tariffs_electric,
+            add_supply=run_includes_supply,
+            run_includes_subclasses=run_includes_subclasses,
+        )
     path_tariff_maps_gas = _resolve_path(
         str(_require_value(run, "path_tariff_maps_gas")),
         path_config,
@@ -322,6 +348,7 @@ def _build_settings_from_yaml_run(
         path_supply_ancillary_mc=path_supply_ancillary_mc
         if run_includes_supply
         else None,
+        residual_cost_frac=residual_cost_frac,
     )
 
 
@@ -674,13 +701,24 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         ) = _return_revenue_requirement_target(
             building_load=raw_load_elec,
             sample_weight=customer_metadata[["bldg_id", "weight"]],
-            revenue_requirement_target=settings.rr_total,
+            revenue_requirement_target=settings.rr_total
+            if settings.residual_cost_frac is None
+            else None,
             residual_cost=None,
-            residual_cost_frac=None,
+            residual_cost_frac=settings.residual_cost_frac,
             bulk_marginal_costs=bulk_marginal_costs,
             distribution_marginal_costs=dist_and_sub_tx_marginal_costs,
             low_income_strategy=None,
         )
+        if revenue_requirement is None:
+            # residual_cost_frac was set: RR = Total MC (0% residual)
+            revenue_requirement = float(costs_by_type["Total System Costs ($)"])
+            log.info(
+                "residual_cost_frac=%.4f: revenue_requirement derived from "
+                "Total System Costs = $%.0f",
+                settings.residual_cost_frac,
+                revenue_requirement,
+            )
         effective_load_elec = raw_load_elec
         elasticity_tracker = pd.DataFrame()
         if settings.run_includes_subclasses:

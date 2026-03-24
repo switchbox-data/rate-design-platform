@@ -327,6 +327,15 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
 
     run["elasticity"] = parse_required_float("elasticity")
 
+    residual_cost_frac_raw = get_optional("residual_cost_frac")
+    if residual_cost_frac_raw:
+        try:
+            run["residual_cost_frac"] = float(residual_cost_frac_raw)
+        except ValueError as exc:
+            raise ValueError(
+                f"residual_cost_frac must be a float, got {residual_cost_frac_raw!r}"
+            ) from exc
+
     return run
 
 

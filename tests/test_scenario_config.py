@@ -7,6 +7,7 @@ produces the correct rr_total, subclass_rr, and run_includes_subclasses.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -193,3 +194,100 @@ class TestParserWithSyntheticYAML:
             "hp_supply": 500.0,
             "nonhp_supply": 1000.0,
         }
+
+
+class TestResidualCostFracYamlGuard:
+    """_build_settings_from_yaml_run: residual_cost_frac vs utility_revenue_requirement guard.
+
+    Uses actual NYSEG scenario run 1 as the base (all file paths are real), then
+    overrides only the revenue-requirement-related fields to test the guard.
+    """
+
+    _SCENARIOS_NYSEG = (
+        Path(__file__).resolve().parents[1]
+        / "rate_design"
+        / "hp_rates"
+        / "ny"
+        / "config"
+        / "scenarios"
+        / "scenarios_nyseg.yaml"
+    )
+
+    def _load_base_run(self) -> dict[str, Any]:
+        """Load run 1 from the real NYSEG scenarios YAML."""
+        with self._SCENARIOS_NYSEG.open(encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        return dict(data["runs"][1])
+
+    def test_residual_cost_frac_and_urr_both_set_raises(self, tmp_path: Path) -> None:
+        """Setting both residual_cost_frac and utility_revenue_requirement raises."""
+        from rate_design.hp_rates.run_scenario import _build_settings_from_yaml_run
+
+        run = self._load_base_run()
+        run["residual_cost_frac"] = 0.0
+        # utility_revenue_requirement already set in run 1; keep it → should raise
+
+        with pytest.raises(ValueError, match="residual_cost_frac"):
+            _build_settings_from_yaml_run(
+                run=run,
+                run_num=1,
+                state="NY",
+                output_dir_override=tmp_path,
+                run_name_override="test",
+            )
+
+    def test_residual_cost_frac_with_urr_none_is_allowed(self, tmp_path: Path) -> None:
+        """residual_cost_frac=0.0 with utility_revenue_requirement: none is valid."""
+        from rate_design.hp_rates.run_scenario import _build_settings_from_yaml_run
+
+        run = self._load_base_run()
+        run["residual_cost_frac"] = 0.0
+        run["utility_revenue_requirement"] = None
+
+        settings = _build_settings_from_yaml_run(
+            run=run,
+            run_num=1,
+            state="NY",
+            output_dir_override=tmp_path,
+            run_name_override="test",
+        )
+
+        assert settings.residual_cost_frac == pytest.approx(0.0)
+        assert settings.rr_total == pytest.approx(0.0)
+
+    def test_residual_cost_frac_with_urr_absent_is_allowed(
+        self, tmp_path: Path
+    ) -> None:
+        """residual_cost_frac=0.0 with utility_revenue_requirement absent is valid."""
+        from rate_design.hp_rates.run_scenario import _build_settings_from_yaml_run
+
+        run = self._load_base_run()
+        run["residual_cost_frac"] = 0.0
+        run.pop("utility_revenue_requirement", None)
+
+        settings = _build_settings_from_yaml_run(
+            run=run,
+            run_num=1,
+            state="NY",
+            output_dir_override=tmp_path,
+            run_name_override="test",
+        )
+
+        assert settings.residual_cost_frac == pytest.approx(0.0)
+
+    def test_residual_cost_frac_absent_defaults_to_none(self, tmp_path: Path) -> None:
+        """When residual_cost_frac is not in the run dict, it defaults to None."""
+        from rate_design.hp_rates.run_scenario import _build_settings_from_yaml_run
+
+        run = self._load_base_run()
+        # residual_cost_frac absent; utility_revenue_requirement already set in run 1
+
+        settings = _build_settings_from_yaml_run(
+            run=run,
+            run_num=1,
+            state="NY",
+            output_dir_override=tmp_path,
+            run_name_override="test",
+        )
+
+        assert settings.residual_cost_frac is None

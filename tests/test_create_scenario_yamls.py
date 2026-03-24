@@ -74,3 +74,47 @@ def test_row_to_run_omits_path_tou_supply_mc_when_blank() -> None:
     run = _row_to_run(row, headers)
 
     assert "path_tou_supply_mc" not in run
+
+
+def test_row_to_run_includes_residual_cost_frac_when_set() -> None:
+    """residual_cost_frac cell value is parsed as float and included."""
+    row = _base_row()
+    row["residual_cost_frac"] = "0.0"
+    headers = list(row.keys())
+
+    run = _row_to_run(row, headers)
+
+    assert run.get("residual_cost_frac") == 0.0
+
+
+def test_row_to_run_omits_residual_cost_frac_when_blank() -> None:
+    """Empty residual_cost_frac cell is omitted from output (existing runs unaffected)."""
+    row = _base_row()
+    row["residual_cost_frac"] = ""
+    headers = list(row.keys())
+
+    run = _row_to_run(row, headers)
+
+    assert "residual_cost_frac" not in run
+
+
+def test_row_to_run_omits_residual_cost_frac_when_column_absent() -> None:
+    """Column absence (older sheets) does not break parsing."""
+    row = _base_row()
+    headers = [k for k in row if k != "residual_cost_frac"]
+
+    run = _row_to_run(row, headers)
+
+    assert "residual_cost_frac" not in run
+
+
+def test_row_to_run_residual_cost_frac_invalid_raises() -> None:
+    """Non-numeric residual_cost_frac raises a clear error."""
+    row = _base_row()
+    row["residual_cost_frac"] = "not-a-number"
+    headers = list(row.keys())
+
+    import pytest
+
+    with pytest.raises(ValueError, match="residual_cost_frac"):
+        _row_to_run(row, headers)

@@ -304,3 +304,31 @@ create-sb-release-for-upgrade-02-RI:
     sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/
     just add-monthly-loads RI "00 02"
     just upload-monthly-loads RI "00 02"
+
+# =============================================================================
+# Adoption trajectory upgrades (01, 04, 05): convenience shortcuts and end-to-end recipes
+# =============================================================================
+
+adjust-mf-electricity-NY-upgrade-01:
+    just adjust-mf-electricity NY res_2024_amy2018_2 res_2024_amy2018_2_sb "01"
+
+adjust-mf-electricity-NY-upgrade-04:
+    just adjust-mf-electricity NY res_2024_amy2018_2 res_2024_amy2018_2_sb "04"
+
+adjust-mf-electricity-NY-upgrade-05:
+    just adjust-mf-electricity NY res_2024_amy2018_2 res_2024_amy2018_2_sb "05"
+
+# Copy, adjust loads, and sync upgrades 01, 04, 05 into the _sb release for NY.
+# Assumes prepare-metadata-ny has already been run (it processes all upgrades 00-05).
+# metadata_utility (utility assignment) is upgrade-independent and is not re-copied here.
+
+# We are NOT running approximate-non-hp-load for upgrades 4 and 5 because they strictly only apply to certain building types.
+create-sb-release-for-adoption-upgrades-NY:
+    just copy-resstock-data-2024-amy2018-2-NY "04 05" "metadata load_curve_hourly"
+    just approximate-non-hp-load NY 01 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True
+    just adjust-mf-electricity-NY-upgrade-01
+    just adjust-mf-electricity-NY-upgrade-04
+    just adjust-mf-electricity-NY-upgrade-05
+    sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/
+    just add-monthly-loads NY "01 04 05"
+    just upload-monthly-loads NY "01 04 05"
