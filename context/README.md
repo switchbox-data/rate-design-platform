@@ -30,12 +30,13 @@ LMI discount programs and gas heating rate structures.
 
 ### domain/marginal_costs/
 
-Bulk transmission cost recovery: who pays, how costs reach bills, institutional context.
+Marginal cost topics: bulk transmission cost recovery, distribution O&M cost causation.
 
-| File                                  | Purpose                                                                                                                                                                                                     |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ny_bulk_transmission_cost_recovery.md | NY bulk transmission big picture: NYISO TOs, OATT/TSC mechanics, FERC vs PSC jurisdiction, per-utility evidence TX is in delivery RR, magnitudes, CLCPA new TX, comparison with ISO-NE                      |
-| ri_bulk_transmission_cost_recovery.md | RI/ISO-NE bulk transmission big picture: PTOs, PTF vs non-PTF, RNS vs LNS, how RNS passes through to RIE retail bill, why NE unbundles TX, magnitudes, Eversource HP TX discount, embedded vs marginal cost |
+| File                                  | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ny_bulk_transmission_cost_recovery.md | NY bulk transmission big picture: NYISO TOs, OATT/TSC mechanics, FERC vs PSC jurisdiction, per-utility evidence TX is in delivery RR, magnitudes, CLCPA new TX, comparison with ISO-NE                                                                                                                                                                                                                                          |
+| ri_bulk_transmission_cost_recovery.md | RI/ISO-NE bulk transmission big picture: PTOs, PTF vs non-PTF, RNS vs LNS, how RNS passes through to RIE retail bill, why NE unbundles TX, magnitudes, Eversource HP TX discount, embedded vs marginal cost                                                                                                                                                                                                                     |
+| marginal_distribution_om_costs.md     | Distribution O&M cost causation: why incremental load does not meaningfully create marginal distribution O&M costs. Activity-by-activity analysis (vegetation, inspection, storm, equipment), the one theoretical mechanism (transformer thermal degradation) and why it's negligible for below-rating winter loads, RAP/NARUC classification critique, PG&E pipeline analogy. Answers Lance Schaefer's (Concentric) objection. |
 
 ## methods/
 
