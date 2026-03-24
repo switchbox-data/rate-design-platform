@@ -13,7 +13,7 @@ from utils.pre.create_default_structure_tariffs import (
     _build_seasonal_tiered_tariff,
     _build_seasonal_tou_tariff,
     _detect_periods_from_monthly_rates,
-    _extract_customer_fixed_charge,
+    _extract_fixed_charge_avg,
     _extract_flat_kwh_rates,
     _extract_tou_supply_monthly,
     _season_months,
@@ -140,7 +140,7 @@ class TestCreateSeasonalTouTariffDirect:
 # ---------------------------------------------------------------------------
 
 
-class TestExtractCustomerFixedCharge:
+class TestExtractFixedChargeAvg:
     def test_dollar_per_month_customer_charge(self) -> None:
         section = {
             "charges": {
@@ -150,7 +150,7 @@ class TestExtractCustomerFixedCharge:
                 },
             }
         }
-        assert _extract_customer_fixed_charge(section) == pytest.approx(6.0)
+        assert _extract_fixed_charge_avg(section) == pytest.approx(6.0)
 
     def test_dollar_per_day_customer_charge(self) -> None:
         section = {
@@ -161,10 +161,9 @@ class TestExtractCustomerFixedCharge:
                 },
             }
         }
-        expected = 0.54 * 365.25 / 12
-        assert _extract_customer_fixed_charge(section) == pytest.approx(
-            expected, rel=1e-3
-        )
+        days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        expected = sum(0.54 * d for d in days) / 12
+        assert _extract_fixed_charge_avg(section) == pytest.approx(expected, rel=1e-3)
 
     def test_includes_billing_payment_processing(self) -> None:
         section = {
@@ -179,9 +178,9 @@ class TestExtractCustomerFixedCharge:
                 },
             }
         }
-        assert _extract_customer_fixed_charge(section) == pytest.approx(21.28)
+        assert _extract_fixed_charge_avg(section) == pytest.approx(21.28)
 
-    def test_excludes_non_customer_charges(self) -> None:
+    def test_includes_all_fixed_charges(self) -> None:
         section = {
             "charges": {
                 "customer_charge": {
@@ -198,7 +197,7 @@ class TestExtractCustomerFixedCharge:
                 },
             }
         }
-        assert _extract_customer_fixed_charge(section) == pytest.approx(6.0)
+        assert _extract_fixed_charge_avg(section) == pytest.approx(6.0 + 5.75 + 0.79)
 
     def test_excludes_kwh_charges(self) -> None:
         section = {
@@ -209,7 +208,7 @@ class TestExtractCustomerFixedCharge:
                 },
             }
         }
-        assert _extract_customer_fixed_charge(section) == 0.0
+        assert _extract_fixed_charge_avg(section) == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -830,6 +829,64 @@ class TestProcessUtility:
         tariff = json.loads((output_dir / "testutil_default.json").read_text())
         rates = [p[0]["rate"] for p in tariff["items"][0]["energyratestructure"]]
         assert len(set(rates)) > 1
+
+    def test_fixed_charge_includes_add_to_drr_riders(self, tmp_path: Path) -> None:
+        mr_path = tmp_path / "rie_monthly_rates_2025.yaml"
+        _write_yaml(
+            mr_path,
+            {
+                "utility": "rie",
+                "start_month": "2025-01",
+                "end_month": "2025-12",
+                "already_in_drr": {
+                    "rate_structure": "flat",
+                    "charges": {
+                        "customer_charge": {
+                            "charge_unit": "$/month",
+                            "monthly_rates": _uniform(6.0),
+                        },
+                        "core_delivery_rate": {
+                            "charge_unit": "$/kWh",
+                            "monthly_rates": _uniform(0.05),
+                        },
+                    },
+                },
+                "add_to_drr": {
+                    "rate_structure": "flat",
+                    "charges": {
+                        "re_growth_charge": {
+                            "charge_unit": "$/month",
+                            "monthly_rates": _uniform(5.75),
+                        },
+                        "liheap_enhancement_charge": {
+                            "charge_unit": "$/month",
+                            "monthly_rates": _uniform(0.79),
+                        },
+                        "transmission": {
+                            "charge_unit": "$/kWh",
+                            "monthly_rates": _uniform(0.04),
+                        },
+                    },
+                },
+                "add_to_srr": {
+                    "rate_structure": "flat",
+                    "charges": {
+                        "supply": {
+                            "charge_unit": "$/kWh",
+                            "monthly_rates": _uniform(0.10),
+                        },
+                    },
+                },
+            },
+        )
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        process_utility("rie", mr_path, output_dir)
+
+        tariff = json.loads((output_dir / "rie_default.json").read_text())
+        item = tariff["items"][0]
+        assert item["fixedchargefirstmeter"] == pytest.approx(6.0 + 5.75 + 0.79)
 
 
 # ---------------------------------------------------------------------------

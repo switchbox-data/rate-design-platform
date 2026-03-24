@@ -45,20 +45,18 @@ DAYS_PER_MONTH = {m: calendar.monthrange(2025, m)[1] for m in range(1, 13)}
 # ---------------------------------------------------------------------------
 
 
-def _extract_customer_fixed_charge(section: dict) -> float:
-    """Extract only true customer charges ($/month or $/day) from a YAML section.
+def _extract_fixed_charge_avg(section: dict) -> float:
+    """Average monthly fixed charge ($/month) from all $/month and $/day charges.
 
-    Only charges named ``customer_charge`` or ``billing_payment_processing``
-    are included.  Other $/month riders (RE Growth, LIHEAP) are excluded so
-    CAIRO calibration absorbs their revenue into volumetric rates.
+    Converts $/day charges to monthly equivalents using actual days per month,
+    then averages across all months.  Fixed charges should be recovered as fixed
+    charges in the tariff, not absorbed into volumetric rates by CAIRO
+    calibration.
     """
-    customer_charge_names = {"customer_charge", "billing_payment_processing"}
     charges: dict = section.get("charges", {})
-    total = 0.0
+    totals: dict[str, float] = {}
 
-    for slug, data in charges.items():
-        if slug not in customer_charge_names:
-            continue
+    for _slug, data in charges.items():
         unit = data.get("charge_unit", "$/kWh")
         if unit not in ("$/month", "$/day"):
             continue
@@ -68,14 +66,16 @@ def _extract_customer_fixed_charge(section: dict) -> float:
         if isinstance(next(iter(mr.values())), dict):
             continue
 
-        vals = list(mr.values())
-        avg_rate = sum(vals) / len(vals)
+        for k, v in mr.items():
+            monthly_val = v
+            if unit == "$/day":
+                month_num = int(k.split("-")[1])
+                monthly_val = v * DAYS_PER_MONTH[month_num]
+            totals[k] = totals.get(k, 0.0) + monthly_val
 
-        if unit == "$/day":
-            avg_rate = avg_rate * 365.25 / 12
-        total += avg_rate
-
-    return total
+    if not totals:
+        return 0.0
+    return sum(totals.values()) / len(totals)
 
 
 # ---------------------------------------------------------------------------
@@ -661,9 +661,11 @@ def process_utility(
 
     rate_structure = already.get("rate_structure", "flat")
 
-    fixed_charge = _extract_customer_fixed_charge(already)
+    fixed_charge = _extract_fixed_charge_avg(already) + _extract_fixed_charge_avg(
+        add_drr
+    )
     log.info(
-        "%s: rate_structure=%s, customer_fixed_charge=$%.2f/mo",
+        "%s: rate_structure=%s, fixed_charge=$%.2f/mo",
         utility,
         rate_structure,
         fixed_charge,
