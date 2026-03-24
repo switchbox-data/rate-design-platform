@@ -652,6 +652,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         effective_load_elec = flex.effective_load_elec
         elasticity_tracker = flex.elasticity_tracker
         precalc_mapping = flex.precalc_mapping
+        del raw_load_elec
         if settings.run_includes_subclasses and settings.subclass_rr is not None:
             # Per-subclass frozen-residual approach:
             #   new_RR_k = subclass_RR_k + (MC_shifted_k - MC_orig_k)

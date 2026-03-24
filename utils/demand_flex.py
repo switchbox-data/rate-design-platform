@@ -22,6 +22,7 @@ from cairo.rates_tool.systemsimulator import _return_revenue_requirement_target
 
 from utils.cairo import (
     _load_supply_marginal_costs,
+    _log_rss,
     apply_runtime_tou_demand_response,
 )
 from utils.pre.compute_tou import (
@@ -294,6 +295,7 @@ def apply_demand_flex(
     # We capture the residual here and freeze it so that when loads shift
     # later, only the MC component changes — the residual (embedded infra
     # costs) stays fixed. See context/code/cairo/demand_flex_residual_treatment.md.
+    _log_rss("apply_demand_flex: before Phase 1a")
     log.info(".... Phase 1a: computing frozen residual from original loads")
     (
         full_rr_orig,
@@ -319,15 +321,42 @@ def apply_demand_flex(
         float(full_rr_orig),
         total_mc_orig,
     )
+    del full_rr_orig, _msp_orig, _msc_orig, costs_by_type_orig
+    _log_rss("apply_demand_flex: after Phase 1a del")
 
     # -- Phase 1.5: shift TOU customers (per TOU tariff) --
     # Now simulate what happens when customers actually respond to the TOU
     # price signal: shift load away from peak hours based on the elasticity.
     # This changes the load shapes, which will change total MC downstream.
-    effective_load_elec = raw_load_elec
     elasticity_tracker = pd.DataFrame()
     tou_season_specs: dict[str, list[SeasonTouSpec]] = {}
     all_tou_bldg_ids: set[int] = set()
+
+    # Precompute per-TOU-key weighted system loads from the original
+    # (pre-shift) loads.  Phase 2.5 needs these to compute mc_orig_k,
+    # but only as tiny 8760-element Series — not the full load DataFrame.
+    # By capturing them now we can free raw_load_elec before the shift.
+    # Use weight-map multiplication to avoid DataFrame copies that would
+    # double memory for large utilities (e.g. ConEd with ~15k buildings).
+    weight_map = customer_metadata.set_index("bldg_id")["weight"]
+    bldg_level = raw_load_elec.index.get_level_values("bldg_id")
+    time_level = raw_load_elec.index.get_level_values("time")
+    orig_sys_loads: dict[str, pd.Series] = {}
+    for tou_key in tou_tariff_keys:
+        tou_rows = tariff_map_df[tariff_map_df["tariff_key"] == tou_key]
+        tou_bldg_ids = cast(list[int], tou_rows["bldg_id"].astype(int).tolist())
+        all_tou_bldg_ids.update(tou_bldg_ids)
+        mask = bldg_level.isin(set(tou_bldg_ids))
+        weights = bldg_level[mask].map(weight_map)
+        weighted_load = raw_load_elec.loc[mask, "electricity_net"] * weights.values
+        orig_sys_loads[tou_key] = weighted_load.groupby(time_level[mask]).sum()
+        del mask, weights, weighted_load
+
+    # Make one copy; shifts write in-place.  The original raw_load_elec
+    # (caller's reference) is no longer needed inside this function.
+    effective_load_elec = raw_load_elec.copy()
+    del raw_load_elec
+    _log_rss("apply_demand_flex: after copy + del raw_load_elec")
 
     # A scenario may have multiple TOU tariffs (e.g. HP TOU + seasonal TOU),
     # each with its own rate structure and set of assigned buildings.
@@ -336,11 +365,8 @@ def apply_demand_flex(
         with open(tou_tariff_path) as f:
             tou_tariff = json.load(f)
 
-        # Only buildings assigned to this TOU tariff get shifted;
-        # everyone else's loads pass through unchanged.
         tou_rows = tariff_map_df[tariff_map_df["tariff_key"] == tou_key]
         tou_bldg_ids = cast(list[int], tou_rows["bldg_id"].astype(int).tolist())
-        all_tou_bldg_ids.update(tou_bldg_ids)
 
         derivation_path = find_tou_derivation_path(tou_key, tou_derivation_dir)
         season_specs = None
@@ -354,16 +380,14 @@ def apply_demand_flex(
             len(tou_bldg_ids),
             tou_key,
         )
-        # Shift each TOU customer's hourly load based on the peak/off-peak
-        # price differential and the elasticity parameter.
         effective_load_elec, tracker = apply_runtime_tou_demand_response(
             raw_load_elec=effective_load_elec,
             tou_bldg_ids=tou_bldg_ids,
             tou_tariff=tou_tariff,
             demand_elasticity=elasticity,
             season_specs=season_specs,
+            inplace=True,
         )
-        # Accumulate per-tariff shift diagnostics into one combined tracker.
         if elasticity_tracker.empty:
             elasticity_tracker = tracker
         else:
@@ -464,6 +488,9 @@ def apply_demand_flex(
     #   new_RR_k = subclass_MC_shifted_k + frozen_residual_k
     #            = subclass_RR_k + (MC_shifted_k - MC_orig_k)
     # So the MC delta is all run_scenario.py needs to build per-subclass RRs.
+    # mc_orig_k uses the precomputed original system loads (tiny 8760-row
+    # Series captured before the shift), avoiding the need to keep the full
+    # original load DataFrame alive.
     mc_prices = marginal_system_prices["Total Marginal Costs ($/kWh)"]
     mc_delta_by_tou_tariff: dict[str, float] = {}
     for tou_key in tou_tariff_keys:
@@ -472,9 +499,12 @@ def apply_demand_flex(
             .astype(int)
             .tolist()
         )
-        mc_orig_k = _compute_tou_subclass_mc(
-            raw_load_elec, tou_bldg_ids_k, customer_metadata, mc_prices
+        sys_load_orig = orig_sys_loads[tou_key]
+        sys_load_aligned = pd.Series(
+            sys_load_orig.values[: len(mc_prices)],
+            index=pd.DatetimeIndex(mc_prices.index),
         )
+        mc_orig_k = float((mc_prices * sys_load_aligned).sum())
         mc_shifted_k = _compute_tou_subclass_mc(
             effective_load_elec, tou_bldg_ids_k, customer_metadata, mc_prices
         )
