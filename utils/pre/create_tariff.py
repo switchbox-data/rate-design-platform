@@ -101,7 +101,7 @@ def extract_base_rate_and_fixed_charge(tariff_path: Path) -> tuple[float, float]
 def write_tariff_json(tariff: dict[str, Any], output_path: Path) -> Path:
     """Write a tariff JSON file to disk."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(tariff, indent=2), encoding="utf-8")
+    output_path.write_text(json.dumps(tariff, indent=2) + "\n", encoding="utf-8")
     return output_path
 
 
