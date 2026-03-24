@@ -396,6 +396,24 @@ create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label outpu
       "{{ output_path }}" \
       "{{ periods_yaml }}"
 
+compute-flat-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="":
+    just -f {{ path_repo }}/utils/Justfile compute-flat-discount-inputs \
+      "{{ run_dir }}" \
+      "{{ resstock_base }}" \
+      "{{ state_upper }}" \
+      "{{ upgrade }}" \
+      "{{ cross_subsidy_col }}" \
+      "{{ output_dir }}" \
+      "{{ base_tariff_json }}"
+
+create-flat-discount-tariff base_tariff_json flat_inputs_csv label output_path periods_yaml=path_periods_yaml:
+    just -f {{ path_repo }}/utils/Justfile create-flat-discount-tariff \
+      "{{ base_tariff_json }}" \
+      "{{ flat_inputs_csv }}" \
+      "{{ label }}" \
+      "{{ output_path }}" \
+      "{{ periods_yaml }}"
+
 copy-calibrated-tariff-from-run run_dir output_dir="":
     just -f {{ path_repo }}/utils/Justfile copy-calibrated-tariff-from-run \
       "{{ run_dir }}" \
@@ -585,6 +603,54 @@ run-16:
     echo ">> run-16: resolved run-14 output → ${run14_dir}" >&2
     just copy-calibrated-tariff-from-run "${run14_dir}"
     just run-scenario 16
+
+run-17:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
+    echo ">> run-17: resolved run-1 output → ${run1_dir}" >&2
+    just compute-flat-discount-inputs "${run1_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_percustomer" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json"
+    just create-flat-discount-tariff \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "${run1_dir}/flat_discount_rate_inputs.csv" \
+        {{ utility }}_hp_flat \
+        "{{ path_tariffs_electric }}/{{ utility }}_hp_flat.json"
+    just run-scenario 17
+
+run-18:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
+    echo ">> run-18: resolved run-2 output → ${run2_dir}" >&2
+    just compute-flat-discount-inputs "${run2_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_percustomer" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json"
+    just create-flat-discount-tariff \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "${run2_dir}/flat_discount_rate_inputs.csv" \
+        {{ utility }}_hp_flat_supply \
+        "{{ path_tariffs_electric }}/{{ utility }}_hp_flat_supply.json"
+    just run-scenario 18
+
+run-19:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run17_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 17)
+    echo ">> run-19: resolved run-17 output → ${run17_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run17_dir}"
+    just run-scenario 19
+
+run-20:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run18_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 18)
+    echo ">> run-20: resolved run-18 output → ${run18_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run18_dir}"
+    just run-scenario 20
 
 # =============================================================================
 # ORCHESTRATION

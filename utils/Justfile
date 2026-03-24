@@ -130,6 +130,26 @@ create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label outpu
       --periods-yaml "{{ periods_yaml }}" \
       --output-path "{{ output_path }}"
 
+# Uses hive partitions (resstock_base + state + upgrade); building_ids from run metadata.
+compute-flat-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="":
+    uv run python {{ project_root }}/utils/mid/compute_flat_discount_inputs.py \
+      --run-dir "{{ run_dir }}" \
+      --resstock-base "{{ resstock_base }}" \
+      --state "{{ state }}" \
+      --upgrade "{{ upgrade }}" \
+      --cross-subsidy-col "{{ cross_subsidy_col }}" \
+      --base-tariff-json "{{ base_tariff_json }}" \
+      {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }}
+
+# Tariff JSON creation from flat_discount_rate_inputs.csv.
+create-flat-discount-tariff base_tariff_json flat_inputs_csv label output_path periods_yaml:
+    uv run python {{ project_root }}/utils/mid/create_flat_discount_tariff.py \
+      --base-tariff-json "{{ base_tariff_json }}" \
+      --flat-inputs-csv "{{ flat_inputs_csv }}" \
+      --label "{{ label }}" \
+      --periods-yaml "{{ periods_yaml }}" \
+      --output-path "{{ output_path }}"
+
 # Promote calibrated tariffs from run output:
 # reads <run_dir>/tariff_final_config.json, converts each tariff to URDB format,
 
