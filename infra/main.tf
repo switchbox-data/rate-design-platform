@@ -190,15 +190,25 @@ resource "aws_security_group" "ec2_sg" {
   }
 }
 
-# EBS volume for persistent data
-resource "aws_ebs_volume" "data" {
-  availability_zone = local.availability_zone
-  size              = var.ebs_volume_size
-  type              = "gp3"
-  encrypted         = true
+# Look up the persistent EBS data volume by tag. The volume is created once
+# (via `just create-volume`) and never destroyed by teardown — it outlives
+# individual instances and persists home directories and shared data across
+# setup/teardown cycles. Using a data source instead of a resource ensures
+# that losing the local terraform.tfstate never triggers accidental recreation.
+data "aws_ebs_volume" "data" {
+  filter {
+    name   = "tag:Name"
+    values = ["${var.project_name}-data"]
+  }
 
-  tags = {
-    Name = "${var.project_name}-data"
+  filter {
+    name   = "tag:Persistent"
+    values = ["true"]
+  }
+
+  filter {
+    name   = "status"
+    values = ["available", "in-use"]
   }
 }
 
@@ -236,6 +246,6 @@ resource "aws_instance" "main" {
 # Attach EBS volume to instance
 resource "aws_volume_attachment" "data" {
   device_name = "/dev/sdf"
-  volume_id   = aws_ebs_volume.data.id
+  volume_id   = data.aws_ebs_volume.data.id
   instance_id = aws_instance.main.id
 }
