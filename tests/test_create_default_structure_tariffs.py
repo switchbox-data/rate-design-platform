@@ -611,7 +611,11 @@ class TestExtractTouSupplyMonthly:
 class TestBuildSeasonalTouWithSupply:
     """Integration: TOU supply tariff includes flat riders in rate structure."""
 
-    def test_supply_rates_include_flat_riders(self) -> None:
+    @staticmethod
+    def _psegli_like_inputs(
+        supply_monthly: dict[str, float] | None = None,
+    ) -> tuple[dict, dict, dict, float]:
+        """Return (already, add_drr, add_srr, fixed_charge) for a PSEGLI-like utility."""
         already = {
             "rate_structure": "seasonal_tou",
             "seasons": {
@@ -660,6 +664,8 @@ class TestBuildSeasonalTouWithSupply:
                 },
             },
         }
+        if supply_monthly is None:
+            supply_monthly = _uniform(0.10)
         add_srr = {
             "rate_structure": "seasonal_tou",
             "charges": {
@@ -670,27 +676,73 @@ class TestBuildSeasonalTouWithSupply:
                 "supply_commodity": {
                     "charge_unit": "$/kWh",
                     "monthly_rates": {
-                        "summer_on_peak": _uniform(0.24),
-                        "summer_off_peak": _uniform(0.10),
-                        "winter_on_peak": _uniform(0.25),
-                        "winter_off_peak": _uniform(0.10),
+                        "summer_on_peak": {
+                            k: v * 2.4 for k, v in supply_monthly.items()
+                        },
+                        "summer_off_peak": supply_monthly,
+                        "winter_on_peak": {
+                            k: v * 2.5 for k, v in supply_monthly.items()
+                        },
+                        "winter_off_peak": supply_monthly,
                     },
                 },
             },
         }
         fixed = 0.54 * 365.25 / 12
+        return already, add_drr, add_srr, fixed
+
+    def test_no_dead_rate_entries_monthly_supply(self) -> None:
+        """Every energyratestructure entry must be referenced by the schedule.
+
+        When supply varies monthly, the old code created entries for all 4
+        slot_keys (2 seasons × 2 TOU) per period group, even though only
+        2 are used per month.  CAIRO iterates *all* entries and fails with
+        'pre-calculated energy charge for period incorrectly subselected!'
+        on the dead entries.
+        """
+        supply_monthly = {f"2025-{m:02d}": 0.08 + m * 0.001 for m in range(1, 13)}
+        already, add_drr, add_srr, fixed = self._psegli_like_inputs(supply_monthly)
+
+        _delivery, supply = _build_seasonal_tou_tariff(
+            "psegli", already, add_drr, add_srr, fixed
+        )
+        s_item = supply["items"][0]
+        n_entries = len(s_item["energyratestructure"])
+
+        all_schedule_indices: set[int] = set()
+        for row in s_item["energyweekdayschedule"]:
+            all_schedule_indices.update(row)
+        for row in s_item["energyweekendschedule"]:
+            all_schedule_indices.update(row)
+
+        assert all_schedule_indices == set(range(n_entries)), (
+            f"Schedule references {sorted(all_schedule_indices)} "
+            f"but rate structure has {n_entries} entries (expected 0..{n_entries - 1})"
+        )
+
+        # 12 months each using 2 TOU slots = 24 (not 48)
+        assert n_entries == 24
+
+    def test_supply_rates_include_flat_riders(self) -> None:
+        already, add_drr, add_srr, fixed = self._psegli_like_inputs()
         _delivery, supply = _build_seasonal_tou_tariff(
             "psegli", already, add_drr, add_srr, fixed
         )
 
         s_item = supply["items"][0]
         rates = [p[0]["rate"] for p in s_item["energyratestructure"]]
-        # All 4 combined rates should include the -0.018 flat rider
+        # All combined rates should include the -0.018 flat rider
         # Winter off-peak = delivery(0.09+0.005) + supply(0.10-0.018) = 0.177
         expected_winter_off = 0.09 + 0.005 + 0.10 - 0.018
         assert any(abs(r - expected_winter_off) < 1e-4 for r in rates), (
             f"Expected ~{expected_winter_off} in rates {rates}"
         )
+
+        # Every rate entry must be schedule-referenced (no dead entries)
+        all_indices: set[int] = set()
+        for row in s_item["energyweekdayschedule"] + s_item["energyweekendschedule"]:
+            all_indices.update(row)
+        assert all_indices == set(range(len(s_item["energyratestructure"])))
 
 
 # ---------------------------------------------------------------------------

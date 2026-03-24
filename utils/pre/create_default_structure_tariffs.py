@@ -576,20 +576,34 @@ def _build_seasonal_tou_tariff(
 
     combined_periods = _detect_periods_from_multi_rate_monthly(combined_vectors)
 
-    # Build supply schedule + rate structure with merged periods
+    # Build supply schedule + rate structure with merged periods.
+    # Only allocate energyratestructure entries for TOU slots whose season
+    # matches the months in each group — CAIRO's precalc iterates every
+    # entry in the rate structure and expects to find a matching row in the
+    # revenue calculation; unreferenced "dead" entries cause an assertion
+    # failure.
     period_idx = 0
     supply_rate_structure: list[list[dict[str, Any]]] = []
     month_to_period_map: dict[int, dict[str, int]] = {}
 
     for months, rates_dict in combined_periods:
+        group_seasons: set[str] = set()
+        for m in months:
+            season = next((s for s, ms in sm.items() if m in ms), season_names[0])
+            group_seasons.add(season)
+
         slot_period_map: dict[str, int] = {}
-        for sk in slot_keys:
-            rate = rates_dict[sk]
-            supply_rate_structure.append(
-                [{"rate": round(rate, 6), "adj": 0.0, "unit": "kWh"}]
-            )
-            slot_period_map[sk] = period_idx
-            period_idx += 1
+        for s in season_names:
+            if s not in group_seasons:
+                continue
+            for t in tou_names:
+                sk = f"{s}_{t}"
+                rate = rates_dict[sk]
+                supply_rate_structure.append(
+                    [{"rate": round(rate, 6), "adj": 0.0, "unit": "kWh"}]
+                )
+                slot_period_map[sk] = period_idx
+                period_idx += 1
         for m in months:
             month_to_period_map[m] = slot_period_map
 
