@@ -279,28 +279,21 @@ def plot_demand_components_by_utility(
         legend_handles = []
         for label, data, sign, color in components:
             raw = _zone_sum_series(data, all_years, zones)
-            pct = [sign * 100.0 * v / base_mw for v in raw]
+            # pct is always a positive magnitude; sign controls which side of 0
+            pct = [100.0 * v / base_mw for v in raw]
 
             if sign == +1:
+                top = [b + v for b, v in zip(pos_bottom, pct)]
                 handle = ax.fill_between(
-                    x,
-                    pos_bottom,
-                    [b + v for b, v in zip(pos_bottom, pct)],
-                    alpha=0.85,
-                    color=color,
-                    label=label,
+                    x, pos_bottom, top, alpha=0.85, color=color, label=label
                 )
-                pos_bottom = [b + v for b, v in zip(pos_bottom, pct)]
+                pos_bottom = top
             else:
+                bottom = [b - v for b, v in zip(neg_bottom, pct)]
                 handle = ax.fill_between(
-                    x,
-                    [b - v for b, v in zip(neg_bottom, pct)],
-                    neg_bottom,
-                    alpha=0.85,
-                    color=color,
-                    label=label,
+                    x, bottom, neg_bottom, alpha=0.85, color=color, label=label
                 )
-                neg_bottom = [b - v for b, v in zip(neg_bottom, pct)]
+                neg_bottom = bottom
             legend_handles.append(handle)
 
         ax.axhline(0, color="black", linewidth=0.8, linestyle="-")
