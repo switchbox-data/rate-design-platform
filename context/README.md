@@ -2,17 +2,7 @@
 
 Reference docs and research notes for agents. **When you add or remove a file under `context/`, update this index.**
 
-See **AGENTS.md → Reference context** for conventions. Top-level dirs: **plans/** (implementation plans for multi-step decisions), **domain/** (how does this work in the real world?), **methods/** (how do we justify and operationalize this?), **code/** (how do I implement or run this?), **docs/** (extracted technical docs), **sources/** (PDF-extracted source material).
-
-## plans/
-
-Implementation plans for multi-step design decisions. These are living documents updated as decisions evolve.
-
-
-| File                                           | Purpose                                                                                                                                                                                                            |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| hp_seasonal_discount_plan_b_simplified_flat.md | Plan B (active): simplified flat seasonal discount using revenue-based rate derivation from run-1 bill outputs. Uses base URDB JSON for summer/winter flat rates; documents orchestration (`BASE_TARIFF_PATTERN`). |
-
+See **AGENTS.md → Reference context** for conventions. Top-level dirs: **domain/** (how does this work in the real world?), **methods/** (how do we justify and operationalize this?), **code/** (how do I implement or run this?), **docs/** (extracted technical docs), **sources/** (PDF-extracted source material).
 
 ## domain/
 
@@ -22,18 +12,15 @@ Documents that answer **"How does this work in the real world?"** — policy exp
 
 Fairness, cost allocation, and how regulators use ECOS vs MCOS. Feeds BAT/marginal-cost/residual methodology.
 
-
 | File                                                  | Purpose                                                                                                                                                                                                                                                                                                       |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | fairness_in_cost_allocation.md                        | Step-by-step philosophical guide to fairness in cost allocation: beneficiary-pays principle, why cost-causation works for energy and new capacity but fails for sunk costs, benefit-proportional sunk cost allocation, practical options, and how the BAT framework measures departures from these principles |
 | ny_psc_how_ecos_and_mcos_are_used.md                  | How NY allocates electric utility costs between customer classes: ECOS for inter-class revenue allocation (NARUC three-step), MCOS for rate design and DER compensation (VDER, marginal-cost floors, TOU guidance). Dual-study framework.                                                                     |
 | residual_allocation_in_solar_cross_subsidy_studies.md | Allocation mechanics in solar cross-subsidy studies: ECOS vs marginal-cost-plus-residual, NARUC three-step, demand allocators (CP, NCP, AED), residual treatment; how allocator choice affects measured cross-subsidy.                                                                                        |
 
-
 ### domain/charges/
 
 LMI discount programs and gas heating rate structures.
-
 
 | File                       | Purpose                                                    |
 | -------------------------- | ---------------------------------------------------------- |
@@ -41,26 +28,23 @@ LMI discount programs and gas heating rate structures.
 | lmi_discounts_in_ny.md     | NY utility low-income discount programs (e.g. EAP, EEAP)   |
 | lmi_discounts_in_ri.md     | RI utility low-income programs (RIE rates, LIDR+ proposal) |
 
-
 ### domain/marginal_costs/
 
-Bulk transmission cost recovery: who pays, how costs reach bills, institutional context.
+Marginal cost topics: bulk transmission cost recovery, distribution O&M cost causation.
 
-
-| File                                  | Purpose                                                                                                                                                                                                     |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ny_bulk_transmission_cost_recovery.md | NY bulk transmission big picture: NYISO TOs, OATT/TSC mechanics, FERC vs PSC jurisdiction, per-utility evidence TX is in delivery RR, magnitudes, CLCPA new TX, comparison with ISO-NE                      |
-| ri_bulk_transmission_cost_recovery.md | RI/ISO-NE bulk transmission big picture: PTOs, PTF vs non-PTF, RNS vs LNS, how RNS passes through to RIE retail bill, why NE unbundles TX, magnitudes, Eversource HP TX discount, embedded vs marginal cost |
-
+| File                                  | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ny_bulk_transmission_cost_recovery.md | NY bulk transmission big picture: NYISO TOs, OATT/TSC mechanics, FERC vs PSC jurisdiction, per-utility evidence TX is in delivery RR, magnitudes, CLCPA new TX, comparison with ISO-NE                                                                                                                                                                                                                                          |
+| ri_bulk_transmission_cost_recovery.md | RI/ISO-NE bulk transmission big picture: PTOs, PTF vs non-PTF, RNS vs LNS, how RNS passes through to RIE retail bill, why NE unbundles TX, magnitudes, Eversource HP TX discount, embedded vs marginal cost                                                                                                                                                                                                                     |
+| marginal_distribution_om_costs.md     | Distribution O&M cost causation: why incremental load does not meaningfully create marginal distribution O&M costs. Activity-by-activity analysis (vegetation, inspection, storm, equipment), the one theoretical mechanism (transformer thermal degradation) and why it's negligible for below-rating winter loads, RAP/NARUC classification critique, PG&E pipeline analogy. Answers Lance Schaefer's (Concentric) objection. |
 
 ## methods/
 
-Documents that answer **"How do we justify and operationalize this?"** — conceptual framing, formulas, literature, design choices that feed our methodology writeup. Subdirs group by theme.
+Documents that answer **"How do we justify and operationalize this?"** — conceptual framing, formulas, literature, design choices that feed our methodology writeup. Will be implemented in code. Subdirs group by theme.
 
 ### methods/bat_mc_residual/
 
 BAT framework, residual allocation, and how they connect to the literature.
-
 
 | File                                        | Purpose                                                                                                                                                                                                                                                                                                                                                                                 |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -68,22 +52,18 @@ BAT framework, residual allocation, and how they connect to the literature.
 | bat_lrmc_residual_allocation_methodology.md | Our MC methodology as a standalone method: LRMC decomposition into energy SRMC + capacity FLIC, formulas for each component (energy LBMP, gen capacity ICAP, bulk TX incremental benefit, dist MCOS incremental diluted), how each becomes 8760, residual definition and allocation, with citations showing alignment to the BAT paper, Borenstein, Pérez-Arriaga, Schittekatte & Meeus |
 | residual_allocation_lit_review_and_cairo.md | Residual allocation methods (volumetric, per-customer, peak, demand-based, historical consumption, Ramsey) from the cross-subsidization literature, mapped to CAIRO's three BAT allocators: formula, CAIRO status, literature survey by method, effect on solar/HP cross-subsidy.                                                                                                       |
 
-
 ### methods/tou_and_rates/
 
 Cost-reflective TOU design: theory and window optimization.
-
 
 | File                               | Purpose                                                                                                                                                                                                         |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | cost_reflective_tou_rate_design.md | Theory and practice of cost-reflective TOU rate design: demand-weighted MC averages, cost-causation ratios, period selection, assumptions, demand flexibility implications, and partial vs. general equilibrium |
 | tou_window_optimization.md         | TOU window width ($N$) sweep: welfare-loss metric derivation, HP-demand weighting proof, sweep algorithm, CLI/Justfile, NY results                                                                              |
 
-
 ### methods/marginal_costs/
 
 How we derive BAT marginal-cost inputs from regulatory studies.
-
 
 | File                                      | Purpose                                                                                                                                                                                                                                                                                                                                                                      |
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -93,15 +73,13 @@ How we derive BAT marginal-cost inputs from regulatory studies.
 | ri_bulk_transmission_marginal_cost.md     | How to construct bulk TX marginal cost for RI BAT: data sources (RNS rate, AESC 2024 avoided PTF cost, ISO-NE 2050 study), four options with tradeoffs, recommended approach (AESC primary, RNS upper bound), hourly PoP allocation, comparison with NY.                                                                                                                     |
 | capacity_market_comparison_nyiso_isone.md | Comparison of NYISO ICAP (Strip/Monthly/Spot) vs ISO-NE FCM (FCA/ARA/MRA) capacity market structures: structural analogy table, forward horizons, price volatility differences, implications for BAT marginal cost signal (Spot vs FCA vs MRA), current approach in NY vs RI, trade-offs.                                                                                    |
 
-
 ## code/
 
-Documents that answer **"How do I implement or run this?"** — CAIRO behavior, orchestration, data sources, marginal-cost pipelines. Subdirs group by theme.
+Documents that answer **"How does this tool work? What are its pitfalls and work arounds? How do I run this?"** — CAIRO behavior, orchestration, data sources, marginal-cost pipelines. Subdirs group by theme.
 
 ### code/orchestration/
 
 Run ordering, Justfile dependency chain, and multi-step workflows.
-
 
 | File                                    | Purpose                                                                                                                                                                                                                    |
 | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -110,11 +88,9 @@ Run ordering, Justfile dependency chain, and multi-step workflows.
 | seasonal_discount_rate_workflow.md      | RI seasonal discount workflow from subclass BAT outputs + winter kWh to tariff/map generation                                                                                                                              |
 | subclass_revenue_requirement_utility.md | `compute_subclass_rr.py` behavior, BAT metric options, required inputs, and CLI/Just usage                                                                                                                                 |
 
-
 ### code/cairo/
 
 How CAIRO works: LMI, demand flex, tax rate, tiered rates, performance, parallelism.
-
 
 | File                                            | Purpose                                                                                                                                                                                                                                |
 | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -130,11 +106,9 @@ How CAIRO works: LMI, demand flex, tax rate, tiered rates, performance, parallel
 | cairo_speedup_summary.md / cairo_speedup_log.md | Speedup notes and log                                                                                                                                                                                                                  |
 | er_bat_increase_under_hp_seasonal_rate.md       | Why electric resistance BAT increases under the HP seasonal rate: subclass RR split mechanics, non-HP flat rate rise, ER as collateral damage of HP-only fix                                                                           |
 
-
 ### code/data/
 
 ResStock, EIA, NYISO, ISO-NE: where data comes from, how to read and prepare it.
-
 
 | File                                         | Purpose                                                                                                                                                                                                                                                                                                  |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -156,11 +130,9 @@ ResStock, EIA, NYISO, ISO-NE: where data comes from, how to read and prepare it.
 | ny_genability_charge_fetch_map.md            | Exhaustive charge-level table for NY Genability tariffs: tariffRateId, fetch_type, variableRateKey, master_charge, decision; used to fetch 2025 monthly rates from Arcadia API for top-up implementation.                                                                                                |
 | psegli_revenue_requirement_estimation.md     | PSEG-LI revenue requirement estimation: why no rate case, TOU overcount problem, bill-proportional method from LIPA budget, charge classification, implementation via `estimate_psegli_rr.py`.                                                                                                           |
 
-
 ### code/marginal_costs/
 
 Pipelines and config that build the marginal-cost signal used in BAT and TOU.
-
 
 | File                               | Purpose                                                                                                                                                                                                    |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -168,11 +140,9 @@ Pipelines and config that build the marginal-cost signal used in BAT and TOU.
 | ny_supply_marginal_costs.md        | NY supply MC pipeline: LBMP energy + ICAP capacity, NYISO zone loads, per-pipeline load years (SUPPLY_ENERGY/CAPACITY_LOAD_YEAR in state.env), component-by-component capacity allocation, MCOS allocation |
 | compute_tou_from_marginal_costs.md | MC-driven TOU tariff derivation: peak-window finder, cost-causation ratio, URDB JSON                                                                                                                       |
 
-
 ## docs/
 
 Technical documentation extracted from PDFs (e.g. Cambium, ResStock dataset docs). Add via the **extract-pdf-to-markdown** slash command.
-
 
 | File                                                     | Use when working on …                                                                                                                                        |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -189,35 +159,30 @@ Technical documentation extracted from PDFs (e.g. Cambium, ResStock dataset docs
 | census_pums_acs5_2023_data_dict.txt                      | ACS 5-year PUMS variable definitions (2019-2023)                                                                                                             |
 | nyiso_gold_book_2025_proposed_transmission_facilities.md | NYISO 2025 Gold Book Table VII data dictionary: column definitions, project type/subtype taxonomy, classification methodology, data patterns by project type |
 
-
 ## sources/
 
-PDF-extracted and other source material. Add academic papers via the **extract-pdf-to-markdown** slash command.
+Primary sources like academic articles and documents, mostly extracted from PDFs via the **extract-pdf-to-markdown** slash command.
 
 ### sources/papers/
 
 Academic papers (e.g. Bill Alignment Test, Faruqui). Extracted from PDFs.
 
-
-| File                                                                                    | Use when working on …                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| bill_alignment_test.md                                                                  | Bill Alignment Test methodology, cross-subsidization, CAIRO BAT                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| faruqui_the_structure_of_electricity_distribution_network_tariffs_and_residual_costs.md | Brattle Group (Brown & Faruqui, 2014) report for Australian Energy Market Commission on recovering residual distribution network costs: Bonbright principles, Ramsey/inverse-elasticity pricing, nonlinear pricing, equity/fairness/gradualism trade-offs, GB CDCM methodology, Italy three-part tariff, US (TX/MA) distribution tariffs, five stylized Australian tariff structures (postage-stamp, Ramsey declining block, gradual fixed-charge phase-in, LMI exemption, demand charges), extensive bibliography (~140 items) |
-
+| File                                                                                    | Use when working on …                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| bill_alignment_test.md                                                                  | Bill Alignment Test methodology, cross-subsidization, CAIRO BAT                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| faruqui_the_structure_of_electricity_distribution_network_tariffs_and_residual_costs.md | Brattle Group (Brown & Faruqui, 2014) report for Australian Energy Market Commission on recovering residual distribution network costs: Bonbright principles, Ramsey/inverse-elasticity pricing, nonlinear pricing, equity/fairness/gradualism trade-offs, GB CDCM methodology, Italy three-part tariff, US (TX/MA) distribution tariffs, five stylized Australian tariff structures (postage-stamp, Ramsey declining block, gradual fixed-charge phase-in, LMI exemption, demand charges), extensive bibliography (~140 items)                                                                                                                                                                                                                                                                                                   |
+| rap-lazar-gonzalez-smart-rate-design-july2015.md                                        | RAP "Smart Rate Design for a Smart Future" (Lazar & Gonzalez 2015, full 98-page report): Three principles for modern rate design (connect at cost, pay volumetrically by usage, fair DG compensation), Bonbright/Garfield & Lovejoy foundations, illustrative TOU/CPP rate designs for all customer classes, case against SFV/high fixed charges and demand charges for residential, DER/solar/EV/microgrid/storage rate design, smart meter cost classification, revenue decoupling as preferred revenue stabilization, stakeholder interest analysis, glossary of rate design terms. The practitioner counterpart to the Pérez-Arriaga/Borenstein academic framework — see `context/methods/bat_mc_residual/bat_lrmc_residual_allocation_methodology.md` §10 for how the RAP position relates to the MC/residual decomposition. |
 
 ### sources/ (top-level)
-
 
 | File                               | Use when working on …                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | nyiso_gold_book_2025.md            | NYISO 2025 Load & Capacity Data Report ("Gold Book"), all tables machine-extracted from PDF. The authoritative source for NY system-level data: NYCA and zonal (A–K) baseline energy and peak demand forecasts through 2055 (summer and winter, with lower/higher demand scenarios), component-level forecast breakdowns (EE, solar PV BTM, EVs, building electrification, energy storage, large loads, demand response), 90th/10th/99th percentile weather-driven peak forecasts, G-to-J locality peaks, existing generator capability by zone and type, proposed generation changes, capacity schedule, transmission facilities. We use it for utility system peaks (NiMo zones A–F, PSEG-LI zone K, ConEd zone J, etc.) when computing MCOS dilution, for electrification scenario assumptions, and as the reference for NY load growth trajectories in rate design. |
 | lipa_2025_2026_budget_one_pager.md | LIPA 2026 vs 2025 budget fact sheet: residential bill impact, operating/capital/revenue budgets, funding sources, regionally comparable rates                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
-
 ### sources/mcos/
 
 NY PSC Docket 19-E-0283 (and related) 2025 Marginal Cost of Service Study markdown extractions. Use when working on NY utility T&D marginal costs, NERA/CRA methodology, or cost-center schedules.
-
 
 | File                                                           | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -230,5 +195,3 @@ NY PSC Docket 19-E-0283 (and related) 2025 Marginal Cost of Service Study markdo
 | psegli_2025_mcos.md                                            | PSEG Long Island / LIPA 2025 MCOS: purpose, capital projects, ECCR, O&M loaders, exhibits (NY PSC 19-E-0283)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | dps_proposal_on_updating_drv_and_lsrv_for_vder_compensation.md | DPS Staff Proposal (Dec 11, 2025) on updating DRV and LSRV for VDER compensation (Cases 15-E-0751, 19-E-0283). The definitive document explaining how the 2025 MCOS filings become actual DRV/LSRV rates in VDER tariffs. Contains: Staff's hybrid segment-aggregation method for DRV (exclude zero-everywhere substations, but include zero-cost segments within partially-invested substations — the middle ground between fully diluted and fully undiluted); statistical 1.645-standard-error threshold for identifying LSRV areas (~10% of substations); proposed DRV and LSRV values for all six utilities (Tables B-1 through B-5) with comparison to current, JU, and CEP proposals; Staff's corrections to each utility's MCOS (Appendix C — e.g., NiMo TX capacity allocated to 151 substations at 26.84 MW each, ConEd double-inflation correction); LSRV dispatchability/reliability requirements (Appendix E); regulatory economics background on why VDER = LRMC. Key reference for understanding the NiMo $146.59 DRV vs NiMo's own $71.52, the diluted-vs-undiluted distinction, and how many substations each utility has with projects. |
 | coned_statement_of_value_of_vder_credits.md                    | ConEd VDER Value Stack Credits Statement (April 2025, PSC No. 10 Statement 91). The actual published tariff that shows how MCOS results become DER compensation: Phase 1/2 DRV rates ($/kW-yr), LSRV locations with MW remaining, capacity/energy/environmental components by zone (NYC vs Westchester), CSRP call window definitions (the 4 summer windows that determine when DRV credits are active), previous year's top-10 peak hours by window with MW demand, proxy capacity factors and monthly solar production by area, Market Transition Credit rates by tranche. Key reference for understanding ConEd's hourly DRV allocation (summer-only, window-based, not PoP) and for validating that our VDER implementation matches published rates.                                                                                                                                                                                                                                                                                                                                                                                                  |
-
-

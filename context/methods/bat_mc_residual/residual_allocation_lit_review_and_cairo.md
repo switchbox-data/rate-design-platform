@@ -14,6 +14,40 @@ The choice of residual allocator determines the measured cross-subsidy. Under vo
 
 ---
 
+## The practice-theory gap in residual cost recovery
+
+The six allocation methods surveyed below represent the _theoretical_ menu. In practice, the choice among them is governed by a tension between economic efficiency and political feasibility that the academic literature often acknowledges but rarely resolves.
+
+### Brown & Faruqui's three principles
+
+The most comprehensive survey of this tension is Brown & Faruqui (2014), a Brattle Group report for the Australian Energy Market Commission that reviewed some 140 items in the academic literature and consulted two dozen industry experts, regulators, and consumer advocates. They identify three principles that govern residual cost recovery in practice:
+
+1. **Efficiency.** Residual costs should be recovered in a way that minimally distorts consumption and investment decisions. The academic consensus — Ramsey pricing (§6 below), or equivalently, recovering residuals through fixed charges — scores highest on this principle.
+
+2. **Fairness.** Brown & Faruqui find that "fairness" has multiple conflicting interpretations in regulatory proceedings: (a) tariffs should not cause large bill swings for any customer class; (b) changes should preserve each class's share of the revenue requirement; (c) all customers in a class should pay the same average tariff. A fourth interpretation, drawing on Rawls's Difference Principle, holds that the greatest benefit should go to the most disadvantaged. These interpretations often point in different directions, and regulators rarely state which one they are applying.
+
+3. **Gradualism.** Tariff structures should change slowly because customers have made long-lived investment decisions (appliances, building shells, DG systems) conditional on the existing rate structure. Sudden shifts — even toward more efficient designs — impose losses on customers who acted rationally under the old regime.
+
+Their conclusion: **no single "best" tariff for recovering residual costs exists that scores well on all three principles.** If efficiency is prioritized, the residual goes into fixed charges. If fairness (in the "protect low-usage customers" interpretation) is prioritized, the residual stays in volumetric charges. In practice, fairness and gradualism consistently override efficiency.
+
+### What international practice reveals
+
+Brown & Faruqui's survey of Great Britain, Italy, and U.S. jurisdictions confirms this pattern:
+
+- In **Great Britain**, after an extended redesign of distribution network charges starting from LRMC-based prices, 100% of residual costs for household customers are recovered through an uplift to the volumetric charge. Efficiency considerations played no role in residual cost recovery for the household class.
+- In **Italy**, the bulk of network costs are recovered through inclining block volumetric charges — the opposite of what efficiency would prescribe.
+- In **most U.S. jurisdictions**, residual costs are recovered in volumetric charges or as a uniform uplift to existing tariffs. Massachusetts is an exception where the trade-off between principles is explicitly discussed: residual costs are split between the fixed charge and the first block of a declining block volumetric charge.
+
+The Regulatory Assistance Project's _Smart Rate Design for a Smart Future_ (Lazar & Gonzalez 2015) — the most prominent practitioner advocacy document on rate design — goes further than merely tolerating volumetric residual recovery: it recommends it as a principle. The RAP paper argues that nearly all costs should be recovered through time-varying volumetric charges and that fixed charges should cover only customer-specific costs ($4–10/month). This position implicitly denies the residual problem by treating all distribution costs as "variable in the long run." It is widely cited in U.S. regulatory proceedings and represents the theoretical foundation for the EPMC approach that the BAT framework measures against (see `context/methods/bat_mc_residual/bat_lrmc_residual_allocation_methodology.md`, §10).
+
+### Why this matters for interpreting BAT results
+
+The practice-theory gap explains why the BAT consistently finds large cross-subsidies under current tariffs. Current U.S. rate design overwhelmingly recovers the residual volumetrically — whether through explicit EPMC scaling, through flat rates that bundle all costs into a single $/kWh price, or through the RAP-influenced convention of keeping fixed charges low and recovering everything else per-kWh. All of these approaches allocate residual costs in proportion to consumption, which is Method 1 below (volumetric). The BAT measures each customer's bill against a decomposition that separates marginal cost (the economic burden) from the residual — making visible the cross-subsidies that volumetric bundling produces but that current regulatory practice accepts as normal.
+
+The six methods below span the full range from volumetric (status quo, endorsed by practitioner tradition) to per-customer (the efficiency-oriented recommendation of Borenstein 2016, Pérez-Arriaga et al. 2017, and Schittekatte & Meeus 2020). CAIRO computes three of them (volumetric, peak, per-customer) so that the sensitivity of cross-subsidy findings to the allocator choice is always transparent.
+
+---
+
 ## 1. Volumetric residual allocation
 
 ### Formula
