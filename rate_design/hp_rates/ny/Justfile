@@ -252,3 +252,41 @@ validate-all-runs-ny timestamp="":
     just validate-or "{{ timestamp }}"
     just validate-psegli "{{ timestamp }}"
     just validate-rge "{{ timestamp }}"
+
+# =============================================================================
+# NY-only: demand-flex diagnostics
+# =============================================================================
+
+path_flex_plots := path_repo / "dev_plots/flex"
+
+# Validate demand-flex load shifting for one utility: reproduces the shift
+# analytically, checks energy conservation and direction, cross-checks against
+# CAIRO's elasticity tracker, and generates diagnostic plots.
+#   just -f ny/Justfile validate-demand-flex coned
+#   just -f ny/Justfile validate-demand-flex coned -0.12 ny_20260325b_r1-16
+validate-demand-flex utility_arg elasticity="-0.10" batch="":
+    cd {{ project_root }} && uv run python -m utils.post.validate_demand_flex_shift \
+      --utility {{ utility_arg }} \
+      --elasticity {{ elasticity }} \
+      --output-dir "{{ path_flex_plots }}/{{ utility_arg }}" \
+      {{ if batch != "" { "--batch " + batch } else { "" } }}
+
+validate-demand-flex-all elasticity="-0.10" batch="":
+    just validate-demand-flex cenhud {{ elasticity }} "{{ batch }}"
+    just validate-demand-flex coned {{ elasticity }} "{{ batch }}"
+    just validate-demand-flex nimo {{ elasticity }} "{{ batch }}"
+    just validate-demand-flex nyseg {{ elasticity }} "{{ batch }}"
+    just validate-demand-flex or {{ elasticity }} "{{ batch }}"
+    just validate-demand-flex psegli {{ elasticity }} "{{ batch }}"
+    just validate-demand-flex rge {{ elasticity }} "{{ batch }}"
+
+# Run the elasticity sweep diagnostic: tests a range of elasticity values per
+# utility and finds the one matching the Arcturus 2.0 empirical target.
+#   just -f ny/Justfile diagnose-demand-flex
+#   just -f ny/Justfile diagnose-demand-flex --utilities=coned,nimo
+diagnose-demand-flex *args:
+    cd {{ project_root }} && uv run python -m utils.post.diagnose_demand_flex \
+      --state ny \
+      --elasticities="-0.02,-0.04,-0.06,-0.08,-0.10,-0.12,-0.14,-0.16,-0.18,-0.20" \
+      --output-dir "{{ path_flex_plots }}/diagnostic" \
+      {{ args }}

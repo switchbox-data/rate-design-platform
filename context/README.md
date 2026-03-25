@@ -58,8 +58,9 @@ Cost-reflective TOU design: theory and window optimization.
 
 | File                               | Purpose                                                                                                                                                                                                         |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| cost_reflective_tou_rate_design.md | Theory and practice of cost-reflective TOU rate design: demand-weighted MC averages, cost-causation ratios, period selection, assumptions, demand flexibility implications, and partial vs. general equilibrium |
-| tou_window_optimization.md         | TOU window width ($N$) sweep: welfare-loss metric derivation, HP-demand weighting proof, sweep algorithm, CLI/Justfile, NY results                                                                              |
+| cost_reflective_tou_rate_design.md        | Theory and practice of cost-reflective TOU rate design: demand-weighted MC averages, cost-causation ratios, period selection, assumptions, demand flexibility implications, and partial vs. general equilibrium |
+| tou_window_optimization.md                | TOU window width ($N$) sweep: welfare-loss metric derivation, HP-demand weighting proof, sweep algorithm, CLI/Justfile, NY results                                                                              |
+| demand_flex_elasticity_calibration.md     | Per-utility elasticity calibration: Arcturus 2.0 meta-analysis anchor, diagnostic methodology, results table (ε = -0.10 or -0.12 per utility), two savings mechanisms, known limitations                       |
 
 ### methods/marginal_costs/
 
