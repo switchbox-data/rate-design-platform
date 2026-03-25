@@ -121,7 +121,7 @@ def compare_artifact(
         return ComparisonResult(
             artifact=artifact_name,
             rows_baseline=0,
-            rows_challenger=df_chal.height,
+            rows_challenger=df_chal.height if df_chal is not None else 0,
             rows_matched=0,
             columns_compared=[],
             max_abs_diff=0.0,
@@ -192,13 +192,11 @@ def compare_artifact(
 
         max_abs = abs_diff.max()
         max_rel = rel_diff.max()
-        if max_abs is None:
-            max_abs = 0.0
-        if max_rel is None:
-            max_rel = 0.0
+        max_abs_f: float = 0.0 if max_abs is None else float(max_abs)  # type: ignore[arg-type]
+        max_rel_f: float = 0.0 if max_rel is None else float(max_rel)  # type: ignore[arg-type]
 
-        overall_max_abs = max(overall_max_abs, float(max_abs))
-        overall_max_rel = max(overall_max_rel, float(max_rel))
+        overall_max_abs = max(overall_max_abs, max_abs_f)
+        overall_max_rel = max(overall_max_rel, max_rel_f)
 
         exceeds = (abs_diff > atol) & (rel_diff > rtol)
         if exceeds.any():

@@ -1042,8 +1042,8 @@ def apply_runtime_tou_demand_response(
         season_groups = _infer_season_groups_from_tariff(period_map)
 
     trackers: list[pd.DataFrame] = []
-    time_level = shifted_load_elec.index.get_level_values("time")
-    month_level = time_level.month
+    time_level = pd.DatetimeIndex(shifted_load_elec.index.get_level_values("time"))
+    month_level = time_level.month  # type: ignore[attr-defined]
     has_load_data = "load_data" in shifted_load_elec.columns
 
     def _shift_season(season_name: str, season_months: set[int]) -> None:
