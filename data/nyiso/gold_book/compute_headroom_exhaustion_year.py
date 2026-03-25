@@ -400,6 +400,17 @@ def plot_demand_components_by_utility(
                 fontsize=7.5,
                 va="top",
             )
+        else:
+            ax.text(
+                0.98,
+                0.97,
+                "Headroom not exhausted\nwithin forecast period",
+                color="red",
+                fontsize=7.5,
+                ha="right",
+                va="top",
+                transform=ax.transAxes,
+            )
 
         ax.set_title(
             f"{utility}  (zones {', '.join(zones)},  "
