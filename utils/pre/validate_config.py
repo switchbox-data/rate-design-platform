@@ -102,6 +102,19 @@ def main() -> None:
             )
         )
 
+    # Cross-check run_includes_subclasses against path_tariffs_electric keys
+    for run_num, run_dict in runs.items():
+        tariffs = run_dict.get("path_tariffs_electric", {})
+        explicit = bool(run_dict.get("run_includes_subclasses", False))
+        inferred = isinstance(tariffs, dict) and len(tariffs) > 1
+        if explicit != inferred:
+            n_keys = len(tariffs) if isinstance(tariffs, dict) else 0
+            print(
+                f"\u26a0\ufe0f  run {run_num}: run_includes_subclasses={explicit} "
+                f"but path_tariffs_electric has {n_keys} key(s)",
+                file=sys.stderr,
+            )
+
     mismatches = []
     for name, expected, actual in checks:
         if expected != actual:

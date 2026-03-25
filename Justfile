@@ -75,6 +75,12 @@ up-aws-list:
 _terraform: aws
     bash infra/install-terraform.sh
 
+# Create the persistent EBS data volume (run once, ever). Safe to run again —
+
+# it's a no-op if a volume tagged rate-design-platform-data already exists.
+create-volume: _terraform
+    bash infra/create-volume.sh
+
 # Set up EC2 instance (run once by admin)
 
 # Idempotent: safe to run multiple times

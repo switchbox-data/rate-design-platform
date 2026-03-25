@@ -78,6 +78,45 @@ def test_seasonal_check_skips_nonseasonal_companion_flat_tariff() -> None:
     assert result.status == "PASS"
 
 
+def _quarterly_seasonal_schedule() -> list[list[int]]:
+    """RIE-style 3-period quarterly schedule: Jan-Mar / Apr-Jun / Jul-Dec."""
+    schedule: list[list[int]] = []
+    for month in range(12):
+        if month in {0, 1, 2}:
+            schedule.append([1] * 24)
+        elif month in {3, 4, 5}:
+            schedule.append([2] * 24)
+        else:
+            schedule.append([3] * 24)
+    return schedule
+
+
+def test_seasonal_check_skips_nonhp_default_structure_tariff() -> None:
+    tariff_config = {
+        "rie_nonhp_default": {
+            "ur_ec_sched_weekday": _quarterly_seasonal_schedule(),
+            "ur_ec_tou_mat": [
+                [1, 1, 1e38, 0, 0.14191, 0.0, 0],
+                [2, 1, 1e38, 0, 0.14078, 0.0, 0],
+                [3, 1, 1e38, 0, 0.14752, 0.0, 0],
+            ],
+        },
+        "rie_hp_seasonal": {
+            "ur_ec_sched_weekday": _seasonal_tou_schedule(),
+            "ur_ec_tou_mat": [
+                [1, 1, 1e38, 0, 0.048708, 0.0, 0],
+                [2, 1, 1e38, 0, 0.062486, 0.0, 0],
+                [3, 1, 1e38, 0, 0.047692, 0.0, 0],
+                [4, 1, 1e38, 0, 0.162280, 0.0, 0],
+            ],
+        },
+    }
+
+    result = check_seasonal_winter_below_summer(tariff_config, run_num=5)
+
+    assert result.status == "PASS"
+
+
 def test_flex_subclass_revenue_expectations_require_nonhp_neutral_and_hp_negative() -> (
     None
 ):

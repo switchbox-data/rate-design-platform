@@ -34,7 +34,7 @@ class TestParserWithNewYAMLFormat:
             run_includes_subclasses=False,
         )
         assert isinstance(result, RevenueRequirementConfig)
-        assert result.rr_total == pytest.approx(416_193_684.03)
+        assert result.rr_total == pytest.approx(418_151_641.73)
         assert result.subclass_rr is None
         assert result.run_includes_subclasses is False
 
@@ -49,7 +49,7 @@ class TestParserWithNewYAMLFormat:
             add_supply=True,
             run_includes_subclasses=False,
         )
-        assert result.rr_total == pytest.approx(624_942_307.81)
+        assert result.rr_total == pytest.approx(646_688_375.32)
         assert result.subclass_rr is None
 
     def test_subclass_delivery_only(self) -> None:

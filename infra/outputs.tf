@@ -15,7 +15,7 @@ output "instance_private_ip" {
 
 output "ebs_volume_id" {
   description = "EBS volume ID for persistent data"
-  value       = aws_ebs_volume.data.id
+  value       = data.aws_ebs_volume.data.id
 }
 
 output "availability_zone" {

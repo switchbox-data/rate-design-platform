@@ -52,6 +52,12 @@ utilities := env_var_or_default('UTILITIES', utility)
 
 use_resstock_loads := env_var_or_default('USE_RESSTOCK_LOADS', 'false')
 
+# Which base tariff pattern runs 1-4 use (and thus which calibrated tariff
+# runs 5/6 derive the seasonal discount from).  "flat" = original behavior,
+# "default" = preserve the actual utility rate structure.
+
+base_tariff_pattern := env_var_or_default('BASE_TARIFF_PATTERN', 'flat')
+
 # =============================================================================
 # Tier 3: Derived paths (all computed from Tier 1 + 2)
 # =============================================================================
@@ -224,14 +230,30 @@ copy-default-flat-to-nonhp-flat-all:
       --output-dir "{{ path_tariffs_electric }}" \
       --all
 
+# Generate default-structure tariffs from filed rates in monthly_rates YAML.
+
+# Preserves seasonal, tiered, and TOU structure (unlike flat tariffs).
+create-default-structure-tariffs:
+    uv run python {{ path_repo }}/utils/pre/create_default_structure_tariffs.py \
+      --monthly-rates-dir "{{ path_genability }}/monthly_rates" \
+      --output-dir "{{ path_tariffs_electric }}" \
+      --year "{{ monthly_rates_year }}"
+
+# Create nonhp_default / nonhp_default_supply for every utility that has default-structure tariffs.
+copy-default-structure-to-nonhp-all:
+    uv run python {{ path_repo }}/utils/pre/copy_flat_to_nonhp_flat.py \
+      --output-dir "{{ path_tariffs_electric }}" \
+      --all --pattern default
+
 # Derive seasonal TOU tariffs from MC rates (no dependency on calibrated flat run outputs).
-# Uses the pre-calibrated flat tariff only to extract the fixed charge.
+# Uses a pre-calibrated tariff only to extract the fixed charge.
+# Set base_pattern to "default" to read from the default-structure tariff instead of flat.
 
 # Writes {tou_tariff_key}.json and creates {tou_tariff_key}_supply.json with updated label.
-create-seasonal-tou-tariffs:
+create-seasonal-tou-tariffs base_pattern="flat":
     #!/usr/bin/env bash
     set -euo pipefail
-    ref_tariff="{{ path_tariffs_electric }}/{{ utility }}_flat.json"
+    ref_tariff="{{ path_tariffs_electric }}/{{ utility }}_{{ base_pattern }}.json"
     echo ">> create-seasonal-tou-tariffs: deriving TOU from MC (fixed charge from ${ref_tariff})" >&2
     just create-seasonal-tou {{ tou_tariff_key }} "${ref_tariff}"
     # Create supply version by copying JSON and updating label
@@ -356,14 +378,15 @@ compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" cross
       "{{ resstock_base }}" \
       "{{ upgrade }}"
 
-compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="":
+compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="":
     just -f {{ path_repo }}/utils/Justfile compute-seasonal-discount-inputs \
       "{{ run_dir }}" \
       "{{ resstock_base }}" \
       "{{ state_upper }}" \
       "{{ upgrade }}" \
       "{{ cross_subsidy_col }}" \
-      "{{ output_dir }}"
+      "{{ output_dir }}" \
+      "{{ base_tariff_json }}"
 
 create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label output_path periods_yaml=path_periods_yaml:
     just -f {{ path_repo }}/utils/Justfile create-seasonal-discount-tariff \
@@ -372,6 +395,23 @@ create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label outpu
       "{{ label }}" \
       "{{ output_path }}" \
       "{{ periods_yaml }}"
+
+compute-flat-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="":
+    just -f {{ path_repo }}/utils/Justfile compute-flat-discount-inputs \
+      "{{ run_dir }}" \
+      "{{ resstock_base }}" \
+      "{{ state_upper }}" \
+      "{{ upgrade }}" \
+      "{{ cross_subsidy_col }}" \
+      "{{ output_dir }}" \
+      "{{ base_tariff_json }}"
+
+create-flat-discount-tariff base_tariff_json flat_inputs_csv label output_path:
+    just -f {{ path_repo }}/utils/Justfile create-flat-discount-tariff \
+      "{{ base_tariff_json }}" \
+      "{{ flat_inputs_csv }}" \
+      "{{ label }}" \
+      "{{ output_path }}"
 
 copy-calibrated-tariff-from-run run_dir output_dir="":
     just -f {{ path_repo }}/utils/Justfile copy-calibrated-tariff-from-run \
@@ -452,9 +492,12 @@ run-5:
     set -euo pipefail
     run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
     echo ">> run-5: resolved run-1 output → ${run1_dir}" >&2
-    just compute-seasonal-discount-inputs "${run1_dir}" "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}"
+    just compute-seasonal-discount-inputs "${run1_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_percustomer" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json"
     just create-seasonal-discount-tariff \
-        "{{ path_tariffs_electric }}/{{ utility }}_flat_calibrated.json" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
         "${run1_dir}/seasonal_discount_rate_inputs.csv" \
         {{ utility }}_hp_seasonal \
         "{{ path_tariffs_electric }}/{{ utility }}_hp_seasonal.json"
@@ -465,9 +508,12 @@ run-6:
     set -euo pipefail
     run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
     echo ">> run-6: resolved run-2 output → ${run2_dir}" >&2
-    just compute-seasonal-discount-inputs "${run2_dir}" "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}"
+    just compute-seasonal-discount-inputs "${run2_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_percustomer" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json"
     just create-seasonal-discount-tariff \
-        "{{ path_tariffs_electric }}/{{ utility }}_flat_supply_calibrated.json" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
         "${run2_dir}/seasonal_discount_rate_inputs.csv" \
         {{ utility }}_hp_seasonal_supply \
         "{{ path_tariffs_electric }}/{{ utility }}_hp_seasonal_supply.json"
@@ -557,6 +603,54 @@ run-16:
     just copy-calibrated-tariff-from-run "${run14_dir}"
     just run-scenario 16
 
+run-17:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
+    echo ">> run-17: resolved run-1 output → ${run1_dir}" >&2
+    just compute-flat-discount-inputs "${run1_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_percustomer" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json"
+    just create-flat-discount-tariff \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "${run1_dir}/flat_discount_rate_inputs.csv" \
+        {{ utility }}_hp_flat \
+        "{{ path_tariffs_electric }}/{{ utility }}_hp_flat.json"
+    just run-scenario 17
+
+run-18:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
+    echo ">> run-18: resolved run-2 output → ${run2_dir}" >&2
+    just compute-flat-discount-inputs "${run2_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_percustomer" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json"
+    just create-flat-discount-tariff \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "${run2_dir}/flat_discount_rate_inputs.csv" \
+        {{ utility }}_hp_flat_supply \
+        "{{ path_tariffs_electric }}/{{ utility }}_hp_flat_supply.json"
+    just run-scenario 18
+
+run-19:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run17_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 17)
+    echo ">> run-19: resolved run-17 output → ${run17_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run17_dir}"
+    just run-scenario 19
+
+run-20:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run18_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 18)
+    echo ">> run-20: resolved run-18 output → ${run18_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run18_dir}"
+    just run-scenario 20
+
 # =============================================================================
 # ORCHESTRATION
 # =============================================================================
@@ -568,8 +662,10 @@ all-pre:
     just ensure-gas-tariff-envelope
     just compute-rr
     just create-flat-tariffs
+    just create-default-structure-tariffs
     just copy-default-flat-to-nonhp-flat-all
-    just create-seasonal-tou-tariffs
+    just copy-default-structure-to-nonhp-all
+    just create-seasonal-tou-tariffs {{ base_tariff_pattern }}
     just validate-config
 
 run-all-utilities-sequential:
@@ -593,8 +689,8 @@ run-all-sequential:
     : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
     export RDP_BATCH
     echo ">> run-all-sequential [${RDP_BATCH}]" >&2
-    just run-1
-    just run-2
+    # just run-1
+    # just run-2
     just compute-rev-requirements
     just run-3
     just run-4
@@ -610,6 +706,10 @@ run-all-sequential:
     just run-14
     just run-15
     just run-16
+    # just run-17
+    # just run-18
+    # just run-19
+    # just run-20
 
 run-all-parallel-tracks:
     #!/usr/bin/env bash
@@ -663,7 +763,17 @@ run-all-parallel-tracks:
     wait $PID15 || { echo "ERROR: run-15 failed" >&2; exit 1; }
     wait $PID16 || { echo "ERROR: run-16 failed" >&2; exit 1; }
 
-    echo ">> run-all-parallel-tracks: all 16 runs complete" >&2
+    # just run-17 & PID17=$!
+    # just run-18 & PID18=$!
+    # wait $PID17 || { echo "ERROR: run-17 failed" >&2; exit 1; }
+    # wait $PID18 || { echo "ERROR: run-18 failed" >&2; exit 1; }
+
+    # just run-19 & PID19=$!
+    # just run-20 & PID20=$!
+    # wait $PID19 || { echo "ERROR: run-19 failed" >&2; exit 1; }
+    # wait $PID20 || { echo "ERROR: run-20 failed" >&2; exit 1; }
+
+    echo ">> run-all-parallel-tracks: all 20 runs complete" >&2
 
 run-subset runs:
     #!/usr/bin/env bash
@@ -693,7 +803,7 @@ list-utilities:
 # POST-PROCESSING: master bills and validation
 # =============================================================================
 
-path_load_curves_local := env_var_or_default('PATH_LOAD_CURVES_LOCAL', path_repo / "data/nrel/resstock/res_2024_amy2018_2")
+path_load_curves_local := env_var_or_default('PATH_LOAD_CURVES_LOCAL', "/ebs/data/nrel/resstock/res_2024_amy2018_2_sb")
 path_heating_fuel_prices := "s3://data.sb/eia/heating_fuel_prices/"
 price_year := "2024"
 

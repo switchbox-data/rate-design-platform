@@ -391,3 +391,161 @@ def test_vectorized_gas_billing_matches_correct_bills(sample_filepaths):
     # RI residential annual gas bill: ~$100-$3000
     assert (annual_bills > 50).all(), f"Bills too low: {annual_bills.to_dict()}"
     assert (annual_bills < 10000).all(), f"Bills too high: {annual_bills.to_dict()}"
+
+
+def test_vectorized_billing_with_solar_matches_cairo(sample_filepaths):
+    """Vectorized run_system_revenues with net_metering matches CAIRO's per-building loop."""
+    from cairo.rates_tool import loads as _cairo_loads_orig
+    from cairo.rates_tool.tariffs import get_default_tariff_structures
+    from cairo.rates_tool.system_revenues import (
+        run_system_revenues,
+        _determine_sell_rate,
+    )
+    from utils.mid.patches import (
+        _orig_process_building_demand_by_period,
+        _vectorized_run_system_revenues,
+    )
+
+    tariff_path = (
+        Path(__file__).resolve().parent.parent
+        / "rate_design/hp_rates/ri/config/tariffs/electric/rie_flat.json"
+    )
+    if not tariff_path.exists():
+        pytest.skip("rie_flat.json not found")
+
+    tariff_base = get_default_tariff_structures(["rie_flat"], {"rie_flat": tariff_path})
+    bldg_ids = list(sample_filepaths.keys())
+    tariff_map = pd.DataFrame({"bldg_id": bldg_ids, "tariff_key": "rie_flat"})
+
+    raw = _cairo_loads_orig._return_load(
+        load_type="electricity",
+        target_year=2025,
+        building_stock_sample=bldg_ids,
+        load_filepath_key=sample_filepaths,
+        force_tz="EST",
+    )
+
+    agg_load, agg_solar = _orig_process_building_demand_by_period(
+        target_year=2025,
+        load_col_key="total_fuel_electricity",
+        prototype_ids=bldg_ids,
+        tariff_base=tariff_base,
+        tariff_map=tariff_map,
+        prepassed_load=raw,
+        solar_pv_compensation=None,
+    )
+
+    sell_rate = _determine_sell_rate(
+        solar_pv_compensation="net_metering",
+        export_import_ratio=1.0,
+        year_run=2025,
+        tariff_dict=tariff_base,
+    )
+
+    ref_bills = run_system_revenues(
+        aggregated_load=agg_load,
+        aggregated_solar=agg_solar,
+        solar_compensation_df=sell_rate,
+        solar_compensation_style="net_metering",
+        prototype_ids=bldg_ids,
+        tariff_config=tariff_base,
+        tariff_strategy=tariff_map,
+    )
+    new_bills = _vectorized_run_system_revenues(
+        aggregated_load=agg_load,
+        aggregated_solar=agg_solar,
+        solar_compensation_df=sell_rate,
+        solar_compensation_style="net_metering",
+        prototype_ids=bldg_ids,
+        tariff_config=tariff_base,
+        tariff_strategy=tariff_map,
+    )
+
+    pd.testing.assert_frame_equal(
+        ref_bills.sort_index(),
+        new_bills.sort_index(),
+        check_exact=False,
+        rtol=1e-4,
+    )
+
+
+def test_vectorized_billing_style_none_with_sell_rate(sample_filepaths):
+    """When solar_compensation_style=None but sell_rate is populated, bills match CAIRO.
+
+    This is the pattern used by run_scenario.py: it passes solar_pv_compensation=None
+    to simulate(), but a populated sell_rate dict still flows through. CAIRO's
+    calculate_compensation returns an empty DataFrame when style is None, so the
+    sell_rate is effectively unused. The patch must not fall back in this case.
+    """
+    from cairo.rates_tool import loads as _cairo_loads_orig
+    from cairo.rates_tool.tariffs import get_default_tariff_structures
+    from cairo.rates_tool.system_revenues import (
+        run_system_revenues,
+        _determine_sell_rate,
+    )
+    from utils.mid.patches import (
+        _orig_process_building_demand_by_period,
+        _vectorized_run_system_revenues,
+    )
+
+    tariff_path = (
+        Path(__file__).resolve().parent.parent
+        / "rate_design/hp_rates/ri/config/tariffs/electric/rie_flat.json"
+    )
+    if not tariff_path.exists():
+        pytest.skip("rie_flat.json not found")
+
+    tariff_base = get_default_tariff_structures(["rie_flat"], {"rie_flat": tariff_path})
+    bldg_ids = list(sample_filepaths.keys())
+    tariff_map = pd.DataFrame({"bldg_id": bldg_ids, "tariff_key": "rie_flat"})
+
+    raw = _cairo_loads_orig._return_load(
+        load_type="electricity",
+        target_year=2025,
+        building_stock_sample=bldg_ids,
+        load_filepath_key=sample_filepaths,
+        force_tz="EST",
+    )
+
+    agg_load, agg_solar = _orig_process_building_demand_by_period(
+        target_year=2025,
+        load_col_key="total_fuel_electricity",
+        prototype_ids=bldg_ids,
+        tariff_base=tariff_base,
+        tariff_map=tariff_map,
+        prepassed_load=raw,
+        solar_pv_compensation=None,
+    )
+
+    sell_rate = _determine_sell_rate(
+        solar_pv_compensation="net_metering",
+        export_import_ratio=1.0,
+        year_run=2025,
+        tariff_dict=tariff_base,
+    )
+
+    ref_bills = run_system_revenues(
+        aggregated_load=agg_load,
+        aggregated_solar=agg_solar,
+        solar_compensation_df=sell_rate,
+        solar_compensation_style=None,
+        prototype_ids=bldg_ids,
+        tariff_config=tariff_base,
+        tariff_strategy=tariff_map,
+    )
+    new_bills = _vectorized_run_system_revenues(
+        aggregated_load=agg_load,
+        aggregated_solar=agg_solar,
+        solar_compensation_df=sell_rate,
+        solar_compensation_style=None,
+        prototype_ids=bldg_ids,
+        tariff_config=tariff_base,
+        tariff_strategy=tariff_map,
+    )
+
+    pd.testing.assert_frame_equal(
+        ref_bills.sort_index(),
+        new_bills.sort_index(),
+        check_exact=False,
+        rtol=1e-4,
+    )
