@@ -53,19 +53,21 @@ HEADROOM_TABLE: dict[str, dict[str, int | float]] = {
 }
 
 
-def parse_gold_book_winter_peak(
+def _parse_zone_sheet(
     xlsx_path: Path,
+    sheet: str,
+    min_row: int = 7,
 ) -> dict[str, dict[str, int]]:
-    """Parse Table I-4b (Winter Non-Coincident Peak Demand by Zone) from the
-    Gold Book Excel file.
+    """Parse a Gold Book zone-by-year table where columns are A–K starting at
+    column index 3 (0-based) and the year label is at column index 2.
 
     Returns {year_str: {zone_letter: MW}}.
     """
     wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
-    ws = wb["I-4b"]
+    ws = wb[sheet]
 
     zone_data: dict[str, dict[str, int]] = {}
-    for row in ws.iter_rows(min_row=7, values_only=True):
+    for row in ws.iter_rows(min_row=min_row, values_only=True):
         year = row[2]
         if year is None or not isinstance(year, str) or "-" not in year:
             continue
@@ -76,6 +78,11 @@ def parse_gold_book_winter_peak(
 
     wb.close()
     return zone_data
+
+
+def parse_gold_book_winter_peak(xlsx_path: Path) -> dict[str, dict[str, int]]:
+    """Parse Table I-4b (Winter Non-Coincident Peak Demand by Zone)."""
+    return _parse_zone_sheet(xlsx_path, "I-4b")
 
 
 def compute_headroom_exhaustion(
@@ -126,39 +133,29 @@ def compute_headroom_exhaustion(
     return results
 
 
-def parse_gold_book_elec_load(
+def parse_gold_book_elec_load(xlsx_path: Path) -> dict[str, dict[str, int]]:
+    """Parse Table I-13c (Building Electrification Winter Coincident Peak Demand
+    by Zone) — cumulative future load additions in MW."""
+    return _parse_zone_sheet(xlsx_path, "I-13c")
+
+
+def parse_gold_book_coincident_winter_peak(
     xlsx_path: Path,
 ) -> dict[str, dict[str, int]]:
-    """Parse Table I-13c (Building Electrification Winter Coincident Peak Demand
-    by Zone) from the Gold Book Excel file.
-
-    Returns {year_str: {zone_letter: MW}}.
-    """
-    wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
-    ws = wb["I-13c"]
-
-    zone_data: dict[str, dict[str, int]] = {}
-    for row in ws.iter_rows(min_row=7, values_only=True):
-        year = row[2]
-        if year is None or not isinstance(year, str) or "-" not in year:
-            continue
-        vals = row[3:14]
-        if any(v is None for v in vals):
-            continue
-        zone_data[year] = {z: int(v) for z, v in zip(ZONES, vals)}
-
-    wb.close()
-    return zone_data
+    """Parse Table I-3b (Baseline Winter Coincident Peak Demand by Zone)."""
+    return _parse_zone_sheet(xlsx_path, "I-3b")
 
 
 def plot_elec_load_by_utility(
     elec_data: dict[str, dict[str, int]],
+    coincident_peak_data: dict[str, dict[str, int]],
     headroom_results: list[dict[str, str | int]],
     path_output: Path,
+    baseline_year: str = "2023-24",
 ) -> None:
-    """Plot building electrification winter coincident peak demand by utility,
+    """Plot building electrification winter coincident peak demand by utility
+    as a % of each utility's 2023-24 coincident winter peak (Table I-3b),
     with a vertical line marking each utility's headroom exhaustion year."""
-    # Aggregate by utility over forecast horizon
     years = sorted(elec_data.keys())
     x = [int(y.split("-")[0]) for y in years]
 
@@ -175,8 +172,9 @@ def plot_elec_load_by_utility(
     fig, axes = plt.subplots(n, 1, figsize=(10, 3.2 * n), sharex=True)
     fig.suptitle(
         "Building Electrification Winter Coincident Peak Demand by Utility\n"
+        f"as % of {baseline_year} winter coincident peak (I-3b)\n"
         "(NYISO Gold Book Table I-13c, zone sums)",
-        fontsize=13,
+        fontsize=12,
         fontweight="bold",
         y=1.01,
     )
@@ -184,17 +182,20 @@ def plot_elec_load_by_utility(
     colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
 
     for ax, (utility, zones), color in zip(axes, UTILITY_ZONES.items(), colors):
-        elec_mw = [sum(elec_data[yr][z] for z in zones) for yr in years]
+        base_mw = sum(coincident_peak_data[baseline_year][z] for z in zones)
+        elec_pct = [
+            100.0 * sum(elec_data[yr][z] for z in zones) / base_mw for yr in years
+        ]
 
-        ax.fill_between(x, elec_mw, alpha=0.2, color=color)
-        ax.plot(x, elec_mw, color=color, linewidth=2)
+        ax.fill_between(x, elec_pct, alpha=0.2, color=color)
+        ax.plot(x, elec_pct, color=color, linewidth=2)
 
         ex_yr = exhaustion_years.get(utility)
         if ex_yr is not None:
             ax.axvline(ex_yr, color="red", linestyle="--", linewidth=1.4, alpha=0.8)
             ax.text(
                 ex_yr + 0.4,
-                max(elec_mw) * 0.05,
+                max(elec_pct) * 0.05,
                 f"Headroom\nexhausted\n{ex_yr}–{ex_yr - 1999:02d}",
                 color="red",
                 fontsize=7.5,
@@ -202,13 +203,14 @@ def plot_elec_load_by_utility(
             )
 
         ax.set_title(
-            f"{utility}  (zones {', '.join(zones)})",
-            fontsize=10,
+            f"{utility}  (zones {', '.join(zones)},  "
+            f"{baseline_year} base = {base_mw:,} MW coincident)",
+            fontsize=9.5,
             loc="left",
             pad=4,
         )
-        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
-        ax.set_ylabel("MW", fontsize=9)
+        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:.0f}%"))
+        ax.set_ylabel("% of 2023-24 peak", fontsize=9)
         ax.grid(axis="y", linestyle=":", alpha=0.5)
         ax.set_xlim(x[0], x[-1])
 
@@ -260,7 +262,10 @@ def main() -> None:
         )
 
     elec_data = parse_gold_book_elec_load(args.path_xlsx)
-    plot_elec_load_by_utility(elec_data, results, args.path_output_plot)
+    coincident_peak_data = parse_gold_book_coincident_winter_peak(args.path_xlsx)
+    plot_elec_load_by_utility(
+        elec_data, coincident_peak_data, results, args.path_output_plot
+    )
 
 
 if __name__ == "__main__":
