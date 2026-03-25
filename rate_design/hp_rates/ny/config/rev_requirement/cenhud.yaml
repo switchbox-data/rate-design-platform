@@ -1,26 +1,42 @@
 utility: cenhud
+load_method: resstock
 delivery_revenue_requirement_from_rate_case: 394388063.0
-delivery_revenue_requirement_topups: 21805621.03
-supply_revenue_requirement_topups: 208748623.78
-total_delivery_revenue_requirement: 416193684.03
-total_delivery_and_supply_revenue_requirement: 624942307.81
-total_residential_kwh: 2167787008.0
+delivery_revenue_requirement_topups: 23763578.73
+supply_revenue_requirement_topups: 228536733.59
+total_delivery_revenue_requirement: 418151641.73
+total_delivery_and_supply_revenue_requirement: 646688375.32
+total_residential_kwh: 2390536456.25
+eia_total_residential_kwh: 2167787008.0
 eia_year: 2024
 delivery_top_ups:
   central_hudson_misc_charges:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.005209726
-    total_budget: 11293576.38
+    budget_method: resstock
+    total_budget: 12007946.6
   system_benefits_charge:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.0048492055
-    total_budget: 10512044.65
+    budget_method: resstock
+    total_budget: 11755632.13
 supply_top_ups:
   merchant_function_charge:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.0003140548
-    total_budget: 680803.9
+    budget_method: resstock
+    total_budget: 757994.65
   supply_commodity_bundled:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.0959816712
-    total_budget: 208067819.88
+    budget_method: resstock
+    total_budget: 227778738.94
+resstock_monthly_kwh:
+  1: 285716225.33
+  2: 213803488.62
+  3: 213110318.4
+  4: 175945918.14
+  5: 160653640.58
+  6: 167671953.89
+  7: 219277262.96
+  8: 208302272.65
+  9: 162220055.89
+  10: 156027657.33
+  11: 194910381.98
+  12: 232897280.48
+resstock_scale_factor: 0.908251

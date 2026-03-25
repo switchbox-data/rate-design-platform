@@ -101,7 +101,7 @@ def extract_base_rate_and_fixed_charge(tariff_path: Path) -> tuple[float, float]
 def write_tariff_json(tariff: dict[str, Any], output_path: Path) -> Path:
     """Write a tariff JSON file to disk."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(tariff, indent=2), encoding="utf-8")
+    output_path.write_text(json.dumps(tariff, indent=2) + "\n", encoding="utf-8")
     return output_path
 
 
@@ -143,6 +143,34 @@ def _seasonal_schedule(winter_months: list[int]) -> list[list[int]]:
         period = 1 if month_num in winter_set else 0
         schedule.append([period] * 24)
     return schedule
+
+
+def create_flat_rate(
+    base_tariff: dict[str, Any],
+    *,
+    label: str,
+    volumetric_rate: float,
+) -> dict[str, Any]:
+    """Create a single-period flat tariff from a base tariff template.
+
+    Deep-copies the base tariff, replaces the rate structure with a single flat
+    rate, and updates label/name.  Preserves ``fixedchargefirstmeter`` and all
+    other fields from the base.
+    """
+    if "items" not in base_tariff or not base_tariff["items"]:
+        raise ValueError("Base tariff must contain at least one item in `items`.")
+
+    new_tariff = json.loads(json.dumps(base_tariff))
+    item = new_tariff["items"][0]
+    item["label"] = label
+    item["name"] = label
+    schedule = [[0] * 24 for _ in range(12)]
+    item["energyweekdayschedule"] = schedule
+    item["energyweekendschedule"] = schedule
+    item["energyratestructure"] = [
+        [{"rate": float(volumetric_rate), "adj": 0.0, "unit": "kWh"}],
+    ]
+    return new_tariff
 
 
 def create_seasonal_rate(
@@ -243,6 +271,103 @@ def create_seasonal_tou_tariff(
         fixed_charge=fixed_charge,
         utility=utility,
     )
+
+
+def create_seasonal_tiered_tariff(
+    label: str,
+    periods: list[tuple[list[int], list[tuple[float, float | None]]]],
+    fixed_charge: float = 6.75,
+    utility: str = "GenericUtility",
+) -> dict[str, Any]:
+    """Build an N-period seasonal tariff with M tiers per period.
+
+    Each element of *periods* is ``(months, tiers)`` where *months* is a list
+    of 1-indexed month numbers and *tiers* is a list of ``(rate, max_kwh)``
+    pairs.  The last tier in each period must have ``max_kwh=None`` (unlimited).
+
+    Single-tier periods degenerate to the same output as
+    ``create_seasonal_tariff``.
+    """
+    month_to_period: dict[int, int] = {}
+    for period_idx, (months, _tiers) in enumerate(periods):
+        for month in months:
+            month_to_period[month] = period_idx
+
+    schedule = [[month_to_period[m + 1] for _ in range(24)] for m in range(12)]
+
+    rate_structure: list[list[dict[str, Any]]] = []
+    for _months, tiers in periods:
+        tier_entries: list[dict[str, Any]] = []
+        for rate, max_kwh in tiers:
+            entry: dict[str, Any] = {"rate": round(rate, 6), "adj": 0.0, "unit": "kWh"}
+            if max_kwh is not None:
+                entry["max"] = max_kwh
+            tier_entries.append(entry)
+        rate_structure.append(tier_entries)
+
+    return {
+        "items": [
+            {
+                "label": label,
+                "uri": "",
+                "sector": "Residential",
+                "energyweekdayschedule": schedule,
+                "energyweekendschedule": schedule,
+                "energyratestructure": rate_structure,
+                "fixedchargefirstmeter": fixed_charge,
+                "fixedchargeunits": "$/month",
+                "mincharge": 0.0,
+                "minchargeunits": "$/month",
+                "utility": utility,
+                "servicetype": "Bundled",
+                "name": label,
+                "is_default": False,
+                "country": "USA",
+                "demandunits": "kW",
+                "demandrateunit": "kW",
+            }
+        ]
+    }
+
+
+def create_seasonal_tou_tariff_direct(
+    label: str,
+    weekday_schedule: list[list[int]],
+    weekend_schedule: list[list[int]],
+    rate_structure: list[list[dict[str, Any]]],
+    fixed_charge: float = 6.75,
+    utility: str = "GenericUtility",
+) -> dict[str, Any]:
+    """Build a TOU tariff from pre-computed schedule matrices and rate structure.
+
+    Unlike ``create_seasonal_tou_tariff`` (which derives schedules from
+    ``SeasonalTouTariffSpec``), this constructor accepts the weekday and weekend
+    schedules directly, allowing callers to construct arbitrary period counts
+    (e.g. 12 months x 4 TOU slots = 48 periods).
+    """
+    return {
+        "items": [
+            {
+                "label": label,
+                "uri": "",
+                "sector": "Residential",
+                "energyweekdayschedule": weekday_schedule,
+                "energyweekendschedule": weekend_schedule,
+                "energyratestructure": rate_structure,
+                "fixedchargefirstmeter": fixed_charge,
+                "fixedchargeunits": "$/month",
+                "mincharge": 0.0,
+                "minchargeunits": "$/month",
+                "utility": utility,
+                "servicetype": "Bundled",
+                "name": label,
+                "is_default": False,
+                "country": "USA",
+                "demandunits": "kW",
+                "demandrateunit": "kW",
+            }
+        ]
+    }
 
 
 def create_urdb_tariff(

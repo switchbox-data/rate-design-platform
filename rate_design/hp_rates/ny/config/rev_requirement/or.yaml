@@ -1,34 +1,50 @@
 utility: or
+load_method: resstock
 delivery_revenue_requirement_from_rate_case: 248359000.0
-delivery_revenue_requirement_topups: 15531440.84
-supply_revenue_requirement_topups: 170817117.46
-total_delivery_revenue_requirement: 263890440.84
-total_delivery_and_supply_revenue_requirement: 434707558.3
-total_residential_kwh: 1750770048.0
+delivery_revenue_requirement_topups: 15005257.0
+supply_revenue_requirement_topups: 168197857.21
+total_delivery_revenue_requirement: 263364257.0
+total_delivery_and_supply_revenue_requirement: 431562114.21
+total_residential_kwh: 1699171670.1
+eia_total_residential_kwh: 1750770048.0
 eia_year: 2024
 delivery_top_ups:
   ev_make_ready:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.0024411781
-    total_budget: 4273941.47
+    budget_method: resstock
+    total_budget: 4080872.81
   energy_storage_surcharge:
     charge_unit: $/kWh
-    avg_monthly_rate: 2.0e-05
-    total_budget: 35015.4
+    budget_method: resstock
+    total_budget: 33983.43
   system_benefits_charge:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.0060270137
-    total_budget: 10551915.06
+    budget_method: resstock
+    total_budget: 10237584.81
   dlm_surcharge:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.0003830137
-    total_budget: 670568.91
+    budget_method: resstock
+    total_budget: 652815.94
 supply_top_ups:
   supply_commodity_bundled:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.0937953699
-    total_budget: 164214124.2
+    budget_method: resstock
+    total_budget: 161795406.39
   merchant_function_charge:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.0037714795
-    total_budget: 6602993.26
+    budget_method: resstock
+    total_budget: 6402450.82
+resstock_monthly_kwh:
+  1: 180199749.65
+  2: 139728974.26
+  3: 144990789.77
+  4: 122425353.92
+  5: 122832420.82
+  6: 131366750.95
+  7: 167643385.23
+  8: 163810263.96
+  9: 126950430.16
+  10: 115932804.26
+  11: 130477790.66
+  12: 152812956.45
+resstock_scale_factor: 1.008859

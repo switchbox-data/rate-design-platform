@@ -21,7 +21,7 @@ import polars as pl
 import yaml
 
 from utils import get_project_root
-from utils.loads import ELECTRIC_LOAD_COL
+from utils.loads import ELECTRIC_LOAD_COL, ELECTRIC_PV_COL, grid_consumption_expr
 from utils.post.validate.config import RunConfig
 
 BillType = Literal["elec", "gas", "comb"]
@@ -138,7 +138,7 @@ def scan_utility_loads(path_resstock_loads: str) -> pl.LazyFrame:
 
     Returns:
         LazyFrame of hourly load data with columns including ``bldg_id``,
-        ``timestamp``, and ``out.electricity.net.energy_consumption``.
+        ``timestamp``, and ``out.electricity.total.energy_consumption``.
     """
     return pl.scan_parquet(path_resstock_loads)
 
@@ -186,9 +186,10 @@ def compute_weighted_loads_by_subclass_from_collected(
                 .cast(pl.String, strict=False)
                 .str.to_datetime(strict=False)
                 .alias("_ts"),
-                (pl.col(ELECTRIC_LOAD_COL).cast(pl.Float64) * pl.col(_WEIGHT)).alias(
-                    "_wload"
-                ),
+                (
+                    grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL)
+                    * pl.col(_WEIGHT)
+                ).alias("_wload"),
                 pl.col(_WEIGHT).cast(pl.Float64),
             )
             .group_by("_ts")

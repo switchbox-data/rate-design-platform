@@ -640,34 +640,34 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.10769098955389875,
+            "rate": 0.10767138968932793,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.1793162667061968,
+            "rate": 0.17944513805623394,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.10776637324658647,
+            "rate": 0.10772522538417259,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.40973190795571857,
+            "rate": 0.4095927335171724,
             "adj": 0.0,
             "unit": "kWh"
           }
         ]
       ],
-      "fixedchargefirstmeter": 16.43,
+      "fixedchargefirstmeter": 16.44,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
       "minchargeunits": "$/month"

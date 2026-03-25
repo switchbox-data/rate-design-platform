@@ -1,28 +1,35 @@
-# Run Orchestration (RI runs 1-16)
+# Run Orchestration (runs 1-16)
 
 ## Purpose
 
 Automate the full sequence of 16 CAIRO runs for heat-pump rate design
-(`just run-all-sequential` from `rate_design/hp_rates/ri/`). Each run has
+(`just run-all-sequential` from `rate_design/hp_rates/{state}/`). Each run has
 pre-processing steps (tariff creation, calibrated tariff promotion, seasonal
 discount derivation) that depend on outputs from earlier runs. The
 orchestration encodes these dependencies so the entire pipeline can execute
 unattended.
 
-Runs 1-12 cover flat, seasonal, and seasonal-TOU tariff tiers with no demand
-response. Runs 13-16 add a demand-flexibility (load-shifting) variant of the
-seasonal-TOU tariff with `elasticity = -0.1`.
+Runs 1-12 cover default-structure, seasonal, and seasonal-TOU tariff tiers
+with no demand response. Runs 13-16 add a demand-flexibility (load-shifting)
+variant of the seasonal-TOU tariff with `elasticity = -0.1`.
 
 ## Parameterization
 
 The Justfile is parameterized in three tiers so it can be reused across
 states and utilities without copy-paste:
 
-| Tier | What                 | Examples                                                   |
-| ---- | -------------------- | ---------------------------------------------------------- |
-| 1    | Identity (env vars)  | `state`, `utility` via `env_var_or_default('STATE', 'ri')` |
-| 2    | Utility-specific cfg | `region`, `cambium_ba`, `default_tariff`, ...              |
-| 3    | Derived paths        | `path_scenario_config`, `path_cambium`, `path_td_mc`, ...  |
+| Tier | What                 | Examples                                                             |
+| ---- | -------------------- | -------------------------------------------------------------------- |
+| 1    | Identity (env vars)  | `state`, `utility` via `env_var_or_default('STATE', 'ri')`           |
+| 2    | Utility-specific cfg | `region`, `cambium_ba`, `default_tariff`, `BASE_TARIFF_PATTERN`, ... |
+| 3    | Derived paths        | `path_scenario_config`, `path_cambium`, `path_td_mc`, ...            |
+
+`BASE_TARIFF_PATTERN` (set in `state.env`, currently `default` for both NY and
+RI) controls the tariff structure used in runs 1-4. When set to `default`, the
+utility's actual rate structure (tiered, seasonal, TOU) is preserved. The
+pattern is interpolated into tariff filenames:
+`{utility}_{base_tariff_pattern}.json`,
+`{utility}_{base_tariff_pattern}_calibrated.json`, etc.
 
 To replicate for a new utility, change the Tier 1 + 2 values at the top of
 the file. All Tier 3 paths are computed automatically.
@@ -47,28 +54,41 @@ precalc-with-new-tariff -> calibrate-with-new-tariff**.
 ```text
 all-pre  (create-scenario-yamls, create-electric-tariff-maps-all, validate-config)
   │
-  ├─ run-1  (precalc flat, delivery)
+  ├─ run-1  (precalc default, delivery)
   │    │
   │    ├─ compute-rev-requirements  ← computes differentiated rev requirement YAML from run-1 BAT output
   │    │    (needed by runs 5, 6, 9, 10, 13, 14 -- all multi-tariff precalc runs)
   │    │
-  │    ├─ run-3  (default flat calibrated, delivery)    ← copies calibrated tariff from run-1
-  │    ├─ run-5  (precalc hp_seasonal vs flat)           ← seasonal discount inputs from run-1
-  │    │    └─ run-7  (default hp_seasonal calibrated)   ← copies calibrated tariff from run-5
-  │    ├─ run-9  (precalc hp_seasonalTOU vs flat)        ← uses run-1 calibrated tariff as reference
-  │    │    └─ run-11 (default hp_seasonalTOU calibrated) ← copies calibrated tariff from run-9
-  │    └─ run-13 (precalc hp_seasonalTOU_flex vs flat, e=-0.1) ← copies TOU tariff from run-9
+  │    ├─ run-3  (default calibrated, delivery)             ← copies calibrated tariff from run-1
+  │    ├─ run-5  (precalc hp_seasonal vs default)           ← derives flat seasonal rates from run-1 bills
+  │    │    └─ run-7  (default hp_seasonal calibrated)      ← copies calibrated tariff from run-5
+  │    ├─ run-9  (precalc hp_seasonalTOU vs default)        ← uses run-1 calibrated tariff as reference
+  │    │    └─ run-11 (default hp_seasonalTOU calibrated)   ← copies calibrated tariff from run-9
+  │    └─ run-13 (precalc hp_seasonalTOU_flex vs default, e=-0.1) ← copies TOU tariff from run-9
   │         └─ run-15 (default hp_seasonalTOU_flex calibrated, e=-0.1) ← copies calibrated tariff from run-13
   │
-  └─ run-2  (precalc flat, supply)
-       ├─ run-4  (default flat calibrated, supply)       ← copies calibrated tariff from run-2
-       ├─ run-6  (precalc hp_seasonal vs flat, supply)   ← seasonal discount inputs from run-2
-       │    └─ run-8  (default hp_seasonal calibrated, supply) ← copies from run-6
-       ├─ run-10 (precalc hp_seasonalTOU vs flat, supply) ← uses run-2 calibrated tariff as reference
+  └─ run-2  (precalc default, supply)
+       ├─ run-4  (default calibrated, supply)                    ← copies calibrated tariff from run-2
+       ├─ run-6  (precalc hp_seasonal vs default, supply)        ← derives flat seasonal rates from run-2 bills
+       │    └─ run-8  (default hp_seasonal calibrated, supply)   ← copies from run-6
+       ├─ run-10 (precalc hp_seasonalTOU vs default, supply)     ← uses run-2 calibrated tariff as reference
        │    └─ run-12 (default hp_seasonalTOU calibrated, supply) ← copies from run-10
-       └─ run-14 (precalc hp_seasonalTOU_flex vs flat, supply, e=-0.1) ← copies TOU supply tariff from run-10
+       └─ run-14 (precalc hp_seasonalTOU_flex vs default, supply, e=-0.1) ← copies TOU supply tariff from run-10
             └─ run-16 (default hp_seasonalTOU_flex calibrated, supply, e=-0.1) ← copies from run-14
 ```
+
+**HP seasonal tariff derivation.** Regardless of `BASE_TARIFF_PATTERN`, the HP
+seasonal tariff is always a **flat 2-period rate** (one summer rate, one winter
+rate). When the base tariff is structured (tiered/seasonal/TOU), runs 5 and 6
+derive effective flat seasonal rates from run-1/run-2 bill revenue:
+
+- `summer_rate = Rev_summer_energy_HP / summer_kwh_HP`
+- `winter_rate = (Rev_winter_energy_HP − CS_HP) / winter_kwh_HP`
+
+where `Rev` is the weighted sum of `(monthly_bill − fixed_charge)` across HP
+buildings in each season. For flat base tariffs this is a no-op (both seasons
+yield the original flat rate). The non-HP subclass receives the calibrated
+default tariff as-is.
 
 ## Demand flexibility (runs 13-16)
 
@@ -215,7 +235,7 @@ matching the utility+run combo under the batch. If found, the recipe errors:
 
 ```
 ERROR: run 1 already exists under batch 'ny_20260305c_r1-8' for coned:
-  PRE 20260305_212408_ny_coned_run1_up00_precalc__flat/
+  PRE 20260305_212408_ny_coned_run1_up00_precalc__default/
 Use a different RDP_BATCH name.
 ```
 
@@ -305,7 +325,7 @@ TOU runs, and re-run when MC data, ResStock loads, or load filtering change.
 See `context/methods/tou_and_rates/tou_window_optimization.md`.
 
 **Reference tariff for TOU derivation.** Runs 9 and 10 derive seasonal TOU
-tariffs using calibrated flat tariffs as references (from runs 1 and 2
+tariffs using calibrated default tariffs as references (from runs 1 and 2
 respectively). The `--reference-tariff` flag on `derive_seasonal_tou.py`
 extracts the base rate and fixed charge from this tariff rather than using
 hardcoded defaults. Runs 13 and 14 do not re-derive TOU; they copy the run-9

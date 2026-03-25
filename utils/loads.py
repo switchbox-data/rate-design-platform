@@ -12,8 +12,15 @@ from typing import cast
 import pandas as pd
 import polars as pl
 
-# Load column used for hourly electric consumption (ResStock schema)
-ELECTRIC_LOAD_COL = "out.electricity.net.energy_consumption"
+# ResStock column names that match CAIRO's ``total_fuel_electricity`` load key.
+# CAIRO reads (total, pv), makes PV positive, and bills on
+# ``grid_cons = max(total - abs(pv), 0)``.
+# We replicate that formula so platform kWh (seasonal-rate derivation, TOU
+# derivation, validation) agree with the kWh CAIRO bills against.
+# Do NOT use ``out.electricity.net``; it diverges from ``total`` even for
+# non-solar buildings and causes ~10% calibration drift.
+ELECTRIC_LOAD_COL = "out.electricity.total.energy_consumption"
+ELECTRIC_PV_COL = "out.electricity.pv.energy_consumption"
 
 # ResStock load_curve_hourly layout: .../load_curve_hourly/state=XX/upgrade=YY/*.parquet
 LOAD_CURVE_HOURLY_SUBDIR = "load_curve_hourly/"
@@ -21,6 +28,19 @@ BLDG_ID_COL = "bldg_id"
 
 # Timezone used for hourly load index; must match marginal cost data (see utils/cairo.py).
 HOURLY_LOAD_TZ = "EST"
+
+
+def grid_consumption_expr(
+    load_col: str = ELECTRIC_LOAD_COL,
+    pv_col: str = ELECTRIC_PV_COL,
+) -> pl.Expr:
+    """Polars expression for grid consumption, matching CAIRO's formula.
+
+    ``grid_cons = max(total_load - abs(pv), 0)``
+    """
+    return (
+        pl.col(load_col).cast(pl.Float64) - pl.col(pv_col).cast(pl.Float64).abs()
+    ).clip(lower_bound=0.0)
 
 
 def scan_resstock_loads(
@@ -78,15 +98,16 @@ def hourly_resstock_load_from_parquet(
     weights: pl.DataFrame,
     *,
     load_col: str = ELECTRIC_LOAD_COL,
+    pv_col: str = ELECTRIC_PV_COL,
     timestamp_col: str = "timestamp",
     bldg_id_col: str = BLDG_ID_COL,
     weight_col: str = "weight",
 ) -> pd.Series:
-    """Compute weighted hourly ResStock load (one value per hour) from loads and weights.
+    """Compute weighted hourly ResStock grid consumption (one value per hour).
 
-    Joins loads with weights on bldg_id, multiplies load by weight, and sums by
-    timestamp. Returns a pandas Series indexed by datetime (tz-aware EST, matching
-    marginal cost data) for use in TOU derivation.
+    Uses ``grid_cons = max(total - abs(pv), 0)`` to match CAIRO's billing
+    kWh.  Joins with weights, multiplies, and sums by timestamp.  Returns a
+    pandas Series indexed by datetime (tz-aware EST) for TOU derivation.
     """
     weights_lf = weights.select(
         pl.col(bldg_id_col).cast(pl.Int64),
@@ -98,14 +119,16 @@ def hourly_resstock_load_from_parquet(
             f"Load column '{load_col}' not found; available: {schema_names[:15]}"
         )
     aggregated = (
-        loads_lf.select(bldg_id_col, timestamp_col, load_col)
+        loads_lf.select(bldg_id_col, timestamp_col, load_col, pv_col)
         .join(weights_lf, on=bldg_id_col, how="inner")
         .with_columns(
             pl.col(timestamp_col)
             .cast(pl.String, strict=False)
             .str.to_datetime(strict=False)
             .alias("_ts"),
-            (pl.col(load_col).cast(pl.Float64) * pl.col(weight_col)).alias("_wload"),
+            (grid_consumption_expr(load_col, pv_col) * pl.col(weight_col)).alias(
+                "_wload"
+            ),
         )
         .group_by("_ts")
         .agg(pl.col("_wload").sum().alias("load"))

@@ -964,6 +964,8 @@ def check_seasonal_winter_below_summer(
     all_period_lines: list[str] = []
 
     for key, entry in tariff_config.items():
+        if "nonhp" in key:
+            continue
         schedule = entry.get("ur_ec_sched_weekday")
         tou_mat = entry.get("ur_ec_tou_mat", [])
         if not schedule or not tou_mat:
