@@ -706,10 +706,10 @@ run-all-sequential:
     just run-14
     just run-15
     just run-16
-    just run-17
-    just run-18
-    just run-19
-    just run-20
+    # just run-17
+    # just run-18
+    # just run-19
+    # just run-20
 
 run-all-parallel-tracks:
     #!/usr/bin/env bash
@@ -763,15 +763,15 @@ run-all-parallel-tracks:
     wait $PID15 || { echo "ERROR: run-15 failed" >&2; exit 1; }
     wait $PID16 || { echo "ERROR: run-16 failed" >&2; exit 1; }
 
-    just run-17 & PID17=$!
-    just run-18 & PID18=$!
-    wait $PID17 || { echo "ERROR: run-17 failed" >&2; exit 1; }
-    wait $PID18 || { echo "ERROR: run-18 failed" >&2; exit 1; }
+    # just run-17 & PID17=$!
+    # just run-18 & PID18=$!
+    # wait $PID17 || { echo "ERROR: run-17 failed" >&2; exit 1; }
+    # wait $PID18 || { echo "ERROR: run-18 failed" >&2; exit 1; }
 
-    just run-19 & PID19=$!
-    just run-20 & PID20=$!
-    wait $PID19 || { echo "ERROR: run-19 failed" >&2; exit 1; }
-    wait $PID20 || { echo "ERROR: run-20 failed" >&2; exit 1; }
+    # just run-19 & PID19=$!
+    # just run-20 & PID20=$!
+    # wait $PID19 || { echo "ERROR: run-19 failed" >&2; exit 1; }
+    # wait $PID20 || { echo "ERROR: run-20 failed" >&2; exit 1; }
 
     echo ">> run-all-parallel-tracks: all 20 runs complete" >&2
 
