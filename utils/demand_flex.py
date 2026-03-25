@@ -258,6 +258,7 @@ def apply_demand_flex(
     dist_and_sub_tx_marginal_costs: pd.Series,
     path_tou_supply_energy_mc: str | Path | None = None,
     path_tou_supply_capacity_mc: str | Path | None = None,
+    run_includes_subclasses: bool = False,
 ) -> DemandFlexResult:
     """Run the full demand-flex pipeline (phases 1a, 1.5, 1.75, 2).
 
@@ -483,39 +484,44 @@ def apply_demand_flex(
     )
 
     # -- Phase 2.5: per-TOU-subclass MC delta for revenue requirement splitting --
-    # For each TOU subclass independently:
-    #   frozen_residual_k = subclass_RR_k - subclass_MC_orig_k
-    #   new_RR_k = subclass_MC_shifted_k + frozen_residual_k
-    #            = subclass_RR_k + (MC_shifted_k - MC_orig_k)
-    # So the MC delta is all run_scenario.py needs to build per-subclass RRs.
-    # mc_orig_k uses the precomputed original system loads (tiny 8760-row
-    # Series captured before the shift), avoiding the need to keep the full
-    # original load DataFrame alive.
-    mc_prices = marginal_system_prices["Total Marginal Costs ($/kWh)"]
+    # Only needed when the run has HP/non-HP subclasses; run_scenario.py guards
+    # consumption of mc_delta_by_tou_tariff behind run_includes_subclasses too.
     mc_delta_by_tou_tariff: dict[str, float] = {}
-    for tou_key in tou_tariff_keys:
-        tou_bldg_ids_k = set(
-            tariff_map_df[tariff_map_df["tariff_key"] == tou_key]["bldg_id"]
-            .astype(int)
-            .tolist()
-        )
-        sys_load_orig = orig_sys_loads[tou_key]
-        sys_load_aligned = pd.Series(
-            sys_load_orig.values[: len(mc_prices)],
-            index=pd.DatetimeIndex(mc_prices.index),
-        )
-        mc_orig_k = float((mc_prices * sys_load_aligned).sum())
-        mc_shifted_k = _compute_tou_subclass_mc(
-            effective_load_elec, tou_bldg_ids_k, customer_metadata, mc_prices
-        )
-        mc_delta_by_tou_tariff[tou_key] = mc_shifted_k - mc_orig_k
-        log.info(
-            ".... Subclass MC delta for %s: $%.2f  (orig=$%.2f → shifted=$%.2f)",
-            tou_key,
-            mc_delta_by_tou_tariff[tou_key],
-            mc_orig_k,
-            mc_shifted_k,
-        )
+    if run_includes_subclasses:
+        # For each TOU subclass independently:
+        #   frozen_residual_k = subclass_RR_k - subclass_MC_orig_k
+        #   new_RR_k = subclass_MC_shifted_k + frozen_residual_k
+        #            = subclass_RR_k + (MC_shifted_k - MC_orig_k)
+        # So the MC delta is all run_scenario.py needs to build per-subclass RRs.
+        # mc_orig_k uses the precomputed original system loads (tiny 8760-row
+        # Series captured before the shift), avoiding the need to keep the full
+        # original load DataFrame alive.
+        mc_prices = marginal_system_prices["Total Marginal Costs ($/kWh)"]
+        for tou_key in tou_tariff_keys:
+            tou_bldg_ids_k = set(
+                tariff_map_df[tariff_map_df["tariff_key"] == tou_key]["bldg_id"]
+                .astype(int)
+                .tolist()
+            )
+            sys_load_orig = orig_sys_loads[tou_key]
+            sys_load_aligned = pd.Series(
+                sys_load_orig.values[: len(mc_prices)],
+                index=pd.DatetimeIndex(mc_prices.index),
+            )
+            mc_orig_k = float((mc_prices * sys_load_aligned).sum())
+            mc_shifted_k = _compute_tou_subclass_mc(
+                effective_load_elec, tou_bldg_ids_k, customer_metadata, mc_prices
+            )
+            mc_delta_by_tou_tariff[tou_key] = mc_shifted_k - mc_orig_k
+            log.info(
+                ".... Subclass MC delta for %s: $%.2f  (orig=$%.2f → shifted=$%.2f)",
+                tou_key,
+                mc_delta_by_tou_tariff[tou_key],
+                mc_orig_k,
+                mc_shifted_k,
+            )
+    else:
+        log.info(".... Phase 2.5 skipped (run_includes_subclasses=False)")
 
     return DemandFlexResult(
         effective_load_elec=effective_load_elec,
