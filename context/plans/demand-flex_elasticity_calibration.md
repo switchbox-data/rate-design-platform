@@ -4,23 +4,49 @@ overview: Find the correct elasticity parameter per NY utility by running a fast
 todos:
   - id: diagnostic-script
     content: "Create `utils/post/diagnose_demand_flex.py`: per-utility analytical diagnostic reading real TOU derivation JSONs and MC data, computing demand shift + MC savings + Arcturus comparison for elasticity sweep"
-    status: in_progress
-  - id: justfile-recipe
-    content: Add `diagnose-demand-flex` recipe to shared Justfile
-    status: pending
+    status: completed
+  - id: shift-validation-script
+    content: "Create `utils/post/validate_demand_flex_shift.py`: reproduce shift analytically, check energy conservation + direction, cross-check vs CAIRO tracker, produce diagnostic plots and data outputs"
+    status: completed
+  - id: justfile-recipes
+    content: "Add `validate-demand-flex`, `validate-demand-flex-all`, `diagnose-demand-flex` recipes to ny/Justfile"
+    status: completed
   - id: run-diagnostic
-    content: Run the diagnostic for all 7 NY utilities, review results
-    status: pending
+    content: Run the diagnostic and validation for all 7 NY utilities, review results
+    status: completed
   - id: update-ticket
-    content: Update RDP-175 with evolved scope (per-utility calibration, not just synthetic validation)
+    content: Update RDP-175 / open PR #382 with full scope
+    status: completed
+  - id: update-scenario-yamls
+    content: "Update scenario YAMLs with per-utility recommended elasticities (ε=-0.10 for 3h peak window utilities, ε=-0.12 for 5h)"
     status: pending
   - id: plan-cairo-sweep
-    content: Based on diagnostic results, plan the targeted CAIRO sweep (utilities, elasticities, run scope, output paths)
+    content: "Optional: targeted CAIRO sweep at recommended elasticities to produce final calibrated outputs; see Phase 2 section below"
     status: pending
 isProject: false
 ---
 
 # Demand-Flex Elasticity Calibration: Per-Utility Diagnostic and Sweep
+
+## Status (March 2026)
+
+**Phase 1 complete.** All analytical work is done and validated. PR #382 closed the GitHub issue.
+
+| Deliverable | Status |
+| ----------- | ------ |
+| `utils/post/diagnose_demand_flex.py` -- elasticity sweep diagnostic | Done |
+| `utils/post/validate_demand_flex_shift.py` -- shift validation + diagnostic plots | Done |
+| `rate_design/hp_rates/ny/Justfile` -- `validate-demand-flex`, `diagnose-demand-flex` recipes | Done |
+| `context/methods/tou_and_rates/demand_flex_elasticity_calibration.md` -- methodology writeup | Done |
+| Per-utility recommended elasticities (7 utilities) | Done -- see results table |
+| Shift validation across all 7 utilities (energy conservation, direction, CAIRO tracker match) | Done -- all pass |
+| Diagnostic plots in `dev_plots/flex/{utility}/` | Done |
+| Update scenario YAMLs with per-utility elasticities | **Pending** |
+| Phase 2 CAIRO sweep at recommended elasticities | Optional / deferred |
+
+**Recommended elasticities (pending YAML update):**
+- ε = -0.10: ConEd, NiMo, NYSEG, RGE (3-hour peak windows)
+- ε = -0.12: CenHud, OR, PSEG-LI (5-hour peak windows)
 
 ## Problem statement
 
