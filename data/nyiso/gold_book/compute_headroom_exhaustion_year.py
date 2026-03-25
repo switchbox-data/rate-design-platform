@@ -69,6 +69,9 @@ class ScenarioData:
     label: str
     # I-4b / I-4b-L  — non-coincident winter peak (headroom exhaustion)
     winter_peak: ZoneData
+    # I-4b from the baseline file — always has the 2023-24 historical row,
+    # used as the NCP growth anchor (lower scenario I-4b-L starts at 2024-25).
+    winter_peak_baseline: ZoneData
     # I-3b from the baseline file — historical coincident winter peak used for
     # normalisation; always loaded from baseline because 2023-24 is historical
     # and absent from the lower-demand scenario file.
@@ -235,10 +238,12 @@ def load_scenario(
         src = path_baseline
         suffix = ""
 
+    baseline_winter_peak = parse_gold_book_winter_peak(path_baseline)
     return ScenarioData(
         label=label,
         winter_peak=parse_gold_book_winter_peak(src, suffix),
-        # always from baseline: 2023-24 historical row is absent from lower file
+        # always from baseline: historical 2023-24 row absent from lower file
+        winter_peak_baseline=baseline_winter_peak,
         coincident_peak_baseline=parse_gold_book_coincident_winter_peak(path_baseline),
         elec=parse_gold_book_elec_load(src, suffix),
         ev=parse_gold_book_ev_load(src, suffix),
@@ -388,6 +393,23 @@ def plot_demand_components_by_utility(
                 neg_bottom = bottom
 
         ax.axhline(0, color="black", linewidth=0.8, linestyle="-")
+
+        # Non-coincident winter peak growth: change vs 2023-24 NCP, as % of
+        # the 2023-24 coincident baseline so it's on the same scale as the stacks.
+        # winter_peak_baseline always has the 2023-24 historical row; the lower
+        # scenario I-4b-L only starts at 2024-25.
+        ncp_base = sum(scenario.winter_peak_baseline["2023-24"][z] for z in zones)
+        ncp_raw = _zone_sum_series(scenario.winter_peak, all_years, zones)
+        ncp_growth_pct = [100.0 * (v - ncp_base) / base_mw for v in ncp_raw]
+        ax.plot(
+            x,
+            ncp_growth_pct,
+            color="black",
+            linewidth=1.6,
+            linestyle="-",
+            label="NCP growth vs 2023-24 (I-4b)",
+            zorder=5,
+        )
 
         ex_yr = exhaustion_years.get(utility)
         if ex_yr is not None:
