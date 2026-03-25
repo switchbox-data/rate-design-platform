@@ -72,9 +72,10 @@ class ScenarioData:
     # I-4b from the baseline file — always has the 2023-24 historical row,
     # used as the NCP growth anchor (lower scenario I-4b-L starts at 2024-25).
     winter_peak_baseline: ZoneData
-    # I-3b from the baseline file — historical coincident winter peak used for
-    # normalisation; always loaded from baseline because 2023-24 is historical
-    # and absent from the lower-demand scenario file.
+    # I-3b / I-3b-L — coincident winter peak for this scenario (CP growth line)
+    coincident_peak: ZoneData
+    # I-3b from the baseline file — always has the 2023-24 historical row,
+    # used as the normalisation base and CP growth anchor.
     coincident_peak_baseline: ZoneData
     # I-13c / I-13c-L
     elec: ZoneData
@@ -239,12 +240,15 @@ def load_scenario(
         suffix = ""
 
     baseline_winter_peak = parse_gold_book_winter_peak(path_baseline)
+    baseline_coincident_peak = parse_gold_book_coincident_winter_peak(path_baseline)
     return ScenarioData(
         label=label,
         winter_peak=parse_gold_book_winter_peak(src, suffix),
         # always from baseline: historical 2023-24 row absent from lower file
         winter_peak_baseline=baseline_winter_peak,
-        coincident_peak_baseline=parse_gold_book_coincident_winter_peak(path_baseline),
+        # scenario-specific CP (I-3b-L for lower; same as baseline for baseline)
+        coincident_peak=parse_gold_book_coincident_winter_peak(src, suffix),
+        coincident_peak_baseline=baseline_coincident_peak,
         elec=parse_gold_book_elec_load(src, suffix),
         ev=parse_gold_book_ev_load(src, suffix),
         # unchanged components always from baseline
@@ -411,7 +415,7 @@ def plot_demand_components_by_utility(
             zorder=5,
         )
 
-        cp_raw = _zone_sum_series(scenario.coincident_peak_baseline, all_years, zones)
+        cp_raw = _zone_sum_series(scenario.coincident_peak, all_years, zones)
         cp_growth_pct = [100.0 * (v - base_mw) / base_mw for v in cp_raw]
         ax.plot(
             x,
