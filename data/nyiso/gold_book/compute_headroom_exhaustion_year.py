@@ -193,8 +193,20 @@ def parse_gold_book_nondg_reductions(xlsx_path: Path) -> ZoneData:
 
 def parse_gold_book_large_loads(xlsx_path: Path) -> ZoneData:
     """Parse the 'Winter Peak Demand by Zone' section of Table I-14.
+    The table only runs through 2035-36; per the Gold Book note, forecasts for
+    2036 onward equal the final year, so we forward-fill from the last row.
     Identical between baseline and lower scenario."""
-    return _parse_zone_sheet_winter_str(xlsx_path, "I-14", min_row=41)
+    data = _parse_zone_sheet_winter_str(xlsx_path, "I-14", min_row=41)
+    if not data:
+        return data
+    last_year = max(data.keys())
+    last_values = data[last_year]
+    # Forward-fill through 2054-55 to match the horizon of other tables
+    start = int(last_year.split("-")[0]) + 1
+    for yr in range(start, 2055):
+        key = f"{yr}-{(yr + 1) % 100:02d}"
+        data[key] = last_values
+    return data
 
 
 # ---------------------------------------------------------------------------
