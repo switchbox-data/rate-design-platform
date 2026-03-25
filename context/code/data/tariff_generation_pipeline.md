@@ -7,10 +7,10 @@ how CAIRO calibrates them against the revenue requirement.
 
 Every utility gets two families of pre-calibrated tariffs:
 
-| Family | Files | Derivation | Rate structure |
-| --- | --- | --- | --- |
-| **Flat** | `{utility}_flat.json`, `{utility}_flat_supply.json` | Top-down from revenue requirement | Single volumetric rate (one $/kWh) |
-| **Default-structure** | `{utility}_default.json`, `{utility}_default_supply.json` | Bottom-up from filed rates | Preserves the utility's actual rate structure (seasonal, tiered, TOU, or flat) |
+| Family                | Files                                                     | Derivation                        | Rate structure                                                                 |
+| --------------------- | --------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------ |
+| **Flat**              | `{utility}_flat.json`, `{utility}_flat_supply.json`       | Top-down from revenue requirement | Single volumetric rate (one $/kWh)                                             |
+| **Default-structure** | `{utility}_default.json`, `{utility}_default_supply.json` | Bottom-up from filed rates        | Preserves the utility's actual rate structure (seasonal, tiered, TOU, or flat) |
 
 Both are starting points for CAIRO's precalc, which calibrates the
 volumetric rate(s) to exactly hit the revenue requirement. The calibrated
@@ -69,12 +69,12 @@ Each Genability rate is pre-classified in
 `config/rev_requirement/top-ups/charge_decisions/{utility}_charge_decisions.json`
 with a `decision` label:
 
-| Decision | Meaning |
-| --- | --- |
-| `already_in_drr` | Core delivery rates already recovered through the rate case revenue requirement. These are the base rates (e.g., ConEd's tiered delivery charge). |
-| `add_to_drr` | Surcharges that add to delivery revenue (rider-sourced charges like SBC, DLM, EV Make Ready, CES delivery, VDER). Not part of the rate-case RR but still delivery. |
-| `add_to_srr` | Supply charges (commodity, merchant function charge, CES supply). Used for `_supply.json` tariffs. |
-| `exclude_*` | Excluded charges (true-ups, taxes, zonal adjustments, percentage-of-bill). Not included in tariffs. |
+| Decision         | Meaning                                                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `already_in_drr` | Core delivery rates already recovered through the rate case revenue requirement. These are the base rates (e.g., ConEd's tiered delivery charge).                  |
+| `add_to_drr`     | Surcharges that add to delivery revenue (rider-sourced charges like SBC, DLM, EV Make Ready, CES delivery, VDER). Not part of the rate-case RR but still delivery. |
+| `add_to_srr`     | Supply charges (commodity, merchant function charge, CES supply). Used for `_supply.json` tariffs.                                                                 |
+| `exclude_*`      | Excluded charges (true-ups, taxes, zonal adjustments, percentage-of-bill). Not included in tariffs.                                                                |
 
 ### Output: monthly_rates YAML
 
@@ -136,12 +136,12 @@ excluded:
 The `rate_structure` discriminator on `already_in_drr` determines which
 builder is invoked downstream. Current structures by utility:
 
-| Utility | `already_in_drr.rate_structure` |
-| --- | --- |
-| ConEd | `seasonal_tiered` (summer/winter, 250 kWh tier boundary) |
-| O&R | `seasonal_tiered` (summer/winter, 250 kWh tier boundary) |
-| PSEGLI | `seasonal_tou` (summer/winter, on-peak/off-peak weekday 3–7 PM) |
-| NYSEG, RGE, NiMo, CenHud, RIE | `flat` |
+| Utility                       | `already_in_drr.rate_structure`                                 |
+| ----------------------------- | --------------------------------------------------------------- |
+| ConEd                         | `seasonal_tiered` (summer/winter, 250 kWh tier boundary)        |
+| O&R                           | `seasonal_tiered` (summer/winter, 250 kWh tier boundary)        |
+| PSEGLI                        | `seasonal_tou` (summer/winter, on-peak/off-peak weekday 3–7 PM) |
+| NYSEG, RGE, NiMo, CenHud, RIE | `flat`                                                          |
 
 ### Discovery mode
 
@@ -286,12 +286,12 @@ all-pre:
 
 Key Justfile variables:
 
-| Variable | Source | Purpose |
-| --- | --- | --- |
-| `base_tariff_pattern` | `BASE_TARIFF_PATTERN` env / `state.env` | `flat` or `default`; controls which tariff family is used in base runs |
-| `monthly_rates_year` | `MONTHLY_RATES_YEAR` env, default `2025` | Selects which `*_monthly_rates_{year}.yaml` to use |
-| `path_monthly_rates` | derived | Full path to the utility's monthly_rates YAML |
-| `path_genability` | derived | Parent of `monthly_rates/` and `charge_decisions/` dirs |
+| Variable              | Source                                   | Purpose                                                                |
+| --------------------- | ---------------------------------------- | ---------------------------------------------------------------------- |
+| `base_tariff_pattern` | `BASE_TARIFF_PATTERN` env / `state.env`  | `flat` or `default`; controls which tariff family is used in base runs |
+| `monthly_rates_year`  | `MONTHLY_RATES_YEAR` env, default `2025` | Selects which `*_monthly_rates_{year}.yaml` to use                     |
+| `path_monthly_rates`  | derived                                  | Full path to the utility's monthly_rates YAML                          |
+| `path_genability`     | derived                                  | Parent of `monthly_rates/` and `charge_decisions/` dirs                |
 
 ## CAIRO calibration
 
