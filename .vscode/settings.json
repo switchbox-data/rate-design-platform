@@ -18,6 +18,7 @@
   ],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
+  "python.analysis.diagnosticMode": "openFilesOnly",
   "python.analysis.exclude": [
     "run_logs",
     "**/config/tariffs/**",

@@ -640,6 +640,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             dist_and_sub_tx_marginal_costs=dist_and_sub_tx_marginal_costs,
             path_tou_supply_energy_mc=settings.path_tou_supply_energy_mc,
             path_tou_supply_capacity_mc=settings.path_tou_supply_capacity_mc,
+            run_includes_subclasses=settings.run_includes_subclasses,
         )
 
         revenue_requirement: float | dict[str, float] | None = (
@@ -652,6 +653,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         effective_load_elec = flex.effective_load_elec
         elasticity_tracker = flex.elasticity_tracker
         precalc_mapping = flex.precalc_mapping
+        del raw_load_elec
         if settings.run_includes_subclasses and settings.subclass_rr is not None:
             # Per-subclass frozen-residual approach:
             #   new_RR_k = subclass_RR_k + (MC_shifted_k - MC_orig_k)
