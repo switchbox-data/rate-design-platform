@@ -58,9 +58,9 @@ import polars as pl
 from utils.post.io import BLDG_ID, scan
 
 BAT_CSV = "cross_subsidization/cross_subsidization_BAT_values.csv"
-UPGRADE_00_RUNS = {1, 2, 5, 6, 9, 10}
-UPGRADE_02_RUNS = {3, 4, 7, 8, 11, 12}
-VALID_RUN_PAIRS = {(r, r + 1) for r in (1, 3, 5, 7, 9, 11)}
+UPGRADE_00_RUNS = {1, 2, 5, 6, 9, 10, 17, 18}
+UPGRADE_02_RUNS = {3, 4, 7, 8, 11, 12, 19, 20}
+VALID_RUN_PAIRS = {(r, r + 1) for r in (1, 3, 5, 7, 9, 11, 17, 19)}
 
 BAT_METRICS = ["BAT_vol", "BAT_peak", "BAT_percustomer"]
 
@@ -217,7 +217,9 @@ def _upgrade_for_run(run_delivery: int) -> str:
         return "00"
     if run_delivery in UPGRADE_02_RUNS:
         return "02"
-    raise ValueError(f"Cannot infer upgrade for run {run_delivery}; expected 1-12")
+    raise ValueError(
+        f"Cannot infer upgrade for run {run_delivery}; not in UPGRADE_00_RUNS or UPGRADE_02_RUNS"
+    )
 
 
 def _validate_run_pair(run_delivery: int, run_supply: int) -> None:
