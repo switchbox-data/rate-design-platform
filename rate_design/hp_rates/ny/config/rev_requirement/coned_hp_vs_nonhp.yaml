@@ -6,10 +6,10 @@ total_delivery_revenue_requirement: 3287782738.4
 total_delivery_and_supply_revenue_requirement: 4894675585.19
 subclass_revenue_requirements:
   non-hp:
-    delivery: 3208744948.2210865
-    supply: 1544462515.047821
-    total: 4753207463.268908
+    delivery: 3208744948.2210875
+    supply: 1544462515.0478325
+    total: 4753207463.26892
   hp:
-    delivery: 79037790.17891258
-    supply: 62430331.742176354
-    total: 141468121.92108893
+    delivery: 79037790.17891257
+    supply: 62430331.74217631
+    total: 141468121.92108887
