@@ -394,13 +394,13 @@ def plot_demand_components_by_utility(
 
         ax.axhline(0, color="black", linewidth=0.8, linestyle="-")
 
-        # Non-coincident winter peak growth: change vs 2023-24 NCP, as % of
-        # the 2023-24 coincident baseline so it's on the same scale as the stacks.
-        # winter_peak_baseline always has the 2023-24 historical row; the lower
-        # scenario I-4b-L only starts at 2024-25.
-        ncp_base = sum(scenario.winter_peak_baseline["2023-24"][z] for z in zones)
+        # NCP growth and coincident peak growth lines, both anchored to their
+        # respective 2023-24 values and normalised by the 2023-24 CP base_mw.
+        # winter_peak_baseline / coincident_peak_baseline always carry the
+        # historical 2023-24 row (lower scenario files start at 2024-25).
+        ncp_base_mw = sum(scenario.winter_peak_baseline["2023-24"][z] for z in zones)
         ncp_raw = _zone_sum_series(scenario.winter_peak, all_years, zones)
-        ncp_growth_pct = [100.0 * (v - ncp_base) / base_mw for v in ncp_raw]
+        ncp_growth_pct = [100.0 * (v - ncp_base_mw) / base_mw for v in ncp_raw]
         ax.plot(
             x,
             ncp_growth_pct,
@@ -408,6 +408,18 @@ def plot_demand_components_by_utility(
             linewidth=1.6,
             linestyle="-",
             label="NCP growth vs 2023-24 (I-4b)",
+            zorder=5,
+        )
+
+        cp_raw = _zone_sum_series(scenario.coincident_peak_baseline, all_years, zones)
+        cp_growth_pct = [100.0 * (v - base_mw) / base_mw for v in cp_raw]
+        ax.plot(
+            x,
+            cp_growth_pct,
+            color="black",
+            linewidth=1.6,
+            linestyle="--",
+            label="CP growth vs 2023-24 (I-3b)",
             zorder=5,
         )
 
