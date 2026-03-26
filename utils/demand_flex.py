@@ -244,7 +244,7 @@ def _compute_tou_subclass_mc(
 
 def apply_demand_flex(
     *,
-    elasticity: float,
+    elasticity: float | dict[str, float],
     run_type: str,
     year_run: int,
     path_tariffs_electric: dict[str, Path],
@@ -276,7 +276,7 @@ def apply_demand_flex(
             f"keys={sorted(path_tariffs_electric)}"
         )
     log.info(
-        ".... Demand flex enabled (elasticity=%.4f); detected %d TOU tariff(s): %s",
+        ".... Demand flex enabled (elasticity=%s); detected %d TOU tariff(s): %s",
         elasticity,
         len(tou_tariff_keys),
         tou_tariff_keys,
