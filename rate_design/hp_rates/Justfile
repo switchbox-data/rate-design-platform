@@ -689,8 +689,8 @@ run-all-sequential:
     : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
     export RDP_BATCH
     echo ">> run-all-sequential [${RDP_BATCH}]" >&2
-    # just run-1
-    # just run-2
+    just run-1
+    just run-2
     just compute-rev-requirements
     just run-3
     just run-4
@@ -706,10 +706,10 @@ run-all-sequential:
     just run-14
     just run-15
     just run-16
-    # just run-17
-    # just run-18
-    # just run-19
-    # just run-20
+    just run-17
+    just run-18
+    just run-19
+    just run-20
 
 run-all-parallel-tracks:
     #!/usr/bin/env bash
