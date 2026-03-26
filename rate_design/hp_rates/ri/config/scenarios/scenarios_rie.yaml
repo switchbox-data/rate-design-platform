@@ -133,6 +133,7 @@ runs:
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
+    residual_allocation: percustomer
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=RI/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -162,6 +163,7 @@ runs:
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
+    residual_allocation: percustomer
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=RI/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -247,6 +249,7 @@ runs:
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
+    residual_allocation: percustomer
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=RI/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -276,6 +279,7 @@ runs:
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
+    residual_allocation: percustomer
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=RI/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -361,6 +365,7 @@ runs:
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
+    residual_allocation: percustomer
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=RI/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -390,6 +395,7 @@ runs:
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
+    residual_allocation: percustomer
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=RI/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -475,6 +481,7 @@ runs:
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
+    residual_allocation: epmc
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=RI/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -504,6 +511,7 @@ runs:
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
+    residual_allocation: epmc
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=RI/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year=2025/data.parquet
     solar_pv_compensation: net_metering

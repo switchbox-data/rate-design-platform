@@ -34,7 +34,7 @@ class TestParserWithNewYAMLFormat:
             run_includes_subclasses=False,
         )
         assert isinstance(result, RevenueRequirementConfig)
-        assert result.rr_total == pytest.approx(416_193_684.03)
+        assert result.rr_total == pytest.approx(418_151_641.73)
         assert result.subclass_rr is None
         assert result.run_includes_subclasses is False
 
@@ -49,7 +49,7 @@ class TestParserWithNewYAMLFormat:
             add_supply=True,
             run_includes_subclasses=False,
         )
-        assert result.rr_total == pytest.approx(624_942_307.81)
+        assert result.rr_total == pytest.approx(646_688_375.32)
         assert result.subclass_rr is None
 
     def test_subclass_delivery_only(self) -> None:
@@ -63,6 +63,7 @@ class TestParserWithNewYAMLFormat:
             },
             add_supply=False,
             run_includes_subclasses=True,
+            residual_allocation="percustomer",
         )
         assert result.run_includes_subclasses is True
         assert result.subclass_rr is not None
@@ -84,6 +85,7 @@ class TestParserWithNewYAMLFormat:
             },
             add_supply=True,
             run_includes_subclasses=True,
+            residual_allocation="percustomer",
         )
         assert result.subclass_rr is not None
         assert set(result.subclass_rr.keys()) == {
@@ -104,6 +106,7 @@ class TestParserWithNewYAMLFormat:
             },
             add_supply=False,
             run_includes_subclasses=True,
+            residual_allocation="percustomer",
         )
         assert result.subclass_rr is not None
         assert set(result.subclass_rr.keys()) == {
@@ -145,6 +148,7 @@ class TestParserWithSyntheticYAML:
                 },
                 add_supply=False,
                 run_includes_subclasses=True,
+                residual_allocation="percustomer",
             )
 
     def test_nested_subclass_format(self, tmp_path: Path) -> None:
@@ -156,14 +160,23 @@ class TestParserWithSyntheticYAML:
                     "total_delivery_revenue_requirement": 1000.0,
                     "total_delivery_and_supply_revenue_requirement": 1500.0,
                     "subclass_revenue_requirements": {
-                        "hp": {"delivery": 300.0, "supply": 200.0, "total": 500.0},
-                        "non-hp": {"delivery": 700.0, "supply": 300.0, "total": 1000.0},
+                        "percustomer": {
+                            "hp": {
+                                "delivery": 300.0,
+                                "supply": 200.0,
+                                "total": 500.0,
+                            },
+                            "non-hp": {
+                                "delivery": 700.0,
+                                "supply": 300.0,
+                                "total": 1000.0,
+                            },
+                        },
                     },
                 }
             ),
             encoding="utf-8",
         )
-        # Delivery-only
         result = _parse_utility_revenue_requirement(
             str(rr_yaml),
             tmp_path,
@@ -173,11 +186,11 @@ class TestParserWithSyntheticYAML:
             },
             add_supply=False,
             run_includes_subclasses=True,
+            residual_allocation="percustomer",
         )
         assert result.rr_total == pytest.approx(1000.0)
         assert result.subclass_rr == {"hp_tariff": 300.0, "nonhp_tariff": 700.0}
 
-        # With supply
         result_supply = _parse_utility_revenue_requirement(
             str(rr_yaml),
             tmp_path,
@@ -187,6 +200,7 @@ class TestParserWithSyntheticYAML:
             },
             add_supply=True,
             run_includes_subclasses=True,
+            residual_allocation="percustomer",
         )
         assert result_supply.rr_total == pytest.approx(1500.0)
         assert result_supply.subclass_rr == {

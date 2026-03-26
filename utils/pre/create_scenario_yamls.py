@@ -330,7 +330,6 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     return run
 
 
-
 def _cell_to_str(value: object) -> str:
     """Convert sheet cell to string while preserving numeric zeros."""
     if value is None:

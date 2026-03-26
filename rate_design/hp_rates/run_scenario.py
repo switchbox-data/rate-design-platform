@@ -99,6 +99,7 @@ class ScenarioSettings:
     rr_total: float
     subclass_rr: dict[str, float] | None
     run_includes_subclasses: bool
+    residual_allocation: str | None
     path_electric_utility_stats: str | Path
     path_supply_energy_mc: str | Path
     path_supply_capacity_mc: str | Path
@@ -241,13 +242,17 @@ def _build_settings_from_yaml_run(
         _require_value(run, "run_includes_subclasses"),
         "run_includes_subclasses",
     )
+    residual_allocation: str | None = run.get("residual_allocation")
     rr_config: RevenueRequirementConfig = _parse_utility_revenue_requirement(
         _require_value(run, "utility_revenue_requirement"),
         path_config,
         raw_path_tariffs_electric,
         add_supply=run_includes_supply,
         run_includes_subclasses=run_includes_subclasses,
+        residual_allocation=residual_allocation,
     )
+    if residual_allocation:
+        log.info("Residual allocation method: %s", residual_allocation)
     path_tariff_maps_gas = _resolve_path(
         str(_require_value(run, "path_tariff_maps_gas")),
         path_config,
@@ -310,6 +315,7 @@ def _build_settings_from_yaml_run(
         rr_total=rr_config.rr_total,
         subclass_rr=rr_config.subclass_rr,
         run_includes_subclasses=rr_config.run_includes_subclasses,
+        residual_allocation=rr_config.residual_allocation,
         path_electric_utility_stats=path_electric_utility_stats,
         year_run=year_run,
         year_dollar_conversion=year_dollar_conversion,

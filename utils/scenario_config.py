@@ -160,11 +160,14 @@ class RevenueRequirementConfig:
     rr_total: scalar for MC decomposition (delivery or delivery+supply).
     subclass_rr: per-tariff-key RR dict, or None for non-subclass runs.
     run_includes_subclasses: whether the run uses per-subclass RRs.
+    residual_allocation: the allocation method used (e.g. "percustomer", "epmc"),
+        or None for non-subclass runs.
     """
 
     rr_total: float
     subclass_rr: dict[str, float] | None
     run_includes_subclasses: bool
+    residual_allocation: str | None
 
 
 def _parse_subclass_revenue_requirement(
@@ -173,16 +176,42 @@ def _parse_subclass_revenue_requirement(
     base_dir: Path,
     *,
     add_supply: bool,
+    residual_allocation: str,
 ) -> dict[str, float]:
     """Map subclass revenue requirements to tariff keys.
 
-    YAML subclass keys are aliases ('hp'/'non-hp') matching the keys in
-    path_tariffs_electric. Each alias resolves to a tariff key (file stem).
-    Picks 'delivery' or 'total' per subclass based on *add_supply*.
+    Expects nested YAML structure::
+
+        subclass_revenue_requirements:
+          percustomer:
+            hp: {delivery: ..., supply: ..., total: ...}
+            non-hp: {delivery: ..., supply: ..., total: ...}
+          epmc:
+            hp: {delivery: ..., supply: ..., total: ...}
+            non-hp: {delivery: ..., supply: ..., total: ...}
+
+    *residual_allocation* selects which allocation-method block to use
+    (e.g. ``"percustomer"`` or ``"epmc"``).  Subclass alias keys
+    (``"hp"``/``"non-hp"``) match keys in *raw_path_tariffs_electric*.
+    Picks ``"delivery"`` or ``"total"`` per subclass based on *add_supply*.
     """
-    subclass_rr = rr_data.get("subclass_revenue_requirements")
-    if not isinstance(subclass_rr, dict) or not subclass_rr:
+    raw_subclass = rr_data.get("subclass_revenue_requirements")
+    if not isinstance(raw_subclass, dict) or not raw_subclass:
         raise ValueError("subclass_revenue_requirements must be a non-empty mapping")
+
+    if residual_allocation not in raw_subclass:
+        available = sorted(raw_subclass.keys())
+        raise ValueError(
+            f"residual_allocation={residual_allocation!r} not found in "
+            f"subclass_revenue_requirements. Available: {available}"
+        )
+
+    subclass_rr = raw_subclass[residual_allocation]
+    if not isinstance(subclass_rr, dict) or not subclass_rr:
+        raise ValueError(
+            f"subclass_revenue_requirements[{residual_allocation!r}] "
+            "must be a non-empty mapping of subclass aliases"
+        )
 
     alias_to_tariff_key = {
         alias: _resolve_path(str(path_str), base_dir).stem
@@ -198,21 +227,23 @@ def _parse_subclass_revenue_requirement(
                 f"Subclass alias {alias_str!r} in YAML not found in "
                 f"path_tariffs_electric (available: {sorted(alias_to_tariff_key)})"
             )
-        if isinstance(amount, dict):
-            rr_field = "total" if add_supply else "delivery"
-            if rr_field not in amount:
-                raise ValueError(
-                    f"subclass_revenue_requirements[{alias_str}] missing "
-                    f"required field {rr_field!r}"
-                )
-            result[tariff_key] = _parse_float(
-                amount[rr_field],
-                f"subclass_revenue_requirements[{alias_str}].{rr_field}",
+        if not isinstance(amount, dict):
+            raise ValueError(
+                f"subclass_revenue_requirements[{residual_allocation!r}]"
+                f"[{alias_str}] must be a dict with delivery/supply/total, "
+                f"got {type(amount).__name__}"
             )
-        else:
-            result[tariff_key] = _parse_float(
-                amount, f"subclass_revenue_requirements[{alias_str}]"
+        rr_field = "total" if add_supply else "delivery"
+        if rr_field not in amount:
+            raise ValueError(
+                f"subclass_revenue_requirements[{residual_allocation!r}]"
+                f"[{alias_str}] missing required field {rr_field!r}"
             )
+        result[tariff_key] = _parse_float(
+            amount[rr_field],
+            f"subclass_revenue_requirements[{residual_allocation!r}]"
+            f"[{alias_str}].{rr_field}",
+        )
 
     return result
 
@@ -224,6 +255,7 @@ def _parse_utility_revenue_requirement(
     *,
     add_supply: bool,
     run_includes_subclasses: bool = False,
+    residual_allocation: str | None = None,
 ) -> RevenueRequirementConfig:
     """Parse utility_revenue_requirement from a YAML path.
 
@@ -231,6 +263,10 @@ def _parse_utility_revenue_requirement(
       - rr_total: scalar from total_delivery[_and_supply]_revenue_requirement
       - subclass_rr: per-tariff-key RR dict (or None)
       - run_includes_subclasses: whether this run uses subclass RRs
+      - residual_allocation: which allocation method block was used
+
+    When *run_includes_subclasses* is True, *residual_allocation* is required
+    and selects the block within subclass_revenue_requirements to use.
     """
     if not isinstance(value, str):
         raise ValueError(
@@ -262,8 +298,6 @@ def _parse_utility_revenue_requirement(
     )
 
     if rr_key not in rr_data:
-        # Fallback: legacy YAMLs (e.g. *_large_number.yaml) use a bare
-        # 'revenue_requirement' key with the same value for both modes.
         if "revenue_requirement" in rr_data:
             rr_total = _parse_float(
                 rr_data["revenue_requirement"], "revenue_requirement"
@@ -277,19 +311,29 @@ def _parse_utility_revenue_requirement(
 
     subclass_rr: dict[str, float] | None = None
     if run_includes_subclasses:
+        if residual_allocation is None:
+            raise ValueError(
+                "run_includes_subclasses is true but residual_allocation is not set. "
+                "Add 'residual_allocation: percustomer' (or 'epmc') to the scenario YAML."
+            )
         if "subclass_revenue_requirements" not in rr_data:
             raise ValueError(
                 f"run_includes_subclasses is true but {path} has no "
                 "'subclass_revenue_requirements'."
             )
         subclass_rr = _parse_subclass_revenue_requirement(
-            rr_data, raw_path_tariffs_electric, base_dir, add_supply=add_supply
+            rr_data,
+            raw_path_tariffs_electric,
+            base_dir,
+            add_supply=add_supply,
+            residual_allocation=residual_allocation,
         )
 
     return RevenueRequirementConfig(
         rr_total=rr_total,
         subclass_rr=subclass_rr,
         run_includes_subclasses=run_includes_subclasses,
+        residual_allocation=residual_allocation,
     )
 
 

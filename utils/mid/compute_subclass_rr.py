@@ -35,8 +35,15 @@ from utils.pre.season_config import (
 BLDG_ID_COL = "bldg_id"
 WEIGHT_COL = "weight"
 DEFAULT_GROUP_COL = "has_hp"
-BAT_METRIC_CHOICES = ("BAT_vol", "BAT_peak", "BAT_percustomer")
+BAT_METRIC_CHOICES = ("BAT_vol", "BAT_peak", "BAT_percustomer", "BAT_epmc")
 DEFAULT_BAT_METRIC = "BAT_percustomer"
+SUBCLASS_RR_ALLOCATION_METHODS: tuple[str, ...] = ("BAT_percustomer", "BAT_epmc")
+BAT_COL_TO_ALLOCATION_KEY: dict[str, str] = {
+    "BAT_percustomer": "percustomer",
+    "BAT_epmc": "epmc",
+    "BAT_vol": "volumetric",
+    "BAT_peak": "peak",
+}
 
 # Output constants
 GROUP_VALUE_COL = "subclass"
@@ -622,22 +629,44 @@ def compute_hp_flat_discount_inputs(
 def compute_subclass_rr(
     run_dir: S3Path | Path,
     group_col: str = DEFAULT_GROUP_COL,
-    cross_subsidy_col: str = DEFAULT_BAT_METRIC,
+    cross_subsidy_cols: str | tuple[str, ...] = SUBCLASS_RR_ALLOCATION_METHODS,
     annual_month: str = ANNUAL_MONTH_VALUE,
     storage_options: dict[str, str] | None = None,
-) -> pl.DataFrame:
-    """Return subclass revenue requirement breakdown for the selected grouping.
+) -> dict[str, pl.DataFrame]:
+    """Return subclass revenue requirement breakdowns for one or more BAT columns.
 
-    Columns: subclass, sum_bills, sum_cross_subsidy, revenue_requirement
+    Loads bills and BAT CSV once, joins once, then computes a separate
+    breakdown per BAT column.  Returns ``{bat_col: DataFrame}`` where each
+    DataFrame has columns: subclass, sum_bills, sum_cross_subsidy,
+    revenue_requirement.
+
+    For backward compat, *cross_subsidy_cols* may be a single string.
     """
+    if isinstance(cross_subsidy_cols, str):
+        cross_subsidy_cols = (cross_subsidy_cols,)
+
     group_values = _load_group_values(run_dir, group_col, storage_options)
     bills = _load_annual_target_bills(run_dir, annual_month, storage_options)
-    cross_sub = _load_cross_subsidy(run_dir, cross_subsidy_col, storage_options)
+
+    bat_select = [pl.col(BLDG_ID_COL).cast(pl.Int64)] + [
+        pl.col(col).cast(pl.Float64) for col in cross_subsidy_cols
+    ]
+    cross_sub_all = (
+        pl.scan_csv(
+            _csv_path(
+                run_dir, "cross_subsidization/cross_subsidization_BAT_values.csv"
+            ),
+            storage_options=storage_options,
+        )
+        .select(bat_select)
+        .group_by(BLDG_ID_COL)
+        .agg([pl.col(col).sum() for col in cross_subsidy_cols])
+    )
 
     joined = cast(
         pl.DataFrame,
         group_values.join(bills, on=BLDG_ID_COL, how="left")
-        .join(cross_sub, on=BLDG_ID_COL, how="left")
+        .join(cross_sub_all, on=BLDG_ID_COL, how="left")
         .collect(),
     )
     if joined.is_empty():
@@ -652,35 +681,40 @@ def compute_subclass_rr(
         )
         raise ValueError(msg)
 
-    nulls_cs = joined.filter(pl.col("cross_subsidy").is_null()).height
-    if nulls_cs:
-        msg = f"Missing cross-subsidy values for {nulls_cs} buildings."
-        raise ValueError(msg)
+    for col in cross_subsidy_cols:
+        nulls_cs = joined.filter(pl.col(col).is_null()).height
+        if nulls_cs:
+            msg = f"Missing cross-subsidy values for {nulls_cs} buildings in {col}."
+            raise ValueError(msg)
 
     nulls_weight = joined.filter(pl.col(WEIGHT_COL).is_null()).height
     if nulls_weight:
         msg = f"Missing sample weights for {nulls_weight} buildings."
         raise ValueError(msg)
 
-    return (
-        joined.with_columns(
-            (pl.col("annual_bill") * pl.col(WEIGHT_COL)).alias("weighted_annual_bill"),
-            (pl.col("cross_subsidy") * pl.col(WEIGHT_COL)).alias(
-                "weighted_cross_subsidy"
-            ),
-        )
-        .group_by(GROUP_VALUE_COL)
-        .agg(
-            pl.col("weighted_annual_bill").sum().alias("sum_bills"),
-            pl.col("weighted_cross_subsidy").sum().alias("sum_cross_subsidy"),
-        )
-        .with_columns(
-            (pl.col("sum_bills") - pl.col("sum_cross_subsidy")).alias(
-                "revenue_requirement"
+    results: dict[str, pl.DataFrame] = {}
+    for col in cross_subsidy_cols:
+        results[col] = (
+            joined.with_columns(
+                (pl.col("annual_bill") * pl.col(WEIGHT_COL)).alias(
+                    "weighted_annual_bill"
+                ),
+                (pl.col(col) * pl.col(WEIGHT_COL)).alias("weighted_cross_subsidy"),
             )
+            .group_by(GROUP_VALUE_COL)
+            .agg(
+                pl.col("weighted_annual_bill").sum().alias("sum_bills"),
+                pl.col("weighted_cross_subsidy").sum().alias("sum_cross_subsidy"),
+            )
+            .with_columns(
+                (pl.col("sum_bills") - pl.col("sum_cross_subsidy")).alias(
+                    "revenue_requirement"
+                )
+            )
+            .sort(GROUP_VALUE_COL)
         )
-        .sort(GROUP_VALUE_COL)
-    )
+
+    return results
 
 
 def _load_run_from_scenario_config(
@@ -738,55 +772,71 @@ def _load_run_fields(
 
 
 def _write_revenue_requirement_yamls(
-    delivery_breakdown: pl.DataFrame,
+    delivery_breakdowns: dict[str, pl.DataFrame],
     run_dir: S3Path | Path,
     group_col: str,
-    cross_subsidy_col: str,
     utility: str,
     default_revenue_requirement: float,
     differentiated_yaml_path: Path,
     default_yaml_path: Path,
     *,
     group_value_to_subclass: dict[str, str] | None = None,
-    total_breakdown: pl.DataFrame | None = None,
+    total_breakdowns: dict[str, pl.DataFrame] | None = None,
     total_delivery_rr: float | None = None,
     total_delivery_and_supply_rr: float | None = None,
 ) -> tuple[Path, Path]:
-    """Write per-subclass revenue requirement YAML.
+    """Write per-subclass revenue requirement YAML with nested allocation methods.
 
-    *delivery_breakdown* comes from run 1 (delivery-only BAT).
-    *total_breakdown*, when provided, comes from run 2 (delivery+supply BAT).
-    Supply per subclass is derived as total - delivery.
+    *delivery_breakdowns* is ``{bat_col: DataFrame}`` from run 1 (delivery-only).
+    *total_breakdowns*, when provided, is ``{bat_col: DataFrame}`` from run 2
+    (delivery+supply).  Supply per subclass is derived as total - delivery.
+
+    Output YAML structure::
+
+        subclass_revenue_requirements:
+          percustomer:
+            hp: {delivery: ..., supply: ..., total: ...}
+            non-hp: {delivery: ..., supply: ..., total: ...}
+          epmc:
+            hp: {delivery: ..., supply: ..., total: ...}
+            non-hp: {delivery: ..., supply: ..., total: ...}
     """
     differentiated_yaml_path.parent.mkdir(parents=True, exist_ok=True)
     default_yaml_path.parent.mkdir(parents=True, exist_ok=True)
 
     gv_map = group_value_to_subclass or {}
 
-    total_rr_by_subclass: dict[str, float] = {}
-    if total_breakdown is not None:
-        for row in total_breakdown.to_dicts():
-            total_rr_by_subclass[str(row["subclass"])] = float(
-                row["revenue_requirement"]
-            )
+    all_methods_rr: dict[str, dict[str, dict[str, float]]] = {}
 
-    subclass_rr: dict[str, dict[str, float]] = {}
-    for row in delivery_breakdown.to_dicts():
-        raw_val = str(row["subclass"])
-        alias = gv_map.get(raw_val, raw_val)
-        delivery = float(row["revenue_requirement"])
-        total = total_rr_by_subclass.get(raw_val, delivery)
-        supply = total - delivery
-        subclass_rr[alias] = {
-            "delivery": delivery,
-            "supply": supply,
-            "total": total,
-        }
+    for bat_col, delivery_breakdown in delivery_breakdowns.items():
+        method_key = BAT_COL_TO_ALLOCATION_KEY.get(bat_col, bat_col)
+
+        total_rr_by_subclass: dict[str, float] = {}
+        if total_breakdowns is not None and bat_col in total_breakdowns:
+            for row in total_breakdowns[bat_col].to_dicts():
+                total_rr_by_subclass[str(row["subclass"])] = float(
+                    row["revenue_requirement"]
+                )
+
+        subclass_rr: dict[str, dict[str, float]] = {}
+        for row in delivery_breakdown.to_dicts():
+            raw_val = str(row["subclass"])
+            alias = gv_map.get(raw_val, raw_val)
+            delivery = float(row["revenue_requirement"])
+            total = total_rr_by_subclass.get(raw_val, delivery)
+            supply = total - delivery
+            subclass_rr[alias] = {
+                "delivery": delivery,
+                "supply": supply,
+                "total": total,
+            }
+
+        all_methods_rr[method_key] = subclass_rr
 
     differentiated_data: dict[str, object] = {
         "utility": utility,
         "group_col": group_col,
-        "cross_subsidy_col": cross_subsidy_col,
+        "allocation_methods": list(all_methods_rr.keys()),
         "source_run_dir": str(run_dir),
     }
     if total_delivery_rr is not None:
@@ -795,7 +845,7 @@ def _write_revenue_requirement_yamls(
         differentiated_data["total_delivery_and_supply_revenue_requirement"] = (
             total_delivery_and_supply_rr
         )
-    differentiated_data["subclass_revenue_requirements"] = subclass_rr
+    differentiated_data["subclass_revenue_requirements"] = all_methods_rr
 
     differentiated_yaml_path.write_text(
         yaml.safe_dump(differentiated_data, sort_keys=False),
@@ -843,9 +893,12 @@ def main() -> None:
     )
     parser.add_argument(
         "--cross-subsidy-col",
-        default=DEFAULT_BAT_METRIC,
-        choices=BAT_METRIC_CHOICES,
-        help="BAT column in cross_subsidization_BAT_values.csv to use.",
+        default=",".join(SUBCLASS_RR_ALLOCATION_METHODS),
+        help=(
+            "Comma-separated BAT columns to compute subclass RR for. "
+            f"Choices: {', '.join(BAT_METRIC_CHOICES)}. "
+            f"Default: {','.join(SUBCLASS_RR_ALLOCATION_METHODS)}"
+        ),
     )
     parser.add_argument(
         "--annual-month",
@@ -956,14 +1009,20 @@ def main() -> None:
     )
     storage_options = get_aws_storage_options() if isinstance(run_dir, S3Path) else None
 
-    breakdown = compute_subclass_rr(
+    cross_subsidy_cols = tuple(
+        c.strip() for c in args.cross_subsidy_col.split(",") if c.strip()
+    )
+
+    delivery_breakdowns = compute_subclass_rr(
         run_dir=run_dir,
         group_col=args.group_col,
-        cross_subsidy_col=args.cross_subsidy_col,
+        cross_subsidy_cols=cross_subsidy_cols,
         annual_month=args.annual_month,
         storage_options=storage_options,
     )
-    print(breakdown)
+    for col, breakdown in delivery_breakdowns.items():
+        print(f"Delivery breakdown ({col}):")
+        print(breakdown)
 
     run_state, run_utility, default_revenue_requirement = _load_run_fields(
         scenario_config_path=args.scenario_config,
@@ -974,7 +1033,6 @@ def main() -> None:
     if args.group_value_to_subclass:
         gv_map = parse_group_value_to_subclass(args.group_value_to_subclass)
 
-    # Read top-level totals from base RR YAML if provided.
     total_delivery_rr: float | None = None
     total_delivery_and_supply_rr: float | None = None
     if args.base_rr_yaml:
@@ -985,7 +1043,7 @@ def main() -> None:
             base_rr_data["total_delivery_and_supply_revenue_requirement"]
         )
 
-    total_breakdown: pl.DataFrame | None = None
+    total_breakdowns: dict[str, pl.DataFrame] | None = None
     if args.run_dir_supply:
         run_dir_supply: S3Path | Path = (
             S3Path(args.run_dir_supply)
@@ -995,27 +1053,27 @@ def main() -> None:
         storage_options_supply = (
             get_aws_storage_options() if isinstance(run_dir_supply, S3Path) else None
         )
-        total_breakdown = compute_subclass_rr(
+        total_breakdowns = compute_subclass_rr(
             run_dir=run_dir_supply,
             group_col=args.group_col,
-            cross_subsidy_col=args.cross_subsidy_col,
+            cross_subsidy_cols=cross_subsidy_cols,
             annual_month=args.annual_month,
             storage_options=storage_options_supply,
         )
-        LOGGER.info("Run-2 (delivery+supply) breakdown:\n%s", total_breakdown)
+        for col, tb in total_breakdowns.items():
+            LOGGER.info("Run-2 (delivery+supply) breakdown (%s):\n%s", col, tb)
 
     if args.write_revenue_requirement_yamls:
         differentiated_yaml_path, default_yaml_path = _write_revenue_requirement_yamls(
-            delivery_breakdown=breakdown,
+            delivery_breakdowns=delivery_breakdowns,
             run_dir=run_dir,
             group_col=args.group_col,
-            cross_subsidy_col=args.cross_subsidy_col,
             utility=run_utility,
             default_revenue_requirement=default_revenue_requirement,
             differentiated_yaml_path=args.differentiated_yaml_path,
             default_yaml_path=args.default_yaml_path,
             group_value_to_subclass=gv_map,
-            total_breakdown=total_breakdown,
+            total_breakdowns=total_breakdowns,
             total_delivery_rr=total_delivery_rr,
             total_delivery_and_supply_rr=total_delivery_and_supply_rr,
         )

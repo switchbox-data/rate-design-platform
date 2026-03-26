@@ -610,7 +610,7 @@ run-17:
     echo ">> run-17: resolved run-1 output → ${run1_dir}" >&2
     just compute-flat-discount-inputs "${run1_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
-        "BAT_percustomer" "" \
+        "BAT_epmc" "" \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json"
     just create-flat-discount-tariff \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
@@ -626,7 +626,7 @@ run-18:
     echo ">> run-18: resolved run-2 output → ${run2_dir}" >&2
     just compute-flat-discount-inputs "${run2_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
-        "BAT_percustomer" "" \
+        "BAT_epmc" "" \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json"
     just create-flat-discount-tariff \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \

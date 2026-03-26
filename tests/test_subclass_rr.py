@@ -89,6 +89,7 @@ def _write_sample_run_dir(tmp_path: Path) -> Path:
             "bldg_id": [1, 2, 3, 4],
             "BAT_percustomer": [3.0, 20.0, 4.0, 40.0],
             "BAT_vol": [1.0, 2.0, 3.0, 4.0],
+            "BAT_epmc": [2.5, 18.0, 3.5, 36.0],
         }
     ).write_csv(run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv")
 
@@ -163,6 +164,14 @@ def _write_sample_resstock_loads_dir(tmp_path: Path) -> Path:
                 "resistance": (400.0, 4.0, 396.0),
             },
         ),
+        (
+            "has_hp",
+            "BAT_epmc",
+            {
+                "false": (600.0, 54.0, 546.0),
+                "true": (400.0, 6.0, 394.0),
+            },
+        ),
     ],
 )
 def test_compute_subclass_rr_for_multiple_groupings(
@@ -172,9 +181,10 @@ def test_compute_subclass_rr_for_multiple_groupings(
     expected: dict[str, tuple[float, float, float]],
 ) -> None:
     run_dir = _write_sample_run_dir(tmp_path)
-    breakdown = compute_subclass_rr(
-        run_dir, group_col=group_col, cross_subsidy_col=cross_subsidy_col
+    results = compute_subclass_rr(
+        run_dir, group_col=group_col, cross_subsidy_cols=cross_subsidy_col
     )
+    breakdown = results[cross_subsidy_col]
 
     assert breakdown.height == len(expected)
     for subclass, (sum_bills, sum_cross_subsidy, rr) in expected.items():
@@ -182,6 +192,25 @@ def test_compute_subclass_rr_for_multiple_groupings(
         assert row["sum_bills"][0] == pytest.approx(sum_bills)
         assert row["sum_cross_subsidy"][0] == pytest.approx(sum_cross_subsidy)
         assert row["revenue_requirement"][0] == pytest.approx(rr)
+
+
+def test_compute_subclass_rr_multi_allocation(tmp_path: Path) -> None:
+    """Compute both percustomer and EPMC in a single call."""
+    run_dir = _write_sample_run_dir(tmp_path)
+    results = compute_subclass_rr(
+        run_dir, cross_subsidy_cols=("BAT_percustomer", "BAT_epmc")
+    )
+    assert "BAT_percustomer" in results
+    assert "BAT_epmc" in results
+
+    pc = results["BAT_percustomer"]
+    ep = results["BAT_epmc"]
+    assert pc.height == 2
+    assert ep.height == 2
+
+    pc_hp = pc.filter(pl.col("subclass") == "true")
+    ep_hp = ep.filter(pl.col("subclass") == "true")
+    assert pc_hp["revenue_requirement"][0] != ep_hp["revenue_requirement"][0]
 
 
 def test_compute_subclass_rr_missing_annual_rows_raises(tmp_path: Path) -> None:
@@ -200,7 +229,7 @@ def test_compute_subclass_rr_missing_annual_rows_raises(tmp_path: Path) -> None:
     ).write_csv(run_dir / "customer_metadata.csv")
 
     with pytest.raises(ValueError, match="Missing annual target bills"):
-        compute_subclass_rr(run_dir)
+        compute_subclass_rr(run_dir, cross_subsidy_cols="BAT_percustomer")
 
 
 def test_load_run_fields_from_scenario_config(tmp_path: Path) -> None:
@@ -252,7 +281,8 @@ def test_compute_subclass_rr_applies_weights(tmp_path: Path) -> None:
         }
     ).write_csv(run_dir / "customer_metadata.csv")
 
-    breakdown = compute_subclass_rr(run_dir)
+    results = compute_subclass_rr(run_dir, cross_subsidy_cols="BAT_percustomer")
+    breakdown = results["BAT_percustomer"]
     hp = breakdown.filter(pl.col("subclass") == "true")
     nonhp = breakdown.filter(pl.col("subclass") == "false")
     assert hp["sum_bills"][0] == pytest.approx(100.0)
@@ -288,12 +318,12 @@ def _write_sample_run2_dir(tmp_path: Path) -> Path:
         }
     ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
 
-    # Same BAT values — the cross-subsidy allocation is independent
     pl.DataFrame(
         {
             "bldg_id": [1, 2, 3, 4],
             "BAT_percustomer": [3.0, 20.0, 4.0, 40.0],
             "BAT_vol": [1.0, 2.0, 3.0, 4.0],
+            "BAT_epmc": [2.5, 18.0, 3.5, 36.0],
         }
     ).write_csv(run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv")
 
@@ -312,24 +342,27 @@ def test_write_revenue_requirement_yamls_two_runs(tmp_path: Path) -> None:
     """Verify the nested YAML: delivery from run 1, total from run 2, supply = diff."""
     run1_dir = _write_sample_run_dir(tmp_path)
     run2_dir = _write_sample_run2_dir(tmp_path)
-    delivery_breakdown = compute_subclass_rr(run1_dir)
-    total_breakdown = compute_subclass_rr(run2_dir)
+    delivery_breakdowns = compute_subclass_rr(
+        run1_dir, cross_subsidy_cols="BAT_percustomer"
+    )
+    total_breakdowns = compute_subclass_rr(
+        run2_dir, cross_subsidy_cols="BAT_percustomer"
+    )
     differentiated_yaml = tmp_path / "config/rev_requirement/rie_hp_vs_nonhp.yaml"
     default_yaml = tmp_path / "config/rev_requirement/rie.yaml"
 
     gv_map = {"true": "hp", "false": "non-hp"}
 
     out_diff, out_default = _write_revenue_requirement_yamls(
-        delivery_breakdown,
+        delivery_breakdowns,
         run_dir=run1_dir,
         group_col="has_hp",
-        cross_subsidy_col="BAT_percustomer",
         utility="rie",
         default_revenue_requirement=241869601.0,
         differentiated_yaml_path=differentiated_yaml,
         default_yaml_path=default_yaml,
         group_value_to_subclass=gv_map,
-        total_breakdown=total_breakdown,
+        total_breakdowns=total_breakdowns,
         total_delivery_rr=933.0,
         total_delivery_and_supply_rr=1133.0,
     )
@@ -347,30 +380,36 @@ def test_write_revenue_requirement_yamls_two_runs(tmp_path: Path) -> None:
     )
 
     sr = diff_data["subclass_revenue_requirements"]
-    assert "hp" in sr
-    assert "non-hp" in sr
+    assert "percustomer" in sr
+    pc = sr["percustomer"]
 
     # Run 1 delivery: hp=400-7=393, non-hp=600-60=540
     # Run 2 total: hp=500-7=493, non-hp=700-60=640 (each bldg +50, same BAT)
     # Supply = total - delivery
-    assert sr["hp"]["delivery"] == pytest.approx(393.0)
-    assert sr["hp"]["total"] == pytest.approx(493.0)
-    assert sr["hp"]["supply"] == pytest.approx(100.0)
-    assert sr["non-hp"]["delivery"] == pytest.approx(540.0)
-    assert sr["non-hp"]["total"] == pytest.approx(640.0)
-    assert sr["non-hp"]["supply"] == pytest.approx(100.0)
+    assert pc["hp"]["delivery"] == pytest.approx(393.0)
+    assert pc["hp"]["total"] == pytest.approx(493.0)
+    assert pc["hp"]["supply"] == pytest.approx(100.0)
+    assert pc["non-hp"]["delivery"] == pytest.approx(540.0)
+    assert pc["non-hp"]["total"] == pytest.approx(640.0)
+    assert pc["non-hp"]["supply"] == pytest.approx(100.0)
 
 
 def test_write_revenue_requirement_yamls_round_trip(tmp_path: Path) -> None:
     """Delivery sums match total_delivery_rr, total == delivery + supply per subclass."""
     run1_dir = _write_sample_run_dir(tmp_path)
     run2_dir = _write_sample_run2_dir(tmp_path)
-    delivery_breakdown = compute_subclass_rr(run1_dir)
-    total_breakdown = compute_subclass_rr(run2_dir)
+    delivery_breakdowns = compute_subclass_rr(
+        run1_dir, cross_subsidy_cols="BAT_percustomer"
+    )
+    total_breakdowns = compute_subclass_rr(
+        run2_dir, cross_subsidy_cols="BAT_percustomer"
+    )
     differentiated_yaml = tmp_path / "config/rev_requirement/test_hp_vs_nonhp.yaml"
     default_yaml = tmp_path / "config/rev_requirement/test.yaml"
 
     gv_map = {"true": "hp", "false": "non-hp"}
+    delivery_breakdown = delivery_breakdowns["BAT_percustomer"]
+    total_breakdown = total_breakdowns["BAT_percustomer"]
     delivery_total = sum(
         float(row["revenue_requirement"]) for row in delivery_breakdown.to_dicts()
     )
@@ -379,16 +418,15 @@ def test_write_revenue_requirement_yamls_round_trip(tmp_path: Path) -> None:
     )
 
     _write_revenue_requirement_yamls(
-        delivery_breakdown,
+        delivery_breakdowns,
         run_dir=run1_dir,
         group_col="has_hp",
-        cross_subsidy_col="BAT_percustomer",
         utility="test",
         default_revenue_requirement=0.0,
         differentiated_yaml_path=differentiated_yaml,
         default_yaml_path=default_yaml,
         group_value_to_subclass=gv_map,
-        total_breakdown=total_breakdown,
+        total_breakdowns=total_breakdowns,
         total_delivery_rr=delivery_total,
         total_delivery_and_supply_rr=total_total,
     )
@@ -396,18 +434,21 @@ def test_write_revenue_requirement_yamls_round_trip(tmp_path: Path) -> None:
     data = yaml.safe_load(differentiated_yaml.read_text(encoding="utf-8"))
     sr = data["subclass_revenue_requirements"]
 
-    sum_delivery = sum(v["delivery"] for v in sr.values())
-    sum_total = sum(v["total"] for v in sr.values())
+    for method_key, method_block in sr.items():
+        sum_delivery = sum(v["delivery"] for v in method_block.values())
+        sum_total = sum(v["total"] for v in method_block.values())
 
-    assert sum_delivery == pytest.approx(data["total_delivery_revenue_requirement"])
-    assert sum_total == pytest.approx(
-        data["total_delivery_and_supply_revenue_requirement"]
-    )
+        assert sum_delivery == pytest.approx(
+            data["total_delivery_revenue_requirement"]
+        ), f"Method {method_key}: delivery sum mismatch"
+        assert sum_total == pytest.approx(
+            data["total_delivery_and_supply_revenue_requirement"]
+        ), f"Method {method_key}: total sum mismatch"
 
-    for alias, vals in sr.items():
-        assert vals["total"] == pytest.approx(vals["delivery"] + vals["supply"]), (
-            f"Subclass {alias}: total != delivery + supply"
-        )
+        for alias, vals in method_block.items():
+            assert vals["total"] == pytest.approx(vals["delivery"] + vals["supply"]), (
+                f"Method {method_key}, subclass {alias}: total != delivery + supply"
+            )
 
 
 def test_parse_group_value_to_subclass() -> None:
@@ -1079,4 +1120,148 @@ def test_compute_hp_flat_discount_inputs_raises_when_negative_rate(
             state=_LOADS_STATE,
             upgrade=_LOADS_UPGRADE,
             base_tariff_json_path=tariff_path,
+        )
+
+
+# =============================================================================
+# Config parsing tests for nested YAML + residual_allocation
+# =============================================================================
+
+
+def test_parse_nested_yaml_percustomer(tmp_path: Path) -> None:
+    """Nested YAML with residual_allocation=percustomer returns correct values."""
+    from utils.scenario_config import _parse_utility_revenue_requirement
+
+    rr_yaml = tmp_path / "rr.yaml"
+    tariff_dir = tmp_path / "tariffs"
+    tariff_dir.mkdir()
+    (tariff_dir / "rie_hp.json").write_text("{}")
+    (tariff_dir / "rie_nonhp.json").write_text("{}")
+
+    rr_yaml.write_text(
+        yaml.safe_dump(
+            {
+                "total_delivery_revenue_requirement": 1000.0,
+                "subclass_revenue_requirements": {
+                    "percustomer": {
+                        "hp": {"delivery": 100.0, "supply": 50.0, "total": 150.0},
+                        "non-hp": {"delivery": 900.0, "supply": 450.0, "total": 1350.0},
+                    },
+                    "epmc": {
+                        "hp": {"delivery": 120.0, "supply": 60.0, "total": 180.0},
+                        "non-hp": {"delivery": 880.0, "supply": 440.0, "total": 1320.0},
+                    },
+                },
+            }
+        )
+    )
+
+    raw_tariffs = {"hp": "tariffs/rie_hp.json", "non-hp": "tariffs/rie_nonhp.json"}
+    config = _parse_utility_revenue_requirement(
+        str(rr_yaml),
+        tmp_path,
+        raw_tariffs,
+        add_supply=False,
+        run_includes_subclasses=True,
+        residual_allocation="percustomer",
+    )
+    assert config.subclass_rr is not None
+    assert config.subclass_rr["rie_hp"] == pytest.approx(100.0)
+    assert config.subclass_rr["rie_nonhp"] == pytest.approx(900.0)
+    assert config.residual_allocation == "percustomer"
+
+
+def test_parse_nested_yaml_epmc(tmp_path: Path) -> None:
+    """Nested YAML with residual_allocation=epmc returns EPMC values."""
+    from utils.scenario_config import _parse_utility_revenue_requirement
+
+    rr_yaml = tmp_path / "rr.yaml"
+    tariff_dir = tmp_path / "tariffs"
+    tariff_dir.mkdir()
+    (tariff_dir / "rie_hp.json").write_text("{}")
+    (tariff_dir / "rie_nonhp.json").write_text("{}")
+
+    rr_yaml.write_text(
+        yaml.safe_dump(
+            {
+                "total_delivery_revenue_requirement": 1000.0,
+                "subclass_revenue_requirements": {
+                    "percustomer": {
+                        "hp": {"delivery": 100.0, "supply": 50.0, "total": 150.0},
+                        "non-hp": {"delivery": 900.0, "supply": 450.0, "total": 1350.0},
+                    },
+                    "epmc": {
+                        "hp": {"delivery": 120.0, "supply": 60.0, "total": 180.0},
+                        "non-hp": {"delivery": 880.0, "supply": 440.0, "total": 1320.0},
+                    },
+                },
+            }
+        )
+    )
+
+    raw_tariffs = {"hp": "tariffs/rie_hp.json", "non-hp": "tariffs/rie_nonhp.json"}
+    config = _parse_utility_revenue_requirement(
+        str(rr_yaml),
+        tmp_path,
+        raw_tariffs,
+        add_supply=False,
+        run_includes_subclasses=True,
+        residual_allocation="epmc",
+    )
+    assert config.subclass_rr is not None
+    assert config.subclass_rr["rie_hp"] == pytest.approx(120.0)
+    assert config.subclass_rr["rie_nonhp"] == pytest.approx(880.0)
+
+
+def test_parse_nested_yaml_unknown_allocation_raises(tmp_path: Path) -> None:
+    """Unknown residual_allocation raises ValueError listing available methods."""
+    from utils.scenario_config import _parse_utility_revenue_requirement
+
+    rr_yaml = tmp_path / "rr.yaml"
+    tariff_dir = tmp_path / "tariffs"
+    tariff_dir.mkdir()
+    (tariff_dir / "rie_hp.json").write_text("{}")
+    (tariff_dir / "rie_nonhp.json").write_text("{}")
+
+    rr_yaml.write_text(
+        yaml.safe_dump(
+            {
+                "total_delivery_revenue_requirement": 1000.0,
+                "subclass_revenue_requirements": {
+                    "percustomer": {
+                        "hp": {"delivery": 100.0, "supply": 50.0, "total": 150.0},
+                        "non-hp": {"delivery": 900.0, "supply": 450.0, "total": 1350.0},
+                    },
+                },
+            }
+        )
+    )
+
+    raw_tariffs = {"hp": "tariffs/rie_hp.json", "non-hp": "tariffs/rie_nonhp.json"}
+    with pytest.raises(ValueError, match="residual_allocation='epcm'.*Available"):
+        _parse_utility_revenue_requirement(
+            str(rr_yaml),
+            tmp_path,
+            raw_tariffs,
+            add_supply=False,
+            run_includes_subclasses=True,
+            residual_allocation="epcm",
+        )
+
+
+def test_parse_missing_residual_allocation_raises(tmp_path: Path) -> None:
+    """Missing residual_allocation for subclass run raises ValueError."""
+    from utils.scenario_config import _parse_utility_revenue_requirement
+
+    rr_yaml = tmp_path / "rr.yaml"
+    rr_yaml.write_text(yaml.safe_dump({"total_delivery_revenue_requirement": 1000.0}))
+
+    with pytest.raises(ValueError, match="residual_allocation is not set"):
+        _parse_utility_revenue_requirement(
+            str(rr_yaml),
+            tmp_path,
+            {},
+            add_supply=False,
+            run_includes_subclasses=True,
+            residual_allocation=None,
         )

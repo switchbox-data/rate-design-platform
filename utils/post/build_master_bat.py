@@ -28,17 +28,17 @@ Output schema (1 row per building):
     postprocess_group.has_hp, postprocess_group.heating_type,
     heats_with_electricity, heats_with_natgas, heats_with_oil,
     heats_with_propane, weight,
-    BAT_vol_delivery, BAT_vol_supply, BAT_vol_total,
-    BAT_peak_delivery, BAT_peak_supply, BAT_peak_total,
-    BAT_percustomer_delivery, BAT_percustomer_supply, BAT_percustomer_total,
-    annual_bill_delivery, annual_bill_supply, annual_bill_total,
-    economic_burden_delivery, economic_burden_supply, economic_burden_total,
-    residual_share_delivery, residual_share_supply, residual_share_total
+    BAT_{m}_{delivery,supply,total} for each BAT metric present in CAIRO output,
+    {component}_{delivery,supply,total} for each cost component present.
 
-Identities (per metric m in {vol, peak, percustomer}):
+Known BAT metrics: BAT_vol, BAT_peak, BAT_percustomer, BAT_epmc.
+Known cost components: annual_bill, economic_burden, residual_share, residual_share_epmc.
+Metrics not present in the CAIRO CSV are logged and omitted from the output.
+
+Identities (per metric m in whichever metrics are present):
     BAT_m_total = BAT_m_delivery + BAT_m_supply
 
-Identities (per component c in {annual_bill, economic_burden, residual_share}):
+Identities (per component c):
     c_total = c_delivery + c_supply
     annual_bill_total ≈ economic_burden_total + residual_share_total + BAT_percustomer_total
 """
@@ -62,16 +62,17 @@ UPGRADE_00_RUNS = {1, 2, 5, 6, 9, 10, 17, 18}
 UPGRADE_02_RUNS = {3, 4, 7, 8, 11, 12, 19, 20}
 VALID_RUN_PAIRS = {(r, r + 1) for r in (1, 3, 5, 7, 9, 11, 17, 19)}
 
-BAT_METRICS = ["BAT_vol", "BAT_peak", "BAT_percustomer"]
+BAT_METRICS_KNOWN = ["BAT_vol", "BAT_peak", "BAT_percustomer", "BAT_epmc"]
 
 # CAIRO source columns → short output names for the cost-allocation components.
-# These follow the same delivery/supply/total decomposition as BAT_METRICS.
-COST_COMPONENTS_SRC = {
+# These follow the same delivery/supply/total decomposition as BAT metrics.
+# At runtime, we filter to whichever columns are actually present in the CSV.
+COST_COMPONENTS_SRC_KNOWN = {
     "Annual": "annual_bill",
     "customer_level_economic_burden": "economic_burden",
     "customer_level_residual_share_percustomer": "residual_share",
+    "customer_level_residual_share_epmc": "residual_share_epmc",
 }
-COST_COMPONENTS = list(COST_COMPONENTS_SRC.values())
 
 META_COLS = [
     BLDG_ID,
@@ -86,7 +87,7 @@ META_COLS = [
     "heats_with_propane",
 ]
 
-OUTPUT_COLS = [
+META_OUTPUT_COLS = [
     BLDG_ID,
     "sb.electric_utility",
     "sb.gas_utility",
@@ -98,25 +99,18 @@ OUTPUT_COLS = [
     "heats_with_oil",
     "heats_with_propane",
     "weight",
-    "BAT_vol_delivery",
-    "BAT_vol_supply",
-    "BAT_vol_total",
-    "BAT_peak_delivery",
-    "BAT_peak_supply",
-    "BAT_peak_total",
-    "BAT_percustomer_delivery",
-    "BAT_percustomer_supply",
-    "BAT_percustomer_total",
-    "annual_bill_delivery",
-    "annual_bill_supply",
-    "annual_bill_total",
-    "economic_burden_delivery",
-    "economic_burden_supply",
-    "economic_burden_total",
-    "residual_share_delivery",
-    "residual_share_supply",
-    "residual_share_total",
 ]
+
+
+def _build_output_cols(bat_metrics: list[str], cost_components: list[str]) -> list[str]:
+    """Build the output column list from detected metrics and cost components."""
+    cols = list(META_OUTPUT_COLS)
+    for m in bat_metrics:
+        cols.extend(f"{m}_{c}" for c in ("delivery", "supply", "total"))
+    for c in cost_components:
+        cols.extend(f"{c}_{s}" for s in ("delivery", "supply", "total"))
+    return cols
+
 
 FLOAT_TOL = 1e-4
 
@@ -390,30 +384,49 @@ def _process_utility(
             f"{n_weight_diff} rows, max diff={weight_diff.max()}"
         )
 
-    # --- Validate no nulls in source BAT columns ---
-    _assert_no_nulls(bat_delivery_df, BAT_METRICS, utility)
-    _assert_no_nulls(bat_supply_df, BAT_METRICS, utility)
+    # --- Detect available BAT metrics and cost components ---
+    delivery_cols = set(bat_delivery_df.columns)
+    bat_metrics = [m for m in BAT_METRICS_KNOWN if m in delivery_cols]
+    missing_bat = set(BAT_METRICS_KNOWN) - set(bat_metrics)
+    if missing_bat:
+        _log(
+            f"  [{utility}] BAT metrics not in CAIRO output (skipping): "
+            f"{sorted(missing_bat)}"
+        )
 
-    # --- Validate no nulls in cost-component source columns ---
-    _assert_no_nulls(bat_delivery_df, list(COST_COMPONENTS_SRC.keys()), utility)
-    _assert_no_nulls(bat_supply_df, list(COST_COMPONENTS_SRC.keys()), utility)
+    cost_components_src = {
+        k: v for k, v in COST_COMPONENTS_SRC_KNOWN.items() if k in delivery_cols
+    }
+    missing_cost = set(COST_COMPONENTS_SRC_KNOWN) - set(cost_components_src)
+    if missing_cost:
+        _log(
+            f"  [{utility}] Cost components not in CAIRO output (skipping): "
+            f"{sorted(missing_cost)}"
+        )
+    cost_components = list(cost_components_src.values())
+
+    # --- Validate no nulls in source columns ---
+    _assert_no_nulls(bat_delivery_df, bat_metrics, utility)
+    _assert_no_nulls(bat_supply_df, bat_metrics, utility)
+    _assert_no_nulls(bat_delivery_df, list(cost_components_src.keys()), utility)
+    _assert_no_nulls(bat_supply_df, list(cost_components_src.keys()), utility)
 
     # --- Join delivery and supply, compute decomposition ---
     t = _log("  Computing BAT decomposition (delivery / supply / total)...")
     delivery_select = (
         [BLDG_ID, "weight"]
-        + [pl.col(m).alias(f"{m}_delivery") for m in BAT_METRICS]
+        + [pl.col(m).alias(f"{m}_delivery") for m in bat_metrics]
         + [
             pl.col(src).alias(f"{short}_delivery")
-            for src, short in COST_COMPONENTS_SRC.items()
+            for src, short in cost_components_src.items()
         ]
     )
     supply_select = (
         [BLDG_ID]
-        + [pl.col(m).alias(f"{m}_total") for m in BAT_METRICS]
+        + [pl.col(m).alias(f"{m}_total") for m in bat_metrics]
         + [
             pl.col(src).alias(f"{short}_total")
-            for src, short in COST_COMPONENTS_SRC.items()
+            for src, short in cost_components_src.items()
         ]
     )
     bat = (
@@ -426,11 +439,11 @@ def _process_utility(
         .with_columns(
             [
                 (pl.col(f"{m}_total") - pl.col(f"{m}_delivery")).alias(f"{m}_supply")
-                for m in BAT_METRICS
+                for m in bat_metrics
             ]
             + [
                 (pl.col(f"{c}_total") - pl.col(f"{c}_delivery")).alias(f"{c}_supply")
-                for c in COST_COMPONENTS
+                for c in cost_components
             ]
         )
     )
@@ -438,6 +451,7 @@ def _process_utility(
 
     # --- Join with metadata ---
     t = _log("  Joining with metadata...")
+    output_cols = _build_output_cols(bat_metrics, cost_components)
     joined = (
         bat.join(
             metadata_for_utility.select(META_COLS),
@@ -445,7 +459,7 @@ def _process_utility(
             how="inner",
         )
         .with_columns(pl.lit(int(upgrade)).alias("upgrade"))
-        .select(OUTPUT_COLS)
+        .select(output_cols)
     )
     _log_done("  Joining with metadata", t, f"{joined.height} rows")
 
@@ -455,20 +469,20 @@ def _process_utility(
         )
 
     # --- Validate identities and nulls ---
-    for m in BAT_METRICS:
+    for m in bat_metrics:
         _assert_bat_identity(joined, m, FLOAT_TOL, utility)
-    for c in COST_COMPONENTS:
+    for c in cost_components:
         _assert_bat_identity(joined, c, FLOAT_TOL, utility)
     _assert_bill_decomposition(joined, FLOAT_TOL, utility)
 
     bat_output_cols = [
         f"{m}_{component}"
-        for m in BAT_METRICS
+        for m in bat_metrics
         for component in ("delivery", "supply", "total")
     ]
     cost_output_cols = [
         f"{c}_{component}"
-        for c in COST_COMPONENTS
+        for c in cost_components
         for component in ("delivery", "supply", "total")
     ]
     _assert_no_nulls(joined, ["weight"] + bat_output_cols + cost_output_cols, utility)
@@ -618,9 +632,14 @@ def main() -> None:
                 f"Utility {u}: expected {expected} buildings, got {actual}"
             )
 
-    for m in BAT_METRICS:
+    master_cols = set(master.columns)
+    final_bat_metrics = [m for m in BAT_METRICS_KNOWN if f"{m}_delivery" in master_cols]
+    final_cost_components = [
+        v for v in COST_COMPONENTS_SRC_KNOWN.values() if f"{v}_delivery" in master_cols
+    ]
+    for m in final_bat_metrics:
         _assert_bat_identity(master, m, FLOAT_TOL, "ALL")
-    for c in COST_COMPONENTS:
+    for c in final_cost_components:
         _assert_bat_identity(master, c, FLOAT_TOL, "ALL")
     _assert_bill_decomposition(master, FLOAT_TOL, "ALL")
     _log_done("Validation", t)
