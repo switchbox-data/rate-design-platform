@@ -293,11 +293,13 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         supply_raw = require_non_empty("add_supply_revenue_requirement")
     run["run_includes_supply"] = _parse_bool(supply_raw)
 
-    # Derive run_includes_subclasses from path_tariffs_electric keys
-    tariffs_dict = run.get("path_tariffs_electric")
-    run["run_includes_subclasses"] = (
-        isinstance(tariffs_dict, dict) and len(tariffs_dict) > 1
+    run["run_includes_subclasses"] = _parse_bool(
+        require_non_empty("run_includes_subclasses")
     )
+
+    residual_allocation = get_optional("residual_allocation")
+    if residual_allocation:
+        run["residual_allocation"] = residual_allocation
 
     run["path_electric_utility_stats"] = get("path_electric_utility_stats")
 

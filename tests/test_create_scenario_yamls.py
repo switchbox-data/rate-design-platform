@@ -21,6 +21,7 @@ def _base_row() -> dict[str, str]:
         "path_tariffs_electric": "hp: tariffs/electric/rie_hp_seasonalTOU_supply.json, non-hp: tariffs/electric/rie_flat_supply.json",
         "utility_revenue_requirement": "rev_requirement/rie_hp_vs_nonhp.yaml",
         "add_supply_revenue_requirement": "FALSE",
+        "run_includes_subclasses": "TRUE",
         "path_electric_utility_stats": "s3://example/eia861.parquet",
         "solar_pv_compensation": "net_metering",
         "year_run": "2025",
@@ -41,17 +42,34 @@ def test_row_to_run_uses_run_includes_supply() -> None:
     assert "add_supply_revenue_requirement" not in run
 
 
-def test_row_to_run_derives_run_includes_subclasses() -> None:
-    """run_includes_subclasses is derived from path_tariffs_electric keys."""
+def test_row_to_run_reads_run_includes_subclasses_from_sheet() -> None:
+    """run_includes_subclasses is read from the sheet column, not derived."""
     row = _base_row()
     headers = list(row.keys())
     run = _row_to_run(row, headers)
     assert run["run_includes_subclasses"] is True
 
-    row_single = _base_row()
-    row_single["path_tariffs_electric"] = "all: tariffs/electric/rie_flat.json"
-    run_single = _row_to_run(row_single, list(row_single.keys()))
-    assert run_single["run_includes_subclasses"] is False
+    row_false = _base_row()
+    row_false["run_includes_subclasses"] = "FALSE"
+    run_false = _row_to_run(row_false, list(row_false.keys()))
+    assert run_false["run_includes_subclasses"] is False
+
+
+def test_row_to_run_reads_residual_allocation() -> None:
+    """residual_allocation is included when non-blank, omitted when blank."""
+    row = _base_row()
+    row["residual_allocation"] = "percustomer"
+    run = _row_to_run(row, list(row.keys()))
+    assert run["residual_allocation"] == "percustomer"
+
+    row_blank = _base_row()
+    row_blank["residual_allocation"] = ""
+    run_blank = _row_to_run(row_blank, list(row_blank.keys()))
+    assert "residual_allocation" not in run_blank
+
+    row_absent = _base_row()
+    run_absent = _row_to_run(row_absent, list(row_absent.keys()))
+    assert "residual_allocation" not in run_absent
 
 
 def test_row_to_run_includes_path_tou_supply_mc_when_populated() -> None:
