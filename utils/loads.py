@@ -7,6 +7,7 @@ specific building IDs for alignment with CAIRO sample runs.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import cast
 
 import pandas as pd
@@ -28,6 +29,35 @@ BLDG_ID_COL = "bldg_id"
 
 # Timezone used for hourly load index; must match marginal cost data (see utils/cairo.py).
 HOURLY_LOAD_TZ = "EST"
+
+
+def resstock_load_curve_hourly_partition_dir(
+    resstock_base: str | Path,
+    *,
+    state: str,
+    upgrade: str,
+) -> str:
+    """Hive-style directory containing hourly load parquet files for one partition.
+
+    Layout matches Switchbox ResStock on S3 and local mirrors (see AGENTS.md):
+
+    ``{resstock_base}/load_curve_hourly/state={STATE}/upgrade={UP}/``
+    """
+    base = str(resstock_base).rstrip("/")
+    st = state.strip().upper()
+    up = upgrade.strip().zfill(2)
+    return f"{base}/load_curve_hourly/state={st}/upgrade={up}"
+
+
+def resstock_utility_assignment_parquet_path(
+    resstock_base: str | Path,
+    *,
+    state: str,
+) -> str:
+    """Path to ``utility_assignment.parquet`` for one state under metadata_utility."""
+    base = str(resstock_base).rstrip("/")
+    st = state.strip().upper()
+    return f"{base}/metadata_utility/state={st}/utility_assignment.parquet"
 
 
 def grid_consumption_expr(
