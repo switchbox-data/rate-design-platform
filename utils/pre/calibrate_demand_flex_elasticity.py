@@ -28,7 +28,6 @@ import json
 import logging
 import math
 import subprocess
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
@@ -204,8 +203,7 @@ def arcturus_peak_reduction_with_tech(price_ratio: float) -> float:
     if price_ratio <= 1.0:
         return 0.0
     return abs(
-        ARCTURUS_WITH_TECH_INTERCEPT
-        + ARCTURUS_WITH_TECH_SLOPE * math.log(price_ratio)
+        ARCTURUS_WITH_TECH_INTERCEPT + ARCTURUS_WITH_TECH_SLOPE * math.log(price_ratio)
     )
 
 
@@ -467,16 +465,14 @@ def diagnose_season(
         mc_peak_overlap = int((mc_in_peak["mc_kwh"].abs() > 1e-9).sum())
 
         hourly_shift = season_df.copy()
-        shift_map = targets.set_index(["bldg_id", "energy_period"])["load_shift"]
         hourly_shift = hourly_shift.merge(
             targets[["bldg_id", "energy_period", "load_shift", "Q_orig"]],
             on=["bldg_id", "energy_period"],
             how="left",
         )
-        period_sums = (
-            hourly_shift.groupby(["bldg_id", "energy_period"])["electricity_net"]
-            .transform("sum")
-        )
+        period_sums = hourly_shift.groupby(["bldg_id", "energy_period"])[
+            "electricity_net"
+        ].transform("sum")
         hour_share = np.where(
             period_sums != 0,
             hourly_shift["electricity_net"] / period_sums,
@@ -485,7 +481,9 @@ def diagnose_season(
         hourly_shift["hourly_shift_kwh"] = hourly_shift["load_shift"] * hour_share
 
         weights_series = hourly_shift["bldg_id"].map(hp_weights).fillna(1.0)
-        hourly_shift["weighted_shift"] = hourly_shift["hourly_shift_kwh"] * weights_series
+        hourly_shift["weighted_shift"] = (
+            hourly_shift["hourly_shift_kwh"] * weights_series
+        )
 
         system_hourly = (
             hourly_shift.groupby("time")["weighted_shift"].sum().reset_index()
@@ -602,8 +600,7 @@ def diagnose_utility(
             ) / total_kwh
         else:
             result.annual_weighted_ratio = (
-                winter_specs[0].peak_offpeak_ratio
-                + summer_specs[0].peak_offpeak_ratio
+                winter_specs[0].peak_offpeak_ratio + summer_specs[0].peak_offpeak_ratio
             ) / 2
     elif ctx.season_specs:
         result.annual_weighted_ratio = ctx.season_specs[0].peak_offpeak_ratio
@@ -678,9 +675,7 @@ def diagnose_utility(
                 season=sn,
                 recommended_elasticity=best_wt_eps,
                 arcturus_target_pct=season_arcturus_wt,
-                peak_reduction_pct=best_wt_sr.peak_reduction_pct
-                if best_wt_sr
-                else 0.0,
+                peak_reduction_pct=best_wt_sr.peak_reduction_pct if best_wt_sr else 0.0,
                 price_ratio=season_ratio,
                 savings_per_hp=best_wt_sr.rate_arbitrage_savings_per_hp
                 if best_wt_sr
@@ -728,9 +723,7 @@ def results_to_dataframe(results: list[UtilityResult]) -> pl.DataFrame:
                     "elasticity": sr.elasticity,
                     "price_ratio": round(sr.price_ratio, 4),
                     "base_rate_kwh": round(sr.base_rate, 6),
-                    "peak_rate_kwh": round(
-                        sr.base_rate * sr.price_ratio, 6
-                    ),
+                    "peak_rate_kwh": round(sr.base_rate * sr.price_ratio, 6),
                     "n_peak_hours_per_day": sr.n_peak_hours_per_day,
                     "hp_bldg_count": sr.hp_bldg_count,
                     "hp_weighted_share_pct": round(sr.hp_weighted_share, 2),
@@ -738,9 +731,7 @@ def results_to_dataframe(results: list[UtilityResult]) -> pl.DataFrame:
                     "hp_peak_kwh_shifted": round(sr.hp_peak_kwh_shifted, 1),
                     "peak_reduction_pct": round(sr.peak_reduction_pct, 3),
                     "kwh_shifted": round(sr.kwh_shifted, 1),
-                    "system_peak_reduction_pct": round(
-                        sr.system_peak_reduction_pct, 4
-                    ),
+                    "system_peak_reduction_pct": round(sr.system_peak_reduction_pct, 4),
                     "p_flat": round(sr.p_flat, 6),
                     "arcturus_peak_reduction_pct": round(
                         sr.arcturus_peak_reduction_pct, 3
@@ -749,9 +740,7 @@ def results_to_dataframe(results: list[UtilityResult]) -> pl.DataFrame:
                     "rate_arbitrage_savings_per_hp": round(
                         sr.rate_arbitrage_savings_per_hp, 2
                     ),
-                    "delivery_mc_savings_total": round(
-                        sr.delivery_mc_savings_total, 2
-                    ),
+                    "delivery_mc_savings_total": round(sr.delivery_mc_savings_total, 2),
                     "delivery_mc_savings_per_hp": round(
                         sr.delivery_mc_savings_per_hp, 2
                     ),
@@ -791,7 +780,9 @@ def _seasonal_rec_field(
 ) -> float:
     """Look up a seasonal recommendation field for the output DataFrame."""
     recs = (
-        ur.seasonal_recommendations_with_tech if with_tech else ur.seasonal_recommendations
+        ur.seasonal_recommendations_with_tech
+        if with_tech
+        else ur.seasonal_recommendations
     )
     for rec in recs:
         if rec.season == season:
@@ -833,9 +824,7 @@ def _read_annual_bills(csv_path: str) -> pl.DataFrame | None:
     try:
         return cast(
             pl.DataFrame,
-            pl.scan_csv(csv_path)
-            .filter(pl.col("month") == "Annual")
-            .collect(),
+            pl.scan_csv(csv_path).filter(pl.col("month") == "Annual").collect(),
         )
     except Exception as e:
         log.warning("  Failed to read %s: %s", csv_path, e)
@@ -897,32 +886,26 @@ def compare_batch_bills(
                 dirname = parts[-1].rstrip("/")
                 run_dirs[dirname] = f"{batch_prefix}{dirname}"
 
-        hp_bldg_ids = (
-            hp_meta.filter(pl.col("sb.electric_utility") == utility)["bldg_id"]
-            .to_list()
-        )
+        hp_bldg_ids = hp_meta.filter(pl.col("sb.electric_utility") == utility)[
+            "bldg_id"
+        ].to_list()
 
         pairs: list[PairResult] = []
         for label, base_frag, flex_frag, desc in COMPARISON_PAIRS:
-            base_dir = next(
-                (v for k, v in run_dirs.items() if base_frag in k), None
-            )
-            flex_dir = next(
-                (v for k, v in run_dirs.items() if flex_frag in k), None
-            )
+            base_dir = next((v for k, v in run_dirs.items() if base_frag in k), None)
+            flex_dir = next((v for k, v in run_dirs.items() if flex_frag in k), None)
             if not base_dir or not flex_dir:
                 log.warning(
                     "  %s: %s or %s not found, skipping %s",
-                    utility, base_frag, flex_frag, label,
+                    utility,
+                    base_frag,
+                    flex_frag,
+                    label,
                 )
                 continue
 
-            base_df = _read_annual_bills(
-                f"{base_dir}/bills/elec_bills_year_run.csv"
-            )
-            flex_df = _read_annual_bills(
-                f"{flex_dir}/bills/elec_bills_year_run.csv"
-            )
+            base_df = _read_annual_bills(f"{base_dir}/bills/elec_bills_year_run.csv")
+            flex_df = _read_annual_bills(f"{flex_dir}/bills/elec_bills_year_run.csv")
             if base_df is None or flex_df is None:
                 continue
 
@@ -940,9 +923,7 @@ def compare_batch_bills(
                     how="inner",
                 )
                 .with_columns(
-                    (pl.col("bill_baseline") - pl.col("bill_flex")).alias(
-                        "savings"
-                    ),
+                    (pl.col("bill_baseline") - pl.col("bill_flex")).alias("savings"),
                 )
             )
 
@@ -1081,7 +1062,9 @@ def print_summary(results: list[UtilityResult], *, verbose: bool = False) -> Non
 
     # ── Seasonal recommendation table ─────────────────────────────────────
     _print_seasonal_table(
-        "RECOMMENDED ELASTICITIES — no enabling technology (seasonal)", results, "no_tech"
+        "RECOMMENDED ELASTICITIES — no enabling technology (seasonal)",
+        results,
+        "no_tech",
     )
     _print_seasonal_table(
         "RECOMMENDED ELASTICITIES — with enabling technology (seasonal)",
@@ -1100,10 +1083,7 @@ def print_summary(results: list[UtilityResult], *, verbose: bool = False) -> Non
         for eps in all_eps:
             header += f"  {eps:>7.2f}"
         print(header)
-        print(
-            f"  {'─' * 8}  {'─' * 14}"
-            + "".join(f"  {'─' * 7}" for _ in all_eps)
-        )
+        print(f"  {'─' * 8}  {'─' * 14}" + "".join(f"  {'─' * 7}" for _ in all_eps))
         for ur in results:
             if not ur.rr_decrease_by_elasticity:
                 continue
@@ -1185,15 +1165,21 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--state", required=True, choices=list(STATE_CONFIGS.keys()))
     p.add_argument(
-        "--epsilon-start", type=float, default=-0.04,
+        "--epsilon-start",
+        type=float,
+        default=-0.04,
         help="Start of elasticity sweep range (default: -0.04)",
     )
     p.add_argument(
-        "--epsilon-end", type=float, default=-0.50,
+        "--epsilon-end",
+        type=float,
+        default=-0.50,
         help="End of elasticity sweep range, inclusive (default: -0.50)",
     )
     p.add_argument(
-        "--epsilon-step", type=float, default=-0.02,
+        "--epsilon-step",
+        type=float,
+        default=-0.02,
         help="Step size for elasticity sweep (default: -0.02)",
     )
     p.add_argument("--output-dir", type=Path, default=None)
@@ -1242,10 +1228,10 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     cfg = STATE_CONFIGS[args.state]
-    elasticities = _build_epsilon_range(args.epsilon_start, args.epsilon_end, args.epsilon_step)
-    utilities = (
-        tuple(args.utilities.split(",")) if args.utilities else cfg["utilities"]
+    elasticities = _build_epsilon_range(
+        args.epsilon_start, args.epsilon_end, args.epsilon_step
     )
+    utilities = tuple(args.utilities.split(",")) if args.utilities else cfg["utilities"]
     storage_options = get_aws_storage_options()
 
     project_root = Path(__file__).resolve().parents[2]
@@ -1276,7 +1262,9 @@ def main(argv: list[str] | None = None) -> None:
         scale = eia_customer_count / raw_weight_sum if raw_weight_sum > 0 else 1.0
         log.info(
             "  EIA customer count: %d, raw weight sum: %.0f, scale factor: %.4f",
-            eia_customer_count, raw_weight_sum, scale,
+            eia_customer_count,
+            raw_weight_sum,
+            scale,
         )
 
         hp_weights = {
