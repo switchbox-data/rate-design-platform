@@ -7,18 +7,45 @@ same functions CAIRO uses, then:
   3. Produces diagnostic plots (daily profiles, heatmaps, distributions)
   4. Writes data outputs for report reuse
 
-Usage:
+Invoke via the Justfile:
+
+    # One utility, scalar elasticity (no CAIRO cross-check):
+    just -f rate_design/hp_rates/ny/Justfile validate-demand-flex cenhud
+
+    # One utility with seasonal elasticities (matching periods YAML):
+    just -f rate_design/hp_rates/ny/Justfile validate-demand-flex cenhud "winter=-0.12,summer=-0.14"
+
+    # With CAIRO tracker cross-check (no-tech batch):
+    just -f rate_design/hp_rates/ny/Justfile validate-demand-flex cenhud "winter=-0.12,summer=-0.14" ny_20260325b_r1-16
+
+    # With CAIRO tracker cross-check (with-tech batch):
+    just -f rate_design/hp_rates/ny/Justfile validate-demand-flex cenhud "winter=-0.18,summer=-0.22" ny_20260326_elast_seasonal_tech
+
+    # All utilities (scalar, no batch):
+    just -f rate_design/hp_rates/ny/Justfile validate-demand-flex-all
+
+Or directly:
+
+    # Scalar elasticity:
     uv run python -m utils.post.validate_demand_flex_shift \
-        --utility coned \
-        --elasticity -0.10 \
-        --output-dir dev_plots/flex
+        --utility coned --elasticity -0.10 \
+        --output-dir dev_plots/flex/coned
+
+    # Seasonal elasticities (no-tech values from periods YAML):
+    uv run python -m utils.post.validate_demand_flex_shift \
+        --utility cenhud --elasticity winter=-0.12,summer=-0.14 \
+        --output-dir dev_plots/flex/cenhud
+
+    # Seasonal elasticities (with-tech values):
+    uv run python -m utils.post.validate_demand_flex_shift \
+        --utility cenhud --elasticity winter=-0.18,summer=-0.22 \
+        --output-dir dev_plots/flex/cenhud
 
     # With CAIRO tracker cross-check:
     uv run python -m utils.post.validate_demand_flex_shift \
-        --utility coned \
-        --elasticity -0.10 \
-        --batch ny_20260325b_r1-16 \
-        --output-dir dev_plots/flex
+        --utility cenhud --elasticity winter=-0.12,summer=-0.14 \
+        --batch ny_20260326_elast_seasonal_tech \
+        --output-dir dev_plots/flex/cenhud
 """
 
 from __future__ import annotations
@@ -28,6 +55,7 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -46,14 +74,16 @@ from utils.pre.compute_tou import SeasonTouSpec, load_season_specs
 log = logging.getLogger(__name__)
 
 plt.style.use("seaborn-v0_8-whitegrid")
-plt.rcParams.update({
-    "figure.dpi": 150,
-    "savefig.dpi": 150,
-    "savefig.bbox": "tight",
-    "font.size": 10,
-    "axes.titlesize": 12,
-    "axes.labelsize": 10,
-})
+plt.rcParams.update(
+    {
+        "figure.dpi": 150,
+        "savefig.dpi": 150,
+        "savefig.bbox": "tight",
+        "font.size": 10,
+        "axes.titlesize": 12,
+        "axes.labelsize": 10,
+    }
+)
 
 WINTER_MONTHS = {1, 2, 3, 10, 11, 12}
 SUMMER_MONTHS = {4, 5, 6, 7, 8, 9}
@@ -120,10 +150,12 @@ def load_building_loads(bldg_ids: list[int], loads_dir: Path) -> pd.DataFrame:
             path,
             columns=["timestamp", "out.electricity.net.energy_consumption"],
         ).to_pandas()
-        df = df.rename(columns={
-            "timestamp": "time",
-            "out.electricity.net.energy_consumption": "electricity_net",
-        })
+        df = df.rename(
+            columns={
+                "timestamp": "time",
+                "out.electricity.net.energy_consumption": "electricity_net",
+            }
+        )
         df["bldg_id"] = bid
         frames.append(df)
 
@@ -162,16 +194,19 @@ def reproduce_shift(
     period_rate: pd.Series,
     period_map: pd.Series,
     season_specs: list[SeasonTouSpec],
-    elasticity: float,
+    elasticity: float | dict[str, float],
 ) -> pd.DataFrame:
     """Apply constant-elasticity shifting to all buildings, return hourly results.
+
+    Args:
+        elasticity: Scalar applied to all seasons, or a ``{season_name: value}``
+            dict for per-season elasticity.
 
     Returns a DataFrame indexed like loads_df with columns:
         electricity_net_orig, electricity_net_shifted, hourly_shift_kw,
         energy_period, hour_of_day, month, season, tou_rate
     """
     time_level = pd.DatetimeIndex(loads_df.index.get_level_values("time"))
-    bldg_level = loads_df.index.get_level_values("bldg_id")
 
     result_parts: list[pd.DataFrame] = []
 
@@ -179,7 +214,15 @@ def reproduce_shift(
         season_months = set(spec.season.months)
         season_name = spec.season.name
 
-        season_mask = time_level.month.isin(season_months)
+        season_eps = (
+            elasticity.get(season_name, 0.0)
+            if isinstance(elasticity, dict)
+            else elasticity
+        )
+        if season_eps == 0.0:
+            continue
+
+        season_mask = time_level.to_series().dt.month.isin(season_months).to_numpy()
         season_df = loads_df.loc[season_mask].copy().reset_index()
 
         period_lookup = period_map.reset_index()
@@ -190,7 +233,7 @@ def reproduce_shift(
         p_flat = _compute_equivalent_flat_tariff(period_consumption, period_rate)
 
         targets = _build_period_shift_targets(
-            period_consumption, period_rate, elasticity, p_flat, receiver_period=None
+            period_consumption, period_rate, season_eps, p_flat, receiver_period=None
         )
 
         # Distribute period-level shifts to hourly rows proportionally
@@ -234,9 +277,7 @@ def reproduce_shift(
             ]
         )
 
-    result = pd.concat(result_parts, ignore_index=True).sort_values(
-        ["bldg_id", "time"]
-    )
+    result = pd.concat(result_parts, ignore_index=True).sort_values(["bldg_id", "time"])
     log.info("Reproduced shift: %d hourly rows", len(result))
     return result
 
@@ -273,14 +314,6 @@ def run_validation_checks(
 
         # Direction: peak kWh should decrease, off-peak should increase
         rates = period_rate.to_dict()
-        p_flat = sh.groupby("energy_period").apply(
-            lambda g: (g["electricity_net_orig"] * g["tou_rate"]).sum()
-            / g["electricity_net_orig"].sum()
-            if g["electricity_net_orig"].sum() > 0
-            else 0.0,
-            include_groups=False,
-        )
-        # Use the first building's p_flat as representative
         period_consumption_all = sh.groupby("energy_period").agg(
             orig=("electricity_net_orig", "sum"),
             shifted=("electricity_net_shifted", "sum"),
@@ -290,15 +323,14 @@ def run_validation_checks(
         )
 
         global_p_flat = (
-            (period_consumption_all["orig"] * pd.Series(rates)).sum()
-            / period_consumption_all["orig"].sum()
-        )
+            period_consumption_all["orig"] * pd.Series(rates)
+        ).sum() / period_consumption_all["orig"].sum()
         p_flat_map[sn] = float(global_p_flat)
 
         direction_ok = True
         direction_details = {}
         for ep, row in period_consumption_all.iterrows():
-            ep_rate = rates.get(int(ep), 0.0)  # type: ignore[arg-type]
+            ep_rate = rates.get(int(ep), 0.0)
             if ep_rate > global_p_flat:
                 expected_sign = "decrease"
                 ok = row["shift"] <= 0.01
@@ -306,7 +338,7 @@ def run_validation_checks(
                 expected_sign = "increase"
                 ok = row["shift"] >= -0.01
             direction_ok = direction_ok and ok
-            direction_details[int(ep)] = {  # type: ignore[arg-type]
+            direction_details[int(ep)] = {
                 "rate": float(ep_rate),
                 "is_peak": ep_rate > global_p_flat,
                 "shift_kwh": float(row["shift"]),
@@ -381,9 +413,7 @@ def _get_peak_hours(spec: SeasonTouSpec) -> set[int]:
     return set(spec.peak_hours)
 
 
-def _season_spec_by_name(
-    specs: list[SeasonTouSpec], name: str
-) -> SeasonTouSpec | None:
+def _season_spec_by_name(specs: list[SeasonTouSpec], name: str) -> SeasonTouSpec | None:
     for s in specs:
         if s.season.name == name:
             return s
@@ -439,22 +469,49 @@ def plot_building_daily_profile(
             if h in peak_hours:
                 ax.axvspan(h - 0.5, h + 0.5, alpha=0.12, color="red", zorder=0)
 
-        ax.plot(hours, orig, "o-", color="#2c3e50", linewidth=1.8, markersize=3,
-                label="Original", zorder=3)
-        ax.plot(hours, shifted, "s--", color="#e74c3c", linewidth=1.8, markersize=3,
-                label="Shifted", zorder=3)
+        ax.plot(
+            hours,
+            orig,
+            "o-",
+            color="#2c3e50",
+            linewidth=1.8,
+            markersize=3,
+            label="Original",
+            zorder=3,
+        )
+        ax.plot(
+            hours,
+            shifted,
+            "s--",
+            color="#e74c3c",
+            linewidth=1.8,
+            markersize=3,
+            label="Shifted",
+            zorder=3,
+        )
 
         ax2 = ax.twinx()
-        ax2.step(hours, rates, where="mid", color="#7f8c8d", linewidth=1.0,
-                 alpha=0.6, label="TOU rate")
+        ax2.step(
+            hours,
+            rates,
+            where="mid",
+            color="#7f8c8d",
+            linewidth=1.0,
+            alpha=0.6,
+            label="TOU rate",
+        )
         ax2.set_ylabel("TOU rate ($/kWh)", color="#7f8c8d")
         ax2.tick_params(axis="y", labelcolor="#7f8c8d")
 
         shift_kwh = float(day["hourly_shift_kw"].sum())
-        peak_orig_kwh = float(day.loc[day["hour_of_day"].isin(peak_hours),
-                                      "electricity_net_orig"].sum())
-        peak_shifted_kwh = float(day.loc[day["hour_of_day"].isin(peak_hours),
-                                         "electricity_net_shifted"].sum())
+        peak_orig_kwh = float(
+            day.loc[day["hour_of_day"].isin(peak_hours), "electricity_net_orig"].sum()
+        )
+        peak_shifted_kwh = float(
+            day.loc[
+                day["hour_of_day"].isin(peak_hours), "electricity_net_shifted"
+            ].sum()
+        )
         peak_red = (
             (peak_orig_kwh - peak_shifted_kwh) / peak_orig_kwh * 100
             if peak_orig_kwh > 0
@@ -471,7 +528,11 @@ def plot_building_daily_profile(
             f"Ratio: {spec.peak_offpeak_ratio:.2f}"
         )
         ax.text(
-            0.02, 0.98, textstr, transform=ax.transAxes, fontsize=8,
+            0.02,
+            0.98,
+            textstr,
+            transform=ax.transAxes,
+            fontsize=8,
             verticalalignment="top",
             bbox={"boxstyle": "round,pad=0.3", "facecolor": "wheat", "alpha": 0.5},
         )
@@ -481,7 +542,8 @@ def plot_building_daily_profile(
 
     fig.suptitle(
         f"{utility.upper()} — Building {bldg_id} daily profile",
-        fontsize=13, fontweight="bold",
+        fontsize=13,
+        fontweight="bold",
     )
     fig.tight_layout()
     path = output_dir / f"building_daily_profile_{bldg_id}.png"
@@ -522,29 +584,55 @@ def plot_aggregate_daily_profile(
             if h in peak_hours:
                 ax.axvspan(h - 0.5, h + 0.5, alpha=0.10, color="red", zorder=0)
 
-        ax.plot(hours, orig, "o-", color="#2c3e50", linewidth=2, markersize=3,
-                label="Original")
-        ax.plot(hours, shifted, "s-", color="#e74c3c", linewidth=2, markersize=3,
-                label="Shifted")
+        ax.plot(
+            hours,
+            orig,
+            "o-",
+            color="#2c3e50",
+            linewidth=2,
+            markersize=3,
+            label="Original",
+        )
+        ax.plot(
+            hours,
+            shifted,
+            "s-",
+            color="#e74c3c",
+            linewidth=2,
+            markersize=3,
+            label="Shifted",
+        )
 
         ax.fill_between(
-            hours, orig, shifted,
-            where=orig > shifted, interpolate=True,
-            alpha=0.25, color="#e74c3c", label="Load removed (peak)",
+            hours,
+            orig,
+            shifted,
+            where=orig > shifted,
+            interpolate=True,
+            alpha=0.25,
+            color="#e74c3c",
+            label="Load removed (peak)",
         )
         ax.fill_between(
-            hours, orig, shifted,
-            where=shifted > orig, interpolate=True,
-            alpha=0.25, color="#3498db", label="Load added (off-peak)",
+            hours,
+            orig,
+            shifted,
+            where=shifted > orig,
+            interpolate=True,
+            alpha=0.25,
+            color="#3498db",
+            label="Load added (off-peak)",
         )
 
         total_orig_peak = float(
-            sdata.loc[sdata["hour_of_day"].isin(peak_hours),
-                       "electricity_net_orig"].sum()
+            sdata.loc[
+                sdata["hour_of_day"].isin(peak_hours), "electricity_net_orig"
+            ].sum()
         )
         total_shifted_peak = float(
-            sdata.loc[sdata["hour_of_day"].isin(peak_hours),
-                       "electricity_net_shifted"].sum()
+            sdata.loc[
+                sdata["hour_of_day"].isin(peak_hours), "electricity_net_shifted"
+            ].sum()
         )
         n_bldgs = sdata["bldg_id"].nunique()
         peak_red = (
@@ -565,7 +653,11 @@ def plot_aggregate_daily_profile(
             f"Ratio: {spec.peak_offpeak_ratio:.2f}"
         )
         ax.text(
-            0.02, 0.98, textstr, transform=ax.transAxes, fontsize=8,
+            0.02,
+            0.98,
+            textstr,
+            transform=ax.transAxes,
+            fontsize=8,
             verticalalignment="top",
             bbox={"boxstyle": "round,pad=0.3", "facecolor": "wheat", "alpha": 0.5},
         )
@@ -574,7 +666,8 @@ def plot_aggregate_daily_profile(
     axes[0].legend(loc="upper right", fontsize=7)
     fig.suptitle(
         f"{utility.upper()} — Aggregate daily load profile",
-        fontsize=13, fontweight="bold",
+        fontsize=13,
+        fontweight="bold",
     )
     fig.tight_layout()
     path = output_dir / "aggregate_daily_profile.png"
@@ -607,8 +700,14 @@ def plot_net_shift_by_hour(
         mean_shift = sdata.groupby("hour_of_day")["hourly_shift_kw"].mean()
 
         colors = ["#e74c3c" if v < 0 else "#3498db" for v in mean_shift.values]
-        ax.bar(mean_shift.index, mean_shift.values, color=colors, width=0.8,
-               edgecolor="white", linewidth=0.5)
+        ax.bar(
+            mean_shift.index,
+            mean_shift.values,
+            color=colors,
+            width=0.8,
+            edgecolor="white",
+            linewidth=0.5,
+        )
 
         for h in range(24):
             if h in peak_hours:
@@ -622,16 +721,24 @@ def plot_net_shift_by_hour(
 
         net_check = mean_shift.sum()
         ax.text(
-            0.98, 0.02,
+            0.98,
+            0.02,
             f"Net: {net_check:+.4f} kWh\n(should be ~0)",
-            transform=ax.transAxes, fontsize=7, ha="right",
-            bbox={"boxstyle": "round,pad=0.3", "facecolor": "lightyellow", "alpha": 0.7},
+            transform=ax.transAxes,
+            fontsize=7,
+            ha="right",
+            bbox={
+                "boxstyle": "round,pad=0.3",
+                "facecolor": "lightyellow",
+                "alpha": 0.7,
+            },
         )
 
     axes[0].set_ylabel("Mean shift (kWh)")
     fig.suptitle(
         f"{utility.upper()} — Net load shift by hour",
-        fontsize=13, fontweight="bold",
+        fontsize=13,
+        fontweight="bold",
     )
     fig.tight_layout()
     path = output_dir / "net_shift_by_hour.png"
@@ -663,12 +770,22 @@ def plot_shift_heatmap(
 
     ax.set_yticks(range(len(heatmap_data.index)))
     month_names = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
     ]
     ax.set_yticklabels([month_names[m - 1] for m in heatmap_data.index])
     ax.set_xticks(range(24))
-    ax.set_xticklabels(range(24), fontsize=8)
+    ax.set_xticklabels([str(h) for h in range(24)], fontsize=8)
     ax.set_xlabel("Hour of day")
     ax.set_ylabel("Month")
 
@@ -676,7 +793,9 @@ def plot_shift_heatmap(
     for spec in season_specs:
         peak_hours = _get_peak_hours(spec)
         for m in spec.season.months:
-            row_idx = list(heatmap_data.index).index(m) if m in heatmap_data.index else None
+            row_idx = (
+                list(heatmap_data.index).index(m) if m in heatmap_data.index else None
+            )
             if row_idx is None:
                 continue
             for h in peak_hours:
@@ -687,7 +806,8 @@ def plot_shift_heatmap(
     ax.set_title(
         f"{utility.upper()} — Hourly load shift heatmap"
         f"  (red=removed, blue=added, dots=peak hours)",
-        fontsize=12, fontweight="bold",
+        fontsize=12,
+        fontweight="bold",
     )
     fig.tight_layout()
     path = output_dir / "shift_heatmap.png"
@@ -727,9 +847,7 @@ def plot_peak_reduction_distribution(
             0.0,
         )
 
-        data_range = (
-            bldg_peak["reduction_pct"].max() - bldg_peak["reduction_pct"].min()
-        )
+        data_range = bldg_peak["reduction_pct"].max() - bldg_peak["reduction_pct"].min()
         n_bins = max(5, min(30, int(data_range / 0.3))) if data_range > 0.01 else 5
         ax.hist(
             bldg_peak["reduction_pct"],
@@ -741,10 +859,20 @@ def plot_peak_reduction_distribution(
 
         mean_red = bldg_peak["reduction_pct"].mean()
         median_red = bldg_peak["reduction_pct"].median()
-        ax.axvline(mean_red, color="#e74c3c", linewidth=2, linestyle="-",
-                    label=f"Mean: {mean_red:.1f}%")
-        ax.axvline(median_red, color="#2ecc71", linewidth=2, linestyle="--",
-                    label=f"Median: {median_red:.1f}%")
+        ax.axvline(
+            mean_red,
+            color="#e74c3c",
+            linewidth=2,
+            linestyle="-",
+            label=f"Mean: {mean_red:.1f}%",
+        )
+        ax.axvline(
+            median_red,
+            color="#2ecc71",
+            linewidth=2,
+            linestyle="--",
+            label=f"Median: {median_red:.1f}%",
+        )
 
         ax.set_title(f"{sn.title()} (n={len(bldg_peak)} buildings)")
         ax.set_xlabel("Peak reduction (%)")
@@ -757,14 +885,24 @@ def plot_peak_reduction_distribution(
             f" {bldg_peak['reduction_pct'].max():.1f}%]"
         )
         ax.text(
-            0.98, 0.98, textstr, transform=ax.transAxes, fontsize=8,
-            ha="right", va="top",
-            bbox={"boxstyle": "round,pad=0.3", "facecolor": "lightyellow", "alpha": 0.7},
+            0.98,
+            0.98,
+            textstr,
+            transform=ax.transAxes,
+            fontsize=8,
+            ha="right",
+            va="top",
+            bbox={
+                "boxstyle": "round,pad=0.3",
+                "facecolor": "lightyellow",
+                "alpha": 0.7,
+            },
         )
 
     fig.suptitle(
         f"{utility.upper()} — Per-building peak reduction distribution",
-        fontsize=13, fontweight="bold",
+        fontsize=13,
+        fontweight="bold",
     )
     fig.tight_layout()
     path = output_dir / "peak_reduction_distribution.png"
@@ -800,9 +938,7 @@ def write_data_outputs(
 
     # Shift heatmap data CSV
     hm = (
-        hourly.groupby(["month", "hour_of_day"])["hourly_shift_kw"]
-        .mean()
-        .reset_index()
+        hourly.groupby(["month", "hour_of_day"])["hourly_shift_kw"].mean().reset_index()
     )
     hm.columns = ["month", "hour_of_day", "mean_shift_kw"]
     hm_path = output_dir / f"{utility}_shift_heatmap_data.csv"
@@ -858,14 +994,14 @@ def crosscheck_cairo_tracker(
     import subprocess
     import tempfile
 
-    s3_prefix = (
-        f"s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/{utility}/{batch}/"
-    )
+    s3_prefix = f"s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/{utility}/{batch}/"
 
     # List run dirs to find the run13 tracker
     result = subprocess.run(
         ["aws", "s3", "ls", s3_prefix, "--recursive"],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     tracker_s3 = None
     for line in result.stdout.splitlines():
@@ -884,7 +1020,8 @@ def crosscheck_cairo_tracker(
         tmp_path = tmp.name
     subprocess.run(
         ["aws", "s3", "cp", tracker_s3, tmp_path],
-        capture_output=True, timeout=30,
+        capture_output=True,
+        timeout=30,
     )
     cairo_tracker = pd.read_csv(tmp_path)
     Path(tmp_path).unlink(missing_ok=True)
@@ -902,16 +1039,19 @@ def crosscheck_cairo_tracker(
         if sdata.empty:
             continue
 
-        bldg_period = sdata.groupby(["bldg_id", "energy_period"]).agg(
-            orig=("electricity_net_orig", "sum"),
-            shifted=("electricity_net_shifted", "sum"),
-        ).reset_index()
+        bldg_period = (
+            sdata.groupby(["bldg_id", "energy_period"])
+            .agg(
+                orig=("electricity_net_orig", "sum"),
+                shifted=("electricity_net_shifted", "sum"),
+            )
+            .reset_index()
+        )
         bldg_period["rate"] = bldg_period["energy_period"].map(rates)
 
         global_p_flat = (
-            (sdata["electricity_net_orig"] * sdata["tou_rate"]).sum()
-            / sdata["electricity_net_orig"].sum()
-        )
+            sdata["electricity_net_orig"] * sdata["tou_rate"]
+        ).sum() / sdata["electricity_net_orig"].sum()
 
         valid = (
             (bldg_period["orig"] > 0)
@@ -976,11 +1116,35 @@ def crosscheck_cairo_tracker(
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 
+def _parse_elasticity(value: str) -> float | dict[str, float]:
+    """Parse elasticity as a scalar or ``season=value,...`` dict.
+
+    Examples: ``-0.12``, ``winter=-0.12,summer=-0.14``.
+    """
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    pairs = {}
+    for part in value.split(","):
+        k, _, v = part.partition("=")
+        k = k.strip()
+        v = v.strip()
+        if not k or not v:
+            raise argparse.ArgumentTypeError(
+                f"Invalid elasticity format: {value!r}. "
+                "Use a number (e.g. -0.12) or season=value pairs "
+                "(e.g. winter=-0.12,summer=-0.14)."
+            )
+        pairs[k] = float(v)
+    return pairs
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--utility", required=True)
     p.add_argument("--state", default="ny", choices=list(STATE_CONFIGS.keys()))
-    p.add_argument("--elasticity", type=float, default=-0.10)
+    p.add_argument("--elasticity", type=_parse_elasticity, default=-0.10)
     p.add_argument("--batch", default=None, help="S3 batch for CAIRO cross-check")
     p.add_argument("--output-dir", type=Path, required=True)
     p.add_argument(
@@ -1027,10 +1191,13 @@ def main(argv: list[str] | None = None) -> None:
     tou_deriv_dir = project_root / cfg["path_tou_derivation_dir"]
     tariffs_dir = project_root / cfg["path_tariffs_electric_dir"]
     specs, tou_tariff = load_tou_context(args.utility, tou_deriv_dir, tariffs_dir)
-    log.info("TOU specs: %s", [(s.season.name, f"ratio={s.peak_offpeak_ratio:.2f}") for s in specs])
+    log.info(
+        "TOU specs: %s",
+        [(s.season.name, f"ratio={s.peak_offpeak_ratio:.2f}") for s in specs],
+    )
 
     rate_df = extract_tou_period_rates(tou_tariff)
-    period_rate = rate_df.groupby("energy_period")["rate"].first()
+    period_rate = cast(pd.Series, rate_df.groupby("energy_period")["rate"].first())
     log.info("Period rates:\n%s", period_rate)
 
     # Load building loads
@@ -1042,7 +1209,7 @@ def main(argv: list[str] | None = None) -> None:
     period_map = assign_hourly_periods(time_idx, tou_tariff)
 
     # Reproduce the shift
-    log.info("Reproducing demand-flex shift (ε=%.2f)...", args.elasticity)
+    log.info("Reproducing demand-flex shift (ε=%s)...", args.elasticity)
     hourly = reproduce_shift(loads_df, period_rate, period_map, specs, args.elasticity)
 
     # Validation checks
@@ -1079,7 +1246,9 @@ def main(argv: list[str] | None = None) -> None:
         rng = np.random.default_rng(42)
         extra = rng.choice(
             remaining,
-            size=min(args.n_profile_buildings - len(illustrative_bldgs), len(remaining)),
+            size=min(
+                args.n_profile_buildings - len(illustrative_bldgs), len(remaining)
+            ),
             replace=False,
         )
         illustrative_bldgs.extend(extra)
@@ -1090,7 +1259,10 @@ def main(argv: list[str] | None = None) -> None:
     # Data outputs
     log.info("Writing data outputs...")
     write_data_outputs(
-        hourly, specs, args.utility, output_dir,
+        hourly,
+        specs,
+        args.utility,
+        output_dir,
         n_example_buildings=args.n_example_buildings,
     )
 
@@ -1121,20 +1293,21 @@ def main(argv: list[str] | None = None) -> None:
     summary_path = output_dir / f"{args.utility}_validation_summary.json"
     with open(summary_path, "w") as f:
         json_mod.dump(
-            _make_serializable({
-                "utility": args.utility,
-                "elasticity": args.elasticity,
-                "n_buildings": len(hp_bldg_ids),
-                "checks": checks,
-            }),
+            _make_serializable(
+                {
+                    "utility": args.utility,
+                    "elasticity": args.elasticity,
+                    "n_buildings": len(hp_bldg_ids),
+                    "checks": checks,
+                }
+            ),
             f,
             indent=2,
         )
     log.info("Wrote %s", summary_path)
 
     all_pass = all(
-        checks["energy_conservation"][s]["pass"]
-        and checks["direction"][s]["pass"]
+        checks["energy_conservation"][s]["pass"] and checks["direction"][s]["pass"]
         for s in checks["energy_conservation"]
     )
     print(f"\n{'=' * 70}")
