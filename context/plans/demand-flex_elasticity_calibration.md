@@ -3,13 +3,13 @@ name: Demand-flex elasticity calibration
 overview: Find the correct elasticity parameter per NY utility by running a fast analytical diagnostic against real TOU structures and MC data, grounded in Arcturus empirical predictions, then validate with targeted CAIRO runs. Results stored at s3://data.sb/switchbox/demand_flex/ with utility partitioning.
 todos:
   - id: diagnostic-script
-    content: "Create `utils/post/diagnose_demand_flex.py`: per-utility analytical diagnostic reading real TOU derivation JSONs and MC data, computing demand shift + MC savings + Arcturus comparison for elasticity sweep"
+    content: "Create `utils/post/calibrate_demand_flex_elasticity.py`: per-utility analytical calibration reading real TOU derivation JSONs and MC data, computing demand shift + MC savings + Arcturus comparison for elasticity sweep"
     status: completed
   - id: shift-validation-script
     content: "Create `utils/post/validate_demand_flex_shift.py`: reproduce shift analytically, check energy conservation + direction, cross-check vs CAIRO tracker, produce diagnostic plots and data outputs"
     status: completed
   - id: justfile-recipes
-    content: "Add `validate-demand-flex`, `validate-demand-flex-all`, `diagnose-demand-flex` recipes to ny/Justfile"
+    content: "Add `validate-demand-flex`, `validate-demand-flex-all`, `calibrate-demand-flex-elasticity` recipes to ny/Justfile"
     status: completed
   - id: run-diagnostic
     content: Run the diagnostic and validation for all 7 NY utilities, review results
@@ -32,19 +32,20 @@ isProject: false
 
 **Phase 1 complete.** All analytical work is done and validated. PR #382 closed the GitHub issue.
 
-| Deliverable | Status |
-| ----------- | ------ |
-| `utils/post/diagnose_demand_flex.py` -- elasticity sweep diagnostic | Done |
-| `utils/post/validate_demand_flex_shift.py` -- shift validation + diagnostic plots | Done |
-| `rate_design/hp_rates/ny/Justfile` -- `validate-demand-flex`, `diagnose-demand-flex` recipes | Done |
-| `context/methods/tou_and_rates/demand_flex_elasticity_calibration.md` -- methodology writeup | Done |
-| Per-utility recommended elasticities (7 utilities) | Done -- see results table |
-| Shift validation across all 7 utilities (energy conservation, direction, CAIRO tracker match) | Done -- all pass |
-| Diagnostic plots in `dev_plots/flex/{utility}/` | Done |
-| Update scenario YAMLs with per-utility elasticities | **Pending** |
-| Phase 2 CAIRO sweep at recommended elasticities | Optional / deferred |
+| Deliverable                                                                                              | Status                    |
+| -------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `utils/post/calibrate_demand_flex_elasticity.py` -- elasticity calibration sweep                         | Done                      |
+| `utils/post/validate_demand_flex_shift.py` -- shift validation + diagnostic plots                        | Done                      |
+| `rate_design/hp_rates/ny/Justfile` -- `validate-demand-flex`, `calibrate-demand-flex-elasticity` recipes | Done                      |
+| `context/methods/tou_and_rates/demand_flex_elasticity_calibration.md` -- methodology writeup             | Done                      |
+| Per-utility recommended elasticities (7 utilities)                                                       | Done -- see results table |
+| Shift validation across all 7 utilities (energy conservation, direction, CAIRO tracker match)            | Done -- all pass          |
+| Diagnostic plots in `dev_plots/flex/{utility}/`                                                          | Done                      |
+| Update scenario YAMLs with per-utility elasticities                                                      | **Pending**               |
+| Phase 2 CAIRO sweep at recommended elasticities                                                          | Optional / deferred       |
 
 **Recommended elasticities (pending YAML update):**
+
 - ε = -0.10: ConEd, NiMo, NYSEG, RGE (3-hour peak windows)
 - ε = -0.12: CenHud, OR, PSEG-LI (5-hour peak windows)
 
@@ -64,14 +65,12 @@ Bill savings under demand flex at `epsilon = -0.1` are very small. We need to:
 
 From the TOU derivation JSONs (`[ny/config/tou_derivation/](rate_design/hp_rates/ny/config/tou_derivation/)`):
 
-
 | Utility  | Winter Ratio | Winter Peak Hours | Summer Ratio | Summer Peak Hours |
 | -------- | ------------ | ----------------- | ------------ | ----------------- |
 | ConEd    | 2.0          | 16-18 (3h)        | 4.3          | 15-17 (3h)        |
 | CenHud   | 1.6          | 16-20 (5h)        | 3.0          | 15-19 (5h)        |
 | NiMo     | 1.8          | 17-19 (3h)        | 2.9          | 17-19 (3h)        |
 | (5 more) | ...          | ...               | ...          | ...               |
-
 
 A single `epsilon = -0.1` produces very different peak reductions depending on the ratio. Arcturus "no enabling tech" predictions at these ratios:
 
@@ -128,11 +127,11 @@ Example for ConEd (from actual files):
 ```mermaid
 flowchart TD
     subgraph phase1 ["Phase 1: Analytical diagnostic (no CAIRO)"]
-        TOU["TOU derivation JSONs\n(7 utilities x 2 seasons)"] --> diag["diagnose_demand_flex.py"]
-        MC["MC data from S3\n(bulk + dist per utility)"] --> diag
-        ARC["Arcturus model\n(no-tech coefficients)"] --> diag
-        diag --> table["Per-utility table:\nprice ratios, peak reduction %,\nMC spread, savings ceiling,\nrecommended epsilon"]
-        diag --> csv["CSV at s3://data.sb/\nswitchbox/demand_flex/\ndiagnostic/"]
+        TOU["TOU derivation JSONs\n(7 utilities x 2 seasons)"] --> cal["calibrate_demand_flex_elasticity.py"]
+        MC["MC data from S3\n(bulk + dist per utility)"] --> cal
+        ARC["Arcturus model\n(no-tech coefficients)"] --> cal
+        cal --> table["Per-utility table:\nprice ratios, peak reduction %,\nMC spread, savings ceiling,\nrecommended epsilon"]
+        cal --> csv["CSV at s3://data.sb/\nswitchbox/demand_flex/\ndiagnostic/"]
     end
 
     subgraph phase2 ["Phase 2: Targeted CAIRO sweep"]
@@ -142,9 +141,7 @@ flowchart TD
     end
 ```
 
-
-
-## Phase 1: Diagnostic on real load data (`utils/post/diagnose_demand_flex.py`)
+## Phase 1: Calibration on real load data (`utils/post/calibrate_demand_flex_elasticity.py`)
 
 New script. Uses actual ResStock building loads, customer metadata, and MC data for all 7 NY utilities. Focuses on the **runs 13-14 scenario** (precalc with HP/non-HP subclasses), which reflects the realistic world where only HP buildings (`postprocess_group.has_hp=True`) are on the TOU flex tariff and subject to demand shifting. HP buildings are a small fraction of each utility's customer base -- this is the primary reason bill savings are small.
 
@@ -167,19 +164,22 @@ For each of the 7 NY utilities, for each season, for each elasticity in `[-0.05,
 
 **Financial metrics (two distinct savings mechanisms):**
 
-*Rate arbitrage savings (primary, per-HP-customer):*
+_Rate arbitrage savings (primary, per-HP-customer):_
+
 - kWh shifted from peak to offpeak per HP customer (demand-weighted average)
 - Bill savings from rate structure = kWh_shifted x (peak_rate - offpeak_rate) per season
 - Annual per-HP-customer bill savings from rate arbitrage
 - This uses the TOU derivation rates, not calibrated rates (first-order; CAIRO calibration adjusts these)
 - Comparison baseline: the current default rate structure for each utility (varies by utility)
 
-*RR reduction savings (secondary, system-level):*
+_RR reduction savings (secondary, system-level):_
+
 - HP subclass MC delta ($) = sum_h(MC_h x shift_h) for HP buildings only (demand-weighted)
 - Per-HP-customer RR savings = HP_MC_delta / HP_weighted_count (under subclass RR)
 - This is small because HPs are a small share of all customers
 
-*MC data context (NOT Cambium -- all derived from NYISO LBMP and utility PUC filings):*
+_MC data context (NOT Cambium -- all derived from NYISO LBMP and utility PUC filings):_
+
 - NY uses 5 utility-specific MC components: supply energy/NYISO LBMP (most hours nonzero), supply capacity (96 hours/year), supply ancillary, bulk TX (~80 SCR hours/year), dist+sub-TX (~100 PoP hours/year)
 - **Delivery-only runs (13) zero out supply MCs** (`zero.parquet`). Only dist+sub-tx + bulk_tx are active -- extremely peaky, nonzero in only ~100-180 hours. MC-based RR savings from shifting are small because the spread is so concentrated.
 - **Delivery+supply runs (14)** include supply energy (NYISO LBMP, nonzero virtually all hours) -- broader MC spread, larger MC savings possible.
@@ -209,7 +209,7 @@ For each of the 7 NY utilities, for each season, for each elasticity in `[-0.05,
 **CLI:**
 
 ```
-uv run python -m utils.post.diagnose_demand_flex \
+uv run python -m utils.post.calibrate_demand_flex_elasticity \
     --state ny \
     --elasticities -0.05,-0.10,-0.15,-0.20 \
     [--output-dir /tmp/demand_flex_diagnostic] \
@@ -232,10 +232,11 @@ uv run python -m utils.post.diagnose_demand_flex \
 CAIRO outputs at `s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/all_utilities/ny_20260325b_r1-16/` provide actual bill numbers at `epsilon = -0.1` for all 7 utilities. Key finding for ConEd:
 
 - Run 3+4 (default tariff, no flex): mean elec bill = $2,329/year
-- Run 11+12 (TOU, no flex): mean = $1,740/year  (TOU structure saves $589)
-- Run 15+16 (TOU flex, epsilon=-0.1): mean = $1,729/year  (flex adds only $10.51 more savings)
+- Run 11+12 (TOU, no flex): mean = $1,740/year (TOU structure saves $589)
+- Run 15+16 (TOU flex, epsilon=-0.1): mean = $1,729/year (flex adds only $10.51 more savings)
 
 The demand-flex effect at epsilon=-0.1 is ~0.6% of the bill -- confirming the "small savings" concern. The TOU structure change dominates. The diagnostic should:
+
 1. Reproduce this $10.51 analytically (validation)
 2. Show how it scales with larger elasticity (sweep)
 3. Identify the ceiling (is it MC spread, HP share, or both?)
@@ -260,13 +261,13 @@ Deferred until Phase 1 results are reviewed. The plan:
 
 ## Files to create/modify
 
-- **Create**: `[utils/post/diagnose_demand_flex.py](utils/post/diagnose_demand_flex.py)` -- Phase 1 diagnostic
-- **Modify**: `[rate_design/hp_rates/Justfile](rate_design/hp_rates/Justfile)` -- add `diagnose-demand-flex` recipe
+- **Create**: `[utils/post/calibrate_demand_flex_elasticity.py](utils/post/calibrate_demand_flex_elasticity.py)` -- Phase 1 calibration
+- **Modify**: `[rate_design/hp_rates/Justfile](rate_design/hp_rates/Justfile)` -- add `calibrate-demand-flex-elasticity` recipe
 - **Update**: Linear ticket RDP-175 with evolved scope
 
 ## Relationship to existing RDP-175 work
 
-The existing validation/sensitivity scripts (`[utils/post/validate_demand_flex.py](utils/post/validate_demand_flex.py)`, `[utils/post/sensitivity_demand_flex.py](utils/post/sensitivity_demand_flex.py)`) verify mathematical invariants on synthetic data. This diagnostic is complementary -- it operates on real utility configurations and MC data to answer the calibration question. The validation scripts still need the API fix (PR #379 breakage) but that is independent work.
+The former synthetic validation/sensitivity scripts (`validate_demand_flex.py`, `sensitivity_demand_flex.py`) were removed -- their mathematical invariant checks were either tautological or fully covered by the real-data calibration and shift validation scripts.
 
 ## Known limitations and caveats
 
@@ -287,4 +288,3 @@ These are explicitly acknowledged; the diagnostic output should note them.
 - For the sweep, each elasticity re-runs precalc (run 13) which recalibrates via Phase 1.75. The pre-calibrated `_flex.json` is always the same (copy of the derivation tariff). Only the calibrated output changes. So the sweep is self-contained per elasticity value.
 - How to manage 42 calibrated tariff files? One approach: write to a sweep-specific output directory (not the main `config/tariffs/electric/`), parameterized by elasticity, so sweep artifacts don't pollute the main config.
 - Should we sweep delivery+supply runs (13+14 -> 15+16) or delivery-only (13 -> 15)? Delivery-only gives the delivery bill savings; adding supply doubles compute time. Recommend delivery-only for the sweep, full 4-run chain only for the final chosen elasticity.
-
