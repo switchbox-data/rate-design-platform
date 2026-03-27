@@ -371,8 +371,10 @@ runs:
     year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
-    elasticity: -0.1
     residual_allocation: percustomer
+    elasticity:
+      summer: -0.24
+      winter: -0.2
   14:
     run_name: ny_or_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_default
     state: NY
@@ -401,8 +403,10 @@ runs:
     year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
-    elasticity: -0.1
     residual_allocation: percustomer
+    elasticity:
+      summer: -0.24
+      winter: -0.2
   15:
     run_name: ny_or_run15_up02_default__hp_seasonalTOU_flex
     state: NY
@@ -430,7 +434,9 @@ runs:
     year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
-    elasticity: -0.1
+    elasticity:
+      summer: -0.24
+      winter: -0.2
   16:
     run_name: ny_or_run16_up02_default_supply__hp_seasonalTOU_flex
     state: NY
@@ -458,4 +464,6 @@ runs:
     year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
-    elasticity: -0.1
+    elasticity:
+      summer: -0.24
+      winter: -0.2

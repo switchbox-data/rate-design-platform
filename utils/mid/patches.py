@@ -535,8 +535,8 @@ def _vectorized_run_system_revenues(
       4. Applies min_charge per month if needed
       5. Pivots to the wide month-column format CAIRO returns
 
-    Handles flat and TOU tariffs (all RI runs). Falls back to original CAIRO
-    implementation for demand charges or solar compensation.
+    Handles flat and TOU tariffs with optional net-metering solar compensation.
+    Falls back to original CAIRO for demand charges or net-billing solar.
     """
     import cairo.rates_tool.lookups as lookups
     from cairo.rates_tool import tariffs as tariff_funcs
@@ -563,13 +563,33 @@ def _vectorized_run_system_revenues(
 
     # Check for features requiring fallback
     has_demand = any(td.get("ur_dc_enable", 0) == 1 for td in tariff_dicts.values())
-    has_solar = any(v is not None for v in solar_compensation_df_norm.values())
+    has_solar_data = any(v is not None for v in solar_compensation_df_norm.values())
+    # CAIRO only applies solar compensation when solar_compensation_style is an
+    # active mode ("net_metering" or "net_billing").  When it's None — the common
+    # case in run_scenario.py — calculate_compensation returns an empty DataFrame
+    # regardless of sell_rate contents.  So we only need to handle solar when the
+    # style is active.
+    has_solar_compensation = has_solar_data and solar_compensation_style in (
+        "net_metering",
+        "net_billing",
+    )
 
-    if has_demand or has_solar:
+    if has_demand:
+        log.info("PATCH_FALLBACK _vectorized_run_system_revenues reason=has_demand")
+        return _orig_rsr(
+            aggregated_load=aggregated_load,
+            aggregated_solar=aggregated_solar,
+            solar_compensation_df=solar_compensation_df,
+            solar_compensation_style=solar_compensation_style,
+            process_agg_load=process_agg_load,
+            prototype_ids=prototype_ids,
+            tariff_config=tariff_config,
+            tariff_strategy=tariff_strategy,
+        )
+
+    if has_solar_compensation and solar_compensation_style == "net_billing":
         log.info(
-            "PATCH_FALLBACK _vectorized_run_system_revenues reason=unsupported_features has_demand=%s has_solar=%s",
-            has_demand,
-            has_solar,
+            "PATCH_FALLBACK _vectorized_run_system_revenues reason=net_billing_unsupported"
         )
         return _orig_rsr(
             aggregated_load=aggregated_load,
@@ -667,6 +687,51 @@ def _vectorized_run_system_revenues(
         if m not in monthly_wide.columns:
             monthly_wide[m] = 0.0
     monthly_wide = monthly_wide[[m for m in range(1, 13)]]
+
+    # --- Vectorized net-metering solar compensation ---
+    # Only reached when solar_compensation_style == "net_metering" (net_billing
+    # falls back above; style=None skips via has_solar_compensation=False).
+    # Mirrors CAIRO's calculate_compensation: effective sell rate per (period,tier)
+    # is (rate + adjustments) * sell_rate, then costs = net_exports * rate * -1.
+    if has_solar_compensation and not aggregated_solar.empty:
+        sell_rows = []
+        for tariff_key, sell_dict in solar_compensation_df_norm.items():
+            if sell_dict is None:
+                continue
+            for row in sell_dict["ur_ec_tou_mat"]:
+                effective_rate = (float(row[4]) + float(row[5])) * float(row[6])
+                sell_rows.append(
+                    {
+                        "tariff": tariff_key,
+                        "period": float(row[0]),
+                        "tier": float(row[1]),
+                        "sell_rate": effective_rate,
+                    }
+                )
+        sell_lookup = pd.DataFrame(sell_rows)
+
+        solar_df = aggregated_solar.reset_index()
+        solar_df["period"] = solar_df["period"].astype(float)
+        solar_df["tier"] = solar_df["tier"].astype(float)
+        solar_df = solar_df.merge(
+            sell_lookup, on=["tariff", "period", "tier"], how="left"
+        )
+        solar_df["costs"] = solar_df["net_exports"] * solar_df["sell_rate"] * -1
+
+        solar_monthly = solar_df.groupby(["bldg_id", "month"], as_index=False)[
+            "costs"
+        ].sum()
+        solar_wide = solar_monthly.pivot(
+            index="bldg_id", columns="month", values="costs"
+        ).fillna(0.0)
+        for m in range(1, 13):
+            if m not in solar_wide.columns:
+                solar_wide[m] = 0.0
+        solar_wide = solar_wide[[m for m in range(1, 13)]]
+
+        common_ids = monthly_wide.index.intersection(solar_wide.index)
+        if len(common_ids) > 0:
+            monthly_wide.loc[common_ids] += solar_wide.loc[common_ids]
 
     # --- Vectorized fixed charge addition ---
     # fixed_charge = ur_monthly_fixed_charge per month per building

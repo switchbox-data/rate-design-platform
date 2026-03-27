@@ -355,6 +355,26 @@ Conversely, a customer with high summer-peak consumption pays the same EPMC-scal
 
 The BAT, by making these dynamics visible at the individual customer level, provides the diagnostic that motivates the unbundling. Without the MC/residual decomposition, EPMC looks like a neutral reconciliation mechanism. With it, the cross-subsidies become measurable.
 
+### The practitioner case for volumetric cost recovery: RAP and Lazar & Gonzalez (2015)
+
+EPMC is not merely a computational convenience. It has a theoretical advocate: the practitioner tradition, most prominently represented by the Regulatory Assistance Project's _Smart Rate Design for a Smart Future_ (Lazar & Gonzalez 2015). This paper — widely cited in state regulatory proceedings — lays out three principles for modern rate design:
+
+1. A customer should be able to connect to the grid for no more than the cost of connecting to the grid.
+2. Customers should pay for grid services and power supply in proportion to how much they use these services and how much power they consume.
+3. Customers who supply power to the grid should be fairly compensated for the full value of the power they supply.
+
+Principle 1 limits fixed charges to customer-specific costs (service drop, meter, billing — typically $4–10/month). Principle 2 directs that nearly all remaining costs — including distribution, transmission, and generation — be recovered through volumetric charges. The paper's illustrative rate design recovers the entire revenue requirement through a small customer charge plus TOU energy charges; there is no residual, no fixed infrastructure charge, and no explicit MC/residual decomposition.
+
+The theoretical basis is the claim that "in the long run all costs are variable" — distribution infrastructure should therefore be recovered "on the basis of end-use consumption." The paper recommends time-varying volumetric charges (TOU, CPP, or RTP) rather than flat rates, and its conclusion is that "bidirectional, time-sensitive prices that more accurately reflect costs most closely align with the principles of modern rate design."
+
+This position is coherent if one adopts a broad LRMC definition (Turvey perturbation or AIC — see §3) under which LRMC-based charges recover most or all of the revenue requirement, leaving no large residual. Under that view, the volumetric TOU price _is_ approximately LRMC, and there is no p > MC distortion to worry about.
+
+The position is inconsistent with the FLIC-based view used in this methodology and in the Pérez-Arriaga/Borenstein/BAT literature. Under FLIC, marginal cost pricing recovers only 2–15% of the revenue requirement. Bundling the remaining 85–98% into volumetric charges — which is what the RAP recommendation produces in practice — is EPMC scaling. The _shape_ of the TOU signal is preserved (the RAP paper is right that time-varying rates are better than flat rates), but the _level_ is inflated by a factor of $K$, creating the absolute-efficiency distortion described above: every kWh of consumption appears far more expensive than its marginal cost, discouraging efficient electrification.
+
+The RAP paper does not address this tension because it never decomposes the revenue requirement into marginal cost and residual components. It operates in a framework where all costs are "variable in the long run" and therefore recoverable through usage-based charges. The MC/residual decomposition — the foundation of the BAT — is precisely the analytical step that makes the distortion visible. Without it, EPMC looks like cost-reflective pricing; with it, the cross-subsidies embedded in volumetric rates become measurable.
+
+Brown & Faruqui (2014), in their Brattle Group survey of 140 items in the academic literature and two dozen industry experts, document why the RAP position has been so durable despite the academic consensus against it: regulators consistently prioritize equity and gradualism over efficiency. High fixed charges — even when set at the residual level, not the full revenue requirement — are perceived as unfair to low-usage customers (who tend to be lower-income). The RAP paper channels this concern. The academic literature's response — income-differentiated fixed charges, or the hybrid approach in `context/domain/bat_mc_residual/fairness_in_cost_allocation.md` §14 where fairness governs marginal costs and equity governs the residual — is a potential resolution, but one the RAP framework does not consider.
+
 ---
 
 ## 11. Summary: our methodology in the context of the literature
@@ -386,6 +406,7 @@ In all cases, the underlying logic is the same: price energy at short-run margin
 - Borenstein, S., Fowlie, M., & Sallee, J. (2024). Designing electricity rates for an equitable energy transition. Working paper (data and ACC modifications published on GitHub).
 - Brown, T., & Faruqui, A. (2014). Structure of electricity distribution network tariffs: Recovery of residual costs. Report for the Australian Energy Market Commission, The Brattle Group.
 - Dameto, N., Valenzuela-Venegas, G., & Salom, J. (2023). A comprehensive method for designing dynamic electricity tariffs with cross-subsidization analysis for prosumer buildings. _Energy and Buildings_.
+- Lazar, J., & Gonzalez, W. (2015). Smart rate design for a smart future. Regulatory Assistance Project.
 - Pérez-Arriaga, I. J., Jenkins, J. D., & Batlle, C. (2017). A regulatory framework for an evolving electricity sector: Highlights of the MIT Utility of the Future study. _IEEE Power and Energy Magazine_, 15(3), 21–33.
 - Schittekatte, T., & Meeus, L. (2018). Introduction to network tariffs and network codes for consumers, prosumers, and energy communities. FSR Technical Report.
 - Schittekatte, T., & Meeus, L. (2020). Least-cost distribution network tariff design in theory and practice. _The Energy Journal_, 41(5).

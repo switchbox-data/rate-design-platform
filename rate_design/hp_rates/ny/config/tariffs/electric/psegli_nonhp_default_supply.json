@@ -802,7 +802,7 @@
           }
         ]
       ],
-      "fixedchargefirstmeter": 16.44,
+      "fixedchargefirstmeter": 16.43,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
       "minchargeunits": "$/month",
