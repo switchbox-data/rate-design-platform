@@ -4,14 +4,12 @@ source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/ny_2026032
 total_delivery_revenue_requirement: 1419812826.56
 total_delivery_and_supply_revenue_requirement: 2572877123.2
 subclass_revenue_requirements:
-  percustomer:
-    non-hp:
-      delivery: 1371379962.664701
-      supply: 1077043154.9046779
-      total: 2448423117.569379
-    hp:
-      delivery: 48432863.89529973
-      supply: 76021141.73532248
-      total: 124454005.63062221
-allocation_methods:
-  - percustomer
+  delivery:
+    percustomer:
+      non-hp: 1371379962.664701
+      hp: 48432863.89529973
+  supply:
+    passthrough: &id001
+      non-hp: 1077043154.9046779
+      hp: 76021141.73532248
+    percustomer: *id001

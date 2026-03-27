@@ -56,20 +56,25 @@ def test_row_to_run_reads_run_includes_subclasses_from_sheet() -> None:
 
 
 def test_row_to_run_reads_residual_allocation() -> None:
-    """residual_allocation is included when non-blank, omitted when blank."""
+    """residual_allocation_delivery/supply are included when non-blank, omitted when blank."""
     row = _base_row()
-    row["residual_allocation"] = "percustomer"
+    row["residual_allocation_delivery"] = "percustomer"
+    row["residual_allocation_supply"] = "passthrough"
     run = _row_to_run(row, list(row.keys()))
-    assert run["residual_allocation"] == "percustomer"
+    assert run["residual_allocation_delivery"] == "percustomer"
+    assert run["residual_allocation_supply"] == "passthrough"
 
     row_blank = _base_row()
-    row_blank["residual_allocation"] = ""
+    row_blank["residual_allocation_delivery"] = ""
+    row_blank["residual_allocation_supply"] = ""
     run_blank = _row_to_run(row_blank, list(row_blank.keys()))
-    assert "residual_allocation" not in run_blank
+    assert "residual_allocation_delivery" not in run_blank
+    assert "residual_allocation_supply" not in run_blank
 
     row_absent = _base_row()
     run_absent = _row_to_run(row_absent, list(row_absent.keys()))
-    assert "residual_allocation" not in run_absent
+    assert "residual_allocation_delivery" not in run_absent
+    assert "residual_allocation_supply" not in run_absent
 
 
 def test_row_to_run_includes_path_tou_supply_mc_when_populated() -> None:

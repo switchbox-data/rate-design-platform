@@ -1,30 +1,21 @@
 utility: rie
 group_col: has_hp
-allocation_methods:
-  - percustomer
-  - epmc
 source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/ri_20260326_r1-20_epmc/20260327_015312_ri_rie_run1_up00_precalc__default
 total_delivery_revenue_requirement: 542556587.55
 total_delivery_and_supply_revenue_requirement: 955506957.66
 subclass_revenue_requirements:
-  percustomer:
-    non-hp:
-      delivery: 531018474.41656953
-      supply: 394774670.835715
-      total: 925793145.2522845
-    hp:
-      delivery: 11538113.133430587
-      supply: 18175699.274285078
-      total: 29713812.407715663
-  epmc:
-    non-hp:
-      delivery: 528045651.5245807
-      supply: 381319476.7680328
-      total: 909365128.2926135
-    hp:
-      delivery: 14510936.025419153
-      supply: 31630893.341966927
-      total: 46141829.36738608
+  delivery:
+    percustomer:
+      non-hp: 531018474.41656953
+      hp: 11538113.133430587
+    epmc:
+      non-hp: 528045651.5245807
+      hp: 14510936.025419153
+  supply:
+    passthrough: &id001
+      non-hp: 394774670.835715
+      hp: 18175699.274285078
+    percustomer: *id001
 heating_type_breakdown:
   percustomer:
     delivered_fuels:

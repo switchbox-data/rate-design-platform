@@ -4,14 +4,12 @@ source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/cenhud/ny_20260
 total_delivery_revenue_requirement: 418151641.73
 total_delivery_and_supply_revenue_requirement: 646688375.32
 subclass_revenue_requirements:
-  percustomer:
-    non-hp:
-      delivery: 401392812.56143004
-      supply: 209823391.60389036
-      total: 611216204.1653204
-    hp:
-      delivery: 16758829.168569993
-      supply: 18713341.9861097
-      total: 35472171.15467969
-allocation_methods:
-  - percustomer
+  delivery:
+    percustomer:
+      non-hp: 401392812.56143004
+      hp: 16758829.168569993
+  supply:
+    passthrough: &id001
+      non-hp: 209823391.60389036
+      hp: 18713341.9861097
+    percustomer: *id001
