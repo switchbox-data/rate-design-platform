@@ -7,6 +7,8 @@
 #   just -f data/resstock/Justfile resstock-identify-hp-customers NY
 #   just -f data/resstock/Justfile resstock-identify-hp-customers RI
 #   just -f data/resstock/Justfile assign-utility-ny res_2024_amy2018_2 00
+#   just -f data/resstock/Justfile aggregate-hourly-loads NY "00 02" false ./dev_plots/agg coned
+#   just -f data/resstock/Justfile aggregate-hourly-loads NY "00 02" true ./dev_plots/agg
 
 path_local_repo := `git rev-parse --show-toplevel`
 resstock_release := "res_2024_amy2018_2"
@@ -257,6 +259,72 @@ adjust-mf-electricity-RI-upgrade-00:
 
 adjust-mf-electricity-RI-upgrade-02:
     just adjust-mf-electricity RI res_2024_amy2018_2 res_2024_amy2018_2_sb "02"
+
+# =============================================================================
+# Aggregate hourly electric load (MWh) — data/resstock/create_aggregate_hourly_loads.py
+# =============================================================================
+#
+# Reads ``load_curve_hourly`` on S3 for ``resstock_release_sb`` and
+# ``metadata_utility/.../utility_assignment.parquet``.
+#
+# - customer_class **false**: one file per upgrade per utility (requires
+#   --electric-utility or ``all`` for every utility in metadata).
+# - customer_class **true**: separate HP vs non-HP cohorts per upgrade; omit
+#   electric_utility for state-wide cohorts, or use ``all`` for every utility.
+#
+# Example:
+#   just -f data/resstock/Justfile aggregate-hourly-loads NY "00 02" false ./dev_plots/agg coned
+#   just -f data/resstock/Justfile aggregate-hourly-loads NY "00 02" false ./dev_plots/agg all
+#   just -f data/resstock/Justfile aggregate-hourly-loads RI 02 true ./dev_plots/agg
+#   just -f data/resstock/Justfile aggregate-hourly-loads-NY-split-hp-coned ./dev_plots/agg
+# state: NY or RI; upgrades: space-separated e.g. 00 02; customer_class: true | false;
+# path_output_dir: directory for Parquet outputs (local path); electric_utility: optional
+
+# when customer_class is true (omit for state-wide HP vs non-HP).
+aggregate-hourly-loads state upgrades customer_class path_output_dir electric_utility="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ path_local_repo }}"
+    cmd=(
+        uv run python "{{ path_local_repo }}/data/resstock/create_aggregate_hourly_loads.py"
+        --resstock-base "{{ path_s3_parquet }}/{{ resstock_release_sb }}"
+        --state "{{ state }}"
+        --upgrades "{{ upgrades }}"
+        --customer-class "{{ customer_class }}"
+        --path-output-dir "{{ path_output_dir }}"
+    )
+    if [[ -n "{{ electric_utility }}" ]]; then
+        cmd+=(--electric-utility "{{ electric_utility }}")
+    fi
+    "${cmd[@]}"
+
+# Shortcut: ConEd, utility-only aggregate (customer_class false).
+aggregate-hourly-loads-NY-utility-coned path_output_dir upgrades="00 02":
+    just -f "{{ path_local_repo }}/data/resstock/Justfile" aggregate-hourly-loads NY "{{ upgrades }}" false "{{ path_output_dir }}" coned
+
+# Shortcut: NY ISO utilities — HP vs non-HP for one utility.
+aggregate-hourly-loads-NY-split-hp-coned path_output_dir upgrades="00 02":
+    just -f "{{ path_local_repo }}/data/resstock/Justfile" aggregate-hourly-loads NY "{{ upgrades }}" true "{{ path_output_dir }}" coned
+
+# Shortcut: state-wide HP vs non-HP (no electric-utility filter).
+aggregate-hourly-loads-NY-split-hp-statewide path_output_dir upgrades="00 02":
+    just -f "{{ path_local_repo }}/data/resstock/Justfile" aggregate-hourly-loads NY "{{ upgrades }}" true "{{ path_output_dir }}"
+
+# Shortcut: every NY utility — utility-only totals (one parquet per utility per upgrade).
+aggregate-hourly-loads-NY-all-utilities-utility-only path_output_dir upgrades="00 02":
+    just -f "{{ path_local_repo }}/data/resstock/Justfile" aggregate-hourly-loads NY "{{ upgrades }}" false "{{ path_output_dir }}" all
+
+# Shortcut: every NY utility — HP vs non-HP cohorts per utility.
+aggregate-hourly-loads-NY-all-utilities-split-hp path_output_dir upgrades="00 02":
+    just -f "{{ path_local_repo }}/data/resstock/Justfile" aggregate-hourly-loads NY "{{ upgrades }}" true "{{ path_output_dir }}" all
+
+# Shortcut: RIE, utility-only aggregate.
+aggregate-hourly-loads-RI-utility-rie path_output_dir upgrades="00 02":
+    just -f "{{ path_local_repo }}/data/resstock/Justfile" aggregate-hourly-loads RI "{{ upgrades }}" false "{{ path_output_dir }}" rie
+
+# Shortcut: RIE — HP vs non-HP cohorts for that utility.
+aggregate-hourly-loads-RI-split-hp-rie path_output_dir upgrades="00 02":
+    just -f "{{ path_local_repo }}/data/resstock/Justfile" aggregate-hourly-loads RI "{{ upgrades }}" true "{{ path_output_dir }}" rie
 
 path_ebs_parquet := "/ebs/data/nrel/resstock"
 

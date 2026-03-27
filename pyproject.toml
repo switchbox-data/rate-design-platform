@@ -77,7 +77,8 @@ include = ["data*", "rate_design*", "utils*"]
 "utils.post" = ["data/*.yaml"]
 
 [tool.ty.src]
-exclude = [".cache/"]
+# prek stores cloned hook repos under .prek-cache/; do not type-check third-party code.
+exclude = [".cache/", ".prek-cache/"]
 
 [tool.uv.sources]
 cairo = { git = "https://github.com/natlabrockies/cairo", rev = "09a4d7f" }
