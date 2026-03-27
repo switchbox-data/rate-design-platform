@@ -1,10 +1,11 @@
 """Validate marginal cost input datasets used by CAIRO for a state's utilities.
 
-For each utility, loads supply energy, supply capacity, bulk TX, and dist/sub-TX
+For each utility, loads supply energy, supply capacity, supply ancillary, bulk TX,
+and dist/sub-TX
 marginal cost parquets from S3, runs sanity checks (row counts, nulls, non-negative
 values, expected nonzero hour counts, year matching), prints a text summary, and
 generates:
-  1. A 4-quadrant heatmap per utility (hour-of-day x day-of-year, magma colormap,
+  1. A 5-panel heatmap grid per utility (hour-of-day x day-of-year, magma colormap,
      independent color scale per MC type).
   2. A faceted histogram of supply energy MC across all utilities.
 
@@ -27,6 +28,7 @@ from plotnine import (
     aes,
     element_text,
     facet_wrap,
+    geom_blank,
     geom_histogram,
     geom_tile,
     ggplot,
@@ -36,6 +38,7 @@ from plotnine import (
     scale_y_reverse,
     theme,
     theme_minimal,
+    theme_void,
 )
 from plotnine.composition import Compose
 
@@ -84,6 +87,12 @@ MC_TYPE_DEFS: dict[str, dict[str, str]] = {
         "raw_units": "$/MWh",
         "label": "Supply Capacity",
     },
+    "supply_ancillary": {
+        "s3_suffix": "supply/ancillary/",
+        "value_col": "ancillary_cost_enduse",
+        "raw_units": "$/MWh",
+        "label": "Supply Ancillary",
+    },
     "bulk_tx": {
         "s3_suffix": "bulk_tx/",
         "value_col": "bulk_tx_cost_enduse",
@@ -104,6 +113,7 @@ NORMALIZED_UNITS = "$/kWh"
 EXPECTED_NONZERO: dict[str, int | None] = {
     "supply_energy": None,  # virtually all hours; no hard expectation
     "supply_capacity": 96,  # 8 peak hours/month x 12
+    "supply_ancillary": None,  # no fixed-hour expectation
     "bulk_tx": 80,  # 40 SCR hours/season x 2
     "dist_sub_tx": 100,  # default N_HOURS for PoP
 }
@@ -115,8 +125,14 @@ STATE_EXPECTED_NONZERO_OVERRIDES: dict[str, dict[str, int | None]] = {
 SUMMER_MONTHS = {4, 5, 6, 7, 8, 9}
 WINTER_MONTHS = {1, 2, 3, 10, 11, 12}
 
-# Quadrant layout order (row-major): top-left, top-right, bottom-left, bottom-right
-QUADRANT_ORDER = ["supply_energy", "supply_capacity", "bulk_tx", "dist_sub_tx"]
+# Heatmap panel order (row-major): top row then bottom row.
+HEATMAP_ORDER = [
+    "supply_energy",
+    "supply_capacity",
+    "supply_ancillary",
+    "bulk_tx",
+    "dist_sub_tx",
+]
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
@@ -135,6 +151,10 @@ def load_mc(
     All values are normalized to $/kWh (supply energy and capacity are stored as
     $/MWh on S3, so they are divided by 1000). The value column is renamed to
     ``NORMALIZED_COL`` ("mc_kwh") regardless of MC type.
+
+    IMPORTANT: This function reads ONLY the explicit 'data.parquet' file path.
+    It never scans directories to avoid accidentally reading multiple parquet files
+    (e.g., both data.parquet and zero.parquet in the same partition).
     """
     info = MC_TYPE_DEFS[mc_key]
     value_col = info["value_col"]
@@ -146,9 +166,18 @@ def load_mc(
         filename="data.parquet",
         mc_base_path=mc_base_path,
     )
+    # Explicitly validate we're reading a file, not a directory
+    if not canonical_path.endswith("data.parquet"):
+        raise ValueError(
+            f"Expected path ending with 'data.parquet', got: {canonical_path}"
+        )
+    # Use read_parquet (not scan_parquet) to read the explicit file path only
+    # This ensures we never accidentally read multiple files from a directory
     try:
         df = pl.read_parquet(canonical_path, storage_options=storage_options)
     except Exception as e:
+        # Error handling: check what files exist in the partition for diagnostic purposes
+        # but never read from directory - always require explicit data.parquet path
         path_partition = build_mc_partition_path(
             state=state,
             component=mc_key,
@@ -170,7 +199,8 @@ def load_mc(
             f"{mc_key}: canonical file missing at {canonical_path}. "
             f"Found partition parquet files: {filenames}. "
             "Remediation: write canonical data.parquet (or move stale files out of "
-            "the partition) so validation reads a deterministic input."
+            "the partition) so validation reads a deterministic input. "
+            "Note: Validation always reads explicit 'data.parquet' paths, never scans directories."
         ) from e
 
     if "timestamp" in df.columns:
@@ -460,31 +490,45 @@ def _make_heatmap(
             axis_text=element_text(size=6),
             legend_text=element_text(size=6),
             legend_title=element_text(size=7),
+            legend_position="none",
         )
     )
 
 
-def make_four_quadrant_plot(
+def _make_blank_panel() -> ggplot:
+    """Create a spacer panel to preserve 2-column grid layout."""
+    blank_df = pl.DataFrame({"x": [0.0], "y": [0.0]})
+    return (
+        ggplot(blank_df, aes(x="x", y="y"))
+        + geom_blank()
+        + theme_void()
+        + theme(figure_size=(10, 4))
+    )
+
+
+def make_heatmap_grid(
     mc_data: dict[str, pl.DataFrame],
     check_results: dict[str, dict],
     utility: str,
     year: int,
 ) -> Compose:
-    """Compose 4 plotnine heatmaps into a 2x2 grid using | and / operators."""
+    """Compose 5 plotnine heatmaps into a 2+2+1 panel grid."""
     plots: list[ggplot] = []
-    for mc_key in QUADRANT_ORDER:
+    for mc_key in HEATMAP_ORDER:
         info = MC_TYPE_DEFS[mc_key]
         r = check_results[mc_key]
         subtitle = (
             f"{info['label']} ({NORMALIZED_UNITS})  "
-            f"nonzero={r['n_nonzero']}h  sum={r['total_sum']:.4f}"
+            f"nonzero={r['n_nonzero']}h  sum={r['total_sum']:.4f}  "
+            f"range=[{r['min']:.3f},{r['max']:.3f}]"
         )
         heatmap_df = prepare_heatmap_df(mc_data[mc_key])
         plots.append(_make_heatmap(heatmap_df, subtitle, year=r["year"]))
 
-    top_row = plots[0] | plots[1]
-    bottom_row = plots[2] | plots[3]
-    return top_row / bottom_row
+    row1 = plots[0] | plots[1]
+    row2 = plots[2] | plots[3]
+    row3 = plots[4] | _make_blank_panel()
+    return row1 / row2 / row3
 
 
 def make_energy_histogram(energy_frames: list[pl.DataFrame]) -> ggplot:
@@ -598,11 +642,12 @@ def main() -> None:
         year_for_mc = {
             "supply_energy": year,
             "supply_capacity": year,
+            "supply_ancillary": year,
             "bulk_tx": year,
             "dist_sub_tx": load_year,
         }
 
-        for mc_key in QUADRANT_ORDER:
+        for mc_key in HEATMAP_ORDER:
             mc_year = year_for_mc[mc_key]
             try:
                 df = load_mc(mc_key, state, utility, mc_year, storage_options)
@@ -668,16 +713,17 @@ def main() -> None:
                         f"{loaded_keys[0]} and {k}: {len(diff)} differences"
                     )
 
-        # Generate 4-quadrant heatmap
-        if len(mc_data) == 4:
-            grid = make_four_quadrant_plot(mc_data, all_checks, utility, year)
+        # Generate 5-panel heatmap grid
+        expected_panels = len(HEATMAP_ORDER)
+        if len(mc_data) == expected_panels:
+            grid = make_heatmap_grid(mc_data, all_checks, utility, year)
             path_png = output_dir / f"mc_heatmap_{utility}.png"
             grid.save(str(path_png), dpi=150, verbose=False)
             print(f"\n  Saved heatmap: {path_png}")
         else:
             print(
                 f"\n  Skipping heatmap for {utility}: "
-                f"only {len(mc_data)}/4 MC types loaded"
+                f"only {len(mc_data)}/{expected_panels} MC types loaded"
             )
 
     # Faceted energy histogram

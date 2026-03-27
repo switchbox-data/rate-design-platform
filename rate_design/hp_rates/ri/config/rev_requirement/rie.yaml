@@ -1,28 +1,30 @@
 utility: rie
+load_method: resstock
 delivery_revenue_requirement_from_rate_case: 241869601.0
-delivery_revenue_requirement_topups: 152677333.17
-supply_revenue_requirement_topups: 387840086.7
-total_delivery_revenue_requirement: 394546934.17
-total_delivery_and_supply_revenue_requirement: 782387020.87
-total_residential_kwh: 3027334912.0
+delivery_revenue_requirement_topups: 300686986.55
+supply_revenue_requirement_topups: 412950370.11
+total_delivery_revenue_requirement: 542556587.55
+total_delivery_and_supply_revenue_requirement: 955506957.66
+total_residential_kwh: 3173819718.1
+eia_total_residential_kwh: 3027334912.0
 eia_year: 2024
 delivery_top_ups:
   storm_fund_replenishment_factor:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.00788
-    total_budget: 23855399.11
+    budget_method: resstock
+    total_budget: 25009699.38
   arrears_arrearage_recovery:
     charge_unit: $/kWh
-    avg_monthly_rate: 7.48767e-05
-    total_budget: 226676.89
+    budget_method: resstock
+    total_budget: 238059.04
   net_metering_charge:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.0140669863
-    total_budget: 42585478.74
+    budget_method: resstock
+    total_budget: 44394048.07
   long_term_contracting_charge:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.0076350685
-    total_budget: 23113909.4
+    budget_method: resstock
+    total_budget: 24770984.2
   re_growth_charge:
     charge_unit: $/month
     customer_count: 451381
@@ -33,14 +35,32 @@ delivery_top_ups:
     total_budget: 4279091.88
   energy_efficiency_programs_charge:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.01098
-    total_budget: 33240137.33
+    budget_method: resstock
+    total_budget: 34848540.5
+  transmission_charge:
+    charge_unit: $/kWh
+    budget_method: resstock
+    total_budget: 141769923.65
 supply_top_ups:
   supply_commodity_bundled:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.114146274
-    total_budget: 345559000.27
+    budget_method: resstock
+    total_budget: 368945863.36
   renewable_standard_energy_charge:
     charge_unit: $/kWh
-    avg_monthly_rate: 0.0139664384
-    total_budget: 42281086.43
+    budget_method: resstock
+    total_budget: 44004506.75
+resstock_monthly_kwh:
+  1: 349667319.26
+  2: 267652683.88
+  3: 288810008.93
+  4: 237593721.71
+  5: 219981666.23
+  6: 223956609.47
+  7: 293617665.39
+  8: 296011260.9
+  9: 227667756.68
+  10: 218918966.64
+  11: 253198388.79
+  12: 296743670.22
+resstock_scale_factor: 0.936677

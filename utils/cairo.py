@@ -21,6 +21,22 @@ CambiumPathLike = str | Path | S3Path
 log = logging.getLogger(__name__)
 
 
+def _current_rss_gb() -> float:
+    """Read current RSS from /proc/self/status (Linux only)."""
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) / 1e6  # kB → GB
+    except OSError:
+        pass
+    return 0.0
+
+
+def _log_rss(label: str) -> None:
+    log.info("RSS [%.2f GB] %s", _current_rss_gb(), label)
+
+
 # ---------------------------------------------------------------------------
 # Low-level I/O helpers
 # ---------------------------------------------------------------------------
@@ -834,7 +850,7 @@ def process_residential_hourly_demand_response_shift(
     demand_elasticity: float,
     equivalent_flat_tariff: float | None = None,
     receiver_period: int | None = None,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
     """CAIRO-style parent function for demand-response load shifting.
 
     Args:
@@ -848,11 +864,12 @@ def process_residential_hourly_demand_response_shift(
 
     Returns:
         Tuple of:
-        - shifted hourly DataFrame for the slice
+        - shifted_net values (numpy array, same length as hourly_load_df)
+        - hourly_shift values (numpy array)
         - period-level elasticity tracker DataFrame
     """
     if hourly_load_df.empty:
-        return hourly_load_df.copy(), pd.DataFrame()
+        return np.array([]), np.array([]), pd.DataFrame()
 
     period_consumption = _build_period_consumption(hourly_load_df)
     flat_tariff = (
@@ -868,22 +885,58 @@ def process_residential_hourly_demand_response_shift(
         receiver_period=receiver_period,
     )
 
-    shifted_chunks: list[pd.DataFrame] = []
-    tracker_chunks: list[pd.DataFrame] = []
-    for bldg_id, bldg_hourly in hourly_load_df.groupby("bldg_id", sort=False):
-        bldg_targets = period_targets[period_targets["bldg_id"] == bldg_id]
-        shifted_bldg, tracker_bldg = _shift_building_hourly_demand(
-            bldg_hourly_df=bldg_hourly,
-            period_targets=bldg_targets,
-            equivalent_flat_tariff=flat_tariff,
-        )
-        shifted_chunks.append(shifted_bldg)
-        tracker_chunks.append(tracker_bldg)
+    # Broadcast period-level targets to hourly rows without a full merge.
+    # period_targets is small (~buildings × periods); hourly_load_df can be
+    # tens of millions of rows.  A merge would double memory; instead we use
+    # groupby.transform for Q_orig and a keyed lookup for load_shift.
+    pt_idx = period_targets.set_index(["bldg_id", "energy_period"])
+    load_shift_map = pt_idx["load_shift"].to_dict()
 
-    return (
-        pd.concat(shifted_chunks, ignore_index=True),
-        pd.concat(tracker_chunks, ignore_index=True),
+    grp = hourly_load_df.groupby(["bldg_id", "energy_period"], sort=False)
+    q_orig = grp["electricity_net"].transform("sum")
+
+    hourly_keys = tuple(
+        zip(hourly_load_df["bldg_id"], hourly_load_df["energy_period"], strict=False)
     )
+    load_shift_arr = np.array(
+        [load_shift_map.get(k, 0.0) for k in hourly_keys], dtype=np.float64
+    )
+    del hourly_keys
+
+    hour_share = np.where(
+        q_orig.abs().values > 0,
+        hourly_load_df["electricity_net"].values / q_orig.values,
+        0.0,
+    )
+    hourly_shift = load_shift_arr * hour_share
+    shifted_net = hourly_load_df["electricity_net"].values + hourly_shift
+
+    # Tracker: period-level elasticity diagnostics (tiny).
+    tracker = (
+        pd.DataFrame(
+            {
+                "bldg_id": hourly_load_df["bldg_id"],
+                "energy_period": hourly_load_df["energy_period"],
+                "electricity_net": hourly_load_df["electricity_net"],
+                "shifted_net": shifted_net,
+            }
+        )
+        .groupby(["bldg_id", "energy_period"], as_index=False)
+        .agg(Q_orig=("electricity_net", "sum"), Q_new=("shifted_net", "sum"))
+    )
+    rate_map = period_rate.to_dict()
+    tracker["rate"] = tracker["energy_period"].map(rate_map)
+    valid = (
+        (tracker["Q_new"] > 0)
+        & (tracker["Q_orig"] > 0)
+        & (tracker["rate"] != flat_tariff)
+    )
+    tracker["epsilon"] = np.nan
+    tracker.loc[valid, "epsilon"] = np.log(
+        tracker.loc[valid, "Q_new"] / tracker.loc[valid, "Q_orig"]
+    ) / np.log(tracker.loc[valid, "rate"] / flat_tariff)
+
+    return shifted_net, hourly_shift, tracker
 
 
 def _infer_season_groups_from_tariff(
@@ -926,8 +979,10 @@ def apply_runtime_tou_demand_response(
     raw_load_elec: pd.DataFrame,
     tou_bldg_ids: list[int],
     tou_tariff: dict,
-    demand_elasticity: float,
+    demand_elasticity: float | dict[str, float],
     season_specs: list | None = None,
+    *,
+    inplace: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Apply runtime TOU demand response to the assigned TOU customer cohort.
 
@@ -935,23 +990,34 @@ def apply_runtime_tou_demand_response(
         raw_load_elec: Full electric load DataFrame indexed by `(bldg_id, time)`.
         tou_bldg_ids: Building IDs assigned to the TOU tariff.
         tou_tariff: URDB v7 tariff dictionary.
-        demand_elasticity: Constant demand elasticity parameter.
+        demand_elasticity: Constant demand elasticity parameter, or a
+            ``{season_name: elasticity}`` dict for per-season values.
         season_specs: Optional season definitions for seasonal slicing.
+        inplace: If True, mutate *raw_load_elec* directly instead of copying.
+            The caller is responsible for passing an already-copied DataFrame.
 
     Returns:
         Tuple of:
-        - full shifted load DataFrame (`raw_load_elec` shape preserved)
+        - shifted load DataFrame (same object as input when *inplace=True*)
         - pivoted elasticity tracker DataFrame by building
     """
+    _log_rss("apply_runtime_tou_demand_response entry")
     if not tou_bldg_ids:
+        if inplace:
+            return raw_load_elec, pd.DataFrame()
         return raw_load_elec.copy(), pd.DataFrame()
 
-    # Only TOU-assigned buildings are shifted; others pass through unchanged.
     bldg_level = raw_load_elec.index.get_level_values("bldg_id")
-    tou_mask = bldg_level.isin(set(tou_bldg_ids))
+    tou_set = set(tou_bldg_ids)
+    tou_mask = bldg_level.isin(tou_set)
     if not tou_mask.any():
         log.warning("No TOU buildings found in load data; skipping demand response.")
+        if inplace:
+            return raw_load_elec, pd.DataFrame()
         return raw_load_elec.copy(), pd.DataFrame()
+
+    # Capture original total before any mutation (needed for logging).
+    original_total = raw_load_elec.loc[tou_mask, "electricity_net"].sum()
 
     rate_df = extract_tou_period_rates(tou_tariff)
     period_rate = cast(pd.Series, rate_df.groupby("energy_period")["rate"].first())
@@ -960,71 +1026,82 @@ def apply_runtime_tou_demand_response(
     )
     period_map = assign_hourly_periods(time_idx, tou_tariff)
 
-    tou_df = raw_load_elec.loc[tou_mask, ["electricity_net"]].copy().reset_index()
-    period_df = period_map.reset_index()
-    period_df.columns = ["time", "energy_period"]
-    tou_df = tou_df.merge(period_df, on="time", how="left")
-    tou_df["month"] = tou_df["time"].dt.month
+    # Period lookup: 8760 rows (tiny), used to tag each season slice.
+    period_lookup = period_map.reset_index()
+    period_lookup.columns = pd.Index(["time", "energy_period"])
 
-    # Shift per-season so energy conservation holds within each slice.
-    # Season groups come from explicit specs, tariff-inferred months, or
-    # fall back to full-year as a single group.
-    shifted_chunks: list[pd.DataFrame] = []
-    trackers: list[pd.DataFrame] = []
+    shifted_load_elec = raw_load_elec if inplace else raw_load_elec.copy()
+    _log_rss("after shifted_load_elec " + ("(inplace)" if inplace else "copy"))
 
+    # Determine season groups from explicit specs, tariff-inferred, or full-year.
     if season_specs:
         season_groups: list[dict[str, object]] = [
             {"name": str(spec.season.name), "months": list(spec.season.months)}
             for spec in season_specs
         ]
     else:
-        # For seasonal+TOU tariffs without explicit derivation specs, infer
-        # month groups directly from tariff month->period structure.
         season_groups = _infer_season_groups_from_tariff(period_map)
+
+    trackers: list[pd.DataFrame] = []
+    time_level = pd.DatetimeIndex(shifted_load_elec.index.get_level_values("time"))
+    month_level = time_level.month  # type: ignore[attr-defined]
+    has_load_data = "load_data" in shifted_load_elec.columns
+
+    def _shift_season(season_name: str, season_months: set[int]) -> None:
+        """Shift one season's TOU rows in-place on shifted_load_elec."""
+        season_eps = (
+            demand_elasticity.get(season_name, 0.0)
+            if isinstance(demand_elasticity, dict)
+            else demand_elasticity
+        )
+        if season_eps == 0.0:
+            return
+
+        mask = bldg_level.isin(tou_set) & month_level.isin(season_months)
+        season_df = (
+            shifted_load_elec.loc[mask, ["electricity_net"]].copy().reset_index()
+        )
+        if season_df.empty:
+            return
+        season_df = season_df.merge(period_lookup, on="time", how="left")
+        if season_df["energy_period"].dropna().empty:
+            return
+        _log_rss(f"  season '{season_name}' slice ready ({len(season_df)} rows)")
+
+        shifted_net, hourly_shift_arr, tracker = (
+            process_residential_hourly_demand_response_shift(
+                hourly_load_df=season_df,
+                period_rate=period_rate,
+                demand_elasticity=season_eps,
+            )
+        )
+        tracker["season"] = season_name
+        trackers.append(tracker)
+
+        # Write shifted values back in-place via the MultiIndex.
+        idx = pd.MultiIndex.from_arrays(
+            [season_df["bldg_id"], season_df["time"]],
+            names=["bldg_id", "time"],
+        )
+        del season_df
+        shifted_load_elec.loc[idx, "electricity_net"] = shifted_net
+        if has_load_data:
+            shifted_load_elec.loc[idx, "load_data"] += hourly_shift_arr
+
+        del shifted_net, hourly_shift_arr, idx
+        _log_rss(f"  season '{season_name}' writeback done")
 
     if season_groups:
         for season_group in season_groups:
-            season_name = str(season_group["name"])
-            season_months = set(cast(list[int], season_group["months"]))
-            season_df = tou_df[tou_df["month"].isin(season_months)].copy()
-            if season_df.empty or not season_df["energy_period"].dropna().size:
-                continue
-            shifted_season, tracker = process_residential_hourly_demand_response_shift(
-                hourly_load_df=season_df,
-                period_rate=period_rate,
-                demand_elasticity=demand_elasticity,
+            _shift_season(
+                str(season_group["name"]),
+                set(cast(list[int], season_group["months"])),
             )
-            tracker["season"] = season_name
-            shifted_chunks.append(shifted_season)
-            trackers.append(tracker)
     else:
-        # Non-seasonal tariff: shift across the full year as one group.
-        if not tou_df["energy_period"].dropna().empty:
-            shifted_year, tracker = process_residential_hourly_demand_response_shift(
-                hourly_load_df=tou_df,
-                period_rate=period_rate,
-                demand_elasticity=demand_elasticity,
-            )
-            tracker["season"] = "all_year"
-            shifted_chunks.append(shifted_year)
-            trackers.append(tracker)
+        all_months = set(range(1, 13))
+        _shift_season("all_year", all_months)
 
-    # Merge shifted TOU rows back; non-TOU buildings are untouched.
-    shifted_load_elec = raw_load_elec.copy()
-    if shifted_chunks:
-        shifted = pd.concat(shifted_chunks, ignore_index=True).set_index(
-            ["bldg_id", "time"]
-        )
-        shifted = shifted.sort_index()
-        shifted_load_elec.loc[shifted.index, "electricity_net"] = shifted[
-            "shifted_net"
-        ].to_numpy()
-        if "load_data" in shifted_load_elec.columns:
-            shifted_load_elec.loc[shifted.index, "load_data"] = (
-                shifted_load_elec.loc[shifted.index, "load_data"]
-                + shifted["hourly_shift"].to_numpy()
-            )
-
+    # Build elasticity tracker pivot.
     if trackers:
         tracker_df = pd.concat(trackers, ignore_index=True)
         tracker_df["period_label"] = tracker_df.apply(
@@ -1036,14 +1113,15 @@ def apply_runtime_tou_demand_response(
     else:
         elasticity_tracker = pd.DataFrame()
 
-    original_total = raw_load_elec.loc[tou_mask, "electricity_net"].sum()
     shifted_total = shifted_load_elec.loc[tou_mask, "electricity_net"].sum()
     log.info(
-        "Runtime demand response complete: bldgs=%d, elasticity=%.3f, original=%.0f, shifted=%.0f, diff=%.2f",
+        "Runtime demand response complete: bldgs=%d, elasticity=%s, "
+        "original=%.0f, shifted=%.0f, diff=%.2f",
         len(tou_bldg_ids),
         demand_elasticity,
         original_total,
         shifted_total,
         shifted_total - original_total,
     )
+    _log_rss("apply_runtime_tou_demand_response exit")
     return shifted_load_elec, elasticity_tracker

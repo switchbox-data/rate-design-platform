@@ -24,7 +24,7 @@ from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.loads import scan_resstock_loads
+from utils.loads import ELECTRIC_PV_COL, grid_consumption_expr, scan_resstock_loads
 from utils.pre.season_config import (
     DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS,
     get_utility_periods_yaml_path,
@@ -42,7 +42,23 @@ DEFAULT_BAT_METRIC = "BAT_percustomer"
 GROUP_VALUE_COL = "subclass"
 ANNUAL_MONTH_VALUE = "Annual"
 DEFAULT_SEASONAL_OUTPUT_FILENAME = "seasonal_discount_rate_inputs.csv"
-ELECTRIC_LOAD_COL = "out.electricity.net.energy_consumption"
+DEFAULT_FLAT_OUTPUT_FILENAME = "flat_discount_rate_inputs.csv"
+ELECTRIC_LOAD_COL = "out.electricity.total.energy_consumption"
+MONTH_ABBREV_TO_NUM: dict[str, int] = {
+    "Jan": 1,
+    "Feb": 2,
+    "Mar": 3,
+    "Apr": 4,
+    "May": 5,
+    "Jun": 6,
+    "Jul": 7,
+    "Aug": 8,
+    "Sep": 9,
+    "Oct": 10,
+    "Nov": 11,
+    "Dec": 12,
+}
+NUM_TO_MONTH_ABBREV: dict[int, str] = {v: k for k, v in MONTH_ABBREV_TO_NUM.items()}
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SCENARIO_CONFIG_PATH = (
     PROJECT_ROOT / "rate_design/hp_rates/ri/config/scenarios.yaml"
@@ -108,10 +124,6 @@ def _resolve_winter_months(
 
 
 def _csv_path(run_dir: S3Path | Path, relative: str) -> str:
-    return str(run_dir / relative)
-
-
-def _json_path(run_dir: S3Path | Path, relative: str) -> str:
     return str(run_dir / relative)
 
 
@@ -208,43 +220,28 @@ def _resolve_path_or_s3(path_value: str) -> S3Path | Path:
     return S3Path(path_value) if path_value.startswith("s3://") else Path(path_value)
 
 
-def _extract_default_rate_from_tariff_config(
-    tariff_final_config_path: S3Path | Path,
+def _extract_fixed_charge_from_urdb(
+    base_tariff_json_path: S3Path | Path,
 ) -> float:
-    if isinstance(tariff_final_config_path, S3Path):
-        payload = tariff_final_config_path.read_text()
+    """Read ``fixedchargefirstmeter`` from a URDB v7 tariff JSON."""
+    if isinstance(base_tariff_json_path, S3Path):
+        payload = base_tariff_json_path.read_text()
     else:
-        payload = Path(tariff_final_config_path).read_text(encoding="utf-8")
+        payload = Path(base_tariff_json_path).read_text(encoding="utf-8")
     tariff = json.loads(payload)
-    # Support CAIRO internal tariff shape where top-level key is tariff_key and
-    # rates are in `ur_ec_tou_mat` rows: [period, tier, max_usage, units, buy, sell, adj].
-    if isinstance(tariff, dict) and tariff:
-        first_key = next(iter(tariff))
-        first_tariff = tariff.get(first_key, {})
-        if isinstance(first_tariff, dict) and "ur_ec_tou_mat" in first_tariff:
-            tou_mat = first_tariff.get("ur_ec_tou_mat", [])
-            if not tou_mat:
-                raise ValueError("tariff_final_config.json has empty `ur_ec_tou_mat`")
-            # Pick period=1,tier=1 row when present; otherwise first row.
-            row = next(
-                (
-                    r
-                    for r in tou_mat
-                    if isinstance(r, list)
-                    and len(r) >= 5
-                    and int(r[0]) == 1
-                    and int(r[1]) == 1
-                ),
-                tou_mat[0],
-            )
-            if not isinstance(row, list) or len(row) < 5:
-                raise ValueError("Invalid `ur_ec_tou_mat` row format in tariff config")
-            return float(row[4])
-
-    raise ValueError(
-        "tariff_final_config.json does not match expected CAIRO internal "
-        "`ur_ec_tou_mat` format."
-    )
+    items = tariff.get("items")
+    if not isinstance(items, list) or not items:
+        raise ValueError(
+            "Base tariff JSON must contain a non-empty 'items' list: "
+            f"{base_tariff_json_path}"
+        )
+    fixed_charge = items[0].get("fixedchargefirstmeter")
+    if fixed_charge is None:
+        raise ValueError(
+            "Base tariff JSON is missing 'fixedchargefirstmeter': "
+            f"{base_tariff_json_path}"
+        )
+    return float(fixed_charge)
 
 
 def compute_hp_seasonal_discount_inputs(
@@ -254,19 +251,32 @@ def compute_hp_seasonal_discount_inputs(
     upgrade: str,
     cross_subsidy_col: str = DEFAULT_BAT_METRIC,
     storage_options: dict[str, str] | None = None,
-    tariff_final_config_path: S3Path | Path | None = None,
+    base_tariff_json_path: S3Path | Path | None = None,
     winter_months: tuple[int, ...] | None = None,
 ) -> pl.DataFrame:
     """Compute HP-only seasonal discount inputs from run outputs + ResStock loads.
 
-    Uses hive partitions (state, upgrade) and building IDs from the run so the
-    load scan aligns with the CAIRO sample and avoids globbing.
+    Derives effective flat seasonal rates from the run's actual bill revenue,
+    so the seasonal discount works correctly regardless of whether the base
+    tariff is flat or structured (tiered, seasonal, TOU).
+
+    For flat tariffs the revenue-based rates equal the single flat rate, so
+    this is backward-compatible.
     """
+    if base_tariff_json_path is None:
+        raise ValueError(
+            "base_tariff_json_path is required: pass the URDB-format calibrated "
+            "tariff JSON (e.g. <utility>_default_calibrated.json) to extract the "
+            "fixed charge."
+        )
+
     resolved_winter_months = (
         winter_months
         if winter_months is not None
         else tuple(DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS)
     )
+
+    # --- HP metadata, weights, and cross-subsidy ---
     t0 = perf_counter()
     metadata = _load_metadata_for_group(
         run_dir=run_dir,
@@ -295,9 +305,46 @@ def compute_hp_seasonal_discount_inputs(
     if nulls_weight:
         raise ValueError(f"Missing sample weights for {nulls_weight} HP buildings.")
 
+    total_cross_subsidy_hp = float(
+        hp_cross_subsidy.select(
+            (pl.col("cross_subsidy") * pl.col(WEIGHT_COL)).sum().alias("weighted_cs")
+        )["weighted_cs"][0]
+    )
+
+    # --- Fixed charge from URDB base tariff ---
+    fixed_charge = _extract_fixed_charge_from_urdb(base_tariff_json_path)
+
+    # --- Annual energy revenue from annual bills ---
+    # Use the Annual row (same source as compute_subclass_rr) so the flat rate
+    # is derived from exactly the same bills that produced RR_HP.  Subtracting
+    # 12*FC converts the annual total bill into the annual energy-only revenue.
+    t1 = perf_counter()
+    hp_ids_weights = hp_cross_subsidy.select(BLDG_ID_COL, WEIGHT_COL)
+
+    annual_energy_rev_row = cast(
+        pl.DataFrame,
+        _load_annual_target_bills(run_dir, ANNUAL_MONTH_VALUE, storage_options)
+        .join(hp_ids_weights.lazy(), on=BLDG_ID_COL, how="inner")
+        .with_columns(
+            ((pl.col("annual_bill") - 12.0 * fixed_charge) * pl.col(WEIGHT_COL)).alias(
+                "weighted_energy_rev"
+            )
+        )
+        .select(pl.col("weighted_energy_rev").sum().alias("annual_energy_rev_hp"))
+        .collect(),
+    )
+    annual_energy_rev_hp = float(
+        annual_energy_rev_row["annual_energy_rev_hp"][0] or 0.0
+    )
+    LOGGER.info(
+        "seasonal_inputs: computed annual energy revenue in %.2fs",
+        perf_counter() - t1,
+    )
+
+    # --- Seasonal kWh from ResStock loads ---
     hp_weights = hp_cross_subsidy.select(pl.col(BLDG_ID_COL), pl.col(WEIGHT_COL))
     building_ids = hp_cross_subsidy[BLDG_ID_COL].to_list()
-    t1 = perf_counter()
+    t2 = perf_counter()
     loads = scan_resstock_loads(
         resstock_base,
         state,
@@ -308,69 +355,94 @@ def compute_hp_seasonal_discount_inputs(
     LOGGER.info(
         "seasonal_inputs: prepared loads scan for %d HP buildings in %.2fs",
         len(building_ids),
-        perf_counter() - t1,
+        perf_counter() - t2,
     )
-    t2 = perf_counter()
-    winter_kwh_hp = (
+    t3 = perf_counter()
+    seasonal_kwh = cast(
+        pl.DataFrame,
         loads.join(hp_weights.lazy(), on=BLDG_ID_COL, how="inner")
         .select(
-            pl.col(BLDG_ID_COL).cast(pl.Int64),
             pl.col("timestamp")
             .cast(pl.String, strict=False)
             .str.to_datetime(strict=False)
             .alias("timestamp"),
-            pl.col(ELECTRIC_LOAD_COL).cast(pl.Float64).alias("demand_kwh"),
+            grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL).alias(
+                "demand_kwh"
+            ),
             pl.col(WEIGHT_COL).cast(pl.Float64),
         )
         .with_columns(pl.col("timestamp").dt.month().alias("month_num"))
-        .filter(pl.col("month_num").is_in(resolved_winter_months))
-        .with_columns((pl.col("demand_kwh") * pl.col(WEIGHT_COL)).alias("weighted_kwh"))
-        .select(pl.col("weighted_kwh").sum().alias("winter_kwh_hp"))
-        .collect(engine="streaming")
+        .with_columns(
+            (pl.col("demand_kwh") * pl.col(WEIGHT_COL)).alias("weighted_kwh"),
+            pl.col("month_num").is_in(resolved_winter_months).alias("is_winter"),
+        )
+        .select(
+            pl.col("weighted_kwh").sum().alias("annual_kwh_hp"),
+            pl.when(pl.col("is_winter"))
+            .then(pl.col("weighted_kwh"))
+            .otherwise(0.0)
+            .sum()
+            .alias("winter_kwh_hp"),
+        )
+        .collect(engine="streaming"),
     )
     LOGGER.info(
-        "seasonal_inputs: collected winter kWh aggregate in %.2fs",
-        perf_counter() - t2,
+        "seasonal_inputs: collected seasonal kWh aggregates in %.2fs",
+        perf_counter() - t3,
     )
-    winter_kwh_hp = cast(pl.DataFrame, winter_kwh_hp)
 
-    winter_kwh = float(winter_kwh_hp["winter_kwh_hp"][0] or 0.0)
+    annual_kwh = float(seasonal_kwh["annual_kwh_hp"][0] or 0.0)
+    winter_kwh = float(seasonal_kwh["winter_kwh_hp"][0] or 0.0)
+    summer_kwh = annual_kwh - winter_kwh
+
     if winter_kwh <= 0:
         raise ValueError(
             "Winter kWh for HP customers is zero; cannot compute winter rate."
         )
+    if summer_kwh <= 0:
+        raise ValueError(
+            "Summer kWh for HP customers is zero; cannot compute summer rate."
+        )
 
-    total_cross_subsidy_hp = float(
-        hp_cross_subsidy.select(
-            (pl.col("cross_subsidy") * pl.col(WEIGHT_COL)).sum().alias("weighted_cs")
-        )["weighted_cs"][0]
-    )
-    tariff_path = (
-        tariff_final_config_path
-        if tariff_final_config_path is not None
-        else (run_dir / "tariff_final_config.json")
-    )
-    default_rate = _extract_default_rate_from_tariff_config(tariff_path)
-    winter_rate_raw = default_rate - (total_cross_subsidy_hp / winter_kwh)
+    # --- Derive effective seasonal rates ---
+    # Equivalent flat rate = HP annual energy revenue / HP annual kWh.
+    # This uses the same Annual row bills that produced RR_HP, ensuring the
+    # pre-calibrated hp_seasonal tariff is exactly subclass revenue neutral
+    # (rate_unity = 1.0 at CAIRO precalc, up to floating-point precision).
+    # Summer rate = flat rate; winter rate = flat rate - winter discount,
+    # where winter_discount = CS / winter_kWh eliminates the HP cross-subsidy.
+    total_kwh = summer_kwh + winter_kwh
+    equivalent_flat_rate = annual_energy_rev_hp / total_kwh
+    winter_discount = total_cross_subsidy_hp / winter_kwh
+    summer_rate = equivalent_flat_rate
+    winter_rate_raw = equivalent_flat_rate - winter_discount
     winter_rate_hp = winter_rate_raw
     if winter_rate_hp < 0:
         raise ValueError(
             "Computed winter_rate_hp is negative. "
             "Check formula inputs: "
-            f"default_rate={default_rate}, "
+            f"annual_energy_rev_hp={annual_energy_rev_hp}, "
             f"total_cross_subsidy_hp={total_cross_subsidy_hp}, "
             f"winter_kwh_hp={winter_kwh}, "
+            f"annual_kwh_hp={total_kwh}, "
+            f"equivalent_flat_rate={equivalent_flat_rate}, "
+            f"winter_discount={winter_discount}, "
             f"winter_rate_hp={winter_rate_hp}"
         )
 
-    t3 = perf_counter()
+    t4 = perf_counter()
     result = pl.DataFrame(
         {
             "subclass": ["true"],
             "cross_subsidy_col": [cross_subsidy_col],
-            "default_rate": [default_rate],
+            "equivalent_flat_rate": [equivalent_flat_rate],
+            "winter_discount": [winter_discount],
+            "summer_rate": [summer_rate],
             "total_cross_subsidy_hp": [total_cross_subsidy_hp],
             "winter_kwh_hp": [winter_kwh],
+            "summer_kwh_hp": [summer_kwh],
+            "annual_kwh_hp": [total_kwh],
+            "annual_energy_rev_hp": [annual_energy_rev_hp],
             "winter_rate_hp": [winter_rate_hp],
             "winter_rate_raw": [winter_rate_raw],
             "winter_months": [",".join(str(m) for m in resolved_winter_months)],
@@ -378,8 +450,172 @@ def compute_hp_seasonal_discount_inputs(
     )
     LOGGER.info(
         "seasonal_inputs: finalized result frame in %.2fs",
+        perf_counter() - t4,
+    )
+    return result
+
+
+def compute_hp_flat_discount_inputs(
+    run_dir: S3Path | Path,
+    resstock_base: str,
+    state: str,
+    upgrade: str,
+    cross_subsidy_col: str = DEFAULT_BAT_METRIC,
+    storage_options: dict[str, str] | None = None,
+    base_tariff_json_path: S3Path | Path | None = None,
+) -> pl.DataFrame:
+    """Compute a fair flat volumetric rate for HP customers.
+
+    The flat rate eliminates the HP cross-subsidy uniformly across all hours::
+
+        equivalent_flat_rate = annual_energy_rev_hp / annual_kwh_hp
+        flat_discount        = total_cross_subsidy_hp / annual_kwh_hp
+        flat_rate_hp         = equivalent_flat_rate - flat_discount
+
+    Inputs are identical to :func:`compute_hp_seasonal_discount_inputs` but no
+    winter/summer split is needed.
+    """
+    if base_tariff_json_path is None:
+        raise ValueError(
+            "base_tariff_json_path is required: pass the URDB-format calibrated "
+            "tariff JSON to extract the fixed charge."
+        )
+
+    # --- HP metadata, weights, and cross-subsidy ---
+    t0 = perf_counter()
+    metadata = _load_metadata_for_group(
+        run_dir=run_dir,
+        group_col=DEFAULT_GROUP_COL,
+        storage_options=storage_options,
+    )
+    cross_sub = _load_cross_subsidy(run_dir, cross_subsidy_col, storage_options)
+
+    hp_cross_subsidy = (
+        metadata.filter(pl.col(GROUP_VALUE_COL) == "true")
+        .join(cross_sub, on=BLDG_ID_COL, how="left")
+        .collect()
+    )
+    LOGGER.info(
+        "flat_inputs: loaded metadata + cross-subsidy in %.2fs",
+        perf_counter() - t0,
+    )
+    hp_cross_subsidy = cast(pl.DataFrame, hp_cross_subsidy)
+    if hp_cross_subsidy.is_empty():
+        raise ValueError("No HP customers found in customer_metadata.csv.")
+
+    nulls_cs = hp_cross_subsidy.filter(pl.col("cross_subsidy").is_null()).height
+    if nulls_cs:
+        raise ValueError(f"Missing cross-subsidy values for {nulls_cs} HP buildings.")
+    nulls_weight = hp_cross_subsidy.filter(pl.col(WEIGHT_COL).is_null()).height
+    if nulls_weight:
+        raise ValueError(f"Missing sample weights for {nulls_weight} HP buildings.")
+
+    total_cross_subsidy_hp = float(
+        hp_cross_subsidy.select(
+            (pl.col("cross_subsidy") * pl.col(WEIGHT_COL)).sum().alias("weighted_cs")
+        )["weighted_cs"][0]
+    )
+
+    # --- Fixed charge from URDB base tariff ---
+    fixed_charge = _extract_fixed_charge_from_urdb(base_tariff_json_path)
+
+    # --- Annual energy revenue from annual bills ---
+    t1 = perf_counter()
+    hp_ids_weights = hp_cross_subsidy.select(BLDG_ID_COL, WEIGHT_COL)
+
+    annual_energy_rev_row = cast(
+        pl.DataFrame,
+        _load_annual_target_bills(run_dir, ANNUAL_MONTH_VALUE, storage_options)
+        .join(hp_ids_weights.lazy(), on=BLDG_ID_COL, how="inner")
+        .with_columns(
+            ((pl.col("annual_bill") - 12.0 * fixed_charge) * pl.col(WEIGHT_COL)).alias(
+                "weighted_energy_rev"
+            )
+        )
+        .select(pl.col("weighted_energy_rev").sum().alias("annual_energy_rev_hp"))
+        .collect(),
+    )
+    annual_energy_rev_hp = float(
+        annual_energy_rev_row["annual_energy_rev_hp"][0] or 0.0
+    )
+    LOGGER.info(
+        "flat_inputs: computed annual energy revenue in %.2fs",
+        perf_counter() - t1,
+    )
+
+    # --- Annual kWh from ResStock loads ---
+    building_ids = hp_cross_subsidy[BLDG_ID_COL].to_list()
+    hp_weights = hp_cross_subsidy.select(pl.col(BLDG_ID_COL), pl.col(WEIGHT_COL))
+    t2 = perf_counter()
+    loads = scan_resstock_loads(
+        resstock_base,
+        state,
+        upgrade,
+        building_ids=building_ids,
+        storage_options=storage_options,
+    )
+    LOGGER.info(
+        "flat_inputs: prepared loads scan for %d HP buildings in %.2fs",
+        len(building_ids),
+        perf_counter() - t2,
+    )
+    t3 = perf_counter()
+    kwh_agg = cast(
+        pl.DataFrame,
+        loads.join(hp_weights.lazy(), on=BLDG_ID_COL, how="inner")
+        .select(
+            grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL).alias(
+                "demand_kwh"
+            ),
+            pl.col(WEIGHT_COL).cast(pl.Float64),
+        )
+        .with_columns(
+            (pl.col("demand_kwh") * pl.col(WEIGHT_COL)).alias("weighted_kwh"),
+        )
+        .select(pl.col("weighted_kwh").sum().alias("annual_kwh_hp"))
+        .collect(engine="streaming"),
+    )
+    LOGGER.info(
+        "flat_inputs: collected annual kWh aggregate in %.2fs",
         perf_counter() - t3,
     )
+
+    annual_kwh_hp = float(kwh_agg["annual_kwh_hp"][0] or 0.0)
+    if annual_kwh_hp <= 0:
+        raise ValueError(
+            "Annual kWh for HP customers is zero; cannot compute flat rate."
+        )
+
+    # --- Derive fair flat rate ---
+    equivalent_flat_rate = annual_energy_rev_hp / annual_kwh_hp
+    flat_discount = total_cross_subsidy_hp / annual_kwh_hp
+    flat_rate_hp = equivalent_flat_rate - flat_discount
+
+    if flat_rate_hp < 0:
+        raise ValueError(
+            "Computed flat_rate_hp is negative. "
+            f"annual_energy_rev_hp={annual_energy_rev_hp}, "
+            f"total_cross_subsidy_hp={total_cross_subsidy_hp}, "
+            f"annual_kwh_hp={annual_kwh_hp}, "
+            f"equivalent_flat_rate={equivalent_flat_rate}, "
+            f"flat_discount={flat_discount}, "
+            f"flat_rate_hp={flat_rate_hp}"
+        )
+
+    result = pl.DataFrame(
+        {
+            "subclass": ["true"],
+            "cross_subsidy_col": [cross_subsidy_col],
+            "flat_rate_hp": [flat_rate_hp],
+            "equivalent_flat_rate": [equivalent_flat_rate],
+            "flat_discount": [flat_discount],
+            "total_cross_subsidy_hp": [total_cross_subsidy_hp],
+            "annual_kwh_hp": [annual_kwh_hp],
+            "annual_energy_rev_hp": [annual_energy_rev_hp],
+            "fixed_charge": [fixed_charge],
+        }
+    )
+    LOGGER.info("flat_inputs: done")
     return result
 
 
@@ -665,10 +901,10 @@ def main() -> None:
         help="Upgrade partition for loads (e.g. 00). Used when --resstock-base is set.",
     )
     parser.add_argument(
-        "--tariff-final-config-path",
+        "--base-tariff-json",
         help=(
-            "Optional override for tariff_final_config.json (local or s3://...). "
-            "Defaults to <run-dir>/tariff_final_config.json."
+            "Path to URDB-format base tariff JSON (e.g. <utility>_default_calibrated.json). "
+            "Used to extract fixedchargefirstmeter for seasonal discount computation."
         ),
     )
     parser.add_argument(
@@ -792,9 +1028,9 @@ def main() -> None:
             utility=run_utility,
             periods_yaml_path=args.periods_yaml,
         )
-        tariff_final_config_path = (
-            _resolve_path_or_s3(args.tariff_final_config_path)
-            if args.tariff_final_config_path
+        base_tariff_json_path = (
+            _resolve_path_or_s3(args.base_tariff_json)
+            if args.base_tariff_json
             else None
         )
         seasonal_inputs = compute_hp_seasonal_discount_inputs(
@@ -804,7 +1040,7 @@ def main() -> None:
             upgrade=args.upgrade,
             cross_subsidy_col=args.cross_subsidy_col,
             storage_options=storage_options,
-            tariff_final_config_path=tariff_final_config_path,
+            base_tariff_json_path=base_tariff_json_path,
             winter_months=winter_months,
         )
         print(seasonal_inputs)

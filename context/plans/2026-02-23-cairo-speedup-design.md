@@ -24,7 +24,7 @@
 rate_design/ri/hp_rates/
   run_scenario.py        # entry point — import patches, add timing
   patches.py             # NEW: all monkey-patches live here
-context/tools/
+context/code/cairo/
   cairo_speedup_log.md   # NEW: benchmark log updated after each phase
 ```
 
@@ -38,7 +38,7 @@ Add `time.perf_counter()` timing around each major call in `run_scenario.py::run
 - `bs.simulate` (whole CAIRO sim)
 - Within simulate, if accessible: `process_building_demand_by_period`, `run_system_revenues`, `_precalc_customer_rates`
 
-Log stage timings to `context/tools/cairo_speedup_log.md` after the first timed run.
+Log stage timings to `context/code/cairo/cairo_speedup_log.md` after the first timed run.
 
 ## Phase 1 — File I/O: combined batch reader (Tier 2a + 2b)
 
@@ -92,7 +92,7 @@ After each phase:
 
 1. Run the patched version on `just run 1` (or `run 2` as a clean check)
 2. Compare all output CSVs/parquets against the pre-patch baseline using `pandas.testing.assert_frame_equal(check_exact=False, rtol=1e-4)`
-3. Record stage timings in `context/tools/cairo_speedup_log.md`
+3. Record stage timings in `context/code/cairo/cairo_speedup_log.md`
 4. Only proceed to the next phase once the current phase passes
 
 ## Expected cumulative speedup

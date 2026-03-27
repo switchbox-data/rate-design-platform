@@ -12,7 +12,7 @@ share of the total bill, applied to EIA-861 residential sales revenue, gives an
 estimate of the revenue collected by that component across all residential customers.
 
 Source document:
-    context/papers/lipa_2025_2026_budget_one_pager.md
+    context/sources/lipa_2025_2026_budget_one_pager.md
     (extracted from LIPA's "Fact Sheet: LIPA 2026 Budget as Compared to 2025")
 
 The script parses the "Average Residential Monthly Bill Impact" table and extracts:

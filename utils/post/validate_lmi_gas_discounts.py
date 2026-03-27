@@ -25,18 +25,22 @@ matplotlib.use("Agg")
 
 PLOTS_DIR = Path(__file__).resolve().parents[2] / "dev_plots"
 
-DEFAULT_P100_PATH = (
-    "s3://data.sb/switchbox/lmi/ny/ny_20260307_r1-8_gascalcfix/run_1+2/"
-    "p100/comb_bills_year_target/"
-)
-DEFAULT_P40_PATH = (
-    "s3://data.sb/switchbox/lmi/ny/ny_20260307_r1-8_gascalcfix/run_1+2/"
-    "p40/comb_bills_year_target/"
-)
-DEFAULT_PROD_PATH = (
-    "s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/all_utilities/"
-    "ny_20260307_r1-8_gascalcfix/run_1+2/comb_bills_year_target/"
-)
+LMI_S3_PREFIX = "s3://data.sb/switchbox/lmi"
+MASTER_S3_PREFIX = "s3://data.sb/switchbox/cairo/outputs/hp_rates"
+
+
+def _build_lmi_path(state: str, batch: str, run_d: int, run_s: int, pct: int) -> str:
+    return (
+        f"{LMI_S3_PREFIX}/{state}/{batch}/run_{run_d}+{run_s}/"
+        f"p{pct}/comb_bills_year_target/"
+    )
+
+
+def _build_master_path(state: str, batch: str, run_d: int, run_s: int) -> str:
+    return (
+        f"{MASTER_S3_PREFIX}/{state}/all_utilities/"
+        f"{batch}/run_{run_d}+{run_s}/comb_bills_year_target/"
+    )
 
 
 def _load_staging(path: str, opts: dict[str, str]) -> pl.DataFrame:
@@ -63,8 +67,8 @@ def _gas_summary_stats(df: pl.DataFrame) -> None:
         df.group_by("sb.gas_utility")
         .agg(
             pl.len().alias("n_buildings"),
-            pl.col("is_lmi").sum().alias("n_lmi"),
-            pl.col("applied_discount_100").sum().alias("n_discounted"),
+            pl.col("is_lmi_gas").sum().alias("n_lmi"),
+            pl.col("applied_discount_gas_100").sum().alias("n_discounted"),
             pl.col("gas_total_bill").mean().alias("gas_bill_mean"),
             pl.col("gas_total_bill").median().alias("gas_bill_median"),
             pl.col("gas_total_bill").min().alias("gas_bill_min"),
@@ -74,11 +78,11 @@ def _gas_summary_stats(df: pl.DataFrame) -> None:
             pl.col("gas_total_bill_lmi_100").min().alias("gas_lmi_min"),
             pl.col("gas_total_bill_lmi_100").max().alias("gas_lmi_max"),
             (pl.col("gas_total_bill") - pl.col("gas_total_bill_lmi_100"))
-            .filter(pl.col("applied_discount_100"))
+            .filter(pl.col("applied_discount_gas_100"))
             .mean()
             .alias("discount_mean"),
             (pl.col("gas_total_bill") - pl.col("gas_total_bill_lmi_100"))
-            .filter(pl.col("applied_discount_100"))
+            .filter(pl.col("applied_discount_gas_100"))
             .median()
             .alias("discount_median"),
         )
@@ -91,11 +95,11 @@ def _gas_discount_histogram(df: pl.DataFrame) -> None:
     """Histogram of gas discount amount for LMI participants, faceted by gas utility."""
     _section_header("Section 1.2: Gas Discount Amount Histogram (p100)")
 
-    participants = df.filter(pl.col("applied_discount_100"))
+    participants = df.filter(pl.col("applied_discount_gas_100"))
     utilities = sorted(participants["sb.gas_utility"].unique().to_list())
     n_utils = len(utilities)
     if n_utils == 0:
-        print("No participants with applied_discount_100=True — skipping.")
+        print("No participants with applied_discount_gas_100=True — skipping.")
         return
 
     ncols = min(n_utils, 3)
@@ -128,7 +132,7 @@ def _gas_before_after_histogram(df: pl.DataFrame) -> None:
     """Overlapping histograms of gas bill before vs after discount, faceted by gas utility."""
     _section_header("Section 1.3: Gas Bill Before vs After Histogram (p100)")
 
-    participants = df.filter(pl.col("applied_discount_100"))
+    participants = df.filter(pl.col("applied_discount_gas_100"))
     utilities = sorted(participants["sb.gas_utility"].unique().to_list())
     n_utils = len(utilities)
     if n_utils == 0:
@@ -186,13 +190,13 @@ def _tier_distribution_bar(df: pl.DataFrame) -> None:
     _section_header("Section 1.4: Tier Distribution by Gas Utility")
 
     tier_counts = (
-        df.filter(pl.col("lmi_tier") > 0)
-        .group_by("sb.gas_utility", "lmi_tier")
+        df.filter(pl.col("gas_lmi_tier") > 0)
+        .group_by("sb.gas_utility", "gas_lmi_tier")
         .agg(pl.len().alias("count"))
-        .sort("sb.gas_utility", "lmi_tier")
+        .sort("sb.gas_utility", "gas_lmi_tier")
     )
     utilities = sorted(tier_counts["sb.gas_utility"].unique().to_list())
-    tiers = sorted(tier_counts["lmi_tier"].unique().to_list())
+    tiers = sorted(tier_counts["gas_lmi_tier"].unique().to_list())
     n_utils = len(utilities)
 
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -203,7 +207,7 @@ def _tier_distribution_bar(df: pl.DataFrame) -> None:
         util_data = tier_counts.filter(pl.col("sb.gas_utility") == util)
         counts = []
         for t in tiers:
-            row = util_data.filter(pl.col("lmi_tier") == t)
+            row = util_data.filter(pl.col("gas_lmi_tier") == t)
             counts.append(int(row["count"][0]) if len(row) > 0 else 0)
         ax.bar(x + i * width, counts, width, label=util)
 
@@ -233,11 +237,11 @@ def _merge_expected_gas_credit(
     """Join staging with NY EAP credits; add expected_annual_credit (gas, 12x monthly)."""
     gas_credits = credits_df.select(
         pl.col("utility").alias("sb.gas_utility"),
-        pl.col("tier").alias("lmi_tier"),
+        pl.col("tier").alias("gas_lmi_tier"),
         pl.col("gas_heat").fill_null(0.0).alias("_gas_heat"),
         pl.col("gas_nonheat").fill_null(0.0).alias("_gas_nonheat"),
     )
-    merged = df.join(gas_credits, on=["sb.gas_utility", "lmi_tier"], how="left")
+    merged = df.join(gas_credits, on=["sb.gas_utility", "gas_lmi_tier"], how="left")
     merged = merged.with_columns(
         pl.when(pl.col("heats_with_natgas").fill_null(False))
         .then(pl.col("_gas_heat") * 12.0)
@@ -259,7 +263,7 @@ def _gas_expected_vs_actual_summary(participants: pl.DataFrame) -> None:
     )
 
     summary = (
-        participants.group_by("sb.gas_utility", "lmi_tier")
+        participants.group_by("sb.gas_utility", "gas_lmi_tier")
         .agg(
             pl.len().alias("n"),
             pl.col("expected_annual_credit").mean().alias("expected_mean"),
@@ -274,7 +278,7 @@ def _gas_expected_vs_actual_summary(participants: pl.DataFrame) -> None:
             .mean()
             .alias("abs_diff_mean"),
         )
-        .sort("sb.gas_utility", "lmi_tier")
+        .sort("sb.gas_utility", "gas_lmi_tier")
     )
     with pl.Config(tbl_rows=100):
         print(summary)
@@ -339,10 +343,10 @@ def _p40_overview(df: pl.DataFrame) -> None:
     _section_header("Section 2.1: p40 Participation Overview")
 
     total_eligible = len(df)
-    total_participating = int(df["applied_discount_40"].sum())
+    total_participating = int(df["applied_discount_gas_40"].sum())
     rate = total_participating / total_eligible if total_eligible > 0 else 0.0
-    print(f"Total eligible (is_lmi=True): {total_eligible}")
-    print(f"Total participating (applied_discount_40=True): {total_participating}")
+    print(f"Total eligible (is_lmi_gas=True): {total_eligible}")
+    print(f"Total participating (applied_discount_gas_40=True): {total_participating}")
     print(f"Actual participation rate: {rate:.4f} ({rate * 100:.1f}%)")
 
 
@@ -351,17 +355,17 @@ def _p40_tier_comparison(df: pl.DataFrame) -> None:
     _section_header("Section 2.2: p40 Participation by Tier")
 
     tier_stats = (
-        df.group_by("lmi_tier")
+        df.group_by("gas_lmi_tier")
         .agg(
             pl.len().alias("n_eligible"),
-            pl.col("applied_discount_40").sum().alias("n_participating"),
+            pl.col("applied_discount_gas_40").sum().alias("n_participating"),
         )
         .with_columns(
             (pl.col("n_participating") / pl.col("n_eligible")).alias(
                 "participation_rate"
             )
         )
-        .sort("lmi_tier")
+        .sort("gas_lmi_tier")
     )
     print(tier_stats)
     print(
@@ -375,8 +379,8 @@ def _p40_participant_vs_excluded_hist(df: pl.DataFrame) -> None:
     _section_header("Section 2.3: p40 Participant vs Excluded Gas Bills")
 
     has_gas = df.filter(pl.col("gas_total_bill") > 0)
-    parts = has_gas.filter(pl.col("applied_discount_40"))
-    excluded = has_gas.filter(~pl.col("applied_discount_40"))
+    parts = has_gas.filter(pl.col("applied_discount_gas_40"))
+    excluded = has_gas.filter(~pl.col("applied_discount_gas_40"))
 
     if len(parts) == 0 or len(excluded) == 0:
         print("Insufficient data for comparison — skipping.")
@@ -417,19 +421,19 @@ def _p40_participation_rate_by_tier(df: pl.DataFrame) -> None:
     _section_header("Section 2.4: p40 Participation Rate by Tier")
 
     tier_stats = (
-        df.group_by("lmi_tier")
+        df.group_by("gas_lmi_tier")
         .agg(
             pl.len().alias("n_eligible"),
-            pl.col("applied_discount_40").sum().alias("n_participating"),
+            pl.col("applied_discount_gas_40").sum().alias("n_participating"),
         )
         .with_columns(
             (pl.col("n_participating") / pl.col("n_eligible")).alias(
                 "participation_rate"
             )
         )
-        .sort("lmi_tier")
+        .sort("gas_lmi_tier")
     )
-    tiers = tier_stats["lmi_tier"].to_list()
+    tiers = tier_stats["gas_lmi_tier"].to_list()
     rates = tier_stats["participation_rate"].to_list()
 
     fig, ax = plt.subplots(figsize=(8, 5))
@@ -463,8 +467,8 @@ def _p40_participation_by_bill_size(df: pl.DataFrame) -> None:
     for idx, util in enumerate(utilities):
         ax = axes[0][idx]
         subset = has_gas.filter(pl.col("sb.gas_utility") == util)
-        parts = subset.filter(pl.col("applied_discount_40"))
-        excluded = subset.filter(~pl.col("applied_discount_40"))
+        parts = subset.filter(pl.col("applied_discount_gas_40"))
+        excluded = subset.filter(~pl.col("applied_discount_gas_40"))
 
         rng = np.random.default_rng(42)
         if len(excluded) > 0:
@@ -509,24 +513,28 @@ def _p40_participation_by_bill_size(df: pl.DataFrame) -> None:
 
 
 def _cross_check_p100_p40(p100: pl.DataFrame, p40: pl.DataFrame) -> None:
-    """Verify lmi_tier and is_lmi are identical between p100 and p40."""
+    """Verify gas_lmi_tier and is_lmi_gas are identical between p100 and p40."""
     _section_header("Section 3.1: p100 vs p40 tier/eligibility consistency")
 
     p100_ann = p100.filter(pl.col("month") == "Annual").select(
-        "bldg_id", "lmi_tier", "is_lmi"
+        "bldg_id", "gas_lmi_tier", "is_lmi_gas"
     )
     p40_ann = p40.filter(pl.col("month") == "Annual").select(
-        "bldg_id", "lmi_tier", "is_lmi"
+        "bldg_id", "gas_lmi_tier", "is_lmi_gas"
     )
 
     joined = p100_ann.join(p40_ann, on="bldg_id", suffix="_p40")
 
-    tier_mismatch = joined.filter(pl.col("lmi_tier") != pl.col("lmi_tier_p40")).height
-    lmi_mismatch = joined.filter(pl.col("is_lmi") != pl.col("is_lmi_p40")).height
+    tier_mismatch = joined.filter(
+        pl.col("gas_lmi_tier") != pl.col("gas_lmi_tier_p40")
+    ).height
+    lmi_mismatch = joined.filter(
+        pl.col("is_lmi_gas") != pl.col("is_lmi_gas_p40")
+    ).height
 
     print(f"Buildings compared: {joined.height}")
-    print(f"lmi_tier mismatches: {tier_mismatch}")
-    print(f"is_lmi mismatches: {lmi_mismatch}")
+    print(f"gas_lmi_tier mismatches: {tier_mismatch}")
+    print(f"is_lmi_gas mismatches: {lmi_mismatch}")
     if tier_mismatch == 0 and lmi_mismatch == 0:
         print("PASS: p100 and p40 have identical tier assignments")
     else:
@@ -540,14 +548,19 @@ def _check_source_columns(
     _section_header(f"Section 3.2: Source column integrity ({label})")
 
     lmi_cols = {
-        "lmi_tier",
-        "is_lmi",
+        "elec_lmi_tier",
+        "gas_lmi_tier",
+        "is_lmi_elec",
+        "is_lmi_gas",
+        "is_lmi_any",
         "elec_total_bill_lmi_100",
         "gas_total_bill_lmi_100",
-        "applied_discount_100",
+        "applied_discount_elec_100",
+        "applied_discount_gas_100",
         "elec_total_bill_lmi_40",
         "gas_total_bill_lmi_40",
-        "applied_discount_40",
+        "applied_discount_elec_40",
+        "applied_discount_gas_40",
     }
     shared_cols = [
         c for c in prod.columns if c in staging.columns and c not in lmi_cols
@@ -593,22 +606,47 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Validate and explore LMI gas bill discounts from master-bills outputs.",
     )
+    parser.add_argument("--state", default="ny", help="State code (default: ny).")
+    parser.add_argument(
+        "--batch", required=True, help="Batch name (e.g. ny_20260311b_r1-12)."
+    )
+    parser.add_argument(
+        "--run-delivery", type=int, default=1, help="Delivery run number (default: 1)."
+    )
+    parser.add_argument(
+        "--run-supply", type=int, default=2, help="Supply run number (default: 2)."
+    )
     parser.add_argument(
         "--p100-path",
-        default=DEFAULT_P100_PATH,
-        help=f"S3/local path to the p100 comb_bills_year_target dataset (default: {DEFAULT_P100_PATH}).",
+        help="Override: S3/local path to p100 comb_bills_year_target dataset. "
+        "If omitted, built from --state/--batch/--run-delivery/--run-supply.",
     )
     parser.add_argument(
         "--p40-path",
-        default=DEFAULT_P40_PATH,
-        help=f"S3/local path to the p40 comb_bills_year_target dataset (default: {DEFAULT_P40_PATH}).",
+        help="Override: S3/local path to p40 comb_bills_year_target dataset. "
+        "If omitted, built from batch args. Pass 'skip' to skip p40 sections.",
     )
     parser.add_argument(
         "--prod-path",
-        default=DEFAULT_PROD_PATH,
-        help=f"S3/local path to the production/source comb_bills_year_target dataset (default: {DEFAULT_PROD_PATH}).",
+        help="Override: S3/local path to the production/source comb_bills_year_target. "
+        "If omitted, built from batch args (the master bills path).",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    state = args.state.lower()
+    if not args.p100_path:
+        args.p100_path = _build_lmi_path(
+            state, args.batch, args.run_delivery, args.run_supply, 100
+        )
+    if not args.p40_path:
+        args.p40_path = _build_lmi_path(
+            state, args.batch, args.run_delivery, args.run_supply, 40
+        )
+    if not args.prod_path:
+        args.prod_path = _build_master_path(
+            state, args.batch, args.run_delivery, args.run_supply
+        )
+    return args
 
 
 def main() -> None:
@@ -617,16 +655,24 @@ def main() -> None:
     opts = get_aws_storage_options()
     PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
+    skip_p40 = args.p40_path.lower() == "skip"
+
+    print(f"p100 path: {args.p100_path}")
+    print(f"p40 path:  {'(skipped)' if skip_p40 else args.p40_path}")
+    print(f"prod path: {args.prod_path}")
+
     # --- Load data ---
     _section_header("Loading p100 staging data")
     p100 = _load_staging(args.p100_path, opts)
     print(f"p100 shape: {p100.shape}")
     print(f"p100 columns: {p100.columns}")
 
-    _section_header("Loading p40 staging data")
-    p40 = _load_staging(args.p40_path, opts)
-    print(f"p40 shape: {p40.shape}")
-    print(f"p40 columns: {p40.columns}")
+    p40: pl.DataFrame | None = None
+    if not skip_p40:
+        _section_header("Loading p40 staging data")
+        p40 = _load_staging(args.p40_path, opts)
+        print(f"p40 shape: {p40.shape}")
+        print(f"p40 columns: {p40.columns}")
 
     # --- Section 1: Gas discount EDA (p100) ---
     p100_annual_gas = p100.filter(
@@ -642,27 +688,41 @@ def main() -> None:
     # Expected vs actual gas credit (Section 1.5)
     credits_df = get_ny_eap_credits_df()
     p100_annual_gas_merged = _merge_expected_gas_credit(p100_annual_gas, credits_df)
-    gas_participants = p100_annual_gas_merged.filter(pl.col("applied_discount_100"))
+    gas_participants = p100_annual_gas_merged.filter(pl.col("applied_discount_gas_100"))
     _gas_expected_vs_actual_summary(gas_participants)
     _gas_expected_vs_actual_scatter(gas_participants)
 
     # --- Section 2: Participation weighting (p40) ---
-    p40_annual_lmi = p40.filter((pl.col("month") == "Annual") & (pl.col("is_lmi")))
-    print(f"\np40 annual LMI-eligible rows: {len(p40_annual_lmi)}")
+    if p40 is not None:
+        p40_annual_lmi = p40.filter(
+            (pl.col("month") == "Annual") & (pl.col("is_lmi_gas"))
+        )
+        print(f"\np40 annual LMI-eligible rows: {len(p40_annual_lmi)}")
 
-    _p40_overview(p40_annual_lmi)
-    _p40_tier_comparison(p40_annual_lmi)
-    _p40_participant_vs_excluded_hist(p40_annual_lmi)
-    _p40_participation_rate_by_tier(p40_annual_lmi)
-    _p40_participation_by_bill_size(p40_annual_lmi)
+        _p40_overview(p40_annual_lmi)
+        _p40_tier_comparison(p40_annual_lmi)
+        _p40_participant_vs_excluded_hist(p40_annual_lmi)
+        _p40_participation_rate_by_tier(p40_annual_lmi)
+        _p40_participation_by_bill_size(p40_annual_lmi)
 
-    # --- Section 3: Cross-run and source integrity ---
-    _cross_check_p100_p40(p100, p40)
+        # --- Section 3: Cross-run and source integrity ---
+        _cross_check_p100_p40(p100, p40)
+    else:
+        _section_header("Section 2 & 3: p40 (skipped)")
+        print(
+            "p40 path set to 'skip' — skipping participation and cross-check sections."
+        )
 
-    _section_header("Loading production source data")
-    prod = _load_staging(args.prod_path, opts)
-    print(f"prod shape: {prod.shape}")
-    _check_source_columns(p100, prod, "p100 vs production")
+    # --- Source column integrity ---
+    skip_prod = args.prod_path == args.p100_path
+    if not skip_prod:
+        _section_header("Loading production source data")
+        prod = _load_staging(args.prod_path, opts)
+        print(f"prod shape: {prod.shape}")
+        _check_source_columns(p100, prod, "p100 vs production")
+    else:
+        _section_header("Source column integrity (skipped)")
+        print("prod path == p100 path (integrated mode) — skipping source comparison.")
 
     _section_header("Done")
     print(f"All plots saved to {PLOTS_DIR}/")

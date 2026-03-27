@@ -8,7 +8,8 @@ volumetric delivery + supply), gas, oil, and propane.
 Output schema (13 rows per building: Jan..Dec + Annual):
     bldg_id, sb.electric_utility, sb.gas_utility, upgrade, postprocess_group.has_hp,
     postprocess_group.heating_type, heats_with_electricity, heats_with_natgas,
-    heats_with_oil, heats_with_propane, month, weight,
+    heats_with_oil, heats_with_propane, in.representative_income,
+    in.hvac_cooling_partial_space_conditioning, month, weight,
     elec_fixed_charge, elec_delivery_bill, elec_supply_bill, elec_total_bill,
     gas_fixed_charge, gas_volumetric_bill, gas_total_bill,
     propane_total_bill, oil_total_bill, energy_total_bill
@@ -37,11 +38,8 @@ import polars as pl
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils.post import apply_ny_lmi_to_master_bills as ny_lmi_master_bills
-from utils.post.apply_ny_lmi_to_master_bills import (
-    _apply_credits as _apply_ny_lmi_credits,
-    _build_all_tiers as _build_all_ny_lmi_tiers,
-    _validate as _validate_ny_lmi_discounts,
-)
+from utils.post.apply_ny_lmi_to_master_bills import apply_ny_lmi_to_master
+from utils.post.apply_ri_lmi_discounts_to_bills import apply_ri_lmi_to_master
 from utils.post.delivered_fuel_bills import compute_fuel_bills, load_monthly_fuel_prices
 from utils.post.gas_bills import (
     build_fixed_charge_table,
@@ -57,16 +55,11 @@ from utils.post.io import (
     scan,
     scan_load_curves_for_utility,
 )
-from utils.post.lmi_common import (
-    get_ny_eap_credits_df,
-    load_cpi_ratio,
-    load_fpl_guidelines,
-    load_ny_eap_config,
-    load_smi_for_state,
-    smi_threshold_by_hh_size,
-)
 
 ELEC_BILLS_CSV = "bills/elec_bills_year_target.csv"
+UPGRADE_00_RUNS = {1, 2, 5, 6, 9, 10, 13, 14, 17, 18}
+UPGRADE_02_RUNS = {3, 4, 7, 8, 11, 12, 15, 16, 19, 20}
+VALID_RUN_PAIRS = {(r, r + 1) for r in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19)}
 
 META_COLS = [
     BLDG_ID,
@@ -79,6 +72,8 @@ META_COLS = [
     "heats_with_natgas",
     "heats_with_oil",
     "heats_with_propane",
+    "in.representative_income",
+    "in.hvac_cooling_partial_space_conditioning",
 ]
 
 OUTPUT_COLS = [
@@ -92,6 +87,8 @@ OUTPUT_COLS = [
     "heats_with_natgas",
     "heats_with_oil",
     "heats_with_propane",
+    "in.representative_income",
+    "in.hvac_cooling_partial_space_conditioning",
     "month",
     "weight",
     "elec_fixed_charge",
@@ -197,7 +194,7 @@ def _find_run_dir(s3_base: str, run_num: int) -> str:
 
 
 def _parse_batch_overrides(raw: list[str] | None) -> dict[str, str]:
-    """Parse --batch-override arguments like 'cenhud=ny_20260306_r1-8' into a dict."""
+    """Parse --batch-override arguments like 'cenhud=ny_20260312_r1-12' into a dict."""
     if not raw:
         return {}
     overrides: dict[str, str] = {}
@@ -214,8 +211,8 @@ def _parse_batch_overrides(raw: list[str] | None) -> dict[str, str]:
 def _build_output_path_suffix(batch: str, overrides: dict[str, str]) -> str:
     """Build the composite batch component of the output S3 path.
 
-    No overrides: 'ny_20260305c_r1-8'
-    With overrides: 'ny_20260305c_r1-8-cenhud=ny_20260306_r1-8'
+    No overrides: 'ny_20260311b_r1-12'
+    With overrides: 'ny_20260311b_r1-12-cenhud=ny_20260312_r1-12'
     """
     if not overrides:
         return batch
@@ -225,11 +222,22 @@ def _build_output_path_suffix(batch: str, overrides: dict[str, str]) -> str:
 
 def _upgrade_for_run(run_delivery: int) -> str:
     """Infer the upgrade id from the delivery run number."""
-    if run_delivery in (1, 2, 5, 6):
+    if run_delivery in UPGRADE_00_RUNS:
         return "00"
-    if run_delivery in (3, 4, 7, 8):
+    if run_delivery in UPGRADE_02_RUNS:
         return "02"
-    raise ValueError(f"Cannot infer upgrade for run {run_delivery}; expected 1-8")
+    raise ValueError(
+        f"Cannot infer upgrade for run {run_delivery}; not in UPGRADE_00_RUNS or UPGRADE_02_RUNS"
+    )
+
+
+def _validate_run_pair(run_delivery: int, run_supply: int) -> None:
+    """Require a valid delivery+supply pair (1+2, 3+4, ..., 11+12)."""
+    if (run_delivery, run_supply) not in VALID_RUN_PAIRS:
+        expected = ", ".join(f"{d}+{s}" for d, s in sorted(VALID_RUN_PAIRS))
+        raise ValueError(
+            f"Invalid run pair {run_delivery}+{run_supply}. Expected one of: {expected}"
+        )
 
 
 def _assert_building_match(
@@ -298,76 +306,54 @@ def _apply_lmi_discounts_to_master(
     path_resstock_release: str,
     lmi_fpl_year: int,
     lmi_cpi_s3_path: str,
-    lmi_participation_rate: float,
+    lmi_participation_rates: list[float],
     lmi_participation_mode: str,
     lmi_seed: int,
     lmi_calculation_type: str,
 ) -> pl.DataFrame:
-    """Append NY LMI discount columns to an in-memory master bills table."""
-    if state_upper != "NY":
-        raise ValueError(
-            "--calculate-lmi is currently only supported for NY master bills"
+    """Dispatch LMI discount augmentation to the appropriate state module."""
+    opts = get_aws_storage_options()
+
+    if state_upper == "NY":
+        # Sync elapsed-time logging so NY helper uses this script's start time.
+        ny_lmi_master_bills._t0 = _t0
+        return apply_ny_lmi_to_master(
+            master,
+            utilities=utilities,
+            upgrade=upgrade,
+            path_resstock_release=path_resstock_release,
+            lmi_fpl_year=lmi_fpl_year,
+            lmi_cpi_s3_path=lmi_cpi_s3_path,
+            participation_rates=lmi_participation_rates,
+            participation_mode=lmi_participation_mode,
+            seed=lmi_seed,
+            calculation_type=lmi_calculation_type,
+            opts=opts,
         )
 
-    # Keep the helper module's elapsed-time logging aligned with this script.
-    ny_lmi_master_bills._t0 = _t0
+    if state_upper == "RI":
+        if len(utilities) != 1:
+            raise ValueError(
+                f"RI LMI expects exactly one utility in the run; got {utilities}"
+            )
+        return apply_ri_lmi_to_master(
+            master,
+            utility=utilities[0],
+            state_upper=state_upper,
+            upgrade=upgrade,
+            path_resstock_release=path_resstock_release,
+            lmi_fpl_year=lmi_fpl_year,
+            lmi_cpi_s3_path=lmi_cpi_s3_path,
+            participation_rates=lmi_participation_rates,
+            participation_mode=lmi_participation_mode,
+            seed=lmi_seed,
+            opts=opts,
+        )
 
-    opts = get_aws_storage_options()
-    pct_label = int(round(lmi_participation_rate * 100))
-
-    t = _log("Loading CPI, FPL, SMI, and NY EAP config for LMI discounts...")
-    cpi_ratio = load_cpi_ratio(lmi_cpi_s3_path, lmi_fpl_year, opts)
-    fpl = load_fpl_guidelines(lmi_fpl_year)
-    ny_eap_config = load_ny_eap_config()
-    smi_row = load_smi_for_state(state_upper, lmi_fpl_year, opts)
-    smi_100 = smi_threshold_by_hh_size(smi_row, pct=100.0)
-    credits_df = get_ny_eap_credits_df(ny_eap_config)
-    _log_done("Loading LMI config", t, f"CPI ratio={cpi_ratio:.4f}")
-
-    release = path_resstock_release.rstrip("/")
-    meta_path = (
-        f"{release}/metadata/state={state_upper}/upgrade={upgrade}/metadata-sb.parquet"
+    raise ValueError(
+        f"--calculate-lmi is not supported for state {state_upper!r}. "
+        "Supported states: NY, RI."
     )
-    util_assignment_path = (
-        f"{release}/metadata_utility/state={state_upper}/utility_assignment.parquet"
-    )
-
-    t = _log("Building LMI tier assignments for all utilities...")
-    tier_info = _build_all_ny_lmi_tiers(
-        utilities=utilities,
-        meta_path=meta_path,
-        util_assignment_path=util_assignment_path,
-        inflation_year=lmi_fpl_year,
-        cpi_ratio=cpi_ratio,
-        fpl=fpl,
-        smi_100=smi_100,
-        ny_eap_config=ny_eap_config,
-        participation_rate=lmi_participation_rate,
-        participation_mode=lmi_participation_mode,
-        seed=lmi_seed,
-        opts=opts,
-    )
-    _log_done("Building LMI tiers", t, f"{tier_info.height} buildings")
-
-    t = _log(
-        "Applying LMI discounts to master bills "
-        f"(p{pct_label}, {lmi_calculation_type})..."
-    )
-    result = _apply_ny_lmi_credits(
-        master=master,
-        tier_info=tier_info,
-        pct_label=pct_label,
-        credits_df=credits_df,
-        calculation_type=lmi_calculation_type,
-    )
-    _log_done("Applying LMI discounts", t, f"{result.height} rows")
-
-    t = _log("Validating LMI discount columns...")
-    _validate_ny_lmi_discounts(
-        result, pct_label, lmi_participation_rate, lmi_calculation_type
-    )
-    _log_done("Validating LMI discounts", t)
-    return result
 
 
 # ---------------------------------------------------------------------------
@@ -613,24 +599,34 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--batch",
         required=True,
-        help="Batch name (e.g. ny_20260305c_r1-8). Used as the default batch "
+        help="Batch name (e.g. ny_20260311b_r1-12). Used as the default batch "
         "for all utilities and as the base of the output path.",
+    )
+    parser.add_argument(
+        "--output-batch",
+        default=None,
+        help="Override the output batch name used in the output S3 path. "
+        "If omitted, defaults to --batch (with any --batch-override suffixes). "
+        "Use to write to a different batch directory, e.g. ny_20260311b_r1-12_lmi_fix.",
     )
     parser.add_argument(
         "--batch-override",
         action="append",
         default=None,
         help="Per-utility batch override in UTILITY=BATCH format. "
-        "Repeatable (e.g. --batch-override cenhud=ny_20260306_r1-8).",
+        "Repeatable (e.g. --batch-override cenhud=ny_20260312_r1-12).",
     )
     parser.add_argument(
         "--run-delivery",
         type=int,
         required=True,
-        help="Delivery run number (e.g. 1 or 3)",
+        help="Delivery run number (valid pairs: 1+2, 3+4, ..., 11+12).",
     )
     parser.add_argument(
-        "--run-supply", type=int, required=True, help="Supply run number (e.g. 2 or 4)"
+        "--run-supply",
+        type=int,
+        required=True,
+        help="Supply run number paired to --run-delivery.",
     )
     parser.add_argument(
         "--path-resstock-release",
@@ -658,7 +654,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--calculate-lmi",
         action="store_true",
-        help="If set, append NY LMI discount columns before writing master bills.",
+        help="If set, append LMI discount columns before writing master bills.",
     )
     parser.add_argument(
         "--lmi-fpl-year",
@@ -672,10 +668,13 @@ def _parse_args() -> argparse.Namespace:
         help="S3 path to CPI parquet for LMI discount calculation (used with --calculate-lmi).",
     )
     parser.add_argument(
-        "--lmi-participation-rate",
+        "--lmi-participation-rates",
         type=float,
-        default=1.0,
-        help="Fraction of eligible customers who participate in LMI discounts (used with --calculate-lmi).",
+        nargs="+",
+        default=[1.0],
+        help="One or more participation fractions (0–1). Each rate produces a separate "
+        "column set (e.g. --lmi-participation-rates 1.0 0.4 → columns for p100 and p40). "
+        "Used with --calculate-lmi.",
     )
     parser.add_argument(
         "--lmi-participation-mode",
@@ -705,6 +704,7 @@ def main() -> None:
 
     state = args.state.lower()
     state_upper = state.upper()
+    _validate_run_pair(args.run_delivery, args.run_supply)
     upgrade = _upgrade_for_run(args.run_delivery)
     utilities = args.utilities.split(",") if args.utilities else _read_utilities(state)
     batch_overrides = _parse_batch_overrides(args.batch_override)
@@ -717,7 +717,7 @@ def main() -> None:
     if args.calculate_lmi:
         _log(
             "  LMI discounts enabled: "
-            f"rate={args.lmi_participation_rate}, "
+            f"rates={args.lmi_participation_rates}, "
             f"mode={args.lmi_participation_mode}, "
             f"calculation={args.lmi_calculation_type}, "
             f"seed={args.lmi_seed}"
@@ -823,7 +823,7 @@ def main() -> None:
     _log_done("Validation", t)
 
     # --- Optional LMI discount augmentation ---
-    if args.calculate_lmi and state_upper == "NY":
+    if args.calculate_lmi:
         master = _apply_lmi_discounts_to_master(
             master,
             state_upper=state_upper,
@@ -832,17 +832,19 @@ def main() -> None:
             path_resstock_release=args.path_resstock_release,
             lmi_fpl_year=args.lmi_fpl_year,
             lmi_cpi_s3_path=args.lmi_cpi_s3_path,
-            lmi_participation_rate=args.lmi_participation_rate,
+            lmi_participation_rates=args.lmi_participation_rates,
             lmi_participation_mode=args.lmi_participation_mode,
             lmi_seed=args.lmi_seed,
             lmi_calculation_type=args.lmi_calculation_type,
         )
 
     # --- Write output (Hive-partitioned parquet) ---
-    batch_suffix = _build_output_path_suffix(args.batch, batch_overrides)
+    output_batch = args.output_batch or _build_output_path_suffix(
+        args.batch, batch_overrides
+    )
     output_s3 = (
         f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/all_utilities/"
-        f"{batch_suffix}/run_{args.run_delivery}+{args.run_supply}/"
+        f"{output_batch}/run_{args.run_delivery}+{args.run_supply}/"
         f"comb_bills_year_target/"
     )
     t = _log(f"Writing to {output_s3}...")

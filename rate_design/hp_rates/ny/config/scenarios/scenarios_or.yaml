@@ -1,22 +1,22 @@
 runs:
   1:
-    run_name: ny_or_run1_up00_precalc__flat
+    run_name: ny_or_run1_up00_precalc__default
     state: NY
     utility: or
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/or_flat.csv
+    path_tariff_maps_electric: tariff_maps/electric/or_default.csv
     path_tariff_maps_gas: tariff_maps/gas/or_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=or/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run1_up00_precalc__flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run1_up00_precalc__default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=or/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/zero.parquet
     path_tariffs_electric:
-      all: tariffs/electric/or_flat.json
+      all: tariffs/electric/or_default.json
     utility_revenue_requirement: rev_requirement/or.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -28,23 +28,23 @@ runs:
     process_workers: 8
     elasticity: 0.0
   2:
-    run_name: ny_or_run2_up00_precalc_supply__flat
+    run_name: ny_or_run2_up00_precalc_supply__default
     state: NY
     utility: or
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/or_flat_supply.csv
+    path_tariff_maps_electric: tariff_maps/electric/or_default_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/or_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=or/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run2_up00_precalc_supply__flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run2_up00_precalc_supply__default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=or/year=2025/data.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/data.parquet
     path_tariffs_electric:
-      all: tariffs/electric/or_flat_supply.json
+      all: tariffs/electric/or_default_supply.json
     utility_revenue_requirement: rev_requirement/or.yaml
     run_includes_supply: true
     run_includes_subclasses: false
@@ -56,23 +56,23 @@ runs:
     process_workers: 8
     elasticity: 0.0
   3:
-    run_name: ny_or_run3_up02_default__flat
+    run_name: ny_or_run3_up02_default__default
     state: NY
     utility: or
     run_type: default
     upgrade: '2'
-    path_tariff_maps_electric: tariff_maps/electric/or_flat_calibrated.csv
+    path_tariff_maps_electric: tariff_maps/electric/or_default_calibrated.csv
     path_tariff_maps_gas: tariff_maps/gas/or_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=or/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run3_up02_default__flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run3_up02_default__default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=or/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/zero.parquet
     path_tariffs_electric:
-      all: tariffs/electric/or_flat_calibrated.json
+      all: tariffs/electric/or_default_calibrated.json
     utility_revenue_requirement: rev_requirement/or_large_number.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -84,23 +84,23 @@ runs:
     process_workers: 8
     elasticity: 0.0
   4:
-    run_name: ny_or_run4_up02_default_supply__flat
+    run_name: ny_or_run4_up02_default_supply__default
     state: NY
     utility: or
     run_type: default
     upgrade: '2'
-    path_tariff_maps_electric: tariff_maps/electric/or_flat_calibrated_supply.csv
+    path_tariff_maps_electric: tariff_maps/electric/or_default_calibrated_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/or_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=or/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run4_up02_default_supply__flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run4_up02_default_supply__default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=or/year=2025/data.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/data.parquet
     path_tariffs_electric:
-      all: tariffs/electric/or_flat_supply_calibrated.json
+      all: tariffs/electric/or_default_supply_calibrated.json
     utility_revenue_requirement: rev_requirement/or_large_number.yaml
     run_includes_supply: true
     run_includes_subclasses: false
@@ -112,24 +112,24 @@ runs:
     process_workers: 8
     elasticity: 0.0
   5:
-    run_name: ny_or_run5_up00_precalc__hp_seasonal_vs_flat
+    run_name: ny_or_run5_up00_precalc__hp_seasonal_vs_default
     state: NY
     utility: or
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/or_hp_seasonal_vs_flat.csv
+    path_tariff_maps_electric: tariff_maps/electric/or_hp_seasonal_vs_default.csv
     path_tariff_maps_gas: tariff_maps/gas/or_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=or/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run5_up00_precalc__hp_seasonal_vs_flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run5_up00_precalc__hp_seasonal_vs_default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=or/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/zero.parquet
     path_tariffs_electric:
       hp: tariffs/electric/or_hp_seasonal.json
-      non-hp: tariffs/electric/or_flat.json
+      non-hp: tariffs/electric/or_nonhp_default.json
     utility_revenue_requirement: rev_requirement/or_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
@@ -141,24 +141,24 @@ runs:
     process_workers: 8
     elasticity: 0.0
   6:
-    run_name: ny_or_run6_up00_precalc_supply__hp_seasonal_vs_flat
+    run_name: ny_or_run6_up00_precalc_supply__hp_seasonal_vs_default
     state: NY
     utility: or
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/or_hp_seasonal_vs_flat_supply.csv
+    path_tariff_maps_electric: tariff_maps/electric/or_hp_seasonal_vs_default_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/or_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=or/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run6_up00_precalc_supply__hp_seasonal_vs_flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run6_up00_precalc_supply__hp_seasonal_vs_default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=or/year=2025/data.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/data.parquet
     path_tariffs_electric:
       hp: tariffs/electric/or_hp_seasonal_supply.json
-      non-hp: tariffs/electric/or_flat_supply.json
+      non-hp: tariffs/electric/or_nonhp_default_supply.json
     utility_revenue_requirement: rev_requirement/or_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
@@ -226,24 +226,24 @@ runs:
     process_workers: 8
     elasticity: 0.0
   9:
-    run_name: ny_or_run9_up00_precalc__hp_seasonalTOU_vs_flat
+    run_name: ny_or_run9_up00_precalc__hp_seasonalTOU_vs_default
     state: NY
     utility: or
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/or_hp_seasonalTOU_vs_flat.csv
+    path_tariff_maps_electric: tariff_maps/electric/or_hp_seasonalTOU_vs_default.csv
     path_tariff_maps_gas: tariff_maps/gas/or_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=or/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run9_up00_precalc__hp_seasonalTOU_vs_flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run9_up00_precalc__hp_seasonalTOU_vs_default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=or/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/zero.parquet
     path_tariffs_electric:
       hp: tariffs/electric/or_hp_seasonalTOU.json
-      non-hp: tariffs/electric/or_flat.json
+      non-hp: tariffs/electric/or_nonhp_default.json
     utility_revenue_requirement: rev_requirement/or_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
@@ -255,24 +255,24 @@ runs:
     process_workers: 8
     elasticity: 0.0
   10:
-    run_name: ny_or_run10_up00_precalc_supply__hp_seasonalTOU_vs_flat
+    run_name: ny_or_run10_up00_precalc_supply__hp_seasonalTOU_vs_default
     state: NY
     utility: or
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/or_hp_seasonalTOU_vs_flat_supply.csv
+    path_tariff_maps_electric: tariff_maps/electric/or_hp_seasonalTOU_vs_default_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/or_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=or/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run10_up00_precalc_supply__hp_seasonalTOU_vs_flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run10_up00_precalc_supply__hp_seasonalTOU_vs_default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=or/year=2025/data.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/data.parquet
     path_tariffs_electric:
       hp: tariffs/electric/or_hp_seasonalTOU_supply.json
-      non-hp: tariffs/electric/or_flat_supply.json
+      non-hp: tariffs/electric/or_nonhp_default_supply.json
     utility_revenue_requirement: rev_requirement/or_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
@@ -340,24 +340,24 @@ runs:
     process_workers: 8
     elasticity: 0.0
   13:
-    run_name: ny_or_run13_up00_precalc__hp_seasonalTOU_flex_vs_flat
+    run_name: ny_or_run13_up00_precalc__hp_seasonalTOU_flex_vs_default
     state: NY
     utility: or
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/or_hp_seasonalTOU_flex_vs_flat.csv
+    path_tariff_maps_electric: tariff_maps/electric/or_hp_seasonalTOU_flex_vs_default.csv
     path_tariff_maps_gas: tariff_maps/gas/or_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=or/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run13_up00_precalc__hp_seasonalTOU_flex_vs_flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run13_up00_precalc__hp_seasonalTOU_flex_vs_default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=or/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/zero.parquet
     path_tariffs_electric:
       hp: tariffs/electric/or_hp_seasonalTOU_flex.json
-      non-hp: tariffs/electric/or_flat.json
+      non-hp: tariffs/electric/or_nonhp_default.json
     utility_revenue_requirement: rev_requirement/or_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
@@ -367,26 +367,28 @@ runs:
     year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
-    elasticity: -0.1
+    elasticity:
+      summer: -0.24
+      winter: -0.2
   14:
-    run_name: ny_or_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_flat
+    run_name: ny_or_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_default
     state: NY
     utility: or
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/or_hp_seasonalTOU_flex_vs_flat_supply.csv
+    path_tariff_maps_electric: tariff_maps/electric/or_hp_seasonalTOU_flex_vs_default_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/or_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=or/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/or/<execution_time>/ny_or_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=or/year=2025/data.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=or/year=2025/data.parquet
     path_tariffs_electric:
       hp: tariffs/electric/or_hp_seasonalTOU_flex_supply.json
-      non-hp: tariffs/electric/or_flat_supply.json
+      non-hp: tariffs/electric/or_nonhp_default_supply.json
     utility_revenue_requirement: rev_requirement/or_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
@@ -396,7 +398,9 @@ runs:
     year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
-    elasticity: -0.1
+    elasticity:
+      summer: -0.24
+      winter: -0.2
   15:
     run_name: ny_or_run15_up02_default__hp_seasonalTOU_flex
     state: NY
@@ -424,7 +428,9 @@ runs:
     year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
-    elasticity: -0.1
+    elasticity:
+      summer: -0.24
+      winter: -0.2
   16:
     run_name: ny_or_run16_up02_default_supply__hp_seasonalTOU_flex
     state: NY
@@ -452,4 +458,6 @@ runs:
     year_run: 2025
     year_dollar_conversion: 2025
     process_workers: 8
-    elasticity: -0.1
+    elasticity:
+      summer: -0.24
+      winter: -0.2

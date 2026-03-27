@@ -10,6 +10,7 @@ import pytest
 from utils.pre.create_tariff import (
     SeasonalTouTariffSpec,
     create_default_flat_tariff,
+    create_flat_rate,
     create_seasonal_rate,
     create_seasonal_tou_tariff,
     create_tou_tariff,
@@ -169,3 +170,54 @@ def test_extract_raises_on_empty_items(tmp_path: Path) -> None:
     path = _write_tariff(tmp_path, tariff)
     with pytest.raises(ValueError, match="items"):
         extract_base_rate_and_fixed_charge(path)
+
+
+# =============================================================================
+# create_flat_rate tests
+# =============================================================================
+
+
+def _make_base_tariff(*, fixed_charge: float = 11.47, rate: float = 0.15) -> dict:
+    return {
+        "items": [
+            {
+                "label": "base_tariff",
+                "name": "base_tariff",
+                "fixedchargefirstmeter": fixed_charge,
+                "energyratestructure": [[{"rate": rate, "adj": 0.0, "unit": "kWh"}]],
+                "energyweekdayschedule": [[0] * 24 for _ in range(12)],
+                "energyweekendschedule": [[0] * 24 for _ in range(12)],
+                "utility": "test_util",
+                "sector": "Residential",
+            }
+        ]
+    }
+
+
+def test_create_flat_rate_basic() -> None:
+    base = _make_base_tariff(fixed_charge=11.47, rate=0.15)
+    result = create_flat_rate(base, label="hp_flat", volumetric_rate=0.12)
+    item = result["items"][0]
+    assert item["label"] == "hp_flat"
+    assert item["name"] == "hp_flat"
+    assert item["fixedchargefirstmeter"] == 11.47
+    assert len(item["energyratestructure"]) == 1
+    assert item["energyratestructure"][0][0]["rate"] == pytest.approx(0.12)
+    for row in item["energyweekdayschedule"]:
+        assert row == [0] * 24
+    for row in item["energyweekendschedule"]:
+        assert row == [0] * 24
+
+
+def test_create_flat_rate_preserves_base_fields() -> None:
+    base = _make_base_tariff()
+    result = create_flat_rate(base, label="new_label", volumetric_rate=0.10)
+    assert result["items"][0]["utility"] == "test_util"
+    assert result["items"][0]["sector"] == "Residential"
+    # Original should not be mutated
+    assert base["items"][0]["label"] == "base_tariff"
+
+
+def test_create_flat_rate_rejects_empty_items() -> None:
+    with pytest.raises(ValueError, match="items"):
+        create_flat_rate({"items": []}, label="x", volumetric_rate=0.1)

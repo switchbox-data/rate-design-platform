@@ -79,7 +79,7 @@ add_to_drr:
         2025-09: 5.75
         2025-10: 3.22
         2025-11: 3.22
-        2025-12: 3.22
+        2025-12: 3.22 # 3.22 month actual
     liheap_enhancement_charge:
       charge_unit: $/month
       monthly_rates:
@@ -94,7 +94,7 @@ add_to_drr:
         2025-09: 0.79
         2025-10: 0.79
         2025-11: 0.79
-        2025-12: 0.79
+        2025-12: 0.79 # 0.78 actual
     energy_efficiency_programs_charge:
       charge_unit: $/kWh
       monthly_rates:
@@ -109,7 +109,22 @@ add_to_drr:
         2025-09: 0.01098
         2025-10: 0.01098
         2025-11: 0.01098
-        2025-12: 0.01098
+        2025-12: 0.01098 # .00195 actual
+    transmission_charge:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.04161
+        2025-02: 0.04161
+        2025-03: 0.04161
+        2025-04: 0.04161
+        2025-05: 0.04161
+        2025-06: 0.04161
+        2025-07: 0.04773
+        2025-08: 0.04773
+        2025-09: 0.04773
+        2025-10: 0.04773
+        2025-11: 0.04773
+        2025-12: 0.04773 # .04773 actual
 add_to_srr:
   rate_structure: flat
   charges:
@@ -142,7 +157,7 @@ add_to_srr:
         2025-09: 0.01461
         2025-10: 0.01461
         2025-11: 0.01461
-        2025-12: 0.01461
+        2025-12: 0.01461 # .0198 actual
 already_in_drr:
   rate_structure: flat
   charges:
@@ -164,7 +179,7 @@ already_in_drr:
     core_delivery_rate:
       charge_unit: $/kWh
       monthly_rates:
-        2025-01: 0.0458
+        2025-01: 0.0458 # .059 if next 3 charges included, .0534 actual, .0645 proposed
         2025-02: 0.0458
         2025-03: 0.0458
         2025-04: 0.0458
@@ -221,21 +236,6 @@ already_in_drr:
         2025-10: 0.00339
         2025-11: 0.00339
         2025-12: 0.00339
-    transmission_charge:
-      charge_unit: $/kWh
-      monthly_rates:
-        2025-01: 0.04161
-        2025-02: 0.04161
-        2025-03: 0.04161
-        2025-04: 0.04161
-        2025-05: 0.04161
-        2025-06: 0.04161
-        2025-07: 0.04773
-        2025-08: 0.04773
-        2025-09: 0.04773
-        2025-10: 0.04773
-        2025-11: 0.04773
-        2025-12: 0.04773
 excluded:
   gross_earnings_tax:
     decision: exclude_percentage

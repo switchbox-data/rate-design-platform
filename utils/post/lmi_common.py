@@ -90,17 +90,44 @@ def parse_occupants_expr(occupants_col: str) -> pl.Expr:
 
 
 def load_ri_lidr_config() -> dict:
-    """Load RI LIDR+ tier config from YAML."""
+    """Load RI LIDR+/LIDR tier config from YAML.
+
+    Returns the full config with ``electric`` and ``gas`` sub-sections.
+    """
     path = _data_dir() / "ri_lidr_plus.yaml"
     with path.open() as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+    for section in ("electric", "gas"):
+        if section not in config or "tiers" not in config[section]:
+            raise ValueError(
+                f"ri_lidr_plus.yaml missing '{section}.tiers'; "
+                f"expected 'electric' and 'gas' sub-sections"
+            )
+    return config
 
 
 def assign_ri_tier_expr(fpl_pct_col: str, config: dict | None = None) -> pl.Expr:
-    """Assign LIDR+ tier 0/1/2/3 from FPL% column. 0 = ineligible."""
+    """Assign LIDR+ electric tier 0/1/2/3 from FPL% column. 0 = ineligible."""
     if config is None:
-        config = load_ri_lidr_config()
-    # Process from largest to smallest bound so deepest tier (3) wins for low FPL%
+        config = load_ri_lidr_config()["electric"]
+    tiers = sorted(config["tiers"], key=lambda t: t["fpl_upper_bound"], reverse=True)
+    expr = pl.lit(0)
+    for t in tiers:
+        ub = t["fpl_upper_bound"]
+        tier_num = t["tier"]
+        expr = pl.when(pl.col(fpl_pct_col) <= ub).then(pl.lit(tier_num)).otherwise(expr)
+    return expr
+
+
+def assign_ri_gas_tier_expr(fpl_pct_col: str, config: dict | None = None) -> pl.Expr:
+    """Assign flat LIDR gas tier 0/1/2 from FPL% column. 0 = ineligible.
+
+    Gas stays on the current flat LIDR (not LIDR+). Tiers are proxied via
+    FPL%: <=138% -> tier 2 (30%, Medicaid-eligible), >138% to <=185% ->
+    tier 1 (25%, SNAP/LIHEAP range), >185% -> 0 (ineligible).
+    """
+    if config is None:
+        config = load_ri_lidr_config()["gas"]
     tiers = sorted(config["tiers"], key=lambda t: t["fpl_upper_bound"], reverse=True)
     expr = pl.lit(0)
     for t in tiers:
@@ -113,11 +140,15 @@ def assign_ri_tier_expr(fpl_pct_col: str, config: dict | None = None) -> pl.Expr
 def discount_fractions_for_ri(
     config: dict | None = None,
 ) -> tuple[dict[int, float], dict[int, float]]:
-    """Return (electric_discount_by_tier, gas_discount_by_tier) for RI."""
+    """Return (electric_discount_by_tier, gas_discount_by_tier) for RI.
+
+    Electric discounts are keyed by LIDR+ tiers (1-3).
+    Gas discounts are keyed by flat LIDR tiers (1-2).
+    """
     if config is None:
         config = load_ri_lidr_config()
-    elec = {t["tier"]: t["electric_discount_pct"] for t in config["tiers"]}
-    gas = {t["tier"]: t["gas_discount_pct"] for t in config["tiers"]}
+    elec = {t["tier"]: t["discount_pct"] for t in config["electric"]["tiers"]}
+    gas = {t["tier"]: t["discount_pct"] for t in config["gas"]["tiers"]}
     return elec, gas
 
 
@@ -334,7 +365,7 @@ def assign_ny_tier_expr(
 ) -> pl.Expr:
     """Assign NY EAP/EEAP tier (0-7) from FPL%, SMI%, vulnerability, fuel.
 
-    Tier logic (see context/domain/lmi_discounts_in_ny.md):
+    Tier logic (see context/domain/charges/lmi_discounts_in_ny.md):
 
     Traditional EAP (Tiers 1-3) — always use SMI:
       - ≤130% FPL + vulnerable + utility-heated → Tier 3

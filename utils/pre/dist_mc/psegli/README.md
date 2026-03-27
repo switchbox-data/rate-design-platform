@@ -105,7 +105,7 @@ The script produces **four variants** by combining two capital perspectives with
 | Cumulative undiluted  | Accumulated in-service capital to Y | Cumulative project MW to Y   |
 | Incremental undiluted | New capital entering service in Y   | New project MW entering in Y |
 
-Levelized = mean(real MC) over the 7-year levelization window (2026–2032), consistent across all utilities. See `context/domain/ny_mcos_studies_comparison.md` §10 for rationale.
+Levelized = mean(real MC) over the 7-year levelization window (2026–2032), consistent across all utilities. See `context/methods/marginal_costs/ny_mcos_studies_comparison.md` §10 for rationale.
 
 ### Key output values (incremental diluted, levelized)
 

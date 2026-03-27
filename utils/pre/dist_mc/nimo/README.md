@@ -19,7 +19,7 @@ The workbook does not label projects by voltage. Classification requires cross-r
 | Input                     | Where it lives                                                    | What it contains                                                                                                                                                                  |
 | ------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | NiMo MCOS workbook        | `s3://data.sb/ny_psc/mcos_studies_2025/nimo_study_workpaper.xlsx` | Sheet 1 (Exhibit 1): one row per project with station name, MW, and capital by cost centre. Sheet 11 (FinalData): sub-project–level detail with descriptive names and InvestType. |
-| NYISO Gold Book Table VII | `context/papers/nyiso_gold_book_2025.md` (extracted from PDF)     | Every proposed transmission project in New York, with station names, voltages, and descriptions.                                                                                  |
+| NYISO Gold Book Table VII | `context/sources/nyiso_gold_book_2025.md` (extracted from PDF)    | Every proposed transmission project in New York, with station names, voltages, and descriptions.                                                                                  |
 
 ## MC formula and variants
 
@@ -41,7 +41,7 @@ The script produces **four variants** by combining two capital perspectives with
 | Cumulative undiluted  | Accumulated in-service capital to Y | Cumulative project MW to Y   |
 | Incremental undiluted | New capital entering service in Y   | New project MW entering in Y |
 
-Levelized = mean(real MC) over the 7-year levelization window (2026–2032), consistent across all utilities. See `context/domain/ny_mcos_studies_comparison.md` §10 for rationale.
+Levelized = mean(real MC) over the 7-year levelization window (2026–2032), consistent across all utilities. See `context/methods/marginal_costs/ny_mcos_studies_comparison.md` §10 for rationale.
 
 Unlike ConEd/O&R, NiMo has per-project in-service years, so incremental values are computed directly (filter to projects entering in year Y) rather than differencing cumulative totals.
 
@@ -270,7 +270,7 @@ This is what `nimo_project_classifications.csv` captures. The evidence column is
 | Input                     | Source                                                            |
 | ------------------------- | ----------------------------------------------------------------- |
 | NiMo MCOS workbook        | `s3://data.sb/ny_psc/mcos_studies_2025/nimo_study_workpaper.xlsx` |
-| NYISO Gold Book Table VII | `context/papers/nyiso_gold_book_2025.md`                          |
+| NYISO Gold Book Table VII | `context/sources/nyiso_gold_book_2025.md`                         |
 | System peak               | 6,616 MW — 2024 actual, NiMo Peak Load Forecast (Mar 2025)        |
 
 | Output                                                                     | Description                                                                                                         |

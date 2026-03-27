@@ -174,22 +174,31 @@ apply-ny-lmi-discounts run_dir utility_arg fpl_year cpi_s3_path participation_ra
 
 path_cpi_s3 := "s3://data.sb/fred/cpi/"
 
-build-master-bills-with-lmi batch run_delivery run_supply participation_rate="1.0" participation_mode="weighted" seed="42" calculation_type="budget" *script_args:
+# Build NY master bills with integrated LMI discount columns for one or more
+# participation rates in a single pass. Defaults to both p100 and p40.
+
+# Override participation_rates to pass a different space-separated list.
+build-master-bills-with-lmi batch run_delivery run_supply *script_args:
     just build-master-bills "{{ batch }}" "{{ run_delivery }}" "{{ run_supply }}" \
       --calculate-lmi \
       --lmi-fpl-year 2025 \
       --lmi-cpi-s3-path "{{ path_cpi_s3 }}" \
-      --lmi-participation-rate "{{ participation_rate }}" \
-      --lmi-participation-mode "{{ participation_mode }}" \
-      --lmi-seed "{{ seed }}" \
-      --lmi-calculation-type "{{ calculation_type }}" \
+      --lmi-participation-rates 1.0 0.4 \
+      --lmi-participation-mode weighted \
+      --lmi-seed 42 \
+      --lmi-calculation-type budget \
       {{ script_args }}
 
-build-master-bills-with-lmi-p100 batch run_delivery run_supply calculation_type="budget" *script_args:
-    just build-master-bills-with-lmi "{{ batch }}" "{{ run_delivery }}" "{{ run_supply }}" "1.0" "weighted" "42" "{{ calculation_type }}" {{ script_args }}
+# Run build-master-bills-with-lmi for all 6 run pairs sequentially.
 
-build-master-bills-with-lmi-p40 batch run_delivery run_supply calculation_type="budget" *script_args:
-    just build-master-bills-with-lmi "{{ batch }}" "{{ run_delivery }}" "{{ run_supply }}" "0.4" "weighted" "42" "{{ calculation_type }}" {{ script_args }}
+# Sequential to avoid Polars file-cache race conditions on S3 reads.
+build-master-bills-with-lmi-all batch *script_args:
+    just build-master-bills-with-lmi "{{ batch }}" 1 2 {{ script_args }}
+    just build-master-bills-with-lmi "{{ batch }}" 3 4 {{ script_args }}
+    just build-master-bills-with-lmi "{{ batch }}" 5 6 {{ script_args }}
+    just build-master-bills-with-lmi "{{ batch }}" 7 8 {{ script_args }}
+    just build-master-bills-with-lmi "{{ batch }}" 9 10 {{ script_args }}
+    just build-master-bills-with-lmi "{{ batch }}" 11 12 {{ script_args }}
 
 apply-lmi-to-existing-master-bills batch run_delivery run_supply participation_rate="1.0" participation_mode="weighted" seed="42" calculation_type="budget" output_path="":
     uv run python {{ path_repo }}/utils/post/apply_ny_lmi_to_master_bills.py \
@@ -205,7 +214,7 @@ apply-lmi-to-existing-master-bills batch run_delivery run_supply participation_r
 
 # =============================================================================
 # NY-only: post-processing validation
-# Each recipe validates runs 1-8 for that utility.
+# Each recipe validates all runs present in the utility scenario YAML.
 # Omit timestamp to auto-detect the latest complete batch from S3;
 # pass a YYYYMMDDTHHMMSSZ string to pin a specific execution_time cohort.
 # =============================================================================
@@ -232,7 +241,7 @@ validate-psegli timestamp="":
 validate-rge timestamp="":
     UTILITY=rge just validate-runs "{{ timestamp }}"
 
-# Validate all NY utilities sequentially (runs 1-8 each).
+# Validate all NY utilities sequentially (all scenario runs per utility).
 
 # Omit timestamp to use each utility's latest complete batch independently.
 validate-all-runs-ny timestamp="":
@@ -243,3 +252,58 @@ validate-all-runs-ny timestamp="":
     just validate-or "{{ timestamp }}"
     just validate-psegli "{{ timestamp }}"
     just validate-rge "{{ timestamp }}"
+
+# =============================================================================
+# NY-only: demand-flex diagnostics
+# =============================================================================
+
+path_flex_plots := path_repo / "dev_plots/flex"
+
+# Validate demand-flex load shifting for one utility: reproduces the shift
+# analytically, checks energy conservation and direction, cross-checks against
+# CAIRO's elasticity tracker, and generates diagnostic plots.
+#   just -f ny/Justfile validate-demand-flex coned
+
+# just -f ny/Justfile validate-demand-flex coned -0.12 ny_20260325b_r1-16
+validate-demand-flex utility_arg elasticity="-0.10" batch="":
+    cd {{ project_root }} && uv run python -m utils.post.validate_demand_flex_shift \
+      --utility {{ utility_arg }} \
+      --elasticity {{ elasticity }} \
+      --output-dir "{{ path_flex_plots }}/{{ utility_arg }}" \
+      {{ if batch != "" { "--batch " + batch } else { "" } }}
+
+validate-demand-flex-all elasticity="-0.10" batch="":
+    just validate-demand-flex cenhud {{ elasticity }} "{{ batch }}"
+    just validate-demand-flex coned {{ elasticity }} "{{ batch }}"
+    just validate-demand-flex nimo {{ elasticity }} "{{ batch }}"
+    just validate-demand-flex nyseg {{ elasticity }} "{{ batch }}"
+    just validate-demand-flex or {{ elasticity }} "{{ batch }}"
+    just validate-demand-flex psegli {{ elasticity }} "{{ batch }}"
+    just validate-demand-flex rge {{ elasticity }} "{{ batch }}"
+
+# Run the elasticity calibration sweep: tests a range of elasticity values per
+# utility and finds the one matching the Arcturus 2.0 empirical target.
+#
+# Sweep all utilities (default range -0.04 to -0.50, step -0.02):
+#   just -f ny/Justfile calibrate-demand-flex-elasticity
+#
+# Subset of utilities:
+#   just -f ny/Justfile calibrate-demand-flex-elasticity --utilities=coned,nimo
+#
+# Custom range:
+#   just -f ny/Justfile calibrate-demand-flex-elasticity --epsilon-start -0.04 --epsilon-end -0.30 --epsilon-step -0.01
+#
+# Write no-tech + with-tech seasonal elasticities to config/periods/*.yaml:
+#   just -f ny/Justfile calibrate-demand-flex-elasticity --write-periods
+#
+# Compare analytical predictions against a CAIRO batch (no-tech):
+#   just -f ny/Justfile calibrate-demand-flex-elasticity --utilities=cenhud --compare-batch ny_20260326_batch
+#
+# Compare against a CAIRO batch that used with-tech elasticities:
+
+# just -f ny/Justfile calibrate-demand-flex-elasticity --utilities=cenhud --compare-batch ny_20260326_batch --with-tech
+calibrate-demand-flex-elasticity *args:
+    cd {{ project_root }} && uv run python -m utils.pre.calibrate_demand_flex_elasticity \
+      --state ny \
+      --output-dir "{{ path_flex_plots }}/diagnostic" \
+      {{ args }}

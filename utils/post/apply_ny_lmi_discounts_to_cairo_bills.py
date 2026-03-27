@@ -94,7 +94,7 @@ def _build_tier_consumption(
 ) -> pl.LazyFrame:
     """Load metadata for utility, add FPL/SMI/tier/participation.
 
-    Returns lazy frame with bldg_id, lmi_tier, participates,
+    Returns lazy frame with bldg_id, elec_lmi_tier, gas_lmi_tier, participates,
     heats_with_electricity, heats_with_natgas, gas_utility, elec_kwh, gas_therms.
     """
     tier_col = "lmi_tier_raw"
@@ -219,13 +219,15 @@ def _build_tier_consumption(
         pl.when(pl.col("participates"))
         .then(pl.col(tier_col))
         .otherwise(pl.lit(0))
-        .alias("lmi_tier")
+        .alias("elec_lmi_tier")
     )
+    meta = meta.with_columns(pl.col("elec_lmi_tier").alias("gas_lmi_tier"))
     meta = meta.with_columns((pl.col(gas_kwh_col) / KWH_PER_THERM).alias("gas_therms"))
 
     return meta.select(
         BLDG_ID_COL,
-        "lmi_tier",
+        "elec_lmi_tier",
+        "gas_lmi_tier",
         tier_col,
         "participates",
         "heats_with_electricity",
@@ -269,7 +271,7 @@ def _apply_discounts_to_bills(
     elec_bills = elec_bills.join(
         tc.select(
             BLDG_ID_COL,
-            "lmi_tier",
+            "elec_lmi_tier",
             tier_col,
             "participates",
             "heats_with_electricity",
@@ -281,7 +283,7 @@ def _apply_discounts_to_bills(
     gas_bills = gas_bills.join(
         tc.select(
             BLDG_ID_COL,
-            "lmi_tier",
+            "gas_lmi_tier",
             tier_col,
             "participates",
             "heats_with_natgas",
@@ -291,8 +293,8 @@ def _apply_discounts_to_bills(
         on=BLDG_ID_COL,
         how="left",
     )
-    elec_bills = elec_bills.with_columns(pl.col("lmi_tier").fill_null(0))
-    gas_bills = gas_bills.with_columns(pl.col("lmi_tier").fill_null(0))
+    elec_bills = elec_bills.with_columns(pl.col("elec_lmi_tier").fill_null(0))
+    gas_bills = gas_bills.with_columns(pl.col("gas_lmi_tier").fill_null(0))
 
     # Load credit table
     credits_df = get_ny_eap_credits_df()
@@ -305,8 +307,8 @@ def _apply_discounts_to_bills(
         pl.col("elec_nonheat").fill_null(0.0).alias("credit_nonheat"),
     )
     elec_bills = elec_bills.join(
-        elec_credits.lazy().rename({"tier": "lmi_tier"}),
-        on="lmi_tier",
+        elec_credits.lazy().rename({"tier": "elec_lmi_tier"}),
+        on="elec_lmi_tier",
         how="left",
     )
     # Monthly credit: heat or nonheat based on heats_with_electricity
@@ -323,7 +325,7 @@ def _apply_discounts_to_bills(
     )
     # Only apply to participants with tier > 0
     elec_credit_applied = (
-        pl.when(pl.col("lmi_tier") > 0).then(elec_credit_amount).otherwise(0.0)
+        pl.when(pl.col("elec_lmi_tier") > 0).then(elec_credit_amount).otherwise(0.0)
     )
     elec_bills = elec_bills.with_columns(elec_credit_applied.alias("discount_elec"))
 
@@ -332,13 +334,13 @@ def _apply_discounts_to_bills(
     # Join credit table on gas_utility × tier
     gas_credit_lookup = credits_df.select(
         pl.col("utility").alias("gas_utility"),
-        pl.col("tier").alias("lmi_tier"),
+        pl.col("tier").alias("gas_lmi_tier"),
         pl.col("gas_heat").fill_null(0.0).alias("credit_gas_heat"),
         pl.col("gas_nonheat").fill_null(0.0).alias("credit_gas_nonheat"),
     )
     gas_bills = gas_bills.join(
         gas_credit_lookup.lazy(),
-        on=["gas_utility", "lmi_tier"],
+        on=["gas_utility", "gas_lmi_tier"],
         how="left",
     )
     gas_monthly_credit = (
@@ -352,7 +354,7 @@ def _apply_discounts_to_bills(
         .otherwise(gas_monthly_credit)
     )
     gas_credit_applied = (
-        pl.when(pl.col("lmi_tier") > 0).then(gas_credit_amount).otherwise(0.0)
+        pl.when(pl.col("gas_lmi_tier") > 0).then(gas_credit_amount).otherwise(0.0)
     )
     gas_bills = gas_bills.with_columns(gas_credit_applied.alias("discount_gas"))
 
@@ -479,7 +481,7 @@ def _upload_discounted_bills(
         "month",
         "dollar_year",
         pl.col("bill_level").alias("bill_level_elec"),
-        "lmi_tier",
+        "elec_lmi_tier",
     )
     gas_for_comb = gas_bills.select(
         BLDG_ID_COL,
@@ -487,6 +489,7 @@ def _upload_discounted_bills(
         "month",
         "dollar_year",
         pl.col("bill_level").alias("bill_level_gas"),
+        "gas_lmi_tier",
     )
     comb = elec_for_comb.join(
         gas_for_comb,
@@ -498,7 +501,13 @@ def _upload_discounted_bills(
         )
     )
     comb = comb.select(
-        BLDG_ID_COL, "weight", "month", "bill_level", "dollar_year", "lmi_tier"
+        BLDG_ID_COL,
+        "weight",
+        "month",
+        "bill_level",
+        "dollar_year",
+        "elec_lmi_tier",
+        "gas_lmi_tier",
     )
     comb.sink_csv(out_comb, storage_options=storage)
     print(f"Wrote {out_elec}, {out_gas}, {out_comb}")
@@ -540,7 +549,9 @@ def main() -> None:
         "--utility", required=True, help="Electric utility std_name (e.g. coned, nimo)"
     )
     parser.add_argument(
-        "--resstock-release", default="res_2024_amy2018_2", help="ResStock release name"
+        "--resstock-release",
+        default="res_2024_amy2018_2_sb",
+        help="ResStock release name",
     )
     parser.add_argument("--upgrade", default="00", help="ResStock upgrade ID")
     parser.add_argument(

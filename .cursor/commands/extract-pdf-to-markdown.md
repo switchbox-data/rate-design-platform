@@ -17,6 +17,14 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 6. **Standalone design**: A reader should be able to work from this markdown alone; the PDF is emergency reference only
 7. **LLM-friendly markers**: Use clear, parseable markers when you must indicate "see PDF for visual"
 
+### Long Documents (30+ pages)
+
+For source PDFs longer than ~30 pages, **maintain the same fidelity throughout the entire document**. Do not allow quality to degrade in later sections — every chapter deserves the same level of verbatim transcription, footnote capture, and figure description as the first. Specifically:
+
+- Work section by section at a consistent pace. If the Executive Summary was extracted near-verbatim, body chapters must be too.
+- Do not switch from transcription to summarization partway through. If you find yourself writing "the section discusses X" instead of reproducing the actual text, stop and transcribe.
+- For very long documents (80+ pages), it is acceptable to use multiple passes — extract the first half, save, then continue — rather than compressing later content.
+
 ## Extraction Instructions
 
 ### Structure & Hierarchy
@@ -33,7 +41,17 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 - `code` for technical terms, file paths, code snippets
 - Preserve numbered and bulleted lists with correct nesting. **When the source has an inline numbered list** (e.g. "commissions should 1) … 2) … 5)" or "(1) … (2)" in one paragraph), **convert it to a markdown list** (numbered or bullet) unless that would break the flow of the paragraph.
 - Keep paragraph structure and grouping exactly as in original
-- Convert hyperlinks to markdown format: `[link text](URL)`
+- Convert hyperlinks to markdown format: `[link text](URL)`. When a URL appears as a bare link without surrounding descriptive text (common in footnotes of legal/regulatory documents), wrap it with a short descriptive label: `[Short Description](URL)` (e.g. `[2022 NYISO Gold Book](https://...pdf)`).
+- **Sidebar boxes, callout panels, and inset text** (visually set apart from the main body — e.g., case studies, worked examples, "Challenge and Opportunity" boxes, marginal definitions): Preserve these in full. Format each as a blockquote or with a clear header indicating the sidebar title (e.g., `> **Remote Disconnection and Reconnection: Challenge and Opportunity**`). Do not silently drop sidebars; they often contain substantive content not duplicated in the main text.
+
+### Source Errors, Typos, and Cross-References
+
+Source PDFs often contain typos, missing words, or erroneous internal cross-references (e.g. "Section 4.1" when the content is clearly in Section 5.1). The goal is to make the extract easy for agents to reason about while preserving traceability to the original.
+
+- **Minor typos** (misspellings, missing prepositions, obvious letter transpositions like "fro" for "for"): Correct them silently for readability, but add a blanket note in the front matter: _"Note: Minor typographical errors in the source (e.g. "an" for "and", "fro" for "for") have been corrected for readability. Substantive corrections are annotated inline."_
+- **Erroneous cross-references** (section numbers, figure numbers, or other internal references that are clearly wrong given the document's own structure): Correct the reference to what it clearly means, and add an inline bracketed annotation preserving the original: `Section 5.1 [source says "Section 4.1"]`. This lets agents follow the correct reference while knowing the source differed.
+- **Truncated text** (e.g. a footnote or sentence cut off at a page break): Include whatever text is present, then add a bracketed note: `[text truncated at page break in source]`.
+- **Ambiguous cases** (where it's unclear whether the source text is an error or intentional): Preserve the original text exactly and do not correct it. If warranted, add a bracketed note: `[sic]` or `[sic; possibly intended "X"]`.
 
 ### Tables
 
@@ -99,6 +117,8 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 
 5. **For flowcharts/process diagrams**: Describe flow path, decision points, inputs/outputs, process steps in order
 
+6. **Preserve figure-referencing transitional sentences.** When the source text introduces a figure with a sentence like "Figure 3 shows the historical values for X" or "Figure 7 presents the projected installations," preserve that sentence as standalone text **before** the `[DIAGRAM DESCRIPTION]` block. Do not drop these sentences or fold them into the diagram description — they are part of the source prose and connect the narrative to the visual. The pattern is: transitional sentence → `[DIAGRAM DESCRIPTION]` block → any post-figure discussion.
+
 ### Citations & References
 
 - Preserve citation format exactly: `(Author et al., Year)` or `[1]`, `[2]`, etc.
@@ -111,6 +131,15 @@ You are extracting a technical PDF into a **standalone, fully-formatted markdown
 - **Locate and preserve every footnote** in the source. Do not drop footnote text, definitions, or URLs. Output each footnote either as a markdown footnote (`[^n]` in body with `[^n]: content` in a **Footnotes** section) or inlined at the reference point; in either case, the full content (including any URLs, citations, or definitions) must appear in the extract.
 - Preserve ALL footnote content—nothing drops. If a footnote reference triggers a linter (e.g. "unused reference definition"), you may **inline the footnote content** into the body at the reference point and remove the footnote definition, provided no content is lost.
 - Keep numbering/order from original (or renumber from 1 if the source uses different numbering).
+
+### OCR-Based Extractions
+
+Some PDFs are scanned images with no embedded text, requiring OCR (e.g. via tesseract or PyMuPDF's `get_textpage_ocr`). When OCR is needed:
+
+- **Note it in the front matter.** Add a line to the metadata block: `**Extraction method**: OCR (source PDF is image-based)`. Also include a blanket note: _"This document was extracted via OCR from a scanned PDF. Minor recognition errors may remain; low-confidence values are marked with `[?]`."_
+- **Mark low-confidence values with `[?]`.** When OCR produces ambiguous or garbled text — especially in table cells, numbers, or proper nouns — include your best reconstruction followed by `[?]`. For example: `0.58 [?]` or `Smith [?]`. This signals to downstream consumers that the value may need manual verification against the original PDF.
+- **Use the highest practical DPI** (300+ recommended) for OCR to maximize recognition quality.
+- **For tables that OCR cannot extract** (e.g. complex spreadsheet images), do not invent cell data. Add: _"Table content was not extractable from the PDF; description below is inferred from surrounding text. See original PDF for data."_ Then describe the table's purpose and structure based on the narrative.
 
 ### Content You Cannot Fully Extract
 
@@ -159,6 +188,8 @@ When the source PDF contains them, include short back-matter sections such as **
 - [ ] Equations preserved in original notation
 - [ ] All citations and references complete and linked
 - [ ] All footnotes and endnotes preserved
+- [ ] **Footnote count verified (mandatory)**: Before finalizing, count footnote **reference marks** in the source PDF (superscript numbers, symbols, or `[n]` markers in body text) and count footnote **definitions** in the extract (`[^n]:` lines or inlined equivalents). The counts **must** match. If the source has N footnotes, the extract must have exactly N footnote definitions. When footnotes are numbered per-chapter (resetting to 1 in each chapter), count per chapter and verify each. This is the single most commonly failed check — do not skip it.
+- [ ] Source errors handled: minor typos corrected with blanket note in front matter; erroneous cross-references corrected with inline `[source says "…"]` annotations; truncated text noted
 - [ ] No orphaned content (mentioned but not included)
 - [ ] Section numbers, titles, labels preserved exactly
 - [ ] Document reads as complete, standalone resource
@@ -189,7 +220,7 @@ When the source PDF contains them, include short back-matter sections such as **
 ## Output filename and location
 
 - **Filename**: The markdown file **must** use the same base name as the PDF, with a `.md` extension. Example: `bill_alignment_test.pdf` → `bill_alignment_test.md`.
-- **Location**: Save under `context/docs/` for technical documentation (e.g. Cambium, ResStock) or `context/papers/` for academic papers (e.g. Bill Alignment Test). Update `context/README.md` when adding or changing files.
+- **Location**: Save under `context/docs/` for technical documentation (e.g. Cambium, ResStock) or `context/sources/papers/` for academic papers (e.g. Bill Alignment Test). Update `context/README.md` when adding or changing files.
 
 ## Process
 
@@ -203,6 +234,6 @@ The PDF file path is provided as: **$ARGUMENTS**
 6. Build complete References section
 7. Do final quality check against checklist
 8. Output complete markdown as ready-to-use document
-9. **Save the file** under `context/docs/` or `context/papers/` using the **same base name as the PDF** (e.g. `path/to/foo.pdf` → `context/.../foo.md`). Update `context/README.md` if needed.
+9. **Save the file** under `context/docs/` or `context/sources/papers/` using the **same base name as the PDF** (e.g. `path/to/foo.pdf` → `context/.../foo.md`). Update `context/README.md` if needed.
 
 **Provide the extracted markdown in full, ready to save to context/ with the matching filename and commit.**

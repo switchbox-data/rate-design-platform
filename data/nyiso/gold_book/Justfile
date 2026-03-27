@@ -3,7 +3,7 @@
 # Tables extracted from the NYISO Gold Book report.
 # Currently covers Table VII (Proposed Transmission Facilities, 2025).
 #
-# Source: context/papers/nyiso_gold_book_2025.md (PDF-to-markdown extraction)
+# Source: context/sources/nyiso_gold_book_2025.md (PDF-to-markdown extraction)
 #
 # Two-stage pipeline:
 #   1. extract — parse the Gold Book markdown into a raw CSV
@@ -25,7 +25,7 @@
 path_local_base := justfile_directory()
 path_local_input := path_local_base + "/2025_proposed_transmission_facilities_raw.csv"
 path_local_csv := path_local_base + "/csv"
-path_gold_book_md := `git rev-parse --show-toplevel` + "/context/papers/nyiso_gold_book_2025.md"
+path_gold_book_md := `git rev-parse --show-toplevel` + "/context/sources/nyiso_gold_book_2025.md"
 path_s3 := "s3://data.sb/nyiso/gold_book/"
 
 # Extract Table VII from Gold Book markdown into raw CSV

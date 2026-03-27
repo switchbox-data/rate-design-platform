@@ -25,16 +25,33 @@ fetch-gas-tariffs:
 # RI-only: post-run LMI discounts
 # =============================================================================
 
-apply-ri-lmi-discounts run_dir run_state run_utility fpl_year cpi_s3_path participation_rate="1.0" rider="false":
+path_cpi_s3 := "s3://data.sb/fred/cpi/"
+
+# Apply RI LIDR+ discounts to CAIRO run-bill CSVs (standalone, writes new CSV files).
+
+# participation_rates is a space-separated list, e.g. "1.0 0.4" for p100 and p40.
+apply-ri-lmi-discounts run_dir run_state run_utility fpl_year cpi_s3_path participation_rates="1.0":
     uv run python {{ path_repo }}/utils/post/apply_ri_lmi_discounts_to_bills.py \
       --run-dir "{{ run_dir }}" \
       --state {{ run_state }} \
       --utility {{ run_utility }} \
       --fpl-year {{ fpl_year }} \
       --cpi-s3-path "{{ cpi_s3_path }}" \
-      --participation-rate {{ participation_rate }} \
-      {{ if rider == "true" { "--rider" } else { "" } }} \
+      --participation-rates {{ participation_rates }} \
       --upload
+
+# Build RI master bills with integrated LMI discount columns for one or more
+
+# participation rates in a single pass. Defaults to both p100 and p40.
+build-master-bills-with-lmi batch run_delivery run_supply *script_args:
+    just build-master-bills "{{ batch }}" "{{ run_delivery }}" "{{ run_supply }}" \
+      --calculate-lmi \
+      --lmi-fpl-year 2025 \
+      --lmi-cpi-s3-path "{{ path_cpi_s3 }}" \
+      --lmi-participation-rates 1.0 0.32 \
+      --lmi-participation-mode uniform \
+      --lmi-seed 42 \
+      {{ script_args }}
 
 # =============================================================================
 # RI-only: bulk transmission marginal cost generation (AESC PTF)
@@ -88,3 +105,14 @@ create-supply-mc-data:
     echo ">> Generating ISO-NE supply capacity MC (FCA)" >&2
     just create-supply-capacity-mc
     echo ">> Supply MC data generation completed" >&2
+
+# =============================================================================
+# RI-only: MC validation
+# =============================================================================
+
+validate-mc-data output_dir="/tmp/mc_validation_ri":
+    uv run python {{ path_repo }}/utils/post/validate_ny_mc_data.py \
+      --state {{ state }} \
+      --utilities {{ utility }} \
+      --year {{ year }} \
+      --output-dir "{{ output_dir }}"

@@ -242,13 +242,46 @@ def combine_marginal_costs(
 # ---------------------------------------------------------------------------
 
 
+def compute_tou_fit_metric(
+    combined_mc: pd.Series,
+    hourly_load: pd.Series,
+    peak_hours: list[int],
+) -> float:
+    """Load-weighted sum of squared MC residuals for a peak/off-peak split.
+
+    This is the fixed-width welfare-loss proxy used to compare candidate TOU
+    windows. Lower values mean the two-period TOU approximation better matches
+    the hourly MC profile for the class facing the tariff.
+    """
+    hour_of_day = combined_mc.index.hour  # type: ignore[union-attr]
+    is_peak = np.isin(hour_of_day, peak_hours)
+
+    peak_load = hourly_load[is_peak].sum()
+    offpeak_load = hourly_load[~is_peak].sum()
+
+    peak_avg = (
+        (combined_mc[is_peak] * hourly_load[is_peak]).sum() / peak_load
+        if peak_load > 0
+        else 0.0
+    )
+    offpeak_avg = (
+        (combined_mc[~is_peak] * hourly_load[~is_peak]).sum() / offpeak_load
+        if offpeak_load > 0
+        else 0.0
+    )
+
+    period_rate = np.where(is_peak, peak_avg, offpeak_avg)
+    residuals = (combined_mc.values - period_rate) ** 2 * hourly_load.values
+    return float(residuals.sum())
+
+
 def find_tou_peak_window(
     combined_mc: pd.Series,
     hourly_load: pd.Series,
     window_hours: int = 4,
 ) -> list[int]:
-    """Find the contiguous *window_hours*-wide block with the highest
-    demand-weighted average marginal cost across the 24-hour day.
+    """Find the contiguous *window_hours*-wide block that best fits a
+    two-period TOU approximation under a load-weighted squared-error objective.
 
     This is a **primitive**: it operates on whatever hourly slice is passed
     in.  For seasonal TOU, callers filter to a single season's hours first.
@@ -264,32 +297,21 @@ def find_tou_peak_window(
     if window_hours < 1 or window_hours > 23:
         raise ValueError("window_hours must be between 1 and 23")
 
-    # Demand-weighted MC: MC_h * load_h (caller must pass aligned indices)
-    dw_mc = combined_mc * hourly_load
-
-    # Build a 24-hour profile: average demand-weighted MC by hour-of-day
-    hour_of_day = combined_mc.index.hour  # type: ignore[union-attr]
-    profile = (
-        pd.DataFrame({"dw_mc": dw_mc.values, "hour": hour_of_day})
-        .groupby("hour")["dw_mc"]
-        .mean()
-    )
-
-    # Slide a contiguous window (wrapping around midnight)
-    best_sum = -np.inf
-    best_start = 0
+    best_metric = np.inf
+    best_peak_hours: list[int] = []
     for start in range(24):
-        hours = [(start + i) % 24 for i in range(window_hours)]
-        window_sum = profile.loc[hours].sum()
-        if window_sum > best_sum:
-            best_sum = window_sum
-            best_start = start
+        peak_hours = sorted((start + i) % 24 for i in range(window_hours))
+        metric = compute_tou_fit_metric(combined_mc, hourly_load, peak_hours)
+        if metric < best_metric:
+            best_metric = metric
+            best_peak_hours = peak_hours
 
-    peak_hours = sorted((best_start + i) % 24 for i in range(window_hours))
     log.info(
-        "TOU peak window (hours %d–%d): %s", peak_hours[0], peak_hours[-1], peak_hours
+        "TOU peak window %s minimizes load-weighted MC residual metric %.6e",
+        best_peak_hours,
+        best_metric,
     )
-    return peak_hours
+    return best_peak_hours
 
 
 def compute_tou_cost_causation_ratio(
@@ -347,21 +369,17 @@ def compute_seasonal_base_rates(
     combined_mc: pd.Series,
     hourly_load: pd.Series,
     seasons: list[Season],
-    base_rate: float,
 ) -> dict[str, float]:
     """Derive a per-season flat rate from demand-weighted MC.
 
-    The ratio of demand-weighted average MC across seasons scales
-    ``base_rate`` so that the load-weighted average of the seasonal rates
-    equals ``base_rate``.
+    Returns the raw demand-weighted average MC for each season. CAIRO's
+    precalc will calibrate the absolute level; the seasonal ratios come
+    directly from the MC data.
 
     Args:
         combined_mc: 8760-row Series of total MC ($/kWh) indexed by time.
         hourly_load: 8760-row Series of load indexed by time.
         seasons: List of :class:`Season` objects covering all 12 months.
-        base_rate: Nominal annual average rate ($/kWh); precalc will
-            calibrate the absolute level but the *seasonal ratios* are
-            preserved.
 
     Returns:
         ``{season.name: rate}`` for each season.
@@ -370,9 +388,7 @@ def compute_seasonal_base_rates(
     mc_vals = combined_mc.values
     load_vals = hourly_load.values
 
-    # Demand-weighted avg MC per season
-    dw_avgs: dict[str, float] = {}
-    season_loads: dict[str, float] = {}
+    rates: dict[str, float] = {}
     for s in seasons:
         mask = season_mask(idx, s)
         mc_s = mc_vals[mask]
@@ -380,21 +396,11 @@ def compute_seasonal_base_rates(
         total_load = float(load_s.sum())
         if total_load == 0:
             raise ValueError(f"Load is zero for season '{s.name}'")
-        dw_avgs[s.name] = float((mc_s * load_s).sum() / total_load)
-        season_loads[s.name] = total_load
-
-    # Scale so load-weighted mean of seasonal rates == base_rate
-    total_load = sum(season_loads.values())
-    total_mc = sum(dw_avgs[s.name] * season_loads[s.name] for s in seasons)
-    scale = base_rate * total_load / total_mc if total_mc != 0 else 1.0
-
-    rates: dict[str, float] = {}
-    for s in seasons:
-        rates[s.name] = round(dw_avgs[s.name] * scale, 6)
+        dw_avg = float((mc_s * load_s).sum() / total_load)
+        rates[s.name] = round(dw_avg, 6)
         log.info(
-            "Seasonal base rate %s: $%.6f/kWh (dw avg MC=%.6f)",
+            "Seasonal base rate %s: $%.6f/kWh (demand-weighted avg MC)",
             s.name,
             rates[s.name],
-            dw_avgs[s.name],
         )
     return rates

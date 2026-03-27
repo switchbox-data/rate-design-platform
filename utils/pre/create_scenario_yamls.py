@@ -325,27 +325,29 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         except ValueError:
             run["sample_size"] = sample_size
 
-    run["elasticity"] = parse_required_float("elasticity")
+    elasticity_raw = require_non_empty("elasticity")
+    try:
+        run["elasticity"] = float(elasticity_raw)
+    except ValueError:
+        state = str(run["state"]).lower()
+        config_dir = get_project_root() / "rate_design" / "hp_rates" / state / "config"
+        periods_path = config_dir / elasticity_raw
+        if not periods_path.exists():
+            raise FileNotFoundError(
+                f"Elasticity path {elasticity_raw!r} resolved to "
+                f"{periods_path} which does not exist"
+            )
+        with open(periods_path) as f:
+            periods_data = yaml.safe_load(f)
+
+        enabling_tech = get_optional("enabling_tech").strip().lower()
+        use_with_tech = enabling_tech not in ("false", "no", "0")
+        yaml_key = "elasticity_with_tech" if use_with_tech else "elasticity"
+        if yaml_key not in periods_data:
+            raise ValueError(f"No '{yaml_key}' key in {periods_path}")
+        run["elasticity"] = periods_data[yaml_key]
 
     return run
-
-
-def _insert_blank_lines_between_runs(yaml_str: str) -> str:
-    """Insert a blank line before run keys 2+, not before the first run key."""
-    lines = yaml_str.splitlines()
-    out: list[str] = []
-    seen_run_key = False
-    for line in lines:
-        stripped = line.strip()
-        is_run_key = (
-            line.startswith("  ") and stripped.endswith(":") and stripped[:-1].isdigit()
-        )
-        if is_run_key and seen_run_key and (not out or out[-1] != ""):
-            out.append("")
-        if is_run_key:
-            seen_run_key = True
-        out.append(line)
-    return "\n".join(out) + ("\n" if yaml_str.endswith("\n") else "")
 
 
 def _cell_to_str(value: object) -> str:
@@ -526,7 +528,6 @@ def run(
             sort_keys=False,
             allow_unicode=True,
         )
-        yaml_str = _insert_blank_lines_between_runs(yaml_str)
         out_path.write_text(yaml_str, encoding="utf-8")
         print(f"Wrote {out_path} ({len(runs)} runs)")
 

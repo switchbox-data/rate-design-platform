@@ -1,22 +1,22 @@
 runs:
   1:
-    run_name: ri_rie_run1_up00_precalc__flat
+    run_name: ri_rie_run1_up00_precalc__default
     state: RI
     utility: rie
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/rie_flat.csv
+    path_tariff_maps_electric: tariff_maps/electric/rie_default.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=RI/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=RI/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=RI/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run1_up00_precalc__flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run1_up00_precalc__default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/zero.parquet
     path_tariffs_electric:
-      all: tariffs/electric/rie_flat.json
+      all: tariffs/electric/rie_default.json
     utility_revenue_requirement: rev_requirement/rie.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -28,23 +28,23 @@ runs:
     process_workers: 8
     elasticity: 0.0
   2:
-    run_name: ri_rie_run2_up00_precalc_supply__flat
+    run_name: ri_rie_run2_up00_precalc_supply__default
     state: RI
     utility: rie
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/rie_flat_supply.csv
+    path_tariff_maps_electric: tariff_maps/electric/rie_default_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=RI/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=RI/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=RI/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run2_up00_precalc_supply__flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run2_up00_precalc_supply__default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/data.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/data.parquet
     path_tariffs_electric:
-      all: tariffs/electric/rie_flat_supply.json
+      all: tariffs/electric/rie_default_supply.json
     utility_revenue_requirement: rev_requirement/rie.yaml
     run_includes_supply: true
     run_includes_subclasses: false
@@ -56,23 +56,23 @@ runs:
     process_workers: 8
     elasticity: 0.0
   3:
-    run_name: ri_rie_run3_up02_default__flat
+    run_name: ri_rie_run3_up02_default__default
     state: RI
     utility: rie
     run_type: default
     upgrade: '2'
-    path_tariff_maps_electric: tariff_maps/electric/rie_flat_calibrated.csv
+    path_tariff_maps_electric: tariff_maps/electric/rie_default_calibrated.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=RI/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=RI/upgrade=02/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=RI/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run3_up02_default__flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run3_up02_default__default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/zero.parquet
     path_tariffs_electric:
-      all: tariffs/electric/rie_flat_calibrated.json
+      all: tariffs/electric/rie_default_calibrated.json
     utility_revenue_requirement: rev_requirement/rie_large_number.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -84,23 +84,23 @@ runs:
     process_workers: 8
     elasticity: 0.0
   4:
-    run_name: ri_rie_run4_up02_default_supply__flat
+    run_name: ri_rie_run4_up02_default_supply__default
     state: RI
     utility: rie
     run_type: default
     upgrade: '2'
-    path_tariff_maps_electric: tariff_maps/electric/rie_flat_calibrated_supply.csv
+    path_tariff_maps_electric: tariff_maps/electric/rie_default_calibrated_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=RI/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=RI/upgrade=02/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=RI/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run4_up02_default_supply__flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run4_up02_default_supply__default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/data.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/data.parquet
     path_tariffs_electric:
-      all: tariffs/electric/rie_flat_supply_calibrated.json
+      all: tariffs/electric/rie_default_supply_calibrated.json
     utility_revenue_requirement: rev_requirement/rie_large_number.yaml
     run_includes_supply: true
     run_includes_subclasses: false
@@ -112,24 +112,24 @@ runs:
     process_workers: 8
     elasticity: 0.0
   5:
-    run_name: ri_rie_run5_up00_precalc__hp_seasonal_vs_flat
+    run_name: ri_rie_run5_up00_precalc__hp_seasonal_vs_default
     state: RI
     utility: rie
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonal_vs_flat.csv
+    path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonal_vs_default.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=RI/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=RI/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=RI/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run5_up00_precalc__hp_seasonal_vs_flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run5_up00_precalc__hp_seasonal_vs_default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/zero.parquet
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonal.json
-      non-hp: tariffs/electric/rie_flat.json
+      non-hp: tariffs/electric/rie_nonhp_default.json
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
@@ -141,24 +141,24 @@ runs:
     process_workers: 8
     elasticity: 0.0
   6:
-    run_name: ri_rie_run6_up00_precalc_supply__hp_seasonal_vs_flat
+    run_name: ri_rie_run6_up00_precalc_supply__hp_seasonal_vs_default
     state: RI
     utility: rie
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonal_vs_flat_supply.csv
+    path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonal_vs_default_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=RI/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=RI/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=RI/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run6_up00_precalc_supply__hp_seasonal_vs_flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run6_up00_precalc_supply__hp_seasonal_vs_default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/data.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/data.parquet
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonal_supply.json
-      non-hp: tariffs/electric/rie_flat_supply.json
+      non-hp: tariffs/electric/rie_nonhp_default_supply.json
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
@@ -226,24 +226,24 @@ runs:
     process_workers: 8
     elasticity: 0.0
   9:
-    run_name: ri_rie_run9_up00_precalc__hp_seasonalTOU_vs_flat
+    run_name: ri_rie_run9_up00_precalc__hp_seasonalTOU_vs_default
     state: RI
     utility: rie
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_vs_flat.csv
+    path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_vs_default.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=RI/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=RI/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=RI/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run9_up00_precalc__hp_seasonalTOU_vs_flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run9_up00_precalc__hp_seasonalTOU_vs_default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/zero.parquet
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonalTOU.json
-      non-hp: tariffs/electric/rie_flat.json
+      non-hp: tariffs/electric/rie_nonhp_default.json
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
@@ -255,24 +255,24 @@ runs:
     process_workers: 8
     elasticity: 0.0
   10:
-    run_name: ri_rie_run10_up00_precalc_supply__hp_seasonalTOU_vs_flat
+    run_name: ri_rie_run10_up00_precalc_supply__hp_seasonalTOU_vs_default
     state: RI
     utility: rie
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_vs_flat_supply.csv
+    path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_vs_default_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=RI/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=RI/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=RI/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run10_up00_precalc_supply__hp_seasonalTOU_vs_flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run10_up00_precalc_supply__hp_seasonalTOU_vs_default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/data.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/data.parquet
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonalTOU_supply.json
-      non-hp: tariffs/electric/rie_flat_supply.json
+      non-hp: tariffs/electric/rie_nonhp_default_supply.json
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
@@ -340,24 +340,24 @@ runs:
     process_workers: 8
     elasticity: 0.0
   13:
-    run_name: ri_rie_run13_up00_precalc__hp_seasonalTOU_flex_vs_flat
+    run_name: ri_rie_run13_up00_precalc__hp_seasonalTOU_flex_vs_default
     state: RI
     utility: rie
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_flex_vs_flat.csv
+    path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_flex_vs_default.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=RI/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=RI/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=RI/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run13_up00_precalc__hp_seasonalTOU_flex_vs_flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run13_up00_precalc__hp_seasonalTOU_flex_vs_default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/zero.parquet
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonalTOU_flex.json
-      non-hp: tariffs/electric/rie_flat.json
+      non-hp: tariffs/electric/rie_nonhp_default.json
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
@@ -369,24 +369,24 @@ runs:
     process_workers: 8
     elasticity: -0.1
   14:
-    run_name: ri_rie_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_flat
+    run_name: ri_rie_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_default
     state: RI
     utility: rie
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_flex_vs_flat_supply.csv
+    path_tariff_maps_electric: tariff_maps/electric/rie_hp_seasonalTOU_flex_vs_default_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=RI/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=RI/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=RI/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_flat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/data.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/data.parquet
     path_tariffs_electric:
       hp: tariffs/electric/rie_hp_seasonalTOU_flex_supply.json
-      non-hp: tariffs/electric/rie_flat_supply.json
+      non-hp: tariffs/electric/rie_nonhp_default_supply.json
     utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
@@ -453,3 +453,117 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: -0.1
+  17:
+    run_name: ri_rie_run17_up00_precalc__hp_flat_vs_default
+    state: RI
+    utility: rie
+    run_type: precalc
+    upgrade: '0'
+    path_tariff_maps_electric: tariff_maps/electric/rie_hp_flat_vs_default.csv
+    path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=RI/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=RI/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=RI/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run17_up00_precalc__hp_flat_vs_default
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/zero.parquet
+    path_tariffs_electric:
+      hp: tariffs/electric/rie_hp_flat.json
+      non-hp: tariffs/electric/rie_nonhp_default.json
+    utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
+    run_includes_supply: false
+    run_includes_subclasses: true
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=RI/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  18:
+    run_name: ri_rie_run18_up00_precalc_supply__hp_flat_vs_default
+    state: RI
+    utility: rie
+    run_type: precalc
+    upgrade: '0'
+    path_tariff_maps_electric: tariff_maps/electric/rie_hp_flat_vs_default_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/rie_u00.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=RI/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=RI/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=RI/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run18_up00_precalc_supply__hp_flat_vs_default
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/data.parquet
+    path_tariffs_electric:
+      hp: tariffs/electric/rie_hp_flat_supply.json
+      non-hp: tariffs/electric/rie_nonhp_default_supply.json
+    utility_revenue_requirement: rev_requirement/rie_hp_vs_nonhp.yaml
+    run_includes_supply: true
+    run_includes_subclasses: true
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=RI/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  19:
+    run_name: ri_rie_run19_up02_default__hp_flat
+    state: RI
+    utility: rie
+    run_type: default
+    upgrade: '2'
+    path_tariff_maps_electric: tariff_maps/electric/rie_hp_flat_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/rie_u02.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=RI/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=RI/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=RI/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run19_up02_default__hp_flat
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/zero.parquet
+    path_tariffs_electric:
+      all: tariffs/electric/rie_hp_flat_calibrated.json
+    utility_revenue_requirement: rev_requirement/rie_large_number.yaml
+    run_includes_supply: false
+    run_includes_subclasses: false
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=RI/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  20:
+    run_name: ri_rie_run20_up02_default_supply__hp_flat
+    state: RI
+    utility: rie
+    run_type: default
+    upgrade: '2'
+    path_tariff_maps_electric: tariff_maps/electric/rie_hp_flat_calibrated_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/rie_u02.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=RI/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=RI/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=RI/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ri/rie/<execution_time>/ri_rie_run20_up02_default_supply__hp_flat
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/data.parquet
+    path_tariffs_electric:
+      all: tariffs/electric/rie_hp_flat_supply_calibrated.json
+    utility_revenue_requirement: rev_requirement/rie_large_number.yaml
+    run_includes_supply: true
+    run_includes_subclasses: false
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=RI/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0

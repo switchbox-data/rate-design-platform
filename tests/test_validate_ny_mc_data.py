@@ -45,9 +45,7 @@ def test_load_mc_reads_canonical_data_when_zero_file_exists(tmp_path: Path) -> N
     assert df.height == 8760
     assert df.select(pl.col("timestamp").n_unique()).item() == 8760
     # 1000 $/MWh should normalize to 1.0 $/kWh when data.parquet is used.
-    mean_mc = df["mc_kwh"].mean()
-    assert mean_mc is not None
-    assert mean_mc == 1.0
+    assert df.select(pl.col("mc_kwh").mean()).item() == 1.0
 
 
 def test_load_mc_ignores_legacy_partition_file_for_dist_sub_tx(tmp_path: Path) -> None:
@@ -77,9 +75,7 @@ def test_load_mc_ignores_legacy_partition_file_for_dist_sub_tx(tmp_path: Path) -
 
     assert df.height == 8760
     assert df.select(pl.col("timestamp").n_unique()).item() == 8760
-    mean_mc = df["mc_kwh"].mean()
-    assert mean_mc is not None
-    assert mean_mc == 2.0
+    assert df.select(pl.col("mc_kwh").mean()).item() == 2.0
 
 
 def test_bulk_tx_expected_nonzero_is_state_aware_for_ri() -> None:

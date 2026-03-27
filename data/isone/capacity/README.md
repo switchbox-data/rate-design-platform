@@ -2,7 +2,7 @@
 
 Four data products covering ISO-NE's Forward Capacity Market (FCM), the mechanism through which New England procures generation capacity to meet reliability requirements. Each sub-product is a self-contained pipeline with its own Justfile and scripts.
 
-For a comparison of ISO-NE's FCM with NYISO's ICAP market and implications for the Bill Alignment Test, see [`context/domain/capacity_market_comparison_nyiso_isone.md`](../../../context/domain/capacity_market_comparison_nyiso_isone.md).
+For a comparison of ISO-NE's FCM with NYISO's ICAP market and implications for the Bill Alignment Test, see [`context/methods/marginal_costs/capacity_market_comparison_nyiso_isone.md`](../../../context/methods/marginal_costs/capacity_market_comparison_nyiso_isone.md).
 
 ## Data products
 

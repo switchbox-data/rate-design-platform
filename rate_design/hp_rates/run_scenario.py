@@ -35,7 +35,7 @@ from utils.cairo import (
     add_bulk_tx_and_dist_and_sub_tx_marginal_cost,
     build_bldg_id_to_load_filepath,
 )
-from utils.demand_flex import apply_demand_flex, split_revenue_requirement_by_tou
+from utils.demand_flex import apply_demand_flex
 from utils.mid.patches import _return_loads_combined
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 from utils.scenario_config import (
@@ -109,7 +109,7 @@ class ScenarioSettings:
     solar_pv_compensation: str = "net_metering"
     run_includes_supply: bool = False
     sample_size: int | None = None
-    elasticity: float = 0.0
+    elasticity: float | dict[str, float] = 0.0
     # Real (non-zero) supply MC paths used exclusively for Phase 1.75 TOU
     # cost-causation recalibration.  Supplied as CLI args from the Justfile so
     # delivery-only runs (whose path_supply_energy/capacity_mc point to zeros)
@@ -257,7 +257,14 @@ def _build_settings_from_yaml_run(
         path_tariff_maps_gas,
         path_config,
     )
-    elasticity = _parse_float(run.get("elasticity", 0.0), "elasticity")
+    elasticity_raw = run.get("elasticity", 0.0)
+    if isinstance(elasticity_raw, dict):
+        elasticity: float | dict[str, float] = {
+            str(k): _parse_float(v, f"elasticity.{k}")
+            for k, v in elasticity_raw.items()
+        }
+    else:
+        elasticity = _parse_float(elasticity_raw, "elasticity")
     sample_size = (
         _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
     )
@@ -319,7 +326,9 @@ def _build_settings_from_yaml_run(
         run_includes_supply=run_includes_supply,
         elasticity=elasticity,
         path_bulk_tx_mc=path_bulk_tx_mc,
-        path_supply_ancillary_mc=path_supply_ancillary_mc,
+        path_supply_ancillary_mc=path_supply_ancillary_mc
+        if run_includes_supply
+        else None,
     )
 
 
@@ -437,7 +446,7 @@ def _resolve_settings(args: argparse.Namespace) -> ScenarioSettings:
         settings.path_tou_supply_energy_mc = args.path_tou_supply_energy_mc
     if args.path_tou_supply_capacity_mc:
         settings.path_tou_supply_capacity_mc = args.path_tou_supply_capacity_mc
-    if args.path_supply_ancillary_mc:
+    if args.path_supply_ancillary_mc and settings.run_includes_supply:
         settings.path_supply_ancillary_mc = args.path_supply_ancillary_mc
     return settings
 
@@ -620,7 +629,10 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
     # supply runs, per-subclass supply costs are derived from run 2 BAT data
     # (via compute_subclass_rr --run-dir-supply), not from raw Cambium prices.
 
-    demand_flex_enabled = settings.elasticity != 0.0
+    if isinstance(settings.elasticity, dict):
+        demand_flex_enabled = any(v != 0.0 for v in settings.elasticity.values())
+    else:
+        demand_flex_enabled = settings.elasticity != 0.0
 
     if demand_flex_enabled:
         flex = apply_demand_flex(
@@ -638,6 +650,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             dist_and_sub_tx_marginal_costs=dist_and_sub_tx_marginal_costs,
             path_tou_supply_energy_mc=settings.path_tou_supply_energy_mc,
             path_tou_supply_capacity_mc=settings.path_tou_supply_capacity_mc,
+            run_includes_subclasses=settings.run_includes_subclasses,
         )
 
         revenue_requirement: float | dict[str, float] | None = (
@@ -650,11 +663,19 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         effective_load_elec = flex.effective_load_elec
         elasticity_tracker = flex.elasticity_tracker
         precalc_mapping = flex.precalc_mapping
+        del raw_load_elec
         if settings.run_includes_subclasses and settings.subclass_rr is not None:
-            revenue_requirement = split_revenue_requirement_by_tou(
-                revenue_requirement_total=flex.revenue_requirement_raw,
-                subclass_baseline=settings.subclass_rr,
-                tou_tariff_keys=flex.tou_tariff_keys,
+            # Per-subclass frozen-residual approach:
+            #   new_RR_k = subclass_RR_k + (MC_shifted_k - MC_orig_k)
+            # TOU subclasses absorb their own MC delta; non-TOU subclasses are
+            # unchanged (calibrated identically to the no-flex run).
+            revenue_requirement = {
+                k: v + flex.mc_delta_by_tou_tariff.get(k, 0.0)
+                for k, v in settings.subclass_rr.items()
+            }
+            log.info(
+                "Subclass RR (demand-flex, per-subclass frozen residual): %s",
+                {k: f"${v:,.0f}" for k, v in revenue_requirement.items()},
             )
     else:
         (
