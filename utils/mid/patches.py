@@ -1066,16 +1066,21 @@ def _patched_determine_residual_cost_allocation(
     costs_by_type: pd.Series,
     annual_customer_economic_burden: pd.Series,
 ) -> pd.Series | pd.DataFrame:
-    """Patched residual allocation: adds EPMC, skips broken peak."""
+    """Patched residual allocation: adds EPMC, disables broken peak."""
     vol = self._allocate_residual_volumetric(
         building_metadata, raw_hourly_load, costs_by_type
     )
+    # peak = self._allocate_residual_peak(
+    #     building_metadata, raw_hourly_load, marginal_system_prices, costs_by_type
+    # )
     percust = self._allocate_residual_percustomer(building_metadata, costs_by_type)
     epmc = self._allocate_residual_epmc(
         building_metadata, annual_customer_economic_burden, costs_by_type
     )
 
     parts: list[pd.Series | pd.DataFrame] = [vol, percust]
+    # if peak is not None:
+    #     parts.append(peak)
     if epmc is not None:
         parts.append(epmc)
 
