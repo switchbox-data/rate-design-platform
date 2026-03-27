@@ -564,6 +564,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
                 "applicability",
                 "postprocess_group.has_hp",
                 "postprocess_group.heating_type",
+                "postprocess_group.heating_type_v2",
                 "in.vintage_acs",
             ],
         )

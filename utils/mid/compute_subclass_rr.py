@@ -784,6 +784,7 @@ def _write_revenue_requirement_yamls(
     total_breakdowns: dict[str, pl.DataFrame] | None = None,
     total_delivery_rr: float | None = None,
     total_delivery_and_supply_rr: float | None = None,
+    heating_type_breakdown: dict[str, dict[str, dict[str, float]]] | None = None,
 ) -> tuple[Path, Path]:
     """Write per-subclass revenue requirement YAML with nested allocation methods.
 
@@ -846,6 +847,8 @@ def _write_revenue_requirement_yamls(
             total_delivery_and_supply_rr
         )
     differentiated_data["subclass_revenue_requirements"] = all_methods_rr
+    if heating_type_breakdown is not None:
+        differentiated_data["heating_type_breakdown"] = heating_type_breakdown
 
     differentiated_yaml_path.write_text(
         yaml.safe_dump(differentiated_data, sort_keys=False),
@@ -1063,6 +1066,55 @@ def main() -> None:
         for col, tb in total_breakdowns.items():
             LOGGER.info("Run-2 (delivery+supply) breakdown (%s):\n%s", col, tb)
 
+    # Informational breakdown by heating_type_v2 (if available in metadata).
+    heating_type_breakdown: dict[str, dict[str, dict[str, float]]] | None = None
+    try:
+        ht_delivery = compute_subclass_rr(
+            run_dir=run_dir,
+            group_col="heating_type_v2",
+            cross_subsidy_cols=cross_subsidy_cols,
+            annual_month=args.annual_month,
+            storage_options=storage_options,
+        )
+        ht_total: dict[str, pl.DataFrame] | None = None
+        if args.run_dir_supply:
+            ht_total = compute_subclass_rr(
+                run_dir=run_dir_supply,
+                group_col="heating_type_v2",
+                cross_subsidy_cols=cross_subsidy_cols,
+                annual_month=args.annual_month,
+                storage_options=storage_options_supply,
+            )
+        heating_type_breakdown = {}
+        for bat_col in cross_subsidy_cols:
+            method_key = BAT_COL_TO_ALLOCATION_KEY.get(bat_col, bat_col)
+            ht_del_df = ht_delivery[bat_col]
+            ht_tot_by_sub: dict[str, float] = {}
+            if ht_total is not None and bat_col in ht_total:
+                for row in ht_total[bat_col].to_dicts():
+                    ht_tot_by_sub[str(row["subclass"])] = float(
+                        row["revenue_requirement"]
+                    )
+            method_block: dict[str, dict[str, float]] = {}
+            for row in ht_del_df.to_dicts():
+                sub = str(row["subclass"])
+                delivery = float(row["revenue_requirement"])
+                total = ht_tot_by_sub.get(sub, delivery)
+                method_block[sub] = {
+                    "delivery": delivery,
+                    "supply": total - delivery,
+                    "total": total,
+                }
+            heating_type_breakdown[method_key] = method_block
+        for method, block in heating_type_breakdown.items():
+            print(f"Heating type breakdown ({method}):")
+            for sub, vals in block.items():
+                print(f"  {sub}: {vals}")
+    except (ValueError, KeyError) as exc:
+        LOGGER.info(
+            "Skipping heating_type_v2 breakdown (column may not exist): %s", exc
+        )
+
     if args.write_revenue_requirement_yamls:
         differentiated_yaml_path, default_yaml_path = _write_revenue_requirement_yamls(
             delivery_breakdowns=delivery_breakdowns,
@@ -1076,6 +1128,7 @@ def main() -> None:
             total_breakdowns=total_breakdowns,
             total_delivery_rr=total_delivery_rr,
             total_delivery_and_supply_rr=total_delivery_and_supply_rr,
+            heating_type_breakdown=heating_type_breakdown,
         )
         print(f"Wrote differentiated YAML: {differentiated_yaml_path}")
         print(f"Wrote default YAML: {default_yaml_path}")
