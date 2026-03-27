@@ -53,6 +53,17 @@ build-master-bills-with-lmi batch run_delivery run_supply *script_args:
       --lmi-seed 42 \
       {{ script_args }}
 
+build-all-master batch *script_args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for d in 1 3 5 7 9 11 13 15 17 19; do
+      s=$((d + 1))
+      echo ">> master bills+bat for runs ${d}+${s}" >&2
+      just build-master-bills-with-lmi "{{ batch }}" "$d" "$s" {{ script_args }}
+      just build-master-bat "{{ batch }}" "$d" "$s"
+    done
+    echo ">> all master bills+bat complete" >&2
+
 # =============================================================================
 # RI-only: bulk transmission marginal cost generation (AESC PTF)
 # =============================================================================

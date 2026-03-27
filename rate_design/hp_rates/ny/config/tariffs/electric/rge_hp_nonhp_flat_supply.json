@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "rie_hp_flat",
-      "name": "rie_hp_flat",
+      "label": "rge_hp_nonhp_flat_supply",
+      "name": "rge_hp_nonhp_flat_supply",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,13 +640,13 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.08892178419071482,
+            "rate": 0.10369079969547533,
             "adj": 0.0,
             "unit": "kWh"
           }
         ]
       ],
-      "fixedchargefirstmeter": 11.48,
+      "fixedchargefirstmeter": 23.99,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
       "minchargeunits": "$/month"

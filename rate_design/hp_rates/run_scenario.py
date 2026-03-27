@@ -99,6 +99,8 @@ class ScenarioSettings:
     rr_total: float
     subclass_rr: dict[str, float] | None
     run_includes_subclasses: bool
+    residual_allocation_delivery: str | None
+    residual_allocation_supply: str | None
     path_electric_utility_stats: str | Path
     path_supply_energy_mc: str | Path
     path_supply_capacity_mc: str | Path
@@ -241,13 +243,23 @@ def _build_settings_from_yaml_run(
         _require_value(run, "run_includes_subclasses"),
         "run_includes_subclasses",
     )
+    residual_allocation_delivery: str | None = run.get("residual_allocation_delivery")
+    residual_allocation_supply: str | None = run.get("residual_allocation_supply")
     rr_config: RevenueRequirementConfig = _parse_utility_revenue_requirement(
         _require_value(run, "utility_revenue_requirement"),
         path_config,
         raw_path_tariffs_electric,
         add_supply=run_includes_supply,
         run_includes_subclasses=run_includes_subclasses,
+        residual_allocation_delivery=residual_allocation_delivery,
+        residual_allocation_supply=residual_allocation_supply,
     )
+    if residual_allocation_delivery:
+        log.info(
+            "Residual allocation: delivery=%s, supply=%s",
+            residual_allocation_delivery,
+            residual_allocation_supply,
+        )
     path_tariff_maps_gas = _resolve_path(
         str(_require_value(run, "path_tariff_maps_gas")),
         path_config,
@@ -317,6 +329,8 @@ def _build_settings_from_yaml_run(
         rr_total=rr_config.rr_total,
         subclass_rr=rr_config.subclass_rr,
         run_includes_subclasses=rr_config.run_includes_subclasses,
+        residual_allocation_delivery=rr_config.residual_allocation_delivery,
+        residual_allocation_supply=rr_config.residual_allocation_supply,
         path_electric_utility_stats=path_electric_utility_stats,
         year_run=year_run,
         year_dollar_conversion=year_dollar_conversion,
@@ -558,6 +572,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
                 "applicability",
                 "postprocess_group.has_hp",
                 "postprocess_group.heating_type",
+                "postprocess_group.heating_type_v2",
                 "in.vintage_acs",
             ],
         )

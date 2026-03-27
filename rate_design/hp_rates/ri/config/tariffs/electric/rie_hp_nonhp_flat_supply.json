@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "rie_hp_flat",
-      "name": "rie_hp_flat",
+      "label": "rie_hp_nonhp_flat_supply",
+      "name": "rie_hp_nonhp_flat_supply",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,7 +640,7 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.08892178419071482,
+            "rate": 0.19101692500754738,
             "adj": 0.0,
             "unit": "kWh"
           }

@@ -1,15 +1,15 @@
 utility: rge
 group_col: has_hp
-cross_subsidy_col: BAT_percustomer
-source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/ny_20260325b_r1-16/20260325_143954_ny_rge_run1_up00_precalc__default
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/ny_20260323a_r1-16/20260323_202742_ny_rge_run1_up00_precalc__default
 total_delivery_revenue_requirement: 327173904.04
 total_delivery_and_supply_revenue_requirement: 601019871.4
 subclass_revenue_requirements:
-  non-hp:
-    delivery: 312450301.3860528
-    supply: 249035038.35532898
-    total: 561485339.7413818
-  hp:
-    delivery: 14723602.653947188
-    supply: 24810929.004670784
-    total: 39534531.65861797
+  delivery:
+    percustomer:
+      non-hp: 312450301.38605285
+      hp: 14723602.653947193
+  supply:
+    passthrough: &id001
+      non-hp: 249035038.35532916
+      hp: 24810929.004670765
+    percustomer: *id001
