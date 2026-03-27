@@ -2,10 +2,21 @@
 
 Scans a ``load_curve_hourly`` parquet partition (local or S3), joins to
 ``utility_assignment.parquet`` on ``bldg_id``, filters to ``sb.electric_utility``,
-and sums grid consumption per timestamp across all matching buildings.
+and sums **ResStock-weighted** grid consumption per timestamp:
+
+    total_h = (N / sum(w)) * sum_b ( grid_kwh_{b,h} * w_b )
+
+where ``w_b`` is the building sample weight from ``utility_assignment.parquet``
+(missing column → weight 1 per row), and ``N`` is ``customer_count`` when passed
+(EIA residential customers). This matches ``compute_rr._compute_monthly_kwh_from_resstock``
+and ``reweight_customer_counts`` (scale = target / sum(weights)).
+
+If ``customer_count`` is omitted, the scale factor is 1 (weighted sum in sample-weight
+units only).
 
 Grid consumption follows CAIRO: ``max(total - abs(pv), 0)`` (see ``utils.loads``).
-The pipeline stays lazy until the final ``collect``.
+The pipeline stays lazy until the final ``collect``, aside from a small collect to
+read ``sum(weight)`` for the utility slice.
 """
 
 from __future__ import annotations
@@ -27,6 +38,7 @@ from utils.loads import (
 log = logging.getLogger(__name__)
 
 _UA_UTIL_COL = "sb.electric_utility"
+_WEIGHT_COL = "weight"
 
 
 def _is_s3(path: str) -> bool:
@@ -43,23 +55,66 @@ def hourly_totals_by_utility_lazy(
     path_load_curve_hourly: str,
     path_utility_assignment: str,
     electric_utility: str,
+    *,
+    customer_count: int | None = None,
 ) -> pl.LazyFrame:
-    """Return a LazyFrame: one row per timestamp, column ``total_grid_kwh``."""
+    """Return a LazyFrame: one row per timestamp, column ``total_grid_kwh``.
+
+    When ``customer_count`` is set (e.g. EIA residential meters), hourly totals are
+    scaled to the utility population using ResStock weights, consistent with
+    ``compute_rr`` ResStock load mode.
+    """
     scan_kw = _parquet_scan_kwargs(path_load_curve_hourly)
     scan_kw_ua = _parquet_scan_kwargs(path_utility_assignment)
 
-    ua_buildings = (
-        pl.scan_parquet(path_utility_assignment, **scan_kw_ua)
-        .filter(pl.col(_UA_UTIL_COL) == electric_utility)
-        .select(pl.col(BLDG_ID_COL).cast(pl.Int64))
-        .unique()
-    )
+    ua_scan = pl.scan_parquet(path_utility_assignment, **scan_kw_ua)
+    ua_schema = ua_scan.collect_schema().names()
 
-    n_bldg = cast(
-        pl.DataFrame,
-        ua_buildings.select(pl.len().alias("_n")).collect(),
-    )["_n"][0]
-    log.info("Buildings for %s: %s (utility_assignment)", electric_utility, n_bldg)
+    filtered = ua_scan.filter(pl.col(_UA_UTIL_COL) == electric_utility)
+    if _WEIGHT_COL in ua_schema:
+        ua_buildings = filtered.select(
+            pl.col(BLDG_ID_COL).cast(pl.Int64),
+            pl.col(_WEIGHT_COL).cast(pl.Float64),
+        ).unique()
+    else:
+        ua_buildings = filtered.select(
+            pl.col(BLDG_ID_COL).cast(pl.Int64),
+            pl.lit(1.0).alias(_WEIGHT_COL),
+        ).unique()
+
+    wsum_df = cast(
+        pl.DataFrame, ua_buildings.select(pl.col(_WEIGHT_COL).sum()).collect()
+    )
+    weight_sum = float(wsum_df.item(0, 0))
+    n_bldg = int(
+        cast(pl.DataFrame, ua_buildings.select(pl.len().alias("_n")).collect())["_n"][0]
+    )
+    if weight_sum <= 0:
+        raise ValueError(
+            f"Sum of ResStock weights is {weight_sum} for utility {electric_utility!r}; "
+            "cannot scale loads."
+        )
+
+    if customer_count is not None:
+        scale_factor = float(customer_count) / weight_sum
+        log.info(
+            "Buildings for %s: %s (utility_assignment); sum(weight)=%s; "
+            "customer_count=%s → scale=%s",
+            electric_utility,
+            n_bldg,
+            weight_sum,
+            customer_count,
+            scale_factor,
+        )
+    else:
+        scale_factor = 1.0
+        log.info(
+            "Buildings for %s: %s (utility_assignment); sum(weight)=%s; "
+            "customer_count not set → scale=1 (sample-weight units only)",
+            electric_utility,
+            n_bldg,
+            weight_sum,
+        )
 
     loads = pl.scan_parquet(path_load_curve_hourly, **scan_kw).with_columns(
         pl.col(BLDG_ID_COL).cast(pl.Int64)
@@ -73,6 +128,7 @@ def hourly_totals_by_utility_lazy(
             grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL).alias(
                 "_grid_kwh"
             ),
+            pl.col(_WEIGHT_COL),
         )
         .with_columns(
             pl.col("timestamp")
@@ -81,7 +137,11 @@ def hourly_totals_by_utility_lazy(
             .alias("_ts")
         )
         .group_by("_ts")
-        .agg(pl.col("_grid_kwh").sum().alias("total_grid_kwh"))
+        .agg((pl.col("_grid_kwh") * pl.col(_WEIGHT_COL)).sum().alias("_weighted_grid"))
+        .with_columns(
+            (pl.col("_weighted_grid") * pl.lit(scale_factor)).alias("total_grid_kwh")
+        )
+        .select("_ts", "total_grid_kwh")
         .sort("_ts")
     )
 
@@ -115,6 +175,15 @@ def _parse_args() -> argparse.Namespace:
         help="Value of sb.electric_utility to keep (e.g. psegli, coned).",
     )
     p.add_argument(
+        "--customer-count",
+        type=int,
+        default=None,
+        help=(
+            "EIA (or target) residential customer count: scale weighted hourly kWh by "
+            "count/sum(ResStock weights). Omit for unit-weight-only totals."
+        ),
+    )
+    p.add_argument(
         "--path-output",
         type=str,
         default=None,
@@ -131,6 +200,7 @@ def main() -> None:
         args.path_load_curve_hourly,
         args.path_utility_assignment,
         args.electric_utility,
+        customer_count=args.customer_count,
     )
     df = cast(pl.DataFrame, lf.collect())
 

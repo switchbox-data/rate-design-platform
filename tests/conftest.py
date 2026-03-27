@@ -65,6 +65,34 @@ def pytest_addoption(parser: pytest.Parser) -> None:
             "(slow; not for CI by default)."
         ),
     )
+    parser.addoption(
+        "--flat-default-energy-rel-tol",
+        type=float,
+        default=float(os.environ.get("FLAT_DEFAULT_ENERGY_REL_TOL", "0.10")),
+        help=(
+            "Integration test: max relative |flat−default| / max(flat,default) on "
+            "annual energy $ using *_flat_calibrated.json vs *_default_calibrated.json. "
+            "Pre-precal JSONs can differ more; residual mismatch vs ResStock aggregate "
+            "is still possible after calibration. Override with FLAT_DEFAULT_ENERGY_REL_TOL."
+        ),
+    )
+    parser.addoption(
+        "--eia-utility-stats",
+        action="store",
+        default=os.environ.get("EIA_UTILITY_STATS_PATH"),
+        help=(
+            "Parquet path or hive template for EIA-861 utility stats (contains "
+            "residential_customers). If unset, defaults to "
+            "s3://data.sb/eia/861/electric_utility_stats/year=<eia-stats-year>/state=<STATE>/data.parquet "
+            "with STATE from --resstock-state."
+        ),
+    )
+    parser.addoption(
+        "--eia-stats-year",
+        type=int,
+        default=int(os.environ.get("EIA_STATS_YEAR", "2025")),
+        help="Preferred reporting year for EIA-861 parquet (falls back to earlier years).",
+    )
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
