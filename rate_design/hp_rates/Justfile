@@ -363,7 +363,7 @@ create-dist-and-sub-tx-mc-data-all:
 # MID-CONFIG: generate between runs (using outputs from earlier runs)
 # =============================================================================
 
-compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" cross_subsidy_col="BAT_percustomer" differentiated_yaml=path_differentiated_rev_requirement default_yaml=path_default_rev_requirement group_value_to_subclass="true=hp,false=non-hp" base_rr_yaml=path_default_rev_requirement run_dir_supply="" resstock_base="" upgrade="00":
+compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" cross_subsidy_col="BAT_percustomer,BAT_epmc" differentiated_yaml=path_differentiated_rev_requirement default_yaml=path_default_rev_requirement group_value_to_subclass="true=hp,false=non-hp" base_rr_yaml=path_default_rev_requirement run_dir_supply="" resstock_base="" upgrade="00":
     just -f {{ path_repo }}/utils/Justfile compute-subclass-rr \
       "{{ run_dir }}" \
       "{{ scenario_config }}" \
@@ -427,7 +427,7 @@ compute-rev-requirements:
     echo ">> compute-rev-requirements: run-1 (delivery) → ${run1_dir}" >&2
     echo ">> compute-rev-requirements: run-2 (delivery+supply) → ${run2_dir}" >&2
     just compute-subclass-rr "${run1_dir}" "{{ path_scenario_config }}" \
-      "1" "has_hp" "BAT_percustomer" \
+      "1" "has_hp" "BAT_percustomer,BAT_epmc" \
       "{{ path_differentiated_rev_requirement }}" \
       "{{ path_default_rev_requirement }}" \
       "true=hp,false=non-hp" \
