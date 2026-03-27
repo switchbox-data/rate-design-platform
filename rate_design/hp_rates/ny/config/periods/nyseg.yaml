@@ -1,2 +1,14 @@
-winter_months: [10, 11, 12, 1, 2, 3]
+winter_months:
+  - 10
+  - 11
+  - 12
+  - 1
+  - 2
+  - 3
 tou_window_hours: 3
+elasticity:
+  summer: -0.1
+  winter: -0.1
+elasticity_with_tech:
+  summer: -0.18
+  winter: -0.16

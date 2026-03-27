@@ -20,10 +20,11 @@ if ! command -v aws >/dev/null 2>&1; then
   exit 1
 fi
 
-# Check if credentials are already valid (early exit if so)
-# Test with an actual EC2 API call since DevPod uses EC2
-if aws sts get-caller-identity &>/dev/null &&
-  aws ec2 describe-instances --max-results 5 &>/dev/null; then
+# Check if SSO credentials are already valid (early exit if so).
+# aws configure export-credentials exercises the full SSO credential chain,
+# so it fails if the SSO token is expired — unlike aws sts get-caller-identity,
+# which can succeed via env vars or static credentials even when SSO is stale.
+if aws configure export-credentials --format json &>/dev/null; then
   echo "✅ AWS credentials are already valid"
   echo
   exit 0

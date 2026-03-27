@@ -1,7 +1,7 @@
 utility: or
 group_col: has_hp
 cross_subsidy_col: BAT_percustomer
-source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/or/ny_20260325b_r1-16/20260325_141934_ny_or_run1_up00_precalc__default
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/or/ny_20260326_flex_r1-16/20260326_210234_ny_or_run1_up00_precalc__default
 total_delivery_revenue_requirement: 263364257.0
 total_delivery_and_supply_revenue_requirement: 431562114.21
 subclass_revenue_requirements:
@@ -10,6 +10,6 @@ subclass_revenue_requirements:
     supply: 158986971.95407706
     total: 413963462.8185259
   hp:
-    delivery: 8387766.13555118
-    supply: 9210885.255922925
+    delivery: 8387766.135551178
+    supply: 9210885.255922928
     total: 17598651.391474105

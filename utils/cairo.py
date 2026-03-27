@@ -979,7 +979,7 @@ def apply_runtime_tou_demand_response(
     raw_load_elec: pd.DataFrame,
     tou_bldg_ids: list[int],
     tou_tariff: dict,
-    demand_elasticity: float,
+    demand_elasticity: float | dict[str, float],
     season_specs: list | None = None,
     *,
     inplace: bool = False,
@@ -990,7 +990,8 @@ def apply_runtime_tou_demand_response(
         raw_load_elec: Full electric load DataFrame indexed by `(bldg_id, time)`.
         tou_bldg_ids: Building IDs assigned to the TOU tariff.
         tou_tariff: URDB v7 tariff dictionary.
-        demand_elasticity: Constant demand elasticity parameter.
+        demand_elasticity: Constant demand elasticity parameter, or a
+            ``{season_name: elasticity}`` dict for per-season values.
         season_specs: Optional season definitions for seasonal slicing.
         inplace: If True, mutate *raw_load_elec* directly instead of copying.
             The caller is responsible for passing an already-copied DataFrame.
@@ -1048,6 +1049,14 @@ def apply_runtime_tou_demand_response(
 
     def _shift_season(season_name: str, season_months: set[int]) -> None:
         """Shift one season's TOU rows in-place on shifted_load_elec."""
+        season_eps = (
+            demand_elasticity.get(season_name, 0.0)
+            if isinstance(demand_elasticity, dict)
+            else demand_elasticity
+        )
+        if season_eps == 0.0:
+            return
+
         mask = bldg_level.isin(tou_set) & month_level.isin(season_months)
         season_df = (
             shifted_load_elec.loc[mask, ["electricity_net"]].copy().reset_index()
@@ -1063,7 +1072,7 @@ def apply_runtime_tou_demand_response(
             process_residential_hourly_demand_response_shift(
                 hourly_load_df=season_df,
                 period_rate=period_rate,
-                demand_elasticity=demand_elasticity,
+                demand_elasticity=season_eps,
             )
         )
         tracker["season"] = season_name
@@ -1106,7 +1115,7 @@ def apply_runtime_tou_demand_response(
 
     shifted_total = shifted_load_elec.loc[tou_mask, "electricity_net"].sum()
     log.info(
-        "Runtime demand response complete: bldgs=%d, elasticity=%.3f, "
+        "Runtime demand response complete: bldgs=%d, elasticity=%s, "
         "original=%.0f, shifted=%.0f, diff=%.2f",
         len(tou_bldg_ids),
         demand_elasticity,

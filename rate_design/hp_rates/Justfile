@@ -455,6 +455,9 @@ run-scenario run_num *extra_args:
     mkdir -p "${log_dir}"
     log_file="${log_dir}/{{ utility }}_run{{ run_num }}_${RDP_BATCH}.log"
     echo ">> run-scenario {{ run_num }}: logging to ${log_file}" >&2
+    echo "git_commit: $(git -C "{{ path_repo }}" rev-parse HEAD 2>/dev/null || echo unknown)" > "${log_file}"
+    echo "git_dirty:  $(git -C "{{ path_repo }}" status --porcelain 2>/dev/null | wc -l | tr -d ' ') files" >> "${log_file}"
+    echo "timestamp:  $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${log_file}"
     uv run python {{ path_repo }}/rate_design/hp_rates/run_scenario.py \
         --state "{{ state }}" \
         --run-num "{{ run_num }}" \
@@ -463,7 +466,7 @@ run-scenario run_num *extra_args:
         {{ if env_var_or_default('RDP_NUM_WORKERS', '') != '' { "--num-workers " + env_var_or_default('RDP_NUM_WORKERS', '') } else { "" } }} \
         {{ if path_supply_ancillary_mc != "" { "--path-supply-ancillary-mc \"" + path_supply_ancillary_mc + "\"" } else { "" } }} \
         {{ extra_args }} \
-        2>&1 | tee "${log_file}"
+        2>&1 | tee -a "${log_file}"
 
 run-1:
     just run-scenario 1

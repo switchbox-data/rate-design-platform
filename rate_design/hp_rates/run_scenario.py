@@ -109,7 +109,7 @@ class ScenarioSettings:
     solar_pv_compensation: str = "net_metering"
     run_includes_supply: bool = False
     sample_size: int | None = None
-    elasticity: float = 0.0
+    elasticity: float | dict[str, float] = 0.0
     # Real (non-zero) supply MC paths used exclusively for Phase 1.75 TOU
     # cost-causation recalibration.  Supplied as CLI args from the Justfile so
     # delivery-only runs (whose path_supply_energy/capacity_mc point to zeros)
@@ -257,7 +257,14 @@ def _build_settings_from_yaml_run(
         path_tariff_maps_gas,
         path_config,
     )
-    elasticity = _parse_float(run.get("elasticity", 0.0), "elasticity")
+    elasticity_raw = run.get("elasticity", 0.0)
+    if isinstance(elasticity_raw, dict):
+        elasticity: float | dict[str, float] = {
+            str(k): _parse_float(v, f"elasticity.{k}")
+            for k, v in elasticity_raw.items()
+        }
+    else:
+        elasticity = _parse_float(elasticity_raw, "elasticity")
     sample_size = (
         _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
     )
@@ -622,7 +629,10 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
     # supply runs, per-subclass supply costs are derived from run 2 BAT data
     # (via compute_subclass_rr --run-dir-supply), not from raw Cambium prices.
 
-    demand_flex_enabled = settings.elasticity != 0.0
+    if isinstance(settings.elasticity, dict):
+        demand_flex_enabled = any(v != 0.0 for v in settings.elasticity.values())
+    else:
+        demand_flex_enabled = settings.elasticity != 0.0
 
     if demand_flex_enabled:
         flex = apply_demand_flex(
