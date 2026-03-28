@@ -395,8 +395,10 @@ if [ -f "$SSH_KEY" ]; then
   echo "   SSH key configured on instance"
 fi
 
-# Configure SSH config for SSM port forwarding
-LOCAL_SSH_PORT=2222
+# Configure SSH config with SSM ProxyCommand (replaces port-forwarding, which
+# had a busy-polling loop that macOS killed under load via CPU wake limits)
+REPO_DIR="$USER_HOME/rate-design-platform"
+
 if [ -f "$SSH_KEY" ]; then
   mkdir -p ~/.ssh
   chmod 700 ~/.ssh
@@ -411,95 +413,22 @@ if [ -f "$SSH_KEY" ]; then
 
   {
     echo "Host rate-design-platform"
-    echo "    HostName localhost"
-    echo "    Port $LOCAL_SSH_PORT"
+    echo "    HostName $INSTANCE_ID"
     echo "    User $LINUX_USERNAME"
     echo "    IdentityFile $SSH_KEY_PRIVATE"
     echo "    StrictHostKeyChecking no"
     echo "    UserKnownHostsFile /dev/null"
+    echo "    ProxyCommand aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p'"
     echo ""
   } >>~/.ssh/config
   chmod 600 ~/.ssh/config
-  echo "   SSH config updated for SSM port forwarding (localhost:$LOCAL_SSH_PORT)"
-fi
-
-REPO_DIR="$USER_HOME/rate-design-platform"
-
-start_port_forwarding() {
-  echo "📡 Starting SSM port forwarding in background..."
-  echo "   Forwarding local port $LOCAL_SSH_PORT to SSH (port 22) on the instance"
-
-  nohup aws ssm start-session \
-    --target "$INSTANCE_ID" \
-    --document-name "AWS-StartPortForwardingSession" \
-    --parameters "{\"portNumber\":[\"22\"],\"localPortNumber\":[\"$LOCAL_SSH_PORT\"]}" \
-    >/tmp/ssm-port-forward-${INSTANCE_ID}.log 2>&1 &
-  SSM_PID=$!
-
-  echo "   Waiting for port forwarding to establish..."
-  for i in {1..20}; do
-    sleep 1
-    if command -v lsof >/dev/null 2>&1; then
-      if lsof -i ":$LOCAL_SSH_PORT" >/dev/null 2>&1; then
-        echo "   ✅ Port forwarding active (PID: $SSM_PID)"
-        echo "   Logs: /tmp/ssm-port-forward-${INSTANCE_ID}.log"
-        return 0
-      fi
-    elif command -v netstat >/dev/null 2>&1; then
-      if netstat -an 2>/dev/null | grep -q ":$LOCAL_SSH_PORT.*LISTEN"; then
-        echo "   ✅ Port forwarding active (PID: $SSM_PID)"
-        return 0
-      fi
-    fi
-  done
-
-  echo "   ⚠️  Port forwarding may not be ready yet, but continuing..."
-  return 1
-}
-
-kill_port_process() {
-  if command -v lsof >/dev/null 2>&1; then
-    local PID=$(lsof -ti ":$LOCAL_SSH_PORT" 2>/dev/null || echo "")
-    if [ -n "$PID" ]; then
-      echo "   Killing stale process on port $LOCAL_SSH_PORT (PID: $PID)"
-      kill $PID 2>/dev/null || true
-      sleep 2
-    fi
-  fi
-}
-
-PORT_IN_USE=false
-if command -v lsof >/dev/null 2>&1; then
-  if lsof -i ":$LOCAL_SSH_PORT" >/dev/null 2>&1; then
-    PORT_IN_USE=true
-  fi
-elif command -v netstat >/dev/null 2>&1; then
-  if netstat -an 2>/dev/null | grep -q ":$LOCAL_SSH_PORT.*LISTEN"; then
-    PORT_IN_USE=true
-  fi
-fi
-
-if [ "$PORT_IN_USE" = true ]; then
-  echo "🔍 Port $LOCAL_SSH_PORT is in use, testing existing tunnel..."
-  if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    -i "$SSH_KEY_PRIVATE" -p $LOCAL_SSH_PORT "$LINUX_USERNAME@localhost" "echo test" >/dev/null 2>&1; then
-    echo "   ✅ Existing tunnel is working"
-  else
-    echo "   ⚠️  Existing tunnel is stale, restarting..."
-    kill_port_process
-    start_port_forwarding
-  fi
-  echo ""
-else
-  start_port_forwarding
-  echo ""
+  echo "   SSH config updated (SSM ProxyCommand → $INSTANCE_ID)"
 fi
 
 echo "🔍 Verifying SSH connection..."
 SSH_TEST_SUCCESS=false
 for i in {1..10}; do
-  if ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    -i "$SSH_KEY_PRIVATE" -p $LOCAL_SSH_PORT "$LINUX_USERNAME@localhost" "echo test" >/dev/null 2>&1; then
+  if ssh -o ConnectTimeout=10 rate-design-platform "echo test" >/dev/null 2>&1; then
     SSH_TEST_SUCCESS=true
     echo "   ✅ SSH connection verified"
     break
@@ -522,9 +451,7 @@ if [ "$SSH_TEST_SUCCESS" = true ] && [ "${REPO_CLONED:-false}" = true ]; then
   FIRST_LOGIN_SCRIPT="$SCRIPT_DIR/first-login.sh"
   if [ -f "$FIRST_LOGIN_SCRIPT" ]; then
     echo "🚀 Running first-login setup (gh auth + uv sync)..."
-    ssh -t -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      -i "$SSH_KEY_PRIVATE" -p $LOCAL_SSH_PORT "$LINUX_USERNAME@localhost" \
-      'bash -s' <"$FIRST_LOGIN_SCRIPT"
+    ssh -t rate-design-platform 'bash -s' <"$FIRST_LOGIN_SCRIPT"
     echo ""
   fi
 fi
@@ -534,18 +461,9 @@ if command -v cursor >/dev/null 2>&1 && [ -f "$SSH_KEY" ]; then
   echo "Opening Cursor with remote workspace..."
   if cursor --remote ssh-remote+rate-design-platform "$REPO_DIR" 2>/dev/null; then
     echo "   ✅ Cursor opened successfully"
-    echo ""
-    echo "   💡 Keep the SSM port forwarding session running while using Cursor"
-    if [ -n "${SSM_PID:-}" ]; then
-      echo "   To stop port forwarding: kill $SSM_PID"
-    fi
   else
     echo "   ⚠️  Could not open Cursor remotely"
-    echo ""
     echo "   You can manually connect in Cursor to: ssh-remote+rate-design-platform"
-    if [ -n "${SSM_PID:-}" ]; then
-      echo "   Port forwarding is running (PID: $SSM_PID)"
-    fi
   fi
 else
   echo ""
@@ -558,9 +476,6 @@ else
     echo "     curl https://cursor.com/install -fsS | bash"
     echo ""
   fi
-  if [ -n "${SSM_PID:-}" ]; then
-    echo "   Port forwarding is running in background (PID: $SSM_PID)"
-  fi
 fi
 echo ""
 
@@ -568,7 +483,6 @@ echo ""
 echo "Opening interactive session..."
 echo "   (Press Ctrl+D to exit)"
 echo ""
-# Use user's login shell (zsh after oh-my-zsh setup), not bash
 aws ssm start-session \
   --target "$INSTANCE_ID" \
   --document-name "AWS-StartInteractiveCommand" \
