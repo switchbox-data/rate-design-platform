@@ -21,10 +21,9 @@ if ! command -v aws >/dev/null 2>&1; then
 fi
 
 # Check if SSO credentials are already valid (early exit if so).
-# aws configure export-credentials exercises the full SSO credential chain,
-# so it fails if the SSO token is expired — unlike aws sts get-caller-identity,
-# which can succeed via env vars or static credentials even when SSO is stale.
-if aws configure export-credentials --format env &>/dev/null; then
+# aws sts get-caller-identity exercises the full credential chain and fails
+# if the SSO token is expired.
+if aws sts get-caller-identity &>/dev/null; then
   echo "✅ AWS credentials are already valid"
   echo
   exit 0
@@ -87,7 +86,6 @@ AWSCFG
 fi
 
 # Run SSO login (handles browser authentication)
-# Use profile-based login since we configure SSO settings directly on the profile
 echo "🔓 Starting AWS SSO login..."
 echo
 aws sso login
