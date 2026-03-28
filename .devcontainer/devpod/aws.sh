@@ -24,7 +24,7 @@ fi
 # aws configure export-credentials exercises the full SSO credential chain,
 # so it fails if the SSO token is expired — unlike aws sts get-caller-identity,
 # which can succeed via env vars or static credentials even when SSO is stale.
-if aws configure export-credentials --format json &>/dev/null; then
+if aws configure export-credentials --format env &>/dev/null; then
   echo "✅ AWS credentials are already valid"
   echo
   exit 0
