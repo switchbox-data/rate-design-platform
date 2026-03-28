@@ -64,13 +64,23 @@ if [ "$NEEDS_CONFIG" = true ]; then
   # shellcheck source=.secrets/aws-sso-config.sh
   . "$CONFIG_FILE"
 
-  # Configure default profile with SSO settings
-  aws configure set sso_start_url "$SSO_START_URL"
-  aws configure set sso_region "$SSO_REGION"
-  aws configure set sso_account_id "$SSO_ACCOUNT_ID"
-  aws configure set sso_role_name "$SSO_ROLE_NAME"
-  aws configure set region "$SSO_REGION"
-  aws configure set output "json"
+  SSO_SESSION_NAME="${SSO_SESSION_NAME:-switchbox}"
+
+  # Write config with sso-session block (enables OIDC refresh tokens so
+  # credentials auto-renew instead of expiring after a few hours)
+  cat >~/.aws/config <<AWSCFG
+[sso-session ${SSO_SESSION_NAME}]
+sso_start_url = ${SSO_START_URL}
+sso_region = ${SSO_REGION}
+sso_registration_scopes = sso:account:access
+
+[default]
+sso_session = ${SSO_SESSION_NAME}
+sso_account_id = ${SSO_ACCOUNT_ID}
+sso_role_name = ${SSO_ROLE_NAME}
+region = ${SSO_REGION}
+output = json
+AWSCFG
 
   echo "✅ AWS SSO configuration complete"
   echo
