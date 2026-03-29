@@ -1,6 +1,6 @@
 # EPMC Residual Allocation and the Delivery/Supply Split
 
-This document explains what we added to the residual allocation pipeline in March 2026, why we added it, and how to test it for New York. It's written for a teammate who needs to run NY batches and verify the outputs.
+This document explains what we added to the residual allocation pipeline the week of March 23rd 2026, why we added it, and how to test it for New York. It's written for a teammate who needs to run NY batches and verify the outputs.
 
 ## 1. Why: EPMC and the supply residual problem
 
@@ -8,21 +8,21 @@ This document explains what we added to the residual allocation pipeline in Marc
 
 EPMC stands for "equi-proportional marginal cost." It's a way of splitting the revenue requirement between customer subclasses (HP vs. non-HP).
 
-The basic idea: every customer's share of the residual is proportional to their share of total marginal costs. If HP customers cause 3% of total marginal costs, they bear 3% of the residual. Mathematically:
+The basic idea: every customer's (or subclass's) share of the residual is proportional to their share of total marginal costs. If HP customers cause 3% of total marginal costs, they bear 3% of the residual. Mathematically:
 
 $$R_i = R \times \frac{EB_i}{\sum_j EB_j \times w_j}$$
 
 where $R$ is the total residual, $EB_i$ is customer $i$'s economic burden (sum of hourly load × hourly marginal price), and $w_j$ is the sample weight.
 
-This is equivalent to scaling all MC-based rates by a uniform constant $K = TRR / MC_{Revenue}$. Every customer's total bill is exactly $K$ times their economic burden. The markup ratio is the same for everyone.
+This is equivalent to scaling all MC-based rates by a uniform constant $K = TRR / MC_{Revenue}$. Every customer's total bill is exactly $K$ times their economic burden. The markup ratio is the same for everyone. (This is why applying EPMC residual allocation to individual customers or to the subclasses as a whole gives you the same result in terms of total subclass residual.)
 
 ### Why did we add it?
 
-The existing per-customer allocation splits the residual equally across all customers, regardless of their load. This is the "lump-sum" approach — efficient in theory (no distortion of consumption decisions), but it doesn't reflect cost causation. Utilities and regulators accustomed to embedded cost-of-service (ECOS) analysis tend to prefer cost-causation-based allocation, where the residual is assigned to customers in proportion to how much system cost they drive.
+The existing per-customer allocation splits the residual equally across all customers, regardless of their load. This is the "lump-sum" approach (see (NARUC, 1992, p. 162) — efficient in theory (no distortion of consumption decisions), but it doesn't reflect cost causation. Utilities and regulators accustomed to embedded cost-of-service (ECOS) analysis tend to prefer cost-causation-based allocation, where the residual is assigned to customers in proportion to how much system cost they drive.
 
-EPMC captures this perspective: if your load drives more marginal cost, you bear more residual. It's the standard reconciliation method used in California (CPUC) and is referenced in the BAT paper itself (Simeone et al. 2023, Appendix B, Eq. B3).
+EPMC captures this perspective: if your load drives more marginal cost, you bear more residual. It's the standard reconciliation method used in California (CPUC) and is referenced in the BAT paper itself (Simeone et al. 2023, Appendix B, Eq. B3) and in NARUC's Electric Utility Cost Alloation Manual (NARUC, 1992, p. 160).
 
-Whether cost-causation is the _right_ normative principle for allocating sunk costs is debatable — see `context/domain/bat_mc_residual/fairness_in_cost_allocation.md` for the full discussion. The short version: historical cost causation = current cost causation is an assumption that is dubious both normatively (sunk costs shouldn't affect marginal decisions) and empirically (past investment decisions don't cleanly map to current load patterns). But it is the lens that most utility regulators actually use.
+Whether cost-causation is the _right_ normative principle for allocating sunk costs is debatable — see `context/domain/bat_mc_residual/fairness_in_cost_allocation.md` for the full discussion. The short version: historical cost causation = current cost causation is an assumption that is dubious both normatively (the beneficiary-pays principle points towards cost-causation-based allocation for marginal costs but away from it for residual costs), instrumentally (sunk costs shouldn't affect marginal decisions, and they are if cost-causation-allocated residual costs are recovered through volumetric charges) and empirically (past investment decisions don't cleanly map to current load patterns). But it is the lens that most utility regulators actually use.
 
 ### The supply residual problem
 
@@ -31,25 +31,29 @@ When we implemented EPMC and started testing, we discovered something we hadn't 
 Here's how large the residual is, as a percentage of total revenue, for both delivery and supply:
 
 | Utility | Delivery residual | Supply residual |
-| ------- | :---------------: | :-------------: |
-| rie     |        87%        |       29%       |
-| cenhud  |        96%        |       27%       |
-| coned   |        96%        |       15%       |
-| nimo    |        98%        |       28%       |
-| nyseg   |        98%        |       36%       |
-| or      |        95%        |       30%       |
-| psegli  |        93%        |       27%       |
-| rge     |        98%        |       30%       |
+| ------- | ----------------- | --------------- |
+| rie     | 87%               | 29%             |
+| cenhud  | 96%               | 27%             |
+| coned   | 96%               | 15%             |
+| nimo    | 98%               | 28%             |
+| nyseg   | 98%               | 36%             |
+| or      | 95%               | 30%             |
+| psegli  | 93%               | 27%             |
+| rge     | 98%               | 30%             |
 
 Delivery residual is 87–98% of delivery revenue. This is well-known — delivery costs are dominated by infrastructure that's essentially a fixed budget, and marginal delivery costs are a small fraction of the total.
 
-Supply residual is 15–36% of supply revenue. This is less intuitive. The retail supply rate recovers more revenue than the wholesale marginal cost of supply. The gap covers things like supplier margin, hedging/procurement overhead, RECs, capacity contract premiums above the marginal clearing price, working capital, bad debt, and other costs baked into the retail supply rate. (Note: we are currently missing ancillary MCs for NY, which would shrink the supply residual somewhat.)
+Supply residual is 15–36% of supply revenue. This is less intuitive. The retail supply rate recovers more revenue than the wholesale marginal cost of supply.
+
+We're still trying to understand how much of this "residual" might be due to simple data quality issues (inaccuracies in our retail rates [which are multiplied by EIA kwh to become the supply RR] or our marginal costs, missing marginal costs [such as ancillary services in NY, RECs in RI and NY), temporal mis-alignment between our retail rates / kwhs / marginal costs, etc.).
+
+Beyond that, the gap covers things like supplier margin, hedging/procurement overhead, RECs, capacity contract premiums above the marginal clearing price, working capital, bad debt, and other costs baked into the retail supply rate.
 
 **Open questions about the supply residual:**
 
-1. Is the residual "real" (i.e., do the retail supply rates genuinely include costs beyond energy/capacity/ancillary MCs), or is it partly an artifact of our MC inputs not capturing all supply cost components?
+1. Is the residual "real" (i.e., do the retail supply rates genuinely include costs beyond energy/capacity/ancillary MCs), or is it partly of the data quality or missing data issues described above?
 2. If the residual is real, what costs does it collect? Are those costs variable (they scale with consumption in time $t$, like MCs) or more like fixed budgets that have to be recovered regardless of load?
-3. If they're fixed budgets, the same cross-subsidization logic applies to supply as to delivery — HP customers with higher kWh are bearing a disproportionate share of a fixed cost through the flat supply rate, just like they do on delivery. And then we need to decide how to allocate the supply residual, just like we do on delivery.
+3. If they're fixed budgets, the same cross-subsidization logic applies to supply as to delivery — HP customers with higher kWh are bearing a disproportionate share of a fixed cost through the flat supply rate, just like they do on delivery. And then we need to decide how to allocate the supply residual, just like we do on delivery. Why residual allocation method makes sense here?
 
 We don't have definitive answers to these questions yet. For now, the supply residual is treated as a design parameter — each run can choose how (or whether) to allocate it.
 
@@ -57,11 +61,11 @@ We don't have definitive answers to these questions yet. For now, the supply res
 
 ### The architecture change
 
-Previously, `compute_subclass_rr` produced a single set of subclass revenue requirements (delivery + supply combined) under each allocation method. The supply component was derived by subtracting run 1 (delivery-only) from run 2 (delivery+supply).
+Previously, `compute_subclass_rr` produced a single set of subclass revenue requirements under one allocation method (per-customer), and the delivery/supply split was implicit — supply was derived by subtracting run 1 (delivery-only) from run 2 (delivery+supply). Every run got the same allocation method for both delivery and supply; there was no way to say "use EPMC for delivery but passthrough for supply."
 
-The problem: this subtraction is only clean when the allocation weights are the same in both runs. For per-customer and volumetric allocation, they are — customer count and kWh don't change between runs. For EPMC, they're not — HP's share of economic burden is 2.67% in the delivery-only run vs. 4.83% in the combined run (because adding supply MCs changes the EB mix). The subtraction produces a "supply EPMC" number that doesn't correspond to any principled supply-only allocation. In RI, this inflated HP's supply RR by $10M, making the HP flat rate look terrible when it should have looked good.
+Once we added EPMC and passthrough, we needed the ability to mix and match. RI's HP flat rate needs EPMC delivery + passthrough supply. RI's HP seasonal rate needs per-customer delivery + per-customer supply. NY might want something different again. The old single-method structure couldn't express this.
 
-The fix: the subclass RR YAML now has **separate delivery and supply blocks**. Each run picks its delivery allocation method and supply allocation method independently.
+The fix: `compute_subclass_rr` now precomputes every available allocation method for both delivery and supply, and writes them all to the YAML. Each run then picks which delivery method and which supply method to use, via `residual_allocation_delivery` and `residual_allocation_supply` in its scenario YAML. The YAML stores all the options; the run selects the combination it needs.
 
 ### The new YAML structure
 
@@ -120,15 +124,15 @@ Here's what each method does, concretely, when you apply it to a subclass:
 The impact of the allocation method depends on how large the residual is relative to total costs. On delivery, where 87–98% of the bill is residual, the allocation method is decisive — it determines almost the entire subclass RR. On supply, where 15–36% is residual, the allocation method matters but the MC component dominates.
 
 | Utility | Delivery residual % | Supply residual % |
-| ------- | :-----------------: | :---------------: |
-| rie     |         87%         |        29%        |
-| cenhud  |         96%         |        27%        |
-| coned   |         96%         |        15%        |
-| nimo    |         98%         |        28%        |
-| nyseg   |         98%         |        36%        |
-| or      |         95%         |        30%        |
-| psegli  |         93%         |        27%        |
-| rge     |         98%         |        30%        |
+| ------- | ------------------- | ----------------- |
+| rie     | 87%                 | 29%               |
+| cenhud  | 96%                 | 27%               |
+| coned   | 96%                 | 15%               |
+| nimo    | 98%                 | 28%               |
+| nyseg   | 98%                 | 36%               |
+| or      | 95%                 | 30%               |
+| psegli  | 93%                 | 27%               |
+| rge     | 98%                 | 30%               |
 
 This is why we didn't bother with volumetric on the delivery side until now — when 98% of the cost is residual, the MC correction is almost irrelevant; what matters is how you allocate the residual. On the supply side, the MC correction is more meaningful (it's 64–85% of the bill), and the residual allocation method matters less.
 
@@ -181,14 +185,10 @@ The previous section explains the theory. This section tells you exactly how to 
 ### What was implemented (high level)
 
 1. **CAIRO monkey-patches** (`utils/mid/patches.py`): added EPMC residual allocation, disabled broken peak allocation, added BAT_epmc to the cross-subsidization CSV.
-
-2. **`compute_subclass_rr.py`**: computes all delivery and supply allocation methods in a single pass and writes the new YAML structure with separate delivery/supply blocks.
-
-3. **`scenario_config.py` + `run_scenario.py`**: the parser reads `residual_allocation_delivery` and `residual_allocation_supply` from the scenario YAML, composes the total RR from the delivery + supply blocks.
-
-4. **`build_master_bat.py`**: detects available BAT metrics at runtime — gracefully handles missing BAT_peak and new BAT_epmc columns.
-
-5. **`create_scenario_yamls.py`**: reads `residual_allocation_delivery` and `residual_allocation_supply` columns from the Google Sheet.
+2. `**compute_subclass_rr.py`**: computes all delivery and supply allocation methods in a single pass and writes the new YAML structure with separate delivery/supply blocks.
+3. `**scenario_config.py` + `run_scenario.py**`: the parser reads `residual_allocation_delivery` and `residual_allocation_supply` from the scenario YAML, composes the total RR from the delivery + supply blocks.
+4. `**build_master_bat.py**`: detects available BAT metrics at runtime — gracefully handles missing BAT_peak and new BAT_epmc columns.
+5. `**create_scenario_yamls.py**`: reads `residual_allocation_delivery` and `residual_allocation_supply` columns from the Google Sheet.
 
 The key insight: all the subclass RR values (for every combination of allocation method) are computed once by `compute-rev-requirements` and written to a single YAML file. Each run then picks which delivery and supply method to use, via its scenario YAML. So testing is: run `compute-rev-requirements`, check the YAML, run the batch, check the outputs.
 
@@ -197,18 +197,20 @@ The key insight: all the subclass RR values (for every combination of allocation
 #### Prerequisites
 
 1. Make sure the Google Sheet has `residual_allocation_delivery` and `residual_allocation_supply` columns. NY runs 5, 6, 9, 10, 13, 14 should have `percustomer` for both. All other runs: blank.
-
 2. On the server, pull the latest code:
-   ```bash
-   cd /ebs/home/jpv_switch_box/rate-design-platform
-   git pull
-   ```
+
+```bash
+cd /ebs/home/jpv_switch_box/rate-design-platform
+git pull
+```
 
 3. If scenario YAMLs were regenerated from the sheet, verify them:
-   ```bash
-   grep -n "residual_allocation" rate_design/hp_rates/ny/config/scenarios/scenarios_cenhud.yaml
-   ```
-   Runs 5, 6, 9, 10, 13, 14 should show `residual_allocation_delivery: percustomer` and `residual_allocation_supply: percustomer`.
+
+```bash
+grep -n "residual_allocation" rate_design/hp_rates/ny/config/scenarios/scenarios_cenhud.yaml
+```
+
+Runs 5, 6, 9, 10, 13, 14 should show `residual_allocation_delivery: percustomer` and `residual_allocation_supply: percustomer`.
 
 #### Run the batch
 
