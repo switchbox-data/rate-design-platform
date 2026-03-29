@@ -37,7 +37,11 @@ WEIGHT_COL = "weight"
 DEFAULT_GROUP_COL = "has_hp"
 BAT_METRIC_CHOICES = ("BAT_vol", "BAT_peak", "BAT_percustomer", "BAT_epmc")
 DEFAULT_BAT_METRIC = "BAT_percustomer"
-SUBCLASS_RR_ALLOCATION_METHODS: tuple[str, ...] = ("BAT_percustomer", "BAT_epmc")
+SUBCLASS_RR_ALLOCATION_METHODS: tuple[str, ...] = (
+    "BAT_percustomer",
+    "BAT_epmc",
+    "BAT_vol",
+)
 BAT_COL_TO_ALLOCATION_KEY: dict[str, str] = {
     "BAT_percustomer": "percustomer",
     "BAT_epmc": "epmc",
@@ -786,58 +790,91 @@ def _write_revenue_requirement_yamls(
     total_delivery_and_supply_rr: float | None = None,
     heating_type_breakdown: dict[str, dict[str, dict[str, float]]] | None = None,
 ) -> tuple[Path, Path]:
-    """Write per-subclass revenue requirement YAML with nested allocation methods.
+    """Write per-subclass revenue requirement YAML with separate delivery/supply blocks.
 
-    *delivery_breakdowns* is ``{bat_col: DataFrame}`` from run 1 (delivery-only).
-    *total_breakdowns*, when provided, is ``{bat_col: DataFrame}`` from run 2
-    (delivery+supply).  Supply per subclass is derived as total - delivery.
+    Delivery and supply allocation methods are independent.  Each run picks
+    one delivery method and one supply method via ``residual_allocation_delivery``
+    and ``residual_allocation_supply`` in its scenario YAML.
 
-    Output YAML structure::
+    Delivery methods: passthrough, percustomer, epmc, volumetric.
+    Supply methods: passthrough, percustomer, volumetric.
+    (Supply EPMC is omitted — broken by the run 1/run 2 subtraction architecture;
+    volumetric gives a nearly identical result.)
 
-        subclass_revenue_requirements:
-          percustomer:
-            hp: {delivery: ..., supply: ..., total: ...}
-            non-hp: {delivery: ..., supply: ..., total: ...}
-          epmc:
-            hp: {delivery: ..., supply: ..., total: ...}
-            non-hp: {delivery: ..., supply: ..., total: ...}
+    Supply pass-through = actual supply bills per subclass (no BAT adjustment).
+    Supply percustomer/volumetric = supply bills - supply BAT (clean subtraction
+    because per-customer and volumetric weights are constant across runs).
     """
     differentiated_yaml_path.parent.mkdir(parents=True, exist_ok=True)
     default_yaml_path.parent.mkdir(parents=True, exist_ok=True)
 
     gv_map = group_value_to_subclass or {}
 
-    all_methods_rr: dict[str, dict[str, dict[str, float]]] = {}
+    # --- Delivery block: BAT-adjusted RR per allocation method ---
+    delivery_block: dict[str, dict[str, float]] = {}
+    passthrough_delivery: dict[str, float] = {}
 
     for bat_col, delivery_breakdown in delivery_breakdowns.items():
         method_key = BAT_COL_TO_ALLOCATION_KEY.get(bat_col, bat_col)
-
-        total_rr_by_subclass: dict[str, float] = {}
-        if total_breakdowns is not None and bat_col in total_breakdowns:
-            for row in total_breakdowns[bat_col].to_dicts():
-                total_rr_by_subclass[str(row["subclass"])] = float(
-                    row["revenue_requirement"]
-                )
-
-        subclass_rr: dict[str, dict[str, float]] = {}
+        method_vals: dict[str, float] = {}
         for row in delivery_breakdown.to_dicts():
             raw_val = str(row["subclass"])
             alias = gv_map.get(raw_val, raw_val)
-            delivery = float(row["revenue_requirement"])
-            total = total_rr_by_subclass.get(raw_val, delivery)
-            supply = total - delivery
-            subclass_rr[alias] = {
-                "delivery": delivery,
-                "supply": supply,
-                "total": total,
-            }
+            method_vals[alias] = float(row["revenue_requirement"])
+            if not passthrough_delivery:
+                passthrough_delivery[alias] = float(row["sum_bills"])
+            elif alias not in passthrough_delivery:
+                passthrough_delivery[alias] = float(row["sum_bills"])
+        delivery_block[method_key] = method_vals
 
-        all_methods_rr[method_key] = subclass_rr
+    delivery_block["passthrough"] = passthrough_delivery
+
+    # --- Supply block: pass-through + BAT-adjusted methods ---
+    supply_block: dict[str, dict[str, float]] = {}
+
+    if total_breakdowns is not None:
+        # Pass-through supply: actual supply bills per subclass (no BAT)
+        any_col = next(iter(delivery_breakdowns))
+        del_bills: dict[str, float] = {}
+        for row in delivery_breakdowns[any_col].sort("subclass").to_dicts():
+            raw_val = str(row["subclass"])
+            alias = gv_map.get(raw_val, raw_val)
+            del_bills[alias] = float(row["sum_bills"])
+
+        tot_bills: dict[str, float] = {}
+        for row in total_breakdowns[any_col].sort("subclass").to_dicts():
+            raw_val = str(row["subclass"])
+            alias = gv_map.get(raw_val, raw_val)
+            tot_bills[alias] = float(row["sum_bills"])
+
+        passthrough_supply = {
+            alias: tot_bills[alias] - del_bills[alias] for alias in del_bills
+        }
+        supply_block["passthrough"] = passthrough_supply
+
+        # BAT-adjusted supply for methods with clean subtraction
+        # (percustomer and volumetric weights don't change between runs)
+        for bat_col in ("BAT_percustomer", "BAT_vol"):
+            method_key = BAT_COL_TO_ALLOCATION_KEY[bat_col]
+            if bat_col not in delivery_breakdowns or bat_col not in total_breakdowns:
+                continue
+            del_rr: dict[str, float] = {}
+            for row in delivery_breakdowns[bat_col].to_dicts():
+                raw_val = str(row["subclass"])
+                alias = gv_map.get(raw_val, raw_val)
+                del_rr[alias] = float(row["revenue_requirement"])
+            tot_rr: dict[str, float] = {}
+            for row in total_breakdowns[bat_col].to_dicts():
+                raw_val = str(row["subclass"])
+                alias = gv_map.get(raw_val, raw_val)
+                tot_rr[alias] = float(row["revenue_requirement"])
+            supply_block[method_key] = {
+                alias: tot_rr[alias] - del_rr[alias] for alias in del_rr
+            }
 
     differentiated_data: dict[str, object] = {
         "utility": utility,
         "group_col": group_col,
-        "allocation_methods": list(all_methods_rr.keys()),
         "source_run_dir": str(run_dir),
     }
     if total_delivery_rr is not None:
@@ -846,7 +883,10 @@ def _write_revenue_requirement_yamls(
         differentiated_data["total_delivery_and_supply_revenue_requirement"] = (
             total_delivery_and_supply_rr
         )
-    differentiated_data["subclass_revenue_requirements"] = all_methods_rr
+    differentiated_data["subclass_revenue_requirements"] = {
+        "delivery": delivery_block,
+        "supply": supply_block,
+    }
     if heating_type_breakdown is not None:
         differentiated_data["heating_type_breakdown"] = heating_type_breakdown
 

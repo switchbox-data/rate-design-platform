@@ -4,14 +4,12 @@ source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/psegli/ny_20260
 total_delivery_revenue_requirement: 1167061663.64
 total_delivery_and_supply_revenue_requirement: 2152328483.56
 subclass_revenue_requirements:
-  percustomer:
-    non-hp:
-      delivery: 1150589335.0526578
-      supply: 959472648.3151505
-      total: 2110061983.3678083
-    hp:
-      delivery: 16472328.587342722
-      supply: 25794171.604849398
-      total: 42266500.19219212
-allocation_methods:
-  - percustomer
+  delivery:
+    percustomer:
+      non-hp: 1150589335.0526578
+      hp: 16472328.587342722
+  supply:
+    passthrough: &id001
+      non-hp: 959472648.3151505
+      hp: 25794171.604849398
+    percustomer: *id001

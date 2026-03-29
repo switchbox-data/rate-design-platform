@@ -4,14 +4,12 @@ source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/or/ny_20260323a
 total_delivery_revenue_requirement: 263364257.0
 total_delivery_and_supply_revenue_requirement: 431562114.21
 subclass_revenue_requirements:
-  percustomer:
-    non-hp:
-      delivery: 254976490.86444885
-      supply: 158986971.95407706
-      total: 413963462.8185259
-    hp:
-      delivery: 8387766.13555118
-      supply: 9210885.255922925
-      total: 17598651.391474105
-allocation_methods:
-  - percustomer
+  delivery:
+    percustomer:
+      non-hp: 254976490.86444885
+      hp: 8387766.13555118
+  supply:
+    passthrough: &id001
+      non-hp: 158986971.95407706
+      hp: 9210885.255922925
+    percustomer: *id001

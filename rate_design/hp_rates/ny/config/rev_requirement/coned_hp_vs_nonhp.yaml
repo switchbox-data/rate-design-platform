@@ -4,14 +4,12 @@ source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/coned/ny_202603
 total_delivery_revenue_requirement: 3287782738.4
 total_delivery_and_supply_revenue_requirement: 4894675585.19
 subclass_revenue_requirements:
-  percustomer:
-    non-hp:
-      delivery: 3208744948.2210865
-      supply: 1544462515.047821
-      total: 4753207463.268908
-    hp:
-      delivery: 79037790.17891257
-      supply: 62430331.74217631
-      total: 141468121.92108887
-allocation_methods:
-  - percustomer
+  delivery:
+    percustomer:
+      non-hp: 3208744948.2210865
+      hp: 79037790.17891257
+  supply:
+    passthrough: &id001
+      non-hp: 1544462515.047821
+      hp: 62430331.74217631
+    percustomer: *id001
