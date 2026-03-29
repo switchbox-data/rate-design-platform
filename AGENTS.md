@@ -130,6 +130,8 @@ Match existing style: Ruff for formatting/lint, **ty** for type checking, dprint
 
 **LaTeX in markdown:** GitHub's MathJax renderer does not support escaped underscores inside `\text{}` (e.g. `\text{avg\_mc\_peak}` will fail). Use proper math symbols instead: `\overline{MC}_{\text{peak}}`, `MC_h`, `L_h`, etc. Bare subscripts and `\text{}` with simple words (no underscores) are fine.
 
+**LaTeX in Cursor chat:** When running inside Cursor, use `$$...$$` for display math and `$...$` for inline math. Cursor's chat renderer does not support `\[...\]` or `\(...\)` — the backslashes are consumed by the markdown parser, leaving bare brackets that the math renderer ignores.
+
 ## Code Quality (required before every commit)
 
 - Run `just check` — no linter errors, no type errors, no warnings
