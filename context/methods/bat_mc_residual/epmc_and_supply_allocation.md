@@ -190,7 +190,7 @@ The previous section explains the theory. This section tells you exactly how to 
 4. `**build_master_bat.py**`: detects available BAT metrics at runtime — gracefully handles missing BAT_peak and new BAT_epmc columns.
 5. `**create_scenario_yamls.py**`: reads `residual_allocation_delivery` and `residual_allocation_supply` columns from the Google Sheet.
 
-The key insight: all the subclass RR values (for every combination of allocation method) are computed once by `compute-rev-requirements` and written to a single YAML file. Each run then picks which delivery and supply method to use, via its scenario YAML. So testing is: run `compute-rev-requirements`, check the YAML, run the batch, check the outputs.
+The key insight: all the subclass RR values (for every combination of allocation method) are computed once by `compute-subclass-rev-requirements` and written to a single YAML file. Each run then picks which delivery and supply method to use, via its scenario YAML. So testing is: run `compute-subclass-rev-requirements`, check the YAML, run the batch, check the outputs.
 
 ### Step-by-step: run and verify a NY batch
 

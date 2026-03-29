@@ -418,13 +418,13 @@ copy-calibrated-tariff-from-run run_dir output_dir="":
       "{{ state }}" \
       "{{ output_dir }}"
 
-compute-rev-requirements:
+compute-subclass-rev-requirements:
     #!/usr/bin/env bash
     set -euo pipefail
     run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
     run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
-    echo ">> compute-rev-requirements: run-1 (delivery) → ${run1_dir}" >&2
-    echo ">> compute-rev-requirements: run-2 (delivery+supply) → ${run2_dir}" >&2
+    echo ">> compute-subclass-rev-requirements: run-1 (delivery) → ${run1_dir}" >&2
+    echo ">> compute-subclass-rev-requirements: run-2 (delivery+supply) → ${run2_dir}" >&2
     just compute-subclass-rr "${run1_dir}" "{{ path_scenario_config }}" \
       "1" "has_hp" \
       "{{ path_differentiated_rev_requirement }}" \
@@ -690,7 +690,7 @@ run-all-sequential:
     echo ">> run-all-sequential [${RDP_BATCH}]" >&2
     just run-1
     just run-2
-    just compute-rev-requirements
+    just compute-subclass-rev-requirements
     just run-3
     just run-4
     just run-5
@@ -725,7 +725,7 @@ run-all-parallel-tracks:
     wait $PID1 || { echo "ERROR: run-1 failed" >&2; exit 1; }
     wait $PID2 || { echo "ERROR: run-2 failed" >&2; exit 1; }
 
-    just compute-rev-requirements
+    just compute-subclass-rev-requirements
 
     just run-3 & PID3=$!
     just run-4 & PID4=$!
@@ -762,15 +762,15 @@ run-all-parallel-tracks:
     wait $PID15 || { echo "ERROR: run-15 failed" >&2; exit 1; }
     wait $PID16 || { echo "ERROR: run-16 failed" >&2; exit 1; }
 
-    # just run-17 & PID17=$!
-    # just run-18 & PID18=$!
-    # wait $PID17 || { echo "ERROR: run-17 failed" >&2; exit 1; }
-    # wait $PID18 || { echo "ERROR: run-18 failed" >&2; exit 1; }
+    just run-17 & PID17=$!
+    just run-18 & PID18=$!
+    wait $PID17 || { echo "ERROR: run-17 failed" >&2; exit 1; }
+    wait $PID18 || { echo "ERROR: run-18 failed" >&2; exit 1; }
 
-    # just run-19 & PID19=$!
-    # just run-20 & PID20=$!
-    # wait $PID19 || { echo "ERROR: run-19 failed" >&2; exit 1; }
-    # wait $PID20 || { echo "ERROR: run-20 failed" >&2; exit 1; }
+    just run-19 & PID19=$!
+    just run-20 & PID20=$!
+    wait $PID19 || { echo "ERROR: run-19 failed" >&2; exit 1; }
+    wait $PID20 || { echo "ERROR: run-20 failed" >&2; exit 1; }
 
     echo ">> run-all-parallel-tracks: all 20 runs complete" >&2
 
