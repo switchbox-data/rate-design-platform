@@ -72,26 +72,26 @@ The fix: `compute_subclass_rr` now precomputes every available allocation method
 ```yaml
 subclass_revenue_requirements:
   delivery:
-    passthrough:        # no cross-subsidy correction
+    passthrough:        # actual bills under default tariff (not a cost allocation)
       hp: 23816775
       non-hp: 518739813
-    percustomer:        # corrects MC + residual cross-subsidy
+    percustomer:        # EB by MC, residual by customer count
       hp: 11538113
       non-hp: 531018474
-    epmc:               # allocates residual by MC share
+    epmc:               # EB by MC, residual by MC share
       hp: 14510936
       non-hp: 528045651
-    volumetric:         # allocates residual by kWh
+    volumetric:         # EB by MC, residual by kWh
       hp: ...
       non-hp: ...
   supply:
-    passthrough:        # same supply rate as default — no correction at all
+    passthrough:        # actual supply bills under default tariff
       hp: 21129827
       non-hp: 391820543
-    percustomer:        # corrects supply MC + residual cross-subsidy
+    percustomer:        # EB by MC, residual by customer count
       hp: 18175699
       non-hp: 394774670
-    volumetric:         # corrects supply MC cross-subsidy, not residual
+    volumetric:         # EB by MC, residual by kWh
       hp: ...
       non-hp: ...
     # No EPMC: broken by the subtraction architecture. Volumetric gives
@@ -111,9 +111,9 @@ The parser composes the total: `total_RR[subclass] = delivery[method_d][subclass
 
 Here's what each method does, concretely, when you apply it to a subclass:
 
-**Passthrough** leaves the cross-subsidy intact on both the MC and the residual. HP's subclass RR equals their actual bills under the default flat rate. CAIRO then calibrates the HP tariff to recover those same bills — so the HP rate ends up being the same as the default rate. No correction at all. Use this when you don't want to touch that side of the bill (e.g., supply-side for a delivery-only rate design). This isn't technically a residual allocation method, since we don't actually calculate the residual and split it up somehow, but it's a hack to allow us to keep the supply (or delivery) part bill untouched by keeping the full cross-subsidy in that part of the subclass rr.
+**Passthrough** sets HP's subclass RR equal to their actual bills under the default tariff. CAIRO then calibrates the HP tariff to recover those same bills — so the HP rate ends up being the same as the default rate. No correction at all. Use this when you don't want to touch that side of the bill (e.g., supply-side for a delivery-only rate design). This isn't technically a residual allocation method — it's the output of the existing rate design, not a decomposition into MC and residual. The underlying cost allocation that produced the current tariff is unknown and not uniquely recoverable (see `passthrough_cost_allocation_and_rate_design.md` for the full analysis).
 
-**Volumetric** fixes the MC cross-subsidy but leaves the residual allocated by kWh (same as the flat rate). HP's subclass RR = HP's economic burden + (HP kWh share × total residual). If HP's average MC per kWh is below the system average (true on supply side, where capacity peaks in summer and HP load peaks in winter), HP gets a lower subclass RR than passthrough. If HP's average MC per kWh is above average (true on delivery side in summer-peaking systems), HP gets a higher subclass RR. This is not one of the residual allocation methods identified in NARUC's Electric Utility Cost Alloation Manual, because it isn't commonly applied to customer class allocation, but it is de-facto being apply to customer subclass allocation, so it's good to be able to represent it.
+**Volumetric** allocates EB by actual MC (cost causality) and allocates the residual by kWh share. HP's subclass RR = HP's economic burden + (HP kWh share × total residual). Whether volumetric gives HP a higher or lower subclass RR than passthrough depends on two competing effects: (1) the MC correction (helps HP if their MC/kWh is below average, hurts if above), and (2) on delivery, the fixed charge reallocation (volumetric absorbs fixed charge revenue into the residual and splits it by kWh, which hurts HP when HP has more kWh/customer than average). On supply, where there are no fixed charges, only the MC correction matters. See `passthrough_cost_allocation_and_rate_design.md` for a worked example. This is not one of the residual allocation methods identified in NARUC's Electric Utility Cost Allocation Manual, because it isn't commonly applied to customer class allocation, but it is de facto being applied to customer subclass allocation, so it's good to be able to represent it.
 
 **EPMC** fixes the MC cross-subsidy and allocates the residual proportional to each subclass's share of total MC. This usually gives HP a lower total residual allocation than volumetric (because HP's MC share is typically less than their kWh share on supply, and the reverse on delivery). On delivery, where residual is 87–98% of costs, the allocation method matters enormously. On supply, where residual is 15–36%, the difference between EPMC and volumetric is small. This is known as equi-proportional residual allocation in NARUC's Electric Utility Cost Alloation Manual (NARUC, 1992, p. 160).
 
