@@ -5,7 +5,7 @@
 # Usage (from rate_design/hp_rates/):
 #   just s ny list-utilities                                    # show valid utilities
 #   UTILITY=nyseg just s ny all-pre                             # single utility pre-processing
-#   RDP_BATCH= {yyyymmdd_r1-N} UTILITY=nyseg just s ny run-all-sequential                  # single utility full run
+#   RDP_BATCH={yyyymmdd_r1-N} UTILITY=nyseg just s ny run-all-sequential                  # single utility full run
 #   just s ny run-all-utilities-sequential                      # all utilities for a state
 #   UTILITY=rie just -f ri/Justfile all-pre                     # via state wrapper directly
 #   set -a && source ny/state.env && set +a && UTILITY=nyseg just all-pre  # manual source
@@ -653,6 +653,54 @@ run-20:
     just copy-calibrated-tariff-from-run "${run18_dir}"
     just run-scenario 20
 
+run-21:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
+    echo ">> run-21: resolved run-1 output → ${run1_dir}" >&2
+    just compute-seasonal-discount-inputs "${run1_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_epmc" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json"
+    just create-seasonal-discount-tariff \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "${run1_dir}/seasonal_discount_rate_inputs.csv" \
+        {{ utility }}_hp_seasonal_epmc \
+        "{{ path_tariffs_electric }}/{{ utility }}_hp_seasonal_epmc.json"
+    just run-scenario 21
+
+run-22:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
+    echo ">> run-22: resolved run-2 output → ${run2_dir}" >&2
+    just compute-seasonal-discount-inputs "${run2_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_epmc" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json"
+    just create-seasonal-discount-tariff \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "${run2_dir}/seasonal_discount_rate_inputs.csv" \
+        {{ utility }}_hp_seasonal_supply_epmc \
+        "{{ path_tariffs_electric }}/{{ utility }}_hp_seasonal_supply_epmc.json"
+    just run-scenario 22
+
+run-23:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run21_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 21)
+    echo ">> run-23: resolved run-21 output → ${run21_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run21_dir}"
+    just run-scenario 23
+
+run-24:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run22_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 22)
+    echo ">> run-24: resolved run-22 output → ${run22_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run22_dir}"
+    just run-scenario 24
+
 # =============================================================================
 # ORCHESTRATION
 # =============================================================================
@@ -712,6 +760,11 @@ run-all-sequential:
     just run-18
     just run-19
     just run-20
+    just run-21
+    just run-22
+    just run-23
+    just run-24
+
 
 run-all-parallel-tracks:
     #!/usr/bin/env bash

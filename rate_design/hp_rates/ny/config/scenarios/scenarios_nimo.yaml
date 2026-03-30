@@ -133,6 +133,8 @@ runs:
     utility_revenue_requirement: rev_requirement/nimo_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
+    residual_allocation_delivery: percustomer
+    residual_allocation_supply: percustomer
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nimo/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -140,8 +142,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_allocation_delivery: percustomer
-    residual_allocation_supply: passthrough
   6:
     run_name: ny_nimo_run6_up00_precalc_supply__hp_seasonal_vs_default
     state: NY
@@ -164,6 +164,8 @@ runs:
     utility_revenue_requirement: rev_requirement/nimo_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
+    residual_allocation_delivery: percustomer
+    residual_allocation_supply: percustomer
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nimo/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -171,8 +173,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_allocation_delivery: percustomer
-    residual_allocation_supply: passthrough
   7:
     run_name: ny_nimo_run7_up02_default__hp_seasonal
     state: NY
@@ -251,6 +251,8 @@ runs:
     utility_revenue_requirement: rev_requirement/nimo_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
+    residual_allocation_delivery: percustomer
+    residual_allocation_supply: percustomer
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nimo/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -258,8 +260,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_allocation_delivery: percustomer
-    residual_allocation_supply: percustomer
   10:
     run_name: ny_nimo_run10_up00_precalc_supply__hp_seasonalTOU_vs_default
     state: NY
@@ -282,6 +282,8 @@ runs:
     utility_revenue_requirement: rev_requirement/nimo_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
+    residual_allocation_delivery: percustomer
+    residual_allocation_supply: percustomer
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nimo/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -289,8 +291,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_allocation_delivery: percustomer
-    residual_allocation_supply: percustomer
   11:
     run_name: ny_nimo_run11_up02_default__hp_seasonalTOU
     state: NY
@@ -369,6 +369,8 @@ runs:
     utility_revenue_requirement: rev_requirement/nimo_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
+    residual_allocation_delivery: percustomer
+    residual_allocation_supply: percustomer
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nimo/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -378,8 +380,6 @@ runs:
     elasticity:
       summer: -0.18
       winter: -0.16
-    residual_allocation_delivery: percustomer
-    residual_allocation_supply: percustomer
   14:
     run_name: ny_nimo_run14_up00_precalc_supply__hp_seasonalTOU_flex_vs_default
     state: NY
@@ -402,6 +402,8 @@ runs:
     utility_revenue_requirement: rev_requirement/nimo_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
+    residual_allocation_delivery: percustomer
+    residual_allocation_supply: percustomer
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nimo/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -411,8 +413,6 @@ runs:
     elasticity:
       summer: -0.18
       winter: -0.16
-    residual_allocation_delivery: percustomer
-    residual_allocation_supply: percustomer
   15:
     run_name: ny_nimo_run15_up02_default__hp_seasonalTOU_flex
     state: NY
