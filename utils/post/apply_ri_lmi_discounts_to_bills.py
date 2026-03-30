@@ -81,7 +81,9 @@ def _build_ri_raw_tiers(
     meta = pl.scan_parquet(meta_path, storage_options=opts)
     util = pl.scan_parquet(util_path, storage_options=opts)
     meta = meta.join(
-        util.filter(pl.col("sb.electric_utility") == utility).select(BLDG_ID_COL),
+        util.filter(pl.col("sb.electric_utility") == utility).select(
+            BLDG_ID_COL, "sb.gas_utility"
+        ),
         on=BLDG_ID_COL,
         how="inner",
     )
@@ -102,6 +104,15 @@ def _build_ri_raw_tiers(
     meta = meta.with_columns(
         assign_ri_tier_expr(fpl_pct).alias(tier_col),
         assign_ri_gas_tier_expr(fpl_pct).alias(gas_tier_col),
+    )
+    # Gas LIDR only applies to buildings with gas service. Zero out the gas tier
+    # for buildings without a gas utility assignment so they are never counted as
+    # gas-eligible participants at any participation rate.
+    meta = meta.with_columns(
+        pl.when(pl.col("sb.gas_utility").is_not_null())
+        .then(pl.col(gas_tier_col))
+        .otherwise(pl.lit(0))
+        .alias(gas_tier_col),
     )
     meta = meta.with_columns(
         (pl.col(tier_col) >= 1).alias("is_lmi_elec"),
