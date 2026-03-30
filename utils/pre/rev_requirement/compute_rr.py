@@ -609,10 +609,25 @@ def main() -> None:
             else None
         )
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    yaml_str = yaml.safe_dump(
+        out, default_flow_style=False, sort_keys=False, allow_unicode=True
+    )
+    if args.use_resstock_loads:
+        inline_comments: dict[str, str] = {
+            "total_residential_kwh:": "# sum(resstock_monthly_kwh) * resstock_scale_factor",
+            "delivery_top_ups:": "# total_budgets are inflated by total_residential_kwh / eia_total_residential_kwh",
+            "resstock_scale_factor:": "# eia_customer_count / resstock_customer_count_for_utility",
+        }
+        lines = yaml_str.splitlines(keepends=True)
+        for i, line in enumerate(lines):
+            stripped = line.lstrip()
+            for key, comment in inline_comments.items():
+                if stripped.startswith(key):
+                    lines[i] = line.rstrip("\n") + f" {comment}\n"
+                    break
+        yaml_str = "".join(lines)
     with open(args.output, "w") as f:
-        yaml.safe_dump(
-            out, f, default_flow_style=False, sort_keys=False, allow_unicode=True
-        )
+        f.write(yaml_str)
 
 
 if __name__ == "__main__":
