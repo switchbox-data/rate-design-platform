@@ -21,6 +21,7 @@ Charges are classified into families based on their economic structure, not thei
 | **LMI cost recovery**      | Recovery from non-LMI customers of low-income discount costs                        | Yes — but income transfer, not rate design | `exclude_eligibility`  |
 | **Performance incentive**  | PUC-approved performance incentive (e.g. EE program performance)                    | Yes in structure, negligible in magnitude  | `exclude_negligible`   |
 | **Redundant**              | Minimum charge / bill floor; structurally redundant with customer charge            | N/A                                        | `exclude_redundant`    |
+| **Transmission service**   | OATT-pass-through from ISONE                                                        | Yes                                        | `add_to_drr`           |
 | **Supply commodity**       | LRS (Standard Offer) bundling ISO-NE wholesale energy, capacity, ancillary, admin   | Mixed — see sub-components                 | `add_to_srr`           |
 | **Merchant function**      | LRS administrative cost adjustment (procurement, working capital)                   | Weak                                       | `add_to_srr`           |
 | **RES supply**             | Per-MWh REC obligation (Renewable Energy Standard); cost scales with load           | No                                         | `add_to_srr` + MC 8760 |
@@ -40,11 +41,11 @@ The Standard Offer Service (LRS) charge bundles several ISO-NE cost components. 
 | **Operating & Maintenance Exp Charge**        | Base delivery         | $/kWh            | Yes           | —                    | Yes                 | O&M in rate case                                                               | `already_in_drr`      | Yes—sub-tx + dx MCs    |
 | **CapEx Factor Charge**                       | Base delivery         | $/kWh            | Yes           | —                    | Yes                 | ISR plan capital recovery                                                      | `already_in_drr`      | Yes—sub-tx + dx MCs    |
 | **Pension Adjustment Factor**                 | Base delivery         | $/kWh (credit)   | Yes           | —                    | Yes                 | Pension/benefit cost recovery                                                  | `already_in_drr`      | No—residual            |
-| **Transmission Charge**                       | Base delivery         | $/kWh            | Yes           | —                    | Yes                 | FERC/ISO-NE OATT pass-through                                                  | `already_in_drr`      | Yes—transmission MCs   |
 | **Minimum Charge**                            | Redundant             | $/mo (floor)     | Yes           | —                    | N/A                 | Bill floor; equals customer charge                                             | `exclude_redundant`   | —                      |
 | **O&M Reconciliation Factor**                 | Cost recon            | $/kWh            | N/A (true-up) | —                    | No                  | Uniform $/kWh; true-up noise                                                   | `exclude_trueup`      | —                      |
 | **CapEx Reconciliation Factor**               | Cost recon            | $/kWh            | N/A (true-up) | —                    | No                  | Capital spending vs ISR forecast                                               | `exclude_trueup`      | —                      |
 | **RDM Adjustment Factor**                     | Revenue true-up       | $/kWh            | N/A (revenue) | —                    | No                  | Load forecast error; decoupling true-up                                        | `exclude_trueup`      | —                      |
+| **Transmission Charge**                       | Transmission service  | $/kWh            | No            | —                    | Yes                 | FERC/ISO-NE OATT pass-through                                                  | `add_to_drr`          | Yes—transmission MCs   |
 | **Energy Efficiency Programs Charge**         | Program surcharge     | $/kWh            | **No**        | Yes                  | **Yes**             | Fixed EE budget (LCP) ÷ kWh                                                    | `add_to_drr`          | No—residual            |
 | **Net Metering Charge**                       | DER credit recovery   | $/kWh            | **No**        | Yes                  | **Yes**             | Fixed net metering cost recovery ÷ kWh                                         | `add_to_drr`          | No—residual            |
 | **Long Term Contracting Charge**              | Program surcharge     | $/kWh            | **No**        | Yes (contracts)      | **Yes**             | Long-term renewable PPAs (e.g. offshore wind) ÷ kWh                            | `add_to_drr`          | No—residual            |
@@ -93,11 +94,9 @@ These charges define the tariff structure that collects the delivery revenue req
 
 **Pension Adjustment Factor.** **$0.00339/kWh** as a **credit** (negative charge) in the Genability tariff; compliance filing showed ($0.00274)/kWh. Recovers pension and benefit costs for distribution employees; the credit reflects reconciliation of actual vs. forecast pension costs (e.g. Docket 25-10-EL). Part of labor-related cost recovery in the rate case. Treat as part of base delivery.
 
-**Transmission Charge.** **$0.04773/kWh** (April 2025; tariff shows Base Transmission + Transmission Adjustment Factor + Transmission Uncollectible Factor). Recovers cost of high-voltage transmission (FERC-regulated, ISO-NE Open Access Transmission Tariff). Pass-through of Regional Network Service (RNS) and related OATT charges to distribution customers. Set by FERC/ISO-NE; RIE passes through. Same transmission marginal cost logic as in the BAT (transmission MC 8760).
-
 **Minimum Charge.** **$6.00/month** — equals the customer charge. Bill floor for very low usage or net-generation months. Rarely binds for typical residential consumption. Structurally redundant with the customer charge.
 
-**Decision.** All base delivery rates are `already_in_drr`. Minimum Charge is `exclude_redundant`. Sub-transmission and distribution marginal costs (MC 8760) apply to the volumetric delivery components; transmission MCs apply to the transmission charge.
+**Decision.** All base delivery rates are `already_in_drr`. Minimum Charge is `exclude_redundant`. Sub-transmission and distribution marginal costs (MC 8760) apply to the volumetric delivery components.
 
 ---
 
@@ -151,7 +150,13 @@ These charges define the tariff structure that collects the delivery revenue req
 
 ### Performance incentive
 
-**Performance Incentive Factor.** Variable (often $0). Ties delivery rates to performance metrics (e.g. reliability, customer service, EE program performance). When non-zero, it is a small utility bonus recovered via $/kWh. Same as NY EAM: structurally a fixed pool ÷ kWh but negligible magnitude. **`exclude_negligible`.**
+**Performance Incentive Factor.** Variable (often $0). Ties delivery rates to performance metrics (e.g. reliability, customer service, EE program performance). When non-zero, it is a small utility bonus recovered via $/kWh. Same as NY EAM: structurally a fixed pool ÷ kWh but negligible magnitude. `**exclude_negligible`.**
+
+---
+
+### Transmission Service
+
+**Transmission Charge.** **$0.04773/kWh** (April 2025; tariff shows Base Transmission + Transmission Adjustment Factor + Transmission Uncollectible Factor). Recovers cost of high-voltage transmission (FERC-regulated, ISO-NE Open Access Transmission Tariff). Pass-through of Regional Network Service (RNS) and related OATT charges to distribution customers. Set by FERC/ISO-NE; RIE passes through. Same transmission marginal cost logic as in the BAT (transmission MC 8760).
 
 ---
 
@@ -178,7 +183,7 @@ Rhode Island Energy procures default supply through **Last Resort Service (LRS)*
 
 ### Tax pass-through
 
-**Gross Earnings Tax (GET).** **4.166667%** of charges (Genability: QUANTITY, PERCENTAGE). Rhode Island's public service corporation gross earnings tax (R.I. Gen. Laws Ch. 44-13) on electric (and gas) utilities, passed through to customers. Percentage of each customer's bill; no fixed pool. **`exclude_percentage`** — the pipeline cannot handle percentage-of-bill charges.
+**Gross Earnings Tax (GET).** **4.166667%** of charges (Genability: QUANTITY, PERCENTAGE). Rhode Island's public service corporation gross earnings tax (R.I. Gen. Laws Ch. 44-13) on electric (and gas) utilities, passed through to customers. Percentage of each customer's bill; no fixed pool. `**exclude_percentage`** — the pipeline cannot handle percentage-of-bill charges.
 
 ---
 
