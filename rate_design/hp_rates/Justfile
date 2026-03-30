@@ -265,7 +265,7 @@ create-seasonal-tou-tariffs base_pattern="flat":
         t = json.load(open('${base_path}')); \
         t['items'][0]['label'] = '${supply_label}'; \
         t['items'][0].get('name') and t['items'][0].update({'name': '${supply_label}'}); \
-        json.dump(t, open('${supply_path}', 'w'), indent=2); \
+        f = open('${supply_path}', 'w'); json.dump(t, f, indent=2); f.write('\n'); f.close(); \
         print('Created ${supply_path}')"
     echo ">> create-seasonal-tou-tariffs: wrote {{ tou_tariff_key }}.json and {{ tou_tariff_key }}_supply.json" >&2
 
