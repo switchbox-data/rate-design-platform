@@ -5,6 +5,96 @@ end_month: 2025-12
 add_to_drr:
   rate_structure: flat
   charges:
+    o_m_charge:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.00227
+        2025-02: 0.00227
+        2025-03: 0.00227
+        2025-04: 0.00223
+        2025-05: 0.00223
+        2025-06: 0.00223
+        2025-07: 0.00223
+        2025-08: 0.00223
+        2025-09: 0.00223
+        2025-10: 0.00223
+        2025-11: 0.00223
+        2025-12: 0.00223
+    o_m_reconciliation_factor:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.0001
+        2025-02: 0.0001
+        2025-03: 0.0001
+        2025-04: 0.0001
+        2025-05: 0.0001
+        2025-06: 0.0001
+        2025-07: 0.0001
+        2025-08: 0.0001
+        2025-09: 0.0001
+        2025-10: 4.0e-05
+        2025-11: 4.0e-05
+        2025-12: 4.0e-05
+    capex_factor:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.00709
+        2025-02: 0.00709
+        2025-03: 0.00709
+        2025-04: 0.00832
+        2025-05: 0.00832
+        2025-06: 0.00832
+        2025-07: 0.00832
+        2025-08: 0.00832
+        2025-09: 0.00832
+        2025-10: 0.00832
+        2025-11: 0.00832
+        2025-12: 0.00832
+    capex_reconciliation_factor:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.0001
+        2025-02: 0.0001
+        2025-03: 0.0001
+        2025-04: 0.0001
+        2025-05: 0.0001
+        2025-06: 0.0001
+        2025-07: 0.0001
+        2025-08: 0.0001
+        2025-09: 0.0001
+        2025-10: 0.00094
+        2025-11: 0.00094
+        2025-12: 0.00094
+    revenue_decoupling_rdm:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.00123
+        2025-02: 0.00123
+        2025-03: 0.00123
+        2025-04: 0.00123
+        2025-05: 0.00123
+        2025-06: 0.00123
+        2025-07: -0.00272
+        2025-08: -0.00272
+        2025-09: -0.00272
+        2025-10: -0.00272
+        2025-11: -0.00272
+        2025-12: -0.00272
+    pension_adjustment_factor:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: -0.00274
+        2025-02: -0.00274
+        2025-03: -0.00274
+        2025-04: -0.00274
+        2025-05: -0.00274
+        2025-06: -0.00274
+        2025-07: -0.00339
+        2025-08: -0.00339
+        2025-09: -0.00339
+        2025-10: -0.00339
+        2025-11: -0.00339
+        2025-12: -0.00339
     storm_fund_replenishment_factor:
       charge_unit: $/kWh
       monthly_rates:
@@ -35,7 +125,37 @@ add_to_drr:
         2025-10: 6.0e-05
         2025-11: 6.0e-05
         2025-12: 6.0e-05
-    net_metering_charge: # In 2095 RIE rate summary.
+    low_income_discounts:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.00277
+        2025-02: 0.00277
+        2025-03: 0.00277
+        2025-04: 0.00277
+        2025-05: 0.00277
+        2025-06: 0.00277
+        2025-07: 0.00251
+        2025-08: 0.00251
+        2025-09: 0.00251
+        2025-10: 0.00251
+        2025-11: 0.00251
+        2025-12: 0.00251
+    performance_incentive_factor:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.0
+        2025-02: 0.0
+        2025-03: 0.0
+        2025-04: 0.0
+        2025-05: 0.0
+        2025-06: 0.0
+        2025-07: 0.0
+        2025-08: 0.0
+        2025-09: 0.0
+        2025-10: 0.0
+        2025-11: 0.0
+        2025-12: 0.0
+    net_metering_charge:
       charge_unit: $/kWh
       monthly_rates:
         2025-01: 0.01253
@@ -50,7 +170,7 @@ add_to_drr:
         2025-10: 0.01457
         2025-11: 0.01457
         2025-12: 0.01457
-    long_term_contracting_charge: # In 2095 RIE rate summary.
+    long_term_contracting_charge:
       charge_unit: $/kWh
       monthly_rates:
         2025-01: 0.01092
@@ -65,7 +185,7 @@ add_to_drr:
         2025-10: 0.00656
         2025-11: 0.00656
         2025-12: 0.00656
-    re_growth_charge: # In 2095 RIE rate summary.
+    re_growth_charge:
       charge_unit: $/month
       monthly_rates:
         2025-01: 4.02
@@ -79,8 +199,8 @@ add_to_drr:
         2025-09: 5.75
         2025-10: 3.22
         2025-11: 3.22
-        2025-12: 3.22 # 3.22 month actual
-    liheap_enhancement_charge: # In 2095 RIE rate summary.
+        2025-12: 3.22
+    liheap_enhancement_charge:
       charge_unit: $/month
       monthly_rates:
         2025-01: 0.79
@@ -94,23 +214,8 @@ add_to_drr:
         2025-09: 0.79
         2025-10: 0.79
         2025-11: 0.79
-        2025-12: 0.79 # 0.78 actual
-    energy_efficiency_programs_charge: # In 2095 RIE rate summary.
-      charge_unit: $/kWh
-      monthly_rates:
-        2025-01: 0.01098
-        2025-02: 0.01098
-        2025-03: 0.01098
-        2025-04: 0.01098
-        2025-05: 0.01098
-        2025-06: 0.01098
-        2025-07: 0.01098
-        2025-08: 0.01098
-        2025-09: 0.01098
-        2025-10: 0.01098
-        2025-11: 0.01098
-        2025-12: 0.01098 # .00195 actual
-    transmission_charge: # In 2095 RIE rate summary as Total Transmission Charge.
+        2025-12: 0.79
+    transmission_charge:
       charge_unit: $/kWh
       monthly_rates:
         2025-01: 0.04161
@@ -124,10 +229,55 @@ add_to_drr:
         2025-09: 0.04773
         2025-10: 0.04773
         2025-11: 0.04773
-        2025-12: 0.04773 # .04773 actual
+        2025-12: 0.04773
+    transition_restructuring:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.0
+        2025-02: 0.0
+        2025-03: 0.0
+        2025-04: 0.0
+        2025-05: 0.0
+        2025-06: 0.0
+        2025-07: 1.0e-05
+        2025-08: 1.0e-05
+        2025-09: 1.0e-05
+        2025-10: 1.0e-05
+        2025-11: 1.0e-05
+        2025-12: 1.0e-05
+    energy_efficiency_programs_charge:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.01098
+        2025-02: 0.01098
+        2025-03: 0.01098
+        2025-04: 0.01098
+        2025-05: 0.01098
+        2025-06: 0.01098
+        2025-07: 0.01098
+        2025-08: 0.01098
+        2025-09: 0.01098
+        2025-10: 0.01098
+        2025-11: 0.01098
+        2025-12: 0.01098
 add_to_srr:
   rate_structure: flat
   charges:
+    last_resort_adjustment_factor:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.0
+        2025-02: 0.0
+        2025-03: 0.0
+        2025-04: 0.0
+        2025-05: 0.0
+        2025-06: 0.0
+        2025-07: 0.0
+        2025-08: 0.0
+        2025-09: 0.0
+        2025-10: 0.0
+        2025-11: 0.0
+        2025-12: 0.0
     supply_commodity_bundled:
       charge_unit: $/kWh
       monthly_rates:
@@ -157,7 +307,7 @@ add_to_srr:
         2025-09: 0.01461
         2025-10: 0.01461
         2025-11: 0.01461
-        2025-12: 0.01461 # .0198 actual
+        2025-12: 0.01461
 already_in_drr:
   rate_structure: flat
   charges:
@@ -176,10 +326,10 @@ already_in_drr:
         2025-10: 6.0
         2025-11: 6.0
         2025-12: 6.0
-    core_delivery_rate: # In 2095 RIE rate summary has volumetric Billing Distribution Charge, none of this is broken out.
+    core_delivery_rate:
       charge_unit: $/kWh
       monthly_rates:
-        2025-01: 0.0458 # .059 if next 3 charges included, .0534 actual, .0645 proposed
+        2025-01: 0.0458
         2025-02: 0.0458
         2025-03: 0.0458
         2025-04: 0.0458
@@ -191,67 +341,8 @@ already_in_drr:
         2025-10: 0.0458
         2025-11: 0.0458
         2025-12: 0.0458
-    o_m_charge:
-      charge_unit: $/kWh
-      monthly_rates:
-        2025-01: 0.00227
-        2025-02: 0.00227
-        2025-03: 0.00227
-        2025-04: 0.00223
-        2025-05: 0.00223
-        2025-06: 0.00223
-        2025-07: 0.00223
-        2025-08: 0.00223
-        2025-09: 0.00223
-        2025-10: 0.00223
-        2025-11: 0.00223
-        2025-12: 0.00223
-    capex_factor:
-      charge_unit: $/kWh
-      monthly_rates:
-        2025-01: 0.00709
-        2025-02: 0.00709
-        2025-03: 0.00709
-        2025-04: 0.00832
-        2025-05: 0.00832
-        2025-06: 0.00832
-        2025-07: 0.00832
-        2025-08: 0.00832
-        2025-09: 0.00832
-        2025-10: 0.00832
-        2025-11: 0.00832
-        2025-12: 0.00832
-    pension_adjustment_factor:
-      charge_unit: $/kWh
-      monthly_rates:
-        2025-01: 0.00274
-        2025-02: 0.00274
-        2025-03: 0.00274
-        2025-04: 0.00274
-        2025-05: 0.00274
-        2025-06: 0.00274
-        2025-07: 0.00339
-        2025-08: 0.00339
-        2025-09: 0.00339
-        2025-10: 0.00339
-        2025-11: 0.00339
-        2025-12: 0.00339
 excluded:
   gross_earnings_tax:
     decision: exclude_percentage
-  o_m_reconciliation_factor:
-    decision: exclude_trueup
-  capex_reconciliation_factor:
-    decision: exclude_trueup
-  rdm_adjustment_factor:
-    decision: exclude_trueup
-  low_income_discount_recovery_factor:
-    decision: exclude_eligibility
-  performance_incentive_factor:
-    decision: exclude_negligible
-  last_resort_adjustment_factor:
-    decision: exclude_trueup
-  transition_charge: # In 2095 RIE rate summary.
-    decision: exclude_trueup
   minimum:
     decision: exclude_redundant
