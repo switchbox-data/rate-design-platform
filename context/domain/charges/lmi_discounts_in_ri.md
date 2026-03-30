@@ -124,7 +124,7 @@ The 138% FPL breakpoint is the ACA Medicaid expansion threshold. Households belo
 
 Gas eligibility (≤ 185% FPL) is a strict subset of electric eligibility (≤ 250% FPL under LIDR+). Households at 186–250% FPL qualify for electric LIDR+ only; they have no gas discount because they are above all categorical program income ceilings.
 
-Buildings with no gas service (e.g., all-electric or delivered fuel heating) still receive a `gas_lmi_tier` assignment. The gas discount is applied to `gas_total_bill`, which is $0 for these buildings, so the assignment is harmless.
+Buildings with no gas service (e.g., all-electric or delivered fuel heating) receive `gas_lmi_tier = 0` and `is_lmi_gas = False`, regardless of their FPL%. Gas service is determined by `sb.gas_utility` from the utility assignment: null means no gas service. This ensures non-gas buildings are never counted as gas-eligible participants and do not consume gas discount slots in sub-100% participation scenarios.
 
 ### **6\. Participation Sampling Model**
 
@@ -137,7 +137,7 @@ At sub-100% participation (e.g., 32%):
 
 1. One draw at the specified rate from the electric-eligible pool — uniform or income-weighted.
 2. All sampled households receive electric LIDR+ discounts based on their electric tier.
-3. Sampled households that are also gas-eligible (FPL ≤ 185%) additionally receive gas LIDR discounts.
+3. Sampled households that are also gas-eligible (FPL ≤ 185% AND have gas service, i.e. `sb.gas_utility` is not null) additionally receive gas LIDR discounts.
 4. Sampled households at 186–250% FPL receive electric discounts only.
 
 With uniform sampling, approximately the same fraction of each sub-group participates. With income-weighted sampling (biased toward lower FPL), the composition of participants shifts toward lower-income households, but the total participation rate stays at the specified level.

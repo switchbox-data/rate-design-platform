@@ -5,6 +5,7 @@ from __future__ import annotations
 import polars as pl
 
 from utils.post.lmi_common import (
+    assign_ri_gas_tier_expr,
     assign_ri_tier_expr,
     compute_fpl_threshold,
     discount_fractions_for_ri,
@@ -131,3 +132,108 @@ def test_occupants_cap() -> None:
     out = df.with_columns(parse_occupants_expr("in.occupants").alias("n"))
     # 10+ -> 10 (cap); 99 parses and is clipped to 10
     assert out["n"].to_list() == [10, 10]
+
+
+def test_gas_tier_zeroed_without_gas_service() -> None:
+    """Buildings without gas service (sb.gas_utility=None) must get gas_lmi_tier=0.
+
+    This mirrors the masking logic in _build_ri_raw_tiers: after assigning gas
+    tiers from FPL%, the tier is overridden to 0 for buildings where
+    sb.gas_utility is null. The test covers all FPL ranges (below tier-2 cutoff,
+    between tiers, and above the eligibility ceiling) to confirm the mask is
+    applied regardless of income.
+    """
+    # Three buildings: two below the gas eligibility ceiling (FPL <= 185%),
+    # one above. The first two would normally get gas tiers 2 and 1 respectively,
+    # but none have gas service.
+    df = pl.DataFrame(
+        {
+            "fpl_pct": [100.0, 160.0, 250.0],
+            "sb.gas_utility": [None, None, None],
+        }
+    )
+    out = df.with_columns(
+        assign_ri_gas_tier_expr("fpl_pct").alias("gas_tier_raw"),
+    ).with_columns(
+        pl.when(pl.col("sb.gas_utility").is_not_null())
+        .then(pl.col("gas_tier_raw"))
+        .otherwise(pl.lit(0))
+        .alias("gas_lmi_tier"),
+        (
+            pl.when(pl.col("sb.gas_utility").is_not_null())
+            .then(pl.col("gas_tier_raw"))
+            .otherwise(pl.lit(0))
+            >= 1
+        ).alias("is_lmi_gas"),
+    )
+
+    # Raw assignment would give tiers 2, 1, 0 — but masking must zero them all
+    assert out["gas_tier_raw"].to_list() == [2, 1, 0]
+    assert out["gas_lmi_tier"].to_list() == [0, 0, 0]
+    assert out["is_lmi_gas"].to_list() == [False, False, False]
+
+
+def test_gas_tier_preserved_with_gas_service() -> None:
+    """Buildings WITH gas service keep their income-based gas tier assignment."""
+    df = pl.DataFrame(
+        {
+            "fpl_pct": [100.0, 160.0, 250.0],
+            "sb.gas_utility": ["rie", "rie", "rie"],
+        }
+    )
+    out = df.with_columns(
+        assign_ri_gas_tier_expr("fpl_pct").alias("gas_tier_raw"),
+    ).with_columns(
+        pl.when(pl.col("sb.gas_utility").is_not_null())
+        .then(pl.col("gas_tier_raw"))
+        .otherwise(pl.lit(0))
+        .alias("gas_lmi_tier"),
+        (
+            pl.when(pl.col("sb.gas_utility").is_not_null())
+            .then(pl.col("gas_tier_raw"))
+            .otherwise(pl.lit(0))
+            >= 1
+        ).alias("is_lmi_gas"),
+    )
+
+    # <= 138% FPL -> tier 2 (30%), 138-185% FPL -> tier 1 (25%), > 185% -> 0
+    assert out["gas_lmi_tier"].to_list() == [2, 1, 0]
+    assert out["is_lmi_gas"].to_list() == [True, True, False]
+
+
+def test_participation_preserves_gas_tier_zero_for_non_gas_buildings() -> None:
+    """_sample_ri_participation must not promote non-gas buildings to gas participants.
+
+    When raw_tiers already has gas_lmi_tier_raw=0 for a building (because it
+    has no gas service), _sample_ri_participation must keep gas_lmi_tier=0 and
+    is_lmi_gas=False even when the building participates (is elec-eligible).
+    """
+    from utils.post.apply_ri_lmi_discounts_to_bills import _sample_ri_participation
+
+    raw_tiers = pl.DataFrame(
+        {
+            "bldg_id": [1001, 1002],
+            # bldg 1001: has gas service -> gas_lmi_tier_raw=2
+            # bldg 1002: no gas service -> gas_lmi_tier_raw=0 (fix applied upstream)
+            "lmi_tier_raw": [2, 2],
+            "gas_lmi_tier_raw": [2, 0],
+            "is_lmi_elec": [True, True],
+            "is_lmi_gas": [True, False],
+            "fpl_pct": [100.0, 100.0],
+        }
+    )
+
+    tier_info = _sample_ri_participation(raw_tiers, 1.0, "uniform", 42)
+
+    # Both buildings participate (p100, both elec-eligible)
+    assert tier_info.filter(pl.col("participates"))["bldg_id"].to_list() == [1001, 1002]
+
+    tier_by_id = {row["bldg_id"]: row for row in tier_info.to_dicts()}
+
+    # bldg 1001 (has gas): gas tier preserved, is_lmi_gas=True
+    assert tier_by_id[1001]["gas_lmi_tier"] == 2
+    assert tier_by_id[1001]["is_lmi_gas"] is True
+
+    # bldg 1002 (no gas): gas tier stays 0, is_lmi_gas=False
+    assert tier_by_id[1002]["gas_lmi_tier"] == 0
+    assert tier_by_id[1002]["is_lmi_gas"] is False
