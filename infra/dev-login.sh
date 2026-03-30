@@ -143,260 +143,323 @@ if [ "$SSM_READY" = false ]; then
 fi
 echo
 
-# Create/setup user account via SSM
-echo "👤 Setting up user account..."
 USER_HOME="/ebs/home/$LINUX_USERNAME"
-echo "   User: $LINUX_USERNAME"
-echo "   Home: $USER_HOME"
-TEMP_SCRIPT=$(mktemp)
-printf '#!/bin/bash\nset -eu\nUSER_HOME="%s"\nLINUX_USERNAME="%s"\nif ! id "$LINUX_USERNAME" &>/dev/null; then\n  echo "Creating user account: $LINUX_USERNAME"\n  mkdir -p "$USER_HOME"\n  useradd -d "$USER_HOME" -s /bin/bash "$LINUX_USERNAME"\n  usermod -aG sudo "$LINUX_USERNAME"\n  chown -R "$LINUX_USERNAME:$LINUX_USERNAME" "$USER_HOME"\n  chmod 755 "$USER_HOME"\n  echo "User created and added to sudo group"\nelse\n  echo "User account already exists: $LINUX_USERNAME"\n  usermod -aG sudo "$LINUX_USERNAME" 2>/dev/null || true\n  echo "Ensured user is in sudo group"\nfi\n' "$USER_HOME" "$LINUX_USERNAME" >"$TEMP_SCRIPT"
-SCRIPT_B64=$(base64 <"$TEMP_SCRIPT" | tr -d '\n')
-rm -f "$TEMP_SCRIPT"
-echo "   Script encoded (length: ${#SCRIPT_B64} chars)"
-echo "   Sending SSM command..."
-COMMAND_ID=$(aws ssm send-command \
-  --instance-ids "$INSTANCE_ID" \
-  --document-name "AWS-RunShellScript" \
-  --parameters "commands=[\"echo $SCRIPT_B64 | base64 -d | bash\"]" \
-  --query 'Command.CommandId' \
-  --output text 2>/dev/null)
-
-if [ -z "$COMMAND_ID" ]; then
-  echo "   ERROR: Failed to send SSM command" >&2
-  exit 1
-fi
-
-echo "   Command ID: $COMMAND_ID"
-echo "   Waiting for user creation to complete..."
-
-for i in {1..30}; do
-  STATUS=$(aws ssm get-command-invocation \
-    --command-id "$COMMAND_ID" \
-    --instance-id "$INSTANCE_ID" \
-    --query 'Status' \
-    --output text 2>/dev/null || echo "InProgress")
-
-  if [ "$STATUS" = "Success" ]; then
-    OUTPUT=$(aws ssm get-command-invocation \
-      --command-id "$COMMAND_ID" \
-      --instance-id "$INSTANCE_ID" \
-      --query 'StandardOutputContent' \
-      --output text 2>/dev/null || echo "")
-    if [ -n "$OUTPUT" ]; then
-      echo "   $OUTPUT"
-    fi
-    break
-  elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
-    ERROR_OUTPUT=$(aws ssm get-command-invocation \
-      --command-id "$COMMAND_ID" \
-      --instance-id "$INSTANCE_ID" \
-      --query 'StandardErrorContent' \
-      --output text 2>/dev/null || echo "")
-    echo "   ERROR: User creation command failed!" >&2
-    if [ -n "$ERROR_OUTPUT" ]; then
-      echo "   $ERROR_OUTPUT" >&2
-    fi
-    exit 1
-  fi
-  sleep 1
-done
-
-# Set up oh-my-zsh for this user
-echo "🐚 Setting up oh-my-zsh for $LINUX_USERNAME..."
-OMZ_TEMP=$(mktemp)
-printf '#!/bin/bash\nset -eu\nfor i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24; do\n  [ -x /usr/local/bin/setup-ohmyzsh-for-user.sh ] && break\n  sleep 5\ndone\nrunuser -u %s -- /usr/local/bin/setup-ohmyzsh-for-user.sh %s\n' "$LINUX_USERNAME" "$USER_HOME" >"$OMZ_TEMP"
-OMZ_B64=$(base64 <"$OMZ_TEMP" | tr -d '\n')
-rm -f "$OMZ_TEMP"
-OMZ_CMD_ID=$(aws ssm send-command \
-  --instance-ids "$INSTANCE_ID" \
-  --document-name "AWS-RunShellScript" \
-  --parameters "commands=[\"echo $OMZ_B64 | base64 -d | bash\"]" \
-  --query 'Command.CommandId' \
-  --output text 2>/dev/null) || true
-OMZ_OK=false
-if [ -n "$OMZ_CMD_ID" ]; then
-  for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
-    STATUS=$(aws ssm get-command-invocation --command-id "$OMZ_CMD_ID" --instance-id "$INSTANCE_ID" --query 'Status' --output text 2>/dev/null || echo "InProgress")
-    [ "$STATUS" = "Success" ] && OMZ_OK=true && break
-    [ "$STATUS" = "Failed" ] && break
-    sleep 10
-  done
-fi
-if [ "$OMZ_OK" = true ]; then
-  aws ssm send-command \
-    --instance-ids "$INSTANCE_ID" \
-    --document-name "AWS-RunShellScript" \
-    --parameters "commands=[\"chsh -s /usr/bin/zsh $LINUX_USERNAME 2>/dev/null || true\"]" \
-    --output text >/dev/null
-fi
-sleep 2
-
-# Ensure user is in sudo group, configure passwordless sudo, and ensure S3 mount
-echo "🔧 Configuring user access..."
-aws ssm send-command \
-  --instance-ids "$INSTANCE_ID" \
-  --document-name "AWS-RunShellScript" \
-  --parameters "commands=[
-        'bash -c \"set -eu; usermod -aG sudo \\\"$LINUX_USERNAME\\\" 2>/dev/null || true; echo \\\"$LINUX_USERNAME ALL=(ALL) NOPASSWD:ALL\\\" > /etc/sudoers.d/$LINUX_USERNAME; chmod 440 /etc/sudoers.d/$LINUX_USERNAME; mountpoint -q /data.sb || mount /data.sb 2>/dev/null || true\"'
-    ]" \
-  --output text >/dev/null
-sleep 2
-
-# Forward local git config to remote instance
-LOCAL_GIT_EMAIL=$(git config --global user.email 2>/dev/null || echo "")
-LOCAL_GIT_NAME=$(git config --global user.name 2>/dev/null || echo "")
-if [ -n "$LOCAL_GIT_EMAIL" ] || [ -n "$LOCAL_GIT_NAME" ]; then
-  echo "🔧 Forwarding local git config..."
-  aws ssm send-command \
-    --instance-ids "$INSTANCE_ID" \
-    --document-name "AWS-RunShellScript" \
-    --parameters "commands=[
-            'bash -c \"set -eu; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; USER_HOME=\\\"$USER_HOME\\\"; GIT_EMAIL=\\\"$LOCAL_GIT_EMAIL\\\"; GIT_NAME=\\\"$LOCAL_GIT_NAME\\\"; if [ -n \\\"\\\$GIT_EMAIL\\\" ]; then runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git config --global user.email \\\"\\\$GIT_EMAIL\\\"; echo \\\"   git user.email: \\\$GIT_EMAIL\\\"; fi; if [ -n \\\"\\\$GIT_NAME\\\" ]; then runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git config --global user.name \\\"\\\$GIT_NAME\\\"; echo \\\"   git user.name: \\\$GIT_NAME\\\"; fi\"'
-        ]" \
-    --output text >/dev/null
-  echo "   ✅ Git config synced from local machine"
-fi
-echo
-
-# Clone repo on first login
-echo "📦 Setting up development environment..."
 REPO_DIR="$USER_HOME/rate-design-platform"
-REPO_URL="https://github.com/switchbox-data/rate-design-platform.git"
-REPO_COMMAND_ID=$(aws ssm send-command \
+SETUP_MARKER="$USER_HOME/.dev-login-$INSTANCE_ID"
+REPO_CLONED=false
+
+# Fast path: marker on EBS is per-instance; new instance after teardown has a new ID and no marker.
+echo "🔍 Checking if this instance is already set up..."
+NEEDS_SETUP=true
+MARKER_CHECK_CMD=$(aws ssm send-command \
   --instance-ids "$INSTANCE_ID" \
   --document-name "AWS-RunShellScript" \
-  --parameters "commands=[
-        'bash -c \"set -eu; REPO_DIR=\\\"$REPO_DIR\\\"; REPO_URL=\\\"$REPO_URL\\\"; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; if [ -d \\\"\\\$REPO_DIR/.git\\\" ]; then echo \\\"Repository already exists\\\"; else echo \\\"Cloning repository...\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git clone \\\"\\\$REPO_URL\\\" \\\"\\\$REPO_DIR\\\"; echo \\\"Repository cloned. Run: gh auth login && uv sync --python 3.13\\\"; fi\"'
-    ]" \
+  --parameters "commands=[\"if [ -f \\\"$SETUP_MARKER\\\" ]; then echo DEV_LOGIN_MARKER_OK; else echo DEV_LOGIN_MARKER_MISSING; fi\"]" \
   --query 'Command.CommandId' \
-  --output text 2>/dev/null)
+  --output text 2>/dev/null || echo "")
 
-if [ -n "$REPO_COMMAND_ID" ]; then
-  echo "   Waiting for repository setup..."
-  for i in {1..60}; do
-    STATUS=$(aws ssm get-command-invocation \
-      --command-id "$REPO_COMMAND_ID" \
+if [ -n "$MARKER_CHECK_CMD" ]; then
+  for _ in {1..30}; do
+    MSTATUS=$(aws ssm get-command-invocation \
+      --command-id "$MARKER_CHECK_CMD" \
       --instance-id "$INSTANCE_ID" \
       --query 'Status' \
-      --output text 2>/dev/null || echo "Pending")
-
-    if [ "$STATUS" = "Success" ]; then
-      OUTPUT=$(aws ssm get-command-invocation \
-        --command-id "$REPO_COMMAND_ID" \
+      --output text 2>/dev/null || echo "InProgress")
+    if [ "$MSTATUS" = "Success" ]; then
+      MOUT=$(aws ssm get-command-invocation \
+        --command-id "$MARKER_CHECK_CMD" \
         --instance-id "$INSTANCE_ID" \
         --query 'StandardOutputContent' \
         --output text 2>/dev/null || echo "")
-      if echo "$OUTPUT" | grep -q "already exists"; then
-        echo "   ✅ Repository ready"
-        REPO_CLONED=false
-      else
-        echo "   ✅ Repository cloned"
-        REPO_CLONED=true
+      if echo "$MOUT" | grep -q "DEV_LOGIN_MARKER_OK"; then
+        NEEDS_SETUP=false
+        echo "   ✅ Fast path: this instance was set up already (marker present)"
       fi
       break
-    elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
-      echo "   ❌ Repository setup failed!"
-      AWS_PAGER="" aws ssm get-command-invocation \
-        --command-id "$REPO_COMMAND_ID" \
-        --instance-id "$INSTANCE_ID" \
-        --query 'StandardErrorContent' \
-        --output text 2>/dev/null || true
+    elif [ "$MSTATUS" = "Failed" ] || [ "$MSTATUS" = "Cancelled" ]; then
       break
     fi
-    sleep 2
+    sleep 1
   done
-fi
-
-echo ""
-
-# Verify user exists
-echo "   Verifying user account exists..."
-USER_EXISTS=false
-MAX_RETRIES=20
-
-for i in $(seq 1 $MAX_RETRIES); do
-  VERIFY_COMMAND_ID=$(aws ssm send-command \
-    --instance-ids "$INSTANCE_ID" \
-    --document-name "AWS-RunShellScript" \
-    --parameters "commands=['bash -c \"if id \\\"$LINUX_USERNAME\\\" >/dev/null 2>&1; then echo EXISTS; else echo NOT_EXISTS; fi\"']" \
-    --query 'Command.CommandId' \
-    --output text 2>/dev/null)
-
-  if [ -n "$VERIFY_COMMAND_ID" ]; then
-    sleep 3
-    OUTPUT=$(aws ssm get-command-invocation \
-      --command-id "$VERIFY_COMMAND_ID" \
-      --instance-id "$INSTANCE_ID" \
-      --query 'StandardOutputContent' \
-      --output text 2>/dev/null || echo "")
-
-    if echo "$OUTPUT" | grep -q "EXISTS"; then
-      USER_EXISTS=true
-      echo "   User account verified"
-      break
-    else
-      if [ $i -lt $MAX_RETRIES ]; then
-        echo "   User not found yet, retrying... ($i/$MAX_RETRIES)"
-      fi
-    fi
-  fi
-
-  sleep 2
-done
-
-if [ "$USER_EXISTS" = false ]; then
-  echo "   ERROR: User account '$LINUX_USERNAME' does not exist after $MAX_RETRIES attempts" >&2
-  echo "   The user creation may have failed. Check the SSM command output." >&2
-  exit 1
 fi
 echo
 
-# Remediation: if user has no .zshrc, run oh-my-zsh setup now
-REMEDIATE_CMD_ID=$(aws ssm send-command \
-  --instance-ids "$INSTANCE_ID" \
-  --document-name "AWS-RunShellScript" \
-  --parameters "commands=[\"if [ ! -f $USER_HOME/.zshrc ] && [ -x /usr/local/bin/setup-ohmyzsh-for-user.sh ]; then runuser -u $LINUX_USERNAME -- /usr/local/bin/setup-ohmyzsh-for-user.sh $USER_HOME; chsh -s /usr/bin/zsh $LINUX_USERNAME 2>/dev/null || true; fi\"]" \
-  --query 'Command.CommandId' \
-  --output text 2>/dev/null) || true
-if [ -n "$REMEDIATE_CMD_ID" ]; then
-  for _ in 1 2 3 4 5; do
-    RSTATUS=$(aws ssm get-command-invocation --command-id "$REMEDIATE_CMD_ID" --instance-id "$INSTANCE_ID" --query 'Status' --output text 2>/dev/null || echo "InProgress")
-    [ "$RSTATUS" = "Success" ] || [ "$RSTATUS" = "Failed" ] && break
-    sleep 5
-  done
-fi
-
-# Set up SSH access for Cursor
-echo "Setting up SSH access for Cursor..."
+# Local SSH keypair (needed for Cursor / ProxyCommand on every login)
 SSH_KEY_NAME="rate_design_platform_ec2"
 SSH_KEY=~/.ssh/${SSH_KEY_NAME}.pub
 SSH_KEY_PRIVATE=~/.ssh/${SSH_KEY_NAME}
-
 if [ ! -f "$SSH_KEY" ] || [ ! -f "$SSH_KEY_PRIVATE" ]; then
-  echo "   Generating dedicated SSH keypair for EC2 access..."
+  echo "🔑 Generating dedicated SSH keypair for EC2 access..."
   mkdir -p ~/.ssh
   chmod 700 ~/.ssh
   ssh-keygen -t ed25519 -f "$SSH_KEY_PRIVATE" -N "" -C "rate-design-platform-ec2-$(date +%Y%m%d)" >/dev/null 2>&1
-  echo "   SSH keypair generated: $SSH_KEY_PRIVATE"
-else
-  echo "   Using existing SSH keypair: $SSH_KEY_PRIVATE"
+  echo "   SSH keypair: $SSH_KEY_PRIVATE"
+  echo ""
 fi
 
-if [ -f "$SSH_KEY" ]; then
-  SSH_KEY_CONTENT=$(cat "$SSH_KEY" | sed 's/"/\\"/g')
+if [ "$NEEDS_SETUP" = true ]; then
+  # Create/setup user account via SSM
+  echo "👤 Setting up user account..."
+  echo "   User: $LINUX_USERNAME"
+  echo "   Home: $USER_HOME"
+  TEMP_SCRIPT=$(mktemp)
+  printf '#!/bin/bash\nset -eu\nUSER_HOME="%s"\nLINUX_USERNAME="%s"\nif ! id "$LINUX_USERNAME" &>/dev/null; then\n  echo "Creating user account: $LINUX_USERNAME"\n  mkdir -p "$USER_HOME"\n  useradd -d "$USER_HOME" -s /bin/bash "$LINUX_USERNAME"\n  usermod -aG sudo "$LINUX_USERNAME"\n  chown -R "$LINUX_USERNAME:$LINUX_USERNAME" "$USER_HOME"\n  chmod 755 "$USER_HOME"\n  echo "User created and added to sudo group"\nelse\n  echo "User account already exists: $LINUX_USERNAME"\n  usermod -aG sudo "$LINUX_USERNAME" 2>/dev/null || true\n  echo "Ensured user is in sudo group"\nfi\n' "$USER_HOME" "$LINUX_USERNAME" >"$TEMP_SCRIPT"
+  SCRIPT_B64=$(base64 <"$TEMP_SCRIPT" | tr -d '\n')
+  rm -f "$TEMP_SCRIPT"
+  echo "   Script encoded (length: ${#SCRIPT_B64} chars)"
+  echo "   Sending SSM command..."
+  COMMAND_ID=$(aws ssm send-command \
+    --instance-ids "$INSTANCE_ID" \
+    --document-name "AWS-RunShellScript" \
+    --parameters "commands=[\"echo $SCRIPT_B64 | base64 -d | bash\"]" \
+    --query 'Command.CommandId' \
+    --output text 2>/dev/null)
+
+  if [ -z "$COMMAND_ID" ]; then
+    echo "   ERROR: Failed to send SSM command" >&2
+    exit 1
+  fi
+
+  echo "   Command ID: $COMMAND_ID"
+  echo "   Waiting for user creation to complete..."
+
+  for i in {1..30}; do
+    STATUS=$(aws ssm get-command-invocation \
+      --command-id "$COMMAND_ID" \
+      --instance-id "$INSTANCE_ID" \
+      --query 'Status' \
+      --output text 2>/dev/null || echo "InProgress")
+
+    if [ "$STATUS" = "Success" ]; then
+      OUTPUT=$(aws ssm get-command-invocation \
+        --command-id "$COMMAND_ID" \
+        --instance-id "$INSTANCE_ID" \
+        --query 'StandardOutputContent' \
+        --output text 2>/dev/null || echo "")
+      if [ -n "$OUTPUT" ]; then
+        echo "   $OUTPUT"
+      fi
+      break
+    elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
+      ERROR_OUTPUT=$(aws ssm get-command-invocation \
+        --command-id "$COMMAND_ID" \
+        --instance-id "$INSTANCE_ID" \
+        --query 'StandardErrorContent' \
+        --output text 2>/dev/null || echo "")
+      echo "   ERROR: User creation command failed!" >&2
+      if [ -n "$ERROR_OUTPUT" ]; then
+        echo "   $ERROR_OUTPUT" >&2
+      fi
+      exit 1
+    fi
+    sleep 1
+  done
+
+  # Set up oh-my-zsh for this user
+  echo "🐚 Setting up oh-my-zsh for $LINUX_USERNAME..."
+  OMZ_TEMP=$(mktemp)
+  printf '#!/bin/bash\nset -eu\nfor i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24; do\n  [ -x /usr/local/bin/setup-ohmyzsh-for-user.sh ] && break\n  sleep 5\ndone\nrunuser -u %s -- /usr/local/bin/setup-ohmyzsh-for-user.sh %s\n' "$LINUX_USERNAME" "$USER_HOME" >"$OMZ_TEMP"
+  OMZ_B64=$(base64 <"$OMZ_TEMP" | tr -d '\n')
+  rm -f "$OMZ_TEMP"
+  OMZ_CMD_ID=$(aws ssm send-command \
+    --instance-ids "$INSTANCE_ID" \
+    --document-name "AWS-RunShellScript" \
+    --parameters "commands=[\"echo $OMZ_B64 | base64 -d | bash\"]" \
+    --query 'Command.CommandId' \
+    --output text 2>/dev/null) || true
+  OMZ_OK=false
+  if [ -n "$OMZ_CMD_ID" ]; then
+    for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+      STATUS=$(aws ssm get-command-invocation --command-id "$OMZ_CMD_ID" --instance-id "$INSTANCE_ID" --query 'Status' --output text 2>/dev/null || echo "InProgress")
+      [ "$STATUS" = "Success" ] && OMZ_OK=true && break
+      [ "$STATUS" = "Failed" ] && break
+      sleep 10
+    done
+  fi
+  if [ "$OMZ_OK" = true ]; then
+    aws ssm send-command \
+      --instance-ids "$INSTANCE_ID" \
+      --document-name "AWS-RunShellScript" \
+      --parameters "commands=[\"chsh -s /usr/bin/zsh $LINUX_USERNAME 2>/dev/null || true\"]" \
+      --output text >/dev/null
+  fi
+  sleep 2
+
+  # Ensure user is in sudo group, configure passwordless sudo, and ensure S3 mount
+  echo "🔧 Configuring user access..."
   aws ssm send-command \
     --instance-ids "$INSTANCE_ID" \
     --document-name "AWS-RunShellScript" \
     --parameters "commands=[
-            'bash -c \"set -eu; USER_HOME=\\\"$USER_HOME\\\"; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; SSH_KEY=\\\"$SSH_KEY_CONTENT\\\"; mkdir -p \\\"\\\$USER_HOME/.ssh\\\"; chmod 700 \\\"\\\$USER_HOME/.ssh\\\"; chown \\\"\\\$LINUX_USERNAME:\\\$LINUX_USERNAME\\\" \\\"\\\$USER_HOME/.ssh\\\"; if ! grep -qF \\\"\\\$SSH_KEY\\\" \\\"\\\$USER_HOME/.ssh/authorized_keys\\\" 2>/dev/null; then echo \\\"\\\$SSH_KEY\\\" >> \\\"\\\$USER_HOME/.ssh/authorized_keys\\\"; chmod 600 \\\"\\\$USER_HOME/.ssh/authorized_keys\\\"; chown \\\"\\\$LINUX_USERNAME:\\\$LINUX_USERNAME\\\" \\\"\\\$USER_HOME/.ssh/authorized_keys\\\"; fi\"'
-        ]" \
+        'bash -c \"set -eu; usermod -aG sudo \\\"$LINUX_USERNAME\\\" 2>/dev/null || true; echo \\\"$LINUX_USERNAME ALL=(ALL) NOPASSWD:ALL\\\" > /etc/sudoers.d/$LINUX_USERNAME; chmod 440 /etc/sudoers.d/$LINUX_USERNAME; mountpoint -q /data.sb || mount /data.sb 2>/dev/null || true\"'
+    ]" \
     --output text >/dev/null
   sleep 2
-  echo "   SSH key configured on instance"
+
+  # Forward local git config to remote instance
+  LOCAL_GIT_EMAIL=$(git config --global user.email 2>/dev/null || echo "")
+  LOCAL_GIT_NAME=$(git config --global user.name 2>/dev/null || echo "")
+  if [ -n "$LOCAL_GIT_EMAIL" ] || [ -n "$LOCAL_GIT_NAME" ]; then
+    echo "🔧 Forwarding local git config..."
+    aws ssm send-command \
+      --instance-ids "$INSTANCE_ID" \
+      --document-name "AWS-RunShellScript" \
+      --parameters "commands=[
+            'bash -c \"set -eu; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; USER_HOME=\\\"$USER_HOME\\\"; GIT_EMAIL=\\\"$LOCAL_GIT_EMAIL\\\"; GIT_NAME=\\\"$LOCAL_GIT_NAME\\\"; if [ -n \\\"\\\$GIT_EMAIL\\\" ]; then runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git config --global user.email \\\"\\\$GIT_EMAIL\\\"; echo \\\"   git user.email: \\\$GIT_EMAIL\\\"; fi; if [ -n \\\"\\\$GIT_NAME\\\" ]; then runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git config --global user.name \\\"\\\$GIT_NAME\\\"; echo \\\"   git user.name: \\\$GIT_NAME\\\"; fi\"'
+        ]" \
+      --output text >/dev/null
+    echo "   ✅ Git config synced from local machine"
+  fi
+  echo
+
+  # Clone repo on first login
+  echo "📦 Setting up development environment..."
+  REPO_URL="https://github.com/switchbox-data/rate-design-platform.git"
+  REPO_COMMAND_ID=$(aws ssm send-command \
+    --instance-ids "$INSTANCE_ID" \
+    --document-name "AWS-RunShellScript" \
+    --parameters "commands=[
+        'bash -c \"set -eu; REPO_DIR=\\\"$REPO_DIR\\\"; REPO_URL=\\\"$REPO_URL\\\"; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; if [ -d \\\"\\\$REPO_DIR/.git\\\" ]; then echo \\\"Repository already exists\\\"; else echo \\\"Cloning repository...\\\"; runuser -u \\\"\\\$LINUX_USERNAME\\\" -- git clone \\\"\\\$REPO_URL\\\" \\\"\\\$REPO_DIR\\\"; echo \\\"Repository cloned. Run: gh auth login && uv sync --python 3.13\\\"; fi\"'
+    ]" \
+    --query 'Command.CommandId' \
+    --output text 2>/dev/null)
+
+  if [ -n "$REPO_COMMAND_ID" ]; then
+    echo "   Waiting for repository setup..."
+    for i in {1..60}; do
+      STATUS=$(aws ssm get-command-invocation \
+        --command-id "$REPO_COMMAND_ID" \
+        --instance-id "$INSTANCE_ID" \
+        --query 'Status' \
+        --output text 2>/dev/null || echo "Pending")
+
+      if [ "$STATUS" = "Success" ]; then
+        OUTPUT=$(aws ssm get-command-invocation \
+          --command-id "$REPO_COMMAND_ID" \
+          --instance-id "$INSTANCE_ID" \
+          --query 'StandardOutputContent' \
+          --output text 2>/dev/null || echo "")
+        if echo "$OUTPUT" | grep -q "already exists"; then
+          echo "   ✅ Repository ready"
+          REPO_CLONED=false
+        else
+          echo "   ✅ Repository cloned"
+          REPO_CLONED=true
+        fi
+        break
+      elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
+        echo "   ❌ Repository setup failed!"
+        AWS_PAGER="" aws ssm get-command-invocation \
+          --command-id "$REPO_COMMAND_ID" \
+          --instance-id "$INSTANCE_ID" \
+          --query 'StandardErrorContent' \
+          --output text 2>/dev/null || true
+        break
+      fi
+      sleep 2
+    done
+  fi
+
+  echo ""
+
+  # Verify user exists
+  echo "   Verifying user account exists..."
+  USER_EXISTS=false
+  MAX_RETRIES=20
+
+  for i in $(seq 1 $MAX_RETRIES); do
+    VERIFY_COMMAND_ID=$(aws ssm send-command \
+      --instance-ids "$INSTANCE_ID" \
+      --document-name "AWS-RunShellScript" \
+      --parameters "commands=['bash -c \"if id \\\"$LINUX_USERNAME\\\" >/dev/null 2>&1; then echo EXISTS; else echo NOT_EXISTS; fi\"']" \
+      --query 'Command.CommandId' \
+      --output text 2>/dev/null)
+
+    if [ -n "$VERIFY_COMMAND_ID" ]; then
+      sleep 3
+      OUTPUT=$(aws ssm get-command-invocation \
+        --command-id "$VERIFY_COMMAND_ID" \
+        --instance-id "$INSTANCE_ID" \
+        --query 'StandardOutputContent' \
+        --output text 2>/dev/null || echo "")
+
+      if echo "$OUTPUT" | grep -q "EXISTS"; then
+        USER_EXISTS=true
+        echo "   User account verified"
+        break
+      else
+        if [ $i -lt $MAX_RETRIES ]; then
+          echo "   User not found yet, retrying... ($i/$MAX_RETRIES)"
+        fi
+      fi
+    fi
+
+    sleep 2
+  done
+
+  if [ "$USER_EXISTS" = false ]; then
+    echo "   ERROR: User account '$LINUX_USERNAME' does not exist after $MAX_RETRIES attempts" >&2
+    echo "   The user creation may have failed. Check the SSM command output." >&2
+    exit 1
+  fi
+  echo
+
+  # Remediation: if user has no .zshrc, run oh-my-zsh setup now
+  REMEDIATE_CMD_ID=$(aws ssm send-command \
+    --instance-ids "$INSTANCE_ID" \
+    --document-name "AWS-RunShellScript" \
+    --parameters "commands=[\"if [ ! -f $USER_HOME/.zshrc ] && [ -x /usr/local/bin/setup-ohmyzsh-for-user.sh ]; then runuser -u $LINUX_USERNAME -- /usr/local/bin/setup-ohmyzsh-for-user.sh $USER_HOME; chsh -s /usr/bin/zsh $LINUX_USERNAME 2>/dev/null || true; fi\"]" \
+    --query 'Command.CommandId' \
+    --output text 2>/dev/null) || true
+  if [ -n "$REMEDIATE_CMD_ID" ]; then
+    for _ in 1 2 3 4 5; do
+      RSTATUS=$(aws ssm get-command-invocation --command-id "$REMEDIATE_CMD_ID" --instance-id "$INSTANCE_ID" --query 'Status' --output text 2>/dev/null || echo "InProgress")
+      [ "$RSTATUS" = "Success" ] || [ "$RSTATUS" = "Failed" ] && break
+      sleep 5
+    done
+  fi
+
+  # Push public key to instance (local keypair ensured before this block)
+  echo "Setting up SSH access for Cursor..."
+  echo "   Using SSH keypair: $SSH_KEY_PRIVATE"
+
+  if [ -f "$SSH_KEY" ]; then
+    SSH_KEY_CONTENT=$(cat "$SSH_KEY" | sed 's/"/\\"/g')
+    aws ssm send-command \
+      --instance-ids "$INSTANCE_ID" \
+      --document-name "AWS-RunShellScript" \
+      --parameters "commands=[
+            'bash -c \"set -eu; USER_HOME=\\\"$USER_HOME\\\"; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; SSH_KEY=\\\"$SSH_KEY_CONTENT\\\"; mkdir -p \\\"\\\$USER_HOME/.ssh\\\"; chmod 700 \\\"\\\$USER_HOME/.ssh\\\"; chown \\\"\\\$LINUX_USERNAME:\\\$LINUX_USERNAME\\\" \\\"\\\$USER_HOME/.ssh\\\"; if ! grep -qF \\\"\\\$SSH_KEY\\\" \\\"\\\$USER_HOME/.ssh/authorized_keys\\\" 2>/dev/null; then echo \\\"\\\$SSH_KEY\\\" >> \\\"\\\$USER_HOME/.ssh/authorized_keys\\\"; chmod 600 \\\"\\\$USER_HOME/.ssh/authorized_keys\\\"; chown \\\"\\\$LINUX_USERNAME:\\\$LINUX_USERNAME\\\" \\\"\\\$USER_HOME/.ssh/authorized_keys\\\"; fi\"'
+        ]" \
+      --output text >/dev/null
+    sleep 2
+    echo "   SSH key configured on instance"
+  fi
+
+  echo "   Writing instance setup marker (fast path next time)..."
+  MARKER_TOUCH_ID=$(aws ssm send-command \
+    --instance-ids "$INSTANCE_ID" \
+    --document-name "AWS-RunShellScript" \
+    --parameters "commands=[\"runuser -u $LINUX_USERNAME -- touch \\\"$SETUP_MARKER\\\"\"]" \
+    --query 'Command.CommandId' \
+    --output text 2>/dev/null || echo "")
+  if [ -n "$MARKER_TOUCH_ID" ]; then
+    for _ in {1..15}; do
+      MTSTATUS=$(aws ssm get-command-invocation \
+        --command-id "$MARKER_TOUCH_ID" \
+        --instance-id "$INSTANCE_ID" \
+        --query 'Status' \
+        --output text 2>/dev/null || echo "InProgress")
+      [ "$MTSTATUS" = "Success" ] && break
+      [ "$MTSTATUS" = "Failed" ] || [ "$MTSTATUS" = "Cancelled" ] && break
+      sleep 1
+    done
+  fi
+
 fi
 
-# Configure SSH config for SSM port forwarding
-LOCAL_SSH_PORT=2222
+# Configure SSH config with SSM ProxyCommand (replaces port-forwarding, which
+# had a busy-polling loop that macOS killed under load via CPU wake limits)
 if [ -f "$SSH_KEY" ]; then
   mkdir -p ~/.ssh
   chmod 700 ~/.ssh
@@ -411,95 +474,22 @@ if [ -f "$SSH_KEY" ]; then
 
   {
     echo "Host rate-design-platform"
-    echo "    HostName localhost"
-    echo "    Port $LOCAL_SSH_PORT"
+    echo "    HostName $INSTANCE_ID"
     echo "    User $LINUX_USERNAME"
     echo "    IdentityFile $SSH_KEY_PRIVATE"
     echo "    StrictHostKeyChecking no"
     echo "    UserKnownHostsFile /dev/null"
+    echo "    ProxyCommand aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p'"
     echo ""
   } >>~/.ssh/config
   chmod 600 ~/.ssh/config
-  echo "   SSH config updated for SSM port forwarding (localhost:$LOCAL_SSH_PORT)"
-fi
-
-REPO_DIR="$USER_HOME/rate-design-platform"
-
-start_port_forwarding() {
-  echo "📡 Starting SSM port forwarding in background..."
-  echo "   Forwarding local port $LOCAL_SSH_PORT to SSH (port 22) on the instance"
-
-  nohup aws ssm start-session \
-    --target "$INSTANCE_ID" \
-    --document-name "AWS-StartPortForwardingSession" \
-    --parameters "{\"portNumber\":[\"22\"],\"localPortNumber\":[\"$LOCAL_SSH_PORT\"]}" \
-    >/tmp/ssm-port-forward-${INSTANCE_ID}.log 2>&1 &
-  SSM_PID=$!
-
-  echo "   Waiting for port forwarding to establish..."
-  for i in {1..20}; do
-    sleep 1
-    if command -v lsof >/dev/null 2>&1; then
-      if lsof -i ":$LOCAL_SSH_PORT" >/dev/null 2>&1; then
-        echo "   ✅ Port forwarding active (PID: $SSM_PID)"
-        echo "   Logs: /tmp/ssm-port-forward-${INSTANCE_ID}.log"
-        return 0
-      fi
-    elif command -v netstat >/dev/null 2>&1; then
-      if netstat -an 2>/dev/null | grep -q ":$LOCAL_SSH_PORT.*LISTEN"; then
-        echo "   ✅ Port forwarding active (PID: $SSM_PID)"
-        return 0
-      fi
-    fi
-  done
-
-  echo "   ⚠️  Port forwarding may not be ready yet, but continuing..."
-  return 1
-}
-
-kill_port_process() {
-  if command -v lsof >/dev/null 2>&1; then
-    local PID=$(lsof -ti ":$LOCAL_SSH_PORT" 2>/dev/null || echo "")
-    if [ -n "$PID" ]; then
-      echo "   Killing stale process on port $LOCAL_SSH_PORT (PID: $PID)"
-      kill $PID 2>/dev/null || true
-      sleep 2
-    fi
-  fi
-}
-
-PORT_IN_USE=false
-if command -v lsof >/dev/null 2>&1; then
-  if lsof -i ":$LOCAL_SSH_PORT" >/dev/null 2>&1; then
-    PORT_IN_USE=true
-  fi
-elif command -v netstat >/dev/null 2>&1; then
-  if netstat -an 2>/dev/null | grep -q ":$LOCAL_SSH_PORT.*LISTEN"; then
-    PORT_IN_USE=true
-  fi
-fi
-
-if [ "$PORT_IN_USE" = true ]; then
-  echo "🔍 Port $LOCAL_SSH_PORT is in use, testing existing tunnel..."
-  if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    -i "$SSH_KEY_PRIVATE" -p $LOCAL_SSH_PORT "$LINUX_USERNAME@localhost" "echo test" >/dev/null 2>&1; then
-    echo "   ✅ Existing tunnel is working"
-  else
-    echo "   ⚠️  Existing tunnel is stale, restarting..."
-    kill_port_process
-    start_port_forwarding
-  fi
-  echo ""
-else
-  start_port_forwarding
-  echo ""
+  echo "   SSH config updated (SSM ProxyCommand → $INSTANCE_ID)"
 fi
 
 echo "🔍 Verifying SSH connection..."
 SSH_TEST_SUCCESS=false
 for i in {1..10}; do
-  if ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    -i "$SSH_KEY_PRIVATE" -p $LOCAL_SSH_PORT "$LINUX_USERNAME@localhost" "echo test" >/dev/null 2>&1; then
+  if ssh -o ConnectTimeout=10 rate-design-platform "echo test" >/dev/null 2>&1; then
     SSH_TEST_SUCCESS=true
     echo "   ✅ SSH connection verified"
     break
@@ -522,9 +512,7 @@ if [ "$SSH_TEST_SUCCESS" = true ] && [ "${REPO_CLONED:-false}" = true ]; then
   FIRST_LOGIN_SCRIPT="$SCRIPT_DIR/first-login.sh"
   if [ -f "$FIRST_LOGIN_SCRIPT" ]; then
     echo "🚀 Running first-login setup (gh auth + uv sync)..."
-    ssh -t -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      -i "$SSH_KEY_PRIVATE" -p $LOCAL_SSH_PORT "$LINUX_USERNAME@localhost" \
-      'bash -s' <"$FIRST_LOGIN_SCRIPT"
+    ssh -t rate-design-platform 'bash -s' <"$FIRST_LOGIN_SCRIPT"
     echo ""
   fi
 fi
@@ -534,18 +522,9 @@ if command -v cursor >/dev/null 2>&1 && [ -f "$SSH_KEY" ]; then
   echo "Opening Cursor with remote workspace..."
   if cursor --remote ssh-remote+rate-design-platform "$REPO_DIR" 2>/dev/null; then
     echo "   ✅ Cursor opened successfully"
-    echo ""
-    echo "   💡 Keep the SSM port forwarding session running while using Cursor"
-    if [ -n "${SSM_PID:-}" ]; then
-      echo "   To stop port forwarding: kill $SSM_PID"
-    fi
   else
     echo "   ⚠️  Could not open Cursor remotely"
-    echo ""
     echo "   You can manually connect in Cursor to: ssh-remote+rate-design-platform"
-    if [ -n "${SSM_PID:-}" ]; then
-      echo "   Port forwarding is running (PID: $SSM_PID)"
-    fi
   fi
 else
   echo ""
@@ -558,9 +537,6 @@ else
     echo "     curl https://cursor.com/install -fsS | bash"
     echo ""
   fi
-  if [ -n "${SSM_PID:-}" ]; then
-    echo "   Port forwarding is running in background (PID: $SSM_PID)"
-  fi
 fi
 echo ""
 
@@ -568,7 +544,6 @@ echo ""
 echo "Opening interactive session..."
 echo "   (Press Ctrl+D to exit)"
 echo ""
-# Use user's login shell (zsh after oh-my-zsh setup), not bash
 aws ssm start-session \
   --target "$INSTANCE_ID" \
   --document-name "AWS-StartInteractiveCommand" \

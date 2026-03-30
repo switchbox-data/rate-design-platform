@@ -1,15 +1,15 @@
 utility: cenhud
 group_col: has_hp
-source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/cenhud/ny_20260323a_r1-16/20260323_201320_ny_cenhud_run1_up00_precalc__default
+cross_subsidy_col: BAT_percustomer
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/cenhud/ny_20260326_flex_r1-16/20260326_210933_ny_cenhud_run1_up00_precalc__default
 total_delivery_revenue_requirement: 418151641.73
 total_delivery_and_supply_revenue_requirement: 646688375.32
 subclass_revenue_requirements:
-  delivery:
-    percustomer:
-      non-hp: 401392812.56143004
-      hp: 16758829.168569993
-  supply:
-    passthrough: &id001
-      non-hp: 209823391.60389036
-      hp: 18713341.9861097
-    percustomer: *id001
+  non-hp:
+    delivery: 401392812.56143016
+    supply: 209823391.60389036
+    total: 611216204.1653205
+  hp:
+    delivery: 16758829.168569997
+    supply: 18713341.986109704
+    total: 35472171.1546797
