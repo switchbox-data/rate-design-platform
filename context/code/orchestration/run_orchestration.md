@@ -56,7 +56,7 @@ all-pre  (create-scenario-yamls, create-electric-tariff-maps-all, validate-confi
   │
   ├─ run-1  (precalc default, delivery)
   │    │
-  │    ├─ compute-rev-requirements  ← computes differentiated rev requirement YAML from run-1 BAT output
+  │    ├─ compute-subclass-rev-requirements  ← computes differentiated rev requirement YAML from run-1 BAT output
   │    │    (needed by runs 5, 6, 9, 10, 13, 14 -- all multi-tariff precalc runs)
   │    │
   │    ├─ run-3  (default calibrated, delivery)             ← copies calibrated tariff from run-1
@@ -265,7 +265,7 @@ RDP_BATCH=ny_20260305c_r1-8 just run-subset 1,2,5,6
 ```
 
 Delegates to `run-<N>` recipes, so dependency logic (copy calibrated tariffs,
-etc.) is preserved. Note: `compute-rev-requirements` is not auto-inserted; if
+etc.) is preserved. Note: `compute-subclass-rev-requirements` is not auto-inserted; if
 the subset spans runs 1-2 and 3+, run it separately.
 
 ## Monitoring
@@ -346,5 +346,5 @@ end-to-end wall time (see Parallel tracks below).
 pairs (6 waves of 2), each pair using half the available CPUs. This beats the sequential
 strategy when T4/T8 < 1.8 (see `cairo_parallelism_and_workers.md` for measured ratio).
 File conflicts: none — each wave pair writes to distinct tariff files and timestamped S3
-output directories. The `compute-rev-requirements` step remains serial between wave 1 and
+output directories. The `compute-subclass-rev-requirements` step remains serial between wave 1 and
 wave 2 (it reads run-1 output and is fast; runs 5, 6, 9, and 10 all depend on it).

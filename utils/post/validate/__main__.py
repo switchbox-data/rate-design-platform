@@ -421,9 +421,10 @@ def _validate_block(
             )
             total_rr = None
 
+        subclass_rr_raw = None
         subclass_rr = None
         if has_sub and total_rr is not None:
-            subclass_rr, sub_rr_ok = _safe_execute(
+            subclass_rr_raw, sub_rr_ok = _safe_execute(
                 "load_revenue_requirement (subclass)",
                 load_revenue_requirement,
                 state,
@@ -431,7 +432,32 @@ def _validate_block(
                 f"{utility}_hp_vs_nonhp.yaml",
             )
             if not sub_rr_ok:
-                subclass_rr = None
+                subclass_rr_raw = None
+            if subclass_rr_raw is not None:
+                from utils.scenario_config import resolve_subclass_rr_for_validation
+
+                try:
+                    resolved = resolve_subclass_rr_for_validation(
+                        subclass_rr_raw, "delivery"
+                    )
+                    subclass_rr = {
+                        "subclass_revenue_requirements": resolved,
+                    }
+                    if "total_delivery_revenue_requirement" in subclass_rr_raw:
+                        subclass_rr["total_delivery_revenue_requirement"] = (
+                            subclass_rr_raw["total_delivery_revenue_requirement"]
+                        )
+                    if (
+                        "total_delivery_and_supply_revenue_requirement"
+                        in subclass_rr_raw
+                    ):
+                        subclass_rr["total_delivery_and_supply_revenue_requirement"] = (
+                            subclass_rr_raw[
+                                "total_delivery_and_supply_revenue_requirement"
+                            ]
+                        )
+                except Exception:
+                    subclass_rr = subclass_rr_raw
 
         for run_num, _, config, meta, bills in runs:
             run_dir = block_dir / f"run_{run_num}"

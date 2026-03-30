@@ -50,6 +50,16 @@ apt-get install -y \
   gh \
   zsh
 
+# Install Google Chrome (Ubuntu 22.04's chromium-browser is a snap stub that
+# fails on EC2; Google's apt repo provides a real .deb).
+# Needed by website-diff (Selenium) for Plotly chart pre-rendering.
+curl -fsSL https://dl.google.com/linux/linux_signing_key.pub |
+  gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
+  >/etc/apt/sources.list.d/google-chrome.list
+apt-get update
+apt-get install -y google-chrome-stable
+
 # Install AWS CLI v2 (official installer; apt awscli is v1)
 if ! command -v aws &>/dev/null || [ "$(aws --version 2>&1 | grep -o 'aws-cli/[0-9]*' | cut -d/ -f2)" = "1" ]; then
   echo "Installing AWS CLI v2..."

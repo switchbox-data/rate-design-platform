@@ -12,11 +12,13 @@ import datetime as dt
 import logging
 import resource
 import time
+from functools import reduce
 from pathlib import Path
 from typing import Any, cast
 
 import cairo.rates_tool.loads as _cairo_loads
 import cairo.rates_tool.lookups as _cairo_sim_lookups
+import cairo.rates_tool.postprocessing as _cairo_postproc
 import cairo.rates_tool.system_revenues as _cairo_sysrev
 import cairo.rates_tool.systemsimulator as _cairo_sim
 import numpy as np
@@ -1072,4 +1074,294 @@ _cairo_loads.process_residential_hourly_demand = cast(
 log.info(
     "PATCH_APPLIED cairo.rates_tool.loads.process_residential_hourly_demand -> %s",
     _patched_process_residential_hourly_demand.__name__,
+)
+
+# ---------------------------------------------------------------------------
+# Phase 6: EPMC residual allocation + disable broken peak
+# ---------------------------------------------------------------------------
+# Adds equi-proportional marginal cost (EPMC) residual allocation to
+# CAIRO's cross-subsidization postprocessor.  EPMC allocates the residual
+# in proportion to each customer's economic burden:
+#   R_i = R * (EB_i / sum(EB_j * weight_j))
+# This is equivalent to scaling all MC-based rates by K = TRR / MC_Revenue.
+#
+# Also disables the broken peak residual allocation to free up compute.
+
+_postproc_log = logging.getLogger("rates_analysis").getChild("postprocessing")
+
+
+def _allocate_residual_epmc(
+    self: Any,
+    building_metadata: pd.DataFrame,
+    annual_customer_economic_burden: pd.Series,
+    costs_by_type: pd.Series,
+) -> pd.Series | None:
+    """Allocate residual costs in proportion to economic burden (EPMC).
+
+    R_i = R * (EB_i / sum(EB_j * weight_j))
+
+    Equivalent to scaling all MC-based rates by a uniform factor
+    K = TRR / MC_Revenue.  Mirrors the structure of CAIRO's existing
+    _allocate_residual_volumetric and _allocate_residual_percustomer.
+    """
+    eb_weighted = pd.merge(
+        annual_customer_economic_burden,
+        building_metadata.set_index("bldg_id")[["weight"]],
+        left_index=True,
+        right_index=True,
+        how="left",
+    )
+    denominator = eb_weighted.prod(axis=1).sum()
+    if denominator == 0:
+        return None
+    epmc_rate = costs_by_type["Residual Costs ($)"] / denominator
+    share = annual_customer_economic_burden.mul(epmc_rate)
+    share.name = "customer_level_residual_share_epmc"
+    return share
+
+
+_orig_determine_residual = _cairo_postproc.InternalCrossSubsidizationProcessor._determine_residual_cost_allocation
+
+
+def _patched_determine_residual_cost_allocation(
+    self: Any,
+    building_metadata: pd.DataFrame,
+    raw_hourly_load: pd.DataFrame,
+    marginal_system_prices: pd.DataFrame,
+    costs_by_type: pd.Series,
+    annual_customer_economic_burden: pd.Series,
+) -> pd.Series | pd.DataFrame:
+    """Patched residual allocation: adds EPMC, disables broken peak."""
+    vol = self._allocate_residual_volumetric(
+        building_metadata, raw_hourly_load, costs_by_type
+    )
+    # peak = self._allocate_residual_peak(
+    #     building_metadata, raw_hourly_load, marginal_system_prices, costs_by_type
+    # )
+    percust = self._allocate_residual_percustomer(building_metadata, costs_by_type)
+    epmc = self._allocate_residual_epmc(
+        building_metadata, annual_customer_economic_burden, costs_by_type
+    )
+
+    parts: list[pd.Series | pd.DataFrame] = [vol, percust]
+    # if peak is not None:
+    #     parts.append(peak)
+    if epmc is not None:
+        parts.append(epmc)
+
+    return reduce(
+        lambda left, right: pd.merge(
+            left, right, left_index=True, right_index=True, how="left"
+        ),
+        parts,
+    )
+
+
+_orig_return_eb_and_residual = _cairo_postproc.InternalCrossSubsidizationProcessor._return_customer_level_economic_burden_and_residual_share
+
+
+def _patched_return_eb_and_residual(
+    self: Any,
+    building_metadata: pd.DataFrame,
+    raw_hourly_load: pd.DataFrame,
+    marginal_system_prices: pd.DataFrame,
+    costs_by_type: pd.Series,
+) -> tuple[pd.Series, pd.DataFrame]:
+    """Patched: computes EB first, then threads it into residual allocation."""
+    annual_customer_economic_burden = self._determine_marginal_cost_allocation(
+        raw_hourly_load, marginal_system_prices
+    )
+    annual_customer_residual_share = self._determine_residual_cost_allocation(
+        building_metadata,
+        raw_hourly_load,
+        marginal_system_prices,
+        costs_by_type,
+        annual_customer_economic_burden,
+    )
+    return annual_customer_economic_burden, annual_customer_residual_share
+
+
+_orig_return_cross_sub_metrics = _cairo_postproc.InternalCrossSubsidizationProcessor._return_cross_subsidization_metrics
+
+
+def _patched_return_cross_subsidization_metrics(
+    self: Any,
+    building_metadata: pd.DataFrame,
+    raw_hourly_load: pd.DataFrame,
+    marginal_system_prices: pd.DataFrame,
+    costs_by_type: pd.Series,
+    customer_bills: pd.DataFrame,
+    year_run: int,
+) -> None:
+    """Patched: adds BAT_epmc computation and balance check."""
+    economic_burden, residual_share = (
+        self._return_customer_level_economic_burden_and_residual_share(
+            building_metadata,
+            raw_hourly_load,
+            marginal_system_prices,
+            costs_by_type,
+        )
+    )
+
+    bat_df = reduce(
+        lambda left, right: pd.merge(
+            left, right, left_index=True, right_index=True, how="left"
+        ),
+        [
+            customer_bills.set_index("bldg_id")[["Annual"]],
+            economic_burden,
+            residual_share,
+            building_metadata.set_index("bldg_id")[["weight"]],
+        ],
+    )
+
+    bat_df["BAT_vol"] = bat_df["Annual"].sub(
+        bat_df["customer_level_economic_burden"].add(
+            bat_df["customer_level_residual_share_volumetric"]
+        )
+    )
+    if "customer_level_residual_share_peak" in bat_df.columns:
+        bat_df["BAT_peak"] = bat_df["Annual"].sub(
+            bat_df["customer_level_economic_burden"].add(
+                bat_df["customer_level_residual_share_peak"]
+            )
+        )
+    bat_df["BAT_percustomer"] = bat_df["Annual"].sub(
+        bat_df["customer_level_economic_burden"].add(
+            bat_df["customer_level_residual_share_percustomer"]
+        )
+    )
+    if "customer_level_residual_share_epmc" in bat_df.columns:
+        bat_df["BAT_epmc"] = bat_df["Annual"].sub(
+            bat_df["customer_level_economic_burden"].add(
+                bat_df["customer_level_residual_share_epmc"]
+            )
+        )
+
+    if self.run_type == "precalc":
+        if np.round(bat_df["BAT_vol"].mul(bat_df["weight"]).sum(), 1) != 0:
+            _postproc_log.error(
+                "BAT w/ volumetric residual cost allocation imbalanced!"
+            )
+        if "BAT_peak" in bat_df.columns and (
+            np.round(bat_df["BAT_peak"].mul(bat_df["weight"]).sum(), 1) != 0
+        ):
+            _postproc_log.error("BAT w/ peak residual cost allocation imbalanced!")
+        if np.round(bat_df["BAT_percustomer"].mul(bat_df["weight"]).sum(), 1) != 0:
+            _postproc_log.error(
+                "BAT w/ per-customer residual cost allocation imbalanced!"
+            )
+        if "BAT_epmc" in bat_df.columns and (
+            np.round(bat_df["BAT_epmc"].mul(bat_df["weight"]).sum(), 1) != 0
+        ):
+            _postproc_log.error("BAT w/ EPMC residual cost allocation imbalanced!")
+    else:
+        _postproc_log.info(
+            "WARNING: in default mode there is currently no mechanism to ensure BAT aligns!"
+        )
+
+    bat_df["dollar_year"] = year_run
+    bat_df.to_csv(
+        self.save_folder / "cross_subsidization" / "cross_subsidization_BAT_values.csv",
+        index=True,
+    )
+
+    self._return_average_bat_by_segment(building_metadata, bat_df)
+
+
+_orig_calculate_bat_stats = (
+    _cairo_postproc.InternalCrossSubsidizationProcessor.calculate_BAT_stats_by_group
+)
+
+
+def _patched_calculate_bat_stats_by_group(
+    self: Any, metadata_df: pd.DataFrame, bat_df: pd.DataFrame, gcn: str
+) -> pd.DataFrame:
+    """Patched: includes BAT_epmc in segment stats."""
+    from cairo.rates_tool.postprocessing import (
+        _group_summary_bat_formatting,
+        coeff_var,
+        quartile_coeff_of_disp,
+        weighted_avg_by_group,
+    )
+
+    bat_df_grouped = (
+        bat_df.copy().reset_index().merge(metadata_df[["bldg_id", gcn]], on="bldg_id")
+    )
+    bat_cols = [
+        col
+        for col in ("BAT_vol", "BAT_peak", "BAT_percustomer", "BAT_epmc")
+        if col in bat_df_grouped.columns
+    ]
+    if not bat_cols:
+        return pd.DataFrame()
+
+    bat_var_aggs = {col: ["std", coeff_var, quartile_coeff_of_disp] for col in bat_cols}
+    bat_var_df = (
+        bat_df_grouped.set_index("bldg_id")
+        .groupby(gcn)
+        .agg({**bat_var_aggs, "dollar_year": ["first"]})
+    )
+    bat_var_df = _group_summary_bat_formatting(bat_var_df, gcn)
+
+    bat_stats_aggs = {col: ["mean", "median"] for col in bat_cols}
+    bat_stats_df = (
+        bat_df_grouped.set_index("bldg_id")
+        .groupby(gcn)
+        .agg({**bat_stats_aggs, "dollar_year": ["first"]})
+    )
+    bat_stats_df = _group_summary_bat_formatting(bat_stats_df, gcn)
+
+    bat_weight_aggs = {col: [weighted_avg_by_group] for col in bat_cols}
+    bat_stats_w_df = (
+        bat_df_grouped.set_index("weight")
+        .groupby(gcn)
+        .agg({**bat_weight_aggs, "dollar_year": ["first"]})
+    )
+    bat_stats_w_df = _group_summary_bat_formatting(bat_stats_w_df, gcn)
+
+    bat_df_grouped = reduce(
+        lambda left, right: pd.merge(
+            left, right, left_index=True, right_index=True, how="left"
+        ),
+        [bat_stats_df, bat_stats_w_df, bat_var_df],
+    ).reset_index()
+
+    return bat_df_grouped
+
+
+# --- Apply EPMC patches ---
+setattr(
+    _cairo_postproc.InternalCrossSubsidizationProcessor,
+    "_allocate_residual_epmc",
+    _allocate_residual_epmc,
+)
+log.info("PATCH_APPLIED InternalCrossSubsidizationProcessor._allocate_residual_epmc")
+
+_cairo_postproc.InternalCrossSubsidizationProcessor._determine_residual_cost_allocation = cast(
+    Any, _patched_determine_residual_cost_allocation
+)
+log.info(
+    "PATCH_APPLIED InternalCrossSubsidizationProcessor._determine_residual_cost_allocation"
+)
+
+_cairo_postproc.InternalCrossSubsidizationProcessor._return_customer_level_economic_burden_and_residual_share = cast(
+    Any, _patched_return_eb_and_residual
+)
+log.info(
+    "PATCH_APPLIED InternalCrossSubsidizationProcessor._return_customer_level_economic_burden_and_residual_share"
+)
+
+_cairo_postproc.InternalCrossSubsidizationProcessor._return_cross_subsidization_metrics = cast(
+    Any, _patched_return_cross_subsidization_metrics
+)
+log.info(
+    "PATCH_APPLIED InternalCrossSubsidizationProcessor._return_cross_subsidization_metrics"
+)
+
+_cairo_postproc.InternalCrossSubsidizationProcessor.calculate_BAT_stats_by_group = cast(
+    Any, _patched_calculate_bat_stats_by_group
+)
+log.info(
+    "PATCH_APPLIED InternalCrossSubsidizationProcessor.calculate_BAT_stats_by_group"
 )

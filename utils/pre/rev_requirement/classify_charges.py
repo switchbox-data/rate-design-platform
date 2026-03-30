@@ -3,8 +3,8 @@
 
 Reads a *_discovered.json (output of ``fetch_monthly_rates.py --discover``),
 applies pattern-based classification rules derived from
-``context/code/data/ny_residential_charges_in_bat.md`` and
-   ``context/code/data/ri_residential_charges_in_bat.md``, plus utility-specific
+``context/methods/bat_mc_residual/ny_residential_charges_in_bat.md`` and
+   ``context/methods/bat_mc_residual/ri_residential_charges_in_bat.md``, plus utility-specific
 zonal/overlap dedup logic, then writes a hydrated charge_decisions.json.
 
 Supports all NY utilities (CenHud, ConEd, NiMo, NYSEG, O&R, PSEG-LI, RGE)

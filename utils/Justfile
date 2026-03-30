@@ -93,13 +93,12 @@ sweep-tou-window path_supply_energy_mc path_supply_capacity_mc state utility yea
 # =============================================================================
 
 # Revenue requirement YAML outputs from CAIRO BAT results.
-compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yaml_path run_num="1" group_col="has_hp" cross_subsidy_col="BAT_percustomer" group_value_to_subclass="" base_rr_yaml="" run_dir_supply="" resstock_base="" upgrade="00":
+compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yaml_path run_num="1" group_col="has_hp" group_value_to_subclass="" base_rr_yaml="" run_dir_supply="" resstock_base="" upgrade="00":
     uv run python {{ project_root }}/utils/mid/compute_subclass_rr.py \
       --run-dir "{{ run_dir }}" \
       --run-num "{{ run_num }}" \
       --scenario-config "{{ scenario_config }}" \
       --group-col "{{ group_col }}" \
-      --cross-subsidy-col "{{ cross_subsidy_col }}" \
       --differentiated-yaml-path "{{ differentiated_yaml_path }}" \
       --default-yaml-path "{{ default_yaml_path }}" \
       {{ if group_value_to_subclass != "" { "--group-value-to-subclass \"" + group_value_to_subclass + "\"" } else { "" } }} \

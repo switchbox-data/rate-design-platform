@@ -27,5 +27,15 @@
     "**/config/rev_requirement/**",
     "dev_plots",
     "infra"
+  ],
+  "cursorpyright.analysis.diagnosticMode": "openFilesOnly",
+  "cursorpyright.analysis.exclude": [
+    "run_logs",
+    "**/config/tariffs/**",
+    "**/config/scenarios/**",
+    "**/config/tariff_maps/**",
+    "**/config/rev_requirement/**",
+    "dev_plots",
+    "infra"
   ]
 }

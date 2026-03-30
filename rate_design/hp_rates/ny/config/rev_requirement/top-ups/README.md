@@ -42,7 +42,7 @@ belongs in the delivery revenue requirement, the supply revenue requirement, or 
 be excluded from the BAT analysis.
 
 This classification was done through extensive manual research documented in
-`context/code/data/ny_residential_charges_in_bat.md`. The result is one
+`context/methods/bat_mc_residual/ny_residential_charges_in_bat.md`. The result is one
 `<key>_charge_decisions.json` per utility in `charge_decisions/`, where every
 `tariffRateId` is mapped to a `decision`:
 
@@ -154,6 +154,6 @@ To replicate this for a new state/utility:
 1. **Add the utility to `utils/utility_codes.py`** with its EIA utility ID so the fetch script can resolve it to a Genability LSE.
 2. **Add an entry to `tariffs_by_utility.yaml`** in the state's `rev_requirement/top-ups/` directory (use `default` to get the residential default tariff, or a specific `masterTariffId`).
 3. **Fetch the base tariff**: run `fetch-genability-tariffs` with the appropriate effective date.
-4. **Classify every charge** by reading through the tariff JSON and regulatory filings. This is unavoidable manual research — see `context/code/data/ny_residential_charges_in_bat.md` for the kind of analysis required. Document the research in a `context/code/data/<state>_residential_charges_in_bat.md` file, then encode the decisions in a `<key>_charge_decisions.json`.
+4. **Classify every charge** by reading through the tariff JSON and regulatory filings. This is unavoidable manual research — see `context/methods/bat_mc_residual/ny_residential_charges_in_bat.md` for the kind of analysis required. Document the research in a `context/methods/bat_mc_residual/<state>_residential_charges_in_bat.md` file, then encode the decisions in a `<key>_charge_decisions.json`.
 5. **Fetch the monthly rates**: run `fetch-monthly-rates` for the utility.
 6. **Compute the revenue requirement**: run `compute-rr` to produce the topped-up `rev_requirement/<utility>.yaml`.

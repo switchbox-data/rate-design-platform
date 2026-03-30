@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils.mid.compute_subclass_rr import (
+    BAT_METRIC_CHOICES,
     DEFAULT_BAT_METRIC,
     DEFAULT_FLAT_OUTPUT_FILENAME,
     _resolve_path_or_s3,
@@ -65,7 +66,7 @@ def main() -> None:
     parser.add_argument(
         "--cross-subsidy-col",
         default=DEFAULT_BAT_METRIC,
-        choices=("BAT_vol", "BAT_peak", "BAT_percustomer"),
+        choices=BAT_METRIC_CHOICES,
         help="BAT column in cross_subsidization_BAT_values.csv to use.",
     )
     parser.add_argument(
