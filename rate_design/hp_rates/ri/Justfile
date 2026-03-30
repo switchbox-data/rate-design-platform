@@ -60,7 +60,7 @@ build-all-master batch *script_args:
       s=$((d + 1))
       echo ">> master bills+bat for runs ${d}+${s}" >&2
       just build-master-bills-with-lmi "{{ batch }}" "$d" "$s" {{ script_args }}
-      just build-master-bat "{{ batch }}" "$d" "$s"
+      just build-master-bat "{{ batch }}" "$d" "$s" {{ script_args }}
     done
     echo ">> all master bills+bat complete" >&2
 
