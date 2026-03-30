@@ -132,6 +132,8 @@ Match existing style: Ruff for formatting/lint, **ty** for type checking, dprint
 
 **LaTeX in Cursor chat:** When running inside Cursor, use `$$...$$` for display math and `$...$` for inline math. Cursor's chat renderer does not support `\[...\]` or `\(...\)` — the backslashes are consumed by the markdown parser, leaving bare brackets that the math renderer ignores.
 
+**Currency dollar signs in chat:** Cursor's chat renderer treats `$...$` as LaTeX math delimiters. A bare `$` used for currency (e.g. `$1.4M`) will pair with the next `$` on the same or a later line, and everything in between renders as garbled math. **In chat output, always wrap ANY bare `$` in backticks** — not just obvious currency amounts like `$1.4M` and `$6/month`, but also unit notations like `$/kWh`, `$/month`, `$/day`, and any other string containing `$`. If it has a dollar sign and it's not LaTeX math, it needs backticks. This only applies to Cursor chat responses — `.md` files committed to the repo should use bare `$` for currency as usual.
+
 ## Code Quality (required before every commit)
 
 - Run `just check` — no linter errors, no type errors, no warnings
