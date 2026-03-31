@@ -673,6 +673,21 @@ all-pre:
     just create-seasonal-tou-tariffs {{ base_tariff_pattern }}
     just validate-config
 
+# Like all-pre but skips create-default-structure-tariffs, for utilities
+
+# whose default tariffs are hand-edited from rate case filings.
+all-pre-rate-case:
+    just create-scenario-yamls
+    just create-electric-tariff-maps-all
+    just create-gas-tariff-maps-all
+    just ensure-gas-tariff-envelope
+    just compute-rr
+    just create-flat-tariffs
+    just copy-default-flat-to-nonhp-flat-all
+    just copy-default-structure-to-nonhp-all
+    just create-seasonal-tou-tariffs {{ base_tariff_pattern }}
+    just validate-config
+
 run-all-utilities-sequential:
     #!/usr/bin/env bash
     set -euo pipefail
