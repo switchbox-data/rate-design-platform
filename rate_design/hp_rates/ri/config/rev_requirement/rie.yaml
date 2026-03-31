@@ -1,10 +1,10 @@
 utility: rie
 load_method: resstock
-delivery_revenue_requirement_from_rate_case: 171228718.0
+delivery_revenue_requirement_from_rate_case: 159405721.0
 delivery_revenue_requirement_topups: 330633113.36
 supply_revenue_requirement_topups: 412950370.11
-total_delivery_revenue_requirement: 501861831.36
-total_delivery_and_supply_revenue_requirement: 914812201.47
+total_delivery_revenue_requirement: 490038834.36
+total_delivery_and_supply_revenue_requirement: 902989204.47
 total_residential_kwh: 3173819718.1 # sum(resstock_monthly_kwh) * resstock_scale_factor
 eia_total_residential_kwh: 3027334912.0
 eia_year: 2024
