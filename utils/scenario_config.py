@@ -171,6 +171,8 @@ class RevenueRequirementConfig:
     run_includes_subclasses: bool
     residual_allocation_delivery: str | None
     residual_allocation_supply: str | None
+    customer_count_override: float | None = None
+    kwh_scale_factor: float | None = None
 
 
 def _parse_subclass_revenue_requirement(
@@ -362,12 +364,22 @@ def _parse_utility_revenue_requirement(
             residual_allocation_supply=residual_allocation_supply,
         )
 
+    customer_count_override: float | None = None
+    if "test_year_customer_count" in rr_data:
+        customer_count_override = float(rr_data["test_year_customer_count"])
+
+    kwh_scale_factor: float | None = None
+    if "resstock_kwh_scale_factor" in rr_data:
+        kwh_scale_factor = float(rr_data["resstock_kwh_scale_factor"])
+
     return RevenueRequirementConfig(
         rr_total=rr_total,
         subclass_rr=subclass_rr,
         run_includes_subclasses=run_includes_subclasses,
         residual_allocation_delivery=residual_allocation_delivery,
         residual_allocation_supply=residual_allocation_supply,
+        customer_count_override=customer_count_override,
+        kwh_scale_factor=kwh_scale_factor,
     )
 
 
