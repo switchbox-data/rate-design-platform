@@ -789,6 +789,8 @@ def _write_revenue_requirement_yamls(
     total_delivery_rr: float | None = None,
     total_delivery_and_supply_rr: float | None = None,
     heating_type_breakdown: dict[str, dict[str, dict[str, float]]] | None = None,
+    customer_count_override: float | None = None,
+    kwh_scale_factor: float | None = None,
 ) -> tuple[Path, Path]:
     """Write per-subclass revenue requirement YAML with separate delivery/supply blocks.
 
@@ -877,6 +879,10 @@ def _write_revenue_requirement_yamls(
         "group_col": group_col,
         "source_run_dir": str(run_dir),
     }
+    if customer_count_override is not None:
+        differentiated_data["test_year_customer_count"] = customer_count_override
+    if kwh_scale_factor is not None:
+        differentiated_data["resstock_kwh_scale_factor"] = kwh_scale_factor
     if total_delivery_rr is not None:
         differentiated_data["total_delivery_revenue_requirement"] = total_delivery_rr
     if total_delivery_and_supply_rr is not None:
@@ -1078,13 +1084,20 @@ def main() -> None:
 
     total_delivery_rr: float | None = None
     total_delivery_and_supply_rr: float | None = None
+    base_rr_customer_count: float | None = None
+    base_rr_kwh_scale_factor: float | None = None
     if args.base_rr_yaml:
-        with args.base_rr_yaml.open(encoding="utf-8") as f:
+        base_rr_path = args.scenario_config.parent.parent / args.base_rr_yaml
+        with base_rr_path.open(encoding="utf-8") as f:
             base_rr_data = yaml.safe_load(f)
         total_delivery_rr = float(base_rr_data["total_delivery_revenue_requirement"])
         total_delivery_and_supply_rr = float(
             base_rr_data["total_delivery_and_supply_revenue_requirement"]
         )
+        if "test_year_customer_count" in base_rr_data:
+            base_rr_customer_count = float(base_rr_data["test_year_customer_count"])
+        if "resstock_kwh_scale_factor" in base_rr_data:
+            base_rr_kwh_scale_factor = float(base_rr_data["resstock_kwh_scale_factor"])
 
     total_breakdowns: dict[str, pl.DataFrame] | None = None
     if args.run_dir_supply:
@@ -1169,6 +1182,8 @@ def main() -> None:
             total_delivery_rr=total_delivery_rr,
             total_delivery_and_supply_rr=total_delivery_and_supply_rr,
             heating_type_breakdown=heating_type_breakdown,
+            customer_count_override=base_rr_customer_count,
+            kwh_scale_factor=base_rr_kwh_scale_factor,
         )
         print(f"Wrote differentiated YAML: {differentiated_yaml_path}")
         print(f"Wrote default YAML: {default_yaml_path}")

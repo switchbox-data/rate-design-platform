@@ -155,6 +155,46 @@ class TestParserWithSyntheticYAML:
                 residual_allocation_supply="passthrough",
             )
 
+    def test_optional_fields_absent(self, tmp_path: Path) -> None:
+        """When test_year_customer_count / resstock_kwh_scale_factor are absent, fields are None."""
+        rr_yaml = tmp_path / "no_overrides.yaml"
+        rr_yaml.write_text(
+            yaml.safe_dump({"total_delivery_revenue_requirement": 500.0}),
+            encoding="utf-8",
+        )
+        result = _parse_utility_revenue_requirement(
+            str(rr_yaml),
+            tmp_path,
+            raw_path_tariffs_electric={"all": "tariffs/test.json"},
+            add_supply=False,
+            run_includes_subclasses=False,
+        )
+        assert result.customer_count_override is None
+        assert result.kwh_scale_factor is None
+
+    def test_optional_fields_present(self, tmp_path: Path) -> None:
+        """When test_year_customer_count / resstock_kwh_scale_factor are present, they propagate."""
+        rr_yaml = tmp_path / "with_overrides.yaml"
+        rr_yaml.write_text(
+            yaml.safe_dump(
+                {
+                    "total_delivery_revenue_requirement": 500.0,
+                    "test_year_customer_count": 419347.83,
+                    "resstock_kwh_scale_factor": 0.9568,
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = _parse_utility_revenue_requirement(
+            str(rr_yaml),
+            tmp_path,
+            raw_path_tariffs_electric={"all": "tariffs/test.json"},
+            add_supply=False,
+            run_includes_subclasses=False,
+        )
+        assert result.customer_count_override == pytest.approx(419347.83)
+        assert result.kwh_scale_factor == pytest.approx(0.9568)
+
     def test_nested_subclass_format(self, tmp_path: Path) -> None:
         """Delivery/supply format with separate blocks."""
         rr_yaml = tmp_path / "nested.yaml"
