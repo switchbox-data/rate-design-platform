@@ -119,6 +119,8 @@ class ScenarioSettings:
     path_tou_supply_energy_mc: str | Path | None = None
     path_tou_supply_capacity_mc: str | Path | None = None
     path_supply_ancillary_mc: str | Path | None = None
+    customer_count_override: float | None = None
+    kwh_scale_factor: float | None = None
 
 
 def apply_prototype_sample(
@@ -343,6 +345,8 @@ def _build_settings_from_yaml_run(
         path_supply_ancillary_mc=path_supply_ancillary_mc
         if run_includes_supply
         else None,
+        customer_count_override=rr_config.customer_count_override,
+        kwh_scale_factor=rr_config.kwh_scale_factor,
     )
 
 
@@ -559,11 +563,18 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         precalc_mapping = _build_precalc_period_mapping(settings.path_tariffs_electric)
 
     with _timed("return_buildingstock"):
-        customer_count = get_residential_customer_count_from_utility_stats(
-            settings.path_electric_utility_stats,
-            settings.utility,
-            storage_options=_storage_options(),
-        )
+        if settings.customer_count_override is not None:
+            customer_count = settings.customer_count_override
+            log.info(
+                "Using customer_count_override from RR YAML: %.2f",
+                customer_count,
+            )
+        else:
+            customer_count = get_residential_customer_count_from_utility_stats(
+                settings.path_electric_utility_stats,
+                settings.utility,
+                storage_options=_storage_options(),
+            )
         customer_metadata = return_buildingstock(
             load_scenario=settings.path_resstock_metadata,
             building_stock_sample=prototype_ids,
@@ -590,6 +601,13 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             load_filepath_key=bldg_id_to_load_filepath,
             force_tz="EST",
         )
+
+    if settings.kwh_scale_factor is not None:
+        log.info(
+            "Applying kwh_scale_factor=%.6f to electric loads",
+            settings.kwh_scale_factor,
+        )
+        raw_load_elec = raw_load_elec * settings.kwh_scale_factor
 
     # Phase 2 ---------------------------------------------------------------
     # ------------------------------------------------------------------
