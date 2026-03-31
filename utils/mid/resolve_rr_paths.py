@@ -22,12 +22,14 @@ def main() -> None:
     with args.scenario_config.open(encoding="utf-8") as f:
         runs = yaml.safe_load(f)["runs"]
 
-    base = runs[1]["utility_revenue_requirement"]
+    config_dir = args.scenario_config.resolve().parent.parent
+
+    base = config_dir / runs[1]["utility_revenue_requirement"]
 
     diff = None
     for num in sorted(runs):
         if runs[num].get("run_includes_subclasses"):
-            diff = runs[num]["utility_revenue_requirement"]
+            diff = config_dir / runs[num]["utility_revenue_requirement"]
             break
 
     if diff is None:
