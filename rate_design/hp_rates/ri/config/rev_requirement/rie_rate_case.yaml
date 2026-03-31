@@ -1,0 +1,161 @@
+# RIE revenue requirement budgets sourced from rate case filings.
+#
+# Source: Docket 25-45-GE, RIE Book 21, Blazunas Schedules & Workpapers (11/26/2025)
+# https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/?mode=document
+#
+# The filing reports revenues separately for the A-16 and A-60 customer classes.
+# Each total_budget below is the sum of the A-16 and A-60 columns.
+utility: rie
+# --- From p. 2 of PRB-1-ELEC exhibit, line 1, column b ---
+# https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p4/a2809946
+delivery_revenue_requirement_from_rate_case: 159405721.0
+delivery_revenue_requirement_topups: 287057422.03 # sum(delivery_top_ups.total_budget)
+total_delivery_revenue_requirement: 446463143.03 # delivery_revenue_requirement_from_rate_case + delivery_revenue_requirement_topups
+supply_revenue_requirement_topups: 386274344.61 # sum(supply_top_ups.total_budget)
+total_delivery_and_supply_revenue_requirement: 832737487.64 # total_delivery_revenue_requirement + supply_revenue_requirement_topups
+delivery_top_ups:
+  # --- From p. 7 of PRB-1-ELEC exhibit, lines 29-45, columns b-c ---
+  # https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p9/a2809949
+  transmission_charge:
+    charge_unit: $/kWh # $0.04711/kWh
+    budget_method: rate_case
+    total_budget: 132908498.0 # 123,177,085 + 9,731,413
+  transmission_uncollectible:
+    charge_unit: $/kWh # $0.00062/kWh
+    budget_method: rate_case
+    total_budget: 1749167.0 # 1,621,095 + 128,072
+  long_term_contracting_charge:
+    charge_unit: $/kWh # $0.00656/kWh
+    budget_method: rate_case
+    total_budget: 18507318.0 # 17,152,233 + 1,355,085
+  net_metering_charge:
+    charge_unit: $/kWh # $0.01457/kWh
+    budget_method: rate_case
+    total_budget: 41105430.0 # 38,095,736 + 3,009,694
+  energy_efficiency_programs_charge:
+    charge_unit: $/kWh # $0.00892/kWh
+    budget_method: rate_case
+    total_budget: 25165439.0 # 23,322,853 + 1,842,586
+  system_reliability_plan_charge:
+    charge_unit: $/kWh # $0.00163/kWh
+    budget_method: rate_case
+    total_budget: 4598617.0 # 4,261,911 + 336,706
+  renewables_charge:
+    charge_unit: $/kWh # $0.00030/kWh
+    budget_method: rate_case
+    total_budget: 846371.0 # 784,401 + 61,970
+  ee_and_srp_uncollectible_charge:
+    charge_unit: $/kWh # $0.00013/kWh
+    budget_method: rate_case
+    total_budget: 366761.0 # 339,907 + 26,854
+  transition_restructuring:
+    charge_unit: $/kWh # $0.00001/kWh
+    budget_method: rate_case
+    total_budget: 28213.0 # 26,147 + 2,066
+  o_m_charge:
+    charge_unit: $/kWh # $0.00223 + $0.00004 reconciliation = $0.00227/kWh
+    budget_method: rate_case
+    total_budget: 6404209.0 # 5,935,300 + 468,909 (includes O&M reconciliation)
+  storm_fund_replenishment_factor:
+    charge_unit: $/kWh # $0.00788/kWh
+    budget_method: rate_case
+    total_budget: 22231351.0 # 20,603,596 + 1,627,755
+  pension_adjustment_factor:
+    charge_unit: $/kWh # ($0.00339)/kWh
+    budget_method: rate_case
+    total_budget: -9563995.0 # (8,863,730) + (700,265)
+  arrears_arrearage_recovery:
+    charge_unit: $/kWh # $0.00006/kWh
+    budget_method: rate_case
+    total_budget: 169274.0 # 156,880 + 12,394
+  low_income_discounts:
+    charge_unit: $/kWh # A-16: $0.00251/kWh, A-60: $0.00000/kWh
+    budget_method: rate_case
+    total_budget: 6562821.0 # 6,562,821 + 0
+  performance_incentive_factor:
+    charge_unit: $/kWh # $0.00000/kWh
+    budget_method: rate_case
+    total_budget: 0.0 # 0 + 0
+  re_growth_charge:
+    charge_unit: $/month # $3.22/month
+    customer_count: 451381
+    budget_method: rate_case
+    total_budget: 16203601.0 # 14,935,893 + 1,267,708
+  liheap_enhancement_charge:
+    charge_unit: $/month # $0.79/month
+    customer_count: 451381
+    budget_method: rate_case
+    total_budget: 3975417.0 # 3,664,396 + 311,021
+  # --- From p. 15 of PRB-1-ELEC exhibit, line 8-9, column v-w ---
+  # https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p17/a2809982
+  capex_revenue:
+    charge_unit: $/kWh # 0.00832/kwh
+    budget_method: rate_case
+    total_budget: 23472696.0
+  # --- From p. 1 of PRB-4-ELEC exhibit, line 9, column a ---
+  # https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p99/a2809974
+  revenue_decoupling_rdm:
+    charge_unit: $/kWh # ($0.00272)/kWh
+    budget_method: rate_case
+    total_budget: -7673765.97 # $0.00272 * 2,821,237,490 kWh
+supply_top_ups:
+  # --- From p. 1 of PRB-4-ELEC exhibit, line 24-26, column a ---
+  # https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p99/a2809974
+  last_resort_adjustment_factor:
+    charge_unit: $/kWh # $(0.0035)/kWh
+    budget_method: rate_case
+    total_budget: 9874331.22 # $0.0035 * 2,821,237,490 kWh
+  lrs_administrative_cost_adjustment_factor:
+    charge_unit: $/kWh # $0.00256/kWh
+    budget_method: rate_case
+    total_budget: 7222367.97 # $0.00256 * 2,821,237,490 kWh
+  renewable_standard_energy_charge:
+    charge_unit: $/kWh # $0.01461/kWh
+    budget_method: rate_case
+    total_budget: 41218279.73 # $0.01461 * 2,821,237,490 kWh
+  # Computed from resstock_monthly_kwh_scaled_customer_kwh (derived below) × supply_commodity_bundled_rates
+  supply_commodity_bundled:
+    charge_unit: $/kWh
+    budget_method: resstock
+    total_budget: 327959365.69
+# --- From p. 14 of PRB-1-ELEC exhibit, lines 8-9, column k ---
+# https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p16/a2809947
+test_year_residential_kwh: 2821237490.0
+resstock_total_residential_kwh: 3388382407.0 # sum(_sb.load_curves_monthly.out.electricity.total.energy_consumption) where utility = rie
+# --- From p. 14 of PRB-1-ELEC exhibit, lines 8-9, column d ---
+# https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p16/a2809947
+test_year_customer_count: 419347.83 # 5,032,174 bills / 12 month = 419,347.83 customers
+resstock_customer_count: 481896.13 # sum(_sb.utility_assignment.weight) where utility = rie
+restock_customer_scale_factor: 0.8702037719 # test_year_customer_count / resstock_customer_count
+resstock_total_residential_kwh_scaled_customer: 2948583151.21 # resstock_total_residential_kwh * resstock_customer_scale_factor
+resstock_kwh_scale_factor: 0.9568112362177266 # test_year_residential_kwh / resstock_total_residential_kwh_scaled_customer (precision chosen so × line 24 reproduces line 17 in float)
+resstock_total_residential_kwh_scaled_customer_kwh: 2821237490.0 # resstock_total_residential_kwh_scaled_customer * resstock_kwh_scale_factor (= test_year_residential_kwh)
+resstock_monthly_kwh_scaled_customer_kwh: # resstock_monthly_kwh (from rie.yaml) / resstock_scale_factor × restock_customer_scale_factor × resstock_kwh_scale_factor
+  1: 310822490.82
+  2: 237918928.35
+  3: 256725868.86
+  4: 211199240.88
+  5: 195543723.04
+  6: 199077086.59
+  7: 260999438.84
+  8: 263127127.87
+  9: 202375959.42
+  10: 194599079.62
+  11: 225070372.73
+  12: 263778173.23
+# Originally from Genability API (via rie_monthly_rates_2025.yaml)
+supply_commodity_bundled_rates:
+  charge_unit: $/kWh
+  monthly_rates:
+    2025-01: 0.15187
+    2025-02: 0.15187
+    2025-03: 0.15187
+    2025-04: 0.08607
+    2025-05: 0.08607
+    2025-06: 0.08607
+    2025-07: 0.08607
+    2025-08: 0.08607
+    2025-09: 0.08607
+    2025-10: 0.13309
+    2025-11: 0.13309
+    2025-12: 0.13309
