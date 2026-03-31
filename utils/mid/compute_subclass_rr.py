@@ -1087,7 +1087,8 @@ def main() -> None:
     base_rr_customer_count: float | None = None
     base_rr_kwh_scale_factor: float | None = None
     if args.base_rr_yaml:
-        with args.base_rr_yaml.open(encoding="utf-8") as f:
+        base_rr_path = args.scenario_config.parent.parent / args.base_rr_yaml
+        with base_rr_path.open(encoding="utf-8") as f:
             base_rr_data = yaml.safe_load(f)
         total_delivery_rr = float(base_rr_data["total_delivery_revenue_requirement"])
         total_delivery_and_supply_rr = float(
