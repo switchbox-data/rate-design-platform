@@ -37,6 +37,7 @@ add-apt-repository -y ppa:deadsnakes/ppa
 apt-get update
 
 # Install system dependencies (do not install awscli from apt - it's v1; we install AWS CLI v2 below)
+# librsvg2-bin provides rsvg-convert for Pandoc/Quarto DOCX (SVG figure conversion).
 apt-get install -y \
   python3.13 \
   python3.13-dev \
@@ -48,6 +49,7 @@ apt-get install -y \
   s3fs \
   e2fsprogs \
   gh \
+  librsvg2-bin \
   zsh
 
 # Install Google Chrome (Ubuntu 22.04's chromium-browser is a snap stub that
