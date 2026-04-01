@@ -26,6 +26,7 @@ as the BAT metrics.
 Output schema (1 row per building):
     bldg_id, sb.electric_utility, sb.gas_utility, upgrade,
     postprocess_group.has_hp, postprocess_group.heating_type,
+    postprocess_group.heating_type_v2,
     heats_with_electricity, heats_with_natgas, heats_with_oil,
     heats_with_propane, weight,
     BAT_{m}_{delivery,supply,total} for each BAT metric present in CAIRO output,
@@ -94,6 +95,7 @@ META_OUTPUT_COLS = [
     "upgrade",
     "postprocess_group.has_hp",
     "postprocess_group.heating_type",
+    "postprocess_group.heating_type_v2",
     "heats_with_electricity",
     "heats_with_natgas",
     "heats_with_oil",
@@ -458,7 +460,19 @@ def _process_utility(
             on=BLDG_ID,
             how="inner",
         )
-        .with_columns(pl.lit(int(upgrade)).alias("upgrade"))
+        .with_columns(
+            pl.lit(int(upgrade)).alias("upgrade"),
+            pl.when(pl.col("postprocess_group.has_hp"))
+            .then(pl.lit("heat_pump"))
+            .when(pl.col("heats_with_electricity"))
+            .then(pl.lit("electrical_resistance"))
+            .when(pl.col("heats_with_natgas"))
+            .then(pl.lit("natgas"))
+            .when(pl.col("heats_with_oil") | pl.col("heats_with_propane"))
+            .then(pl.lit("delivered_fuels"))
+            .otherwise(pl.lit("other"))
+            .alias("postprocess_group.heating_type_v2"),
+        )
         .select(output_cols)
     )
     _log_done("  Joining with metadata", t, f"{joined.height} rows")

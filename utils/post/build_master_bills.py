@@ -7,7 +7,8 @@ volumetric delivery + supply), gas, oil, and propane.
 
 Output schema (13 rows per building: Jan..Dec + Annual):
     bldg_id, sb.electric_utility, sb.gas_utility, upgrade, postprocess_group.has_hp,
-    postprocess_group.heating_type, heats_with_electricity, heats_with_natgas,
+    postprocess_group.heating_type, postprocess_group.heating_type_v2,
+    heats_with_electricity, heats_with_natgas,
     heats_with_oil, heats_with_propane, in.representative_income,
     in.hvac_cooling_partial_space_conditioning, month, weight,
     elec_fixed_charge, elec_delivery_bill, elec_supply_bill, elec_total_bill,
@@ -83,6 +84,7 @@ OUTPUT_COLS = [
     "upgrade",
     "postprocess_group.has_hp",
     "postprocess_group.heating_type",
+    "postprocess_group.heating_type_v2",
     "heats_with_electricity",
     "heats_with_natgas",
     "heats_with_oil",
@@ -542,6 +544,18 @@ def _process_utility(
                 + pl.col("oil_total_bill")
             ).alias("energy_total_bill"),
             pl.lit(int(upgrade)).alias("upgrade"),
+        )
+        .with_columns(
+            pl.when(pl.col("postprocess_group.has_hp"))
+            .then(pl.lit("heat_pump"))
+            .when(pl.col("heats_with_electricity"))
+            .then(pl.lit("electrical_resistance"))
+            .when(pl.col("heats_with_natgas"))
+            .then(pl.lit("natgas"))
+            .when(pl.col("heats_with_oil") | pl.col("heats_with_propane"))
+            .then(pl.lit("delivered_fuels"))
+            .otherwise(pl.lit("other"))
+            .alias("postprocess_group.heating_type_v2"),
         )
         .select(OUTPUT_COLS)
     )
