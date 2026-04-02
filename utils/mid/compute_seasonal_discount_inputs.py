@@ -65,7 +65,7 @@ def main() -> None:
     parser.add_argument(
         "--cross-subsidy-col",
         default=DEFAULT_BAT_METRIC,
-        choices=("BAT_vol", "BAT_peak", "BAT_percustomer"),
+        choices=("BAT_vol", "BAT_peak", "BAT_percustomer", "BAT_epmc"),
         help="BAT column in cross_subsidization_BAT_values.csv to use.",
     )
     parser.add_argument(

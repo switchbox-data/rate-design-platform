@@ -6,7 +6,9 @@
 #   just s ny list-utilities                                    # show valid utilities
 #   UTILITY=nyseg just s ny all-pre                             # single utility pre-processing
 #   RDP_BATCH={yyyymmdd_r1-N} UTILITY=nyseg just s ny run-all-sequential                  # single utility full run
-#   just s ny run-all-utilities-sequential                      # all utilities for a state
+#   RDP_BATCH=... just s ny run-all-utilities-sequential          # per util: all-pre then runs 1–24
+#   RDP_BATCH=... just s ny all-utilities-pre                     # all-pre only, every utility
+#   RDP_BATCH=... just s ny run-all-utilities-sequential-only    # runs 1–24 only (no all-pre)
 #   UTILITY=rie just -f ri/Justfile all-pre                     # via state wrapper directly
 #   set -a && source ny/state.env && set +a && UTILITY=nyseg just all-pre  # manual source
 # =============================================================================
@@ -681,8 +683,8 @@ run-22:
     just create-seasonal-discount-tariff \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
         "${run2_dir}/seasonal_discount_rate_inputs.csv" \
-        {{ utility }}_hp_seasonal_supply_epmc \
-        "{{ path_tariffs_electric }}/{{ utility }}_hp_seasonal_supply_epmc.json"
+        {{ utility }}_hp_seasonal_epmc_supply \
+        "{{ path_tariffs_electric }}/{{ utility }}_hp_seasonal_epmc_supply.json"
     just run-scenario 22
 
 run-23:
@@ -718,20 +720,41 @@ all-pre:
     just create-seasonal-tou-tariffs {{ base_tariff_pattern }}
     just validate-config
 
+all-utilities-pre:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo ">> all-utilities-pre: {{ utilities }}" >&2
+    IFS=',' read -ra utils <<< "{{ utilities }}"
+    for util in "${utils[@]}"; do
+        echo ">> ======================================" >&2
+        echo ">> all-pre for utility: $util" >&2
+        echo ">> ======================================" >&2
+        UTILITY="$util" just all-pre
+    done
+    echo ">> all-utilities-pre: complete" >&2
+
+run-all-utilities-sequential-only:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
+    export RDP_BATCH
+    echo ">> run-all-utilities-sequential-only [${RDP_BATCH}]" >&2
+    IFS=',' read -ra utils <<< "{{ utilities }}"
+    for util in "${utils[@]}"; do
+        echo ">> ======================================" >&2
+        echo ">> run-all-sequential for utility: $util" >&2
+        echo ">> ======================================" >&2
+        UTILITY="$util" just run-all-sequential
+    done
+
 run-all-utilities-sequential:
     #!/usr/bin/env bash
     set -euo pipefail
     : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
     export RDP_BATCH
     echo ">> run-all-utilities-sequential [${RDP_BATCH}]" >&2
-    IFS=',' read -ra utils <<< "{{ utilities }}"
-    for util in "${utils[@]}"; do
-        echo ">> ======================================" >&2
-        echo ">> Running utility: $util" >&2
-        echo ">> ======================================" >&2
-        UTILITY="$util" just all-pre
-        UTILITY="$util" just run-all-sequential
-    done
+    just all-utilities-pre
+    just run-all-utilities-sequential-only
 
 run-all-sequential:
     #!/usr/bin/env bash

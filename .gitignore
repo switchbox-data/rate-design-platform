@@ -4,7 +4,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .DS_Store
-dev_no_commit.py
+
+# Local scratch / validation scripts (not shipped)
+dev/
 
 # Local data and outputs
 # data/
