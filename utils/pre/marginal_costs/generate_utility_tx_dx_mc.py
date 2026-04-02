@@ -6,8 +6,15 @@ price signals.
 
 Input:
     - Utility hourly load profile: s3://data.sb/eia/hourly_demand/utilities/region=<iso_region>/utility=X/year=YYYY/month=M/data.parquet
-    - Marginal cost table CSV with columns: utility, sub_tx_and_dist_mc_kw_yr
+    - Marginal cost table CSV with columns: utility, sub_tx_and_dist_mc_kw_yr[, dollar_year]
     - Load year (determines which load profile year to use)
+
+The optional ``dollar_year`` column in the MC table specifies the dollar year of
+the cost estimate.  When present, the script inflates the value to
+``--target-dollar-year`` (defaults to ``--year``) using the annual-average
+CPIAUCSL index stored at ``--cpi-s3-base`` (default:
+``s3://data.sb/fred/cpi/``).  If the column is absent (e.g. the existing NY
+table), the raw value is used as-is with no inflation applied.
 
 Output partitions written as:
     - NY default base: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/
@@ -15,14 +22,14 @@ Output partitions written as:
     - Partition path: utility=X/year=YYYY/data.parquet
 
 Usage:
-    # Inspect results (no upload) - uses 2025 loads
-    python generate_utility_tx_dx_mc.py --state RI --utility rie --load-year 2025 \
+    # Inspect results (no upload) - uses 2025 loads, inflates RI 2019$ → 2025$
+    python generate_utility_tx_dx_mc.py --state RI --utility rie --year 2025 \
         --mc-table-path rate_design/hp_rates/ri/config/marginal_costs/ri_marginal_costs_2025.csv \
         --utility-load-s3-base s3://data.sb/eia/hourly_demand/utilities/ \
         --output-s3-base s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
 
-    # Upload to S3
-    python generate_utility_tx_dx_mc.py --state NY --utility nyseg --load-year 2024 \
+    # Upload to S3 (NY table has no dollar_year — no inflation applied)
+    python generate_utility_tx_dx_mc.py --state NY --utility nyseg --year 2024 \
         --mc-table-path rate_design/hp_rates/ny/config/marginal_costs/ny_sub_tx_and_dist_mc_levelized.csv \
         --utility-load-s3-base s3://data.sb/eia/hourly_demand/utilities/ \
         --output-s3-base s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/ \
@@ -219,6 +226,13 @@ def load_marginal_cost_table(mc_table_path: str) -> pl.DataFrame:
     else:
         df = pl.read_csv(mc_table_path)
 
+    # Strip leading/trailing whitespace from column names and string values
+    # to guard against accidental spaces in hand-edited CSVs.
+    df = df.rename({c: c.strip() for c in df.columns})
+    df = df.with_columns(
+        [pl.col(c).str.strip_chars() for c in df.columns if df[c].dtype == pl.String]
+    )
+
     print(f"Loaded marginal cost table with {len(df)} rows")
     return df
 
@@ -259,6 +273,54 @@ def get_marginal_cost_for_utility(mc_df: pl.DataFrame, utility: str) -> float:
     print(f"  Sub-Tx and Distribution: ${mc:.2f}/kW-yr")
 
     return mc
+
+
+def load_cpi_inflation_factor(
+    cpi_s3_base: str,
+    from_year: int,
+    to_year: int,
+    storage_options: dict[str, str],
+) -> float:
+    """Load CPIAUCSL data from S3 and return the inflation factor from_year → to_year.
+
+    The CPI parquets at ``cpi_s3_base`` have columns ``year`` (int) and
+    ``value`` (float, annual-average index).  The factor is CPI_to / CPI_from.
+
+    Args:
+        cpi_s3_base: Base S3 path for CPI data (e.g. s3://data.sb/fred/cpi/)
+        from_year: Dollar year of the source value
+        to_year: Target dollar year
+        storage_options: Polars S3 storage options
+
+    Returns:
+        Inflation factor (CPI_to / CPI_from)
+    """
+    cpi_glob = cpi_s3_base.rstrip("/") + "/*.parquet"
+    collected = pl.scan_parquet(cpi_glob, storage_options=storage_options).collect()
+    if not isinstance(collected, pl.DataFrame):
+        raise TypeError("Expected DataFrame from CPI collect()")
+    cpi_df = collected
+
+    years_needed = {from_year, to_year}
+    available_years = set(cpi_df["year"].to_list())
+    missing = years_needed - available_years
+    if missing:
+        raise ValueError(
+            f"CPI data missing for year(s) {sorted(missing)}. "
+            f"Available years: {sorted(available_years)}. "
+            f"Refresh CPI data with `just fetch-cpi` in data/fred/cpi/."
+        )
+
+    cpi_from = float(cpi_df.filter(pl.col("year") == from_year)["value"][0])
+    cpi_to = float(cpi_df.filter(pl.col("year") == to_year)["value"][0])
+    factor = cpi_to / cpi_from
+
+    print(f"\nCPI Inflation Adjustment ({from_year} → {to_year} dollars):")
+    print(f"  CPI {from_year}: {cpi_from:.4f}")
+    print(f"  CPI {to_year}:   {cpi_to:.4f}")
+    print(f"  Factor: {factor:.6f}")
+
+    return factor
 
 
 def calculate_pop_weights(load_df: pl.DataFrame, n_hours: int = 100) -> pl.DataFrame:
@@ -504,6 +566,24 @@ def main():
         help="Number of top load hours for PoP allocation (0-8760, default: 100)",
     )
     parser.add_argument(
+        "--target-dollar-year",
+        type=int,
+        default=None,
+        help=(
+            "Dollar year to inflate MC values to (default: --year). "
+            "Only applied when the MC table has a dollar_year column."
+        ),
+    )
+    parser.add_argument(
+        "--cpi-s3-base",
+        type=str,
+        default="s3://data.sb/fred/cpi/",
+        help=(
+            "Base S3 path for CPIAUCSL annual parquets "
+            "(default: s3://data.sb/fred/cpi/)"
+        ),
+    )
+    parser.add_argument(
         "--upload",
         action="store_true",
         help="Upload results to S3 (default: False, for data inspection only)",
@@ -517,6 +597,9 @@ def main():
 
     output_year = args.year
     load_year = args.load_year if args.load_year else output_year
+    target_dollar_year = (
+        args.target_dollar_year if args.target_dollar_year else output_year
+    )
 
     # Detect whether load path uses EIA layout (with region partition) or
     # NYISO layout (no region partition) based on path prefix.
@@ -534,6 +617,7 @@ def main():
     print(f"Utility: {args.utility}")
     print(f"Output year: {output_year}")
     print(f"Load year:   {load_year}")
+    print(f"Target dollar year: {target_dollar_year}")
     print(f"Allocation window: Top {args.n_hours} hours")
     print(f"Upload to S3: {'Yes' if args.upload else 'No (inspection only)'}")
     print("=" * 60)
@@ -555,6 +639,29 @@ def main():
 
     mc_df = load_marginal_cost_table(args.mc_table_path)
     mc_sub_tx_and_dist = get_marginal_cost_for_utility(mc_df, args.utility)
+
+    if "dollar_year" in mc_df.columns:
+        utility_row = mc_df.filter(pl.col("utility") == args.utility)
+        dollar_year_val = utility_row["dollar_year"][0]
+        if dollar_year_val is not None:
+            dollar_year = int(dollar_year_val)
+            if dollar_year != target_dollar_year:
+                cpi_factor = load_cpi_inflation_factor(
+                    args.cpi_s3_base, dollar_year, target_dollar_year, storage_options
+                )
+                mc_inflated = mc_sub_tx_and_dist * cpi_factor
+                print(
+                    f"  Inflated MC: ${mc_sub_tx_and_dist:.2f} → ${mc_inflated:.2f}/kW-yr"
+                )
+                mc_sub_tx_and_dist = mc_inflated
+            else:
+                print(
+                    f"\n  MC already in {target_dollar_year} dollars — no inflation applied"
+                )
+        else:
+            print("\n  dollar_year is null in MC table — no inflation applied")
+    else:
+        print("\n  No dollar_year column in MC table — using raw value (no inflation)")
 
     load_df = calculate_pop_weights(load_df, args.n_hours)
     load_df = allocate_costs_to_hours(load_df, mc_sub_tx_and_dist)
