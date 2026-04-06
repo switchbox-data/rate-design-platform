@@ -1,6 +1,9 @@
 """Resolve subclass group_col and group_value_to_subclass from a scenario config.
 
-Reads the first run with run_includes_subclasses=True and extracts:
+By default this reads the first run with ``run_includes_subclasses=True``.
+Callers may instead pass ``--run-num`` to resolve a specific subclass run.
+
+For the chosen run it extracts:
   - group_col from subclass_config.group_col
   - group_value_to_subclass derived from subclass_config.selectors
     (format: value=subclass_key, comma-separated; multi-value selectors are expanded)
@@ -45,41 +48,85 @@ def selectors_to_group_value_map(selectors: dict[str, str]) -> str:
     return ",".join(pairs)
 
 
+def _get_run(
+    runs: dict[int | str, dict[str, object]],
+    run_num: int,
+) -> dict[str, object]:
+    run = runs.get(run_num) or runs.get(str(run_num))
+    if run is None:
+        raise ValueError(f"run {run_num} not found in scenario config")
+    return run
+
+
+def resolve_subclass_config(
+    scenario_config: Path,
+    *,
+    run_num: int | None = None,
+) -> tuple[str, str]:
+    with scenario_config.open(encoding="utf-8") as f:
+        runs: dict[int | str, dict[str, object]] = yaml.safe_load(f)["runs"]
+
+    if run_num is not None:
+        run = _get_run(runs, run_num)
+        selected_run_num = run_num
+        if not run.get("run_includes_subclasses"):
+            raise ValueError(
+                f"run {run_num} is not a subclass run in {scenario_config}"
+            )
+    else:
+        selected_run_num = None
+        run = None
+        for num in sorted(runs, key=lambda value: int(value)):
+            candidate = runs[num]
+            if candidate.get("run_includes_subclasses"):
+                selected_run_num = int(num)
+                run = candidate
+                break
+        if run is None or selected_run_num is None:
+            raise ValueError(
+                f"no run with run_includes_subclasses=True found in {scenario_config}"
+            )
+
+    subclass_config = run.get("subclass_config")
+    if subclass_config is None:
+        raise ValueError(
+            f"run {selected_run_num} has run_includes_subclasses=True but no "
+            f"subclass_config block in {scenario_config}. Regenerate scenario YAMLs "
+            "after adding subclass_group_col and subclass_selectors columns to the "
+            "Google Sheet."
+        )
+
+    group_col = str(subclass_config["group_col"])
+    selectors = subclass_config["selectors"]
+    if not isinstance(selectors, dict):
+        raise ValueError(
+            f"run {selected_run_num} subclass_config.selectors must be a mapping"
+        )
+    normalized_selectors = {str(key): str(value) for key, value in selectors.items()}
+    group_value_to_subclass = selectors_to_group_value_map(normalized_selectors)
+    return group_col, group_value_to_subclass
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("scenario_config", type=Path)
+    parser.add_argument(
+        "--run-num",
+        type=int,
+        help="Optional explicit subclass run number to resolve config from.",
+    )
     args = parser.parse_args()
 
-    with args.scenario_config.open(encoding="utf-8") as f:
-        runs: dict[int, dict[str, object]] = yaml.safe_load(f)["runs"]
+    try:
+        group_col, group_value_to_subclass = resolve_subclass_config(
+            args.scenario_config,
+            run_num=args.run_num,
+        )
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
 
-    for num in sorted(runs):
-        run = runs[num]
-        if not run.get("run_includes_subclasses"):
-            continue
-
-        subclass_config = run.get("subclass_config")
-        if subclass_config is None:
-            print(
-                f"ERROR: run {num} has run_includes_subclasses=True but no "
-                f"subclass_config block in {args.scenario_config}. "
-                "Regenerate scenario YAMLs after adding subclass_group_col and "
-                "subclass_selectors columns to the Google Sheet.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        group_col = subclass_config["group_col"]
-        selectors: dict[str, str] = subclass_config["selectors"]
-        group_value_to_subclass = selectors_to_group_value_map(selectors)
-        print(group_col, group_value_to_subclass)
-        return
-
-    print(
-        f"ERROR: no run with run_includes_subclasses=True found in {args.scenario_config}",
-        file=sys.stderr,
-    )
-    sys.exit(1)
+    print(group_col, group_value_to_subclass)
 
 
 if __name__ == "__main__":
