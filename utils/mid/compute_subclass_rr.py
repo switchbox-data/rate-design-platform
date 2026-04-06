@@ -522,48 +522,6 @@ def compute_subclass_seasonal_discount_inputs(
     return result
 
 
-def compute_hp_seasonal_discount_inputs(
-    run_dir: S3Path | Path,
-    resstock_base: str,
-    state: str,
-    upgrade: str,
-    cross_subsidy_col: str = DEFAULT_BAT_METRIC,
-    storage_options: dict[str, str] | None = None,
-    base_tariff_json_path: S3Path | Path | None = None,
-    winter_months: tuple[int, ...] | None = None,
-) -> pl.DataFrame:
-    """Backward-compatible alias: compute seasonal discount inputs for HP customers.
-
-    Calls :func:`compute_subclass_seasonal_discount_inputs` with ``group_col="has_hp"``
-    and ``subclass_value="true"``.  The returned DataFrame uses the old column names
-    (``total_cross_subsidy_hp``, ``winter_kwh_hp``, etc.) for drop-in compatibility.
-
-    Prefer :func:`compute_subclass_seasonal_discount_inputs` for new code.
-    """
-    df = compute_subclass_seasonal_discount_inputs(
-        run_dir=run_dir,
-        resstock_base=resstock_base,
-        state=state,
-        upgrade=upgrade,
-        group_col=DEFAULT_GROUP_COL,
-        subclass_value="true",
-        cross_subsidy_col=cross_subsidy_col,
-        storage_options=storage_options,
-        base_tariff_json_path=base_tariff_json_path,
-        winter_months=winter_months,
-    )
-    return df.rename(
-        {
-            "total_cross_subsidy": "total_cross_subsidy_hp",
-            "winter_kwh": "winter_kwh_hp",
-            "summer_kwh": "summer_kwh_hp",
-            "annual_kwh": "annual_kwh_hp",
-            "annual_energy_rev": "annual_energy_rev_hp",
-            "winter_rate": "winter_rate_hp",
-        }
-    ).drop("group_col")
-
-
 def compute_subclass_flat_discount_inputs(
     run_dir: S3Path | Path,
     resstock_base: str,
@@ -743,45 +701,6 @@ def compute_subclass_flat_discount_inputs(
     )
     LOGGER.info("flat_inputs [%s=%s]: done", group_col, subclass_value)
     return result
-
-
-def compute_hp_flat_discount_inputs(
-    run_dir: S3Path | Path,
-    resstock_base: str,
-    state: str,
-    upgrade: str,
-    cross_subsidy_col: str = DEFAULT_BAT_METRIC,
-    storage_options: dict[str, str] | None = None,
-    base_tariff_json_path: S3Path | Path | None = None,
-) -> pl.DataFrame:
-    """Backward-compatible alias: compute flat discount inputs for HP customers.
-
-    Calls :func:`compute_subclass_flat_discount_inputs` with ``group_col="has_hp"``
-    and ``subclass_value="true"``.  The returned DataFrame uses the old column names
-    (``total_cross_subsidy_hp``, ``annual_kwh_hp``, ``flat_rate_hp``, etc.) for
-    drop-in compatibility.
-
-    Prefer :func:`compute_subclass_flat_discount_inputs` for new code.
-    """
-    df = compute_subclass_flat_discount_inputs(
-        run_dir=run_dir,
-        resstock_base=resstock_base,
-        state=state,
-        upgrade=upgrade,
-        group_col=DEFAULT_GROUP_COL,
-        subclass_value="true",
-        cross_subsidy_col=cross_subsidy_col,
-        storage_options=storage_options,
-        base_tariff_json_path=base_tariff_json_path,
-    )
-    return df.rename(
-        {
-            "total_cross_subsidy": "total_cross_subsidy_hp",
-            "annual_kwh": "annual_kwh_hp",
-            "annual_energy_rev": "annual_energy_rev_hp",
-            "flat_rate": "flat_rate_hp",
-        }
-    ).drop("group_col")
 
 
 def compute_subclass_rr(
