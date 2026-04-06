@@ -62,6 +62,16 @@ echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://d
 apt-get update
 apt-get install -y google-chrome-stable
 
+# Quarto (manuscript / report renders; e.g. reports2). Pin version; sync with dev-setup.sh SSM block.
+QUARTO_VERSION="1.9.36"
+if ! command -v quarto &>/dev/null; then
+  echo "Installing Quarto $${QUARTO_VERSION}..."
+  curl -fsSL "https://github.com/quarto-dev/quarto-cli/releases/download/v$${QUARTO_VERSION}/quarto-$${QUARTO_VERSION}-linux-amd64.deb" -o /tmp/quarto.deb
+  dpkg -i /tmp/quarto.deb || apt-get install -f -y
+  rm -f /tmp/quarto.deb
+  echo "Quarto installed: $(quarto --version)"
+fi
+
 # Install AWS CLI v2 (official installer; apt awscli is v1)
 if ! command -v aws &>/dev/null || [ "$(aws --version 2>&1 | grep -o 'aws-cli/[0-9]*' | cut -d/ -f2)" = "1" ]; then
   echo "Installing AWS CLI v2..."
