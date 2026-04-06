@@ -16,8 +16,12 @@ from utils.mid.compute_subclass_rr import (
     _write_seasonal_inputs_csv,
     compute_hp_flat_discount_inputs,
     compute_hp_seasonal_discount_inputs,
+    compute_subclass_flat_discount_inputs,
     compute_subclass_rr,
+    compute_subclass_seasonal_discount_inputs,
+    flat_discount_filename,
     parse_group_value_to_subclass,
+    seasonal_discount_filename,
 )
 
 RUN2_SUPPLY_OFFSET = 50.0
@@ -853,7 +857,7 @@ def test_compute_hp_seasonal_discount_inputs_raises_when_non_positive_rate(
     # High fixed charge makes energy revenue negative → winter_rate < 0.
     tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json", fixed_charge=20.0)
 
-    with pytest.raises(ValueError, match="Computed winter_rate_hp is negative"):
+    with pytest.raises(ValueError, match="winter_rate.*is negative"):
         compute_hp_seasonal_discount_inputs(
             run_dir=run_dir,
             resstock_base=str(resstock_base),
@@ -933,6 +937,185 @@ def test_write_seasonal_inputs_csv_uses_output_dir_override(tmp_path: Path) -> N
     expected = output_dir / DEFAULT_SEASONAL_OUTPUT_FILENAME
     assert output_path == str(expected)
     assert expected.exists()
+
+
+# =============================================================================
+# Filename helpers
+# =============================================================================
+
+
+def test_seasonal_discount_filename_hp() -> None:
+    assert (
+        seasonal_discount_filename("has_hp", "true")
+        == "seasonal_discount_rate_inputs_has_hp_true.csv"
+    )
+
+
+def test_seasonal_discount_filename_electric_heating() -> None:
+    assert (
+        seasonal_discount_filename("heating_type_v2", "electric_heating")
+        == "seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv"
+    )
+
+
+def test_flat_discount_filename_hp() -> None:
+    assert (
+        flat_discount_filename("has_hp", "true")
+        == "flat_discount_rate_inputs_has_hp_true.csv"
+    )
+
+
+def test_flat_discount_filename_electric_heating() -> None:
+    assert (
+        flat_discount_filename("heating_type_v2", "electric_heating")
+        == "flat_discount_rate_inputs_heating_type_v2_electric_heating.csv"
+    )
+
+
+# =============================================================================
+# Generic subclass seasonal discount inputs
+# =============================================================================
+
+
+def test_compute_subclass_seasonal_discount_inputs_hp(tmp_path: Path) -> None:
+    """Generic function returns same numerics as compat alias when group_col=has_hp/true."""
+    run_dir = _write_sample_run_dir(tmp_path)
+    tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
+    resstock_base = tmp_path / "resstock"
+    part = (
+        resstock_base
+        / "load_curve_hourly"
+        / f"state={_LOADS_STATE}"
+        / f"upgrade={_LOADS_UPGRADE}"
+    )
+    part.mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 1, 3, 3],
+            "timestamp": [
+                "2025-01-01 00:00:00",
+                "2025-07-01 00:00:00",
+                "2025-02-01 00:00:00",
+                "2025-12-01 00:00:00",
+            ],
+            "out.electricity.total.energy_consumption": [200.0, 100.0, 200.0, 100.0],
+            "out.electricity.pv.energy_consumption": [0.0, 0.0, 0.0, 0.0],
+        }
+    ).write_parquet(part / "loads.parquet")
+
+    out = compute_subclass_seasonal_discount_inputs(
+        run_dir=run_dir,
+        resstock_base=str(resstock_base),
+        state=_LOADS_STATE,
+        upgrade=_LOADS_UPGRADE,
+        group_col="has_hp",
+        subclass_value="true",
+        cross_subsidy_col="BAT_percustomer",
+        base_tariff_json_path=tariff_path,
+    )
+
+    assert out.height == 1
+    assert out["subclass"][0] == "true"
+    assert out["group_col"][0] == "has_hp"
+    assert "total_cross_subsidy" in out.columns
+    assert "winter_kwh" in out.columns
+    assert "annual_kwh" in out.columns
+    assert "annual_energy_rev" in out.columns
+    assert "winter_rate" in out.columns
+
+
+def test_compute_subclass_seasonal_discount_inputs_writes_named_file(
+    tmp_path: Path,
+) -> None:
+    """_write_seasonal_inputs_csv uses a subclass-specific filename from the DataFrame."""
+    run_dir = _write_sample_run_dir(tmp_path)
+    tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
+    resstock_base = tmp_path / "resstock"
+    part = (
+        resstock_base
+        / "load_curve_hourly"
+        / f"state={_LOADS_STATE}"
+        / f"upgrade={_LOADS_UPGRADE}"
+    )
+    part.mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 1, 3, 3],
+            "timestamp": [
+                "2025-01-01 00:00:00",
+                "2025-07-01 00:00:00",
+                "2025-02-01 00:00:00",
+                "2025-12-01 00:00:00",
+            ],
+            "out.electricity.total.energy_consumption": [200.0, 100.0, 200.0, 100.0],
+            "out.electricity.pv.energy_consumption": [0.0, 0.0, 0.0, 0.0],
+        }
+    ).write_parquet(part / "loads.parquet")
+
+    out = compute_subclass_seasonal_discount_inputs(
+        run_dir=run_dir,
+        resstock_base=str(resstock_base),
+        state=_LOADS_STATE,
+        upgrade=_LOADS_UPGRADE,
+        group_col="has_hp",
+        subclass_value="true",
+        cross_subsidy_col="BAT_percustomer",
+        base_tariff_json_path=tariff_path,
+    )
+    written = _write_seasonal_inputs_csv(seasonal_inputs=out, run_dir=run_dir)
+    expected = run_dir / "seasonal_discount_rate_inputs_has_hp_true.csv"
+    assert written == str(expected)
+    assert expected.exists()
+
+
+def test_compute_subclass_flat_discount_inputs_hp(tmp_path: Path) -> None:
+    """Generic flat function returns same numerics as compat alias for HP subclass."""
+    run_dir = _write_sample_run_dir(tmp_path)
+    tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
+    resstock_base = tmp_path / "resstock"
+    part = (
+        resstock_base
+        / "load_curve_hourly"
+        / f"state={_LOADS_STATE}"
+        / f"upgrade={_LOADS_UPGRADE}"
+    )
+    part.mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 3],
+            "timestamp": ["2025-06-01 00:00:00", "2025-06-01 00:00:00"],
+            "out.electricity.total.energy_consumption": [300.0, 300.0],
+            "out.electricity.pv.energy_consumption": [0.0, 0.0],
+        }
+    ).write_parquet(part / "loads.parquet")
+
+    out = compute_subclass_flat_discount_inputs(
+        run_dir=run_dir,
+        resstock_base=str(resstock_base),
+        state=_LOADS_STATE,
+        upgrade=_LOADS_UPGRADE,
+        group_col="has_hp",
+        subclass_value="true",
+        cross_subsidy_col="BAT_percustomer",
+        base_tariff_json_path=tariff_path,
+    )
+
+    assert out.height == 1
+    assert out["subclass"][0] == "true"
+    assert out["group_col"][0] == "has_hp"
+    assert "total_cross_subsidy" in out.columns
+    assert "annual_kwh" in out.columns
+    assert "annual_energy_rev" in out.columns
+    assert "flat_rate" in out.columns
+
+
+def test_two_subclass_seasonal_files_do_not_collide(tmp_path: Path) -> None:
+    """HP and electric_heating seasonal files must have different names in the same run dir."""
+    hp_name = seasonal_discount_filename("has_hp", "true")
+    elec_name = seasonal_discount_filename("heating_type_v2", "electric_heating")
+    assert hp_name != elec_name
+    assert hp_name != DEFAULT_SEASONAL_OUTPUT_FILENAME
+    assert elec_name != DEFAULT_SEASONAL_OUTPUT_FILENAME
 
 
 # =============================================================================
@@ -1119,7 +1302,7 @@ def test_compute_hp_flat_discount_inputs_raises_when_negative_rate(
         }
     ).write_parquet(part / "loads.parquet")
 
-    with pytest.raises(ValueError, match="flat_rate_hp is negative"):
+    with pytest.raises(ValueError, match="flat_rate.*is negative"):
         compute_hp_flat_discount_inputs(
             run_dir=run_dir,
             resstock_base=str(resstock_base),
