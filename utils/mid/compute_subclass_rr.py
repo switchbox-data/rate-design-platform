@@ -468,13 +468,17 @@ def _load_run_from_scenario_config(
 def _load_run_fields(
     scenario_config_path: Path,
     run_num: int,
-) -> tuple[str, str, float]:
+) -> tuple[str, str, float | None]:
     """Read state, utility, and revenue requirement from a scenario run.
 
-    Raises KeyError if any required field is missing.
+    Returns None for the revenue requirement when the run uses
+    ``residual_cost_frac`` (i.e. ``utility_revenue_requirement`` is null/none),
+    because the RR is derived at runtime from MC costs in that case.
+
+    Raises KeyError if state or utility fields are missing.
     """
     run = _load_run_from_scenario_config(scenario_config_path, run_num)
-    for field in ("state", "utility", "utility_revenue_requirement"):
+    for field in ("state", "utility"):
         if field not in run:
             raise KeyError(
                 f"Run {run_num} in {scenario_config_path} is missing "
@@ -482,7 +486,10 @@ def _load_run_fields(
             )
     state = str(run["state"]).upper()
     utility = str(run["utility"]).lower()
-    raw_rr = run["utility_revenue_requirement"]
+    raw_rr = run.get("utility_revenue_requirement")
+    # null/none/missing means the run uses residual_cost_frac; RR not pre-set.
+    if raw_rr is None or str(raw_rr).strip().lower() in ("", "none", "null"):
+        return state, utility, None
     if isinstance(raw_rr, str) and raw_rr.endswith(".yaml"):
         rr_path = scenario_config_path.parent.parent / raw_rr
         with open(rr_path) as f:
@@ -507,7 +514,7 @@ def _write_revenue_requirement_yamls(
     group_col: str,
     cross_subsidy_col: str,
     utility: str,
-    default_revenue_requirement: float,
+    default_revenue_requirement: float | None,
     differentiated_yaml_path: Path,
     default_yaml_path: Path,
     *,

@@ -68,7 +68,7 @@ def fetch_file_list(year="2024"):
         return response.json()["files"], project_uuid
     else:
         console.print(f"[red]✗ Error fetching file list: {response.status_code}[/red]")
-        return None, None
+        return None
 
 
 def get_s3_url(file_id, project_uuid):

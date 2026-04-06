@@ -428,6 +428,32 @@ compute-rev-requirements:
       "{{ path_default_rev_requirement }}" \
       "${run2_dir}"
 
+# Compute per-year hp/non-hp subclass revenue requirements for an adoption run
+# from run-1 (delivery) and run-2 (delivery+supply) CAIRO outputs.
+# Writes <path_adoption_rr_base>/<config_name>/year=<YYYY>/<utility>_hp_vs_nonhp.yaml
+
+# Called by run-adoption-all after runs 1/2 complete for each year.
+compute-adoption-subclass-rr run1_dir run2_dir calendar_year config_name run1_key="101":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rr_dir="{{ path_adoption_rr_base }}/{{ config_name }}/year={{ calendar_year }}"
+    mkdir -p "${rr_dir}"
+    differentiated_yaml="${rr_dir}/{{ utility }}_hp_vs_nonhp.yaml"
+    default_yaml="${rr_dir}/{{ utility }}.yaml"
+    adoption_yaml="{{ path_scenarios }}/scenarios_{{ utility }}_adoption.yaml"
+    echo ">> compute-adoption-subclass-rr: year={{ calendar_year }}, run1={{ run1_dir }}" >&2
+    just -f {{ path_repo }}/utils/Justfile compute-subclass-rr \
+      "{{ run1_dir }}" \
+      "${adoption_yaml}" \
+      "${differentiated_yaml}" \
+      "${default_yaml}" \
+      "{{ run1_key }}" \
+      "has_hp" \
+      "BAT_percustomer" \
+      "true=hp,false=non-hp" \
+      "{{ path_default_rev_requirement }}" \
+      "{{ run2_dir }}"
+
 # =============================================================================
 # RUNS: scenario execution (run-1 through run-16)
 # =============================================================================
@@ -716,6 +742,7 @@ run-subset runs:
 # =============================================================================
 
 path_adoption_config_dir := path_config / "adoption"
+path_adoption_rr_base := path_rev_requirement / "adoption"
 
 # Fit logistic S-curves to NYISO Gold Book 2025 digitized data and write the
 # adoption config YAML + a curve-fit diagnostic plot.
@@ -728,6 +755,27 @@ fit-adoption-config config_name="nyca_electrification":
         --output "{{ path_adoption_config_dir }}/{{ config_name }}.yaml" \
         --plot-output "{{ path_adoption_config_dir }}/{{ config_name }}_curves.png" \
         --stacked-plot-output "{{ path_adoption_config_dir }}/{{ config_name }}_stacked.png"
+
+# Plot HP adoption trajectory loads and Cambium busbar loads across scenario years.
+# Produces four PNGs in config/adoption/<config_name>_trajectory_plots/:
+#   loads_by_year.png, cambium_busbar_by_year.png,
+#   cambium_seasonal_peaks_by_year.png, load_vs_cambium_peaks_by_year.png
+#
+# Requires:
+#   --cambium-path: template with {year} for the Cambium parquet
+#   (default matches NYSEG/NYISO MidCase p127)
+#
+# Example:
+
+# just s ny plot-adoption-trajectory nyca_electrification
+plot-adoption-trajectory config_name="nyca_electrification" cambium_path="s3://data.sb/nrel/cambium/2024/scenario=MidCase/t={year}/gea=NYISO/r=p127/data.parquet":
+    uv run python {{ path_repo }}/utils/pre/plot_adoption_trajectory.py \
+        --adoption-config "{{ path_adoption_config_dir }}/{{ config_name }}.yaml" \
+        --materialized-dir "{{ path_resstock_release }}/adoption/{{ config_name }}" \
+        --path-utility-assignment "{{ path_resstock_release }}/metadata_utility/state={{ state_upper }}/utility_assignment.parquet" \
+        --state "{{ state_upper }}" \
+        --cambium-path "{{ cambium_path }}" \
+        --output-dir "{{ path_adoption_config_dir }}/{{ config_name }}_trajectory_plots"
 
 # Materialize per-year ResStock data for a mixed-upgrade adoption trajectory.
 # Reads the adoption config YAML, assigns buildings to upgrades per year, and
@@ -770,7 +818,8 @@ generate-adoption-scenarios config_name="default" runs="1,2,5,6":
         --cambium-gea NYISO \
         --cambium-ba {{ cambium_ba }} \
         --cambium-dist-mc-base "s3://data.sb/switchbox/marginal_costs/{{ state }}/cambium_dist_and_sub_tx" \
-        --adoption-tariff-dir "{{ path_tariffs_electric }}/adoption/{{ config_name }}"
+        --adoption-tariff-dir "{{ path_tariffs_electric }}/adoption/{{ config_name }}" \
+        --adoption-rr-dir "{{ path_adoption_rr_base }}/{{ config_name }}"
 
 # Run a single adoption scenario by (year-indexed) run number.
 # Run keys use the scheme (year_index + 1) * 100 + base_run_num, matching the
@@ -830,6 +879,9 @@ run-adoption-all config_name="default" runs="1,2,5,6":
         key_prefix=$(( (yi + 1) * 100 ))
         tariff_dir="${tariffs_adoption_base}/year=${year}"
         mkdir -p "${tariff_dir}"
+        # Copy the zero-fixed-charge non-HP flat tariffs so runs 5/6 can find them.
+        cp "{{ path_tariffs_electric }}/adoption/{{ utility }}_nonhp_flat.json" "${tariff_dir}/{{ utility }}_nonhp_flat.json"
+        cp "{{ path_tariffs_electric }}/adoption/{{ utility }}_nonhp_flat_supply.json" "${tariff_dir}/{{ utility }}_nonhp_flat_supply.json" 2>/dev/null || true
         loads_base="${adoption_base}/year=${year}"
         echo ">> run-adoption-all: year=${year} (yi=${yi}, key_prefix=${key_prefix})" >&2
         # --- Runs 1 and 2: precalc flat ---
@@ -841,7 +893,8 @@ run-adoption-all config_name="default" runs="1,2,5,6":
             run_dir=$(bash "{{ latest_output }}" "${adoption_yaml}" "${key}")
             just copy-calibrated-tariff-from-run "${run_dir}" "${tariff_dir}"
         done
-        # --- Derive per-year seasonal tariffs (only when runs 1,2 and 5 or 6 are present) ---
+        # --- Derive per-year seasonal tariffs and subclass RRs ---
+        # (only when runs 1,2 and 5 or 6 are present)
         has_run1=false; has_run2=false; has_run5=false; has_run6=false
         for r in "${all_runs[@]}"; do
             [[ "$r" == "1" ]] && has_run1=true
@@ -849,8 +902,14 @@ run-adoption-all config_name="default" runs="1,2,5,6":
             [[ "$r" == "5" ]] && has_run5=true
             [[ "$r" == "6" ]] && has_run6=true
         done
-        if $has_run1 && $has_run5; then
+        run1_dir=""; run2_dir=""
+        if $has_run1; then
             run1_dir=$(bash "{{ latest_output }}" "${adoption_yaml}" $(( key_prefix + 1 )))
+        fi
+        if $has_run2; then
+            run2_dir=$(bash "{{ latest_output }}" "${adoption_yaml}" $(( key_prefix + 2 )))
+        fi
+        if $has_run1 && $has_run5; then
             echo ">> run-adoption-all: deriving seasonal (delivery) from ${run1_dir}" >&2
             just compute-seasonal-discount-inputs \
                 "${run1_dir}" "${loads_base}" "{{ state_upper }}" "{{ upgrade }}"
@@ -861,7 +920,6 @@ run-adoption-all config_name="default" runs="1,2,5,6":
                 "${tariff_dir}/{{ utility }}_hp_seasonal.json"
         fi
         if $has_run2 && $has_run6; then
-            run2_dir=$(bash "{{ latest_output }}" "${adoption_yaml}" $(( key_prefix + 2 )))
             echo ">> run-adoption-all: deriving seasonal (supply) from ${run2_dir}" >&2
             just compute-seasonal-discount-inputs \
                 "${run2_dir}" "${loads_base}" "{{ state_upper }}" "{{ upgrade }}"
@@ -870,6 +928,18 @@ run-adoption-all config_name="default" runs="1,2,5,6":
                 "${run2_dir}/seasonal_discount_rate_inputs.csv" \
                 "{{ utility }}_hp_seasonal_supply" \
                 "${tariff_dir}/{{ utility }}_hp_seasonal_supply.json"
+        fi
+        # --- Compute per-year subclass RRs (needed for runs 5/6) ---
+        # Both run 1 (delivery) and run 2 (delivery+supply) are required to
+        # compute the full hp/non-hp delivery and supply split.
+        if ($has_run5 || $has_run6); then
+            if ! $has_run1 || ! $has_run2; then
+                echo "ERROR: runs 5/6 require both run 1 and run 2 to compute subclass RRs" >&2
+                exit 1
+            fi
+            just compute-adoption-subclass-rr \
+                "${run1_dir}" "${run2_dir}" "${year}" "{{ config_name }}" \
+                "$(( key_prefix + 1 ))"
         fi
         # --- Runs 5 and 6: precalc seasonal ---
         for base_run in "${all_runs[@]}"; do

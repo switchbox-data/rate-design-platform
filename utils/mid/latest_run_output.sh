@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# Resolve the latest CAIRO output directory for a given run.
+# Resolve the CAIRO output directory for a given run.
 #
 # Usage:
 #   latest_run_output.sh <scenario_config> <run_num>
 #
 # Reads run_name and path_outputs from the scenario YAML. path_outputs contains
-# a <batch> placeholder, e.g.:
+# a batch-level placeholder, e.g.:
 #   /data.sb/.../ny/coned/<batch>/ny_coned_run1_up00_precalc__flat
 #
 # The script goes two levels up from path_outputs to get the utility base dir
-# (past <batch>/ and the run name), converts it to an S3 URI, finds the
-# latest batch directory, and searches ONLY within it for *_<run_name>/.
+# (past the batch dir and the run name), converts it to an S3 URI, then:
+#   - If RDP_BATCH is set in the environment, searches that batch directly.
+#   - Otherwise, finds the lexicographically latest batch directory.
 #
 # Prints the full S3 URI (no trailing slash) so callers can safely append /filename.
 # Exits non-zero with a helpful message on stderr if no match is found.
@@ -57,18 +58,22 @@ s3_parent="${base_dir/#\/data.sb\//s3://data.sb/}"
 # Ensure trailing slash for S3 prefix listing
 [[ "$s3_parent" == */ ]] || s3_parent="${s3_parent}/"
 
-# Find the latest batch directory
-latest_batch=$(
-  aws s3 ls "$s3_parent" 2>/dev/null |
-    grep -F "PRE" |
-    awk '{print $NF}' |
-    sort |
-    tail -1
-) || true
+# If RDP_BATCH is set, use it directly; otherwise find the lexicographically latest batch.
+if [[ -n "${RDP_BATCH:-}" ]]; then
+  latest_batch="${RDP_BATCH%/}/"
+else
+  latest_batch=$(
+    aws s3 ls "$s3_parent" 2>/dev/null |
+      grep -F "PRE" |
+      awk '{print $NF}' |
+      sort |
+      tail -1
+  ) || true
 
-if [[ -z "$latest_batch" ]]; then
-  echo "No batch directories found under ${s3_parent}" >&2
-  exit 1
+  if [[ -z "$latest_batch" ]]; then
+    echo "No batch directories found under ${s3_parent}" >&2
+    exit 1
+  fi
 fi
 
 # Search ONLY within the latest batch dir for *_<run_name>/

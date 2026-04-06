@@ -37,7 +37,7 @@ import argparse
 import copy
 import sys
 import warnings
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import numpy as np
@@ -139,6 +139,20 @@ def build_parser() -> argparse.ArgumentParser:
             "<adoption-tariff-dir>/year=<YYYY>/<utility>_hp_seasonal.json and "
             ".non-hp to <adoption-tariff-dir>/year=<YYYY>/<utility>_nonhp_flat.json.  "
             "The directory must exist before the run (created by run-adoption-all)."
+        ),
+    )
+    p.add_argument(
+        "--adoption-rr-dir",
+        type=str,
+        default=None,
+        dest="adoption_rr_dir",
+        help=(
+            "Base directory for per-year adoption subclass revenue requirement YAMLs.  "
+            "When set, for run entries with run_includes_subclasses=true (runs 5/6), "
+            "utility_revenue_requirement is set to "
+            "<adoption-rr-dir>/year=<YYYY>/<utility>_hp_vs_nonhp.yaml and "
+            "residual_cost_frac is removed.  The YAML must exist before the run "
+            "(written by compute-adoption-subclass-rr in run-adoption-all)."
         ),
     )
     return p
@@ -300,6 +314,10 @@ def main(argv: list[str] | None = None) -> None:
         print(f"  Cambium dist MC base: {args.cambium_dist_mc_base}")
     if args.adoption_tariff_dir:
         print(f"  Adoption tariff dir: {args.adoption_tariff_dir}/year=<YYYY>/")
+    if args.adoption_rr_dir:
+        print(
+            f"  Adoption RR dir: {args.adoption_rr_dir}/year=<YYYY>/ (subclass runs only)"
+        )
 
     # 3. Build generated run entries.
     output_runs: dict[int, dict[str, Any]] = {}
@@ -373,6 +391,18 @@ def main(argv: list[str] | None = None) -> None:
                 run_entry["residual_cost_frac"] = args.residual_cost_frac
                 run_entry["utility_revenue_requirement"] = None
 
+            # For flat precalc runs (non-subclass), redirect to the zero-fixed-charge
+            # tariff copies in tariffs/electric/adoption/ (same stem → same tariff_key,
+            # but fixedchargefirstmeter=0 so the fixed charge is excluded from BAT).
+            if not bool(run_entry.get("run_includes_subclasses", False)):
+                tariff_elec = run_entry.get("path_tariffs_electric", {})
+                if isinstance(tariff_elec, dict) and "all" in tariff_elec:
+                    current = str(tariff_elec["all"])
+                    p = PurePosixPath(current)
+                    # Insert adoption/ between the electric/ dir and the filename.
+                    tariff_elec["all"] = str(p.parent / "adoption" / p.name)
+                    run_entry["path_tariffs_electric"] = tariff_elec
+
             # Rewrite seasonal tariff paths for subclass runs (5/6) to
             # point at per-year files written by run-adoption-all.
             if args.adoption_tariff_dir and bool(
@@ -384,15 +414,35 @@ def main(argv: list[str] | None = None) -> None:
                 )
                 tariff_elec = run_entry.get("path_tariffs_electric", {})
                 if isinstance(tariff_elec, dict):
+                    supply_suffix = (
+                        "_supply"
+                        if run_entry.get("run_includes_supply", False)
+                        else ""
+                    )
                     if "hp" in tariff_elec:
                         tariff_elec["hp"] = (
-                            f"{tariff_dir}/{utility_val}_hp_seasonal.json"
+                            f"{tariff_dir}/{utility_val}_hp_seasonal{supply_suffix}.json"
                         )
                     if "non-hp" in tariff_elec:
                         tariff_elec["non-hp"] = (
-                            f"{tariff_dir}/{utility_val}_nonhp_flat.json"
+                            f"{tariff_dir}/{utility_val}_nonhp_flat{supply_suffix}.json"
                         )
                     run_entry["path_tariffs_electric"] = tariff_elec
+
+            # For subclass runs (5/6), use the per-year subclass RR YAML written
+            # by compute-adoption-subclass-rr instead of residual_cost_frac.
+            # The RR YAML encodes the hp/non-hp split derived from run 1/2 BAT
+            # outputs, which is the same methodology used for non-adoption runs.
+            if args.adoption_rr_dir and bool(
+                run_entry.get("run_includes_subclasses", False)
+            ):
+                utility_val = str(run_entry.get("utility", ""))
+                rr_yaml = (
+                    f"{args.adoption_rr_dir.rstrip('/')}/year={calendar_year}"
+                    f"/{utility_val}_hp_vs_nonhp.yaml"
+                )
+                run_entry["utility_revenue_requirement"] = rr_yaml
+                run_entry.pop("residual_cost_frac", None)
 
             output_key = (year_index + 1) * 100 + run_num
             output_runs[output_key] = run_entry

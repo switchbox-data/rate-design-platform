@@ -16,7 +16,7 @@ runs:
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nyseg/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2025/zero.parquet
     path_tariffs_electric:
-      all: tariffs/electric/nyseg_flat.json
+      all: tariffs/electric/adoption/nyseg_flat.json
     utility_revenue_requirement: null
     run_includes_supply: false
     run_includes_subclasses: false
@@ -46,7 +46,7 @@ runs:
     path_supply_energy_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=NYISO/r=p127/data.parquet
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=NYISO/r=p127/data.parquet
     path_tariffs_electric:
-      all: tariffs/electric/nyseg_flat_supply.json
+      all: tariffs/electric/adoption/nyseg_flat_supply.json
     utility_revenue_requirement: null
     run_includes_supply: true
     run_includes_subclasses: false
@@ -78,7 +78,7 @@ runs:
     path_tariffs_electric:
       hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2025/nyseg_hp_seasonal.json
       non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2025/nyseg_nonhp_flat.json
-    utility_revenue_requirement: null
+    utility_revenue_requirement: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/rev_requirement/adoption/nyca_electrification/year=2025/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -88,7 +88,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_cost_frac: 0.0
 
   106:
     run_name: ny_nyseg_run6_up00_precalc_supply_y2025_mixed__hp_seasonal_vs_flat
@@ -107,9 +106,9 @@ runs:
     path_supply_energy_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=NYISO/r=p127/data.parquet
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=NYISO/r=p127/data.parquet
     path_tariffs_electric:
-      hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2025/nyseg_hp_seasonal.json
-      non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2025/nyseg_nonhp_flat.json
-    utility_revenue_requirement: null
+      hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2025/nyseg_hp_seasonal_supply.json
+      non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2025/nyseg_nonhp_flat_supply.json
+    utility_revenue_requirement: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/rev_requirement/adoption/nyca_electrification/year=2025/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -119,7 +118,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_cost_frac: 0.0
 
   201:
     run_name: ny_nyseg_run1_up00_precalc_y2030_mixed__flat
@@ -138,7 +136,7 @@ runs:
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nyseg/year=2030/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2030/zero.parquet
     path_tariffs_electric:
-      all: tariffs/electric/nyseg_flat.json
+      all: tariffs/electric/adoption/nyseg_flat.json
     utility_revenue_requirement: null
     run_includes_supply: false
     run_includes_subclasses: false
@@ -168,7 +166,7 @@ runs:
     path_supply_energy_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2030/gea=NYISO/r=p127/data.parquet
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2030/gea=NYISO/r=p127/data.parquet
     path_tariffs_electric:
-      all: tariffs/electric/nyseg_flat_supply.json
+      all: tariffs/electric/adoption/nyseg_flat_supply.json
     utility_revenue_requirement: null
     run_includes_supply: true
     run_includes_subclasses: false
@@ -200,7 +198,7 @@ runs:
     path_tariffs_electric:
       hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2030/nyseg_hp_seasonal.json
       non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2030/nyseg_nonhp_flat.json
-    utility_revenue_requirement: null
+    utility_revenue_requirement: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/rev_requirement/adoption/nyca_electrification/year=2030/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -210,7 +208,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_cost_frac: 0.0
 
   206:
     run_name: ny_nyseg_run6_up00_precalc_supply_y2030_mixed__hp_seasonal_vs_flat
@@ -229,9 +226,9 @@ runs:
     path_supply_energy_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2030/gea=NYISO/r=p127/data.parquet
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2030/gea=NYISO/r=p127/data.parquet
     path_tariffs_electric:
-      hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2030/nyseg_hp_seasonal.json
-      non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2030/nyseg_nonhp_flat.json
-    utility_revenue_requirement: null
+      hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2030/nyseg_hp_seasonal_supply.json
+      non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2030/nyseg_nonhp_flat_supply.json
+    utility_revenue_requirement: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/rev_requirement/adoption/nyca_electrification/year=2030/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -241,7 +238,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_cost_frac: 0.0
 
   301:
     run_name: ny_nyseg_run1_up00_precalc_y2035_mixed__flat
@@ -260,7 +256,7 @@ runs:
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nyseg/year=2035/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2035/zero.parquet
     path_tariffs_electric:
-      all: tariffs/electric/nyseg_flat.json
+      all: tariffs/electric/adoption/nyseg_flat.json
     utility_revenue_requirement: null
     run_includes_supply: false
     run_includes_subclasses: false
@@ -290,7 +286,7 @@ runs:
     path_supply_energy_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2035/gea=NYISO/r=p127/data.parquet
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2035/gea=NYISO/r=p127/data.parquet
     path_tariffs_electric:
-      all: tariffs/electric/nyseg_flat_supply.json
+      all: tariffs/electric/adoption/nyseg_flat_supply.json
     utility_revenue_requirement: null
     run_includes_supply: true
     run_includes_subclasses: false
@@ -322,7 +318,7 @@ runs:
     path_tariffs_electric:
       hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2035/nyseg_hp_seasonal.json
       non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2035/nyseg_nonhp_flat.json
-    utility_revenue_requirement: null
+    utility_revenue_requirement: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/rev_requirement/adoption/nyca_electrification/year=2035/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -332,7 +328,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_cost_frac: 0.0
 
   306:
     run_name: ny_nyseg_run6_up00_precalc_supply_y2035_mixed__hp_seasonal_vs_flat
@@ -351,9 +346,9 @@ runs:
     path_supply_energy_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2035/gea=NYISO/r=p127/data.parquet
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2035/gea=NYISO/r=p127/data.parquet
     path_tariffs_electric:
-      hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2035/nyseg_hp_seasonal.json
-      non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2035/nyseg_nonhp_flat.json
-    utility_revenue_requirement: null
+      hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2035/nyseg_hp_seasonal_supply.json
+      non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2035/nyseg_nonhp_flat_supply.json
+    utility_revenue_requirement: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/rev_requirement/adoption/nyca_electrification/year=2035/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -363,7 +358,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_cost_frac: 0.0
 
   401:
     run_name: ny_nyseg_run1_up00_precalc_y2040_mixed__flat
@@ -382,7 +376,7 @@ runs:
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nyseg/year=2040/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2040/zero.parquet
     path_tariffs_electric:
-      all: tariffs/electric/nyseg_flat.json
+      all: tariffs/electric/adoption/nyseg_flat.json
     utility_revenue_requirement: null
     run_includes_supply: false
     run_includes_subclasses: false
@@ -412,7 +406,7 @@ runs:
     path_supply_energy_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2040/gea=NYISO/r=p127/data.parquet
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2040/gea=NYISO/r=p127/data.parquet
     path_tariffs_electric:
-      all: tariffs/electric/nyseg_flat_supply.json
+      all: tariffs/electric/adoption/nyseg_flat_supply.json
     utility_revenue_requirement: null
     run_includes_supply: true
     run_includes_subclasses: false
@@ -444,7 +438,7 @@ runs:
     path_tariffs_electric:
       hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2040/nyseg_hp_seasonal.json
       non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2040/nyseg_nonhp_flat.json
-    utility_revenue_requirement: null
+    utility_revenue_requirement: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/rev_requirement/adoption/nyca_electrification/year=2040/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -454,7 +448,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_cost_frac: 0.0
 
   406:
     run_name: ny_nyseg_run6_up00_precalc_supply_y2040_mixed__hp_seasonal_vs_flat
@@ -473,9 +466,9 @@ runs:
     path_supply_energy_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2040/gea=NYISO/r=p127/data.parquet
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2040/gea=NYISO/r=p127/data.parquet
     path_tariffs_electric:
-      hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2040/nyseg_hp_seasonal.json
-      non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2040/nyseg_nonhp_flat.json
-    utility_revenue_requirement: null
+      hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2040/nyseg_hp_seasonal_supply.json
+      non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2040/nyseg_nonhp_flat_supply.json
+    utility_revenue_requirement: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/rev_requirement/adoption/nyca_electrification/year=2040/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -485,7 +478,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_cost_frac: 0.0
 
   501:
     run_name: ny_nyseg_run1_up00_precalc_y2045_mixed__flat
@@ -504,7 +496,7 @@ runs:
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nyseg/year=2045/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2045/zero.parquet
     path_tariffs_electric:
-      all: tariffs/electric/nyseg_flat.json
+      all: tariffs/electric/adoption/nyseg_flat.json
     utility_revenue_requirement: null
     run_includes_supply: false
     run_includes_subclasses: false
@@ -534,7 +526,7 @@ runs:
     path_supply_energy_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2045/gea=NYISO/r=p127/data.parquet
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2045/gea=NYISO/r=p127/data.parquet
     path_tariffs_electric:
-      all: tariffs/electric/nyseg_flat_supply.json
+      all: tariffs/electric/adoption/nyseg_flat_supply.json
     utility_revenue_requirement: null
     run_includes_supply: true
     run_includes_subclasses: false
@@ -566,7 +558,7 @@ runs:
     path_tariffs_electric:
       hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2045/nyseg_hp_seasonal.json
       non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2045/nyseg_nonhp_flat.json
-    utility_revenue_requirement: null
+    utility_revenue_requirement: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/rev_requirement/adoption/nyca_electrification/year=2045/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -576,7 +568,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_cost_frac: 0.0
 
   506:
     run_name: ny_nyseg_run6_up00_precalc_supply_y2045_mixed__hp_seasonal_vs_flat
@@ -595,9 +586,9 @@ runs:
     path_supply_energy_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2045/gea=NYISO/r=p127/data.parquet
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2045/gea=NYISO/r=p127/data.parquet
     path_tariffs_electric:
-      hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2045/nyseg_hp_seasonal.json
-      non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2045/nyseg_nonhp_flat.json
-    utility_revenue_requirement: null
+      hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2045/nyseg_hp_seasonal_supply.json
+      non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2045/nyseg_nonhp_flat_supply.json
+    utility_revenue_requirement: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/rev_requirement/adoption/nyca_electrification/year=2045/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -607,7 +598,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_cost_frac: 0.0
 
   601:
     run_name: ny_nyseg_run1_up00_precalc_y2050_mixed__flat
@@ -626,7 +616,7 @@ runs:
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nyseg/year=2050/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2050/zero.parquet
     path_tariffs_electric:
-      all: tariffs/electric/nyseg_flat.json
+      all: tariffs/electric/adoption/nyseg_flat.json
     utility_revenue_requirement: null
     run_includes_supply: false
     run_includes_subclasses: false
@@ -656,7 +646,7 @@ runs:
     path_supply_energy_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2050/gea=NYISO/r=p127/data.parquet
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2050/gea=NYISO/r=p127/data.parquet
     path_tariffs_electric:
-      all: tariffs/electric/nyseg_flat_supply.json
+      all: tariffs/electric/adoption/nyseg_flat_supply.json
     utility_revenue_requirement: null
     run_includes_supply: true
     run_includes_subclasses: false
@@ -688,7 +678,7 @@ runs:
     path_tariffs_electric:
       hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2050/nyseg_hp_seasonal.json
       non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2050/nyseg_nonhp_flat.json
-    utility_revenue_requirement: null
+    utility_revenue_requirement: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/rev_requirement/adoption/nyca_electrification/year=2050/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -698,7 +688,6 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_cost_frac: 0.0
 
   606:
     run_name: ny_nyseg_run6_up00_precalc_supply_y2050_mixed__hp_seasonal_vs_flat
@@ -717,9 +706,9 @@ runs:
     path_supply_energy_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2050/gea=NYISO/r=p127/data.parquet
     path_supply_capacity_mc: s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2050/gea=NYISO/r=p127/data.parquet
     path_tariffs_electric:
-      hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2050/nyseg_hp_seasonal.json
-      non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2050/nyseg_nonhp_flat.json
-    utility_revenue_requirement: null
+      hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2050/nyseg_hp_seasonal_supply.json
+      non-hp: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/tariffs/electric/adoption/nyca_electrification/year=2050/nyseg_nonhp_flat_supply.json
+    utility_revenue_requirement: /ebs/home/sherry_switch_box/rate-design-platform/rate_design/hp_rates/ny/config/rev_requirement/adoption/nyca_electrification/year=2050/nyseg_hp_vs_nonhp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
@@ -729,4 +718,3 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-    residual_cost_frac: 0.0

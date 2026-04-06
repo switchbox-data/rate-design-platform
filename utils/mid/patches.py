@@ -17,6 +17,7 @@ from typing import Any, cast
 
 import cairo.rates_tool.loads as _cairo_loads
 import cairo.rates_tool.lookups as _cairo_sim_lookups
+import cairo.rates_tool.postprocessing as _cairo_postprocessing
 import cairo.rates_tool.system_revenues as _cairo_sysrev
 import cairo.rates_tool.systemsimulator as _cairo_sim
 import numpy as np
@@ -979,9 +980,11 @@ def _patched_process_residential_hourly_demand(
 ) -> pd.Series:
     """Memory-efficient weighted hourly system load aggregation.
 
-    Computes the same result as CAIRO's process_residential_hourly_demand
-    (weighted sum of electricity_net across buildings for each hour) without
-    copying the full DataFrame.
+    Uses grid consumption (load_data − pv_generation) instead of
+    electricity_net so that the system load used for costs_by_type matches
+    the grid_cons quantity used for billing and economic burden.
+    electricity_net goes negative during solar export hours, which breaks
+    the BAT accounting identity (Total_MC != Σ bills).
     """
     log.info(
         "PATCH_CALL _patched_process_residential_hourly_demand buildings=%s",
@@ -993,7 +996,9 @@ def _patched_process_residential_hourly_demand(
     unique_bldgs = bldg_load.index.get_level_values("bldg_id").unique()
     n_bldgs = len(unique_bldgs)
 
-    arr = bldg_load["electricity_net"].values.reshape(n_bldgs, 8760)
+    grid_cons = np.maximum(bldg_load["electricity_net"].values, 0)
+
+    arr = grid_cons.reshape(n_bldgs, 8760)
     w = weights.reindex(unique_bldgs).values
     hourly_sum = (arr * w[:, np.newaxis]).sum(axis=0)
 
@@ -1010,4 +1015,215 @@ _cairo_loads.process_residential_hourly_demand = cast(
 log.info(
     "PATCH_APPLIED cairo.rates_tool.loads.process_residential_hourly_demand -> %s",
     _patched_process_residential_hourly_demand.__name__,
+)
+
+# ---------------------------------------------------------------------------
+# Phase 6: fix BAT economic burden to use load_data - pv_generation
+# ---------------------------------------------------------------------------
+# CAIRO's _determine_marginal_cost_allocation uses `electricity_net` (the
+# ResStock net metered column, out.electricity.net) to compute each customer's
+# MC economic burden.  That column is signed: it goes negative in hours where
+# a solar customer exports more than they consume, so large PV buildings get
+# a spuriously low (or negative) annual economic burden.  The precalc BAT
+# check then fails because the weighted sum of burden no longer equals total
+# billed revenue.
+#
+# The correct quantity is grid consumption: max(0, electricity_net).
+# This is what billing charges against (grid_cons in CAIRO's load pipeline),
+# and it is always ≥ 0.  Using electricity_net directly in the MC burden
+# and hourly_sys_load while billing uses grid_cons breaks the BAT identity.
+
+_orig_determine_marginal_cost_allocation = _cairo_postprocessing.InternalCrossSubsidizationProcessor._determine_marginal_cost_allocation
+
+
+def _patched_determine_marginal_cost_allocation(
+    self,
+    raw_hourly_load: pd.DataFrame,
+    marginal_system_prices: pd.DataFrame,
+) -> pd.Series:
+    """Economic burden using load_data - pv_generation (grid_cons) instead of electricity_net.
+
+    electricity_net (out.electricity.net) is signed and goes negative during
+    export hours, understating the MC burden of solar customers.  Grid
+    consumption (total - pv) matches the load quantity used for billing and is
+    always non-negative.
+    """
+    log.info(
+        "PATCH_CALL _patched_determine_marginal_cost_allocation buildings=%s",
+        raw_hourly_load.index.get_level_values("bldg_id").nunique(),
+    )
+
+    complete_marginal_prices = pd.DataFrame(
+        marginal_system_prices["Total Marginal Costs ($/kWh)"].values,
+        columns=["marginal_prices"],
+        index=pd.Index(marginal_system_prices.index, name="time"),
+    )
+
+    grid_cons = raw_hourly_load["electricity_net"].clip(lower=0)
+
+    complete_marginal_costs = pd.merge(
+        grid_cons.rename("grid_cons").reset_index(["bldg_id", "time"]),
+        complete_marginal_prices.reset_index(["time"]),
+        on=["time"],
+        how="left",
+    )
+
+    complete_marginal_costs = complete_marginal_costs.set_index(["bldg_id", "time"])
+    complete_marginal_costs = complete_marginal_costs.prod(axis=1)
+    complete_marginal_costs = pd.DataFrame(
+        complete_marginal_costs, columns=["customer_level_economic_burden"]
+    )
+
+    annual_customer_economic_burden = complete_marginal_costs.groupby(["bldg_id"])[
+        "customer_level_economic_burden"
+    ].sum()
+
+    return annual_customer_economic_burden
+
+
+_cairo_postprocessing.InternalCrossSubsidizationProcessor._determine_marginal_cost_allocation = (  # type: ignore[method-assign]
+    _patched_determine_marginal_cost_allocation
+)
+log.info(
+    "PATCH_APPLIED InternalCrossSubsidizationProcessor._determine_marginal_cost_allocation -> %s",
+    _patched_determine_marginal_cost_allocation.__name__,
+)
+
+
+# ---------------------------------------------------------------------------
+# Phase 7: fix residual allocation to use grid_cons instead of electricity_net
+# ---------------------------------------------------------------------------
+# The same electricity_net problem affects _allocate_residual_volumetric and
+# _allocate_residual_peak: they allocate residual costs proportional to each
+# customer's electricity_net, but bills (and hence the BAT denominator) use
+# grid_cons.  Using electricity_net gives solar exporters a smaller (or
+# negative) share, leaving the weighted BAT sum != 0.
+
+
+def _grid_cons_from_load(raw_hourly_load: pd.DataFrame) -> pd.Series:
+    """Return per-building hourly grid consumption from raw_hourly_load.
+
+    Uses max(0, electricity_net) — the same quantity that billing charges
+    against (grid_cons in CAIRO's load pipeline).
+    """
+    return raw_hourly_load["electricity_net"].clip(lower=0)
+
+
+_orig_allocate_residual_volumetric = _cairo_postprocessing.InternalCrossSubsidizationProcessor._allocate_residual_volumetric
+
+
+def _patched_allocate_residual_volumetric(
+    self,
+    building_metadata: pd.DataFrame,
+    raw_hourly_load: pd.DataFrame,
+    costs_by_type: dict,
+) -> pd.Series:
+    """Volumetric residual allocation using grid_cons instead of electricity_net."""
+    grid_cons = _grid_cons_from_load(raw_hourly_load)
+    annual_net_load = pd.merge(
+        grid_cons.groupby("bldg_id").sum().rename("grid_cons").reset_index(),
+        building_metadata[["bldg_id", "weight"]],
+        on="bldg_id",
+        how="left",
+    ).set_index("bldg_id")
+
+    energy_charge_residual = (
+        costs_by_type["Residual Costs ($)"]
+        / annual_net_load.prod(axis=1).sum().squeeze()
+    )
+    annual_customer_residual_share = annual_net_load["grid_cons"].mul(
+        energy_charge_residual
+    )
+    annual_customer_residual_share.name = "customer_level_residual_share_volumetric"
+    return annual_customer_residual_share
+
+
+_cairo_postprocessing.InternalCrossSubsidizationProcessor._allocate_residual_volumetric = (  # type: ignore[method-assign]
+    _patched_allocate_residual_volumetric
+)
+log.info(
+    "PATCH_APPLIED InternalCrossSubsidizationProcessor._allocate_residual_volumetric -> %s",
+    _patched_allocate_residual_volumetric.__name__,
+)
+
+
+_orig_allocate_residual_peak = (
+    _cairo_postprocessing.InternalCrossSubsidizationProcessor._allocate_residual_peak
+)
+
+
+def _patched_allocate_residual_peak(
+    self,
+    building_metadata: pd.DataFrame,
+    raw_hourly_load: pd.DataFrame,
+    marginal_system_prices: pd.DataFrame,
+    costs_by_type: dict,
+) -> pd.Series | None:
+    """Peak residual allocation using grid_cons instead of electricity_net."""
+    peak_cost_cols = [
+        col
+        for col in (
+            "Marginal Capacity Costs ($/kWh)",
+            "Marginal Distribution Costs ($/kWh)",
+        )
+        if col in marginal_system_prices.columns
+    ]
+    if not peak_cost_cols:
+        return None
+
+    peak_hours_mask = marginal_system_prices[peak_cost_cols].sum(axis=1) > 0.0
+    if not peak_hours_mask.any():
+        return None
+
+    grid_cons = _grid_cons_from_load(raw_hourly_load)
+
+    peak_hours_index = marginal_system_prices.index[peak_hours_mask]
+
+    # Align timezones: marginal_system_prices may use a fixed-offset tz (e.g.
+    # EST) while raw_hourly_load uses a DST-aware tz (e.g. US/Eastern).  A
+    # direct .loc[] with mismatched tz types raises KeyError even though the
+    # underlying UTC instants are identical.  Use a merge on the time column
+    # (after reset_index) to match by value regardless of tz representation,
+    # mirroring the approach in _patched_determine_marginal_cost_allocation.
+    peak_hours_df = pd.DataFrame({"_peak": True}, index=peak_hours_index)
+    peak_hours_df.index.name = "time"
+    grid_cons_df = (
+        grid_cons.rename("grid_cons")
+        .reset_index("bldg_id")
+        .reset_index()  # brings time back as a column
+    )
+    peak_demand_contribution = (
+        grid_cons_df.merge(
+            peak_hours_df.reset_index()[["time"]],
+            on="time",
+            how="inner",
+        )
+        .groupby("bldg_id")["grid_cons"]
+        .sum()
+    )
+    peak_demand_contribution = pd.merge(
+        peak_demand_contribution,
+        building_metadata.set_index("bldg_id")[["weight"]],
+        right_index=True,
+        left_index=True,
+        how="left",
+    )
+    denominator = peak_demand_contribution.prod(axis=1).sum().squeeze()
+    if denominator == 0:
+        return None
+    peak_charge_residual = costs_by_type["Residual Costs ($)"] / denominator
+
+    annual_customer_residual_share = peak_demand_contribution["grid_cons"].mul(
+        peak_charge_residual
+    )
+    annual_customer_residual_share.name = "customer_level_residual_share_peak"
+    return annual_customer_residual_share
+
+
+_cairo_postprocessing.InternalCrossSubsidizationProcessor._allocate_residual_peak = (  # type: ignore[method-assign]
+    _patched_allocate_residual_peak
+)
+log.info(
+    "PATCH_APPLIED InternalCrossSubsidizationProcessor._allocate_residual_peak -> %s",
+    _patched_allocate_residual_peak.__name__,
 )

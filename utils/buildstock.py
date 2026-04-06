@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import os
+import shutil
 import warnings
 from pathlib import Path
 from typing import Callable
@@ -176,6 +177,8 @@ class SbMixedUpgradeScenario:
             loads_out_dir = (
                 year_dir / "load_curve_hourly" / f"state={self.state}" / "upgrade=00"
             )
+            if loads_out_dir.exists():
+                shutil.rmtree(loads_out_dir)
             loads_out_dir.mkdir(parents=True, exist_ok=True)
             year_map = assignments[year_idx]
 
@@ -211,14 +214,14 @@ class SbMixedUpgradeScenario:
                     )
                 for src in load_map.values():
                     dst = loads_out_dir / src.name
-                    if dst.exists() or dst.is_symlink():
-                        dst.unlink()
                     os.symlink(src.resolve(), dst)
 
             if not metadata_parts:
                 raise ValueError(f"No metadata rows found for year index {year_idx}")
 
-            metadata_df = pl.concat(metadata_parts, how="diagonal_relaxed").sort("bldg_id")
+            metadata_df = pl.concat(metadata_parts, how="diagonal_relaxed").sort(
+                "bldg_id"
+            )
             metadata_df.write_parquet(year_dir / "metadata-sb.parquet")
 
     def export_scenario_csv(
