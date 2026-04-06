@@ -121,6 +121,7 @@ class ScenarioSettings:
     path_supply_ancillary_mc: str | Path | None = None
     customer_count_override: float | None = None
     kwh_scale_factor: float | None = None
+    subclass_config: dict[str, Any] | None = None
 
 
 def apply_prototype_sample(
@@ -292,6 +293,7 @@ def _build_settings_from_yaml_run(
         path_supply_ancillary_mc = _resolve_path_or_uri(
             str(ancillary_raw).strip(), path_config
         )
+    subclass_config: dict[str, Any] | None = run.get("subclass_config")
     output_dir = _resolve_output_dir(run, run_num, output_dir_override)
     run_name = run_name_override or run.get("run_name") or f"run_{run_num}"
     return ScenarioSettings(
@@ -347,6 +349,7 @@ def _build_settings_from_yaml_run(
         else None,
         customer_count_override=rr_config.customer_count_override,
         kwh_scale_factor=rr_config.kwh_scale_factor,
+        subclass_config=subclass_config,
     )
 
 
@@ -511,6 +514,33 @@ def _load_prototype_ids_for_run(
     return prototype_ids
 
 
+def _buildingstock_columns(settings: ScenarioSettings) -> list[str]:
+    """Return the list of metadata columns to request from ``return_buildingstock``.
+
+    Always includes the baseline columns needed by CAIRO and post-processing:
+    ``applicability``, ``postprocess_group.has_hp``,
+    ``postprocess_group.heating_type``, ``postprocess_group.heating_type_v2``,
+    and ``in.vintage_acs``.
+
+    When ``subclass_config`` specifies a ``group_col`` other than the defaults
+    above, the corresponding ``postprocess_group.<group_col>`` column is appended
+    so it is available for tariff-map generation and BAT joins.
+    """
+    base_cols = [
+        "applicability",
+        "postprocess_group.has_hp",
+        "postprocess_group.heating_type",
+        "postprocess_group.heating_type_v2",
+        "in.vintage_acs",
+    ]
+    if settings.subclass_config is not None:
+        group_col = settings.subclass_config.get("group_col", "")
+        extra_col = f"postprocess_group.{group_col}"
+        if group_col and extra_col not in base_cols:
+            base_cols.append(extra_col)
+    return base_cols
+
+
 def _build_precalc_period_mapping(
     path_tariffs_electric: dict[str, Path],
 ) -> pd.DataFrame:
@@ -579,13 +609,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             load_scenario=settings.path_resstock_metadata,
             building_stock_sample=prototype_ids,
             customer_count=customer_count,
-            columns=[
-                "applicability",
-                "postprocess_group.has_hp",
-                "postprocess_group.heating_type",
-                "postprocess_group.heating_type_v2",
-                "in.vintage_acs",
-            ],
+            columns=_buildingstock_columns(settings),
         )
 
     with _timed("build_bldg_id_to_load_filepath"):
