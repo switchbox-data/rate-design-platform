@@ -205,6 +205,51 @@ def _parse_bool(value: object) -> bool:
     )
 
 
+def _parse_subclass_selectors(raw: str) -> dict[str, str]:
+    """Parse subclass_selectors sheet column into a selectors dict.
+
+    Format: ``key:value1|value2,key2:value3|value4``
+
+    Each entry is ``<subclass_key>:<pipe-separated group_col values>``.
+    Commas separate subclass entries; pipes separate multiple values within
+    one subclass.  Values are stored as a comma-separated string (the format
+    expected by ``generate_tariff_map_from_scenario_keys``).
+
+    Example::
+
+        "electric_heating:heat_pump|electrical_resistance,non_electric_heating:natgas|delivered_fuels|other"
+        → {"electric_heating": "heat_pump,electrical_resistance",
+           "non_electric_heating": "natgas,delivered_fuels,other"}
+
+    Also supports the simpler single-value form::
+
+        "hp:true,non-hp:false"
+        → {"hp": "true", "non-hp": "false"}
+    """
+    if not raw.strip():
+        return {}
+    out: dict[str, str] = {}
+    for entry in raw.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        if ":" not in entry:
+            raise ValueError(
+                f"subclass_selectors entry must be 'key:value(s)', got {entry!r}"
+            )
+        key, values_raw = entry.split(":", 1)
+        key = key.strip()
+        values = ",".join(v.strip() for v in values_raw.split("|"))
+        if not key or not values:
+            raise ValueError(
+                f"subclass_selectors entry has blank key or values: {entry!r}"
+            )
+        if key in out:
+            raise ValueError(f"subclass_selectors duplicate key {key!r}")
+        out[key] = values
+    return out
+
+
 def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     """Convert one sheet row to a run dict for YAML."""
 
@@ -303,6 +348,25 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     residual_allocation_supply = get_optional("residual_allocation_supply")
     if residual_allocation_supply:
         run["residual_allocation_supply"] = residual_allocation_supply
+
+    # subclass_config: built from subclass_group_col + subclass_selectors sheet columns.
+    # When run_includes_subclasses is True but both columns are absent/blank, raise.
+    subclass_group_col = get_optional("subclass_group_col")
+    subclass_selectors_raw = get_optional("subclass_selectors")
+    if subclass_group_col and subclass_selectors_raw:
+        selectors = _parse_subclass_selectors(subclass_selectors_raw)
+        run["subclass_config"] = {
+            "group_col": subclass_group_col,
+            "selectors": selectors,
+        }
+    elif run["run_includes_subclasses"] and (
+        not subclass_group_col or not subclass_selectors_raw
+    ):
+        raise ValueError(
+            "run_includes_subclasses is True but subclass_group_col and/or "
+            "subclass_selectors are blank. Populate both columns in the sheet or "
+            "set run_includes_subclasses to FALSE."
+        )
 
     run["path_electric_utility_stats"] = get("path_electric_utility_stats")
 

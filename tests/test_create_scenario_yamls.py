@@ -1,4 +1,6 @@
-from utils.pre.create_scenario_yamls import _row_to_run
+from typing import cast
+
+from utils.pre.create_scenario_yamls import _parse_subclass_selectors, _row_to_run
 
 
 def _base_row() -> dict[str, str]:
@@ -22,6 +24,8 @@ def _base_row() -> dict[str, str]:
         "utility_revenue_requirement": "rev_requirement/rie_hp_vs_nonhp.yaml",
         "add_supply_revenue_requirement": "FALSE",
         "run_includes_subclasses": "TRUE",
+        "subclass_group_col": "has_hp",
+        "subclass_selectors": "hp:true,non-hp:false",
         "path_electric_utility_stats": "s3://example/eia861.parquet",
         "solar_pv_compensation": "net_metering",
         "year_run": "2025",
@@ -97,3 +101,113 @@ def test_row_to_run_omits_path_tou_supply_mc_when_blank() -> None:
     run = _row_to_run(row, headers)
 
     assert "path_tou_supply_mc" not in run
+
+
+# ---------------------------------------------------------------------------
+# _parse_subclass_selectors
+# ---------------------------------------------------------------------------
+
+
+def test_parse_subclass_selectors_simple() -> None:
+    """Single-value per subclass (hp/non-hp case)."""
+    result = _parse_subclass_selectors("hp:true,non-hp:false")
+    assert result == {"hp": "true", "non-hp": "false"}
+
+
+def test_parse_subclass_selectors_multi_value() -> None:
+    """Pipe-separated values are joined with commas."""
+    result = _parse_subclass_selectors(
+        "electric_heating:heat_pump|electrical_resistance,"
+        "non_electric_heating:natgas|delivered_fuels|other"
+    )
+    assert result == {
+        "electric_heating": "heat_pump,electrical_resistance",
+        "non_electric_heating": "natgas,delivered_fuels,other",
+    }
+
+
+def test_parse_subclass_selectors_empty() -> None:
+    assert _parse_subclass_selectors("") == {}
+    assert _parse_subclass_selectors("   ") == {}
+
+
+def test_parse_subclass_selectors_missing_colon_raises() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="must be 'key:value"):
+        _parse_subclass_selectors("hp_true,non-hp:false")
+
+
+def test_parse_subclass_selectors_duplicate_key_raises() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="duplicate key"):
+        _parse_subclass_selectors("hp:true,hp:false")
+
+
+# ---------------------------------------------------------------------------
+# _row_to_run: subclass_config emission
+# ---------------------------------------------------------------------------
+
+
+def test_row_to_run_emits_subclass_config() -> None:
+    """subclass_config is emitted when both subclass columns are set."""
+    row = _base_row()
+    headers = list(row.keys())
+    run = _row_to_run(row, headers)
+    assert "subclass_config" in run
+    sc = cast(dict[str, object], run["subclass_config"])
+    assert sc["group_col"] == "has_hp"
+    assert sc["selectors"] == {"hp": "true", "non-hp": "false"}
+
+
+def test_row_to_run_subclass_config_multi_value_selectors() -> None:
+    """Pipe-separated selectors are parsed into comma-joined values."""
+    row = _base_row()
+    row["subclass_group_col"] = "heating_type_v2"
+    row["subclass_selectors"] = (
+        "electric_heating:heat_pump|electrical_resistance,"
+        "non_electric_heating:natgas|delivered_fuels|other"
+    )
+    headers = list(row.keys())
+    run = _row_to_run(row, headers)
+    sc = cast(dict[str, object], run["subclass_config"])
+    assert sc["group_col"] == "heating_type_v2"
+    selectors = cast(dict[str, str], sc["selectors"])
+    assert selectors["electric_heating"] == "heat_pump,electrical_resistance"
+    assert selectors["non_electric_heating"] == "natgas,delivered_fuels,other"
+
+
+def test_row_to_run_no_subclass_config_when_not_subclassed() -> None:
+    """No subclass_config emitted when run_includes_subclasses is FALSE."""
+    row = _base_row()
+    row["run_includes_subclasses"] = "FALSE"
+    row["subclass_group_col"] = ""
+    row["subclass_selectors"] = ""
+    headers = list(row.keys())
+    run = _row_to_run(row, headers)
+    assert "subclass_config" not in run
+
+
+def test_row_to_run_subclass_config_columns_absent_non_subclassed() -> None:
+    """No error when run_includes_subclasses is FALSE and subclass columns are absent."""
+    row = _base_row()
+    row["run_includes_subclasses"] = "FALSE"
+    # Remove the subclass columns entirely (simulate old sheet without them)
+    row.pop("subclass_group_col")
+    row.pop("subclass_selectors")
+    headers = list(row.keys())
+    run = _row_to_run(row, headers)
+    assert "subclass_config" not in run
+
+
+def test_row_to_run_raises_when_subclassed_but_missing_subclass_config() -> None:
+    """ValueError when run_includes_subclasses is TRUE but subclass columns are blank."""
+    import pytest
+
+    row = _base_row()
+    row["subclass_group_col"] = ""
+    row["subclass_selectors"] = ""
+    headers = list(row.keys())
+    with pytest.raises(ValueError, match="subclass_group_col"):
+        _row_to_run(row, headers)
