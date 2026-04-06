@@ -81,12 +81,15 @@ done
 echo
 
 # Connect via SSM and set up tools (no SSH keys needed!)
-echo "🔧 Installing just, uv, gh, AWS CLI, and setting up shared directories..."
+# Quarto .deb version (amd64). Keep in sync with QUARTO_VERSION in infra/user-data.sh.
+QUARTO_VERSION="1.9.36"
+
+echo "🔧 Installing just, uv, gh, AWS CLI, Quarto, and setting up shared directories..."
 SETUP_CMD_ID=$(aws ssm send-command \
   --instance-ids "$INSTANCE_ID" \
   --document-name "AWS-RunShellScript" \
   --parameters 'commands=[
-        "bash -c \"set -eu; apt-get update; if [ ! -x /usr/local/bin/just ]; then curl --proto =https --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin; fi; if [ ! -x /usr/local/bin/uv ]; then curl -LsSf https://astral.sh/uv/install.sh | sh && cp /root/.cargo/bin/uv /usr/local/bin/uv && chmod +x /usr/local/bin/uv; fi; if ! command -v gh >/dev/null 2>&1; then curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && echo \\\"deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\\\" > /etc/apt/sources.list.d/github-cli.list && apt-get update && apt-get install -y gh; fi; if ! command -v aws >/dev/null 2>&1; then apt-get install -y awscli; fi; mkdir -p /data/home /data/shared; chmod 755 /data/home; chmod 777 /data/shared\""
+        "bash -c \"set -eu; apt-get update; if [ ! -x /usr/local/bin/just ]; then curl --proto =https --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin; fi; if [ ! -x /usr/local/bin/uv ]; then curl -LsSf https://astral.sh/uv/install.sh | sh && cp /root/.cargo/bin/uv /usr/local/bin/uv && chmod +x /usr/local/bin/uv; fi; if ! command -v gh >/dev/null 2>&1; then curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && echo \\\"deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\\\" > /etc/apt/sources.list.d/github-cli.list && apt-get update && apt-get install -y gh; fi; if ! command -v aws >/dev/null 2>&1; then apt-get install -y awscli; fi; if ! command -v quarto >/dev/null 2>&1; then curl -fsSL https://github.com/quarto-dev/quarto-cli/releases/download/v'"$QUARTO_VERSION"'/quarto-'"$QUARTO_VERSION"'-linux-amd64.deb -o /tmp/quarto.deb && (dpkg -i /tmp/quarto.deb || apt-get install -f -y) && rm -f /tmp/quarto.deb; fi; mkdir -p /data/home /data/shared; chmod 755 /data/home; chmod 777 /data/shared\""
     ]' \
   --query 'Command.CommandId' \
   --output text 2>/dev/null)
