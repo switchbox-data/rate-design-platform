@@ -424,15 +424,18 @@ compute-subclass-rev-requirements:
     run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
     run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
     read -r base_rr differentiated_rr < <(uv run python3 "{{ path_repo }}/utils/mid/resolve_rr_paths.py" "{{ path_scenario_config }}")
+    read -r group_col group_value_to_subclass < <(uv run python3 "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}")
     echo ">> compute-subclass-rev-requirements: run-1 (delivery) → ${run1_dir}" >&2
     echo ">> compute-subclass-rev-requirements: run-2 (delivery+supply) → ${run2_dir}" >&2
     echo ">> base_rr: ${base_rr}" >&2
     echo ">> differentiated_rr: ${differentiated_rr}" >&2
+    echo ">> group_col: ${group_col}" >&2
+    echo ">> group_value_to_subclass: ${group_value_to_subclass}" >&2
     just compute-subclass-rr "${run1_dir}" "{{ path_scenario_config }}" \
-      "1" "has_hp" \
+      "1" "${group_col}" \
       "${differentiated_rr}" \
       "${base_rr}" \
-      "true=hp,false=non-hp" \
+      "${group_value_to_subclass}" \
       "${base_rr}" \
       "${run2_dir}"
 
