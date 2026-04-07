@@ -10,17 +10,20 @@ Scripts in `data/` fetch, convert, and upload datasets to S3. Each subdirectory 
 
 - **Fetch and convert locally**; **upload to S3 as a separate step**. Do not upload from inside the fetch/convert script unless the pipeline is special (e.g. EIA zone loads write directly to S3). Prefer:
   - `fetch` (and optionally `convert`) → write to local staging dirs (e.g. `parquet/`, `csv/`, `json/`, `xlsx/`, `zips/`).
+  - Optional **`validate`** → QA on local staging (schema, nulls, row counts, expected partitions) before upload.
   - `upload` → `aws s3 sync` (or equivalent) from local staging to S3.
-- Optional **`prepare`** recipe: fetch + convert (upload is then a separate step).
-- **Clean**: Every pipeline that creates local staging directories **must** have a **`clean`** recipe that removes those directories. Use the same path variables as in fetch/convert/upload so one place defines the paths.
+- Optional **`prepare`** recipe: **`fetch`** → optional **`convert`** → optional **`validate`** (whatever the pipeline needs locally); upload remains separate.
+- **Clean**: Every pipeline that creates local staging directories **must** have a **`clean`** recipe that removes those directories. Use the same path variables as in fetch/convert/validate/upload so one place defines the paths.
 
 ## Recipe names
 
 - **`fetch`** — main recipe that downloads (and optionally converts to parquet, if it can be done in one go) data into local staging.
 - **`test-download`** — optional; verify that a previous download is present/correct (e.g. ResStock).
 - **`convert`** — convert raw staging (e.g. csv, json, xlsx) to parquet (or other final format) locally, used when the conversion can't be done in the fetch, because fetch involves getting separate raw files.
+- **`validate`** — optional; run checks on **local** outputs only (no S3 writes). Typically implemented by `validate_<dataproduct>_parquet.py` or similar; exit non-zero on failure. Common in ISO-NE/NYISO/EIA heating-fuel pipelines; wire it into **`prepare`** when both exist.
 - **`upload`** — sync local output to S3 (no upload inside fetch/convert scripts unless justified).
-- **`prepare`** — fetch + convert (no upload).
+- **`prepare`** — local build through validation, no upload: **`fetch`**, add **`convert`** when raw staging is separate from parquet, and **`validate`** when the pipeline defines it (order: fetch → convert → validate).
+- **`update`** — optional; **incremental gap fill** for datasets that are Hive-partitioned by time (or another ordered key). A dedicated script lists **existing partitions on S3** (via `aws s3 ls … --recursive` or equivalent) and often **local staging** too, takes the latest watermark, then **fetches/converts only missing periods** through a sensible upper bound (e.g. last complete calendar month). The Just recipe usually passes only path arguments — **the script derives the date (or period) range**; for an explicit range, use **`fetch`** with `start`/`end` (or the fetch script’s flags). **Does not upload** — run `upload` afterward, same as `fetch`/`prepare`. Pipelines that use this today include `data/eia/heating_fuel_prices/`, `data/isone/ancillary/`, `data/isone/lmp/`, `data/isone/hourly_demand/`, `data/isone/capacity/ara/`, `data/isone/capacity/mra/`, `data/nyiso/lbmp/`, and `data/nyiso/icap/`.
 - **`clean`** — remove all local staging dirs for this pipeline.
 
 ## Path variables (Justfile)
@@ -37,13 +40,15 @@ Use consistent names so every pipeline looks the same:
   - **`path_s3_parquet`** — S3 prefix for the parquet dataset (partition root). Use for upload destination and for scripts that read/write that dataset.
   - **`path_s3_zone_parquet`** / **`path_s3_utility_parquet`** — when a pipeline has two distinct parquet roots (e.g. EIA zone vs utility loads).
 
-Do **not** use ad hoc names like `project_root`, `s3_base`, `local_parquet_dir` — use the names above. Define path variables at the top of the Justfile and use them in every recipe (fetch, convert, upload, clean).
+Do **not** use ad hoc names like `project_root`, `s3_base`, `local_parquet_dir` — use the names above. Define path variables at the top of the Justfile and use them in every recipe (fetch, convert, validate, upload, update, clean).
 
 ## Script names
 
 - **Fetch scripts**: `fetch_<dataproduct>_<dataformat>.py`
   - Examples: `fetch_smi_json.py`, `fetch_ami_xlsx.py`, `fetch_cpi_parquet.py`, `fetch_zone_loads_parquet.py`, `fetch_electric_utility_stat_parquets.py`, `fetch_fpl_yaml.py`.
 - **Convert scripts**: `convert_<source>_to_parquet.py` or similar (e.g. `convert_hud_smi_json_to_parquet.py`, `convert_cambium_csv_to_parquet.py`).
+- **Validate scripts** (local QA): `validate_<dataproduct>_parquet.py` or `validate_<dataproduct>.py` / `validate_<specific>.py` (e.g. `validate_isone_ancillary_parquet.py`, `validate_fca_reference.py`).
+- **Update scripts** (incremental refresh): `update_<dataproduct>_to_latest.py` or `update_<dataproduct>.py` — implement the S3/local partition listing and bounded fetch/convert described for the **`update`** recipe above.
 
 Scripts live in the same directory as the Justfile that invokes them.
 
