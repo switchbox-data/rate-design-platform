@@ -751,12 +751,13 @@ run-25:
     #!/usr/bin/env bash
     set -euo pipefail
     run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
+    read -r group_col group_value_to_subclass < <(uv run python3 "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}" --run-num 25)
     echo ">> run-25: resolved run-1 output → ${run1_dir}" >&2
     just compute-seasonal-discount-inputs "${run1_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
         "BAT_epmc" "" \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
-        "heating_type_v2" "electric_heating"
+        "${group_col}" "electric_heating" "${group_value_to_subclass}"
     just create-seasonal-discount-tariff \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
         "${run1_dir}/seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
@@ -768,12 +769,13 @@ run-26:
     #!/usr/bin/env bash
     set -euo pipefail
     run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
+    read -r group_col group_value_to_subclass < <(uv run python3 "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}" --run-num 26)
     echo ">> run-26: resolved run-2 output → ${run2_dir}" >&2
     just compute-seasonal-discount-inputs "${run2_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
         "BAT_epmc" "" \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
-        "heating_type_v2" "electric_heating"
+        "${group_col}" "electric_heating" "${group_value_to_subclass}"
     just create-seasonal-discount-tariff \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
         "${run2_dir}/seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
