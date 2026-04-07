@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "cenhud_hp_seasonal",
-      "name": "cenhud_hp_seasonal",
+      "label": "cenhud_hp_seasonal_epmc",
+      "name": "cenhud_hp_seasonal_epmc",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,14 +640,14 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.14607171250510667,
+            "rate": 0.1454489656613131,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.02585751934026777,
+            "rate": 0.10207661285796413,
             "adj": 0.0,
             "unit": "kWh"
           }
