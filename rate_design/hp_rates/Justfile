@@ -377,7 +377,7 @@ compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" diffe
       "{{ resstock_base }}" \
       "{{ upgrade }}"
 
-compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="" group_col="has_hp" subclass_value="true":
+compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="" group_col="has_hp" subclass_value="true" group_value_to_subclass="":
     just -f {{ path_repo }}/utils/Justfile compute-seasonal-discount-inputs \
       "{{ run_dir }}" \
       "{{ resstock_base }}" \
@@ -387,7 +387,8 @@ compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsi
       "{{ output_dir }}" \
       "{{ base_tariff_json }}" \
       "{{ group_col }}" \
-      "{{ subclass_value }}"
+      "{{ subclass_value }}" \
+      "{{ group_value_to_subclass }}"
 
 create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label output_path periods_yaml=path_periods_yaml:
     just -f {{ path_repo }}/utils/Justfile create-seasonal-discount-tariff \
