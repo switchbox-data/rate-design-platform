@@ -12,6 +12,7 @@ import yaml
 from utils.mid.compute_subclass_rr import (
     DEFAULT_SEASONAL_OUTPUT_FILENAME,
     _load_run_fields,
+    _resolve_selector_group_values,
     _write_revenue_requirement_yamls,
     _write_seasonal_inputs_csv,
     compute_subclass_flat_discount_inputs,
@@ -232,6 +233,20 @@ def test_compute_subclass_rr_missing_annual_rows_raises(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="Missing annual target bills"):
         compute_subclass_rr(run_dir, cross_subsidy_cols="BAT_percustomer")
+
+
+def test_resolve_selector_group_values_expands_subclass_alias() -> None:
+    mapping = parse_group_value_to_subclass(
+        "heat_pump=electric_heating,"
+        "electrical_resistance=electric_heating,"
+        "natgas=non_electric_heating"
+    )
+
+    assert _resolve_selector_group_values("electric_heating", mapping) == (
+        "heat_pump",
+        "electrical_resistance",
+    )
+    assert _resolve_selector_group_values("natgas", mapping) == ("natgas",)
 
 
 def test_load_run_fields_from_scenario_config(tmp_path: Path) -> None:
@@ -962,84 +977,42 @@ def test_write_seasonal_inputs_csv_uses_output_dir_override(tmp_path: Path) -> N
 # =============================================================================
 
 
-def test_seasonal_discount_filename_hp() -> None:
-    assert (
-        seasonal_discount_filename("has_hp", "true")
-        == "seasonal_discount_rate_inputs_has_hp_true.csv"
-    )
+@pytest.mark.parametrize(
+    ("group_col", "subclass_value", "expected"),
+    [
+        ("has_hp", "true", "seasonal_discount_rate_inputs_has_hp_true.csv"),
+        (
+            "heating_type_v2",
+            "electric_heating",
+            "seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv",
+        ),
+    ],
+)
+def test_seasonal_discount_filename(
+    group_col: str,
+    subclass_value: str,
+    expected: str,
+) -> None:
+    assert seasonal_discount_filename(group_col, subclass_value) == expected
 
 
-def test_seasonal_discount_filename_electric_heating() -> None:
-    assert (
-        seasonal_discount_filename("heating_type_v2", "electric_heating")
-        == "seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv"
-    )
-
-
-def test_flat_discount_filename_hp() -> None:
-    assert (
-        flat_discount_filename("has_hp", "true")
-        == "flat_discount_rate_inputs_has_hp_true.csv"
-    )
-
-
-def test_flat_discount_filename_electric_heating() -> None:
-    assert (
-        flat_discount_filename("heating_type_v2", "electric_heating")
-        == "flat_discount_rate_inputs_heating_type_v2_electric_heating.csv"
-    )
-
-
-# =============================================================================
-# Generic subclass seasonal discount inputs
-# =============================================================================
-
-
-def test_compute_subclass_seasonal_discount_inputs_hp(tmp_path: Path) -> None:
-    """Generic function returns same numerics as compat alias when group_col=has_hp/true."""
-    run_dir = _write_sample_run_dir(tmp_path)
-    tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
-    resstock_base = tmp_path / "resstock"
-    part = (
-        resstock_base
-        / "load_curve_hourly"
-        / f"state={_LOADS_STATE}"
-        / f"upgrade={_LOADS_UPGRADE}"
-    )
-    part.mkdir(parents=True)
-    pl.DataFrame(
-        {
-            "bldg_id": [1, 1, 3, 3],
-            "timestamp": [
-                "2025-01-01 00:00:00",
-                "2025-07-01 00:00:00",
-                "2025-02-01 00:00:00",
-                "2025-12-01 00:00:00",
-            ],
-            "out.electricity.total.energy_consumption": [200.0, 100.0, 200.0, 100.0],
-            "out.electricity.pv.energy_consumption": [0.0, 0.0, 0.0, 0.0],
-        }
-    ).write_parquet(part / "loads.parquet")
-
-    out = compute_subclass_seasonal_discount_inputs(
-        run_dir=run_dir,
-        resstock_base=str(resstock_base),
-        state=_LOADS_STATE,
-        upgrade=_LOADS_UPGRADE,
-        group_col="has_hp",
-        subclass_value="true",
-        cross_subsidy_col="BAT_percustomer",
-        base_tariff_json_path=tariff_path,
-    )
-
-    assert out.height == 1
-    assert out["subclass"][0] == "true"
-    assert out["group_col"][0] == "has_hp"
-    assert "total_cross_subsidy" in out.columns
-    assert "winter_kwh" in out.columns
-    assert "annual_kwh" in out.columns
-    assert "annual_energy_rev" in out.columns
-    assert "winter_rate" in out.columns
+@pytest.mark.parametrize(
+    ("group_col", "subclass_value", "expected"),
+    [
+        ("has_hp", "true", "flat_discount_rate_inputs_has_hp_true.csv"),
+        (
+            "heating_type_v2",
+            "electric_heating",
+            "flat_discount_rate_inputs_heating_type_v2_electric_heating.csv",
+        ),
+    ],
+)
+def test_flat_discount_filename(
+    group_col: str,
+    subclass_value: str,
+    expected: str,
+) -> None:
+    assert flat_discount_filename(group_col, subclass_value) == expected
 
 
 def test_compute_subclass_seasonal_discount_inputs_writes_named_file(
@@ -1084,47 +1057,6 @@ def test_compute_subclass_seasonal_discount_inputs_writes_named_file(
     expected = run_dir / "seasonal_discount_rate_inputs_has_hp_true.csv"
     assert written == str(expected)
     assert expected.exists()
-
-
-def test_compute_subclass_flat_discount_inputs_hp(tmp_path: Path) -> None:
-    """Generic flat function returns same numerics as compat alias for HP subclass."""
-    run_dir = _write_sample_run_dir(tmp_path)
-    tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
-    resstock_base = tmp_path / "resstock"
-    part = (
-        resstock_base
-        / "load_curve_hourly"
-        / f"state={_LOADS_STATE}"
-        / f"upgrade={_LOADS_UPGRADE}"
-    )
-    part.mkdir(parents=True)
-    pl.DataFrame(
-        {
-            "bldg_id": [1, 3],
-            "timestamp": ["2025-06-01 00:00:00", "2025-06-01 00:00:00"],
-            "out.electricity.total.energy_consumption": [300.0, 300.0],
-            "out.electricity.pv.energy_consumption": [0.0, 0.0],
-        }
-    ).write_parquet(part / "loads.parquet")
-
-    out = compute_subclass_flat_discount_inputs(
-        run_dir=run_dir,
-        resstock_base=str(resstock_base),
-        state=_LOADS_STATE,
-        upgrade=_LOADS_UPGRADE,
-        group_col="has_hp",
-        subclass_value="true",
-        cross_subsidy_col="BAT_percustomer",
-        base_tariff_json_path=tariff_path,
-    )
-
-    assert out.height == 1
-    assert out["subclass"][0] == "true"
-    assert out["group_col"][0] == "has_hp"
-    assert "total_cross_subsidy" in out.columns
-    assert "annual_kwh" in out.columns
-    assert "annual_energy_rev" in out.columns
-    assert "flat_rate" in out.columns
 
 
 def test_two_subclass_seasonal_files_do_not_collide(tmp_path: Path) -> None:
@@ -1359,96 +1291,73 @@ _NEW_FORMAT_YAML = {
 }
 
 
-def test_parse_delivery_percustomer_supply_passthrough(tmp_path: Path) -> None:
-    """Delivery percustomer + supply passthrough returns correct values."""
-    from utils.scenario_config import _parse_utility_revenue_requirement
-
+def _write_rr_parse_fixture(tmp_path: Path) -> tuple[Path, dict[str, str]]:
     rr_yaml = tmp_path / "rr.yaml"
     tariff_dir = tmp_path / "tariffs"
     tariff_dir.mkdir()
     (tariff_dir / "rie_hp.json").write_text("{}")
     (tariff_dir / "rie_nonhp.json").write_text("{}")
     rr_yaml.write_text(yaml.safe_dump(_NEW_FORMAT_YAML))
-
     raw_tariffs = {"hp": "tariffs/rie_hp.json", "non-hp": "tariffs/rie_nonhp.json"}
-    config = _parse_utility_revenue_requirement(
-        str(rr_yaml),
-        tmp_path,
-        raw_tariffs,
-        add_supply=True,
-        run_includes_subclasses=True,
-        residual_allocation_delivery="percustomer",
-        residual_allocation_supply="passthrough",
-    )
-    assert config.subclass_rr is not None
-    assert config.subclass_rr["rie_hp"] == pytest.approx(150.0)
-    assert config.subclass_rr["rie_nonhp"] == pytest.approx(1350.0)
+    return rr_yaml, raw_tariffs
 
 
-def test_parse_delivery_epmc_supply_passthrough(tmp_path: Path) -> None:
-    """Delivery EPMC + supply passthrough returns EPMC delivery + passthrough supply."""
+@pytest.mark.parametrize(
+    (
+        "add_supply",
+        "residual_allocation_delivery",
+        "residual_allocation_supply",
+        "expected",
+    ),
+    [
+        (
+            True,
+            "percustomer",
+            "passthrough",
+            {"rie_hp": 150.0, "rie_nonhp": 1350.0},
+        ),
+        (
+            True,
+            "epmc",
+            "passthrough",
+            {"rie_hp": 170.0, "rie_nonhp": 1330.0},
+        ),
+        (
+            False,
+            "percustomer",
+            "passthrough",
+            {"rie_hp": 100.0, "rie_nonhp": 900.0},
+        ),
+    ],
+)
+def test_parse_delivery_and_supply_allocations(
+    tmp_path: Path,
+    add_supply: bool,
+    residual_allocation_delivery: str,
+    residual_allocation_supply: str,
+    expected: dict[str, float],
+) -> None:
     from utils.scenario_config import _parse_utility_revenue_requirement
 
-    rr_yaml = tmp_path / "rr.yaml"
-    tariff_dir = tmp_path / "tariffs"
-    tariff_dir.mkdir()
-    (tariff_dir / "rie_hp.json").write_text("{}")
-    (tariff_dir / "rie_nonhp.json").write_text("{}")
-    rr_yaml.write_text(yaml.safe_dump(_NEW_FORMAT_YAML))
-
-    raw_tariffs = {"hp": "tariffs/rie_hp.json", "non-hp": "tariffs/rie_nonhp.json"}
+    rr_yaml, raw_tariffs = _write_rr_parse_fixture(tmp_path)
     config = _parse_utility_revenue_requirement(
         str(rr_yaml),
         tmp_path,
         raw_tariffs,
-        add_supply=True,
+        add_supply=add_supply,
         run_includes_subclasses=True,
-        residual_allocation_delivery="epmc",
-        residual_allocation_supply="passthrough",
+        residual_allocation_delivery=residual_allocation_delivery,
+        residual_allocation_supply=residual_allocation_supply,
     )
     assert config.subclass_rr is not None
-    assert config.subclass_rr["rie_hp"] == pytest.approx(170.0)
-    assert config.subclass_rr["rie_nonhp"] == pytest.approx(1330.0)
-
-
-def test_parse_delivery_only_ignores_supply(tmp_path: Path) -> None:
-    """Delivery-only run (add_supply=False) uses only delivery block."""
-    from utils.scenario_config import _parse_utility_revenue_requirement
-
-    rr_yaml = tmp_path / "rr.yaml"
-    tariff_dir = tmp_path / "tariffs"
-    tariff_dir.mkdir()
-    (tariff_dir / "rie_hp.json").write_text("{}")
-    (tariff_dir / "rie_nonhp.json").write_text("{}")
-    rr_yaml.write_text(yaml.safe_dump(_NEW_FORMAT_YAML))
-
-    raw_tariffs = {"hp": "tariffs/rie_hp.json", "non-hp": "tariffs/rie_nonhp.json"}
-    config = _parse_utility_revenue_requirement(
-        str(rr_yaml),
-        tmp_path,
-        raw_tariffs,
-        add_supply=False,
-        run_includes_subclasses=True,
-        residual_allocation_delivery="percustomer",
-        residual_allocation_supply="passthrough",
-    )
-    assert config.subclass_rr is not None
-    assert config.subclass_rr["rie_hp"] == pytest.approx(100.0)
-    assert config.subclass_rr["rie_nonhp"] == pytest.approx(900.0)
+    assert config.subclass_rr == pytest.approx(expected)
 
 
 def test_parse_unknown_delivery_allocation_raises(tmp_path: Path) -> None:
     """Unknown delivery allocation raises ValueError."""
     from utils.scenario_config import _parse_utility_revenue_requirement
 
-    rr_yaml = tmp_path / "rr.yaml"
-    tariff_dir = tmp_path / "tariffs"
-    tariff_dir.mkdir()
-    (tariff_dir / "rie_hp.json").write_text("{}")
-    (tariff_dir / "rie_nonhp.json").write_text("{}")
-    rr_yaml.write_text(yaml.safe_dump(_NEW_FORMAT_YAML))
-
-    raw_tariffs = {"hp": "tariffs/rie_hp.json", "non-hp": "tariffs/rie_nonhp.json"}
+    rr_yaml, raw_tariffs = _write_rr_parse_fixture(tmp_path)
     with pytest.raises(
         ValueError, match="residual_allocation_delivery='epcm'.*Available"
     ):

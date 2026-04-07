@@ -14,7 +14,9 @@ from utils.mid.scenario_has_run_num import scenario_has_run_num
 
 
 def _write_scenario_config(tmp_path: Path) -> Path:
-    scenario_config = tmp_path / "state" / "config" / "scenarios" / "scenarios_test.yaml"
+    scenario_config = (
+        tmp_path / "state" / "config" / "scenarios" / "scenarios_test.yaml"
+    )
     scenario_config.parent.mkdir(parents=True)
     scenario_config.write_text(
         yaml.safe_dump(
@@ -82,7 +84,10 @@ def test_resolve_rr_paths_accepts_explicit_subclass_run_num(tmp_path: Path) -> N
 
     _, diff = resolve_rr_paths(scenario_config, subclass_run_num=25)
 
-    assert diff == scenario_config.parent.parent.resolve() / "rev_requirement/elec_heat.yaml"
+    assert (
+        diff
+        == scenario_config.parent.parent.resolve() / "rev_requirement/elec_heat.yaml"
+    )
 
 
 def test_resolve_rr_paths_rejects_non_subclass_run(tmp_path: Path) -> None:
