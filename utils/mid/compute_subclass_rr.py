@@ -292,47 +292,44 @@ def _extract_fixed_charge_from_urdb(
     return float(fixed_charge)
 
 
-def compute_subclass_seasonal_discount_inputs(
-    run_dir: S3Path | Path,
-    resstock_base: str,
-    state: str,
-    upgrade: str,
-    group_col: str = DEFAULT_GROUP_COL,
-    subclass_value: str = "true",
-    cross_subsidy_col: str = DEFAULT_BAT_METRIC,
-    storage_options: dict[str, str] | None = None,
-    base_tariff_json_path: S3Path | Path | None = None,
-    winter_months: tuple[int, ...] | None = None,
-) -> pl.DataFrame:
-    """Compute seasonal discount inputs for one subclass from run outputs + ResStock loads.
+def _resolve_selector_group_values(
+    subclass_value: str,
+    group_value_to_subclass: dict[str, str] | None,
+) -> tuple[str, ...]:
+    """Resolve a requested subclass label to raw group values to match.
 
-    Derives effective flat seasonal rates from the run's actual bill revenue,
-    so the seasonal discount works correctly regardless of whether the base
-    tariff is flat or structured (tiered, seasonal, TOU).
-
-    Parameters
-    ----------
-    group_col:
-        Column in ``customer_metadata.csv`` that defines subclass membership
-        (e.g. ``"has_hp"`` or ``"heating_type_v2"``).
-    subclass_value:
-        The value of *group_col* that identifies the target subclass
-        (e.g. ``"true"`` for HP customers, ``"electric_heating"``).
+    If ``group_value_to_subclass`` is provided, callers may pass either a raw
+    group value (for example ``"true"``) or a subclass alias (for example
+    ``"electric_heating"``). Alias values expand to all matching raw values
+    from the scenario selector config.
     """
-    if base_tariff_json_path is None:
-        raise ValueError(
-            "base_tariff_json_path is required: pass the URDB-format calibrated "
-            "tariff JSON (e.g. <utility>_default_calibrated.json) to extract the "
-            "fixed charge."
-        )
+    if group_value_to_subclass is None:
+        return (subclass_value,)
 
-    resolved_winter_months = (
-        winter_months
-        if winter_months is not None
-        else tuple(DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS)
+    matched_values = tuple(
+        group_value
+        for group_value, subclass_alias in group_value_to_subclass.items()
+        if subclass_alias == subclass_value
     )
+    if matched_values:
+        return matched_values
+    return (subclass_value,)
 
-    # --- Subclass metadata, weights, and cross-subsidy ---
+
+def _load_subclass_cross_subsidy_inputs(
+    run_dir: S3Path | Path,
+    group_col: str,
+    subclass_value: str,
+    cross_subsidy_col: str,
+    storage_options: dict[str, str] | None,
+    group_value_to_subclass: dict[str, str] | None = None,
+    *,
+    log_prefix: str,
+) -> tuple[pl.DataFrame, float]:
+    """Load subclass metadata joined to the requested BAT metric.
+
+    Returns the joined subclass frame plus the weighted total cross-subsidy.
+    """
     t0 = perf_counter()
     metadata = _load_metadata_for_group(
         run_dir=run_dir,
@@ -340,19 +337,24 @@ def compute_subclass_seasonal_discount_inputs(
         storage_options=storage_options,
     )
     cross_sub = _load_cross_subsidy(run_dir, cross_subsidy_col, storage_options)
+    group_values = _resolve_selector_group_values(
+        subclass_value,
+        group_value_to_subclass,
+    )
 
-    subclass_cross_subsidy = (
-        metadata.filter(pl.col(GROUP_VALUE_COL) == subclass_value)
+    subclass_cross_subsidy = cast(
+        pl.DataFrame,
+        metadata.filter(pl.col(GROUP_VALUE_COL).is_in(group_values))
         .join(cross_sub, on=BLDG_ID_COL, how="left")
-        .collect()
+        .collect(),
     )
     LOGGER.info(
-        "seasonal_inputs [%s=%s]: loaded metadata + cross-subsidy in %.2fs",
+        "%s [%s=%s]: loaded metadata + cross-subsidy in %.2fs",
+        log_prefix,
         group_col,
         subclass_value,
         perf_counter() - t0,
     )
-    subclass_cross_subsidy = cast(pl.DataFrame, subclass_cross_subsidy)
     if subclass_cross_subsidy.is_empty():
         raise ValueError(
             f"No customers with {group_col}={subclass_value!r} found in customer_metadata.csv."
@@ -370,14 +372,20 @@ def compute_subclass_seasonal_discount_inputs(
             (pl.col("cross_subsidy") * pl.col(WEIGHT_COL)).sum().alias("weighted_cs")
         )["weighted_cs"][0]
     )
+    return subclass_cross_subsidy, total_cross_subsidy
 
-    # --- Fixed charge from URDB base tariff ---
-    fixed_charge = _extract_fixed_charge_from_urdb(base_tariff_json_path)
 
-    # --- Annual energy revenue from annual bills ---
-    # Use the Annual row (same source as compute_subclass_rr) so the flat rate
-    # is derived from exactly the same bills that produced the subclass RR.
-    # Subtracting 12*FC converts the annual total bill into the annual energy-only revenue.
+def _compute_annual_energy_revenue(
+    run_dir: S3Path | Path,
+    subclass_cross_subsidy: pl.DataFrame,
+    fixed_charge: float,
+    storage_options: dict[str, str] | None,
+    *,
+    group_col: str,
+    subclass_value: str,
+    log_prefix: str,
+) -> float:
+    """Compute subclass annual energy revenue from annual bills and fixed charges."""
     t1 = perf_counter()
     ids_weights = subclass_cross_subsidy.select(BLDG_ID_COL, WEIGHT_COL)
 
@@ -395,10 +403,84 @@ def compute_subclass_seasonal_discount_inputs(
     )
     annual_energy_rev = float(annual_energy_rev_row["annual_energy_rev"][0] or 0.0)
     LOGGER.info(
-        "seasonal_inputs [%s=%s]: computed annual energy revenue in %.2fs",
+        "%s [%s=%s]: computed annual energy revenue in %.2fs",
+        log_prefix,
         group_col,
         subclass_value,
         perf_counter() - t1,
+    )
+    return annual_energy_rev
+
+
+def compute_subclass_seasonal_discount_inputs(
+    run_dir: S3Path | Path,
+    resstock_base: str,
+    state: str,
+    upgrade: str,
+    group_col: str = DEFAULT_GROUP_COL,
+    subclass_value: str = "true",
+    cross_subsidy_col: str = DEFAULT_BAT_METRIC,
+    storage_options: dict[str, str] | None = None,
+    group_value_to_subclass: dict[str, str] | None = None,
+    base_tariff_json_path: S3Path | Path | None = None,
+    winter_months: tuple[int, ...] | None = None,
+) -> pl.DataFrame:
+    """Compute seasonal discount inputs for one subclass from run outputs + ResStock loads.
+
+    Derives effective flat seasonal rates from the run's actual bill revenue,
+    so the seasonal discount works correctly regardless of whether the base
+    tariff is flat or structured (tiered, seasonal, TOU).
+
+    Parameters
+    ----------
+    group_col:
+        Column in ``customer_metadata.csv`` that defines subclass membership
+        (e.g. ``"has_hp"`` or ``"heating_type_v2"``).
+    subclass_value:
+        The value of *group_col* that identifies the target subclass
+        (e.g. ``"true"`` for HP customers, ``"electric_heating"``).
+        When ``group_value_to_subclass`` is provided, this may be either a raw
+        group value or a subclass alias from scenario ``subclass_config``.
+    """
+    if base_tariff_json_path is None:
+        raise ValueError(
+            "base_tariff_json_path is required: pass the URDB-format calibrated "
+            "tariff JSON (e.g. <utility>_default_calibrated.json) to extract the "
+            "fixed charge."
+        )
+
+    resolved_winter_months = (
+        winter_months
+        if winter_months is not None
+        else tuple(DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS)
+    )
+
+    # --- Subclass metadata, weights, and cross-subsidy ---
+    subclass_cross_subsidy, total_cross_subsidy = _load_subclass_cross_subsidy_inputs(
+        run_dir=run_dir,
+        group_col=group_col,
+        subclass_value=subclass_value,
+        cross_subsidy_col=cross_subsidy_col,
+        storage_options=storage_options,
+        group_value_to_subclass=group_value_to_subclass,
+        log_prefix="seasonal_inputs",
+    )
+
+    # --- Fixed charge from URDB base tariff ---
+    fixed_charge = _extract_fixed_charge_from_urdb(base_tariff_json_path)
+
+    # --- Annual energy revenue from annual bills ---
+    # Use the Annual row (same source as compute_subclass_rr) so the flat rate
+    # is derived from exactly the same bills that produced the subclass RR.
+    # Subtracting 12*FC converts the annual total bill into the annual energy-only revenue.
+    annual_energy_rev = _compute_annual_energy_revenue(
+        run_dir=run_dir,
+        subclass_cross_subsidy=subclass_cross_subsidy,
+        fixed_charge=fixed_charge,
+        storage_options=storage_options,
+        group_col=group_col,
+        subclass_value=subclass_value,
+        log_prefix="seasonal_inputs",
     )
 
     # --- Seasonal kWh from ResStock loads ---
@@ -531,6 +613,7 @@ def compute_subclass_flat_discount_inputs(
     subclass_value: str = "true",
     cross_subsidy_col: str = DEFAULT_BAT_METRIC,
     storage_options: dict[str, str] | None = None,
+    group_value_to_subclass: dict[str, str] | None = None,
     base_tariff_json_path: S3Path | Path | None = None,
 ) -> pl.DataFrame:
     """Compute a fair flat volumetric rate for one customer subclass.
@@ -549,6 +632,8 @@ def compute_subclass_flat_discount_inputs(
     subclass_value:
         The value of *group_col* that identifies the target subclass
         (e.g. ``"true"`` for HP customers, ``"electric_heating"``).
+        When ``group_value_to_subclass`` is provided, this may be either a raw
+        group value or a subclass alias from scenario ``subclass_config``.
     """
     if base_tariff_json_path is None:
         raise ValueError(
@@ -557,69 +642,28 @@ def compute_subclass_flat_discount_inputs(
         )
 
     # --- Subclass metadata, weights, and cross-subsidy ---
-    t0 = perf_counter()
-    metadata = _load_metadata_for_group(
+    subclass_cross_subsidy, total_cross_subsidy = _load_subclass_cross_subsidy_inputs(
         run_dir=run_dir,
         group_col=group_col,
+        subclass_value=subclass_value,
+        cross_subsidy_col=cross_subsidy_col,
         storage_options=storage_options,
-    )
-    cross_sub = _load_cross_subsidy(run_dir, cross_subsidy_col, storage_options)
-
-    subclass_cross_subsidy = (
-        metadata.filter(pl.col(GROUP_VALUE_COL) == subclass_value)
-        .join(cross_sub, on=BLDG_ID_COL, how="left")
-        .collect()
-    )
-    LOGGER.info(
-        "flat_inputs [%s=%s]: loaded metadata + cross-subsidy in %.2fs",
-        group_col,
-        subclass_value,
-        perf_counter() - t0,
-    )
-    subclass_cross_subsidy = cast(pl.DataFrame, subclass_cross_subsidy)
-    if subclass_cross_subsidy.is_empty():
-        raise ValueError(
-            f"No customers with {group_col}={subclass_value!r} found in customer_metadata.csv."
-        )
-
-    nulls_cs = subclass_cross_subsidy.filter(pl.col("cross_subsidy").is_null()).height
-    if nulls_cs:
-        raise ValueError(f"Missing cross-subsidy values for {nulls_cs} buildings.")
-    nulls_weight = subclass_cross_subsidy.filter(pl.col(WEIGHT_COL).is_null()).height
-    if nulls_weight:
-        raise ValueError(f"Missing sample weights for {nulls_weight} buildings.")
-
-    total_cross_subsidy = float(
-        subclass_cross_subsidy.select(
-            (pl.col("cross_subsidy") * pl.col(WEIGHT_COL)).sum().alias("weighted_cs")
-        )["weighted_cs"][0]
+        group_value_to_subclass=group_value_to_subclass,
+        log_prefix="flat_inputs",
     )
 
     # --- Fixed charge from URDB base tariff ---
     fixed_charge = _extract_fixed_charge_from_urdb(base_tariff_json_path)
 
     # --- Annual energy revenue from annual bills ---
-    t1 = perf_counter()
-    ids_weights = subclass_cross_subsidy.select(BLDG_ID_COL, WEIGHT_COL)
-
-    annual_energy_rev_row = cast(
-        pl.DataFrame,
-        _load_annual_target_bills(run_dir, ANNUAL_MONTH_VALUE, storage_options)
-        .join(ids_weights.lazy(), on=BLDG_ID_COL, how="inner")
-        .with_columns(
-            ((pl.col("annual_bill") - 12.0 * fixed_charge) * pl.col(WEIGHT_COL)).alias(
-                "weighted_energy_rev"
-            )
-        )
-        .select(pl.col("weighted_energy_rev").sum().alias("annual_energy_rev"))
-        .collect(),
-    )
-    annual_energy_rev = float(annual_energy_rev_row["annual_energy_rev"][0] or 0.0)
-    LOGGER.info(
-        "flat_inputs [%s=%s]: computed annual energy revenue in %.2fs",
-        group_col,
-        subclass_value,
-        perf_counter() - t1,
+    annual_energy_rev = _compute_annual_energy_revenue(
+        run_dir=run_dir,
+        subclass_cross_subsidy=subclass_cross_subsidy,
+        fixed_charge=fixed_charge,
+        storage_options=storage_options,
+        group_col=group_col,
+        subclass_value=subclass_value,
+        log_prefix="flat_inputs",
     )
 
     # --- Annual kWh from ResStock loads ---

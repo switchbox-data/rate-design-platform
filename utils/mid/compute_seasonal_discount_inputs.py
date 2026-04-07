@@ -15,6 +15,7 @@ from utils.mid.compute_subclass_rr import (
     DEFAULT_GROUP_COL,
     _resolve_path_or_s3,
     compute_subclass_seasonal_discount_inputs,
+    parse_group_value_to_subclass,
     seasonal_discount_filename,
 )
 
@@ -78,7 +79,17 @@ def main() -> None:
         help=(
             "Value of --group-col that identifies the target subclass "
             "(default: 'true', i.e. HP customers when group-col=has_hp). "
-            "For electric-heating subclass use 'electric_heating'."
+            "For electric-heating subclass use 'electric_heating'. If "
+            "--group-value-to-subclass is provided, subclass aliases will be "
+            "expanded to the raw metadata values they represent."
+        ),
+    )
+    parser.add_argument(
+        "--group-value-to-subclass",
+        help=(
+            "Optional mapping from raw group values to subclass aliases in the "
+            "format 'value=subclass,value2=subclass,...'. When provided, "
+            "--subclass-value may be a subclass alias like 'electric_heating'."
         ),
     )
     parser.add_argument(
@@ -109,6 +120,11 @@ def main() -> None:
     output_dir = _resolve_path_or_s3(args.output_dir) if args.output_dir else run_dir
 
     storage_options = get_aws_storage_options() if isinstance(run_dir, S3Path) else None
+    group_value_to_subclass = (
+        parse_group_value_to_subclass(args.group_value_to_subclass)
+        if args.group_value_to_subclass
+        else None
+    )
     seasonal_inputs = compute_subclass_seasonal_discount_inputs(
         run_dir=run_dir,
         resstock_base=args.resstock_base,
@@ -118,6 +134,7 @@ def main() -> None:
         subclass_value=args.subclass_value,
         cross_subsidy_col=args.cross_subsidy_col,
         storage_options=storage_options,
+        group_value_to_subclass=group_value_to_subclass,
         base_tariff_json_path=base_tariff_json_path,
     )
     print(seasonal_inputs)

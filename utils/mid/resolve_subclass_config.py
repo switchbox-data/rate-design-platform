@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import yaml
 
@@ -87,14 +88,19 @@ def resolve_subclass_config(
                 f"no run with run_includes_subclasses=True found in {scenario_config}"
             )
 
-    subclass_config = run.get("subclass_config")
-    if subclass_config is None:
+    subclass_config_raw = run.get("subclass_config")
+    if subclass_config_raw is None:
         raise ValueError(
             f"run {selected_run_num} has run_includes_subclasses=True but no "
             f"subclass_config block in {scenario_config}. Regenerate scenario YAMLs "
             "after adding subclass_group_col and subclass_selectors columns to the "
             "Google Sheet."
         )
+    if not isinstance(subclass_config_raw, dict):
+        raise ValueError(
+            f"run {selected_run_num} subclass_config must be a mapping in {scenario_config}"
+        )
+    subclass_config = cast(dict[str, Any], subclass_config_raw)
 
     group_col = str(subclass_config["group_col"])
     selectors = subclass_config["selectors"]
