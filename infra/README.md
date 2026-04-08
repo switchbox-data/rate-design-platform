@@ -32,8 +32,8 @@ This will:
 
 - Create the EC2 instance
 - Set up the EBS volume and S3 mount
-- Install system dependencies
-- Install `just` on the instance
+- Install system dependencies (including **Quarto** for manuscript-style reports)
+- Install `just`, `uv`, `gh`, and AWS CLI on the instance via SSM (idempotent)
 
 ### User Login
 
