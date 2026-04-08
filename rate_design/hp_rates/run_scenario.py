@@ -175,7 +175,18 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
     run = runs.get(run_num) or runs.get(str(run_num))
     if run is None:
         raise ValueError(f"Run {run_num} not found in {scenario_config}")
-    return _require_mapping(run, f"runs[{run_num}]")
+    run_dict = dict(_require_mapping(run, f"runs[{run_num}]"))
+    scenario_subclass_config = data.get("subclass_config")
+    if (
+        "subclass_config" not in run_dict
+        and run_dict.get("run_includes_subclasses")
+        and scenario_subclass_config is not None
+    ):
+        run_dict["subclass_config"] = _require_mapping(
+            scenario_subclass_config,
+            "subclass_config",
+        )
+    return run_dict
 
 
 def _resolve_output_dir(

@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "cenhud_nonhp_default",
-      "name": "cenhud_nonhp_default",
+      "label": "cenhud_default_supply_calibrated",
+      "name": "cenhud_default_supply_calibrated",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,84 +640,84 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.14551888266448598,
+            "rate": -0.020656906383498076,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.14447863648181689,
+            "rate": -0.02296221713589646,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.14537440402800414,
+            "rate": -0.025914089058098336,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.14694922116565595,
+            "rate": -0.025428651758086132,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.14976655457705138,
+            "rate": -0.023439391673355268,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.1487985477126232,
+            "rate": -0.022187583146515286,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.1507779050324241,
+            "rate": -0.02308202719292075,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.15308956321613318,
+            "rate": -0.02622187696321246,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.153392968352745,
+            "rate": -0.024823404401049638,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.15293063671600318,
+            "rate": -0.02252635641120465,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.14840845539412229,
+            "rate": -0.02266888906525079,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.1517170161695559,
+            "rate": -0.02323282260952029,
             "adj": 0.0,
             "unit": "kWh"
           }

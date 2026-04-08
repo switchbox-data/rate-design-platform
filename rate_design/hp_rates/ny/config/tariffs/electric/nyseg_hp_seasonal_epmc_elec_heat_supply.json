@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "cenhud_hp_seasonal_epmc",
-      "name": "cenhud_hp_seasonal_epmc",
+      "label": "nyseg_hp_seasonal_epmc_elec_heat_supply",
+      "name": "nyseg_hp_seasonal_epmc_elec_heat_supply",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,20 +640,20 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.14529932053295452,
+            "rate": 0.20738030100248112,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.1019688585693935,
+            "rate": 0.22641213561622928,
             "adj": 0.0,
             "unit": "kWh"
           }
         ]
       ],
-      "fixedchargefirstmeter": 22.0,
+      "fixedchargefirstmeter": 19.89,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
       "minchargeunits": "$/month"

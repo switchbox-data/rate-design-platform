@@ -318,6 +318,9 @@ sweep-tou-window-all run_dir="" output_dir="" no_write_yaml="":
     done
 
 # Tariff maps
+create-electric-tariff-maps:
+    just -f {{ path_repo }}/utils/Justfile write-tariff-maps "{{ path_scenario_config }}"
+
 create-electric-tariff-maps-all:
     just -f {{ path_repo }}/utils/Justfile write-tariff-maps-all "{{ path_scenarios }}"
 
@@ -398,7 +401,7 @@ create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label outpu
       "{{ output_path }}" \
       "{{ periods_yaml }}"
 
-compute-flat-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="" group_col="has_hp" subclass_value="true":
+compute-flat-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="" group_col="has_hp" subclass_value="true" group_value_to_subclass="":
     just -f {{ path_repo }}/utils/Justfile compute-flat-discount-inputs \
       "{{ run_dir }}" \
       "{{ resstock_base }}" \
@@ -408,7 +411,8 @@ compute-flat-discount-inputs run_dir resstock_base state upgrade cross_subsidy_c
       "{{ output_dir }}" \
       "{{ base_tariff_json }}" \
       "{{ group_col }}" \
-      "{{ subclass_value }}"
+      "{{ subclass_value }}" \
+      "{{ group_value_to_subclass }}"
 
 create-flat-discount-tariff base_tariff_json flat_inputs_csv label output_path:
     just -f {{ path_repo }}/utils/Justfile create-flat-discount-tariff \
@@ -752,7 +756,7 @@ run-25:
     #!/usr/bin/env bash
     set -euo pipefail
     run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
-    read -r group_col group_value_to_subclass < <(uv run python3 "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}" --run-num 25)
+    read -r group_col group_value_to_subclass < <(uv run python "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}" --run-num 25)
     echo ">> run-25: resolved run-1 output → ${run1_dir}" >&2
     just compute-seasonal-discount-inputs "${run1_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
@@ -764,13 +768,14 @@ run-25:
         "${run1_dir}/seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
         {{ utility }}_hp_seasonal_epmc_elec_heat \
         "{{ path_tariffs_electric }}/{{ utility }}_hp_seasonal_epmc_elec_heat.json"
+    just create-electric-tariff-maps
     just run-scenario 25
 
 run-26:
     #!/usr/bin/env bash
     set -euo pipefail
     run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
-    read -r group_col group_value_to_subclass < <(uv run python3 "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}" --run-num 26)
+    read -r group_col group_value_to_subclass < <(uv run python "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}" --run-num 26)
     echo ">> run-26: resolved run-2 output → ${run2_dir}" >&2
     just compute-seasonal-discount-inputs "${run2_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
@@ -782,6 +787,7 @@ run-26:
         "${run2_dir}/seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
         {{ utility }}_hp_seasonal_epmc_elec_heat_supply \
         "{{ path_tariffs_electric }}/{{ utility }}_hp_seasonal_epmc_elec_heat_supply.json"
+    just create-electric-tariff-maps
     just run-scenario 26
 
 run-27:
@@ -790,6 +796,7 @@ run-27:
     run25_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 25)
     echo ">> run-27: resolved run-25 output → ${run25_dir}" >&2
     just copy-calibrated-tariff-from-run "${run25_dir}"
+    just create-electric-tariff-maps
     just run-scenario 27
 
 run-28:
@@ -798,6 +805,7 @@ run-28:
     run26_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 26)
     echo ">> run-28: resolved run-26 output → ${run26_dir}" >&2
     just copy-calibrated-tariff-from-run "${run26_dir}"
+    just create-electric-tariff-maps
     just run-scenario 28
 
 # =============================================================================

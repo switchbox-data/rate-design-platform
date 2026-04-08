@@ -1,6 +1,10 @@
 from typing import cast
 
-from utils.pre.create_scenario_yamls import _parse_subclass_selectors, _row_to_run
+from utils.pre.create_scenario_yamls import (
+    _hoist_shared_subclass_config,
+    _parse_subclass_selectors,
+    _row_to_run,
+)
 
 
 def _base_row() -> dict[str, str]:
@@ -211,3 +215,105 @@ def test_row_to_run_raises_when_subclassed_but_missing_subclass_config() -> None
     headers = list(row.keys())
     with pytest.raises(ValueError, match="subclass_group_col"):
         _row_to_run(row, headers)
+
+
+def test_hoist_shared_subclass_config_removes_duplicate_run_blocks() -> None:
+    runs = {
+        1: {"run_includes_subclasses": False},
+        5: {
+            "run_includes_subclasses": True,
+            "subclass_config": {
+                "group_col": "has_hp",
+                "selectors": {"hp": "true", "non-hp": "false"},
+            },
+        },
+        6: {
+            "run_includes_subclasses": True,
+            "subclass_config": {
+                "group_col": "has_hp",
+                "selectors": {"hp": "true", "non-hp": "false"},
+            },
+        },
+    }
+
+    shared = _hoist_shared_subclass_config(runs)
+
+    assert shared == {
+        "group_col": "has_hp",
+        "selectors": {"hp": "true", "non-hp": "false"},
+    }
+    assert "subclass_config" not in runs[5]
+    assert "subclass_config" not in runs[6]
+
+
+def test_hoist_shared_subclass_config_keeps_run_level_when_configs_differ() -> None:
+    runs = {
+        5: {
+            "run_includes_subclasses": True,
+            "subclass_config": {
+                "group_col": "has_hp",
+                "selectors": {"hp": "true", "non-hp": "false"},
+            },
+        },
+        25: {
+            "run_includes_subclasses": True,
+            "subclass_config": {
+                "group_col": "heating_type_v2",
+                "selectors": {
+                    "electric_heating": "heat_pump,electrical_resistance",
+                    "non_electric_heating": "natgas,delivered_fuels,other",
+                },
+            },
+        },
+    }
+
+    shared = _hoist_shared_subclass_config(runs)
+
+    assert shared is None
+    assert "subclass_config" in runs[5]
+    assert "subclass_config" in runs[25]
+
+
+def test_hoist_shared_subclass_config_keeps_outlier_run_overrides() -> None:
+    runs = {
+        5: {
+            "run_includes_subclasses": True,
+            "subclass_config": {
+                "group_col": "has_hp",
+                "selectors": {"hp": "true", "non-hp": "false"},
+            },
+        },
+        6: {
+            "run_includes_subclasses": True,
+            "subclass_config": {
+                "group_col": "has_hp",
+                "selectors": {"hp": "true", "non-hp": "false"},
+            },
+        },
+        25: {
+            "run_includes_subclasses": True,
+            "subclass_config": {
+                "group_col": "heating_type_v2",
+                "selectors": {
+                    "electric_heating": "heat_pump,electrical_resistance",
+                    "non_electric_heating": "natgas,delivered_fuels,other",
+                },
+            },
+        },
+    }
+
+    shared = _hoist_shared_subclass_config(runs)
+
+    assert shared == {
+        "group_col": "has_hp",
+        "selectors": {"hp": "true", "non-hp": "false"},
+    }
+    assert "subclass_config" not in runs[5]
+    assert "subclass_config" not in runs[6]
+    assert runs[25]["subclass_config"] == {
+        "group_col": "heating_type_v2",
+        "selectors": {
+            "electric_heating": "heat_pump,electrical_resistance",
+            "non_electric_heating": "natgas,delivered_fuels,other",
+        },
+    }

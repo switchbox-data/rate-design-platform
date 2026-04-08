@@ -65,7 +65,11 @@ def resolve_subclass_config(
     run_num: int | None = None,
 ) -> tuple[str, str]:
     with scenario_config.open(encoding="utf-8") as f:
-        runs: dict[int | str, dict[str, object]] = yaml.safe_load(f)["runs"]
+        scenario = cast(dict[str, object], yaml.safe_load(f))
+    runs: dict[int | str, dict[str, object]] = cast(
+        dict[int | str, dict[str, object]],
+        scenario["runs"],
+    )
 
     if run_num is not None:
         run = _get_run(runs, run_num)
@@ -88,13 +92,13 @@ def resolve_subclass_config(
                 f"no run with run_includes_subclasses=True found in {scenario_config}"
             )
 
-    subclass_config_raw = run.get("subclass_config")
+    subclass_config_raw = run.get("subclass_config", scenario.get("subclass_config"))
     if subclass_config_raw is None:
         raise ValueError(
-            f"run {selected_run_num} has run_includes_subclasses=True but no "
-            f"subclass_config block in {scenario_config}. Regenerate scenario YAMLs "
-            "after adding subclass_group_col and subclass_selectors columns to the "
-            "Google Sheet."
+            f"run {selected_run_num} has run_includes_subclasses=True but neither the "
+            f"run nor scenario defines subclass_config in {scenario_config}. "
+            "Regenerate scenario YAMLs after adding subclass_group_col and "
+            "subclass_selectors columns to the Google Sheet."
         )
     if not isinstance(subclass_config_raw, dict):
         raise ValueError(

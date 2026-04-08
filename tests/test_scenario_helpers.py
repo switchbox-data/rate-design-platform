@@ -128,6 +128,40 @@ def test_resolve_subclass_config_rejects_non_subclass_run(tmp_path: Path) -> Non
         resolve_subclass_config(scenario_config, run_num=1)
 
 
+def test_resolve_subclass_config_falls_back_to_top_level_config(tmp_path: Path) -> None:
+    scenario_config = (
+        tmp_path / "state" / "config" / "scenarios" / "scenarios_test.yaml"
+    )
+    scenario_config.parent.mkdir(parents=True)
+    scenario_config.write_text(
+        yaml.safe_dump(
+            {
+                "subclass_config": {
+                    "group_col": "has_hp",
+                    "selectors": {"hp": "true", "non-hp": "false"},
+                },
+                "runs": {
+                    1: {
+                        "utility_revenue_requirement": "rev_requirement/base.yaml",
+                        "run_includes_subclasses": False,
+                    },
+                    5: {
+                        "utility_revenue_requirement": "rev_requirement/hp.yaml",
+                        "run_includes_subclasses": True,
+                    },
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    group_col, mapping = resolve_subclass_config(scenario_config, run_num=5)
+
+    assert group_col == "has_hp"
+    assert mapping == "true=hp,false=non-hp"
+
+
 def test_scenario_has_run_num_handles_existing_and_missing_runs(tmp_path: Path) -> None:
     scenario_config = _write_scenario_config(tmp_path)
 

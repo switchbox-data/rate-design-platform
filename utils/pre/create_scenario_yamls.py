@@ -250,6 +250,59 @@ def _parse_subclass_selectors(raw: str) -> dict[str, str]:
     return out
 
 
+def _hoist_shared_subclass_config(
+    runs: dict[int, dict[str, object]],
+) -> dict[str, object] | None:
+    """Hoist a repeated subclass_config block to the scenario top level.
+
+    If subclassed runs all share the same ``subclass_config``, hoist it.
+    If one config is the clear default used by multiple subclassed runs, hoist
+    that default and keep per-run overrides only where they differ.
+    If every subclassed run is unique, leave all run blocks unchanged.
+    """
+    subclass_configs: list[tuple[int, dict[str, object], str]] = []
+    for run_num, run in runs.items():
+        if not bool(run.get("run_includes_subclasses", False)):
+            continue
+        run_subclass_config = run.get("subclass_config")
+        if not isinstance(run_subclass_config, dict):
+            return None
+        subclass_configs.append(
+            (
+                run_num,
+                dict(run_subclass_config),
+                json.dumps(run_subclass_config, sort_keys=True),
+            )
+        )
+
+    if len(subclass_configs) < 2:
+        return None
+
+    counts: dict[str, int] = {}
+    configs_by_key: dict[str, dict[str, object]] = {}
+    for _, run_subclass_config, config_key in subclass_configs:
+        counts[config_key] = counts.get(config_key, 0) + 1
+        configs_by_key[config_key] = run_subclass_config
+
+    max_count = max(counts.values())
+    if max_count <= 1:
+        return None
+
+    shared_keys = [
+        config_key for config_key, count in counts.items() if count == max_count
+    ]
+    if len(shared_keys) != 1:
+        return None
+
+    shared_key = shared_keys[0]
+    shared = configs_by_key[shared_key]
+    for run_num, _, config_key in subclass_configs:
+        if config_key == shared_key:
+            runs[run_num].pop("subclass_config", None)
+
+    return shared
+
+
 def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     """Convert one sheet row to a run dict for YAML."""
 
@@ -590,7 +643,10 @@ def run(
         )
 
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {"runs": runs}
+        payload: dict[str, object] = {"runs": runs}
+        shared_subclass_config = _hoist_shared_subclass_config(runs)
+        if shared_subclass_config is not None:
+            payload["subclass_config"] = shared_subclass_config
         yaml_str = yaml.dump(
             payload,
             default_flow_style=False,

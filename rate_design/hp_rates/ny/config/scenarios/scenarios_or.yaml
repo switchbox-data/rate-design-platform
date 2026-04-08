@@ -1,3 +1,8 @@
+subclass_config:
+  group_col: has_hp
+  selectors:
+    hp: 'true'
+    non-hp: 'false'
 runs:
   1:
     run_name: ny_or_run1_up00_precalc__default
@@ -135,11 +140,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: percustomer
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=or/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -171,11 +171,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: percustomer
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=or/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -263,11 +258,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: percustomer
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=or/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -299,11 +289,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: percustomer
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=or/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -391,11 +376,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: percustomer
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=or/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -429,11 +409,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: percustomer
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=or/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -527,11 +502,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: epmc
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=or/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -563,11 +533,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: epmc
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=or/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -655,11 +620,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: epmc
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=or/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -691,11 +651,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: epmc
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=or/year=2025/data.parquet
     solar_pv_compensation: net_metering

@@ -1,3 +1,8 @@
+subclass_config:
+  group_col: has_hp
+  selectors:
+    hp: 'true'
+    non-hp: 'false'
 runs:
   1:
     run_name: ny_cenhud_run1_up00_precalc__default
@@ -135,11 +140,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: percustomer
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=cenhud/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -171,11 +171,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: percustomer
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=cenhud/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -263,11 +258,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: percustomer
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=cenhud/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -299,11 +289,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: percustomer
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=cenhud/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -391,11 +376,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: percustomer
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=cenhud/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -429,11 +409,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: percustomer
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=cenhud/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -527,11 +502,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: epmc
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=cenhud/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -563,11 +533,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: epmc
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=cenhud/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -655,11 +620,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: epmc
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=cenhud/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -691,11 +651,6 @@ runs:
     run_includes_subclasses: true
     residual_allocation_delivery: epmc
     residual_allocation_supply: percustomer
-    subclass_config:
-      group_col: has_hp
-      selectors:
-        hp: 'true'
-        non-hp: 'false'
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=cenhud/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -776,8 +731,8 @@ runs:
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=cenhud/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=cenhud/year=2025/zero.parquet
     path_tariffs_electric:
-      electric_heating: tariffs/electric/cenhud_electric_heating.json
-      non_electric_heating: tariffs/electric/cenhud_non_electric_heating.json
+      electric_heating: tariffs/electric/cenhud_hp_seasonal_epmc_elec_heat.json
+      non_electric_heating: tariffs/electric/cenhud_default_calibrated.json
     utility_revenue_requirement: rev_requirement/cenhud_elec_heat_vs_non_elec_heat.yaml
     run_includes_supply: false
     run_includes_subclasses: true
@@ -812,8 +767,8 @@ runs:
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=cenhud/year=2025/data.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=cenhud/year=2025/data.parquet
     path_tariffs_electric:
-      electric_heating: tariffs/electric/cenhud_electric_heating_supply.json
-      non_electric_heating: tariffs/electric/cenhud_non_electric_heating_supply.json
+      electric_heating: tariffs/electric/cenhud_hp_seasonal_epmc_elec_heat_supply.json
+      non_electric_heating: tariffs/electric/cenhud_default_supply_calibrated.json
     utility_revenue_requirement: rev_requirement/cenhud_elec_heat_vs_non_elec_heat.yaml
     run_includes_supply: true
     run_includes_subclasses: true
@@ -837,7 +792,7 @@ runs:
     utility: cenhud
     run_type: default
     upgrade: '2'
-    path_tariff_maps_electric: tariff_maps/electric/cenhud_empc_only_calibrated.csv
+    path_tariff_maps_electric: tariff_maps/electric/cenhud_hp_seasonal_epmc_elec_heat_calibrated.csv
     path_tariff_maps_gas: tariff_maps/gas/cenhud_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
@@ -848,7 +803,7 @@ runs:
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=cenhud/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=cenhud/year=2025/zero.parquet
     path_tariffs_electric:
-      all: tariffs/electric/cenhud_empc_only_calibrated.json
+      all: tariffs/electric/cenhud_hp_seasonal_epmc_elec_heat_calibrated.json
     utility_revenue_requirement: rev_requirement/cenhud_large_number.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -865,7 +820,7 @@ runs:
     utility: cenhud
     run_type: default
     upgrade: '2'
-    path_tariff_maps_electric: tariff_maps/electric/cenhud_empc_only_calibrated_supply.csv
+    path_tariff_maps_electric: tariff_maps/electric/cenhud_hp_seasonal_epmc_elec_heat_supply_calibrated.csv
     path_tariff_maps_gas: tariff_maps/gas/cenhud_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
@@ -876,7 +831,7 @@ runs:
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=cenhud/year=2025/data.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=cenhud/year=2025/data.parquet
     path_tariffs_electric:
-      all: tariffs/electric/cenhud_empc_only_supply_calibrated.json
+      all: tariffs/electric/cenhud_hp_seasonal_epmc_elec_heat_supply_calibrated.json
     utility_revenue_requirement: rev_requirement/cenhud_large_number.yaml
     run_includes_supply: true
     run_includes_subclasses: false
