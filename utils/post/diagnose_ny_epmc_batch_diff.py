@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Per-utility and worst-row diagnostics for NY master BAT/bills batch diffs."""
+"""Per-utility and worst-row diagnostics for NY master BAT/bills batch diffs.
+
+Default comparison: ``--old-batch ny_20260327_r1-16_epmc`` (baseline) vs
+``--new-batch ny_20260401_all_epmc_r1-24`` (challenger).
+"""
 
 from __future__ import annotations
 
 import argparse
 import glob
-import pathlib
 import sys
+from typing import cast
 
 import polars as pl
 
-_POST_DIR = pathlib.Path(__file__).resolve().parent
-if str(_POST_DIR) not in sys.path:
-    sys.path.insert(0, str(_POST_DIR))
-
-from verify_ny_epmc_master_batch import (  # noqa: E402
+from utils.post.verify_ny_epmc_master_batch import (
     BAT_KEYS,
     BILL_KEYS,
     _numeric_shared_cols,
@@ -43,9 +43,7 @@ def per_utility_max_abs(
     return wide.group_by(util_col).agg(agg_cols).sort(util_col)
 
 
-def worst_buildings(
-    j: pl.DataFrame, col: str, n: int = 5
-) -> pl.DataFrame:
+def worst_buildings(j: pl.DataFrame, col: str, n: int = 5) -> pl.DataFrame:
     dcol = f"__d_{col}"
     out = j.with_columns((pl.col(col) - pl.col(f"__n_{col}")).abs().alias(dcol))
     return (
@@ -77,7 +75,9 @@ def scan_log_git_commit(pattern: str) -> list[str]:
     return lines
 
 
-def _utilities_over_tol(by_u: pl.DataFrame, cols: list[str], tol: float) -> pl.DataFrame:
+def _utilities_over_tol(
+    by_u: pl.DataFrame, cols: list[str], tol: float
+) -> pl.DataFrame:
     use = [c for c in cols if c in by_u.columns]
     if not use:
         return pl.DataFrame()
@@ -93,9 +93,14 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--new-batch", default="ny_20260401_all_epmc_r1-24")
     p.add_argument("--old-batch", default="ny_20260327_r1-16_epmc")
-    p.add_argument("--base", default="s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/all_utilities")
+    p.add_argument(
+        "--base",
+        default="s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/all_utilities",
+    )
     p.add_argument("--aws-region", default="us-west-2")
-    p.add_argument("--log-glob", default="", help="e.g. $HOME/rdp_run_logs/*_run9_*NEW_BATCH*.log")
+    p.add_argument(
+        "--log-glob", default="", help="e.g. $HOME/rdp_run_logs/*_run9_*NEW_BATCH*.log"
+    )
     p.add_argument(
         "--run-pairs",
         default="run_9+10,run_11+12,run_13+14,run_15+16",
@@ -125,12 +130,14 @@ def main() -> int:
             print("  No files matched --log-glob")
     else:
         default_glob = f"{__import__('os').environ.get('HOME', '')}/rdp_run_logs/or_run9_{args.new_batch}.log"
-        if __import__('os').path.isfile(default_glob):
+        if __import__("os").path.isfile(default_glob):
             found = scan_log_git_commit(default_glob)
             for x in found:
                 print(x)
         else:
-            print("  (Pass --log-glob to scan rdp_run_logs for git_commit / timestamp.)")
+            print(
+                "  (Pass --log-glob to scan rdp_run_logs for git_commit / timestamp.)"
+            )
             print("  No default or_run9 log found for NEW batch.")
 
     focus_cols_bat = [
@@ -144,7 +151,12 @@ def main() -> int:
         "annual_bill_supply",
         "annual_bill_total",
     ]
-    focus_cols_bill = ["elec_delivery_bill", "elec_supply_bill", "elec_total_bill", "energy_total_bill"]
+    focus_cols_bill = [
+        "elec_delivery_bill",
+        "elec_supply_bill",
+        "elec_total_bill",
+        "energy_total_bill",
+    ]
 
     summary_bat: list[dict] = []
     summary_bill: list[dict] = []
@@ -153,8 +165,8 @@ def main() -> int:
         nw = 3 if rp in ("run_13+14", "run_15+16") else 8
         print(f"\n{'#' * 72}\n# {rp}\n{'#' * 72}")
 
-        lo = scan_bat(args.base, args.old_batch, rp, so).collect()
-        ln = scan_bat(args.base, args.new_batch, rp, so).collect()
+        lo = cast(pl.DataFrame, scan_bat(args.base, args.old_batch, rp, so).collect())
+        ln = cast(pl.DataFrame, scan_bat(args.base, args.new_batch, rp, so).collect())
         common = _numeric_shared_cols(lo.schema, ln.schema, BAT_KEYS)
         j = _join_old_new(lo, ln, BAT_KEYS, common)
         by_u = per_utility_max_abs(j, common)
@@ -173,13 +185,19 @@ def main() -> int:
                 "join_rows": j.height,
                 "utilities_over_tol": over.height,
                 "max_focus_abs": max_mx,
-                "utilities": over.select("sb.electric_utility").to_series().to_list() if over.height else [],
+                "utilities": over.select("sb.electric_utility").to_series().to_list()
+                if over.height
+                else [],
             }
         )
 
         print(f"\n## B) BAT per-utility max |old-new| — {rp}")
-        print(f"  Inner-join rows: {j.height} (old rows: {lo.height}, new rows: {ln.height})")
-        show_cols = ["sb.electric_utility"] + [c for c in focus_cols_bat if c in by_u.columns]
+        print(
+            f"  Inner-join rows: {j.height} (old rows: {lo.height}, new rows: {ln.height})"
+        )
+        show_cols = ["sb.electric_utility"] + [
+            c for c in focus_cols_bat if c in by_u.columns
+        ]
         print(by_u.select(show_cols))
         if over.height:
             print("  Utilities with |diff| > 1e-6 on any focus BAT col (subset):")
@@ -196,20 +214,26 @@ def main() -> int:
             print(worst_buildings(j, "BAT_vol_supply", nw))
 
         print(f"\n## D) Bills per-utility max |old-new| — {rp}")
-        bo = scan_bills(args.base, args.old_batch, rp, so).collect()
-        bn = scan_bills(args.base, args.new_batch, rp, so).collect()
+        bo = cast(pl.DataFrame, scan_bills(args.base, args.old_batch, rp, so).collect())
+        bn = cast(pl.DataFrame, scan_bills(args.base, args.new_batch, rp, so).collect())
         c2 = _numeric_shared_cols(bo.schema, bn.schema, BILL_KEYS)
         jb = _join_old_new(bo, bn, BILL_KEYS, c2)
         print(f"  Inner-join rows: {jb.height}")
         by_ub = per_utility_max_abs(jb, c2)
-        show_b = ["sb.electric_utility"] + [c for c in focus_cols_bill if c in by_ub.columns]
+        show_b = ["sb.electric_utility"] + [
+            c for c in focus_cols_bill if c in by_ub.columns
+        ]
         print(by_ub.select(show_b))
-        over_b = _utilities_over_tol(by_ub, [c for c in focus_cols_bill if c in by_ub.columns], TOL)
+        over_b = _utilities_over_tol(
+            by_ub, [c for c in focus_cols_bill if c in by_ub.columns], TOL
+        )
         max_b = 0.0
         ub_use = [c for c in focus_cols_bill if c in by_ub.columns]
         if over_b.height and ub_use:
             max_b = float(
-                over_b.with_columns(pl.max_horizontal([pl.col(c) for c in ub_use]).alias("_m"))
+                over_b.with_columns(
+                    pl.max_horizontal([pl.col(c) for c in ub_use]).alias("_m")
+                )
                 .select(pl.max("_m"))
                 .to_series()[0]
             )
@@ -250,7 +274,9 @@ def main() -> int:
             print(worst_buildings(jba, "elec_supply_bill", nw))
 
     print("\n" + "=" * 72)
-    print("SUMMARY: BAT focus cols (max |old-new| within utility, then max across utils)")
+    print(
+        "SUMMARY: BAT focus cols (max |old-new| within utility, then max across utils)"
+    )
     print("=" * 72)
     for row in summary_bat:
         print(
@@ -267,7 +293,9 @@ def main() -> int:
         )
 
     print("\n" + "=" * 72)
-    print("Done. If one utility dominates, inspect that utility's run outputs and tariffs.")
+    print(
+        "Done. If one utility dominates, inspect that utility's run outputs and tariffs."
+    )
     print("=" * 72)
     return 0
 

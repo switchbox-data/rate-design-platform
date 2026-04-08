@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Iterable
+from typing import Iterable, cast
 
 import polars as pl
 
@@ -59,14 +59,22 @@ def _numeric_shared_cols(
     return sorted(out)
 
 
-def scan_bat(base: str, batch: str, run_pair: str, storage_options: dict) -> pl.LazyFrame:
+def scan_bat(
+    base: str, batch: str, run_pair: str, storage_options: dict
+) -> pl.LazyFrame:
     path = f"{base}/{batch}/{run_pair}/cross_subsidization_BAT_values/"
-    return pl.scan_parquet(path, hive_partitioning=True, storage_options=storage_options)
+    return pl.scan_parquet(
+        path, hive_partitioning=True, storage_options=storage_options
+    )
 
 
-def scan_bills(base: str, batch: str, run_pair: str, storage_options: dict) -> pl.LazyFrame:
+def scan_bills(
+    base: str, batch: str, run_pair: str, storage_options: dict
+) -> pl.LazyFrame:
     path = f"{base}/{batch}/{run_pair}/comb_bills_year_target/"
-    return pl.scan_parquet(path, hive_partitioning=True, storage_options=storage_options)
+    return pl.scan_parquet(
+        path, hive_partitioning=True, storage_options=storage_options
+    )
 
 
 def check1_new_batch_schema(
@@ -108,7 +116,9 @@ def check1_new_batch_schema(
         ok = False
 
     if ok:
-        messages.append(f"  BAT ({rp}): BAT_epmc_delivery, residual_share_epmc_delivery present; BAT_peak_delivery absent")
+        messages.append(
+            f"  BAT ({rp}): BAT_epmc_delivery, residual_share_epmc_delivery present; BAT_peak_delivery absent"
+        )
         messages.append(f"  Bills ({rp}): LMI-related columns present")
     return ok, messages
 
@@ -133,9 +143,11 @@ def compare_numeric_max_abs_diff(
     j = lf_old.select(keys + common).join(lf_n, on=keys, how="inner")
 
     exprs = [
-        (pl.col(c) - pl.col(f"__new_{c}")).abs().max().alias(f"maxdiff_{c}") for c in common
+        (pl.col(c) - pl.col(f"__new_{c}")).abs().max().alias(f"maxdiff_{c}")
+        for c in common
     ]
-    row = j.select(exprs).collect().row(0)
+    summary = cast(pl.DataFrame, j.select(exprs).collect())
+    row = summary.row(0)
     bad: list[str] = []
     for c, mx in zip(common, row, strict=True):
         if mx is None:
@@ -148,7 +160,9 @@ def compare_numeric_max_abs_diff(
         msgs.append(f"  {label}: FAIL (> {TOL}):")
         msgs.extend(bad)
         return False, msgs
-    msgs.append(f"  {label}: OK (all {len(common)} shared numeric cols max |diff| <= {TOL})")
+    msgs.append(
+        f"  {label}: OK (all {len(common)} shared numeric cols max |diff| <= {TOL})"
+    )
     return True, msgs
 
 
@@ -159,11 +173,12 @@ def check5_building_counts(
     msgs: list[str] = []
     counts_by_pair: dict[str, pl.DataFrame] = {}
     for rp in RUN_PAIRS:
-        df = (
+        df = cast(
+            pl.DataFrame,
             scan_bat(base, batch, rp, storage_options)
             .group_by("sb.electric_utility")
             .agg(pl.col("bldg_id").n_unique().alias("n_bldg"))
-            .collect()
+            .collect(),
         )
         counts_by_pair[rp] = df.sort("sb.electric_utility")
 
@@ -178,7 +193,9 @@ def check5_building_counts(
             m = ref.join(cmp_df, on="sb.electric_utility", suffix="_other", how="outer")
             msgs.append(f"    joined:\n{m}")
     if ok:
-        msgs.append(f"  {label}: OK — same per-utility bldg counts across all {len(RUN_PAIRS)} BAT run pairs")
+        msgs.append(
+            f"  {label}: OK — same per-utility bldg counts across all {len(RUN_PAIRS)} BAT run pairs"
+        )
     return ok, msgs
 
 
@@ -186,7 +203,10 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--new-batch", required=True)
     p.add_argument("--old-batch", required=True)
-    p.add_argument("--base", default="s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/all_utilities")
+    p.add_argument(
+        "--base",
+        default="s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/all_utilities",
+    )
     p.add_argument("--aws-region", default="us-west-2")
     args = p.parse_args()
 
@@ -227,7 +247,9 @@ def main() -> int:
     print(f"Check 2 (aggregate): {'SUCCESS' if ok2_all else 'FAILED'}")
 
     # Check 3 — Bills pairs 1–12
-    print("\n## Check 3: Master bills shared numeric vs old batch (run pairs 1+2 … 11+12)")
+    print(
+        "\n## Check 3: Master bills shared numeric vs old batch (run pairs 1+2 … 11+12)"
+    )
     ok3_all = True
     for rp in PAIRS_1_12:
         lo = scan_bills(args.base, args.old_batch, rp, storage_options)
@@ -241,8 +263,9 @@ def main() -> int:
     print(f"Check 3 (aggregate): {'SUCCESS' if ok3_all else 'FAILED'}")
 
     # Check 4 — informational (13–16 may differ)
-    print("\n## Check 4: BAT/bills pairs 13+14 and 15+16 (diffs reported, not failures)")
-    ok4 = True
+    print(
+        "\n## Check 4: BAT/bills pairs 13+14 and 15+16 (diffs reported, not failures)"
+    )
     results["check4"] = True
     for rp in PAIRS_13_16:
         for name, scanner, keys in (

@@ -5,10 +5,14 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+import numpy as np
+
 from utils.cairo import (
+    FLEX_SHIFT_MIN_PERIOD_ABS_KWH,
     _load_cambium_marginal_costs,
     apply_runtime_tou_demand_response,
     assign_hourly_periods,
+    process_residential_hourly_demand_response_shift,
 )
 
 # Example CSV with same structure as Cambium (5 metadata rows, then header + 8760 data rows)
@@ -168,3 +172,54 @@ def test_runtime_demand_response_infers_seasonal_wrapper() -> None:
     assert not tracker.empty
     assert any(col.startswith("season_1_period_") for col in tracker.columns)
     assert any(col.startswith("season_2_period_") for col in tracker.columns)
+
+
+def test_flex_shift_near_zero_period_net_does_not_explode_hourly_values() -> None:
+    """PV-style netting: tiny positive period sum must not amplify hourly shifts."""
+    hourly = pd.DataFrame(
+        {
+            "bldg_id": [1, 1, 1, 1],
+            "energy_period": [0, 0, 1, 1],
+            "electricity_net": [500.0, -499.5, 10.0, 10.0],
+        }
+    )
+    period_rate = pd.Series(
+        [0.10, 0.30],
+        index=pd.Index([0, 1], name="energy_period"),
+        name="rate",
+    )
+    shifted, hourly_shift, tracker = process_residential_hourly_demand_response_shift(
+        hourly,
+        period_rate,
+        demand_elasticity=-0.1,
+        min_period_abs_kwh=1.0,
+    )
+    assert np.all(np.isfinite(shifted))
+    assert np.all(np.isfinite(hourly_shift))
+    assert float(np.nanmax(np.abs(shifted))) < 1e6
+    assert float(np.nanmax(np.abs(hourly_shift))) < 1e6
+    assert shifted.sum() == pytest.approx(hourly["electricity_net"].sum())
+
+
+def test_flex_shift_negative_period_net_stays_finite() -> None:
+    hourly = pd.DataFrame(
+        {
+            "bldg_id": [1, 1, 1, 1],
+            "energy_period": [0, 0, 1, 1],
+            "electricity_net": [-2.0, -1.0, 50.0, 50.0],
+        }
+    )
+    period_rate = pd.Series(
+        [0.10, 0.25],
+        index=pd.Index([0, 1], name="energy_period"),
+        name="rate",
+    )
+    shifted, hourly_shift, _ = process_residential_hourly_demand_response_shift(
+        hourly,
+        period_rate,
+        demand_elasticity=-0.1,
+        min_period_abs_kwh=FLEX_SHIFT_MIN_PERIOD_ABS_KWH,
+    )
+    assert np.all(np.isfinite(shifted))
+    assert np.all(np.isfinite(hourly_shift))
+    assert shifted.sum() == pytest.approx(hourly["electricity_net"].sum())

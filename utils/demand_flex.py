@@ -81,9 +81,18 @@ def is_diurnal_tou(tariff_path: Path) -> bool:
 def find_tou_derivation_path(tariff_key: str, tou_derivation_dir: Path) -> Path | None:
     """Find the TOU derivation JSON for a tariff key, if one exists.
 
-    Convention: strip ``_calibrated`` and ``_flex`` suffixes from the tariff key
-    to get the base TOU name, then look for
-    ``{tou_derivation_dir}/{base}_derivation.json``.
+    *tariff_key* is normally the tariff JSON **stem** (not the YAML selector key
+    ``all`` / ``hp``): :func:`utils.scenario_config._parse_path_tariffs` rekeys
+    ``path_tariffs_electric`` by ``path.stem`` before :func:`apply_demand_flex`
+    runs. Strip trailing ``_calibrated`` and ``_flex`` from that stem, then look
+    for ``{tou_derivation_dir}/{base}_derivation.json``.
+
+    Supply tariff stems often end in ``…_flex_supply_calibrated``, which strips
+    to ``…_supply``. There is typically **no** ``{utility}_…_supply_derivation.json``;
+    in that case this returns ``None`` and the caller skips
+    :func:`load_season_specs`. **Do not** fall back to the delivery derivation:
+    applying delivery winter/summer slices while shifting against **supply** TOU
+    rates can explode ``bill_level`` on supply runs.
     """
     base = re.sub(r"_(calibrated|flex)", "", tariff_key)
     base = re.sub(r"__+", "_", base).strip("_")
