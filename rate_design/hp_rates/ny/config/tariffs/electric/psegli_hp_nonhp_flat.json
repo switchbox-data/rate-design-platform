@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "nyseg_hp_flat",
-      "name": "nyseg_hp_flat",
+      "label": "psegli_hp_nonhp_flat",
+      "name": "psegli_hp_nonhp_flat",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,13 +640,13 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.08055461835098113,
+            "rate": 0.07017222658406365,
             "adj": 0.0,
             "unit": "kWh"
           }
         ]
       ],
-      "fixedchargefirstmeter": 19.89,
+      "fixedchargefirstmeter": 16.43,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
       "minchargeunits": "$/month"

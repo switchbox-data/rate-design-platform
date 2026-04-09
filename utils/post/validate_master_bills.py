@@ -330,7 +330,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _validate_run_pair(run_delivery: int, run_supply: int, label: str) -> None:
-    """Require a valid delivery+supply pair (1+2, 3+4, ..., 11+12)."""
+    """Require a valid delivery+supply pair (1+2, 3+4, ..., 23+24)."""
     if (run_delivery, run_supply) not in VALID_RUN_PAIRS:
         expected = ", ".join(f"{d}+{s}" for d, s in sorted(VALID_RUN_PAIRS))
         raise ValueError(

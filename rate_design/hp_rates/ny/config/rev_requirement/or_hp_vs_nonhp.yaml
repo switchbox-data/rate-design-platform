@@ -1,6 +1,6 @@
 utility: or
 group_col: has_hp
-source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/or/ny_20260401_all_epmc_r1-24/20260401_180125_ny_or_run1_up00_precalc__default
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/or/ny_20260408_all_epmc_r1-24/20260408_150105_ny_or_run1_up00_precalc__default
 total_delivery_revenue_requirement: 263364257.0
 total_delivery_and_supply_revenue_requirement: 431562114.21
 subclass_revenue_requirements:

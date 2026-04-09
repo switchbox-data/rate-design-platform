@@ -58,9 +58,9 @@ from utils.post.io import (
 )
 
 ELEC_BILLS_CSV = "bills/elec_bills_year_target.csv"
-UPGRADE_00_RUNS = {1, 2, 5, 6, 9, 10, 13, 14, 17, 18}
-UPGRADE_02_RUNS = {3, 4, 7, 8, 11, 12, 15, 16, 19, 20}
-VALID_RUN_PAIRS = {(r, r + 1) for r in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19)}
+UPGRADE_00_RUNS = {1, 2, 5, 6, 9, 10, 13, 14, 17, 18, 21, 22}
+UPGRADE_02_RUNS = {3, 4, 7, 8, 11, 12, 15, 16, 19, 20, 23, 24}
+VALID_RUN_PAIRS = {(r, r + 1) for r in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23)}
 
 META_COLS = [
     BLDG_ID,
@@ -234,7 +234,7 @@ def _upgrade_for_run(run_delivery: int) -> str:
 
 
 def _validate_run_pair(run_delivery: int, run_supply: int) -> None:
-    """Require a valid delivery+supply pair (1+2, 3+4, ..., 11+12)."""
+    """Require a valid delivery+supply pair (1+2, 3+4, ..., 23+24)."""
     if (run_delivery, run_supply) not in VALID_RUN_PAIRS:
         expected = ", ".join(f"{d}+{s}" for d, s in sorted(VALID_RUN_PAIRS))
         raise ValueError(
