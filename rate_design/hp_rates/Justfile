@@ -270,6 +270,14 @@ create-seasonal-tou-tariffs base_pattern="flat":
         f = open('${supply_path}', 'w'); json.dump(t, f, indent=2); f.write('\n'); f.close(); \
         print('Created ${supply_path}')"
     echo ">> create-seasonal-tou-tariffs: wrote {{ tou_tariff_key }}.json and {{ tou_tariff_key }}_supply.json" >&2
+    # Supply runs use stems like {tou_tariff_key}_flex_supply_calibrated → base …_supply.
+    # find_tou_derivation_path looks for {base}_derivation.json, i.e. …_supply_derivation.json.
+    # Supply tariff JSON is the same TOU structure as delivery (label-only copy above); copy season specs.
+    deriv_dir="{{ path_config }}/tou_derivation"
+    deriv_src="${deriv_dir}/{{ tou_tariff_key }}_derivation.json"
+    deriv_dst="${deriv_dir}/{{ tou_tariff_key }}_supply_derivation.json"
+    cp -f "${deriv_src}" "${deriv_dst}"
+    echo ">> create-seasonal-tou-tariffs: wrote ${deriv_dst} (copy of delivery derivation for supply-side flex)" >&2
 
 create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="" has_hp="true":
     just -f {{ path_repo }}/utils/Justfile create-seasonal-tou \
@@ -751,6 +759,7 @@ run-all-utilities-sequential-only:
     done
 
 # Like all-pre but skips create-default-structure-tariffs, for utilities
+
 # whose default tariffs are hand-edited from rate case filings.
 all-pre-rate-case:
     just create-scenario-yamls
