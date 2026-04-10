@@ -218,7 +218,7 @@ def test_row_to_run_raises_when_subclassed_but_missing_subclass_config() -> None
 
 
 def test_hoist_shared_subclass_config_removes_duplicate_run_blocks() -> None:
-    runs = {
+    runs: dict[int, dict[str, object]] = {
         1: {"run_includes_subclasses": False},
         5: {
             "run_includes_subclasses": True,
@@ -247,7 +247,7 @@ def test_hoist_shared_subclass_config_removes_duplicate_run_blocks() -> None:
 
 
 def test_hoist_shared_subclass_config_keeps_run_level_when_configs_differ() -> None:
-    runs = {
+    runs: dict[int, dict[str, object]] = {
         5: {
             "run_includes_subclasses": True,
             "subclass_config": {
@@ -275,7 +275,7 @@ def test_hoist_shared_subclass_config_keeps_run_level_when_configs_differ() -> N
 
 
 def test_hoist_shared_subclass_config_keeps_outlier_run_overrides() -> None:
-    runs = {
+    runs: dict[int, dict[str, object]] = {
         5: {
             "run_includes_subclasses": True,
             "subclass_config": {

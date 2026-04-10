@@ -120,6 +120,7 @@ import json
 import os
 import re
 from pathlib import Path
+from typing import cast
 
 import gspread
 import yaml
@@ -267,11 +268,12 @@ def _hoist_shared_subclass_config(
         run_subclass_config = run.get("subclass_config")
         if not isinstance(run_subclass_config, dict):
             return None
+        typed_run_subclass_config = cast(dict[str, object], run_subclass_config)
         subclass_configs.append(
             (
                 run_num,
-                dict(run_subclass_config),
-                json.dumps(run_subclass_config, sort_keys=True),
+                typed_run_subclass_config.copy(),
+                json.dumps(typed_run_subclass_config, sort_keys=True),
             )
         )
 
