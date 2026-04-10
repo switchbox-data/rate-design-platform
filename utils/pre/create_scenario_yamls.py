@@ -120,6 +120,7 @@ import json
 import os
 import re
 from pathlib import Path
+from typing import cast
 
 import gspread
 import yaml
@@ -203,6 +204,105 @@ def _parse_bool(value: object) -> bool:
         f"Invalid boolean value {value!r}; expected one of "
         "TRUE/FALSE, 1/0, YES/NO, Y/N."
     )
+
+
+def _parse_subclass_selectors(raw: str) -> dict[str, str]:
+    """Parse subclass_selectors sheet column into a selectors dict.
+
+    Format: ``key:value1|value2,key2:value3|value4``
+
+    Each entry is ``<subclass_key>:<pipe-separated group_col values>``.
+    Commas separate subclass entries; pipes separate multiple values within
+    one subclass.  Values are stored as a comma-separated string (the format
+    expected by ``generate_tariff_map_from_scenario_keys``).
+
+    Example::
+
+        "electric_heating:heat_pump|electrical_resistance,non_electric_heating:natgas|delivered_fuels|other"
+        → {"electric_heating": "heat_pump,electrical_resistance",
+           "non_electric_heating": "natgas,delivered_fuels,other"}
+
+    Also supports the simpler single-value form::
+
+        "hp:true,non-hp:false"
+        → {"hp": "true", "non-hp": "false"}
+    """
+    if not raw.strip():
+        return {}
+    out: dict[str, str] = {}
+    for entry in raw.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        if ":" not in entry:
+            raise ValueError(
+                f"subclass_selectors entry must be 'key:value(s)', got {entry!r}"
+            )
+        key, values_raw = entry.split(":", 1)
+        key = key.strip()
+        values = ",".join(v.strip() for v in values_raw.split("|"))
+        if not key or not values:
+            raise ValueError(
+                f"subclass_selectors entry has blank key or values: {entry!r}"
+            )
+        if key in out:
+            raise ValueError(f"subclass_selectors duplicate key {key!r}")
+        out[key] = values
+    return out
+
+
+def _hoist_shared_subclass_config(
+    runs: dict[int, dict[str, object]],
+) -> dict[str, object] | None:
+    """Hoist a repeated subclass_config block to the scenario top level.
+
+    If subclassed runs all share the same ``subclass_config``, hoist it.
+    If one config is the clear default used by multiple subclassed runs, hoist
+    that default and keep per-run overrides only where they differ.
+    If every subclassed run is unique, leave all run blocks unchanged.
+    """
+    subclass_configs: list[tuple[int, dict[str, object], str]] = []
+    for run_num, run in runs.items():
+        if not bool(run.get("run_includes_subclasses", False)):
+            continue
+        run_subclass_config = run.get("subclass_config")
+        if not isinstance(run_subclass_config, dict):
+            return None
+        typed_run_subclass_config = cast(dict[str, object], run_subclass_config)
+        subclass_configs.append(
+            (
+                run_num,
+                typed_run_subclass_config.copy(),
+                json.dumps(typed_run_subclass_config, sort_keys=True),
+            )
+        )
+
+    if len(subclass_configs) < 2:
+        return None
+
+    counts: dict[str, int] = {}
+    configs_by_key: dict[str, dict[str, object]] = {}
+    for _, run_subclass_config, config_key in subclass_configs:
+        counts[config_key] = counts.get(config_key, 0) + 1
+        configs_by_key[config_key] = run_subclass_config
+
+    max_count = max(counts.values())
+    if max_count <= 1:
+        return None
+
+    shared_keys = [
+        config_key for config_key, count in counts.items() if count == max_count
+    ]
+    if len(shared_keys) != 1:
+        return None
+
+    shared_key = shared_keys[0]
+    shared = configs_by_key[shared_key]
+    for run_num, _, config_key in subclass_configs:
+        if config_key == shared_key:
+            runs[run_num].pop("subclass_config", None)
+
+    return shared
 
 
 def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
@@ -303,6 +403,25 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     residual_allocation_supply = get_optional("residual_allocation_supply")
     if residual_allocation_supply:
         run["residual_allocation_supply"] = residual_allocation_supply
+
+    # subclass_config: built from subclass_group_col + subclass_selectors sheet columns.
+    # When run_includes_subclasses is True but both columns are absent/blank, raise.
+    subclass_group_col = get_optional("subclass_group_col")
+    subclass_selectors_raw = get_optional("subclass_selectors")
+    if subclass_group_col and subclass_selectors_raw:
+        selectors = _parse_subclass_selectors(subclass_selectors_raw)
+        run["subclass_config"] = {
+            "group_col": subclass_group_col,
+            "selectors": selectors,
+        }
+    elif run["run_includes_subclasses"] and (
+        not subclass_group_col or not subclass_selectors_raw
+    ):
+        raise ValueError(
+            "run_includes_subclasses is True but subclass_group_col and/or "
+            "subclass_selectors are blank. Populate both columns in the sheet or "
+            "set run_includes_subclasses to FALSE."
+        )
 
     run["path_electric_utility_stats"] = get("path_electric_utility_stats")
 
@@ -526,7 +645,10 @@ def run(
         )
 
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {"runs": runs}
+        payload: dict[str, object] = {"runs": runs}
+        shared_subclass_config = _hoist_shared_subclass_config(runs)
+        if shared_subclass_config is not None:
+            payload["subclass_config"] = shared_subclass_config
         yaml_str = yaml.dump(
             payload,
             default_flow_style=False,

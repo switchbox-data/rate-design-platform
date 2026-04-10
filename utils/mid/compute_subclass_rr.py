@@ -54,6 +54,43 @@ GROUP_VALUE_COL = "subclass"
 ANNUAL_MONTH_VALUE = "Annual"
 DEFAULT_SEASONAL_OUTPUT_FILENAME = "seasonal_discount_rate_inputs.csv"
 DEFAULT_FLAT_OUTPUT_FILENAME = "flat_discount_rate_inputs.csv"
+
+
+def seasonal_discount_filename(group_col: str, subclass_value: str) -> str:
+    """Return the seasonal discount CSV filename for a specific subclass.
+
+    Encodes the grouping column and subclass value so that multiple subclass
+    seasonal-discount computations sharing the same CAIRO run directory do not
+    overwrite each other.
+
+    Examples
+    --------
+    >>> seasonal_discount_filename("has_hp", "true")
+    'seasonal_discount_rate_inputs_has_hp_true.csv'
+    >>> seasonal_discount_filename("heating_type_v2", "electric_heating")
+    'seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv'
+    """
+    safe_col = group_col.replace(".", "_")
+    safe_val = subclass_value.replace(" ", "_")
+    return f"seasonal_discount_rate_inputs_{safe_col}_{safe_val}.csv"
+
+
+def flat_discount_filename(group_col: str, subclass_value: str) -> str:
+    """Return the flat discount CSV filename for a specific subclass.
+
+    Encodes the grouping column and subclass value so multiple subclass
+    flat-discount computations sharing the same run directory do not collide.
+
+    Examples
+    --------
+    >>> flat_discount_filename("has_hp", "true")
+    'flat_discount_rate_inputs_has_hp_true.csv'
+    """
+    safe_col = group_col.replace(".", "_")
+    safe_val = subclass_value.replace(" ", "_")
+    return f"flat_discount_rate_inputs_{safe_col}_{safe_val}.csv"
+
+
 ELECTRIC_LOAD_COL = "out.electricity.total.energy_consumption"
 MONTH_ABBREV_TO_NUM: dict[str, int] = {
     "Jan": 1,
@@ -255,24 +292,155 @@ def _extract_fixed_charge_from_urdb(
     return float(fixed_charge)
 
 
-def compute_hp_seasonal_discount_inputs(
+def _resolve_selector_group_values(
+    subclass_value: str,
+    group_value_to_subclass: dict[str, str] | None,
+) -> tuple[str, ...]:
+    """Resolve a requested subclass label to raw group values to match.
+
+    If ``group_value_to_subclass`` is provided, callers may pass either a raw
+    group value (for example ``"true"``) or a subclass alias (for example
+    ``"electric_heating"``). Alias values expand to all matching raw values
+    from the scenario selector config.
+    """
+    if group_value_to_subclass is None:
+        return (subclass_value,)
+
+    matched_values = tuple(
+        group_value
+        for group_value, subclass_alias in group_value_to_subclass.items()
+        if subclass_alias == subclass_value
+    )
+    if matched_values:
+        return matched_values
+    return (subclass_value,)
+
+
+def _load_subclass_cross_subsidy_inputs(
+    run_dir: S3Path | Path,
+    group_col: str,
+    subclass_value: str,
+    cross_subsidy_col: str,
+    storage_options: dict[str, str] | None,
+    group_value_to_subclass: dict[str, str] | None = None,
+    *,
+    log_prefix: str,
+) -> tuple[pl.DataFrame, float]:
+    """Load subclass metadata joined to the requested BAT metric.
+
+    Returns the joined subclass frame plus the weighted total cross-subsidy.
+    """
+    t0 = perf_counter()
+    metadata = _load_metadata_for_group(
+        run_dir=run_dir,
+        group_col=group_col,
+        storage_options=storage_options,
+    )
+    cross_sub = _load_cross_subsidy(run_dir, cross_subsidy_col, storage_options)
+    group_values = _resolve_selector_group_values(
+        subclass_value,
+        group_value_to_subclass,
+    )
+
+    subclass_cross_subsidy = cast(
+        pl.DataFrame,
+        metadata.filter(pl.col(GROUP_VALUE_COL).is_in(group_values))
+        .join(cross_sub, on=BLDG_ID_COL, how="left")
+        .collect(),
+    )
+    LOGGER.info(
+        "%s [%s=%s]: loaded metadata + cross-subsidy in %.2fs",
+        log_prefix,
+        group_col,
+        subclass_value,
+        perf_counter() - t0,
+    )
+    if subclass_cross_subsidy.is_empty():
+        raise ValueError(
+            f"No customers with {group_col}={subclass_value!r} found in customer_metadata.csv."
+        )
+
+    nulls_cs = subclass_cross_subsidy.filter(pl.col("cross_subsidy").is_null()).height
+    if nulls_cs:
+        raise ValueError(f"Missing cross-subsidy values for {nulls_cs} buildings.")
+    nulls_weight = subclass_cross_subsidy.filter(pl.col(WEIGHT_COL).is_null()).height
+    if nulls_weight:
+        raise ValueError(f"Missing sample weights for {nulls_weight} buildings.")
+
+    total_cross_subsidy = float(
+        subclass_cross_subsidy.select(
+            (pl.col("cross_subsidy") * pl.col(WEIGHT_COL)).sum().alias("weighted_cs")
+        )["weighted_cs"][0]
+    )
+    return subclass_cross_subsidy, total_cross_subsidy
+
+
+def _compute_annual_energy_revenue(
+    run_dir: S3Path | Path,
+    subclass_cross_subsidy: pl.DataFrame,
+    fixed_charge: float,
+    storage_options: dict[str, str] | None,
+    *,
+    group_col: str,
+    subclass_value: str,
+    log_prefix: str,
+) -> float:
+    """Compute subclass annual energy revenue from annual bills and fixed charges."""
+    t1 = perf_counter()
+    ids_weights = subclass_cross_subsidy.select(BLDG_ID_COL, WEIGHT_COL)
+
+    annual_energy_rev_row = cast(
+        pl.DataFrame,
+        _load_annual_target_bills(run_dir, ANNUAL_MONTH_VALUE, storage_options)
+        .join(ids_weights.lazy(), on=BLDG_ID_COL, how="inner")
+        .with_columns(
+            ((pl.col("annual_bill") - 12.0 * fixed_charge) * pl.col(WEIGHT_COL)).alias(
+                "weighted_energy_rev"
+            )
+        )
+        .select(pl.col("weighted_energy_rev").sum().alias("annual_energy_rev"))
+        .collect(),
+    )
+    annual_energy_rev = float(annual_energy_rev_row["annual_energy_rev"][0] or 0.0)
+    LOGGER.info(
+        "%s [%s=%s]: computed annual energy revenue in %.2fs",
+        log_prefix,
+        group_col,
+        subclass_value,
+        perf_counter() - t1,
+    )
+    return annual_energy_rev
+
+
+def compute_subclass_seasonal_discount_inputs(
     run_dir: S3Path | Path,
     resstock_base: str,
     state: str,
     upgrade: str,
+    group_col: str = DEFAULT_GROUP_COL,
+    subclass_value: str = "true",
     cross_subsidy_col: str = DEFAULT_BAT_METRIC,
     storage_options: dict[str, str] | None = None,
+    group_value_to_subclass: dict[str, str] | None = None,
     base_tariff_json_path: S3Path | Path | None = None,
     winter_months: tuple[int, ...] | None = None,
 ) -> pl.DataFrame:
-    """Compute HP-only seasonal discount inputs from run outputs + ResStock loads.
+    """Compute seasonal discount inputs for one subclass from run outputs + ResStock loads.
 
     Derives effective flat seasonal rates from the run's actual bill revenue,
     so the seasonal discount works correctly regardless of whether the base
     tariff is flat or structured (tiered, seasonal, TOU).
 
-    For flat tariffs the revenue-based rates equal the single flat rate, so
-    this is backward-compatible.
+    Parameters
+    ----------
+    group_col:
+        Column in ``customer_metadata.csv`` that defines subclass membership
+        (e.g. ``"has_hp"`` or ``"heating_type_v2"``).
+    subclass_value:
+        The value of *group_col* that identifies the target subclass
+        (e.g. ``"true"`` for HP customers, ``"electric_heating"``).
+        When ``group_value_to_subclass`` is provided, this may be either a raw
+        group value or a subclass alias from scenario ``subclass_config``.
     """
     if base_tariff_json_path is None:
         raise ValueError(
@@ -287,39 +455,15 @@ def compute_hp_seasonal_discount_inputs(
         else tuple(DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS)
     )
 
-    # --- HP metadata, weights, and cross-subsidy ---
-    t0 = perf_counter()
-    metadata = _load_metadata_for_group(
+    # --- Subclass metadata, weights, and cross-subsidy ---
+    subclass_cross_subsidy, total_cross_subsidy = _load_subclass_cross_subsidy_inputs(
         run_dir=run_dir,
-        group_col=DEFAULT_GROUP_COL,
+        group_col=group_col,
+        subclass_value=subclass_value,
+        cross_subsidy_col=cross_subsidy_col,
         storage_options=storage_options,
-    )
-    cross_sub = _load_cross_subsidy(run_dir, cross_subsidy_col, storage_options)
-
-    hp_cross_subsidy = (
-        metadata.filter(pl.col(GROUP_VALUE_COL) == "true")
-        .join(cross_sub, on=BLDG_ID_COL, how="left")
-        .collect()
-    )
-    LOGGER.info(
-        "seasonal_inputs: loaded metadata + cross-subsidy in %.2fs",
-        perf_counter() - t0,
-    )
-    hp_cross_subsidy = cast(pl.DataFrame, hp_cross_subsidy)
-    if hp_cross_subsidy.is_empty():
-        raise ValueError("No HP customers found in customer_metadata.csv.")
-
-    nulls_cs = hp_cross_subsidy.filter(pl.col("cross_subsidy").is_null()).height
-    if nulls_cs:
-        raise ValueError(f"Missing cross-subsidy values for {nulls_cs} HP buildings.")
-    nulls_weight = hp_cross_subsidy.filter(pl.col(WEIGHT_COL).is_null()).height
-    if nulls_weight:
-        raise ValueError(f"Missing sample weights for {nulls_weight} HP buildings.")
-
-    total_cross_subsidy_hp = float(
-        hp_cross_subsidy.select(
-            (pl.col("cross_subsidy") * pl.col(WEIGHT_COL)).sum().alias("weighted_cs")
-        )["weighted_cs"][0]
+        group_value_to_subclass=group_value_to_subclass,
+        log_prefix="seasonal_inputs",
     )
 
     # --- Fixed charge from URDB base tariff ---
@@ -327,34 +471,21 @@ def compute_hp_seasonal_discount_inputs(
 
     # --- Annual energy revenue from annual bills ---
     # Use the Annual row (same source as compute_subclass_rr) so the flat rate
-    # is derived from exactly the same bills that produced RR_HP.  Subtracting
-    # 12*FC converts the annual total bill into the annual energy-only revenue.
-    t1 = perf_counter()
-    hp_ids_weights = hp_cross_subsidy.select(BLDG_ID_COL, WEIGHT_COL)
-
-    annual_energy_rev_row = cast(
-        pl.DataFrame,
-        _load_annual_target_bills(run_dir, ANNUAL_MONTH_VALUE, storage_options)
-        .join(hp_ids_weights.lazy(), on=BLDG_ID_COL, how="inner")
-        .with_columns(
-            ((pl.col("annual_bill") - 12.0 * fixed_charge) * pl.col(WEIGHT_COL)).alias(
-                "weighted_energy_rev"
-            )
-        )
-        .select(pl.col("weighted_energy_rev").sum().alias("annual_energy_rev_hp"))
-        .collect(),
-    )
-    annual_energy_rev_hp = float(
-        annual_energy_rev_row["annual_energy_rev_hp"][0] or 0.0
-    )
-    LOGGER.info(
-        "seasonal_inputs: computed annual energy revenue in %.2fs",
-        perf_counter() - t1,
+    # is derived from exactly the same bills that produced the subclass RR.
+    # Subtracting 12*FC converts the annual total bill into the annual energy-only revenue.
+    annual_energy_rev = _compute_annual_energy_revenue(
+        run_dir=run_dir,
+        subclass_cross_subsidy=subclass_cross_subsidy,
+        fixed_charge=fixed_charge,
+        storage_options=storage_options,
+        group_col=group_col,
+        subclass_value=subclass_value,
+        log_prefix="seasonal_inputs",
     )
 
     # --- Seasonal kWh from ResStock loads ---
-    hp_weights = hp_cross_subsidy.select(pl.col(BLDG_ID_COL), pl.col(WEIGHT_COL))
-    building_ids = hp_cross_subsidy[BLDG_ID_COL].to_list()
+    sub_weights = subclass_cross_subsidy.select(pl.col(BLDG_ID_COL), pl.col(WEIGHT_COL))
+    building_ids = subclass_cross_subsidy[BLDG_ID_COL].to_list()
     t2 = perf_counter()
     loads = scan_resstock_loads(
         resstock_base,
@@ -364,14 +495,16 @@ def compute_hp_seasonal_discount_inputs(
         storage_options=storage_options,
     )
     LOGGER.info(
-        "seasonal_inputs: prepared loads scan for %d HP buildings in %.2fs",
+        "seasonal_inputs [%s=%s]: prepared loads scan for %d buildings in %.2fs",
+        group_col,
+        subclass_value,
         len(building_ids),
         perf_counter() - t2,
     )
     t3 = perf_counter()
     seasonal_kwh = cast(
         pl.DataFrame,
-        loads.join(hp_weights.lazy(), on=BLDG_ID_COL, how="inner")
+        loads.join(sub_weights.lazy(), on=BLDG_ID_COL, how="inner")
         .select(
             pl.col("timestamp")
             .cast(pl.String, strict=False)
@@ -388,103 +521,119 @@ def compute_hp_seasonal_discount_inputs(
             pl.col("month_num").is_in(resolved_winter_months).alias("is_winter"),
         )
         .select(
-            pl.col("weighted_kwh").sum().alias("annual_kwh_hp"),
+            pl.col("weighted_kwh").sum().alias("annual_kwh"),
             pl.when(pl.col("is_winter"))
             .then(pl.col("weighted_kwh"))
             .otherwise(0.0)
             .sum()
-            .alias("winter_kwh_hp"),
+            .alias("winter_kwh"),
         )
         .collect(engine="streaming"),
     )
     LOGGER.info(
-        "seasonal_inputs: collected seasonal kWh aggregates in %.2fs",
+        "seasonal_inputs [%s=%s]: collected seasonal kWh aggregates in %.2fs",
+        group_col,
+        subclass_value,
         perf_counter() - t3,
     )
 
-    annual_kwh = float(seasonal_kwh["annual_kwh_hp"][0] or 0.0)
-    winter_kwh = float(seasonal_kwh["winter_kwh_hp"][0] or 0.0)
+    annual_kwh = float(seasonal_kwh["annual_kwh"][0] or 0.0)
+    winter_kwh = float(seasonal_kwh["winter_kwh"][0] or 0.0)
     summer_kwh = annual_kwh - winter_kwh
 
     if winter_kwh <= 0:
         raise ValueError(
-            "Winter kWh for HP customers is zero; cannot compute winter rate."
+            f"Winter kWh for {group_col}={subclass_value!r} is zero; cannot compute winter rate."
         )
     if summer_kwh <= 0:
         raise ValueError(
-            "Summer kWh for HP customers is zero; cannot compute summer rate."
+            f"Summer kWh for {group_col}={subclass_value!r} is zero; cannot compute summer rate."
         )
 
     # --- Derive effective seasonal rates ---
-    # Equivalent flat rate = HP annual energy revenue / HP annual kWh.
-    # This uses the same Annual row bills that produced RR_HP, ensuring the
-    # pre-calibrated hp_seasonal tariff is exactly subclass revenue neutral
+    # Equivalent flat rate = subclass annual energy revenue / subclass annual kWh.
+    # This uses the same Annual row bills that produced the subclass RR, ensuring
+    # the pre-calibrated seasonal tariff is exactly subclass revenue neutral
     # (rate_unity = 1.0 at CAIRO precalc, up to floating-point precision).
     # Summer rate = flat rate; winter rate = flat rate - winter discount,
-    # where winter_discount = CS / winter_kWh eliminates the HP cross-subsidy.
+    # where winter_discount = CS / winter_kWh eliminates the subclass cross-subsidy.
     total_kwh = summer_kwh + winter_kwh
-    equivalent_flat_rate = annual_energy_rev_hp / total_kwh
-    winter_discount = total_cross_subsidy_hp / winter_kwh
+    equivalent_flat_rate = annual_energy_rev / total_kwh
+    winter_discount = total_cross_subsidy / winter_kwh
     summer_rate = equivalent_flat_rate
     winter_rate_raw = equivalent_flat_rate - winter_discount
-    winter_rate_hp = winter_rate_raw
-    if winter_rate_hp < 0:
+    winter_rate = winter_rate_raw
+    if winter_rate < 0:
         raise ValueError(
-            "Computed winter_rate_hp is negative. "
+            f"Computed winter_rate for {group_col}={subclass_value!r} is negative. "
             "Check formula inputs: "
-            f"annual_energy_rev_hp={annual_energy_rev_hp}, "
-            f"total_cross_subsidy_hp={total_cross_subsidy_hp}, "
-            f"winter_kwh_hp={winter_kwh}, "
-            f"annual_kwh_hp={total_kwh}, "
+            f"annual_energy_rev={annual_energy_rev}, "
+            f"total_cross_subsidy={total_cross_subsidy}, "
+            f"winter_kwh={winter_kwh}, "
+            f"annual_kwh={total_kwh}, "
             f"equivalent_flat_rate={equivalent_flat_rate}, "
             f"winter_discount={winter_discount}, "
-            f"winter_rate_hp={winter_rate_hp}"
+            f"winter_rate={winter_rate}"
         )
 
     t4 = perf_counter()
     result = pl.DataFrame(
         {
-            "subclass": ["true"],
+            "subclass": [subclass_value],
+            "group_col": [group_col],
             "cross_subsidy_col": [cross_subsidy_col],
             "equivalent_flat_rate": [equivalent_flat_rate],
             "winter_discount": [winter_discount],
             "summer_rate": [summer_rate],
-            "total_cross_subsidy_hp": [total_cross_subsidy_hp],
-            "winter_kwh_hp": [winter_kwh],
-            "summer_kwh_hp": [summer_kwh],
-            "annual_kwh_hp": [total_kwh],
-            "annual_energy_rev_hp": [annual_energy_rev_hp],
-            "winter_rate_hp": [winter_rate_hp],
+            "total_cross_subsidy": [total_cross_subsidy],
+            "winter_kwh": [winter_kwh],
+            "summer_kwh": [summer_kwh],
+            "annual_kwh": [total_kwh],
+            "annual_energy_rev": [annual_energy_rev],
+            "winter_rate": [winter_rate],
             "winter_rate_raw": [winter_rate_raw],
             "winter_months": [",".join(str(m) for m in resolved_winter_months)],
         }
     )
     LOGGER.info(
-        "seasonal_inputs: finalized result frame in %.2fs",
+        "seasonal_inputs [%s=%s]: finalized result frame in %.2fs",
+        group_col,
+        subclass_value,
         perf_counter() - t4,
     )
     return result
 
 
-def compute_hp_flat_discount_inputs(
+def compute_subclass_flat_discount_inputs(
     run_dir: S3Path | Path,
     resstock_base: str,
     state: str,
     upgrade: str,
+    group_col: str = DEFAULT_GROUP_COL,
+    subclass_value: str = "true",
     cross_subsidy_col: str = DEFAULT_BAT_METRIC,
     storage_options: dict[str, str] | None = None,
+    group_value_to_subclass: dict[str, str] | None = None,
     base_tariff_json_path: S3Path | Path | None = None,
 ) -> pl.DataFrame:
-    """Compute a fair flat volumetric rate for HP customers.
+    """Compute a fair flat volumetric rate for one customer subclass.
 
-    The flat rate eliminates the HP cross-subsidy uniformly across all hours::
+    The flat rate eliminates the subclass cross-subsidy uniformly across all hours::
 
-        equivalent_flat_rate = annual_energy_rev_hp / annual_kwh_hp
-        flat_discount        = total_cross_subsidy_hp / annual_kwh_hp
-        flat_rate_hp         = equivalent_flat_rate - flat_discount
+        equivalent_flat_rate = annual_energy_rev / annual_kwh
+        flat_discount        = total_cross_subsidy / annual_kwh
+        flat_rate            = equivalent_flat_rate - flat_discount
 
-    Inputs are identical to :func:`compute_hp_seasonal_discount_inputs` but no
-    winter/summer split is needed.
+    Parameters
+    ----------
+    group_col:
+        Column in ``customer_metadata.csv`` that defines subclass membership
+        (e.g. ``"has_hp"`` or ``"heating_type_v2"``).
+    subclass_value:
+        The value of *group_col* that identifies the target subclass
+        (e.g. ``"true"`` for HP customers, ``"electric_heating"``).
+        When ``group_value_to_subclass`` is provided, this may be either a raw
+        group value or a subclass alias from scenario ``subclass_config``.
     """
     if base_tariff_json_path is None:
         raise ValueError(
@@ -492,71 +641,34 @@ def compute_hp_flat_discount_inputs(
             "tariff JSON to extract the fixed charge."
         )
 
-    # --- HP metadata, weights, and cross-subsidy ---
-    t0 = perf_counter()
-    metadata = _load_metadata_for_group(
+    # --- Subclass metadata, weights, and cross-subsidy ---
+    subclass_cross_subsidy, total_cross_subsidy = _load_subclass_cross_subsidy_inputs(
         run_dir=run_dir,
-        group_col=DEFAULT_GROUP_COL,
+        group_col=group_col,
+        subclass_value=subclass_value,
+        cross_subsidy_col=cross_subsidy_col,
         storage_options=storage_options,
-    )
-    cross_sub = _load_cross_subsidy(run_dir, cross_subsidy_col, storage_options)
-
-    hp_cross_subsidy = (
-        metadata.filter(pl.col(GROUP_VALUE_COL) == "true")
-        .join(cross_sub, on=BLDG_ID_COL, how="left")
-        .collect()
-    )
-    LOGGER.info(
-        "flat_inputs: loaded metadata + cross-subsidy in %.2fs",
-        perf_counter() - t0,
-    )
-    hp_cross_subsidy = cast(pl.DataFrame, hp_cross_subsidy)
-    if hp_cross_subsidy.is_empty():
-        raise ValueError("No HP customers found in customer_metadata.csv.")
-
-    nulls_cs = hp_cross_subsidy.filter(pl.col("cross_subsidy").is_null()).height
-    if nulls_cs:
-        raise ValueError(f"Missing cross-subsidy values for {nulls_cs} HP buildings.")
-    nulls_weight = hp_cross_subsidy.filter(pl.col(WEIGHT_COL).is_null()).height
-    if nulls_weight:
-        raise ValueError(f"Missing sample weights for {nulls_weight} HP buildings.")
-
-    total_cross_subsidy_hp = float(
-        hp_cross_subsidy.select(
-            (pl.col("cross_subsidy") * pl.col(WEIGHT_COL)).sum().alias("weighted_cs")
-        )["weighted_cs"][0]
+        group_value_to_subclass=group_value_to_subclass,
+        log_prefix="flat_inputs",
     )
 
     # --- Fixed charge from URDB base tariff ---
     fixed_charge = _extract_fixed_charge_from_urdb(base_tariff_json_path)
 
     # --- Annual energy revenue from annual bills ---
-    t1 = perf_counter()
-    hp_ids_weights = hp_cross_subsidy.select(BLDG_ID_COL, WEIGHT_COL)
-
-    annual_energy_rev_row = cast(
-        pl.DataFrame,
-        _load_annual_target_bills(run_dir, ANNUAL_MONTH_VALUE, storage_options)
-        .join(hp_ids_weights.lazy(), on=BLDG_ID_COL, how="inner")
-        .with_columns(
-            ((pl.col("annual_bill") - 12.0 * fixed_charge) * pl.col(WEIGHT_COL)).alias(
-                "weighted_energy_rev"
-            )
-        )
-        .select(pl.col("weighted_energy_rev").sum().alias("annual_energy_rev_hp"))
-        .collect(),
-    )
-    annual_energy_rev_hp = float(
-        annual_energy_rev_row["annual_energy_rev_hp"][0] or 0.0
-    )
-    LOGGER.info(
-        "flat_inputs: computed annual energy revenue in %.2fs",
-        perf_counter() - t1,
+    annual_energy_rev = _compute_annual_energy_revenue(
+        run_dir=run_dir,
+        subclass_cross_subsidy=subclass_cross_subsidy,
+        fixed_charge=fixed_charge,
+        storage_options=storage_options,
+        group_col=group_col,
+        subclass_value=subclass_value,
+        log_prefix="flat_inputs",
     )
 
     # --- Annual kWh from ResStock loads ---
-    building_ids = hp_cross_subsidy[BLDG_ID_COL].to_list()
-    hp_weights = hp_cross_subsidy.select(pl.col(BLDG_ID_COL), pl.col(WEIGHT_COL))
+    building_ids = subclass_cross_subsidy[BLDG_ID_COL].to_list()
+    sub_weights = subclass_cross_subsidy.select(pl.col(BLDG_ID_COL), pl.col(WEIGHT_COL))
     t2 = perf_counter()
     loads = scan_resstock_loads(
         resstock_base,
@@ -566,14 +678,16 @@ def compute_hp_flat_discount_inputs(
         storage_options=storage_options,
     )
     LOGGER.info(
-        "flat_inputs: prepared loads scan for %d HP buildings in %.2fs",
+        "flat_inputs [%s=%s]: prepared loads scan for %d buildings in %.2fs",
+        group_col,
+        subclass_value,
         len(building_ids),
         perf_counter() - t2,
     )
     t3 = perf_counter()
     kwh_agg = cast(
         pl.DataFrame,
-        loads.join(hp_weights.lazy(), on=BLDG_ID_COL, how="inner")
+        loads.join(sub_weights.lazy(), on=BLDG_ID_COL, how="inner")
         .select(
             grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL).alias(
                 "demand_kwh"
@@ -583,50 +697,53 @@ def compute_hp_flat_discount_inputs(
         .with_columns(
             (pl.col("demand_kwh") * pl.col(WEIGHT_COL)).alias("weighted_kwh"),
         )
-        .select(pl.col("weighted_kwh").sum().alias("annual_kwh_hp"))
+        .select(pl.col("weighted_kwh").sum().alias("annual_kwh"))
         .collect(engine="streaming"),
     )
     LOGGER.info(
-        "flat_inputs: collected annual kWh aggregate in %.2fs",
+        "flat_inputs [%s=%s]: collected annual kWh aggregate in %.2fs",
+        group_col,
+        subclass_value,
         perf_counter() - t3,
     )
 
-    annual_kwh_hp = float(kwh_agg["annual_kwh_hp"][0] or 0.0)
-    if annual_kwh_hp <= 0:
+    annual_kwh = float(kwh_agg["annual_kwh"][0] or 0.0)
+    if annual_kwh <= 0:
         raise ValueError(
-            "Annual kWh for HP customers is zero; cannot compute flat rate."
+            f"Annual kWh for {group_col}={subclass_value!r} is zero; cannot compute flat rate."
         )
 
     # --- Derive fair flat rate ---
-    equivalent_flat_rate = annual_energy_rev_hp / annual_kwh_hp
-    flat_discount = total_cross_subsidy_hp / annual_kwh_hp
-    flat_rate_hp = equivalent_flat_rate - flat_discount
+    equivalent_flat_rate = annual_energy_rev / annual_kwh
+    flat_discount = total_cross_subsidy / annual_kwh
+    flat_rate = equivalent_flat_rate - flat_discount
 
-    if flat_rate_hp < 0:
+    if flat_rate < 0:
         raise ValueError(
-            "Computed flat_rate_hp is negative. "
-            f"annual_energy_rev_hp={annual_energy_rev_hp}, "
-            f"total_cross_subsidy_hp={total_cross_subsidy_hp}, "
-            f"annual_kwh_hp={annual_kwh_hp}, "
+            f"Computed flat_rate for {group_col}={subclass_value!r} is negative. "
+            f"annual_energy_rev={annual_energy_rev}, "
+            f"total_cross_subsidy={total_cross_subsidy}, "
+            f"annual_kwh={annual_kwh}, "
             f"equivalent_flat_rate={equivalent_flat_rate}, "
             f"flat_discount={flat_discount}, "
-            f"flat_rate_hp={flat_rate_hp}"
+            f"flat_rate={flat_rate}"
         )
 
     result = pl.DataFrame(
         {
-            "subclass": ["true"],
+            "subclass": [subclass_value],
+            "group_col": [group_col],
             "cross_subsidy_col": [cross_subsidy_col],
-            "flat_rate_hp": [flat_rate_hp],
+            "flat_rate": [flat_rate],
             "equivalent_flat_rate": [equivalent_flat_rate],
             "flat_discount": [flat_discount],
-            "total_cross_subsidy_hp": [total_cross_subsidy_hp],
-            "annual_kwh_hp": [annual_kwh_hp],
-            "annual_energy_rev_hp": [annual_energy_rev_hp],
+            "total_cross_subsidy": [total_cross_subsidy],
+            "annual_kwh": [annual_kwh],
+            "annual_energy_rev": [annual_energy_rev],
             "fixed_charge": [fixed_charge],
         }
     )
-    LOGGER.info("flat_inputs: done")
+    LOGGER.info("flat_inputs [%s=%s]: done", group_col, subclass_value)
     return result
 
 
@@ -908,8 +1025,23 @@ def _write_seasonal_inputs_csv(
     run_dir: S3Path | Path,
     output_dir: S3Path | Path | None = None,
 ) -> str:
+    """Write seasonal discount inputs CSV with a subclass-specific filename.
+
+    The filename encodes ``group_col`` and ``subclass`` so that multiple
+    subclass seasonal-discount computations sharing the same run directory do
+    not overwrite each other (e.g. HP-seasonal and electric-heating-seasonal
+    can both live under run-1's output directory).
+    """
     target_dir = output_dir if output_dir is not None else run_dir
-    output_path = str(target_dir / DEFAULT_SEASONAL_OUTPUT_FILENAME)
+    # Derive filename from the DataFrame's group_col/subclass columns when present;
+    # fall back to the legacy generic name for DataFrames that pre-date this change.
+    if "group_col" in seasonal_inputs.columns and "subclass" in seasonal_inputs.columns:
+        gc = str(seasonal_inputs["group_col"][0])
+        sv = str(seasonal_inputs["subclass"][0])
+        filename = seasonal_discount_filename(gc, sv)
+    else:
+        filename = DEFAULT_SEASONAL_OUTPUT_FILENAME
+    output_path = str(target_dir / filename)
     csv_text = seasonal_inputs.write_csv(None)
     if isinstance(csv_text, str):
         if isinstance(target_dir, S3Path):
@@ -994,13 +1126,23 @@ def main() -> None:
         "--resstock-base",
         help=(
             "Optional base path to ResStock release (e.g. s3://.../res_2024_amy2018_2). "
-            "If provided with --upgrade, writes seasonal discount inputs for has_hp=true."
+            "If provided with --upgrade, writes seasonal discount inputs for the subclass "
+            "selected by --group-col / --subclass-value."
         ),
     )
     parser.add_argument(
         "--upgrade",
         default="00",
         help="Upgrade partition for loads (e.g. 00). Used when --resstock-base is set.",
+    )
+    parser.add_argument(
+        "--subclass-value",
+        default="true",
+        help=(
+            "Value of --group-col that identifies the target subclass for seasonal "
+            "discount computation (default: 'true', i.e. HP customers when "
+            "group-col=has_hp). Only used when --resstock-base is set."
+        ),
     )
     parser.add_argument(
         "--base-tariff-json",
@@ -1199,12 +1341,18 @@ def main() -> None:
             if args.base_tariff_json
             else None
         )
-        seasonal_inputs = compute_hp_seasonal_discount_inputs(
+        # Use the single cross-subsidy column for seasonal discount (first col if multiple).
+        seasonal_cross_subsidy_col = (
+            cross_subsidy_cols[0] if cross_subsidy_cols else DEFAULT_BAT_METRIC
+        )
+        seasonal_inputs = compute_subclass_seasonal_discount_inputs(
             run_dir=run_dir,
             resstock_base=args.resstock_base,
             state=run_state,
             upgrade=args.upgrade,
-            cross_subsidy_col=args.cross_subsidy_col,
+            group_col=args.group_col,
+            subclass_value=args.subclass_value,
+            cross_subsidy_col=seasonal_cross_subsidy_col,
             storage_options=storage_options,
             base_tariff_json_path=base_tariff_json_path,
             winter_months=winter_months,
