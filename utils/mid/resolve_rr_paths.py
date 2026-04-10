@@ -6,7 +6,7 @@ subclass run's utility_revenue_requirement as the differentiated RR.
 By default, the differentiated RR comes from the first run with
 ``run_includes_subclasses=True``.  Callers may instead pass
 ``--subclass-run-num`` to resolve a specific subclass run, which is what the NY
-electric-heating track needs for runs 25-28.
+electric-heating track needs for runs 29-32.
 """
 
 from __future__ import annotations

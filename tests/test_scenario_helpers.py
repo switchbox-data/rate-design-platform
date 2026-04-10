@@ -34,7 +34,7 @@ def _write_scenario_config(tmp_path: Path) -> Path:
                             "selectors": {"hp": "true", "non-hp": "false"},
                         },
                     },
-                    25: {
+                    29: {
                         "utility_revenue_requirement": "rev_requirement/elec_heat.yaml",
                         "run_includes_subclasses": True,
                         "subclass_config": {
@@ -82,7 +82,7 @@ def test_resolve_rr_paths_defaults_to_first_subclass_run(tmp_path: Path) -> None
 def test_resolve_rr_paths_accepts_explicit_subclass_run_num(tmp_path: Path) -> None:
     scenario_config = _write_scenario_config(tmp_path)
 
-    _, diff = resolve_rr_paths(scenario_config, subclass_run_num=25)
+    _, diff = resolve_rr_paths(scenario_config, subclass_run_num=29)
 
     assert (
         diff
@@ -109,7 +109,7 @@ def test_resolve_subclass_config_defaults_to_first_subclass_run(tmp_path: Path) 
 def test_resolve_subclass_config_accepts_explicit_run_num(tmp_path: Path) -> None:
     scenario_config = _write_scenario_config(tmp_path)
 
-    group_col, mapping = resolve_subclass_config(scenario_config, run_num=25)
+    group_col, mapping = resolve_subclass_config(scenario_config, run_num=29)
 
     assert group_col == "heating_type_v2"
     assert mapping == (
@@ -165,5 +165,5 @@ def test_resolve_subclass_config_falls_back_to_top_level_config(tmp_path: Path) 
 def test_scenario_has_run_num_handles_existing_and_missing_runs(tmp_path: Path) -> None:
     scenario_config = _write_scenario_config(tmp_path)
 
-    assert scenario_has_run_num(scenario_config, 25) is True
+    assert scenario_has_run_num(scenario_config, 29) is True
     assert scenario_has_run_num(scenario_config, 99) is False
