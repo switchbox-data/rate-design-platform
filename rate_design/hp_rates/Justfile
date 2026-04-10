@@ -808,6 +808,62 @@ run-32:
     just create-electric-tariff-maps
     just run-scenario 32
 
+run-33:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
+    read -r group_col group_value_to_subclass < <(uv run python "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}" --run-num 33)
+    echo ">> run-33: resolved run-1 output → ${run1_dir}" >&2
+    just compute-seasonal-discount-inputs "${run1_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_epmc" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "${group_col}" "electric_heating" "${group_value_to_subclass}"
+    just create-seasonal-discount-tariff \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "${run1_dir}/seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
+        {{ utility }}_elec_heat_seasonal_epmc \
+        "{{ path_tariffs_electric }}/{{ utility }}_elec_heat_seasonal_epmc.json"
+    just create-electric-tariff-maps
+    just run-scenario 33
+
+run-34:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
+    read -r group_col group_value_to_subclass < <(uv run python "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}" --run-num 34)
+    echo ">> run-34: resolved run-2 output → ${run2_dir}" >&2
+    just compute-seasonal-discount-inputs "${run2_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_epmc" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "${group_col}" "electric_heating" "${group_value_to_subclass}"
+    just create-seasonal-discount-tariff \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "${run2_dir}/seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
+        {{ utility }}_elec_heat_seasonal_epmc_supply \
+        "{{ path_tariffs_electric }}/{{ utility }}_elec_heat_seasonal_epmc_supply.json"
+    just create-electric-tariff-maps
+    just run-scenario 34
+
+run-35:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run33_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 33)
+    echo ">> run-35: resolved run-33 output → ${run33_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run33_dir}"
+    just create-electric-tariff-maps
+    just run-scenario 35
+
+run-36:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run34_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 34)
+    echo ">> run-36: resolved run-34 output → ${run34_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run34_dir}"
+    just create-electric-tariff-maps
+    just run-scenario 36
+
 # =============================================================================
 # ORCHESTRATION
 # =============================================================================
@@ -892,6 +948,10 @@ run-all-sequential:
         just run-30
         just run-31
         just run-32
+        just run-33
+        just run-34
+        just run-35
+        just run-36
     fi
 
 run-all-parallel-tracks:
@@ -958,25 +1018,35 @@ run-all-parallel-tracks:
 
     if uv run python3 "{{ path_repo }}/utils/mid/scenario_has_run_num.py" "{{ path_scenario_config }}" 29; then
         just compute-electric-heating-subclass-rev-requirements
-        # 21+22 (hp_seasonal_epmc precalc) and 29+30 (elec_heat precalc) are independent
+        # 21+22 (hp_seasonal_epmc precalc), 29+30 (elec_heat flat precalc), and 33+34
+        # (elec_heat seasonal precalc) are independent
         just run-21 & PID21=$!
         just run-22 & PID22=$!
         just run-29 & PID29=$!
         just run-30 & PID30=$!
+        just run-33 & PID33=$!
+        just run-34 & PID34=$!
         wait $PID21 || { echo "ERROR: run-21 failed" >&2; exit 1; }
         wait $PID22 || { echo "ERROR: run-22 failed" >&2; exit 1; }
         wait $PID29 || { echo "ERROR: run-29 failed" >&2; exit 1; }
         wait $PID30 || { echo "ERROR: run-30 failed" >&2; exit 1; }
-        # 23+24 depend on 21+22 calibrated tariff; 31+32 depend on 29+30 calibrated tariff
+        wait $PID33 || { echo "ERROR: run-33 failed" >&2; exit 1; }
+        wait $PID34 || { echo "ERROR: run-34 failed" >&2; exit 1; }
+        # 23+24 depend on 21+22 calibrated tariff; 31+32 depend on 29+30 calibrated
+        # tariff; 35+36 depend on 33+34 calibrated tariff
         just run-23 & PID23=$!
         just run-24 & PID24=$!
         just run-31 & PID31=$!
         just run-32 & PID32=$!
+        just run-35 & PID35=$!
+        just run-36 & PID36=$!
         wait $PID23 || { echo "ERROR: run-23 failed" >&2; exit 1; }
         wait $PID24 || { echo "ERROR: run-24 failed" >&2; exit 1; }
         wait $PID31 || { echo "ERROR: run-31 failed" >&2; exit 1; }
         wait $PID32 || { echo "ERROR: run-32 failed" >&2; exit 1; }
-        echo ">> run-all-parallel-tracks: all 32 runs complete" >&2
+        wait $PID35 || { echo "ERROR: run-35 failed" >&2; exit 1; }
+        wait $PID36 || { echo "ERROR: run-36 failed" >&2; exit 1; }
+        echo ">> run-all-parallel-tracks: all 36 runs complete" >&2
     else
         echo ">> run-all-parallel-tracks: all 20 runs complete" >&2
     fi
