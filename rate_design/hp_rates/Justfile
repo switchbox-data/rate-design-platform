@@ -246,6 +246,7 @@ copy-default-structure-to-nonhp-all:
       --all --source-pattern default
 
 # Create non_electric_heating / non_electric_heating_supply aliases from the
+
 # default-structure tariffs for heating_type_v2 subclass runs.
 copy-default-structure-to-non-electric-heating-all:
     uv run python {{ path_repo }}/utils/pre/copy_tariff_variants.py \

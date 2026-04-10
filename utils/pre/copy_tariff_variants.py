@@ -69,12 +69,20 @@ def _copy_variant(
 
 def _discover_utilities(path_output_dir: Path, source_pattern: str) -> list[str]:
     suffix = f"_{source_pattern}.json"
-    utilities = {
+    candidates = {
         path_tariff.name.removesuffix(suffix)
         for path_tariff in path_output_dir.glob(f"*{suffix}")
         if (path_output_dir / f"{path_tariff.stem}_supply.json").exists()
     }
-    return sorted(utilities)
+    return sorted(
+        candidate
+        for candidate in candidates
+        if not any(
+            candidate.startswith(f"{other}_")
+            for other in candidates
+            if other != candidate
+        )
+    )
 
 
 def _copy_utility_tariffs(
