@@ -59,9 +59,9 @@ import polars as pl
 from utils.post.io import BLDG_ID, scan
 
 BAT_CSV = "cross_subsidization/cross_subsidization_BAT_values.csv"
-UPGRADE_00_RUNS = {1, 2, 5, 6, 9, 10, 13, 14, 17, 18, 21, 22}
-UPGRADE_02_RUNS = {3, 4, 7, 8, 11, 12, 15, 16, 19, 20, 23, 24}
-VALID_RUN_PAIRS = {(r, r + 1) for r in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23)}
+UPGRADE_00_RUNS = {1, 2, 5, 6, 9, 10, 13, 14, 17, 18, 21, 22, 25, 26}
+UPGRADE_02_RUNS = {3, 4, 7, 8, 11, 12, 15, 16, 19, 20, 23, 24, 27, 28}
+VALID_RUN_PAIRS = {(r, r + 1) for r in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27)}
 
 BAT_METRICS_KNOWN = ["BAT_vol", "BAT_peak", "BAT_percustomer", "BAT_epmc"]
 
