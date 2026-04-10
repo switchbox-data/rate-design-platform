@@ -270,6 +270,14 @@ create-seasonal-tou-tariffs base_pattern="flat":
         f = open('${supply_path}', 'w'); json.dump(t, f, indent=2); f.write('\n'); f.close(); \
         print('Created ${supply_path}')"
     echo ">> create-seasonal-tou-tariffs: wrote {{ tou_tariff_key }}.json and {{ tou_tariff_key }}_supply.json" >&2
+    # Supply runs use stems like {tou_tariff_key}_flex_supply_calibrated → base …_supply.
+    # find_tou_derivation_path looks for {base}_derivation.json, i.e. …_supply_derivation.json.
+    # Supply tariff JSON is the same TOU structure as delivery (label-only copy above); copy season specs.
+    deriv_dir="{{ path_config }}/tou_derivation"
+    deriv_src="${deriv_dir}/{{ tou_tariff_key }}_derivation.json"
+    deriv_dst="${deriv_dir}/{{ tou_tariff_key }}_supply_derivation.json"
+    cp -f "${deriv_src}" "${deriv_dst}"
+    echo ">> create-seasonal-tou-tariffs: wrote ${deriv_dst} (copy of delivery derivation for supply-side flex)" >&2
 
 create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="" has_hp="true":
     just -f {{ path_repo }}/utils/Justfile create-seasonal-tou \
@@ -706,6 +714,54 @@ run-24:
     just copy-calibrated-tariff-from-run "${run22_dir}"
     just run-scenario 24
 
+run-25:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Scenario path_tariffs_electric uses stem …_flex_epmc (same TOU shape as run 13).
+    # EPMC cost allocation comes from residual_allocation_delivery: epmc + rev_requirement YAML.
+    source_tou="{{ path_tariffs_electric }}/{{ tou_tariff_key }}_flex.json"
+    target_tou="{{ path_tariffs_electric }}/{{ tou_tariff_key }}_flex_epmc.json"
+    if [ ! -f "${source_tou}" ]; then
+        echo ">> run-25: missing source TOU tariff: ${source_tou}" >&2
+        echo ">> run-25: run run-13 first (creates {{ tou_tariff_key }}_flex.json)." >&2
+        exit 1
+    fi
+    cp "${source_tou}" "${target_tou}"
+    echo ">> run-25: copied ${source_tou} -> ${target_tou}" >&2
+    just run-scenario 25 \
+        --path-tou-supply-energy-mc "{{ path_supply_energy_mc }}" \
+        --path-tou-supply-capacity-mc "{{ path_supply_capacity_mc }}"
+
+run-26:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source_tou="{{ path_tariffs_electric }}/{{ tou_tariff_key }}_flex_supply.json"
+    target_tou="{{ path_tariffs_electric }}/{{ tou_tariff_key }}_flex_epmc_supply.json"
+    if [ ! -f "${source_tou}" ]; then
+        echo ">> run-26: missing source TOU supply tariff: ${source_tou}" >&2
+        echo ">> run-26: run run-14 first (creates {{ tou_tariff_key }}_flex_supply.json)." >&2
+        exit 1
+    fi
+    cp "${source_tou}" "${target_tou}"
+    echo ">> run-26: copied ${source_tou} -> ${target_tou}" >&2
+    just run-scenario 26
+
+run-27:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run25_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 25)
+    echo ">> run-27: resolved run-25 output → ${run25_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run25_dir}"
+    just run-scenario 27
+
+run-28:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run26_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 26)
+    echo ">> run-28: resolved run-26 output → ${run26_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run26_dir}"
+    just run-scenario 28
+
 # =============================================================================
 # ORCHESTRATION
 # =============================================================================
@@ -751,6 +807,7 @@ run-all-utilities-sequential-only:
     done
 
 # Like all-pre but skips create-default-structure-tariffs, for utilities
+
 # whose default tariffs are hand-edited from rate case filings.
 all-pre-rate-case:
     just create-scenario-yamls
@@ -804,6 +861,10 @@ run-all-sequential:
     just run-22
     just run-23
     just run-24
+    just run-25
+    just run-26
+    just run-27
+    just run-28
 
 run-all-parallel-tracks:
     #!/usr/bin/env bash

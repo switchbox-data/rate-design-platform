@@ -44,11 +44,15 @@ So a corrupt **run 15** `bill_level` forces a bogus delivery/supply split while 
 
 **Supply** stem **`nimo_hp_seasonalTOU_flex_supply_calibrated`**: same strip → base **`nimo_hp_seasonalTOU_supply`**. There is usually **no** **`…_supply_derivation.json`**. Then **`season_specs`** is **`None`**, **`_infer_season_groups_from_tariff`** uses **`season_1`**, **`season_2`**, … → **`demand_elasticity.get("season_1", 0.0)`** → **ε = 0** for intended **`{ winter, summer }`**. So **supply** runs often apply **no** seasonal shift while **delivery** runs **do**, which can distort the delivery vs supply decomposition in master bills even when run **16** totals look sane.
 
-**Erratum (reverted):** A filename-stem **fallback** that reused the **delivery** derivation JSON when resolving the **supply** stem was **unsafe**: seasonal hour slices from the delivery TOU derivation must not be applied while shifting load priced against the **supply** tariff JSON — that pairing can drive **`bill_level`** into the millions on supply runs.
+**Erratum (reverted):** A filename-stem **fallback** in code that reused the **delivery** derivation JSON when resolving the **supply** stem was **unsafe**: the resolver must not silently pair delivery season specs with an arbitrary supply tariff stem. A **committed** `{utility}_hp_seasonalTOU_supply_derivation.json` is different: the supply seasonal TOU JSON is produced in the same pipeline as delivery (**`create-seasonal-tou-tariffs`** in **`rate_design/hp_rates/Justfile`**) by copying the delivery URDB and updating the label only, so winter/summer windows match the delivery derivation. Copying the delivery derivation JSON to **`…_supply_derivation.json`** supplies **`winter` / `summer`** names for **`load_season_specs`** on supply runs without inventing a second schedule.
 
 NiMo seasonal TOU derivation on disk: **`rate_design/hp_rates/ny/config/tou_derivation/nimo_hp_seasonalTOU_derivation.json`** (season names **`winter`**, **`summer`**), aligned with **`utils.pre.compute_tou.load_season_specs`**.
 
-**Proper follow-up (not in repo):** add a **`nimo_hp_seasonalTOU_supply_derivation.json`** (or equivalent) derived from the **supply** TOU structure, **or** document that supply flex uses inferred seasons with ε = 0 unless that file exists.
+## `all-pre` and `*_supply_derivation.json`
+
+**`create-seasonal-tou-tariffs`** (invoked from **`all-pre`** and **`all-pre-rate-case`**) after writing **`{tou_tariff_key}_derivation.json`** copies it to **`{tou_tariff_key}_supply_derivation.json`** under **`config/tou_derivation/`**. That matches **`find_tou_derivation_path`** for supply stems such as **`…_flex_supply_calibrated`** → base **`…_supply`** → **`…_supply_derivation.json`**. Without that file, **`season_specs`** is **`None`**, seasons infer as **`season_1`**, **`season_2`**, and YAML **`elasticity`** keys **`winter` / `summer`** never match → **ε = 0** on supply runs (**15** vs **16** asymmetry in master bills).
+
+If you ever hand-edit supply TOU schedules so they **diverge** from delivery, regenerate or edit **`…_supply_derivation.json`** so peak/off-peak hours and season months stay aligned with the supply URDB you bill against.
 
 ## Demand charges (when enabled on a tariff)
 

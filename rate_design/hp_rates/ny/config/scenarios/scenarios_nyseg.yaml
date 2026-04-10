@@ -709,3 +709,129 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+  25:
+    run_name: ny_nyseg_run25_up00_precalc__hp_seasonalTOU_flex_epmc_vs_default
+    state: NY
+    utility: nyseg
+    run_type: precalc
+    upgrade: '0'
+    path_tariff_maps_electric: tariff_maps/electric/nyseg_hp_seasonalTOU_flex_epmc_vs_default.csv
+    path_tariff_maps_gas: tariff_maps/gas/nyseg_u00.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nyseg/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nyseg/<execution_time>/ny_nyseg_run25_up00_precalc__hp_seasonalTOU_flex_epmc_vs_default
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nyseg/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2025/zero.parquet
+    path_tariffs_electric:
+      hp: tariffs/electric/nyseg_hp_seasonalTOU_flex_epmc.json
+      non-hp: tariffs/electric/nyseg_nonhp_default.json
+    utility_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
+    run_includes_supply: false
+    run_includes_subclasses: true
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: epmc
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nyseg/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity:
+      summer: -0.18
+      winter: -0.16
+  26:
+    run_name: ny_nyseg_run26_up00_precalc_supply__hp_seasonalTOU_flex_epmc_vs_default
+    state: NY
+    utility: nyseg
+    run_type: precalc
+    upgrade: '0'
+    path_tariff_maps_electric: tariff_maps/electric/nyseg_hp_seasonalTOU_flex_epmc_vs_default_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/nyseg_u00.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nyseg/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nyseg/<execution_time>/ny_nyseg_run26_up00_precalc_supply__hp_seasonalTOU_flex_epmc_vs_default
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nyseg/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2025/data.parquet
+    path_tariffs_electric:
+      hp: tariffs/electric/nyseg_hp_seasonalTOU_flex_epmc_supply.json
+      non-hp: tariffs/electric/nyseg_nonhp_default_supply.json
+    utility_revenue_requirement: rev_requirement/nyseg_hp_vs_nonhp.yaml
+    run_includes_supply: true
+    run_includes_subclasses: true
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: percustomer
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nyseg/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity:
+      summer: -0.18
+      winter: -0.16
+  27:
+    run_name: ny_nyseg_run27_up02_default__hp_seasonalTOU_flex_epmc
+    state: NY
+    utility: nyseg
+    run_type: default
+    upgrade: '2'
+    path_tariff_maps_electric: tariff_maps/electric/nyseg_hp_seasonalTOU_flex_epmc_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/nyseg_u02.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nyseg/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nyseg/<execution_time>/ny_nyseg_run27_up02_default__hp_seasonalTOU_flex_epmc
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nyseg/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2025/zero.parquet
+    path_tariffs_electric:
+      all: tariffs/electric/nyseg_hp_seasonalTOU_flex_epmc_calibrated.json
+    utility_revenue_requirement: rev_requirement/nyseg_large_number.yaml
+    run_includes_supply: false
+    run_includes_subclasses: false
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nyseg/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity:
+      summer: -0.18
+      winter: -0.16
+  28:
+    run_name: ny_nyseg_run28_up02_default_supply__hp_seasonalTOU_flex_epmc
+    state: NY
+    utility: nyseg
+    run_type: default
+    upgrade: '2'
+    path_tariff_maps_electric: tariff_maps/electric/nyseg_hp_seasonalTOU_flex_epmc_calibrated_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/nyseg_u02.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nyseg/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nyseg/<execution_time>/ny_nyseg_run28_up02_default_supply__hp_seasonalTOU_flex_epmc
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nyseg/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nyseg/year=2025/data.parquet
+    path_tariffs_electric:
+      all: tariffs/electric/nyseg_hp_seasonalTOU_flex_epmc_supply_calibrated.json
+    utility_revenue_requirement: rev_requirement/nyseg_large_number.yaml
+    run_includes_supply: true
+    run_includes_subclasses: false
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nyseg/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity:
+      summer: -0.18
+      winter: -0.16
