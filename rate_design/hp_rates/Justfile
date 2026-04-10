@@ -218,7 +218,7 @@ create-flat-tariffs:
 
 # labels so run 5/6 precalc have a dedicated non-HP flat input to calibrate.
 copy-default-flat-to-nonhp-flat:
-    uv run python {{ path_repo }}/utils/pre/copy_flat_to_nonhp_flat.py \
+    uv run python {{ path_repo }}/utils/pre/copy_tariff_variants.py \
       --output-dir "{{ path_tariffs_electric }}" \
       --utility "{{ utility }}"
 
@@ -226,7 +226,7 @@ copy-default-flat-to-nonhp-flat:
 
 # Used in all-pre so differentiated runs 5/6 have inputs for every utility.
 copy-default-flat-to-nonhp-flat-all:
-    uv run python {{ path_repo }}/utils/pre/copy_flat_to_nonhp_flat.py \
+    uv run python {{ path_repo }}/utils/pre/copy_tariff_variants.py \
       --output-dir "{{ path_tariffs_electric }}" \
       --all
 
@@ -241,9 +241,16 @@ create-default-structure-tariffs:
 
 # Create nonhp_default / nonhp_default_supply for every utility that has default-structure tariffs.
 copy-default-structure-to-nonhp-all:
-    uv run python {{ path_repo }}/utils/pre/copy_flat_to_nonhp_flat.py \
+    uv run python {{ path_repo }}/utils/pre/copy_tariff_variants.py \
       --output-dir "{{ path_tariffs_electric }}" \
-      --all --pattern default
+      --all --source-pattern default
+
+# Create non_electric_heating / non_electric_heating_supply aliases from the
+# default-structure tariffs for heating_type_v2 subclass runs.
+copy-default-structure-to-non-electric-heating-all:
+    uv run python {{ path_repo }}/utils/pre/copy_tariff_variants.py \
+      --output-dir "{{ path_tariffs_electric }}" \
+      --all --source-pattern default --dest-pattern non_electric_heating
 
 # Derive seasonal TOU tariffs from MC rates (no dependency on calibrated flat run outputs).
 # Uses a pre-calibrated tariff only to extract the fixed charge.
@@ -878,6 +885,7 @@ all-pre:
     just create-default-structure-tariffs
     just copy-default-flat-to-nonhp-flat-all
     just copy-default-structure-to-nonhp-all
+    just copy-default-structure-to-non-electric-heating-all
     just create-seasonal-tou-tariffs {{ base_tariff_pattern }}
     just validate-config
 
@@ -893,6 +901,7 @@ all-pre-rate-case:
     just create-flat-tariffs
     just copy-default-flat-to-nonhp-flat-all
     just copy-default-structure-to-nonhp-all
+    just copy-default-structure-to-non-electric-heating-all
     just create-seasonal-tou-tariffs {{ base_tariff_pattern }}
     just validate-config
 
