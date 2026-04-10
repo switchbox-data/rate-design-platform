@@ -1,8 +1,3 @@
-subclass_config:
-  group_col: has_hp
-  selectors:
-    hp: 'true'
-    non-hp: 'false'
 runs:
   1:
     run_name: ny_rge_run1_up00_precalc__default
@@ -715,29 +710,155 @@ runs:
     process_workers: 8
     elasticity: 0.0
   25:
-    run_name: ny_rge_run25_up00_precalc__empc_only_elec_heat_vs_non_elec_heat
+    run_name: ny_rge_run25_up00_precalc__hp_seasonalTOU_flex_epmc_vs_default
     state: NY
     utility: rge
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/rge_empc_only_elec_heat_vs_non_elec_heat.csv
+    path_tariff_maps_electric: tariff_maps/electric/rge_hp_seasonalTOU_flex_epmc_vs_default.csv
     path_tariff_maps_gas: tariff_maps/gas/rge_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=rge/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run25_up00_precalc__empc_only_elec_heat_vs_non_elec_heat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run25_up00_precalc__hp_seasonalTOU_flex_epmc_vs_default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=rge/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=rge/year=2025/zero.parquet
     path_tariffs_electric:
-      electric_heating: tariffs/electric/rge_electric_heating.json
+      hp: tariffs/electric/rge_hp_seasonalTOU_flex_epmc.json
+      non-hp: tariffs/electric/rge_nonhp_default.json
+    utility_revenue_requirement: rev_requirement/rge_hp_vs_nonhp.yaml
+    run_includes_supply: false
+    run_includes_subclasses: true
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: percustomer
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=rge/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity:
+      summer: -0.18
+      winter: -0.16
+  26:
+    run_name: ny_rge_run26_up00_precalc_supply__hp_seasonalTOU_flex_epmc_vs_default
+    state: NY
+    utility: rge
+    run_type: precalc
+    upgrade: '0'
+    path_tariff_maps_electric: tariff_maps/electric/rge_hp_seasonalTOU_flex_epmc_vs_default_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/rge_u00.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=rge/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run26_up00_precalc_supply__hp_seasonalTOU_flex_epmc_vs_default
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=rge/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=rge/year=2025/data.parquet
+    path_tariffs_electric:
+      hp: tariffs/electric/rge_hp_seasonalTOU_flex_epmc_supply.json
+      non-hp: tariffs/electric/rge_nonhp_default_supply.json
+    utility_revenue_requirement: rev_requirement/rge_hp_vs_nonhp.yaml
+    run_includes_supply: true
+    run_includes_subclasses: true
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: percustomer
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=rge/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity:
+      summer: -0.18
+      winter: -0.16
+  27:
+    run_name: ny_rge_run27_up02_default__hp_seasonalTOU_flex_epmc
+    state: NY
+    utility: rge
+    run_type: default
+    upgrade: '2'
+    path_tariff_maps_electric: tariff_maps/electric/rge_hp_seasonalTOU_flex_epmc_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/rge_u02.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=rge/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run27_up02_default__hp_seasonalTOU_flex_epmc
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=rge/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=rge/year=2025/zero.parquet
+    path_tariffs_electric:
+      all: tariffs/electric/rge_hp_seasonalTOU_flex_epmc_calibrated.json
+    utility_revenue_requirement: rev_requirement/rge_large_number.yaml
+    run_includes_supply: false
+    run_includes_subclasses: false
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=rge/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity:
+      summer: -0.18
+      winter: -0.16
+  28:
+    run_name: ny_rge_run28_up02_default_supply__hp_seasonalTOU_flex_epmc
+    state: NY
+    utility: rge
+    run_type: default
+    upgrade: '2'
+    path_tariff_maps_electric: tariff_maps/electric/rge_hp_seasonalTOU_flex_epmc_calibrated_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/rge_u02.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=rge/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run28_up02_default_supply__hp_seasonalTOU_flex_epmc
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=rge/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=rge/year=2025/data.parquet
+    path_tariffs_electric:
+      all: tariffs/electric/rge_hp_seasonalTOU_flex_epmc_supply_calibrated.json
+    utility_revenue_requirement: rev_requirement/rge_large_number.yaml
+    run_includes_supply: true
+    run_includes_subclasses: false
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=rge/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity:
+      summer: -0.18
+      winter: -0.16
+  29:
+    run_name: ny_rge_run29_up00_precalc__elec_heat_flat_vs_non_elec_heat
+    state: NY
+    utility: rge
+    run_type: precalc
+    upgrade: '0'
+    path_tariff_maps_electric: tariff_maps/electric/rge_elec_heat_flat_vs_non_elec_heat.csv
+    path_tariff_maps_gas: tariff_maps/gas/rge_u00.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=rge/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run29_up00_precalc__elec_heat_flat_vs_non_elec_heat
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=rge/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=rge/year=2025/zero.parquet
+    path_tariffs_electric:
+      electric_heating: tariffs/electric/rge_elec_heat_flat.json
       non_electric_heating: tariffs/electric/rge_non_electric_heating.json
     utility_revenue_requirement: rev_requirement/rge_elec_heat_vs_non_elec_heat.yaml
     run_includes_supply: false
     run_includes_subclasses: true
     residual_allocation_delivery: epmc
-    residual_allocation_supply: passthrough
+    residual_allocation_supply: percustomer
     subclass_config:
       group_col: heating_type_v2
       selectors:
@@ -750,30 +871,30 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-  26:
-    run_name: ny_rge_run26_up00_precalc_supply__empc_only_elec_heat_vs_non_elec_heat
+  30:
+    run_name: ny_rge_run30_up00_precalc_supply__elec_heat_flat_vs_non_elec_heat
     state: NY
     utility: rge
     run_type: precalc
     upgrade: '0'
-    path_tariff_maps_electric: tariff_maps/electric/rge_empc_only_elec_heat_vs_non_elec_heat_supply.csv
+    path_tariff_maps_electric: tariff_maps/electric/rge_elec_heat_flat_vs_non_elec_heat_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/rge_u00.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=rge/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run26_up00_precalc_supply__empc_only_elec_heat_vs_non_elec_heat
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run30_up00_precalc_supply__elec_heat_flat_vs_non_elec_heat
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=rge/year=2025/data.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=rge/year=2025/data.parquet
     path_tariffs_electric:
-      electric_heating: tariffs/electric/rge_electric_heating_supply.json
+      electric_heating: tariffs/electric/rge_elec_heat_flat_supply.json
       non_electric_heating: tariffs/electric/rge_non_electric_heating_supply.json
     utility_revenue_requirement: rev_requirement/rge_elec_heat_vs_non_elec_heat.yaml
     run_includes_supply: true
     run_includes_subclasses: true
     residual_allocation_delivery: epmc
-    residual_allocation_supply: passthrough
+    residual_allocation_supply: percustomer
     subclass_config:
       group_col: heating_type_v2
       selectors:
@@ -786,24 +907,24 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-  27:
-    run_name: ny_rge_run27_up02_default__empc_only
+  31:
+    run_name: ny_rge_run31_up02_default__elec_heat_flat
     state: NY
     utility: rge
     run_type: default
     upgrade: '2'
-    path_tariff_maps_electric: tariff_maps/electric/rge_empc_only_calibrated.csv
+    path_tariff_maps_electric: tariff_maps/electric/rge_elec_heat_flat_calibrated.csv
     path_tariff_maps_gas: tariff_maps/gas/rge_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=rge/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run27_up02_default__empc_only
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run31_up02_default__elec_heat_flat
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=rge/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=rge/year=2025/zero.parquet
     path_tariffs_electric:
-      all: tariffs/electric/rge_empc_only_calibrated.json
+      all: tariffs/electric/rge_elec_heat_flat_calibrated.json
     utility_revenue_requirement: rev_requirement/rge_large_number.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -814,24 +935,24 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-  28:
-    run_name: ny_rge_run28_up02_default_supply__empc_only
+  32:
+    run_name: ny_rge_run32_up02_default_supply__elec_heat_flat
     state: NY
     utility: rge
     run_type: default
     upgrade: '2'
-    path_tariff_maps_electric: tariff_maps/electric/rge_empc_only_calibrated_supply.csv
+    path_tariff_maps_electric: tariff_maps/electric/rge_elec_heat_flat_calibrated_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/rge_u02.csv
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
     path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=rge/year=2025/data.parquet
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run28_up02_default_supply__empc_only
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run32_up02_default_supply__elec_heat_flat
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=rge/year=2025/data.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=rge/year=2025/data.parquet
     path_tariffs_electric:
-      all: tariffs/electric/rge_empc_only_supply_calibrated.json
+      all: tariffs/electric/rge_elec_heat_flat_supply_calibrated.json
     utility_revenue_requirement: rev_requirement/rge_large_number.yaml
     run_includes_supply: true
     run_includes_subclasses: false
@@ -842,3 +963,136 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+  33:
+    run_name: ny_rge_run33_up00_precalc__elec_heat_seasonal_epmc_vs_non_elec_heat
+    state: NY
+    utility: rge
+    run_type: precalc
+    upgrade: '0'
+    path_tariff_maps_electric: tariff_maps/electric/rge_elec_heat_seasonal_epmc_vs_non_elec_heat.csv
+    path_tariff_maps_gas: tariff_maps/gas/rge_u00.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=rge/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run33_up00_precalc__elec_heat_seasonal_epmc_vs_non_elec_heat
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=rge/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=rge/year=2025/zero.parquet
+    path_tariffs_electric:
+      electric_heating: tariffs/electric/rge_elec_heat_seasonal_epmc.json
+      non_electric_heating: tariffs/electric/rge_non_electric_heating.json
+    utility_revenue_requirement: rev_requirement/rge_elec_heat_vs_non_elec_heat.yaml
+    run_includes_supply: false
+    run_includes_subclasses: true
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: percustomer
+    subclass_config:
+      group_col: heating_type_v2
+      selectors:
+        electric_heating: heat_pump,electrical_resistance
+        non_electric_heating: natgas,delivered_fuels,other
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=rge/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  34:
+    run_name: ny_rge_run34_up00_precalc_supply__elec_heat_seasonal_epmc_vs_non_elec_heat
+    state: NY
+    utility: rge
+    run_type: precalc
+    upgrade: '0'
+    path_tariff_maps_electric: tariff_maps/electric/rge_elec_heat_seasonal_epmc_vs_non_elec_heat_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/rge_u00.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=rge/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run34_up00_precalc_supply__elec_heat_seasonal_epmc_vs_non_elec_heat
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=rge/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=rge/year=2025/data.parquet
+    path_tariffs_electric:
+      electric_heating: tariffs/electric/rge_elec_heat_seasonal_epmc_supply.json
+      non_electric_heating: tariffs/electric/rge_non_electric_heating_supply.json
+    utility_revenue_requirement: rev_requirement/rge_elec_heat_vs_non_elec_heat.yaml
+    run_includes_supply: true
+    run_includes_subclasses: true
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: percustomer
+    subclass_config:
+      group_col: heating_type_v2
+      selectors:
+        electric_heating: heat_pump,electrical_resistance
+        non_electric_heating: natgas,delivered_fuels,other
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=rge/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  35:
+    run_name: ny_rge_run35_up02_default__elec_heat_seasonal_epmc
+    state: NY
+    utility: rge
+    run_type: default
+    upgrade: '2'
+    path_tariff_maps_electric: tariff_maps/electric/rge_elec_heat_seasonal_epmc_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/rge_u02.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=rge/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run35_up02_default__elec_heat_seasonal_epmc
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=rge/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=rge/year=2025/zero.parquet
+    path_tariffs_electric:
+      all: tariffs/electric/rge_elec_heat_seasonal_epmc_calibrated.json
+    utility_revenue_requirement: rev_requirement/rge_large_number.yaml
+    run_includes_supply: false
+    run_includes_subclasses: false
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=rge/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  36:
+    run_name: ny_rge_run36_up02_default_supply__elec_heat_seasonal_epmc
+    state: NY
+    utility: rge
+    run_type: default
+    upgrade: '2'
+    path_tariff_maps_electric: tariff_maps/electric/rge_elec_heat_seasonal_epmc_calibrated_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/rge_u02.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=rge/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/rge/<execution_time>/ny_rge_run36_up02_default_supply__elec_heat_seasonal_epmc
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=rge/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=rge/year=2025/data.parquet
+    path_tariffs_electric:
+      all: tariffs/electric/rge_elec_heat_seasonal_epmc_supply_calibrated.json
+    utility_revenue_requirement: rev_requirement/rge_large_number.yaml
+    run_includes_supply: true
+    run_includes_subclasses: false
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=rge/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+subclass_config:
+  group_col: has_hp
+  selectors:
+    hp: 'true'
+    non-hp: 'false'
