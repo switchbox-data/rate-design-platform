@@ -72,6 +72,34 @@ if ! command -v quarto &>/dev/null; then
   echo "Quarto installed: $(quarto --version)"
 fi
 
+# Install TinyTeX for LaTeX math rendering in ICML output (reports2 `just typeset`).
+# The icml_math Lua filter calls latex + dvisvgm to pre-render math to SVG.
+# dvisvgm requires ghostscript for PostScript special processing.
+apt-get install -y ghostscript
+if ! command -v latex &>/dev/null && ! [ -x "/opt/TinyTeX/bin/x86_64-linux/latex" ]; then
+  echo "Installing TinyTeX..."
+  quarto install tinytex --no-prompt
+  # Move to shared location accessible by all users
+  mv /root/.TinyTeX /opt/TinyTeX
+  chmod -R a+rX /opt/TinyTeX
+  # Install dvisvgm (not included by default) and TeX packages for math rendering
+  /opt/TinyTeX/bin/x86_64-linux/tlmgr install dvisvgm standalone mathtools amsfonts
+  # Symlink binaries so they are on PATH for all users
+  ln -sf /opt/TinyTeX/bin/x86_64-linux/latex /usr/local/bin/latex
+  ln -sf /opt/TinyTeX/bin/x86_64-linux/dvisvgm /usr/local/bin/dvisvgm
+  echo "TinyTeX installed to /opt/TinyTeX"
+fi
+
+# Install yamlfmt (YAML formatter, used by pre-commit hooks in reports2)
+YAMLFMT_VERSION="0.21.0"
+if ! command -v yamlfmt &>/dev/null; then
+  echo "Installing yamlfmt $${YAMLFMT_VERSION}..."
+  curl -fsSL "https://github.com/google/yamlfmt/releases/download/v$${YAMLFMT_VERSION}/yamlfmt_$${YAMLFMT_VERSION}_Linux_x86_64.tar.gz" |
+    tar -xz -C /usr/local/bin yamlfmt
+  chmod +x /usr/local/bin/yamlfmt
+  echo "yamlfmt installed: $(yamlfmt --version)"
+fi
+
 # Install AWS CLI v2 (official installer; apt awscli is v1)
 if ! command -v aws &>/dev/null || [ "$(aws --version 2>&1 | grep -o 'aws-cli/[0-9]*' | cut -d/ -f2)" = "1" ]; then
   echo "Installing AWS CLI v2..."
