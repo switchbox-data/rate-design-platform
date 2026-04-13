@@ -1,0 +1,46 @@
+# NYISO ancillary service clearing prices (day-ahead hourly + real-time 5-min AS)
+#
+# Same recipe shape as data/isone/ancillary/Justfile: fetch, validate, prepare,
+# upload, update, clean. Default ``markets=rt`` (5-minute real-time)—finest MIS
+# resolution. Override: ``markets=dam`` (hourly day-ahead) or ``markets=both``.
+#
+# Run from repo root: just -f data/nyiso/as_prices/Justfile <recipe>
+# Or from this dir:   just <recipe>
+
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_base := justfile_directory()
+path_local_parquet := path_local_base + "/parquet"
+# Mirror ISO-NE: s3://data.sb/isone/ancillary/ → s3://data.sb/nyiso/ancillary/
+path_s3_parquet := "s3://data.sb/nyiso/ancillary/"
+
+start := "2024-01"
+end := ""
+markets := "rt"
+
+fetch:
+    uv run python "{{ path_local_base }}/fetch_nyiso_as_prices_parquet.py" \
+        --start "{{ start }}" --end "{{ end }}" \
+        --path-local-parquet "{{ path_local_parquet }}" \
+        --markets "{{ markets }}"
+
+validate:
+    uv run python "{{ path_local_base }}/validate_nyiso_as_prices_parquet.py" \
+        --path-local-parquet "{{ path_local_parquet }}"
+
+prepare: fetch validate
+
+# Upload: syncs whatever is under parquet/ (resolution is determined at fetch time).
+upload:
+    aws s3 sync "{{ path_local_parquet }}/" "{{ path_s3_parquet }}" \
+        --exclude "*" --include "*.parquet"
+    @echo "Uploaded to {{ path_s3_parquet }}"
+
+update:
+    uv run python "{{ path_local_base }}/update_nyiso_as_prices_to_latest.py" \
+        --path-local-parquet "{{ path_local_parquet }}" \
+        --path-s3-parquet "{{ path_s3_parquet }}" \
+        --markets "{{ markets }}"
+
+clean:
+    rm -rf "{{ path_local_parquet }}"
+    @echo "Removed parquet/"

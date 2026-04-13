@@ -5,6 +5,7 @@ __pycache__/
 .ruff_cache/
 .DS_Store
 dev_no_commit.py
+dev/
 
 # Local data and outputs
 # data/
@@ -32,6 +33,7 @@ data/isone/lmp/parquet/
 data/isone/hourly_demand/zones/
 data/isone/ancillary/parquet/
 data/nyiso/icap/parquet/
+data/nyiso/as_prices/parquet/
 data/nyiso/lbmp/zips/
 data/nyiso/lbmp/parquet/
 data/nyiso/gold_book/csv/
