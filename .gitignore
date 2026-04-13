@@ -5,6 +5,8 @@ __pycache__/
 .ruff_cache/
 .DS_Store
 dev_no_commit.py
+# Local scratch / one-off scripts (not for CI or shared workflows)
+dev/
 
 # Local data and outputs
 # data/

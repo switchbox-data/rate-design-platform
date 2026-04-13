@@ -14,7 +14,7 @@ The core hypothesis was that ResStock was overstating multifamily non-HVAC elect
 
 This script corrects that by scaling multifamily non-HVAC electricity consumption downward so that multifamily buildings more closely match the single-family electricity intensity benchmark.
 
-The empirical motivation was strong. Before this adjustment, the ResStock-to-EIA mismatch for some utilities was as high as about `+30%`, meaning ResStock annual electricity consumption was roughly 30% higher than the corresponding EIA residential sales total. After applying the multifamily non-HVAC correction, that mismatch dropped to roughly `+/-6%`.
+The empirical motivation was strong. Before this adjustment, the ResStock-to-EIA mismatch for some utilities was as high as about `+30%`, meaning ResStock annual electricity consumption was roughly 30% higher than the corresponding EIA residential sales total. After applying the multifamily non-HVAC correction, that mismatch dropped to roughly `+/-8%`.
 
 ## Core Idea
 
@@ -166,9 +166,41 @@ The earlier analysis showed:
 - ResStock weighted electricity totals often exceeded EIA-861 residential sales
 - the gap was correlated with the share of multifamily buildings in a utility
 - column-by-column multifamily versus single-family analysis suggested non-HVAC electricity intensity as the likely source of the bias
-- in some utilities, the pre-adjustment mismatch was about `+30%`, while after adjustment it was reduced to around `+/-6%`
+- in some utilities, the pre-adjustment mismatch was about `+30%`, while after adjustment it was reduced to around `+/-8%`
 
 `adjust_mf_electricity.py` turns that finding into a data-processing correction by modifying multifamily non-HVAC electricity before downstream rate-design analysis.
+
+## ResStock vs EIA-861 by electric utility (NY)
+
+Utility-level **`kwh_pct_diff`** from `compare_resstock_eia_by_utility` in `utils/post/investigate_resstock_eia_load_discrepancy.py` (EIA-861 `year=2018`, NY): ResStock aggregate kWh scaled by `eia_residential_customers / resstock_customers`, then compared to EIA residential kWh. See [`investigate_resstock_eia_load_discrepancy.md`](../code/data/investigate_resstock_eia_load_discrepancy.md).
+
+### Before `adjust_mf_electricity` (base release)
+
+**`res_2024_amy2018_2`**, NY `upgrade=00`, local `load_curve_annual` + `metadata_utility/.../utility_assignment.parquet`. Unadjusted ResStock; positive ⇒ ResStock above EIA after customer normalization. **% bldg_id multifamily** = share of sample buildings per utility whose `in.geometry_building_type_recs` contains `Multi-Family` (same definition as `building_type_share_by_utility` in `investigate_resstock_eia_load_discrepancy.py`). Both tables below list utilities in **ascending** order of that multifamily share; the multifamily column is the same in each table (sample assignment and building type come from the base release).
+
+| Electric utility | % difference (ResStock − EIA) | % bldg_id multifamily |
+| ---------------- | ----------------------------: | --------------------: |
+| psegli           |                         −3.56 |                 19.49 |
+| nyseg            |                          1.06 |                 21.54 |
+| cenhud           |                         10.06 |                 26.23 |
+| rge              |                         11.55 |                 28.67 |
+| nimo             |                          8.76 |                 30.05 |
+| or               |                          1.92 |                 30.40 |
+| coned            |                         29.16 |                 81.11 |
+
+### `res_2024_amy2018_2_sb` (Switchbox release)
+
+Same EIA slice and normalization. Totals are **Σ hourly** `out.electricity.total.energy_consumption` per `bldg_id` over local `load_curve_hourly/state=NY/upgrade=00/`, with **`metadata-sb` weights** from this release and **`utility_assignment` from `res_2024_amy2018_2`** (no NY `load_curve_annual` in this mirror). The `_sb` curves/metadata include Switchbox post-processing (e.g. `adjust_mf_electricity`, `approximate_non_hp_load`) as present in that build.
+
+| Electric utility | % difference (ResStock − EIA) | % bldg_id multifamily |
+| ---------------- | ----------------------------: | --------------------: |
+| psegli           |                         −6.31 |                 19.49 |
+| nyseg            |                         −2.19 |                 21.54 |
+| cenhud           |                          5.67 |                 26.23 |
+| rge              |                          7.16 |                 28.67 |
+| nimo             |                          3.90 |                 30.05 |
+| or               |                         −2.89 |                 30.40 |
+| coned            |                          7.78 |                 81.11 |
 
 ## Bottom Line
 
