@@ -728,16 +728,16 @@ run-21:
 run-22:
     #!/usr/bin/env bash
     set -euo pipefail
-    run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
-    echo ">> run-22: resolved run-2 output → ${run2_dir}" >&2
-    just compute-seasonal-discount-inputs "${run2_dir}" \
+    run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
+    echo ">> run-22: resolved run-1 output → ${run1_dir}" >&2
+    just compute-seasonal-discount-inputs "${run1_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
         "BAT_epmc" "" \
-        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
         "has_hp" "true"
     just create-seasonal-discount-tariff \
-        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
-        "${run2_dir}/seasonal_discount_rate_inputs_has_hp_true.csv" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "${run1_dir}/seasonal_discount_rate_inputs_has_hp_true.csv" \
         {{ utility }}_hp_seasonal_epmc_supply \
         "{{ path_tariffs_electric }}/{{ utility }}_hp_seasonal_epmc_supply.json"
     just run-scenario 22
@@ -839,17 +839,17 @@ run-33:
 run-34:
     #!/usr/bin/env bash
     set -euo pipefail
-    run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
+    run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
     read -r group_col group_value_to_subclass < <(uv run python "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}" --run-num 34)
-    echo ">> run-34: resolved run-2 output → ${run2_dir}" >&2
-    just compute-seasonal-discount-inputs "${run2_dir}" \
+    echo ">> run-34: resolved run-1 output → ${run1_dir}" >&2
+    just compute-seasonal-discount-inputs "${run1_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
         "BAT_epmc" "" \
-        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
         "${group_col}" "electric_heating" "${group_value_to_subclass}"
     just create-seasonal-discount-tariff \
-        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
-        "${run2_dir}/seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "${run1_dir}/seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
         {{ utility }}_elec_heat_seasonal_epmc_supply \
         "{{ path_tariffs_electric }}/{{ utility }}_elec_heat_seasonal_epmc_supply.json"
     just create-electric-tariff-maps
