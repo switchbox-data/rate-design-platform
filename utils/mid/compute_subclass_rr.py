@@ -931,7 +931,18 @@ def _write_revenue_requirement_yamls(
 
     # --- Delivery block: BAT-adjusted RR per allocation method ---
     delivery_block: dict[str, dict[str, float]] = {}
+
+    # Build passthrough_delivery from a single dedicated pass (sum_bills is the same
+    # across all BAT columns for a given subclass, but multiple raw heating_type_v2
+    # values may map to the same alias via group_value_to_subclass, so we sum).
     passthrough_delivery: dict[str, float] = {}
+    _first_del_breakdown = next(iter(delivery_breakdowns.values()))
+    for row in _first_del_breakdown.to_dicts():
+        raw_val = str(row["subclass"])
+        alias = gv_map.get(raw_val, raw_val)
+        passthrough_delivery[alias] = passthrough_delivery.get(alias, 0.0) + float(
+            row["sum_bills"]
+        )
 
     for bat_col, delivery_breakdown in delivery_breakdowns.items():
         method_key = BAT_COL_TO_ALLOCATION_KEY.get(bat_col, bat_col)
@@ -939,11 +950,9 @@ def _write_revenue_requirement_yamls(
         for row in delivery_breakdown.to_dicts():
             raw_val = str(row["subclass"])
             alias = gv_map.get(raw_val, raw_val)
-            method_vals[alias] = float(row["revenue_requirement"])
-            if not passthrough_delivery:
-                passthrough_delivery[alias] = float(row["sum_bills"])
-            elif alias not in passthrough_delivery:
-                passthrough_delivery[alias] = float(row["sum_bills"])
+            method_vals[alias] = method_vals.get(alias, 0.0) + float(
+                row["revenue_requirement"]
+            )
         delivery_block[method_key] = method_vals
 
     delivery_block["passthrough"] = passthrough_delivery
@@ -958,13 +967,13 @@ def _write_revenue_requirement_yamls(
         for row in delivery_breakdowns[any_col].sort("subclass").to_dicts():
             raw_val = str(row["subclass"])
             alias = gv_map.get(raw_val, raw_val)
-            del_bills[alias] = float(row["sum_bills"])
+            del_bills[alias] = del_bills.get(alias, 0.0) + float(row["sum_bills"])
 
         tot_bills: dict[str, float] = {}
         for row in total_breakdowns[any_col].sort("subclass").to_dicts():
             raw_val = str(row["subclass"])
             alias = gv_map.get(raw_val, raw_val)
-            tot_bills[alias] = float(row["sum_bills"])
+            tot_bills[alias] = tot_bills.get(alias, 0.0) + float(row["sum_bills"])
 
         passthrough_supply = {
             alias: tot_bills[alias] - del_bills[alias] for alias in del_bills
@@ -981,12 +990,16 @@ def _write_revenue_requirement_yamls(
             for row in delivery_breakdowns[bat_col].to_dicts():
                 raw_val = str(row["subclass"])
                 alias = gv_map.get(raw_val, raw_val)
-                del_rr[alias] = float(row["revenue_requirement"])
+                del_rr[alias] = del_rr.get(alias, 0.0) + float(
+                    row["revenue_requirement"]
+                )
             tot_rr: dict[str, float] = {}
             for row in total_breakdowns[bat_col].to_dicts():
                 raw_val = str(row["subclass"])
                 alias = gv_map.get(raw_val, raw_val)
-                tot_rr[alias] = float(row["revenue_requirement"])
+                tot_rr[alias] = tot_rr.get(alias, 0.0) + float(
+                    row["revenue_requirement"]
+                )
             supply_block[method_key] = {
                 alias: tot_rr[alias] - del_rr[alias] for alias in del_rr
             }
