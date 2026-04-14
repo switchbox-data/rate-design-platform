@@ -10,6 +10,7 @@ See issue #324 for implementation plan.
 from utils.post.validate.checks import (
     CheckResult,
     CheckStatus,
+    bat_col_for_allocation,
     check_bat_direction,
     check_bat_near_zero,
     check_bills_increase_with_supply,
@@ -67,6 +68,7 @@ __all__ = [
     # checks
     "CheckResult",
     "CheckStatus",
+    "bat_col_for_allocation",
     "check_bat_direction",
     "check_bat_near_zero",
     "check_bills_increase_with_supply",

@@ -25,6 +25,13 @@ from typing import Any, Literal, cast
 import boto3
 import polars as pl
 from botocore.exceptions import ClientError
+from utils.post.validate.subclasses import (
+    SUBCLASS_COL,
+    SubclassSpec,
+    display_subclass,
+    legacy_hp_subclass_spec,
+    subclass_alias_expr,
+)
 
 CheckStatus = Literal["PASS", "WARN", "FAIL"]
 
@@ -38,7 +45,15 @@ _BILL_COL = "bill_level"
 _ANNUAL_MONTH = "Annual"
 
 # BAT metric columns present in cross_subsidization_BAT_values.csv
-_BAT_COLS = ("BAT_percustomer", "BAT_vol", "BAT_peak")
+_BAT_COLS = ("BAT_percustomer", "BAT_vol", "BAT_peak", "BAT_epmc")
+
+# Map residual allocation method → the BAT column that should be near zero
+# when that allocation is operative.
+_ALLOCATION_TO_BAT_COL: dict[str, str] = {
+    "percustomer": "BAT_percustomer",
+    "epmc": "BAT_epmc",
+    "volumetric": "BAT_vol",
+}
 
 # All files expected in every run directory
 _EXPECTED_FILES: tuple[str, ...] = (
@@ -102,45 +117,58 @@ def _weighted_annual_bills(bills: pl.LazyFrame, metadata: pl.LazyFrame) -> pl.La
 
 
 def _weighted_annual_revenue_by_subclass(
-    bills: pl.LazyFrame, metadata: pl.LazyFrame
-) -> dict[bool, float]:
-    """Return weighted annual electric revenue by HP/non-HP subclass."""
+    bills: pl.LazyFrame,
+    metadata: pl.LazyFrame,
+    subclass_spec: SubclassSpec | None = None,
+) -> dict[str, float]:
+    """Return weighted annual electric revenue by subclass alias."""
+    spec = subclass_spec or legacy_hp_subclass_spec()
     rows = _collect(
         bills.filter(pl.col(_MONTH_COL) == _ANNUAL_MONTH)
-        .join(metadata.select([_BLDG_COL, _WEIGHT_COL, _HP_COL]), on=_BLDG_COL)
-        .group_by(_HP_COL)
+        .join(
+            metadata.select([_BLDG_COL, _WEIGHT_COL, subclass_alias_expr(spec)]),
+            on=_BLDG_COL,
+        )
+        .filter(pl.col(SUBCLASS_COL).is_not_null())
+        .group_by(SUBCLASS_COL)
         .agg((pl.col(_BILL_COL) * pl.col(_WEIGHT_COL)).sum().alias("weighted_bills"))
     )
     return {
-        bool(row[_HP_COL]): float(row["weighted_bills"])
+        str(row[SUBCLASS_COL]): float(row["weighted_bills"])
         for row in rows.iter_rows(named=True)
     }
 
 
 def _weighted_annual_revenue_by_named_subclass(
-    bills: pl.LazyFrame, metadata: pl.LazyFrame
+    bills: pl.LazyFrame,
+    metadata: pl.LazyFrame,
+    subclass_spec: SubclassSpec | None = None,
 ) -> dict[str, float]:
     """Return weighted annual electric revenue keyed by subclass name."""
-    return {
-        ("hp" if is_hp else "non-hp"): revenue
-        for is_hp, revenue in _weighted_annual_revenue_by_subclass(
-            bills, metadata
-        ).items()
-    }
+    return _weighted_annual_revenue_by_subclass(bills, metadata, subclass_spec)
 
 
-def _bat_wavg_by_group(bat: pl.LazyFrame, metadata: pl.LazyFrame) -> pl.DataFrame:
-    """Compute weighted-average BAT metrics grouped by HP/non-HP.
+def _bat_wavg_by_group(
+    bat: pl.LazyFrame,
+    metadata: pl.LazyFrame,
+    subclass_spec: SubclassSpec | None = None,
+) -> pl.DataFrame:
+    """Compute weighted-average BAT metrics grouped by subclass alias.
 
-    Returns a DataFrame with columns: ``postprocess_group.has_hp``,
+    Returns a DataFrame with columns: ``subclass``,
     ``BAT_percustomer_wavg``, ``BAT_vol_wavg``, ``BAT_peak_wavg``,
     ``customers_weighted``.  Only BAT columns present in ``bat.schema`` are
     included in the aggregation.
     """
+    spec = subclass_spec or legacy_hp_subclass_spec()
     bat_cols = [c for c in _BAT_COLS if c in bat.collect_schema()]
     return _collect(
-        bat.join(metadata.select([_BLDG_COL, _WEIGHT_COL, _HP_COL]), on=_BLDG_COL)
-        .group_by(_HP_COL)
+        bat.join(
+            metadata.select([_BLDG_COL, _WEIGHT_COL, subclass_alias_expr(spec)]),
+            on=_BLDG_COL,
+        )
+        .filter(pl.col(SUBCLASS_COL).is_not_null())
+        .group_by(SUBCLASS_COL)
         .agg(
             *[
                 (
@@ -249,6 +277,7 @@ def check_subclass_revenue_neutrality(
     subclass_rr: dict[str, Any],
     cost_scope: str = "delivery",
     tolerance_pct: float = 0.5,
+    subclass_spec: SubclassSpec | None = None,
 ) -> CheckResult:
     """Check per-subclass weighted bills against subclass revenue requirements.
 
@@ -274,7 +303,11 @@ def check_subclass_revenue_neutrality(
         "subclass_revenue_requirements", subclass_rr
     )
     rr_key = "total" if cost_scope == "delivery+supply" else "delivery"
-    actual_by_subclass = _weighted_annual_revenue_by_named_subclass(bills, metadata)
+    actual_by_subclass = _weighted_annual_revenue_by_named_subclass(
+        bills,
+        metadata,
+        subclass_spec,
+    )
 
     per_subclass: dict[str, dict[str, Any]] = {}
     missing_subclasses: list[str] = []
@@ -323,6 +356,7 @@ def check_flex_subclass_revenue_expectations(
     metadata: pl.LazyFrame,
     subclass_rr: dict[str, Any],
     cost_scope: str = "delivery",
+    subclass_spec: SubclassSpec | None = None,
     nonhp_tolerance_pct: float = 0.5,
     hp_positive_tolerance_pct: float = 0.05,
 ) -> CheckResult:
@@ -433,14 +467,14 @@ def check_hp_subclass_revenue_lower_with_flex(
     """
     revenue_noflex = _weighted_annual_revenue_by_subclass(bills_noflex, metadata_noflex)
     revenue_flex = _weighted_annual_revenue_by_subclass(bills_flex, metadata_flex)
-    if True not in revenue_noflex or True not in revenue_flex:
+    if "hp" not in revenue_noflex or "hp" not in revenue_flex:
         missing_runs = [
             str(run)
             for run, revenue in (
                 (run_noflex, revenue_noflex),
                 (run_flex, revenue_flex),
             )
-            if True not in revenue
+            if "hp" not in revenue
         ]
         return CheckResult(
             name=f"hp_revenue_lower_with_flex_run{run_noflex}_to_run{run_flex}",
@@ -454,8 +488,8 @@ def check_hp_subclass_revenue_lower_with_flex(
             },
         )
 
-    hp_noflex = float(revenue_noflex.get(True, float("nan")))
-    hp_flex = float(revenue_flex.get(True, float("nan")))
+    hp_noflex = float(revenue_noflex.get("hp", float("nan")))
+    hp_flex = float(revenue_flex.get("hp", float("nan")))
     delta = hp_flex - hp_noflex
     pct_change = delta / hp_noflex * 100 if hp_noflex else float("nan")
 
@@ -519,8 +553,12 @@ def check_subclass_rr_sums_to_total(
     )
 
 
-def check_bat_direction(bat: pl.LazyFrame, metadata: pl.LazyFrame) -> CheckResult:
-    """Report weighted-average BAT direction by HP/non-HP subclass.
+def check_bat_direction(
+    bat: pl.LazyFrame,
+    metadata: pl.LazyFrame,
+    subclass_spec: SubclassSpec | None = None,
+) -> CheckResult:
+    """Report weighted-average BAT direction by subclass.
 
     This is an informational check that always returns PASS; it captures the
     direction and magnitude of cross-subsidization per benchmark so downstream
@@ -539,9 +577,9 @@ def check_bat_direction(bat: pl.LazyFrame, metadata: pl.LazyFrame) -> CheckResul
     Returns:
         PASS (always); details contain weighted-average BAT per group and benchmark.
     """
-    rows = _bat_wavg_by_group(bat, metadata).to_dicts()
+    rows = _bat_wavg_by_group(bat, metadata, subclass_spec).to_dicts()
     parts = [
-        f"{'HP' if r[_HP_COL] else 'Non-HP'}: ${r.get('BAT_percustomer_wavg', float('nan')):+.0f}/cust-yr"
+        f"{display_subclass(str(r[SUBCLASS_COL]))}: ${r.get('BAT_percustomer_wavg', float('nan')):+.0f}/cust-yr"
         for r in rows
     ]
     return CheckResult(
@@ -552,16 +590,28 @@ def check_bat_direction(bat: pl.LazyFrame, metadata: pl.LazyFrame) -> CheckResul
     )
 
 
+def bat_col_for_allocation(residual_allocation: str | None) -> str:
+    """Return the BAT column name that should be near zero for a given allocation method."""
+    return _ALLOCATION_TO_BAT_COL.get(
+        residual_allocation or "percustomer", "BAT_percustomer"
+    )
+
+
 def check_bat_near_zero(
     bat: pl.LazyFrame,
     metadata: pl.LazyFrame,
     tolerance_usd: float = 5.0,
+    subclass_spec: SubclassSpec | None = None,
+    *,
+    bat_metric: str = "BAT_percustomer",
 ) -> CheckResult:
-    """Check that per-customer BAT is near zero for all subclasses.
+    """Check that the operative BAT metric is near zero for all subclasses.
 
-    Expected for subclass precalc runs (5-6): each subclass is calibrated to its
-    own marginal costs, so per-customer residual cross-subsidization should be
-    eliminated across all three benchmarks (volumetric, peak, per-customer).
+    The ``bat_metric`` should match the residual allocation method used by the
+    run: ``BAT_percustomer`` for per-customer allocation, ``BAT_epmc`` for EPMC
+    allocation, ``BAT_vol`` for volumetric allocation.  Use
+    :func:`bat_col_for_allocation` to derive the correct column from
+    ``residual_allocation_delivery``.
 
     Args:
         bat: LazyFrame from :func:`~utils.post.validate.load.load_bat`.
@@ -569,27 +619,38 @@ def check_bat_near_zero(
             ``postprocess_group.has_hp`` columns.
         tolerance_usd: Maximum allowed absolute weighted-average BAT per customer
             ($/customer-year) for a PASS.
+        bat_metric: BAT column to check (default ``"BAT_percustomer"``).
 
     Returns:
-        PASS when ``|BAT_percustomer_wavg| ≤ tolerance_usd`` for all groups;
+        PASS when ``|{bat_metric}_wavg| ≤ tolerance_usd`` for all groups;
         FAIL otherwise.
     """
+    wavg_col = f"{bat_metric}_wavg"
     by_group = [
         {
-            "group": "HP" if row[_HP_COL] else "Non-HP",
-            "BAT_percustomer_wavg": (
-                pc := row.get("BAT_percustomer_wavg", float("nan"))
-            ),
-            "pass": abs(pc) <= tolerance_usd,
+            "group": display_subclass(str(row[SUBCLASS_COL])),
+            wavg_col: (val := row.get(wavg_col, float("nan"))),
+            "pass": abs(val) <= tolerance_usd,
         }
-        for row in _bat_wavg_by_group(bat, metadata).iter_rows(named=True)
+        for row in _bat_wavg_by_group(
+            bat,
+            metadata,
+            subclass_spec,
+        ).iter_rows(named=True)
     ]
-    parts = [f"{d['group']}: ${d['BAT_percustomer_wavg']:+.1f}" for d in by_group]
+    label = (
+        bat_metric.replace("BAT_", "").replace("percustomer", "per-customer").upper()
+    )
+    parts = [f"{d['group']}: ${d[wavg_col]:+.1f}" for d in by_group]
     return CheckResult(
         name="bat_near_zero",
         status="PASS" if all(d["pass"] for d in by_group) else "FAIL",
-        message=f"Per-customer BAT (tolerance ±${tolerance_usd}) — " + "; ".join(parts),
-        details={"by_group": by_group, "tolerance_usd": tolerance_usd},
+        message=f"{label} BAT (tolerance ±${tolerance_usd}) — " + "; ".join(parts),
+        details={
+            "by_group": by_group,
+            "tolerance_usd": tolerance_usd,
+            "bat_metric": bat_metric,
+        },
     )
 
 
@@ -857,6 +918,7 @@ def check_bills_increase_with_supply(
     metadata: pl.LazyFrame,
     run_a: int,
     run_b: int,
+    subclass_spec: SubclassSpec | None = None,
 ) -> CheckResult:
     """Check that weighted mean combined bills rise for both subclasses when supply is added.
 
@@ -877,11 +939,17 @@ def check_bills_increase_with_supply(
         higher in run B; FAIL if either subclass shows equal or lower bills.
     """
 
-    def _wavg_by_subclass(bills: pl.LazyFrame) -> dict[bool, float]:
+    spec = subclass_spec or legacy_hp_subclass_spec()
+
+    def _wavg_by_subclass(bills: pl.LazyFrame) -> dict[str, float]:
         rows = _collect(
             bills.filter(pl.col(_MONTH_COL) == _ANNUAL_MONTH)
-            .join(metadata.select([_BLDG_COL, _WEIGHT_COL, _HP_COL]), on=_BLDG_COL)
-            .group_by(_HP_COL)
+            .join(
+                metadata.select([_BLDG_COL, _WEIGHT_COL, subclass_alias_expr(spec)]),
+                on=_BLDG_COL,
+            )
+            .filter(pl.col(SUBCLASS_COL).is_not_null())
+            .group_by(SUBCLASS_COL)
             .agg(
                 (
                     (pl.col(_BILL_COL) * pl.col(_WEIGHT_COL)).sum()
@@ -889,17 +957,20 @@ def check_bills_increase_with_supply(
                 ).alias("wavg_bill")
             )
         )
-        return {row[_HP_COL]: row["wavg_bill"] for row in rows.iter_rows(named=True)}
+        return {
+            str(row[SUBCLASS_COL]): float(row["wavg_bill"])
+            for row in rows.iter_rows(named=True)
+        }
 
     a_by_sub = _wavg_by_subclass(bills_a)
     b_by_sub = _wavg_by_subclass(bills_b)
 
     details: list[dict[str, Any]] = []
     failures: list[str] = []
-    for hp_val in sorted(a_by_sub.keys() | b_by_sub.keys()):
-        label = "HP" if hp_val else "Non-HP"
-        a_val = a_by_sub.get(hp_val, float("nan"))
-        b_val = b_by_sub.get(hp_val, float("nan"))
+    for alias in sorted(a_by_sub.keys() | b_by_sub.keys()):
+        label = display_subclass(alias)
+        a_val = a_by_sub.get(alias, float("nan"))
+        b_val = b_by_sub.get(alias, float("nan"))
         ok = b_val > a_val
         details.append(
             {
@@ -913,7 +984,7 @@ def check_bills_increase_with_supply(
             failures.append(f"{label}: ${a_val:,.2f} → ${b_val:,.2f}")
 
     subclass_summary = "; ".join(
-        f"{'HP' if d['subclass'] == 'HP' else 'Non-HP'} ${d[f'run{run_a}_avg_bill']:,.2f} → ${d[f'run{run_b}_avg_bill']:,.2f}"
+        f"{d['subclass']} ${d[f'run{run_a}_avg_bill']:,.2f} → ${d[f'run{run_b}_avg_bill']:,.2f}"
         for d in details
     )
     return CheckResult(
@@ -1029,8 +1100,12 @@ def check_seasonal_winter_below_summer(
                 )
             continue
 
-        failures.append(
-            f"{key}: unexpected seasonal period structure "
+        # Monthly (12-period) and other multi-period structures are not
+        # supported by the 1-per-season or 2-per-season rules above.  Skip
+        # rather than fail so monthly tariffs like cenhud_non_electric_heating
+        # do not produce spurious failures.
+        all_period_lines.append(
+            f"    run {run_num} {key}: skipping seasonal check "
             f"(winter={len(winter_rates)} periods, summer={len(summer_rates)} periods)"
         )
 

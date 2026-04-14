@@ -7,12 +7,14 @@ tariff stability).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import yaml
 
 from utils import get_project_root
+from utils.post.validate.subclasses import SubclassSpec, subclass_spec_from_run
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,9 +34,20 @@ class RunConfig:
     path_bulk_tx_mc: str | None  # S3 URI to bulk TX marginal costs parquet (optional)
     path_supply_energy_mc: str  # S3 URI to supply energy marginal costs parquet
     path_supply_capacity_mc: str  # S3 URI to supply capacity marginal costs parquet
+    revenue_requirement_filename: str | None = None
+    residual_allocation_delivery: str | None = None
+    residual_allocation_supply: str | None = None
+    subclass_spec: SubclassSpec | None = None
+    tariff_keys_by_alias: dict[str, str] = field(default_factory=dict)
 
     @classmethod
-    def from_yaml_run(cls, run_num: int, run_dict: dict[str, Any]) -> RunConfig:
+    def from_yaml_run(
+        cls,
+        run_num: int,
+        run_dict: dict[str, Any],
+        *,
+        scenario_subclass_config: object | None = None,
+    ) -> RunConfig:
         """Parse a RunConfig from one YAML run entry (the dict under runs[N]).
 
         Args:
@@ -50,7 +63,12 @@ class RunConfig:
             else "delivery"
         )
         has_subclasses = bool(run_dict.get("run_includes_subclasses", False))
-        elasticity = float(run_dict.get("elasticity", 0.0))
+        raw_elasticity = run_dict.get("elasticity", 0.0)
+        if isinstance(raw_elasticity, dict):
+            # Per-season elasticity (e.g. {summer: -0.22, winter: -0.18}); use mean.
+            elasticity = sum(raw_elasticity.values()) / len(raw_elasticity)
+        else:
+            elasticity = float(raw_elasticity)
 
         # Infer tariff_type from the suffix after the double-underscore in run_name.
         # Run names follow: {state}_{utility}_run{N}_up{uu}_{type}__{tariff_suffix}
@@ -80,6 +98,30 @@ class RunConfig:
         )
         path_supply_energy_mc = str(run_dict.get("path_supply_energy_mc", ""))
         path_supply_capacity_mc = str(run_dict.get("path_supply_capacity_mc", ""))
+        rr_path = str(run_dict.get("utility_revenue_requirement", "")).strip()
+        revenue_requirement_filename = Path(rr_path).name if rr_path else None
+        residual_allocation_delivery = (
+            str(run_dict["residual_allocation_delivery"])
+            if run_dict.get("residual_allocation_delivery") is not None
+            else None
+        )
+        residual_allocation_supply = (
+            str(run_dict["residual_allocation_supply"])
+            if run_dict.get("residual_allocation_supply") is not None
+            else None
+        )
+        subclass_spec = subclass_spec_from_run(
+            run_dict,
+            scenario_subclass_config=scenario_subclass_config,
+        )
+
+        raw_path_tariffs = run_dict.get("path_tariffs_electric", {})
+        tariff_keys_by_alias: dict[str, str] = {}
+        if isinstance(raw_path_tariffs, dict):
+            tariff_keys_by_alias = {
+                str(alias): Path(str(path_str)).stem
+                for alias, path_str in raw_path_tariffs.items()
+            }
 
         return cls(
             run_num=run_num,
@@ -95,6 +137,11 @@ class RunConfig:
             path_bulk_tx_mc=path_bulk_tx_mc,
             path_supply_energy_mc=path_supply_energy_mc,
             path_supply_capacity_mc=path_supply_capacity_mc,
+            revenue_requirement_filename=revenue_requirement_filename,
+            residual_allocation_delivery=residual_allocation_delivery,
+            residual_allocation_supply=residual_allocation_supply,
+            subclass_spec=subclass_spec,
+            tariff_keys_by_alias=tariff_keys_by_alias,
         )
 
 
@@ -176,6 +223,7 @@ def load_run_configs_from_yaml(
         )
 
     yaml_runs: dict[int | str, Any] = data["runs"]
+    scenario_subclass_config = data.get("subclass_config")
     target_nums = run_nums if run_nums is not None else list(yaml_runs.keys())
 
     configs: dict[int, RunConfig] = {}
@@ -192,7 +240,11 @@ def load_run_configs_from_yaml(
                 f"Run {num} in {scenario_path} must be a YAML mapping, "
                 f"got {type(run_dict).__name__}"
             )
-        configs[int(num)] = RunConfig.from_yaml_run(int(num), run_dict)
+        configs[int(num)] = RunConfig.from_yaml_run(
+            int(num),
+            run_dict,
+            scenario_subclass_config=scenario_subclass_config,
+        )
 
     return configs
 
@@ -269,8 +321,11 @@ def define_run_blocks(configs: dict[int, RunConfig]) -> list[RunBlock]:
             rate_desc = _tariff_label(tariff_type)
             if run_type == "precalc":
                 if has_subclasses:
+                    subclass_desc = "subclasses"
+                    if c_delivery.subclass_spec is not None:
+                        subclass_desc = "/".join(c_delivery.subclass_spec.aliases)
                     desc = (
-                        f"Precalc {rate_desc} rates with HP/non-HP subclasses: "
+                        f"Precalc {rate_desc} rates with {subclass_desc}: "
                         f"delivery (run {r_delivery}) and delivery+supply (run {r_supply})"
                     )
                 else:
