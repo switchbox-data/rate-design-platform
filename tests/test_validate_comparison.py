@@ -18,7 +18,9 @@ def _config(run_num: int) -> RunConfig:
         upgrade="0" if run_num in {17, 18, 21, 22, 29, 30, 33, 34} else "2",
         cost_scope="delivery" if run_num % 2 == 1 else "delivery+supply",
         has_subclasses=run_num in {17, 18, 21, 22, 29, 30, 33, 34},
-        tariff_type="flat" if run_num in {17, 18, 19, 20, 29, 30, 31, 32} else "seasonal",
+        tariff_type="flat"
+        if run_num in {17, 18, 19, 20, 29, 30, 31, 32}
+        else "seasonal",
         elasticity=0.0,
         path_resstock_loads="",
         path_dist_and_sub_tx_mc="",
@@ -28,12 +30,17 @@ def _config(run_num: int) -> RunConfig:
     )
 
 
-def test_resolve_ny_hp_only_vs_electrified_pairs_matches_flat_and_seasonal_runs() -> None:
+def test_resolve_ny_hp_only_vs_electrified_pairs_matches_flat_and_seasonal_runs() -> (
+    None
+):
     configs = {run_num: _config(run_num) for run_num in range(17, 37)}
 
     families = resolve_ny_hp_only_vs_electrified_pairs(configs)
 
-    assert [(family.name, family.hp_only_runs, family.electrified_runs) for family in families] == [
+    assert [
+        (family.name, family.hp_only_runs, family.electrified_runs)
+        for family in families
+    ] == [
         ("flat_epmc", (17, 18, 19, 20), (29, 30, 31, 32)),
         ("seasonal_epmc", (21, 22, 23, 24), (33, 34, 35, 36)),
     ]

@@ -8,7 +8,7 @@ from typing import Any
 
 import polars as pl
 
-from utils.post.validate.checks import CheckResult
+from utils.post.validate.checks import CheckResult, bat_col_for_allocation
 from utils.post.validate.config import RunConfig
 from utils.post.validate.load import (
     load_bat,
@@ -17,7 +17,6 @@ from utils.post.validate.load import (
     load_revenue_requirement,
     load_tariff_config,
 )
-from utils.post.validate.subclasses import SubclassSpec
 from utils.post.validate.tables import (
     compute_bill_deltas,
     summarize_bat_by_subclass,
@@ -264,7 +263,9 @@ def _summarize_tariff_run(
         tariff_key = _tariff_key_for_alias(config, alias)
         if tariff_key is None:
             continue
-        entry = tariff_config.get(tariff_key) or tariff_config.get(f"{tariff_key}_calibrated")
+        entry = tariff_config.get(tariff_key) or tariff_config.get(
+            f"{tariff_key}_calibrated"
+        )
         if entry is None:
             continue
         tou_rows = entry.get("ur_ec_tou_mat", [])
@@ -308,12 +309,18 @@ def run_ny_hp_only_vs_electrified_comparison(
         family_dir = profile_dir / family.name
         family_dir.mkdir(parents=True, exist_ok=True)
 
-        hp_precalc_delivery, hp_precalc_supply, hp_default_delivery, hp_default_supply = (
-            family.hp_only_runs
-        )
-        elec_precalc_delivery, elec_precalc_supply, elec_default_delivery, elec_default_supply = (
-            family.electrified_runs
-        )
+        (
+            hp_precalc_delivery,
+            hp_precalc_supply,
+            hp_default_delivery,
+            hp_default_supply,
+        ) = family.hp_only_runs
+        (
+            elec_precalc_delivery,
+            elec_precalc_supply,
+            elec_default_delivery,
+            elec_default_supply,
+        ) = family.electrified_runs
 
         hp_spec = configs[hp_precalc_delivery].subclass_spec
         elec_spec = configs[elec_precalc_delivery].subclass_spec
@@ -334,8 +341,20 @@ def run_ny_hp_only_vs_electrified_comparison(
         bill_delta_frames: list[pl.DataFrame] = []
 
         precalc_pairs = (
-            ("delivery", hp_precalc_delivery, elec_precalc_delivery, hp_spec, elec_spec),
-            ("delivery+supply", hp_precalc_supply, elec_precalc_supply, hp_spec, elec_spec),
+            (
+                "delivery",
+                hp_precalc_delivery,
+                elec_precalc_delivery,
+                hp_spec,
+                elec_spec,
+            ),
+            (
+                "delivery+supply",
+                hp_precalc_supply,
+                elec_precalc_supply,
+                hp_spec,
+                elec_spec,
+            ),
         )
         for cost_scope, hp_run, elec_run, hp_run_spec, elec_run_spec in precalc_pairs:
             hp_bat = summarize_bat_by_subclass(
@@ -356,6 +375,18 @@ def run_ny_hp_only_vs_electrified_comparison(
             )
             bat_frames.extend([hp_bat, elec_bat])
 
+            # Use the operative BAT metric for the allocation method.
+            operative_bat = bat_col_for_allocation(
+                configs[hp_run].residual_allocation_delivery
+            )
+            operative_wavg = f"{operative_bat}_wavg"
+            bat_metric_candidates = (operative_wavg, "BAT_vol_wavg", "BAT_peak_wavg")
+            bat_metrics = [
+                m
+                for m in bat_metric_candidates
+                if m in hp_bat.columns and m in elec_bat.columns
+            ]
+
             results.append(
                 _check_role_directionality(
                     subject=f"{family.name}_{cost_scope}_bat",
@@ -363,11 +394,7 @@ def run_ny_hp_only_vs_electrified_comparison(
                     metric_frame_elec=elec_bat,
                     hp_alias_map=role_hp,
                     elec_alias_map=role_elec,
-                    metric_cols=[
-                        metric
-                        for metric in ("BAT_percustomer_wavg", "BAT_vol_wavg", "BAT_peak_wavg")
-                        if metric in hp_bat.columns and metric in elec_bat.columns
-                    ],
+                    metric_cols=bat_metrics,
                     run_nums=[hp_run, elec_run],
                 )
             )
@@ -380,11 +407,7 @@ def run_ny_hp_only_vs_electrified_comparison(
                     hp_other=role_hp["other"],
                     elec_focus=role_elec["focus"],
                     elec_other=role_elec["other"],
-                    metric_cols=[
-                        metric
-                        for metric in ("BAT_percustomer_wavg", "BAT_vol_wavg", "BAT_peak_wavg")
-                        if metric in hp_bat.columns and metric in elec_bat.columns
-                    ],
+                    metric_cols=bat_metrics,
                     run_nums=[hp_run, elec_run],
                 )
             )
@@ -392,9 +415,9 @@ def run_ny_hp_only_vs_electrified_comparison(
             hp_rr = _subclass_rr_summary(state, utility, configs[hp_run]).with_columns(
                 pl.lit("hp_only").alias("scenario_family")
             )
-            elec_rr = _subclass_rr_summary(state, utility, configs[elec_run]).with_columns(
-                pl.lit("electrified").alias("scenario_family")
-            )
+            elec_rr = _subclass_rr_summary(
+                state, utility, configs[elec_run]
+            ).with_columns(pl.lit("electrified").alias("scenario_family"))
             rr_frames.extend([hp_rr, elec_rr])
             results.append(
                 _check_gap_directionality(
@@ -469,7 +492,10 @@ def run_ny_hp_only_vs_electrified_comparison(
                 "electrified",
             ),
         )
-        delta_by_family: dict[str, dict[str, pl.DataFrame]] = {"hp_only": {}, "electrified": {}}
+        delta_by_family: dict[str, dict[str, pl.DataFrame]] = {
+            "hp_only": {},
+            "electrified": {},
+        }
         for cost_scope, base_run, default_run, spec, scenario_family in default_pairs:
             delta = compute_bill_deltas(
                 load_bills(run_dirs[base_run], "elec"),
@@ -529,7 +555,9 @@ def run_ny_hp_only_vs_electrified_comparison(
             )
 
         if bat_frames:
-            pl.concat(bat_frames, how="diagonal").write_csv(family_dir / "bat_comparison.csv")
+            pl.concat(bat_frames, how="diagonal").write_csv(
+                family_dir / "bat_comparison.csv"
+            )
         if rr_frames:
             pl.concat(rr_frames, how="diagonal").write_csv(
                 family_dir / "revenue_requirement_comparison.csv"

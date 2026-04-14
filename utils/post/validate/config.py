@@ -63,7 +63,12 @@ class RunConfig:
             else "delivery"
         )
         has_subclasses = bool(run_dict.get("run_includes_subclasses", False))
-        elasticity = float(run_dict.get("elasticity", 0.0))
+        raw_elasticity = run_dict.get("elasticity", 0.0)
+        if isinstance(raw_elasticity, dict):
+            # Per-season elasticity (e.g. {summer: -0.22, winter: -0.18}); use mean.
+            elasticity = sum(raw_elasticity.values()) / len(raw_elasticity)
+        else:
+            elasticity = float(raw_elasticity)
 
         # Infer tariff_type from the suffix after the double-underscore in run_name.
         # Run names follow: {state}_{utility}_run{N}_up{uu}_{type}__{tariff_suffix}

@@ -202,7 +202,7 @@ def test_run_config_reads_explicit_subclass_metadata_from_yaml() -> None:
     )
 
     assert config.subclass_spec is not None
-    assert config.subclass_spec.group_col == "heating_type_v2"
+    assert config.subclass_spec.group_col == "postprocess_group.heating_type_v2"
     assert config.subclass_spec.aliases == (
         "electric_heating",
         "non_electric_heating",

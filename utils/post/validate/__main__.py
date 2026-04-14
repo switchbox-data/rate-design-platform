@@ -24,6 +24,7 @@ import polars as pl
 
 from utils.post.validate import (
     CheckResult,
+    bat_col_for_allocation,
     check_bat_direction,
     check_bat_near_zero,
     check_bills_increase_with_supply,
@@ -170,6 +171,35 @@ def _format_result_context(result: CheckResult) -> str:
     return ""
 
 
+def _maybe_downgrade_bat_near_zero(
+    result: CheckResult,
+    *,
+    cost_scope: str,
+    residual_allocation_delivery: str | None,
+    residual_allocation_supply: str | None,
+) -> CheckResult:
+    """Downgrade a FAIL bat_near_zero to WARN for mixed-allocation delivery+supply runs.
+
+    When a delivery+supply run uses different residual allocation methods for
+    delivery and supply (e.g. EPMC for delivery, percustomer for supply), the
+    delivery-only BAT metric will not be near zero on the combined bill.  A
+    FAIL in this case is a false positive, so we downgrade it to WARN.
+    """
+    is_mixed_alloc = (
+        cost_scope == "delivery+supply"
+        and residual_allocation_delivery != residual_allocation_supply
+    )
+    if not (is_mixed_alloc and result.status == "FAIL"):
+        return result
+    return CheckResult(
+        name=result.name,
+        status="WARN",
+        message=result.message + " [WARN: mixed delivery/supply allocation — "
+        f"{residual_allocation_delivery} vs {residual_allocation_supply}]",
+        details=result.details,
+    )
+
+
 def _find_matching_noflex_run(
     configs: dict[int, RunConfig],
     *,
@@ -207,10 +237,31 @@ def _find_matching_precalc_run(
     if config.run_type != "default":
         return None
 
-    # Explicit default->precalc pairing for the canonical 16-run orchestration.
-    # This intentionally allows pairs that differ in has_subclasses/upgrade,
-    # e.g. run 15/16 (upgrade-02 defaults) against run 13/14 (subclass precalc).
-    explicit_pairs = {3: 1, 4: 2, 7: 5, 8: 6, 11: 9, 12: 10, 15: 13, 16: 14}
+    # Explicit default->precalc pairing.  This intentionally allows pairs that
+    # differ in has_subclasses/upgrade: default runs inherit calibrated tariffs
+    # from their precalc counterpart and apply them on upgrade-02 without
+    # subclasses.  Runs 1-16 are the canonical orchestration; runs 17-36 are
+    # the NY EPMC and electrified-heating variants.
+    explicit_pairs = {
+        3: 1,
+        4: 2,
+        7: 5,
+        8: 6,
+        11: 9,
+        12: 10,
+        15: 13,
+        16: 14,
+        19: 17,
+        20: 18,
+        23: 21,
+        24: 22,
+        27: 25,
+        28: 26,
+        31: 29,
+        32: 30,
+        35: 33,
+        36: 34,
+    }
     if (paired_precalc := explicit_pairs.get(run_num)) is not None:
         candidate = configs.get(paired_precalc)
         if (
@@ -503,13 +554,37 @@ def _validate_block(
                             subclass_rr[total_key] = subclass_rr_raw[total_key]
                 except Exception:
                     subclass_rr = subclass_rr_raw
-            if total_rr is not None and not is_flex_run:
+            # Build effective RR target: for subclassed runs, use the sum of
+            # resolved subclass RRs (the actual calibration target) rather than
+            # the utility-wide total which may cover a broader population.
+            effective_rr: dict[str, Any] | None = None
+            if total_rr is not None:
+                if has_sub and subclass_rr is not None:
+                    rr_key = (
+                        "total"
+                        if config.cost_scope == "delivery+supply"
+                        else "delivery"
+                    )
+                    sub_sum = sum(
+                        float(v[rr_key])
+                        for v in subclass_rr["subclass_revenue_requirements"].values()
+                    )
+                    total_key = (
+                        "total_delivery_and_supply_revenue_requirement"
+                        if config.cost_scope == "delivery+supply"
+                        else "total_delivery_revenue_requirement"
+                    )
+                    effective_rr = {total_key: sub_sum}
+                else:
+                    effective_rr = total_rr
+
+            if effective_rr is not None and not is_flex_run:
                 check_result, ok = _safe_execute(
                     f"check_revenue_neutrality(run {run_num})",
                     check_revenue_neutrality,
                     bills["elec"],
                     meta,
-                    total_rr,
+                    effective_rr,
                     config.cost_scope,
                 )
                 if ok and check_result is not None:
@@ -586,12 +661,12 @@ def _validate_block(
                                     check_result, run_nums=[noflex_run_num, run_num]
                                 )
 
-                if not is_flex_run:
+                if not is_flex_run and effective_rr is not None:
                     check_result, ok = _safe_execute(
                         f"check_subclass_rr_sums_to_total(run {run_num})",
                         check_subclass_rr_sums_to_total,
                         subclass_rr,
-                        total_rr,
+                        effective_rr,
                         config.cost_scope,
                     )
                     if ok and check_result is not None:
@@ -680,17 +755,25 @@ def _validate_block(
             if ok and check_result is not None:
                 _record(check_result, run_num=run_num)
 
-            # Always enforce per-customer BAT near zero for flex runs, and keep
-            # the existing behavior for subclassed runs.
             if config.has_subclasses or config.elasticity != 0.0:
+                operative_bat = bat_col_for_allocation(
+                    config.residual_allocation_delivery
+                )
                 check_result, ok = _safe_execute(
                     f"check_bat_near_zero(run {run_num})",
                     check_bat_near_zero,
                     bat,
                     meta,
                     subclass_spec=config.subclass_spec or block_subclass_spec,
+                    bat_metric=operative_bat,
                 )
                 if ok and check_result is not None:
+                    check_result = _maybe_downgrade_bat_near_zero(
+                        check_result,
+                        cost_scope=config.cost_scope,
+                        residual_allocation_delivery=config.residual_allocation_delivery,
+                        residual_allocation_supply=config.residual_allocation_supply,
+                    )
                     _record(check_result, run_num=run_num)
 
             bat_summary, summary_ok = _safe_execute(

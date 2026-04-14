@@ -53,16 +53,20 @@ def subclass_spec_from_raw(raw: object) -> SubclassSpec:
         raise ValueError("subclass_config must be a mapping")
 
     raw_dict = {str(key): value for key, value in raw.items()}
-    group_col = str(raw_dict["group_col"])
+    raw_group_col = str(raw_dict["group_col"])
+    _prefix = "postprocess_group."
+    group_col = (
+        raw_group_col
+        if raw_group_col.startswith(_prefix)
+        else f"{_prefix}{raw_group_col}"
+    )
     raw_selectors = raw_dict["selectors"]
     if not isinstance(raw_selectors, dict):
         raise ValueError("subclass_config.selectors must be a mapping")
 
     selectors = {
         str(alias): tuple(
-            value.strip()
-            for value in str(values).split(",")
-            if value.strip()
+            value.strip() for value in str(values).split(",") if value.strip()
         )
         for alias, values in raw_selectors.items()
     }

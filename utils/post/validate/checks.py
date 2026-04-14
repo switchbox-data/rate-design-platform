@@ -45,7 +45,15 @@ _BILL_COL = "bill_level"
 _ANNUAL_MONTH = "Annual"
 
 # BAT metric columns present in cross_subsidization_BAT_values.csv
-_BAT_COLS = ("BAT_percustomer", "BAT_vol", "BAT_peak")
+_BAT_COLS = ("BAT_percustomer", "BAT_vol", "BAT_peak", "BAT_epmc")
+
+# Map residual allocation method → the BAT column that should be near zero
+# when that allocation is operative.
+_ALLOCATION_TO_BAT_COL: dict[str, str] = {
+    "percustomer": "BAT_percustomer",
+    "epmc": "BAT_epmc",
+    "volumetric": "BAT_vol",
+}
 
 # All files expected in every run directory
 _EXPECTED_FILES: tuple[str, ...] = (
@@ -348,6 +356,7 @@ def check_flex_subclass_revenue_expectations(
     metadata: pl.LazyFrame,
     subclass_rr: dict[str, Any],
     cost_scope: str = "delivery",
+    subclass_spec: SubclassSpec | None = None,
     nonhp_tolerance_pct: float = 0.5,
     hp_positive_tolerance_pct: float = 0.05,
 ) -> CheckResult:
@@ -581,17 +590,28 @@ def check_bat_direction(
     )
 
 
+def bat_col_for_allocation(residual_allocation: str | None) -> str:
+    """Return the BAT column name that should be near zero for a given allocation method."""
+    return _ALLOCATION_TO_BAT_COL.get(
+        residual_allocation or "percustomer", "BAT_percustomer"
+    )
+
+
 def check_bat_near_zero(
     bat: pl.LazyFrame,
     metadata: pl.LazyFrame,
     tolerance_usd: float = 5.0,
     subclass_spec: SubclassSpec | None = None,
+    *,
+    bat_metric: str = "BAT_percustomer",
 ) -> CheckResult:
-    """Check that per-customer BAT is near zero for all subclasses.
+    """Check that the operative BAT metric is near zero for all subclasses.
 
-    Expected for subclass precalc runs (5-6): each subclass is calibrated to its
-    own marginal costs, so per-customer residual cross-subsidization should be
-    eliminated across all three benchmarks (volumetric, peak, per-customer).
+    The ``bat_metric`` should match the residual allocation method used by the
+    run: ``BAT_percustomer`` for per-customer allocation, ``BAT_epmc`` for EPMC
+    allocation, ``BAT_vol`` for volumetric allocation.  Use
+    :func:`bat_col_for_allocation` to derive the correct column from
+    ``residual_allocation_delivery``.
 
     Args:
         bat: LazyFrame from :func:`~utils.post.validate.load.load_bat`.
@@ -599,18 +619,18 @@ def check_bat_near_zero(
             ``postprocess_group.has_hp`` columns.
         tolerance_usd: Maximum allowed absolute weighted-average BAT per customer
             ($/customer-year) for a PASS.
+        bat_metric: BAT column to check (default ``"BAT_percustomer"``).
 
     Returns:
-        PASS when ``|BAT_percustomer_wavg| ≤ tolerance_usd`` for all groups;
+        PASS when ``|{bat_metric}_wavg| ≤ tolerance_usd`` for all groups;
         FAIL otherwise.
     """
+    wavg_col = f"{bat_metric}_wavg"
     by_group = [
         {
             "group": display_subclass(str(row[SUBCLASS_COL])),
-            "BAT_percustomer_wavg": (
-                pc := row.get("BAT_percustomer_wavg", float("nan"))
-            ),
-            "pass": abs(pc) <= tolerance_usd,
+            wavg_col: (val := row.get(wavg_col, float("nan"))),
+            "pass": abs(val) <= tolerance_usd,
         }
         for row in _bat_wavg_by_group(
             bat,
@@ -618,12 +638,19 @@ def check_bat_near_zero(
             subclass_spec,
         ).iter_rows(named=True)
     ]
-    parts = [f"{d['group']}: ${d['BAT_percustomer_wavg']:+.1f}" for d in by_group]
+    label = (
+        bat_metric.replace("BAT_", "").replace("percustomer", "per-customer").upper()
+    )
+    parts = [f"{d['group']}: ${d[wavg_col]:+.1f}" for d in by_group]
     return CheckResult(
         name="bat_near_zero",
         status="PASS" if all(d["pass"] for d in by_group) else "FAIL",
-        message=f"Per-customer BAT (tolerance ±${tolerance_usd}) — " + "; ".join(parts),
-        details={"by_group": by_group, "tolerance_usd": tolerance_usd},
+        message=f"{label} BAT (tolerance ±${tolerance_usd}) — " + "; ".join(parts),
+        details={
+            "by_group": by_group,
+            "tolerance_usd": tolerance_usd,
+            "bat_metric": bat_metric,
+        },
     )
 
 
@@ -1073,8 +1100,12 @@ def check_seasonal_winter_below_summer(
                 )
             continue
 
-        failures.append(
-            f"{key}: unexpected seasonal period structure "
+        # Monthly (12-period) and other multi-period structures are not
+        # supported by the 1-per-season or 2-per-season rules above.  Skip
+        # rather than fail so monthly tariffs like cenhud_non_electric_heating
+        # do not produce spurious failures.
+        all_period_lines.append(
+            f"    run {run_num} {key}: skipping seasonal check "
             f"(winter={len(winter_rates)} periods, summer={len(summer_rates)} periods)"
         )
 

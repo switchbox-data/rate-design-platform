@@ -34,7 +34,7 @@ _HEATING_TYPE = "postprocess_group.heating_type"
 _MONTH = "month"
 _BILL = "bill_level"
 _ANNUAL = "Annual"
-_BAT_COLS: tuple[str, ...] = ("BAT_percustomer", "BAT_vol", "BAT_peak")
+_BAT_COLS: tuple[str, ...] = ("BAT_percustomer", "BAT_vol", "BAT_peak", "BAT_epmc")
 
 
 # ---------------------------------------------------------------------------
