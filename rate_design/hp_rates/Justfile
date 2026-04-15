@@ -830,27 +830,27 @@ run-33:
     just create-seasonal-discount-tariff \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
         "${run1_dir}/seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
-        {{ utility }}_elec_heat_seasonal \
-        "{{ path_tariffs_electric }}/{{ utility }}_elec_heat_seasonal.json"
+        {{ utility }}_elec_heat_seasonal_percustomer \
+        "{{ path_tariffs_electric }}/{{ utility }}_elec_heat_seasonal_percustomer.json"
     just create-electric-tariff-maps
     just run-scenario 33
 
 run-34:
     #!/usr/bin/env bash
     set -euo pipefail
-    run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
+    run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
     read -r group_col group_value_to_subclass < <(uv run python "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}" --run-num 34)
-    echo ">> run-34: resolved run-1 output → ${run1_dir}" >&2
-    just compute-seasonal-discount-inputs "${run1_dir}" \
+    echo ">> run-34: resolved run-2 output → ${run2_dir}" >&2
+    just compute-seasonal-discount-inputs "${run2_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
         "BAT_percustomer" "" \
-        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
         "${group_col}" "electric_heating" "${group_value_to_subclass}"
     just create-seasonal-discount-tariff \
-        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
-        "${run1_dir}/seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
-        {{ utility }}_elec_heat_seasonal_supply \
-        "{{ path_tariffs_electric }}/{{ utility }}_elec_heat_seasonal_supply.json"
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "${run2_dir}/seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
+        {{ utility }}_elec_heat_seasonal_percustomer_supply \
+        "{{ path_tariffs_electric }}/{{ utility }}_elec_heat_seasonal_percustomer_supply.json"
     just create-electric-tariff-maps
     just run-scenario 34
 
