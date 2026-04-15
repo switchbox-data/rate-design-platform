@@ -111,6 +111,13 @@ path_tou_supply_mc formula (for runs where num = 13 or 14):
     - $C18 is the utility column
 
     After updating the Google Sheet, run: just create-scenario-yamls
+
+    Electric heat seasonal tariff filenames (NY runs 33–36):
+        Repo tariffs/maps were renamed from ``*_elec_heat_seasonal_epmc*`` to
+        ``*_elec_heat_seasonal*``. The sheet may still contain the old token;
+        ``create_scenario_yamls`` normalizes those path strings when writing YAML
+        so CAIRO resolves existing files. Prefer updating sheet formulas to the
+        new names when convenient.
 """
 
 from __future__ import annotations
@@ -148,6 +155,18 @@ def _normalize_header(name: str) -> str:
     s = re.sub(r"[\s\-]+", "_", s)
     s = s.replace("?", "").rstrip("_")
     return s
+
+
+def _normalize_deprecated_elec_heat_seasonal_paths(value: str) -> str:
+    """Rewrite deprecated ``_elec_heat_seasonal_epmc`` path segments to ``_elec_heat_seasonal``.
+
+    Tariff JSON and tariff-map CSVs were renamed on disk; the Runs & Charts sheet
+    may still emit the old filenames. This does not alter ``hp_seasonal_epmc`` or
+    other keys that do not contain ``_elec_heat_seasonal_epmc``.
+    """
+    if not value:
+        return value
+    return value.replace("_elec_heat_seasonal_epmc", "_elec_heat_seasonal")
 
 
 def _path_tariffs_to_dict(comma_separated: str) -> dict[str, str]:
@@ -376,14 +395,17 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         "path_tariffs_gas",
         "path_outputs",
     ):
-        run[key] = get(key)
+        val = get(key)
+        if key == "path_tariff_maps_electric":
+            val = _normalize_deprecated_elec_heat_seasonal_paths(val)
+        run[key] = val
 
     run["path_supply_energy_mc"] = require_non_empty("path_supply_energy_mc")
     run["path_supply_capacity_mc"] = require_non_empty("path_supply_capacity_mc")
 
-    run["path_tariffs_electric"] = _path_tariffs_to_dict(
-        require_non_empty("path_tariffs_electric")
-    )
+    path_tariffs_raw = require_non_empty("path_tariffs_electric")
+    path_tariffs_raw = _normalize_deprecated_elec_heat_seasonal_paths(path_tariffs_raw)
+    run["path_tariffs_electric"] = _path_tariffs_to_dict(path_tariffs_raw)
 
     run["utility_revenue_requirement"] = get("utility_revenue_requirement")
 
