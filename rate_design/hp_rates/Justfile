@@ -683,7 +683,7 @@ run-20:
 
 # Electric-heating / non-electric-heating subclass RR (runs 29–30).
 
-# Uses run 1+2 BAT with BAT_epmc (matches residual_allocation_delivery: epmc for those runs).
+# Uses run 1+2 BAT with BAT_percustomer (matches residual_allocation_delivery: percustomer for those runs).
 compute-electric-heating-subclass-rev-requirements:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -758,9 +758,9 @@ run-24:
     just copy-calibrated-tariff-from-run "${run22_dir}"
     just run-scenario 24
 
-# EMPC-only electric-heating (runs 29–32): uses electric_heating subclass from heating_type_v2.
+# Electric-only electric-heating (runs 29–32): uses electric_heating subclass from heating_type_v2.
 
-# Flat discount computed for heating_type_v2=electric_heating using BAT_epmc.
+# Flat discount computed for heating_type_v2=electric_heating using BAT_percustomer.
 run-29:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -769,7 +769,7 @@ run-29:
     echo ">> run-29: resolved run-1 output → ${run1_dir}" >&2
     just compute-flat-discount-inputs "${run1_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
-        "BAT_epmc" "" \
+        "BAT_percustomer" "" \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
         "${group_col}" "electric_heating" "${group_value_to_subclass}"
     just create-flat-discount-tariff \
@@ -788,7 +788,7 @@ run-30:
     echo ">> run-30: resolved run-2 output → ${run2_dir}" >&2
     just compute-flat-discount-inputs "${run2_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
-        "BAT_epmc" "" \
+        "BAT_percustomer" "" \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
         "${group_col}" "electric_heating" "${group_value_to_subclass}"
     just create-flat-discount-tariff \
@@ -825,14 +825,14 @@ run-33:
     echo ">> run-33: resolved run-1 output → ${run1_dir}" >&2
     just compute-seasonal-discount-inputs "${run1_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
-        "BAT_epmc" "" \
+        "BAT_percustomer" "" \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
         "${group_col}" "electric_heating" "${group_value_to_subclass}"
     just create-seasonal-discount-tariff \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
         "${run1_dir}/seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
-        {{ utility }}_elec_heat_seasonal_epmc \
-        "{{ path_tariffs_electric }}/{{ utility }}_elec_heat_seasonal_epmc.json"
+        {{ utility }}_elec_heat_seasonal \
+        "{{ path_tariffs_electric }}/{{ utility }}_elec_heat_seasonal.json"
     just create-electric-tariff-maps
     just run-scenario 33
 
@@ -844,14 +844,14 @@ run-34:
     echo ">> run-34: resolved run-1 output → ${run1_dir}" >&2
     just compute-seasonal-discount-inputs "${run1_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
-        "BAT_epmc" "" \
+        "BAT_percustomer" "" \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
         "${group_col}" "electric_heating" "${group_value_to_subclass}"
     just create-seasonal-discount-tariff \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
         "${run1_dir}/seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
-        {{ utility }}_elec_heat_seasonal_epmc_supply \
-        "{{ path_tariffs_electric }}/{{ utility }}_elec_heat_seasonal_epmc_supply.json"
+        {{ utility }}_elec_heat_seasonal_supply \
+        "{{ path_tariffs_electric }}/{{ utility }}_elec_heat_seasonal_supply.json"
     just create-electric-tariff-maps
     just run-scenario 34
 
@@ -1030,7 +1030,7 @@ run-all-parallel-tracks:
     if uv run python3 "{{ path_repo }}/utils/mid/scenario_has_run_num.py" "{{ path_scenario_config }}" 29; then
         just compute-electric-heating-subclass-rev-requirements
         # 21+22 (hp_seasonal_epmc precalc), 29+30 (elec_heat flat precalc), and 33+34
-        # (elec_heat seasonal precalc) are independent
+        # (elec_heat seasonal precalc) are independent; 29-36 use percustomer allocation
         just run-21 & PID21=$!
         just run-22 & PID22=$!
         just run-29 & PID29=$!

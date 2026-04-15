@@ -1,19 +1,19 @@
 utility: cenhud
 group_col: has_hp
-source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/cenhud/ny_20260412b_r1-36/20260413_011002_ny_cenhud_run1_up00_precalc__default
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/cenhud/ny_20260414a_r1-36/20260415_015756_ny_cenhud_run1_up00_precalc__default
 total_delivery_revenue_requirement: 418151641.73
 total_delivery_and_supply_revenue_requirement: 646688375.32
 subclass_revenue_requirements:
   delivery:
     percustomer:
       non-hp: 401392812.56143004
-      hp: 16758829.168569993
+      hp: 16758829.168569997
     epmc:
-      non-hp: 389746880.5310909
+      non-hp: 389746880.5310908
       hp: 28404761.198909163
     volumetric:
-      non-hp: 379228276.1889029
-      hp: 38923365.54109711
+      non-hp: 379228276.18890303
+      hp: 38923365.541097105
     passthrough:
       non-hp: 383128700.05550325
       hp: 35022941.67449789
@@ -23,27 +23,27 @@ subclass_revenue_requirements:
       hp: 20881419.12775469
     percustomer:
       non-hp: 209823391.60389048
-      hp: 18713341.986109708
+      hp: 18713341.986109704
     volumetric:
-      non-hp: 206471820.17439872
+      non-hp: 206471820.1743986
       hp: 22064913.415601373
 heating_type_breakdown:
   percustomer:
     delivered_fuels:
-      delivery: 208316692.32024443
-      supply: 104112822.92386764
-      total: 312429515.2441121
+      delivery: 208316692.32024422
+      supply: 104112822.92386791
+      total: 312429515.24411213
     electrical_resistance:
-      delivery: 43263272.95735658
-      supply: 40802530.42360627
+      delivery: 43263272.95735659
+      supply: 40802530.42360626
       total: 84065803.38096285
     heat_pump:
-      delivery: 16758829.168569993
-      supply: 18713341.986109708
+      delivery: 16758829.168569986
+      supply: 18713341.986109715
       total: 35472171.1546797
     natgas:
-      delivery: 133595872.61715741
-      supply: 57662336.66775088
+      delivery: 133595872.61715743
+      supply: 57662336.667750865
       total: 191258209.2849083
     other:
       delivery: 16216974.666671582
@@ -51,43 +51,43 @@ heating_type_breakdown:
       total: 23462676.25533716
   epmc:
     delivered_fuels:
-      delivery: 215563739.32845706
-      supply: 73648451.00360012
+      delivery: 215563739.32845685
+      supply: 73648451.00360033
       total: 289212190.3320572
     electrical_resistance:
-      delivery: 45752677.67738781
+      delivery: 45752677.677387826
       supply: 81671448.7535452
       total: 127424126.43093301
     heat_pump:
-      delivery: 28404761.198909163
-      supply: 32867542.54530716
+      delivery: 28404761.19890916
+      supply: 32867542.545307163
       total: 61272303.74421632
     natgas:
-      delivery: 113563038.01081617
-      supply: 36021672.6287085
+      delivery: 113563038.01081616
+      supply: 36021672.62870851
       total: 149584710.63952467
     other:
-      delivery: 14867425.514429778
-      supply: 4327618.658839241
+      delivery: 14867425.51442978
+      supply: 4327618.658839239
       total: 19195044.17326902
   volumetric:
     delivered_fuels:
       delivery: 187374899.85640052
-      supply: 100946146.56644288
-      total: 288321046.4228434
+      supply: 100946146.56644246
+      total: 288321046.422843
     electrical_resistance:
-      delivery: 82309590.37290454
-      supply: 46706850.716045246
-      total: 129016441.08894978
+      delivery: 82309590.37290452
+      supply: 46706850.716045275
+      total: 129016441.0889498
     heat_pump:
       delivery: 38923365.54109711
       supply: 22064913.415601358
       total: 60988278.95669847
     natgas:
-      delivery: 97035864.77872546
-      supply: 52133979.310131654
-      total: 149169844.0888571
+      delivery: 97035864.77872545
+      supply: 52133979.31013182
+      total: 149169844.08885726
     other:
-      delivery: 12507921.180872416
-      supply: 6684843.581778983
-      total: 19192764.7626514
+      delivery: 12507921.180872414
+      supply: 6684843.581778988
+      total: 19192764.762651403
