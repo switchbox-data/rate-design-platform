@@ -1,4 +1,4 @@
-"""Tests for ISO-NE supply ancillary MC computation."""
+"""Tests for ISO-NE and NYISO supply ancillary marginal-cost helpers."""
 
 from __future__ import annotations
 
@@ -7,11 +7,15 @@ from datetime import datetime, timedelta
 import polars as pl
 import pytest
 
+import utils.pre.marginal_costs.supply_ancillary as supply_ancillary_mod
 from utils.pre.marginal_costs.supply_ancillary import (
     ancillary_wide_to_enduse,
     compute_supply_ancillary_mc,
 )
-from utils.pre.marginal_costs.supply_utils import build_cairo_8760_timestamps
+from utils.pre.marginal_costs.supply_utils import (
+    build_cairo_8760_timestamps,
+    prepare_component_output,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -109,21 +113,115 @@ def test_ancillary_wide_to_enduse_isone_matches_reg_sum_formula() -> None:
     )
 
 
-def test_ancillary_wide_to_enduse_nyiso_not_implemented() -> None:
-    """NYISO end-use aggregation is a deliberate stub until methodology is set."""
+def test_ancillary_wide_to_enduse_nyiso_one_hour_interval() -> None:
+    """NYISO: capacity + movement * (end - start in hours)."""
     stub = pl.DataFrame(
         {
             "interval_start_et": [datetime(2025, 6, 1, 0, 0, 0)],
-            "time_zone": ["EDT"],
-            "zone": ["WEST"],
-            "nyca_regulation_capacity_usd_per_mwhr": [1.0],
+            "interval_end_et": [datetime(2025, 6, 1, 1, 0, 0)],
+            "nyca_regulation_capacity_usd_per_mwhr": [10.0],
             "nyca_regulation_movement_usd_per_mw": [2.0],
         }
     )
-    with pytest.raises(
-        NotImplementedError, match="NYISO ancillary end-use aggregation"
-    ):
-        ancillary_wide_to_enduse(stub, iso="nyiso", year=2025)
+    out = ancillary_wide_to_enduse(stub, iso="nyiso", year=2025)
+    assert out.columns == ["timestamp", "ancillary_cost_enduse"]
+    assert out["ancillary_cost_enduse"][0] == pytest.approx(12.0)
+
+
+def test_ancillary_wide_to_enduse_nyiso_five_minute_interval() -> None:
+    """Movement term scales with interval length in hours."""
+    stub = pl.DataFrame(
+        {
+            "interval_start_et": [datetime(2025, 6, 1, 0, 0, 0)],
+            "interval_end_et": [datetime(2025, 6, 1, 0, 5, 0)],
+            "nyca_regulation_capacity_usd_per_mwhr": [0.0],
+            "nyca_regulation_movement_usd_per_mw": [60.0],
+        }
+    )
+    out = ancillary_wide_to_enduse(stub, iso="nyiso", year=2025)
+    assert out["ancillary_cost_enduse"][0] == pytest.approx(5.0)
+
+
+def test_ancillary_wide_to_enduse_nyiso_null_movement_treated_as_zero() -> None:
+    stub = pl.DataFrame(
+        {
+            "interval_start_et": [datetime(2025, 6, 1, 0, 0, 0)],
+            "interval_end_et": [datetime(2025, 6, 1, 1, 0, 0)],
+            "nyca_regulation_capacity_usd_per_mwhr": [3.0],
+            "nyca_regulation_movement_usd_per_mw": [None],
+        }
+    )
+    out = ancillary_wide_to_enduse(stub, iso="nyiso", year=2025)
+    assert out["ancillary_cost_enduse"][0] == pytest.approx(3.0)
+
+
+def test_ancillary_wide_to_enduse_nyiso_null_capacity_treated_as_zero() -> None:
+    """Null regulation capacity is coerced to 0 before the movement term."""
+    stub = pl.DataFrame(
+        {
+            "interval_start_et": [datetime(2025, 6, 1, 0, 0, 0)],
+            "interval_end_et": [datetime(2025, 6, 1, 1, 0, 0)],
+            "nyca_regulation_capacity_usd_per_mwhr": [None],
+            "nyca_regulation_movement_usd_per_mw": [4.0],
+        }
+    )
+    out = ancillary_wide_to_enduse(stub, iso="nyiso", year=2025)
+    assert out["ancillary_cost_enduse"][0] == pytest.approx(4.0)
+
+
+def test_ancillary_wide_to_enduse_nyiso_two_hour_interval_formula() -> None:
+    """Regression spot-check: capacity + movement * Δt (hours)."""
+    stub = pl.DataFrame(
+        {
+            "interval_start_et": [datetime(2025, 3, 15, 12, 0, 0)],
+            "interval_end_et": [datetime(2025, 3, 15, 14, 0, 0)],
+            "nyca_regulation_capacity_usd_per_mwhr": [5.0],
+            "nyca_regulation_movement_usd_per_mw": [3.0],
+        }
+    )
+    out = ancillary_wide_to_enduse(stub, iso="nyiso", year=2025)
+    assert out["ancillary_cost_enduse"][0] == pytest.approx(5.0 + 3.0 * 2.0)
+
+
+def test_prepare_collapses_subhourly_nyiso_style_rows_to_hourly_mean() -> None:
+    """Matches ``prepare_component_output``: truncate to hour, mean duplicate hours."""
+    year = 2025
+    ref = build_cairo_8760_timestamps(year)
+    jan1_midnight = datetime(year, 1, 1, 0, 0, 0)
+    rest = (
+        ref.filter(pl.col("timestamp") != jan1_midnight)
+        .with_columns(pl.lit(1.0).alias("ancillary_cost_enduse"))
+        .select("timestamp", "ancillary_cost_enduse")
+    )
+    dup_hour = pl.DataFrame(
+        {
+            "timestamp": [jan1_midnight, datetime(year, 1, 1, 0, 30, 0)],
+            "ancillary_cost_enduse": [10.0, 14.0],
+        }
+    )
+    combined = pl.concat([dup_hour, rest], how="vertical").sort("timestamp")
+    out = prepare_component_output(
+        combined,
+        year=year,
+        input_col="ancillary_cost_enduse",
+        output_col="ancillary_cost_enduse",
+        scale=1.0,
+    )
+    row0 = out.filter(pl.col("timestamp") == jan1_midnight)
+    assert row0.height == 1
+    assert row0["ancillary_cost_enduse"][0] == pytest.approx(12.0)
+
+
+def test_nyiso_scan_columns_include_fetch_schema_core() -> None:
+    """NYISO parquet select list stays aligned with ``fetch_nyiso_as_prices_parquet``."""
+    cfg = supply_ancillary_mod._ancillary_config("nyiso")  # noqa: SLF001 — internal config table
+    names = set(cfg.scan_columns)
+    assert "interval_start_et" in names
+    assert "interval_end_et" in names
+    assert "market" in names
+    assert "nyca_regulation_capacity_usd_per_mwhr" in names
+    assert "nyca_regulation_movement_usd_per_mw" in names
+    assert "spin_10min_usd_per_mwhr" in names
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +265,31 @@ def _make_compute_ancillary_mc_with_patch(
         year=year,
         storage_options={},
     )
+
+
+def test_compute_supply_ancillary_mc_passes_iso_to_load_ancillary_for_year(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``iso`` must reach ``load_ancillary_for_year`` (NYISO vs ISO-NE wiring)."""
+    captured: dict[str, object] = {}
+
+    def _fake_load(
+        yr: int,
+        storage_options: dict[str, str],
+        ancillary_s3_base: str | None = None,
+        *,
+        iso: str = "isone",
+    ) -> pl.DataFrame:
+        captured["year"] = yr
+        captured["iso"] = iso
+        captured["ancillary_s3_base"] = ancillary_s3_base
+        ts = build_cairo_8760_timestamps(yr)
+        return ts.with_columns(pl.lit(2.5).alias("ancillary_cost_enduse"))
+
+    monkeypatch.setattr(supply_ancillary_mod, "load_ancillary_for_year", _fake_load)
+    compute_supply_ancillary_mc(2025, {}, iso="nyiso")
+    assert captured["iso"] == "nyiso"
+    assert captured["year"] == 2025
 
 
 def test_compute_ancillary_mc_returns_8760_rows(

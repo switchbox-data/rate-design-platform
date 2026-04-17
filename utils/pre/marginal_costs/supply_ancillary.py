@@ -59,9 +59,18 @@ def _ancillary_config(iso: AncillaryIso) -> AncillaryPipelineConfig:
         return AncillaryPipelineConfig(
             iso="nyiso",
             scan_columns=(
+                "year",
+                "month",
+                "market",
+                "time_et",
                 _INTERVAL_START_COL,
-                "time_zone",
+                "interval_end_et",
                 "zone",
+                "time_zone",
+                "ptid",
+                "spin_10min_usd_per_mwhr",
+                "non_sync_10min_usd_per_mwhr",
+                "operating_30min_usd_per_mwhr",
                 "nyca_regulation_capacity_usd_per_mwhr",
                 "nyca_regulation_movement_usd_per_mw",
             ),
@@ -145,6 +154,10 @@ def load_ancillary_source_for_year(
         )
 
     collected = strip_tz_if_needed(collected, _INTERVAL_START_COL)
+    if iso == "nyiso" and "interval_end_et" in collected.columns:
+        collected = strip_tz_if_needed(collected, "interval_end_et")
+    if iso == "nyiso" and "time_et" in collected.columns:
+        collected = strip_tz_if_needed(collected, "time_et")
     _validate_calendar_months(
         collected,
         timestamp_col=_INTERVAL_START_COL,
@@ -155,7 +168,9 @@ def load_ancillary_source_for_year(
 
     n_rows = collected.height
     n_unique_ts = collected.select(pl.col(_INTERVAL_START_COL).n_unique()).item()
-    if n_rows != n_unique_ts:
+    # NYISO often has many rows per interval_start_et (zones/markets); only ISO-NE
+    # uses duplicate naive timestamps as a DST fall-back signal.
+    if iso == "isone" and n_rows != n_unique_ts:
         print(cfg.duplicate_interval_note(n_rows - n_unique_ts, n_rows, n_unique_ts))
 
     return collected
@@ -173,8 +188,6 @@ def ancillary_wide_to_enduse(
     *df* and how they combine into one end-use marginal cost series.
 
     Raises:
-        NotImplementedError: For ``nyiso`` until movement ($/MW) and zonal/market
-            aggregation methodology is implemented.
         ValueError: If output timestamps do not cover all calendar months for *year*.
     """
     cfg = _ancillary_config(iso)
@@ -197,12 +210,34 @@ def ancillary_wide_to_enduse(
         return out
 
     if iso == "nyiso":
-        raise NotImplementedError(
-            "NYISO ancillary end-use aggregation is not yet implemented. Expected "
-            f"wide columns on df: {cfg.scan_columns} (year={year}). Implement the nyiso "
-            "branch in ancillary_wide_to_enduse() (zonal rollup, DAM vs RT, movement "
-            "$/MW → $/MWh)."
+        work = strip_tz_if_needed(df, _INTERVAL_START_COL)
+        work = strip_tz_if_needed(work, "interval_end_et")
+        interval_hours = (
+            pl.col("interval_end_et") - pl.col(_INTERVAL_START_COL)
+        ).dt.total_seconds() / 3600.0
+        out = (
+            work.with_columns(
+                pl.col("nyca_regulation_capacity_usd_per_mwhr").fill_null(0.0),
+                pl.col("nyca_regulation_movement_usd_per_mw").fill_null(0.0),
+            )
+            .with_columns(interval_hours.alias("_interval_hours"))
+            .with_columns(
+                (
+                    pl.col("nyca_regulation_capacity_usd_per_mwhr")
+                    + pl.col("nyca_regulation_movement_usd_per_mw")
+                    * pl.col("_interval_hours")
+                ).alias("ancillary_cost_enduse")
+            )
+            .drop("_interval_hours")
+            .rename({_INTERVAL_START_COL: "timestamp"})
+            .select("timestamp", "ancillary_cost_enduse")
         )
+        avg_ancillary = out["ancillary_cost_enduse"].mean()
+        print(
+            f"Loaded {cfg.data_label}: {len(out):,} interval rows, year {year}, "
+            f"avg combined ancillary = ${avg_ancillary:.2f}/MWh (pre-hourly-alignment)"
+        )
+        return out
 
     assert_never(iso)
 
@@ -239,7 +274,6 @@ def compute_supply_ancillary_mc(
 
     Raises:
         ValueError: If source data is incomplete (missing months).
-        NotImplementedError: If *iso* is ``nyiso`` and end-use aggregation is missing.
     """
     resolved_base = ancillary_s3_base or _default_ancillary_s3_base(iso)
     ancillary_df = load_ancillary_for_year(
