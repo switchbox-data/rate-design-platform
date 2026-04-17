@@ -60,7 +60,9 @@ from utils.post.io import (
 ELEC_BILLS_CSV = "bills/elec_bills_year_target.csv"
 UPGRADE_00_RUNS = {1, 2, 5, 6, 9, 10, 13, 14, 17, 18, 21, 22, 25, 26}
 UPGRADE_02_RUNS = {3, 4, 7, 8, 11, 12, 15, 16, 19, 20, 23, 24, 27, 28}
-VALID_RUN_PAIRS = {(r, r + 1) for r in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27)}
+VALID_RUN_PAIRS = {
+    (r, r + 1) for r in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27)
+}
 
 META_COLS = [
     BLDG_ID,
