@@ -200,6 +200,17 @@ build-master-bills-with-lmi-all batch *script_args:
     just build-master-bills-with-lmi "{{ batch }}" 9 10 {{ script_args }}
     just build-master-bills-with-lmi "{{ batch }}" 11 12 {{ script_args }}
 
+build-all-master batch *script_args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for d in 1 3 5 7 9 11 13 15; do
+      s=$((d + 1))
+      echo ">> master bills+bat for runs ${d}+${s}" >&2
+      just build-master-bills-with-lmi "{{ batch }}" "$d" "$s" {{ script_args }}
+      just build-master-bat "{{ batch }}" "$d" "$s"
+    done
+    echo ">> all master bills+bat complete" >&2
+
 apply-lmi-to-existing-master-bills batch run_delivery run_supply participation_rate="1.0" participation_mode="weighted" seed="42" calculation_type="budget" output_path="":
     uv run python {{ path_repo }}/utils/post/apply_ny_lmi_to_master_bills.py \
       --master-bills-path "s3://data.sb/switchbox/cairo/outputs/hp_rates/{{ state }}/all_utilities/{{ batch }}/run_{{ run_delivery }}+{{ run_supply }}/comb_bills_year_target/" \
@@ -240,6 +251,9 @@ validate-psegli timestamp="":
 
 validate-rge timestamp="":
     UTILITY=rge just validate-runs "{{ timestamp }}"
+
+validate-electrified-comparison utility_arg timestamp="":
+    UTILITY={{ utility_arg }} just validate-runs "{{ timestamp }}" "" "" "ny_hp_only_vs_electrified"
 
 # Validate all NY utilities sequentially (all scenario runs per utility).
 

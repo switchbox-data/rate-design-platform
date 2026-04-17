@@ -1,0 +1,192 @@
+# RIE revenue requirement budgets sourced from rate case filings.
+#
+# Source: Docket 25-45-GE, RIE Book 21, Blazunas Schedules & Workpapers (11/26/2025)
+# https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/?mode=document
+#
+# This scenario increases billing determinants (residential customer count, residential kWh), customer charges, and core delivery rate to line
+# up with Rate Year 1 proposal.
+#
+# A few of the delivery top-ups get slight adjustments, following the proposal: transmission uncollectible, long-term contracting,
+# ee and srp uncollectible.
+#
+# One of the supply top-ups gets a slight adjustment, following the proposal: lrs administrative cost adjustment factor.
+#
+# All other delivery top-ups and supply top-ups remain unchanged.
+#
+# Finally, we recalculate supply commodity bundled budget using the 2025 rates, as in the test year file,
+# but using the new billing determinants. This matches what RIE does in Book 21. The idea is that the world
+# has changed—they need to factor in how the billing determinants have changed their revenue because they
+# can determine if they need to hike rates to fill a revenue shortfall—but since supply is a pass-through,,
+# they don't attempt to forecast the LRS rate in the future, they just keep it constant, but apply the new
+# billing determinants to be internally consistent.
+utility: rie
+# --- From p. 3 of PRB-2-ELEC exhibit, line 27, column d ---
+# https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p36/a2810084
+delivery_revenue_requirement_from_rate_case: 241842271.95775
+delivery_revenue_requirement_topups: 265203028.84625 # sum(delivery_top_ups.total_budget)
+total_delivery_revenue_requirement: 507045300.804 # delivery_revenue_requirement_from_rate_case + delivery_revenue_requirement_topups
+supply_revenue_requirement_topups: 434811499.0525 # sum(supply_top_ups.total_budget)
+total_delivery_and_supply_revenue_requirement: 941856799.8565 # total_delivery_revenue_requirement + supply_revenue_requirement_topups
+# --- From p. 16 of PRB-2-ELEC exhibit, lines 8-9, column f & m ---
+# https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p49/a2810075
+delivery_revenue_requirement:
+  customer_charge:
+    charge_unit: $/month # $6.75/month
+    budget_method: rate_case
+    total_budget: 36709814.25 # $6.75/month * 5,438,491 bills
+  core_delivery_rate:
+    charge_unit: $/kWh # $0.06455/kWh = old base delivery rate $0.0458/kWh + old capex rate $0.00832/kWh + base distribution rate increase $0.01043/kWh
+    budget_method: rate_case
+    total_budget: 205132457.70775 # $0.06455/kWh * test_year_residential_kwh
+delivery_top_ups:
+  # For charges that didn't change...
+  # --- From p. 7 of PRB-1-ELEC exhibit, lines 29-45, columns b-c ---
+  # https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p9/a2809949
+  # For charges that did...
+  # --- From p. 7 of PRB-1-ELEC exhibit, lines 29-45, column b ---
+  # https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p9/a2809949
+  transmission_charge:
+    charge_unit: $/kWh # $0.04711/kWh
+    budget_method: rate_case
+    total_budget: 132908498.0 # 123,177,085 + 9,731,413
+  transmission_uncollectible:
+    charge_unit: $/kWh # $0.00139/kWh = old transmission uncollectible rate $0.00062/kWh + transmission uncollectible rate increase $0.00000/kWh
+    budget_method: rate_case
+    total_budget: 441259.73995 # $0.00139/kWh * test_year_residential_kwh
+  long_term_contracting_charge:
+    charge_unit: $/kWh # $0.00662/kWh = old long-term contracting rate $0.00656/kWh + long-term contracting rate increase $0.00006/kWh
+    budget_method: rate_case
+    total_budget: 21037596.7471 # $0.00662/kWh * test_year_residential_kwh
+  net_metering_charge:
+    charge_unit: $/kWh # $0.01457/kWh
+    budget_method: rate_case
+    total_budget: 41105430.0 # 38,095,736 + 3,009,694
+  energy_efficiency_programs_charge:
+    charge_unit: $/kWh # $0.00892/kWh
+    budget_method: rate_case
+    total_budget: 25165439.0 # 23,322,853 + 1,842,586
+  system_reliability_plan_charge:
+    charge_unit: $/kWh # $0.00163/kWh
+    budget_method: rate_case
+    total_budget: 4598617.0 # 4,261,911 + 336,706
+  renewables_charge:
+    charge_unit: $/kWh # $0.00030/kWh
+    budget_method: rate_case
+    total_budget: 846371.0 # 784,401 + 61,970
+  ee_and_srp_uncollectible_charge:
+    charge_unit: $/kWh # $0.00024/kWh = old ee and srp uncollectible charge $0.00013/kWh + ee and srp uncollectible charge increase $0.00011/kWh
+    budget_method: rate_case
+    total_budget: 762692.3292 # $0.00024/kWh * test_year_residential_kwh
+  transition_restructuring:
+    charge_unit: $/kWh # $0.00001/kWh
+    budget_method: rate_case
+    total_budget: 28213.0 # 26,147 + 2,066
+  o_m_charge:
+    charge_unit: $/kWh # $0.00223 + $0.00004 reconciliation = $0.00227/kWh
+    budget_method: rate_case
+    total_budget: 6404209.0 # 5,935,300 + 468,909 (includes O&M reconciliation)
+  storm_fund_replenishment_factor:
+    charge_unit: $/kWh # $0.00788/kWh
+    budget_method: rate_case
+    total_budget: 22231351.0 # 20,603,596 + 1,627,755
+  pension_adjustment_factor:
+    charge_unit: $/kWh # ($0.00339)/kWh
+    budget_method: rate_case
+    total_budget: -9563995.0 # (8,863,730) + (700,265)
+  arrears_arrearage_recovery:
+    charge_unit: $/kWh # $0.00006/kWh
+    budget_method: rate_case
+    total_budget: 169274.0 # 156,880 + 12,394
+  low_income_discounts:
+    charge_unit: $/kWh # A-16: $0.00251/kWh, A-60: $0.00000/kWh
+    budget_method: rate_case
+    total_budget: 6562821.0 # 6,562,821 + 0
+  performance_incentive_factor:
+    charge_unit: $/kWh # $0.00000/kWh
+    budget_method: rate_case
+    total_budget: 0.0 # 0 + 0
+  re_growth_charge:
+    charge_unit: $/month # $3.22/month
+    customer_count: 451381
+    budget_method: rate_case
+    total_budget: 16203601.0 # 14,935,893 + 1,267,708
+  liheap_enhancement_charge:
+    charge_unit: $/month # $0.79/month
+    customer_count: 451381
+    budget_method: rate_case
+    total_budget: 3975417.0 # 3,664,396 + 311,021
+  capex_revenue:
+    charge_unit: $/kWh # 0.0/kwh, rolled into core_delivery_rate in the proposal
+    budget_method: rate_case
+    total_budget: 0.0
+  # --- From p. 1 of PRB-4-ELEC exhibit, line 9, column a ---
+  # https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p99/a2809974
+  revenue_decoupling_rdm:
+    charge_unit: $/kWh # ($0.00272)/kWh
+    budget_method: rate_case
+    total_budget: -7673765.97 # $0.00272 * test_year_residential_kwh
+supply_top_ups:
+  # For charges that didn't change...
+  # --- From p. 1 of PRB-4-ELEC exhibit, line 24-26, column a ---
+  # https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p99/a2809974
+  # For charges that did...
+  # --- From p. 7 of PRB-4-ELEC exhibit, lines 29-45, column b ---
+  # https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p99/a2809974
+  last_resort_adjustment_factor:
+    charge_unit: $/kWh # $(0.0035)/kWh
+    budget_method: rate_case
+    total_budget: 9874331.22 # $0.0035 * test_year_residential_kwh
+  lrs_administrative_cost_adjustment_factor:
+    charge_unit: $/kWh # $0.0045/kWh = old lrs administrative cost adjustment factor $0.00256/kWh + lrs administrative cost adjustment factor increase $0.00194/kWh
+    budget_method: rate_case
+    total_budget: 14300481.1725 # $0.0045/kWh * test_year_residential_kwh
+  renewable_standard_energy_charge:
+    charge_unit: $/kWh # $0.01461/kWh
+    budget_method: rate_case
+    total_budget: 41218279.73 # $0.01461 * test_year_residential_kwh
+  # Computed from resstock_monthly_kwh_scaled_customer_kwh (derived below) × supply_commodity_bundled_rates
+  supply_commodity_bundled:
+    charge_unit: $/kWh
+    budget_method: resstock
+    total_budget: 369418406.93
+# --- From p. 16 of PRB-2-ELEC exhibit, lines 8-9, column k ---
+# https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p49/a2810075
+test_year_residential_kwh: 3177884705.0
+resstock_total_residential_kwh: 3388382407.0 # sum(_sb.load_curves_monthly.out.electricity.total.energy_consumption) where utility = rie
+# --- From p. 16 of PRB-2-ELEC exhibit, lines 8-9, column d ---
+# https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p49/a2810075
+test_year_customer_count: 453207.5833333333 # 5,438,491 bills / 12 months = 453,207.5833333333 customers
+resstock_customer_count: 481896.13 # sum(_sb.utility_assignment.weight) where utility = rie
+restock_customer_scale_factor: 0.9404673645 # test_year_customer_count / resstock_customer_count (10 dp)
+resstock_total_residential_kwh_scaled_customer: 3186663072.23 # resstock_total_residential_kwh * restock_customer_scale_factor
+resstock_kwh_scale_factor: 0.9972452791427815 # test_year_residential_kwh / resstock_total_residential_kwh_scaled_customer (precision so × line above reproduces test_year_residential_kwh in float)
+resstock_total_residential_kwh_scaled_customer_kwh: 3177884705.0 # resstock_total_residential_kwh_scaled_customer * resstock_kwh_scale_factor (= test_year_residential_kwh)
+resstock_monthly_kwh_scaled_customer_kwh: # resstock_monthly_kwh (rie.yaml) / resstock_scale_factor × restock_customer_scale_factor × resstock_kwh_scale_factor; month 12 bumped so sum = test_year_residential_kwh
+  1: 350115152.08
+  2: 267995477.3
+  3: 289179899.38
+  4: 237898017.43
+  5: 220263405.49
+  6: 224243439.59
+  7: 293993713.2
+  8: 296390374.28
+  9: 227959339.82
+  10: 219199344.86
+  11: 253522670.02
+  12: 297123871.55
+# Originally from Genability API (via rie_monthly_rates_2025.yaml)
+supply_commodity_bundled_rates:
+  charge_unit: $/kWh
+  monthly_rates:
+    2025-01: 0.15187
+    2025-02: 0.15187
+    2025-03: 0.15187
+    2025-04: 0.08607
+    2025-05: 0.08607
+    2025-06: 0.08607
+    2025-07: 0.08607
+    2025-08: 0.08607
+    2025-09: 0.08607
+    2025-10: 0.13309
+    2025-11: 0.13309
+    2025-12: 0.13309

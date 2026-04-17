@@ -122,8 +122,21 @@ def identify_heating_type(metadata: pl.LazyFrame, upgrade_id: str) -> pl.LazyFra
             | (is_null_up & _col_contains_any(IN_HVAC_COLUMN, PROPANE_SUBSTRINGS))
         ).fill_null(False)
 
+    heating_type_v2 = (
+        pl.when(heating_type_is_hp)
+        .then(pl.lit("heat_pump"))
+        .when(heating_type_is_electric_resistance)
+        .then(pl.lit("electrical_resistance"))
+        .when(heats_with_natgas)
+        .then(pl.lit("natgas"))
+        .when(heats_with_oil | heats_with_propane)
+        .then(pl.lit("delivered_fuels"))
+        .otherwise(pl.lit("other"))
+    )
+
     return metadata.with_columns(
         heating_type.alias("postprocess_group.heating_type"),
+        heating_type_v2.alias("postprocess_group.heating_type_v2"),
         heats_with_electricity.alias("heats_with_electricity"),
         heats_with_natgas.alias("heats_with_natgas"),
         heats_with_oil.alias("heats_with_oil"),

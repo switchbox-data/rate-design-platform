@@ -149,11 +149,24 @@ def _extract_tou(r: dict) -> dict | None:
     }
 
 
+def _signed_rate(band: dict) -> float | None:
+    """Return the band's rateAmount with correct sign for credits.
+
+    Genability uses two conventions for credits: either a natively negative
+    ``rateAmount``, or a positive ``rateAmount`` with ``isCredit: true``.
+    This helper normalises the second form so callers always get a signed value.
+    """
+    amt = band.get("rateAmount")
+    if amt is not None and band.get("isCredit") and amt > 0:
+        return -amt
+    return amt
+
+
 def _extract_bands(r: dict) -> list[dict]:
     """Extract all rate bands from a Genability rate entry."""
     return [
         {
-            "rateAmount": b.get("rateAmount"),
+            "rateAmount": _signed_rate(b),
             "consumptionUpperLimit": b.get("consumptionUpperLimit"),
             "rateSequenceNumber": b.get("rateSequenceNumber"),
         }
@@ -199,7 +212,7 @@ def _fetch_tariff_rates(
             resolved_rider_ids.add(r["riderTariffId"])
         trid = r["tariffRateId"]
         bands = r.get("rateBands", [])
-        amt = bands[0].get("rateAmount") if bands else None
+        amt = _signed_rate(bands[0]) if bands else None
         if trid not in rate_map:
             rate_map[trid] = {
                 "rateName": r["rateName"],
@@ -292,7 +305,8 @@ def _discover_tariff_rates(
         if rider_tariff_id:
             resolved_rider_ids.add(rider_tariff_id)
 
-        first_amt = bands[0].get("rateAmount") if bands else None
+        first_amt = _signed_rate(bands[0]) if bands else None
+        any_credit = any(b.get("isCredit") for b in bands)
         source = "rider_resolved" if rider_tariff_id else "base_tariff"
 
         if trid not in discovered:
@@ -307,10 +321,11 @@ def _discover_tariff_rates(
                 "master_tariff_rate_id": r.get("masterTariffRateId"),
                 "charge_unit": _derive_charge_unit(charge_type, charge_period),
                 "sample_rate": first_amt,
+                "is_credit": any_credit,
                 "is_tiered": len(bands) > 1,
                 "rate_bands": [
                     {
-                        "rate_amount": b.get("rateAmount"),
+                        "rate_amount": _signed_rate(b),
                         "upper_limit": b.get("consumptionUpperLimit"),
                     }
                     for b in bands
@@ -352,7 +367,8 @@ def _discover_rider_rates(
         bands = r.get("rateBands", [])
         charge_type = r.get("chargeType")
         charge_period = r.get("chargePeriod")
-        first_amt = bands[0].get("rateAmount") if bands else None
+        first_amt = _signed_rate(bands[0]) if bands else None
+        any_credit = any(b.get("isCredit") for b in bands)
         entries[trid] = {
             "rate_name": r.get("rateName"),
             "charge_type": charge_type,
@@ -364,6 +380,7 @@ def _discover_rider_rates(
             "master_tariff_rate_id": r.get("masterTariffRateId"),
             "charge_unit": _derive_charge_unit(charge_type, charge_period),
             "sample_rate": first_amt,
+            "is_credit": any_credit,
             "is_tiered": len(bands) > 1,
             "source": "rider_fetched",
         }

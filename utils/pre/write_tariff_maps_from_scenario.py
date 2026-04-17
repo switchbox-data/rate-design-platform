@@ -56,6 +56,7 @@ def _process_run(
     run: dict[str, Any],
     config_dir: Path,
     path_config: Path,
+    scenario_subclass_config: dict[str, Any] | None = None,
 ) -> None:
     missing = [
         k
@@ -78,6 +79,11 @@ def _process_run(
             f"got {type(path_tariffs_electric).__name__}"
         )
 
+    # subclass_config: run-level overrides scenario-level
+    subclass_config: dict[str, Any] | None = run.get(
+        "subclass_config", scenario_subclass_config
+    )
+
     utility: str = run["utility"]
 
     def _resolve(val: str) -> str:
@@ -90,6 +96,21 @@ def _process_run(
     path_ua = _resolve(run["path_utility_assignment"])
     path_meta = _resolve(run["path_resstock_metadata"])
 
+    # Determine which postprocess_group column to select from metadata.
+    # For single-key {"all"} runs no subclass_config is needed; fall back to
+    # has_hp as a safe default so we don't break non-subclass runs.
+    tariff_keys = set(path_tariffs_electric.keys())
+    if tariff_keys == {"all"}:
+        meta_col = "postprocess_group.has_hp"
+    elif subclass_config is not None:
+        meta_col = f"postprocess_group.{subclass_config['group_col']}"
+    else:
+        raise ValueError(
+            f"Run {run_id}: subclass_config is required when path_tariffs_electric "
+            f"has more than one key (got keys {sorted(tariff_keys)}). "
+            "Add a subclass_config block to the run or at the scenario top level."
+        )
+
     # bldg_ids for this utility
     bldg_ids = (
         _scan(path_ua)
@@ -97,11 +118,11 @@ def _process_run(
         .select("bldg_id")
     )
 
-    # metadata filtered to utility buildings
+    # metadata filtered to utility buildings — only pull the columns we need
     bldg_data = cast(
         pl.DataFrame,
         _scan(path_meta)
-        .select("bldg_id", "postprocess_group.has_hp")
+        .select("bldg_id", meta_col)
         .join(bldg_ids, on="bldg_id")
         .collect(),
     )
@@ -111,7 +132,9 @@ def _process_run(
             f"Run {run_id}: no buildings found for utility '{utility}' in {path_ua}"
         )
 
-    result = generate_tariff_map_from_scenario_keys(path_tariffs_electric, bldg_data)
+    result = generate_tariff_map_from_scenario_keys(
+        path_tariffs_electric, bldg_data, subclass_config
+    )
 
     out_path = path_config / run["path_tariff_maps_electric"]
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -128,6 +151,9 @@ def main(scenario_config: Path) -> None:
     with scenario_config.open(encoding="utf-8") as fh:
         scenario = yaml.safe_load(fh)
 
+    # Top-level subclass_config applies to all runs unless overridden per-run.
+    scenario_subclass_config: dict[str, Any] | None = scenario.get("subclass_config")
+
     runs: dict[int | str, dict[str, Any]] = scenario.get("runs", {})
     if not runs:
         print(f"No runs found in {scenario_config}", file=sys.stderr)
@@ -137,7 +163,7 @@ def main(scenario_config: Path) -> None:
     errors: list[tuple[int | str, Exception]] = []
     for run_id, run in runs.items():
         try:
-            _process_run(run_id, run, config_dir, path_config)
+            _process_run(run_id, run, config_dir, path_config, scenario_subclass_config)
         except Exception as exc:  # noqa: BLE001
             print(f"  run {run_id}: ERROR — {exc}", file=sys.stderr)
             errors.append((run_id, exc))

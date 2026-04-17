@@ -111,12 +111,13 @@ latest_output := path_repo / "utils/mid/latest_run_output.sh"
 # Omit batch-name to auto-detect the latest complete batch for the selected runs.
 
 # Pass batch-name (e.g. ny_20260305a_r1-2) to pin a specific batch.
-validate-runs batch_name="" runs="" path_output_dir="" path_resstock=path_resstock_release:
+validate-runs batch_name="" runs="" path_output_dir="" comparison_profile="" path_resstock=path_resstock_release:
     cd "{{ path_repo }}" && uv run python -m utils.post.validate \
         --state "{{ state }}" --utility "{{ utility }}" \
         {{ if batch_name != "" { "--batch-name \"" + batch_name + "\"" } else { "" } }} \
         {{ if runs != "" { "--runs \"" + runs + "\"" } else { "" } }} \
         {{ if path_output_dir != "" { "--output-dir \"" + path_output_dir + "\"" } else { "" } }} \
+        {{ if comparison_profile != "" { "--comparison-profile \"" + comparison_profile + "\"" } else { "" } }} \
         --skip-loads
 
 validate-config mode="warn":
@@ -218,7 +219,7 @@ create-flat-tariffs:
 
 # labels so run 5/6 precalc have a dedicated non-HP flat input to calibrate.
 copy-default-flat-to-nonhp-flat:
-    uv run python {{ path_repo }}/utils/pre/copy_flat_to_nonhp_flat.py \
+    uv run python {{ path_repo }}/utils/pre/copy_tariff_variants.py \
       --output-dir "{{ path_tariffs_electric }}" \
       --utility "{{ utility }}"
 
@@ -226,7 +227,7 @@ copy-default-flat-to-nonhp-flat:
 
 # Used in all-pre so differentiated runs 5/6 have inputs for every utility.
 copy-default-flat-to-nonhp-flat-all:
-    uv run python {{ path_repo }}/utils/pre/copy_flat_to_nonhp_flat.py \
+    uv run python {{ path_repo }}/utils/pre/copy_tariff_variants.py \
       --output-dir "{{ path_tariffs_electric }}" \
       --all
 
@@ -241,9 +242,17 @@ create-default-structure-tariffs:
 
 # Create nonhp_default / nonhp_default_supply for every utility that has default-structure tariffs.
 copy-default-structure-to-nonhp-all:
-    uv run python {{ path_repo }}/utils/pre/copy_flat_to_nonhp_flat.py \
+    uv run python {{ path_repo }}/utils/pre/copy_tariff_variants.py \
       --output-dir "{{ path_tariffs_electric }}" \
-      --all --pattern default
+      --all --source-pattern default
+
+# Create non_electric_heating / non_electric_heating_supply aliases from the
+
+# default-structure tariffs for heating_type_v2 subclass runs.
+copy-default-structure-to-non-electric-heating-all:
+    uv run python {{ path_repo }}/utils/pre/copy_tariff_variants.py \
+      --output-dir "{{ path_tariffs_electric }}" \
+      --all --source-pattern default --dest-pattern non_electric_heating
 
 # Derive seasonal TOU tariffs from MC rates (no dependency on calibrated flat run outputs).
 # Uses a pre-calibrated tariff only to extract the fixed charge.
@@ -265,7 +274,7 @@ create-seasonal-tou-tariffs base_pattern="flat":
         t = json.load(open('${base_path}')); \
         t['items'][0]['label'] = '${supply_label}'; \
         t['items'][0].get('name') and t['items'][0].update({'name': '${supply_label}'}); \
-        json.dump(t, open('${supply_path}', 'w'), indent=2); \
+        f = open('${supply_path}', 'w'); json.dump(t, f, indent=2); f.write('\n'); f.close(); \
         print('Created ${supply_path}')"
     echo ">> create-seasonal-tou-tariffs: wrote {{ tou_tariff_key }}.json and {{ tou_tariff_key }}_supply.json" >&2
 
@@ -318,6 +327,9 @@ sweep-tou-window-all run_dir="" output_dir="" no_write_yaml="":
     done
 
 # Tariff maps
+create-electric-tariff-maps:
+    just -f {{ path_repo }}/utils/Justfile write-tariff-maps "{{ path_scenario_config }}"
+
 create-electric-tariff-maps-all:
     just -f {{ path_repo }}/utils/Justfile write-tariff-maps-all "{{ path_scenarios }}"
 
@@ -363,7 +375,7 @@ create-dist-and-sub-tx-mc-data-all:
 # MID-CONFIG: generate between runs (using outputs from earlier runs)
 # =============================================================================
 
-compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" cross_subsidy_col="BAT_percustomer" differentiated_yaml=path_differentiated_rev_requirement default_yaml=path_default_rev_requirement group_value_to_subclass="true=hp,false=non-hp" base_rr_yaml=path_default_rev_requirement run_dir_supply="" resstock_base="" upgrade="00":
+compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" differentiated_yaml=path_differentiated_rev_requirement default_yaml=path_default_rev_requirement group_value_to_subclass="true=hp,false=non-hp" base_rr_yaml=path_default_rev_requirement run_dir_supply="" resstock_base="" upgrade="00":
     just -f {{ path_repo }}/utils/Justfile compute-subclass-rr \
       "{{ run_dir }}" \
       "{{ scenario_config }}" \
@@ -371,14 +383,13 @@ compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" cross
       "{{ default_yaml }}" \
       "{{ run_num }}" \
       "{{ group_col }}" \
-      "{{ cross_subsidy_col }}" \
       "{{ group_value_to_subclass }}" \
       "{{ base_rr_yaml }}" \
       "{{ run_dir_supply }}" \
       "{{ resstock_base }}" \
       "{{ upgrade }}"
 
-compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="":
+compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="" group_col="has_hp" subclass_value="true" group_value_to_subclass="":
     just -f {{ path_repo }}/utils/Justfile compute-seasonal-discount-inputs \
       "{{ run_dir }}" \
       "{{ resstock_base }}" \
@@ -386,7 +397,10 @@ compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsi
       "{{ upgrade }}" \
       "{{ cross_subsidy_col }}" \
       "{{ output_dir }}" \
-      "{{ base_tariff_json }}"
+      "{{ base_tariff_json }}" \
+      "{{ group_col }}" \
+      "{{ subclass_value }}" \
+      "{{ group_value_to_subclass }}"
 
 create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label output_path periods_yaml=path_periods_yaml:
     just -f {{ path_repo }}/utils/Justfile create-seasonal-discount-tariff \
@@ -396,7 +410,7 @@ create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label outpu
       "{{ output_path }}" \
       "{{ periods_yaml }}"
 
-compute-flat-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="":
+compute-flat-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="" group_col="has_hp" subclass_value="true" group_value_to_subclass="":
     just -f {{ path_repo }}/utils/Justfile compute-flat-discount-inputs \
       "{{ run_dir }}" \
       "{{ resstock_base }}" \
@@ -404,7 +418,10 @@ compute-flat-discount-inputs run_dir resstock_base state upgrade cross_subsidy_c
       "{{ upgrade }}" \
       "{{ cross_subsidy_col }}" \
       "{{ output_dir }}" \
-      "{{ base_tariff_json }}"
+      "{{ base_tariff_json }}" \
+      "{{ group_col }}" \
+      "{{ subclass_value }}" \
+      "{{ group_value_to_subclass }}"
 
 create-flat-discount-tariff base_tariff_json flat_inputs_csv label output_path:
     just -f {{ path_repo }}/utils/Justfile create-flat-discount-tariff \
@@ -419,19 +436,25 @@ copy-calibrated-tariff-from-run run_dir output_dir="":
       "{{ state }}" \
       "{{ output_dir }}"
 
-compute-rev-requirements:
+compute-subclass-rev-requirements:
     #!/usr/bin/env bash
     set -euo pipefail
     run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
     run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
-    echo ">> compute-rev-requirements: run-1 (delivery) → ${run1_dir}" >&2
-    echo ">> compute-rev-requirements: run-2 (delivery+supply) → ${run2_dir}" >&2
+    read -r base_rr differentiated_rr < <(uv run python3 "{{ path_repo }}/utils/mid/resolve_rr_paths.py" "{{ path_scenario_config }}")
+    read -r group_col group_value_to_subclass < <(uv run python3 "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}")
+    echo ">> compute-subclass-rev-requirements: run-1 (delivery) → ${run1_dir}" >&2
+    echo ">> compute-subclass-rev-requirements: run-2 (delivery+supply) → ${run2_dir}" >&2
+    echo ">> base_rr: ${base_rr}" >&2
+    echo ">> differentiated_rr: ${differentiated_rr}" >&2
+    echo ">> group_col: ${group_col}" >&2
+    echo ">> group_value_to_subclass: ${group_value_to_subclass}" >&2
     just compute-subclass-rr "${run1_dir}" "{{ path_scenario_config }}" \
-      "1" "has_hp" "BAT_percustomer" \
-      "{{ path_differentiated_rev_requirement }}" \
-      "{{ path_default_rev_requirement }}" \
-      "true=hp,false=non-hp" \
-      "{{ path_default_rev_requirement }}" \
+      "1" "${group_col}" \
+      "${differentiated_rr}" \
+      "${base_rr}" \
+      "${group_value_to_subclass}" \
+      "${base_rr}" \
       "${run2_dir}"
 
 # =============================================================================
@@ -498,10 +521,11 @@ run-5:
     just compute-seasonal-discount-inputs "${run1_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
         "BAT_percustomer" "" \
-        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json"
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "has_hp" "true"
     just create-seasonal-discount-tariff \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
-        "${run1_dir}/seasonal_discount_rate_inputs.csv" \
+        "${run1_dir}/seasonal_discount_rate_inputs_has_hp_true.csv" \
         {{ utility }}_hp_seasonal \
         "{{ path_tariffs_electric }}/{{ utility }}_hp_seasonal.json"
     just run-scenario 5
@@ -514,10 +538,11 @@ run-6:
     just compute-seasonal-discount-inputs "${run2_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
         "BAT_percustomer" "" \
-        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json"
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "has_hp" "true"
     just create-seasonal-discount-tariff \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
-        "${run2_dir}/seasonal_discount_rate_inputs.csv" \
+        "${run2_dir}/seasonal_discount_rate_inputs_has_hp_true.csv" \
         {{ utility }}_hp_seasonal_supply \
         "{{ path_tariffs_electric }}/{{ utility }}_hp_seasonal_supply.json"
     just run-scenario 6
@@ -613,11 +638,12 @@ run-17:
     echo ">> run-17: resolved run-1 output → ${run1_dir}" >&2
     just compute-flat-discount-inputs "${run1_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
-        "BAT_percustomer" "" \
-        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json"
+        "BAT_epmc" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "has_hp" "true"
     just create-flat-discount-tariff \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
-        "${run1_dir}/flat_discount_rate_inputs.csv" \
+        "${run1_dir}/flat_discount_rate_inputs_has_hp_true.csv" \
         {{ utility }}_hp_flat \
         "{{ path_tariffs_electric }}/{{ utility }}_hp_flat.json"
     just run-scenario 17
@@ -629,11 +655,12 @@ run-18:
     echo ">> run-18: resolved run-2 output → ${run2_dir}" >&2
     just compute-flat-discount-inputs "${run2_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
-        "BAT_percustomer" "" \
-        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json"
+        "BAT_epmc" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "has_hp" "true"
     just create-flat-discount-tariff \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
-        "${run2_dir}/flat_discount_rate_inputs.csv" \
+        "${run2_dir}/flat_discount_rate_inputs_has_hp_true.csv" \
         {{ utility }}_hp_flat_supply \
         "{{ path_tariffs_electric }}/{{ utility }}_hp_flat_supply.json"
     just run-scenario 18
@@ -654,6 +681,197 @@ run-20:
     just copy-calibrated-tariff-from-run "${run18_dir}"
     just run-scenario 20
 
+# Electric-heating / non-electric-heating subclass RR (runs 29–30).
+
+# Uses run 1+2 BAT with BAT_percustomer (matches residual_allocation_delivery: percustomer for those runs).
+compute-electric-heating-subclass-rev-requirements:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
+    run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
+    read -r base_rr differentiated_rr < <(uv run python3 "{{ path_repo }}/utils/mid/resolve_rr_paths.py" "{{ path_scenario_config }}" --subclass-run-num 29)
+    read -r group_col group_value_to_subclass < <(uv run python3 "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}" --run-num 29)
+    echo ">> compute-electric-heating-subclass-rev-requirements: run-1 (delivery) → ${run1_dir}" >&2
+    echo ">> compute-electric-heating-subclass-rev-requirements: run-2 (delivery+supply) → ${run2_dir}" >&2
+    echo ">> base_rr: ${base_rr}" >&2
+    echo ">> differentiated_rr: ${differentiated_rr}" >&2
+    echo ">> group_col: ${group_col}" >&2
+    echo ">> group_value_to_subclass: ${group_value_to_subclass}" >&2
+    just compute-subclass-rr "${run1_dir}" "{{ path_scenario_config }}" \
+      "1" "${group_col}" \
+      "${differentiated_rr}" \
+      "${base_rr}" \
+      "${group_value_to_subclass}" \
+      "${base_rr}" \
+      "${run2_dir}"
+
+# HP seasonal per-customer supply-passthrough (runs 21–22): same bill-derived seasonal shape as runs 5–8.
+
+run-21:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
+    echo ">> run-21: resolved run-1 output → ${run1_dir}" >&2
+    just compute-seasonal-discount-inputs "${run1_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_percustomer" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "has_hp" "true"
+    just create-seasonal-discount-tariff \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "${run1_dir}/seasonal_discount_rate_inputs_has_hp_true.csv" \
+        {{ utility }}_hp_seasonal_percustomer \
+        "{{ path_tariffs_electric }}/{{ utility }}_hp_seasonal_percustomer.json"
+    just run-scenario 21
+
+run-22:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
+    echo ">> run-22: resolved run-2 output → ${run2_dir}" >&2
+    just compute-seasonal-discount-inputs "${run2_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_percustomer" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "has_hp" "true"
+    just create-seasonal-discount-tariff \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "${run2_dir}/seasonal_discount_rate_inputs_has_hp_true.csv" \
+        {{ utility }}_hp_seasonal_percustomer_supply \
+        "{{ path_tariffs_electric }}/{{ utility }}_hp_seasonal_percustomer_supply.json"
+    just run-scenario 22
+
+run-23:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run21_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 21)
+    echo ">> run-23: resolved run-21 output → ${run21_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run21_dir}"
+    just run-scenario 23
+
+run-24:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run22_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 22)
+    echo ">> run-24: resolved run-22 output → ${run22_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run22_dir}"
+    just run-scenario 24
+
+# Electric-only electric-heating (runs 29–32): uses electric_heating subclass from heating_type_v2.
+
+# Flat discount computed for heating_type_v2=electric_heating using BAT_percustomer.
+run-29:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
+    read -r group_col group_value_to_subclass < <(uv run python "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}" --run-num 29)
+    echo ">> run-29: resolved run-1 output → ${run1_dir}" >&2
+    just compute-flat-discount-inputs "${run1_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_percustomer" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "${group_col}" "electric_heating" "${group_value_to_subclass}"
+    just create-flat-discount-tariff \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "${run1_dir}/flat_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
+        {{ utility }}_elec_heat_flat \
+        "{{ path_tariffs_electric }}/{{ utility }}_elec_heat_flat.json"
+    just create-electric-tariff-maps
+    just run-scenario 29
+
+run-30:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
+    read -r group_col group_value_to_subclass < <(uv run python "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}" --run-num 30)
+    echo ">> run-30: resolved run-2 output → ${run2_dir}" >&2
+    just compute-flat-discount-inputs "${run2_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_percustomer" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "${group_col}" "electric_heating" "${group_value_to_subclass}"
+    just create-flat-discount-tariff \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "${run2_dir}/flat_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
+        {{ utility }}_elec_heat_flat_supply \
+        "{{ path_tariffs_electric }}/{{ utility }}_elec_heat_flat_supply.json"
+    just create-electric-tariff-maps
+    just run-scenario 30
+
+run-31:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run29_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 29)
+    echo ">> run-31: resolved run-29 output → ${run29_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run29_dir}"
+    just create-electric-tariff-maps
+    just run-scenario 31
+
+run-32:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run30_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 30)
+    echo ">> run-32: resolved run-30 output → ${run30_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run30_dir}"
+    just create-electric-tariff-maps
+    just run-scenario 32
+
+run-33:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
+    read -r group_col group_value_to_subclass < <(uv run python "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}" --run-num 33)
+    echo ">> run-33: resolved run-1 output → ${run1_dir}" >&2
+    just compute-seasonal-discount-inputs "${run1_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_percustomer" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "${group_col}" "electric_heating" "${group_value_to_subclass}"
+    just create-seasonal-discount-tariff \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+        "${run1_dir}/seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
+        {{ utility }}_elec_heat_seasonal_percustomer \
+        "{{ path_tariffs_electric }}/{{ utility }}_elec_heat_seasonal_percustomer.json"
+    just create-electric-tariff-maps
+    just run-scenario 33
+
+run-34:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run2_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 2)
+    read -r group_col group_value_to_subclass < <(uv run python "{{ path_repo }}/utils/mid/resolve_subclass_config.py" "{{ path_scenario_config }}" --run-num 34)
+    echo ">> run-34: resolved run-2 output → ${run2_dir}" >&2
+    just compute-seasonal-discount-inputs "${run2_dir}" \
+        "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
+        "BAT_percustomer" "" \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "${group_col}" "electric_heating" "${group_value_to_subclass}"
+    just create-seasonal-discount-tariff \
+        "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+        "${run2_dir}/seasonal_discount_rate_inputs_heating_type_v2_electric_heating.csv" \
+        {{ utility }}_elec_heat_seasonal_percustomer_supply \
+        "{{ path_tariffs_electric }}/{{ utility }}_elec_heat_seasonal_percustomer_supply.json"
+    just create-electric-tariff-maps
+    just run-scenario 34
+
+run-35:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run33_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 33)
+    echo ">> run-35: resolved run-33 output → ${run33_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run33_dir}"
+    just create-electric-tariff-maps
+    just run-scenario 35
+
+run-36:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run34_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 34)
+    echo ">> run-36: resolved run-34 output → ${run34_dir}" >&2
+    just copy-calibrated-tariff-from-run "${run34_dir}"
+    just create-electric-tariff-maps
+    just run-scenario 36
+
 # =============================================================================
 # ORCHESTRATION
 # =============================================================================
@@ -668,6 +886,23 @@ all-pre:
     just create-default-structure-tariffs
     just copy-default-flat-to-nonhp-flat-all
     just copy-default-structure-to-nonhp-all
+    just copy-default-structure-to-non-electric-heating-all
+    just create-seasonal-tou-tariffs {{ base_tariff_pattern }}
+    just validate-config
+
+# Like all-pre but skips create-default-structure-tariffs, for utilities
+
+# whose default tariffs are hand-edited from rate case filings.
+all-pre-rate-case:
+    just create-scenario-yamls
+    just create-electric-tariff-maps-all
+    just create-gas-tariff-maps-all
+    just ensure-gas-tariff-envelope
+    just compute-rr
+    just create-flat-tariffs
+    just copy-default-flat-to-nonhp-flat-all
+    just copy-default-structure-to-nonhp-all
+    just copy-default-structure-to-non-electric-heating-all
     just create-seasonal-tou-tariffs {{ base_tariff_pattern }}
     just validate-config
 
@@ -694,7 +929,7 @@ run-all-sequential:
     echo ">> run-all-sequential [${RDP_BATCH}]" >&2
     just run-1
     just run-2
-    just compute-rev-requirements
+    just compute-subclass-rev-requirements
     just run-3
     just run-4
     just run-5
@@ -713,6 +948,21 @@ run-all-sequential:
     just run-18
     just run-19
     just run-20
+    if uv run python3 "{{ path_repo }}/utils/mid/scenario_has_run_num.py" "{{ path_scenario_config }}" 29; then
+        just compute-electric-heating-subclass-rev-requirements
+        just run-21
+        just run-22
+        just run-23
+        just run-24
+        just run-29
+        just run-30
+        just run-31
+        just run-32
+        just run-33
+        just run-34
+        just run-35
+        just run-36
+    fi
 
 run-all-parallel-tracks:
     #!/usr/bin/env bash
@@ -729,7 +979,7 @@ run-all-parallel-tracks:
     wait $PID1 || { echo "ERROR: run-1 failed" >&2; exit 1; }
     wait $PID2 || { echo "ERROR: run-2 failed" >&2; exit 1; }
 
-    just compute-rev-requirements
+    just compute-subclass-rev-requirements
 
     just run-3 & PID3=$!
     just run-4 & PID4=$!
@@ -766,17 +1016,50 @@ run-all-parallel-tracks:
     wait $PID15 || { echo "ERROR: run-15 failed" >&2; exit 1; }
     wait $PID16 || { echo "ERROR: run-16 failed" >&2; exit 1; }
 
-    # just run-17 & PID17=$!
-    # just run-18 & PID18=$!
-    # wait $PID17 || { echo "ERROR: run-17 failed" >&2; exit 1; }
-    # wait $PID18 || { echo "ERROR: run-18 failed" >&2; exit 1; }
+    just run-17 & PID17=$!
+    just run-18 & PID18=$!
+    wait $PID17 || { echo "ERROR: run-17 failed" >&2; exit 1; }
+    wait $PID18 || { echo "ERROR: run-18 failed" >&2; exit 1; }
 
-    # just run-19 & PID19=$!
-    # just run-20 & PID20=$!
-    # wait $PID19 || { echo "ERROR: run-19 failed" >&2; exit 1; }
-    # wait $PID20 || { echo "ERROR: run-20 failed" >&2; exit 1; }
+    just run-19 & PID19=$!
+    just run-20 & PID20=$!
+    wait $PID19 || { echo "ERROR: run-19 failed" >&2; exit 1; }
+    wait $PID20 || { echo "ERROR: run-20 failed" >&2; exit 1; }
 
-    echo ">> run-all-parallel-tracks: all 20 runs complete" >&2
+    if uv run python3 "{{ path_repo }}/utils/mid/scenario_has_run_num.py" "{{ path_scenario_config }}" 29; then
+        just compute-electric-heating-subclass-rev-requirements
+        # 21+22 (hp_seasonal_epmc precalc), 29+30 (elec_heat flat precalc), and 33+34
+        # (elec_heat seasonal precalc) are independent; 29-36 use percustomer allocation
+        just run-21 & PID21=$!
+        just run-22 & PID22=$!
+        just run-29 & PID29=$!
+        just run-30 & PID30=$!
+        just run-33 & PID33=$!
+        just run-34 & PID34=$!
+        wait $PID21 || { echo "ERROR: run-21 failed" >&2; exit 1; }
+        wait $PID22 || { echo "ERROR: run-22 failed" >&2; exit 1; }
+        wait $PID29 || { echo "ERROR: run-29 failed" >&2; exit 1; }
+        wait $PID30 || { echo "ERROR: run-30 failed" >&2; exit 1; }
+        wait $PID33 || { echo "ERROR: run-33 failed" >&2; exit 1; }
+        wait $PID34 || { echo "ERROR: run-34 failed" >&2; exit 1; }
+        # 23+24 depend on 21+22 calibrated tariff; 31+32 depend on 29+30 calibrated
+        # tariff; 35+36 depend on 33+34 calibrated tariff
+        just run-23 & PID23=$!
+        just run-24 & PID24=$!
+        just run-31 & PID31=$!
+        just run-32 & PID32=$!
+        just run-35 & PID35=$!
+        just run-36 & PID36=$!
+        wait $PID23 || { echo "ERROR: run-23 failed" >&2; exit 1; }
+        wait $PID24 || { echo "ERROR: run-24 failed" >&2; exit 1; }
+        wait $PID31 || { echo "ERROR: run-31 failed" >&2; exit 1; }
+        wait $PID32 || { echo "ERROR: run-32 failed" >&2; exit 1; }
+        wait $PID35 || { echo "ERROR: run-35 failed" >&2; exit 1; }
+        wait $PID36 || { echo "ERROR: run-36 failed" >&2; exit 1; }
+        echo ">> run-all-parallel-tracks: all 36 runs complete" >&2
+    else
+        echo ">> run-all-parallel-tracks: all 20 runs complete" >&2
+    fi
 
 run-subset runs:
     #!/usr/bin/env bash

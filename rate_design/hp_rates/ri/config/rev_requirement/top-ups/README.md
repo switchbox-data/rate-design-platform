@@ -41,7 +41,7 @@ belongs in the delivery revenue requirement, the supply revenue requirement, or 
 be excluded from the BAT analysis.
 
 This classification was done through extensive manual research documented in
-`context/code/data/ri_residential_charges_in_bat.md`. The result is
+`context/methods/bat_mc_residual/ri_residential_charges_in_bat.md`. The result is
 `rie_charge_decisions.json` in `charge_decisions/`, where every `tariffRateId` is
 mapped to a `decision`:
 

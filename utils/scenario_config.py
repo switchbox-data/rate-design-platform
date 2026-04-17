@@ -160,11 +160,19 @@ class RevenueRequirementConfig:
     rr_total: scalar for MC decomposition (delivery or delivery+supply).
     subclass_rr: per-tariff-key RR dict, or None for non-subclass runs.
     run_includes_subclasses: whether the run uses per-subclass RRs.
+    residual_allocation_delivery: delivery allocation method (e.g. "percustomer",
+        "epmc"), or None for non-subclass runs.
+    residual_allocation_supply: supply allocation method (e.g. "passthrough",
+        "percustomer"), or None for non-subclass runs.
     """
 
     rr_total: float
     subclass_rr: dict[str, float] | None
     run_includes_subclasses: bool
+    residual_allocation_delivery: str | None
+    residual_allocation_supply: str | None
+    customer_count_override: float | None = None
+    kwh_scale_factor: float | None = None
 
 
 def _parse_subclass_revenue_requirement(
@@ -173,16 +181,44 @@ def _parse_subclass_revenue_requirement(
     base_dir: Path,
     *,
     add_supply: bool,
+    residual_allocation_delivery: str,
+    residual_allocation_supply: str,
 ) -> dict[str, float]:
     """Map subclass revenue requirements to tariff keys.
 
-    YAML subclass keys are aliases ('hp'/'non-hp') matching the keys in
-    path_tariffs_electric. Each alias resolves to a tariff key (file stem).
-    Picks 'delivery' or 'total' per subclass based on *add_supply*.
+    Expects YAML structure with separate delivery and supply blocks::
+
+        subclass_revenue_requirements:
+          delivery:
+            percustomer: {hp: ..., non-hp: ...}
+            epmc: {hp: ..., non-hp: ...}
+          supply:
+            passthrough: {hp: ..., non-hp: ...}
+            percustomer: {hp: ..., non-hp: ...}
+
+    *residual_allocation_delivery* selects the delivery method.
+    *residual_allocation_supply* selects the supply method.
+    Subclass alias keys match keys in *raw_path_tariffs_electric*.
+    For delivery-only runs (add_supply=False), only delivery is used.
+    For delivery+supply runs, total = delivery + supply per subclass.
     """
-    subclass_rr = rr_data.get("subclass_revenue_requirements")
-    if not isinstance(subclass_rr, dict) or not subclass_rr:
+    raw_subclass = rr_data.get("subclass_revenue_requirements")
+    if not isinstance(raw_subclass, dict) or not raw_subclass:
         raise ValueError("subclass_revenue_requirements must be a non-empty mapping")
+
+    delivery_block = raw_subclass.get("delivery")
+    if not isinstance(delivery_block, dict) or not delivery_block:
+        raise ValueError("subclass_revenue_requirements must have a 'delivery' block")
+
+    if residual_allocation_delivery not in delivery_block:
+        available = sorted(delivery_block.keys())
+        raise ValueError(
+            f"residual_allocation_delivery={residual_allocation_delivery!r} "
+            f"not found in subclass_revenue_requirements.delivery. "
+            f"Available: {available}"
+        )
+
+    delivery_rr = delivery_block[residual_allocation_delivery]
 
     alias_to_tariff_key = {
         alias: _resolve_path(str(path_str), base_dir).stem
@@ -190,28 +226,49 @@ def _parse_subclass_revenue_requirement(
     }
 
     result: dict[str, float] = {}
-    for alias, amount in subclass_rr.items():
-        alias_str = str(alias)
+    for alias_str, amount in delivery_rr.items():
         tariff_key = alias_to_tariff_key.get(alias_str)
         if tariff_key is None:
             raise ValueError(
                 f"Subclass alias {alias_str!r} in YAML not found in "
                 f"path_tariffs_electric (available: {sorted(alias_to_tariff_key)})"
             )
-        if isinstance(amount, dict):
-            rr_field = "total" if add_supply else "delivery"
-            if rr_field not in amount:
-                raise ValueError(
-                    f"subclass_revenue_requirements[{alias_str}] missing "
-                    f"required field {rr_field!r}"
-                )
-            result[tariff_key] = _parse_float(
-                amount[rr_field],
-                f"subclass_revenue_requirements[{alias_str}].{rr_field}",
+        result[tariff_key] = _parse_float(
+            amount,
+            f"subclass_revenue_requirements.delivery"
+            f".{residual_allocation_delivery}.{alias_str}",
+        )
+
+    if add_supply:
+        supply_block = raw_subclass.get("supply")
+        if not isinstance(supply_block, dict) or not supply_block:
+            raise ValueError(
+                "subclass_revenue_requirements must have a 'supply' block "
+                "when add_supply=True"
             )
-        else:
-            result[tariff_key] = _parse_float(
-                amount, f"subclass_revenue_requirements[{alias_str}]"
+        if residual_allocation_supply not in supply_block:
+            available = sorted(supply_block.keys())
+            raise ValueError(
+                f"residual_allocation_supply={residual_allocation_supply!r} "
+                f"not found in subclass_revenue_requirements.supply. "
+                f"Available: {available}"
+            )
+        supply_rr = supply_block[residual_allocation_supply]
+        for alias_str, amount in supply_rr.items():
+            tariff_key = alias_to_tariff_key.get(alias_str)
+            if tariff_key is None:
+                raise ValueError(
+                    f"Subclass alias {alias_str!r} in supply YAML not found in "
+                    f"path_tariffs_electric (available: {sorted(alias_to_tariff_key)})"
+                )
+            if tariff_key not in result:
+                raise ValueError(
+                    f"Subclass {alias_str!r} in supply but not in delivery"
+                )
+            result[tariff_key] += _parse_float(
+                amount,
+                f"subclass_revenue_requirements.supply"
+                f".{residual_allocation_supply}.{alias_str}",
             )
 
     return result
@@ -224,6 +281,8 @@ def _parse_utility_revenue_requirement(
     *,
     add_supply: bool,
     run_includes_subclasses: bool = False,
+    residual_allocation_delivery: str | None = None,
+    residual_allocation_supply: str | None = None,
 ) -> RevenueRequirementConfig:
     """Parse utility_revenue_requirement from a YAML path.
 
@@ -231,6 +290,10 @@ def _parse_utility_revenue_requirement(
       - rr_total: scalar from total_delivery[_and_supply]_revenue_requirement
       - subclass_rr: per-tariff-key RR dict (or None)
       - run_includes_subclasses: whether this run uses subclass RRs
+      - residual_allocation_delivery / _supply: which methods were used
+
+    When *run_includes_subclasses* is True, both *residual_allocation_delivery*
+    and *residual_allocation_supply* are required.
     """
     if not isinstance(value, str):
         raise ValueError(
@@ -262,8 +325,6 @@ def _parse_utility_revenue_requirement(
     )
 
     if rr_key not in rr_data:
-        # Fallback: legacy YAMLs (e.g. *_large_number.yaml) use a bare
-        # 'revenue_requirement' key with the same value for both modes.
         if "revenue_requirement" in rr_data:
             rr_total = _parse_float(
                 rr_data["revenue_requirement"], "revenue_requirement"
@@ -277,19 +338,48 @@ def _parse_utility_revenue_requirement(
 
     subclass_rr: dict[str, float] | None = None
     if run_includes_subclasses:
+        if residual_allocation_delivery is None:
+            raise ValueError(
+                "run_includes_subclasses is true but residual_allocation_delivery "
+                "is not set. Add 'residual_allocation_delivery: percustomer' "
+                "(or 'epmc') to the scenario YAML."
+            )
+        if residual_allocation_supply is None:
+            raise ValueError(
+                "run_includes_subclasses is true but residual_allocation_supply "
+                "is not set. Add 'residual_allocation_supply: passthrough' "
+                "(or 'percustomer') to the scenario YAML."
+            )
         if "subclass_revenue_requirements" not in rr_data:
             raise ValueError(
                 f"run_includes_subclasses is true but {path} has no "
                 "'subclass_revenue_requirements'."
             )
         subclass_rr = _parse_subclass_revenue_requirement(
-            rr_data, raw_path_tariffs_electric, base_dir, add_supply=add_supply
+            rr_data,
+            raw_path_tariffs_electric,
+            base_dir,
+            add_supply=add_supply,
+            residual_allocation_delivery=residual_allocation_delivery,
+            residual_allocation_supply=residual_allocation_supply,
         )
+
+    customer_count_override: float | None = None
+    if "test_year_customer_count" in rr_data:
+        customer_count_override = float(rr_data["test_year_customer_count"])
+
+    kwh_scale_factor: float | None = None
+    if "resstock_kwh_scale_factor" in rr_data:
+        kwh_scale_factor = float(rr_data["resstock_kwh_scale_factor"])
 
     return RevenueRequirementConfig(
         rr_total=rr_total,
         subclass_rr=subclass_rr,
         run_includes_subclasses=run_includes_subclasses,
+        residual_allocation_delivery=residual_allocation_delivery,
+        residual_allocation_supply=residual_allocation_supply,
+        customer_count_override=customer_count_override,
+        kwh_scale_factor=kwh_scale_factor,
     )
 
 
@@ -418,3 +508,29 @@ def _parse_bool(value: object, field_name: str) -> bool:
     raise ValueError(
         f"Invalid boolean for {field_name}: {value!r}. Use unquoted YAML true/false."
     )
+
+
+def resolve_subclass_rr_for_validation(
+    subclass_rr_data: dict[str, Any],
+    cost_scope: str,
+    residual_allocation_delivery: str = "percustomer",
+    residual_allocation_supply: str = "passthrough",
+) -> dict[str, dict[str, float]]:
+    """Resolve the new delivery/supply YAML format into the old-style dict.
+
+    Returns ``{alias: {"delivery": float, "supply": float, "total": float}}``
+    for use by validation checks that expect the old format.
+    """
+    raw = subclass_rr_data.get("subclass_revenue_requirements", subclass_rr_data)
+    delivery_block = raw.get("delivery", {})
+    supply_block = raw.get("supply", {})
+
+    del_rr = delivery_block.get(residual_allocation_delivery, {})
+    sup_rr = supply_block.get(residual_allocation_supply, {})
+
+    result: dict[str, dict[str, float]] = {}
+    for alias in del_rr:
+        d = float(del_rr[alias])
+        s = float(sup_rr.get(alias, 0.0))
+        result[alias] = {"delivery": d, "supply": s, "total": d + s}
+    return result

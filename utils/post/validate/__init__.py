@@ -10,6 +10,7 @@ See issue #324 for implementation plan.
 from utils.post.validate.checks import (
     CheckResult,
     CheckStatus,
+    bat_col_for_allocation,
     check_bat_direction,
     check_bat_near_zero,
     check_bills_increase_with_supply,
@@ -23,6 +24,7 @@ from utils.post.validate.checks import (
     check_seasonal_winter_below_summer,
     check_subclass_revenue_neutrality,
     check_subclass_rr_sums_to_total,
+    check_supply_passthrough_revenue_requirement,
     check_tariff_unchanged,
     check_weights_sum_to_n_customers,
 )
@@ -67,6 +69,7 @@ __all__ = [
     # checks
     "CheckResult",
     "CheckStatus",
+    "bat_col_for_allocation",
     "check_bat_direction",
     "check_bat_near_zero",
     "check_bills_increase_with_supply",
@@ -80,6 +83,7 @@ __all__ = [
     "check_seasonal_winter_below_summer",
     "check_subclass_revenue_neutrality",
     "check_subclass_rr_sums_to_total",
+    "check_supply_passthrough_revenue_requirement",
     "check_tariff_unchanged",
     "check_weights_sum_to_n_customers",
     # load

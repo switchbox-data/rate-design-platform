@@ -112,7 +112,7 @@ def _identify_non_hp_mf(metadata: pl.LazyFrame) -> pl.LazyFrame:
 
 
 def _identify_other_fuel_types(metadata: pl.LazyFrame) -> pl.LazyFrame:
-    is_other_fuel_types = pl.col(POSTPROCESS_HAS_HP_COLUMN) & pl.all_horizontal(
+    is_other_fuel_types = ~pl.col(POSTPROCESS_HAS_HP_COLUMN) & pl.all_horizontal(
         pl.col(c).eq(False) for c in HEATS_WITH_COLUMNS
     )
     return metadata.filter(is_other_fuel_types).select(

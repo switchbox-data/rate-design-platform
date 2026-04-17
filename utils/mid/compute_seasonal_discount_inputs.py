@@ -12,9 +12,11 @@ from dotenv import load_dotenv
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils.mid.compute_subclass_rr import (
     DEFAULT_BAT_METRIC,
-    DEFAULT_SEASONAL_OUTPUT_FILENAME,
+    DEFAULT_GROUP_COL,
     _resolve_path_or_s3,
-    compute_hp_seasonal_discount_inputs,
+    compute_subclass_seasonal_discount_inputs,
+    parse_group_value_to_subclass,
+    seasonal_discount_filename,
 )
 
 
@@ -38,8 +40,8 @@ def main() -> None:
     )
     parser = argparse.ArgumentParser(
         description=(
-            "Compute HP seasonal discount inputs from run outputs and ResStock loads "
-            "without subclass RR aggregation or RR YAML writes."
+            "Compute seasonal discount inputs for a customer subclass from run outputs "
+            "and ResStock loads without subclass RR aggregation or RR YAML writes."
         )
     )
     parser.add_argument(
@@ -63,9 +65,37 @@ def main() -> None:
         help="Upgrade partition for loads (e.g. 00).",
     )
     parser.add_argument(
+        "--group-col",
+        default=DEFAULT_GROUP_COL,
+        help=(
+            "Column in customer_metadata.csv that defines subclass membership "
+            "(default: has_hp). The resolved column name (with postprocess_group. "
+            "prefix if needed) is used automatically."
+        ),
+    )
+    parser.add_argument(
+        "--subclass-value",
+        default="true",
+        help=(
+            "Value of --group-col that identifies the target subclass "
+            "(default: 'true', i.e. HP customers when group-col=has_hp). "
+            "For electric-heating subclass use 'electric_heating'. If "
+            "--group-value-to-subclass is provided, subclass aliases will be "
+            "expanded to the raw metadata values they represent."
+        ),
+    )
+    parser.add_argument(
+        "--group-value-to-subclass",
+        help=(
+            "Optional mapping from raw group values to subclass aliases in the "
+            "format 'value=subclass,value2=subclass,...'. When provided, "
+            "--subclass-value may be a subclass alias like 'electric_heating'."
+        ),
+    )
+    parser.add_argument(
         "--cross-subsidy-col",
         default=DEFAULT_BAT_METRIC,
-        choices=("BAT_vol", "BAT_peak", "BAT_percustomer"),
+        choices=("BAT_vol", "BAT_peak", "BAT_percustomer", "BAT_epmc"),
         help="BAT column in cross_subsidization_BAT_values.csv to use.",
     )
     parser.add_argument(
@@ -90,18 +120,27 @@ def main() -> None:
     output_dir = _resolve_path_or_s3(args.output_dir) if args.output_dir else run_dir
 
     storage_options = get_aws_storage_options() if isinstance(run_dir, S3Path) else None
-    seasonal_inputs = compute_hp_seasonal_discount_inputs(
+    group_value_to_subclass = (
+        parse_group_value_to_subclass(args.group_value_to_subclass)
+        if args.group_value_to_subclass
+        else None
+    )
+    seasonal_inputs = compute_subclass_seasonal_discount_inputs(
         run_dir=run_dir,
         resstock_base=args.resstock_base,
         state=args.state,
         upgrade=args.upgrade,
+        group_col=args.group_col,
+        subclass_value=args.subclass_value,
         cross_subsidy_col=args.cross_subsidy_col,
         storage_options=storage_options,
+        group_value_to_subclass=group_value_to_subclass,
         base_tariff_json_path=base_tariff_json_path,
     )
     print(seasonal_inputs)
 
-    output_path = output_dir / DEFAULT_SEASONAL_OUTPUT_FILENAME
+    filename = seasonal_discount_filename(args.group_col, args.subclass_value)
+    output_path = output_dir / filename
     csv_text = seasonal_inputs.write_csv(None)
     if not isinstance(csv_text, str):
         raise ValueError("Failed to render seasonal discount input CSV text.")

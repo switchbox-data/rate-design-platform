@@ -99,6 +99,8 @@ class ScenarioSettings:
     rr_total: float
     subclass_rr: dict[str, float] | None
     run_includes_subclasses: bool
+    residual_allocation_delivery: str | None
+    residual_allocation_supply: str | None
     path_electric_utility_stats: str | Path
     path_supply_energy_mc: str | Path
     path_supply_capacity_mc: str | Path
@@ -117,6 +119,9 @@ class ScenarioSettings:
     path_tou_supply_energy_mc: str | Path | None = None
     path_tou_supply_capacity_mc: str | Path | None = None
     path_supply_ancillary_mc: str | Path | None = None
+    customer_count_override: float | None = None
+    kwh_scale_factor: float | None = None
+    subclass_config: dict[str, Any] | None = None
 
 
 def apply_prototype_sample(
@@ -170,7 +175,18 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
     run = runs.get(run_num) or runs.get(str(run_num))
     if run is None:
         raise ValueError(f"Run {run_num} not found in {scenario_config}")
-    return _require_mapping(run, f"runs[{run_num}]")
+    run_dict = dict(_require_mapping(run, f"runs[{run_num}]"))
+    scenario_subclass_config = data.get("subclass_config")
+    if (
+        "subclass_config" not in run_dict
+        and run_dict.get("run_includes_subclasses")
+        and scenario_subclass_config is not None
+    ):
+        run_dict["subclass_config"] = _require_mapping(
+            scenario_subclass_config,
+            "subclass_config",
+        )
+    return run_dict
 
 
 def _resolve_output_dir(
@@ -241,13 +257,23 @@ def _build_settings_from_yaml_run(
         _require_value(run, "run_includes_subclasses"),
         "run_includes_subclasses",
     )
+    residual_allocation_delivery: str | None = run.get("residual_allocation_delivery")
+    residual_allocation_supply: str | None = run.get("residual_allocation_supply")
     rr_config: RevenueRequirementConfig = _parse_utility_revenue_requirement(
         _require_value(run, "utility_revenue_requirement"),
         path_config,
         raw_path_tariffs_electric,
         add_supply=run_includes_supply,
         run_includes_subclasses=run_includes_subclasses,
+        residual_allocation_delivery=residual_allocation_delivery,
+        residual_allocation_supply=residual_allocation_supply,
     )
+    if residual_allocation_delivery:
+        log.info(
+            "Residual allocation: delivery=%s, supply=%s",
+            residual_allocation_delivery,
+            residual_allocation_supply,
+        )
     path_tariff_maps_gas = _resolve_path(
         str(_require_value(run, "path_tariff_maps_gas")),
         path_config,
@@ -278,6 +304,7 @@ def _build_settings_from_yaml_run(
         path_supply_ancillary_mc = _resolve_path_or_uri(
             str(ancillary_raw).strip(), path_config
         )
+    subclass_config: dict[str, Any] | None = run.get("subclass_config")
     output_dir = _resolve_output_dir(run, run_num, output_dir_override)
     run_name = run_name_override or run.get("run_name") or f"run_{run_num}"
     return ScenarioSettings(
@@ -317,6 +344,8 @@ def _build_settings_from_yaml_run(
         rr_total=rr_config.rr_total,
         subclass_rr=rr_config.subclass_rr,
         run_includes_subclasses=rr_config.run_includes_subclasses,
+        residual_allocation_delivery=rr_config.residual_allocation_delivery,
+        residual_allocation_supply=rr_config.residual_allocation_supply,
         path_electric_utility_stats=path_electric_utility_stats,
         year_run=year_run,
         year_dollar_conversion=year_dollar_conversion,
@@ -329,6 +358,9 @@ def _build_settings_from_yaml_run(
         path_supply_ancillary_mc=path_supply_ancillary_mc
         if run_includes_supply
         else None,
+        customer_count_override=rr_config.customer_count_override,
+        kwh_scale_factor=rr_config.kwh_scale_factor,
+        subclass_config=subclass_config,
     )
 
 
@@ -493,6 +525,33 @@ def _load_prototype_ids_for_run(
     return prototype_ids
 
 
+def _buildingstock_columns(settings: ScenarioSettings) -> list[str]:
+    """Return the list of metadata columns to request from ``return_buildingstock``.
+
+    Always includes the baseline columns needed by CAIRO and post-processing:
+    ``applicability``, ``postprocess_group.has_hp``,
+    ``postprocess_group.heating_type``, ``postprocess_group.heating_type_v2``,
+    and ``in.vintage_acs``.
+
+    When ``subclass_config`` specifies a ``group_col`` other than the defaults
+    above, the corresponding ``postprocess_group.<group_col>`` column is appended
+    so it is available for tariff-map generation and BAT joins.
+    """
+    base_cols = [
+        "applicability",
+        "postprocess_group.has_hp",
+        "postprocess_group.heating_type",
+        "postprocess_group.heating_type_v2",
+        "in.vintage_acs",
+    ]
+    if settings.subclass_config is not None:
+        group_col = settings.subclass_config.get("group_col", "")
+        extra_col = f"postprocess_group.{group_col}"
+        if group_col and extra_col not in base_cols:
+            base_cols.append(extra_col)
+    return base_cols
+
+
 def _build_precalc_period_mapping(
     path_tariffs_electric: dict[str, Path],
 ) -> pd.DataFrame:
@@ -545,21 +604,23 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
         precalc_mapping = _build_precalc_period_mapping(settings.path_tariffs_electric)
 
     with _timed("return_buildingstock"):
-        customer_count = get_residential_customer_count_from_utility_stats(
-            settings.path_electric_utility_stats,
-            settings.utility,
-            storage_options=_storage_options(),
-        )
+        if settings.customer_count_override is not None:
+            customer_count = settings.customer_count_override
+            log.info(
+                "Using customer_count_override from RR YAML: %.2f",
+                customer_count,
+            )
+        else:
+            customer_count = get_residential_customer_count_from_utility_stats(
+                settings.path_electric_utility_stats,
+                settings.utility,
+                storage_options=_storage_options(),
+            )
         customer_metadata = return_buildingstock(
             load_scenario=settings.path_resstock_metadata,
             building_stock_sample=prototype_ids,
             customer_count=customer_count,
-            columns=[
-                "applicability",
-                "postprocess_group.has_hp",
-                "postprocess_group.heating_type",
-                "in.vintage_acs",
-            ],
+            columns=_buildingstock_columns(settings),
         )
 
     with _timed("build_bldg_id_to_load_filepath"):
@@ -575,6 +636,13 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             load_filepath_key=bldg_id_to_load_filepath,
             force_tz="EST",
         )
+
+    if settings.kwh_scale_factor is not None:
+        log.info(
+            "Applying kwh_scale_factor=%.6f to electric loads",
+            settings.kwh_scale_factor,
+        )
+        raw_load_elec = raw_load_elec * settings.kwh_scale_factor
 
     # Phase 2 ---------------------------------------------------------------
     # ------------------------------------------------------------------

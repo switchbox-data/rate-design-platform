@@ -5,10 +5,10 @@ delivery_revenue_requirement_topups: 23763578.73
 supply_revenue_requirement_topups: 228536733.59
 total_delivery_revenue_requirement: 418151641.73
 total_delivery_and_supply_revenue_requirement: 646688375.32
-total_residential_kwh: 2390536456.25
+total_residential_kwh: 2390536456.25 # sum(resstock_monthly_kwh) * resstock_scale_factor
 eia_total_residential_kwh: 2167787008.0
 eia_year: 2024
-delivery_top_ups:
+delivery_top_ups: # total_budgets are inflated by total_residential_kwh / eia_total_residential_kwh
   central_hudson_misc_charges:
     charge_unit: $/kWh
     budget_method: resstock
@@ -39,4 +39,4 @@ resstock_monthly_kwh:
   10: 156027657.33
   11: 194910381.98
   12: 232897280.48
-resstock_scale_factor: 0.908251
+resstock_scale_factor: 0.908251 # eia_customer_count / resstock_customer_count_for_utility

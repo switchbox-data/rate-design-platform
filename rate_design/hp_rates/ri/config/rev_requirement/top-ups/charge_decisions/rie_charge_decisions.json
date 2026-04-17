@@ -95,7 +95,7 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "already_in_drr",
+    "decision": "add_to_drr",
     "master_charge": "O&M Charge",
     "master_type": "Base delivery"
   },
@@ -120,7 +120,7 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "exclude_trueup",
+    "decision": "add_to_drr",
     "master_charge": "O&M Reconciliation Factor",
     "master_type": "Cost recon"
   },
@@ -145,7 +145,7 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "already_in_drr",
+    "decision": "add_to_drr",
     "master_charge": "CapEx Factor",
     "master_type": "Base delivery"
   },
@@ -170,7 +170,7 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "exclude_trueup",
+    "decision": "add_to_drr",
     "master_charge": "CapEx Reconciliation Factor",
     "master_type": "Cost recon"
   },
@@ -195,7 +195,7 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "exclude_trueup",
+    "decision": "add_to_drr",
     "master_charge": "Revenue Decoupling (RDM)",
     "master_type": "Revenue true-up"
   },
@@ -220,7 +220,7 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "already_in_drr",
+    "decision": "add_to_drr",
     "master_charge": "Pension Adjustment Factor",
     "master_type": "Base delivery"
   },
@@ -295,7 +295,7 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "exclude_eligibility",
+    "decision": "add_to_drr",
     "master_charge": "Low-income discounts",
     "master_type": "Eligibility"
   },
@@ -320,7 +320,7 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "exclude_negligible",
+    "decision": "add_to_drr",
     "master_charge": "Performance Incentive Factor",
     "master_type": "Performance incentive"
   },
@@ -345,7 +345,7 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "exclude_trueup",
+    "decision": "add_to_srr",
     "master_charge": "Last Resort Adjustment Factor",
     "master_type": "Cost recon"
   },
@@ -495,7 +495,7 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "exclude_trueup",
+    "decision": "add_to_drr",
     "master_charge": "Transition / Restructuring",
     "master_type": "Cost recon"
   },

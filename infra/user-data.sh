@@ -37,6 +37,7 @@ add-apt-repository -y ppa:deadsnakes/ppa
 apt-get update
 
 # Install system dependencies (do not install awscli from apt - it's v1; we install AWS CLI v2 below)
+# librsvg2-bin provides rsvg-convert for Pandoc/Quarto DOCX (SVG figure conversion).
 apt-get install -y \
   python3.13 \
   python3.13-dev \
@@ -48,7 +49,28 @@ apt-get install -y \
   s3fs \
   e2fsprogs \
   gh \
+  librsvg2-bin \
   zsh
+
+# Install Google Chrome (Ubuntu 22.04's chromium-browser is a snap stub that
+# fails on EC2; Google's apt repo provides a real .deb).
+# Needed by website-diff (Selenium) for Plotly chart pre-rendering.
+curl -fsSL https://dl.google.com/linux/linux_signing_key.pub |
+  gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
+  >/etc/apt/sources.list.d/google-chrome.list
+apt-get update
+apt-get install -y google-chrome-stable
+
+# Quarto (manuscript / report renders; e.g. reports2). Pin version; sync with dev-setup.sh SSM block.
+QUARTO_VERSION="1.9.36"
+if ! command -v quarto &>/dev/null; then
+  echo "Installing Quarto $${QUARTO_VERSION}..."
+  curl -fsSL "https://github.com/quarto-dev/quarto-cli/releases/download/v$${QUARTO_VERSION}/quarto-$${QUARTO_VERSION}-linux-amd64.deb" -o /tmp/quarto.deb
+  dpkg -i /tmp/quarto.deb || apt-get install -f -y
+  rm -f /tmp/quarto.deb
+  echo "Quarto installed: $(quarto --version)"
+fi
 
 # Install AWS CLI v2 (official installer; apt awscli is v1)
 if ! command -v aws &>/dev/null || [ "$(aws --version 2>&1 | grep -o 'aws-cli/[0-9]*' | cut -d/ -f2)" = "1" ]; then

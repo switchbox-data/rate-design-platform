@@ -21,10 +21,9 @@ if ! command -v aws >/dev/null 2>&1; then
 fi
 
 # Check if SSO credentials are already valid (early exit if so).
-# aws configure export-credentials exercises the full SSO credential chain,
-# so it fails if the SSO token is expired — unlike aws sts get-caller-identity,
-# which can succeed via env vars or static credentials even when SSO is stale.
-if aws configure export-credentials --format json &>/dev/null; then
+# aws sts get-caller-identity exercises the full credential chain and fails
+# if the SSO token is expired.
+if aws sts get-caller-identity &>/dev/null; then
   echo "✅ AWS credentials are already valid"
   echo
   exit 0
@@ -64,20 +63,29 @@ if [ "$NEEDS_CONFIG" = true ]; then
   # shellcheck source=.secrets/aws-sso-config.sh
   . "$CONFIG_FILE"
 
-  # Configure default profile with SSO settings
-  aws configure set sso_start_url "$SSO_START_URL"
-  aws configure set sso_region "$SSO_REGION"
-  aws configure set sso_account_id "$SSO_ACCOUNT_ID"
-  aws configure set sso_role_name "$SSO_ROLE_NAME"
-  aws configure set region "$SSO_REGION"
-  aws configure set output "json"
+  SSO_SESSION_NAME="${SSO_SESSION_NAME:-switchbox}"
+
+  # Write config with sso-session block (enables OIDC refresh tokens so
+  # credentials auto-renew instead of expiring after a few hours)
+  cat >~/.aws/config <<AWSCFG
+[sso-session ${SSO_SESSION_NAME}]
+sso_start_url = ${SSO_START_URL}
+sso_region = ${SSO_REGION}
+sso_registration_scopes = sso:account:access
+
+[default]
+sso_session = ${SSO_SESSION_NAME}
+sso_account_id = ${SSO_ACCOUNT_ID}
+sso_role_name = ${SSO_ROLE_NAME}
+region = ${SSO_REGION}
+output = json
+AWSCFG
 
   echo "✅ AWS SSO configuration complete"
   echo
 fi
 
 # Run SSO login (handles browser authentication)
-# Use profile-based login since we configure SSO settings directly on the profile
 echo "🔓 Starting AWS SSO login..."
 echo
 aws sso login

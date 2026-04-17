@@ -1,7 +1,7 @@
 import argparse
 import warnings
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import polars as pl
 from cloudpathlib import S3Path
@@ -77,23 +77,41 @@ def map_electric_tariff(
 def generate_tariff_map_from_scenario_keys(
     path_tariffs_electric: dict[str, str],
     bldg_data: pl.DataFrame,
+    subclass_config: dict[str, Any] | None = None,
 ) -> pl.DataFrame:
     """Build a bldg_id→tariff_key mapping from keyed path_tariffs_electric.
 
     Args:
-        path_tariffs_electric: Dict mapping YAML selector keys to tariff path strings.
-            Supported key sets:
+        path_tariffs_electric: Dict mapping subclass keys to tariff path strings.
+            Supported forms:
               - ``{"all": "<path>"}`` — every building gets the stem of that path.
-              - ``{"hp": "<path>", "non-hp": "<path>"}`` — HP buildings get the hp
-                stem, non-HP buildings get the non-hp stem.
-        bldg_data: DataFrame with columns ``bldg_id`` (int) and
-            ``postprocess_group.has_hp`` (bool).
+                ``subclass_config`` is not required in this case.
+              - Any other key set — requires ``subclass_config``. Each key in
+                ``path_tariffs_electric`` must appear as a key in
+                ``subclass_config["selectors"]``. Buildings whose
+                ``postprocess_group.<group_col>`` value appears in the comma-separated
+                selector string for a subclass key are assigned the corresponding tariff
+                stem.  An arbitrary number of subclasses (2, 3, 5, …) is supported.
+        bldg_data: DataFrame with column ``bldg_id`` and the column
+            ``postprocess_group.<group_col>`` referenced by ``subclass_config``.
+        subclass_config: Optional dict with keys:
+            - ``group_col`` (str): the postprocess_group column suffix to read from
+              ``bldg_data`` (e.g. ``"has_hp"`` → column
+              ``"postprocess_group.has_hp"``).
+            - ``selectors`` (dict[str, str]): mapping from subclass key to a
+              comma-separated string of ``group_col`` values that belong to that
+              subclass (e.g. ``{"hp": "true", "non-hp": "false"}`` or
+              ``{"electric_heating": "heat_pump,electrical_resistance",
+              "non_electric_heating": "natgas,delivered_fuels,other"}``).
+            Required when ``path_tariffs_electric`` has more than one key.
 
     Returns:
         DataFrame with columns ``bldg_id`` and ``tariff_key``.
 
     Raises:
-        ValueError: If the key set is not ``{"all"}`` or ``{"hp", "non-hp"}``.
+        ValueError: If ``path_tariffs_electric`` has more than one key but
+            ``subclass_config`` is not provided, or if a tariff key has no
+            matching selector entry in ``subclass_config``.
     """
     keys = set(path_tariffs_electric.keys())
     stems = {k: Path(v).stem for k, v in path_tariffs_electric.items()}
@@ -103,19 +121,50 @@ def generate_tariff_map_from_scenario_keys(
             pl.col("bldg_id"),
             pl.lit(stems["all"]).alias("tariff_key"),
         )
-    elif keys == {"hp", "non-hp"}:
-        return bldg_data.select(
-            pl.col("bldg_id"),
-            pl.when(pl.col("postprocess_group.has_hp"))
-            .then(pl.lit(stems["hp"]))
-            .otherwise(pl.lit(stems["non-hp"]))
-            .alias("tariff_key"),
-        )
-    else:
+
+    if subclass_config is None:
         raise ValueError(
-            f"path_tariffs_electric keys must be {{'all'}} or {{'hp', 'non-hp'}}; "
-            f"got {sorted(keys)}"
+            "subclass_config is required when path_tariffs_electric has more than one "
+            f"key; got keys {sorted(keys)}"
         )
+
+    group_col: str = subclass_config["group_col"]
+    selectors: dict[str, str] = subclass_config["selectors"]
+    col_name = f"postprocess_group.{group_col}"
+
+    missing_keys = keys - set(selectors.keys())
+    if missing_keys:
+        raise ValueError(
+            f"path_tariffs_electric keys {sorted(missing_keys)} have no matching "
+            f"entry in subclass_config.selectors (available: {sorted(selectors.keys())})"
+        )
+
+    # Build a pl.when(...).then(...).when(...).then(...).otherwise(None) chain
+    # over all subclass keys in a deterministic order.
+    ordered_keys = sorted(keys)
+    first_key = ordered_keys[0]
+    first_values = {v.strip() for v in selectors[first_key].split(",")}
+    expr = pl.when(pl.col(col_name).cast(pl.Utf8).is_in(first_values)).then(
+        pl.lit(stems[first_key])
+    )
+    for key in ordered_keys[1:]:
+        values = {v.strip() for v in selectors[key].split(",")}
+        expr = expr.when(pl.col(col_name).cast(pl.Utf8).is_in(values)).then(
+            pl.lit(stems[key])
+        )
+    tariff_key_expr = expr.otherwise(pl.lit(None)).alias("tariff_key")
+
+    result = bldg_data.select(pl.col("bldg_id"), tariff_key_expr)
+
+    unmatched = result.filter(pl.col("tariff_key").is_null()).height
+    if unmatched > 0:
+        raise ValueError(
+            f"{unmatched} building(s) did not match any selector in subclass_config "
+            f"for group_col='{group_col}'. Check that all values in column "
+            f"'{col_name}' are covered by subclass_config.selectors."
+        )
+
+    return result
 
 
 if __name__ == "__main__":

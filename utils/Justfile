@@ -93,13 +93,12 @@ sweep-tou-window path_supply_energy_mc path_supply_capacity_mc state utility yea
 # =============================================================================
 
 # Revenue requirement YAML outputs from CAIRO BAT results.
-compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yaml_path run_num="1" group_col="has_hp" cross_subsidy_col="BAT_percustomer" group_value_to_subclass="" base_rr_yaml="" run_dir_supply="" resstock_base="" upgrade="00":
+compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yaml_path run_num="1" group_col="has_hp" group_value_to_subclass="" base_rr_yaml="" run_dir_supply="" resstock_base="" upgrade="00":
     uv run python {{ project_root }}/utils/mid/compute_subclass_rr.py \
       --run-dir "{{ run_dir }}" \
       --run-num "{{ run_num }}" \
       --scenario-config "{{ scenario_config }}" \
       --group-col "{{ group_col }}" \
-      --cross-subsidy-col "{{ cross_subsidy_col }}" \
       --differentiated-yaml-path "{{ differentiated_yaml_path }}" \
       --default-yaml-path "{{ default_yaml_path }}" \
       {{ if group_value_to_subclass != "" { "--group-value-to-subclass \"" + group_value_to_subclass + "\"" } else { "" } }} \
@@ -109,9 +108,11 @@ compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yam
       {{ if resstock_base != "" { "--upgrade \"" + upgrade + "\"" } else { "" } }}
 
 # Seasonal discount inputs from run outputs + ResStock loads.
-
 # Uses hive partitions (resstock_base + state + upgrade); building_ids from run metadata.
-compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="":
+# group_col + subclass_value identify the subclass; the output filename encodes both so
+
+# multiple subclass computations in the same run directory do not collide.
+compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="" group_col="has_hp" subclass_value="true" group_value_to_subclass="":
     uv run python {{ project_root }}/utils/mid/compute_seasonal_discount_inputs.py \
       --run-dir "{{ run_dir }}" \
       --resstock-base "{{ resstock_base }}" \
@@ -119,11 +120,14 @@ compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsi
       --upgrade "{{ upgrade }}" \
       --cross-subsidy-col "{{ cross_subsidy_col }}" \
       --base-tariff-json "{{ base_tariff_json }}" \
+      --group-col "{{ group_col }}" \
+      --subclass-value "{{ subclass_value }}" \
+      {{ if group_value_to_subclass != "" { "--group-value-to-subclass \"" + group_value_to_subclass + "\"" } else { "" } }} \
       {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }}
 
 # Tariff JSON creation from seasonal_discount_rate_inputs.csv.
 create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label output_path periods_yaml:
-    uv run python {{ project_root }}/utils/mid/create_seasonal_discount_tariff.py \
+    cd "{{ project_root }}" && uv run python -m utils.mid.create_seasonal_discount_tariff \
       --base-tariff-json "{{ base_tariff_json }}" \
       --seasonal-inputs-csv "{{ seasonal_inputs_csv }}" \
       --label "{{ label }}" \
@@ -131,7 +135,10 @@ create-seasonal-discount-tariff base_tariff_json seasonal_inputs_csv label outpu
       --output-path "{{ output_path }}"
 
 # Uses hive partitions (resstock_base + state + upgrade); building_ids from run metadata.
-compute-flat-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="":
+# group_col + subclass_value identify the subclass; the output filename encodes both so
+
+# multiple subclass computations in the same run directory do not collide.
+compute-flat-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="" group_col="has_hp" subclass_value="true" group_value_to_subclass="":
     uv run python {{ project_root }}/utils/mid/compute_flat_discount_inputs.py \
       --run-dir "{{ run_dir }}" \
       --resstock-base "{{ resstock_base }}" \
@@ -139,6 +146,9 @@ compute-flat-discount-inputs run_dir resstock_base state upgrade cross_subsidy_c
       --upgrade "{{ upgrade }}" \
       --cross-subsidy-col "{{ cross_subsidy_col }}" \
       --base-tariff-json "{{ base_tariff_json }}" \
+      --group-col "{{ group_col }}" \
+      --subclass-value "{{ subclass_value }}" \
+      {{ if group_value_to_subclass != "" { "--group-value-to-subclass \"" + group_value_to_subclass + "\"" } else { "" } }} \
       {{ if output_dir != "" { "--output-dir \"" + output_dir + "\"" } else { "" } }}
 
 # Tariff JSON creation from flat_discount_rate_inputs.csv.
