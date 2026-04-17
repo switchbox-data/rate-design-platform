@@ -8,6 +8,7 @@ import polars as pl
 import pytest
 
 from utils.pre.marginal_costs.supply_ancillary import (
+    ancillary_wide_to_enduse,
     compute_supply_ancillary_mc,
 )
 from utils.pre.marginal_costs.supply_utils import build_cairo_8760_timestamps
@@ -87,6 +88,44 @@ def test_load_ancillary_columns() -> None:
     assert result.columns == ["timestamp", "ancillary_cost_enduse"]
 
 
+def test_ancillary_wide_to_enduse_isone_matches_reg_sum_formula() -> None:
+    """Regression: ISO-NE wide → end-use must stay ``reg_service + reg_capacity``."""
+    raw = _make_ancillary_df(year=2025, n_hours=24)
+    from_module = ancillary_wide_to_enduse(raw, iso="isone", year=2025)
+    manual = (
+        raw.rename({"interval_start_et": "timestamp"})
+        .with_columns(
+            (
+                pl.col("reg_service_price_usd_per_mwh")
+                + pl.col("reg_capacity_price_usd_per_mwh")
+            ).alias("ancillary_cost_enduse")
+        )
+        .select("timestamp", "ancillary_cost_enduse")
+    )
+    assert from_module.schema == manual.schema
+    assert from_module["timestamp"].to_list() == manual["timestamp"].to_list()
+    assert from_module["ancillary_cost_enduse"].to_list() == pytest.approx(
+        manual["ancillary_cost_enduse"].to_list()
+    )
+
+
+def test_ancillary_wide_to_enduse_nyiso_not_implemented() -> None:
+    """NYISO end-use aggregation is a deliberate stub until methodology is set."""
+    stub = pl.DataFrame(
+        {
+            "interval_start_et": [datetime(2025, 6, 1, 0, 0, 0)],
+            "time_zone": ["EDT"],
+            "zone": ["WEST"],
+            "nyca_regulation_capacity_usd_per_mwhr": [1.0],
+            "nyca_regulation_movement_usd_per_mw": [2.0],
+        }
+    )
+    with pytest.raises(
+        NotImplementedError, match="NYISO ancillary end-use aggregation"
+    ):
+        ancillary_wide_to_enduse(stub, iso="nyiso", year=2025)
+
+
 # ---------------------------------------------------------------------------
 # compute_supply_ancillary_mc (via monkeypatched load)
 # ---------------------------------------------------------------------------
@@ -117,7 +156,9 @@ def _make_compute_ancillary_mc_with_patch(
     def _fake_load(
         yr: int,
         storage_options: dict[str, str],
-        ancillary_s3_base: str = "",
+        ancillary_s3_base: str | None = None,
+        *,
+        iso: str = "isone",
     ) -> pl.DataFrame:
         return synthetic
 
@@ -192,7 +233,9 @@ def test_compute_ancillary_mc_leap_year_is_8760(
     def _fake_load(
         yr: int,
         storage_options: dict[str, str],
-        ancillary_s3_base: str = "",
+        ancillary_s3_base: str | None = None,
+        *,
+        iso: str = "isone",
     ) -> pl.DataFrame:
         return synthetic
 

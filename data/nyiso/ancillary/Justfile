@@ -10,9 +10,10 @@
 path_local_repo := `git rev-parse --show-toplevel`
 path_local_base := justfile_directory()
 path_local_parquet := path_local_base + "/parquet"
-# Mirror ISO-NE: s3://data.sb/isone/ancillary/ → s3://data.sb/nyiso/ancillary/
-path_s3_parquet := "s3://data.sb/nyiso/ancillary/"
 
+# Mirror ISO-NE: s3://data.sb/isone/ancillary/ → s3://data.sb/nyiso/ancillary/
+
+path_s3_parquet := "s3://data.sb/nyiso/ancillary/"
 start := "2010-01"
 end := ""
 markets := "rt"

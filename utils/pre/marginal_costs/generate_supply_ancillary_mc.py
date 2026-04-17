@@ -1,18 +1,24 @@
-"""Generate utility-level ISO-NE supply ancillary service marginal costs."""
+"""Generate utility-level ISO-NE or NYISO supply ancillary service marginal costs."""
 
 from __future__ import annotations
 
 import argparse
+import sys
 
 from dotenv import load_dotenv
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.pre.marginal_costs.supply_ancillary import compute_supply_ancillary_mc
+from utils.pre.marginal_costs.supply_ancillary import (
+    AncillaryIso,
+    compute_supply_ancillary_mc,
+)
 from utils.pre.marginal_costs.supply_utils import (
     DEFAULT_ISONE_ANCILLARY_S3_BASE,
     DEFAULT_ISONE_OUTPUT_S3_BASE,
+    DEFAULT_NYISO_ANCILLARY_S3_BASE,
+    DEFAULT_NYISO_OUTPUT_S3_BASE,
     ISONE_UTILITY_ZONES,
     VALID_ISONE_UTILITIES,
+    VALID_NYISO_UTILITIES,
     save_component_output,
 )
 
@@ -21,15 +27,21 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Generate utility-level supply ancillary service marginal costs "
-            "from ISO-NE regulation clearing prices."
+            "from ISO-NE or NYISO regulation-related clearing prices."
         )
+    )
+    parser.add_argument(
+        "--iso",
+        type=str,
+        choices=("isone", "nyiso"),
+        default="isone",
+        help="Market: isone (default) or nyiso.",
     )
     parser.add_argument(
         "--utility",
         type=str,
         required=True,
-        choices=sorted(VALID_ISONE_UTILITIES),
-        help=f"Utility short name. One of: {sorted(VALID_ISONE_UTILITIES)}.",
+        help="Utility short name (valid set depends on --iso).",
     )
     parser.add_argument(
         "--year",
@@ -42,21 +54,24 @@ def _parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         help=(
-            "Load zone (informational; ancillary data is not zone-partitioned). "
-            "Defaults to the zone mapped to --utility in ISONE_UTILITY_ZONES."
+            "Load zone (informational for ISO-NE; ancillary data is not zone-partitioned). "
+            "Defaults to the zone mapped to --utility when using ISO-NE."
         ),
     )
     parser.add_argument(
         "--ancillary-s3-base",
         type=str,
-        default=DEFAULT_ISONE_ANCILLARY_S3_BASE,
-        help=f"S3 base for ISO-NE ancillary data (default: {DEFAULT_ISONE_ANCILLARY_S3_BASE}).",
+        default="",
+        help=(
+            "S3 base for ancillary parquet (default: ISO-NE or NYISO canonical path "
+            "matching --iso)."
+        ),
     )
     parser.add_argument(
         "--output-s3-base",
         type=str,
-        default=DEFAULT_ISONE_OUTPUT_S3_BASE,
-        help=f"S3 base for output (default: {DEFAULT_ISONE_OUTPUT_S3_BASE}).",
+        default="",
+        help="S3 base for output (default: RI supply vs NY supply matching --iso).",
     )
     parser.add_argument(
         "--upload",
@@ -68,28 +83,73 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = _parse_args()
+    iso: AncillaryIso = "isone" if args.iso == "isone" else "nyiso"
+
+    if iso == "isone" and args.utility not in VALID_ISONE_UTILITIES:
+        print(
+            f"ERROR: --utility must be one of {sorted(VALID_ISONE_UTILITIES)} "
+            "for --iso isone",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if iso == "nyiso" and args.utility not in VALID_NYISO_UTILITIES:
+        print(
+            f"ERROR: --utility must be one of {sorted(VALID_NYISO_UTILITIES)} "
+            "for --iso nyiso",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    ancillary_s3_base = (
+        args.ancillary_s3_base
+        if args.ancillary_s3_base
+        else (
+            DEFAULT_ISONE_ANCILLARY_S3_BASE
+            if iso == "isone"
+            else DEFAULT_NYISO_ANCILLARY_S3_BASE
+        )
+    )
+    output_s3_base = (
+        args.output_s3_base
+        if args.output_s3_base
+        else (
+            DEFAULT_ISONE_OUTPUT_S3_BASE
+            if iso == "isone"
+            else DEFAULT_NYISO_OUTPUT_S3_BASE
+        )
+    )
+
     load_dotenv()
+    from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+
     storage_options = get_aws_storage_options()
 
     utility = args.utility
     price_year = args.year
-    zone = args.zone or ISONE_UTILITY_ZONES.get(utility, "unknown")
+    zone = (
+        args.zone
+        if args.zone is not None
+        else (ISONE_UTILITY_ZONES.get(utility, "unknown") if iso == "isone" else "n/a")
+    )
 
+    iso_title = "ISO-NE" if iso == "isone" else "NYISO"
     print("=" * 60)
-    print("SUPPLY ANCILLARY MARGINAL COST GENERATION (ISO-NE)")
+    print(f"SUPPLY ANCILLARY MARGINAL COST GENERATION ({iso_title})")
     print("=" * 60)
+    print(f"  ISO:                  {iso}")
     print(f"  Utility:              {utility}")
     print(f"  Zone:                 {zone}")
     print(f"  Price year:           {price_year}")
-    print(f"  Ancillary S3 base:    {args.ancillary_s3_base}")
+    print(f"  Ancillary S3 base:    {ancillary_s3_base}")
     print(f"  Upload to S3:         {'Yes' if args.upload else 'No (inspect only)'}")
     print("=" * 60)
 
-    print("\n── Ancillary MC (Regulation Service + Capacity) ──")
+    print("\n── Ancillary MC ──")
     ancillary_output = compute_supply_ancillary_mc(
         year=price_year,
         storage_options=storage_options,
-        ancillary_s3_base=args.ancillary_s3_base,
+        ancillary_s3_base=ancillary_s3_base,
+        iso=iso,
     )
 
     print("\n── Output Preparation ──")
@@ -103,7 +163,7 @@ def main() -> None:
             component_df=ancillary_output,
             utility=utility,
             year=price_year,
-            output_s3_base=args.output_s3_base,
+            output_s3_base=output_s3_base,
             storage_options=storage_options,
             component="ancillary",
         )
