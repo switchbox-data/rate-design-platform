@@ -72,7 +72,6 @@ if ! command -v quarto &>/dev/null; then
   echo "Quarto installed: $(quarto --version)"
 fi
 
-<<<<<<< HEAD
 # Install TinyTeX for LaTeX math rendering in ICML output (reports2 `just typeset`).
 # The icml_math Lua filter calls latex + dvisvgm to pre-render math to SVG.
 # dvisvgm requires ghostscript for PostScript special processing.
@@ -101,8 +100,6 @@ if ! command -v yamlfmt &>/dev/null; then
   echo "yamlfmt installed: $(yamlfmt --version)"
 fi
 
-=======
->>>>>>> main
 # Install AWS CLI v2 (official installer; apt awscli is v1)
 if ! command -v aws &>/dev/null || [ "$(aws --version 2>&1 | grep -o 'aws-cli/[0-9]*' | cut -d/ -f2)" = "1" ]; then
   echo "Installing AWS CLI v2..."
