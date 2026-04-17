@@ -38,6 +38,7 @@ from utils.post.validate import (
     check_seasonal_winter_below_summer,
     check_subclass_revenue_neutrality,
     check_subclass_rr_sums_to_total,
+    check_supply_passthrough_revenue_requirement,
     check_tariff_unchanged,
     check_weights_sum_to_n_customers,
     compute_bill_deltas,
@@ -524,6 +525,39 @@ def _validate_block(
                 )
                 if not sub_rr_ok:
                     subclass_rr_raw = None
+
+        if has_sub and subclass_rr_raw is not None and len(runs) == 2:
+            delivery_run = next(
+                (run for run in runs if run[2].cost_scope == "delivery"),
+                None,
+            )
+            total_run = next(
+                (run for run in runs if run[2].cost_scope == "delivery+supply"),
+                None,
+            )
+            if delivery_run is not None and total_run is not None:
+                (
+                    delivery_num,
+                    _,
+                    delivery_config,
+                    delivery_meta,
+                    delivery_bills,
+                ) = delivery_run
+                total_num, _, total_config, _, total_bills = total_run
+                check_result, ok = _safe_execute(
+                    "check_supply_passthrough_revenue_requirement"
+                    f"(run {delivery_num}→{total_num})",
+                    check_supply_passthrough_revenue_requirement,
+                    delivery_bills["elec"],
+                    total_bills["elec"],
+                    delivery_meta,
+                    subclass_rr_raw,
+                    subclass_spec=total_config.subclass_spec
+                    or delivery_config.subclass_spec
+                    or block_subclass_spec,
+                )
+                if ok and check_result is not None:
+                    _record(check_result, run_nums=[delivery_num, total_num])
 
         for run_num, _, config, meta, bills in runs:
             run_dir = block_dir / f"run_{run_num}"

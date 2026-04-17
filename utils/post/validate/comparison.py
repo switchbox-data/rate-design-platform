@@ -37,13 +37,13 @@ class ComparisonFamily:
 
 _FAMILIES: tuple[ComparisonFamily, ...] = (
     ComparisonFamily(
-        name="flat_epmc",
-        hp_only_runs=(17, 18, 19, 20),
+        name="flat_percustomer",
+        hp_only_runs=(5, 6, 7, 8),
         electrified_runs=(29, 30, 31, 32),
     ),
     ComparisonFamily(
-        name="seasonal_epmc",
-        hp_only_runs=(21, 22, 23, 24),
+        name="seasonal_percustomer",
+        hp_only_runs=(5, 6, 7, 8),
         electrified_runs=(33, 34, 35, 36),
     ),
 )
@@ -293,7 +293,7 @@ def run_ny_hp_only_vs_electrified_comparison(
     configs: dict[int, RunConfig],
     run_dirs: dict[int, str],
 ) -> list[CheckResult]:
-    """Run the NY EPMC comparison profile and write side-by-side CSVs."""
+    """Run the NY HP-only vs electrified comparison profile and write side-by-side CSVs."""
     if state != "ny":
         raise ValueError("ny_hp_only_vs_electrified is only supported for NY")
 
