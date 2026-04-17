@@ -8,6 +8,7 @@ from utils.post.validate.checks import (
     check_flex_subclass_revenue_expectations,
     check_hp_subclass_revenue_lower_with_flex,
     check_seasonal_winter_below_summer,
+    check_supply_passthrough_revenue_requirement,
 )
 
 
@@ -40,6 +41,85 @@ def test_bat_near_zero_uses_specified_metric() -> None:
 
     result_epmc = check_bat_near_zero(bat, metadata, bat_metric="BAT_epmc")
     assert result_epmc.status == "PASS"
+
+
+def test_supply_passthrough_revenue_requirement_matches_total_minus_delivery() -> None:
+    delivery_bills = pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "month": ["Annual", "Annual"],
+            "bill_level": [100.0, 200.0],
+        }
+    ).lazy()
+    total_bills = pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "month": ["Annual", "Annual"],
+            "bill_level": [130.0, 260.0],
+        }
+    ).lazy()
+    metadata = pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "weight": [2.0, 1.0],
+            "postprocess_group.has_hp": [True, False],
+        }
+    ).lazy()
+    subclass_rr = {
+        "subclass_revenue_requirements": {
+            "delivery": {"percustomer": {"hp": 200.0, "non-hp": 200.0}},
+            "supply": {"passthrough": {"hp": 60.0, "non-hp": 60.0}},
+        }
+    }
+
+    result = check_supply_passthrough_revenue_requirement(
+        delivery_bills,
+        total_bills,
+        metadata,
+        subclass_rr,
+    )
+
+    assert result.status == "PASS"
+
+
+def test_supply_passthrough_revenue_requirement_fails_on_mismatch() -> None:
+    delivery_bills = pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "month": ["Annual", "Annual"],
+            "bill_level": [100.0, 200.0],
+        }
+    ).lazy()
+    total_bills = pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "month": ["Annual", "Annual"],
+            "bill_level": [130.0, 260.0],
+        }
+    ).lazy()
+    metadata = pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "weight": [2.0, 1.0],
+            "postprocess_group.has_hp": [True, False],
+        }
+    ).lazy()
+    subclass_rr = {
+        "subclass_revenue_requirements": {
+            "delivery": {"percustomer": {"hp": 200.0, "non-hp": 200.0}},
+            "supply": {"passthrough": {"hp": 30.0, "non-hp": 60.0}},
+        }
+    }
+
+    result = check_supply_passthrough_revenue_requirement(
+        delivery_bills,
+        total_bills,
+        metadata,
+        subclass_rr,
+    )
+
+    assert result.status == "FAIL"
+    assert "HP: +100.00%" in result.message
 
 
 def _seasonal_tou_schedule() -> list[list[int]]:

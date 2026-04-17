@@ -2,6 +2,7 @@ from typing import cast
 
 from utils.pre.create_scenario_yamls import (
     _hoist_shared_subclass_config,
+    _normalize_deprecated_elec_heat_seasonal_paths,
     _parse_subclass_selectors,
     _row_to_run,
 )
@@ -105,6 +106,54 @@ def test_row_to_run_omits_path_tou_supply_mc_when_blank() -> None:
     run = _row_to_run(row, headers)
 
     assert "path_tou_supply_mc" not in run
+
+
+def test_normalize_deprecated_elec_heat_seasonal_paths() -> None:
+    assert _normalize_deprecated_elec_heat_seasonal_paths("") == ""
+    assert (
+        _normalize_deprecated_elec_heat_seasonal_paths(
+            "tariff_maps/electric/u_elec_heat_seasonal_epmc_vs_non_elec_heat_supply.csv"
+        )
+        == "tariff_maps/electric/u_elec_heat_seasonal_vs_non_elec_heat_supply.csv"
+    )
+    assert (
+        _normalize_deprecated_elec_heat_seasonal_paths(
+            "tariffs/electric/u_elec_heat_seasonal_epmc_supply_calibrated.json"
+        )
+        == "tariffs/electric/u_elec_heat_seasonal_supply_calibrated.json"
+    )
+    # hp_seasonal_epmc paths must be unchanged
+    assert (
+        _normalize_deprecated_elec_heat_seasonal_paths(
+            "tariffs/electric/u_hp_seasonal_epmc.json"
+        )
+        == "tariffs/electric/u_hp_seasonal_epmc.json"
+    )
+
+
+def test_row_to_run_normalizes_deprecated_elec_heat_seasonal_sheet_paths() -> None:
+    """Runs 33–36 sheet rows may still reference *_elec_heat_seasonal_epmc* files."""
+    row = _base_row()
+    row["path_tariff_maps_electric"] = (
+        "tariff_maps/electric/rie_elec_heat_seasonal_epmc_vs_non_elec_heat.csv"
+    )
+    row["path_tariffs_electric"] = (
+        "electric_heating: tariffs/electric/rie_elec_heat_seasonal_epmc.json, "
+        "non_electric_heating: tariffs/electric/rie_non_electric_heating.json"
+    )
+    headers = list(row.keys())
+    run = _row_to_run(row, headers)
+    assert (
+        run["path_tariff_maps_electric"]
+        == "tariff_maps/electric/rie_elec_heat_seasonal_vs_non_elec_heat.csv"
+    )
+    path_tariffs_electric = cast(dict[str, str], run["path_tariffs_electric"])
+    assert path_tariffs_electric["electric_heating"] == (
+        "tariffs/electric/rie_elec_heat_seasonal.json"
+    )
+    assert path_tariffs_electric["non_electric_heating"] == (
+        "tariffs/electric/rie_non_electric_heating.json"
+    )
 
 
 # ---------------------------------------------------------------------------

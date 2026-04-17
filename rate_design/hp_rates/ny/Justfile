@@ -252,7 +252,7 @@ validate-psegli timestamp="":
 validate-rge timestamp="":
     UTILITY=rge just validate-runs "{{ timestamp }}"
 
-validate-epmc-comparison utility_arg timestamp="":
+validate-electrified-comparison utility_arg timestamp="":
     UTILITY={{ utility_arg }} just validate-runs "{{ timestamp }}" "" "" "ny_hp_only_vs_electrified"
 
 # Validate all NY utilities sequentially (all scenario runs per utility).

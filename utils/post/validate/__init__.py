@@ -24,6 +24,7 @@ from utils.post.validate.checks import (
     check_seasonal_winter_below_summer,
     check_subclass_revenue_neutrality,
     check_subclass_rr_sums_to_total,
+    check_supply_passthrough_revenue_requirement,
     check_tariff_unchanged,
     check_weights_sum_to_n_customers,
 )
@@ -82,6 +83,7 @@ __all__ = [
     "check_seasonal_winter_below_summer",
     "check_subclass_revenue_neutrality",
     "check_subclass_rr_sums_to_total",
+    "check_supply_passthrough_revenue_requirement",
     "check_tariff_unchanged",
     "check_weights_sum_to_n_customers",
     # load

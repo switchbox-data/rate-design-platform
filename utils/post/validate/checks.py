@@ -13,8 +13,10 @@ CAIRO output CSV column conventions:
 Revenue requirement YAML conventions (from :func:`~utils.post.validate.load.load_revenue_requirement`):
   total RR   : ``total_delivery_revenue_requirement``,
                ``total_delivery_and_supply_revenue_requirement``
-  subclass RR: ``subclass_revenue_requirements`` →
-               ``{subclass: {delivery, supply, total}}`` with keys ``"hp"`` / ``"non-hp"``
+  subclass RR: ``subclass_revenue_requirements`` with separate ``delivery`` and
+               ``supply`` allocation-method blocks. Validation resolves that
+               into ``{subclass: {delivery, supply, total}}`` for checks that
+               compare against run bills.
 """
 
 from __future__ import annotations
@@ -348,6 +350,114 @@ def check_subclass_revenue_neutrality(
         status="PASS" if all_pass else "FAIL",
         message=message,
         details={"subclasses": per_subclass, "cost_scope": cost_scope},
+    )
+
+
+def check_supply_passthrough_revenue_requirement(
+    delivery_bills: pl.LazyFrame,
+    total_bills: pl.LazyFrame,
+    metadata: pl.LazyFrame,
+    subclass_rr_raw: dict[str, Any],
+    tolerance_pct: float = 0.5,
+    tolerance_usd: float = 1.0,
+    subclass_spec: SubclassSpec | None = None,
+) -> CheckResult:
+    """Check that ``supply.passthrough`` equals total bills minus delivery bills.
+
+    ``compute_subclass_rr.py`` writes supply passthrough as actual weighted
+    supply bills by subclass, i.e. weighted annual electric bills from the
+    delivery+supply run minus weighted annual electric bills from the paired
+    delivery-only run.  This check validates that identity directly against
+    CAIRO outputs.
+    """
+    raw = subclass_rr_raw.get("subclass_revenue_requirements", subclass_rr_raw)
+    supply_block = raw.get("supply", {}) if isinstance(raw, dict) else {}
+    passthrough_targets = (
+        supply_block.get("passthrough", {}) if isinstance(supply_block, dict) else {}
+    )
+    if not isinstance(passthrough_targets, dict) or not passthrough_targets:
+        return CheckResult(
+            name="supply_passthrough_revenue_requirement",
+            status="WARN",
+            message="No supply.passthrough block found in subclass revenue requirement YAML",
+            details={
+                "subclasses": {},
+                "tolerance_pct": tolerance_pct,
+                "tolerance_usd": tolerance_usd,
+            },
+        )
+
+    delivery_by_subclass = _weighted_annual_revenue_by_named_subclass(
+        delivery_bills,
+        metadata,
+        subclass_spec,
+    )
+    total_by_subclass = _weighted_annual_revenue_by_named_subclass(
+        total_bills,
+        metadata,
+        subclass_spec,
+    )
+
+    per_subclass: dict[str, dict[str, Any]] = {}
+    missing_subclasses: list[str] = []
+    for sub, raw_target in passthrough_targets.items():
+        target = float(raw_target)
+        delivery = delivery_by_subclass.get(str(sub))
+        total = total_by_subclass.get(str(sub))
+        if delivery is None or total is None:
+            missing_subclasses.append(str(sub))
+            per_subclass[str(sub)] = {
+                "delivery_bills": delivery,
+                "total_bills": total,
+                "actual_supply_passthrough": None,
+                "target_supply_passthrough": target,
+                "pct_diff": None,
+                "pass": False,
+                "missing": True,
+            }
+            continue
+
+        actual = total - delivery
+        absolute_diff = actual - target
+        if target == 0:
+            pct_diff = None
+            passed = abs(absolute_diff) <= tolerance_usd
+        else:
+            pct_diff = absolute_diff / target * 100
+            passed = abs(pct_diff) <= tolerance_pct
+        per_subclass[str(sub)] = {
+            "delivery_bills": delivery,
+            "total_bills": total,
+            "actual_supply_passthrough": actual,
+            "target_supply_passthrough": target,
+            "absolute_diff": absolute_diff,
+            "pct_diff": pct_diff,
+            "pass": passed,
+        }
+
+    all_pass = not missing_subclasses and all(v["pass"] for v in per_subclass.values())
+    summary = "; ".join(
+        f"{display_subclass(s)}: missing"
+        if v.get("missing")
+        else f"{display_subclass(s)}: ${float(v['absolute_diff']):+.0f}"
+        if v["pct_diff"] is None
+        else f"{display_subclass(s)}: {float(v['pct_diff']):+.2f}%"
+        for s, v in per_subclass.items()
+    )
+    message = f"Supply passthrough deviations — {summary}"
+    if missing_subclasses:
+        message += " — FAIL: missing subclasses " + ", ".join(
+            sorted(missing_subclasses)
+        )
+    return CheckResult(
+        name="supply_passthrough_revenue_requirement",
+        status="PASS" if all_pass else "FAIL",
+        message=message,
+        details={
+            "subclasses": per_subclass,
+            "tolerance_pct": tolerance_pct,
+            "tolerance_usd": tolerance_usd,
+        },
     )
 
 

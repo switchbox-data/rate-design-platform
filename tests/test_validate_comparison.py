@@ -15,12 +15,10 @@ def _config(run_num: int) -> RunConfig:
         run_num=run_num,
         run_name=f"run_{run_num}",
         run_type="precalc" if run_num % 2 == 1 else "default",
-        upgrade="0" if run_num in {17, 18, 21, 22, 29, 30, 33, 34} else "2",
+        upgrade="0" if run_num in {5, 6, 29, 30, 33, 34} else "2",
         cost_scope="delivery" if run_num % 2 == 1 else "delivery+supply",
-        has_subclasses=run_num in {17, 18, 21, 22, 29, 30, 33, 34},
-        tariff_type="flat"
-        if run_num in {17, 18, 19, 20, 29, 30, 31, 32}
-        else "seasonal",
+        has_subclasses=run_num in {5, 6, 29, 30, 33, 34},
+        tariff_type="flat" if run_num in {29, 30, 31, 32} else "seasonal",
         elasticity=0.0,
         path_resstock_loads="",
         path_dist_and_sub_tx_mc="",
@@ -33,7 +31,9 @@ def _config(run_num: int) -> RunConfig:
 def test_resolve_ny_hp_only_vs_electrified_pairs_matches_flat_and_seasonal_runs() -> (
     None
 ):
-    configs = {run_num: _config(run_num) for run_num in range(17, 37)}
+    configs = {
+        run_num: _config(run_num) for run_num in list(range(5, 9)) + list(range(29, 37))
+    }
 
     families = resolve_ny_hp_only_vs_electrified_pairs(configs)
 
@@ -41,8 +41,8 @@ def test_resolve_ny_hp_only_vs_electrified_pairs_matches_flat_and_seasonal_runs(
         (family.name, family.hp_only_runs, family.electrified_runs)
         for family in families
     ] == [
-        ("flat_epmc", (17, 18, 19, 20), (29, 30, 31, 32)),
-        ("seasonal_epmc", (21, 22, 23, 24), (33, 34, 35, 36)),
+        ("flat_percustomer", (5, 6, 7, 8), (29, 30, 31, 32)),
+        ("seasonal_percustomer", (5, 6, 7, 8), (33, 34, 35, 36)),
     ]
 
 
@@ -65,7 +65,7 @@ def test_gap_directionality_passes_when_only_magnitude_changes() -> None:
         elec_focus="electric_heating",
         elec_other="non_electric_heating",
         metric_cols=["rr_value"],
-        run_nums=[17, 29],
+        run_nums=[5, 29],
     )
 
     assert result.status == "PASS"
@@ -90,7 +90,7 @@ def test_gap_directionality_fails_when_ordering_flips() -> None:
         elec_focus="electric_heating",
         elec_other="non_electric_heating",
         metric_cols=["rr_value"],
-        run_nums=[17, 29],
+        run_nums=[5, 29],
     )
 
     assert result.status == "FAIL"
@@ -117,7 +117,7 @@ def test_role_directionality_fails_when_subclass_sign_flips() -> None:
             "other": "non_electric_heating",
         },
         metric_cols=["bill_delta"],
-        run_nums=[19, 31],
+        run_nums=[7, 31],
     )
 
     assert result.status == "FAIL"
