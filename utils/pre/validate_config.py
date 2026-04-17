@@ -41,6 +41,14 @@ def main() -> None:
     parser.add_argument("--path-bulk-tx-mc", default=None)
     parser.add_argument("--path-supply-energy-mc", required=True)
     parser.add_argument("--path-supply-capacity-mc", required=True)
+    parser.add_argument(
+        "--path-supply-ancillary-mc",
+        default=None,
+        help=(
+            "Expected supply ancillary MC path (run 2). When omitted, ancillary is not "
+            "validated. When set, run 2 must declare path_supply_ancillary_mc and match."
+        ),
+    )
     parser.add_argument("--path-electric-utility-stats", required=True)
     parser.add_argument("--path-resstock-loads", required=True)
     parser.add_argument("--strict", action="store_true")
@@ -101,6 +109,16 @@ def main() -> None:
                 _normalize_data_path(str(run2.get("path_supply_capacity_mc", ""))),
             )
         )
+        if args.path_supply_ancillary_mc:
+            yaml_anc = str(run2.get("path_supply_ancillary_mc", "")).strip()
+            if yaml_anc:
+                checks.append(
+                    (
+                        "path_supply_ancillary_mc",
+                        _normalize_data_path(args.path_supply_ancillary_mc),
+                        _normalize_data_path(yaml_anc),
+                    )
+                )
 
     # Cross-check run_includes_subclasses against path_tariffs_electric keys
     for run_num, run_dict in runs.items():

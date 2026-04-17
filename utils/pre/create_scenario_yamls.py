@@ -53,19 +53,29 @@ path_supply_capacity_mc (required):
     NY uses separate NYISO LBMP + ICAP parquets for supply runs, and zero-filled parquets for delivery-only runs.
 
 path_supply_ancillary_mc (optional):
-    RI supply runs (add_supply_revenue_requirement=TRUE):
-        "s3://data.sb/switchbox/marginal_costs/ri/supply/ancillary/utility=" & LOWER($B18) & "/year=2025/data.parquet"
-    RI delivery-only runs:
-        "" (empty, not used)
-    NY runs:
-        "" (empty, not used)
+    When blank on a supply run, ``_row_to_run`` fills the canonical path
+    ``s3://data.sb/switchbox/marginal_costs/<state>/supply/ancillary/utility=<utility>/year=<year_run>/data.parquet``.
+    Supply runs (add_supply_revenue_requirement=TRUE / column ``X``) — sheet may set:
+        RI: ``s3://data.sb/switchbox/marginal_costs/ri/supply/ancillary/utility=`` & LOWER($B18) & ``/year=2025/data.parquet``
+        NY: ``s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=`` & LOWER($B18) & ``/year=2025/data.parquet``
+    Delivery-only runs (``E18`` not ``X``):
+        ``""`` (empty — ancillary not passed to CAIRO for that run)
 
-    Full formula (where E18 = add_supply_revenue_requirement column, X = TRUE):
-    =IF(AND($A18="RI", E18="X"),
-        "s3://data.sb/switchbox/marginal_costs/ri/supply/ancillary/utility=" & LOWER($B18) & "/year=2025/data.parquet",
+    Full formula (where ``E18`` = add_supply_revenue_requirement, ``X`` = TRUE;
+    ``$A18`` = state, ``$B18`` = utility):
+    =IF(E18="X",
+        IF($A18="NY",
+            "s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=" & LOWER($B18) & "/year=2025/data.parquet",
+            IF($A18="RI",
+                "s3://data.sb/switchbox/marginal_costs/ri/supply/ancillary/utility=" & LOWER($B18) & "/year=2025/data.parquet",
+                "")),
         "")
 
-    Note: RI ancillary MC uses ISO-NE regulation clearing prices (reg_service_price + reg_capacity_price).
+    Generate NY partitions with ``just -f ny/Justfile create-supply-ancillary-mc-data-all``
+    (or ``create-supply-ancillary-mc-data <utility>``) after ``s3://data.sb/nyiso/ancillary/`` is populated.
+
+    Note: RI ancillary MC uses ISO-NE regulation clearing prices; NY uses NYISO AS prices
+    via ``utils/pre/marginal_costs/supply_ancillary.py`` (``--iso nyiso``).
 
 path_tou_supply_mc formula (for runs where num = 13 or 14):
     =IF(AND($A18="NY", OR($C18=13, $C18=14)),
@@ -470,6 +480,22 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         if yaml_key not in periods_data:
             raise ValueError(f"No '{yaml_key}' key in {periods_path}")
         run["elasticity"] = periods_data[yaml_key]
+
+    # Supply ancillary MC: same S3 partition pattern as energy/capacity (NYISO / ISO-NE).
+    # Sheet column path_supply_ancillary_mc overrides when non-blank; otherwise derive
+    # from state, utility, and year_run so supply runs always carry an explicit path.
+    path_supply_ancillary_mc_sheet = get_optional("path_supply_ancillary_mc")
+    if run["run_includes_supply"]:
+        if path_supply_ancillary_mc_sheet and path_supply_ancillary_mc_sheet.strip():
+            run["path_supply_ancillary_mc"] = path_supply_ancillary_mc_sheet.strip()
+        else:
+            util = str(run["utility"]).lower()
+            st = str(run["state"]).lower()
+            yr = int(run["year_run"])
+            run["path_supply_ancillary_mc"] = (
+                f"s3://data.sb/switchbox/marginal_costs/{st}/supply/ancillary/"
+                f"utility={util}/year={yr}/data.parquet"
+            )
 
     return run
 

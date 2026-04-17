@@ -37,6 +37,7 @@ zone_mapping_path := "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.cs
 
 create-supply-mc-data utility_arg:
     just create-supply_energy-mc-data {{ utility_arg }}
+    just create-supply-ancillary-mc-data {{ utility_arg }}
     just create-supply_capacity-mc-data {{ utility_arg }}
 
 create-supply-mc-data-all:
@@ -63,6 +64,26 @@ create-supply_capacity-mc-data utility_arg:
       --capacity-load-year {{ supply_capacity_load_year }} \
       --zone-mapping-path {{ zone_mapping_path }} \
       --upload
+
+# NYISO ancillary clearing prices → same Switchbox layout as energy/capacity
+# (``s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/...``). Raw inputs:
+# ``s3://data.sb/nyiso/ancillary/`` (see ``data/nyiso/ancillary/`` Justfile).
+
+create-supply-ancillary-mc-data utility_arg:
+    cd {{ project_root }} && uv run python {{ project_root }}/utils/pre/marginal_costs/generate_supply_ancillary_mc.py \
+      --iso nyiso \
+      --utility {{ utility_arg }} \
+      --year {{ supply_mc_year }} \
+      --upload
+
+create-supply-ancillary-mc-data-all:
+    just create-supply-ancillary-mc-data cenhud
+    just create-supply-ancillary-mc-data coned
+    just create-supply-ancillary-mc-data nimo
+    just create-supply-ancillary-mc-data nyseg
+    just create-supply-ancillary-mc-data or
+    just create-supply-ancillary-mc-data rge
+    just create-supply-ancillary-mc-data psegli
 
 create-supply_energy-mc-data-all:
     just create-supply_energy-mc-data cenhud
