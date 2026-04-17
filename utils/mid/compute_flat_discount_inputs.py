@@ -13,9 +13,11 @@ from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils.mid.compute_subclass_rr import (
     BAT_METRIC_CHOICES,
     DEFAULT_BAT_METRIC,
-    DEFAULT_FLAT_OUTPUT_FILENAME,
+    DEFAULT_GROUP_COL,
     _resolve_path_or_s3,
-    compute_hp_flat_discount_inputs,
+    compute_subclass_flat_discount_inputs,
+    flat_discount_filename,
+    parse_group_value_to_subclass,
 )
 
 
@@ -39,8 +41,8 @@ def main() -> None:
     )
     parser = argparse.ArgumentParser(
         description=(
-            "Compute a fair flat HP volumetric rate from run outputs and ResStock "
-            "loads.  Writes flat_discount_rate_inputs.csv."
+            "Compute a fair flat volumetric rate for a customer subclass from run "
+            "outputs and ResStock loads."
         )
     )
     parser.add_argument(
@@ -62,6 +64,34 @@ def main() -> None:
         "--upgrade",
         required=True,
         help="Upgrade partition for loads (e.g. 00).",
+    )
+    parser.add_argument(
+        "--group-col",
+        default=DEFAULT_GROUP_COL,
+        help=(
+            "Column in customer_metadata.csv that defines subclass membership "
+            "(default: has_hp). The resolved column name (with postprocess_group. "
+            "prefix if needed) is used automatically."
+        ),
+    )
+    parser.add_argument(
+        "--subclass-value",
+        default="true",
+        help=(
+            "Value of --group-col that identifies the target subclass "
+            "(default: 'true', i.e. HP customers when group-col=has_hp). "
+            "For electric-heating subclass use 'electric_heating'. If "
+            "--group-value-to-subclass is provided, subclass aliases will be "
+            "expanded to the raw metadata values they represent."
+        ),
+    )
+    parser.add_argument(
+        "--group-value-to-subclass",
+        help=(
+            "Optional mapping from raw group values to subclass aliases in the "
+            "format 'value=subclass,value2=subclass,...'. When provided, "
+            "--subclass-value may be a subclass alias like 'electric_heating'."
+        ),
     )
     parser.add_argument(
         "--cross-subsidy-col",
@@ -91,18 +121,27 @@ def main() -> None:
     output_dir = _resolve_path_or_s3(args.output_dir) if args.output_dir else run_dir
 
     storage_options = get_aws_storage_options() if isinstance(run_dir, S3Path) else None
-    flat_inputs = compute_hp_flat_discount_inputs(
+    group_value_to_subclass = (
+        parse_group_value_to_subclass(args.group_value_to_subclass)
+        if args.group_value_to_subclass
+        else None
+    )
+    flat_inputs = compute_subclass_flat_discount_inputs(
         run_dir=run_dir,
         resstock_base=args.resstock_base,
         state=args.state,
         upgrade=args.upgrade,
+        group_col=args.group_col,
+        subclass_value=args.subclass_value,
         cross_subsidy_col=args.cross_subsidy_col,
         storage_options=storage_options,
+        group_value_to_subclass=group_value_to_subclass,
         base_tariff_json_path=base_tariff_json_path,
     )
     print(flat_inputs)
 
-    output_path = output_dir / DEFAULT_FLAT_OUTPUT_FILENAME
+    filename = flat_discount_filename(args.group_col, args.subclass_value)
+    output_path = output_dir / filename
     csv_text = flat_inputs.write_csv(None)
     if not isinstance(csv_text, str):
         raise ValueError("Failed to render flat discount input CSV text.")

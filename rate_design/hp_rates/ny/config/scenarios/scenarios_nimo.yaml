@@ -732,7 +732,11 @@ runs:
     run_includes_supply: false
     run_includes_subclasses: true
     residual_allocation_delivery: epmc
+<<<<<<< HEAD
     residual_allocation_supply: epmc
+=======
+    residual_allocation_supply: percustomer
+>>>>>>> main
     path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nimo/year=2025/data.parquet
     solar_pv_compensation: net_metering
@@ -835,3 +839,267 @@ runs:
     elasticity:
       summer: -0.18
       winter: -0.16
+<<<<<<< HEAD
+=======
+  29:
+    run_name: ny_nimo_run29_up00_precalc__elec_heat_flat_vs_non_elec_heat
+    state: NY
+    utility: nimo
+    run_type: precalc
+    upgrade: '0'
+    path_tariff_maps_electric: tariff_maps/electric/nimo_elec_heat_flat_vs_non_elec_heat.csv
+    path_tariff_maps_gas: tariff_maps/gas/nimo_u00.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run29_up00_precalc__elec_heat_flat_vs_non_elec_heat
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nimo/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nimo/year=2025/zero.parquet
+    path_tariffs_electric:
+      electric_heating: tariffs/electric/nimo_elec_heat_flat.json
+      non_electric_heating: tariffs/electric/nimo_non_electric_heating.json
+    utility_revenue_requirement: rev_requirement/nimo_elec_heat_vs_non_elec_heat.yaml
+    run_includes_supply: false
+    run_includes_subclasses: true
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: percustomer
+    subclass_config:
+      group_col: heating_type_v2
+      selectors:
+        electric_heating: heat_pump,electrical_resistance
+        non_electric_heating: natgas,delivered_fuels,other
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nimo/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  30:
+    run_name: ny_nimo_run30_up00_precalc_supply__elec_heat_flat_vs_non_elec_heat
+    state: NY
+    utility: nimo
+    run_type: precalc
+    upgrade: '0'
+    path_tariff_maps_electric: tariff_maps/electric/nimo_elec_heat_flat_vs_non_elec_heat_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/nimo_u00.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run30_up00_precalc_supply__elec_heat_flat_vs_non_elec_heat
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nimo/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nimo/year=2025/data.parquet
+    path_tariffs_electric:
+      electric_heating: tariffs/electric/nimo_elec_heat_flat_supply.json
+      non_electric_heating: tariffs/electric/nimo_non_electric_heating_supply.json
+    utility_revenue_requirement: rev_requirement/nimo_elec_heat_vs_non_elec_heat.yaml
+    run_includes_supply: true
+    run_includes_subclasses: true
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: percustomer
+    subclass_config:
+      group_col: heating_type_v2
+      selectors:
+        electric_heating: heat_pump,electrical_resistance
+        non_electric_heating: natgas,delivered_fuels,other
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nimo/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  31:
+    run_name: ny_nimo_run31_up02_default__elec_heat_flat
+    state: NY
+    utility: nimo
+    run_type: default
+    upgrade: '2'
+    path_tariff_maps_electric: tariff_maps/electric/nimo_elec_heat_flat_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/nimo_u02.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run31_up02_default__elec_heat_flat
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nimo/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nimo/year=2025/zero.parquet
+    path_tariffs_electric:
+      all: tariffs/electric/nimo_elec_heat_flat_calibrated.json
+    utility_revenue_requirement: rev_requirement/nimo_large_number.yaml
+    run_includes_supply: false
+    run_includes_subclasses: false
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nimo/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  32:
+    run_name: ny_nimo_run32_up02_default_supply__elec_heat_flat
+    state: NY
+    utility: nimo
+    run_type: default
+    upgrade: '2'
+    path_tariff_maps_electric: tariff_maps/electric/nimo_elec_heat_flat_calibrated_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/nimo_u02.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run32_up02_default_supply__elec_heat_flat
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nimo/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nimo/year=2025/data.parquet
+    path_tariffs_electric:
+      all: tariffs/electric/nimo_elec_heat_flat_supply_calibrated.json
+    utility_revenue_requirement: rev_requirement/nimo_large_number.yaml
+    run_includes_supply: true
+    run_includes_subclasses: false
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nimo/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  33:
+    run_name: ny_nimo_run33_up00_precalc__elec_heat_seasonal_epmc_vs_non_elec_heat
+    state: NY
+    utility: nimo
+    run_type: precalc
+    upgrade: '0'
+    path_tariff_maps_electric: tariff_maps/electric/nimo_elec_heat_seasonal_epmc_vs_non_elec_heat.csv
+    path_tariff_maps_gas: tariff_maps/gas/nimo_u00.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run33_up00_precalc__elec_heat_seasonal_epmc_vs_non_elec_heat
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nimo/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nimo/year=2025/zero.parquet
+    path_tariffs_electric:
+      electric_heating: tariffs/electric/nimo_elec_heat_seasonal_epmc.json
+      non_electric_heating: tariffs/electric/nimo_non_electric_heating.json
+    utility_revenue_requirement: rev_requirement/nimo_elec_heat_vs_non_elec_heat.yaml
+    run_includes_supply: false
+    run_includes_subclasses: true
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: percustomer
+    subclass_config:
+      group_col: heating_type_v2
+      selectors:
+        electric_heating: heat_pump,electrical_resistance
+        non_electric_heating: natgas,delivered_fuels,other
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nimo/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  34:
+    run_name: ny_nimo_run34_up00_precalc_supply__elec_heat_seasonal_epmc_vs_non_elec_heat
+    state: NY
+    utility: nimo
+    run_type: precalc
+    upgrade: '0'
+    path_tariff_maps_electric: tariff_maps/electric/nimo_elec_heat_seasonal_epmc_vs_non_elec_heat_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/nimo_u00.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run34_up00_precalc_supply__elec_heat_seasonal_epmc_vs_non_elec_heat
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nimo/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nimo/year=2025/data.parquet
+    path_tariffs_electric:
+      electric_heating: tariffs/electric/nimo_elec_heat_seasonal_epmc_supply.json
+      non_electric_heating: tariffs/electric/nimo_non_electric_heating_supply.json
+    utility_revenue_requirement: rev_requirement/nimo_elec_heat_vs_non_elec_heat.yaml
+    run_includes_supply: true
+    run_includes_subclasses: true
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: percustomer
+    subclass_config:
+      group_col: heating_type_v2
+      selectors:
+        electric_heating: heat_pump,electrical_resistance
+        non_electric_heating: natgas,delivered_fuels,other
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nimo/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  35:
+    run_name: ny_nimo_run35_up02_default__elec_heat_seasonal_epmc
+    state: NY
+    utility: nimo
+    run_type: default
+    upgrade: '2'
+    path_tariff_maps_electric: tariff_maps/electric/nimo_elec_heat_seasonal_epmc_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/nimo_u02.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run35_up02_default__elec_heat_seasonal_epmc
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nimo/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nimo/year=2025/zero.parquet
+    path_tariffs_electric:
+      all: tariffs/electric/nimo_elec_heat_seasonal_epmc_calibrated.json
+    utility_revenue_requirement: rev_requirement/nimo_large_number.yaml
+    run_includes_supply: false
+    run_includes_subclasses: false
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nimo/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  36:
+    run_name: ny_nimo_run36_up02_default_supply__elec_heat_seasonal_epmc
+    state: NY
+    utility: nimo
+    run_type: default
+    upgrade: '2'
+    path_tariff_maps_electric: tariff_maps/electric/nimo_elec_heat_seasonal_epmc_calibrated_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/nimo_u02.csv
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=02/
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/utility=nimo/year=2025/data.parquet
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/<execution_time>/ny_nimo_run36_up02_default_supply__elec_heat_seasonal_epmc
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=nimo/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=nimo/year=2025/data.parquet
+    path_tariffs_electric:
+      all: tariffs/electric/nimo_elec_heat_seasonal_epmc_supply_calibrated.json
+    utility_revenue_requirement: rev_requirement/nimo_large_number.yaml
+    run_includes_supply: true
+    run_includes_subclasses: false
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=nimo/year=2025/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+subclass_config:
+  group_col: has_hp
+  selectors:
+    hp: 'true'
+    non-hp: 'false'
+>>>>>>> main

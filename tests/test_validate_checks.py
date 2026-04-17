@@ -3,10 +3,43 @@ from __future__ import annotations
 import polars as pl
 
 from utils.post.validate.checks import (
+    bat_col_for_allocation,
+    check_bat_near_zero,
     check_flex_subclass_revenue_expectations,
     check_hp_subclass_revenue_lower_with_flex,
     check_seasonal_winter_below_summer,
 )
+
+
+def test_bat_col_for_allocation_maps_methods() -> None:
+    assert bat_col_for_allocation("percustomer") == "BAT_percustomer"
+    assert bat_col_for_allocation("epmc") == "BAT_epmc"
+    assert bat_col_for_allocation("volumetric") == "BAT_vol"
+    assert bat_col_for_allocation(None) == "BAT_percustomer"
+
+
+def test_bat_near_zero_uses_specified_metric() -> None:
+    bat = pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "BAT_percustomer": [500.0, -500.0],
+            "BAT_epmc": [0.5, -0.5],
+            "BAT_vol": [10.0, -10.0],
+        }
+    ).lazy()
+    metadata = pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "weight": [1.0, 1.0],
+            "postprocess_group.has_hp": [True, False],
+        }
+    ).lazy()
+
+    result_pc = check_bat_near_zero(bat, metadata, bat_metric="BAT_percustomer")
+    assert result_pc.status == "FAIL"
+
+    result_epmc = check_bat_near_zero(bat, metadata, bat_metric="BAT_epmc")
+    assert result_epmc.status == "PASS"
 
 
 def _seasonal_tou_schedule() -> list[list[int]]:
@@ -113,6 +146,27 @@ def test_seasonal_check_skips_nonhp_default_structure_tariff() -> None:
     }
 
     result = check_seasonal_winter_below_summer(tariff_config, run_num=5)
+
+    assert result.status == "PASS"
+
+
+def _monthly_schedule() -> list[list[int]]:
+    """Monthly tariff: each month has its own period (1-based, period = month + 1)."""
+    return [[i + 1] * 24 for i in range(12)]
+
+
+def test_seasonal_check_skips_monthly_tariff() -> None:
+    """Monthly tariffs (12 distinct periods) should be skipped, not failed."""
+    tariff_config = {
+        "cenhud_non_electric_heating": {
+            "ur_ec_sched_weekday": _monthly_schedule(),
+            "ur_ec_tou_mat": [
+                [i + 1, 1, 1e38, 0, 0.05 + i * 0.005, 0.0, 0] for i in range(12)
+            ],
+        }
+    }
+
+    result = check_seasonal_winter_below_summer(tariff_config, run_num=33)
 
     assert result.status == "PASS"
 
@@ -266,3 +320,83 @@ def test_flex_subclass_revenue_expectations_fail_when_hp_subclass_missing() -> N
 
     assert result.status == "FAIL"
     assert "missing subclasses hp" in result.message
+
+
+# ---------------------------------------------------------------------------
+# _maybe_downgrade_bat_near_zero
+# ---------------------------------------------------------------------------
+
+
+def test_bat_near_zero_downgraded_to_warn_for_mixed_alloc() -> None:
+    from utils.post.validate.__main__ import _maybe_downgrade_bat_near_zero
+    from utils.post.validate.checks import CheckResult
+
+    failing = CheckResult(
+        name="bat_near_zero", status="FAIL", message="EPMC BAT — hp: $+500.0"
+    )
+
+    result = _maybe_downgrade_bat_near_zero(
+        failing,
+        cost_scope="delivery+supply",
+        residual_allocation_delivery="epmc",
+        residual_allocation_supply="percustomer",
+    )
+
+    assert result.status == "WARN"
+    assert "mixed delivery/supply allocation" in result.message
+    assert "epmc vs percustomer" in result.message
+    assert result.name == "bat_near_zero"
+
+
+def test_bat_near_zero_not_downgraded_when_same_alloc() -> None:
+    from utils.post.validate.__main__ import _maybe_downgrade_bat_near_zero
+    from utils.post.validate.checks import CheckResult
+
+    failing = CheckResult(
+        name="bat_near_zero", status="FAIL", message="EPMC BAT — hp: $+500.0"
+    )
+
+    result = _maybe_downgrade_bat_near_zero(
+        failing,
+        cost_scope="delivery+supply",
+        residual_allocation_delivery="epmc",
+        residual_allocation_supply="epmc",
+    )
+
+    assert result.status == "FAIL"
+
+
+def test_bat_near_zero_not_downgraded_for_delivery_only_run() -> None:
+    from utils.post.validate.__main__ import _maybe_downgrade_bat_near_zero
+    from utils.post.validate.checks import CheckResult
+
+    failing = CheckResult(
+        name="bat_near_zero", status="FAIL", message="EPMC BAT — hp: $+500.0"
+    )
+
+    result = _maybe_downgrade_bat_near_zero(
+        failing,
+        cost_scope="delivery",
+        residual_allocation_delivery="epmc",
+        residual_allocation_supply="percustomer",
+    )
+
+    assert result.status == "FAIL"
+
+
+def test_bat_near_zero_pass_unchanged_for_mixed_alloc() -> None:
+    from utils.post.validate.__main__ import _maybe_downgrade_bat_near_zero
+    from utils.post.validate.checks import CheckResult
+
+    passing = CheckResult(
+        name="bat_near_zero", status="PASS", message="EPMC BAT — all near zero"
+    )
+
+    result = _maybe_downgrade_bat_near_zero(
+        passing,
+        cost_scope="delivery+supply",
+        residual_allocation_delivery="epmc",
+        residual_allocation_supply="percustomer",
+    )
+
+    assert result.status == "PASS"

@@ -28,6 +28,7 @@ from plotnine import (
     theme,
     theme_minimal,
 )
+from utils.post.validate.subclasses import SUBCLASS_COL, display_subclass
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -45,6 +46,13 @@ _BAT_LABELS: dict[str, str] = {
     "BAT_vol_wavg": "Volumetric",
     "BAT_peak_wavg": "Peak",
 }
+_GENERIC_COLORS: tuple[str, ...] = (
+    "#E69F00",
+    "#0072B2",
+    "#009E73",
+    "#D55E00",
+    "#CC79A7",
+)
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -52,13 +60,37 @@ _BAT_LABELS: dict[str, str] = {
 
 
 def _label_subclass(df: pl.DataFrame) -> pl.DataFrame:
-    """Add a ``subclass`` column (``"HP"`` / ``"Non-HP"``) from the boolean HP flag."""
+    """Return a DataFrame with a human-readable ``subclass`` column."""
+    if SUBCLASS_COL in df.columns:
+        return df.with_columns(
+            pl.col(SUBCLASS_COL)
+            .map_elements(display_subclass, return_dtype=pl.String)
+            .alias(SUBCLASS_COL)
+        )
     return df.with_columns(
         pl.when(pl.col(_HP_COL))
         .then(pl.lit("HP"))
         .otherwise(pl.lit("Non-HP"))
-        .alias("subclass")
+        .alias(SUBCLASS_COL)
     )
+
+
+def _fill_scale_for(df: pl.DataFrame):
+    subclasses = sorted(df[SUBCLASS_COL].unique().to_list())
+    colors = {
+        subclass: _HP_COLORS.get(subclass, _GENERIC_COLORS[i % len(_GENERIC_COLORS)])
+        for i, subclass in enumerate(subclasses)
+    }
+    return scale_fill_manual(values=colors)
+
+
+def _line_scale_for(df: pl.DataFrame):
+    subclasses = sorted(df[SUBCLASS_COL].unique().to_list())
+    colors = {
+        subclass: _HP_COLORS.get(subclass, _GENERIC_COLORS[i % len(_GENERIC_COLORS)])
+        for i, subclass in enumerate(subclasses)
+    }
+    return scale_color_manual(values=colors)
 
 
 # ---------------------------------------------------------------------------
@@ -81,11 +113,12 @@ def plot_avg_bills_by_subclass(
     Returns:
         ggplot with x=bill_type, y=weighted-mean-bill, fill=subclass.
     """
-    df = _label_subclass(summary_df).to_pandas()
+    labeled = _label_subclass(summary_df)
+    df = labeled.to_pandas()
     return (
-        ggplot(df, aes("bill_type", "bill_mean_weighted", fill="subclass"))
+        ggplot(df, aes("bill_type", "bill_mean_weighted", fill=SUBCLASS_COL))
         + geom_col(position=position_dodge(width=0.8), width=0.7)
-        + scale_fill_manual(values=_HP_COLORS)
+        + _fill_scale_for(labeled)
         + labs(
             x="Bill Type",
             y="Weighted Mean Annual Bill ($)",
@@ -110,12 +143,13 @@ def plot_bill_deltas(
     Returns:
         ggplot with x=subclass, y=bill_delta, and a zero reference line.
     """
-    df = _label_subclass(delta_df).to_pandas()
+    labeled = _label_subclass(delta_df)
+    df = labeled.to_pandas()
     return (
-        ggplot(df, aes("subclass", "bill_delta", fill="subclass"))
+        ggplot(df, aes(SUBCLASS_COL, "bill_delta", fill=SUBCLASS_COL))
         + geom_col(width=0.6)
         + geom_hline(yintercept=0, linetype="dashed", color="#666666")
-        + scale_fill_manual(values=_HP_COLORS)
+        + _fill_scale_for(labeled)
         + labs(x=None, y="Bill Change ($/yr)", fill="Subclass", title=title)
         + theme_minimal()
     )
@@ -140,12 +174,13 @@ def plot_bat_by_subclass(
     Returns:
         ggplot with x=subclass, y=BAT_percustomer_wavg, and a zero reference line.
     """
-    df = _label_subclass(bat_summary).to_pandas()
+    labeled = _label_subclass(bat_summary)
+    df = labeled.to_pandas()
     return (
-        ggplot(df, aes("subclass", "BAT_percustomer_wavg", fill="subclass"))
+        ggplot(df, aes(SUBCLASS_COL, "BAT_percustomer_wavg", fill=SUBCLASS_COL))
         + geom_col(width=0.6)
         + geom_hline(yintercept=0, linetype="dashed", color="#666666")
-        + scale_fill_manual(values=_HP_COLORS)
+        + _fill_scale_for(labeled)
         + labs(x=None, y="Weighted Avg BAT ($/cust-yr)", fill="Subclass", title=title)
         + theme_minimal()
     )
@@ -174,7 +209,7 @@ def plot_bat_heatmap(
         _label_subclass(bat_summary)
         .unpivot(
             on=bat_wavg_cols,
-            index="subclass",
+            index=SUBCLASS_COL,
             variable_name="bat_col",
             value_name="wavg_usd",
         )
@@ -187,7 +222,7 @@ def plot_bat_heatmap(
         .to_pandas()
     )
     return (
-        ggplot(df, aes("benchmark", "subclass", fill="wavg_usd"))
+        ggplot(df, aes("benchmark", SUBCLASS_COL, fill="wavg_usd"))
         + geom_tile(color="white", size=0.5)
         + geom_text(aes(label="label"), size=9)
         + scale_fill_gradient2(low="#0072B2", mid="white", high="#E69F00", midpoint=0)
@@ -221,18 +256,18 @@ def plot_revenue_vs_rr(
     """
     actual = (
         _label_subclass(revenue_df)
-        .select(pl.col("subclass"), pl.col("total_revenue_weighted").alias("revenue"))
+        .select(pl.col(SUBCLASS_COL), pl.col("total_revenue_weighted").alias("revenue"))
         .with_columns(pl.lit("Actual").alias("source"))
     )
     target = pl.DataFrame(
         [
-            {"subclass": k, "revenue": v, "source": "Target RR"}
+            {SUBCLASS_COL: display_subclass(k), "revenue": v, "source": "Target RR"}
             for k, v in rr_values.items()
         ]
     )
     df = pl.concat([actual, target]).to_pandas()
     return (
-        ggplot(df, aes("subclass", "revenue", fill="source"))
+        ggplot(df, aes(SUBCLASS_COL, "revenue", fill="source"))
         + geom_col(position=position_dodge(width=0.8), width=0.7)
         + scale_fill_manual(values={"Actual": "#56B4E9", "Target RR": "#CC79A7"})
         + labs(x=None, y="Weighted Revenue ($)", fill=None, title=title)
@@ -422,7 +457,7 @@ def plot_hourly_loads_by_subclass(
     return (
         ggplot(df, aes("hour", "load_kwh", color="subclass"))
         + geom_line(size=0.3, alpha=0.7)
-        + scale_color_manual(values=_HP_COLORS)
+        + _line_scale_for(loads_df)
         + labs(
             x="Hour of Year",
             y="Weighted Mean Load (kWh)",
@@ -476,7 +511,7 @@ def plot_hourly_cost_of_service(
     return (
         ggplot(df, aes("hour", "cost_usd", color="subclass"))
         + geom_line(size=0.3, alpha=0.7)
-        + scale_color_manual(values=_HP_COLORS)
+        + _line_scale_for(cos_df)
         + labs(
             x="Hour of Year",
             y="Weighted Hourly Cost of Service ($)",

@@ -258,7 +258,7 @@ and `fixedchargeunits` / `fixedchargefirstperiod`.
 **Recipes:** `copy-default-flat-to-nonhp-flat-all`,
 `copy-default-structure-to-nonhp-all`
 
-Uses `utils/pre/copy_flat_to_nonhp_flat.py` to create
+Uses `utils/pre/copy_tariff_variants.py` to create
 `{utility}_nonhp_default.json` and `{utility}_nonhp_default_supply.json`
 (and flat equivalents) with updated labels. These are the "counterfactual"
 tariffs for non-heat-pump customers in runs that differentiate HP vs non-HP
