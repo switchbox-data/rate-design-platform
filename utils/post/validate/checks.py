@@ -419,12 +419,12 @@ def check_supply_passthrough_revenue_requirement(
 
         actual = total - delivery
         absolute_diff = actual - target
-        pct_diff = absolute_diff / target * 100 if target != 0 else None
-        passed = (
-            abs(absolute_diff) <= tolerance_usd
-            if target == 0
-            else abs(float(pct_diff)) <= tolerance_pct
-        )
+        if target == 0:
+            pct_diff = None
+            passed = abs(absolute_diff) <= tolerance_usd
+        else:
+            pct_diff = absolute_diff / target * 100
+            passed = abs(pct_diff) <= tolerance_pct
         per_subclass[str(sub)] = {
             "delivery_bills": delivery,
             "total_bills": total,

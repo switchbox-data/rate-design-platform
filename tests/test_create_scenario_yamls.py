@@ -147,10 +147,11 @@ def test_row_to_run_normalizes_deprecated_elec_heat_seasonal_sheet_paths() -> No
         run["path_tariff_maps_electric"]
         == "tariff_maps/electric/rie_elec_heat_seasonal_vs_non_elec_heat.csv"
     )
-    assert run["path_tariffs_electric"]["electric_heating"] == (
+    path_tariffs_electric = cast(dict[str, str], run["path_tariffs_electric"])
+    assert path_tariffs_electric["electric_heating"] == (
         "tariffs/electric/rie_elec_heat_seasonal.json"
     )
-    assert run["path_tariffs_electric"]["non_electric_heating"] == (
+    assert path_tariffs_electric["non_electric_heating"] == (
         "tariffs/electric/rie_non_electric_heating.json"
     )
 
