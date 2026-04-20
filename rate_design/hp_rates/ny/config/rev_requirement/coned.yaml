@@ -5,10 +5,10 @@ delivery_revenue_requirement_topups: 171585738.4
 supply_revenue_requirement_topups: 1606892846.79
 total_delivery_revenue_requirement: 3287782738.4
 total_delivery_and_supply_revenue_requirement: 4894675585.19
-total_residential_kwh: 16052971067.52
+total_residential_kwh: 16052971067.52 # sum(resstock_monthly_kwh) * resstock_scale_factor
 eia_total_residential_kwh: 13643968512.0
 eia_year: 2024
-delivery_top_ups:
+delivery_top_ups: # total_budgets are inflated by total_residential_kwh / eia_total_residential_kwh
   dlm_surcharge:
     charge_unit: $/kWh
     budget_method: resstock
@@ -63,4 +63,4 @@ resstock_monthly_kwh:
   10: 1089000434.13
   11: 1196233425.06
   12: 1387157273.6
-resstock_scale_factor: 0.786806
+resstock_scale_factor: 0.786806 # eia_customer_count / resstock_customer_count_for_utility

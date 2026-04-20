@@ -5,8 +5,10 @@
 # Usage (from rate_design/hp_rates/):
 #   just s ny list-utilities                                    # show valid utilities
 #   UTILITY=nyseg just s ny all-pre                             # single utility pre-processing
-#   RDP_BATCH= {yyyymmdd_r1-N} UTILITY=nyseg just s ny run-all-sequential                  # single utility full run
-#   just s ny run-all-utilities-sequential                      # all utilities for a state
+#   RDP_BATCH={yyyymmdd_r1-N} UTILITY=nyseg just s ny run-all-sequential                  # single utility full run
+#   RDP_BATCH=... just s ny run-all-utilities-sequential          # per util: all-pre then runs 1–24
+#   RDP_BATCH=... just s ny all-utilities-pre                     # all-pre only, every utility
+#   RDP_BATCH=... just s ny run-all-utilities-sequential-only    # runs 1–24 only (no all-pre)
 #   UTILITY=rie just -f ri/Justfile all-pre                     # via state wrapper directly
 #   set -a && source ny/state.env && set +a && UTILITY=nyseg just all-pre  # manual source
 # =============================================================================
@@ -277,6 +279,14 @@ create-seasonal-tou-tariffs base_pattern="flat":
         f = open('${supply_path}', 'w'); json.dump(t, f, indent=2); f.write('\n'); f.close(); \
         print('Created ${supply_path}')"
     echo ">> create-seasonal-tou-tariffs: wrote {{ tou_tariff_key }}.json and {{ tou_tariff_key }}_supply.json" >&2
+    # Supply runs use stems like {tou_tariff_key}_flex_supply_calibrated → base …_supply.
+    # find_tou_derivation_path looks for {base}_derivation.json, i.e. …_supply_derivation.json.
+    # Supply tariff JSON is the same TOU structure as delivery (label-only copy above); copy season specs.
+    deriv_dir="{{ path_config }}/tou_derivation"
+    deriv_src="${deriv_dir}/{{ tou_tariff_key }}_derivation.json"
+    deriv_dst="${deriv_dir}/{{ tou_tariff_key }}_supply_derivation.json"
+    cp -f "${deriv_src}" "${deriv_dst}"
+    echo ">> create-seasonal-tou-tariffs: wrote ${deriv_dst} (copy of delivery derivation for supply-side flex)" >&2
 
 create-seasonal-tou key=tou_tariff_key reference_tariff="" run_dir="" has_hp="true":
     just -f {{ path_repo }}/utils/Justfile create-seasonal-tou \
@@ -906,20 +916,41 @@ all-pre-rate-case:
     just create-seasonal-tou-tariffs {{ base_tariff_pattern }}
     just validate-config
 
+all-utilities-pre:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo ">> all-utilities-pre: {{ utilities }}" >&2
+    IFS=',' read -ra utils <<< "{{ utilities }}"
+    for util in "${utils[@]}"; do
+        echo ">> ======================================" >&2
+        echo ">> all-pre for utility: $util" >&2
+        echo ">> ======================================" >&2
+        UTILITY="$util" just all-pre
+    done
+    echo ">> all-utilities-pre: complete" >&2
+
+run-all-utilities-sequential-only:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
+    export RDP_BATCH
+    echo ">> run-all-utilities-sequential-only [${RDP_BATCH}]" >&2
+    IFS=',' read -ra utils <<< "{{ utilities }}"
+    for util in "${utils[@]}"; do
+        echo ">> ======================================" >&2
+        echo ">> run-all-sequential for utility: $util" >&2
+        echo ">> ======================================" >&2
+        UTILITY="$util" just run-all-sequential
+    done
+
 run-all-utilities-sequential:
     #!/usr/bin/env bash
     set -euo pipefail
     : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
     export RDP_BATCH
     echo ">> run-all-utilities-sequential [${RDP_BATCH}]" >&2
-    IFS=',' read -ra utils <<< "{{ utilities }}"
-    for util in "${utils[@]}"; do
-        echo ">> ======================================" >&2
-        echo ">> Running utility: $util" >&2
-        echo ">> ======================================" >&2
-        UTILITY="$util" just all-pre
-        UTILITY="$util" just run-all-sequential
-    done
+    just all-utilities-pre
+    just run-all-utilities-sequential-only
 
 run-all-sequential:
     #!/usr/bin/env bash

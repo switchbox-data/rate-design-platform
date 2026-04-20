@@ -12,6 +12,8 @@ The core CAIRO demand-response functions are commented out in `cairo/rates_tool/
 - `_shift_building_hourly_demand(...)`
 - runtime wrapper: `apply_runtime_tou_demand_response(...)`
 
+**Period-level shift → hourly rows:** elasticity gives a **`load_shift`** per building per TOU **period**; the code allocates it with **`hour_share`** so hours that used a larger share of the period’s baseline kWh absorb a larger share of the shift. For **PV** / netting, the period sum **`q_orig`** can be **tiny**; dividing **`electricity_net / q_orig`** without a floor **blows up** hourly values. The repo uses **`FLEX_SHIFT_MIN_PERIOD_ABS_KWH`**, **`_flex_shift_hour_share_from_groups`**, and **`_zero_unsafe_period_shifts_and_rebalance`** (see **`context/code/cairo/nimo_flex_demand_charge_regression.md`**).
+
 The runtime wrapper supports both:
 
 - full-year TOU shifting, and
@@ -25,7 +27,7 @@ The multi-phase demand-flex orchestration (phases 1a, 1.5, 1.75, 2) lives in `ut
 
 - `apply_demand_flex(...)` — entry point called by `run_scenario.py`; returns a `DemandFlexResult` dataclass
 - `is_diurnal_tou(tariff_path)` — detect TOU tariffs with intra-day rate variation
-- `find_tou_derivation_path(tariff_key, tou_derivation_dir)` — locate the TOU derivation JSON for a tariff
+- `find_tou_derivation_path(tariff_key, tou_derivation_dir)` — locate `{base}_derivation.json` from the tariff JSON **stem** (after `_parse_path_tariffs` rekeying; YAML `all` is not the runtime key). Supply stems often end in `…_supply` with no matching JSON; see **`context/code/cairo/demand_flex_seasonal_elasticity_derivation_path.md`**
 - `recompute_tou_precalc_mapping(...)` — recompute precalc rel_values from shifted-load MC weights (Phase 1.75)
 
 The scenario entrypoint is `rate_design/hp_rates/run_scenario.py`, which delegates demand-flex orchestration to `utils/demand_flex.py:apply_demand_flex()` and handles the CAIRO simulation.

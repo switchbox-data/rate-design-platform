@@ -648,6 +648,53 @@ def add_bulk_tx_and_dist_and_sub_tx_marginal_cost(
 # TOU / demand-response helpers
 # ---------------------------------------------------------------------------
 
+# Skip proportional allocation of period-level shifts when the building-period
+# sum of `electricity_net` is non-positive or below this threshold (kWh). PV and
+# near-net-zero TOU periods otherwise blow up `hour_share = kWh / Q_period`.
+FLEX_SHIFT_MIN_PERIOD_ABS_KWH: float = 1.0
+
+
+def _flex_shift_hour_share_from_groups(
+    electricity_net: np.ndarray,
+    q_orig: np.ndarray,
+    n_in_group: np.ndarray,
+    *,
+    min_abs_kwh: float,
+) -> np.ndarray:
+    """Hour weights for spreading ``load_shift`` across rows in a building×period.
+
+    When the period total is positive and at least ``min_abs_kwh``, use
+    ``hourly_kWh / period_total`` (proportional to net). Otherwise use a uniform
+    ``1/n_hours`` split so PV-dominated or near-zero net periods never divide by
+    a tiny denominator, while weights still sum to 1 within the group (so
+    period-level ``load_shift`` is fully allocated).
+    """
+    q = np.asarray(q_orig, dtype=np.float64)
+    x = np.asarray(electricity_net, dtype=np.float64)
+    n = np.maximum(np.asarray(n_in_group, dtype=np.float64), 1.0)
+    safe_net = (q > 0.0) & (np.abs(q) >= float(min_abs_kwh))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        out = np.where(safe_net, x / q, 1.0 / n)
+    return np.where(np.isfinite(out), out, 0.0)
+
+
+def _zero_unsafe_period_shifts_and_rebalance(
+    targets: pd.DataFrame,
+    *,
+    receiver_period: int,
+    min_abs_kwh: float,
+) -> pd.DataFrame:
+    """Drop shifts for unsafe building-periods; set receiver shift to close the sum per building."""
+    out = targets.copy()
+    unsafe = (out["Q_orig"] <= 0) | (out["Q_orig"].abs() < float(min_abs_kwh))
+    out.loc[unsafe, "load_shift"] = 0.0
+    recv_mask = out["energy_period"] == receiver_period
+    donor_sum = out.loc[~recv_mask].groupby("bldg_id", sort=False)["load_shift"].sum()
+    out.loc[recv_mask, "load_shift"] = (
+        out.loc[recv_mask, "bldg_id"].map(-donor_sum).fillna(0.0).astype(np.float64)
+    )
+    return out
+
 
 def extract_tou_period_rates(tou_tariff: dict) -> pd.DataFrame:
     """Extract period-level TOU rates from a URDB-style tariff.
@@ -819,10 +866,14 @@ def _shift_building_hourly_demand(
         on="energy_period",
         how="left",
     )
-    shifted["hour_share"] = np.where(
-        shifted["Q_orig"].abs() > 0,
-        shifted["electricity_net"] / shifted["Q_orig"],
-        0.0,
+    _n = shifted.groupby(["bldg_id", "energy_period"], sort=False)[
+        "electricity_net"
+    ].transform("size")
+    shifted["hour_share"] = _flex_shift_hour_share_from_groups(
+        shifted["electricity_net"].to_numpy(),
+        shifted["Q_orig"].to_numpy(),
+        _n.to_numpy(),
+        min_abs_kwh=FLEX_SHIFT_MIN_PERIOD_ABS_KWH,
     )
     shifted["hourly_shift"] = shifted["load_shift"].fillna(0.0) * shifted["hour_share"]
     shifted["shifted_net"] = shifted["electricity_net"] + shifted["hourly_shift"]
@@ -850,6 +901,8 @@ def process_residential_hourly_demand_response_shift(
     demand_elasticity: float,
     equivalent_flat_tariff: float | None = None,
     receiver_period: int | None = None,
+    *,
+    min_period_abs_kwh: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
     """CAIRO-style parent function for demand-response load shifting.
 
@@ -861,6 +914,9 @@ def process_residential_hourly_demand_response_shift(
         equivalent_flat_tariff: Optional comparator flat rate. If omitted,
             computed endogenously from the active slice.
         receiver_period: Optional sink period for zero-sum balancing.
+        min_period_abs_kwh: Minimum positive period sum (kWh) required before
+            applying shifts for that building-period; defaults to
+            ``FLEX_SHIFT_MIN_PERIOD_ABS_KWH``.
 
     Returns:
         Tuple of:
@@ -870,6 +926,12 @@ def process_residential_hourly_demand_response_shift(
     """
     if hourly_load_df.empty:
         return np.array([]), np.array([]), pd.DataFrame()
+
+    min_k = (
+        float(min_period_abs_kwh)
+        if min_period_abs_kwh is not None
+        else float(FLEX_SHIFT_MIN_PERIOD_ABS_KWH)
+    )
 
     period_consumption = _build_period_consumption(hourly_load_df)
     flat_tariff = (
@@ -884,6 +946,16 @@ def process_residential_hourly_demand_response_shift(
         equivalent_flat_tariff=flat_tariff,
         receiver_period=receiver_period,
     )
+    recv_period = (
+        int(period_targets.loc[period_targets["rate"].idxmin(), "energy_period"])
+        if receiver_period is None
+        else int(receiver_period)
+    )
+    period_targets = _zero_unsafe_period_shifts_and_rebalance(
+        period_targets,
+        receiver_period=recv_period,
+        min_abs_kwh=min_k,
+    )
 
     # Broadcast period-level targets to hourly rows without a full merge.
     # period_targets is small (~buildings × periods); hourly_load_df can be
@@ -894,6 +966,7 @@ def process_residential_hourly_demand_response_shift(
 
     grp = hourly_load_df.groupby(["bldg_id", "energy_period"], sort=False)
     q_orig = grp["electricity_net"].transform("sum")
+    n_in_group = grp["electricity_net"].transform("size")
 
     hourly_keys = tuple(
         zip(hourly_load_df["bldg_id"], hourly_load_df["energy_period"], strict=False)
@@ -903,10 +976,11 @@ def process_residential_hourly_demand_response_shift(
     )
     del hourly_keys
 
-    hour_share = np.where(
-        q_orig.abs().values > 0,
-        hourly_load_df["electricity_net"].values / q_orig.values,
-        0.0,
+    hour_share = _flex_shift_hour_share_from_groups(
+        hourly_load_df["electricity_net"].to_numpy(),
+        q_orig.to_numpy(),
+        n_in_group.to_numpy(),
+        min_abs_kwh=min_k,
     )
     hourly_shift = load_shift_arr * hour_share
     shifted_net = hourly_load_df["electricity_net"].values + hourly_shift
