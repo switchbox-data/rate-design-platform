@@ -1,15 +1,93 @@
 utility: nimo
 group_col: has_hp
-cross_subsidy_col: BAT_percustomer
-source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/ny_20260326_flex_r1-16/20260326_225432_ny_nimo_run1_up00_precalc__default
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/nimo/ny_20260417a_r1-36/20260418_013252_ny_nimo_run1_up00_precalc__default
 total_delivery_revenue_requirement: 1419812826.56
 total_delivery_and_supply_revenue_requirement: 2572877123.2
 subclass_revenue_requirements:
-  non-hp:
-    delivery: 1371379962.6647007
-    supply: 1077043154.9046786
-    total: 2448423117.5693793
-  hp:
-    delivery: 48432863.895299755
-    supply: 76021141.73532242
-    total: 124454005.63062218
+  delivery:
+    percustomer:
+      non-hp: 1371379962.664701
+      hp: 48432863.895299755
+    epmc:
+      non-hp: 1342842738.9645789
+      hp: 76970087.59542039
+    volumetric:
+      non-hp: 1311676799.1776206
+      hp: 108136027.3823801
+    passthrough:
+      non-hp: 1324995597.743249
+      hp: 94817228.8167154
+  supply:
+    passthrough:
+      non-hp: 1066158769.4329839
+      hp: 86905527.20701449
+    percustomer:
+      non-hp: 1069440952.3527656
+      hp: 83623344.28723371
+    volumetric:
+      non-hp: 1063627101.5898759
+      hp: 89437195.05012444
+heating_type_breakdown:
+  percustomer:
+    delivered_fuels:
+      delivery: 268515154.2608301
+      supply: 208209748.02895325
+      total: 476724902.28978336
+    electrical_resistance:
+      delivery: 145441267.2454263
+      supply: 236837809.9225235
+      total: 382279077.1679498
+    heat_pump:
+      delivery: 48432863.89529978
+      supply: 83623344.28723373
+      total: 132056208.1825335
+    natgas:
+      delivery: 876607000.6562673
+      supply: 562915025.4653505
+      total: 1439522026.1216178
+    other:
+      delivery: 80816540.50217742
+      supply: 61478368.93593988
+      total: 142294909.4381173
+  epmc:
+    delivered_fuels:
+      delivery: 293388593.4038797
+      supply: 170195642.6068654
+      total: 463584236.0107451
+    electrical_resistance:
+      delivery: 173909734.33097547
+      supply: 383547608.6640896
+      total: 557457342.9950651
+    heat_pump:
+      delivery: 76970087.59542045
+      supply: 121361824.1741249
+      total: 198331911.76954535
+    natgas:
+      delivery: 788844172.7848694
+      supply: 428140063.4469435
+      total: 1216984236.231813
+    other:
+      delivery: 86700238.4448553
+      supply: 49819157.74797645
+      total: 136519396.19283175
+  volumetric:
+    delivered_fuels:
+      delivery: 254759388.8086515
+      supply: 206870221.56507337
+      total: 461629610.3737249
+    electrical_resistance:
+      delivery: 310320399.23091346
+      supply: 252893620.22286075
+      total: 563214019.4537742
+    heat_pump:
+      delivery: 108136027.38238008
+      supply: 89437195.05012451
+      total: 197573222.4325046
+    natgas:
+      delivery: 671246293.3358423
+      supply: 542917148.7166413
+      total: 1214163442.0524836
+    other:
+      delivery: 75350717.8022127
+      supply: 60946111.08530037
+      total: 136296828.88751307
