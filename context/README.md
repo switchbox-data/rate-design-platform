@@ -92,6 +92,7 @@ Run ordering, Justfile dependency chain, and multi-step workflows.
 | lmi_master_bills_workflow.md            | `apply_ny_lmi_to_master_bills.py` pipeline: tier assignment, credit application, in-place S3 writes, idempotency, invocation (Just recipes), validation checks, known limitations (Tier 5 / AMI, unpublished EEAP credits) |
 | seasonal_discount_rate_workflow.md      | RI seasonal discount workflow from subclass BAT outputs + winter kWh to tariff/map generation                                                                                                                              |
 | subclass_revenue_requirement_utility.md | `compute_subclass_rr.py` behavior, BAT metric options, required inputs, and CLI/Just usage                                                                                                                                 |
+| revenue_requirement_yaml_and_sheet.md   | Runs sheet → scenario `utility_revenue_requirement`; runtime parsing; RR filename patterns; `resolve_rr_paths.py`; **`heating_type_breakdown`** (computed how/why, not CAIRO input)                                        |
 
 ### code/cairo/
 

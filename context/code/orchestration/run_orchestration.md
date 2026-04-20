@@ -90,6 +90,20 @@ buildings in each season. For flat base tariffs this is a no-op (both seasons
 yield the original flat rate). The non-HP subclass receives the calibrated
 default tariff as-is.
 
+## Revenue requirement YAMLs (`utility_revenue_requirement`)
+
+Each run declares which file under `config/rev_requirement/` supplies delivery
+(and, for supply runs, combined) revenue targets. The **Runs & Charts** Google
+Sheet column **`utility_revenue_requirement`** is copied into
+`scenarios_<utility>.yaml` by `utils/pre/create_scenario_yamls.py` and parsed at
+runtime by `run_scenario.py` / `utils/scenario_config._parse_utility_revenue_requirement`.
+
+Subclass differentiated files (`*_hp_vs_nonhp.yaml`, `*_elec_heat_vs_non_elec_heat.yaml`),
+the `_large_number.yaml` placeholder for calibrated defaults, and how
+`utils/mid/resolve_rr_paths.py` picks base vs differentiated paths for
+`compute-subclass-rev-requirements` are documented in
+`context/code/orchestration/revenue_requirement_yaml_and_sheet.md`.
+
 ## Demand flexibility (runs 13-16)
 
 Runs 13-16 are the demand-flex variants of the seasonal-TOU runs (9-12).
