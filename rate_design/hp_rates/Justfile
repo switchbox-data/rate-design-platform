@@ -13,7 +13,7 @@
 # Tier 1: Identity (set by state wrapper, dispatch, or manual source)
 # =============================================================================
 
-set allow-duplicate-variables := true
+set allow-duplicate-variables
 
 state := env_var_or_default('STATE', '')
 utility := env_var_or_default('UTILITY', '')
@@ -1157,14 +1157,4 @@ validate-lmi-gas batch run_delivery="1" run_supply="2" *extra_args:
         --batch "{{ batch }}" \
         --run-delivery "{{ run_delivery }}" \
         --run-supply "{{ run_supply }}" \
-        {{ extra_args }}
-
-# Compare differentiated rev-requirement YAML ``passthrough`` blocks to S3 master
-# ``comb_bills_year_target`` for ``run_1+2`` (AWS credentials required). Example:
-
-# just s ny validate-passthrough-rr-master-yaml ny_20260416a_r1-36 --utilities nyseg --mode hp
-validate-passthrough-rr-master-yaml batch *extra_args:
-    uv run python {{ path_repo }}/utils/post/validate_passthrough_rr_master_vs_yaml.py \
-        --batch "{{ batch }}" \
-        --state "{{ state }}" \
         {{ extra_args }}
