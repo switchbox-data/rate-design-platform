@@ -73,7 +73,11 @@ def _subclass_expr(group_col: str, gv_pairs: str) -> pl.Expr:
     expr: pl.Expr | None = None
     for raw_val, alias in gv.items():
         cond = raw == pl.lit(raw_val)
-        expr = pl.when(cond).then(pl.lit(alias)) if expr is None else expr.when(cond).then(pl.lit(alias))
+        expr = (
+            pl.when(cond).then(pl.lit(alias))
+            if expr is None
+            else expr.when(cond).then(pl.lit(alias))
+        )
     assert expr is not None
     return expr.otherwise(pl.lit("__unmapped__"))
 
@@ -98,7 +102,10 @@ def passthrough_totals_from_master(
         .with_columns(_subclass=sub)
         .group_by("_subclass")
         .agg(
-            (pl.col("weight") * (pl.col("elec_fixed_charge") + pl.col("elec_delivery_bill")))
+            (
+                pl.col("weight")
+                * (pl.col("elec_fixed_charge") + pl.col("elec_delivery_bill"))
+            )
             .sum()
             .alias("del_pass"),
             (pl.col("weight") * pl.col("elec_supply_bill")).sum().alias("sup_pass"),
@@ -207,13 +214,17 @@ def assert_passthrough_yaml_matches_master(
         msg = f"{utility}: supply passthrough subclass keys differ: master={sorted(sup_m)} yaml={sorted(yaml_sup)}"
         raise AssertionError(msg)
     for k in yaml_del:
-        if not passthrough_values_match(del_m[k], yaml_del[k], rel=rel, abs_tol=abs_tol):
+        if not passthrough_values_match(
+            del_m[k], yaml_del[k], rel=rel, abs_tol=abs_tol
+        ):
             raise AssertionError(
                 f"{utility} delivery passthrough[{k!r}]: master={del_m[k]} yaml={yaml_del[k]} "
                 f"(rel={rel}, abs_tol={abs_tol})"
             )
     for k in yaml_sup:
-        if not passthrough_values_match(sup_m[k], yaml_sup[k], rel=rel, abs_tol=abs_tol):
+        if not passthrough_values_match(
+            sup_m[k], yaml_sup[k], rel=rel, abs_tol=abs_tol
+        ):
             raise AssertionError(
                 f"{utility} supply passthrough[{k!r}]: master={sup_m[k]} yaml={yaml_sup[k]} "
                 f"(rel={rel}, abs_tol={abs_tol})"
@@ -232,8 +243,12 @@ def main(argv: list[str] | None = None) -> int:
     default_scen = path_repo / "rate_design/hp_rates/ny/config/scenarios"
 
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--batch", default=DEFAULT_S3_MASTER_BATCH, help="Master-table batch name")
-    p.add_argument("--state", default="ny", help="Lowercase state folder under hp_rates")
+    p.add_argument(
+        "--batch", default=DEFAULT_S3_MASTER_BATCH, help="Master-table batch name"
+    )
+    p.add_argument(
+        "--state", default="ny", help="Lowercase state folder under hp_rates"
+    )
     p.add_argument(
         "--run-pair",
         default=DEFAULT_RUN_PAIR,
@@ -256,30 +271,52 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help=f"Comma-separated utilities (default: {','.join(NY_UTILITIES_DEFAULT)})",
     )
-    p.add_argument("--rel", type=float, default=DEFAULT_REL, help="Relative tolerance for float compare")
-    p.add_argument("--abs-tol", type=float, default=DEFAULT_ABS, help="Absolute tolerance for float compare")
+    p.add_argument(
+        "--rel",
+        type=float,
+        default=DEFAULT_REL,
+        help="Relative tolerance for float compare",
+    )
+    p.add_argument(
+        "--abs-tol",
+        type=float,
+        default=DEFAULT_ABS,
+        help="Absolute tolerance for float compare",
+    )
     p.add_argument(
         "--mode",
         choices=("both", "hp", "elec-heat"),
         default="both",
         help="Which YAML family to validate",
     )
-    p.add_argument("--quiet", action="store_true", help="Suppress per-utility comparison printout")
+    p.add_argument(
+        "--quiet", action="store_true", help="Suppress per-utility comparison printout"
+    )
     args = p.parse_args(argv)
 
     state_lower = args.state.lower().strip()
     utilities = _parse_utilities(args.utilities)
-    lf = master_comb_bills_lazy(state_lower=state_lower, batch=args.batch, run_pair=args.run_pair)
+    lf = master_comb_bills_lazy(
+        state_lower=state_lower, batch=args.batch, run_pair=args.run_pair
+    )
 
     failed = 0
     jobs: list[tuple[str, Path, Path, int]] = []
     for u in utilities:
         scen = args.path_scenarios_dir / f"scenarios_{u}.yaml"
         if args.mode in ("both", "hp"):
-            jobs.append((u, args.path_rev_requirement_dir / f"{u}_hp_vs_nonhp.yaml", scen, 5))
+            jobs.append(
+                (u, args.path_rev_requirement_dir / f"{u}_hp_vs_nonhp.yaml", scen, 5)
+            )
         if args.mode in ("both", "elec-heat"):
             jobs.append(
-                (u, args.path_rev_requirement_dir / f"{u}_elec_heat_vs_non_elec_heat.yaml", scen, 29)
+                (
+                    u,
+                    args.path_rev_requirement_dir
+                    / f"{u}_elec_heat_vs_non_elec_heat.yaml",
+                    scen,
+                    29,
+                )
             )
 
     for utility, rev_path, scen_path, run_num in jobs:
