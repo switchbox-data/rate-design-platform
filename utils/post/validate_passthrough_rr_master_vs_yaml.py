@@ -294,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = p.parse_args(argv)
 
-    state_lower = args.state.lower().strip()
+    state_lower = args.state.lower().strip() or "ny"
     utilities = _parse_utilities(args.utilities)
     lf = master_comb_bills_lazy(
         state_lower=state_lower, batch=args.batch, run_pair=args.run_pair
