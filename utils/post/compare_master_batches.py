@@ -142,7 +142,6 @@ def _compare_column(
             "(cannot compare)"
         )
 
-    both_null = left.is_null() & right.is_null()
     one_null = left.is_null() ^ right.is_null()
     if bool(one_null.any()):
         n = int(one_null.sum())
@@ -208,14 +207,15 @@ def compare_frames(
 ) -> list[str]:
     """Inner-join on ``join_keys`` and compare shared non-key columns."""
     errors: list[str] = []
-    missing_keys = [k for k in join_keys if k not in left.columns or k not in right.columns]
+    missing_keys = [
+        k for k in join_keys if k not in left.columns or k not in right.columns
+    ]
     if missing_keys:
         return [
             f"[{utility} {label}] join keys missing in frame(s): {missing_keys} "
             f"(left cols={left.columns}, right cols={right.columns})"
         ]
 
-    lk = tuple(join_keys)
     left_n = left.select(join_keys).n_unique()
     right_n = right.select(join_keys).n_unique()
     if left_n != left.height:
