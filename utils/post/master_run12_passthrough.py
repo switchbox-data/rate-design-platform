@@ -66,9 +66,13 @@ def load_passthrough_reference_annual(
     storage_options: dict[str, str] | None,
 ) -> pl.DataFrame:
     """One row per ``bldg_id`` (``month == Annual``, ``upgrade == 0``)."""
-    return load_passthrough_reference_monthly(
-        state_lower=state_lower,
-        output_batch=output_batch,
-        utility=utility,
-        storage_options=storage_options,
-    ).filter(pl.col("month") == pl.lit(ANNUAL_MONTH)).drop("month")
+    return (
+        load_passthrough_reference_monthly(
+            state_lower=state_lower,
+            output_batch=output_batch,
+            utility=utility,
+            storage_options=storage_options,
+        )
+        .filter(pl.col("month") == pl.lit(ANNUAL_MONTH))
+        .drop("month")
+    )
