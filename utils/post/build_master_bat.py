@@ -30,7 +30,9 @@ Output schema (1 row per building):
     heats_with_electricity, heats_with_natgas, heats_with_oil,
     heats_with_propane, weight,
     BAT_{m}_{delivery,supply,total} for each BAT metric present in CAIRO output,
-    {component}_{delivery,supply,total} for each cost component present.
+    {component}_{delivery,supply,total} for each cost component present,
+    passthrough_delivery, passthrough_supply (annual baseline from master ``run_1+2``
+    ``comb_bills_year_target``, ``upgrade == 0``; same definitions as bill passthrough RR).
 
 Known BAT metrics: BAT_vol, BAT_peak, BAT_percustomer, BAT_epmc.
 Known cost components: annual_bill, economic_burden, residual_share, residual_share_epmc.
@@ -56,12 +58,62 @@ from typing import cast
 
 import polars as pl
 
+from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils.post.io import BLDG_ID, scan
+from utils.post.master_run12_passthrough import (
+    REFERENCE_COMB_RUN_PAIR,
+    load_passthrough_reference_annual,
+)
 
 BAT_CSV = "cross_subsidization/cross_subsidization_BAT_values.csv"
-UPGRADE_00_RUNS = {1, 2, 5, 6, 9, 10, 13, 14, 17, 18}
-UPGRADE_02_RUNS = {3, 4, 7, 8, 11, 12, 15, 16, 19, 20}
-VALID_RUN_PAIRS = {(r, r + 1) for r in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19)}
+UPGRADE_00_RUNS = {
+    1,
+    2,
+    5,
+    6,
+    9,
+    10,
+    13,
+    14,
+    17,
+    18,
+    21,
+    22,
+    25,
+    26,
+    29,
+    30,
+    33,
+    34,
+    37,
+    38,
+}
+UPGRADE_02_RUNS = {
+    3,
+    4,
+    7,
+    8,
+    11,
+    12,
+    15,
+    16,
+    19,
+    20,
+    23,
+    24,
+    27,
+    28,
+    31,
+    32,
+    35,
+    36,
+    39,
+    40,
+}
+VALID_RUN_PAIRS = {
+    (r, r + 1)
+    for r in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39)
+}
 
 BAT_METRICS_KNOWN = ["BAT_vol", "BAT_peak", "BAT_percustomer", "BAT_epmc"]
 
@@ -336,6 +388,10 @@ def _process_utility(
     run_supply: int,
     metadata_for_utility: pl.DataFrame,
     upgrade: str,
+    *,
+    state_lower: str,
+    output_batch_all_util: str,
+    storage_options: dict[str, str] | None,
 ) -> pl.DataFrame:
     """Build the master BAT table fragment for a single utility."""
     meta_bldg_ids = set(metadata_for_utility[BLDG_ID].to_list())
@@ -454,7 +510,7 @@ def _process_utility(
     # --- Join with metadata ---
     t = _log("  Joining with metadata...")
     output_cols = _build_output_cols(bat_metrics, cost_components)
-    joined = (
+    joined_core = (
         bat.join(
             metadata_for_utility.select(META_COLS),
             on=BLDG_ID,
@@ -475,6 +531,25 @@ def _process_utility(
         )
         .select(output_cols)
     )
+    pt = load_passthrough_reference_annual(
+        state_lower=state_lower,
+        output_batch=output_batch_all_util,
+        utility=utility,
+        storage_options=storage_options,
+    )
+    joined = joined_core.join(pt, on=BLDG_ID, how="left")
+    n_pt_null = int(joined["passthrough_delivery"].null_count())
+    if n_pt_null > 0:
+        root = (
+            f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state_lower}/"
+            f"all_utilities/{output_batch_all_util}/run_{REFERENCE_COMB_RUN_PAIR}/"
+            "comb_bills_year_target/"
+        )
+        msg = (
+            f"[{utility}] Missing run_{REFERENCE_COMB_RUN_PAIR} passthrough join for BAT "
+            f"({n_pt_null} null rows). Build master comb bills first: {root}"
+        )
+        raise FileNotFoundError(msg)
     _log_done("  Joining with metadata", t, f"{joined.height} rows")
 
     if joined.height != n_bldgs:
@@ -499,7 +574,14 @@ def _process_utility(
         for c in cost_components
         for component in ("delivery", "supply", "total")
     ]
-    _assert_no_nulls(joined, ["weight"] + bat_output_cols + cost_output_cols, utility)
+    _assert_no_nulls(
+        joined,
+        ["weight"]
+        + bat_output_cols
+        + cost_output_cols
+        + ["passthrough_delivery", "passthrough_supply"],
+        utility,
+    )
 
     return joined
 
@@ -578,6 +660,11 @@ def main() -> None:
     if batch_overrides:
         _log(f"  Batch overrides: {batch_overrides}")
 
+    output_batch_all_util = args.output_batch or _build_output_path_suffix(
+        args.batch, batch_overrides
+    )
+    storage_options = get_aws_storage_options()
+
     # --- Load metadata ---
     t = _log("Loading metadata from utility_assignment.parquet...")
     meta_path = (
@@ -612,6 +699,9 @@ def main() -> None:
             run_supply=args.run_supply,
             metadata_for_utility=meta_for_util,
             upgrade=upgrade,
+            state_lower=state,
+            output_batch_all_util=output_batch_all_util,
+            storage_options=storage_options,
         )
         all_dfs.append(df)
 
@@ -659,12 +749,9 @@ def main() -> None:
     _log_done("Validation", t)
 
     # --- Write output (Hive-partitioned parquet) ---
-    output_batch = args.output_batch or _build_output_path_suffix(
-        args.batch, batch_overrides
-    )
     output_s3 = (
         f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/all_utilities/"
-        f"{output_batch}/run_{args.run_delivery}+{args.run_supply}/"
+        f"{output_batch_all_util}/run_{args.run_delivery}+{args.run_supply}/"
         f"cross_subsidization_BAT_values/"
     )
     t = _log(f"Writing to {output_s3}...")
