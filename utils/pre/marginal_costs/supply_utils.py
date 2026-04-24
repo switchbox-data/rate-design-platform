@@ -20,6 +20,7 @@ DEFAULT_NYISO_ZONE_MAPPING_PATH = (
     "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
 )
 DEFAULT_NYISO_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/ny/supply/"
+DEFAULT_NYISO_ANCILLARY_S3_BASE = "s3://data.sb/nyiso/ancillary/"
 
 VALID_NYISO_UTILITIES = frozenset(
     {"cenhud", "coned", "nimo", "nyseg", "or", "rge", "psegli"}

@@ -1,12 +1,102 @@
 utility: psegli
 group_col: has_hp
+<<<<<<< HEAD
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/psegli/ny_20260417a_r1-36/20260418_004356_ny_psegli_run1_up00_precalc__default
+=======
 source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/psegli/ny_20260416a_r1-36/20260416_161934_ny_psegli_run1_up00_precalc__default
+>>>>>>> main
 total_delivery_revenue_requirement: 1167061663.64
 total_delivery_and_supply_revenue_requirement: 2152328483.56
 subclass_revenue_requirements:
   delivery:
     percustomer:
       non-hp: 1150589335.0526571
+<<<<<<< HEAD
+      hp: 16472328.587342713
+    epmc:
+      non-hp: 1145189591.317675
+      hp: 21872072.322325047
+    volumetric:
+      non-hp: 1132656470.3395815
+      hp: 34405193.30041905
+    passthrough:
+      non-hp: 1136561476.293861
+      hp: 30500187.34612981
+  supply:
+    passthrough:
+      non-hp: 956686620.9966555
+      hp: 28580198.923346642
+    percustomer:
+      non-hp: 957481490.4563749
+      hp: 27785329.46362472
+    volumetric:
+      non-hp: 955409280.4885817
+      hp: 29857539.431417868
+heating_type_breakdown:
+  percustomer:
+    delivered_fuels:
+      delivery: 495534595.17197245
+      supply: 431849167.3042665
+      total: 927383762.476239
+    electrical_resistance:
+      delivery: 53614437.46432202
+      supply: 84572210.4626103
+      total: 138186647.92693233
+    heat_pump:
+      delivery: 16472328.587342719
+      supply: 27785329.463624723
+      total: 44257658.05096744
+    natgas:
+      delivery: 593845905.5110093
+      supply: 435092178.3609543
+      total: 1028938083.8719636
+    other:
+      delivery: 7594396.905353457
+      supply: 5967934.328543812
+      total: 13562331.233897269
+  epmc:
+    delivered_fuels:
+      delivery: 545393055.7780458
+      supply: 408081259.4366648
+      total: 953474315.2147106
+    electrical_resistance:
+      delivery: 47702570.051196255
+      supply: 140315422.25203103
+      total: 188017992.30322728
+    heat_pump:
+      delivery: 21872072.32232505
+      supply: 41273903.14310337
+      total: 63145975.46542842
+    natgas:
+      delivery: 545199048.7120193
+      supply: 389623460.17063534
+      total: 934822508.8826547
+    other:
+      delivery: 6894916.776413782
+      supply: 5972774.917565383
+      total: 12867691.693979165
+  volumetric:
+    delivered_fuels:
+      delivery: 515295806.89853555
+      supply: 434132649.6463594
+      total: 949428456.5448949
+    electrical_resistance:
+      delivery: 103966673.99837977
+      supply: 90390600.7820594
+      total: 194357274.78043917
+    heat_pump:
+      delivery: 34405193.30041905
+      supply: 29857539.431417868
+      total: 64262732.731836915
+    natgas:
+      delivery: 506402762.76787704
+      supply: 424987794.32044166
+      total: 931390557.0883187
+    other:
+      delivery: 6991226.674789048
+      supply: 5898235.739721012
+      total: 12889462.41451006
+=======
       hp: 16472328.58734272
     epmc:
       non-hp: 1145189591.3176758
@@ -91,3 +181,4 @@ heating_type_breakdown:
       delivery: 6991226.674789048
       supply: 5885754.528524167
       total: 12876981.203313215
+>>>>>>> main

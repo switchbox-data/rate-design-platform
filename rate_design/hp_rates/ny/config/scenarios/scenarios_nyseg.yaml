@@ -55,6 +55,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   3:
     run_name: ny_nyseg_run3_up02_default__default
     state: NY
@@ -111,6 +112,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   5:
     run_name: ny_nyseg_run5_up00_precalc__hp_seasonal_vs_default
     state: NY
@@ -173,6 +175,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   7:
     run_name: ny_nyseg_run7_up02_default__hp_seasonal
     state: NY
@@ -229,6 +232,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   9:
     run_name: ny_nyseg_run9_up00_precalc__hp_seasonalTOU_vs_default
     state: NY
@@ -291,6 +295,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   11:
     run_name: ny_nyseg_run11_up02_default__hp_seasonalTOU
     state: NY
@@ -347,6 +352,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   13:
     run_name: ny_nyseg_run13_up00_precalc__hp_seasonalTOU_flex_vs_default
     state: NY
@@ -413,6 +419,7 @@ runs:
     elasticity:
       summer: -0.18
       winter: -0.16
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   15:
     run_name: ny_nyseg_run15_up02_default__hp_seasonalTOU_flex
     state: NY
@@ -473,6 +480,7 @@ runs:
     elasticity:
       summer: -0.18
       winter: -0.16
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   17:
     run_name: ny_nyseg_run17_up00_precalc__hp_flat_vs_default
     state: NY
@@ -535,6 +543,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   19:
     run_name: ny_nyseg_run19_up02_default__hp_flat
     state: NY
@@ -591,6 +600,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   21:
     run_name: ny_nyseg_run21_up00_precalc__hp_seasonal_percustomer_vs_default
     state: NY
@@ -653,6 +663,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   23:
     run_name: ny_nyseg_run23_up02_default__hp_seasonal_percustomer
     state: NY
@@ -709,6 +720,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   25:
     run_name: ny_nyseg_run25_up00_precalc__hp_seasonalTOU_flex_percustomer_vs_default
     state: NY
@@ -775,6 +787,7 @@ runs:
     elasticity:
       summer: -0.18
       winter: -0.16
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   27:
     run_name: ny_nyseg_run27_up02_default__hp_seasonalTOU_flex_percustomer
     state: NY
@@ -835,6 +848,7 @@ runs:
     elasticity:
       summer: -0.18
       winter: -0.16
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   29:
     run_name: ny_nyseg_run29_up00_precalc__elec_heat_flat_vs_non_elec_heat
     state: NY
@@ -907,6 +921,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   31:
     run_name: ny_nyseg_run31_up02_default__elec_heat_flat
     state: NY
@@ -963,6 +978,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   33:
     run_name: ny_nyseg_run33_up00_precalc__elec_heat_seasonal_percustomer_vs_non_elec_heat
     state: NY
@@ -1035,6 +1051,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
   35:
     run_name: ny_nyseg_run35_up02_default__elec_heat_seasonal_percustomer
     state: NY
@@ -1091,6 +1108,7 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+    path_supply_ancillary_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/utility=nyseg/year=2025/data.parquet
 subclass_config:
   group_col: has_hp
   selectors:

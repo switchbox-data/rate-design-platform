@@ -1,79 +1,103 @@
-"""Ancillary service marginal cost computation for ISO-NE supply MCs."""
+"""Ancillary service marginal cost computation for ISO-NE and NYISO supply MCs."""
 
 from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Literal, assert_never
 
 import polars as pl
 
 from utils.pre.marginal_costs.supply_utils import (
     DEFAULT_ISONE_ANCILLARY_S3_BASE,
+    DEFAULT_NYISO_ANCILLARY_S3_BASE,
     prepare_component_output,
     strip_tz_if_needed,
 )
 
+AncillaryIso = Literal["isone", "nyiso"]
 
-def load_ancillary_for_year(
+# Hive parquet interval column (shared naming across ISO ancillary datasets).
+_INTERVAL_START_COL = "interval_start_et"
+
+
+@dataclass(frozen=True)
+class AncillaryPipelineConfig:
+    """Per-ISO settings: which columns to read and how errors/notes are labeled."""
+
+    iso: AncillaryIso
+    scan_columns: tuple[str, ...]
+    data_label: str
+    backfill_hint: str
+
+    def duplicate_interval_note(self, n_dup: int, n_rows: int, n_unique: int) -> str:
+        """Human-readable note when naive ``interval_start_et`` values collide."""
+        if self.iso == "isone":
+            return (
+                f"  DST fallback: {n_dup} duplicate naive timestamp(s) detected "
+                f"({n_rows} rows, {n_unique} unique). Both fallback-hour values will be "
+                f"preserved and averaged during alignment to 8760."
+            )
+        return (
+            f"  {self.data_label}: {n_dup} duplicate {_INTERVAL_START_COL} value(s) "
+            f"({n_rows} rows, {n_unique} unique naive timestamps)."
+        )
+
+
+def _ancillary_config(iso: AncillaryIso) -> AncillaryPipelineConfig:
+    if iso == "isone":
+        return AncillaryPipelineConfig(
+            iso="isone",
+            scan_columns=(
+                _INTERVAL_START_COL,
+                "reg_service_price_usd_per_mwh",
+                "reg_capacity_price_usd_per_mwh",
+            ),
+            data_label="ISO-NE ancillary",
+            backfill_hint="s3://data.sb/isone/ancillary/",
+        )
+    if iso == "nyiso":
+        return AncillaryPipelineConfig(
+            iso="nyiso",
+            scan_columns=(
+                "year",
+                "month",
+                "market",
+                "time_et",
+                _INTERVAL_START_COL,
+                "interval_end_et",
+                "zone",
+                "time_zone",
+                "ptid",
+                "spin_10min_usd_per_mwhr",
+                "non_sync_10min_usd_per_mwhr",
+                "operating_30min_usd_per_mwhr",
+                "nyca_regulation_capacity_usd_per_mwhr",
+                "nyca_regulation_movement_usd_per_mw",
+            ),
+            data_label="NYISO ancillary",
+            backfill_hint="s3://data.sb/nyiso/ancillary/",
+        )
+    raise ValueError(f"Invalid ISO: {iso}")
+
+
+def _default_ancillary_s3_base(iso: AncillaryIso) -> str:
+    if iso == "isone":
+        return DEFAULT_ISONE_ANCILLARY_S3_BASE
+    if iso == "nyiso":
+        return DEFAULT_NYISO_ANCILLARY_S3_BASE
+    raise ValueError(f"Invalid ISO: {iso}")
+
+
+def _validate_calendar_months(
+    df: pl.DataFrame,
+    *,
+    timestamp_col: str,
     year: int,
-    storage_options: dict[str, str],
-    ancillary_s3_base: str = DEFAULT_ISONE_ANCILLARY_S3_BASE,
-) -> pl.DataFrame:
-    """Load ISO-NE ancillary service prices for a given year.
-
-    Reads from the Hive-partitioned ``s3://data.sb/isone/ancillary/`` tree,
-    filters by *year*, sums ``reg_service_price_usd_per_mwh`` and
-    ``reg_capacity_price_usd_per_mwh`` into a single ``ancillary_cost_enduse``
-    column ($/MWh), and returns a DataFrame with columns ``timestamp`` and
-    ``ancillary_cost_enduse``.
-    """
-    base = ancillary_s3_base.rstrip("/") + "/"
-    collected = (
-        pl.scan_parquet(
-            base,
-            hive_partitioning=True,
-            storage_options=storage_options,
-        )
-        .filter(pl.col("year") == year)
-        .select(
-            "interval_start_et",
-            "reg_service_price_usd_per_mwh",
-            "reg_capacity_price_usd_per_mwh",
-        )
-        .collect()
-    )
-    if not isinstance(collected, pl.DataFrame):
-        raise TypeError("Expected DataFrame from ISO-NE ancillary collect()")
-    if collected.is_empty():
-        raise FileNotFoundError(
-            f"No ISO-NE ancillary data found for year={year} under {base}"
-        )
-
-    collected = strip_tz_if_needed(collected, "interval_start_et").rename(
-        {"interval_start_et": "timestamp"}
-    )
-
-    # Report DST fallback duplicates explicitly. Stripping the tz from an
-    # America/New_York timestamp makes the two 1:00 AM fall-back hours collide
-    # on the same naive timestamp. We surface that here; prepare_component_output
-    # will average the pair and align the series to exactly 8760 hours.
-    n_rows = collected.height
-    n_unique_ts = collected.select(pl.col("timestamp").n_unique()).item()
-    if n_rows != n_unique_ts:
-        n_dst_dup = n_rows - n_unique_ts
-        print(
-            f"  DST fallback: {n_dst_dup} duplicate naive timestamp(s) detected "
-            f"({n_rows} rows, {n_unique_ts} unique). Both fallback-hour values will be "
-            f"preserved and averaged during alignment to 8760."
-        )
-
-    result = collected.with_columns(
-        (
-            pl.col("reg_service_price_usd_per_mwh")
-            + pl.col("reg_capacity_price_usd_per_mwh")
-        ).alias("ancillary_cost_enduse")
-    ).select("timestamp", "ancillary_cost_enduse")
-
-    # Validate data completeness - check for missing months
+    data_label: str,
+    backfill_hint: str,
+) -> None:
     months_present = (
-        result.with_columns(pl.col("timestamp").dt.month().alias("month"))
+        df.with_columns(pl.col(timestamp_col).dt.month().alias("month"))
         .select("month")
         .unique()
         .sort("month")
@@ -84,35 +108,180 @@ def load_ancillary_for_year(
     missing_months = sorted(set(expected_months) - set(months_present))
     if missing_months:
         raise ValueError(
-            f"ISO-NE ancillary data is incomplete for year {year}. "
+            f"{data_label} data is incomplete for year {year}. "
             f"Missing months: {missing_months}. Present months: {months_present}. "
-            f"Backfill missing months in source data (s3://data.sb/isone/ancillary/) "
+            f"Backfill missing months in source data ({backfill_hint}) "
             f"before generating marginal costs."
         )
 
-    avg_ancillary = result["ancillary_cost_enduse"].mean()
-    print(
-        f"Loaded ISO-NE ancillary data: {len(result):,} hourly rows, year {year}, "
-        f"avg ancillary cost = ${avg_ancillary:.2f}/MWh"
+
+def load_ancillary_source_for_year(
+    year: int,
+    storage_options: dict[str, str],
+    ancillary_s3_base: str | None,
+    *,
+    iso: AncillaryIso,
+) -> pl.DataFrame:
+    """Load one ISO's ancillary parquet rows for *year* (wide schema, no end-use sum).
+
+    Strips timezone from ``interval_start_et`` when present, validates calendar
+    month coverage, and emits a note if duplicate naive interval timestamps exist
+    (e.g. ISO-NE DST fall-back).
+
+    Raises:
+        FileNotFoundError: If no rows exist for *year*.
+        ValueError: If any calendar month is missing.
+    """
+    cfg = _ancillary_config(iso)
+    base = (ancillary_s3_base or _default_ancillary_s3_base(iso)).rstrip("/") + "/"
+    collected = (
+        pl.scan_parquet(
+            base,
+            hive_partitioning=True,
+            storage_options=storage_options,
+        )
+        .filter(pl.col("year") == year)
+        .select(cfg.scan_columns)
+        .collect()
     )
-    return result
+    if not isinstance(collected, pl.DataFrame):
+        raise TypeError(
+            f"Expected DataFrame from ancillary collect() ({cfg.data_label})"
+        )
+    if collected.is_empty():
+        raise FileNotFoundError(
+            f"No ancillary data found for year={year} under {base} ({cfg.data_label})"
+        )
+
+    collected = strip_tz_if_needed(collected, _INTERVAL_START_COL)
+    if iso == "nyiso" and "interval_end_et" in collected.columns:
+        collected = strip_tz_if_needed(collected, "interval_end_et")
+    if iso == "nyiso" and "time_et" in collected.columns:
+        collected = strip_tz_if_needed(collected, "time_et")
+    _validate_calendar_months(
+        collected,
+        timestamp_col=_INTERVAL_START_COL,
+        year=year,
+        data_label=cfg.data_label,
+        backfill_hint=cfg.backfill_hint,
+    )
+
+    n_rows = collected.height
+    n_unique_ts = collected.select(pl.col(_INTERVAL_START_COL).n_unique()).item()
+    # NYISO often has many rows per interval_start_et (zones/markets); only ISO-NE
+    # uses duplicate naive timestamps as a DST fall-back signal.
+    if iso == "isone" and n_rows != n_unique_ts:
+        print(cfg.duplicate_interval_note(n_rows - n_unique_ts, n_rows, n_unique_ts))
+
+    return collected
+
+
+def ancillary_wide_to_enduse(
+    df: pl.DataFrame,
+    *,
+    iso: AncillaryIso,
+    year: int,
+) -> pl.DataFrame:
+    """Reduce wide ancillary *df* to ``timestamp`` + ``ancillary_cost_enduse`` ($/MWh).
+
+    ISO-specific rules are isolated in ``iso`` branches: which price columns exist on
+    *df* and how they combine into one end-use marginal cost series.
+
+    Raises:
+        ValueError: If output timestamps do not cover all calendar months for *year*.
+    """
+    cfg = _ancillary_config(iso)
+    if iso == "isone":
+        out = (
+            df.rename({_INTERVAL_START_COL: "timestamp"})
+            .with_columns(
+                (
+                    pl.col("reg_service_price_usd_per_mwh")
+                    + pl.col("reg_capacity_price_usd_per_mwh")
+                ).alias("ancillary_cost_enduse")
+            )
+            .select("timestamp", "ancillary_cost_enduse")
+        )
+        avg_ancillary = out["ancillary_cost_enduse"].mean()
+        print(
+            f"Loaded {cfg.data_label}: {len(out):,} hourly rows, year {year}, "
+            f"avg ancillary cost = ${avg_ancillary:.2f}/MWh"
+        )
+        return out
+
+    if iso == "nyiso":
+        work = strip_tz_if_needed(df, _INTERVAL_START_COL)
+        work = strip_tz_if_needed(work, "interval_end_et")
+        interval_hours = (
+            pl.col("interval_end_et") - pl.col(_INTERVAL_START_COL)
+        ).dt.total_seconds() / 3600.0
+        out = (
+            work.with_columns(
+                pl.col("nyca_regulation_capacity_usd_per_mwhr").fill_null(0.0),
+                pl.col("nyca_regulation_movement_usd_per_mw").fill_null(0.0),
+            )
+            .with_columns(interval_hours.alias("_interval_hours"))
+            .with_columns(
+                (
+                    pl.col("nyca_regulation_capacity_usd_per_mwhr")
+                    + pl.col("nyca_regulation_movement_usd_per_mw")
+                    * pl.col("_interval_hours")
+                ).alias("ancillary_cost_enduse")
+            )
+            .drop("_interval_hours")
+            .rename({_INTERVAL_START_COL: "timestamp"})
+            .select("timestamp", "ancillary_cost_enduse")
+        )
+        avg_ancillary = out["ancillary_cost_enduse"].mean()
+        print(
+            f"Loaded {cfg.data_label}: {len(out):,} interval rows, year {year}, "
+            f"avg combined ancillary = ${avg_ancillary:.2f}/MWh (pre-hourly-alignment)"
+        )
+        return out
+
+    assert_never(iso)
+
+
+def load_ancillary_for_year(
+    year: int,
+    storage_options: dict[str, str],
+    ancillary_s3_base: str | None = None,
+    *,
+    iso: AncillaryIso = "isone",
+) -> pl.DataFrame:
+    """Load ancillary prices for *year* and reduce to ``timestamp`` + ``ancillary_cost_enduse``.
+
+    Uses :func:`load_ancillary_source_for_year` then :func:`ancillary_wide_to_enduse`.
+    When *ancillary_s3_base* is omitted, the default base matches *iso*.
+    """
+    base = ancillary_s3_base or _default_ancillary_s3_base(iso)
+    wide = load_ancillary_source_for_year(year, storage_options, base, iso=iso)
+    return ancillary_wide_to_enduse(wide, iso=iso, year=year)
 
 
 def compute_supply_ancillary_mc(
     year: int,
     storage_options: dict[str, str],
-    ancillary_s3_base: str = DEFAULT_ISONE_ANCILLARY_S3_BASE,
+    ancillary_s3_base: str | None = None,
+    *,
+    iso: AncillaryIso = "isone",
 ) -> pl.DataFrame:
-    """Compute hourly supply ancillary MC from ISO-NE regulation clearing prices.
+    """Compute hourly supply ancillary MC from ISO regulation-related clearing prices.
 
-    Loads ISO-NE ancillary data, sums regulation service and capacity prices,
-    and returns a Cairo-compatible 8760 hourly DataFrame with columns
-    ``timestamp`` and ``ancillary_cost_enduse`` ($/MWh).
+    Loads ancillary data for *iso*, aggregates to ``ancillary_cost_enduse`` ($/MWh),
+    and returns a Cairo-compatible 8760 hourly DataFrame with columns ``timestamp``
+    and ``ancillary_cost_enduse``.
 
     Raises:
         ValueError: If source data is incomplete (missing months).
     """
-    ancillary_df = load_ancillary_for_year(year, storage_options, ancillary_s3_base)
+    resolved_base = ancillary_s3_base or _default_ancillary_s3_base(iso)
+    ancillary_df = load_ancillary_for_year(
+        year,
+        storage_options,
+        resolved_base,
+        iso=iso,
+    )
     output = prepare_component_output(
         df=ancillary_df,
         year=year,
@@ -121,9 +290,10 @@ def compute_supply_ancillary_mc(
         scale=1.0,
     )
 
+    iso_label = "ISO-NE" if iso == "isone" else "NYISO"
     avg_cost = output["ancillary_cost_enduse"].mean()
     print(
-        f"  Ancillary MC (ISO-NE): {output.height} hours, "
+        f"  Ancillary MC ({iso_label}): {output.height} hours, "
         f"avg cost = ${avg_cost:.2f}/MWh"
     )
     return output

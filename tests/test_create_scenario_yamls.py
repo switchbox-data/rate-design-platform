@@ -49,6 +49,29 @@ def test_row_to_run_uses_run_includes_supply() -> None:
     assert "run_includes_supply" in run
     assert run["run_includes_supply"] is False
     assert "add_supply_revenue_requirement" not in run
+    assert "path_supply_ancillary_mc" not in run
+
+
+def test_row_to_run_emits_default_path_supply_ancillary_mc_when_supply_true() -> None:
+    """Supply runs get canonical ancillary S3 path when sheet column is blank."""
+    row = _base_row()
+    row["add_supply_revenue_requirement"] = "TRUE"
+    headers = list(row.keys())
+    run = _row_to_run(row, headers)
+    assert run["run_includes_supply"] is True
+    assert run["path_supply_ancillary_mc"] == (
+        "s3://data.sb/switchbox/marginal_costs/ri/supply/ancillary/"
+        "utility=rie/year=2025/data.parquet"
+    )
+
+
+def test_row_to_run_path_supply_ancillary_mc_sheet_overrides_default() -> None:
+    row = _base_row()
+    row["add_supply_revenue_requirement"] = "TRUE"
+    row["path_supply_ancillary_mc"] = "s3://custom.example/ancillary.parquet"
+    headers = list(row.keys())
+    run = _row_to_run(row, headers)
+    assert run["path_supply_ancillary_mc"] == "s3://custom.example/ancillary.parquet"
 
 
 def test_row_to_run_reads_run_includes_subclasses_from_sheet() -> None:
