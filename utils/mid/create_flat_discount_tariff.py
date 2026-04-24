@@ -37,6 +37,13 @@ def _write_json(path: S3Path | Path, payload: dict[str, Any]) -> str:
     return str(written)
 
 
+def _extract_flat_rate(row: dict[str, Any]) -> float:
+    if "flat_rate" not in row or row["flat_rate"] is None:
+        raise ValueError("Flat discount inputs CSV must contain a 'flat_rate' column.")
+
+    return float(row["flat_rate"])
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Create a flat-discount tariff JSON from flat discount input metrics."
@@ -73,12 +80,12 @@ def main() -> None:
         raise ValueError("Flat discount inputs CSV is empty.")
 
     row = flat_inputs.row(0, named=True)
-    flat_rate_hp = float(row["flat_rate_hp"])
+    flat_rate = _extract_flat_rate(row)
 
     flat_tariff = create_flat_rate(
         base_tariff=base_tariff,
         label=args.label,
-        volumetric_rate=flat_rate_hp,
+        volumetric_rate=flat_rate,
     )
     written_path = _write_json(output_path, flat_tariff)
     print(f"Created flat-discount tariff file: {written_path}")

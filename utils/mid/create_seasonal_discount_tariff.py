@@ -99,7 +99,15 @@ def main() -> None:
 
     row = seasonal_inputs.row(0, named=True)
     summer_rate = float(row["summer_rate"])
-    winter_rate = float(row["winter_rate_hp"])
+    if "winter_rate" in row:
+        winter_rate = float(row["winter_rate"])
+    elif "winter_rate_hp" in row:
+        winter_rate = float(row["winter_rate_hp"])
+    else:
+        raise KeyError(
+            "Seasonal inputs CSV must contain 'winter_rate' "
+            "(or legacy column 'winter_rate_hp')."
+        )
     winter_months = parse_months_arg(args.winter_months) if args.winter_months else None
     periods_winter: list[int] | None = None
     if winter_months is None and args.periods_yaml:

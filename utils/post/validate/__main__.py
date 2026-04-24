@@ -24,6 +24,7 @@ import polars as pl
 
 from utils.post.validate import (
     CheckResult,
+    bat_col_for_allocation,
     check_bat_direction,
     check_bat_near_zero,
     check_bills_increase_with_supply,
@@ -37,6 +38,7 @@ from utils.post.validate import (
     check_seasonal_winter_below_summer,
     check_subclass_revenue_neutrality,
     check_subclass_rr_sums_to_total,
+    check_supply_passthrough_revenue_requirement,
     check_tariff_unchanged,
     check_weights_sum_to_n_customers,
     compute_bill_deltas,
@@ -69,6 +71,10 @@ from utils.post.validate import (
     summarize_revenue,
     summarize_tariff_rates,
 )
+from utils.post.validate.comparison import (
+    NY_HP_ONLY_VS_ELECTRIFIED,
+    run_ny_hp_only_vs_electrified_comparison,
+)
 from utils.post.validate.config import (
     RunBlock,
     RunConfig,
@@ -76,6 +82,8 @@ from utils.post.validate.config import (
     load_run_configs_from_yaml,
 )
 from utils.post.validate.discover import find_latest_complete_batch, resolve_batch
+from utils.post.validate.subclasses import SubclassSpec, display_subclass
+from utils.scenario_config import resolve_subclass_rr_for_validation
 
 
 def _parse_args() -> argparse.Namespace:
@@ -108,6 +116,12 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip hourly load plots and cost-of-service plots "
         "(auto-set for large utilities like coned)",
+    )
+    p.add_argument(
+        "--comparison-profile",
+        default=None,
+        choices=[NY_HP_ONLY_VS_ELECTRIFIED],
+        help="Optional comparison profile to run after standard validation.",
     )
     return p.parse_args()
 
@@ -158,6 +172,35 @@ def _format_result_context(result: CheckResult) -> str:
     return ""
 
 
+def _maybe_downgrade_bat_near_zero(
+    result: CheckResult,
+    *,
+    cost_scope: str,
+    residual_allocation_delivery: str | None,
+    residual_allocation_supply: str | None,
+) -> CheckResult:
+    """Downgrade a FAIL bat_near_zero to WARN for mixed-allocation delivery+supply runs.
+
+    When a delivery+supply run uses different residual allocation methods for
+    delivery and supply (e.g. EPMC for delivery, percustomer for supply), the
+    delivery-only BAT metric will not be near zero on the combined bill.  A
+    FAIL in this case is a false positive, so we downgrade it to WARN.
+    """
+    is_mixed_alloc = (
+        cost_scope == "delivery+supply"
+        and residual_allocation_delivery != residual_allocation_supply
+    )
+    if not (is_mixed_alloc and result.status == "FAIL"):
+        return result
+    return CheckResult(
+        name=result.name,
+        status="WARN",
+        message=result.message + " [WARN: mixed delivery/supply allocation — "
+        f"{residual_allocation_delivery} vs {residual_allocation_supply}]",
+        details=result.details,
+    )
+
+
 def _find_matching_noflex_run(
     configs: dict[int, RunConfig],
     *,
@@ -195,10 +238,31 @@ def _find_matching_precalc_run(
     if config.run_type != "default":
         return None
 
-    # Explicit default->precalc pairing for the canonical 16-run orchestration.
-    # This intentionally allows pairs that differ in has_subclasses/upgrade,
-    # e.g. run 15/16 (upgrade-02 defaults) against run 13/14 (subclass precalc).
-    explicit_pairs = {3: 1, 4: 2, 7: 5, 8: 6, 11: 9, 12: 10, 15: 13, 16: 14}
+    # Explicit default->precalc pairing.  This intentionally allows pairs that
+    # differ in has_subclasses/upgrade: default runs inherit calibrated tariffs
+    # from their precalc counterpart and apply them on upgrade-02 without
+    # subclasses.  Runs 1-16 are the canonical orchestration; runs 17-36 are
+    # the NY EPMC and electrified-heating variants.
+    explicit_pairs = {
+        3: 1,
+        4: 2,
+        7: 5,
+        8: 6,
+        11: 9,
+        12: 10,
+        15: 13,
+        16: 14,
+        19: 17,
+        20: 18,
+        23: 21,
+        24: 22,
+        27: 25,
+        28: 26,
+        31: 29,
+        32: 30,
+        35: 33,
+        36: 34,
+    }
     if (paired_precalc := explicit_pairs.get(run_num)) is not None:
         candidate = configs.get(paired_precalc)
         if (
@@ -267,6 +331,26 @@ def _safe_execute(
         return None, False
 
 
+def _resolve_block_subclass_spec(
+    block: RunBlock,
+    configs: dict[int, RunConfig],
+) -> SubclassSpec | None:
+    for config in block.configs:
+        if config.subclass_spec is not None:
+            return config.subclass_spec
+
+    for config in block.configs:
+        matched = _find_matching_precalc_run(
+            configs, run_num=config.run_num, config=config
+        )
+        if matched is None:
+            continue
+        matched_config = configs.get(matched)
+        if matched_config is not None and matched_config.subclass_spec is not None:
+            return matched_config.subclass_spec
+    return None
+
+
 def _validate_block(
     block: RunBlock,
     run_dirs: dict[int, str],
@@ -296,6 +380,7 @@ def _validate_block(
     block_dir.mkdir(parents=True, exist_ok=True)
     plots = block_dir / "plots"
     results: list[CheckResult] = []
+    block_subclass_spec = _resolve_block_subclass_spec(block, configs)
 
     def _record(
         result: CheckResult,
@@ -353,6 +438,7 @@ def _validate_block(
             summarize_bills_by_subclass,
             bills,
             meta,
+            block_subclass_spec,
         )
         if ok and summary is not None:
             try:
@@ -384,6 +470,7 @@ def _validate_block(
             meta_a,
             num_a,
             num_b,
+            block_subclass_spec,
         )
         if ok and check_result is not None:
             _record(check_result, run_nums=[num_a, num_b])
@@ -393,6 +480,8 @@ def _validate_block(
         # this comparison is not a meaningful contract.
         if any(config.elasticity != 0.0 for config in block.configs):
             print("    Skipping hp_bat_increases_with_supply for demand-flex block")
+        elif block_subclass_spec is None or "hp" not in block_subclass_spec.aliases:
+            print("    Skipping hp_bat_increases_with_supply for non-HP subclass block")
         else:
             bat_a, bat_a_ok = _safe_execute(f"load_bat(run {num_a})", load_bat, dir_a)
             bat_b, bat_b_ok = _safe_execute(f"load_bat(run {num_b})", load_bat, dir_b)
@@ -422,42 +511,53 @@ def _validate_block(
             total_rr = None
 
         subclass_rr_raw = None
-        subclass_rr = None
         if has_sub and total_rr is not None:
-            subclass_rr_raw, sub_rr_ok = _safe_execute(
-                "load_revenue_requirement (subclass)",
-                load_revenue_requirement,
-                state,
-                utility,
-                f"{utility}_hp_vs_nonhp.yaml",
-            )
-            if not sub_rr_ok:
-                subclass_rr_raw = None
-            if subclass_rr_raw is not None:
-                from utils.scenario_config import resolve_subclass_rr_for_validation
+            rr_filename = block.configs[0].revenue_requirement_filename
+            if rr_filename is None:
+                print("    ERROR: Missing subclass revenue requirement filename")
+            else:
+                subclass_rr_raw, sub_rr_ok = _safe_execute(
+                    "load_revenue_requirement (subclass)",
+                    load_revenue_requirement,
+                    state,
+                    utility,
+                    rr_filename,
+                )
+                if not sub_rr_ok:
+                    subclass_rr_raw = None
 
-                try:
-                    resolved = resolve_subclass_rr_for_validation(
-                        subclass_rr_raw, "delivery"
-                    )
-                    subclass_rr = {
-                        "subclass_revenue_requirements": resolved,
-                    }
-                    if "total_delivery_revenue_requirement" in subclass_rr_raw:
-                        subclass_rr["total_delivery_revenue_requirement"] = (
-                            subclass_rr_raw["total_delivery_revenue_requirement"]
-                        )
-                    if (
-                        "total_delivery_and_supply_revenue_requirement"
-                        in subclass_rr_raw
-                    ):
-                        subclass_rr["total_delivery_and_supply_revenue_requirement"] = (
-                            subclass_rr_raw[
-                                "total_delivery_and_supply_revenue_requirement"
-                            ]
-                        )
-                except Exception:
-                    subclass_rr = subclass_rr_raw
+        if has_sub and subclass_rr_raw is not None and len(runs) == 2:
+            delivery_run = next(
+                (run for run in runs if run[2].cost_scope == "delivery"),
+                None,
+            )
+            total_run = next(
+                (run for run in runs if run[2].cost_scope == "delivery+supply"),
+                None,
+            )
+            if delivery_run is not None and total_run is not None:
+                (
+                    delivery_num,
+                    _,
+                    delivery_config,
+                    delivery_meta,
+                    delivery_bills,
+                ) = delivery_run
+                total_num, _, total_config, _, total_bills = total_run
+                check_result, ok = _safe_execute(
+                    "check_supply_passthrough_revenue_requirement"
+                    f"(run {delivery_num}→{total_num})",
+                    check_supply_passthrough_revenue_requirement,
+                    delivery_bills["elec"],
+                    total_bills["elec"],
+                    delivery_meta,
+                    subclass_rr_raw,
+                    subclass_spec=total_config.subclass_spec
+                    or delivery_config.subclass_spec
+                    or block_subclass_spec,
+                )
+                if ok and check_result is not None:
+                    _record(check_result, run_nums=[delivery_num, total_num])
 
         for run_num, _, config, meta, bills in runs:
             run_dir = block_dir / f"run_{run_num}"
@@ -466,13 +566,59 @@ def _validate_block(
                 f"    Run {run_num}: Saving revenue diagnostics to {run_dir.relative_to(output_dir)}/"
             )
             is_flex_run = config.elasticity != 0.0
-            if total_rr is not None and not is_flex_run:
+            subclass_rr = None
+            if has_sub and subclass_rr_raw is not None:
+                try:
+                    resolved = resolve_subclass_rr_for_validation(
+                        subclass_rr_raw,
+                        config.cost_scope,
+                        residual_allocation_delivery=config.residual_allocation_delivery
+                        or "percustomer",
+                        residual_allocation_supply=config.residual_allocation_supply
+                        or "passthrough",
+                    )
+                    subclass_rr = {
+                        "subclass_revenue_requirements": resolved,
+                    }
+                    for total_key in (
+                        "total_delivery_revenue_requirement",
+                        "total_delivery_and_supply_revenue_requirement",
+                    ):
+                        if total_key in subclass_rr_raw:
+                            subclass_rr[total_key] = subclass_rr_raw[total_key]
+                except Exception:
+                    subclass_rr = subclass_rr_raw
+            # Build effective RR target: for subclassed runs, use the sum of
+            # resolved subclass RRs (the actual calibration target) rather than
+            # the utility-wide total which may cover a broader population.
+            effective_rr: dict[str, Any] | None = None
+            if total_rr is not None:
+                if has_sub and subclass_rr is not None:
+                    rr_key = (
+                        "total"
+                        if config.cost_scope == "delivery+supply"
+                        else "delivery"
+                    )
+                    sub_sum = sum(
+                        float(v[rr_key])
+                        for v in subclass_rr["subclass_revenue_requirements"].values()
+                    )
+                    total_key = (
+                        "total_delivery_and_supply_revenue_requirement"
+                        if config.cost_scope == "delivery+supply"
+                        else "total_delivery_revenue_requirement"
+                    )
+                    effective_rr = {total_key: sub_sum}
+                else:
+                    effective_rr = total_rr
+
+            if effective_rr is not None and not is_flex_run:
                 check_result, ok = _safe_execute(
                     f"check_revenue_neutrality(run {run_num})",
                     check_revenue_neutrality,
                     bills["elec"],
                     meta,
-                    total_rr,
+                    effective_rr,
                     config.cost_scope,
                 )
                 if ok and check_result is not None:
@@ -487,6 +633,7 @@ def _validate_block(
                         meta,
                         subclass_rr,
                         config.cost_scope,
+                        config.subclass_spec or block_subclass_spec,
                     )
                 else:
                     check_result, ok = _safe_execute(
@@ -496,6 +643,7 @@ def _validate_block(
                         meta,
                         subclass_rr,
                         config.cost_scope,
+                        subclass_spec=config.subclass_spec or block_subclass_spec,
                     )
                 if ok and check_result is not None:
                     _record(check_result, run_num=run_num)
@@ -547,12 +695,12 @@ def _validate_block(
                                     check_result, run_nums=[noflex_run_num, run_num]
                                 )
 
-                if not is_flex_run:
+                if not is_flex_run and effective_rr is not None:
                     check_result, ok = _safe_execute(
                         f"check_subclass_rr_sums_to_total(run {run_num})",
                         check_subclass_rr_sums_to_total,
                         subclass_rr,
-                        total_rr,
+                        effective_rr,
                         config.cost_scope,
                     )
                     if ok and check_result is not None:
@@ -568,8 +716,8 @@ def _validate_block(
                         else "delivery"
                     )
                     rr_vals = {
-                        "HP": float(sub_rrs["hp"][rr_key]),
-                        "Non-HP": float(sub_rrs["non-hp"][rr_key]),
+                        display_subclass(alias): float(values[rr_key])
+                        for alias, values in sub_rrs.items()
                     }
                     total_rr_val = float(
                         total_rr[
@@ -584,6 +732,7 @@ def _validate_block(
                         summarize_revenue,
                         bills["elec"],
                         meta,
+                        config.subclass_spec or block_subclass_spec,
                     )
                     if rev_ok and rev is not None:
                         try:
@@ -631,21 +780,34 @@ def _validate_block(
                 continue
 
             check_result, ok = _safe_execute(
-                f"check_bat_direction(run {run_num})", check_bat_direction, bat, meta
+                f"check_bat_direction(run {run_num})",
+                check_bat_direction,
+                bat,
+                meta,
+                config.subclass_spec or block_subclass_spec,
             )
             if ok and check_result is not None:
                 _record(check_result, run_num=run_num)
 
-            # Always enforce per-customer BAT near zero for flex runs, and keep
-            # the existing behavior for subclassed runs.
             if config.has_subclasses or config.elasticity != 0.0:
+                operative_bat = bat_col_for_allocation(
+                    config.residual_allocation_delivery
+                )
                 check_result, ok = _safe_execute(
                     f"check_bat_near_zero(run {run_num})",
                     check_bat_near_zero,
                     bat,
                     meta,
+                    subclass_spec=config.subclass_spec or block_subclass_spec,
+                    bat_metric=operative_bat,
                 )
                 if ok and check_result is not None:
+                    check_result = _maybe_downgrade_bat_near_zero(
+                        check_result,
+                        cost_scope=config.cost_scope,
+                        residual_allocation_delivery=config.residual_allocation_delivery,
+                        residual_allocation_supply=config.residual_allocation_supply,
+                    )
                     _record(check_result, run_num=run_num)
 
             bat_summary, summary_ok = _safe_execute(
@@ -653,6 +815,7 @@ def _validate_block(
                 summarize_bat_by_subclass,
                 bat,
                 meta,
+                config.subclass_spec or block_subclass_spec,
             )
             if summary_ok and bat_summary is not None:
                 try:
@@ -785,6 +948,7 @@ def _validate_block(
                     prev_bills,
                     bills["elec"],
                     meta,
+                    configs[prev_num].subclass_spec or block_subclass_spec,
                 )
                 if delta_ok and delta is not None:
                     try:
@@ -845,7 +1009,12 @@ def _validate_block(
                     )
 
     # --- Non-HP rate calibrated above original (subclass precalc runs 5-6) ---
-    if block.configs[0].has_subclasses and block.revenue_neutral:
+    if (
+        block.configs[0].has_subclasses
+        and block.revenue_neutral
+        and block_subclass_spec is not None
+        and "non-hp" in block_subclass_spec.aliases
+    ):
         for run_num, run_dir, config, _, _ in runs:
             orig_num = _find_matching_original_flat_run(
                 configs, run_num=run_num, config=config
@@ -1216,6 +1385,20 @@ def main() -> None:
             print(f"\n  ERROR validating block {block.name}: {type(e).__name__}: {e}")
             print(f"  Traceback:\n{traceback.format_exc()}")
             print("  Continuing with next block...")
+
+    if args.comparison_profile == NY_HP_ONLY_VS_ELECTRIFIED:
+        print(f"\n  comparison profile: {args.comparison_profile}")
+        comparison_results = run_ny_hp_only_vs_electrified_comparison(
+            state=state,
+            utility=utility,
+            output_dir=output_dir,
+            configs=configs,
+            run_dirs=run_dirs,
+        )
+        all_results.extend(
+            _annotate_result(result, block_name=args.comparison_profile)
+            for result in comparison_results
+        )
 
     by_status = {
         s: sum(1 for r in all_results if r.status == s)
