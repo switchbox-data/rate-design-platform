@@ -12,8 +12,15 @@ Output schema (13 rows per building: Jan..Dec + Annual):
     heats_with_oil, heats_with_propane, in.representative_income,
     in.hvac_cooling_partial_space_conditioning, month, weight,
     elec_fixed_charge, elec_delivery_bill, elec_supply_bill, elec_total_bill,
+    passthrough_delivery, passthrough_supply,
     gas_fixed_charge, gas_volumetric_bill, gas_total_bill,
     propane_total_bill, oil_total_bill, energy_total_bill
+
+``passthrough_delivery`` / ``passthrough_supply`` are the baseline electric bill
+components from master ``run_1+2`` ``comb_bills_year_target`` (``upgrade == 0``),
+repeated on every other run pair for the same ``(bldg_id, month)``. On
+``run_1+2`` they equal the current row's ``elec_fixed_charge + elec_delivery_bill``
+and ``elec_supply_bill``.
 
 Identities:
     elec_total_bill = elec_fixed_charge + elec_delivery_bill + elec_supply_bill
@@ -56,12 +63,66 @@ from utils.post.io import (
     scan,
     scan_load_curves_for_utility,
 )
+from utils.post.master_run12_passthrough import (
+    REFERENCE_COMB_RUN_PAIR,
+    load_passthrough_reference_monthly,
+)
 
 ELEC_BILLS_CSV = "bills/elec_bills_year_target.csv"
+<<<<<<< HEAD
 UPGRADE_00_RUNS = {1, 2, 5, 6, 9, 10, 13, 14, 17, 18, 21, 22, 25, 26}
 UPGRADE_02_RUNS = {3, 4, 7, 8, 11, 12, 15, 16, 19, 20, 23, 24, 27, 28}
 VALID_RUN_PAIRS = {
     (r, r + 1) for r in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27)
+=======
+UPGRADE_00_RUNS = {
+    1,
+    2,
+    5,
+    6,
+    9,
+    10,
+    13,
+    14,
+    17,
+    18,
+    21,
+    22,
+    25,
+    26,
+    29,
+    30,
+    33,
+    34,
+    37,
+    38,
+}
+UPGRADE_02_RUNS = {
+    3,
+    4,
+    7,
+    8,
+    11,
+    12,
+    15,
+    16,
+    19,
+    20,
+    23,
+    24,
+    27,
+    28,
+    31,
+    32,
+    35,
+    36,
+    39,
+    40,
+}
+VALID_RUN_PAIRS = {
+    (r, r + 1)
+    for r in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39)
+>>>>>>> main
 }
 
 META_COLS = [
@@ -99,6 +160,8 @@ OUTPUT_COLS = [
     "elec_delivery_bill",
     "elec_supply_bill",
     "elec_total_bill",
+    "passthrough_delivery",
+    "passthrough_supply",
     "gas_fixed_charge",
     "gas_volumetric_bill",
     "gas_total_bill",
@@ -301,6 +364,46 @@ def _assert_no_nulls(df: pl.DataFrame, cols: list[str], utility: str) -> None:
             raise AssertionError(f"[{utility}] Column '{c}' has {n_null} null values.")
 
 
+def _attach_run12_passthrough_columns(
+    df: pl.DataFrame,
+    *,
+    state_lower: str,
+    utility: str,
+    output_batch_all_util: str,
+    run_delivery: int,
+    run_supply: int,
+    storage_options: dict[str, str] | None,
+) -> pl.DataFrame:
+    """Baseline ``run_1+2`` electric passthrough columns (see ``master_run12_passthrough``)."""
+    if run_delivery == 1 and run_supply == 2:
+        return df.with_columns(
+            (pl.col("elec_fixed_charge") + pl.col("elec_delivery_bill")).alias(
+                "passthrough_delivery"
+            ),
+            pl.col("elec_supply_bill").alias("passthrough_supply"),
+        )
+    ref = load_passthrough_reference_monthly(
+        state_lower=state_lower,
+        output_batch=output_batch_all_util,
+        utility=utility,
+        storage_options=storage_options,
+    )
+    out = df.join(ref, on=[BLDG_ID, "month"], how="left")
+    n_null = int(out["passthrough_delivery"].null_count())
+    if n_null > 0:
+        root = (
+            f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state_lower}/"
+            f"all_utilities/{output_batch_all_util}/run_{REFERENCE_COMB_RUN_PAIR}/"
+            "comb_bills_year_target/"
+        )
+        msg = (
+            f"[{utility}] Could not join run_{REFERENCE_COMB_RUN_PAIR} passthrough columns "
+            f"({n_null} null rows). Build master comb bills for that run first: {root}"
+        )
+        raise FileNotFoundError(msg)
+    return out
+
+
 def _apply_lmi_discounts_to_master(
     master: pl.DataFrame,
     *,
@@ -377,6 +480,9 @@ def _process_utility(
     upgrade: str,
     gas_rate_table: pl.DataFrame,
     gas_fixed_charges: pl.DataFrame,
+    *,
+    output_batch_all_util: str,
+    storage_options: dict[str, str] | None,
 ) -> pl.DataFrame:
     """Build the master table fragment for a single utility."""
     meta_bldg_ids = set(metadata_for_utility[BLDG_ID].to_list())
@@ -530,7 +636,7 @@ def _process_utility(
 
     # --- Join all components ---
     t = _log("  Joining components...")
-    joined = (
+    joined_pre = (
         elec.join(gas, on=[BLDG_ID, "month"], how="inner")
         .join(fuel_bills, on=[BLDG_ID, "month"], how="inner")
         .join(
@@ -559,8 +665,16 @@ def _process_utility(
             .otherwise(pl.lit("other"))
             .alias("postprocess_group.heating_type_v2"),
         )
-        .select(OUTPUT_COLS)
     )
+    joined = _attach_run12_passthrough_columns(
+        joined_pre,
+        state_lower=state,
+        utility=utility,
+        output_batch_all_util=output_batch_all_util,
+        run_delivery=run_delivery,
+        run_supply=run_supply,
+        storage_options=storage_options,
+    ).select(OUTPUT_COLS)
     _log_done("  Joining components", t, f"{joined.height} rows")
 
     expected_rows = n_bldgs * 13
@@ -590,6 +704,8 @@ def _process_utility(
         "elec_delivery_bill",
         "elec_supply_bill",
         "elec_total_bill",
+        "passthrough_delivery",
+        "passthrough_supply",
         "gas_fixed_charge",
         "gas_volumetric_bill",
         "gas_total_bill",
@@ -741,6 +857,11 @@ def main() -> None:
     if batch_overrides:
         _log(f"  Batch overrides: {batch_overrides}")
 
+    output_batch_all_util = args.output_batch or _build_output_path_suffix(
+        args.batch, batch_overrides
+    )
+    storage_options = get_aws_storage_options()
+
     # --- Load shared data ---
     t = _log(f"Loading gas tariffs for {state}...")
     gas_tariffs = load_gas_tariffs(state)
@@ -795,6 +916,8 @@ def main() -> None:
             upgrade=upgrade,
             gas_rate_table=gas_rate_table,
             gas_fixed_charges=gas_fixed_charges,
+            output_batch_all_util=output_batch_all_util,
+            storage_options=storage_options,
         )
         all_dfs.append(df)
 
@@ -855,12 +978,9 @@ def main() -> None:
         )
 
     # --- Write output (Hive-partitioned parquet) ---
-    output_batch = args.output_batch or _build_output_path_suffix(
-        args.batch, batch_overrides
-    )
     output_s3 = (
         f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/all_utilities/"
-        f"{output_batch}/run_{args.run_delivery}+{args.run_supply}/"
+        f"{output_batch_all_util}/run_{args.run_delivery}+{args.run_supply}/"
         f"comb_bills_year_target/"
     )
     t = _log(f"Writing to {output_s3}...")

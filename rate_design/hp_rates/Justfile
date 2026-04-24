@@ -13,7 +13,7 @@
 # Tier 1: Identity (set by state wrapper, dispatch, or manual source)
 # =============================================================================
 
-set allow-duplicate-variables := true
+set allow-duplicate-variables
 
 state := env_var_or_default('STATE', '')
 utility := env_var_or_default('UTILITY', '')
@@ -113,12 +113,13 @@ latest_output := path_repo / "utils/mid/latest_run_output.sh"
 # Omit batch-name to auto-detect the latest complete batch for the selected runs.
 
 # Pass batch-name (e.g. ny_20260305a_r1-2) to pin a specific batch.
-validate-runs batch_name="" runs="" path_output_dir="" path_resstock=path_resstock_release:
+validate-runs batch_name="" runs="" path_output_dir="" comparison_profile="" path_resstock=path_resstock_release:
     cd "{{ path_repo }}" && uv run python -m utils.post.validate \
         --state "{{ state }}" --utility "{{ utility }}" \
         {{ if batch_name != "" { "--batch-name \"" + batch_name + "\"" } else { "" } }} \
         {{ if runs != "" { "--runs \"" + runs + "\"" } else { "" } }} \
         {{ if path_output_dir != "" { "--output-dir \"" + path_output_dir + "\"" } else { "" } }} \
+        {{ if comparison_profile != "" { "--comparison-profile \"" + comparison_profile + "\"" } else { "" } }} \
         --skip-loads
 
 validate-config mode="warn":
@@ -685,7 +686,7 @@ run-20:
 
 # Electric-heating / non-electric-heating subclass RR (runs 29–30).
 
-# Uses run 1+2 BAT with BAT_epmc (matches residual_allocation_delivery: epmc for those runs).
+# Uses run 1+2 BAT with BAT_percustomer (matches residual_allocation_delivery: percustomer for those runs).
 compute-electric-heating-subclass-rev-requirements:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -707,7 +708,8 @@ compute-electric-heating-subclass-rev-requirements:
       "${base_rr}" \
       "${run2_dir}"
 
-# HP seasonal percustomer (runs 21–22): BAT_percustomer like runs 5–6; filenames match scenarios.
+# HP seasonal per-customer supply-passthrough (runs 21–22): same bill-derived seasonal shape as runs 5–8.
+
 run-21:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -758,9 +760,9 @@ run-24:
     just copy-calibrated-tariff-from-run "${run22_dir}"
     just run-scenario 24
 
-# EMPC-only electric-heating (runs 29–32): uses electric_heating subclass from heating_type_v2.
+# Electric-only electric-heating (runs 29–32): uses electric_heating subclass from heating_type_v2.
 
-# Flat discount computed for heating_type_v2=electric_heating using BAT_epmc.
+# Flat discount computed for heating_type_v2=electric_heating using BAT_percustomer.
 run-29:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -769,7 +771,7 @@ run-29:
     echo ">> run-29: resolved run-1 output → ${run1_dir}" >&2
     just compute-flat-discount-inputs "${run1_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
-        "BAT_epmc" "" \
+        "BAT_percustomer" "" \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
         "${group_col}" "electric_heating" "${group_value_to_subclass}"
     just create-flat-discount-tariff \
@@ -788,7 +790,7 @@ run-30:
     echo ">> run-30: resolved run-2 output → ${run2_dir}" >&2
     just compute-flat-discount-inputs "${run2_dir}" \
         "{{ path_resstock_release }}" "{{ state_upper }}" "{{ upgrade }}" \
-        "BAT_epmc" "" \
+        "BAT_percustomer" "" \
         "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
         "${group_col}" "electric_heating" "${group_value_to_subclass}"
     just create-flat-discount-tariff \
@@ -1031,8 +1033,8 @@ run-all-parallel-tracks:
 
     if uv run python3 "{{ path_repo }}/utils/mid/scenario_has_run_num.py" "{{ path_scenario_config }}" 29; then
         just compute-electric-heating-subclass-rev-requirements
-        # 21+22 (hp_seasonal_percustomer precalc), 29+30 (elec_heat flat precalc), 33+34
-        # (elec_heat seasonal precalc) are independent
+        # 21+22 (hp_seasonal_epmc precalc), 29+30 (elec_heat flat precalc), and 33+34
+        # (elec_heat seasonal precalc) are independent; 29-36 use percustomer allocation
         just run-21 & PID21=$!
         just run-22 & PID22=$!
         just run-29 & PID29=$!

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`utils/post/compute_subclass_rr.py` computes revenue requirement totals for any customer subclass defined in CAIRO `customer_metadata.csv` (typically a `postprocess_group.*` column).
+`utils/mid/compute_subclass_rr.py` computes revenue requirement totals for any customer subclass defined in CAIRO `customer_metadata.csv` (typically a `postprocess_group.*` column).
 
 For each subclass:
 
@@ -83,3 +83,7 @@ Output behavior:
 - Both output paths are overrideable via:
   - `--differentiated-yaml-path`
   - `--default-yaml-path`
+
+## `heating_type_breakdown` on the differentiated YAML
+
+When `customer_metadata` includes **`heating_type_v2`**, the CLI’s `main()` performs an **extra** `compute_subclass_rr` pass grouped by that column (run 1 and, if provided, run 2) and appends the result as **`heating_type_breakdown`** on the differentiated file. That block duplicates the usual RR arithmetic at a **finer heating category** grain; it is **not** consumed by `scenario_config` or CAIRO (only `subclass_revenue_requirements` and scalar totals are). Full detail: `context/code/orchestration/revenue_requirement_yaml_and_sheet.md` → section **`heating_type_breakdown`**.

@@ -16,6 +16,12 @@ from __future__ import annotations
 from typing import Any, cast
 
 import polars as pl
+from utils.post.validate.subclasses import (
+    SUBCLASS_COL,
+    SubclassSpec,
+    legacy_hp_subclass_spec,
+    subclass_alias_expr,
+)
 
 # ---------------------------------------------------------------------------
 # Column name constants (mirror checks.py conventions)
@@ -28,7 +34,7 @@ _HEATING_TYPE = "postprocess_group.heating_type"
 _MONTH = "month"
 _BILL = "bill_level"
 _ANNUAL = "Annual"
-_BAT_COLS: tuple[str, ...] = ("BAT_percustomer", "BAT_vol", "BAT_peak")
+_BAT_COLS: tuple[str, ...] = ("BAT_percustomer", "BAT_vol", "BAT_peak", "BAT_epmc")
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +61,18 @@ def _with_meta(lf: pl.LazyFrame, metadata: pl.LazyFrame, *cols: str) -> pl.LazyF
     return lf.join(metadata.select([_BLDG, _WEIGHT, *cols]), on=_BLDG)
 
 
+def _with_subclass_meta(
+    lf: pl.LazyFrame,
+    metadata: pl.LazyFrame,
+    subclass_spec: SubclassSpec | None,
+) -> pl.LazyFrame:
+    spec = subclass_spec or legacy_hp_subclass_spec()
+    return lf.join(
+        metadata.select([_BLDG, _WEIGHT, subclass_alias_expr(spec)]),
+        on=_BLDG,
+    ).filter(pl.col(SUBCLASS_COL).is_not_null())
+
+
 # ---------------------------------------------------------------------------
 # Public table builders
 # ---------------------------------------------------------------------------
@@ -63,6 +81,7 @@ def _with_meta(lf: pl.LazyFrame, metadata: pl.LazyFrame, *cols: str) -> pl.LazyF
 def summarize_bills_by_subclass(
     bills: dict[str, pl.LazyFrame],
     metadata: pl.LazyFrame,
+    subclass_spec: SubclassSpec | None = None,
 ) -> pl.DataFrame:
     """Weighted mean annual bill by bill type and HP/non-HP subclass.
 
@@ -73,13 +92,13 @@ def summarize_bills_by_subclass(
             ``postprocess_group.has_hp`` columns.
 
     Returns:
-        DataFrame with columns: ``bill_type``, ``postprocess_group.has_hp``,
+        DataFrame with columns: ``bill_type``, ``subclass``,
         ``bill_mean_weighted``, ``customers_weighted``.
     """
     frames = [
         _collect(
-            _with_meta(_annual(lf), metadata, _HP)
-            .group_by(_HP)
+            _with_subclass_meta(_annual(lf), metadata, subclass_spec)
+            .group_by(SUBCLASS_COL)
             .agg(
                 _wavg(_BILL).alias("bill_mean_weighted"),
                 pl.col(_WEIGHT).sum().alias("customers_weighted"),
@@ -89,13 +108,14 @@ def summarize_bills_by_subclass(
         for bill_type, lf in bills.items()
     ]
     return pl.concat(frames).select(
-        ["bill_type", _HP, "bill_mean_weighted", "customers_weighted"]
+        ["bill_type", SUBCLASS_COL, "bill_mean_weighted", "customers_weighted"]
     )
 
 
 def summarize_bat_by_subclass(
     bat: pl.LazyFrame,
     metadata: pl.LazyFrame,
+    subclass_spec: SubclassSpec | None = None,
 ) -> pl.DataFrame:
     """Weighted mean BAT metrics by HP/non-HP subclass.
 
@@ -108,13 +128,13 @@ def summarize_bat_by_subclass(
             ``postprocess_group.has_hp`` columns.
 
     Returns:
-        DataFrame with columns: ``postprocess_group.has_hp``,
+        DataFrame with columns: ``subclass``,
         ``{bat_col}_wavg`` for each present BAT column, ``customers_weighted``.
     """
     bat_cols = [c for c in _BAT_COLS if c in bat.collect_schema()]
     return _collect(
-        _with_meta(bat, metadata, _HP)
-        .group_by(_HP)
+        _with_subclass_meta(bat, metadata, subclass_spec)
+        .group_by(SUBCLASS_COL)
         .agg(
             *[_wavg(c).alias(f"{c}_wavg") for c in bat_cols],
             pl.col(_WEIGHT).sum().alias("customers_weighted"),
@@ -125,6 +145,7 @@ def summarize_bat_by_subclass(
 def summarize_revenue(
     bills: pl.LazyFrame,
     metadata: pl.LazyFrame,
+    subclass_spec: SubclassSpec | None = None,
 ) -> pl.DataFrame:
     """Total weighted annual revenue by HP/non-HP subclass.
 
@@ -137,12 +158,12 @@ def summarize_revenue(
             ``postprocess_group.has_hp`` columns.
 
     Returns:
-        DataFrame with columns: ``postprocess_group.has_hp``,
+        DataFrame with columns: ``subclass``,
         ``total_revenue_weighted``, ``customers_weighted``.
     """
     return _collect(
-        _with_meta(_annual(bills), metadata, _HP)
-        .group_by(_HP)
+        _with_subclass_meta(_annual(bills), metadata, subclass_spec)
+        .group_by(SUBCLASS_COL)
         .agg(
             (pl.col(_BILL) * pl.col(_WEIGHT)).sum().alias("total_revenue_weighted"),
             pl.col(_WEIGHT).sum().alias("customers_weighted"),
@@ -154,6 +175,7 @@ def compute_bill_deltas(
     bills_a: pl.LazyFrame,
     bills_b: pl.LazyFrame,
     metadata: pl.LazyFrame,
+    subclass_spec: SubclassSpec | None = None,
 ) -> pl.DataFrame:
     """Weighted mean bill difference (B − A) by HP/non-HP subclass.
 
@@ -164,14 +186,14 @@ def compute_bill_deltas(
             ``postprocess_group.has_hp`` columns.
 
     Returns:
-        DataFrame with columns: ``postprocess_group.has_hp``, ``bill_mean_a``,
+        DataFrame with columns: ``subclass``, ``bill_mean_a``,
         ``bill_mean_b``, ``bill_delta`` (B − A), ``customers_weighted``.
     """
 
     def _mean_by_subclass(lf: pl.LazyFrame, alias: str) -> pl.LazyFrame:
         return (
-            _with_meta(_annual(lf), metadata, _HP)
-            .group_by(_HP)
+            _with_subclass_meta(_annual(lf), metadata, subclass_spec)
+            .group_by(SUBCLASS_COL)
             .agg(
                 _wavg(_BILL).alias(alias),
                 pl.col(_WEIGHT).sum().alias("customers_weighted"),
@@ -181,7 +203,8 @@ def compute_bill_deltas(
     return _collect(
         _mean_by_subclass(bills_a, "bill_mean_a")
         .join(
-            _mean_by_subclass(bills_b, "bill_mean_b").drop("customers_weighted"), on=_HP
+            _mean_by_subclass(bills_b, "bill_mean_b").drop("customers_weighted"),
+            on=SUBCLASS_COL,
         )
         .with_columns(
             (pl.col("bill_mean_b") - pl.col("bill_mean_a")).alias("bill_delta")
