@@ -38,6 +38,8 @@ apt-get update
 
 # Install system dependencies (do not install awscli from apt - it's v1; we install AWS CLI v2 below)
 # librsvg2-bin provides rsvg-convert for Pandoc/Quarto DOCX (SVG figure conversion).
+# inkscape is used by reports2 `just typeset` to convert GT tables (Chrome CDP
+# vector PDF) into real-text SVG for ICML/InDesign placement.
 apt-get install -y \
   python3.13 \
   python3.13-dev \
@@ -50,6 +52,7 @@ apt-get install -y \
   e2fsprogs \
   gh \
   librsvg2-bin \
+  inkscape \
   zsh
 
 # Install Google Chrome (Ubuntu 22.04's chromium-browser is a snap stub that
@@ -71,6 +74,86 @@ if ! command -v quarto &>/dev/null; then
   rm -f /tmp/quarto.deb
   echo "Quarto installed: $(quarto --version)"
 fi
+
+# Install Switchbox house fonts (GT Planar, IBM Plex Sans, Farnham Text) into
+# fontconfig so headless Chrome (used by reports2 `just typeset` via the
+# GT → SVG pipeline in lib/quarto.py) can resolve them by name. Without these,
+# Chrome falls back to Liberation Sans and that name gets baked into the SVG,
+# so designers see the wrong font on their Macs even with the real fonts
+# installed.
+#
+# We install TrueType-flavored (*.ttf) copies of the CFF-flavored OTFs that
+# the web reports use. Chrome's Page.printToPDF embeds CFF-OTFs as PDF Type 3
+# fonts, which Inkscape's native PDF importer can't decode for font size —
+# every <text> ends up with font-size:1e-32px (invisible). TrueType-flavored
+# fonts get embedded as CID TrueType, preserving real font sizes and editable
+# text. The OTFs come from the public switchbox-data.github.io CDN (same as
+# what reports2/.style/switchbox.scss references); we convert them in-place
+# using fontTools. See reports2/reports/.style/fonts/README.md.
+apt-get install -y python3-fonttools
+mkdir -p /usr/local/share/fonts/switchbox
+FONT_BASE="https://switchbox-data.github.io/reports/fonts"
+FONT_TMP="$(mktemp -d)"
+for rel in \
+  gt_planar/GT-Planar-Regular.otf \
+  gt_planar/GT-Planar-Bold.otf \
+  gt_planar/GT-Planar-Black.otf \
+  ibm_plex_sans/IBMPlexSans-Regular.otf \
+  ibm_plex_sans/IBMPlexSans-Bold.otf \
+  farnham_text/FarnhamText-Regular.otf \
+  farnham_text/FarnhamText-Bold.otf; do
+  base=$(basename "$rel")
+  curl -fsSL "$FONT_BASE/$rel" -o "$FONT_TMP/$base" || {
+    echo "WARNING: failed to fetch $rel"
+    continue
+  }
+  python3 - "$FONT_TMP/$base" "/usr/local/share/fonts/switchbox/${base%.otf}.ttf" <<'PY' ||
+\
+import sys
+from pathlib import Path
+from fontTools.pens.cu2quPen import Cu2QuPen
+from fontTools.pens.ttGlyphPen import TTGlyphPen
+from fontTools.ttLib import TTFont, newTable
+
+src, dst = Path(sys.argv[1]), Path(sys.argv[2])
+font = TTFont(str(src))
+if "CFF " not in font:
+    sys.exit(f"{src} has no CFF table")
+order = font.getGlyphOrder()
+cs = font["CFF "].cff[font["CFF "].cff.fontNames[0]].CharStrings
+glyf = newTable("glyf")
+glyf.glyphs = {}
+glyf.setGlyphOrder(order)
+for name in order:
+    pen = TTGlyphPen(None)
+    cs[name].draw(Cu2QuPen(pen, max_err=1.0, reverse_direction=True))
+    glyf[name] = pen.glyph()
+del font["CFF "]
+font["glyf"] = glyf
+font["loca"] = newTable("loca")
+font["head"].indexToLocFormat = 1
+maxp = font["maxp"]
+maxp.tableVersion = 0x00010000
+for attr, default in [
+    ("maxPoints", 0), ("maxContours", 0),
+    ("maxCompositePoints", 0), ("maxCompositeContours", 0),
+    ("maxZones", 2), ("maxTwilightPoints", 0),
+    ("maxStorage", 0), ("maxFunctionDefs", 0),
+    ("maxInstructionDefs", 0), ("maxStackElements", 0),
+    ("maxSizeOfInstructions", 0), ("maxComponentElements", 0),
+    ("maxComponentDepth", 0),
+]:
+    setattr(maxp, attr, default)
+font.sfntVersion = "\x00\x01\x00\x00"
+for tag in ("VORG",):
+    if tag in font:
+        del font[tag]
+font.save(str(dst))
+PY
+    echo "WARNING: failed to convert $base to TTF"
+done
+rm -rf "$FONT_TMP"
+fc-cache -fv >/dev/null || true
 
 # Install TinyTeX for LaTeX math rendering in ICML output (reports2 `just typeset`).
 # The icml_math Lua filter calls latex + dvisvgm to pre-render math to SVG.
