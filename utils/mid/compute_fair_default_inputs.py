@@ -260,7 +260,9 @@ def seasonal_rates_only_rate_design(inputs: FairDefaultInputs) -> FairDefaultRat
 def fixed_plus_seasonal_mc_rate_design(mc_seasonal_ratio: float) -> RateDesignModule:
     """Return a design module constrained by winter_rate / summer_rate."""
     if mc_seasonal_ratio <= 0.0:
-        raise ValueError(f"mc_seasonal_ratio must be positive; got {mc_seasonal_ratio}.")
+        raise ValueError(
+            f"mc_seasonal_ratio must be positive; got {mc_seasonal_ratio}."
+        )
 
     def solve(inputs: FairDefaultInputs) -> FairDefaultRateDesign:
         class_totals = inputs.class_totals
@@ -269,8 +271,7 @@ def fixed_plus_seasonal_mc_rate_design(mc_seasonal_ratio: float) -> RateDesignMo
             mc_seasonal_ratio * class_totals.winter_kwh + class_totals.summer_kwh
         )
         subclass_ratio_kwh = (
-            mc_seasonal_ratio * subclass_totals.winter_kwh
-            + subclass_totals.summer_kwh
+            mc_seasonal_ratio * subclass_totals.winter_kwh + subclass_totals.summer_kwh
         )
         denominator = (
             class_totals.customer_count * subclass_ratio_kwh
@@ -452,7 +453,10 @@ def _load_metadata_and_cross_subsidy(
     )
     if metadata.is_empty():
         raise ValueError("No customers found in customer_metadata.csv.")
-    if set(metadata.filter(pl.col("_is_subclass"))[BLDG_ID_COL].to_list()) != subclass_ids:
+    if (
+        set(metadata.filter(pl.col("_is_subclass"))[BLDG_ID_COL].to_list())
+        != subclass_ids
+    ):
         raise ValueError("Subclass metadata and BAT inputs do not match.")
     return metadata, subclass_cross_subsidy
 

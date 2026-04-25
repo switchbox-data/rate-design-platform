@@ -131,11 +131,9 @@ def test_compute_fair_default_inputs_closed_forms(tmp_path: Path) -> None:
     assert out["seasonal_rates_only_winter_rate"][0] == pytest.approx(0.25)
     assert out["seasonal_rates_only_summer_rate"][0] == pytest.approx(0.625)
     assert out["seasonal_rates_only_feasible"][0]
-    assert out[
-        "seasonal_rates_only_residual_cross_subsidy_after_clipping"
-    ][0] == pytest.approx(
-        0.0
-    )
+    assert out["seasonal_rates_only_residual_cross_subsidy_after_clipping"][
+        0
+    ] == pytest.approx(0.0)
     assert out["fixed_plus_seasonal_mc_fixed_charge"][0] == pytest.approx(
         -18.833333333333332
     )
@@ -165,9 +163,7 @@ def test_compute_fair_default_inputs_closed_forms(tmp_path: Path) -> None:
     winter_b = out["seasonal_rates_only_winter_rate"][0]
     summer_b = out["seasonal_rates_only_summer_rate"][0]
     assert (
-        12.0 * fixed_b * customer_count
-        + winter_b * winter_kwh
-        + summer_b * summer_kwh
+        12.0 * fixed_b * customer_count + winter_b * winter_kwh + summer_b * summer_kwh
     ) == pytest.approx(rr)
     assert (
         12.0 * fixed_b * subclass_customer_count
@@ -180,9 +176,7 @@ def test_compute_fair_default_inputs_closed_forms(tmp_path: Path) -> None:
     summer_c = out["fixed_plus_seasonal_mc_summer_rate"][0]
     assert winter_c / summer_c == pytest.approx(2.0)
     assert (
-        12.0 * fixed_c * customer_count
-        + winter_c * winter_kwh
-        + summer_c * summer_kwh
+        12.0 * fixed_c * customer_count + winter_c * winter_kwh + summer_c * summer_kwh
     ) == pytest.approx(rr)
     assert (
         12.0 * fixed_c * subclass_customer_count
@@ -216,6 +210,6 @@ def test_compute_fair_default_inputs_strategy_b_clipped_residual(
     assert out["seasonal_rates_only_summer_rate"][0] < 0.0
     assert out["seasonal_rates_only_clipped_summer_rate"][0] == pytest.approx(0.0)
     assert out["seasonal_rates_only_clipped_winter_rate"][0] == pytest.approx(1.5)
-    assert out[
-        "seasonal_rates_only_residual_cross_subsidy_after_clipping"
-    ][0] == pytest.approx(-60.0)
+    assert out["seasonal_rates_only_residual_cross_subsidy_after_clipping"][
+        0
+    ] == pytest.approx(-60.0)
