@@ -13,7 +13,7 @@
 # Tier 1: Identity (set by state wrapper, dispatch, or manual source)
 # =============================================================================
 
-set allow-duplicate-variables
+set allow-duplicate-variables := true
 
 state := env_var_or_default('STATE', '')
 utility := env_var_or_default('UTILITY', '')
@@ -57,6 +57,7 @@ use_resstock_loads := env_var_or_default('USE_RESSTOCK_LOADS', 'false')
 # "default" = preserve the actual utility rate structure.
 
 base_tariff_pattern := env_var_or_default('BASE_TARIFF_PATTERN', 'flat')
+mc_seasonal_ratio := env_var_or_default('MC_SEASONAL_RATIO', '')
 
 # =============================================================================
 # Tier 3: Derived paths (all computed from Tier 1 + 2)
@@ -429,6 +430,86 @@ create-flat-discount-tariff base_tariff_json flat_inputs_csv label output_path:
       "{{ flat_inputs_csv }}" \
       "{{ label }}" \
       "{{ output_path }}"
+
+compute-fair-default-inputs path_run_dir subclass_value cross_subsidy_col="BAT_percustomer" path_output_dir="" path_base_tariff_json="" group_col="has_hp" group_value_to_subclass="" mc_seasonal_ratio_value=mc_seasonal_ratio path_periods_yaml=path_periods_yaml fixed_charge_floor="0.0":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    path_effective_base_tariff="{{ path_base_tariff_json }}"
+    if [ -z "${path_effective_base_tariff}" ]; then
+        path_effective_base_tariff="{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json"
+    fi
+    just -f {{ path_repo }}/utils/Justfile compute-fair-default-inputs \
+      "{{ path_run_dir }}" \
+      "{{ path_resstock_release }}" \
+      "{{ state_upper }}" \
+      "{{ upgrade }}" \
+      "{{ subclass_value }}" \
+      "{{ cross_subsidy_col }}" \
+      "{{ path_output_dir }}" \
+      "${path_effective_base_tariff}" \
+      "{{ group_col }}" \
+      "{{ group_value_to_subclass }}" \
+      "{{ mc_seasonal_ratio_value }}" \
+      "{{ path_periods_yaml }}" \
+      "{{ fixed_charge_floor }}"
+
+create-fair-default-tariff strategy label path_output_path path_inputs_csv path_base_tariff_json="" path_periods_yaml=path_periods_yaml allow_infeasible="false":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    path_effective_base_tariff="{{ path_base_tariff_json }}"
+    if [ -z "${path_effective_base_tariff}" ]; then
+        path_effective_base_tariff="{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json"
+    fi
+    just -f {{ path_repo }}/utils/Justfile create-fair-default-tariff \
+      "${path_effective_base_tariff}" \
+      "{{ path_inputs_csv }}" \
+      "{{ strategy }}" \
+      "{{ label }}" \
+      "{{ path_output_path }}" \
+      "{{ path_periods_yaml }}" \
+      "{{ allow_infeasible }}"
+
+create-all-fair-default-tariffs path_run_dir subclass_value="true" path_tariff_output_dir=path_tariffs_electric path_base_tariff_json="" cross_subsidy_col="BAT_percustomer" group_col="has_hp" group_value_to_subclass="" path_output_dir="" mc_seasonal_ratio_value=mc_seasonal_ratio path_periods_yaml=path_periods_yaml fixed_charge_floor="0.0":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    path_effective_output_dir="{{ path_output_dir }}"
+    if [ -z "${path_effective_output_dir}" ]; then
+        path_effective_output_dir="{{ path_run_dir }}"
+    fi
+    path_effective_base_tariff="{{ path_base_tariff_json }}"
+    if [ -z "${path_effective_base_tariff}" ]; then
+        path_effective_base_tariff="{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json"
+    fi
+    if [ -z "{{ mc_seasonal_ratio_value }}" ]; then
+        echo "ERROR: create-all-fair-default-tariffs requires mc_seasonal_ratio (set MC_SEASONAL_RATIO or pass mc_seasonal_ratio_value)." >&2
+        exit 1
+    fi
+    just compute-fair-default-inputs "{{ path_run_dir }}" "{{ subclass_value }}" \
+        "{{ cross_subsidy_col }}" "${path_effective_output_dir}" \
+        "${path_effective_base_tariff}" "{{ group_col }}" "{{ group_value_to_subclass }}" \
+        "{{ mc_seasonal_ratio_value }}" "{{ path_periods_yaml }}" "{{ fixed_charge_floor }}"
+    path_inputs_csv="${path_effective_output_dir}/fair_default_inputs.csv"
+    just create-fair-default-tariff \
+        fixed_charge_only \
+        {{ utility }}_default_fair_fixed_charge_only \
+        "{{ path_tariff_output_dir }}/{{ utility }}_default_fair_fixed_charge_only.json" \
+        "${path_inputs_csv}" \
+        "${path_effective_base_tariff}" \
+        "{{ path_periods_yaml }}"
+    just create-fair-default-tariff \
+        seasonal_rates_only \
+        {{ utility }}_default_fair_seasonal_rates_only \
+        "{{ path_tariff_output_dir }}/{{ utility }}_default_fair_seasonal_rates_only.json" \
+        "${path_inputs_csv}" \
+        "${path_effective_base_tariff}" \
+        "{{ path_periods_yaml }}"
+    just create-fair-default-tariff \
+        fixed_plus_seasonal_mc \
+        {{ utility }}_default_fair_fixed_plus_seasonal_mc \
+        "{{ path_tariff_output_dir }}/{{ utility }}_default_fair_fixed_plus_seasonal_mc.json" \
+        "${path_inputs_csv}" \
+        "${path_effective_base_tariff}" \
+        "{{ path_periods_yaml }}"
 
 copy-calibrated-tariff-from-run run_dir output_dir="":
     just -f {{ path_repo }}/utils/Justfile copy-calibrated-tariff-from-run \

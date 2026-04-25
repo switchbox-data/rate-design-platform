@@ -24,7 +24,6 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import cast
 
 import numpy as np
 import polars as pl
@@ -70,11 +69,11 @@ def _list_utilities_from_hive_root(comb_root: str) -> list[str]:
             raise FileNotFoundError(msg)
         return sorted(names)
     # S3 (cloudpathlib)
-    if not p.exists():  # type: ignore[union-attr]
+    if not p.exists():
         msg = f"Master comb path not found: {comb_root}"
         raise FileNotFoundError(msg)
     names = []
-    for child in p.iterdir():  # type: ignore[union-attr]
+    for child in p.iterdir():
         if child.is_dir() and child.name.startswith(PARTITION_PREFIX):
             names.append(child.name.removeprefix(PARTITION_PREFIX))
     if not names:
@@ -90,10 +89,7 @@ def _load_utility_table(
     storage_options: dict[str, str] | None,
 ) -> pl.DataFrame:
     path = f"{root.rstrip('/')}/{PARTITION_PREFIX}{utility}/data.parquet"
-    return cast(
-        pl.DataFrame,
-        pl.read_parquet(path, storage_options=storage_options),
-    )
+    return pl.read_parquet(path, storage_options=storage_options)
 
 
 def _validate_run_pair(run_delivery: int, run_supply: int) -> None:
