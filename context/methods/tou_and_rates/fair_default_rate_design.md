@@ -9,7 +9,7 @@ This is the math behind issue #398 and the [`utils/mid/compute_fair_default_inpu
 1. [Why a default tariff (and not a subclass-specific one)](#1-why-a-default-tariff-and-not-a-subclass-specific-one)
 2. [Setup and notation](#2-setup-and-notation)
 3. [The two design constraints](#3-the-two-design-constraints)
-4. [Strategy A: fixed-charge only (flat volumetric)](#4-strategy-a-fixed-charge-only-flat-volumetric)
+4. [Strategy A: fixed charge + uniform volumetric scaling](#4-strategy-a-fixed-charge--uniform-volumetric-scaling)
 5. [Strategy B: seasonal rates only (preserve fixed charge)](#5-strategy-b-seasonal-rates-only-preserve-fixed-charge)
 6. [Strategy C: combined, with a cost-reflective seasonal ratio](#6-strategy-c-combined-with-a-cost-reflective-seasonal-ratio)
 7. [Geometry of the solution space, and the uniqueness theorem](#7-geometry-of-the-solution-space-and-the-uniqueness-theorem)
@@ -87,50 +87,81 @@ $$\boxed{\;12 F \cdot N_{\text{hp}} \;+\; r_{\text{win}} \cdot \text{kWh}^{\text
 
 ---
 
-## 4. Strategy A: fixed-charge only (flat volumetric)
+## 4. Strategy A: fixed charge + uniform volumetric scaling
 
-**Closure:** force $r_{\text{win}} = r_{\text{sum}} = r$ (a single flat volumetric rate). Adding (C1) and (C2) and using $\text{kWh}^{\text{win}} + \text{kWh}^{\text{sum}} = \text{kWh}$:
+**Premise.** The baseline volumetric rate structure $\mathcal{T}_0$ has any shape — flat, seasonal, TOU, tiered, or anything else — and we want to **preserve that shape**, only adjusting two scalar knobs:
 
-$$\begin{pmatrix} 12 N_{\text{cls}} & \text{kWh}_{\text{cls}} \\ 12 N_{\text{hp}} & \text{kWh}_{\text{hp}} \end{pmatrix} \begin{pmatrix} F \\ r \end{pmatrix} = \begin{pmatrix} RR \\ \text{TC}_{\text{hp}} \end{pmatrix}.$$
+- the fixed charge $F$, and
+- a single uniform multiplicative scaling factor $\lambda$ applied to **every** baseline volumetric rate (so every $\$/\text{kWh}$ in the rate book becomes $\lambda$ times its baseline value).
 
-**Determinant.** Define the per-customer kWh:
+This gives 2 unknowns $(F, \lambda)$ for the 2 constraints (C1) and (C2), the right size for a clean closed-form solution. The shape-preservation property is what makes this strategy attractive operationally: if the regulator has already approved a particular seasonal or TOU structure, this strategy keeps that structure and just rescales the levels.
 
-$$\overline{\text{kWh}}_{\text{cls}} = \frac{\text{kWh}_{\text{cls}}}{N_{\text{cls}}}, \qquad \overline{\text{kWh}}_{\text{hp}} = \frac{\text{kWh}_{\text{hp}}}{N_{\text{hp}}}.$$
+**Setup.** Denote each customer $i$'s **baseline annual volumetric bill** (the sum of every $\$/\text{kWh}$ × kWh charge they incur under $\mathcal{T}_0$, regardless of structure) as $V^0_i$. At fixed charge $F$ and volumetric scaling $\lambda$, customer $i$'s annual bill is
+
+$$B_i(F, \lambda) = 12 F + \lambda V^0_i.$$
+
+Aggregating with CAIRO weights $w_i$:
+
+$$V^0_{\text{cls}} = \sum_{i \in \text{cls}} w_i V^0_i, \qquad V^0_{\text{hp}} = \sum_{i \in \text{hp}} w_i V^0_i,$$
+
+$$\text{Bill}_{\text{cls}}(F, \lambda) = 12 F N_{\text{cls}} + \lambda V^0_{\text{cls}}, \qquad \text{Bill}_{\text{hp}}(F, \lambda) = 12 F N_{\text{hp}} + \lambda V^0_{\text{hp}}.$$
+
+The baseline corresponds to $(F_0, \lambda_0 = 1)$, which by calibration satisfies $\text{Bill}_{\text{cls}}(F_0, 1) = RR$.
+
+**Linear system.** Imposing (C1) and (C2):
+
+$$\begin{pmatrix} 12 N_{\text{cls}} & V^0_{\text{cls}} \\ 12 N_{\text{hp}} & V^0_{\text{hp}} \end{pmatrix} \begin{pmatrix} F \\ \lambda \end{pmatrix} = \begin{pmatrix} RR \\ \text{TC}_{\text{hp}} \end{pmatrix}.$$
+
+**Determinant.** Define the **per-customer baseline volumetric bill** for each group:
+
+$$\overline{V}^0_{\text{cls}} = \frac{V^0_{\text{cls}}}{N_{\text{cls}}}, \qquad \overline{V}^0_{\text{hp}} = \frac{V^0_{\text{hp}}}{N_{\text{hp}}}.$$
 
 Then
 
-$$\Delta_A \;=\; 12 \cdot \big(N_{\text{cls}} \cdot \text{kWh}_{\text{hp}} - N_{\text{hp}} \cdot \text{kWh}_{\text{cls}}\big) \;=\; 12 \cdot N_{\text{cls}} \cdot N_{\text{hp}} \cdot \big(\overline{\text{kWh}}_{\text{hp}} - \overline{\text{kWh}}_{\text{cls}}\big).$$
+$$\Delta_A \;=\; 12 \cdot \big(N_{\text{cls}} V^0_{\text{hp}} - N_{\text{hp}} V^0_{\text{cls}}\big) \;=\; 12 \cdot N_{\text{cls}} N_{\text{hp}} \cdot \big(\overline{V}^0_{\text{hp}} - \overline{V}^0_{\text{cls}}\big).$$
 
-Since $N_{\text{cls}}, N_{\text{hp}} > 0$, the sign of $\Delta_A$ is the sign of $(\overline{\text{kWh}}_{\text{hp}} - \overline{\text{kWh}}_{\text{cls}})$.
+Since $N_{\text{cls}}, N_{\text{hp}} > 0$, the sign of $\Delta_A$ is the sign of $(\overline{V}^0_{\text{hp}} - \overline{V}^0_{\text{cls}})$ — i.e. whether the subclass per-customer baseline volumetric bill exceeds the class average.
 
-**Closed-form solution (absolute).** By Cramer's rule:
+**Closed form (absolute).** By Cramer's rule:
 
-$$F^*_A = \frac{RR \cdot \text{kWh}_{\text{hp}} - \text{TC}_{\text{hp}} \cdot \text{kWh}_{\text{cls}}}{\Delta_A}, \qquad r^*_A = \frac{12 \cdot (\text{TC}_{\text{hp}} \cdot N_{\text{cls}} - RR \cdot N_{\text{hp}})}{\Delta_A}.$$
+$$F^*_A = \frac{RR \cdot V^0_{\text{hp}} - \text{TC}_{\text{hp}} \cdot V^0_{\text{cls}}}{\Delta_A}, \qquad \lambda^*_A = \frac{12 \cdot (\text{TC}_{\text{hp}} \cdot N_{\text{cls}} - RR \cdot N_{\text{hp}})}{\Delta_A}.$$
 
-**Closed-form solution (delta from baseline).** Substituting the calibration identities $RR = 12 F_0 N_{\text{cls}} + r_0 \text{kWh}_{\text{cls}}$ and $\text{Bill}_{\text{hp}} = 12 F_0 N_{\text{hp}} + r_0 \text{kWh}_{\text{hp}}$ into the formulas above and simplifying:
+**Closed form (delta from baseline).** Substituting $RR = 12 F_0 N_{\text{cls}} + V^0_{\text{cls}}$ and $\text{TC}_{\text{hp}} = 12 F_0 N_{\text{hp}} + V^0_{\text{hp}} - X_{\text{hp}}$ and simplifying — same algebra trick as the seasonal case, the baseline terms cancel cleanly:
 
-$$\boxed{\;\Delta F_A \;=\; F^*_A - F_0 \;=\; \frac{X_{\text{hp}} \cdot \overline{\text{kWh}}_{\text{cls}}}{12 \cdot N_{\text{hp}} \cdot (\overline{\text{kWh}}_{\text{hp}} - \overline{\text{kWh}}_{\text{cls}})}, \qquad \Delta r_A \;=\; r^*_A - r_0 \;=\; \frac{-X_{\text{hp}}}{N_{\text{hp}} \cdot (\overline{\text{kWh}}_{\text{hp}} - \overline{\text{kWh}}_{\text{cls}})}.\;}$$
+$$\boxed{\;\Delta F_A \;=\; F^*_A - F_0 \;=\; \frac{X_{\text{hp}} \cdot \overline{V}^0_{\text{cls}}}{12 \cdot N_{\text{hp}} \cdot (\overline{V}^0_{\text{hp}} - \overline{V}^0_{\text{cls}})}, \qquad \Delta \lambda_A \;=\; \lambda^*_A - 1 \;=\; \frac{-X_{\text{hp}}}{N_{\text{hp}} \cdot (\overline{V}^0_{\text{hp}} - \overline{V}^0_{\text{cls}})}.\;}$$
 
-Both formulas have the same denominator — $N_{\text{hp}}$ times the per-customer kWh gap — so the relative magnitudes of the fixed-charge raise and the volumetric cut are tied together by a factor of $\overline{\text{kWh}}_{\text{cls}} / 12$.
+Both formulas share the denominator $N_{\text{hp}} (\overline{V}^0_{\text{hp}} - \overline{V}^0_{\text{cls}})$, so the size of the fixed-charge raise and the size of the volumetric-scaling cut are tied together by a factor of $\overline{V}^0_{\text{cls}} / 12$.
 
 **Number of solutions.**
 
-| Condition                                                                                          | # solutions                                                                                                             |
-| -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| $\overline{\text{kWh}}_{\text{hp}} \ne \overline{\text{kWh}}_{\text{cls}}$ (i.e. $\Delta_A \ne 0$) | **Exactly one** $(F^*_A, r^*_A)$.                                                                                       |
-| $\overline{\text{kWh}}_{\text{hp}} = \overline{\text{kWh}}_{\text{cls}}$ AND $X_{\text{hp}} = 0$   | **Infinitely many** — the constraints are the same equation, any $(F, r)$ on the class-RR line works.                   |
-| $\overline{\text{kWh}}_{\text{hp}} = \overline{\text{kWh}}_{\text{cls}}$ AND $X_{\text{hp}} \ne 0$ | **Zero** — constraints are parallel-but-inconsistent. With identical per-customer kWh, no flat tariff can redistribute. |
+| Condition                                                                                         | # solutions                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| $\overline{V}^0_{\text{hp}} \ne \overline{V}^0_{\text{cls}}$ (i.e. $\Delta_A \ne 0$)              | **Exactly one** $(F^*_A, \lambda^*_A)$.                                                                                                                      |
+| $\overline{V}^0_{\text{hp}} = \overline{V}^0_{\text{cls}}$ AND $X_{\text{hp}} = 0$                | **Infinitely many** — the constraints collapse to one equation; any $(F, \lambda)$ on the class-RR line works.                                               |
+| $\overline{V}^0_{\text{hp}} = \overline{V}^0_{\text{cls}}$ AND $X_{\text{hp}} \ne 0$              | **Zero** — constraints are parallel-but-inconsistent. With identical per-customer baseline volumetric bills, no $(F, \lambda)$ tweak can shift the subclass. |
 
-In practice, electrification of heating shifts therms onto the kWh meter, so $\overline{\text{kWh}}_{\text{hp}} > \overline{\text{kWh}}_{\text{cls}}$ comfortably and the answer is always exactly one.
+In practice, electrification of heating shifts therms onto the kWh meter, so $\overline{V}^0_{\text{hp}} > \overline{V}^0_{\text{cls}}$ comfortably and the answer is always exactly one.
 
-**Sign intuition (target overcharged, target uses more electricity per customer).** With $X_{\text{hp}} > 0$ and $\overline{\text{kWh}}_{\text{hp}} > \overline{\text{kWh}}_{\text{cls}}$:
+**Sign intuition (subclass overcharged, subclass per-customer volumetric bill larger than class average).** With $X_{\text{hp}} > 0$ and $\overline{V}^0_{\text{hp}} > \overline{V}^0_{\text{cls}}$:
 
 - $\Delta F_A > 0$ — **raise** the fixed charge,
-- $\Delta r_A < 0$ — **cut** the volumetric rate.
+- $\Delta \lambda_A < 0$ — **scale down** every volumetric rate.
 
-Why this redistributes from non-target to target: a fixed-charge raise costs every customer the same dollars, so non-target customers (who outnumber HP roughly 9-to-1 in NY/RI) absorb most of the new fixed-charge revenue, while a volumetric cut benefits target customers more in absolute dollars (because they consume more kWh). Net flow: dollars from non-target to target, with class RR preserved.
+A fixed-charge raise costs every class customer the same dollars, so non-subclass customers (who outnumber HP roughly 9-to-1 in NY/RI) absorb most of the new fixed-charge revenue. A volumetric scale-down benefits subclass customers more in absolute dollars because they consume more kWh and therefore their baseline volumetric bill is bigger. Net flow: dollars from non-subclass to subclass, class RR preserved.
 
-**Failure mode.** If $r^*_A < 0$, or if $F^*_A$ falls below a regulatory floor (e.g. \$5/month) or above a customer-acceptance ceiling (rate cases routinely cap fixed-charge increases at, say, doubling), the strategy is infeasible at face value. Report the clipped tariff and the residual cross-subsidy that remains.
+**Failure modes.**
+
+- **Negative scaled rate.** $\lambda^*_A < 0$ means at least one volumetric rate goes negative — un-publishable. Almost never happens unless $X_{\text{hp}}$ is implausibly large relative to total volumetric revenue.
+- **Fixed charge out of bounds.** If $F^*_A$ falls below a regulatory floor (e.g. \$5/month) or above a customer-acceptance ceiling (rate cases often cap fixed-charge increases at, say, doubling), report the clipped tariff and the residual cross-subsidy.
+
+### Note: when the baseline is flat, $\lambda$ collapses to a new flat rate
+
+If the baseline is a single flat volumetric rate $r_0$, then $V^0_i = r_0 \cdot \text{kWh}_i$ and the per-customer baseline volumetric bill is $\overline{V}^0_g = r_0 \overline{\text{kWh}}_g$ for $g \in \{\text{cls}, \text{hp}\}$. The new tariff under Strategy A is also flat, with rate $r^*_A = \lambda^*_A \cdot r_0$. Substituting into the boxed formulas:
+
+- $\Delta F_A = \dfrac{X_{\text{hp}} \cdot r_0 \overline{\text{kWh}}_{\text{cls}}}{12 N_{\text{hp}} \cdot r_0 (\overline{\text{kWh}}_{\text{hp}} - \overline{\text{kWh}}_{\text{cls}})} = \dfrac{X_{\text{hp}} \cdot \overline{\text{kWh}}_{\text{cls}}}{12 N_{\text{hp}} (\overline{\text{kWh}}_{\text{hp}} - \overline{\text{kWh}}_{\text{cls}})}$ — the $r_0$ cancels.
+- $\Delta r_A = r^*_A - r_0 = (\lambda^*_A - 1) r_0 = \dfrac{-X_{\text{hp}}}{N_{\text{hp}} (\overline{\text{kWh}}_{\text{hp}} - \overline{\text{kWh}}_{\text{cls}})}$ — the $r_0$ cancels here too.
+
+Both reduce to the per-customer-kWh form: with a flat baseline, the formulas depend only on customer counts and kWh — no need to know $r_0$ separately. (This was the form of "Strategy A" in earlier drafts; it is now seen as the special case of the general $(F, \lambda)$ formulation.)
 
 ---
 
@@ -206,13 +237,13 @@ Then (C1) and (C2) become
 
 $$\begin{pmatrix} 12 N_{\text{cls}} & \widetilde{\text{kWh}}_{\text{cls}} \\ 12 N_{\text{hp}} & \widetilde{\text{kWh}}_{\text{hp}} \end{pmatrix} \begin{pmatrix} F \\ r_{\text{sum}} \end{pmatrix} = \begin{pmatrix} RR \\ \text{TC}_{\text{hp}} \end{pmatrix}.$$
 
-This is **structurally identical to Strategy A** with $\widetilde{\text{kWh}}$ in place of $\text{kWh}$. Its determinant and solution are the Strategy A formulas with the substitution $\text{kWh} \to \widetilde{\text{kWh}}$:
+This is the same matrix shape as Strategy A's flat-baseline special case, with MC-weighted kWh playing the role of plain kWh. Determinant and Cramer's-rule solution:
 
 $$\Delta_C \;=\; 12 \cdot N_{\text{cls}} \cdot N_{\text{hp}} \cdot \big(\overline{\widetilde{\text{kWh}}}_{\text{hp}} - \overline{\widetilde{\text{kWh}}}_{\text{cls}}\big),$$
 
 $$F^*_C = \frac{RR \cdot \widetilde{\text{kWh}}_{\text{hp}} - \text{TC}_{\text{hp}} \cdot \widetilde{\text{kWh}}_{\text{cls}}}{\Delta_C}, \qquad r^*_{\text{sum},C} = \frac{12 \cdot (\text{TC}_{\text{hp}} \cdot N_{\text{cls}} - RR \cdot N_{\text{hp}})}{\Delta_C}, \qquad r^*_{\text{win},C} = \rho_{MC} \cdot r^*_{\text{sum},C}.$$
 
-**Number of solutions.** Same three cases as Strategy A with MC-weighted kWh:
+**Number of solutions.**
 
 | Condition                                                                                                                  | # solutions                                                                                     |
 | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -220,7 +251,7 @@ $$F^*_C = \frac{RR \cdot \widetilde{\text{kWh}}_{\text{hp}} - \text{TC}_{\text{h
 | $\overline{\widetilde{\text{kWh}}}_{\text{hp}} = \overline{\widetilde{\text{kWh}}}_{\text{cls}}$ AND $X_{\text{hp}} = 0$   | **Infinitely many.**                                                                            |
 | $\overline{\widetilde{\text{kWh}}}_{\text{hp}} = \overline{\widetilde{\text{kWh}}}_{\text{cls}}$ AND $X_{\text{hp}} \ne 0$ | **Zero.**                                                                                       |
 
-The non-degeneracy condition is a positive linear combination of Strategy A's and Strategy B's: $\overline{\widetilde{\text{kWh}}}_{\text{hp}} - \overline{\widetilde{\text{kWh}}}_{\text{cls}} = \rho_{MC} (\overline{\text{kWh}^{\text{win}}}_{\text{hp}} - \overline{\text{kWh}^{\text{win}}}_{\text{cls}}) + (\overline{\text{kWh}^{\text{sum}}}_{\text{hp}} - \overline{\text{kWh}^{\text{sum}}}_{\text{cls}})$. Both summands are positive in the realistic HP case, so $\Delta_C \ne 0$ in practice.
+The non-degeneracy condition is a positive linear combination of "subclass uses more winter kWh per customer" and "subclass uses more summer kWh per customer" — both true in the realistic HP case — so $\Delta_C \ne 0$ in practice.
 
 **Why this is the preferred closure.** Among the one-parameter family of (C1,C2)-feasible tariffs (see §7), Strategy C is the one whose seasonal differential matches the cost-causation differential. It is the single member of the family that simultaneously (i) collects $RR$, (ii) zeros the subclass cross-subsidy, and (iii) sends the seasonal price signal an ideal cost-reflective two-period tariff would send.
 
@@ -252,22 +283,24 @@ with determinant $D = \text{kWh}_{\text{cls}} \text{kWh}_{\text{hp}} (\sigma_{\t
 
 **In the heat-pump case the answer is always exactly one,** because heat-pump electrification of heating makes $\sigma_{\text{hp}}$ meaningfully larger than $\sigma_{\text{cls}}$ ($\sigma_{\text{hp}} \approx 0.65{-}0.75$ vs $\sigma_{\text{cls}} \approx 0.55{-}0.60$ in NY/RI), so $D < 0 \ne 0$.
 
-**Geometric picture.** As $F$ varies over $\mathbb{R}$, the unique $(r_{\text{win}}(F), r_{\text{sum}}(F))$ traces an affine line in 3-space. Strategies A, B, C are three named points on this line, each picked out by a different one-equation closure:
+**Geometric picture: three different shape-preservation premises.** Strategies A, B, C each project the (C1) ∧ (C2) problem onto a different 2-knob design space, chosen to preserve a different aspect of the baseline tariff. Each strategy is **its own** $2 \times 2$ Cramer's-rule problem, not a different point on a shared line:
 
 ```mermaid
 flowchart LR
-    line["1-parameter family of (F, r_win, r_sum)<br/>satisfying class RR + subclass fairness"]
-    A["Strategy A<br/>r_win = r_sum (flat)"]
-    B["Strategy B<br/>F = F_0 (preserve fixed charge)"]
-    C["Strategy C<br/>r_win / r_sum = rho_MC (cost-reflective)"]
-    line --> A
-    line --> B
-    line --> C
+    src["Baseline tariff T0<br/>(any shape: flat, seasonal, TOU, tiered)"]
+    A["Strategy A<br/>preserve the baseline rate shape;<br/>knobs: F and uniform scale lambda"]
+    B["Strategy B<br/>preserve the fixed charge F = F_0;<br/>knobs: r_win and r_sum"]
+    C["Strategy C<br/>preserve the cost-reflective ratio<br/>r_win / r_sum = rho_MC;<br/>knobs: F and r_sum"]
+    src --> A
+    src --> B
+    src --> C
 ```
 
-Other reasonable closures — fix $F$ at the regulator's preferred value, fix the winter rate at the marginal energy cost, enforce a fuel-cost floor on $r_{\text{sum}}$ — give still other named points on the same line. In every case the system reduces to a $2 \times 2$ Cramer's-rule problem with a closed-form answer.
+Other reasonable closures — fix $F$ at the regulator's preferred value, fix the winter rate at the marginal energy cost, enforce a fuel-cost floor on $r_{\text{sum}}$ — give still other 2-knob systems with the same Cramer's-rule shape and a closed-form answer.
 
-**Practical consequence.** This is not a problem that needs a numerical optimizer or a search. The hard problem is choosing the right closure (A vs B vs C, or a hybrid), not solving the equations once chosen.
+**The "fixed-$F$" theorem above** describes the inner structure of Strategy B (and any other strategy that holds $F$ fixed): once $F$ is pinned, the seasonal rates are uniquely determined in the generic case. It is the cleanest answer to the user's framing question — *"for a given fixed charge, how many seasonal rate pairs satisfy both constraints?"* — and it is what tells us Strategy B always lands in a single point rather than a line.
+
+**Practical consequence.** None of the strategies need a numerical optimizer or a search. The hard problem is choosing the right shape-preservation premise (A vs B vs C, or a hybrid), not solving the equations once that choice is made.
 
 ---
 
