@@ -185,6 +185,26 @@ def test_compute_fair_default_inputs_closed_forms(tmp_path: Path) -> None:
     ) == pytest.approx(target)
 
 
+def test_compute_fair_default_inputs_normalizes_resstock_partitions(
+    tmp_path: Path,
+) -> None:
+    run_dir, resstock_base, tariff_path = _write_fair_default_fixture(tmp_path)
+
+    out = compute_fair_default_inputs(
+        run_dir=run_dir,
+        resstock_base=str(resstock_base),
+        state="ny",
+        upgrade="0",
+        group_col="has_hp",
+        subclass_value="true",
+        cross_subsidy_col="BAT_percustomer",
+        base_tariff_json_path=tariff_path,
+    )
+
+    assert out["class_annual_kwh"][0] == pytest.approx(1500.0)
+    assert out["subclass_annual_kwh"][0] == pytest.approx(500.0)
+
+
 def test_compute_fair_default_inputs_strategy_b_clipped_residual(
     tmp_path: Path,
 ) -> None:

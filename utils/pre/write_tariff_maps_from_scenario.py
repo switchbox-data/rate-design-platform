@@ -144,9 +144,13 @@ def _process_run(
 
 def main(scenario_config: Path) -> None:
     config_dir = scenario_config.resolve().parent
-    path_config = (
-        config_dir.parent
-    )  # scenarios/ lives inside config/; tariff maps are relative to config/
+    # Walk up until we find the config/ directory (the one that contains tariff_maps/).
+    # This works for both scenarios/ and nested subdirs like scenarios/fair_default/.
+    path_config = config_dir.parent
+    while (
+        not (path_config / "tariff_maps").is_dir() and path_config != path_config.parent
+    ):
+        path_config = path_config.parent
 
     with scenario_config.open(encoding="utf-8") as fh:
         scenario = yaml.safe_load(fh)

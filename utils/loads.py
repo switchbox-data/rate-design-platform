@@ -84,9 +84,13 @@ def scan_resstock_loads(
         **kwargs,
     )
 
+    state_partition = str(state).upper()
+    upgrade_raw = str(upgrade)
+    upgrade_partition = upgrade_raw.zfill(2) if upgrade_raw.isdigit() else upgrade_raw
+
     lf = lf.filter(
-        pl.col("state") == str(state),
-        pl.col("upgrade") == str(upgrade),
+        pl.col("state") == state_partition,
+        pl.col("upgrade") == upgrade_partition,
     )
     if building_ids is not None:
         lf = lf.filter(pl.col("bldg_id").is_in(building_ids))

@@ -1,8 +1,9 @@
 """Prepare 12 uncalibrated fair-default tariff JSONs for one utility.
 
 For each of 6 (subclass × strategy) combos and 2 (delivery, supply) variants:
-1. Calls compute_fair_default_inputs to derive the fair-default parameters.
-2. Calls create_fair_default_tariff to emit the uncalibrated URDB tariff JSON.
+1. Loads shared fair-default inputs once per subclass and delivery/supply variant.
+2. Derives strategy-specific fair-default parameters.
+3. Calls create_fair_default_tariff to emit the uncalibrated URDB tariff JSON.
 
 The tariff_key embedded in each JSON matches the filename stem so that
 copy_calibrated_tariff_from_run produces correctly-named _calibrated outputs.
@@ -14,6 +15,7 @@ import argparse
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import cast
 
 import pandas as pd
@@ -26,11 +28,24 @@ from utils.cairo import (
     add_bulk_tx_and_dist_and_sub_tx_marginal_cost,
     load_dist_and_sub_tx_marginal_costs,
 )
+from utils.loads import ELECTRIC_LOAD_COL, ELECTRIC_PV_COL, grid_consumption_expr
+from utils.loads import scan_resstock_loads
 from utils.mid.compute_fair_default_inputs import (
-    compute_fair_default_inputs,
+    CustomerGroupTotals,
+    FairDefaultInputs,
+    derive_fair_default_rate_designs,
+    fair_default_inputs_frame,
+    fair_default_rate_design_modules,
+    fixed_charge_feasibility,
+    _load_bill_totals,
+    _load_metadata_and_cross_subsidy,
+    _resolve_winter_months,
 )
 from utils.mid.compute_subclass_rr import (
+    BLDG_ID_COL,
     DEFAULT_BAT_METRIC,
+    WEIGHT_COL,
+    _extract_fixed_charge_from_urdb,
     _resolve_path_or_s3,
     parse_group_value_to_subclass,
 )
@@ -43,7 +58,6 @@ from utils.mid.create_fair_default_tariff import (
 from utils.pre.compute_tou import (
     compute_mc_seasonal_ratio,
 )
-from utils.pre.season_config import load_winter_months_from_periods
 
 LOGGER = logging.getLogger(__name__)
 
@@ -65,6 +79,17 @@ class FairDefaultCombo:
     subclass: SubclassConfig
     strategy: FairDefaultStrategy
     strategy_key: str
+
+
+@dataclass(frozen=True)
+class KwhTotals:
+    """Weighted load totals reused across delivery/supply fair-default designs."""
+
+    building_ids: frozenset[int]
+    class_annual_kwh: float
+    class_winter_kwh: float
+    subclass_annual_kwh: dict[str, float]
+    subclass_winter_kwh: dict[str, float]
 
 
 SUBCLASSES: list[SubclassConfig] = [
@@ -158,6 +183,157 @@ def _patch_tariff_key(tariff: dict, tariff_key: str) -> dict:
     return tariff
 
 
+def _derive_fair_default_inputs_frame(
+    *,
+    inputs: FairDefaultInputs,
+    winter_months: tuple[int, ...],
+    group_col: str,
+    subclass_value: str,
+    state: str,
+    upgrade: str,
+    mc_seasonal_ratio: float | None,
+) -> pl.DataFrame:
+    """Derive one fair-default inputs row from cached shared inputs."""
+    designs = derive_fair_default_rate_designs(
+        inputs,
+        fair_default_rate_design_modules(mc_seasonal_ratio),
+    )
+    seasonal = designs["seasonal_rates_only"]
+    if not seasonal.feasible:
+        LOGGER.warning(
+            "seasonal_rates_only fair-default module produced a negative rate "
+            "(winter=%s, summer=%s); clipped residual cross-subsidy is %s.",
+            seasonal.winter_rate,
+            seasonal.summer_rate,
+            seasonal.residual_cross_subsidy,
+        )
+
+    LOGGER.info("fair_default_inputs [%s=%s]: done", group_col, subclass_value)
+    return fair_default_inputs_frame(
+        inputs=inputs,
+        designs=designs,
+        feasibility=fixed_charge_feasibility(inputs),
+        group_col=group_col,
+        subclass_value=subclass_value,
+        cross_subsidy_col=DEFAULT_BAT_METRIC,
+        state=state,
+        upgrade=upgrade,
+        winter_months=winter_months,
+        mc_seasonal_ratio=mc_seasonal_ratio,
+    )
+
+
+def _load_kwh_totals_for_subclasses(
+    *,
+    resstock_base: str,
+    state: str,
+    upgrade: str,
+    metadata_by_subclass: dict[str, pl.DataFrame],
+    winter_months: tuple[int, ...],
+    storage_options: dict[str, str] | None,
+) -> KwhTotals:
+    """Scan ResStock loads once and aggregate kWh for all fair-default subclasses."""
+    first_shorthand = next(iter(metadata_by_subclass))
+    weights = metadata_by_subclass[first_shorthand].select(BLDG_ID_COL, WEIGHT_COL)
+    building_ids = weights[BLDG_ID_COL].to_list()
+    building_id_set = frozenset(int(bldg_id) for bldg_id in building_ids)
+
+    weights_with_flags = weights
+    for shorthand, metadata in metadata_by_subclass.items():
+        metadata_building_ids = frozenset(
+            int(bldg_id) for bldg_id in metadata[BLDG_ID_COL].to_list()
+        )
+        if metadata_building_ids != building_id_set:
+            raise ValueError(
+                "Fair-default subclass metadata must use the same building sample "
+                f"for all subclasses; {shorthand} differs."
+            )
+        weights_with_flags = weights_with_flags.join(
+            metadata.select(
+                BLDG_ID_COL,
+                pl.col("_is_subclass").alias(f"_is_{shorthand}"),
+            ),
+            on=BLDG_ID_COL,
+            how="inner",
+        )
+
+    t0 = perf_counter()
+    loads = scan_resstock_loads(
+        resstock_base,
+        state,
+        upgrade,
+        building_ids=building_ids,
+        storage_options=storage_options,
+    )
+    LOGGER.info(
+        "fair_default_inputs: prepared one loads scan for %d buildings in %.2fs",
+        len(building_ids),
+        perf_counter() - t0,
+    )
+
+    t1 = perf_counter()
+    aggregate_exprs: list[pl.Expr] = [
+        pl.col("weighted_kwh").sum().alias("class_annual_kwh"),
+        pl.when(pl.col("is_winter"))
+        .then(pl.col("weighted_kwh"))
+        .otherwise(0.0)
+        .sum()
+        .alias("class_winter_kwh"),
+    ]
+    for shorthand in metadata_by_subclass:
+        aggregate_exprs.extend(
+            [
+                pl.when(pl.col(f"_is_{shorthand}"))
+                .then(pl.col("weighted_kwh"))
+                .otherwise(0.0)
+                .sum()
+                .alias(f"{shorthand}_annual_kwh"),
+                pl.when(pl.col(f"_is_{shorthand}") & pl.col("is_winter"))
+                .then(pl.col("weighted_kwh"))
+                .otherwise(0.0)
+                .sum()
+                .alias(f"{shorthand}_winter_kwh"),
+            ]
+        )
+
+    kwh = cast(
+        pl.DataFrame,
+        loads.join(weights_with_flags.lazy(), on=BLDG_ID_COL, how="inner")
+        .select(
+            pl.col("timestamp")
+            .cast(pl.String, strict=False)
+            .str.to_datetime(strict=False)
+            .dt.month()
+            .alias("month_num"),
+            (
+                grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL)
+                * pl.col(WEIGHT_COL).cast(pl.Float64)
+            ).alias("weighted_kwh"),
+            *[pl.col(f"_is_{shorthand}") for shorthand in metadata_by_subclass],
+        )
+        .with_columns(pl.col("month_num").is_in(winter_months).alias("is_winter"))
+        .select(*aggregate_exprs)
+        .collect(engine="streaming"),
+    )
+    LOGGER.info(
+        "fair_default_inputs: collected all subclass load totals in %.2fs",
+        perf_counter() - t1,
+    )
+    return KwhTotals(
+        building_ids=building_id_set,
+        class_annual_kwh=float(kwh["class_annual_kwh"][0] or 0.0),
+        class_winter_kwh=float(kwh["class_winter_kwh"][0] or 0.0),
+        subclass_annual_kwh={
+            shorthand: float(kwh[f"{shorthand}_annual_kwh"][0] or 0.0)
+            for shorthand in metadata_by_subclass
+        },
+        subclass_winter_kwh={
+            shorthand: float(kwh[f"{shorthand}_winter_kwh"][0] or 0.0)
+            for shorthand in metadata_by_subclass
+        },
+    )
+
+
 def prepare_fair_default_tariffs(
     *,
     utility: str,
@@ -194,16 +370,8 @@ def prepare_fair_default_tariffs(
     run_dir_delivery_resolved = _resolve_path_or_s3(str(run_dir_delivery))
     run_dir_supply_resolved = _resolve_path_or_s3(str(run_dir_supply))
 
-    winter_months: list[int] | None = None
-    if path_periods_yaml is not None:
-        from utils.pre.season_config import (
-            DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS,
-        )
-
-        winter_months = load_winter_months_from_periods(
-            path_periods_yaml,
-            default_winter_months=DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS,
-        )
+    resolved_winter_months = _resolve_winter_months(path_periods_yaml)
+    winter_months = list(resolved_winter_months)
 
     LOGGER.info("Computing delivery MC seasonal ratio for %s ...", utility)
     delivery_mc_ratio = _compute_delivery_mc_seasonal_ratio(
@@ -234,6 +402,126 @@ def prepare_fair_default_tariffs(
     )
 
     written_paths: list[str] = []
+    metadata_cache: dict[tuple[bool, str], tuple[pl.DataFrame, float]] = {}
+    kwh_totals_cache: KwhTotals | None = None
+    shared_inputs_cache: dict[tuple[bool, str], FairDefaultInputs] = {}
+
+    def get_metadata_and_cross_subsidy(
+        *,
+        is_supply: bool,
+        subclass: SubclassConfig,
+    ) -> tuple[pl.DataFrame, float]:
+        cache_key = (is_supply, subclass.shorthand)
+        if cache_key not in metadata_cache:
+            run_dir = (
+                run_dir_supply_resolved if is_supply else run_dir_delivery_resolved
+            )
+            metadata_cache[cache_key] = _load_metadata_and_cross_subsidy(
+                run_dir=run_dir,
+                group_col=subclass.group_col,
+                subclass_value=subclass.group_value,
+                cross_subsidy_col=DEFAULT_BAT_METRIC,
+                storage_options=storage_options,
+                group_value_to_subclass=(
+                    parse_group_value_to_subclass(subclass.group_value_to_subclass)
+                    if subclass.group_value_to_subclass
+                    else None
+                ),
+            )
+        return metadata_cache[cache_key]
+
+    def get_kwh_totals() -> KwhTotals:
+        nonlocal kwh_totals_cache
+        if kwh_totals_cache is None:
+            delivery_metadata_by_subclass = {
+                subclass.shorthand: get_metadata_and_cross_subsidy(
+                    is_supply=False,
+                    subclass=subclass,
+                )[0]
+                for subclass in SUBCLASSES
+            }
+            kwh_totals_cache = _load_kwh_totals_for_subclasses(
+                resstock_base=resstock_base,
+                state=state,
+                upgrade=upgrade,
+                metadata_by_subclass=delivery_metadata_by_subclass,
+                winter_months=resolved_winter_months,
+                storage_options=storage_options,
+            )
+        return kwh_totals_cache
+
+    def get_shared_inputs(
+        *,
+        is_supply: bool,
+        subclass: SubclassConfig,
+    ) -> FairDefaultInputs:
+        cache_key = (is_supply, subclass.shorthand)
+        if cache_key not in shared_inputs_cache:
+            run_dir = (
+                run_dir_supply_resolved if is_supply else run_dir_delivery_resolved
+            )
+            base_tariff_json_path = (
+                Path(path_base_tariff_supply)
+                if is_supply
+                else Path(path_base_tariff_delivery)
+            )
+            LOGGER.info(
+                "Loading shared fair-default inputs for %s %s ...",
+                subclass.shorthand,
+                "supply" if is_supply else "delivery",
+            )
+            metadata, subclass_cross_subsidy = get_metadata_and_cross_subsidy(
+                is_supply=is_supply,
+                subclass=subclass,
+            )
+            metadata_building_ids = frozenset(
+                int(bldg_id) for bldg_id in metadata[BLDG_ID_COL].to_list()
+            )
+            kwh_totals = get_kwh_totals()
+            if metadata_building_ids != kwh_totals.building_ids:
+                raise ValueError(
+                    "Fair-default delivery and supply runs must use the same "
+                    f"building sample; {subclass.shorthand} "
+                    f"{'supply' if is_supply else 'delivery'} differs."
+                )
+
+            class_bill, subclass_bill = _load_bill_totals(
+                run_dir,
+                metadata,
+                storage_options,
+            )
+            class_annual_kwh = kwh_totals.class_annual_kwh
+            class_winter_kwh = kwh_totals.class_winter_kwh
+            subclass_annual_kwh = kwh_totals.subclass_annual_kwh[subclass.shorthand]
+            subclass_winter_kwh = kwh_totals.subclass_winter_kwh[subclass.shorthand]
+            class_totals = CustomerGroupTotals(
+                customer_count=float(metadata[WEIGHT_COL].sum() or 0.0),
+                current_bill=class_bill,
+                annual_kwh=class_annual_kwh,
+                winter_kwh=class_winter_kwh,
+                summer_kwh=class_annual_kwh - class_winter_kwh,
+            )
+            subclass_totals = CustomerGroupTotals(
+                customer_count=float(
+                    metadata.filter(pl.col("_is_subclass"))[WEIGHT_COL].sum() or 0.0
+                ),
+                current_bill=subclass_bill,
+                annual_kwh=subclass_annual_kwh,
+                winter_kwh=subclass_winter_kwh,
+                summer_kwh=subclass_annual_kwh - subclass_winter_kwh,
+            )
+            class_totals.validate("class")
+            subclass_totals.validate("subclass")
+            shared_inputs_cache[cache_key] = FairDefaultInputs(
+                class_totals=class_totals,
+                subclass_totals=subclass_totals,
+                subclass_cross_subsidy=subclass_cross_subsidy,
+                base_fixed_charge=_extract_fixed_charge_from_urdb(
+                    base_tariff_json_path
+                ),
+                fixed_charge_floor=0.0,
+            )
+        return shared_inputs_cache[cache_key]
 
     for combo in ALL_COMBOS:
         sub = combo.subclass
@@ -248,9 +536,6 @@ def prepare_fair_default_tariffs(
         )
 
         for is_supply in (False, True):
-            run_dir = (
-                run_dir_supply_resolved if is_supply else run_dir_delivery_resolved
-            )
             base_tariff = base_tariff_supply if is_supply else base_tariff_delivery
             mc_ratio = mc_ratio_supply if is_supply else mc_ratio_delivery
 
@@ -264,28 +549,18 @@ def prepare_fair_default_tariffs(
             inputs_output_dir = output_dir / ".fair_default_inputs"
             inputs_output_dir.mkdir(parents=True, exist_ok=True)
 
-            inputs_df = compute_fair_default_inputs(
-                run_dir=run_dir,
-                resstock_base=resstock_base,
-                state=state,
-                upgrade=upgrade,
+            shared_inputs = get_shared_inputs(
+                is_supply=is_supply,
+                subclass=sub,
+            )
+            inputs_df = _derive_fair_default_inputs_frame(
+                inputs=shared_inputs,
+                winter_months=resolved_winter_months,
                 group_col=sub.group_col,
                 subclass_value=sub.group_value,
-                cross_subsidy_col=DEFAULT_BAT_METRIC,
-                storage_options=storage_options,
-                group_value_to_subclass=(
-                    parse_group_value_to_subclass(sub.group_value_to_subclass)
-                    if sub.group_value_to_subclass
-                    else None
-                ),
-                base_tariff_json_path=(
-                    Path(path_base_tariff_supply)
-                    if is_supply
-                    else Path(path_base_tariff_delivery)
-                ),
-                periods_yaml_path=path_periods_yaml,
+                state=state,
+                upgrade=upgrade,
                 mc_seasonal_ratio=mc_ratio,
-                fixed_charge_floor=0.0,
             )
 
             inputs_csv_path = inputs_output_dir / f"{tariff_stem}_inputs.csv"

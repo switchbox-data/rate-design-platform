@@ -148,8 +148,9 @@ def main() -> None:
     with open(args.scenario_config) as f:
         runs = yaml.safe_load(f)["runs"]
 
-    run1 = runs[1]
-    run2 = runs.get(2)
+    sorted_run_nums = sorted(runs.keys())
+    run1 = runs[sorted_run_nums[0]]
+    run2 = runs.get(sorted_run_nums[1]) if len(sorted_run_nums) > 1 else None
 
     checks: list[tuple[str, str, str]] = [
         ("state", args.state, str(run1.get("state", ""))),
