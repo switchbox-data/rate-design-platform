@@ -1,93 +1,93 @@
 utility: nyseg
 group_col: has_hp
-source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/nyseg/ny_20260416a_r1-36/20260416_143815_ny_nyseg_run1_up00_precalc__default
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/nyseg/ny_20260424_r1-36_ancillary/20260426_135500_ny_nyseg_run1_up00_precalc__default
 total_delivery_revenue_requirement: 913708327.54
 total_delivery_and_supply_revenue_requirement: 1617781931.62
 subclass_revenue_requirements:
   delivery:
     percustomer:
-      non-hp: 882168118.8739246
-      hp: 31540208.666075964
+      non-hp: 882168118.8739244
+      hp: 31540208.66607597
     epmc:
-      non-hp: 865126979.6570164
-      hp: 48581347.88298356
+      non-hp: 865126979.6570163
+      hp: 48581347.882983565
     volumetric:
-      non-hp: 845149590.7138032
+      non-hp: 845149590.713803
       hp: 68558736.82619676
     passthrough:
-      non-hp: 853832084.4134887
-      hp: 59876243.126525365
+      non-hp: 853832084.4134885
+      hp: 59876243.12652538
   supply:
     passthrough:
-      non-hp: 649492087.4598595
-      hp: 54581516.62014074
+      non-hp: 649492087.45986
+      hp: 54581516.62014075
     percustomer:
-      non-hp: 660518330.1133498
-      hp: 43555273.966649756
+      non-hp: 660518330.1133503
+      hp: 43555273.96664977
     volumetric:
-      non-hp: 650004316.780321
+      non-hp: 650004316.7803221
       hp: 54069287.29967809
 heating_type_breakdown:
   percustomer:
     delivered_fuels:
-      delivery: 291113109.9814733
-      supply: 203868081.5819443
+      delivery: 291113109.9814734
+      supply: 203868081.58194423
       total: 494981191.5634176
     electrical_resistance:
-      delivery: 88310044.41997766
-      supply: 128482779.1548217
-      total: 216792823.57479936
+      delivery: 88310044.4199777
+      supply: 128482779.15482163
+      total: 216792823.57479933
     heat_pump:
       delivery: 31540208.666075975
-      supply: 43555273.96664974
-      total: 75095482.63272572
+      supply: 43555273.966649726
+      total: 75095482.6327257
     natgas:
-      delivery: 422185154.10833174
+      delivery: 422185154.1083316
       supply: 274318133.4225616
-      total: 696503287.5308933
+      total: 696503287.5308932
     other:
-      delivery: 80559810.36414175
-      supply: 53849335.95402224
+      delivery: 80559810.36414178
+      supply: 53849335.954022214
       total: 134409146.318164
   epmc:
     delivered_fuels:
-      delivery: 292787053.74973476
-      supply: 151302656.29816365
-      total: 444089710.0478984
+      delivery: 292787053.7497347
+      supply: 151302656.29816383
+      total: 444089710.04789853
     electrical_resistance:
-      delivery: 117252432.06653897
-      supply: 252298820.84439117
-      total: 369551252.91093016
+      delivery: 117252432.06653893
+      supply: 252298820.8443914
+      total: 369551252.91093034
     heat_pump:
       delivery: 48581347.882983565
-      supply: 75728311.49867214
-      total: 124309659.38165571
+      supply: 75728311.49867213
+      total: 124309659.3816557
     natgas:
-      delivery: 380197622.7532776
-      supply: 186143076.4416042
-      total: 566340699.1948818
+      delivery: 380197622.7532774
+      supply: 186143076.44160426
+      total: 566340699.1948817
     other:
-      delivery: 74889871.08746529
-      supply: 38600738.99716936
-      total: 113490610.08463465
+      delivery: 74889871.08746527
+      supply: 38600738.99716939
+      total: 113490610.08463466
   volumetric:
     delivered_fuels:
-      delivery: 251456583.61920702
-      supply: 192604823.21816027
-      total: 444061406.8373673
+      delivery: 251456583.61920682
+      supply: 192604823.2181603
+      total: 444061406.8373671
     electrical_resistance:
-      delivery: 208576332.72147626
-      supply: 162640845.98142165
+      delivery: 208576332.7214761
+      supply: 162640845.9814218
       total: 371217178.7028979
     heat_pump:
       delivery: 68558736.82619676
-      supply: 54069287.29967812
-      total: 122628024.12587488
+      supply: 54069287.2996781
+      total: 122628024.12587486
     natgas:
-      delivery: 320587997.58231264
-      supply: 245462478.93268186
-      total: 566050476.5149945
+      delivery: 320587997.582313
+      supply: 245462478.93268174
+      total: 566050476.5149947
     other:
-      delivery: 64528676.7908072
+      delivery: 64528676.79080719
       supply: 49296168.64805746
-      total: 113824845.43886466
+      total: 113824845.43886465

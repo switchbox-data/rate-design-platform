@@ -1,6 +1,6 @@
 utility: or
 group_col: heating_type_v2
-source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/or/ny_20260416a_r1-36/20260416_152714_ny_or_run1_up00_precalc__default
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/or/ny_20260424_r1-36_ancillary/20260426_143140_ny_or_run1_up00_precalc__default
 total_delivery_revenue_requirement: 263364257.0
 total_delivery_and_supply_revenue_requirement: 431562114.21
 subclass_revenue_requirements:
@@ -46,8 +46,8 @@ heating_type_breakdown:
       supply: 103087336.64685962
       total: 282713796.7778486
     other:
-      delivery: 4435611.936726664
-      supply: 2559948.844980308
+      delivery: 4435611.936726665
+      supply: 2559948.844980307
       total: 6995560.781706972
   epmc:
     delivered_fuels:
