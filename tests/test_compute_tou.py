@@ -12,8 +12,9 @@ from utils.pre.compute_tou import compute_mc_seasonal_ratio
 def test_compute_mc_seasonal_ratio_uses_load_weighted_seasonal_averages() -> None:
     idx = pd.date_range("2025-01-01", periods=8760, freq="h", tz="UTC")
     winter_months = [1]
-    is_winter = idx.month == 1
-    is_heavy_load_hour = idx.hour < 12
+    # Use Timestamp components: ty does not resolve DatetimeIndex.month/hour on stubs.
+    is_winter = np.array([pd.Timestamp(t).month == 1 for t in idx], dtype=bool)
+    is_heavy_load_hour = np.array([pd.Timestamp(t).hour < 12 for t in idx], dtype=bool)
 
     mc = pd.Series(
         np.select(
