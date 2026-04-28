@@ -565,6 +565,13 @@ prepare-fair-default-tariffs:
       --run-dir-delivery "${run1_dir}" \
       --run-dir-supply "${run2_dir}" \
       --output-dir "{{ path_tariffs_electric }}" \
+      --resstock-base "{{ path_resstock_release }}" \
+      --path-dist-and-sub-tx-mc "{{ path_dist_and_sub_tx_mc }}" \
+      {{ if path_bulk_tx_mc != "" { "--path-bulk-tx-mc \"" + path_bulk_tx_mc + "\"" } else { "" } }} \
+      --path-supply-energy-mc "{{ path_supply_energy_mc }}" \
+      --path-supply-capacity-mc "{{ path_supply_capacity_mc }}" \
+      --base-tariff-delivery "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
+      --base-tariff-supply "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
       --periods-yaml "{{ path_periods_yaml }}"
 
 # Generic dispatcher for fair-default runs (101-124): dispatches against
