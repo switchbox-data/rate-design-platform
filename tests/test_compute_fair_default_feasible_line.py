@@ -71,9 +71,7 @@ def _write_run_dir(
             "bldg_id": bldg_ids,
             "BAT_percustomer": cross_subsidies,
         }
-    ).write_csv(
-        run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv"
-    )
+    ).write_csv(run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv")
 
     annual_bills = [
         12.0 * _FIXED_CHARGE + _BASE_RATE * (winter_kwh + summer_kwh)
@@ -110,7 +108,8 @@ def _write_monthly_loads(tmp_path: Path) -> Path:
                 {
                     "bldg_id": bldg_id,
                     "month": m,
-                    "out.electricity.total.energy_consumption": winter_kwh / len(winter_months),
+                    "out.electricity.total.energy_consumption": winter_kwh
+                    / len(winter_months),
                     "out.electricity.pv.energy_consumption": 0.0,
                 }
             )
@@ -119,7 +118,8 @@ def _write_monthly_loads(tmp_path: Path) -> Path:
                 {
                     "bldg_id": bldg_id,
                     "month": m,
-                    "out.electricity.total.energy_consumption": summer_kwh / len(summer_months),
+                    "out.electricity.total.energy_consumption": summer_kwh
+                    / len(summer_months),
                     "out.electricity.pv.energy_consumption": 0.0,
                 }
             )
@@ -138,7 +138,7 @@ def _build_fixture(
     run_dir_sup = _write_run_dir(tmp_path, "run2", [10.0, 15.0, 0.0, 0.0])
     resstock_base = _write_monthly_loads(tmp_path)
     tariff_del = _write_urdb_tariff(tmp_path / "tariff_del.json")
-    tariff_sup = _write_urdb_tariff(tmp_path / "tariff_sup.json", fixed_charge=3.0)
+    _write_urdb_tariff(tmp_path / "tariff_sup.json", fixed_charge=3.0)
     # Use same tariff for both variants in simpler delivery-only tests
     return run_dir_del, run_dir_sup, resstock_base, tariff_del
 
@@ -161,7 +161,9 @@ def test_compute_feasible_line_returns_dict_with_both_variants(tmp_path: Path) -
         assert isinstance(data, FeasibleLineData), f"{variant} is not FeasibleLineData"
 
 
-def test_compute_feasible_line_affine_evaluates_at_base_fixed_charge(tmp_path: Path) -> None:
+def test_compute_feasible_line_affine_evaluates_at_base_fixed_charge(
+    tmp_path: Path,
+) -> None:
     """r_win(base_F) and r_sum(base_F) match strategy B (seasonal_rates_only)."""
     run_dir_del, run_dir_sup, resstock_base, tariff = _build_fixture(tmp_path)
 
@@ -194,7 +196,6 @@ def test_compute_feasible_line_intercepts_match_feasibility(tmp_path: Path) -> N
     from utils.mid.compute_fair_default_inputs import (
         CustomerGroupTotals,
         FairDefaultInputs,
-        energy_revenue,
     )
 
     run_dir_del, run_dir_sup, resstock_base, tariff = _build_fixture(tmp_path)
@@ -229,8 +230,6 @@ def test_compute_feasible_line_intercepts_match_feasibility(tmp_path: Path) -> N
     class_bill = 846.0
     subclass_bill = 298.0
     cross_subsidy = 50.0
-    subclass_fair_bill = subclass_bill - cross_subsidy  # 248
-
     class_totals = CustomerGroupTotals(
         customer_count=4.0,
         current_bill=class_bill,
@@ -254,13 +253,23 @@ def test_compute_feasible_line_intercepts_match_feasibility(tmp_path: Path) -> N
     )
     feas = fixed_charge_feasibility(inputs)
 
-    assert data.r_win.intercept == pytest.approx(feas.winter_rate_at_zero_fixed_charge, rel=1e-6)
-    assert data.r_win.slope == pytest.approx(feas.winter_rate_per_fixed_charge_dollar, rel=1e-6)
-    assert data.r_sum.intercept == pytest.approx(feas.summer_rate_at_zero_fixed_charge, rel=1e-6)
-    assert data.r_sum.slope == pytest.approx(feas.summer_rate_per_fixed_charge_dollar, rel=1e-6)
+    assert data.r_win.intercept == pytest.approx(
+        feas.winter_rate_at_zero_fixed_charge, rel=1e-6
+    )
+    assert data.r_win.slope == pytest.approx(
+        feas.winter_rate_per_fixed_charge_dollar, rel=1e-6
+    )
+    assert data.r_sum.intercept == pytest.approx(
+        feas.summer_rate_at_zero_fixed_charge, rel=1e-6
+    )
+    assert data.r_sum.slope == pytest.approx(
+        feas.summer_rate_per_fixed_charge_dollar, rel=1e-6
+    )
 
 
-def test_compute_feasible_line_strategy_c_skipped_without_mc_ratio(tmp_path: Path) -> None:
+def test_compute_feasible_line_strategy_c_skipped_without_mc_ratio(
+    tmp_path: Path,
+) -> None:
     """When mc_seasonal_ratio_* are None, no strategy C point is produced."""
     run_dir_del, run_dir_sup, resstock_base, tariff = _build_fixture(tmp_path)
 

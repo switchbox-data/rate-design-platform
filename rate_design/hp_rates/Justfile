@@ -511,63 +511,6 @@ create-all-fair-default-tariffs path_run_dir subclass_value="true" path_tariff_o
         "${path_effective_base_tariff}" \
         "{{ path_periods_yaml }}"
 
-# Plot the (C1 ∧ C2) feasible line: for each given fixed charge, the unique
-# (r_winter, r_summer) pair satisfying both constraints.  Pass either a single
-# *_inputs.csv or a directory of them (e.g. path_tariffs_electric/.fair_default_inputs/).
-# Writes one PNG per CSV alongside the inputs or to path_output_dir if given.
-# Relative paths are resolved from path_repo (repo root).
-
-plot-fair-default-feasible-line path_inputs path_output_dir="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    # Resolve to absolute so the directory test works regardless of cwd
-    resolved="{{ path_repo }}/{{ path_inputs }}"
-    # Strip double slashes that appear if path_inputs is already absolute
-    resolved=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "${resolved}")
-    if [ -d "${resolved}" ]; then
-        uv run python {{ path_repo }}/utils/mid/plot_fair_default_feasible_line.py \
-          --inputs-dir "${resolved}" \
-          {{ if path_output_dir != "" { "--output-dir \"" + path_output_dir + "\"" } else { "" } }}
-    else
-        uv run python {{ path_repo }}/utils/mid/plot_fair_default_feasible_line.py \
-          --inputs-csv "${resolved}" \
-          {{ if path_output_dir != "" { "--output-png \"" + path_output_dir + "\"" } else { "" } }}
-    fi
-
-# Compute the (C1 ∧ C2) feasible line from run-1 (delivery) and run-2 (supply)
-# outputs, writing nothing to disk (prints JSON to stdout).  Reads
-# load_curve_monthly (~12 rows/building) — cheap to run after every batch.
-# Defaults to group_col=has_hp, subclass_value=true, BAT_percustomer.
-
-# Pass mc_seasonal_ratio_delivery / mc_seasonal_ratio_supply to include strategy C.
-compute-fair-default-feasible-line path_run_dir_delivery path_run_dir_supply path_base_tariff_delivery="" path_base_tariff_supply="" group_col="has_hp" subclass_value="true" cross_subsidy_col="BAT_percustomer" mc_seasonal_ratio_delivery="" mc_seasonal_ratio_supply="" path_periods_yaml=path_periods_yaml variant="delivery" path_output_png="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    path_effective_base_tariff_del="{{ path_base_tariff_delivery }}"
-    if [ -z "${path_effective_base_tariff_del}" ]; then
-        path_effective_base_tariff_del="{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json"
-    fi
-    path_effective_base_tariff_sup="{{ path_base_tariff_supply }}"
-    if [ -z "${path_effective_base_tariff_sup}" ]; then
-        path_effective_base_tariff_sup="{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json"
-    fi
-    uv run python {{ path_repo }}/utils/mid/plot_fair_default_feasible_line.py \
-      --run-dir-delivery "{{ path_run_dir_delivery }}" \
-      --run-dir-supply "{{ path_run_dir_supply }}" \
-      --resstock-base "{{ path_resstock_release }}" \
-      --state "{{ state_upper }}" \
-      --upgrade "{{ upgrade }}" \
-      --base-tariff-delivery "${path_effective_base_tariff_del}" \
-      --base-tariff-supply "${path_effective_base_tariff_sup}" \
-      --group-col "{{ group_col }}" \
-      --subclass-value "{{ subclass_value }}" \
-      --cross-subsidy-col "{{ cross_subsidy_col }}" \
-      --variant "{{ variant }}" \
-      --output-png "{{ if path_output_png != "" { path_output_png } else { "/tmp/" + utility + "_fair_default_" + variant + ".png" } }}" \
-      --periods-yaml "{{ path_periods_yaml }}" \
-      {{ if mc_seasonal_ratio_delivery != "" { "--mc-seasonal-ratio-delivery \"" + mc_seasonal_ratio_delivery + "\"" } else { "" } }} \
-      {{ if mc_seasonal_ratio_supply != "" { "--mc-seasonal-ratio-supply \"" + mc_seasonal_ratio_supply + "\"" } else { "" } }}
-
 copy-calibrated-tariff-from-run run_dir output_dir="":
     just -f {{ path_repo }}/utils/Justfile copy-calibrated-tariff-from-run \
       "{{ run_dir }}" \

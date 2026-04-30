@@ -411,7 +411,7 @@ def fixed_charge_feasibility(inputs: FairDefaultInputs) -> FixedChargeFeasibilit
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Feasible-line data structures (used by plot_fair_default_feasible_line)
+# Feasible-line data structures
 # ──────────────────────────────────────────────────────────────────────────────
 
 DEFAULT_CROSS_SUBSIDY_COL = "BAT_percustomer"
