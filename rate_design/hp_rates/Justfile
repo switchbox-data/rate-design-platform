@@ -572,6 +572,8 @@ prepare-fair-default-tariffs:
       --path-supply-capacity-mc "{{ path_supply_capacity_mc }}" \
       --base-tariff-delivery "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_calibrated.json" \
       --base-tariff-supply "{{ path_tariffs_electric }}/{{ utility }}_{{ base_tariff_pattern }}_supply_calibrated.json" \
+      --path-utility-assignment "{{ path_utility_assignment }}" \
+      --path-electric-utility-stats "{{ path_electric_utility_stats }}" \
       --periods-yaml "{{ path_periods_yaml }}" \
       --allow-infeasible
 

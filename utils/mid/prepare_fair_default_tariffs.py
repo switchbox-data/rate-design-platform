@@ -24,12 +24,18 @@ from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils import get_aws_region
 from utils.cairo import (
     add_bulk_tx_and_dist_and_sub_tx_marginal_cost,
     load_dist_and_sub_tx_marginal_costs,
 )
-from utils.loads import ELECTRIC_LOAD_COL, ELECTRIC_PV_COL, grid_consumption_expr
-from utils.loads import scan_resstock_loads
+from utils.loads import (
+    ELECTRIC_LOAD_COL,
+    ELECTRIC_PV_COL,
+    grid_consumption_expr,
+    hourly_resstock_load_from_parquet,
+    scan_resstock_loads,
+)
 from utils.mid.compute_fair_default_inputs import (
     CustomerGroupTotals,
     FairDefaultInputs,
@@ -58,6 +64,7 @@ from utils.mid.create_fair_default_tariff import (
 from utils.pre.compute_tou import (
     compute_mc_seasonal_ratio,
 )
+from utils.scenario_config import get_residential_customer_count_from_utility_stats
 
 LOGGER = logging.getLogger(__name__)
 
@@ -122,20 +129,99 @@ ALL_COMBOS: list[FairDefaultCombo] = [
 ]
 
 
+def _align_load_to_mc(hourly_load: pd.Series, mc_index: pd.DatetimeIndex) -> pd.Series:
+    """Align an hourly load series to an MC index by position when lengths match.
+
+    Mirrors :func:`utils.pre.derive_seasonal_tou.derive_seasonal_tou`'s alignment
+    so the demand-weighted MC averages line up the same way both workflows do.
+    ResStock loads can come from a different calendar year than MC; if they have
+    the same length we trust the positional alignment, otherwise we forward-fill
+    onto the MC index.
+    """
+    if hourly_load.index.equals(mc_index):
+        return hourly_load
+    if len(hourly_load) == len(mc_index):
+        return pd.Series(hourly_load.values, index=mc_index, name=hourly_load.name)
+    return hourly_load.reindex(mc_index, method="ffill")
+
+
+def _load_utility_hourly_load(
+    *,
+    utility: str,
+    state: str,
+    upgrade: str,
+    resstock_base: str,
+    path_utility_assignment: str,
+    path_electric_utility_stats: str,
+    storage_options: dict[str, str] | None,
+) -> pd.Series:
+    """Load utility-aggregate hourly ResStock load for demand-weighting MC.
+
+    Mirrors the load-loading pattern in
+    :func:`utils.pre.derive_seasonal_tou.load_tou_inputs`: pull all buildings
+    assigned to ``utility`` from ``utility_assignment.parquet``, rescale weights
+    to the EIA residential customer count, then sum weighted hourly load.
+    """
+    aws_storage_options = {"aws_region": get_aws_region()}
+    customer_count = get_residential_customer_count_from_utility_stats(
+        path_electric_utility_stats,
+        utility,
+        storage_options=aws_storage_options,
+    )
+    LOGGER.info("Residential customer count for %s: %d", utility, customer_count)
+
+    ua_df = cast(
+        pl.DataFrame,
+        pl.scan_parquet(path_utility_assignment)
+        .filter(pl.col("sb.electric_utility") == utility)
+        .select("bldg_id", "weight")
+        .collect(),
+    )
+    raw_weight_sum = float(ua_df["weight"].sum())
+    if raw_weight_sum > 0:
+        ua_df = ua_df.with_columns(
+            (pl.col("weight") / raw_weight_sum * customer_count).alias("weight")
+        )
+    weights_df = ua_df.select(
+        pl.col("bldg_id").cast(pl.Int64),
+        pl.col("weight").cast(pl.Float64),
+    )
+    building_ids = ua_df["bldg_id"].to_list()
+    LOGGER.info(
+        "Loading %d buildings of ResStock load for %s utility-aggregate demand "
+        "(used to demand-weight rho_MC)",
+        len(building_ids),
+        utility,
+    )
+    loads_lf = scan_resstock_loads(
+        resstock_base,
+        state,
+        upgrade,
+        building_ids=building_ids,
+        storage_options=storage_options,
+    )
+    return hourly_resstock_load_from_parquet(
+        loads_lf,
+        weights_df,
+        load_col=ELECTRIC_LOAD_COL,
+    )
+
+
 def _compute_delivery_mc_seasonal_ratio(
     path_dist_and_sub_tx_mc: str,
     path_bulk_tx_mc: str,
     winter_months: list[int] | None,
+    hourly_load: pd.Series,
 ) -> float:
-    """Compute MC seasonal ratio from delivery-side marginal costs."""
+    """Compute demand-weighted MC seasonal ratio from delivery-side marginal costs."""
     dist_series = load_dist_and_sub_tx_marginal_costs(path_dist_and_sub_tx_mc)
     combined = add_bulk_tx_and_dist_and_sub_tx_marginal_cost(
         path_dist_and_sub_tx_mc=path_dist_and_sub_tx_mc,
         path_bulk_tx_mc=path_bulk_tx_mc,
         target_index=pd.DatetimeIndex(dist_series.index),
     )
-    load_uniform = pd.Series(1.0, index=combined.index, name="load")
-    return compute_mc_seasonal_ratio(combined, load_uniform, winter_months)
+    aligned_load = _align_load_to_mc(hourly_load, pd.DatetimeIndex(combined.index))
+    return compute_mc_seasonal_ratio(combined, aligned_load, winter_months)
 
 
 def _compute_supply_mc_seasonal_ratio(
@@ -143,8 +229,9 @@ def _compute_supply_mc_seasonal_ratio(
     path_supply_capacity_mc: str,
     storage_options: dict | None,
     winter_months: list[int] | None,
+    hourly_load: pd.Series,
 ) -> float:
-    """Compute MC seasonal ratio from supply-side marginal costs.
+    """Compute demand-weighted MC seasonal ratio from supply-side marginal costs.
 
     Sums energy and capacity MC columns to get total supply MC per hour.
     """
@@ -173,8 +260,8 @@ def _compute_supply_mc_seasonal_ratio(
     numeric_cap = [c for c in cap_df.columns if cap_df[c].dtype in (float, "float64")]
     combined = energy_df[numeric_energy[0]] + cap_df[numeric_cap[0]]
     combined.name = "total_supply_mc"
-    load_uniform = pd.Series(1.0, index=combined.index, name="load")
-    return compute_mc_seasonal_ratio(combined, load_uniform, winter_months)
+    aligned_load = _align_load_to_mc(hourly_load, pd.DatetimeIndex(combined.index))
+    return compute_mc_seasonal_ratio(combined, aligned_load, winter_months)
 
 
 def _patch_tariff_key(tariff: dict, tariff_key: str) -> dict:
@@ -349,6 +436,8 @@ def prepare_fair_default_tariffs(
     path_supply_capacity_mc: str,
     path_base_tariff_delivery: str | Path,
     path_base_tariff_supply: str | Path,
+    path_utility_assignment: str,
+    path_electric_utility_stats: str,
     path_periods_yaml: Path | None = None,
     allow_infeasible: bool = False,
 ) -> list[str]:
@@ -373,11 +462,27 @@ def prepare_fair_default_tariffs(
     resolved_winter_months = _resolve_winter_months(path_periods_yaml)
     winter_months = list(resolved_winter_months)
 
+    LOGGER.info(
+        "Loading utility-aggregate hourly ResStock load for %s "
+        "(used to demand-weight rho_MC) ...",
+        utility,
+    )
+    utility_hourly_load = _load_utility_hourly_load(
+        utility=utility,
+        state=state,
+        upgrade=upgrade,
+        resstock_base=resstock_base,
+        path_utility_assignment=path_utility_assignment,
+        path_electric_utility_stats=path_electric_utility_stats,
+        storage_options=storage_options,
+    )
+
     LOGGER.info("Computing delivery MC seasonal ratio for %s ...", utility)
     delivery_mc_ratio = _compute_delivery_mc_seasonal_ratio(
         path_dist_and_sub_tx_mc=path_dist_and_sub_tx_mc,
         path_bulk_tx_mc=path_bulk_tx_mc,
         winter_months=winter_months,
+        hourly_load=utility_hourly_load,
     )
     LOGGER.info("Delivery MC seasonal ratio: %.4f", delivery_mc_ratio)
 
@@ -387,6 +492,7 @@ def prepare_fair_default_tariffs(
         path_supply_capacity_mc=path_supply_capacity_mc,
         storage_options=storage_options,
         winter_months=winter_months,
+        hourly_load=utility_hourly_load,
     )
     LOGGER.info("Supply MC seasonal ratio: %.4f", supply_mc_ratio)
 
@@ -664,6 +770,24 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--path-utility-assignment",
+        required=True,
+        help=(
+            "Parquet path for ResStock utility_assignment metadata "
+            "(used to load utility-aggregate hourly load for demand-weighting "
+            "rho_MC)."
+        ),
+    )
+    parser.add_argument(
+        "--path-electric-utility-stats",
+        required=True,
+        help=(
+            "Parquet path for EIA-861 electric utility stats "
+            "(used to rescale ResStock weights to the EIA residential "
+            "customer count for the utility-aggregate hourly load)."
+        ),
+    )
+    parser.add_argument(
         "--periods-yaml",
         type=Path,
         default=None,
@@ -690,6 +814,8 @@ def main() -> None:
         path_supply_capacity_mc=args.path_supply_capacity_mc,
         path_base_tariff_delivery=args.base_tariff_delivery,
         path_base_tariff_supply=args.base_tariff_supply,
+        path_utility_assignment=args.path_utility_assignment,
+        path_electric_utility_stats=args.path_electric_utility_stats,
         path_periods_yaml=args.periods_yaml,
         allow_infeasible=args.allow_infeasible,
     )
