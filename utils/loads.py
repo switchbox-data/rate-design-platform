@@ -24,6 +24,8 @@ ELECTRIC_PV_COL = "out.electricity.pv.energy_consumption"
 
 # ResStock load_curve_hourly layout: .../load_curve_hourly/state=XX/upgrade=YY/*.parquet
 LOAD_CURVE_HOURLY_SUBDIR = "load_curve_hourly/"
+# ResStock load_curve_monthly layout: .../load_curve_monthly/state=XX/upgrade=YY/*.parquet
+LOAD_CURVE_MONTHLY_SUBDIR = "load_curve_monthly/"
 BLDG_ID_COL = "bldg_id"
 
 # Timezone used for hourly load index; must match marginal cost data (see utils/cairo.py).
@@ -84,9 +86,63 @@ def scan_resstock_loads(
         **kwargs,
     )
 
+    state_partition = str(state).upper()
+    upgrade_raw = str(upgrade)
+    upgrade_partition = upgrade_raw.zfill(2) if upgrade_raw.isdigit() else upgrade_raw
+
     lf = lf.filter(
-        pl.col("state") == str(state),
-        pl.col("upgrade") == str(upgrade),
+        pl.col("state") == state_partition,
+        pl.col("upgrade") == upgrade_partition,
+    )
+    if building_ids is not None:
+        lf = lf.filter(pl.col("bldg_id").is_in(building_ids))
+    return lf
+
+
+def scan_resstock_loads_monthly(
+    resstock_base: str,
+    state: str,
+    upgrade: str,
+    *,
+    building_ids: list[int] | None = None,
+    storage_options: dict[str, str] | None = None,
+) -> pl.LazyFrame:
+    """Scan ResStock monthly loads via hive partitions; optionally filter to building IDs.
+
+    Monthly loads have 12 rows per building (one per calendar month) with the
+    same ``out.electricity.*`` column names as the hourly files but summed to
+    monthly totals.  The ``month`` column is ``Int8`` (1–12).
+
+    Args:
+        resstock_base: Base S3 or local path to the ResStock release.
+        state: State partition value (e.g. "NY", "RI").
+        upgrade: Upgrade partition value (e.g. "00").
+        building_ids: If set, filter to these building IDs.
+        storage_options: Passed to scan_parquet for S3.
+
+    Returns:
+        LazyFrame of monthly load data (12 rows per building).
+    """
+    base = resstock_base.rstrip("/")
+    loads_root = f"{base}/{LOAD_CURVE_MONTHLY_SUBDIR}"
+    kwargs: dict = {}
+    if storage_options is not None:
+        kwargs["storage_options"] = storage_options
+
+    lf = pl.scan_parquet(
+        loads_root,
+        hive_partitioning=True,
+        hive_schema={"state": pl.String, "upgrade": pl.String},
+        **kwargs,
+    )
+
+    state_partition = str(state).upper()
+    upgrade_raw = str(upgrade)
+    upgrade_partition = upgrade_raw.zfill(2) if upgrade_raw.isdigit() else upgrade_raw
+
+    lf = lf.filter(
+        pl.col("state") == state_partition,
+        pl.col("upgrade") == upgrade_partition,
     )
     if building_ids is not None:
         lf = lf.filter(pl.col("bldg_id").is_in(building_ids))

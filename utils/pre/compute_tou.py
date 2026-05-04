@@ -404,3 +404,19 @@ def compute_seasonal_base_rates(
             rates[s.name],
         )
     return rates
+
+
+def compute_mc_seasonal_ratio(
+    combined_mc: pd.Series,
+    hourly_load: pd.Series,
+    winter_months: list[int] | None = None,
+) -> float:
+    """Return winter-to-summer demand-weighted marginal-cost ratio.
+
+    This is the rho_MC input for fair-default seasonal rate design. It reuses
+    the same winter/summer partition and demand-weighted seasonal base-rate
+    calculation used by the seasonal TOU derivation.
+    """
+    seasons = make_winter_summer_seasons(winter_months)
+    rates = compute_seasonal_base_rates(combined_mc, hourly_load, seasons)
+    return rates["winter"] / rates["summer"]

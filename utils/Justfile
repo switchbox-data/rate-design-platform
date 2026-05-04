@@ -159,6 +159,36 @@ create-flat-discount-tariff base_tariff_json flat_inputs_csv label output_path:
       --label "{{ label }}" \
       --output-path "{{ output_path }}"
 
+# Fair-default inputs from run outputs + ResStock loads.
+
+# group_col + subclass_value identify the target subclass.
+compute-fair-default-inputs path_run_dir path_resstock_base state upgrade subclass_value cross_subsidy_col="BAT_percustomer" path_output_dir="" path_base_tariff_json="" group_col="has_hp" group_value_to_subclass="" mc_seasonal_ratio="" path_periods_yaml="" fixed_charge_floor="0.0":
+    uv run python {{ project_root }}/utils/mid/compute_fair_default_inputs.py \
+      --run-dir "{{ path_run_dir }}" \
+      --resstock-base "{{ path_resstock_base }}" \
+      --state "{{ state }}" \
+      --upgrade "{{ upgrade }}" \
+      --cross-subsidy-col "{{ cross_subsidy_col }}" \
+      --base-tariff-json "{{ path_base_tariff_json }}" \
+      --group-col "{{ group_col }}" \
+      --subclass-value "{{ subclass_value }}" \
+      --fixed-charge-floor "{{ fixed_charge_floor }}" \
+      {{ if group_value_to_subclass != "" { "--group-value-to-subclass \"" + group_value_to_subclass + "\"" } else { "" } }} \
+      {{ if path_output_dir != "" { "--output-dir \"" + path_output_dir + "\"" } else { "" } }} \
+      {{ if path_periods_yaml != "" { "--periods-yaml \"" + path_periods_yaml + "\"" } else { "" } }} \
+      {{ if mc_seasonal_ratio != "" { "--mc-seasonal-ratio \"" + mc_seasonal_ratio + "\"" } else { "" } }}
+
+# Tariff JSON creation from fair_default_inputs.csv.
+create-fair-default-tariff path_base_tariff_json path_inputs_csv strategy label path_output_path path_periods_yaml="" allow_infeasible="false":
+    uv run python {{ project_root }}/utils/mid/create_fair_default_tariff.py \
+      --base-tariff-json "{{ path_base_tariff_json }}" \
+      --inputs-csv "{{ path_inputs_csv }}" \
+      --strategy "{{ strategy }}" \
+      --label "{{ label }}" \
+      --output-path "{{ path_output_path }}" \
+      {{ if path_periods_yaml != "" { "--periods-yaml \"" + path_periods_yaml + "\"" } else { "" } }} \
+      {{ if allow_infeasible == "true" { "--allow-infeasible" } else { "" } }}
+
 # Promote calibrated tariffs from run output:
 # reads <run_dir>/tariff_final_config.json, converts each tariff to URDB format,
 
