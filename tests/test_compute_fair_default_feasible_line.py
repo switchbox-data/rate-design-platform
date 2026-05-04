@@ -11,8 +11,11 @@ import pytest
 
 from utils.mid.compute_fair_default_inputs import (
     FeasibleLineData,
+    RevenueSufficientLineData,
     compute_feasible_line_from_runs,
+    compute_revenue_sufficient_line_from_runs,
     fixed_charge_feasibility,
+    seasonal_bill,
 )
 
 _STATE = "NY"
@@ -159,6 +162,51 @@ def test_compute_feasible_line_returns_dict_with_both_variants(tmp_path: Path) -
     assert set(result) == {"delivery", "supply"}
     for variant, data in result.items():
         assert isinstance(data, FeasibleLineData), f"{variant} is not FeasibleLineData"
+
+
+def test_compute_revenue_sufficient_line_sweeps_winter_rate(
+    tmp_path: Path,
+) -> None:
+    """C1-only sweep starts at baseline and preserves class RR at winter=0."""
+    run_dir_del = _write_run_dir(tmp_path, "run1", [75.0, 75.0, 0.0, 0.0])
+    run_dir_sup = _write_run_dir(tmp_path, "run2", [75.0, 75.0, 0.0, 0.0])
+    resstock_base = _write_monthly_loads(tmp_path)
+    tariff = _write_urdb_tariff(tmp_path / "tariff.json")
+
+    result = compute_revenue_sufficient_line_from_runs(
+        run_dir_delivery=run_dir_del,
+        run_dir_supply=run_dir_sup,
+        resstock_base=str(resstock_base),
+        state=_STATE,
+        upgrade=_UPGRADE,
+        path_base_tariff_delivery=tariff,
+        path_base_tariff_supply=tariff,
+    )
+
+    data = result["delivery"]
+    assert isinstance(data, RevenueSufficientLineData)
+
+    baseline_winter_rate = data.base_flat_rate
+    baseline_summer_rate = data.summer_rate_at(baseline_winter_rate)
+    assert baseline_winter_rate == pytest.approx(_BASE_RATE)
+    assert baseline_summer_rate == pytest.approx(_BASE_RATE)
+    assert data.subclass_cross_subsidy_at(baseline_winter_rate) == pytest.approx(150.0)
+
+    winter_floor_rate = 0.0
+    summer_at_floor = data.summer_rate_at(winter_floor_rate)
+    assert summer_at_floor == pytest.approx(0.75)
+
+    class_bill_at_floor = seasonal_bill(
+        data.inputs.class_totals,
+        data.base_fixed_charge,
+        winter_floor_rate,
+        summer_at_floor,
+    )
+    assert class_bill_at_floor == pytest.approx(data.inputs.class_totals.current_bill)
+    assert data.subclass_cross_subsidy_at(winter_floor_rate) == pytest.approx(50.0)
+    assert data.subclass_cross_subsidy_at(winter_floor_rate) < (
+        data.subclass_cross_subsidy_at(baseline_winter_rate)
+    )
 
 
 def test_compute_feasible_line_affine_evaluates_at_base_fixed_charge(

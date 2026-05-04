@@ -129,6 +129,19 @@ def seasonal_bill(
     )
 
 
+def subclass_cross_subsidy_at(
+    inputs: FairDefaultInputs,
+    fixed_charge: float,
+    winter_rate: float,
+    summer_rate: float,
+) -> float:
+    """Compute subclass cross-subsidy under a candidate seasonal tariff."""
+    return (
+        seasonal_bill(inputs.subclass_totals, fixed_charge, winter_rate, summer_rate)
+        - inputs.subclass_fair_bill
+    )
+
+
 def _require_nonzero(value: float, label: str) -> None:
     if math.isclose(value, 0.0, abs_tol=ZERO_TOLERANCE):
         raise ValueError(f"{label} is degenerate; denominator is zero.")
@@ -465,6 +478,39 @@ class FeasibleLineData:
     mc_seasonal_ratio: float | None
 
 
+@dataclass(frozen=True, slots=True)
+class RevenueSufficientLineData:
+    """Revenue-sufficient seasonal-rate sweep at the baseline fixed charge."""
+
+    title: str
+    r_sum: AffineLine
+    base_fixed_charge: float
+    base_flat_rate: float
+    winter_rate_min: float
+    winter_rate_max: float
+    inputs: FairDefaultInputs
+
+    def summer_rate_at(self, winter_rate: float) -> float:
+        """Return the C1-implied summer rate for a winter-rate choice."""
+        return self.r_sum.at(winter_rate)
+
+    def subclass_cross_subsidy_at(self, winter_rate: float) -> float:
+        """Return weighted subclass cross-subsidy at a winter-rate choice."""
+        return subclass_cross_subsidy_at(
+            self.inputs,
+            self.base_fixed_charge,
+            winter_rate,
+            self.summer_rate_at(winter_rate),
+        )
+
+    def subclass_cross_subsidy_per_customer_at(self, winter_rate: float) -> float:
+        """Return per-customer subclass cross-subsidy at a winter-rate choice."""
+        return (
+            self.subclass_cross_subsidy_at(winter_rate)
+            / self.inputs.subclass_totals.customer_count
+        )
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Feasible-line compute path (reads load_curve_monthly, not hourly loads)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -633,6 +679,97 @@ def _build_feasible_line_data(
     )
 
 
+def _build_revenue_sufficient_line_data(
+    *,
+    inputs: FairDefaultInputs,
+    title: str,
+) -> RevenueSufficientLineData:
+    """Build the C1-only seasonal sweep at the baseline fixed charge."""
+    class_totals = inputs.class_totals
+    _require_nonzero(class_totals.summer_kwh, "class summer kWh")
+
+    class_energy_target = energy_revenue(class_totals, inputs.base_fixed_charge)
+    slope = -class_totals.winter_kwh / class_totals.summer_kwh
+    intercept = class_energy_target / class_totals.summer_kwh
+
+    return RevenueSufficientLineData(
+        title=title,
+        r_sum=AffineLine(intercept=intercept, slope=slope),
+        base_fixed_charge=inputs.base_fixed_charge,
+        base_flat_rate=inputs.base_flat_rate,
+        winter_rate_min=0.0,
+        winter_rate_max=inputs.base_flat_rate,
+        inputs=inputs,
+    )
+
+
+def _load_monthly_fair_default_inputs(
+    *,
+    run_dir: S3Path | Path,
+    resstock_base: str,
+    state: str,
+    upgrade: str,
+    base_tariff_path: Path,
+    group_col: str,
+    subclass_value: str,
+    cross_subsidy_col: str,
+    winter_months: tuple[int, ...],
+    storage_options: dict[str, str] | None,
+    group_value_to_subclass: dict[str, str] | None,
+    fixed_charge_floor: float,
+) -> FairDefaultInputs:
+    """Load run outputs and monthly ResStock loads into FairDefaultInputs."""
+    metadata, subclass_cross_subsidy = _load_metadata_and_cross_subsidy(
+        run_dir=run_dir,
+        group_col=group_col,
+        subclass_value=subclass_value,
+        cross_subsidy_col=cross_subsidy_col,
+        storage_options=storage_options,
+        group_value_to_subclass=group_value_to_subclass,
+    )
+
+    class_bill, subclass_bill = _load_bill_totals(run_dir, metadata, storage_options)
+
+    (
+        (class_annual_kwh, class_winter_kwh),
+        (subclass_annual_kwh, subclass_winter_kwh),
+    ) = _load_kwh_totals_monthly(
+        resstock_base=resstock_base,
+        state=state,
+        upgrade=upgrade,
+        metadata=metadata,
+        winter_months=winter_months,
+        storage_options=storage_options,
+    )
+
+    class_totals = CustomerGroupTotals(
+        customer_count=float(metadata[WEIGHT_COL].sum() or 0.0),
+        current_bill=class_bill,
+        annual_kwh=class_annual_kwh,
+        winter_kwh=class_winter_kwh,
+        summer_kwh=class_annual_kwh - class_winter_kwh,
+    )
+    subclass_totals = CustomerGroupTotals(
+        customer_count=float(
+            metadata.filter(pl.col("_is_subclass"))[WEIGHT_COL].sum() or 0.0
+        ),
+        current_bill=subclass_bill,
+        annual_kwh=subclass_annual_kwh,
+        winter_kwh=subclass_winter_kwh,
+        summer_kwh=subclass_annual_kwh - subclass_winter_kwh,
+    )
+    class_totals.validate("class")
+    subclass_totals.validate("subclass")
+
+    return FairDefaultInputs(
+        class_totals=class_totals,
+        subclass_totals=subclass_totals,
+        subclass_cross_subsidy=subclass_cross_subsidy,
+        base_fixed_charge=_extract_fixed_charge_from_urdb(base_tariff_path),
+        fixed_charge_floor=fixed_charge_floor,
+    )
+
+
 def compute_feasible_line_from_runs(
     *,
     run_dir_delivery: str | Path | S3Path,
@@ -721,55 +858,18 @@ def compute_feasible_line_from_runs(
     ):
         LOGGER.info("compute_feasible_line_from_runs: loading %s run dir ...", variant)
 
-        metadata, subclass_cross_subsidy = _load_metadata_and_cross_subsidy(
+        inputs = _load_monthly_fair_default_inputs(
             run_dir=run_dir,
-            group_col=group_col,
-            subclass_value=subclass_value,
-            cross_subsidy_col=cross_subsidy_col,
-            storage_options=storage_options,
-            group_value_to_subclass=group_value_to_subclass_map,
-        )
-
-        class_bill, subclass_bill = _load_bill_totals(
-            run_dir, metadata, storage_options
-        )
-
-        (
-            (class_annual_kwh, class_winter_kwh),
-            (subclass_annual_kwh, subclass_winter_kwh),
-        ) = _load_kwh_totals_monthly(
             resstock_base=resstock_base,
             state=state,
             upgrade=upgrade,
-            metadata=metadata,
+            base_tariff_path=base_tariff_path,
+            group_col=group_col,
+            subclass_value=subclass_value,
+            cross_subsidy_col=cross_subsidy_col,
             winter_months=winter_months,
             storage_options=storage_options,
-        )
-
-        class_totals = CustomerGroupTotals(
-            customer_count=float(metadata[WEIGHT_COL].sum() or 0.0),
-            current_bill=class_bill,
-            annual_kwh=class_annual_kwh,
-            winter_kwh=class_winter_kwh,
-            summer_kwh=class_annual_kwh - class_winter_kwh,
-        )
-        subclass_totals = CustomerGroupTotals(
-            customer_count=float(
-                metadata.filter(pl.col("_is_subclass"))[WEIGHT_COL].sum() or 0.0
-            ),
-            current_bill=subclass_bill,
-            annual_kwh=subclass_annual_kwh,
-            winter_kwh=subclass_winter_kwh,
-            summer_kwh=subclass_annual_kwh - subclass_winter_kwh,
-        )
-        class_totals.validate("class")
-        subclass_totals.validate("subclass")
-
-        inputs = FairDefaultInputs(
-            class_totals=class_totals,
-            subclass_totals=subclass_totals,
-            subclass_cross_subsidy=subclass_cross_subsidy,
-            base_fixed_charge=_extract_fixed_charge_from_urdb(base_tariff_path),
+            group_value_to_subclass=group_value_to_subclass_map,
             fixed_charge_floor=fixed_charge_floor,
         )
 
@@ -783,6 +883,87 @@ def compute_feasible_line_from_runs(
             fixed_charge_floor=fixed_charge_floor,
         )
         LOGGER.info("compute_feasible_line_from_runs: %s done", variant)
+
+    return result
+
+
+def compute_revenue_sufficient_line_from_runs(
+    *,
+    run_dir_delivery: str | Path | S3Path,
+    run_dir_supply: str | Path | S3Path,
+    resstock_base: str,
+    state: str,
+    upgrade: str,
+    path_base_tariff_delivery: str | Path,
+    path_base_tariff_supply: str | Path,
+    group_col: str = DEFAULT_GROUP_COL,
+    subclass_value: str = DEFAULT_SUBCLASS_VALUE,
+    group_value_to_subclass: dict[str, str] | None = None,
+    cross_subsidy_col: str = DEFAULT_CROSS_SUBSIDY_COL,
+    path_periods_yaml: Path | None = None,
+    fixed_charge_floor: float = 0.0,
+    title_delivery: str | None = None,
+    title_supply: str | None = None,
+) -> dict[str, RevenueSufficientLineData]:
+    """Build C1-only seasonal-rate sweeps from delivery and supply run dirs.
+
+    The sweep holds the calibrated fixed charge fixed at ``F_0``, lowers the
+    winter volumetric rate from the baseline flat rate to zero, and computes the
+    summer rate required to preserve class revenue sufficiency.
+    """
+    group_value_to_subclass_map = (
+        parse_group_value_to_subclass(group_value_to_subclass)
+        if isinstance(group_value_to_subclass, str)
+        else group_value_to_subclass
+    )
+
+    run_dir_del = _resolve_path_or_s3(str(run_dir_delivery))
+    run_dir_sup = _resolve_path_or_s3(str(run_dir_supply))
+
+    storage_options = (
+        get_aws_storage_options()
+        if isinstance(run_dir_del, S3Path)
+        or str(run_dir_delivery).startswith("s3://")
+        or resstock_base.startswith("s3://")
+        else None
+    )
+    winter_months = _resolve_winter_months(path_periods_yaml)
+
+    result: dict[str, RevenueSufficientLineData] = {}
+    for variant, run_dir, base_tariff_path, title_override in (
+        ("delivery", run_dir_del, Path(path_base_tariff_delivery), title_delivery),
+        ("supply", run_dir_sup, Path(path_base_tariff_supply), title_supply),
+    ):
+        LOGGER.info(
+            "compute_revenue_sufficient_line_from_runs: loading %s run dir ...",
+            variant,
+        )
+        inputs = _load_monthly_fair_default_inputs(
+            run_dir=run_dir,
+            resstock_base=resstock_base,
+            state=state,
+            upgrade=upgrade,
+            base_tariff_path=base_tariff_path,
+            group_col=group_col,
+            subclass_value=subclass_value,
+            cross_subsidy_col=cross_subsidy_col,
+            winter_months=winter_months,
+            storage_options=storage_options,
+            group_value_to_subclass=group_value_to_subclass_map,
+            fixed_charge_floor=fixed_charge_floor,
+        )
+        default_title = (
+            "revenue-sufficient seasonal sweep "
+            f"(C1 only) — {group_col}={subclass_value}, {variant}"
+        )
+        result[variant] = _build_revenue_sufficient_line_data(
+            inputs=inputs,
+            title=title_override if title_override else default_title,
+        )
+        LOGGER.info(
+            "compute_revenue_sufficient_line_from_runs: %s done",
+            variant,
+        )
 
     return result
 
