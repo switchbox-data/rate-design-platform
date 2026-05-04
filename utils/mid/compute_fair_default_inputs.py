@@ -480,33 +480,78 @@ class FeasibleLineData:
 
 @dataclass(frozen=True, slots=True)
 class RevenueSufficientLineData:
-    """Revenue-sufficient seasonal-rate sweep at the baseline fixed charge."""
+    """Revenue-sufficient seasonal-rate sweep for one or more fixed charges."""
 
     title: str
-    r_sum: AffineLine
     base_fixed_charge: float
-    base_flat_rate: float
     winter_rate_min: float
-    winter_rate_max: float
+    feasible_min_fixed_charge: float
+    feasible_min_exists: bool
     inputs: FairDefaultInputs
 
-    def summer_rate_at(self, winter_rate: float) -> float:
-        """Return the C1-implied summer rate for a winter-rate choice."""
-        return self.r_sum.at(winter_rate)
+    @property
+    def base_flat_rate(self) -> float:
+        """Return the revenue-sufficient flat rate at the calibrated fixed charge."""
+        return self.flat_rate_at(self.base_fixed_charge)
 
-    def subclass_cross_subsidy_at(self, winter_rate: float) -> float:
-        """Return weighted subclass cross-subsidy at a winter-rate choice."""
-        return subclass_cross_subsidy_at(
-            self.inputs,
-            self.base_fixed_charge,
-            winter_rate,
-            self.summer_rate_at(winter_rate),
+    @property
+    def winter_rate_max(self) -> float:
+        """Return the baseline winter-rate sweep maximum for legacy callers."""
+        return self.base_flat_rate
+
+    def flat_rate_at(self, fixed_charge: float) -> float:
+        """Return the C1-implied flat volumetric rate at a fixed charge."""
+        return energy_revenue(self.inputs.class_totals, fixed_charge) / (
+            self.inputs.class_totals.annual_kwh
         )
 
-    def subclass_cross_subsidy_per_customer_at(self, winter_rate: float) -> float:
+    def summer_rate_line_at(self, fixed_charge: float) -> AffineLine:
+        """Return summer-rate line as a function of winter rate at fixed charge."""
+        class_totals = self.inputs.class_totals
+        _require_nonzero(class_totals.summer_kwh, "class summer kWh")
+        class_energy_target = energy_revenue(class_totals, fixed_charge)
+        return AffineLine(
+            intercept=class_energy_target / class_totals.summer_kwh,
+            slope=-class_totals.winter_kwh / class_totals.summer_kwh,
+        )
+
+    def summer_rate_at(
+        self,
+        winter_rate: float,
+        *,
+        fixed_charge: float | None = None,
+    ) -> float:
+        """Return the C1-implied summer rate for a winter-rate choice."""
+        fixed_charge = self.base_fixed_charge if fixed_charge is None else fixed_charge
+        return self.summer_rate_line_at(fixed_charge).at(winter_rate)
+
+    def subclass_cross_subsidy_at(
+        self,
+        winter_rate: float,
+        *,
+        fixed_charge: float | None = None,
+    ) -> float:
+        """Return weighted subclass cross-subsidy at a winter-rate choice."""
+        fixed_charge = self.base_fixed_charge if fixed_charge is None else fixed_charge
+        return subclass_cross_subsidy_at(
+            self.inputs,
+            fixed_charge,
+            winter_rate,
+            self.summer_rate_at(winter_rate, fixed_charge=fixed_charge),
+        )
+
+    def subclass_cross_subsidy_per_customer_at(
+        self,
+        winter_rate: float,
+        *,
+        fixed_charge: float | None = None,
+    ) -> float:
         """Return per-customer subclass cross-subsidy at a winter-rate choice."""
         return (
-            self.subclass_cross_subsidy_at(winter_rate)
+            self.subclass_cross_subsidy_at(
+                winter_rate,
+                fixed_charge=fixed_charge,
+            )
             / self.inputs.subclass_totals.customer_count
         )
 
@@ -684,21 +729,16 @@ def _build_revenue_sufficient_line_data(
     inputs: FairDefaultInputs,
     title: str,
 ) -> RevenueSufficientLineData:
-    """Build the C1-only seasonal sweep at the baseline fixed charge."""
-    class_totals = inputs.class_totals
-    _require_nonzero(class_totals.summer_kwh, "class summer kWh")
-
-    class_energy_target = energy_revenue(class_totals, inputs.base_fixed_charge)
-    slope = -class_totals.winter_kwh / class_totals.summer_kwh
-    intercept = class_energy_target / class_totals.summer_kwh
+    """Build the C1-only seasonal sweep helper."""
+    _require_nonzero(inputs.class_totals.summer_kwh, "class summer kWh")
+    feasibility = fixed_charge_feasibility(inputs)
 
     return RevenueSufficientLineData(
         title=title,
-        r_sum=AffineLine(intercept=intercept, slope=slope),
         base_fixed_charge=inputs.base_fixed_charge,
-        base_flat_rate=inputs.base_flat_rate,
         winter_rate_min=0.0,
-        winter_rate_max=inputs.base_flat_rate,
+        feasible_min_fixed_charge=feasibility.minimum,
+        feasible_min_exists=feasibility.exists,
         inputs=inputs,
     )
 
