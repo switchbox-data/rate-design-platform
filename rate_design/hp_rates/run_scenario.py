@@ -36,7 +36,7 @@ from utils.cairo import (
     build_bldg_id_to_load_filepath,
 )
 from utils.demand_flex import apply_demand_flex
-from utils.mid.patches import _return_loads_combined
+from utils.mid.patches import _return_loads_combined, write_billing_kwh
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 from utils.scenario_config import (
     RevenueRequirementConfig,
@@ -801,15 +801,15 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
 
     save_file_loc = getattr(bs, "save_file_loc", None)
     if save_file_loc is not None:
-        dist_and_sub_tx_mc_path = (
-            Path(save_file_loc) / "delivery_all_marginal_costs.csv"
-        )
+        run_output_dir = Path(save_file_loc)
+        dist_and_sub_tx_mc_path = run_output_dir / "delivery_all_marginal_costs.csv"
         dist_and_sub_tx_marginal_costs.to_csv(dist_and_sub_tx_mc_path, index=True)
         log.info(".... Saved dist+sub-tx marginal costs: %s", dist_and_sub_tx_mc_path)
         if demand_flex_enabled:
-            tracker_path = Path(save_file_loc) / "demand_flex_elasticity_tracker.csv"
+            tracker_path = run_output_dir / "demand_flex_elasticity_tracker.csv"
             elasticity_tracker.to_csv(tracker_path, index=True)
             log.info(".... Saved demand-flex elasticity tracker: %s", tracker_path)
+        write_billing_kwh(run_output_dir)
 
     log.info(
         ".... Completed %s residential (non-LMI) rate scenario simulation",
