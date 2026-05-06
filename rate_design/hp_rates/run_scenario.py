@@ -38,7 +38,12 @@ from utils.cairo import (
     build_bldg_id_to_load_filepath,
 )
 from utils.demand_flex import apply_demand_flex
-from utils.mid.patches import _return_loads_combined, write_billing_kwh
+from utils.mid.patches import (
+    BillingKwhTables,
+    _return_loads_combined,
+    prepare_billing_kwh,
+    write_billing_kwh,
+)
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 from utils.scenario_config import (
     RevenueRequirementConfig,
@@ -452,6 +457,16 @@ def _parse_args() -> argparse.Namespace:
             "CAIRO sums all supply MC columns automatically."
         ),
     )
+    parser.add_argument(
+        "--billing-kwh",
+        action="store_true",
+        default=False,
+        dest="billing_kwh",
+        help=(
+            "Write per-building billing kWh tables (annual summary + hourly 8760) "
+            "to the run output directory. Off by default."
+        ),
+    )
     args = parser.parse_args()
     if args.scenario_config is None and args.utility is None:
         parser.error("Provide either --scenario-config or --utility.")
@@ -587,7 +602,12 @@ def _write_scenario_settings(run_output_dir: Path, settings: ScenarioSettings) -
     log.info(".... Saved scenario settings: %s", out_path)
 
 
-def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
+def run(
+    settings: ScenarioSettings,
+    num_workers: int | None = None,
+    *,
+    billing_kwh: bool = False,
+) -> None:
     log.info(
         ".... Beginning %s residential (non-LMI) rate scenario simulation: %s",
         settings.state,
@@ -832,7 +852,14 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             elasticity_tracker.to_csv(tracker_path, index=True)
             log.info(".... Saved demand-flex elasticity tracker: %s", tracker_path)
         _write_scenario_settings(run_output_dir, settings)
-        write_billing_kwh(run_output_dir)
+        billing_kwh_tables: BillingKwhTables | None = None
+        if billing_kwh:
+            billing_kwh_tables = prepare_billing_kwh(
+                effective_load_elec,
+                demand_flex_applied=demand_flex_enabled,
+                target_year=settings.year_run,
+            )
+        write_billing_kwh(run_output_dir, billing_kwh_tables)
 
     log.info(
         ".... Completed %s residential (non-LMI) rate scenario simulation",
@@ -848,7 +875,7 @@ def main() -> None:
     )
     args = _parse_args()
     settings = _resolve_settings(args)
-    run(settings, num_workers=args.num_workers)
+    run(settings, num_workers=args.num_workers, billing_kwh=args.billing_kwh)
 
 
 if __name__ == "__main__":
