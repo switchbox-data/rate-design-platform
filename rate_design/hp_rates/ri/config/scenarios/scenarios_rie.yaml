@@ -583,3 +583,8 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
+subclass_config:
+  group_col: has_hp
+  selectors:
+    hp: 'true'
+    non-hp: 'false'
