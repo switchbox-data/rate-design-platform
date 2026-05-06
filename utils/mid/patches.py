@@ -23,6 +23,7 @@ import cairo.rates_tool.system_revenues as _cairo_sysrev
 import cairo.rates_tool.systemsimulator as _cairo_sim
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 import pyarrow.dataset as pad
 import pyarrow.parquet as pq
 
@@ -201,6 +202,85 @@ def _return_loads_combined(
 
 
 # ---------------------------------------------------------------------------
+# Billing kWh export (written unconditionally for electric runs)
+# ---------------------------------------------------------------------------
+
+_billing_kwh_cache: dict[str, pa.Table] = {}
+
+
+def _cache_billing_kwh(
+    grid_cons_2d: np.ndarray,
+    load_data_2d: np.ndarray,
+    bldg_ids: pd.Index,
+) -> None:
+    """Cache billing kWh tables for later write by run_scenario.py.
+
+    Called inside ``_vectorized_process_building_demand_by_period`` right after
+    ``grid_cons_2d`` is computed.  The cached tables are written to disk by
+    :func:`write_billing_kwh` once the per-run output directory is known.
+    """
+    n_bldg, n_hours = grid_cons_2d.shape
+    bldg_id_array = np.asarray(bldg_ids, dtype=np.int64)
+
+    annual_grid = grid_cons_2d.sum(axis=1)
+    annual_total = load_data_2d.sum(axis=1)
+    has_pv = ~np.isclose(annual_grid, annual_total)
+
+    _billing_kwh_cache["annual"] = pa.table(
+        {
+            "bldg_id": bldg_id_array,
+            "annual_kwh_grid": annual_grid,
+            "annual_kwh_total": annual_total,
+            "has_pv": has_pv,
+        }
+    )
+
+    bldg_id_col = np.repeat(bldg_id_array, n_hours)
+    hour_col = np.tile(np.arange(n_hours, dtype=np.int16), n_bldg)
+
+    _billing_kwh_cache["hourly"] = pa.table(
+        {
+            "bldg_id": bldg_id_col,
+            "hour": hour_col,
+            "grid_cons_kwh": grid_cons_2d.ravel().copy(),
+            "load_data_kwh": load_data_2d.ravel().copy(),
+        }
+    )
+    log.info("Cached billing kWh for %d buildings (annual + 8760)", n_bldg)
+
+
+def write_billing_kwh(output_dir: Path) -> None:
+    """Write cached billing kWh tables to *output_dir*.
+
+    Call from run_scenario.py after ``bs.simulate()`` when
+    ``bs.save_file_loc`` is known.  No-op if nothing was cached
+    (e.g. gas-only run).
+    """
+    if not _billing_kwh_cache:
+        return
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    annual_table = _billing_kwh_cache.pop("annual")
+    annual_path = output_dir / "billing_kwh_annual.parquet"
+    pq.write_table(annual_table, annual_path)
+    n_bldg = annual_table.num_rows
+    log.info("Wrote billing kWh annual summary: %s (%d buildings)", annual_path, n_bldg)
+
+    hourly_table = _billing_kwh_cache.pop("hourly")
+    hourly_path = output_dir / "billing_kwh_8760.parquet"
+    pq.write_table(hourly_table, hourly_path, compression="zstd")
+    log.info(
+        "Wrote billing kWh 8760 profiles: %s (%d buildings x %d hours)",
+        hourly_path,
+        n_bldg,
+        hourly_table.num_rows // n_bldg,
+    )
+
+    _billing_kwh_cache.clear()
+
+
+# ---------------------------------------------------------------------------
 # Phase 2: vectorized tariff aggregation
 # ---------------------------------------------------------------------------
 
@@ -340,6 +420,9 @@ def _vectorized_process_building_demand_by_period(
         if pv_gen_2d is not None and grid_cons_2d is not None:
             net_exports_2d = np.clip(pv_gen_2d - load_data_2d, 0, None)
             self_cons_2d = np.minimum(pv_gen_2d, load_data_2d)
+
+    if not is_gas and grid_cons_2d is not None:
+        _cache_billing_kwh(grid_cons_2d, load_data_2d, bldg_ids_all)
 
     if is_gas:
         load_col_arrays: dict[str, np.ndarray] = {"load_data": load_data_2d}

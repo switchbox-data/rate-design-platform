@@ -38,7 +38,7 @@ from utils.cairo import (
     build_bldg_id_to_load_filepath,
 )
 from utils.demand_flex import apply_demand_flex
-from utils.mid.patches import _return_loads_combined
+from utils.mid.patches import _return_loads_combined, write_billing_kwh
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 from utils.scenario_config import (
     RevenueRequirementConfig,
@@ -832,6 +832,7 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
             elasticity_tracker.to_csv(tracker_path, index=True)
             log.info(".... Saved demand-flex elasticity tracker: %s", tracker_path)
         _write_scenario_settings(run_output_dir, settings)
+        write_billing_kwh(run_output_dir)
 
     log.info(
         ".... Completed %s residential (non-LMI) rate scenario simulation",
