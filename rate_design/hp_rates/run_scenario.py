@@ -467,6 +467,18 @@ def _parse_args() -> argparse.Namespace:
             "to the run output directory. Off by default."
         ),
     )
+    parser.add_argument(
+        "--no-floor-electricity-net",
+        action="store_true",
+        default=False,
+        dest="no_floor_electricity_net",
+        help=(
+            "Disable the electricity_net floor. By default, negative hourly "
+            "electricity_net values (PV export hours) are clipped to 0 so that "
+            "electricity_net == grid_cons throughout the pipeline. Pass this flag "
+            "to preserve the original (possibly negative) electricity_net."
+        ),
+    )
     args = parser.parse_args()
     if args.scenario_config is None and args.utility is None:
         parser.error("Provide either --scenario-config or --utility.")
@@ -607,6 +619,7 @@ def run(
     num_workers: int | None = None,
     *,
     billing_kwh: bool = False,
+    floor_electricity_net: bool = True,
 ) -> None:
     log.info(
         ".... Beginning %s residential (non-LMI) rate scenario simulation: %s",
@@ -685,6 +698,19 @@ def run(
             settings.kwh_scale_factor,
         )
         raw_load_elec = raw_load_elec * settings.kwh_scale_factor
+
+    if floor_electricity_net and "electricity_net" in raw_load_elec.columns:
+        neg_mask = raw_load_elec["electricity_net"] < 0
+        neg_count = int(neg_mask.sum())
+        if neg_count > 0:
+            log.info(
+                "Flooring %d negative electricity_net hours to 0 "
+                "(electricity_net == grid_cons for all downstream calculations)",
+                neg_count,
+            )
+            raw_load_elec["electricity_net"] = raw_load_elec["electricity_net"].clip(
+                lower=0.0
+            )
 
     # Phase 2 ---------------------------------------------------------------
     # ------------------------------------------------------------------
@@ -875,7 +901,12 @@ def main() -> None:
     )
     args = _parse_args()
     settings = _resolve_settings(args)
-    run(settings, num_workers=args.num_workers, billing_kwh=args.billing_kwh)
+    run(
+        settings,
+        num_workers=args.num_workers,
+        billing_kwh=args.billing_kwh,
+        floor_electricity_net=not args.no_floor_electricity_net,
+    )
 
 
 if __name__ == "__main__":
