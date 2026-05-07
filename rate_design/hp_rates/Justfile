@@ -799,7 +799,7 @@ run-scenario run_num *extra_args:
         2>&1 | tee -a "${log_file}"
 
 run-1:
-    just run-scenario 1
+    just run-scenario 1 --billing-kwh
 
 run-2:
     just run-scenario 2
@@ -810,7 +810,7 @@ run-3:
     run1_dir=$(bash "{{ latest_output }}" "{{ path_scenario_config }}" 1)
     echo ">> run-3: resolved run-1 output → ${run1_dir}" >&2
     just copy-calibrated-tariff-from-run "${run1_dir}"
-    just run-scenario 3
+    just run-scenario 3 --billing-kwh
 
 run-4:
     #!/usr/bin/env bash

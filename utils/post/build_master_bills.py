@@ -201,28 +201,141 @@ def _read_utilities(state: str) -> list[str]:
     raise ValueError(f"UTILITIES not found in {env_file}")
 
 
-def _read_fixed_charge(state: str, utility: str) -> float:
-    """Read fixedchargefirstmeter ($/month) from the flat tariff JSON."""
-    repo_root = Path(__file__).resolve().parents[2]
-    tariff_path = (
-        repo_root
-        / "rate_design"
-        / "hp_rates"
-        / state
-        / "config"
-        / "tariffs"
-        / "electric"
-        / f"{utility}_flat.json"
+def _s3_get_json(s3_uri: str) -> dict:
+    """Fetch and parse a JSON file from S3 via boto3."""
+    import boto3
+
+    without_scheme = s3_uri[len("s3://") :]
+    bucket, _, key = without_scheme.partition("/")
+    body = boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
+    return json.loads(body)
+
+
+def _extract_fixed_charges_from_tariff_config(
+    payload: dict,
+) -> dict[str, float]:
+    """Extract ``{tariff_key: monthly_fixed_charge}`` from ``tariff_final_config.json``.
+
+    Handles both CAIRO format (top-level keys → dicts with
+    ``ur_monthly_fixed_charge``) and URDB format (``items`` list with
+    ``fixedchargefirstmeter``).
+    """
+    if "items" in payload:
+        items = payload["items"]
+        if items and isinstance(items[0], dict):
+            label = items[0].get("label") or items[0].get("name") or "calibrated"
+            fc = items[0].get("fixedchargefirstmeter")
+            if fc is None:
+                raise ValueError(
+                    "URDB tariff_final_config has 'items' but no fixedchargefirstmeter"
+                )
+            return {str(label): float(fc)}
+        raise ValueError("tariff_final_config has 'items' but it is empty")
+
+    result: dict[str, float] = {}
+    for key, value in payload.items():
+        if isinstance(value, dict):
+            fc = value.get("ur_monthly_fixed_charge")
+            if fc is None:
+                raise ValueError(
+                    f"Tariff key '{key}' in tariff_final_config.json "
+                    "has no ur_monthly_fixed_charge"
+                )
+            result[key] = float(fc)
+    if not result:
+        raise ValueError(
+            "No tariff keys found in tariff_final_config.json "
+            "(expected top-level keys with dict values or URDB 'items')"
+        )
+    return result
+
+
+def _read_fixed_charges(
+    dir_delivery: str,
+    bldg_ids: set[int],
+    *,
+    path_elec_tariff_map_override: str | None = None,
+) -> pl.DataFrame:
+    """Read per-building monthly fixed charges from the delivery run directory.
+
+    Returns a DataFrame with columns ``(bldg_id, elec_fixed_charge_monthly)``.
+
+    1. Reads ``tariff_final_config.json`` from *dir_delivery* on S3.
+    2. If all tariff keys share the same fixed charge, broadcasts it.
+    3. If they differ, reads the tariff map CSV (from ``scenario_settings.json``
+       in *dir_delivery*, or from *path_elec_tariff_map_override*) and joins to
+       produce per-building fixed charges.
+    """
+    tariff_config_uri = f"{dir_delivery.rstrip('/')}/tariff_final_config.json"
+    payload = _s3_get_json(tariff_config_uri)
+    fc_by_key = _extract_fixed_charges_from_tariff_config(payload)
+
+    unique_fcs = set(fc_by_key.values())
+    if len(unique_fcs) == 1:
+        fc_value = next(iter(unique_fcs))
+        return pl.DataFrame(
+            {BLDG_ID: sorted(bldg_ids), "elec_fixed_charge_monthly": fc_value}
+        ).cast({BLDG_ID: pl.Int64, "elec_fixed_charge_monthly": pl.Float64})
+
+    tariff_map_path = _resolve_tariff_map_path(
+        dir_delivery, path_elec_tariff_map_override
     )
-    with tariff_path.open() as f:
-        data = json.load(f)
-    items = data.get("items") or []
-    if not items:
-        raise ValueError(f"No items in tariff JSON: {tariff_path}")
-    fc = items[0].get("fixedchargefirstmeter")
-    if fc is None:
-        raise ValueError(f"No fixedchargefirstmeter in {tariff_path}")
-    return float(fc)
+    tariff_map = pl.read_csv(tariff_map_path, schema_overrides={BLDG_ID: pl.Int64})
+
+    fc_lookup = pl.DataFrame(
+        {
+            "tariff_key": list(fc_by_key.keys()),
+            "elec_fixed_charge_monthly": list(fc_by_key.values()),
+        }
+    )
+    result = tariff_map.join(fc_lookup, on="tariff_key", how="inner").select(
+        BLDG_ID, "elec_fixed_charge_monthly"
+    )
+
+    result_ids = set(result[BLDG_ID].to_list())
+    missing = bldg_ids - result_ids
+    if missing:
+        examples = sorted(missing)[:10]
+        raise ValueError(
+            f"Tariff map does not cover {len(missing)} buildings. "
+            f"Examples: {examples}. "
+            f"Tariff keys in config: {sorted(fc_by_key.keys())}. "
+            f"Tariff map: {tariff_map_path}"
+        )
+    return result
+
+
+def _resolve_tariff_map_path(
+    dir_delivery: str,
+    override: str | None,
+) -> str:
+    """Determine the electric tariff map CSV path for a delivery run.
+
+    Checks (in order): explicit *override*, then ``scenario_settings.json`` in
+    the run directory.
+    """
+    if override:
+        return override
+
+    settings_uri = f"{dir_delivery.rstrip('/')}/scenario_settings.json"
+    try:
+        settings = _s3_get_json(settings_uri)
+    except Exception as exc:
+        raise FileNotFoundError(
+            f"Multiple tariff keys with different fixed charges but cannot "
+            f"determine the tariff map: scenario_settings.json not found at "
+            f"{settings_uri} and --path-elec-tariff-map-delivery not provided. "
+            f"Either re-run CAIRO (which now writes scenario_settings.json) or "
+            f"pass --path-elec-tariff-map-delivery."
+        ) from exc
+
+    path = settings.get("path_tariff_maps_electric")
+    if not path:
+        raise ValueError(
+            f"scenario_settings.json at {settings_uri} has no "
+            "path_tariff_maps_electric field"
+        )
+    return str(path)
 
 
 def _s3_ls_prefixes(s3_path: str) -> list[str]:
@@ -476,6 +589,7 @@ def _process_utility(
     *,
     output_batch_all_util: str,
     storage_options: dict[str, str] | None,
+    path_elec_tariff_map_override: str | None = None,
 ) -> pl.DataFrame:
     """Build the master table fragment for a single utility."""
     meta_bldg_ids = set(metadata_for_utility[BLDG_ID].to_list())
@@ -530,10 +644,20 @@ def _process_utility(
         )
 
     # --- Electric decomposition ---
-    t = _log("  Computing electric bill decomposition...")
-    monthly_fixed = _read_fixed_charge(state, utility)
-    annual_fixed = monthly_fixed * 12
+    t = _log("  Reading fixed charges from tariff_final_config.json...")
+    fixed_charges_df = _read_fixed_charges(
+        dir_delivery,
+        meta_bldg_ids,
+        path_elec_tariff_map_override=path_elec_tariff_map_override,
+    )
+    n_unique_fc = fixed_charges_df["elec_fixed_charge_monthly"].n_unique()
+    _log_done(
+        "  Reading fixed charges",
+        t,
+        f"{n_unique_fc} distinct value(s)",
+    )
 
+    t = _log("  Computing electric bill decomposition...")
     elec = (
         elec_delivery_df.select(
             BLDG_ID,
@@ -550,10 +674,11 @@ def _process_utility(
             on=[BLDG_ID, "month"],
             how="inner",
         )
+        .join(fixed_charges_df, on=BLDG_ID, how="inner")
         .with_columns(
             pl.when(pl.col("month") == ANNUAL_MONTH)
-            .then(annual_fixed)
-            .otherwise(monthly_fixed)
+            .then(pl.col("elec_fixed_charge_monthly") * 12)
+            .otherwise(pl.col("elec_fixed_charge_monthly"))
             .alias("elec_fixed_charge"),
         )
         .with_columns(
@@ -777,6 +902,14 @@ def _parse_args() -> argparse.Namespace:
         help="Comma-separated list of utilities to process (default: all from state.env).",
     )
     parser.add_argument(
+        "--path-elec-tariff-map-delivery",
+        default=None,
+        help="Path to electric tariff map CSV for the delivery run. "
+        "Only needed when the delivery run has multiple tariffs with different "
+        "fixed charges and the run directory lacks scenario_settings.json "
+        "(i.e. runs that predate the scenario_settings.json feature).",
+    )
+    parser.add_argument(
         "--calculate-lmi",
         action="store_true",
         help="If set, append LMI discount columns before writing master bills.",
@@ -911,6 +1044,7 @@ def main() -> None:
             gas_fixed_charges=gas_fixed_charges,
             output_batch_all_util=output_batch_all_util,
             storage_options=storage_options,
+            path_elec_tariff_map_override=args.path_elec_tariff_map_delivery,
         )
         all_dfs.append(df)
 

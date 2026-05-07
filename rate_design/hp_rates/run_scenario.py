@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import dataclasses
+import json
 import logging
 import os
 import random
@@ -36,7 +38,12 @@ from utils.cairo import (
     build_bldg_id_to_load_filepath,
 )
 from utils.demand_flex import apply_demand_flex
-from utils.mid.patches import _return_loads_combined
+from utils.mid.patches import (
+    BillingKwhTables,
+    _return_loads_combined,
+    prepare_billing_kwh,
+    write_billing_kwh,
+)
 from utils.pre.generate_precalc_mapping import generate_default_precalc_mapping
 from utils.scenario_config import (
     RevenueRequirementConfig,
@@ -450,6 +457,16 @@ def _parse_args() -> argparse.Namespace:
             "CAIRO sums all supply MC columns automatically."
         ),
     )
+    parser.add_argument(
+        "--billing-kwh",
+        action="store_true",
+        default=False,
+        dest="billing_kwh",
+        help=(
+            "Write per-building billing kWh tables (annual summary + hourly 8760) "
+            "to the run output directory. Off by default."
+        ),
+    )
     args = parser.parse_args()
     if args.scenario_config is None and args.utility is None:
         parser.error("Provide either --scenario-config or --utility.")
@@ -565,7 +582,32 @@ def _build_precalc_period_mapping(
     return pd.concat(precalc_parts, ignore_index=True)
 
 
-def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
+def _write_scenario_settings(run_output_dir: Path, settings: ScenarioSettings) -> None:
+    """Serialize the resolved ScenarioSettings to the run output directory.
+
+    Writes ``scenario_settings.json`` so downstream tools (e.g.
+    ``build_master_bills``) can discover which tariff map and tariffs were used
+    without needing to re-parse the scenario YAML.
+    """
+
+    def _serialize(obj: object) -> object:
+        if isinstance(obj, Path):
+            return str(obj)
+        raise TypeError(f"Cannot serialize {type(obj)}")
+
+    payload = dataclasses.asdict(settings)
+    out_path = run_output_dir / "scenario_settings.json"
+    with out_path.open("w") as f:
+        json.dump(payload, f, indent=2, default=_serialize)
+    log.info(".... Saved scenario settings: %s", out_path)
+
+
+def run(
+    settings: ScenarioSettings,
+    num_workers: int | None = None,
+    *,
+    billing_kwh: bool = False,
+) -> None:
     log.info(
         ".... Beginning %s residential (non-LMI) rate scenario simulation: %s",
         settings.state,
@@ -801,15 +843,23 @@ def run(settings: ScenarioSettings, num_workers: int | None = None) -> None:
 
     save_file_loc = getattr(bs, "save_file_loc", None)
     if save_file_loc is not None:
-        dist_and_sub_tx_mc_path = (
-            Path(save_file_loc) / "delivery_all_marginal_costs.csv"
-        )
+        run_output_dir = Path(save_file_loc)
+        dist_and_sub_tx_mc_path = run_output_dir / "delivery_all_marginal_costs.csv"
         dist_and_sub_tx_marginal_costs.to_csv(dist_and_sub_tx_mc_path, index=True)
         log.info(".... Saved dist+sub-tx marginal costs: %s", dist_and_sub_tx_mc_path)
         if demand_flex_enabled:
-            tracker_path = Path(save_file_loc) / "demand_flex_elasticity_tracker.csv"
+            tracker_path = run_output_dir / "demand_flex_elasticity_tracker.csv"
             elasticity_tracker.to_csv(tracker_path, index=True)
             log.info(".... Saved demand-flex elasticity tracker: %s", tracker_path)
+        _write_scenario_settings(run_output_dir, settings)
+        billing_kwh_tables: BillingKwhTables | None = None
+        if billing_kwh:
+            billing_kwh_tables = prepare_billing_kwh(
+                effective_load_elec,
+                demand_flex_applied=demand_flex_enabled,
+                target_year=settings.year_run,
+            )
+        write_billing_kwh(run_output_dir, billing_kwh_tables)
 
     log.info(
         ".... Completed %s residential (non-LMI) rate scenario simulation",
@@ -825,7 +875,7 @@ def main() -> None:
     )
     args = _parse_args()
     settings = _resolve_settings(args)
-    run(settings, num_workers=args.num_workers)
+    run(settings, num_workers=args.num_workers, billing_kwh=args.billing_kwh)
 
 
 if __name__ == "__main__":

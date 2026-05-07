@@ -8,6 +8,7 @@ Import this module at the top of run_scenario.py (after all other imports):
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 import logging
 import resource
@@ -23,6 +24,7 @@ import cairo.rates_tool.system_revenues as _cairo_sysrev
 import cairo.rates_tool.systemsimulator as _cairo_sim
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 import pyarrow.dataset as pad
 import pyarrow.parquet as pq
 
@@ -198,6 +200,126 @@ def _return_loads_combined(
 
     _log_mem("end of _return_loads_combined")
     return elec, gas
+
+
+# ---------------------------------------------------------------------------
+# Billing kWh export (opt-in via --billing-kwh CLI flag)
+# ---------------------------------------------------------------------------
+
+
+@dataclasses.dataclass(frozen=True)
+class BillingKwhTables:
+    """Pair of Arrow tables (annual summary + hourly 8760) ready to write."""
+
+    annual: pa.Table
+    hourly: pa.Table
+
+
+def prepare_billing_kwh(
+    elec_load: pd.DataFrame,
+    *,
+    demand_flex_applied: bool = False,
+    target_year: int | None = None,
+) -> BillingKwhTables:
+    """Build billing kWh tables from the electric load DataFrame.
+
+    Computes ``grid_cons = max(electricity_net, 0)`` from the load-side data,
+    independent of tariff structure.  Call from ``run_scenario.py`` with
+    whichever load DataFrame CAIRO will bill on (``raw_load_elec`` when
+    demand flex is off, ``effective_load_elec`` when on).
+
+    Parameters
+    ----------
+    elec_load
+        MultiIndex ``[bldg_id, time]`` DataFrame with at least ``load_data``
+        and ``electricity_net`` columns.
+    demand_flex_applied
+        Stored in parquet metadata so consumers know whether these are
+        shifted or raw profiles.
+    target_year
+        Stored in parquet metadata for provenance.
+    """
+    bldg_ids = elec_load.index.get_level_values("bldg_id").unique()
+    n_bldg = len(bldg_ids)
+    n_hours = 8760
+    bldg_id_array = np.asarray(bldg_ids, dtype=np.int64)
+
+    load_data_2d = elec_load["load_data"].values.reshape(n_bldg, n_hours)
+    elec_net_2d = elec_load["electricity_net"].values.reshape(n_bldg, n_hours)
+    grid_cons_2d = np.maximum(elec_net_2d, 0)
+
+    assert grid_cons_2d.shape == load_data_2d.shape, (
+        f"Shape mismatch: grid_cons={grid_cons_2d.shape}, "
+        f"load_data={load_data_2d.shape}"
+    )
+
+    annual_grid = grid_cons_2d.sum(axis=1)
+    annual_total = load_data_2d.sum(axis=1)
+    has_pv = ~np.isclose(annual_grid, annual_total)
+
+    file_metadata = {
+        b"demand_flex_applied": str(demand_flex_applied).encode(),
+    }
+    if target_year is not None:
+        file_metadata[b"target_year"] = str(target_year).encode()
+
+    annual_table = pa.table(
+        {
+            "bldg_id": bldg_id_array,
+            "annual_kwh_grid": annual_grid,
+            "annual_kwh_total": annual_total,
+            "has_pv": has_pv,
+        }
+    ).replace_schema_metadata(file_metadata)
+
+    time_idx = elec_load.index.get_level_values("time")[:n_hours]
+    timestamp_col = np.tile(time_idx.values, n_bldg)
+    bldg_id_col = np.repeat(bldg_id_array, n_hours)
+
+    hourly_table = pa.table(
+        {
+            "bldg_id": bldg_id_col,
+            "timestamp": timestamp_col,
+            "grid_cons_kwh": grid_cons_2d.ravel().copy(),
+            "load_data_kwh": load_data_2d.ravel().copy(),
+        }
+    ).replace_schema_metadata(file_metadata)
+
+    log.info(
+        "Prepared billing kWh for %d buildings (annual + 8760, demand_flex_applied=%s)",
+        n_bldg,
+        demand_flex_applied,
+    )
+    return BillingKwhTables(annual=annual_table, hourly=hourly_table)
+
+
+def write_billing_kwh(
+    output_dir: Path,
+    tables: BillingKwhTables | None,
+) -> None:
+    """Write billing kWh tables to *output_dir*.
+
+    No-op when *tables* is ``None`` (feature disabled or gas-only run).
+    """
+    if tables is None:
+        log.info("Skipping billing kWh write (disabled or gas-only run)")
+        return
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    annual_path = output_dir / "billing_kwh_annual.parquet"
+    pq.write_table(tables.annual, annual_path)
+    n_bldg = tables.annual.num_rows
+    log.info("Wrote billing kWh annual summary: %s (%d buildings)", annual_path, n_bldg)
+
+    hourly_path = output_dir / "billing_kwh_8760.parquet"
+    pq.write_table(tables.hourly, hourly_path, compression="zstd")
+    log.info(
+        "Wrote billing kWh 8760 profiles: %s (%d buildings x %d hours)",
+        hourly_path,
+        n_bldg,
+        tables.hourly.num_rows // n_bldg,
+    )
 
 
 # ---------------------------------------------------------------------------
