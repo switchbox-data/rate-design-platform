@@ -11,8 +11,8 @@ utility: rie
 delivery_revenue_requirement_from_rate_case: 159405721.0
 delivery_revenue_requirement_topups: 287057422.03 # sum(delivery_top_ups.total_budget)
 total_delivery_revenue_requirement: 446463143.03 # delivery_revenue_requirement_from_rate_case + delivery_revenue_requirement_topups
-supply_revenue_requirement_topups: 386274344.61 # sum(supply_top_ups.total_budget)
-total_delivery_and_supply_revenue_requirement: 832737487.64 # total_delivery_revenue_requirement + supply_revenue_requirement_topups
+supply_revenue_requirement_topups: 387170505.96 # sum(supply_top_ups.total_budget)
+total_delivery_and_supply_revenue_requirement: 833633648.99 # total_delivery_revenue_requirement + supply_revenue_requirement_topups
 # --- From p. 14 of PRB-1-ELEC exhibit, lines 8-9, column f & m ---
 # https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p16/a2809947
 delivery_revenue_requirement:
@@ -128,32 +128,32 @@ supply_top_ups:
   supply_commodity_bundled:
     charge_unit: $/kWh
     budget_method: resstock
-    total_budget: 327959365.69
+    total_budget: 328855527.04
 # --- From p. 14 of PRB-1-ELEC exhibit, lines 8-9, column k ---
 # https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p16/a2809947
 test_year_residential_kwh: 2821237490.0
-resstock_total_residential_kwh: 3388382407.0 # sum(_sb.load_curves_monthly.out.electricity.total.energy_consumption) where utility = rie
+resstock_total_residential_kwh: 3379148755.0 # sum(_sb grid_cons = max(electricity_net, 0)) where utility = rie
 # --- From p. 14 of PRB-1-ELEC exhibit, lines 8-9, column d ---
 # https://www.documentcloud.org/documents/27926651-docket-25-45-ge-rie-book-21-blazunas-schedules-workpapers-11262025/#document/p16/a2809947
 test_year_customer_count: 419347.83 # 5,032,174 bills / 12 month = 419,347.83 customers
 resstock_customer_count: 481896.13 # sum(_sb.utility_assignment.weight) where utility = rie
 restock_customer_scale_factor: 0.8702037719 # test_year_customer_count / resstock_customer_count
-resstock_total_residential_kwh_scaled_customer: 2948583151.21 # resstock_total_residential_kwh * resstock_customer_scale_factor
-resstock_kwh_scale_factor: 0.9568112362177266 # test_year_residential_kwh / resstock_total_residential_kwh_scaled_customer (precision chosen so × line 24 reproduces line 17 in float)
+resstock_total_residential_kwh_scaled_customer: 2940547992.80 # resstock_total_residential_kwh * resstock_customer_scale_factor
+resstock_kwh_scale_factor: 0.9594257590448669 # test_year_residential_kwh / resstock_total_residential_kwh_scaled_customer
 resstock_total_residential_kwh_scaled_customer_kwh: 2821237490.0 # resstock_total_residential_kwh_scaled_customer * resstock_kwh_scale_factor (= test_year_residential_kwh)
 resstock_monthly_kwh_scaled_customer_kwh: # resstock_monthly_kwh (from rie.yaml) / resstock_scale_factor × restock_customer_scale_factor × resstock_kwh_scale_factor
-  1: 310822490.82
-  2: 237918928.35
-  3: 256725868.86
-  4: 211199240.88
-  5: 195543723.04
-  6: 199077086.59
-  7: 260999438.84
-  8: 263127127.87
-  9: 202375959.42
-  10: 194599079.62
-  11: 225070372.73
-  12: 263778173.23
+  1: 311671825.01
+  2: 238569050.80
+  3: 257427381.99
+  4: 211776350.78
+  5: 196078053.65
+  6: 199621072.25
+  7: 261712629.66
+  8: 263846132.68
+  9: 202928959.37
+  10: 195130828.95
+  11: 225685386.02
+  12: 264498957.05
 # Originally from Genability API (via rie_monthly_rates_2025.yaml)
 supply_commodity_bundled_rates:
   charge_unit: $/kWh
