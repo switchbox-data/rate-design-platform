@@ -92,8 +92,23 @@ INSTANCE_ID=$(aws ec2 describe-instances \
   --output text 2>/dev/null || echo "")
 
 if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ]; then
-  echo "❌ ERROR: Instance not found. Run 'just dev-setup' first." >&2
-  exit 1
+  # Check if instance exists but is stopped (e.g. auto-idle stop)
+  INSTANCE_ID=$(aws ec2 describe-instances \
+    --filters "Name=tag:Project,Values=$PROJECT_NAME" "Name=instance-state-name,Values=stopped" \
+    --query 'Reservations[0].Instances[0].InstanceId' \
+    --output text 2>/dev/null || echo "")
+
+  if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ]; then
+    echo "❌ ERROR: Instance not found. Run 'just dev-setup' first." >&2
+    exit 1
+  fi
+
+  echo "💤 Instance is stopped (auto-idle). Starting it up..."
+  aws ec2 start-instances --instance-ids "$INSTANCE_ID" >/dev/null
+  echo "⏳ Waiting for instance to start..."
+  aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
+  echo "✅ Instance is running"
+  echo
 fi
 
 AVAILABILITY_ZONE=$(aws ec2 describe-instances \
