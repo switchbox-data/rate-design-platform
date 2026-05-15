@@ -3,18 +3,24 @@
 Runs three phases for each requested state:
   1. Fetch  — download raw ResStock parquet files to the local EBS mount via bsf.
   2. Modify — apply Switchbox-specific metadata transformations (HP customers,
-              heating type, natural gas connection, utility assignment, etc.).
-              Steps will be added here incrementally.
+              heating type, natural gas connection, vulnerability columns).
+              All four transforms are on by default; pass False to skip any.
   3. Upload — sync the modified local files to the corresponding S3 path.
+
+Metadata transforms run in dependency order:
+  identify_hp_customers → identify_heating_type → identify_natgas_connection
+  → add_vulnerability_columns (NY only)
 
 Usage::
 
     uv run python -m data.resstock.main --state NY
     uv run python -m data.resstock.main --state NY RI
     uv run python -m data.resstock.main --state RI --path-output-dir /data.sb/nrel/resstock
-    uv run python -m data.resstock.main --state NY --file-types metadata load_curve_hourly
+    uv run python -m data.resstock.main --state NY --file-types metadata load_curve_hourly load_curve_annual
     uv run python -m data.resstock.main --state NY --upgrade-ids 0 2
-    uv run python -m data.resstock.main --state NY --identify-heating-type False
+    uv run python -m data.resstock.main --state NY --identify-hp-customers False
+    uv run python -m data.resstock.main --state NY --identify-natgas-connection False
+    uv run python -m data.resstock.main --state RI --add-vulnerability-columns False
 """
 
 from __future__ import annotations
@@ -28,9 +34,20 @@ import polars as pl
 import yaml
 
 from data.resstock import fetch_resstock_data
-from data.resstock.constants import HEATING_TYPE_COLS
+from data.resstock.add_vulnerability_columns import (
+    add_vulnerability_columns,
+    load_puma_conditional_probs,
+)
+from data.resstock.constants import (
+    HEATING_TYPE_COLS,
+    HP_CUSTOMERS_COLS,
+    NATGAS_CONNECTION_COLS,
+    VULNERABILITY_COLS,
+)
 from data.resstock.copy_resstock_data import copy_dir
 from data.resstock.identify_heating_type import identify_heating_type
+from data.resstock.identify_hp_customers import identify_hp_customers
+from data.resstock.identify_natgas_connection import identify_natgas_connection
 from data.resstock.manifest import (
     fail_run,
     finish_run,
@@ -65,11 +82,14 @@ with _CONFIG_PATH.open() as _f:
 
 _DEFAULT_OUTPUT_DIR: str = _cfg["paths"]["output_dir"]
 _DEFAULT_S3_DIR: str = _cfg["paths"]["s3_dir"]
+_DEFAULT_S3_PUMS_DIR: str = _cfg["paths"]["s3_pums_dir"]
 _DEFAULT_RELEASE_YEAR: int = _cfg["resstock"]["release_year"]
 _DEFAULT_WEATHER_FILE: str = _cfg["resstock"]["weather_file"]
 _DEFAULT_RELEASE_VERSION: int = _cfg["resstock"]["release_version"]
 _DEFAULT_UPGRADE_IDS: list[str] = _cfg["resstock"]["upgrade_ids"]
 _DEFAULT_FILE_TYPES: list[str] = _cfg["resstock"]["file_types"]
+_DEFAULT_PUMS_SURVEY: str = _cfg["pums"]["survey"]
+_DEFAULT_PUMS_YEAR: str = str(_cfg["pums"]["year"])
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -134,14 +154,60 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Number of buildings to sample (0 = all).",
     )
     parser.add_argument(
+        "--identify-hp-customers",
+        type=_parse_bool,
+        default=True,
+        metavar="BOOL",
+        help=(
+            "Add postprocess_group.has_hp to metadata (default: True). "
+            "Must be True for identify-heating-type to work correctly."
+        ),
+    )
+    parser.add_argument(
         "--identify-heating-type",
         type=_parse_bool,
         default=True,
         metavar="BOOL",
         help=(
-            "Add heating-type columns to metadata.parquet, writing metadata-sb.parquet "
-            "(default: True). Pass --identify-heating-type False to skip."
+            "Add heating-type columns to metadata (default: True). "
+            "Requires identify-hp-customers."
         ),
+    )
+    parser.add_argument(
+        "--identify-natgas-connection",
+        type=_parse_bool,
+        default=True,
+        metavar="BOOL",
+        help=(
+            "Add has_natgas_connection to metadata from load_curve_annual (default: True). "
+            "Requires identify-heating-type and 'load_curve_annual' in --file-types."
+        ),
+    )
+    parser.add_argument(
+        "--add-vulnerability-columns",
+        type=_parse_bool,
+        default=True,
+        metavar="BOOL",
+        help=(
+            "Add LMI vulnerability columns from PUMS (default: True). "
+            "NY only; pass False for RI."
+        ),
+    )
+    parser.add_argument(
+        "--path-s3-pums-dir",
+        default=_DEFAULT_S3_PUMS_DIR,
+        metavar="S3_URI",
+        help="S3 base URI for Census PUMS person data (used by add-vulnerability-columns).",
+    )
+    parser.add_argument(
+        "--pums-survey",
+        default=_DEFAULT_PUMS_SURVEY,
+        help="PUMS survey type (e.g. acs5) — selects PUMS vintage.",
+    )
+    parser.add_argument(
+        "--pums-year",
+        default=_DEFAULT_PUMS_YEAR,
+        help="PUMS end year (e.g. 2021) — selects PUMS vintage.",
     )
     return parser.parse_args(argv)
 
@@ -194,19 +260,64 @@ def _upload_manifest(local_dir: Path, s3_base: str) -> None:
 def _modify_metadata(
     metadata: pl.LazyFrame,
     upgrade_id: str,
+    *,
+    run_identify_hp_customers: bool,
     run_identify_heating_type: bool,
+    run_identify_natgas_connection: bool,
+    path_sb: Path,
+    state: str,
+    run_add_vulnerability_columns: bool,
+    pums_base_dir: str | None = None,
+    pums_survey: str | None = None,
+    pums_year: str | None = None,
 ) -> pl.LazyFrame:
-    """Apply all metadata transformations and return the modified LazyFrame.
+    """Chain all metadata transformations in dependency order.
 
-    Each transformation receives and returns a LazyFrame; nothing is materialised here.
-    I/O (scan_parquet / sink_parquet) and iteration over states/upgrades is handled by
-    the caller.
+    Steps and their dependencies:
+      1. identify_hp_customers       → adds postprocess_group.has_hp
+      2. identify_heating_type       → adds heating_type columns (requires has_hp)
+      3. identify_natgas_connection  → adds has_natgas_connection (requires heats_with_natgas;
+                                       loads load_curve_annual from path_sb)
+      4. add_vulnerability_columns   → adds LMI vulnerability columns (NY only;
+                                       loads PUMS conditional probs from S3)
+
+    Each step receives and returns a LazyFrame. Steps 3 and 4 have internal collects for
+    validation; step 4 always materialises the full frame. I/O (scan_parquet / sink_parquet)
+    and iteration over states/upgrades is handled by the caller.
     """
+    if run_identify_hp_customers:
+        metadata = identify_hp_customers(metadata=metadata, upgrade_id=upgrade_id)
     if run_identify_heating_type:
         metadata = identify_heating_type(metadata=metadata, upgrade_id=upgrade_id)
-    # TODO: add further metadata transformations here, e.g.:
-    #   metadata = identify_hp_customers(metadata=metadata, upgrade_id=upgrade_id)
-    #   metadata = add_vulnerability_columns(metadata=metadata, ...)
+    if run_identify_natgas_connection:
+        lca_dir = (
+            path_sb / "load_curve_annual" / f"state={state}" / f"upgrade={upgrade_id}"
+        )
+        if not lca_dir.exists():
+            raise RuntimeError(
+                f"[state={state} upgrade={upgrade_id}] load_curve_annual not found "
+                f"at {lca_dir}. Ensure 'load_curve_annual' is in --file-types."
+            )
+        load_curve_annual = pl.scan_parquet(str(lca_dir))
+        metadata = identify_natgas_connection(
+            metadata=metadata, load_curve_annual=load_curve_annual
+        )
+    if run_add_vulnerability_columns:
+        if pums_base_dir is None or pums_survey is None or pums_year is None:
+            raise ValueError(
+                "pums_base_dir, pums_survey, and pums_year are required "
+                "when --add-vulnerability-columns True."
+            )
+        puma_conditional_probs = load_puma_conditional_probs(
+            pums_base_dir=pums_base_dir,
+            survey=pums_survey,
+            year=pums_year,
+            state=state,
+        )
+        metadata = add_vulnerability_columns(
+            metadata=metadata,
+            puma_conditional_probs=puma_conditional_probs,
+        )
     return metadata
 
 
@@ -227,14 +338,16 @@ def main(argv: list[str] | None = None) -> None:
         upgrade_ids=args.upgrade_ids,
         file_types=args.file_types,
         flags={
+            "identify_hp_customers": args.identify_hp_customers,
             "identify_heating_type": args.identify_heating_type,
+            "identify_natgas_connection": args.identify_natgas_connection,
+            "add_vulnerability_columns": args.add_vulnerability_columns,
             "sample": args.sample,
         },
     )
 
     try:
         # ── 1. Fetch ──────────────────────────────────────────────────────────
-
         # ── 1a. Fetch raw ResStock data ────────────────────────────────────────
         print("Fetching raw ResStock data...", flush=True)
         rc = fetch_resstock_data.run(
@@ -298,27 +411,57 @@ def main(argv: list[str] | None = None) -> None:
                     continue
                 print(f"  {loc}", flush=True)
 
-                # Read
+                # Read metadata
                 input_metadata = pl.scan_parquet(str(input_path))
                 validate_metadata_readable(input_metadata, input_path, loc)
 
-                # Transform
                 output_metadata = _modify_metadata(
                     metadata=input_metadata,
                     upgrade_id=upgrade_id_padded,
+                    run_identify_hp_customers=args.identify_hp_customers,
                     run_identify_heating_type=args.identify_heating_type,
+                    run_identify_natgas_connection=args.identify_natgas_connection,
+                    path_sb=path_sb,
+                    state=s,
+                    run_add_vulnerability_columns=args.add_vulnerability_columns,
+                    pums_base_dir=args.path_s3_pums_dir,
+                    pums_survey=args.pums_survey,
+                    pums_year=args.pums_year,
                 )
 
-                # Validate schema after each transformation
+                # Validate output schema for each active transformation.
+                if args.identify_hp_customers:
+                    validate_metadata_columns(
+                        output_metadata, HP_CUSTOMERS_COLS, "identify_hp_customers", loc
+                    )
+                    if "identify_hp_customers" not in metadata_transforms_applied:
+                        metadata_transforms_applied.append("identify_hp_customers")
                 if args.identify_heating_type:
                     validate_metadata_columns(
                         output_metadata, HEATING_TYPE_COLS, "identify_heating_type", loc
                     )
                     if "identify_heating_type" not in metadata_transforms_applied:
                         metadata_transforms_applied.append("identify_heating_type")
-                # TODO: add validate_metadata_columns calls for further transformations here.
+                if args.identify_natgas_connection:
+                    validate_metadata_columns(
+                        output_metadata,
+                        NATGAS_CONNECTION_COLS,
+                        "identify_natgas_connection",
+                        loc,
+                    )
+                    if "identify_natgas_connection" not in metadata_transforms_applied:
+                        metadata_transforms_applied.append("identify_natgas_connection")
+                if args.add_vulnerability_columns:
+                    validate_metadata_columns(
+                        output_metadata,
+                        VULNERABILITY_COLS,
+                        "add_vulnerability_columns",
+                        loc,
+                    )
+                    if "add_vulnerability_columns" not in metadata_transforms_applied:
+                        metadata_transforms_applied.append("add_vulnerability_columns")
 
-                # Write
+                # Single sink at the end of the full transformation chain.
                 output_metadata.sink_parquet(str(output_path))
                 validate_metadata_output(output_path, loc)
 
