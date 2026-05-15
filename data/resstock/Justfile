@@ -1,6 +1,8 @@
 # ResStock metadata pipeline: download, identify HP customers, heating type, assign utilities (NY).
 #
 # Usage (from project root):
+#   just -f data/resstock/Justfile status                           # provenance / data status
+#   just -f data/resstock/Justfile status --state NY --location ebs # check EBS for NY only
 #   just -f data/resstock/Justfile fetch NY
 #   just -f data/resstock/Justfile fetch RI
 #   just -f data/resstock/Justfile test-download NY
@@ -9,61 +11,80 @@
 #   just -f data/resstock/Justfile assign-utility-ny res_2024_amy2018_2 00
 
 path_local_repo := `git rev-parse --show-toplevel`
-resstock_release := "res_2024_amy2018_2"
-resstock_release_sb := "res_2024_amy2018_2_sb"
-resstock_upgrade_ids := "0 1 2 3 4 5"
-resstock_upgrade_ids_padded := "00 01 02 03 04 05"
-path_s3_parquet := "s3://data.sb/nrel/resstock"
-path_local_parquet := "/data.sb/nrel/resstock"
-path_s3_pums := "s3://data.sb/census/pums"
 
-# Top-level defaults
+# ── Read defaults from config.toml (single source of truth) ──────────────────
+# justfile_directory() always resolves to the directory containing this Justfile,
+# regardless of where `just` is invoked from.
+[private]
+_cfg := justfile_directory() + "/config.yaml"
 
-pums_survey := "acs5"
-pums_year := "2021"
+resstock_release_year := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['resstock']; print(c['release_year'])"`
+resstock_weather_file := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['resstock']; print(c['weather_file'])"`
+resstock_release_version := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['resstock']; print(c['release_version'])"`
+resstock_upgrade_ids := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['resstock']; print(' '.join(c['upgrade_ids']))"`
+resstock_upgrade_ids_padded := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['resstock']; print(' '.join(u.zfill(2) for u in c['upgrade_ids']))"`
+path_s3_parquet := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['paths']; print(c['s3_dir'])"`
+path_local_parquet := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['paths']; print(c['output_dir'])"`
+path_s3_pums := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['paths']; print(c['s3_pums_dir'])"`
 
-# Download ResStock metadata and loads via bsf. Pass state: NY or RI (or both as space-separated).
+pums_survey := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['pums']; print(c['survey'])"`
+pums_year := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['pums']; print(c['year'])"`
+
+resstock_release := "res_" + resstock_release_year + "_" + resstock_weather_file + "_" + resstock_release_version
+resstock_release_sb := resstock_release + "_sb"
+
+################################################################################
+# Complete, all-in-one recipes
+################################################################################
+
+################################################################################
+# Status / provenance
+################################################################################
+
+# Check provenance of ResStock data on EBS and S3.
+#
+# Examples:
+#   just -f data/resstock/Justfile status                                     # default release, both locations
+#   just -f data/resstock/Justfile status --release res_2024_amy2018_2        # specific release
+#   just -f data/resstock/Justfile status --release res_2024_amy2018_2_sb     # _sb form also accepted
+#   just -f data/resstock/Justfile status --state NY                          # only runs that touched NY
+#   just -f data/resstock/Justfile status --upgrade 0 2                       # only runs for upgrade 0 or 2
+#   just -f data/resstock/Justfile status --state NY --upgrade 2              # combine filters
+#   just -f data/resstock/Justfile status --variant sb                        # only the _sb (modified) release
+#   just -f data/resstock/Justfile status --location ebs                      # skip S3, check local only
+#   just -f data/resstock/Justfile status --location s3                       # skip EBS, check S3 only
+# just -f data/resstock/Justfile status --history 5 -v                      # last 5 runs, verbose
+status *args:
+    cd "{{ path_local_repo }}" && uv run python -m data.resstock.manifest {{ args }}
+
+################################################################################
+# Individual recipes
+################################################################################
+
+# Download ResStock metadata and loads. Pass state: NY or RI (or both as space-separated).
 fetch state:
-    #!/usr/bin/env bash
-    s="{{ state }}"
-    if [[ -z "$s" ]]; then
-        echo "Usage: just fetch <state>"
-        echo "Example: just fetch NY"
-        exit 1
-    fi
-    cd "{{ path_local_repo }}" && uv run bsf \
-        --product resstock \
-        --release_year 2024 \
-        --weather_file amy2018 \
-        --release_version 2 \
-        --states $s \
-        --file_type "metadata load_curve_hourly load_curve_annual" \
-        --upgrade_id "{{ resstock_upgrade_ids }}" \
-        --output_directory {{ path_local_parquet }} \
-        --sample 0
+    cd "{{ path_local_repo }}" && uv run python -m data.resstock.fetch_resstock_data \
+        --state {{ state }} \
+        --release-year {{ resstock_release_year }} \
+        --weather-file {{ resstock_weather_file }} \
+        --release-version {{ resstock_release_version }} \
+        --upgrade-ids {{ resstock_upgrade_ids }} \
+        --path-output-dir {{ path_local_parquet }}
 
+# Download only load_curve_annual file type.
 fetch-load-curve-annual state:
-    #!/usr/bin/env bash
-    s="{{ state }}"
-    if [[ -z "$s" ]]; then
-        echo "Usage: just fetch-load-curve-annual <state>"
-        echo "Example: just fetch-load-curve-annual NY"
-        exit 1
-    fi
-    cd "{{ path_local_repo }}" && uv run bsf \
-        --product resstock \
-        --release_year 2024 \
-        --weather_file amy2018 \
-        --release_version 2 \
-        --states $s \
-        --file_type "load_curve_annual" \
-        --upgrade_id "{{ resstock_upgrade_ids }}" \
-        --output_directory {{ path_local_parquet }} \
-        --sample 0
+    cd "{{ path_local_repo }}" && uv run python -m data.resstock.fetch_resstock_data \
+        --state {{ state }} \
+        --release-year {{ resstock_release_year }} \
+        --weather-file {{ resstock_weather_file }} \
+        --release-version {{ resstock_release_version }} \
+        --upgrade-ids {{ resstock_upgrade_ids }} \
+        --path-output-dir {{ path_local_parquet }} \
+        --file-types load_curve_annual
 
 # Copy resstock data from one release to another.
 copy-resstock-data release_from release_to state upgrade_ids file_types:
-    uv run python "{{ path_local_repo }}/utils/pre/copy_resstock_data.py" \
+    uv run python "{{ path_local_repo }}/data/resstock/copy_resstock_data.py" \
     	--data_path "{{ path_s3_parquet }}" \
     	--release_from "{{ release_from }}" \
     	--release_to "{{ release_to }}" \
