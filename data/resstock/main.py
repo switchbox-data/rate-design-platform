@@ -23,17 +23,24 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
 from data.resstock import fetch_resstock_data
 
-# ── Defaults matching data/resstock/Justfile ──────────────────────────────────
+# ── Defaults from data/resstock/config.yaml ───────────────────────────────────
 
-_DEFAULT_OUTPUT_DIR = fetch_resstock_data._DEFAULT_OUTPUT_DIR
-_DEFAULT_S3_DIR = "s3://data.sb/nrel/resstock"
-_DEFAULT_RELEASE_YEAR = fetch_resstock_data._DEFAULT_RELEASE_YEAR
-_DEFAULT_WEATHER_FILE = fetch_resstock_data._DEFAULT_WEATHER_FILE
-_DEFAULT_RELEASE_VERSION = fetch_resstock_data._DEFAULT_RELEASE_VERSION
-_DEFAULT_UPGRADE_IDS = fetch_resstock_data._DEFAULT_UPGRADE_IDS
-_DEFAULT_FILE_TYPES = fetch_resstock_data._DEFAULT_FILE_TYPES
+_CONFIG_PATH = Path(__file__).parent / "config.yaml"
+
+with _CONFIG_PATH.open() as _f:
+    _cfg = yaml.safe_load(_f)
+
+_DEFAULT_OUTPUT_DIR: str = _cfg["paths"]["output_dir"]
+_DEFAULT_S3_DIR: str = _cfg["paths"]["s3_dir"]
+_DEFAULT_RELEASE_YEAR: int = _cfg["resstock"]["release_year"]
+_DEFAULT_WEATHER_FILE: str = _cfg["resstock"]["weather_file"]
+_DEFAULT_RELEASE_VERSION: int = _cfg["resstock"]["release_version"]
+_DEFAULT_UPGRADE_IDS: list[str] = _cfg["resstock"]["upgrade_ids"]
+_DEFAULT_FILE_TYPES: list[str] = _cfg["resstock"]["file_types"]
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:

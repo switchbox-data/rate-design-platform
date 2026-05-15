@@ -9,18 +9,35 @@
 #   just -f data/resstock/Justfile assign-utility-ny res_2024_amy2018_2 00
 
 path_local_repo := `git rev-parse --show-toplevel`
-resstock_release := "res_2024_amy2018_2"
-resstock_release_sb := "res_2024_amy2018_2_sb"
-resstock_upgrade_ids := "0 1 2 3 4 5"
-resstock_upgrade_ids_padded := "00 01 02 03 04 05"
-path_s3_parquet := "s3://data.sb/nrel/resstock"
-path_local_parquet := "/data.sb/nrel/resstock"
-path_s3_pums := "s3://data.sb/census/pums"
 
-# Top-level defaults
+# ── Read defaults from config.toml (single source of truth) ──────────────────
+# justfile_directory() always resolves to the directory containing this Justfile,
+# regardless of where `just` is invoked from.
+[private]
+_cfg := justfile_directory() + "/config.yaml"
 
-pums_survey := "acs5"
-pums_year := "2021"
+resstock_release_year := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['resstock']; print(c['release_year'])"`
+resstock_weather_file := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['resstock']; print(c['weather_file'])"`
+resstock_release_version := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['resstock']; print(c['release_version'])"`
+resstock_upgrade_ids := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['resstock']; print(' '.join(c['upgrade_ids']))"`
+resstock_upgrade_ids_padded := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['resstock']; print(' '.join(u.zfill(2) for u in c['upgrade_ids']))"`
+path_s3_parquet := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['paths']; print(c['s3_dir'])"`
+path_local_parquet := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['paths']; print(c['output_dir'])"`
+path_s3_pums := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['paths']; print(c['s3_pums_dir'])"`
+
+pums_survey := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['pums']; print(c['survey'])"`
+pums_year := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['pums']; print(c['year'])"`
+
+resstock_release := "res_" + resstock_release_year + "_" + resstock_weather_file + "_" + resstock_release_version
+resstock_release_sb := resstock_release + "_sb"
+
+################################################################################
+# Complete, all-in-one recipes
+################################################################################
+
+################################################################################
+# Individual recipes
+################################################################################
 
 # Download ResStock metadata and loads via bsf. Pass state: NY or RI (or both as space-separated).
 fetch state:
@@ -33,9 +50,9 @@ fetch state:
     fi
     cd "{{ path_local_repo }}" && uv run bsf \
         --product resstock \
-        --release_year 2024 \
-        --weather_file amy2018 \
-        --release_version 2 \
+        --release_year {{ resstock_release_year }} \
+        --weather_file {{ resstock_weather_file }} \
+        --release_version {{ resstock_release_version }} \
         --states $s \
         --file_type "metadata load_curve_hourly load_curve_annual" \
         --upgrade_id "{{ resstock_upgrade_ids }}" \
@@ -52,9 +69,9 @@ fetch-load-curve-annual state:
     fi
     cd "{{ path_local_repo }}" && uv run bsf \
         --product resstock \
-        --release_year 2024 \
-        --weather_file amy2018 \
-        --release_version 2 \
+        --release_year {{ resstock_release_year }} \
+        --weather_file {{ resstock_weather_file }} \
+        --release_version {{ resstock_release_version }} \
         --states $s \
         --file_type "load_curve_annual" \
         --upgrade_id "{{ resstock_upgrade_ids }}" \

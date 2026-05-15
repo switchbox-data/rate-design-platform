@@ -19,14 +19,21 @@ import subprocess
 import sys
 from pathlib import Path
 
-# ── Defaults matching data/resstock/Justfile ──────────────────────────────────
+import yaml
 
-_DEFAULT_OUTPUT_DIR = "/ebs/data/nrel/resstock"
-_DEFAULT_RELEASE_YEAR = 2024
-_DEFAULT_WEATHER_FILE = "amy2018"
-_DEFAULT_RELEASE_VERSION = 2
-_DEFAULT_UPGRADE_IDS = ["0", "1", "2", "3", "4", "5"]
-_DEFAULT_FILE_TYPES = ["metadata", "load_curve_hourly", "load_curve_annual"]
+# ── Defaults from data/resstock/config.yaml ───────────────────────────────────
+
+_CONFIG_PATH = Path(__file__).parent / "config.yaml"
+
+with _CONFIG_PATH.open() as _f:
+    _cfg = yaml.safe_load(_f)
+
+_DEFAULT_OUTPUT_DIR: str = _cfg["paths"]["output_dir"]
+_DEFAULT_RELEASE_YEAR: int = _cfg["resstock"]["release_year"]
+_DEFAULT_WEATHER_FILE: str = _cfg["resstock"]["weather_file"]
+_DEFAULT_RELEASE_VERSION: int = _cfg["resstock"]["release_version"]
+_DEFAULT_UPGRADE_IDS: list[str] = _cfg["resstock"]["upgrade_ids"]
+_DEFAULT_FILE_TYPES: list[str] = _cfg["resstock"]["file_types"]
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
