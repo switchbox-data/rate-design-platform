@@ -249,3 +249,28 @@ resource "aws_volume_attachment" "data" {
   volume_id   = data.aws_ebs_volume.data.id
   instance_id = aws_instance.main.id
 }
+
+# Auto-stop instance after sustained idle CPU (saves cost when no one is using it).
+# Long-running jobs (CAIRO, data processing) keep CPU above the threshold and
+# prevent the alarm from firing.
+resource "aws_cloudwatch_metric_alarm" "idle_stop" {
+  alarm_name          = "${var.project_name}-idle-stop"
+  alarm_description   = "Stop instance after ${var.idle_minutes} min of CPU below ${var.idle_cpu_threshold}%"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = var.idle_minutes / 5
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = 300
+  statistic           = "Average"
+  threshold           = var.idle_cpu_threshold
+  alarm_actions       = ["arn:aws:automate:${var.aws_region}:ec2:stop"]
+
+  dimensions = {
+    InstanceId = aws_instance.main.id
+  }
+
+  tags = {
+    Name    = "${var.project_name}-idle-stop"
+    Project = var.project_name
+  }
+}
