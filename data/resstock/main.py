@@ -31,7 +31,14 @@ from data.resstock import fetch_resstock_data
 from data.resstock.constants import HEATING_TYPE_COLS
 from data.resstock.copy_resstock_data import copy_dir
 from data.resstock.identify_heating_type import identify_heating_type
-from data.resstock.manifest import append_run, new_run_record, record_step
+from data.resstock.manifest import (
+    fail_run,
+    finish_run,
+    new_run_record,
+    record_step,
+    upsert_run,
+    write_manifest,
+)
 from data.resstock.validations import (
     validate_local_files,
     validate_metadata_columns,
@@ -146,7 +153,7 @@ def _upload(
     path_output_dir: str | Path,
     path_s3_dir: str,
 ) -> None:
-    """Sync fetched/modified local files to S3, scoped to fetched states and file types."""
+    """Sync fetched/modified local files to S3 (data only, not the manifest)."""
     local_base = Path(path_output_dir) / release
     s3_base = f"{path_s3_dir.rstrip('/')}/{release}"
 
@@ -164,6 +171,24 @@ def _upload(
                     f"  WARNING: aws s3 sync exited with code {result.returncode}",
                     flush=True,
                 )
+
+
+def _upload_manifest(local_dir: Path, s3_base: str) -> None:
+    """Push the manifest to S3 after the run record has been finalized on disk."""
+    local_manifest = local_dir / "manifest.yaml"
+    s3_manifest = f"{s3_base}/manifest.yaml"
+    if not local_manifest.exists():
+        return
+    print(f"Uploading manifest {local_manifest} → {s3_manifest}", flush=True)
+    result = subprocess.run(
+        ["aws", "s3", "cp", str(local_manifest), s3_manifest],
+        check=False,
+    )
+    if result.returncode != 0:
+        print(
+            f"  WARNING: manifest upload exited with code {result.returncode}",
+            flush=True,
+        )
 
 
 def _modify_metadata(
@@ -207,138 +232,158 @@ def main(argv: list[str] | None = None) -> None:
         },
     )
 
-    # ── 1. Fetch ──────────────────────────────────────────────────────────────
+    try:
+        # ── 1. Fetch ──────────────────────────────────────────────────────────
 
-    # ── 1a. Fetch raw ResStock data ────────────────────────────────────────────
-    print("Fetching raw ResStock data...", flush=True)
-    rc = fetch_resstock_data.run(
-        state=args.state,
-        path_output_dir=args.path_output_dir,
-        release_year=args.release_year,
-        weather_file=args.weather_file,
-        release_version=args.release_version,
-        upgrade_ids=args.upgrade_ids,
-        file_types=args.file_types,
-        sample=args.sample,
-    )
-    if rc != 0:
-        print(f"ERROR: bsf exited with code {rc}. Exiting.", flush=True)
-        sys.exit(rc)
-    print("Validating fetch...", flush=True)
-    validate_local_files(
-        label="fetch (step 1a)",
-        state=args.state,
-        upgrade_ids=args.upgrade_ids,
-        file_types=args.file_types,
-        base_path=path_raw,
-    )
-    record_step(run, "fetch", path=str(path_raw))
-    append_run(path_raw, run)
+        # ── 1a. Fetch raw ResStock data ────────────────────────────────────────
+        print("Fetching raw ResStock data...", flush=True)
+        rc = fetch_resstock_data.run(
+            state=args.state,
+            path_output_dir=args.path_output_dir,
+            release_year=args.release_year,
+            weather_file=args.weather_file,
+            release_version=args.release_version,
+            upgrade_ids=args.upgrade_ids,
+            file_types=args.file_types,
+            sample=args.sample,
+        )
+        if rc != 0:
+            raise RuntimeError(f"bsf exited with code {rc}")
+        print("Validating fetch...", flush=True)
+        validate_local_files(
+            label="fetch (step 1a)",
+            state=args.state,
+            upgrade_ids=args.upgrade_ids,
+            file_types=args.file_types,
+            base_path=path_raw,
+        )
+        record_step(run, "fetch", path=str(path_raw))
+        upsert_run(path_raw, run)
 
-    # ── 1b. Clone raw release to _sb ──────────────────────────────────────────
-    print(f"Cloning {path_raw} → {path_sb}...", flush=True)
-    n_copied = copy_dir(path_raw, path_sb)
-    print(f"  Cloned {n_copied} files.", flush=True)
-    print("Validating clone...", flush=True)
-    validate_local_files(
-        label="clone (step 1b)",
-        state=args.state,
-        upgrade_ids=args.upgrade_ids,
-        file_types=args.file_types,
-        base_path=path_sb,
-    )
-    record_step(run, "clone", files_copied=n_copied, path=str(path_sb))
-    append_run(path_sb, run)
+        # ── 1b. Clone raw release to _sb ──────────────────────────────────────
+        print(f"Cloning {path_raw} → {path_sb}...", flush=True)
+        n_copied = copy_dir(path_raw, path_sb)
+        print(f"  Cloned {n_copied} files.", flush=True)
+        # Reset the sb manifest: copy_dir copies everything including manifest.yaml
+        # from raw. The sb manifest must start fresh and track only sb operations.
+        write_manifest(path_sb, {"runs": []})
+        print("Validating clone...", flush=True)
+        validate_local_files(
+            label="clone (step 1b)",
+            state=args.state,
+            upgrade_ids=args.upgrade_ids,
+            file_types=args.file_types,
+            base_path=path_sb,
+        )
+        record_step(run, "clone", files_copied=n_copied, path=str(path_sb))
+        upsert_run(path_sb, run)
 
-    # ── 2. Modify ─────────────────────────────────────────────────────────────
+        # ── 2. Modify ─────────────────────────────────────────────────────────
 
-    # ── 2a. Modify metadata ────────────────────────────────────────────────────
-    metadata_transforms_applied: list[str] = []
-    print("Modifying metadata...", flush=True)
-    for s in args.state:
-        for uid in args.upgrade_ids:
-            upgrade_id_padded = uid.zfill(2)
-            loc = f"state={s} upgrade={upgrade_id_padded}"
-            metadata_dir = (
-                path_sb / "metadata" / f"state={s}" / f"upgrade={upgrade_id_padded}"
-            )
-            input_path = metadata_dir / "metadata.parquet"
-            output_path = metadata_dir / "metadata-sb.parquet"
-
-            if not input_path.exists():
-                print(f"  WARNING: {input_path} not found, skipping.", flush=True)
-                continue
-            print(f"  {loc}", flush=True)
-
-            # Read
-            input_metadata = pl.scan_parquet(str(input_path))
-            validate_metadata_readable(input_metadata, input_path, loc)
-
-            # Transform
-            output_metadata = _modify_metadata(
-                metadata=input_metadata,
-                upgrade_id=upgrade_id_padded,
-                run_identify_heating_type=args.identify_heating_type,
-            )
-
-            # Validate schema after each transformation
-            if args.identify_heating_type:
-                validate_metadata_columns(
-                    output_metadata, HEATING_TYPE_COLS, "identify_heating_type", loc
+        # ── 2a. Modify metadata ────────────────────────────────────────────────
+        metadata_transforms_applied: list[str] = []
+        print("Modifying metadata...", flush=True)
+        for s in args.state:
+            for uid in args.upgrade_ids:
+                upgrade_id_padded = uid.zfill(2)
+                loc = f"state={s} upgrade={upgrade_id_padded}"
+                metadata_dir = (
+                    path_sb / "metadata" / f"state={s}" / f"upgrade={upgrade_id_padded}"
                 )
-                if "identify_heating_type" not in metadata_transforms_applied:
-                    metadata_transforms_applied.append("identify_heating_type")
-            # TODO: add validate_metadata_columns calls for further transformations here.
+                input_path = metadata_dir / "metadata.parquet"
+                output_path = metadata_dir / "metadata-sb.parquet"
 
-            # Write
-            output_metadata.sink_parquet(str(output_path))
-            validate_metadata_output(output_path, loc)
+                if not input_path.exists():
+                    print(f"  WARNING: {input_path} not found, skipping.", flush=True)
+                    continue
+                print(f"  {loc}", flush=True)
 
-    record_step(run, "modify_metadata", transforms=metadata_transforms_applied)
-    append_run(path_sb, run)
+                # Read
+                input_metadata = pl.scan_parquet(str(input_path))
+                validate_metadata_readable(input_metadata, input_path, loc)
 
-    # ── 2b. Modify load curves ─────────────────────────────────────────────────
-    # TODO: add load curve modification steps here.
+                # Transform
+                output_metadata = _modify_metadata(
+                    metadata=input_metadata,
+                    upgrade_id=upgrade_id_padded,
+                    run_identify_heating_type=args.identify_heating_type,
+                )
 
-    # ── 3. Upload ─────────────────────────────────────────────────────────────
-    print("Uploading raw ResStock data to S3...", flush=True)
-    _upload(
-        state=args.state,
-        file_types=args.file_types,
-        release=release,
-        path_output_dir=args.path_output_dir,
-        path_s3_dir=args.path_s3_dir,
-    )
-    record_step(run, "upload_raw", s3_base=s3_base_raw)
-    append_run(path_raw, run)
+                # Validate schema after each transformation
+                if args.identify_heating_type:
+                    validate_metadata_columns(
+                        output_metadata, HEATING_TYPE_COLS, "identify_heating_type", loc
+                    )
+                    if "identify_heating_type" not in metadata_transforms_applied:
+                        metadata_transforms_applied.append("identify_heating_type")
+                # TODO: add validate_metadata_columns calls for further transformations here.
 
-    print("Uploading modified sb ResStock data to S3...", flush=True)
-    _upload(
-        state=args.state,
-        file_types=args.file_types,
-        release=release_sb,
-        path_output_dir=args.path_output_dir,
-        path_s3_dir=args.path_s3_dir,
-    )
-    record_step(run, "upload_sb", s3_base=s3_base_sb)
-    append_run(path_sb, run)
+                # Write
+                output_metadata.sink_parquet(str(output_path))
+                validate_metadata_output(output_path, loc)
 
-    print("Validating S3 uploads...", flush=True)
-    validate_s3_objects(
-        label="upload raw (step 3)",
-        state=args.state,
-        upgrade_ids=args.upgrade_ids,
-        file_types=args.file_types,
-        s3_base=s3_base_raw,
-    )
-    validate_s3_objects(
-        label="upload sb (step 3)",
-        state=args.state,
-        upgrade_ids=args.upgrade_ids,
-        file_types=args.file_types,
-        s3_base=s3_base_sb,
-    )
-    print("Pipeline complete.", flush=True)
+        record_step(run, "modify_metadata", transforms=metadata_transforms_applied)
+        upsert_run(path_sb, run)
+
+        # ── 2b. Modify load curves ─────────────────────────────────────────────
+        # TODO: add load curve modification steps here.
+
+        # ── 3. Upload ─────────────────────────────────────────────────────────
+        print("Uploading raw ResStock data to S3...", flush=True)
+        _upload(
+            state=args.state,
+            file_types=args.file_types,
+            release=release,
+            path_output_dir=args.path_output_dir,
+            path_s3_dir=args.path_s3_dir,
+        )
+        record_step(run, "upload_raw", s3_base=s3_base_raw)
+        upsert_run(path_raw, run)
+        _upload_manifest(path_raw, s3_base_raw)
+
+        print("Uploading modified sb ResStock data to S3...", flush=True)
+        _upload(
+            state=args.state,
+            file_types=args.file_types,
+            release=release_sb,
+            path_output_dir=args.path_output_dir,
+            path_s3_dir=args.path_s3_dir,
+        )
+        record_step(run, "upload_sb", s3_base=s3_base_sb)
+        upsert_run(path_sb, run)
+        _upload_manifest(path_sb, s3_base_sb)
+
+        print("Validating S3 uploads...", flush=True)
+        validate_s3_objects(
+            label="upload raw (step 3)",
+            state=args.state,
+            upgrade_ids=args.upgrade_ids,
+            file_types=args.file_types,
+            s3_base=s3_base_raw,
+        )
+        validate_s3_objects(
+            label="upload sb (step 3)",
+            state=args.state,
+            upgrade_ids=args.upgrade_ids,
+            file_types=args.file_types,
+            s3_base=s3_base_sb,
+        )
+
+        # ── Done ──────────────────────────────────────────────────────────────
+        finish_run(run)
+        upsert_run(path_raw, run)
+        upsert_run(path_sb, run)
+        print("Pipeline complete.", flush=True)
+
+    except Exception as e:
+        error_msg = str(e)
+        print(f"ERROR: {error_msg}", flush=True)
+        fail_run(run, error_msg)
+        # Best-effort: record the failure in whichever manifests exist on disk.
+        for path in (path_raw, path_sb):
+            if path.exists():
+                upsert_run(path, run)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

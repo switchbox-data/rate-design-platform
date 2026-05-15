@@ -40,6 +40,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -59,15 +60,25 @@ def _git_info() -> dict[str, Any]:
     commit = _run(["git", "rev-parse", "HEAD"])
     branch = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
     dirty_out = _run(["git", "status", "--porcelain"])
+    dirty = bool(dirty_out and dirty_out != "unknown")
+    # Record which files are dirty so the run is reproducible even from a dirty tree.
+    dirty_files = dirty_out.splitlines() if dirty else []
     return {
         "git_commit": commit,
         "git_branch": branch,
-        "git_dirty": bool(dirty_out and dirty_out != "unknown"),
+        "git_dirty": dirty,
+        "git_dirty_files": dirty_files,
     }
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _new_run_id() -> str:
+    """Globally unique run ID: timestamp + UUID4 suffix to avoid same-second collisions."""
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"{ts}-{uuid.uuid4().hex[:8]}"
 
 
 def read_manifest(release_dir: Path) -> dict[str, Any]:
@@ -104,7 +115,8 @@ def new_run_record(
 ) -> dict[str, Any]:
     """Create a new run record (not yet written to disk)."""
     return {
-        "run_id": _now_iso(),
+        "run_id": _new_run_id(),
+        "started_at": _now_iso(),
         "command": _reconstruct_command(),
         **_git_info(),
         "release": release,
@@ -115,6 +127,7 @@ def new_run_record(
             "file_types": file_types,
             **flags,
         },
+        "status": "in_progress",
         "steps": [],
     }
 
@@ -130,13 +143,36 @@ def record_step(run: dict[str, Any], step_name: str, **details: Any) -> None:
     run["steps"].append(entry)
 
 
-def append_run(release_dir: Path, run: dict[str, Any]) -> Path:
-    """Append a run record to the manifest on disk and return the manifest path."""
+def upsert_run(release_dir: Path, run: dict[str, Any]) -> Path:
+    """Write the run record to the manifest, updating in place if the run_id already exists.
+
+    This is safe to call after every step: the first call appends a new entry,
+    and subsequent calls update the same entry rather than creating duplicates.
+    """
     manifest = read_manifest(release_dir)
-    if "runs" not in manifest:
-        manifest["runs"] = []
-    manifest["runs"].append(run)
+    runs: list[dict[str, Any]] = manifest.get("runs", [])
+    run_id = run["run_id"]
+    for i, existing in enumerate(runs):
+        if existing.get("run_id") == run_id:
+            runs[i] = run
+            manifest["runs"] = runs
+            return write_manifest(release_dir, manifest)
+    runs.append(run)
+    manifest["runs"] = runs
     return write_manifest(release_dir, manifest)
+
+
+def finish_run(run: dict[str, Any]) -> None:
+    """Mark a run as successfully completed (mutates the dict in place)."""
+    run["status"] = "completed"
+    run["completed_at"] = _now_iso()
+
+
+def fail_run(run: dict[str, Any], error: str) -> None:
+    """Mark a run as failed (mutates the dict in place)."""
+    run["status"] = "failed"
+    run["failed_at"] = _now_iso()
+    run["error"] = error
 
 
 # ── Status inspection ─────────────────────────────────────────────────────────
@@ -248,9 +284,7 @@ def _format_location(
         lines.append(
             f"  status:     ✗ DIFFERS from current HEAD ({current_commit[:12]})"
         )
-        lines.append(
-            "              Data was produced by a different commit."
-        )
+        lines.append("              Data was produced by a different commit.")
         lines.append(
             "              To recreate, checkout the commit above and re-run the command."
         )
@@ -267,9 +301,7 @@ def _format_location(
     return "\n".join(lines)
 
 
-def _describe_filter(
-    states: list[str] | None, upgrades: list[str] | None
-) -> str:
+def _describe_filter(states: list[str] | None, upgrades: list[str] | None) -> str:
     parts: list[str] = []
     if states:
         parts.append(f"state={','.join(states)}")
@@ -330,27 +362,31 @@ def print_status(
 
         if check_ebs:
             ebs_manifest = read_manifest(ebs_dir)
-            print(_format_location(
-                f"EBS  {ebs_dir}",
-                ebs_manifest,
-                current_commit,
-                n_history,
-                verbose,
-                states=states,
-                upgrades=upgrades,
-            ))
+            print(
+                _format_location(
+                    f"EBS  {ebs_dir}",
+                    ebs_manifest,
+                    current_commit,
+                    n_history,
+                    verbose,
+                    states=states,
+                    upgrades=upgrades,
+                )
+            )
 
         if check_s3:
             s3_manifest = read_manifest_from_s3(s3_manifest_uri)
-            print(_format_location(
-                f"S3   {s3_manifest_uri.rsplit('/', 1)[0]}",
-                s3_manifest,
-                current_commit,
-                n_history,
-                verbose,
-                states=states,
-                upgrades=upgrades,
-            ))
+            print(
+                _format_location(
+                    f"S3   {s3_manifest_uri.rsplit('/', 1)[0]}",
+                    s3_manifest,
+                    current_commit,
+                    n_history,
+                    verbose,
+                    states=states,
+                    upgrades=upgrades,
+                )
+            )
 
         if check_ebs and check_s3:
             ebs_runs = ebs_manifest.get("runs", [])
@@ -455,7 +491,8 @@ def _status_main() -> None:
         help="Number of recent runs to show (default: 1 = latest only).",
     )
     output_group.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Show additional details (flags, file types).",
     )
