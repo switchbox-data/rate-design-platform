@@ -14,6 +14,7 @@ Usage::
     uv run python -m data.resstock.main --state RI --path-output-dir /data.sb/nrel/resstock
     uv run python -m data.resstock.main --state NY --file-types metadata load_curve_hourly
     uv run python -m data.resstock.main --state NY --upgrade-ids 0 2
+    uv run python -m data.resstock.main --state NY --identify-heating-type False
 """
 
 from __future__ import annotations
@@ -23,9 +24,29 @@ import subprocess
 import sys
 from pathlib import Path
 
+import polars as pl
 import yaml
 
 from data.resstock import fetch_resstock_data
+from data.resstock.copy_resstock_data import copy_dir
+from data.resstock.identify_heating_type import identify_heating_type
+from data.resstock.constants import HEATING_TYPE_COLS
+from data.resstock.validations import (
+    validate_local_files,
+    validate_metadata_columns,
+    validate_metadata_output,
+    validate_metadata_readable,
+    validate_s3_objects,
+)
+
+
+def _parse_bool(v: str) -> bool:
+    if v.lower() in ("true", "1", "yes"):
+        return True
+    if v.lower() in ("false", "0", "no"):
+        return False
+    raise argparse.ArgumentTypeError(f"Expected a boolean (True/False), got '{v}'")
+
 
 # ── Defaults from data/resstock/config.yaml ───────────────────────────────────
 
@@ -104,6 +125,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=0,
         help="Number of buildings to sample (0 = all).",
     )
+    parser.add_argument(
+        "--identify-heating-type",
+        type=_parse_bool,
+        default=True,
+        metavar="BOOL",
+        help=(
+            "Add heating-type columns to metadata.parquet, writing metadata-sb.parquet "
+            "(default: True). Pass --identify-heating-type False to skip."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -134,11 +165,38 @@ def _upload(
                 )
 
 
+def _modify_metadata(
+    metadata: pl.LazyFrame,
+    upgrade_id: str,
+    run_identify_heating_type: bool,
+) -> pl.LazyFrame:
+    """Apply all metadata transformations and return the modified LazyFrame.
+
+    Each transformation receives and returns a LazyFrame; nothing is materialised here.
+    I/O (scan_parquet / sink_parquet) and iteration over states/upgrades is handled by
+    the caller.
+    """
+    if run_identify_heating_type:
+        metadata = identify_heating_type(metadata=metadata, upgrade_id=upgrade_id)
+    # TODO: add further metadata transformations here, e.g.:
+    #   metadata = identify_hp_customers(metadata=metadata, upgrade_id=upgrade_id)
+    #   metadata = add_vulnerability_columns(metadata=metadata, ...)
+    return metadata
+
+
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
     release = f"res_{args.release_year}_{args.weather_file}_{args.release_version}"
+    release_sb = f"{release}_sb"
+    path_raw = Path(args.path_output_dir) / release
+    path_sb = Path(args.path_output_dir) / release_sb
+    s3_base_raw = f"{args.path_s3_dir.rstrip('/')}/{release}"
+    s3_base_sb = f"{args.path_s3_dir.rstrip('/')}/{release_sb}"
 
     # ── 1. Fetch ──────────────────────────────────────────────────────────────
+
+    # ── 1a. Fetch raw ResStock data ────────────────────────────────────────────
+    print("Fetching raw ResStock data...", flush=True)
     rc = fetch_resstock_data.run(
         state=args.state,
         path_output_dir=args.path_output_dir,
@@ -150,19 +208,107 @@ def main(argv: list[str] | None = None) -> None:
         sample=args.sample,
     )
     if rc != 0:
+        print(f"ERROR: bsf exited with code {rc}. Exiting.", flush=True)
         sys.exit(rc)
+    print("Validating fetch...", flush=True)
+    validate_local_files(
+        label="fetch (step 1a)",
+        state=args.state,
+        upgrade_ids=args.upgrade_ids,
+        file_types=args.file_types,
+        base_path=path_raw,
+    )
+
+    # ── 1b. Clone raw release to _sb ──────────────────────────────────────────
+    # Clone the raw release into _sb so all modifications are applied in-place
+    # within the _sb tree, leaving the original NREL files untouched.
+    print(f"Cloning {path_raw} → {path_sb}...", flush=True)
+    n_copied = copy_dir(path_raw, path_sb)
+    print(f"  Cloned {n_copied} files.", flush=True)
+    print("Validating clone...", flush=True)
+    validate_local_files(
+        label="clone (step 1b)",
+        state=args.state,
+        upgrade_ids=args.upgrade_ids,
+        file_types=args.file_types,
+        base_path=path_sb,
+    )
 
     # ── 2. Modify ─────────────────────────────────────────────────────────────
-    # TODO: add metadata transformation steps here (identify HP customers,
-    # heating type, natural gas connection, utility assignment, etc.).
+
+    # ── 2a. Modify metadata ────────────────────────────────────────────────────
+    print("Modifying metadata...", flush=True)
+    for s in args.state:
+        for uid in args.upgrade_ids:
+            upgrade_id_padded = uid.zfill(2)
+            loc = f"state={s} upgrade={upgrade_id_padded}"
+            metadata_dir = (
+                path_sb / "metadata" / f"state={s}" / f"upgrade={upgrade_id_padded}"
+            )
+            input_path = metadata_dir / "metadata.parquet"
+            output_path = metadata_dir / "metadata-sb.parquet"
+
+            if not input_path.exists():
+                print(f"  WARNING: {input_path} not found, skipping.", flush=True)
+                continue
+            print(f"  {loc}", flush=True)
+
+            # Read
+            input_metadata = pl.scan_parquet(str(input_path))
+            validate_metadata_readable(input_metadata, input_path, loc)
+
+            # Transform
+            output_metadata = _modify_metadata(
+                metadata=input_metadata,
+                upgrade_id=upgrade_id_padded,
+                run_identify_heating_type=args.identify_heating_type,
+            )
+
+            # Validate schema after each transformation
+            if args.identify_heating_type:
+                validate_metadata_columns(
+                    output_metadata, HEATING_TYPE_COLS, "identify_heating_type", loc
+                )
+            # TODO: add validate_metadata_columns calls for further transformations here.
+
+            # Write
+            output_metadata.sink_parquet(str(output_path))
+            validate_metadata_output(output_path, loc)
+
+    # ── 2b. Modify load curves ─────────────────────────────────────────────────
+    # TODO: add load curve modification steps here.
 
     # ── 3. Upload ─────────────────────────────────────────────────────────────
+    print("Uploading raw ResStock data to S3...", flush=True)
     _upload(
         state=args.state,
         file_types=args.file_types,
         release=release,
         path_output_dir=args.path_output_dir,
         path_s3_dir=args.path_s3_dir,
+    )
+    print("Uploading modified sb ResStock data to S3...", flush=True)
+    _upload(
+        state=args.state,
+        file_types=args.file_types,
+        release=release_sb,
+        path_output_dir=args.path_output_dir,
+        path_s3_dir=args.path_s3_dir,
+    )
+    print("Validating S3 uploads...", flush=True)
+    validate_s3_objects(
+        label="upload raw (step 3)",
+        state=args.state,
+        upgrade_ids=args.upgrade_ids,
+        file_types=args.file_types,
+        s3_base=s3_base_raw,
+    )
+    validate_s3_objects(
+        label="upload sb (step 3)",
+        state=args.state,
+        upgrade_ids=args.upgrade_ids,
+        file_types=args.file_types,
+        s3_base=s3_base_sb,
     )
 
 

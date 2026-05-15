@@ -39,48 +39,30 @@ resstock_release_sb := resstock_release + "_sb"
 # Individual recipes
 ################################################################################
 
-# Download ResStock metadata and loads via bsf. Pass state: NY or RI (or both as space-separated).
+# Download ResStock metadata and loads. Pass state: NY or RI (or both as space-separated).
 fetch state:
-    #!/usr/bin/env bash
-    s="{{ state }}"
-    if [[ -z "$s" ]]; then
-        echo "Usage: just fetch <state>"
-        echo "Example: just fetch NY"
-        exit 1
-    fi
-    cd "{{ path_local_repo }}" && uv run bsf \
-        --product resstock \
-        --release_year {{ resstock_release_year }} \
-        --weather_file {{ resstock_weather_file }} \
-        --release_version {{ resstock_release_version }} \
-        --states $s \
-        --file_type "metadata load_curve_hourly load_curve_annual" \
-        --upgrade_id "{{ resstock_upgrade_ids }}" \
-        --output_directory {{ path_local_parquet }} \
-        --sample 0
+    cd "{{ path_local_repo }}" && uv run python -m data.resstock.fetch_resstock_data \
+        --state {{ state }} \
+        --release-year {{ resstock_release_year }} \
+        --weather-file {{ resstock_weather_file }} \
+        --release-version {{ resstock_release_version }} \
+        --upgrade-ids {{ resstock_upgrade_ids }} \
+        --path-output-dir {{ path_local_parquet }}
 
+# Download only load_curve_annual file type.
 fetch-load-curve-annual state:
-    #!/usr/bin/env bash
-    s="{{ state }}"
-    if [[ -z "$s" ]]; then
-        echo "Usage: just fetch-load-curve-annual <state>"
-        echo "Example: just fetch-load-curve-annual NY"
-        exit 1
-    fi
-    cd "{{ path_local_repo }}" && uv run bsf \
-        --product resstock \
-        --release_year {{ resstock_release_year }} \
-        --weather_file {{ resstock_weather_file }} \
-        --release_version {{ resstock_release_version }} \
-        --states $s \
-        --file_type "load_curve_annual" \
-        --upgrade_id "{{ resstock_upgrade_ids }}" \
-        --output_directory {{ path_local_parquet }} \
-        --sample 0
+    cd "{{ path_local_repo }}" && uv run python -m data.resstock.fetch_resstock_data \
+        --state {{ state }} \
+        --release-year {{ resstock_release_year }} \
+        --weather-file {{ resstock_weather_file }} \
+        --release-version {{ resstock_release_version }} \
+        --upgrade-ids {{ resstock_upgrade_ids }} \
+        --path-output-dir {{ path_local_parquet }} \
+        --file-types load_curve_annual
 
 # Copy resstock data from one release to another.
 copy-resstock-data release_from release_to state upgrade_ids file_types:
-    uv run python "{{ path_local_repo }}/utils/pre/copy_resstock_data.py" \
+    uv run python "{{ path_local_repo }}/data/resstock/copy_resstock_data.py" \
     	--data_path "{{ path_s3_parquet }}" \
     	--release_from "{{ release_from }}" \
     	--release_to "{{ release_to }}" \
