@@ -28,9 +28,10 @@ import polars as pl
 import yaml
 
 from data.resstock import fetch_resstock_data
+from data.resstock.constants import HEATING_TYPE_COLS
 from data.resstock.copy_resstock_data import copy_dir
 from data.resstock.identify_heating_type import identify_heating_type
-from data.resstock.constants import HEATING_TYPE_COLS
+from data.resstock.manifest import append_run, new_run_record, record_step
 from data.resstock.validations import (
     validate_local_files,
     validate_metadata_columns,
@@ -193,6 +194,19 @@ def main(argv: list[str] | None = None) -> None:
     s3_base_raw = f"{args.path_s3_dir.rstrip('/')}/{release}"
     s3_base_sb = f"{args.path_s3_dir.rstrip('/')}/{release_sb}"
 
+    # ── Manifest: start a run record ──────────────────────────────────────────
+    run = new_run_record(
+        release=release,
+        release_sb=release_sb,
+        states=args.state,
+        upgrade_ids=args.upgrade_ids,
+        file_types=args.file_types,
+        flags={
+            "identify_heating_type": args.identify_heating_type,
+            "sample": args.sample,
+        },
+    )
+
     # ── 1. Fetch ──────────────────────────────────────────────────────────────
 
     # ── 1a. Fetch raw ResStock data ────────────────────────────────────────────
@@ -218,10 +232,10 @@ def main(argv: list[str] | None = None) -> None:
         file_types=args.file_types,
         base_path=path_raw,
     )
+    record_step(run, "fetch", path=str(path_raw))
+    append_run(path_raw, run)
 
     # ── 1b. Clone raw release to _sb ──────────────────────────────────────────
-    # Clone the raw release into _sb so all modifications are applied in-place
-    # within the _sb tree, leaving the original NREL files untouched.
     print(f"Cloning {path_raw} → {path_sb}...", flush=True)
     n_copied = copy_dir(path_raw, path_sb)
     print(f"  Cloned {n_copied} files.", flush=True)
@@ -233,10 +247,13 @@ def main(argv: list[str] | None = None) -> None:
         file_types=args.file_types,
         base_path=path_sb,
     )
+    record_step(run, "clone", files_copied=n_copied, path=str(path_sb))
+    append_run(path_sb, run)
 
     # ── 2. Modify ─────────────────────────────────────────────────────────────
 
     # ── 2a. Modify metadata ────────────────────────────────────────────────────
+    metadata_transforms_applied: list[str] = []
     print("Modifying metadata...", flush=True)
     for s in args.state:
         for uid in args.upgrade_ids:
@@ -269,11 +286,16 @@ def main(argv: list[str] | None = None) -> None:
                 validate_metadata_columns(
                     output_metadata, HEATING_TYPE_COLS, "identify_heating_type", loc
                 )
+                if "identify_heating_type" not in metadata_transforms_applied:
+                    metadata_transforms_applied.append("identify_heating_type")
             # TODO: add validate_metadata_columns calls for further transformations here.
 
             # Write
             output_metadata.sink_parquet(str(output_path))
             validate_metadata_output(output_path, loc)
+
+    record_step(run, "modify_metadata", transforms=metadata_transforms_applied)
+    append_run(path_sb, run)
 
     # ── 2b. Modify load curves ─────────────────────────────────────────────────
     # TODO: add load curve modification steps here.
@@ -287,6 +309,9 @@ def main(argv: list[str] | None = None) -> None:
         path_output_dir=args.path_output_dir,
         path_s3_dir=args.path_s3_dir,
     )
+    record_step(run, "upload_raw", s3_base=s3_base_raw)
+    append_run(path_raw, run)
+
     print("Uploading modified sb ResStock data to S3...", flush=True)
     _upload(
         state=args.state,
@@ -295,6 +320,9 @@ def main(argv: list[str] | None = None) -> None:
         path_output_dir=args.path_output_dir,
         path_s3_dir=args.path_s3_dir,
     )
+    record_step(run, "upload_sb", s3_base=s3_base_sb)
+    append_run(path_sb, run)
+
     print("Validating S3 uploads...", flush=True)
     validate_s3_objects(
         label="upload raw (step 3)",
@@ -310,6 +338,7 @@ def main(argv: list[str] | None = None) -> None:
         file_types=args.file_types,
         s3_base=s3_base_sb,
     )
+    print("Pipeline complete.", flush=True)
 
 
 if __name__ == "__main__":

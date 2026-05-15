@@ -1,6 +1,8 @@
 # ResStock metadata pipeline: download, identify HP customers, heating type, assign utilities (NY).
 #
 # Usage (from project root):
+#   just -f data/resstock/Justfile status                           # provenance / data status
+#   just -f data/resstock/Justfile status --state NY --location ebs # check EBS for NY only
 #   just -f data/resstock/Justfile fetch NY
 #   just -f data/resstock/Justfile fetch RI
 #   just -f data/resstock/Justfile test-download NY
@@ -34,6 +36,26 @@ resstock_release_sb := resstock_release + "_sb"
 ################################################################################
 # Complete, all-in-one recipes
 ################################################################################
+
+################################################################################
+# Status / provenance
+################################################################################
+
+# Check provenance of ResStock data on EBS and S3.
+#
+# Examples:
+#   just -f data/resstock/Justfile status                                     # default release, both locations
+#   just -f data/resstock/Justfile status --release res_2024_amy2018_2        # specific release
+#   just -f data/resstock/Justfile status --release res_2024_amy2018_2_sb     # _sb form also accepted
+#   just -f data/resstock/Justfile status --state NY                          # only runs that touched NY
+#   just -f data/resstock/Justfile status --upgrade 0 2                       # only runs for upgrade 0 or 2
+#   just -f data/resstock/Justfile status --state NY --upgrade 2              # combine filters
+#   just -f data/resstock/Justfile status --variant sb                        # only the _sb (modified) release
+#   just -f data/resstock/Justfile status --location ebs                      # skip S3, check local only
+#   just -f data/resstock/Justfile status --location s3                       # skip EBS, check S3 only
+# just -f data/resstock/Justfile status --history 5 -v                      # last 5 runs, verbose
+status *args:
+    cd "{{ path_local_repo }}" && uv run python -m data.resstock.manifest {{ args }}
 
 ################################################################################
 # Individual recipes

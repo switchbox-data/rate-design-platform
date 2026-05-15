@@ -14,7 +14,6 @@ from pathlib import Path
 import polars as pl
 
 
-
 def validate_local_files(
     label: str,
     state: list[str],
@@ -63,7 +62,9 @@ def validate_s3_objects(
         for s in state:
             for uid in upgrade_ids:
                 upgrade_id_padded = uid.zfill(2)
-                s3_path = f"{s3_base.rstrip('/')}/{ft}/state={s}/upgrade={upgrade_id_padded}/"
+                s3_path = (
+                    f"{s3_base.rstrip('/')}/{ft}/state={s}/upgrade={upgrade_id_padded}/"
+                )
                 result = subprocess.run(
                     ["aws", "s3", "ls", s3_path],
                     capture_output=True,
