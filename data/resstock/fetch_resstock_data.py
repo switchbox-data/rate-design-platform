@@ -105,15 +105,24 @@ def run(
 
     cmd = [
         "bsf",
-        "--product", "resstock",
-        "--release_year", str(release_year),
-        "--weather_file", weather_file,
-        "--release_version", str(release_version),
-        "--states", states,
-        "--file_type", file_types_str,
-        "--upgrade_id", upgrade_ids_str,
-        "--output_directory", str(output_dir),
-        "--sample", str(sample),
+        "--product",
+        "resstock",
+        "--release_year",
+        str(release_year),
+        "--weather_file",
+        weather_file,
+        "--release_version",
+        str(release_version),
+        "--states",
+        states,
+        "--file_type",
+        file_types_str,
+        "--upgrade_id",
+        upgrade_ids_str,
+        "--output_directory",
+        str(output_dir),
+        "--sample",
+        str(sample),
     ]
 
     print(f"Fetching ResStock data for state(s): {states}", flush=True)

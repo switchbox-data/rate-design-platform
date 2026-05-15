@@ -1,7 +1,11 @@
 """Orchestration entry point for the ResStock data pipeline.
 
-Currently runs the fetch step. Future steps (identify HP customers, heating
-type, natural gas connection, etc.) will be added here.
+Runs three phases for each requested state:
+  1. Fetch  — download raw ResStock parquet files to the local EBS mount via bsf.
+  2. Modify — apply Switchbox-specific metadata transformations (HP customers,
+              heating type, natural gas connection, utility assignment, etc.).
+              Steps will be added here incrementally.
+  3. Upload — sync the modified local files to the corresponding S3 path.
 
 Usage::
 
@@ -15,12 +19,16 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import subprocess
+import sys
+from pathlib import Path
 
 from data.resstock import fetch_resstock_data
 
 # ── Defaults matching data/resstock/Justfile ──────────────────────────────────
 
 _DEFAULT_OUTPUT_DIR = fetch_resstock_data._DEFAULT_OUTPUT_DIR
+_DEFAULT_S3_DIR = "s3://data.sb/nrel/resstock"
 _DEFAULT_RELEASE_YEAR = fetch_resstock_data._DEFAULT_RELEASE_YEAR
 _DEFAULT_WEATHER_FILE = fetch_resstock_data._DEFAULT_WEATHER_FILE
 _DEFAULT_RELEASE_VERSION = fetch_resstock_data._DEFAULT_RELEASE_VERSION
@@ -30,7 +38,7 @@ _DEFAULT_FILE_TYPES = fetch_resstock_data._DEFAULT_FILE_TYPES
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="ResStock data pipeline: fetch metadata and load curves.",
+        description="ResStock data pipeline: fetch, modify, and upload.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
@@ -44,7 +52,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--path-output-dir",
         default=_DEFAULT_OUTPUT_DIR,
         metavar="DIR",
-        help="Local directory where ResStock parquet files are written.",
+        help="Local EBS directory where ResStock parquet files are written.",
+    )
+    parser.add_argument(
+        "--path-s3-dir",
+        default=_DEFAULT_S3_DIR,
+        metavar="S3_URI",
+        help="S3 base URI mirroring the local output directory.",
     )
     parser.add_argument(
         "--release-year",
@@ -86,9 +100,63 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _upload(
+    state: list[str],
+    file_types: list[str],
+    release: str,
+    path_output_dir: str | Path,
+    path_s3_dir: str,
+) -> None:
+    """Sync fetched/modified local files to S3, scoped to fetched states and file types."""
+    local_base = Path(path_output_dir) / release
+    s3_base = f"{path_s3_dir.rstrip('/')}/{release}"
+
+    for file_type in file_types:
+        for s in state:
+            local_path = local_base / file_type / f"state={s}"
+            s3_path = f"{s3_base}/{file_type}/state={s}/"
+            print(f"Uploading {local_path} → {s3_path}", flush=True)
+            result = subprocess.run(
+                ["aws", "s3", "sync", str(local_path), s3_path],
+                check=False,
+            )
+            if result.returncode != 0:
+                print(
+                    f"  WARNING: aws s3 sync exited with code {result.returncode}",
+                    flush=True,
+                )
+
+
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
-    fetch_resstock_data.run(**vars(args))
+    release = f"res_{args.release_year}_{args.weather_file}_{args.release_version}"
+
+    # ── 1. Fetch ──────────────────────────────────────────────────────────────
+    rc = fetch_resstock_data.run(
+        state=args.state,
+        path_output_dir=args.path_output_dir,
+        release_year=args.release_year,
+        weather_file=args.weather_file,
+        release_version=args.release_version,
+        upgrade_ids=args.upgrade_ids,
+        file_types=args.file_types,
+        sample=args.sample,
+    )
+    if rc != 0:
+        sys.exit(rc)
+
+    # ── 2. Modify ─────────────────────────────────────────────────────────────
+    # TODO: add metadata transformation steps here (identify HP customers,
+    # heating type, natural gas connection, utility assignment, etc.).
+
+    # ── 3. Upload ─────────────────────────────────────────────────────────────
+    _upload(
+        state=args.state,
+        file_types=args.file_types,
+        release=release,
+        path_output_dir=args.path_output_dir,
+        path_s3_dir=args.path_s3_dir,
+    )
 
 
 if __name__ == "__main__":
