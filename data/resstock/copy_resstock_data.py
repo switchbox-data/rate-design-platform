@@ -119,7 +119,7 @@ def _copy_local_dir(
             continue
         dest_file = dest_dir / rel
         dest_file.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src_file, dest_file)
+        shutil.copyfile(src_file, dest_file)
         count += 1
     return count
 

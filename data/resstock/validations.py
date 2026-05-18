@@ -55,27 +55,48 @@ def validate_s3_objects(
     upgrade_ids: list[str],
     file_types: list[str],
     s3_base: str,
+    local_base: Path,
+    spot_check_max: int = 5,
 ) -> None:
-    """Exit with an error if any (file_type, state, upgrade_id) prefix has no S3 objects."""
+    """Spot-check up to `spot_check_max` specific S3 objects per (file_type, state, upgrade).
+
+    Rather than listing the entire S3 prefix (slow for large directories), picks up to
+    `spot_check_max` real filenames from the local directory and checks each one exists on S3.
+    """
     errors: list[str] = []
     for ft in file_types:
         for s in state:
             for uid in upgrade_ids:
                 upgrade_id_padded = uid.zfill(2)
-                s3_path = (
-                    f"{s3_base.rstrip('/')}/{ft}/state={s}/upgrade={upgrade_id_padded}/"
+                local_dir = (
+                    local_base / ft / f"state={s}" / f"upgrade={upgrade_id_padded}"
                 )
-                result = subprocess.run(
-                    ["aws", "s3", "ls", s3_path],
-                    capture_output=True,
-                    text=True,
-                    check=False,
+                local_files = (
+                    sorted(local_dir.glob("*.parquet")) if local_dir.is_dir() else []
                 )
-                if result.returncode != 0 or not result.stdout.strip():
+                files_to_check = local_files[:spot_check_max]
+                if not files_to_check:
                     errors.append(
                         f"  {ft}/state={s}/upgrade={upgrade_id_padded}:"
-                        f" no objects found at {s3_path}"
+                        f" no local .parquet files to spot-check under {local_dir}"
                     )
+                    continue
+                s3_prefix = (
+                    f"{s3_base.rstrip('/')}/{ft}/state={s}/upgrade={upgrade_id_padded}"
+                )
+                for local_file in files_to_check:
+                    s3_path = f"{s3_prefix}/{local_file.name}"
+                    result = subprocess.run(
+                        ["aws", "s3", "ls", s3_path],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    if result.returncode != 0 or not result.stdout.strip():
+                        errors.append(
+                            f"  {ft}/state={s}/upgrade={upgrade_id_padded}:"
+                            f" object not found at {s3_path}"
+                        )
     if errors:
         print(
             f"ERROR: Validation failed after {label}.\n"
@@ -85,8 +106,8 @@ def validate_s3_objects(
         )
         sys.exit(1)
     print(
-        "  Validation passed: found S3 objects for all"
-        " (file_type, state, upgrade) combinations.",
+        f"  Validation passed: spot-checked up to {spot_check_max} S3 objects per"
+        " (file_type, state, upgrade) combination.",
         flush=True,
     )
 

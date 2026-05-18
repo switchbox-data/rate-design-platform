@@ -373,12 +373,32 @@ def main(argv: list[str] | None = None) -> None:
         record_step(run, "fetch", path=str(path_raw))
         upsert_run(path_raw, run)
 
-        # ── 1b. Clone raw release to _sb ──────────────────────────────────────
-        print(f"Cloning {path_raw} → {path_sb}...", flush=True)
-        n_copied = copy_dir(path_raw, path_sb)
+        # ── 1b. Clone raw release to _sb (only the fetched states/file_types) ──
+        print(
+            f"Cloning {path_raw} → {path_sb} (states={args.state}, file_types={args.file_types})...",
+            flush=True,
+        )
+        n_copied = 0
+        for file_type in args.file_types:
+            for s in args.state:
+                for uid in args.upgrade_ids:
+                    upgrade_id_padded = uid.zfill(2)
+                    src = (
+                        path_raw
+                        / file_type
+                        / f"state={s}"
+                        / f"upgrade={upgrade_id_padded}"
+                    )
+                    dst = (
+                        path_sb
+                        / file_type
+                        / f"state={s}"
+                        / f"upgrade={upgrade_id_padded}"
+                    )
+                    if src.is_dir():
+                        n_copied += copy_dir(src, dst)
         print(f"  Cloned {n_copied} files.", flush=True)
-        # Reset the sb manifest: copy_dir copies everything including manifest.yaml
-        # from raw. The sb manifest must start fresh and track only sb operations.
+        path_sb.mkdir(parents=True, exist_ok=True)
         write_manifest(path_sb, {"runs": []})
         print("Validating clone...", flush=True)
         validate_local_files(
@@ -503,6 +523,7 @@ def main(argv: list[str] | None = None) -> None:
             upgrade_ids=args.upgrade_ids,
             file_types=args.file_types,
             s3_base=s3_base_raw,
+            local_base=path_raw,
         )
         validate_s3_objects(
             label="upload sb (step 3)",
@@ -510,6 +531,7 @@ def main(argv: list[str] | None = None) -> None:
             upgrade_ids=args.upgrade_ids,
             file_types=args.file_types,
             s3_base=s3_base_sb,
+            local_base=path_sb,
         )
 
         # ── Done ──────────────────────────────────────────────────────────────
