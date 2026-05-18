@@ -489,7 +489,86 @@ def main(argv: list[str] | None = None) -> None:
         upsert_run(path_sb, run)
 
         # ── 2b. Modify load curves ─────────────────────────────────────────────
-        # TODO: add load curve modification steps here.
+        #
+        # TODO (step 2b-i): Approximate non-HP load for upgrade 02 only.
+        #   For each state, call utils/pre/approximate_non_hp_load.py to identify
+        #   non-HP multifamily highrise buildings, find their k nearest HP neighbors
+        #   at the same weather station (by heating-load RMSE), and replace their
+        #   hourly load curve HVAC columns with the neighbor average. This is what
+        #   makes the _sb release "HP-like" for CAIRO/BAT.
+        #
+        #   Key parameters (match the current Justfile defaults):
+        #     upgrade_id = "02"
+        #     k = 15
+        #     update_mf = True        (update non-HP MF highrise buildings)
+        #     update_other_fuel = True (update "other fuel type" non-HP buildings)
+        #     include_cooling = False  (RMSE computed on heating-only load)
+        #
+        #   Implementation sketch:
+        #     from utils.pre.approximate_non_hp_load import (
+        #         update_load_curve_hourly, _find_nearest_neighbors,
+        #         _identify_non_hp_mf_highrise,
+        #     )
+        #     for s in args.state:
+        #         if "02" not in args.upgrade_ids:
+        #             continue
+        #         input_lc_dir = path_sb / "load_curve_hourly" / f"state={s}" / "upgrade=02"
+        #         metadata_path = path_sb / "metadata" / f"state={s}" / "upgrade=02" / "metadata-sb.parquet"
+        #         metadata = pl.scan_parquet(str(metadata_path))
+        #         neighbor_map = _find_nearest_neighbors(
+        #             metadata, _identify_non_hp_mf_highrise(metadata),
+        #             input_lc_dir, upgrade_id="02", k=15, include_cooling=False,
+        #             update_other_fuel=True,
+        #         )
+        #         update_load_curve_hourly(neighbor_map, input_lc_dir, input_lc_dir, upgrade_id="02")
+        #     record_step(run, "approximate_non_hp_load", upgrades=["02"])
+        #     upsert_run(path_sb, run)
+        #
+        # TODO (step 2b-ii): Adjust multifamily non-HVAC electricity for upgrades 00 and 02.
+        #   For each state, call utils/pre/adjust_mf_electricity.py against the _sb release.
+        #   Run AFTER approximate-non-hp-load so the approximated load curves are the input.
+        #   Applies to both upgrade 00 (baseline) and upgrade 02 (HP scenario).
+        #
+        #   Implementation sketch:
+        #     from utils.pre.adjust_mf_electricity import adjust_mf_electricity
+        #     for s in args.state:
+        #         for uid in ["00", "02"]:
+        #             if uid not in [u.zfill(2) for u in args.upgrade_ids]:
+        #                 continue
+        #             adjust_mf_electricity(
+        #                 state=s,
+        #                 release=release_sb,
+        #                 path_output_dir=args.path_output_dir,
+        #                 upgrade_id=uid,
+        #             )
+        #     record_step(run, "adjust_mf_electricity", upgrades=["00", "02"])
+        #     upsert_run(path_sb, run)
+        #
+        # TODO (step 2b-iii): Add metadata_utility to the _sb clone.
+        #   The old workflow ran state-specific utility assignment on the standard release
+        #   first, then copied metadata_utility/ into _sb. Currently main.py does not
+        #   copy metadata_utility at all, so _sb will be missing utility assignments.
+        #   Options:
+        #     a) Run utility assignment (assign-utility-ny / assign-utility-ri) before this
+        #        script, then include "metadata_utility" in --file-types so the clone step
+        #        picks it up automatically (preferred — no logic change needed here).
+        #     b) Add a separate assign-utility step inside main.py (state-specific, complex).
+        #   See: context/code/data/resstock_data_preparation_run_order.md §3 and §4,
+        #        context/code/data/ny_utility_assignment_resstock.md (NY-specific detail).
+        #
+        # TODO (step 2b-iv): Add monthly load curves and upload them.
+        #   After the _sb upload, aggregate hourly → monthly on local EBS and upload
+        #   load_curve_monthly/ to S3 so post-processing (build_master_bills, gas/oil/
+        #   propane billing) can find it. These steps need the EBS sync (sudo aws s3 sync)
+        #   to have run first, so they may stay as separate Justfile recipes rather than
+        #   being inlined here.
+        #
+        #   Justfile recipes to wire or replicate:
+        #     just -f data/resstock/Justfile add-monthly-loads <STATE> "<UPGRADE_IDS>"
+        #     just -f data/resstock/Justfile upload-monthly-loads <STATE> "<UPGRADE_IDS>"
+        #
+        #   Implementation: see data/resstock/Justfile recipes add-monthly-loads and
+        #   upload-monthly-loads, and context/code/data/resstock_data_preparation_run_order.md §8-9.
 
         # ── 3. Upload ─────────────────────────────────────────────────────────
         print("Uploading raw ResStock data to S3...", flush=True)
