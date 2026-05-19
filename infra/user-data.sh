@@ -312,6 +312,16 @@ if ! grep -q "^AWS_DEFAULT_REGION=" /etc/environment; then
   echo "AWS_DEFAULT_REGION=us-west-2" >>/etc/environment
 fi
 
+# Configure SSH keepalives so IDE connections (Cursor, VS Code) survive long
+# idle periods where no data flows over the tunnel (e.g. agent computing diffs).
+# Without this, intermediate network devices drop the TCP session after ~60-120s
+# of silence, causing "SSH connection disconnected" errors.
+#   ClientAliveInterval 60  — server pings the client every 60 seconds
+#   ClientAliveCountMax 10  — drop connection after 10 missed pings (10 minutes)
+sed -i 's/^#\?ClientAliveInterval.*/ClientAliveInterval 60/' /etc/ssh/sshd_config
+sed -i 's/^#\?ClientAliveCountMax.*/ClientAliveCountMax 10/' /etc/ssh/sshd_config
+systemctl reload sshd || systemctl reload ssh || true
+
 # Start and enable SSM agent (for AWS Systems Manager Session Manager)
 systemctl enable amazon-ssm-agent || true
 systemctl start amazon-ssm-agent || true

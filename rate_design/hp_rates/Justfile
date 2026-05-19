@@ -13,7 +13,7 @@
 # Tier 1: Identity (set by state wrapper, dispatch, or manual source)
 # =============================================================================
 
-set allow-duplicate-variables := true
+set allow-duplicate-variables
 
 state := env_var_or_default('STATE', '')
 utility := env_var_or_default('UTILITY', '')
