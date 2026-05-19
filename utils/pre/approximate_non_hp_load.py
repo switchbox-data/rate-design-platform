@@ -457,10 +457,22 @@ def _find_nearest_neighbors(
     max_workers_load_curves: int = 256,
     max_workers_neighbors: int = 256,
     include_cooling: bool = False,
+    neighbor_load_curve_hourly_dir: S3Path | Path | None = None,
 ) -> dict[int, list[tuple[int, float]]]:
     """For each non-HP MF bldg, find k nearest same-weather bldgs by lowest RMSE on load curves.
     Returns non_hp_bldg_id -> [(neighbor_bldg_id, rmse), ...].
+
+    ``load_curve_hourly_dir`` is used for target (non-HP) buildings.
+    ``neighbor_load_curve_hourly_dir`` is used for candidate neighbor buildings; when
+    omitted it falls back to ``load_curve_hourly_dir``.  Pass a separate path (e.g. an
+    S3Path pointing at the raw release) when only a sampled subset of buildings is
+    present locally but the full population is needed as the neighbor pool.
     """
+    _neighbor_dir: S3Path | Path = (
+        neighbor_load_curve_hourly_dir
+        if neighbor_load_curve_hourly_dir is not None
+        else load_curve_hourly_dir
+    )
     weather_station_bldg_id_map_non_hp = group_by_weather_station_id(
         non_hp_bldg_metadata
     )
@@ -480,7 +492,7 @@ def _find_nearest_neighbors(
             for x in weather_station_bldg_id_map_total[weather_station]
             if x not in station_bldg_ids
         ]
-        # If include_cooling, fit based on total (heating+cooling) load curves; otherwise, fit based on heating load curves.
+        # Target load curves always come from the local (or primary) dir.
         if include_cooling:
             non_hp_load_curves = _load_all_total_load_curves_for_bldg_ids(
                 load_curve_hourly_dir,
@@ -495,14 +507,14 @@ def _find_nearest_neighbors(
                 station_bldg_ids,
                 max_workers=max_workers_load_curves,
             )
-        # Download load curves for each neighbor (in parallel).
+        # Load neighbor curves in parallel from _neighbor_dir (may differ from the
+        # target dir when a sample was requested and neighbors live on S3).
         with ThreadPoolExecutor(max_workers=max_workers_neighbors) as executor:
-            # If include_cooling, fit based on total load curves; otherwise, fit based on heating load curves.
             if include_cooling:
                 futures = {
                     executor.submit(
                         _load_one_total_building_load_curve,
-                        load_curve_hourly_dir,
+                        _neighbor_dir,
                         bldg_id,
                         upgrade_id,
                     ): bldg_id
@@ -512,7 +524,7 @@ def _find_nearest_neighbors(
                 futures = {
                     executor.submit(
                         _load_one_heating_building_load_curve,
-                        load_curve_hourly_dir,
+                        _neighbor_dir,
                         bldg_id,
                         upgrade_id,
                     ): bldg_id
@@ -902,11 +914,24 @@ def update_load_curve_hourly(
     upgrade_id: str,
     *,
     max_workers: int = 256,
+    neighbor_load_curve_hourly_dir: S3Path | Path | None = None,
 ) -> list[int]:
-    """Load original and neighbor parquets concurrently, replace hvac columns, sink back to original path. Returns list of bldg_ids that use natural gas after replacement."""
+    """Load original and neighbor parquets concurrently, replace hvac columns, sink back to original path. Returns list of bldg_ids that use natural gas after replacement.
+
+    ``neighbor_load_curve_hourly_dir`` overrides where neighbor parquets are read from.
+    When omitted, neighbors are read from ``input_load_curve_hourly_dir``.  Pass an
+    S3Path here when only a sampled subset was downloaded locally but the chosen
+    neighbors live in the full S3 release.
+    """
     upgrade_int = int(upgrade_id)
     scan_opts = _parquet_storage_options(input_load_curve_hourly_dir)
     sink_opts = _parquet_storage_options(output_load_curve_hourly_dir)
+    _neighbor_dir: S3Path | Path = (
+        neighbor_load_curve_hourly_dir
+        if neighbor_load_curve_hourly_dir is not None
+        else input_load_curve_hourly_dir
+    )
+    neighbor_scan_opts = _parquet_storage_options(_neighbor_dir)
     natural_gas_usage: list[int] = []
     usage_lock = threading.Lock()
 
@@ -924,8 +949,8 @@ def update_load_curve_hourly(
             neighbor_futures = [
                 executor.submit(
                     pl.scan_parquet,
-                    str(input_load_curve_hourly_dir / f"{nid}-{upgrade_int}.parquet"),
-                    storage_options=scan_opts,
+                    str(_neighbor_dir / f"{nid}-{upgrade_int}.parquet"),
+                    storage_options=neighbor_scan_opts,
                 )
                 for nid in neighbor_ids
             ]

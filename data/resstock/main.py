@@ -29,11 +29,21 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
+from typing import cast
 
 import polars as pl
 import yaml
+from cloudpathlib import S3Path
 
 from data.resstock import fetch_resstock_data
+from data.resstock.approximate_non_hp_load import (
+    STORAGE_OPTIONS as _APPROX_STORAGE_OPTIONS,
+    _find_nearest_neighbors,
+    _identify_non_hp_mf,
+    _identify_other_fuel_types,
+    update_load_curve_hourly,
+    update_metadata as update_non_hp_metadata,
+)
 from data.resstock.add_vulnerability_columns import (
     add_vulnerability_columns,
     load_puma_conditional_probs,
@@ -194,6 +204,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--approximate-non-hp-load",
+        type=_parse_bool,
+        default=True,
+        metavar="BOOL",
+        help=(
+            "Approximate non-HP load curves for upgrade 02 via k-nearest-neighbor "
+            "HVAC substitution (default: True). Only runs when upgrade 02 is in "
+            "--upgrade-ids and load_curve_hourly is in --file-types."
+        ),
+    )
+    parser.add_argument(
         "--path-s3-pums-dir",
         default=_DEFAULT_S3_PUMS_DIR,
         metavar="S3_URI",
@@ -342,6 +363,7 @@ def main(argv: list[str] | None = None) -> None:
             "identify_heating_type": args.identify_heating_type,
             "identify_natgas_connection": args.identify_natgas_connection,
             "add_vulnerability_columns": args.add_vulnerability_columns,
+            "approximate_non_hp_load": args.approximate_non_hp_load,
             "sample": args.sample,
         },
     )
@@ -489,40 +511,156 @@ def main(argv: list[str] | None = None) -> None:
         upsert_run(path_sb, run)
 
         # ── 2b. Modify load curves ─────────────────────────────────────────────
-        #
-        # TODO (step 2b-i): Approximate non-HP load for upgrade 02 only.
-        #   For each state, call utils/pre/approximate_non_hp_load.py to identify
-        #   non-HP multifamily highrise buildings, find their k nearest HP neighbors
-        #   at the same weather station (by heating-load RMSE), and replace their
-        #   hourly load curve HVAC columns with the neighbor average. This is what
-        #   makes the _sb release "HP-like" for CAIRO/BAT.
-        #
-        #   Key parameters (match the current Justfile defaults):
-        #     upgrade_id = "02"
-        #     k = 15
-        #     update_mf = True        (update non-HP MF highrise buildings)
-        #     update_other_fuel = True (update "other fuel type" non-HP buildings)
-        #     include_cooling = False  (RMSE computed on heating-only load)
-        #
-        #   Implementation sketch:
-        #     from utils.pre.approximate_non_hp_load import (
-        #         update_load_curve_hourly, _find_nearest_neighbors,
-        #         _identify_non_hp_mf_highrise,
-        #     )
-        #     for s in args.state:
-        #         if "02" not in args.upgrade_ids:
-        #             continue
-        #         input_lc_dir = path_sb / "load_curve_hourly" / f"state={s}" / "upgrade=02"
-        #         metadata_path = path_sb / "metadata" / f"state={s}" / "upgrade=02" / "metadata-sb.parquet"
-        #         metadata = pl.scan_parquet(str(metadata_path))
-        #         neighbor_map = _find_nearest_neighbors(
-        #             metadata, _identify_non_hp_mf_highrise(metadata),
-        #             input_lc_dir, upgrade_id="02", k=15, include_cooling=False,
-        #             update_other_fuel=True,
-        #         )
-        #         update_load_curve_hourly(neighbor_map, input_lc_dir, input_lc_dir, upgrade_id="02")
-        #     record_step(run, "approximate_non_hp_load", upgrades=["02"])
-        #     upsert_run(path_sb, run)
+
+        # ── 2b-i. Approximate non-HP load for upgrade 02 ──────────────────────
+        _APPROX_UPGRADE = "02"
+        if (
+            args.approximate_non_hp_load
+            and _APPROX_UPGRADE in [u.zfill(2) for u in args.upgrade_ids]
+            and "load_curve_hourly" in args.file_types
+        ):
+            print("Approximating non-HP load curves (upgrade 02)...", flush=True)
+            for s in args.state:
+                loc_02 = f"state={s} upgrade={_APPROX_UPGRADE}"
+                local_lc_dir = (
+                    path_sb
+                    / "load_curve_hourly"
+                    / f"state={s}"
+                    / f"upgrade={_APPROX_UPGRADE}"
+                )
+                metadata_path = (
+                    path_sb
+                    / "metadata"
+                    / f"state={s}"
+                    / f"upgrade={_APPROX_UPGRADE}"
+                    / "metadata-sb.parquet"
+                )
+                if not metadata_path.exists():
+                    print(
+                        f"  WARNING: {metadata_path} not found, skipping {loc_02}.",
+                        flush=True,
+                    )
+                    continue
+                if not local_lc_dir.exists():
+                    print(
+                        f"  WARNING: {local_lc_dir} not found, skipping {loc_02}.",
+                        flush=True,
+                    )
+                    continue
+
+                print(f"  Processing {loc_02}...", flush=True)
+                local_metadata = pl.scan_parquet(str(metadata_path))
+
+                # When --sample > 0, bsf may download the full metadata
+                # parquet but only N load curve files.  Restrict the target
+                # set to buildings whose parquet actually exists locally so
+                # we don't try to read missing files.
+                local_bldg_ids: set[int] | None = None
+                if args.sample > 0:
+                    local_bldg_ids = {
+                        int(p.stem.split("-")[0])
+                        for p in local_lc_dir.iterdir()
+                        if p.suffix == ".parquet"
+                    }
+                    print(
+                        f"    Sample mode: {len(local_bldg_ids)} load curves "
+                        "available locally.",
+                        flush=True,
+                    )
+
+                non_hp_parts = [
+                    _identify_non_hp_mf(local_metadata),
+                    _identify_other_fuel_types(local_metadata),
+                ]
+                non_hp_bldg_metadata = pl.concat(non_hp_parts).unique("bldg_id")
+
+                # Filter targets to locally-available buildings when sampling.
+                if local_bldg_ids is not None:
+                    non_hp_bldg_metadata = non_hp_bldg_metadata.filter(
+                        pl.col("bldg_id").is_in(list(local_bldg_ids))
+                    )
+
+                n_targets = cast(pl.DataFrame, non_hp_bldg_metadata.collect()).height
+                if n_targets == 0:
+                    print(
+                        "    No non-HP target buildings, skipping.",
+                        flush=True,
+                    )
+                    continue
+                print(f"    {n_targets} non-HP target buildings.", flush=True)
+
+                # Determine where the neighbor pool lives.
+                # When sampling, the local dir has only the downloaded subset;
+                # we read the full state metadata and load curves from the raw
+                # S3 release so every candidate at the same weather station is
+                # available.  When not sampling, everything is local.
+                if args.sample > 0:
+                    s3_raw_meta = (
+                        f"{args.path_s3_dir.rstrip('/')}/{release}"
+                        f"/metadata/state={s}/upgrade={_APPROX_UPGRADE}"
+                        "/metadata.parquet"
+                    )
+                    full_metadata: pl.LazyFrame = pl.scan_parquet(
+                        s3_raw_meta,
+                        storage_options=_APPROX_STORAGE_OPTIONS,
+                    )
+                    n_full = cast(
+                        pl.DataFrame,
+                        full_metadata.select(pl.len()).collect(),
+                    ).item()
+                    neighbor_lc_dir: Path | S3Path = S3Path(
+                        f"{args.path_s3_dir.rstrip('/')}/{release}"
+                        f"/load_curve_hourly/state={s}"
+                        f"/upgrade={_APPROX_UPGRADE}"
+                    )
+                    print(
+                        f"    Neighbor pool: {n_full} buildings from S3.",
+                        flush=True,
+                    )
+                else:
+                    full_metadata = local_metadata
+                    neighbor_lc_dir = local_lc_dir
+                    print(
+                        "    Neighbor pool: local (full population).",
+                        flush=True,
+                    )
+
+                neighbor_map = _find_nearest_neighbors(
+                    full_metadata,
+                    non_hp_bldg_metadata,
+                    local_lc_dir,
+                    _APPROX_UPGRADE,
+                    k=15,
+                    include_cooling=False,
+                    neighbor_load_curve_hourly_dir=neighbor_lc_dir,
+                )
+                natural_gas_usage = update_load_curve_hourly(
+                    neighbor_map,
+                    local_lc_dir,
+                    local_lc_dir,
+                    _APPROX_UPGRADE,
+                    neighbor_load_curve_hourly_dir=neighbor_lc_dir,
+                )
+
+                # Update metadata-sb.parquet with HP approximation markers.
+                # Collect + write_parquet (not sink_parquet) because the scan
+                # source and output target are the same file.
+                updated_metadata = update_non_hp_metadata(
+                    non_hp_bldg_metadata,
+                    local_metadata,
+                    natural_gas_usage=natural_gas_usage,
+                )
+                cast(pl.DataFrame, updated_metadata.collect()).write_parquet(
+                    str(metadata_path)
+                )
+                print(
+                    f"    Done: updated {n_targets} buildings in {metadata_path.name}.",
+                    flush=True,
+                )
+
+            record_step(run, "approximate_non_hp_load", upgrades=[_APPROX_UPGRADE])
+            upsert_run(path_sb, run)
+
         #
         # TODO (step 2b-ii): Adjust multifamily non-HVAC electricity for upgrades 00 and 02.
         #   For each state, call utils/pre/adjust_mf_electricity.py against the _sb release.
