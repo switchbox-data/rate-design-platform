@@ -63,8 +63,8 @@ def test_identify_natgas_connection_missing_heats_with_natgas():
         identify_natgas_connection(metadata, load_curve_annual)
 
 
-def test_identify_natgas_connection_row_count_mismatch_missing_bldg_id():
-    """Test that missing bldg_id in load_curve_annual raises ValueError."""
+def test_identify_natgas_connection_missing_bldg_id_defaults_to_false():
+    """Buildings absent from load_curve_annual (e.g. sample runs) default to has_natgas_connection=False."""
     metadata = pl.DataFrame(
         {
             "bldg_id": [1, 2, 3],
@@ -72,7 +72,7 @@ def test_identify_natgas_connection_row_count_mismatch_missing_bldg_id():
         }
     ).lazy()
 
-    # Missing bldg_id 3
+    # bldg_id 3 not present — valid in sample mode
     load_curve_annual = pl.DataFrame(
         {
             "bldg_id": [1, 2],
@@ -80,8 +80,10 @@ def test_identify_natgas_connection_row_count_mismatch_missing_bldg_id():
         }
     ).lazy()
 
-    with pytest.raises(ValueError, match="Row count mismatch"):
-        identify_natgas_connection(metadata, load_curve_annual)
+    result = cast(
+        pl.DataFrame, identify_natgas_connection(metadata, load_curve_annual).collect()
+    )
+    assert result["has_natgas_connection"].to_list() == [True, False, False]
 
 
 def test_identify_natgas_connection_row_count_mismatch_duplicate_bldg_id():

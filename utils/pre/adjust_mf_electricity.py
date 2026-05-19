@@ -320,7 +320,11 @@ def adjust_mf_electricity_parquet(
         path_hourly = load_curve_hourly_dir / f"{bldg_id}-{int(upgrade_id)}.parquet"
         lf = pl.scan_parquet(str(path_hourly), storage_options=opts)
         adjusted = _adjust_mf_electricity_hourly_one_bldg(lf, ratios)
-        adjusted.sink_parquet(str(path_hourly), storage_options=opts)
+        # Collect before writing: source and sink are the same file, and
+        # sink_parquet on an overlapping path triggers a Polars panic.
+        cast(pl.DataFrame, adjusted.collect()).write_parquet(
+            str(path_hourly), storage_options=opts if opts else None
+        )
         return bldg_id
 
     n_bldgs = len(unadjusted_multifamily_bldg_ids)

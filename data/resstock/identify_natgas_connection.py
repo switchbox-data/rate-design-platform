@@ -38,10 +38,10 @@ def identify_natgas_connection(
         pl.col(NATGAS_CONSUMPTION_COLUMN).gt(0).alias("has_natgas_connection"),
     )
 
-    # Validate that load_curve_annual has exactly one row per bldg_id that exists
-    # in metadata (duplicates would silently fan out rows; missing would silently
-    # zero-fill via fill_null).
-    n_meta = cast(pl.DataFrame, metadata.select(pl.len()).collect()).item()
+    # Guard against duplicates in load_curve_annual: a duplicate bldg_id would
+    # silently fan out metadata rows during the join below.  Missing bldg_ids are
+    # intentional in sample-mode runs (only N buildings were downloaded) and are
+    # handled correctly by the left join + fill_null(False) that follows.
     n_lca_unique = cast(
         pl.DataFrame,
         natgas_from_load.select(pl.col("bldg_id").n_unique()).collect(),
@@ -51,11 +51,6 @@ def identify_natgas_connection(
         raise ValueError(
             f"Row count mismatch: load_curve_annual has {n_lca_total} rows but only "
             f"{n_lca_unique} unique bldg_ids (duplicates detected)."
-        )
-    if n_lca_total != n_meta:
-        raise ValueError(
-            f"Row count mismatch: metadata has {n_meta} buildings but "
-            f"load_curve_annual has {n_lca_total} rows."
         )
 
     # Left join: buildings not present in load_curve_annual (e.g. sample runs) are

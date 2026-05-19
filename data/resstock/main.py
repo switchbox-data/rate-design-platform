@@ -35,6 +35,10 @@ import polars as pl
 import yaml
 
 from data.resstock import fetch_resstock_data
+from data.resstock.adjust_mf_electricity import (
+    BUILDING_TYPE_RECS_COL,
+    adjust_mf_electricity_parquet,
+)
 from data.resstock.approximate_non_hp_load import (
     _find_nearest_neighbors,
     _identify_non_hp_mf,
@@ -222,6 +226,141 @@ def _approximate_non_hp_load(
         )
 
 
+# Upgrades that the MF electricity adjustment applies to.
+_MF_ADJ_UPGRADES: list[str] = ["00", "02"]
+
+
+def _adjust_mf_electricity(
+    *,
+    states: list[str],
+    path_raw: Path,
+    path_sb: Path,
+    upgrade_ids: list[str],
+    sample: int,
+) -> list[str]:
+    """Apply MF non-HVAC electricity adjustment to the _sb release.
+
+    For each (state, upgrade) combination in _MF_ADJ_UPGRADES, reads the
+    full-population MF/SF electricity ratios from the raw ``load_curve_annual``
+    (which is never copied to ``_sb``), then scales non-HVAC columns in each
+    multifamily building's hourly parquet in ``path_sb``.
+
+    Must run AFTER ``_approximate_non_hp_load`` so that approximated buildings'
+    load curves are already present in ``_sb`` before the ratio is computed.
+
+    Returns a list of zero-padded upgrade IDs that were actually processed.
+
+    When ``--sample > 0``:
+    - The MF/SF ratio is derived from only the sampled buildings, which may not
+      represent the full state population.  A warning is printed.
+    - If the sample contains no MF buildings, the step is skipped for that
+      state/upgrade (nothing to adjust).
+    - If the sample contains fewer than 2 SF buildings, the ratio computation
+      defaults to 1.0 for all columns (effectively a no-op).  A warning is
+      printed and the step proceeds so the pipeline does not halt.
+    """
+    padded_requested = [u.zfill(2) for u in upgrade_ids]
+    active_upgrades = [uid for uid in _MF_ADJ_UPGRADES if uid in padded_requested]
+    processed_upgrades: list[str] = []
+
+    for s in states:
+        for uid in active_upgrades:
+            loc = f"state={s} upgrade={uid}"
+            metadata_path = (
+                path_sb
+                / "metadata"
+                / f"state={s}"
+                / f"upgrade={uid}"
+                / "metadata-sb.parquet"
+            )
+            lc_hourly_dir = (
+                path_sb / "load_curve_hourly" / f"state={s}" / f"upgrade={uid}"
+            )
+            lca_dir = path_raw / "load_curve_annual" / f"state={s}" / f"upgrade={uid}"
+
+            if not metadata_path.exists():
+                print(
+                    f"  WARNING: {metadata_path} not found, skipping {loc}.",
+                    flush=True,
+                )
+                continue
+            if not lc_hourly_dir.exists():
+                print(
+                    f"  WARNING: {lc_hourly_dir} not found, skipping {loc}.",
+                    flush=True,
+                )
+                continue
+            if not lca_dir.exists():
+                print(
+                    f"  WARNING: load_curve_annual not found at {lca_dir}, "
+                    f"skipping {loc}. "
+                    f"Ensure 'load_curve_annual' is in --file-types.",
+                    flush=True,
+                )
+                continue
+
+            print(f"  Processing {loc}...", flush=True)
+            metadata = pl.scan_parquet(str(metadata_path))
+
+            if sample > 0:
+                print(
+                    "    WARNING: --sample active — MF/SF electricity ratios are "
+                    "computed from only the sampled buildings and may not represent "
+                    "the full state population. "
+                    "Run without --sample for production use.",
+                    flush=True,
+                )
+                n_mf = cast(
+                    pl.DataFrame,
+                    metadata.filter(
+                        pl.col(BUILDING_TYPE_RECS_COL).str.contains(
+                            "Multi-Family", literal=True
+                        )
+                    )
+                    .select(pl.len())
+                    .collect(),
+                ).item()
+                n_sf = cast(
+                    pl.DataFrame,
+                    metadata.filter(
+                        pl.col(BUILDING_TYPE_RECS_COL).str.contains(
+                            "Single-Family", literal=True
+                        )
+                    )
+                    .select(pl.len())
+                    .collect(),
+                ).item()
+                if n_mf == 0:
+                    print(
+                        f"    WARNING: No MF buildings in sample for {loc} — "
+                        f"skipping MF adjustment (nothing to adjust).",
+                        flush=True,
+                    )
+                    continue
+                if n_sf < 2:
+                    print(
+                        f"    WARNING: Fewer than 2 SF buildings in sample for "
+                        f"{loc} ({n_sf} found) — MF/SF ratios will default to 1.0 "
+                        f"(no scaling applied). Proceeding.",
+                        flush=True,
+                    )
+
+            input_lca = pl.scan_parquet(str(lca_dir))
+            adjust_mf_electricity_parquet(
+                metadata=metadata,
+                input_load_curve_annual=input_lca,
+                load_curve_hourly_dir=lc_hourly_dir,
+                path_metadata=metadata_path,
+                upgrade_id=uid,
+                storage_options={},
+            )
+            if uid not in processed_upgrades:
+                processed_upgrades.append(uid)
+            print(f"    Done: MF adjustment complete for {loc}.", flush=True)
+
+    return processed_upgrades
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="ResStock data pipeline: fetch, modify, and upload.",
@@ -332,6 +471,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Approximate non-HP load curves for upgrade 02 via k-nearest-neighbor "
             "HVAC substitution (default: True). Only runs when upgrade 02 is in "
             "--upgrade-ids and load_curve_hourly is in --file-types."
+        ),
+    )
+    parser.add_argument(
+        "--adjust-mf-electricity",
+        type=_parse_bool,
+        default=True,
+        metavar="BOOL",
+        help=(
+            "Apply MF non-HVAC electricity adjustment for upgrades 00 and 02 "
+            "(default: True). Runs after approximate-non-hp-load. Requires "
+            "load_curve_hourly and load_curve_annual in --file-types."
         ),
     )
     parser.add_argument(
@@ -503,6 +653,7 @@ def main(argv: list[str] | None = None) -> None:
             "identify_natgas_connection": args.identify_natgas_connection,
             "add_vulnerability_columns": args.add_vulnerability_columns,
             "approximate_non_hp_load": args.approximate_non_hp_load,
+            "adjust_mf_electricity": args.adjust_mf_electricity,
             "sample": args.sample,
         },
     )
@@ -686,26 +837,23 @@ def main(argv: list[str] | None = None) -> None:
             record_step(run, "approximate_non_hp_load", upgrades=[_APPROX_UPGRADE])
             upsert_run(path_sb, run)
 
-        #
-        # TODO (step 2b-ii): Adjust multifamily non-HVAC electricity for upgrades 00 and 02.
-        #   For each state, call utils/pre/adjust_mf_electricity.py against the _sb release.
-        #   Run AFTER approximate-non-hp-load so the approximated load curves are the input.
-        #   Applies to both upgrade 00 (baseline) and upgrade 02 (HP scenario).
-        #
-        #   Implementation sketch:
-        #     from utils.pre.adjust_mf_electricity import adjust_mf_electricity
-        #     for s in args.state:
-        #         for uid in ["00", "02"]:
-        #             if uid not in [u.zfill(2) for u in args.upgrade_ids]:
-        #                 continue
-        #             adjust_mf_electricity(
-        #                 state=s,
-        #                 release=release_sb,
-        #                 path_output_dir=args.path_output_dir,
-        #                 upgrade_id=uid,
-        #             )
-        #     record_step(run, "adjust_mf_electricity", upgrades=["00", "02"])
-        #     upsert_run(path_sb, run)
+        # ── 2b-ii. Adjust MF non-HVAC electricity for upgrades 00 and 02 ──────
+        if (
+            args.adjust_mf_electricity
+            and any(u.zfill(2) in _MF_ADJ_UPGRADES for u in args.upgrade_ids)
+            and "load_curve_hourly" in args.file_types
+        ):
+            print("Adjusting MF non-HVAC electricity...", flush=True)
+            processed_upgrades = _adjust_mf_electricity(
+                states=args.state,
+                path_raw=path_raw,
+                path_sb=path_sb,
+                upgrade_ids=args.upgrade_ids,
+                sample=args.sample,
+            )
+            record_step(run, "adjust_mf_electricity", upgrades=processed_upgrades)
+            upsert_run(path_sb, run)
+
         #
         # TODO (step 2b-iii): Add metadata_utility to the _sb clone.
         #   The old workflow ran state-specific utility assignment on the standard release
