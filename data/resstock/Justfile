@@ -34,8 +34,48 @@ resstock_release := "res_" + resstock_release_year + "_" + resstock_weather_file
 resstock_release_sb := resstock_release + "_sb"
 
 ################################################################################
-# Complete, all-in-one recipes
+# Complete, all-in-one recipes (all via main.py)
 ################################################################################
+
+# Run the full _sb release pipeline for one or more states.
+# Covers: fetch → clone to _sb → metadata transforms → non-HP approximation
+#         → MF electricity adjustment → utility assignment → monthly loads → upload.
+# All steps are enabled by default; pass any main.py flag in args to override.
+#
+# NY requires --ny-electric-poly-filename and --ny-gas-poly-filename.
+# RI requires --add-vulnerability-columns False.
+#
+# Examples:
+#   just -f data/resstock/Justfile run-pipeline NY \
+#       --upgrade-ids 0 2 \
+#       --ny-electric-poly-filename ny_electric_utilities_20260309.csv \
+#       --ny-gas-poly-filename ny_gas_utilities_20260309.csv
+#   just -f data/resstock/Justfile run-pipeline RI \
+#       --upgrade-ids 0 2 \
+#       --add-vulnerability-columns False
+#   just -f data/resstock/Justfile run-pipeline NY --sample 10 \
+#       --upgrade-ids 0 2 \
+#       --ny-electric-poly-filename ny_electric_utilities_20260309.csv \
+# --ny-gas-poly-filename ny_gas_utilities_20260309.csv
+run-pipeline state *args:
+    cd "{{ path_local_repo }}" && uv run python -m data.resstock.main \
+        --state "{{ state }}" \
+        {{ args }}
+
+# Full NY _sb release pipeline for upgrades 0 and 2.
+create-sb-release-for-upgrade-02-NY:
+    cd "{{ path_local_repo }}" && uv run python -m data.resstock.main \
+        --state NY \
+        --upgrade-ids 0 2 \
+        --ny-electric-poly-filename ny_electric_utilities_20260309.csv \
+        --ny-gas-poly-filename ny_gas_utilities_20260309.csv
+
+# Full RI _sb release pipeline for upgrades 0 and 2.
+create-sb-release-for-upgrade-02-RI:
+    cd "{{ path_local_repo }}" && uv run python -m data.resstock.main \
+        --state RI \
+        --upgrade-ids 0 2 \
+        --add-vulnerability-columns False
 
 ################################################################################
 # Status / provenance
@@ -306,22 +346,5 @@ upload-monthly-loads state upgrade_ids:
 upload-monthly-loads-NY:
     just upload-monthly-loads NY "00 02"
 
-create-sb-release-for-upgrade-02-NY:
-    just prepare-metadata-ny lmi="true"
-    just copy-resstock-data-2024-amy2018-2-NY "00 02" "metadata metadata_utility load_curve_hourly" # Copy data to new sb release
-    just approximate-non-hp-load NY 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True # Approximate non-HP load for upgrade 02
-    just adjust-mf-electricity-NY-upgrade-00
-    just adjust-mf-electricity-NY-upgrade-02
-    sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/
-    just add-monthly-loads-NY
-    just upload-monthly-loads-NY
-
-create-sb-release-for-upgrade-02-RI:
-    just prepare-metadata-ri
-    just copy-resstock-data-2024-amy2018-2-RI "00 02" "metadata metadata_utility load_curve_hourly" # Copy data to new sb release
-    just approximate-non-hp-load RI 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True # Approximate non-HP load for upgrade 02
-    just adjust-mf-electricity-RI-upgrade-00
-    just adjust-mf-electricity-RI-upgrade-02
-    sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/
-    just add-monthly-loads RI "00 02"
-    just upload-monthly-loads RI "00 02"
+# (create-sb-release-for-upgrade-02-NY and create-sb-release-for-upgrade-02-RI
+#  are defined at the top of this file under "Complete, all-in-one recipes".)

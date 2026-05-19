@@ -1,8 +1,71 @@
 # ResStock data preparation: run order
 
-This document outlines the current `data/resstock/Justfile` workflow for preparing a Switchbox `sb` ResStock release from the standard NREL release. The current end state is not just HP identification and non-HP approximation: the canonical flow also copies `metadata_utility`, runs multifamily electricity adjustment on the `sb` release for upgrades `00` and `02`, adds monthly load curves (aggregated from hourly) for gas/oil/propane billing, and syncs the finished `sb` release to EBS.
+This document describes how to prepare a Switchbox `_sb` ResStock release from the standard NREL release. The end state covers: HP identification, non-HP approximation, multifamily electricity adjustment, utility assignment, monthly load curves (aggregated from hourly for gas/oil/propane billing), and upload to S3.
+
+**The recommended approach is `data/resstock/main.py`** (run via the Justfile recipes in the "Complete, all-in-one recipes" section). It consolidates the entire pipeline into a single invocation with provenance tracking. The individual Justfile recipes documented below are retained for debugging and partial re-runs.
 
 All commands assume the project root as the current working directory unless noted. ResStock Justfile: `data/resstock/Justfile`. Default release names: standard `res_2024_amy2018_2`, sb release `res_2024_amy2018_2_sb`.
+
+---
+
+## Recommended approach: main.py
+
+`main.py` runs the full pipeline end-to-end on the local EBS mount. All steps are enabled by default and controlled by flags. See `context/code/data/resstock_sb_release_pipeline_main_py.md` for full documentation.
+
+**NY:**
+
+```bash
+just -f data/resstock/Justfile create-sb-release-for-upgrade-02-NY
+```
+
+Equivalent to:
+
+```bash
+cd <repo_root> && uv run python -m data.resstock.main \
+    --state NY \
+    --upgrade-ids 0 2 \
+    --ny-electric-poly-filename ny_electric_utilities_20260309.csv \
+    --ny-gas-poly-filename ny_gas_utilities_20260309.csv
+```
+
+**RI:**
+
+```bash
+just -f data/resstock/Justfile create-sb-release-for-upgrade-02-RI
+```
+
+Equivalent to:
+
+```bash
+cd <repo_root> && uv run python -m data.resstock.main \
+    --state RI \
+    --upgrade-ids 0 2 \
+    --add-vulnerability-columns False
+```
+
+**Generic (any state, any flags):**
+
+```bash
+just -f data/resstock/Justfile run-pipeline <STATE> \
+    --upgrade-ids 0 2 \
+    [--ny-electric-poly-filename ...] \
+    [--ny-gas-poly-filename ...] \
+    [--add-vulnerability-columns False] \
+    [--sample 10]
+```
+
+**Key differences from the old Justfile workflow:**
+
+| Old workflow                                                     | main.py                                            |
+| ---------------------------------------------------------------- | -------------------------------------------------- |
+| Ran each step against S3 separately                              | Writes everything to local EBS, uploads at the end |
+| Utility assignment on the standard release, then copied to `_sb` | Utility assignment runs directly on `_sb`          |
+| Required `sudo aws s3 sync` before monthly loads                 | No intermediate S3 sync needed                     |
+| 9 separate Justfile invocations                                  | 1 invocation with manifest-based provenance        |
+
+---
+
+## Individual step recipes (for debugging and partial re-runs)
 
 ---
 
@@ -212,7 +275,7 @@ just -f data/resstock/Justfile upload-monthly-loads <STATE> "<UPGRADE_IDS>"
 
 ## End-to-end shortcuts
 
-The current `Justfile` exposes two top-level recipes that run the state-specific end-to-end flow for upgrade-02 `sb` release prep:
+Both recipes now call `main.py` directly. See the "Recommended approach" section at the top of this document for the equivalent command-line invocations.
 
 **NY:**
 
@@ -220,15 +283,7 @@ The current `Justfile` exposes two top-level recipes that run the state-specific
 just -f data/resstock/Justfile create-sb-release-for-upgrade-02-NY
 ```
 
-- Runs:
-  - `prepare-metadata-ny lmi="true"`
-  - `copy-resstock-data-2024-amy2018-2-NY "00 02" "metadata metadata_utility load_curve_hourly"`
-  - `approximate-non-hp-load NY 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True`
-  - `adjust-mf-electricity-NY-upgrade-00`
-  - `adjust-mf-electricity-NY-upgrade-02`
-  - `sudo aws s3 sync ...`
-  - `add-monthly-loads-NY`
-  - `upload-monthly-loads-NY`
+Calls `main.py` with `--state NY --upgrade-ids 0 2` and the current polygon filenames. Runs all pipeline steps (fetch, metadata transforms, non-HP approximation, MF electricity adjustment, utility assignment, monthly loads, upload) in sequence.
 
 **RI:**
 
@@ -236,19 +291,20 @@ just -f data/resstock/Justfile create-sb-release-for-upgrade-02-NY
 just -f data/resstock/Justfile create-sb-release-for-upgrade-02-RI
 ```
 
-- Runs:
-  - `prepare-metadata-ri`
-  - `copy-resstock-data-2024-amy2018-2-RI "00 02" "metadata metadata_utility load_curve_hourly"`
-  - `approximate-non-hp-load RI 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True`
-  - `adjust-mf-electricity-RI-upgrade-00`
-  - `adjust-mf-electricity-RI-upgrade-02`
-  - `sudo aws s3 sync ...`
-  - `add-monthly-loads RI "00 02"`
-  - `upload-monthly-loads RI "00 02"`
+Calls `main.py` with `--state RI --upgrade-ids 0 2 --add-vulnerability-columns False`.
 
 ---
 
 ## Summary checklist
+
+**Recommended (single invocation via main.py):**
+
+| Action                                                                              |
+| ----------------------------------------------------------------------------------- |
+| `just -f data/resstock/Justfile create-sb-release-for-upgrade-02-NY` (or `...-RI`)  |
+| Or: `just -f data/resstock/Justfile run-pipeline <STATE> --upgrade-ids 0 2 [flags]` |
+
+**Legacy (individual Justfile recipes, for debugging or partial re-runs):**
 
 | Step | Action                                                                                                                                                                                                                    |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -262,4 +318,4 @@ just -f data/resstock/Justfile create-sb-release-for-upgrade-02-RI
 | 8    | Add monthly load curves on EBS: `add-monthly-loads-NY` or `add-monthly-loads <STATE> "00 02"`                                                                                                                             |
 | 9    | Upload monthly load curves to S3: `upload-monthly-loads-NY` or `upload-monthly-loads <STATE> "00 02"`                                                                                                                     |
 
-After step 9, the `sb` release on S3 and EBS includes `load_curve_monthly` and is ready for rate-design runs (e.g. CAIRO) and post-processing (master bills, gas/oil/propane bills) using `res_2024_amy2018_2_sb` and the chosen state/upgrade.
+After the pipeline completes, the `_sb` release on S3 and EBS includes `metadata`, `metadata_utility`, `load_curve_hourly`, and `load_curve_monthly`, and is ready for rate-design runs (CAIRO) and post-processing (master bills, gas/oil/propane bills) using `res_2024_amy2018_2_sb` and the chosen state/upgrade.
