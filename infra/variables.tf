@@ -1,7 +1,7 @@
 variable "instance_type" {
   description = "EC2 instance type"
   type        = string
-  default     = "m7i.2xlarge"
+  default     = "m7i.xlarge"
 }
 
 variable "root_volume_size" {
@@ -62,6 +62,18 @@ variable "project_name" {
   description = "Name prefix for resources"
   type        = string
   default     = "rate-design-platform"
+}
+
+variable "idle_cpu_threshold" {
+  description = "CPU utilization (%) below which the instance is considered idle"
+  type        = number
+  default     = 5
+}
+
+variable "idle_minutes" {
+  description = "Minutes of sustained idle CPU before the instance is auto-stopped"
+  type        = number
+  default     = 120
 }
 
 variable "allowed_iam_principals" {
