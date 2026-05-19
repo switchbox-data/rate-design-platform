@@ -83,7 +83,9 @@ if __name__ == "__main__":
         input_metadata=input_metadata,
     )
 
-    # Write back to the output path using sink_parquet
-    metadata_with_utility_assignment.sink_parquet(
+    # Write only the assignment columns — full metadata lives in metadata-sb.parquet.
+    metadata_with_utility_assignment.select(
+        "bldg_id", "sb.electric_utility", "sb.gas_utility"
+    ).sink_parquet(
         str(output_path_s3), compression="zstd", storage_options=STORAGE_OPTIONS
     )

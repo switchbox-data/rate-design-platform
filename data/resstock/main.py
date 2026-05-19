@@ -39,6 +39,12 @@ from data.resstock.adjust_mf_electricity import (
     BUILDING_TYPE_RECS_COL,
     adjust_mf_electricity_parquet,
 )
+from data.resstock.assign_utility import (
+    SUPPORTED_UTILITY_STATES,
+    assign_utility_ny,
+    assign_utility_ri,
+    read_csv_to_gdf_from_s3,
+)
 from data.resstock.approximate_non_hp_load import (
     _find_nearest_neighbors,
     _identify_non_hp_mf,
@@ -229,6 +235,12 @@ def _approximate_non_hp_load(
 # Upgrades that the MF electricity adjustment applies to.
 _MF_ADJ_UPGRADES: list[str] = ["00", "02"]
 
+# Upgrade used as input for utility assignment (assignment is per-state, not per-upgrade).
+_UTILITY_ASSIGN_UPGRADE: str = "00"
+
+# Default S3 directory for NY utility polygon CSVs.
+_DEFAULT_S3_GIS_DIR: str = "s3://data.sb/gis/utility_boundaries/"
+
 
 def _adjust_mf_electricity(
     *,
@@ -361,6 +373,165 @@ def _adjust_mf_electricity(
     return processed_upgrades
 
 
+def _assign_utility(
+    *,
+    states: list[str],
+    path_sb: Path,
+    upgrade_ids: list[str],
+    sample: int,
+    s3_base_sb: str,
+    path_s3_gis_dir: str,
+    ny_electric_poly_filename: str | None,
+    ny_gas_poly_filename: str | None,
+) -> None:
+    """Write metadata_utility/state=<s>/utility_assignment.parquet for each state.
+
+    Reads upgrade-00 metadata-sb.parquet from the _sb release, runs the
+    state-specific utility assignment, and writes the result locally.
+    Supported states: NY (GIS-based probabilistic assignment) and RI (single
+    utility). Any other state is skipped with an ERROR message.
+
+    For NY, electric and gas polygon CSVs must be provided via
+    ``ny_electric_poly_filename`` and ``ny_gas_poly_filename``; they are
+    loaded from ``path_s3_gis_dir`` (default ``s3://data.sb/gis/utility_boundaries/``).
+    PUMAs are fetched via pygris (requires network access).
+
+    The output is uploaded to S3 via ``aws s3 cp`` immediately after each state
+    is processed.
+
+    When ``--sample > 0``:
+    - For RI: no effect — the rule-based assignment is deterministic and complete.
+    - For NY: the probability distributions come from GIS overlaps (not from the
+      sample), so the assignment quality is unaffected.  A note is printed to
+      set expectations.
+    """
+    padded = [u.zfill(2) for u in upgrade_ids]
+    if _UTILITY_ASSIGN_UPGRADE not in padded:
+        print(
+            f"  WARNING: Utility assignment uses upgrade {_UTILITY_ASSIGN_UPGRADE} "
+            f"metadata, but that upgrade is not in --upgrade-ids "
+            f"({upgrade_ids}). Skipping utility assignment.",
+            flush=True,
+        )
+        return
+
+    for s in states:
+        loc = f"state={s}"
+        if s not in SUPPORTED_UTILITY_STATES:
+            print(
+                f"  ERROR: Utility assignment is not implemented for state {s!r}. "
+                f"Only {sorted(SUPPORTED_UTILITY_STATES)} are supported. Skipping.",
+                flush=True,
+            )
+            continue
+
+        metadata_path = (
+            path_sb
+            / "metadata"
+            / f"state={s}"
+            / f"upgrade={_UTILITY_ASSIGN_UPGRADE}"
+            / "metadata-sb.parquet"
+        )
+        if not metadata_path.exists():
+            print(
+                f"  WARNING: {metadata_path} not found, skipping {loc}.",
+                flush=True,
+            )
+            continue
+
+        out_dir = path_sb / "metadata_utility" / f"state={s}"
+        out_path = out_dir / "utility_assignment.parquet"
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        print(f"  Processing {loc}...", flush=True)
+        metadata = pl.scan_parquet(str(metadata_path))
+
+        if sample > 0:
+            n_bldgs = cast(pl.DataFrame, metadata.select(pl.len()).collect()).item()
+            print(
+                f"    NOTE: --sample active ({n_bldgs} buildings in local metadata). "
+                f"Utility assignment probabilities are derived from GIS data, not "
+                f"from the sample, so assignment quality is unaffected.",
+                flush=True,
+            )
+
+        if s == "RI":
+            result = assign_utility_ri(metadata)
+
+        elif s == "NY":
+            if not ny_electric_poly_filename:
+                print(
+                    f"  ERROR: --ny-electric-poly-filename is required for NY "
+                    f"utility assignment. Skipping {loc}.",
+                    flush=True,
+                )
+                continue
+            if not ny_gas_poly_filename:
+                print(
+                    f"  ERROR: --ny-gas-poly-filename is required for NY "
+                    f"utility assignment. Skipping {loc}.",
+                    flush=True,
+                )
+                continue
+
+            from cloudpathlib import S3Path
+            from pygris import pumas as get_pumas
+
+            from data.resstock.assign_utility_ny import CONFIGS
+
+            gis_base = S3Path(path_s3_gis_dir.rstrip("/"))
+            electric_polygons = read_csv_to_gdf_from_s3(
+                gis_base / ny_electric_poly_filename,
+                utility_type="electric",
+            )
+            gas_polygons = read_csv_to_gdf_from_s3(
+                gis_base / ny_gas_poly_filename,
+                utility_type="gas",
+            )
+            print("    Loading Census PUMA shapefiles via pygris...", flush=True)
+            import geopandas as gpd
+            from typing import cast as typing_cast
+
+            pumas = typing_cast(
+                gpd.GeoDataFrame,
+                get_pumas(state=CONFIGS["state_code"], year=2019, cb=True),
+            )
+            pumas = pumas.to_crs(epsg=CONFIGS["state_crs"])
+
+            result = assign_utility_ny(
+                input_metadata=metadata,
+                electric_polygons=electric_polygons,
+                gas_polygons=gas_polygons,
+                pumas=pumas,
+                config=CONFIGS,
+            )
+
+        else:
+            # Unreachable given the SUPPORTED_UTILITY_STATES guard above.
+            continue
+
+        # Keep only the assignment columns — the full metadata belongs in
+        # metadata-sb.parquet (per-upgrade), not in the utility assignment file.
+        result_slim = result.select("bldg_id", "sb.electric_utility", "sb.gas_utility")
+        cast(pl.DataFrame, result_slim.collect()).write_parquet(str(out_path))
+        print(f"    Written: {out_path}", flush=True)
+
+        # Upload immediately so the file is on S3 even if a later state fails.
+        s3_dest = f"{s3_base_sb.rstrip('/')}/metadata_utility/state={s}/utility_assignment.parquet"
+        print(f"    Uploading → {s3_dest}", flush=True)
+        upload_rc = subprocess.run(
+            ["aws", "s3", "cp", str(out_path), s3_dest],
+            check=False,
+        ).returncode
+        if upload_rc != 0:
+            print(
+                f"    WARNING: aws s3 cp exited with code {upload_rc} for {loc}.",
+                flush=True,
+            )
+
+        print(f"    Done: utility assignment complete for {loc}.", flush=True)
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="ResStock data pipeline: fetch, modify, and upload.",
@@ -482,6 +653,45 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Apply MF non-HVAC electricity adjustment for upgrades 00 and 02 "
             "(default: True). Runs after approximate-non-hp-load. Requires "
             "load_curve_hourly and load_curve_annual in --file-types."
+        ),
+    )
+    parser.add_argument(
+        "--assign-utility",
+        type=_parse_bool,
+        default=True,
+        metavar="BOOL",
+        help=(
+            "Assign electric/gas utilities to buildings and write "
+            "metadata_utility/state=<s>/utility_assignment.parquet (default: True). "
+            "Supported states: NY, RI. Runs after all metadata transforms. "
+            "Requires 'metadata' in --file-types and upgrade 00 in --upgrade-ids."
+        ),
+    )
+    parser.add_argument(
+        "--path-s3-gis-dir",
+        default=_DEFAULT_S3_GIS_DIR,
+        metavar="S3_URI",
+        help=(
+            "S3 directory containing NY utility polygon CSV files "
+            f"(default: {_DEFAULT_S3_GIS_DIR})."
+        ),
+    )
+    parser.add_argument(
+        "--ny-electric-poly-filename",
+        default=None,
+        metavar="FILENAME",
+        help=(
+            "Filename of the NY electric utility polygon CSV in --path-s3-gis-dir "
+            "(e.g. ny_electric_utilities_20260309.csv). Required when state=NY."
+        ),
+    )
+    parser.add_argument(
+        "--ny-gas-poly-filename",
+        default=None,
+        metavar="FILENAME",
+        help=(
+            "Filename of the NY gas utility polygon CSV in --path-s3-gis-dir "
+            "(e.g. ny_gas_utilities_20260309.csv). Required when state=NY."
         ),
     )
     parser.add_argument(
@@ -654,6 +864,7 @@ def main(argv: list[str] | None = None) -> None:
             "add_vulnerability_columns": args.add_vulnerability_columns,
             "approximate_non_hp_load": args.approximate_non_hp_load,
             "adjust_mf_electricity": args.adjust_mf_electricity,
+            "assign_utility": args.assign_utility,
             "sample": args.sample,
         },
     )
@@ -854,18 +1065,22 @@ def main(argv: list[str] | None = None) -> None:
             record_step(run, "adjust_mf_electricity", upgrades=processed_upgrades)
             upsert_run(path_sb, run)
 
-        #
-        # TODO (step 2b-iii): Add metadata_utility to the _sb clone.
-        #   The old workflow ran state-specific utility assignment on the standard release
-        #   first, then copied metadata_utility/ into _sb. Currently main.py does not
-        #   copy metadata_utility at all, so _sb will be missing utility assignments.
-        #   Options:
-        #     a) Run utility assignment (assign-utility-ny / assign-utility-ri) before this
-        #        script, then include "metadata_utility" in --file-types so the clone step
-        #        picks it up automatically (preferred — no logic change needed here).
-        #     b) Add a separate assign-utility step inside main.py (state-specific, complex).
-        #   See: context/code/data/resstock_data_preparation_run_order.md §3 and §4,
-        #        context/code/data/ny_utility_assignment_resstock.md (NY-specific detail).
+        # ── 2b-iii. Assign electric/gas utilities ─────────────────────────────
+        if args.assign_utility and "metadata" in args.file_types:
+            print("Assigning utilities...", flush=True)
+            _assign_utility(
+                states=args.state,
+                path_sb=path_sb,
+                upgrade_ids=args.upgrade_ids,
+                sample=args.sample,
+                s3_base_sb=s3_base_sb,
+                path_s3_gis_dir=args.path_s3_gis_dir,
+                ny_electric_poly_filename=args.ny_electric_poly_filename,
+                ny_gas_poly_filename=args.ny_gas_poly_filename,
+            )
+            record_step(run, "assign_utility")
+            upsert_run(path_sb, run)
+
         #
         # TODO (step 2b-iv): Add monthly load curves and upload them.
         #   After the _sb upload, aggregate hourly → monthly on local EBS and upload
