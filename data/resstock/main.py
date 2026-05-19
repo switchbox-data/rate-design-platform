@@ -52,6 +52,7 @@ from data.resstock.approximate_non_hp_load import (
     update_load_curve_hourly,
     update_metadata as update_non_hp_metadata,
 )
+from data.resstock.add_monthly_loads import load_aggregation_rules, process_upgrade
 from data.resstock.add_vulnerability_columns import (
     add_vulnerability_columns,
     load_puma_conditional_probs,
@@ -532,6 +533,109 @@ def _assign_utility(
         print(f"    Done: utility assignment complete for {loc}.", flush=True)
 
 
+def _add_monthly_loads(
+    *,
+    states: list[str],
+    path_sb: Path,
+    upgrade_ids: list[str],
+    release: str,
+    s3_base_sb: str,
+    sample: int,
+    workers: int,
+) -> list[str]:
+    """Aggregate _sb hourly load curves into monthly load curves and upload them.
+
+    Reads per-building hourly parquets from ``path_sb/load_curve_hourly/`` and
+    writes one monthly parquet per building to ``path_sb/load_curve_monthly/``.
+    Aggregation rules (sum vs mean vs first) come from bsf's column-aggregation
+    CSV for ``release`` (the raw release name, not the _sb variant).
+
+    After each state is processed, the ``load_curve_monthly/state=<s>/``
+    directory is synced to S3 via ``aws s3 sync``.
+
+    When ``--sample > 0`` only N hourly files exist locally.  The aggregation
+    proceeds on whatever files are present and N monthly files are written.
+    This is expected behaviour for development/testing; run without ``--sample``
+    for production.
+
+    Returns the list of (state, upgrade) pairs that were actually processed,
+    in ``"state=<s> upgrade=<uid>"`` format, for manifest recording.
+    """
+    print(f"  Loading bsf aggregation rules for release '{release}'...", flush=True)
+    agg_rules = load_aggregation_rules(release)
+    print(f"    {len(agg_rules)} column rules loaded.", flush=True)
+
+    processed: list[str] = []
+
+    for s in states:
+        if sample > 0:
+            print(
+                f"  NOTE: --sample active for state={s}. "
+                f"Monthly load curves will be generated only for the sampled buildings. "
+                f"Run without --sample for production.",
+                flush=True,
+            )
+
+        for uid in [u.zfill(2) for u in upgrade_ids]:
+            loc = f"state={s} upgrade={uid}"
+            hourly_dir = path_sb / "load_curve_hourly" / f"state={s}" / f"upgrade={uid}"
+
+            if not hourly_dir.exists():
+                print(
+                    f"  WARNING: Hourly directory not found, skipping {loc}: "
+                    f"{hourly_dir}",
+                    flush=True,
+                )
+                continue
+
+            n_files = len(list(hourly_dir.glob("*.parquet")))
+            if n_files == 0:
+                print(
+                    f"  WARNING: No hourly parquets in {hourly_dir}, skipping {loc}.",
+                    flush=True,
+                )
+                continue
+
+            print(
+                f"  Aggregating {n_files:,} hourly files → monthly for {loc}...",
+                flush=True,
+            )
+            process_upgrade(
+                path_input=path_sb,
+                path_output=path_sb,
+                state=s,
+                upgrade=uid,
+                agg_rules=agg_rules,
+                workers=workers,
+            )
+            processed.append(loc)
+
+        # Upload the full load_curve_monthly/state=<s>/ tree for this state once
+        # all upgrades are done.
+        monthly_state_dir = path_sb / "load_curve_monthly" / f"state={s}"
+        if monthly_state_dir.exists():
+            s3_dest = f"{s3_base_sb.rstrip('/')}/load_curve_monthly/state={s}/"
+            print(f"  Uploading {monthly_state_dir} → {s3_dest}", flush=True)
+            upload_rc = subprocess.run(
+                ["aws", "s3", "sync", str(monthly_state_dir), s3_dest],
+                check=False,
+            ).returncode
+            if upload_rc != 0:
+                print(
+                    f"  WARNING: aws s3 sync exited with code {upload_rc} "
+                    f"for load_curve_monthly/state={s}/.",
+                    flush=True,
+                )
+        else:
+            print(
+                f"  WARNING: No monthly output directory found for state={s} — "
+                f"nothing to upload.",
+                flush=True,
+            )
+
+    return processed
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="ResStock data pipeline: fetch, modify, and upload.",
@@ -710,6 +814,23 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=_DEFAULT_PUMS_YEAR,
         help="PUMS end year (e.g. 2021) — selects PUMS vintage.",
     )
+    parser.add_argument(
+        "--add-monthly-loads",
+        type=_parse_bool,
+        default=True,
+        metavar="BOOL",
+        help=(
+            "Aggregate _sb hourly load curves into monthly load curves and upload to S3 "
+            "(default: True). Only runs when load_curve_hourly is in --file-types."
+        ),
+    )
+    parser.add_argument(
+        "--monthly-workers",
+        type=int,
+        default=50,
+        metavar="N",
+        help="Number of parallel workers for monthly aggregation (default: 50).",
+    )
     return parser.parse_args(argv)
 
 
@@ -865,6 +986,8 @@ def main(argv: list[str] | None = None) -> None:
             "approximate_non_hp_load": args.approximate_non_hp_load,
             "adjust_mf_electricity": args.adjust_mf_electricity,
             "assign_utility": args.assign_utility,
+            "add_monthly_loads": args.add_monthly_loads,
+            "monthly_workers": args.monthly_workers,
             "sample": args.sample,
         },
     )
@@ -1081,20 +1204,20 @@ def main(argv: list[str] | None = None) -> None:
             record_step(run, "assign_utility")
             upsert_run(path_sb, run)
 
-        #
-        # TODO (step 2b-iv): Add monthly load curves and upload them.
-        #   After the _sb upload, aggregate hourly → monthly on local EBS and upload
-        #   load_curve_monthly/ to S3 so post-processing (build_master_bills, gas/oil/
-        #   propane billing) can find it. These steps need the EBS sync (sudo aws s3 sync)
-        #   to have run first, so they may stay as separate Justfile recipes rather than
-        #   being inlined here.
-        #
-        #   Justfile recipes to wire or replicate:
-        #     just -f data/resstock/Justfile add-monthly-loads <STATE> "<UPGRADE_IDS>"
-        #     just -f data/resstock/Justfile upload-monthly-loads <STATE> "<UPGRADE_IDS>"
-        #
-        #   Implementation: see data/resstock/Justfile recipes add-monthly-loads and
-        #   upload-monthly-loads, and context/code/data/resstock_data_preparation_run_order.md §8-9.
+        # ── 2b-iv. Add monthly load curves ────────────────────────────────────
+        if args.add_monthly_loads and "load_curve_hourly" in args.file_types:
+            print("Adding monthly load curves...", flush=True)
+            processed_monthly = _add_monthly_loads(
+                states=args.state,
+                path_sb=path_sb,
+                upgrade_ids=args.upgrade_ids,
+                release=release,
+                s3_base_sb=s3_base_sb,
+                sample=args.sample,
+                workers=args.monthly_workers,
+            )
+            record_step(run, "add_monthly_loads", processed=processed_monthly)
+            upsert_run(path_sb, run)
 
         # ── 3. Upload ─────────────────────────────────────────────────────────
         print("Uploading raw ResStock data to S3...", flush=True)
