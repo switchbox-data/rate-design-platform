@@ -995,7 +995,7 @@ def update_metadata(
         .alias(POSTPROCESS_HAS_HP_COLUMN)
     )
     # For non-HP bldg_id's only: set has_natgas_connection from natural_gas_usage (True/False); other bldg_id's unchanged
-    if natural_gas_usage:
+    if natural_gas_usage is not None:
         replaced_metadata = replaced_metadata.with_columns(
             pl.when(
                 pl.col("bldg_id").is_in(non_hp_bldg_ids)

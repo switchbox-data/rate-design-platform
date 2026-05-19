@@ -1,0 +1,331 @@
+# ResStock `_sb` release pipeline: `data/resstock/main.py`
+
+This document describes the unified Python pipeline (`data/resstock/main.py`) for preparing a Switchbox `_sb` ResStock release from the standard NREL release. This script consolidates what was previously a multi-step Justfile workflow into a single orchestrated pipeline with built-in provenance tracking. It is a work in progress; several steps are still TODO stubs.
+
+For the older Justfile-based workflow, see `context/code/data/resstock_data_preparation_run_order.md`. That document remains the canonical reference for the full end-to-end flow including steps not yet implemented in `main.py`.
+
+---
+
+## Relationship to the Justfile workflow
+
+`main.py` replaces the first five steps of the Justfile workflow (fetch, prepare metadata, copy to `_sb`, approximate non-HP load) plus the upload step, in a single invocation with manifest-based provenance. Steps **not yet implemented** in `main.py` (adjust MF electricity, utility assignment, monthly load curves) are documented as TODO blocks in the code and must still be run via the Justfile.
+
+| Justfile step              | `main.py` equivalent                  | Status          |
+| -------------------------- | ------------------------------------- | --------------- |
+| 1. Fetch                   | Step 1a: fetch via bsf                | Implemented     |
+| 2. Prepare metadata        | Step 2a: `_modify_metadata`           | Implemented     |
+| 3. Utility assignment      | TODO (step 2b-iii)                    | Not implemented |
+| 4. Copy standard -> `_sb`  | Step 1b: clone                        | Implemented     |
+| 5. Approximate non-HP load | Step 2b-i: `_approximate_non_hp_load` | Implemented     |
+| 6. Adjust MF electricity   | TODO (step 2b-ii)                     | Not implemented |
+| 7. Sync `_sb` to EBS       | N/A (pipeline writes directly to EBS) | N/A             |
+| 8. Add monthly load curves | TODO (step 2b-iv)                     | Not implemented |
+| 9. Upload monthly to S3    | TODO (step 2b-iv)                     | Not implemented |
+| Upload raw + `_sb` to S3   | Step 3: `_upload`                     | Implemented     |
+
+---
+
+## Invocation
+
+```bash
+uv run python -m data.resstock.main --state <STATE> [options]
+```
+
+All defaults are loaded from `data/resstock/config.yaml`, which is the single source of truth for release parameters.
+
+### Key CLI arguments
+
+| Argument                       | Default                                        | Description                                             |
+| ------------------------------ | ---------------------------------------------- | ------------------------------------------------------- |
+| `--state`                      | (required)                                     | One or more 2-letter state codes                        |
+| `--upgrade-ids`                | `0 1 2 3 4 5`                                  | Upgrade IDs to download                                 |
+| `--file-types`                 | `metadata load_curve_hourly load_curve_annual` | File types to fetch from NREL                           |
+| `--sample`                     | `0` (all)                                      | Number of buildings to download (0 = full population)   |
+| `--identify-hp-customers`      | `True`                                         | Add `postprocess_group.has_hp`                          |
+| `--identify-heating-type`      | `True`                                         | Add heating-type columns                                |
+| `--identify-natgas-connection` | `True`                                         | Add `has_natgas_connection`                             |
+| `--add-vulnerability-columns`  | `True`                                         | Add LMI columns (NY only)                               |
+| `--approximate-non-hp-load`    | `True`                                         | Run k-nearest-neighbor HVAC substitution for upgrade 02 |
+| `--path-output-dir`            | `/ebs/data/nrel/resstock`                      | Local EBS output root                                   |
+| `--path-s3-dir`                | `s3://data.sb/nrel/resstock`                   | S3 mirror root                                          |
+
+### Example invocations
+
+Full NY run:
+
+```bash
+uv run python -m data.resstock.main --state NY
+```
+
+MD sample run (10 buildings, skip vulnerability columns which are NY-only):
+
+```bash
+uv run python -m data.resstock.main \
+  --state MD \
+  --upgrade-ids 0 2 \
+  --file-types metadata load_curve_hourly load_curve_annual \
+  --sample 10 \
+  --add-vulnerability-columns False
+```
+
+---
+
+## Constants and configuration
+
+### `data/resstock/config.yaml`
+
+Default values for the pipeline. Anything passed as a CLI argument overrides these.
+
+```yaml
+resstock:
+  release_year: 2024
+  weather_file: amy2018
+  release_version: 2
+  upgrade_ids: ["0", "1", "2", "3", "4", "5"]
+  file_types: [metadata, load_curve_hourly, load_curve_annual]
+paths:
+  output_dir: /ebs/data/nrel/resstock
+  s3_dir: s3://data.sb/nrel/resstock
+  s3_pums_dir: s3://data.sb/census/pums
+pums:
+  survey: acs5
+  year: "2021"
+```
+
+### `_SB_EXCLUDED_FILE_TYPES` (module-level constant in `main.py`)
+
+```python
+_SB_EXCLUDED_FILE_TYPES: frozenset[str] = frozenset({"load_curve_annual"})
+```
+
+File types that are fetched for the raw NREL release but **never copied to `_sb`**, never uploaded under the `_sb` prefix, and never validated against `_sb`. Currently contains only `load_curve_annual`.
+
+**Why `load_curve_annual` is excluded:** The `_sb` release modifies `load_curve_hourly` in place (non-HP approximation, MF electricity adjustment). There is no mechanism to re-derive `load_curve_annual` from the modified hourly data, so including the unmodified raw annual in `_sb` would be misleading — it would not reflect the approximation or adjustment. The correct sub-annual aggregation is `load_curve_monthly`, which is derived from the modified hourly (step 2b-iv, not yet implemented in `main.py`).
+
+**How to expand `_sb` to include `load_curve_annual` in the future:** If a need arises for an `_sb` annual file (e.g., a downstream consumer requires it), the steps would be:
+
+1. Implement an hourly-to-annual aggregation script (analogous to `data/resstock/add_monthly_loads.py` but aggregating to 1 row per building).
+2. Add a pipeline step after all hourly modifications are complete (after step 2b-ii) that runs the aggregation on the `_sb` hourly files and writes `load_curve_annual/` under `path_sb`.
+3. Remove `"load_curve_annual"` from `_SB_EXCLUDED_FILE_TYPES` so the clone, upload, and validation steps include it.
+4. Ensure `_modify_metadata` still reads `load_curve_annual` from `path_raw` (the raw release) for the `identify_natgas_connection` step, since that runs before any hourly modifications. (Or, if the new annual file is generated after modifications, decide whether natgas identification should use the pre- or post-modification annual.)
+
+### `data/resstock/constants.py`
+
+Column-name constants used for schema validation after each metadata transform:
+
+| Constant                 | Columns                                                                                                                                                      | Set by                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| `HP_CUSTOMERS_COLS`      | `postprocess_group.has_hp`                                                                                                                                   | `identify_hp_customers`      |
+| `HEATING_TYPE_COLS`      | `postprocess_group.heating_type`, `postprocess_group.heating_type_v2`, `heats_with_electricity`, `heats_with_natgas`, `heats_with_oil`, `heats_with_propane` | `identify_heating_type`      |
+| `NATGAS_CONNECTION_COLS` | `has_natgas_connection`                                                                                                                                      | `identify_natgas_connection` |
+| `VULNERABILITY_COLS`     | `has_child_under_6`, `has_person_over_60`, `has_disabled_person`, `is_vulnerable`                                                                            | `add_vulnerability_columns`  |
+
+### bsf sampling behavior (important for understanding `--sample` mode)
+
+When `--sample N` is active, bsf downloads the full NREL source file for each file type but **filters it to only the N sampled building IDs** before writing to disk. This affects both `metadata.parquet` and `load_curve_annual`. The bsf bundled index (`METADATA_DIR`, shipped with the package) has all building IDs for every release but only contains `bldg_id`, `county`, and `puma` — not the `in.weather_file_city` column needed for weather-station grouping.
+
+Because there is no reliable, release-independent way to obtain the full-population metadata with all columns in sample mode, the pipeline accepts this limitation: the neighbor search is restricted to the locally downloaded buildings. A warning is printed. `--sample` is a development/testing feature; production runs should always use `--sample 0` (the default).
+
+---
+
+## Pipeline step-by-step
+
+### Naming conventions
+
+The pipeline derives two release names from the CLI arguments:
+
+- **Raw release** (`release`): e.g., `res_2024_amy2018_2` — the standard NREL release, unmodified.
+- **`_sb` release** (`release_sb`): e.g., `res_2024_amy2018_2_sb` — the Switchbox-modified release.
+
+Local paths:
+
+- `path_raw` = `<path_output_dir>/<release>` — raw files on EBS.
+- `path_sb` = `<path_output_dir>/<release_sb>` — modified files on EBS.
+
+S3 paths:
+
+- `s3_base_raw` = `<path_s3_dir>/<release>` — raw files on S3.
+- `s3_base_sb` = `<path_s3_dir>/<release_sb>` — modified files on S3.
+
+### `sb_file_types`
+
+Computed at the top of `main()`:
+
+```python
+sb_file_types = [ft for ft in args.file_types if ft not in _SB_EXCLUDED_FILE_TYPES]
+```
+
+This list drives the clone, clone validation, `_sb` upload, and `_sb` S3 validation. With current defaults, `sb_file_types` = `["metadata", "load_curve_hourly"]`.
+
+### Manifest and warnings
+
+A run record is created immediately via `new_run_record` from `data/resstock/manifest.py`. This captures the git commit, branch, CLI arguments, and all flags. The record is updated after each step via `record_step` and `upsert_run`, providing a persistent audit trail in `manifest.yaml` (one per release directory, synced to S3).
+
+If any file type in `--file-types` is in `_SB_EXCLUDED_FILE_TYPES`, a warning is printed to stdout and recorded in the run record under a `warnings` key. This ensures the user is aware that `load_curve_annual` (or any future excluded type) is not part of the `_sb` release.
+
+### Step 1a: Fetch raw ResStock data
+
+Calls `fetch_resstock_data.run()` (which wraps `bsf`) to download all requested file types, states, and upgrade IDs from NREL to `path_raw`. This includes `load_curve_annual` — it is needed by `identify_natgas_connection` in step 2a.
+
+When `--sample N` is passed, `bsf` downloads only N load curve files per state/upgrade but downloads the full metadata parquet (it's a single file).
+
+Validation: `validate_local_files` checks that every `(file_type, state, upgrade)` directory has at least one `.parquet` file.
+
+### Step 1b: Clone raw release to `_sb`
+
+Copies files from `path_raw` to `path_sb`, iterating over `sb_file_types` (not `args.file_types`). This means `load_curve_annual` is never copied to `_sb`.
+
+A fresh `manifest.yaml` is written to `path_sb` with an empty `runs` list.
+
+Validation: `validate_local_files` checks `path_sb` against `sb_file_types` only.
+
+### Step 2a: Modify metadata
+
+Iterates over all `(state, upgrade)` combinations. For each:
+
+1. Reads `metadata.parquet` (the raw NREL metadata) from `path_sb`.
+2. Applies `_modify_metadata`, which chains four transforms in dependency order:
+   - **`identify_hp_customers`** — adds `postprocess_group.has_hp`.
+   - **`identify_heating_type`** — adds `postprocess_group.heating_type`, `heats_with_*` flags. Requires `has_hp`.
+   - **`identify_natgas_connection`** — adds `has_natgas_connection`. **Reads `load_curve_annual` from `path_raw` (the raw release), not from `path_sb`.** This is correct because `load_curve_annual` is never copied to `_sb`, and the raw annual data is the appropriate baseline for this identification. For buildings whose HVAC is later approximated (step 2b-i), `has_natgas_connection` is re-derived from the modified `load_curve_hourly`.
+   - **`add_vulnerability_columns`** — adds LMI columns. NY only; pass `--add-vulnerability-columns False` for other states.
+3. Validates output schema for each active transform.
+4. Writes the result to `metadata-sb.parquet` in `path_sb`.
+
+**Important: `path_raw` vs `path_sb` in `_modify_metadata`.** The `path_raw` parameter is used exclusively for `load_curve_annual` in `identify_natgas_connection`. All metadata I/O (read `metadata.parquet`, write `metadata-sb.parquet`) is done on `path_sb` by the caller. If a future transform needs to read load curve data that should reflect `_sb` modifications, it must be placed after the relevant modification step and read from `path_sb`.
+
+### Step 2b-i: Approximate non-HP load (upgrade 02)
+
+Runs only when all three conditions are met:
+
+- `--approximate-non-hp-load True`
+- upgrade `02` is in `--upgrade-ids`
+- `load_curve_hourly` is in `--file-types`
+
+Logic is in `_approximate_non_hp_load()`. For each state:
+
+1. **Identify targets.** Reads `metadata-sb.parquet` from `path_sb` (which already has `has_hp` and `heats_with_*` columns from step 2a). Finds non-HP multifamily buildings and non-HP "other fuel type" buildings via `_identify_non_hp_mf` and `_identify_other_fuel_types`.
+
+2. **Restrict targets when sampling.** When `--sample > 0`, enumerates actual `.parquet` files in the local `load_curve_hourly` directory and restricts targets to only those `bldg_id`s with locally available files.
+
+3. **Determine neighbor pool.** When sampling, the full state metadata and load curves are read from S3 (`path_s3_dir/<release>/`) so the neighbor search considers the entire population, not just the sampled subset. When not sampling, the local files are the full population.
+
+4. **Find k nearest neighbors.** `_find_nearest_neighbors` (from `utils/pre/approximate_non_hp_load.py`) groups buildings by weather station and, for each target, finds the 15 closest HP buildings by heating-load RMSE. Internally parallelized: loads target heating curves from local disk, loads neighbor heating curves from the neighbor directory (local or S3) in parallel via `ThreadPoolExecutor(max_workers=256)`.
+
+5. **Cache chosen neighbors (sample mode only).** After the RMSE search identifies the k=15 best neighbors per target, if neighbors were read from S3, their full parquets are downloaded to a temporary directory (`tempfile.mkdtemp`) via `_cache_s3_parquets` (parallel, up to 64 threads). This avoids re-reading them from S3 in the next step. The cache is cleaned up in a `finally` block.
+
+6. **Replace HVAC columns.** `update_load_curve_hourly` (from `utils/pre/approximate_non_hp_load.py`) processes each target building in parallel. For each target, loads the original parquet from local disk, loads the k neighbor parquets (from cache or local disk), replaces HVAC-related columns (heating/cooling load, electricity, natural gas, fuel oil, propane, and their totals) with the neighbor average, and writes the modified parquet back to `path_sb`. Also determines whether each building uses natural gas after the swap.
+
+7. **Update metadata.** `update_non_hp_metadata` marks approximated buildings as HP in `metadata-sb.parquet`: sets `postprocess_group.has_hp = True`, `heats_with_electricity = True`, other fuel flags to `False`, assigns HP HVAC labels, adds `approximated_hp_load = True`, and updates `has_natgas_connection` based on the post-swap hourly data.
+
+   The metadata is materialized with `.collect()` and written with `.write_parquet()` (not `.sink_parquet()`) because the scan source and output target are the same file.
+
+### Step 2b-ii: Adjust MF electricity (TODO)
+
+Not yet implemented. See the TODO block in `main.py`. Should call `utils/pre/adjust_mf_electricity.py` for upgrades 00 and 02 after approximation.
+
+### Step 2b-iii: Utility assignment (TODO)
+
+Not yet implemented. The preferred approach is to run utility assignment on the standard release before invoking `main.py`, then include `metadata_utility` in `--file-types` so the clone step picks it up. `metadata_utility` is not in `_SB_EXCLUDED_FILE_TYPES`, so it would be cloned, uploaded, and validated normally.
+
+### Step 2b-iv: Monthly load curves (TODO)
+
+Not yet implemented. Should aggregate `load_curve_hourly` to `load_curve_monthly` after all hourly modifications are complete. See `data/resstock/add_monthly_loads.py` for the existing standalone script.
+
+### Step 3: Upload to S3
+
+Uploads both releases to S3 via `aws s3 sync`:
+
+- **Raw release**: all `args.file_types` (including `load_curve_annual`).
+- **`_sb` release**: only `sb_file_types` (excludes `load_curve_annual`).
+
+Validation: `validate_s3_objects` spot-checks up to 5 S3 objects per `(file_type, state, upgrade)`. The `_sb` validation uses `sb_file_types`.
+
+Manifests are uploaded separately via `_upload_manifest`.
+
+### Finalization
+
+On success, the run record is marked `completed` and written to both manifests. On failure, the run is marked `failed` with the error message, written to whichever manifest directories exist, and the process exits with code 1.
+
+---
+
+## File types in `_sb` releases
+
+### Currently included
+
+| File type           | Source                                                                                            | Notes                            |
+| ------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `metadata`          | Cloned from raw, then modified in place (`metadata-sb.parquet`)                                   | Contains all SB-specific columns |
+| `load_curve_hourly` | Cloned from raw, then modified in place by approximation (and later by MF electricity adjustment) | One parquet per building         |
+| `metadata_utility`  | Not yet wired (TODO step 2b-iii), but if included in `--file-types` it would be cloned            | Utility assignments              |
+
+### Currently excluded
+
+| File type            | Reason                                                                                             | Path to inclusion                                                                                                 |
+| -------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `load_curve_annual`  | No mechanism to re-derive from modified hourly; raw annual would be inconsistent with `_sb` hourly | Build an hourly-to-annual aggregation step, run it after all modifications, remove from `_SB_EXCLUDED_FILE_TYPES` |
+| `load_curve_monthly` | Derived, not fetched from NREL; built from `load_curve_hourly` after all modifications             | Implement step 2b-iv in `main.py`                                                                                 |
+
+---
+
+## Data flow and which release provides what
+
+Understanding which release provides data to which step is critical for correctness:
+
+| Data                               | Read from                                                  | Written to              | Step                              |
+| ---------------------------------- | ---------------------------------------------------------- | ----------------------- | --------------------------------- |
+| `metadata.parquet` (raw NREL)      | `path_raw` via clone                                       | `path_sb`               | 1b                                |
+| `load_curve_hourly` (raw NREL)     | `path_raw` via clone                                       | `path_sb`               | 1b                                |
+| `load_curve_annual` (raw NREL)     | `path_raw` (read directly, never cloned to `_sb`)          | N/A                     | 2a (`identify_natgas_connection`) |
+| `metadata-sb.parquet`              | `path_sb`                                                  | `path_sb`               | 2a, 2b-i                          |
+| `load_curve_hourly` (modified)     | `path_sb`                                                  | `path_sb` (overwritten) | 2b-i                              |
+| Neighbor load curves (sample mode) | `path_sb` (same as targets — limited to sampled buildings) | N/A                     | 2b-i                              |
+
+---
+
+## Sample mode (`--sample N`)
+
+When `--sample N` is passed (N > 0):
+
+- **bsf** downloads the full NREL parquet for metadata and `load_curve_annual`, but **filters both to only the N sampled building IDs** before writing to disk. The local `metadata.parquet` and `load_curve_annual` will each have only N rows. Load curves (`load_curve_hourly`) are downloaded as individual per-building files, so only N files are present.
+- **Neighbor search is limited to the sampled buildings.** A warning is printed. There is no release-independent way to obtain the full-population metadata with all needed columns (e.g. `in.weather_file_city`) in sample mode — bsf filters every file type, the bsf bundled index lacks `in.*` columns, and NREL OEDI URL patterns change across releases. This limitation is acceptable because `--sample` is a development/testing feature; production runs should always use `--sample 0`.
+- **Target identification** (step 2b-i) restricts non-HP targets to only buildings with locally available load curve files.
+- **All I/O is local** — no S3 reads for neighbor curves, no temp caching. This makes sample-mode runs fast and simple.
+
+---
+
+## Supporting modules
+
+| Module                                        | Purpose                                                                  |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| `data/resstock/config.yaml`                   | Pipeline defaults (release, paths, file types, PUMS)                     |
+| `data/resstock/constants.py`                  | Column-name constants for validation                                     |
+| `data/resstock/manifest.py`                   | Provenance: run records, YAML I/O, status CLI                            |
+| `data/resstock/validations.py`                | Post-step validation (local files, S3 objects, metadata schema)          |
+| `data/resstock/fetch_resstock_data.py`        | bsf wrapper                                                              |
+| `data/resstock/copy_resstock_data.py`         | Directory copy utility (`copy_dir`)                                      |
+| `data/resstock/identify_hp_customers.py`      | Adds `postprocess_group.has_hp`                                          |
+| `data/resstock/identify_heating_type.py`      | Adds heating-type and fuel-flag columns                                  |
+| `data/resstock/identify_natgas_connection.py` | Adds `has_natgas_connection` from `load_curve_annual`                    |
+| `data/resstock/add_vulnerability_columns.py`  | Adds LMI vulnerability columns from PUMS                                 |
+| `data/resstock/approximate_non_hp_load.py`    | Re-exports from `utils/pre/approximate_non_hp_load.py`                   |
+| `utils/pre/approximate_non_hp_load.py`        | Core approximation: neighbor search, HVAC replacement, metadata update   |
+| `data/resstock/add_monthly_loads.py`          | Hourly-to-monthly aggregation (standalone, not yet wired into `main.py`) |
+
+---
+
+## Known limitations and TODO items
+
+1. **Adjust MF electricity (step 2b-ii)**: Not yet implemented. Should run `utils/pre/adjust_mf_electricity.py` for upgrades 00 and 02 after approximation. See TODO block in `main.py`.
+
+2. **Utility assignment (step 2b-iii)**: Not yet wired. Current workaround: run utility assignment on the standard release first, then include `metadata_utility` in `--file-types`.
+
+3. **Monthly load curves (step 2b-iv)**: Not yet wired. The aggregation script exists (`data/resstock/add_monthly_loads.py`) but is not called by `main.py`. Must run after all hourly modifications and after the `_sb` upload.
+
+4. **No `load_curve_annual` in `_sb`**: Intentional. See the `_SB_EXCLUDED_FILE_TYPES` section above for how to change this if needed.
+
+5. **`has_natgas_connection` has two sources of truth**: For non-approximated buildings, it comes from `load_curve_annual` in the raw release (step 2a). For approximated buildings, it is re-derived from the modified `load_curve_hourly` in `_sb` (step 2b-i). This is correct behavior but worth understanding when debugging metadata values.
+
+6. **Sample mode neighbor caching fallback**: If the S3-to-local cache download fails, the pipeline falls back to reading neighbors from S3 directly. This is graceful degradation but will be slower.
+
+7. **k and include_cooling are hardcoded**: `_approximate_non_hp_load` uses `k=15` and `include_cooling=False`. These should eventually become CLI arguments if they need to vary.

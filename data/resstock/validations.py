@@ -118,7 +118,7 @@ def validate_metadata_readable(
     loc: str,
 ) -> None:
     """Exit if the metadata LazyFrame schema is empty (file unreadable or corrupt)."""
-    if not input_metadata.schema:
+    if not input_metadata.collect_schema():
         print(
             f"ERROR: Validation failed reading metadata ({loc}).\n"
             f"  File appears empty or unreadable: {input_path}\n"
@@ -135,7 +135,7 @@ def validate_metadata_columns(
     loc: str,
 ) -> None:
     """Exit if expected columns are missing from the output metadata schema."""
-    output_cols = set(output_metadata.schema.names())
+    output_cols = set(output_metadata.collect_schema().names())
     missing = expected_cols - output_cols
     if missing:
         print(

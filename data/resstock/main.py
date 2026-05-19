@@ -33,11 +33,9 @@ from typing import cast
 
 import polars as pl
 import yaml
-from cloudpathlib import S3Path
 
 from data.resstock import fetch_resstock_data
 from data.resstock.approximate_non_hp_load import (
-    STORAGE_OPTIONS as _APPROX_STORAGE_OPTIONS,
     _find_nearest_neighbors,
     _identify_non_hp_mf,
     _identify_other_fuel_types,
@@ -100,6 +98,128 @@ _DEFAULT_UPGRADE_IDS: list[str] = _cfg["resstock"]["upgrade_ids"]
 _DEFAULT_FILE_TYPES: list[str] = _cfg["resstock"]["file_types"]
 _DEFAULT_PUMS_SURVEY: str = _cfg["pums"]["survey"]
 _DEFAULT_PUMS_YEAR: str = str(_cfg["pums"]["year"])
+
+
+def _approximate_non_hp_load(
+    *,
+    states: list[str],
+    path_sb: Path,
+    sample: int,
+) -> None:
+    """Approximate non-HP load curves for upgrade 02 via k-nearest-neighbor HVAC
+    substitution.  For each state, identifies non-HP multifamily and other-fuel-type
+    buildings, finds their k nearest HP neighbors by heating-load RMSE, replaces their
+    HVAC hourly columns with the neighbor average, and updates metadata accordingly.
+
+    When ``sample > 0`` only a subset of buildings is available locally (bsf filters
+    both metadata and load curves to the sampled set).  The neighbor search is limited
+    to those sampled buildings.  This is acceptable because ``--sample`` is a
+    development/testing feature; run without ``--sample`` for production use.
+    """
+    upgrade = "02"
+    for s in states:
+        loc = f"state={s} upgrade={upgrade}"
+        local_lc_dir = (
+            path_sb / "load_curve_hourly" / f"state={s}" / f"upgrade={upgrade}"
+        )
+        metadata_path = (
+            path_sb
+            / "metadata"
+            / f"state={s}"
+            / f"upgrade={upgrade}"
+            / "metadata-sb.parquet"
+        )
+        if not metadata_path.exists():
+            print(f"  WARNING: {metadata_path} not found, skipping {loc}.", flush=True)
+            continue
+        if not local_lc_dir.exists():
+            print(f"  WARNING: {local_lc_dir} not found, skipping {loc}.", flush=True)
+            continue
+
+        print(f"  Processing {loc}...", flush=True)
+        metadata = pl.scan_parquet(str(metadata_path))
+
+        # When --sample > 0, bsf filters both metadata and load curves to the
+        # sampled subset.  Restrict targets to buildings whose parquet exists
+        # locally (defensive — in practice bsf keeps them in sync).
+        local_bldg_ids: set[int] | None = None
+        if sample > 0:
+            local_bldg_ids = {
+                int(p.stem.split("-")[0])
+                for p in local_lc_dir.iterdir()
+                if p.suffix == ".parquet"
+            }
+            print(
+                f"    WARNING: --sample active — neighbor pool is limited to the "
+                f"{len(local_bldg_ids)} locally downloaded buildings. "
+                f"Run without --sample for production use.",
+                flush=True,
+            )
+
+        non_hp_parts = [
+            _identify_non_hp_mf(metadata),
+            _identify_other_fuel_types(metadata),
+        ]
+        non_hp_bldg_metadata = pl.concat(non_hp_parts).unique("bldg_id")
+
+        if local_bldg_ids is not None:
+            non_hp_bldg_metadata = non_hp_bldg_metadata.filter(
+                pl.col("bldg_id").is_in(list(local_bldg_ids))
+            )
+
+        n_targets = cast(pl.DataFrame, non_hp_bldg_metadata.collect()).height
+        if n_targets == 0:
+            print("    No non-HP target buildings, skipping.", flush=True)
+            continue
+        print(f"    {n_targets} non-HP target buildings.", flush=True)
+
+        neighbor_map = _find_nearest_neighbors(
+            metadata,
+            non_hp_bldg_metadata,
+            local_lc_dir,
+            upgrade,
+            k=15,
+            include_cooling=False,
+        )
+
+        # Log neighbor-search summary.
+        neighbor_counts = [len(v) for v in neighbor_map.values()]
+        n_no_neighbors = sum(1 for c in neighbor_counts if c == 0)
+        if neighbor_counts:
+            avg_n = sum(neighbor_counts) / len(neighbor_counts)
+            min_n = min(neighbor_counts)
+            max_n = max(neighbor_counts)
+            print(
+                f"    Neighbor search complete: {len(neighbor_map)} targets, "
+                f"neighbors per target: min={min_n} avg={avg_n:.1f} max={max_n}.",
+                flush=True,
+            )
+        if n_no_neighbors:
+            print(
+                f"    WARNING: {n_no_neighbors} target(s) found no neighbors "
+                f"and will be skipped.",
+                flush=True,
+            )
+
+        natural_gas_usage = update_load_curve_hourly(
+            neighbor_map,
+            local_lc_dir,
+            local_lc_dir,
+            upgrade,
+        )
+
+        # Collect + write_parquet (not sink_parquet) because the scan source and
+        # output target are the same file.
+        updated_metadata = update_non_hp_metadata(
+            non_hp_bldg_metadata,
+            metadata,
+            natural_gas_usage=natural_gas_usage,
+        )
+        cast(pl.DataFrame, updated_metadata.collect()).write_parquet(str(metadata_path))
+        print(
+            f"    Done: updated {n_targets} buildings in {metadata_path.name}.",
+            flush=True,
+        )
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -285,7 +405,7 @@ def _modify_metadata(
     run_identify_hp_customers: bool,
     run_identify_heating_type: bool,
     run_identify_natgas_connection: bool,
-    path_sb: Path,
+    path_raw: Path,
     state: str,
     run_add_vulnerability_columns: bool,
     pums_base_dir: str | None = None,
@@ -298,13 +418,20 @@ def _modify_metadata(
       1. identify_hp_customers       → adds postprocess_group.has_hp
       2. identify_heating_type       → adds heating_type columns (requires has_hp)
       3. identify_natgas_connection  → adds has_natgas_connection (requires heats_with_natgas;
-                                       loads load_curve_annual from path_sb)
+                                       loads load_curve_annual from the raw release at path_raw,
+                                       not from _sb, because load_curve_annual is never copied
+                                       to _sb — it has no post-approximation equivalent)
       4. add_vulnerability_columns   → adds LMI vulnerability columns (NY only;
                                        loads PUMS conditional probs from S3)
 
     Each step receives and returns a LazyFrame. Steps 3 and 4 have internal collects for
     validation; step 4 always materialises the full frame. I/O (scan_parquet / sink_parquet)
     and iteration over states/upgrades is handled by the caller.
+
+    Note: has_natgas_connection is re-derived from _sb load_curve_hourly by
+    update_non_hp_metadata (step 2b-i) for any buildings whose HVAC load curves are
+    approximated, so the raw-annual baseline set here is only the final value for
+    non-approximated buildings.
     """
     if run_identify_hp_customers:
         metadata = identify_hp_customers(metadata=metadata, upgrade_id=upgrade_id)
@@ -312,12 +439,13 @@ def _modify_metadata(
         metadata = identify_heating_type(metadata=metadata, upgrade_id=upgrade_id)
     if run_identify_natgas_connection:
         lca_dir = (
-            path_sb / "load_curve_annual" / f"state={state}" / f"upgrade={upgrade_id}"
+            path_raw / "load_curve_annual" / f"state={state}" / f"upgrade={upgrade_id}"
         )
         if not lca_dir.exists():
             raise RuntimeError(
                 f"[state={state} upgrade={upgrade_id}] load_curve_annual not found "
-                f"at {lca_dir}. Ensure 'load_curve_annual' is in --file-types."
+                f"in the raw release at {lca_dir}. "
+                f"Ensure 'load_curve_annual' is in --file-types so it is fetched."
             )
         load_curve_annual = pl.scan_parquet(str(lca_dir))
         metadata = identify_natgas_connection(
@@ -342,6 +470,14 @@ def _modify_metadata(
     return metadata
 
 
+# File types that belong only to the raw NREL release and must never be copied
+# to the _sb release, uploaded under _sb, or validated against _sb.
+# load_curve_annual has no post-approximation equivalent: the only valid
+# aggregation of the modified _sb load curves is load_curve_monthly (derived
+# from load_curve_hourly by add_monthly_loads after all modifications are done).
+_SB_EXCLUDED_FILE_TYPES: frozenset[str] = frozenset({"load_curve_annual"})
+
+
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
     release = f"res_{args.release_year}_{args.weather_file}_{args.release_version}"
@@ -350,6 +486,9 @@ def main(argv: list[str] | None = None) -> None:
     path_sb = Path(args.path_output_dir) / release_sb
     s3_base_raw = f"{args.path_s3_dir.rstrip('/')}/{release}"
     s3_base_sb = f"{args.path_s3_dir.rstrip('/')}/{release_sb}"
+
+    # File types that will actually appear in _sb (excludes raw-only types).
+    sb_file_types = [ft for ft in args.file_types if ft not in _SB_EXCLUDED_FILE_TYPES]
 
     # ── Manifest: start a run record ──────────────────────────────────────────
     run = new_run_record(
@@ -367,6 +506,22 @@ def main(argv: list[str] | None = None) -> None:
             "sample": args.sample,
         },
     )
+
+    # Warn early about file types that are excluded from _sb so the user sees
+    # it at the top of the run log rather than discovering it mid-pipeline.
+    run_warnings: list[str] = []
+    for ft in _SB_EXCLUDED_FILE_TYPES:
+        if ft in args.file_types:
+            msg = (
+                f"'{ft}' will be fetched for the raw release but is NOT copied to "
+                f"the _sb release. The _sb release has no post-modification annual "
+                f"equivalent; use load_curve_monthly (derived from load_curve_hourly) "
+                f"for month-level aggregations of the modified _sb data."
+            )
+            print(f"WARNING: {msg}", flush=True)
+            run_warnings.append(msg)
+    if run_warnings:
+        run["warnings"] = run_warnings
 
     try:
         # ── 1. Fetch ──────────────────────────────────────────────────────────
@@ -396,12 +551,15 @@ def main(argv: list[str] | None = None) -> None:
         upsert_run(path_raw, run)
 
         # ── 1b. Clone raw release to _sb (only the fetched states/file_types) ──
+        # load_curve_annual is intentionally excluded: it has no post-modification
+        # equivalent in _sb (no mechanism to re-derive it from modified hourly).
         print(
-            f"Cloning {path_raw} → {path_sb} (states={args.state}, file_types={args.file_types})...",
+            f"Cloning {path_raw} → {path_sb} "
+            f"(states={args.state}, file_types={sb_file_types})...",
             flush=True,
         )
         n_copied = 0
-        for file_type in args.file_types:
+        for file_type in sb_file_types:
             for s in args.state:
                 for uid in args.upgrade_ids:
                     upgrade_id_padded = uid.zfill(2)
@@ -427,7 +585,7 @@ def main(argv: list[str] | None = None) -> None:
             label="clone (step 1b)",
             state=args.state,
             upgrade_ids=args.upgrade_ids,
-            file_types=args.file_types,
+            file_types=sb_file_types,
             base_path=path_sb,
         )
         record_step(run, "clone", files_copied=n_copied, path=str(path_sb))
@@ -463,7 +621,7 @@ def main(argv: list[str] | None = None) -> None:
                     run_identify_hp_customers=args.identify_hp_customers,
                     run_identify_heating_type=args.identify_heating_type,
                     run_identify_natgas_connection=args.identify_natgas_connection,
-                    path_sb=path_sb,
+                    path_raw=path_raw,
                     state=s,
                     run_add_vulnerability_columns=args.add_vulnerability_columns,
                     pums_base_dir=args.path_s3_pums_dir,
@@ -520,144 +678,11 @@ def main(argv: list[str] | None = None) -> None:
             and "load_curve_hourly" in args.file_types
         ):
             print("Approximating non-HP load curves (upgrade 02)...", flush=True)
-            for s in args.state:
-                loc_02 = f"state={s} upgrade={_APPROX_UPGRADE}"
-                local_lc_dir = (
-                    path_sb
-                    / "load_curve_hourly"
-                    / f"state={s}"
-                    / f"upgrade={_APPROX_UPGRADE}"
-                )
-                metadata_path = (
-                    path_sb
-                    / "metadata"
-                    / f"state={s}"
-                    / f"upgrade={_APPROX_UPGRADE}"
-                    / "metadata-sb.parquet"
-                )
-                if not metadata_path.exists():
-                    print(
-                        f"  WARNING: {metadata_path} not found, skipping {loc_02}.",
-                        flush=True,
-                    )
-                    continue
-                if not local_lc_dir.exists():
-                    print(
-                        f"  WARNING: {local_lc_dir} not found, skipping {loc_02}.",
-                        flush=True,
-                    )
-                    continue
-
-                print(f"  Processing {loc_02}...", flush=True)
-                local_metadata = pl.scan_parquet(str(metadata_path))
-
-                # When --sample > 0, bsf may download the full metadata
-                # parquet but only N load curve files.  Restrict the target
-                # set to buildings whose parquet actually exists locally so
-                # we don't try to read missing files.
-                local_bldg_ids: set[int] | None = None
-                if args.sample > 0:
-                    local_bldg_ids = {
-                        int(p.stem.split("-")[0])
-                        for p in local_lc_dir.iterdir()
-                        if p.suffix == ".parquet"
-                    }
-                    print(
-                        f"    Sample mode: {len(local_bldg_ids)} load curves "
-                        "available locally.",
-                        flush=True,
-                    )
-
-                non_hp_parts = [
-                    _identify_non_hp_mf(local_metadata),
-                    _identify_other_fuel_types(local_metadata),
-                ]
-                non_hp_bldg_metadata = pl.concat(non_hp_parts).unique("bldg_id")
-
-                # Filter targets to locally-available buildings when sampling.
-                if local_bldg_ids is not None:
-                    non_hp_bldg_metadata = non_hp_bldg_metadata.filter(
-                        pl.col("bldg_id").is_in(list(local_bldg_ids))
-                    )
-
-                n_targets = cast(pl.DataFrame, non_hp_bldg_metadata.collect()).height
-                if n_targets == 0:
-                    print(
-                        "    No non-HP target buildings, skipping.",
-                        flush=True,
-                    )
-                    continue
-                print(f"    {n_targets} non-HP target buildings.", flush=True)
-
-                # Determine where the neighbor pool lives.
-                # When sampling, the local dir has only the downloaded subset;
-                # we read the full state metadata and load curves from the raw
-                # S3 release so every candidate at the same weather station is
-                # available.  When not sampling, everything is local.
-                if args.sample > 0:
-                    s3_raw_meta = (
-                        f"{args.path_s3_dir.rstrip('/')}/{release}"
-                        f"/metadata/state={s}/upgrade={_APPROX_UPGRADE}"
-                        "/metadata.parquet"
-                    )
-                    full_metadata: pl.LazyFrame = pl.scan_parquet(
-                        s3_raw_meta,
-                        storage_options=_APPROX_STORAGE_OPTIONS,
-                    )
-                    n_full = cast(
-                        pl.DataFrame,
-                        full_metadata.select(pl.len()).collect(),
-                    ).item()
-                    neighbor_lc_dir: Path | S3Path = S3Path(
-                        f"{args.path_s3_dir.rstrip('/')}/{release}"
-                        f"/load_curve_hourly/state={s}"
-                        f"/upgrade={_APPROX_UPGRADE}"
-                    )
-                    print(
-                        f"    Neighbor pool: {n_full} buildings from S3.",
-                        flush=True,
-                    )
-                else:
-                    full_metadata = local_metadata
-                    neighbor_lc_dir = local_lc_dir
-                    print(
-                        "    Neighbor pool: local (full population).",
-                        flush=True,
-                    )
-
-                neighbor_map = _find_nearest_neighbors(
-                    full_metadata,
-                    non_hp_bldg_metadata,
-                    local_lc_dir,
-                    _APPROX_UPGRADE,
-                    k=15,
-                    include_cooling=False,
-                    neighbor_load_curve_hourly_dir=neighbor_lc_dir,
-                )
-                natural_gas_usage = update_load_curve_hourly(
-                    neighbor_map,
-                    local_lc_dir,
-                    local_lc_dir,
-                    _APPROX_UPGRADE,
-                    neighbor_load_curve_hourly_dir=neighbor_lc_dir,
-                )
-
-                # Update metadata-sb.parquet with HP approximation markers.
-                # Collect + write_parquet (not sink_parquet) because the scan
-                # source and output target are the same file.
-                updated_metadata = update_non_hp_metadata(
-                    non_hp_bldg_metadata,
-                    local_metadata,
-                    natural_gas_usage=natural_gas_usage,
-                )
-                cast(pl.DataFrame, updated_metadata.collect()).write_parquet(
-                    str(metadata_path)
-                )
-                print(
-                    f"    Done: updated {n_targets} buildings in {metadata_path.name}.",
-                    flush=True,
-                )
-
+            _approximate_non_hp_load(
+                states=args.state,
+                path_sb=path_sb,
+                sample=args.sample,
+            )
             record_step(run, "approximate_non_hp_load", upgrades=[_APPROX_UPGRADE])
             upsert_run(path_sb, run)
 
@@ -724,7 +749,7 @@ def main(argv: list[str] | None = None) -> None:
         print("Uploading modified sb ResStock data to S3...", flush=True)
         _upload(
             state=args.state,
-            file_types=args.file_types,
+            file_types=sb_file_types,
             release=release_sb,
             path_output_dir=args.path_output_dir,
             path_s3_dir=args.path_s3_dir,
@@ -746,7 +771,7 @@ def main(argv: list[str] | None = None) -> None:
             label="upload sb (step 3)",
             state=args.state,
             upgrade_ids=args.upgrade_ids,
-            file_types=args.file_types,
+            file_types=sb_file_types,
             s3_base=s3_base_sb,
             local_base=path_sb,
         )
