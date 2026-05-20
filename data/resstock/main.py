@@ -80,6 +80,7 @@ from data.resstock.validations import (
     validate_metadata_columns,
     validate_metadata_output,
     validate_metadata_readable,
+    validate_no_stale_monthly_loads,
     validate_s3_objects,
 )
 
@@ -1009,6 +1010,18 @@ def main(argv: list[str] | None = None) -> None:
         run["warnings"] = run_warnings
 
     try:
+        # ── 0. Pre-flight validations ─────────────────────────────────────────
+        # These run before any I/O so the pipeline halts immediately on conflicts
+        # that would otherwise corrupt the _sb release mid-run.
+        print("Running pre-flight validations...", flush=True)
+        validate_no_stale_monthly_loads(
+            state=args.state,
+            upgrade_ids=args.upgrade_ids,
+            file_types=args.file_types,
+            add_monthly_loads=args.add_monthly_loads,
+            path_sb=path_sb,
+        )
+
         # ── 1. Fetch ──────────────────────────────────────────────────────────
         # ── 1a. Fetch raw ResStock data ────────────────────────────────────────
         print("Fetching raw ResStock data...", flush=True)
@@ -1272,10 +1285,13 @@ def main(argv: list[str] | None = None) -> None:
         error_msg = str(e)
         print(f"ERROR: {error_msg}", flush=True)
         fail_run(run, error_msg)
-        # Best-effort: record the failure in whichever manifests exist on disk.
+        # Best-effort: record the failure in both manifests (creating directories
+        # if needed so pre-flight failures are captured before bsf/clone run).
         for path in (path_raw, path_sb):
-            if path.exists():
+            try:
                 upsert_run(path, run)
+            except Exception:
+                pass
         sys.exit(1)
 
 

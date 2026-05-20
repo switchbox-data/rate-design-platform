@@ -161,3 +161,80 @@ def validate_metadata_output(
             flush=True,
         )
         sys.exit(1)
+
+
+def validate_no_stale_monthly_loads(
+    state: list[str],
+    upgrade_ids: list[str],
+    file_types: list[str],
+    add_monthly_loads: bool,
+    path_sb: Path,
+) -> None:
+    """Raise RuntimeError if fetching hourly load curves would leave monthly files stale.
+
+    Monthly load curve files in the _sb release are derived directly from the _sb
+    hourly load curves (by ``--add-monthly-loads``). If hourly files are re-fetched
+    without also updating the corresponding monthly files, the two datasets become
+    inconsistent — the monthly files would still be aggregated from the old hourly data.
+
+    This check fires when all of the following are true:
+
+    - ``load_curve_hourly`` is in ``file_types`` (hourly will be overwritten)
+    - ``load_curve_monthly`` is NOT in ``file_types`` (raw monthly not being re-fetched)
+    - ``add_monthly_loads`` is False (pipeline will not regenerate monthly from hourly)
+    - Existing ``load_curve_monthly`` parquet files are found in the _sb release for
+      at least one (state, upgrade) combination in the current request
+
+    The fix is to either pass ``--add-monthly-loads True`` (recommended — regenerates
+    monthly from the freshly modified _sb hourly) or add ``load_curve_monthly`` to
+    ``--file-types`` so raw monthly files are re-fetched alongside hourly.
+    """
+    if "load_curve_hourly" not in file_types:
+        return
+    if "load_curve_monthly" in file_types:
+        return
+    if add_monthly_loads:
+        return
+
+    stale: list[str] = []
+    for s in state:
+        for uid in upgrade_ids:
+            upgrade_id_padded = uid.zfill(2)
+            monthly_dir = (
+                path_sb
+                / "load_curve_monthly"
+                / f"state={s}"
+                / f"upgrade={upgrade_id_padded}"
+            )
+            if monthly_dir.is_dir():
+                existing = list(monthly_dir.glob("*.parquet"))
+                if existing:
+                    stale.append(
+                        f"  load_curve_monthly/state={s}/upgrade={upgrade_id_padded}:"
+                        f" {len(existing):,} file(s) at {monthly_dir}"
+                    )
+
+    if not stale:
+        return
+
+    stale_list = "\n".join(stale)
+    raise RuntimeError(
+        f"Stale load_curve_monthly conflict detected.\n"
+        f"\n"
+        f"You requested load_curve_hourly without updating load_curve_monthly. "
+        f"The following existing monthly files in the _sb release were built from the "
+        f"current hourly data and would become inconsistent with the new hourly files:\n"
+        f"\n"
+        f"{stale_list}\n"
+        f"\n"
+        f"Monthly files in the _sb release are derived directly from _sb hourly files "
+        f"and must be kept in sync. Resubmit with ONE of the following:\n"
+        f"\n"
+        f"  Option 1 (recommended): enable --add-monthly-loads True so the pipeline "
+        f"regenerates monthly files from the freshly modified _sb hourly data:\n"
+        f"      --add-monthly-loads True\n"
+        f"\n"
+        f"  Option 2: add load_curve_monthly to --file-types so monthly files are "
+        f"re-fetched from the raw NREL release alongside hourly:\n"
+        f"      --file-types ... load_curve_hourly load_curve_monthly ...\n"
+    )
