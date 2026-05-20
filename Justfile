@@ -46,6 +46,28 @@ clean:
     rm -rf .pytest_cache .ruff_cache tmp
 
 # =============================================================================
+# 📦 BUILD & RELEASE
+# =============================================================================
+# These commands build the package locally (useful for verification).
+# Actual releases are published by the release.yml GitHub Action when a
+# GitHub Release is created.
+
+# Clean build artifacts
+clean-build:
+    echo "🚀 Removing build artifacts"
+    rm -rf dist
+
+# Build sdist and wheel
+build: clean-build
+    echo "🚀 Building distribution packages"
+    uv build
+
+# Build and verify with twine
+build-and-verify: build
+    echo "🚀 Verifying distribution packages"
+    uv run --with twine twine check dist/*
+
+# =============================================================================
 # 🔍 AWS
 # =============================================================================
 # Authenticate with AWS via SSO (for manual AWS CLI usage like S3 access)
