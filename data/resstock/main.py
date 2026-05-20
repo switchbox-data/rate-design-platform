@@ -108,6 +108,8 @@ _DEFAULT_WEATHER_FILE: str = _cfg["resstock"]["weather_file"]
 _DEFAULT_RELEASE_VERSION: int = _cfg["resstock"]["release_version"]
 _DEFAULT_UPGRADE_IDS: list[str] = _cfg["resstock"]["upgrade_ids"]
 _DEFAULT_FILE_TYPES: list[str] = _cfg["resstock"]["file_types"]
+_MF_ADJ_UPGRADES: list[str] = _cfg["resstock"]["mf_adj_upgrade_ids"]
+_APPROX_UPGRADE: str = _cfg["resstock"]["approx_upgrade_id"]
 _DEFAULT_PUMS_SURVEY: str = _cfg["pums"]["survey"]
 _DEFAULT_PUMS_YEAR: str = str(_cfg["pums"]["year"])
 
@@ -128,7 +130,7 @@ def _approximate_non_hp_load(
     to those sampled buildings.  This is acceptable because ``--sample`` is a
     development/testing feature; run without ``--sample`` for production use.
     """
-    upgrade = "02"
+    upgrade = _APPROX_UPGRADE
     for s in states:
         loc = f"state={s} upgrade={upgrade}"
         local_lc_dir = (
@@ -233,9 +235,6 @@ def _approximate_non_hp_load(
             flush=True,
         )
 
-
-# Upgrades that the MF electricity adjustment applies to.
-_MF_ADJ_UPGRADES: list[str] = ["00", "02"]
 
 # Upgrade used as input for utility assignment (assignment is per-state, not per-upgrade).
 _UTILITY_ASSIGN_UPGRADE: str = "00"
@@ -492,9 +491,8 @@ def _assign_utility(
             )
             print("    Loading Census PUMA shapefiles via pygris...", flush=True)
             import geopandas as gpd
-            from typing import cast as typing_cast
 
-            pumas = typing_cast(
+            pumas = cast(
                 gpd.GeoDataFrame,
                 get_pumas(state=CONFIGS["state_code"], year=2019, cb=True),
             )
@@ -993,8 +991,8 @@ def main(argv: list[str] | None = None) -> None:
         },
     )
 
-    # Warn early about file types that are excluded from _sb so the user sees
-    # it at the top of the run log rather than discovering it mid-pipeline.
+    # Warn early about argument/file-type mismatches so the user sees them at
+    # the top of the run log rather than discovering a silent no-op mid-pipeline.
     run_warnings: list[str] = []
     for ft in _SB_EXCLUDED_FILE_TYPES:
         if ft in args.file_types:
@@ -1006,6 +1004,58 @@ def main(argv: list[str] | None = None) -> None:
             )
             print(f"WARNING: {msg}", flush=True)
             run_warnings.append(msg)
+    if args.approximate_non_hp_load and "load_curve_hourly" not in args.file_types:
+        msg = (
+            "--approximate-non-hp-load is enabled but 'load_curve_hourly' is not in "
+            "--file-types. The approximation step will be skipped. Add "
+            "'load_curve_hourly' to --file-types if you want non-HP load curves approximated."
+        )
+        print(f"WARNING: {msg}", flush=True)
+        run_warnings.append(msg)
+    if args.approximate_non_hp_load and _APPROX_UPGRADE not in [
+        u.zfill(2) for u in args.upgrade_ids
+    ]:
+        msg = (
+            f"--approximate-non-hp-load is enabled but upgrade {_APPROX_UPGRADE!r} is not "
+            f"in --upgrade-ids. The approximation step will be skipped. Add "
+            f"upgrade {_APPROX_UPGRADE!r} to --upgrade-ids if you want non-HP load curves approximated."
+        )
+        print(f"WARNING: {msg}", flush=True)
+        run_warnings.append(msg)
+    if args.adjust_mf_electricity and "load_curve_hourly" not in args.file_types:
+        msg = (
+            "--adjust-mf-electricity is enabled but 'load_curve_hourly' is not in "
+            "--file-types. The MF electricity adjustment step will be skipped. Add "
+            "'load_curve_hourly' to --file-types if you want MF non-HVAC electricity adjusted."
+        )
+        print(f"WARNING: {msg}", flush=True)
+        run_warnings.append(msg)
+    if args.adjust_mf_electricity and not any(
+        u.zfill(2) in _MF_ADJ_UPGRADES for u in args.upgrade_ids
+    ):
+        msg = (
+            f"--adjust-mf-electricity is enabled but none of the requested upgrade IDs "
+            f"are in mf_adj_upgrade_ids {_MF_ADJ_UPGRADES}. The MF electricity adjustment "
+            f"step will be skipped. Check --upgrade-ids or mf_adj_upgrade_ids in config.yaml."
+        )
+        print(f"WARNING: {msg}", flush=True)
+        run_warnings.append(msg)
+    if args.assign_utility and "metadata" not in args.file_types:
+        msg = (
+            "--assign-utility is enabled but 'metadata' is not in --file-types. "
+            "The utility assignment step will be skipped. Add 'metadata' to "
+            "--file-types if you want utilities assigned."
+        )
+        print(f"WARNING: {msg}", flush=True)
+        run_warnings.append(msg)
+    if args.add_monthly_loads and "load_curve_hourly" not in args.file_types:
+        msg = (
+            "--add-monthly-loads is enabled but 'load_curve_hourly' is not in "
+            "--file-types. The monthly aggregation step will be skipped. Add "
+            "'load_curve_hourly' to --file-types if you want monthly load curves generated."
+        )
+        print(f"WARNING: {msg}", flush=True)
+        run_warnings.append(msg)
     if run_warnings:
         run["warnings"] = run_warnings
 
@@ -1092,6 +1142,22 @@ def main(argv: list[str] | None = None) -> None:
         # ── 2. Modify ─────────────────────────────────────────────────────────
 
         # ── 2a. Modify metadata ────────────────────────────────────────────────
+        # Maps each active transform flag to its expected output columns and
+        # name. Built once here so the inner loop doesn't re-evaluate args.
+        _active_transforms: list[tuple[bool, frozenset[str], str]] = [
+            (args.identify_hp_customers, HP_CUSTOMERS_COLS, "identify_hp_customers"),
+            (args.identify_heating_type, HEATING_TYPE_COLS, "identify_heating_type"),
+            (
+                args.identify_natgas_connection,
+                NATGAS_CONNECTION_COLS,
+                "identify_natgas_connection",
+            ),
+            (
+                args.add_vulnerability_columns,
+                VULNERABILITY_COLS,
+                "add_vulnerability_columns",
+            ),
+        ]
         metadata_transforms_applied: list[str] = []
         print("Modifying metadata...", flush=True)
         for s in args.state:
@@ -1128,36 +1194,11 @@ def main(argv: list[str] | None = None) -> None:
                 )
 
                 # Validate output schema for each active transformation.
-                if args.identify_hp_customers:
-                    validate_metadata_columns(
-                        output_metadata, HP_CUSTOMERS_COLS, "identify_hp_customers", loc
-                    )
-                    if "identify_hp_customers" not in metadata_transforms_applied:
-                        metadata_transforms_applied.append("identify_hp_customers")
-                if args.identify_heating_type:
-                    validate_metadata_columns(
-                        output_metadata, HEATING_TYPE_COLS, "identify_heating_type", loc
-                    )
-                    if "identify_heating_type" not in metadata_transforms_applied:
-                        metadata_transforms_applied.append("identify_heating_type")
-                if args.identify_natgas_connection:
-                    validate_metadata_columns(
-                        output_metadata,
-                        NATGAS_CONNECTION_COLS,
-                        "identify_natgas_connection",
-                        loc,
-                    )
-                    if "identify_natgas_connection" not in metadata_transforms_applied:
-                        metadata_transforms_applied.append("identify_natgas_connection")
-                if args.add_vulnerability_columns:
-                    validate_metadata_columns(
-                        output_metadata,
-                        VULNERABILITY_COLS,
-                        "add_vulnerability_columns",
-                        loc,
-                    )
-                    if "add_vulnerability_columns" not in metadata_transforms_applied:
-                        metadata_transforms_applied.append("add_vulnerability_columns")
+                for _enabled, _cols, _name in _active_transforms:
+                    if _enabled:
+                        validate_metadata_columns(output_metadata, _cols, _name, loc)
+                        if _name not in metadata_transforms_applied:
+                            metadata_transforms_applied.append(_name)
 
                 # Single sink at the end of the full transformation chain.
                 output_metadata.sink_parquet(str(output_path))
@@ -1169,7 +1210,6 @@ def main(argv: list[str] | None = None) -> None:
         # ── 2b. Modify load curves ─────────────────────────────────────────────
 
         # ── 2b-i. Approximate non-HP load for upgrade 02 ──────────────────────
-        _APPROX_UPGRADE = "02"
         if (
             args.approximate_non_hp_load
             and _APPROX_UPGRADE in [u.zfill(2) for u in args.upgrade_ids]
@@ -1201,7 +1241,7 @@ def main(argv: list[str] | None = None) -> None:
             record_step(run, "adjust_mf_electricity", upgrades=processed_upgrades)
             upsert_run(path_sb, run)
 
-        # ── 2b-iii. Assign electric/gas utilities ─────────────────────────────
+        # ── 2c. Assign electric/gas utilities ─────────────────────────────────
         if args.assign_utility and "metadata" in args.file_types:
             print("Assigning utilities...", flush=True)
             _assign_utility(
@@ -1217,7 +1257,7 @@ def main(argv: list[str] | None = None) -> None:
             record_step(run, "assign_utility")
             upsert_run(path_sb, run)
 
-        # ── 2b-iv. Add monthly load curves ────────────────────────────────────
+        # ── 2d. Add monthly load curves ────────────────────────────────────────
         if args.add_monthly_loads and "load_curve_hourly" in args.file_types:
             print("Adding monthly load curves...", flush=True)
             processed_monthly = _add_monthly_loads(

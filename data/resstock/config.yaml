@@ -14,6 +14,16 @@ resstock:
     - "3"
     - "4"
     - "5"
+  # Subset of upgrade_ids that receive the MF non-HVAC electricity adjustment.
+  # Typically the baseline (00) and the heat-pump upgrade (02).
+  # Update here when switching to a release with different upgrade numbering.
+  mf_adj_upgrade_ids:
+    - "00"
+    - "02"
+  # Upgrade that receives the non-HP load approximation (k-nearest-neighbor
+  # HVAC substitution). This is the heat-pump upgrade in the ResStock release.
+  # Update here when switching to a release with different upgrade numbering.
+  approx_upgrade_id: "02"
   file_types:
     - metadata
     - load_curve_hourly
