@@ -1,6 +1,7 @@
 # rate-design-platform
 
 [![Build status](https://img.shields.io/github/actions/workflow/status/switchbox-data/rate-design-platform/ci-runner-native.yml?branch=main)](https://github.com/switchbox-data/rate-design-platform/actions/workflows/ci-runner-native.yml?query=branch%3Amain)
+[![PyPI version](https://img.shields.io/pypi/v/rate-design-platform)](https://pypi.org/project/rate-design-platform/)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/switchbox-data/rate-design-platform)](https://github.com/switchbox-data/rate-design-platform)
 [![License](https://img.shields.io/github/license/switchbox-data/rate-design-platform)](https://github.com/switchbox-data/rate-design-platform)
 
@@ -21,13 +22,25 @@ Large inputs/outputs (buildstock, CAIRO cases) are gitignored; sync via S3 or ke
 
 ## Install
 
-From the repo root:
+**From the repo (development / running simulations):**
 
 ```bash
 just install
 ```
 
-Uses **uv** for Python (see `pyproject.toml`). CAIRO is a private Git dependency; set `GH_PAT` for clone. Optional env vars (e.g. `ARCADIA_APP_ID`, `HUD_API_KEY`, `EIA_API_KEY`) are in `.env.example`—copy to `.env` and fill as needed. For AWS (S3), run `just aws` to refresh SSO when needed.
+Uses **uv** for Python (see `pyproject.toml`). CAIRO is a private Git dependency; set `GH_PAT` for clone.
+
+**As a library dependency (from PyPI):**
+
+```bash
+pip install rate-design-platform
+# or
+uv add rate-design-platform
+```
+
+> **Note:** The CAIRO simulation engine is a private Git dependency that cannot be
+> distributed through PyPI. Install from the repo using `just install` if you need
+> to run CAIRO simulations directly. See `CHANGELOG.md` for details. Optional env vars (e.g. `ARCADIA_APP_ID`, `HUD_API_KEY`, `EIA_API_KEY`) are in `.env.example`—copy to `.env` and fill as needed. For AWS (S3), run `just aws` to refresh SSO when needed.
 
 ## Run sims
 

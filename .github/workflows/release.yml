@@ -68,7 +68,11 @@ jobs:
         with:
           name: pyproject-toml
       - name: Build sdist and wheel
-        run: uv build
+        # --no-sources ignores [tool.uv.sources] so the private cairo git URL is not
+        # accessed during the build and is not baked into the wheel's dependency metadata.
+        # The wheel will declare `cairo` as a plain PyPI dependency (see CHANGELOG.md
+        # "Known limitations" for the resolution plan).
+        run: uv build --no-sources
       - name: Verify distribution contents
         run: |
           uv run --with twine twine check dist/*
