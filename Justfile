@@ -57,15 +57,20 @@ clean-build:
     echo "🚀 Removing build artifacts"
     rm -rf dist
 
-# Build sdist and wheel
+# Build sdist and wheel (mirrors what release.yml does)
 build: clean-build
     echo "🚀 Building distribution packages"
-    uv build
+    uv build --no-sources
 
 # Build and verify with twine
 build-and-verify: build
     echo "🚀 Verifying distribution packages"
-    uv run --with twine twine check dist/*
+    uvx twine check dist/*
+
+# Upload to TestPyPI (run build-and-verify first)
+publish-test: build-and-verify
+    echo "🚀 Uploading to TestPyPI"
+    uvx twine upload --repository testpypi dist/*
 
 # =============================================================================
 # 🔍 AWS

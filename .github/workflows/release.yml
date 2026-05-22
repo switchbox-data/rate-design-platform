@@ -74,8 +74,7 @@ jobs:
         # "Known limitations" for the resolution plan).
         run: uv build --no-sources
       - name: Verify distribution contents
-        run: |
-          uv run --with twine twine check dist/*
+        run: uvx twine check dist/*
       - name: Upload distribution packages
         uses: actions/upload-artifact@v4
         with:
