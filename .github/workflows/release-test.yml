@@ -32,7 +32,6 @@
 # so pip install will fail on dependency resolution. That's expected — you're
 # only verifying that the package itself uploads and renders correctly.
 name: Test release to TestPyPI
-
 on:
   workflow_dispatch:
     inputs:
@@ -40,21 +39,17 @@ on:
         description: "Version to publish (e.g. 0.1.0rc1, 0.1.0.dev1). Use PEP 440 pre-release suffixes so it doesn't collide with real releases."
         required: true
         type: string
-
 jobs:
   build:
     name: Build distribution packages
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-
       - name: Install uv
         uses: astral-sh/setup-uv@v6
-
       - name: Configure Git for private CAIRO dependency
         run: |
           git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
-
       - name: Set version in pyproject.toml
         run: |
           sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
@@ -62,20 +57,16 @@ jobs:
           grep '^version' pyproject.toml
         env:
           VERSION: ${{ inputs.version }}
-
       - name: Build sdist and wheel
         run: uv build --no-sources
-
       - name: Verify distribution contents
         run: uvx twine check dist/*
-
       - name: Upload distribution packages
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
           if-no-files-found: error
-
   publish:
     name: Publish to TestPyPI
     needs: build
@@ -91,7 +82,6 @@ jobs:
         with:
           name: dist
           path: dist/
-
       - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
