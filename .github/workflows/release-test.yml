@@ -1,0 +1,88 @@
+# Publish a test release to TestPyPI.
+#
+# Trigger: manual dispatch from the Actions tab (workflow_dispatch). You provide
+# the version string (e.g. "0.1.0rc1") via the input field. The workflow patches
+# pyproject.toml with that version, builds, and publishes to TestPyPI.
+#
+# Use this BEFORE the real release to verify that:
+#   - The package builds cleanly in CI
+#   - The wheel metadata (description, classifiers, URLs) renders correctly
+#   - The dependency list is correct (including the cairo caveat)
+#   - OIDC trusted publishing works end-to-end
+#
+# One-time setup required on TestPyPI before the first run:
+#
+#   1. Create an account at https://test.pypi.org if you don't have one
+#   2. Go to https://test.pypi.org/manage/account/publishing/
+#   3. Add a new Trusted Publisher:
+#        PyPI project name : rate-design-platform
+#        GitHub owner      : switchbox-data
+#        Repository name   : rate-design-platform
+#        Workflow filename  : release-test.yml
+#        Environment name  : testpypi
+#   4. Create the "testpypi" GitHub Environment under Settings → Environments
+#
+# After publishing, verify at:
+#   https://test.pypi.org/project/rate-design-platform/
+#
+# Test-install with:
+#   pip install -i https://test.pypi.org/simple/ rate-design-platform==<version>
+#
+# NOTE: TestPyPI does not have all dependencies (e.g. polars, buildstock-fetch),
+# so pip install will fail on dependency resolution. That's expected — you're
+# only verifying that the package itself uploads and renders correctly.
+name: Test release to TestPyPI
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g. 0.1.0rc1, 0.1.0.dev1). Use PEP 440 pre-release suffixes so it doesn't collide with real releases."
+        required: true
+        type: string
+jobs:
+  build:
+    name: Build distribution packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+      - name: Configure Git for private CAIRO dependency
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+      - name: Set version in pyproject.toml
+        run: |
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+          echo "Building version: $VERSION"
+          grep '^version' pyproject.toml
+        env:
+          VERSION: ${{ inputs.version }}
+      - name: Build sdist and wheel
+        run: uv build --no-sources
+      - name: Verify distribution contents
+        run: uvx twine check dist/*
+      - name: Upload distribution packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+  publish:
+    name: Publish to TestPyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/rate-design-platform
+    permissions:
+      id-token: write
+    steps:
+      - name: Download distribution packages
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/

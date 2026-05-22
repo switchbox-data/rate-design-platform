@@ -1,0 +1,100 @@
+# Publish a release to PyPI.
+#
+# Trigger: create a GitHub Release whose tag is the version with a v prefix
+# (e.g. `v0.2.0`). The workflow strips the `v`, writes the version into
+# pyproject.toml, builds the package, and publishes to PyPI — so you never
+# need to bump the version in source before tagging.
+#
+# Publishing uses PyPI Trusted Publishing (OIDC) — no long-lived token is stored
+# as a secret. One-time setup required on PyPI before the first run:
+#
+#   1. Go to https://pypi.org/manage/account/publishing/
+#   2. Add a new Trusted Publisher:
+#        PyPI project name : rate-design-platform
+#        GitHub owner      : switchbox-data
+#        Repository name   : rate-design-platform
+#        Workflow filename  : release.yml
+#        Environment name  : pypi
+#   3. Create the "pypi" GitHub Environment under Settings → Environments
+#      (optional: add a required reviewer for a manual approval gate).
+#
+# The CAIRO private-git dependency is handled the same way as in CI: by
+# configuring Git to use GH_PAT when fetching from GitHub. uv uses this when
+# resolving/building so that the private repo is reachable.
+#
+# NOTE on the cairo PyPI conflict: the built wheel declares `cairo` as a
+# Requires-Dist entry. pip users who install from PyPI will receive the unrelated
+# Cairo graphics package instead of the simulation engine. See CHANGELOG.md
+# "Known limitations" for the resolution plan.
+name: Release to PyPI
+on:
+  release:
+    types: [published]
+jobs:
+  set-version:
+    name: Set version from release tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Export tag
+        id: vars
+        run: |
+          TAG=${GITHUB_REF#refs/*/}
+          # Strip leading 'v' if present (v0.2.0 → 0.2.0) for PEP 440 compliance
+          echo "tag=${TAG#v}" >> $GITHUB_OUTPUT
+      - name: Update project version
+        run: |
+          sed -i "s/^version = \".*\"/version = \"$RELEASE_VERSION\"/" pyproject.toml
+        env:
+          RELEASE_VERSION: ${{ steps.vars.outputs.tag }}
+      - name: Upload updated pyproject.toml
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyproject-toml
+          path: pyproject.toml
+  build:
+    name: Build distribution packages
+    needs: set-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+      - name: Configure Git for private CAIRO dependency
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+      - name: Download updated pyproject.toml
+        uses: actions/download-artifact@v4
+        with:
+          name: pyproject-toml
+      - name: Build sdist and wheel
+        # --no-sources ignores [tool.uv.sources] so the private cairo git URL is not
+        # accessed during the build and is not baked into the wheel's dependency metadata.
+        # The wheel will declare `cairo` as a plain PyPI dependency (see CHANGELOG.md
+        # "Known limitations" for the resolution plan).
+        run: uv build --no-sources
+      - name: Verify distribution contents
+        run: uvx twine check dist/*
+      - name: Upload distribution packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/rate-design-platform
+    permissions:
+      id-token: write # Required for OIDC trusted publishing
+    steps:
+      - name: Download distribution packages
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,11 +1,22 @@
 [project]
 name = "rate-design-platform"
 version = "0.0.0"
-description = "Simulation platform for electrical rate design."
+description = "Simulation platform for electric rate design."
 authors = [{ name = "Switchbox", email = "hello@switch.box" }]
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 license = { text = "MIT" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Office/Business :: Financial",
+]
 dependencies = [
     "buildstock-fetch>=1.6.1",
     "cairo",
@@ -41,6 +52,7 @@ dependencies = [
 
 [project.urls]
 Repository = "https://github.com/switchbox-data/rate-design-platform"
+Changelog = "https://github.com/switchbox-data/rate-design-platform/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
