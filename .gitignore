@@ -19,6 +19,10 @@ data/census/pums/zips/
 data/census/pums/csv/
 data/census/pums/parquet/
 data/census/pums/data_dict_cache/
+data/resstock/utility/zips/
+data/resstock/utility/shapefiles/
+data/resstock/utility/csv/
+data/resstock/utility/parquet/
 data/eia/861/electric_utility_stats/
 data/eia/861/parquet/
 data/eia/heating_fuel_prices/parquet/

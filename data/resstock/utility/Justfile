@@ -1,0 +1,62 @@
+# CT GIS pipeline: fetch Connecticut electric utility territory and PUMA shapefiles.
+#
+# Usage (from repo root or this directory):
+#   just -f data/resstock/utility/Justfile fetch
+#   just -f data/resstock/utility/Justfile upload
+#   just -f data/resstock/utility/Justfile fetch upload      # full run
+#   just -f data/resstock/utility/Justfile clean
+#
+# Pass --no-overlay to skip the PUMA x utility overlay:
+#   just -f data/resstock/utility/Justfile fetch no_overlay="--no-overlay"
+#
+# Outputs (S3):
+#   s3://data.sb/gis/pumas/state=CT/                                     PUMA shapefile
+#   s3://data.sb/gis/utility_boundaries/ct_electric_utilities_<date>.csv  CT utilities (WKT)
+#   s3://data.sb/gis/utility_boundaries/ct_puma_utility_overlay_<date>.parquet  overlay
+
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_base := justfile_directory()
+path_local_zip := path_local_base + "/zips"
+path_local_shapefiles := path_local_base + "/shapefiles"
+path_local_csv := path_local_base + "/csv"
+path_local_parquet := path_local_base + "/parquet"
+path_s3_pumas := "s3://data.sb/gis/pumas"
+path_s3_utility := "s3://data.sb/gis/utility_boundaries"
+
+# Optional flags (e.g. no_overlay="--no-overlay", no_download="--no-download")
+no_overlay := ""
+no_download := ""
+
+# Download, extract, and process CT GIS boundary files into local staging dirs.
+# Does NOT upload to S3; run 'upload' separately.
+fetch:
+    uv run python {{ path_local_repo }}/data/resstock/utility/fetch_ct_gis_boundaries.py \
+        --path-local-zip        {{ path_local_zip }} \
+        --path-local-shapefiles {{ path_local_shapefiles }} \
+        --path-local-csv        {{ path_local_csv }} \
+        --path-local-parquet    {{ path_local_parquet }} \
+        --path-s3-pumas         {{ path_s3_pumas }} \
+        --path-s3-utility       {{ path_s3_utility }} \
+        --no-upload \
+        {{ no_overlay }} \
+        {{ no_download }}
+
+# Upload local staging outputs to S3. Run 'fetch' first.
+upload:
+    uv run python {{ path_local_repo }}/data/resstock/utility/fetch_ct_gis_boundaries.py \
+        --path-local-zip        {{ path_local_zip }} \
+        --path-local-shapefiles {{ path_local_shapefiles }} \
+        --path-local-csv        {{ path_local_csv }} \
+        --path-local-parquet    {{ path_local_parquet }} \
+        --path-s3-pumas         {{ path_s3_pumas }} \
+        --path-s3-utility       {{ path_s3_utility }} \
+        --no-download \
+        {{ no_overlay }}
+
+# Full pipeline: fetch then upload.
+prepare: fetch upload
+
+# Remove all local staging directories.
+clean:
+    rm -rf {{ path_local_zip }} {{ path_local_shapefiles }} {{ path_local_csv }} {{ path_local_parquet }}
+    echo "✓ Removed zips/, shapefiles/, csv/, parquet/"
