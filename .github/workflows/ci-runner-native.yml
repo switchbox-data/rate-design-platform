@@ -16,7 +16,7 @@ jobs:
       - name: Install just
         run: |
           mkdir -p ~/.local/bin
-          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin --tag 1.51.0
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       # Use GH_PAT (same secret as devcontainer workflow) so uv can clone private CAIRO dep
       - name: Configure Git for private GitHub clone
@@ -37,7 +37,7 @@ jobs:
       - name: Install just
         run: |
           mkdir -p ~/.local/bin
-          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin --tag 1.51.0
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       # Use GH_PAT (same secret as devcontainer workflow) so uv can clone private CAIRO dep
       - name: Configure Git for private GitHub clone

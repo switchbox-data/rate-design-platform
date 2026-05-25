@@ -13,6 +13,8 @@
 # Tier 1: Identity (set by state wrapper, dispatch, or manual source)
 # =============================================================================
 
+# NOTE: `just --fmt` normalises boolean settings to the bare form (no `:= true`).
+# Do NOT change this to `set allow-duplicate-variables := true` — it will fail CI.
 set allow-duplicate-variables
 
 state := env_var_or_default('STATE', '')
