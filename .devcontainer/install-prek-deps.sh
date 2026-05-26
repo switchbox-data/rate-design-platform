@@ -4,8 +4,10 @@ set -euo pipefail
 # install-prek-deps.sh - Install prek pre-commit hooks
 #
 # Requirements:
-#   - prek must be installed
 #   - .pre-commit-config.yaml file must exist
+#   - prek available either as a standalone binary (from install-prek.sh) or
+#     via `uv run prek` (prek is a project dependency in pyproject.toml, so
+#     it is always present after `uv sync` / install-python-deps.sh)
 
 echo "===================================================================="
 echo "🪝 Installing prek pre-commit hooks from .pre-commit-config.yaml"
@@ -44,17 +46,23 @@ else
 fi
 echo
 
-# Check if prek is installed
+# Resolve prek: prefer the standalone binary, fall back to `uv run prek`.
+# The standalone binary is installed by install-prek.sh; the uv fallback
+# works on any machine after install-python-deps.sh has run uv sync.
 echo "📦 Checking for prek..."
 echo
 if command -v prek >/dev/null 2>&1; then
+  PREK_CMD="prek"
   PREK_VERSION=$(prek --version 2>&1)
-  echo "✅ Using: ${PREK_VERSION}"
+  echo "✅ Using standalone binary: ${PREK_VERSION}"
+elif uv run prek --version >/dev/null 2>&1; then
+  PREK_CMD="uv run prek"
+  PREK_VERSION=$(uv run prek --version 2>&1)
+  echo "✅ Using uv run prek (project dependency): ${PREK_VERSION}"
 else
-  echo "❌ ERROR: prek is not installed" >&2
-  echo "Expected location: ${HOME}/.local/bin/prek" >&2
-  echo "" >&2
-  echo "Install prek first by running: .devcontainer/install-prek.sh" >&2
+  echo "❌ ERROR: prek is not available" >&2
+  echo "  - Run .devcontainer/install-prek.sh to install the standalone binary, OR" >&2
+  echo "  - Run .devcontainer/install-python-deps.sh to install via uv (pyproject.toml)" >&2
   exit 1
 fi
 echo
@@ -84,7 +92,7 @@ if [ "$HOOKS_ALREADY_INSTALLED" = true ]; then
   fi
 else
   echo "📥 Installing prek pre-commit hooks..."
-  PREK_OUTPUT=$(prek install --install-hooks 2>&1)
+  PREK_OUTPUT=$($PREK_CMD install --install-hooks 2>&1)
   echo "$PREK_OUTPUT"
   echo
 

@@ -1,6 +1,6 @@
 utility: or
 group_col: has_hp
-source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/or/ny_20260416a_r1-36/20260416_152714_ny_or_run1_up00_precalc__default
+source_run_dir: s3://data.sb/switchbox/cairo/outputs/hp_rates/ny/or/ny_20260424_r1-36_ancillary/20260426_143140_ny_or_run1_up00_precalc__default
 total_delivery_revenue_requirement: 263364257.0
 total_delivery_and_supply_revenue_requirement: 431562114.21
 subclass_revenue_requirements:
@@ -38,8 +38,8 @@ heating_type_breakdown:
       supply: 17652100.335090727
       total: 33908949.087222315
     heat_pump:
-      delivery: 8387766.13555118
-      supply: 9210885.255922925
+      delivery: 8387766.135551178
+      supply: 9210885.255922928
       total: 17598651.391474105
     natgas:
       delivery: 179626460.130989
@@ -59,8 +59,8 @@ heating_type_breakdown:
       supply: 33634728.592646584
       total: 50999946.2864369
     heat_pump:
-      delivery: 10978105.150236435
-      supply: 16057570.541742578
+      delivery: 10978105.150236433
+      supply: 16057570.54174258
       total: 27035675.691979013
     natgas:
       delivery: 169430111.27941787
@@ -80,8 +80,8 @@ heating_type_breakdown:
       supply: 20621890.764150135
       total: 51582996.250010505
     heat_pump:
-      delivery: 16188913.23844962
-      supply: 10786467.920276834
+      delivery: 16188913.238449618
+      supply: 10786467.920276836
       total: 26975381.158726454
     natgas:
       delivery: 155396992.27215794

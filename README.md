@@ -42,6 +42,14 @@ uv add rate-design-platform
 > distributed through PyPI. Install from the repo using `just install` if you need
 > to run CAIRO simulations directly. See `CHANGELOG.md` for details. Optional env vars (e.g. `ARCADIA_APP_ID`, `HUD_API_KEY`, `EIA_API_KEY`) are in `.env.example`—copy to `.env` and fill as needed. For AWS (S3), run `just aws` to refresh SSO when needed.
 
+**Pre-commit hooks:** `just install` installs git pre-commit hooks that enforce formatting (including Justfile formatting) at every `git commit`. If you already have the repo cloned and skipped `just install`, run this once to install them:
+
+```bash
+uv run prek install --install-hooks
+```
+
+Without the hooks, Justfile formatting issues will only be caught by CI, not locally.
+
 ## Run sims
 
 Use **Just** from the jurisdiction directory. Examples:

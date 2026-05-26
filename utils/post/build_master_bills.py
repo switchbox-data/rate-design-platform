@@ -1046,6 +1046,27 @@ def main() -> None:
             storage_options=storage_options,
             path_elec_tariff_map_override=args.path_elec_tariff_map_delivery,
         )
+
+        # --- Write per-utility output ---
+        per_util_output_s3 = (
+            f"{s3_base}/run_{args.run_delivery}+{args.run_supply}/"
+            f"comb_bills_year_target/"
+        )
+        t_util = _log(f"  Writing per-utility output to {per_util_output_s3}...")
+        tmp_util_dir = Path(tempfile.mkdtemp(prefix=f"master_bills_{utility}_"))
+        try:
+            df.write_parquet(tmp_util_dir / "data.parquet")
+            subprocess.run(
+                ["aws", "s3", "sync", str(tmp_util_dir), per_util_output_s3],
+                check=True,
+                capture_output=True,
+            )
+        finally:
+            import shutil
+
+            shutil.rmtree(tmp_util_dir, ignore_errors=True)
+        _log_done(f"  Writing per-utility {utility}", t_util)
+
         all_dfs.append(df)
 
     # --- Concatenate ---
