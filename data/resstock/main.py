@@ -31,19 +31,28 @@ import sys
 from pathlib import Path
 from typing import cast
 
+import geopandas as gpd
 import polars as pl
 import yaml
+from cloudpathlib import S3Path
+from pygris import pumas as get_pumas
 
 from data.resstock import fetch_resstock_data
+from data.resstock.constants import (
+    HEATING_TYPE_COLS,
+    HP_CUSTOMERS_COLS,
+    NATGAS_CONNECTION_COLS,
+    SB_EXCLUDED_FILE_TYPES,
+    VULNERABILITY_COLS,
+)
+from data.resstock.copy_resstock_data import clone_release
+from data.resstock.load_curve.add_monthly_loads import (
+    load_aggregation_rules,
+    process_upgrade,
+)
 from data.resstock.load_curve.adjust_mf_electricity import (
     BUILDING_TYPE_RECS_COL,
     adjust_mf_electricity_parquet,
-)
-from data.resstock.utility.assign_utility import (
-    SUPPORTED_UTILITY_STATES,
-    assign_utility_ny,
-    assign_utility_ri,
-    read_csv_to_gdf_from_s3,
 )
 from data.resstock.load_curve.approximate_non_hp_load import (
     _find_nearest_neighbors,
@@ -52,24 +61,6 @@ from data.resstock.load_curve.approximate_non_hp_load import (
     update_load_curve_hourly,
     update_metadata as update_non_hp_metadata,
 )
-from data.resstock.load_curve.add_monthly_loads import (
-    load_aggregation_rules,
-    process_upgrade,
-)
-from data.resstock.metadata.add_vulnerability_columns import (
-    add_vulnerability_columns,
-    load_puma_conditional_probs,
-)
-from data.resstock.constants import (
-    HEATING_TYPE_COLS,
-    HP_CUSTOMERS_COLS,
-    NATGAS_CONNECTION_COLS,
-    VULNERABILITY_COLS,
-)
-from data.resstock.copy_resstock_data import copy_dir
-from data.resstock.metadata.identify_heating_type import identify_heating_type
-from data.resstock.metadata.identify_hp_customers import identify_hp_customers
-from data.resstock.metadata.identify_natgas_connection import identify_natgas_connection
 from data.resstock.manifest import (
     fail_run,
     finish_run,
@@ -77,6 +68,25 @@ from data.resstock.manifest import (
     record_step,
     upsert_run,
     write_manifest,
+)
+from data.resstock.metadata.add_vulnerability_columns import (
+    add_vulnerability_columns,
+    load_puma_conditional_probs,
+)
+from data.resstock.metadata.identify_heating_type import identify_heating_type
+from data.resstock.metadata.identify_hp_customers import identify_hp_customers
+from data.resstock.metadata.identify_natgas_connection import identify_natgas_connection
+from data.resstock.utility.assign_utility import (
+    SUPPORTED_UTILITY_STATES,
+    assign_utility_ny,
+    assign_utility_ri,
+    read_csv_to_gdf_from_s3,
+)
+from data.resstock.utils import (
+    load_state_configs,
+    parse_bool,
+    upload,
+    upload_manifest,
 )
 from data.resstock.validations import (
     validate_local_files,
@@ -86,14 +96,7 @@ from data.resstock.validations import (
     validate_no_stale_monthly_loads,
     validate_s3_objects,
 )
-
-
-def _parse_bool(v: str) -> bool:
-    if v.lower() in ("true", "1", "yes"):
-        return True
-    if v.lower() in ("false", "0", "no"):
-        return False
-    raise argparse.ArgumentTypeError(f"Expected a boolean (True/False), got '{v}'")
+from data.resstock.warnings import collect_run_warnings
 
 
 # ── Defaults from data/resstock/config.yaml ───────────────────────────────────
@@ -106,6 +109,7 @@ with _CONFIG_PATH.open() as _f:
 _DEFAULT_OUTPUT_DIR: str = _cfg["paths"]["output_dir"]
 _DEFAULT_S3_DIR: str = _cfg["paths"]["s3_dir"]
 _DEFAULT_S3_PUMS_DIR: str = _cfg["paths"]["s3_pums_dir"]
+_DEFAULT_S3_GIS_DIR: str = _cfg["paths"]["s3_gis_dir"]
 _DEFAULT_RELEASE_YEAR: int = _cfg["resstock"]["release_year"]
 _DEFAULT_WEATHER_FILE: str = _cfg["resstock"]["weather_file"]
 _DEFAULT_RELEASE_VERSION: int = _cfg["resstock"]["release_version"]
@@ -113,8 +117,13 @@ _DEFAULT_UPGRADE_IDS: list[str] = _cfg["resstock"]["upgrade_ids"]
 _DEFAULT_FILE_TYPES: list[str] = _cfg["resstock"]["file_types"]
 _MF_ADJ_UPGRADES: list[str] = _cfg["resstock"]["mf_adj_upgrade_ids"]
 _APPROX_UPGRADE: str = _cfg["resstock"]["approx_upgrade_id"]
+_UTILITY_ASSIGN_UPGRADE: str = _cfg["resstock"]["utility_assign_upgrade_id"]
 _DEFAULT_PUMS_SURVEY: str = _cfg["pums"]["survey"]
 _DEFAULT_PUMS_YEAR: str = str(_cfg["pums"]["year"])
+
+# Per-state configuration (FIPS code, projected CRS, PUMA shapefile vintage,
+# ...).  See data/resstock/state_configs.yaml for the schema.
+STATE_CONFIGS: dict[str, dict] = load_state_configs()
 
 
 def _approximate_non_hp_load(
@@ -237,13 +246,6 @@ def _approximate_non_hp_load(
             f"    Done: updated {n_targets} buildings in {metadata_path.name}.",
             flush=True,
         )
-
-
-# Upgrade used as input for utility assignment (assignment is per-state, not per-upgrade).
-_UTILITY_ASSIGN_UPGRADE: str = "00"
-
-# Default S3 directory for NY utility polygon CSVs.
-_DEFAULT_S3_GIS_DIR: str = "s3://data.sb/gis/utility_boundaries/"
 
 
 def _adjust_mf_electricity(
@@ -478,35 +480,31 @@ def _assign_utility(
                 )
                 continue
 
-            from cloudpathlib import S3Path
-            from pygris import pumas as get_pumas
-
-            from data.resstock.utility.assign_utility_ny import CONFIGS
-
+            state_cfg = STATE_CONFIGS[s]
             gis_base = S3Path(path_s3_gis_dir.rstrip("/"))
             electric_polygons = read_csv_to_gdf_from_s3(
                 gis_base / ny_electric_poly_filename,
                 utility_type="electric",
+                state_crs=state_cfg["state_crs"],
             )
             gas_polygons = read_csv_to_gdf_from_s3(
                 gis_base / ny_gas_poly_filename,
                 utility_type="gas",
+                state_crs=state_cfg["state_crs"],
             )
             print("    Loading Census PUMA shapefiles via pygris...", flush=True)
-            import geopandas as gpd
-
             pumas = cast(
                 gpd.GeoDataFrame,
-                get_pumas(state=CONFIGS["state_code"], year=2019, cb=True),
+                get_pumas(state=s, year=state_cfg["puma_year"], cb=True),
             )
-            pumas = pumas.to_crs(epsg=CONFIGS["state_crs"])
+            pumas = pumas.to_crs(epsg=state_cfg["state_crs"])
 
             result = assign_utility_ny(
                 input_metadata=metadata,
                 electric_polygons=electric_polygons,
                 gas_polygons=gas_polygons,
                 pumas=pumas,
-                config=CONFIGS,
+                config=state_cfg,
             )
 
         else:
@@ -643,13 +641,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="ResStock data pipeline: fetch, modify, and upload.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument(
-        "--state",
-        nargs="+",
-        required=True,
-        metavar="STATE",
-        help="One or more 2-letter state codes (e.g. NY RI).",
-    )
+    ## Input and output paths
     parser.add_argument(
         "--path-output-dir",
         default=_DEFAULT_OUTPUT_DIR,
@@ -661,6 +653,30 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=_DEFAULT_S3_DIR,
         metavar="S3_URI",
         help="S3 base URI mirroring the local output directory.",
+    )
+    parser.add_argument(
+        "--path-s3-gis-dir",
+        default=_DEFAULT_S3_GIS_DIR,
+        metavar="S3_URI",
+        help=(
+            "S3 directory containing NY utility polygon CSV files "
+            f"(default: {_DEFAULT_S3_GIS_DIR})."
+        ),
+    )
+    parser.add_argument(
+        "--path-s3-pums-dir",
+        default=_DEFAULT_S3_PUMS_DIR,
+        metavar="S3_URI",
+        help="S3 base URI for Census PUMS person data (used by add-vulnerability-columns).",
+    )
+
+    ## State, release, and sample information for ResStock data fetch
+    parser.add_argument(
+        "--state",
+        nargs="+",
+        required=True,
+        metavar="STATE",
+        help="One or more 2-letter state codes (e.g. NY RI).",
     )
     parser.add_argument(
         "--release-year",
@@ -699,9 +715,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=0,
         help="Number of buildings to sample (0 = all).",
     )
+
+    ## ResStock data modification flags
     parser.add_argument(
         "--identify-hp-customers",
-        type=_parse_bool,
+        type=parse_bool,
         default=True,
         metavar="BOOL",
         help=(
@@ -711,7 +729,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--identify-heating-type",
-        type=_parse_bool,
+        type=parse_bool,
         default=True,
         metavar="BOOL",
         help=(
@@ -721,7 +739,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--identify-natgas-connection",
-        type=_parse_bool,
+        type=parse_bool,
         default=True,
         metavar="BOOL",
         help=(
@@ -731,7 +749,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--add-vulnerability-columns",
-        type=_parse_bool,
+        type=parse_bool,
         default=True,
         metavar="BOOL",
         help=(
@@ -741,7 +759,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--approximate-non-hp-load",
-        type=_parse_bool,
+        type=parse_bool,
         default=True,
         metavar="BOOL",
         help=(
@@ -752,7 +770,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--adjust-mf-electricity",
-        type=_parse_bool,
+        type=parse_bool,
         default=True,
         metavar="BOOL",
         help=(
@@ -763,7 +781,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--assign-utility",
-        type=_parse_bool,
+        type=parse_bool,
         default=True,
         metavar="BOOL",
         help=(
@@ -774,14 +792,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--path-s3-gis-dir",
-        default=_DEFAULT_S3_GIS_DIR,
-        metavar="S3_URI",
+        "--add-monthly-loads",
+        type=parse_bool,
+        default=True,
+        metavar="BOOL",
         help=(
-            "S3 directory containing NY utility polygon CSV files "
-            f"(default: {_DEFAULT_S3_GIS_DIR})."
+            "Aggregate _sb hourly load curves into monthly load curves and upload to S3 "
+            "(default: True). Only runs when load_curve_hourly is in --file-types."
         ),
     )
+
     parser.add_argument(
         "--ny-electric-poly-filename",
         default=None,
@@ -800,12 +820,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "(e.g. ny_gas_utilities_20260309.csv). Required when state=NY."
         ),
     )
-    parser.add_argument(
-        "--path-s3-pums-dir",
-        default=_DEFAULT_S3_PUMS_DIR,
-        metavar="S3_URI",
-        help="S3 base URI for Census PUMS person data (used by add-vulnerability-columns).",
-    )
+
+    ## Census PUMS information
     parser.add_argument(
         "--pums-survey",
         default=_DEFAULT_PUMS_SURVEY,
@@ -816,16 +832,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=_DEFAULT_PUMS_YEAR,
         help="PUMS end year (e.g. 2021) — selects PUMS vintage.",
     )
-    parser.add_argument(
-        "--add-monthly-loads",
-        type=_parse_bool,
-        default=True,
-        metavar="BOOL",
-        help=(
-            "Aggregate _sb hourly load curves into monthly load curves and upload to S3 "
-            "(default: True). Only runs when load_curve_hourly is in --file-types."
-        ),
-    )
+
+    ## Other misc values
     parser.add_argument(
         "--monthly-workers",
         type=int,
@@ -834,51 +842,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Number of parallel workers for monthly aggregation (default: 50).",
     )
     return parser.parse_args(argv)
-
-
-def _upload(
-    state: list[str],
-    file_types: list[str],
-    release: str,
-    path_output_dir: str | Path,
-    path_s3_dir: str,
-) -> None:
-    """Sync fetched/modified local files to S3 (data only, not the manifest)."""
-    local_base = Path(path_output_dir) / release
-    s3_base = f"{path_s3_dir.rstrip('/')}/{release}"
-
-    for file_type in file_types:
-        for s in state:
-            local_path = local_base / file_type / f"state={s}"
-            s3_path = f"{s3_base}/{file_type}/state={s}/"
-            print(f"Uploading {local_path} → {s3_path}", flush=True)
-            result = subprocess.run(
-                ["aws", "s3", "sync", str(local_path), s3_path],
-                check=False,
-            )
-            if result.returncode != 0:
-                print(
-                    f"  WARNING: aws s3 sync exited with code {result.returncode}",
-                    flush=True,
-                )
-
-
-def _upload_manifest(local_dir: Path, s3_base: str) -> None:
-    """Push the manifest to S3 after the run record has been finalized on disk."""
-    local_manifest = local_dir / "manifest.yaml"
-    s3_manifest = f"{s3_base}/manifest.yaml"
-    if not local_manifest.exists():
-        return
-    print(f"Uploading manifest {local_manifest} → {s3_manifest}", flush=True)
-    result = subprocess.run(
-        ["aws", "s3", "cp", str(local_manifest), s3_manifest],
-        check=False,
-    )
-    if result.returncode != 0:
-        print(
-            f"  WARNING: manifest upload exited with code {result.returncode}",
-            flush=True,
-        )
 
 
 def _modify_metadata(
@@ -953,14 +916,6 @@ def _modify_metadata(
     return metadata
 
 
-# File types that belong only to the raw NREL release and must never be copied
-# to the _sb release, uploaded under _sb, or validated against _sb.
-# load_curve_annual has no post-approximation equivalent: the only valid
-# aggregation of the modified _sb load curves is load_curve_monthly (derived
-# from load_curve_hourly by add_monthly_loads after all modifications are done).
-_SB_EXCLUDED_FILE_TYPES: frozenset[str] = frozenset({"load_curve_annual"})
-
-
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
     release = f"res_{args.release_year}_{args.weather_file}_{args.release_version}"
@@ -971,7 +926,7 @@ def main(argv: list[str] | None = None) -> None:
     s3_base_sb = f"{args.path_s3_dir.rstrip('/')}/{release_sb}"
 
     # File types that will actually appear in _sb (excludes raw-only types).
-    sb_file_types = [ft for ft in args.file_types if ft not in _SB_EXCLUDED_FILE_TYPES]
+    sb_file_types = [ft for ft in args.file_types if ft not in SB_EXCLUDED_FILE_TYPES]
 
     # ── Manifest: start a run record ──────────────────────────────────────────
     run = new_run_record(
@@ -994,79 +949,23 @@ def main(argv: list[str] | None = None) -> None:
         },
     )
 
-    # Warn early about argument/file-type mismatches so the user sees them at
-    # the top of the run log rather than discovering a silent no-op mid-pipeline.
-    run_warnings: list[str] = []
-    for ft in _SB_EXCLUDED_FILE_TYPES:
-        if ft in args.file_types:
-            msg = (
-                f"'{ft}' will be fetched for the raw release but is NOT copied to "
-                f"the _sb release. The _sb release has no post-modification annual "
-                f"equivalent; use load_curve_monthly (derived from load_curve_hourly) "
-                f"for month-level aggregations of the modified _sb data."
-            )
-            print(f"WARNING: {msg}", flush=True)
-            run_warnings.append(msg)
-    if args.approximate_non_hp_load and "load_curve_hourly" not in args.file_types:
-        msg = (
-            "--approximate-non-hp-load is enabled but 'load_curve_hourly' is not in "
-            "--file-types. The approximation step will be skipped. Add "
-            "'load_curve_hourly' to --file-types if you want non-HP load curves approximated."
-        )
-        print(f"WARNING: {msg}", flush=True)
-        run_warnings.append(msg)
-    if args.approximate_non_hp_load and _APPROX_UPGRADE not in [
-        u.zfill(2) for u in args.upgrade_ids
-    ]:
-        msg = (
-            f"--approximate-non-hp-load is enabled but upgrade {_APPROX_UPGRADE!r} is not "
-            f"in --upgrade-ids. The approximation step will be skipped. Add "
-            f"upgrade {_APPROX_UPGRADE!r} to --upgrade-ids if you want non-HP load curves approximated."
-        )
-        print(f"WARNING: {msg}", flush=True)
-        run_warnings.append(msg)
-    if args.adjust_mf_electricity and "load_curve_hourly" not in args.file_types:
-        msg = (
-            "--adjust-mf-electricity is enabled but 'load_curve_hourly' is not in "
-            "--file-types. The MF electricity adjustment step will be skipped. Add "
-            "'load_curve_hourly' to --file-types if you want MF non-HVAC electricity adjusted."
-        )
-        print(f"WARNING: {msg}", flush=True)
-        run_warnings.append(msg)
-    if args.adjust_mf_electricity and not any(
-        u.zfill(2) in _MF_ADJ_UPGRADES for u in args.upgrade_ids
-    ):
-        msg = (
-            f"--adjust-mf-electricity is enabled but none of the requested upgrade IDs "
-            f"are in mf_adj_upgrade_ids {_MF_ADJ_UPGRADES}. The MF electricity adjustment "
-            f"step will be skipped. Check --upgrade-ids or mf_adj_upgrade_ids in config.yaml."
-        )
-        print(f"WARNING: {msg}", flush=True)
-        run_warnings.append(msg)
-    if args.assign_utility and "metadata" not in args.file_types:
-        msg = (
-            "--assign-utility is enabled but 'metadata' is not in --file-types. "
-            "The utility assignment step will be skipped. Add 'metadata' to "
-            "--file-types if you want utilities assigned."
-        )
-        print(f"WARNING: {msg}", flush=True)
-        run_warnings.append(msg)
-    if args.add_monthly_loads and "load_curve_hourly" not in args.file_types:
-        msg = (
-            "--add-monthly-loads is enabled but 'load_curve_hourly' is not in "
-            "--file-types. The monthly aggregation step will be skipped. Add "
-            "'load_curve_hourly' to --file-types if you want monthly load curves generated."
-        )
-        print(f"WARNING: {msg}", flush=True)
-        run_warnings.append(msg)
-    if run_warnings:
-        run["warnings"] = run_warnings
-
     try:
         # ── 0. Pre-flight validations ─────────────────────────────────────────
         # These run before any I/O so the pipeline halts immediately on conflicts
         # that would otherwise corrupt the _sb release mid-run.
         print("Running pre-flight validations...", flush=True)
+        run_warnings = collect_run_warnings(
+            file_types=args.file_types,
+            upgrade_ids=args.upgrade_ids,
+            approximate_non_hp_load=args.approximate_non_hp_load,
+            approx_upgrade=_APPROX_UPGRADE,
+            adjust_mf_electricity=args.adjust_mf_electricity,
+            mf_adj_upgrades=_MF_ADJ_UPGRADES,
+            assign_utility=args.assign_utility,
+            add_monthly_loads=args.add_monthly_loads,
+        )
+        if run_warnings:
+            run["warnings"] = run_warnings
         validate_no_stale_monthly_loads(
             state=args.state,
             upgrade_ids=args.upgrade_ids,
@@ -1104,31 +1003,13 @@ def main(argv: list[str] | None = None) -> None:
         # ── 1b. Clone raw release to _sb (only the fetched states/file_types) ──
         # load_curve_annual is intentionally excluded: it has no post-modification
         # equivalent in _sb (no mechanism to re-derive it from modified hourly).
-        print(
-            f"Cloning {path_raw} → {path_sb} "
-            f"(states={args.state}, file_types={sb_file_types})...",
-            flush=True,
+        n_copied = clone_release(
+            path_raw=path_raw,
+            path_sb=path_sb,
+            states=args.state,
+            upgrade_ids=args.upgrade_ids,
+            file_types=sb_file_types,
         )
-        n_copied = 0
-        for file_type in sb_file_types:
-            for s in args.state:
-                for uid in args.upgrade_ids:
-                    upgrade_id_padded = uid.zfill(2)
-                    src = (
-                        path_raw
-                        / file_type
-                        / f"state={s}"
-                        / f"upgrade={upgrade_id_padded}"
-                    )
-                    dst = (
-                        path_sb
-                        / file_type
-                        / f"state={s}"
-                        / f"upgrade={upgrade_id_padded}"
-                    )
-                    if src.is_dir():
-                        n_copied += copy_dir(src, dst)
-        print(f"  Cloned {n_copied} files.", flush=True)
         path_sb.mkdir(parents=True, exist_ok=True)
         write_manifest(path_sb, {"runs": []})
         print("Validating clone...", flush=True)
@@ -1277,7 +1158,7 @@ def main(argv: list[str] | None = None) -> None:
 
         # ── 3. Upload ─────────────────────────────────────────────────────────
         print("Uploading raw ResStock data to S3...", flush=True)
-        _upload(
+        upload(
             state=args.state,
             file_types=args.file_types,
             release=release,
@@ -1286,10 +1167,10 @@ def main(argv: list[str] | None = None) -> None:
         )
         record_step(run, "upload_raw", s3_base=s3_base_raw)
         upsert_run(path_raw, run)
-        _upload_manifest(path_raw, s3_base_raw)
+        upload_manifest(path_raw, s3_base_raw)
 
         print("Uploading modified sb ResStock data to S3...", flush=True)
-        _upload(
+        upload(
             state=args.state,
             file_types=sb_file_types,
             release=release_sb,
@@ -1298,7 +1179,7 @@ def main(argv: list[str] | None = None) -> None:
         )
         record_step(run, "upload_sb", s3_base=s3_base_sb)
         upsert_run(path_sb, run)
-        _upload_manifest(path_sb, s3_base_sb)
+        upload_manifest(path_sb, s3_base_sb)
 
         print("Validating S3 uploads...", flush=True)
         validate_s3_objects(

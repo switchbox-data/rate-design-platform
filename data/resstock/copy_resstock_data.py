@@ -198,6 +198,46 @@ def copy_resstock_data(
         )
 
 
+def clone_release(
+    path_raw: Path,
+    path_sb: Path,
+    states: list[str],
+    upgrade_ids: list[str],
+    file_types: list[str],
+) -> int:
+    """Clone a set of file types from the raw release directory into the _sb release directory.
+
+    Iterates over every (file_type, state, upgrade_id) combination and calls
+    ``copy_dir`` for each source directory that exists.  Prints progress and
+    returns the total number of files copied.
+    """
+    print(
+        f"Cloning {path_raw} → {path_sb} (states={states}, file_types={file_types})...",
+        flush=True,
+    )
+    n_copied = 0
+    for file_type in file_types:
+        for state in states:
+            for uid in upgrade_ids:
+                upgrade_id_padded = uid.zfill(2)
+                src = (
+                    path_raw
+                    / file_type
+                    / f"state={state}"
+                    / f"upgrade={upgrade_id_padded}"
+                )
+                dst = (
+                    path_sb
+                    / file_type
+                    / f"state={state}"
+                    / f"upgrade={upgrade_id_padded}"
+                )
+                if src.is_dir():
+                    n_copied += copy_dir(src, dst)
+    print(f"  Cloned {n_copied} files.", flush=True)
+    return n_copied
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Copy ResStock data between releases.")
     parser.add_argument(

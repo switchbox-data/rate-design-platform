@@ -1,0 +1,24 @@
+# State-specific configuration for the ResStock pipeline.
+#
+# Top-level keys are 2-letter state codes; values are state-specific settings
+# (FIPS code, projected CRS for GIS area calculations, Census PUMA shapefile
+# vintage, etc.).
+#
+# Add a new state by adding a new top-level key.  Only the fields actually
+# consumed by that state's pipeline need to be set.
+#
+# Currently used by:
+#   - data/resstock/main.py (utility assignment step)
+#   - data/resstock/utility/assign_utility_ny.py (GIS-based assignment for NY)
+NY:
+  state_fips: "36"
+  # NY State Plane (meters); used for accurate area calculations in PUMA <->
+  # utility-polygon overlap.
+  state_crs: 2260
+  # Census TIGER/Line PUMA shapefile vintage used for GIS-based utility
+  # assignment.  Must match the PUMA definitions ResStock uses.
+  puma_year: 2019
+RI:
+  state_fips: "44"
+  # RI uses rule-based (non-GIS) utility assignment, so state_crs / puma_year
+  # are not needed.

@@ -29,3 +29,10 @@ VULNERABILITY_COLS: frozenset[str] = frozenset(
         "is_vulnerable",
     }
 )
+
+# File types that belong only to the raw NREL release and must never be copied
+# to the _sb release, uploaded under _sb, or validated against _sb.
+# load_curve_annual has no post-approximation equivalent: the only valid
+# aggregation of the modified _sb load curves is load_curve_monthly (derived
+# from load_curve_hourly by add_monthly_loads after all modifications are done).
+SB_EXCLUDED_FILE_TYPES: frozenset[str] = frozenset({"load_curve_annual"})

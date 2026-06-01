@@ -24,6 +24,9 @@ resstock:
   # HVAC substitution). This is the heat-pump upgrade in the ResStock release.
   # Update here when switching to a release with different upgrade numbering.
   approx_upgrade_id: "02"
+  # Upgrade used as the input for utility assignment. Assignment is per-state
+  # (not per-upgrade), so only one upgrade's metadata is needed as input.
+  utility_assign_upgrade_id: "00"
   file_types:
     - metadata
     - load_curve_hourly
@@ -32,6 +35,7 @@ paths:
   output_dir: /ebs/data/nrel/resstock
   s3_dir: s3://data.sb/nrel/resstock
   s3_pums_dir: s3://data.sb/census/pums
+  s3_gis_dir: s3://data.sb/gis/utility_boundaries/
 pums:
   survey: acs5
   year: "2021"

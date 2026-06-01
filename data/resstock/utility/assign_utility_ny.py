@@ -21,11 +21,6 @@ from utils import get_aws_region
 from utils.utility_codes import get_ny_open_data_to_std_name
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
-CONFIGS: dict = {
-    "state_code": "NY",
-    "state_fips": "36",
-    "state_crs": 2260,  # New York state plane (meters)
-}
 
 SMALL_GAS_UTILITIES = frozenset(
     {"bath", "chautauqua", "corning", "fillmore", "reserve", "stlaw"}
@@ -64,7 +59,7 @@ def create_hh_utilities(
     electric_polygons: gpd.GeoDataFrame,
     gas_polygons: gpd.GeoDataFrame,
     pumas: gpd.GeoDataFrame,
-    config: dict | None = None,
+    config: dict,
 ) -> pl.LazyFrame:
     """
     Create a LazyFrame of households with their associated utilities.
@@ -78,14 +73,12 @@ def create_hh_utilities(
         electric_polygons: GeoDataFrame of electric utility service territories
         gas_polygons: GeoDataFrame of gas utility service territories
         pumas: GeoDataFrame of Census PUMAs
-        config: State config dictionary; defaults to CONFIGS
+        config: State config dictionary (see data/resstock/state_configs.yaml).
+            Must contain ``state_crs``.
 
     Returns:
         LazyFrame with bldg_id, sb.electric_utility, sb.gas_utility.
     """
-
-    config = config or CONFIGS
-
     utility_name_map = pl.DataFrame(
         [
             {"state_name": k, "std_name": v}
@@ -161,6 +154,7 @@ def create_hh_utilities(
 def read_csv_to_gdf_from_s3(
     s3_path: S3Path,
     utility_type: str,
+    state_crs: int,
     geometry_col: str = "the_geom",
     crs: str = "EPSG:4326",
 ) -> gpd.GeoDataFrame:
@@ -173,6 +167,10 @@ def read_csv_to_gdf_from_s3(
         S3Path to the CSV file (e.g., S3Path('s3://bucket/path/file.csv'))
     utility_type : str
         'electric' or 'gas'
+    state_crs : int
+        EPSG code of the state-specific projected CRS used for accurate area
+        calculations (e.g. 2260 for NY State Plane).  Read from
+        ``state_configs.yaml`` by callers.
     geometry_col : str, default 'the_geom'
         Name of the column containing WKT geometry
     crs : str, default 'EPSG:4326'
@@ -209,7 +207,7 @@ def read_csv_to_gdf_from_s3(
         df, geometry=gpd.GeoSeries.from_wkt(df[geometry_col]), crs=crs
     )
 
-    gdf = gdf.to_crs(epsg=CONFIGS["state_crs"])
+    gdf = gdf.to_crs(epsg=state_crs)
     if utility_type == "electric":
         gdf = cast(gpd.GeoDataFrame, gdf.rename(columns={"comp_full": "utility"}))
     elif utility_type == "gas":
@@ -941,7 +939,7 @@ def assign_utility_ny(
     electric_polygons: gpd.GeoDataFrame,
     gas_polygons: gpd.GeoDataFrame,
     pumas: gpd.GeoDataFrame,
-    config: dict | None = None,
+    config: dict,
 ) -> pl.LazyFrame:
     """
     Assign electric and gas utilities to ResStock buildings and add columns to metadata.
@@ -954,14 +952,12 @@ def assign_utility_ny(
         electric_polygons: GeoDataFrame of electric utility service territories
         gas_polygons: GeoDataFrame of gas utility service territories
         pumas: GeoDataFrame of Census PUMAs
-        config: Optional state configuration dictionary; defaults to CONFIGS
+        config: State config dictionary (see data/resstock/state_configs.yaml).
+            Must contain ``state_crs``.
 
     Returns:
         LazyFrame with all original columns plus sb.electric_utility and sb.gas_utility
     """
-
-    config = config or CONFIGS
-
     puma_and_heating_fuel = _select_puma_and_heating_fuel_metadata(input_metadata)
     building_utilities = create_hh_utilities(
         puma_and_heating_fuel=puma_and_heating_fuel,
@@ -1072,24 +1068,33 @@ if __name__ == "__main__":
     electric_poly_path = S3Path(electric_poly_dir / args.electric_poly_filename)
     gas_poly_path = S3Path(gas_poly_dir / args.gas_poly_filename)
 
+    from data.resstock.utils import load_state_configs
+
+    ny_config = load_state_configs()["NY"]
+
     # Load utility polygons (.csv files from S3) to GeoDataFrame
     electric_polygons = read_csv_to_gdf_from_s3(
         electric_poly_path,
         utility_type="electric",
+        state_crs=ny_config["state_crs"],
         geometry_col="the_geom",
         crs="EPSG:4326",
     )
     gas_polygons = read_csv_to_gdf_from_s3(
-        gas_poly_path, utility_type="gas", geometry_col="the_geom", crs="EPSG:4326"
+        gas_poly_path,
+        utility_type="gas",
+        state_crs=ny_config["state_crs"],
+        geometry_col="the_geom",
+        crs="EPSG:4326",
     )
 
     # Load PUMAS using pygris
     pumas = get_pumas(
-        state=CONFIGS["state_code"],
-        year=2019,
+        state="NY",
+        year=ny_config["puma_year"],
         cb=True,  # Use cartographic boundaries (simplified)
     )
-    pumas = pumas.to_crs(epsg=CONFIGS["state_crs"])
+    pumas = pumas.to_crs(epsg=ny_config["state_crs"])
     pumas["puma_area"] = pumas.geometry.area
     pumas = cast(gpd.GeoDataFrame, pumas)
 
@@ -1098,7 +1103,7 @@ if __name__ == "__main__":
         electric_polygons=electric_polygons,
         gas_polygons=gas_polygons,
         pumas=pumas,
-        config=CONFIGS,
+        config=ny_config,
     )
 
     # Write only the assignment columns — full metadata lives in metadata-sb.parquet.
