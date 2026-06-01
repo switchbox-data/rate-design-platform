@@ -10,7 +10,7 @@ import pytest
 import geopandas as gpd
 from shapely.geometry import box
 
-from data.resstock.assign_utility_ny import (
+from data.resstock.utility.assign_utility_ny import (
     SMALL_GAS_UTILITIES,
     _calculate_prior_distributions,
     _calculate_utility_probabilities,
@@ -22,7 +22,7 @@ from utils.utility_codes import get_ny_open_data_to_std_name
 
 
 def _utility_name_map_lazy() -> pl.LazyFrame:
-    """Build utility_name_map from central crosswalk (matches data.resstock.assign_utility_ny)."""
+    """Build utility_name_map from central crosswalk (matches data.resstock.utility.assign_utility_ny)."""
     return pl.DataFrame(
         [
             {"state_name": k, "std_name": v}

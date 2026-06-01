@@ -35,25 +35,28 @@ import polars as pl
 import yaml
 
 from data.resstock import fetch_resstock_data
-from data.resstock.adjust_mf_electricity import (
+from data.resstock.load_curve.adjust_mf_electricity import (
     BUILDING_TYPE_RECS_COL,
     adjust_mf_electricity_parquet,
 )
-from data.resstock.assign_utility import (
+from data.resstock.utility.assign_utility import (
     SUPPORTED_UTILITY_STATES,
     assign_utility_ny,
     assign_utility_ri,
     read_csv_to_gdf_from_s3,
 )
-from data.resstock.approximate_non_hp_load import (
+from data.resstock.load_curve.approximate_non_hp_load import (
     _find_nearest_neighbors,
     _identify_non_hp_mf,
     _identify_other_fuel_types,
     update_load_curve_hourly,
     update_metadata as update_non_hp_metadata,
 )
-from data.resstock.add_monthly_loads import load_aggregation_rules, process_upgrade
-from data.resstock.add_vulnerability_columns import (
+from data.resstock.load_curve.add_monthly_loads import (
+    load_aggregation_rules,
+    process_upgrade,
+)
+from data.resstock.metadata.add_vulnerability_columns import (
     add_vulnerability_columns,
     load_puma_conditional_probs,
 )
@@ -64,9 +67,9 @@ from data.resstock.constants import (
     VULNERABILITY_COLS,
 )
 from data.resstock.copy_resstock_data import copy_dir
-from data.resstock.identify_heating_type import identify_heating_type
-from data.resstock.identify_hp_customers import identify_hp_customers
-from data.resstock.identify_natgas_connection import identify_natgas_connection
+from data.resstock.metadata.identify_heating_type import identify_heating_type
+from data.resstock.metadata.identify_hp_customers import identify_hp_customers
+from data.resstock.metadata.identify_natgas_connection import identify_natgas_connection
 from data.resstock.manifest import (
     fail_run,
     finish_run,
@@ -478,7 +481,7 @@ def _assign_utility(
             from cloudpathlib import S3Path
             from pygris import pumas as get_pumas
 
-            from data.resstock.assign_utility_ny import CONFIGS
+            from data.resstock.utility.assign_utility_ny import CONFIGS
 
             gis_base = S3Path(path_s3_gis_dir.rstrip("/"))
             electric_polygons = read_csv_to_gdf_from_s3(

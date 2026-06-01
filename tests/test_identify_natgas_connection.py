@@ -3,7 +3,7 @@ from typing import cast
 import polars as pl
 import pytest
 
-from data.resstock.identify_natgas_connection import (
+from data.resstock.metadata.identify_natgas_connection import (
     NATGAS_CONSUMPTION_COLUMN,
     identify_natgas_connection,
 )

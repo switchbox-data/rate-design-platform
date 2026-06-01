@@ -154,7 +154,7 @@ identify-hp-customers release state upgrade_ids input_filename output_filename:
         echo "Warning: this task is only verified to work with 2024 releases."
     fi
     for upgrade_id in {{ upgrade_ids }}; do
-        uv run python "{{ path_local_repo }}/data/resstock/identify_hp_customers.py" \
+        uv run python "{{ path_local_repo }}/data/resstock/metadata/identify_hp_customers.py" \
             --input_dir "{{ path_s3_parquet }}/{{ release }}/metadata/state={{ state }}/upgrade=$upgrade_id" \
             --output_dir "{{ path_s3_parquet }}/{{ release }}/metadata/state={{ state }}/upgrade=$upgrade_id" \
             --input_filename "{{ input_filename }}" \
@@ -169,7 +169,7 @@ identify-heating-type release state upgrade_ids input_filename output_filename:
         echo "Warning: this task is only verified to work with 2024 releases."
     fi
     for upgrade_id in {{ upgrade_ids }}; do
-        uv run python "{{ path_local_repo }}/data/resstock/identify_heating_type.py" \
+        uv run python "{{ path_local_repo }}/data/resstock/metadata/identify_heating_type.py" \
             --input_dir "{{ path_s3_parquet }}/{{ release }}/metadata/state={{ state }}/upgrade=$upgrade_id" \
             --output_dir "{{ path_s3_parquet }}/{{ release }}/metadata/state={{ state }}/upgrade=$upgrade_id" \
             --input_filename "{{ input_filename }}" \
@@ -184,7 +184,7 @@ identify-natgas-connection release state upgrade_ids input_metadata_filename out
         echo "Warning: this task is only verified to work with 2024 releases."
     fi
     for upgrade_id in {{ upgrade_ids }}; do
-        uv run python "{{ path_local_repo }}/data/resstock/identify_natgas_connection.py" \
+        uv run python "{{ path_local_repo }}/data/resstock/metadata/identify_natgas_connection.py" \
             --input_metadata_dir "{{ path_s3_parquet }}/{{ release }}/metadata/state={{ state }}/upgrade=$upgrade_id" \
             --input_load_curve_annual_dir "{{ path_s3_parquet }}/{{ release }}/load_curve_annual/state={{ state }}/upgrade=$upgrade_id" \
             --output_dir "{{ path_s3_parquet }}/{{ release }}/metadata/state={{ state }}/upgrade=$upgrade_id" \
@@ -215,7 +215,7 @@ resstock-identify-hp-customers state:
 
 # Safe to re-run: drops pre-existing vulnerability columns before adding.
 add-vulnerability-columns release state upgrade_ids input_metadata_filename output_metadata_filename pums_type pums_year:
-    uv run python "{{ path_local_repo }}/data/resstock/add_vulnerability_columns.py" \
+    uv run python "{{ path_local_repo }}/data/resstock/metadata/add_vulnerability_columns.py" \
         --input_metadata_dir "{{ path_s3_parquet }}/{{ release }}/metadata/" \
         --output_metadata_dir "{{ path_s3_parquet }}/{{ release }}/metadata/" \
         --input_pums_dir "{{ path_s3_pums }}/{{ pums_type }}/{{ pums_year }}/person/" \
@@ -269,7 +269,7 @@ test-ny-gas-utility-polygons-download:
 # Assign electric/gas utilities to ResStock buildings (NY only). Run download-ny-utility-polygons first.
 assign-utility-ny release upgrade electric_poly gas_poly:
     just download-ny-utility-polygons
-    uv run python "{{ path_local_repo }}/data/resstock/assign_utility_ny.py" \
+    uv run python "{{ path_local_repo }}/data/resstock/utility/assign_utility_ny.py" \
         --input_metadata_dir "{{ path_s3_parquet }}/{{ release }}/metadata/state=NY/upgrade={{ upgrade }}/" \
         --input_metadata_filename "metadata-sb.parquet" \
         --output_metadata_dir "{{ path_s3_parquet }}/{{ release }}/metadata_utility/state=NY/" \
@@ -281,7 +281,7 @@ assign-utility-ny release upgrade electric_poly gas_poly:
 
 # Assign electric/gas utilities to ResStock buildings (RI only)
 assign-utility-ri release upgrade:
-    uv run python "{{ path_local_repo }}/data/resstock/assign_utility_ri.py" \
+    uv run python "{{ path_local_repo }}/data/resstock/utility/assign_utility_ri.py" \
         --input_metadata_dir "{{ path_s3_parquet }}/{{ release }}/metadata/state=RI/upgrade={{ upgrade }}/" \
         --input_metadata_filename "metadata-sb.parquet" \
         --output_metadata_dir "{{ path_s3_parquet }}/{{ release }}/metadata_utility/state=RI/" \
@@ -322,7 +322,7 @@ adjust-mf-electricity-RI-upgrade-02:
 path_ebs_parquet := "/ebs/data/nrel/resstock"
 
 add-monthly-loads state upgrade_ids:
-    uv run python "{{ path_local_repo }}/data/resstock/add_monthly_loads.py" \
+    uv run python "{{ path_local_repo }}/data/resstock/load_curve/add_monthly_loads.py" \
         --path-input "{{ path_ebs_parquet }}/{{ resstock_release_sb }}" \
         --path-output "{{ path_ebs_parquet }}/{{ resstock_release_sb }}" \
         --state "{{ state }}" \

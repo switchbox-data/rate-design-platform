@@ -2,7 +2,7 @@ from typing import cast
 
 import polars as pl
 
-from data.resstock.identify_hp_customers import (
+from data.resstock.metadata.identify_hp_customers import (
     IN_HVAC_COOLING_COLUMN,
     IN_HVAC_HEATING_COLUMN,
     UPGRADE_HVAC_COOLING_COLUMN,

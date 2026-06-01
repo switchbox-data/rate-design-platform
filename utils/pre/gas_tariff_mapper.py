@@ -327,7 +327,7 @@ if __name__ == "__main__":
     else:
         warnings.warn(
             "metadata has no sb.electric_utility/sb.gas_utility columns; using synthetic data. "
-            "Run assign_utility_ny (data/resstock/) and point --metadata_path to metadata_utility for real data.",
+            "Run assign_utility_ny (data/resstock/utility/) and point --metadata_path to metadata_utility for real data.",
             DeprecationWarning,
             stacklevel=2,
         )

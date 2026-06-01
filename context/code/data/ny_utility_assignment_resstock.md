@@ -1,6 +1,6 @@
 # NY utility assignment (ResStock)
 
-How electric and gas utilities are assigned to ResStock buildings in NY: `data/resstock/assign_utility_ny.py` and related Justfile recipes.
+How electric and gas utilities are assigned to ResStock buildings in NY: `data/resstock/utility/assign_utility_ny.py` and related Justfile recipes.
 
 **Use when:** Working on NY utility assignment, small gas utility handling, PUMA–utility overlap, or ResStock metadata columns `sb.electric_utility` / `sb.gas_utility`.
 

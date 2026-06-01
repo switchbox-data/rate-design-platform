@@ -5,7 +5,7 @@ column-level rules as buildstock-fetch (sum for energy/emissions, mean for
 load/temperature), and writes one monthly parquet per building.
 
 Usage (from project root):
-    uv run python data/resstock/add_monthly_loads.py \
+    uv run python data/resstock/load_curve/add_monthly_loads.py \
         --path-input /ebs/data/nrel/resstock/res_2024_amy2018_2_sb \
         --path-output /ebs/data/nrel/resstock/res_2024_amy2018_2_sb \
         --state NY --upgrade-ids "00 02" \
