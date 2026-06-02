@@ -1,8 +1,8 @@
-# NY utility assignment (ResStock)
+# ResStock utility assignment
 
-How electric and gas utilities are assigned to ResStock buildings in NY: `data/resstock/utility/assign_utility_ny.py` and related Justfile recipes.
+How electric and gas utilities are assigned to ResStock buildings — generic architecture, NY-specific implementation, and instructions for adding new states.
 
-**Use when:** Working on NY utility assignment, excluded gas utility handling, PUMA–utility overlap, or ResStock metadata columns `sb.electric_utility` / `sb.gas_utility`.
+**Use when:** Working on utility assignment for any state, adding a new state, excluded gas utility handling, PUMA–utility overlap, or ResStock metadata columns `sb.electric_utility` / `sb.gas_utility`.
 
 ---
 
@@ -82,3 +82,123 @@ After zeroing excluded gas utilities (and optionally replacing bad-PUMA rows wit
 - `puma_id_series_for_join` (PUMACE10, GEOID, missing columns).
 - `zero_excluded_gas_utilities_and_renormalize`: no excluded cols (unchanged); zero + renormalize; bad PUMA with `pumas=None` (raises); bad PUMA with `pumas` and touching geometries (donor used, row sums to 1).
 - Other helpers: `calculate_utility_probabilities`, `calculate_prior_distributions`, `sample_utility_per_building` (determinism, gas only when `has_natgas_connection`, etc.).
+
+---
+
+## Adding a new state
+
+There are two patterns: **GIS-based** (like NY — PUMA overlap + probabilistic sampling) and **rule-based** (like RI — deterministic assignment, no GIS). Follow the checklist for the appropriate pattern.
+
+### Step 1 — `data/resstock/state_configs.yaml`
+
+Add an entry keyed by the 2-letter state code. All states need:
+
+```yaml
+XX:
+  state_fips: "00"           # 2-digit FIPS string, zero-padded
+  add_vulnerability_columns: true   # or false — whether to run PUMS vulnerability logic
+  electric_poly_filename: xx_electric_utilities_YYYYMMDD.csv  # empty if rule-based
+  gas_poly_filename: xx_gas_utilities_YYYYMMDD.csv            # empty if rule-based
+```
+
+GIS-based states also need:
+
+```yaml
+state_crs: 0000            # EPSG code of a projected CRS for area calculations (e.g. 2260 for NY)
+puma_year: 2019            # Census PUMA vintage year (used by pygris)
+excluded_gas_utilities:    # optional — list of gas utility names to zero before sampling
+  - smallutil1
+```
+
+**How `SUPPORTED_UTILITY_STATES` is derived:** `assign_utility.py` reads `state_configs.yaml` at import time and includes every state whose entry contains both `electric_poly_filename` and `gas_poly_filename` keys (even if the values are null, as for RI). Adding the keys is enough; no manual set update is needed.
+
+### Step 2 — `data/resstock/utility/assign_utility_{xx}.py`
+
+Create a new state-specific module. Choose the pattern that matches:
+
+**GIS-based (NY pattern):** Build a state-specific `utility_name_map` (a Polars LazyFrame mapping raw polygon names → standardised names), load `EXCLUDED_GAS_UTILITIES` from `state_configs.yaml`, then delegate to the generic `create_hh_utilities()`:
+
+```python
+from data.resstock.utils import load_state_configs, select_puma_and_heating_fuel_metadata
+from data.resstock.utility.utils import create_hh_utilities
+
+EXCLUDED_GAS_UTILITIES: frozenset[str] = frozenset(
+    load_state_configs()["XX"].get("excluded_gas_utilities", [])
+)
+
+def assign_utility_xx(input_metadata, electric_polygons, gas_polygons, pumas, config):
+    puma_and_heating_fuel = select_puma_and_heating_fuel_metadata(input_metadata)
+    utility_name_map = ...  # state-specific name crosswalk as pl.LazyFrame
+    building_utilities = create_hh_utilities(
+        puma_and_heating_fuel=puma_and_heating_fuel,
+        electric_polygons=electric_polygons,
+        gas_polygons=gas_polygons,
+        pumas=pumas,
+        utility_name_map=utility_name_map,
+        state_crs=config["state_crs"],
+        excluded_gas_utilities=EXCLUDED_GAS_UTILITIES,
+    )
+    # join building_utilities back to input_metadata (see assign_utility_ny.py for the full pattern)
+    ...
+```
+
+**Rule-based (RI pattern):** Directly return a LazyFrame with `sb.electric_utility` and `sb.gas_utility` derived from metadata columns without GIS data. See `assign_utility_ri.py` as a reference.
+
+### Step 3 — `data/resstock/utility/assign_utility.py`
+
+1. Import the new function at the top:
+
+   ```python
+   from data.resstock.utility.assign_utility_xx import assign_utility_xx
+   ```
+
+2. Add a branch inside `assign_utility()` before the final `raise ValueError`:
+
+   **GIS-based:**
+
+   ```python
+   if state == "XX":
+       config = _STATE_CONFIGS["XX"]
+       elec_file = electric_poly_filename or config.get("electric_poly_filename")
+       gas_file = gas_poly_filename or config.get("gas_poly_filename")
+       if not path_s3_gis_dir:
+           raise ValueError("--path-s3-gis-dir is required for XX utility assignment.")
+       if not elec_file:
+           raise ValueError("--electric-poly-filename is required for XX utility assignment.")
+       if not gas_file:
+           raise ValueError("--gas-poly-filename is required for XX utility assignment.")
+       gis_base = S3Path(path_s3_gis_dir.rstrip("/"))
+       electric_polygons = read_csv_to_gdf_from_s3(gis_base / elec_file, utility_type="electric", state_crs=config["state_crs"])
+       gas_polygons = read_csv_to_gdf_from_s3(gis_base / gas_file, utility_type="gas", state_crs=config["state_crs"])
+       print("    Loading Census PUMA shapefiles via pygris...", flush=True)
+       pumas = cast(gpd.GeoDataFrame, get_pumas(state=state, year=config["puma_year"], cb=True))
+       pumas = pumas.to_crs(epsg=config["state_crs"])
+       return assign_utility_xx(input_metadata=metadata, electric_polygons=electric_polygons, gas_polygons=gas_polygons, pumas=pumas, config=config)
+   ```
+
+   **Rule-based:**
+
+   ```python
+   if state == "XX":
+       return assign_utility_xx(metadata)
+   ```
+
+### Step 4 — Tests
+
+Add `tests/test_assign_utility_{xx}.py`. At minimum cover:
+
+- Any state-specific constants (e.g. `EXCLUDED_GAS_UTILITIES` loaded correctly from `state_configs.yaml`).
+- The core assignment function with a small synthetic LazyFrame (no real S3 data).
+- Edge cases relevant to the state (e.g. buildings without gas, missing puma values).
+
+For GIS-based states, the generic helpers (`calculate_puma_utility_overlap`, `sample_utility_per_building`, etc.) are already tested in `tests/test_assign_utility_ny.py`; focus new tests on state-specific logic.
+
+### Checklist summary
+
+| Step | File                                                  | Action                                                                                                  |
+| ---- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 1    | `data/resstock/state_configs.yaml`                    | Add state entry with required keys (polygon filenames enable `SUPPORTED_UTILITY_STATES` auto-inclusion) |
+| 2    | `data/resstock/utility/assign_utility_{xx}.py`        | Create state module (GIS or rule-based pattern)                                                         |
+| 3    | `data/resstock/utility/assign_utility.py`             | Import new function; add `if state == "XX":` branch                                                     |
+| 4    | `tests/test_assign_utility_{xx}.py`                   | Add unit tests                                                                                          |
+| 5    | `context/code/data/ny_utility_assignment_resstock.md` | Update the NY overview section if new generic helpers were added to `utils.py`                          |
