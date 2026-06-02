@@ -103,7 +103,7 @@ status *args:
 
 # Download ResStock metadata and loads. Pass state: NY or RI (or both as space-separated).
 fetch state:
-    cd "{{ path_local_repo }}" && uv run python -m data.resstock.fetch_resstock_data \
+    cd "{{ path_local_repo }}" && uv run python -m data.resstock.nrel.fetch_resstock_data \
         --state {{ state }} \
         --release-year {{ resstock_release_year }} \
         --weather-file {{ resstock_weather_file }} \
@@ -113,7 +113,7 @@ fetch state:
 
 # Download only load_curve_annual file type.
 fetch-load-curve-annual state:
-    cd "{{ path_local_repo }}" && uv run python -m data.resstock.fetch_resstock_data \
+    cd "{{ path_local_repo }}" && uv run python -m data.resstock.nrel.fetch_resstock_data \
         --state {{ state }} \
         --release-year {{ resstock_release_year }} \
         --weather-file {{ resstock_weather_file }} \
@@ -124,7 +124,7 @@ fetch-load-curve-annual state:
 
 # Copy resstock data from one release to another.
 copy-resstock-data release_from release_to state upgrade_ids file_types:
-    uv run python "{{ path_local_repo }}/data/resstock/copy_resstock_data.py" \
+    uv run python "{{ path_local_repo }}/data/resstock/nrel/copy_resstock_data.py" \
     	--data_path "{{ path_s3_parquet }}" \
     	--release_from "{{ release_from }}" \
     	--release_to "{{ release_to }}" \

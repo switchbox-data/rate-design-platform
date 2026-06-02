@@ -375,8 +375,8 @@ When `--sample N` is passed (N > 0):
 | `data/resstock/constants.py`                           | Column-name constants for validation                                                |
 | `data/resstock/manifest.py`                            | Provenance: run records, YAML I/O, status CLI                                       |
 | `data/resstock/validations.py`                         | Post-step validation (local files, S3 objects, metadata schema)                     |
-| `data/resstock/fetch_resstock_data.py`                 | bsf wrapper                                                                         |
-| `data/resstock/copy_resstock_data.py`                  | Directory copy utility (`copy_dir`)                                                 |
+| `data/resstock/nrel/fetch_resstock_data.py`            | bsf wrapper                                                                         |
+| `data/resstock/nrel/copy_resstock_data.py`             | Directory copy utility (`copy_dir`)                                                 |
 | `data/resstock/metadata/identify_hp_customers.py`      | Adds `postprocess_group.has_hp`                                                     |
 | `data/resstock/metadata/identify_heating_type.py`      | Adds heating-type and fuel-flag columns                                             |
 | `data/resstock/metadata/identify_natgas_connection.py` | Adds `has_natgas_connection` from `load_curve_annual`                               |

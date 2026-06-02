@@ -1,7 +1,7 @@
 # ResStock pipeline defaults.
 #
 # Single source of truth for the fetch/modify/upload pipeline.
-# Read by fetch_resstock_data.py, main.py, and the Justfile.
+# Read by nrel/fetch_resstock_data.py, main.py, and the Justfile.
 # Update here when switching to a new ResStock release or adding upgrade IDs.
 resstock:
   release_year: 2024

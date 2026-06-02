@@ -5,11 +5,11 @@ output directory defaulting to the local EBS data mount.
 
 Usage::
 
-    uv run python data/resstock/fetch_resstock_data.py --state NY
-    uv run python data/resstock/fetch_resstock_data.py --state NY RI
-    uv run python data/resstock/fetch_resstock_data.py --state RI --path-output-dir /data.sb/nrel/resstock
-    uv run python data/resstock/fetch_resstock_data.py --state NY --file-types metadata load_curve_hourly
-    uv run python data/resstock/fetch_resstock_data.py --state NY --upgrade-ids 0 2
+    uv run python data/resstock/nrel/fetch_resstock_data.py --state NY
+    uv run python data/resstock/nrel/fetch_resstock_data.py --state NY RI
+    uv run python data/resstock/nrel/fetch_resstock_data.py --state RI --path-output-dir /data.sb/nrel/resstock
+    uv run python data/resstock/nrel/fetch_resstock_data.py --state NY --file-types metadata load_curve_hourly
+    uv run python data/resstock/nrel/fetch_resstock_data.py --state NY --upgrade-ids 0 2
 """
 
 from __future__ import annotations

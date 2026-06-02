@@ -34,7 +34,7 @@ from typing import cast
 import polars as pl
 import yaml
 
-from data.resstock import fetch_resstock_data
+from data.resstock.nrel import fetch_resstock_data
 from data.resstock.constants import (
     HEATING_TYPE_COLS,
     HP_CUSTOMERS_COLS,
@@ -42,7 +42,7 @@ from data.resstock.constants import (
     SB_EXCLUDED_FILE_TYPES,
     VULNERABILITY_COLS,
 )
-from data.resstock.copy_resstock_data import clone_release
+from data.resstock.nrel.copy_resstock_data import clone_release
 from data.resstock.load_curve.add_monthly_loads import (
     load_aggregation_rules,
     process_upgrade,
