@@ -163,6 +163,43 @@ def validate_metadata_output(
         sys.exit(1)
 
 
+def validate_utility_assignment_args(
+    states: list[str],
+    upgrade_ids: list[str],
+    assign_utility: bool,
+    utility_assign_upgrade: str,
+    supported_states: frozenset[str],
+) -> None:
+    """Raise RuntimeError if utility assignment args are inconsistent.
+
+    Checks two things when ``assign_utility`` is enabled:
+
+    1. The upgrade used for utility assignment (typically ``"00"``) must be in
+       ``upgrade_ids``.
+    2. Every requested state must have an assignment implementation.
+    """
+    if not assign_utility:
+        return
+
+    padded = [u.zfill(2) for u in upgrade_ids]
+    if utility_assign_upgrade not in padded:
+        raise RuntimeError(
+            f"Utility assignment requires upgrade {utility_assign_upgrade} metadata, "
+            f"but that upgrade is not in --upgrade-ids ({upgrade_ids}). "
+            f"Either add {utility_assign_upgrade} to --upgrade-ids or disable "
+            f"utility assignment with --assign-utility False."
+        )
+
+    unsupported = [s for s in states if s not in supported_states]
+    if unsupported:
+        raise RuntimeError(
+            f"Utility assignment is not implemented for state(s): "
+            f"{unsupported}. Supported states: {sorted(supported_states)}. "
+            f"Remove the unsupported state(s) or disable utility assignment "
+            f"with --assign-utility False."
+        )
+
+
 def validate_no_stale_monthly_loads(
     state: list[str],
     upgrade_ids: list[str],

@@ -18,7 +18,26 @@ NY:
   # Census TIGER/Line PUMA shapefile vintage used for GIS-based utility
   # assignment.  Must match the PUMA definitions ResStock uses.
   puma_year: 2019
+  # Utility polygon CSV filenames in the GIS directory (--path-s3-gis-dir).
+  # Used by GIS-based utility assignment.  Override via CLI
+  # (--electric-poly-filename, --gas-poly-filename) if needed.
+  electric_poly_filename: ny_electric_utilities_20260309.csv
+  gas_poly_filename: ny_gas_utilities_20260309.csv
+  # Standardized names of gas utilities excluded from building assignment.
+  # Their PUMA-overlap probabilities are zeroed and the row is renormalized;
+  # if a PUMA would have no remaining gas utility after exclusion, the
+  # nearest-neighbor donor PUMA's distribution is used instead.  Update when
+  # the utility landscape changes.  Loaded as a frozenset in assign_utility_ny.py.
+  excluded_gas_utilities:
+    - bath
+    - chautauqua
+    - corning
+    - fillmore
+    - reserve
+    - stlaw
 RI:
   state_fips: "44"
-  # RI uses rule-based (non-GIS) utility assignment, so state_crs / puma_year
-  # are not needed.
+  # RI uses rule-based (non-GIS) utility assignment; no polygon files or
+  # projected CRS needed.
+  electric_poly_filename:
+  gas_poly_filename:

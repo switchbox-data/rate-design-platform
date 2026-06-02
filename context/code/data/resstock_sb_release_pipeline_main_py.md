@@ -14,13 +14,13 @@ For the older Justfile-based workflow, see `context/code/data/resstock_data_prep
 | -------------------------- | ------------------------------------- | ----------- |
 | 1. Fetch                   | Step 1a: fetch via bsf                | Implemented |
 | 2. Prepare metadata        | Step 2a: `_modify_metadata`           | Implemented |
-| 3. Utility assignment      | Step 2b-iii: `_assign_utility`        | Implemented |
+| 3. Utility assignment      | Step 2b: `_assign_utility`            | Implemented |
 | 4. Copy standard -> `_sb`  | Step 1b: clone                        | Implemented |
-| 5. Approximate non-HP load | Step 2b-i: `_approximate_non_hp_load` | Implemented |
-| 6. Adjust MF electricity   | Step 2b-ii: `_adjust_mf_electricity`  | Implemented |
+| 5. Approximate non-HP load | Step 2c-i: `_approximate_non_hp_load` | Implemented |
+| 6. Adjust MF electricity   | Step 2c-ii: `_adjust_mf_electricity`  | Implemented |
 | 7. Sync `_sb` to EBS       | N/A (pipeline writes directly to EBS) | N/A         |
-| 8. Add monthly load curves | Step 2b-iv: `_add_monthly_loads`      | Implemented |
-| 9. Upload monthly to S3    | Step 2b-iv: `_add_monthly_loads`      | Implemented |
+| 8. Add monthly load curves | Step 2d: `_add_monthly_loads`         | Implemented |
+| 9. Upload monthly to S3    | Step 2d: `_add_monthly_loads`         | Implemented |
 | Upload raw + `_sb` to S3   | Step 3: `_upload`                     | Implemented |
 
 ---
@@ -31,7 +31,7 @@ For the older Justfile-based workflow, see `context/code/data/resstock_data_prep
 uv run python -m data.resstock.main --state <STATE> [options]
 ```
 
-All defaults are loaded from `data/resstock/config.yaml`, which is the single source of truth for release parameters.
+Release-level defaults are loaded from `data/resstock/config.yaml`. State-specific settings (FIPS code, projected CRS, PUMA shapefile vintage, polygon filenames, excluded gas utilities) are loaded from `data/resstock/state_configs.yaml`.
 
 ### Key CLI arguments
 
@@ -48,8 +48,8 @@ All defaults are loaded from `data/resstock/config.yaml`, which is the single so
 | `--approximate-non-hp-load`    | `True`                                         | Run k-nearest-neighbor HVAC substitution for upgrade 02                             |
 | `--adjust-mf-electricity`      | `True`                                         | Apply MF non-HVAC electricity adjustment (00 and 02)                                |
 | `--assign-utility`             | `True`                                         | Assign electric/gas utilities (NY, RI only)                                         |
-| `--ny-electric-poly-filename`  | (none)                                         | NY electric polygon CSV (required when state=NY)                                    |
-| `--ny-gas-poly-filename`       | (none)                                         | NY gas polygon CSV (required when state=NY)                                         |
+| `--electric-poly-filename`     | from `state_configs.yaml`                      | Electric utility polygon CSV; overrides config default                              |
+| `--gas-poly-filename`          | from `state_configs.yaml`                      | Gas utility polygon CSV; overrides config default                                   |
 | `--path-s3-gis-dir`            | `s3://data.sb/gis/utility_boundaries/`         | S3 directory for NY utility polygon CSVs                                            |
 | `--add-monthly-loads`          | `True`                                         | Aggregate hourly → monthly and upload (needs `load_curve_hourly` in `--file-types`) |
 | `--monthly-workers`            | `50`                                           | Parallel worker count for monthly aggregation                                       |
@@ -99,6 +99,28 @@ pums:
   year: "2021"
 ```
 
+### `data/resstock/state_configs.yaml`
+
+Per-state configuration. Top-level keys are 2-letter state codes; each entry contains state-specific settings consumed by the utility assignment step and `assign_utility_ny.py`.
+
+```yaml
+NY:
+  state_fips: "36"
+  state_crs: 2260
+  puma_year: 2019
+  electric_poly_filename: ny_electric_utilities_20260309.csv
+  gas_poly_filename: ny_gas_utilities_20260309.csv
+  excluded_gas_utilities: [bath, chautauqua, corning, fillmore, reserve, stlaw]
+RI:
+  state_fips: "44"
+  electric_poly_filename:
+  gas_poly_filename:
+```
+
+**`SUPPORTED_UTILITY_STATES` is derived from this file:** Any state whose config entry contains both `electric_poly_filename` and `gas_poly_filename` keys (even if the values are null, as for RI) is automatically included in `SUPPORTED_UTILITY_STATES`. Adding a new state to this file with those two keys is sufficient to register it for utility assignment — no hardcoded set needs to be updated.
+
+Polygon filenames default from this config. The CLI flags `--electric-poly-filename` / `--gas-poly-filename` override the config defaults when provided. For rule-based states like RI (null filenames), the GIS path is skipped entirely.
+
 ### `_SB_EXCLUDED_FILE_TYPES` (module-level constant in `main.py`)
 
 ```python
@@ -107,12 +129,12 @@ _SB_EXCLUDED_FILE_TYPES: frozenset[str] = frozenset({"load_curve_annual"})
 
 File types that are fetched for the raw NREL release but **never copied to `_sb`**, never uploaded under the `_sb` prefix, and never validated against `_sb`. Currently contains only `load_curve_annual`.
 
-**Why `load_curve_annual` is excluded:** The `_sb` release modifies `load_curve_hourly` in place (non-HP approximation, MF electricity adjustment). There is no mechanism to re-derive `load_curve_annual` from the modified hourly data, so including the unmodified raw annual in `_sb` would be misleading — it would not reflect the approximation or adjustment. The correct sub-annual aggregation is `load_curve_monthly`, which is derived from the modified hourly in step 2b-iv.
+**Why `load_curve_annual` is excluded:** The `_sb` release modifies `load_curve_hourly` in place (non-HP approximation, MF electricity adjustment). There is no mechanism to re-derive `load_curve_annual` from the modified hourly data, so including the unmodified raw annual in `_sb` would be misleading — it would not reflect the approximation or adjustment. The correct sub-annual aggregation is `load_curve_monthly`, which is derived from the modified hourly in step 2d.
 
 **How to expand `_sb` to include `load_curve_annual` in the future:** If a need arises for an `_sb` annual file (e.g., a downstream consumer requires it), the steps would be:
 
 1. Implement an hourly-to-annual aggregation script (analogous to `data/resstock/load_curve/add_monthly_loads.py` but aggregating to 1 row per building).
-2. Add a pipeline step after all hourly modifications are complete (after step 2b-ii) that runs the aggregation on the `_sb` hourly files and writes `load_curve_annual/` under `path_sb`.
+2. Add a pipeline step after all hourly modifications are complete (after step 2c-ii) that runs the aggregation on the `_sb` hourly files and writes `load_curve_annual/` under `path_sb`.
 3. Remove `"load_curve_annual"` from `_SB_EXCLUDED_FILE_TYPES` so the clone, upload, and validation steps include it.
 4. Ensure `_modify_metadata` still reads `load_curve_annual` from `path_raw` (the raw release) for the `identify_natgas_connection` step, since that runs before any hourly modifications. (Or, if the new annual file is generated after modifications, decide whether natgas identification should use the pre- or post-modification annual.)
 
@@ -194,14 +216,31 @@ Iterates over all `(state, upgrade)` combinations. For each:
 2. Applies `_modify_metadata`, which chains four transforms in dependency order:
    - **`identify_hp_customers`** — adds `postprocess_group.has_hp`.
    - **`identify_heating_type`** — adds `postprocess_group.heating_type`, `heats_with_*` flags. Requires `has_hp`.
-   - **`identify_natgas_connection`** — adds `has_natgas_connection`. **Reads `load_curve_annual` from `path_raw` (the raw release), not from `path_sb`.** This is correct because `load_curve_annual` is never copied to `_sb`, and the raw annual data is the appropriate baseline for this identification. For buildings whose HVAC is later approximated (step 2b-i), `has_natgas_connection` is re-derived from the modified `load_curve_hourly`.
+   - **`identify_natgas_connection`** — adds `has_natgas_connection`. **Reads `load_curve_annual` from `path_raw` (the raw release), not from `path_sb`.** This is correct because `load_curve_annual` is never copied to `_sb`, and the raw annual data is the appropriate baseline for this identification. For buildings whose HVAC is later approximated (step 2c-i), `has_natgas_connection` is re-derived from the modified `load_curve_hourly`.
    - **`add_vulnerability_columns`** — adds LMI columns. NY only; pass `--add-vulnerability-columns False` for other states.
 3. Validates output schema for each active transform.
 4. Writes the result to `metadata-sb.parquet` in `path_sb`.
 
 **Important: `path_raw` vs `path_sb` in `_modify_metadata`.** The `path_raw` parameter is used exclusively for `load_curve_annual` in `identify_natgas_connection`. All metadata I/O (read `metadata.parquet`, write `metadata-sb.parquet`) is done on `path_sb` by the caller. If a future transform needs to read load curve data that should reflect `_sb` modifications, it must be placed after the relevant modification step and read from `path_sb`.
 
-### Step 2b-i: Approximate non-HP load (upgrade 02)
+### Step 2b: Assign utilities
+
+Runs only when `--assign-utility True` and `metadata` is in `--file-types`.
+
+Logic is in `_assign_utility()`. For each state:
+
+1. Reads upgrade-00 `metadata-sb.parquet` from `path_sb` (utility assignment is per-state, not per-upgrade).
+2. Calls `assign_utility(state, metadata, ...)` from `data/resstock/utility/assign_utility.py`, which:
+   - Looks up the state's configuration from `state_configs.yaml` internally.
+   - Resolves polygon filenames: CLI override (`--electric-poly-filename` / `--gas-poly-filename`) if provided, otherwise the default from `state_configs.yaml`.
+   - If filenames are empty/null (e.g. RI): uses rule-based assignment.
+   - If filenames are present (e.g. NY): loads electric and gas polygon CSVs from `--path-s3-gis-dir`, fetches Census PUMA shapefiles via pygris, and calls `assign_utility_ny`.
+3. **Writes only `bldg_id`, `sb.electric_utility`, and `sb.gas_utility`** to `path_sb/metadata_utility/state=<s>/utility_assignment.parquet`.
+4. Immediately uploads the file to S3 via `aws s3 cp`.
+
+**Pre-flight validation:** `validate_utility_assignment_args()` (called in step 0) checks that the utility-assignment upgrade is in `--upgrade-ids` and that all requested states are in `SUPPORTED_UTILITY_STATES`. Unsupported states or missing upgrades halt the pipeline before any data is fetched.
+
+### Step 2c-i: Approximate non-HP load (upgrade 02)
 
 Runs only when all three conditions are met:
 
@@ -227,7 +266,7 @@ Logic is in `_approximate_non_hp_load()`. For each state:
 
    The metadata is materialized with `.collect()` and written with `.write_parquet()` (not `.sink_parquet()`) because the scan source and output target are the same file.
 
-### Step 2b-ii: Adjust MF electricity
+### Step 2c-ii: Adjust MF electricity
 
 Runs only when `--adjust-mf-electricity True` and at least one of upgrades 00/02 is in `--upgrade-ids` and `load_curve_hourly` is in `--file-types`.
 
@@ -240,27 +279,13 @@ Logic is in `_adjust_mf_electricity()`. For each (state, upgrade) pair in `["00"
 
 In sample mode, a warning is printed that ratios are derived from the sampled buildings only. If the sample has no MF buildings, the step is skipped; if fewer than 2 SF buildings, ratios default to 1.0.
 
-### Step 2b-iii: Assign utilities
-
-Runs only when `--assign-utility True` and `metadata` is in `--file-types`.
-
-Logic is in `_assign_utility()`. For each state:
-
-1. Reads upgrade-00 `metadata-sb.parquet` from `path_sb` (utility assignment is per-state, not per-upgrade).
-2. Dispatches to the state-specific function:
-   - **NY**: Loads electric and gas polygon CSVs from `--path-s3-gis-dir` (requires `--ny-electric-poly-filename` and `--ny-gas-poly-filename`), fetches Census PUMA shapefiles via pygris, and calls `assign_utility_ny`.
-   - **RI**: Calls `assign_utility_ri` (deterministic: all buildings get `"rie"` for electric; gas is set for buildings with `has_natgas_connection`).
-   - **Other states**: Prints an `ERROR` and skips gracefully (no exception).
-3. **Writes only `bldg_id`, `sb.electric_utility`, and `sb.gas_utility`** to `path_sb/metadata_utility/state=<s>/utility_assignment.parquet`. The full metadata is intentionally excluded because the assignment uses upgrade 00, and including upgrade-specific columns (heating equipment, floor area, etc.) would be misleading for downstream consumers working with other upgrades.
-4. Immediately uploads the file to S3 via `aws s3 cp`.
-
-### Step 2b-iv: Add monthly load curves
+### Step 2d: Add monthly load curves
 
 **Function:** `_add_monthly_loads`
 
 **Gate condition:** `args.add_monthly_loads and "load_curve_hourly" in args.file_types`
 
-Aggregates the modified `_sb` hourly load curves into monthly load curves and uploads them to S3. This step runs after all hourly modifications (steps 2b-i, 2b-ii) so that monthly curves reflect non-HP approximation and MF electricity adjustment.
+Aggregates the modified `_sb` hourly load curves into monthly load curves and uploads them to S3. This step runs after all hourly modifications (steps 2c-i, 2c-ii) so that monthly curves reflect non-HP approximation and MF electricity adjustment.
 
 **Logic:**
 
@@ -302,8 +327,8 @@ On success, the run record is marked `completed` and written to both manifests. 
 | -------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | `metadata`           | Cloned from raw, then modified in place (`metadata-sb.parquet`)                        | Contains all SB-specific columns                                  |
 | `load_curve_hourly`  | Cloned from raw, then modified in place by approximation and MF electricity adjustment | One parquet per building                                          |
-| `metadata_utility`   | Generated by `_assign_utility` (step 2b-iii), uploaded to S3 immediately               | Contains only `bldg_id`, `sb.electric_utility`, `sb.gas_utility`  |
-| `load_curve_monthly` | Derived by `_add_monthly_loads` (step 2b-iv) from the modified `load_curve_hourly`     | One parquet per building; synced to S3 per state after generation |
+| `metadata_utility`   | Generated by `_assign_utility` (step 2b), uploaded to S3 immediately                   | Contains only `bldg_id`, `sb.electric_utility`, `sb.gas_utility`  |
+| `load_curve_monthly` | Derived by `_add_monthly_loads` (step 2d) from the modified `load_curve_hourly`        | One parquet per building; synced to S3 per state after generation |
 
 ### Currently excluded
 
@@ -322,12 +347,12 @@ Understanding which release provides data to which step is critical for correctn
 | `metadata.parquet` (raw NREL)      | `path_raw` via clone                                       | `path_sb`               | 1b                                |
 | `load_curve_hourly` (raw NREL)     | `path_raw` via clone                                       | `path_sb`               | 1b                                |
 | `load_curve_annual` (raw NREL)     | `path_raw` (read directly, never cloned to `_sb`)          | N/A                     | 2a (`identify_natgas_connection`) |
-| `metadata-sb.parquet`              | `path_sb`                                                  | `path_sb`               | 2a, 2b-i, 2b-ii, 2b-iii           |
-| `load_curve_hourly` (modified)     | `path_sb`                                                  | `path_sb` (overwritten) | 2b-i, 2b-ii                       |
-| `load_curve_annual` (ratios)       | `path_raw`                                                 | N/A                     | 2b-ii                             |
-| Neighbor load curves (sample mode) | `path_sb` (same as targets — limited to sampled buildings) | N/A                     | 2b-i                              |
-| `utility_assignment.parquet`       | `path_sb/metadata_utility/state=<s>/`                      | `path_sb` + S3          | 2b-iii                            |
-| `load_curve_monthly` (derived)     | `path_sb/load_curve_hourly/` (modified)                    | `path_sb` + S3          | 2b-iv                             |
+| `metadata-sb.parquet`              | `path_sb`                                                  | `path_sb`               | 2a, 2b, 2c-i, 2c-ii               |
+| `load_curve_hourly` (modified)     | `path_sb`                                                  | `path_sb` (overwritten) | 2c-i, 2c-ii                       |
+| `load_curve_annual` (ratios)       | `path_raw`                                                 | N/A                     | 2c-ii                             |
+| Neighbor load curves (sample mode) | `path_sb` (same as targets — limited to sampled buildings) | N/A                     | 2c-i                              |
+| `utility_assignment.parquet`       | `path_sb/metadata_utility/state=<s>/`                      | `path_sb` + S3          | 2b                                |
+| `load_curve_monthly` (derived)     | `path_sb/load_curve_hourly/` (modified)                    | `path_sb` + S3          | 2d                                |
 
 ---
 
@@ -337,7 +362,7 @@ When `--sample N` is passed (N > 0):
 
 - **bsf** downloads the full NREL parquet for metadata and `load_curve_annual`, but **filters both to only the N sampled building IDs** before writing to disk. The local `metadata.parquet` and `load_curve_annual` will each have only N rows. Load curves (`load_curve_hourly`) are downloaded as individual per-building files, so only N files are present.
 - **Neighbor search is limited to the sampled buildings.** A warning is printed. There is no release-independent way to obtain the full-population metadata with all needed columns (e.g. `in.weather_file_city`) in sample mode — bsf filters every file type, the bsf bundled index lacks `in.*` columns, and NREL OEDI URL patterns change across releases. This limitation is acceptable because `--sample` is a development/testing feature; production runs should always use `--sample 0`.
-- **Target identification** (step 2b-i) restricts non-HP targets to only buildings with locally available load curve files.
+- **Target identification** (step 2c-i) restricts non-HP targets to only buildings with locally available load curve files.
 - **All I/O is local** — no S3 reads for neighbor curves, no temp caching. This makes sample-mode runs fast and simple.
 
 ---
@@ -360,10 +385,12 @@ When `--sample N` is passed (N > 0):
 | `utils/pre/approximate_non_hp_load.py`                 | Core approximation: neighbor search, HVAC replacement, metadata update              |
 | `data/resstock/load_curve/adjust_mf_electricity.py`    | Re-exports from `utils/pre/adjust_mf_electricity.py`                                |
 | `utils/pre/adjust_mf_electricity.py`                   | MF non-HVAC electricity scaling, per-building hourly adjustment                     |
-| `data/resstock/utility/assign_utility.py`              | Re-exports from `assign_utility_ny.py` and `assign_utility_ri.py`                   |
+| `data/resstock/state_configs.yaml`                     | Per-state config: FIPS, CRS, polygon filenames, excluded gas utilities              |
+| `data/resstock/validations.py`                         | Post-step and pre-flight validation (local files, S3 objects, utility assignment)   |
+| `data/resstock/utility/assign_utility.py`              | Central utility assignment facade; loads `state_configs.yaml`, routes to NY/RI impl |
 | `data/resstock/utility/assign_utility_ny.py`           | GIS-based probabilistic utility assignment for NY                                   |
 | `data/resstock/utility/assign_utility_ri.py`           | Deterministic utility assignment for RI (single utility)                            |
-| `data/resstock/load_curve/add_monthly_loads.py`        | Hourly-to-monthly aggregation; called directly by `_add_monthly_loads` (step 2b-iv) |
+| `data/resstock/load_curve/add_monthly_loads.py`        | Hourly-to-monthly aggregation; called directly by `_add_monthly_loads` (step 2d)    |
 
 ---
 
@@ -371,10 +398,10 @@ When `--sample N` is passed (N > 0):
 
 1. **No `load_curve_annual` in `_sb`**: Intentional. See the `_SB_EXCLUDED_FILE_TYPES` section above for how to change this if needed.
 
-2. **`has_natgas_connection` has two sources of truth**: For non-approximated buildings, it comes from `load_curve_annual` in the raw release (step 2a). For approximated buildings, it is re-derived from the modified `load_curve_hourly` in `_sb` (step 2b-i). This is correct behavior but worth understanding when debugging metadata values.
+2. **`has_natgas_connection` has two sources of truth**: For non-approximated buildings, it comes from `load_curve_annual` in the raw release (step 2a). For approximated buildings, it is re-derived from the modified `load_curve_hourly` in `_sb` (step 2c-i). This is correct behavior but worth understanding when debugging metadata values.
 
 3. **k and include_cooling are hardcoded**: `_approximate_non_hp_load` uses `k=15` and `include_cooling=False`. These should eventually become CLI arguments if they need to vary.
 
-4. **Utility assignment only supports NY and RI**: Adding a new state requires implementing a state-specific assignment function and registering the state code in `SUPPORTED_UTILITY_STATES` in `data/resstock/utility/assign_utility.py`.
+4. **Utility assignment only supports NY and RI**: `SUPPORTED_UTILITY_STATES` is derived dynamically from `data/resstock/state_configs.yaml` — any state whose config entry contains both `electric_poly_filename` and `gas_poly_filename` keys is included. Adding a new state requires: (a) adding an entry to `state_configs.yaml` with those keys (null values for rule-based, filenames for GIS-based), and (b) implementing a state-specific assignment function and wiring it in `assign_utility.py`.
 
 5. **Monthly loads in sample mode produce N files**: When `--sample N` is active, only N hourly parquets exist locally, so only N monthly parquets are generated. This is expected — sample mode is for development/testing only.

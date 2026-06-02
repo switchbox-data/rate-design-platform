@@ -2,7 +2,7 @@
 
 How electric and gas utilities are assigned to ResStock buildings in NY: `data/resstock/utility/assign_utility_ny.py` and related Justfile recipes.
 
-**Use when:** Working on NY utility assignment, small gas utility handling, PUMA–utility overlap, or ResStock metadata columns `sb.electric_utility` / `sb.gas_utility`.
+**Use when:** Working on NY utility assignment, excluded gas utility handling, PUMA–utility overlap, or ResStock metadata columns `sb.electric_utility` / `sb.gas_utility`.
 
 ---
 
@@ -15,16 +15,16 @@ How electric and gas utilities are assigned to ResStock buildings in NY: `data/r
 
 ---
 
-## Small gas utilities
+## Excluded gas utilities
 
-A fixed set of **small gas utilities** are excluded from assignment: their prior probability is set to zero before sampling.
+A fixed set of **excluded gas utilities** are excluded from assignment: their prior probability is set to zero before sampling.
 
-- **Constant:** `SMALL_GAS_UTILITIES` in `assign_utility_ny.py`:
+- **Constant:** `EXCLUDED_GAS_UTILITIES` in `assign_utility_ny.py` (loaded from `data/resstock/state_configs.yaml` → `NY.excluded_gas_utilities`):
   - `bath`, `chautauqua`, `corning`, `fillmore`, `reserve`, `stlaw`
 - **Rationale:** These utilities have very few customers; we do not assign ResStock buildings to them for rate-design/BAT purposes.
 - **Implementation:** `_zero_small_gas_utilities_and_renormalize()`:
-  1. Set to 0 the probability columns whose name is in `SMALL_GAS_UTILITIES`.
-  2. For each PUMA row, if the remaining (non-small) gas probabilities sum to zero, the PUMA is "bad" and must be handled (see below).
+  1. Set to 0 the probability columns whose name is in `EXCLUDED_GAS_UTILITIES`.
+  2. For each PUMA row, if the remaining (non-excluded) gas probabilities sum to zero, the PUMA is "bad" and must be handled (see below).
   3. Otherwise, renormalize each row so gas probabilities sum to 1.
   4. Final gas probability table is used by `_sample_utility_per_building(..., only_when_fuel="Natural Gas")`.
 
@@ -32,13 +32,13 @@ A fixed set of **small gas utilities** are excluded from assignment: their prior
 
 ## PUMAs with zero gas probability after zeroing
 
-If, for a given PUMA, **all** gas probability was in small utilities, then after zeroing that PUMA has no gas utility left. Two behaviors:
+If, for a given PUMA, **all** gas probability was in excluded utilities, then after zeroing that PUMA has no gas utility left. Two behaviors:
 
 1. **`pumas` not provided:** `_zero_small_gas_utilities_and_renormalize(..., pumas=None)` raises `ValueError` with the affected `puma_id`(s).
 2. **`pumas` provided (GeoDataFrame):** A **donor** PUMA is chosen and its gas probability row is used for the bad PUMA.
-   - **Donor selection:** Prefer a **good** PUMA (non-zero gas probability after zeroing) that is **adjacent** to the bad PUMA (geometries touch). Among adjacent good PUMAs, choose the one whose centroid is closest to the bad PUMA's centroid. If no adjacent good PUMA exists, use the good PUMA with the nearest centroid (fallback).
+   - **Donor selection:** Prefer a **good** PUMA (non-zero gas probability after exclusion) that is **adjacent** to the bad PUMA (geometries touch). Among adjacent good PUMAs, choose the one whose centroid is closest to the bad PUMA's centroid. If no adjacent good PUMA exists, use the good PUMA with the nearest centroid (fallback).
    - **Result:** The bad PUMA's row is replaced by the donor's gas probability row; then all rows are renormalized so each sums to 1.
-   - **Debug:** When a donor is used, the script prints the bad PUMA id, donor PUMA id, whether it was "adjacent (touching boundary)" or "no adjacent PUMA with gas; using nearest by centroid (fallback)", distance, and -- if `puma_and_heating_fuel` is provided -- how many gas buildings (`has_natgas_connection`) are in the bad PUMA. It also prints the small utilities that were zeroed and their prior probabilities, and the resulting distribution after the nearest-neighbor approximation.
+   - **Debug:** When a donor is used, the script prints the bad PUMA id, donor PUMA id, whether it was "adjacent (touching boundary)" or "no adjacent PUMA with gas; using nearest by centroid (fallback)", distance, and -- if `puma_and_heating_fuel` is provided -- how many gas buildings (`has_natgas_connection`) are in the bad PUMA. It also prints the excluded utilities that were zeroed and their prior probabilities, and the resulting distribution after the nearest-neighbor approximation.
 
 ---
 
@@ -56,13 +56,15 @@ PUMA identifiers can appear as integers or strings (e.g. `100` vs `"00100"`). Fo
 
 ## Renormalization
 
-After zeroing small gas utilities (and optionally replacing bad-PUMA rows with donor rows), **every row** of the gas probability table is renormalized so that the sum of all utility columns for that row equals 1. So each PUMA's gas distribution is a valid probability distribution for sampling.
+After zeroing excluded gas utilities (and optionally replacing bad-PUMA rows with donor rows), **every row** of the gas probability table is renormalized so that the sum of all utility columns for that row equals 1. So each PUMA's gas distribution is a valid probability distribution for sampling.
 
 ---
 
 ## Invocation and data flow
 
-**Recommended (via main.py):** Utility assignment runs as step 2b-iii inside `data/resstock/main.py` (`_assign_utility` function). It operates directly on the `_sb` release -- reads `metadata-sb.parquet` from the `_sb` tree (after all metadata transforms have been applied), runs the assignment, and writes `metadata_utility/state=NY/utility_assignment.parquet` into the `_sb` tree on local EBS, then uploads immediately to S3 via `aws s3 cp`. No separate copy step is needed. See `context/code/data/resstock_sb_release_pipeline_main_py.md` for details.
+**Recommended (via main.py):** Utility assignment runs as step 2b inside `data/resstock/main.py` (`_assign_utility` function), immediately after metadata transforms (step 2a) and before load curve modifications. It operates directly on the `_sb` release -- reads `metadata-sb.parquet` from the `_sb` tree (after all metadata transforms have been applied), routes to `assign_utility()` in `data/resstock/utility/assign_utility.py` which loads state configuration from `state_configs.yaml` internally, and writes `metadata_utility/state=NY/utility_assignment.parquet` into the `_sb` tree on local EBS, then uploads immediately to S3 via `aws s3 cp`. No separate copy step is needed. See `context/code/data/resstock_sb_release_pipeline_main_py.md` for details.
+
+**State support:** NY is included in `SUPPORTED_UTILITY_STATES` because its entry in `data/resstock/state_configs.yaml` contains both `electric_poly_filename` and `gas_poly_filename` keys with non-null values. The polygon filenames default from this config; they can be overridden at the CLI via `--electric-poly-filename` / `--gas-poly-filename`. Pre-flight validation (`validate_utility_assignment_args`) checks that all requested states are in `SUPPORTED_UTILITY_STATES` before any data processing begins.
 
 **Legacy (individual Justfile recipe):** `assign-utility-ny` in `data/resstock/Justfile` downloads NY polygons, then calls `assign_utility_ny.py` directly with S3 paths. In the old workflow this ran on the **standard** release (step 3), and the output was brought into `_sb` by the copy step (step 4). These individual recipes are still available for debugging.
 
@@ -75,7 +77,7 @@ After zeroing small gas utilities (and optionally replacing bad-PUMA rows with d
 
 `tests/test_assign_utility_ny.py` covers:
 
-- `SMALL_GAS_UTILITIES` constant.
+- `EXCLUDED_GAS_UTILITIES` constant (loaded from `state_configs.yaml`).
 - `_puma_id_series_for_join` (PUMACE10, GEOID, missing columns).
-- `_zero_small_gas_utilities_and_renormalize`: no small cols (unchanged); zero + renormalize; bad PUMA with `pumas=None` (raises); bad PUMA with `pumas` and touching geometries (donor used, row sums to 1).
+- `_zero_small_gas_utilities_and_renormalize`: no excluded cols (unchanged); zero + renormalize; bad PUMA with `pumas=None` (raises); bad PUMA with `pumas` and touching geometries (donor used, row sums to 1).
 - Other helpers: `_calculate_utility_probabilities`, `_calculate_prior_distributions`, `_sample_utility_per_building` (determinism, gas only when `has_natgas_connection`, etc.).

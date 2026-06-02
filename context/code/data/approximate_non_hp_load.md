@@ -70,7 +70,7 @@ For each replace group (electricity, heating/cooling load, natural_gas, fuel_oil
 
 ## Invocation
 
-**Recommended:** This step is orchestrated via `data/resstock/main.py` as step 2b-i (`_approximate_non_hp_load` function). It runs on local EBS after the raw-to-`_sb` clone, using `k=15` and `include_cooling=False`. See `context/code/data/resstock_sb_release_pipeline_main_py.md`.
+**Recommended:** This step is orchestrated via `data/resstock/main.py` as step 2c-i (`_approximate_non_hp_load` function). It runs on local EBS after the raw-to-`_sb` clone and utility assignment, using `k=15` and `include_cooling=False`. See `context/code/data/resstock_sb_release_pipeline_main_py.md`.
 
 **Legacy Justfile recipe:** `approximate-non-hp-load` in `data/resstock/Justfile` calls `utils/pre/approximate_non_hp_load.py` directly with S3 paths. Still available for debugging or partial re-runs.
 

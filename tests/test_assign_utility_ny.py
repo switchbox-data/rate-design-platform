@@ -11,7 +11,7 @@ import geopandas as gpd
 from shapely.geometry import box
 
 from data.resstock.utility.assign_utility_ny import (
-    SMALL_GAS_UTILITIES,
+    EXCLUDED_GAS_UTILITIES,
     _calculate_prior_distributions,
     _calculate_utility_probabilities,
     _puma_id_series_for_join,
@@ -418,14 +418,15 @@ def test_sample_utility_per_building_deterministic_with_varying_probs():
 
 
 # ---------------------------------------------------------------------------
-# SMALL_GAS_UTILITIES and _zero_small_gas_utilities_and_renormalize
+# EXCLUDED_GAS_UTILITIES and _zero_small_gas_utilities_and_renormalize
 # ---------------------------------------------------------------------------
 
 
-def test_small_gas_utilities_constant():
-    """SMALL_GAS_UTILITIES is the expected frozenset of small gas utility std names."""
+def test_excluded_gas_utilities_constant():
+    """EXCLUDED_GAS_UTILITIES is loaded from state_configs.yaml and matches the expected set."""
     expected = {"bath", "chautauqua", "corning", "fillmore", "reserve", "stlaw"}
-    assert SMALL_GAS_UTILITIES == frozenset(expected)
+    assert isinstance(EXCLUDED_GAS_UTILITIES, frozenset)
+    assert EXCLUDED_GAS_UTILITIES == frozenset(expected)
 
 
 def test_puma_id_series_for_join_pumace10():
@@ -455,7 +456,7 @@ def test_puma_id_series_for_join_no_id_column_returns_none():
 
 
 def test_zero_small_gas_utilities_no_small_cols_unchanged():
-    """When gas probs have no columns in SMALL_GAS_UTILITIES, result is unchanged."""
+    """When gas probs have no columns in EXCLUDED_GAS_UTILITIES, result is unchanged."""
     puma_gas_probs = pl.LazyFrame(
         {
             "puma_id": ["00100", "00200"],
@@ -494,7 +495,7 @@ def test_zero_small_gas_utilities_renormalize():
 
 
 def test_zero_small_gas_utilities_bad_puma_raises_without_pumas():
-    """When a PUMA has only small gas utilities and pumas is None, raises ValueError."""
+    """When a PUMA has only excluded gas utilities and pumas is None, raises ValueError."""
     puma_gas_probs = pl.LazyFrame(
         {
             "puma_id": ["00100"],
@@ -504,7 +505,7 @@ def test_zero_small_gas_utilities_bad_puma_raises_without_pumas():
     with pytest.raises(ValueError) as exc_info:
         _zero_small_gas_utilities_and_renormalize(puma_gas_probs, pumas=None)
     assert "00100" in str(exc_info.value)
-    assert "small gas utilities" in str(exc_info.value).lower()
+    assert "excluded gas utilities" in str(exc_info.value).lower()
 
 
 def test_zero_small_gas_utilities_bad_puma_uses_donor_with_pumas():

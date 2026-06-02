@@ -6,6 +6,7 @@ import argparse
 import subprocess
 from pathlib import Path
 
+import polars as pl
 import yaml
 
 _STATE_CONFIGS_PATH = Path(__file__).parent / "state_configs.yaml"
@@ -80,3 +81,30 @@ def upload_manifest(local_dir: Path, s3_base: str) -> None:
             f"  WARNING: manifest upload exited with code {result.returncode}",
             flush=True,
         )
+
+
+def select_puma_and_heating_fuel_metadata(metadata: pl.LazyFrame) -> pl.LazyFrame:
+    """Select PUMA and heating-fuel columns from ResStock metadata.
+
+    Expects columns ``bldg_id``, ``in.puma``, ``in.heating_fuel``, and
+    ``has_natgas_connection`` (added by ``identify_natgas_connection``).
+
+    Returns a LazyFrame with four columns:
+
+    - ``bldg_id``
+    - ``puma`` — last 5 characters of ``in.puma`` (zero-padded Census PUMA ID)
+    - ``heating_fuel`` — alias of ``in.heating_fuel``
+    - ``has_natgas_connection``
+    """
+    if "has_natgas_connection" not in metadata.collect_schema().names():
+        raise ValueError(
+            "Missing required column 'has_natgas_connection'. "
+            "Run identify_natgas_connection first to add this column."
+        )
+
+    return metadata.select(
+        pl.col("bldg_id"),
+        pl.col("in.puma").str.slice(-5).alias("puma"),
+        pl.col("in.heating_fuel").alias("heating_fuel"),
+        pl.col("has_natgas_connection"),
+    )

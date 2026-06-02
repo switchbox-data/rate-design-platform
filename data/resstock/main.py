@@ -31,11 +31,8 @@ import sys
 from pathlib import Path
 from typing import cast
 
-import geopandas as gpd
 import polars as pl
 import yaml
-from cloudpathlib import S3Path
-from pygris import pumas as get_pumas
 
 from data.resstock import fetch_resstock_data
 from data.resstock.constants import (
@@ -78,12 +75,9 @@ from data.resstock.metadata.identify_hp_customers import identify_hp_customers
 from data.resstock.metadata.identify_natgas_connection import identify_natgas_connection
 from data.resstock.utility.assign_utility import (
     SUPPORTED_UTILITY_STATES,
-    assign_utility_ny,
-    assign_utility_ri,
-    read_csv_to_gdf_from_s3,
+    assign_utility,
 )
 from data.resstock.utils import (
-    load_state_configs,
     parse_bool,
     upload,
     upload_manifest,
@@ -95,6 +89,7 @@ from data.resstock.validations import (
     validate_metadata_readable,
     validate_no_stale_monthly_loads,
     validate_s3_objects,
+    validate_utility_assignment_args,
 )
 from data.resstock.warnings import collect_run_warnings
 
@@ -120,10 +115,6 @@ _APPROX_UPGRADE: str = _cfg["resstock"]["approx_upgrade_id"]
 _UTILITY_ASSIGN_UPGRADE: str = _cfg["resstock"]["utility_assign_upgrade_id"]
 _DEFAULT_PUMS_SURVEY: str = _cfg["pums"]["survey"]
 _DEFAULT_PUMS_YEAR: str = str(_cfg["pums"]["year"])
-
-# Per-state configuration (FIPS code, projected CRS, PUMA shapefile vintage,
-# ...).  See data/resstock/state_configs.yaml for the schema.
-STATE_CONFIGS: dict[str, dict] = load_state_configs()
 
 
 def _approximate_non_hp_load(
@@ -383,24 +374,21 @@ def _assign_utility(
     *,
     states: list[str],
     path_sb: Path,
-    upgrade_ids: list[str],
     sample: int,
     s3_base_sb: str,
     path_s3_gis_dir: str,
-    ny_electric_poly_filename: str | None,
-    ny_gas_poly_filename: str | None,
+    electric_poly_filename: str | None,
+    gas_poly_filename: str | None,
 ) -> None:
     """Write metadata_utility/state=<s>/utility_assignment.parquet for each state.
 
-    Reads upgrade-00 metadata-sb.parquet from the _sb release, runs the
-    state-specific utility assignment, and writes the result locally.
-    Supported states: NY (GIS-based probabilistic assignment) and RI (single
-    utility). Any other state is skipped with an ERROR message.
+    Reads upgrade-00 metadata-sb.parquet from the _sb release, calls
+    ``assign_utility`` (which routes to the state-specific implementation and
+    handles all GIS data loading), and writes + uploads the result.
 
-    For NY, electric and gas polygon CSVs must be provided via
-    ``ny_electric_poly_filename`` and ``ny_gas_poly_filename``; they are
-    loaded from ``path_s3_gis_dir`` (default ``s3://data.sb/gis/utility_boundaries/``).
-    PUMAs are fetched via pygris (requires network access).
+    Supported states are those in ``SUPPORTED_UTILITY_STATES``; any other state
+    is skipped with an ERROR message.  State-specific logic (polygon loading,
+    pygris, etc.) lives in ``data/resstock/utility/assign_utility.py``.
 
     The output is uploaded to S3 via ``aws s3 cp`` immediately after each state
     is processed.
@@ -411,26 +399,8 @@ def _assign_utility(
       sample), so the assignment quality is unaffected.  A note is printed to
       set expectations.
     """
-    padded = [u.zfill(2) for u in upgrade_ids]
-    if _UTILITY_ASSIGN_UPGRADE not in padded:
-        print(
-            f"  WARNING: Utility assignment uses upgrade {_UTILITY_ASSIGN_UPGRADE} "
-            f"metadata, but that upgrade is not in --upgrade-ids "
-            f"({upgrade_ids}). Skipping utility assignment.",
-            flush=True,
-        )
-        return
-
     for s in states:
         loc = f"state={s}"
-        if s not in SUPPORTED_UTILITY_STATES:
-            print(
-                f"  ERROR: Utility assignment is not implemented for state {s!r}. "
-                f"Only {sorted(SUPPORTED_UTILITY_STATES)} are supported. Skipping.",
-                flush=True,
-            )
-            continue
-
         metadata_path = (
             path_sb
             / "metadata"
@@ -438,12 +408,6 @@ def _assign_utility(
             / f"upgrade={_UTILITY_ASSIGN_UPGRADE}"
             / "metadata-sb.parquet"
         )
-        if not metadata_path.exists():
-            print(
-                f"  WARNING: {metadata_path} not found, skipping {loc}.",
-                flush=True,
-            )
-            continue
 
         out_dir = path_sb / "metadata_utility" / f"state={s}"
         out_path = out_dir / "utility_assignment.parquet"
@@ -461,54 +425,16 @@ def _assign_utility(
                 flush=True,
             )
 
-        if s == "RI":
-            result = assign_utility_ri(metadata)
-
-        elif s == "NY":
-            if not ny_electric_poly_filename:
-                print(
-                    f"  ERROR: --ny-electric-poly-filename is required for NY "
-                    f"utility assignment. Skipping {loc}.",
-                    flush=True,
-                )
-                continue
-            if not ny_gas_poly_filename:
-                print(
-                    f"  ERROR: --ny-gas-poly-filename is required for NY "
-                    f"utility assignment. Skipping {loc}.",
-                    flush=True,
-                )
-                continue
-
-            state_cfg = STATE_CONFIGS[s]
-            gis_base = S3Path(path_s3_gis_dir.rstrip("/"))
-            electric_polygons = read_csv_to_gdf_from_s3(
-                gis_base / ny_electric_poly_filename,
-                utility_type="electric",
-                state_crs=state_cfg["state_crs"],
+        try:
+            result = assign_utility(
+                state=s,
+                metadata=metadata,
+                path_s3_gis_dir=path_s3_gis_dir,
+                electric_poly_filename=electric_poly_filename,
+                gas_poly_filename=gas_poly_filename,
             )
-            gas_polygons = read_csv_to_gdf_from_s3(
-                gis_base / ny_gas_poly_filename,
-                utility_type="gas",
-                state_crs=state_cfg["state_crs"],
-            )
-            print("    Loading Census PUMA shapefiles via pygris...", flush=True)
-            pumas = cast(
-                gpd.GeoDataFrame,
-                get_pumas(state=s, year=state_cfg["puma_year"], cb=True),
-            )
-            pumas = pumas.to_crs(epsg=state_cfg["state_crs"])
-
-            result = assign_utility_ny(
-                input_metadata=metadata,
-                electric_polygons=electric_polygons,
-                gas_polygons=gas_polygons,
-                pumas=pumas,
-                config=state_cfg,
-            )
-
-        else:
-            # Unreachable given the SUPPORTED_UTILITY_STATES guard above.
+        except ValueError as exc:
+            print(f"  ERROR: {exc} Skipping {loc}.", flush=True)
             continue
 
         # Keep only the assignment columns — the full metadata belongs in
@@ -634,6 +560,78 @@ def _add_monthly_loads(
             )
 
     return processed
+
+
+def _modify_metadata(
+    metadata: pl.LazyFrame,
+    upgrade_id: str,
+    *,
+    run_identify_hp_customers: bool,
+    run_identify_heating_type: bool,
+    run_identify_natgas_connection: bool,
+    path_raw: Path,
+    state: str,
+    run_add_vulnerability_columns: bool,
+    pums_base_dir: str | None = None,
+    pums_survey: str | None = None,
+    pums_year: str | None = None,
+) -> pl.LazyFrame:
+    """Chain all metadata transformations in dependency order.
+
+    Steps and their dependencies:
+      1. identify_hp_customers       → adds postprocess_group.has_hp
+      2. identify_heating_type       → adds heating_type columns (requires has_hp)
+      3. identify_natgas_connection  → adds has_natgas_connection (requires heats_with_natgas;
+                                       loads load_curve_annual from the raw release at path_raw,
+                                       not from _sb, because load_curve_annual is never copied
+                                       to _sb — it has no post-approximation equivalent)
+      4. add_vulnerability_columns   → adds LMI vulnerability columns (NY only;
+                                       loads PUMS conditional probs from S3)
+
+    Each step receives and returns a LazyFrame. Steps 3 and 4 have internal collects for
+    validation; step 4 always materialises the full frame. I/O (scan_parquet / sink_parquet)
+    and iteration over states/upgrades is handled by the caller.
+
+    Note: has_natgas_connection is re-derived from _sb load_curve_hourly by
+    update_non_hp_metadata (step 2b-i) for any buildings whose HVAC load curves are
+    approximated, so the raw-annual baseline set here is only the final value for
+    non-approximated buildings.
+    """
+    if run_identify_hp_customers:
+        metadata = identify_hp_customers(metadata=metadata, upgrade_id=upgrade_id)
+    if run_identify_heating_type:
+        metadata = identify_heating_type(metadata=metadata, upgrade_id=upgrade_id)
+    if run_identify_natgas_connection:
+        lca_dir = (
+            path_raw / "load_curve_annual" / f"state={state}" / f"upgrade={upgrade_id}"
+        )
+        if not lca_dir.exists():
+            raise RuntimeError(
+                f"[state={state} upgrade={upgrade_id}] load_curve_annual not found "
+                f"in the raw release at {lca_dir}. "
+                f"Ensure 'load_curve_annual' is in --file-types so it is fetched."
+            )
+        load_curve_annual = pl.scan_parquet(str(lca_dir))
+        metadata = identify_natgas_connection(
+            metadata=metadata, load_curve_annual=load_curve_annual
+        )
+    if run_add_vulnerability_columns:
+        if pums_base_dir is None or pums_survey is None or pums_year is None:
+            raise ValueError(
+                "pums_base_dir, pums_survey, and pums_year are required "
+                "when --add-vulnerability-columns True."
+            )
+        puma_conditional_probs = load_puma_conditional_probs(
+            pums_base_dir=pums_base_dir,
+            survey=pums_survey,
+            year=pums_year,
+            state=state,
+        )
+        metadata = add_vulnerability_columns(
+            metadata=metadata,
+            puma_conditional_probs=puma_conditional_probs,
+        )
+    return metadata
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -803,21 +801,23 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--ny-electric-poly-filename",
+        "--electric-poly-filename",
         default=None,
         metavar="FILENAME",
         help=(
-            "Filename of the NY electric utility polygon CSV in --path-s3-gis-dir "
-            "(e.g. ny_electric_utilities_20260309.csv). Required when state=NY."
+            "Filename of the electric utility polygon CSV in --path-s3-gis-dir "
+            "(e.g. ny_electric_utilities_20260309.csv). Overrides the default "
+            "from state_configs.yaml. Required for GIS-based states."
         ),
     )
     parser.add_argument(
-        "--ny-gas-poly-filename",
+        "--gas-poly-filename",
         default=None,
         metavar="FILENAME",
         help=(
-            "Filename of the NY gas utility polygon CSV in --path-s3-gis-dir "
-            "(e.g. ny_gas_utilities_20260309.csv). Required when state=NY."
+            "Filename of the gas utility polygon CSV in --path-s3-gis-dir "
+            "(e.g. ny_gas_utilities_20260309.csv). Overrides the default "
+            "from state_configs.yaml. Required for GIS-based states."
         ),
     )
 
@@ -842,78 +842,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Number of parallel workers for monthly aggregation (default: 50).",
     )
     return parser.parse_args(argv)
-
-
-def _modify_metadata(
-    metadata: pl.LazyFrame,
-    upgrade_id: str,
-    *,
-    run_identify_hp_customers: bool,
-    run_identify_heating_type: bool,
-    run_identify_natgas_connection: bool,
-    path_raw: Path,
-    state: str,
-    run_add_vulnerability_columns: bool,
-    pums_base_dir: str | None = None,
-    pums_survey: str | None = None,
-    pums_year: str | None = None,
-) -> pl.LazyFrame:
-    """Chain all metadata transformations in dependency order.
-
-    Steps and their dependencies:
-      1. identify_hp_customers       → adds postprocess_group.has_hp
-      2. identify_heating_type       → adds heating_type columns (requires has_hp)
-      3. identify_natgas_connection  → adds has_natgas_connection (requires heats_with_natgas;
-                                       loads load_curve_annual from the raw release at path_raw,
-                                       not from _sb, because load_curve_annual is never copied
-                                       to _sb — it has no post-approximation equivalent)
-      4. add_vulnerability_columns   → adds LMI vulnerability columns (NY only;
-                                       loads PUMS conditional probs from S3)
-
-    Each step receives and returns a LazyFrame. Steps 3 and 4 have internal collects for
-    validation; step 4 always materialises the full frame. I/O (scan_parquet / sink_parquet)
-    and iteration over states/upgrades is handled by the caller.
-
-    Note: has_natgas_connection is re-derived from _sb load_curve_hourly by
-    update_non_hp_metadata (step 2b-i) for any buildings whose HVAC load curves are
-    approximated, so the raw-annual baseline set here is only the final value for
-    non-approximated buildings.
-    """
-    if run_identify_hp_customers:
-        metadata = identify_hp_customers(metadata=metadata, upgrade_id=upgrade_id)
-    if run_identify_heating_type:
-        metadata = identify_heating_type(metadata=metadata, upgrade_id=upgrade_id)
-    if run_identify_natgas_connection:
-        lca_dir = (
-            path_raw / "load_curve_annual" / f"state={state}" / f"upgrade={upgrade_id}"
-        )
-        if not lca_dir.exists():
-            raise RuntimeError(
-                f"[state={state} upgrade={upgrade_id}] load_curve_annual not found "
-                f"in the raw release at {lca_dir}. "
-                f"Ensure 'load_curve_annual' is in --file-types so it is fetched."
-            )
-        load_curve_annual = pl.scan_parquet(str(lca_dir))
-        metadata = identify_natgas_connection(
-            metadata=metadata, load_curve_annual=load_curve_annual
-        )
-    if run_add_vulnerability_columns:
-        if pums_base_dir is None or pums_survey is None or pums_year is None:
-            raise ValueError(
-                "pums_base_dir, pums_survey, and pums_year are required "
-                "when --add-vulnerability-columns True."
-            )
-        puma_conditional_probs = load_puma_conditional_probs(
-            pums_base_dir=pums_base_dir,
-            survey=pums_survey,
-            year=pums_year,
-            state=state,
-        )
-        metadata = add_vulnerability_columns(
-            metadata=metadata,
-            puma_conditional_probs=puma_conditional_probs,
-        )
-    return metadata
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -972,6 +900,13 @@ def main(argv: list[str] | None = None) -> None:
             file_types=args.file_types,
             add_monthly_loads=args.add_monthly_loads,
             path_sb=path_sb,
+        )
+        validate_utility_assignment_args(
+            states=args.state,
+            upgrade_ids=args.upgrade_ids,
+            assign_utility=args.assign_utility,
+            utility_assign_upgrade=_UTILITY_ASSIGN_UPGRADE,
+            supported_states=SUPPORTED_UTILITY_STATES,
         )
 
         # ── 1. Fetch ──────────────────────────────────────────────────────────
@@ -1091,9 +1026,24 @@ def main(argv: list[str] | None = None) -> None:
         record_step(run, "modify_metadata", transforms=metadata_transforms_applied)
         upsert_run(path_sb, run)
 
-        # ── 2b. Modify load curves ─────────────────────────────────────────────
+        # ── 2b. Assign electric/gas utilities ─────────────────────────────────
+        if args.assign_utility and "metadata" in args.file_types:
+            print("Assigning utilities...", flush=True)
+            _assign_utility(
+                states=args.state,
+                path_sb=path_sb,
+                sample=args.sample,
+                s3_base_sb=s3_base_sb,
+                path_s3_gis_dir=args.path_s3_gis_dir,
+                electric_poly_filename=args.electric_poly_filename,
+                gas_poly_filename=args.gas_poly_filename,
+            )
+            record_step(run, "assign_utility")
+            upsert_run(path_sb, run)
 
-        # ── 2b-i. Approximate non-HP load for upgrade 02 ──────────────────────
+        # ── 2c. Modify load curves ─────────────────────────────────────────────
+
+        # ── 2c-i. Approximate non-HP load for upgrade 02 ──────────────────────
         if (
             args.approximate_non_hp_load
             and _APPROX_UPGRADE in [u.zfill(2) for u in args.upgrade_ids]
@@ -1108,7 +1058,7 @@ def main(argv: list[str] | None = None) -> None:
             record_step(run, "approximate_non_hp_load", upgrades=[_APPROX_UPGRADE])
             upsert_run(path_sb, run)
 
-        # ── 2b-ii. Adjust MF non-HVAC electricity for upgrades 00 and 02 ──────
+        # ── 2c-ii. Adjust MF non-HVAC electricity for upgrades 00 and 02 ──────
         if (
             args.adjust_mf_electricity
             and any(u.zfill(2) in _MF_ADJ_UPGRADES for u in args.upgrade_ids)
@@ -1123,22 +1073,6 @@ def main(argv: list[str] | None = None) -> None:
                 sample=args.sample,
             )
             record_step(run, "adjust_mf_electricity", upgrades=processed_upgrades)
-            upsert_run(path_sb, run)
-
-        # ── 2c. Assign electric/gas utilities ─────────────────────────────────
-        if args.assign_utility and "metadata" in args.file_types:
-            print("Assigning utilities...", flush=True)
-            _assign_utility(
-                states=args.state,
-                path_sb=path_sb,
-                upgrade_ids=args.upgrade_ids,
-                sample=args.sample,
-                s3_base_sb=s3_base_sb,
-                path_s3_gis_dir=args.path_s3_gis_dir,
-                ny_electric_poly_filename=args.ny_electric_poly_filename,
-                ny_gas_poly_filename=args.ny_gas_poly_filename,
-            )
-            record_step(run, "assign_utility")
             upsert_run(path_sb, run)
 
         # ── 2d. Add monthly load curves ────────────────────────────────────────

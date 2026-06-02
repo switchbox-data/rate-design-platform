@@ -24,8 +24,9 @@ Equivalent to:
 cd <repo_root> && uv run python -m data.resstock.main \
     --state NY \
     --upgrade-ids 0 2 \
-    --ny-electric-poly-filename ny_electric_utilities_20260309.csv \
-    --ny-gas-poly-filename ny_gas_utilities_20260309.csv
+    # Polygon filenames default from state_configs.yaml; override if needed:
+    # --electric-poly-filename ny_electric_utilities_20260309.csv \
+    # --gas-poly-filename ny_gas_utilities_20260309.csv
 ```
 
 **RI:**
@@ -48,8 +49,8 @@ cd <repo_root> && uv run python -m data.resstock.main \
 ```bash
 just -f data/resstock/Justfile run-pipeline <STATE> \
     --upgrade-ids 0 2 \
-    [--ny-electric-poly-filename ...] \
-    [--ny-gas-poly-filename ...] \
+    [--electric-poly-filename ...] \
+    [--gas-poly-filename ...] \
     [--add-vulnerability-columns False] \
     [--sample 10]
 ```
@@ -283,7 +284,7 @@ Both recipes now call `main.py` directly. See the "Recommended approach" section
 just -f data/resstock/Justfile create-sb-release-for-upgrade-02-NY
 ```
 
-Calls `main.py` with `--state NY --upgrade-ids 0 2` and the current polygon filenames. Runs all pipeline steps (fetch, metadata transforms, non-HP approximation, MF electricity adjustment, utility assignment, monthly loads, upload) in sequence.
+Calls `main.py` with `--state NY --upgrade-ids 0 2`. Polygon filenames default from `state_configs.yaml` (no need to pass explicitly). Runs all pipeline steps (fetch, metadata transforms, utility assignment, non-HP approximation, MF electricity adjustment, monthly loads, upload) in sequence.
 
 **RI:**
 

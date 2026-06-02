@@ -42,33 +42,33 @@ resstock_release_sb := resstock_release + "_sb"
 #         → MF electricity adjustment → utility assignment → monthly loads → upload.
 # All steps are enabled by default; pass any main.py flag in args to override.
 #
-# NY requires --ny-electric-poly-filename and --ny-gas-poly-filename.
+# Polygon filenames default from state_configs.yaml; override with
+# --electric-poly-filename / --gas-poly-filename if needed.
 # RI requires --add-vulnerability-columns False.
 #
 # Examples:
 #   just -f data/resstock/Justfile run-pipeline NY \
+#       --upgrade-ids 0 2
+#   just -f data/resstock/Justfile run-pipeline NY \
 #       --upgrade-ids 0 2 \
-#       --ny-electric-poly-filename ny_electric_utilities_20260309.csv \
-#       --ny-gas-poly-filename ny_gas_utilities_20260309.csv
+#       --electric-poly-filename ny_electric_utilities_20260309.csv \
+#       --gas-poly-filename ny_gas_utilities_20260309.csv
 #   just -f data/resstock/Justfile run-pipeline RI \
 #       --upgrade-ids 0 2 \
 #       --add-vulnerability-columns False
 #   just -f data/resstock/Justfile run-pipeline NY --sample 10 \
-#       --upgrade-ids 0 2 \
-#       --ny-electric-poly-filename ny_electric_utilities_20260309.csv \
-# --ny-gas-poly-filename ny_gas_utilities_20260309.csv
+# --upgrade-ids 0 2
 run-pipeline state *args:
     cd "{{ path_local_repo }}" && uv run python -m data.resstock.main \
         --state "{{ state }}" \
         {{ args }}
 
 # Full NY _sb release pipeline for upgrades 0 and 2.
+# Polygon filenames default from state_configs.yaml.
 create-sb-release-for-upgrade-02-NY:
     cd "{{ path_local_repo }}" && uv run python -m data.resstock.main \
         --state NY \
-        --upgrade-ids 0 2 \
-        --ny-electric-poly-filename ny_electric_utilities_20260309.csv \
-        --ny-gas-poly-filename ny_gas_utilities_20260309.csv
+        --upgrade-ids 0 2
 
 # Full RI _sb release pipeline for upgrades 0 and 2.
 create-sb-release-for-upgrade-02-RI:
