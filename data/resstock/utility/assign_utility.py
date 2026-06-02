@@ -18,10 +18,8 @@ from cloudpathlib import S3Path
 from pygris import pumas as get_pumas
 
 from data.resstock.utils import load_state_configs
-from data.resstock.utility.assign_utility_ny import (
-    assign_utility_ny,
-    read_csv_to_gdf_from_s3,
-)
+from data.resstock.utility.assign_utility_ny import assign_utility_ny
+from data.resstock.utility.utils import read_csv_to_gdf_from_s3
 from data.resstock.utility.assign_utility_ri import assign_utility_ri
 
 # States that have a utility assignment implementation — derived from
@@ -47,11 +45,9 @@ def assign_utility(
 ) -> pl.LazyFrame:
     """Assign electric and gas utilities to ResStock buildings for a given state.
 
-    Looks up the state's configuration from ``state_configs.yaml`` internally.
-    CLI values for ``electric_poly_filename`` / ``gas_poly_filename`` override
-    the config defaults when provided.  When both filenames resolve to empty,
-    uses a rule-based assignment; otherwise performs GIS-based assignment
-    (loading polygon CSVs from S3 and Census PUMAs via pygris).
+    Routes to the appropriate state-specific implementation. CLI values for
+    ``electric_poly_filename`` / ``gas_poly_filename`` override the defaults
+    from ``state_configs.yaml`` when provided.
 
     Returns a LazyFrame with all original metadata columns plus
     ``sb.electric_utility`` and ``sb.gas_utility``.
@@ -60,10 +56,10 @@ def assign_utility(
         state: 2-letter state code (e.g. ``"NY"``, ``"RI"``).
         metadata: ResStock metadata LazyFrame (from ``metadata-sb.parquet``).
         path_s3_gis_dir: S3 directory containing utility polygon CSV files.
-            Required for GIS-based states.
-        electric_poly_filename: CLI override for the electric polygon CSV
-            filename.  Falls back to ``state_configs.yaml`` when not provided.
-        gas_poly_filename: CLI override for the gas polygon CSV filename.
+            Required for GIS-based states (e.g. NY).
+        electric_poly_filename: Override for the electric polygon CSV filename.
+            Falls back to ``state_configs.yaml`` when not provided.
+        gas_poly_filename: Override for the gas polygon CSV filename.
             Falls back to ``state_configs.yaml`` when not provided.
 
     Raises:
@@ -76,60 +72,42 @@ def assign_utility(
             f"Supported states: {sorted(SUPPORTED_UTILITY_STATES)}."
         )
 
-    config = _STATE_CONFIGS[state]
-    # CLI values override state_configs.yaml defaults.
-    electric_poly_filename = electric_poly_filename or config.get(
-        "electric_poly_filename"
-    )
-    gas_poly_filename = gas_poly_filename or config.get("gas_poly_filename")
-
-    needs_gis = bool(electric_poly_filename or gas_poly_filename)
-
-    if not needs_gis:
-        # Rule-based assignment (e.g. RI): no GIS polygon data required.
-        if state == "RI":
-            return assign_utility_ri(metadata)
-        raise ValueError(
-            f"State {state!r} has no polygon filenames configured in "
-            f"state_configs.yaml and no GIS-free assignment implementation."
-        )
-
-    # GIS-based assignment (e.g. NY): requires both polygon files and a
-    # projected CRS.
-    if not path_s3_gis_dir:
-        raise ValueError(
-            f"--path-s3-gis-dir is required for {state} utility assignment."
-        )
-    if not electric_poly_filename:
-        raise ValueError(
-            f"--electric-poly-filename (or state_configs.yaml "
-            f"electric_poly_filename) is required for {state} utility assignment."
-        )
-    if not gas_poly_filename:
-        raise ValueError(
-            f"--gas-poly-filename (or state_configs.yaml "
-            f"gas_poly_filename) is required for {state} utility assignment."
-        )
-
-    gis_base = S3Path(path_s3_gis_dir.rstrip("/"))
-    electric_polygons = read_csv_to_gdf_from_s3(
-        gis_base / electric_poly_filename,
-        utility_type="electric",
-        state_crs=config["state_crs"],
-    )
-    gas_polygons = read_csv_to_gdf_from_s3(
-        gis_base / gas_poly_filename,
-        utility_type="gas",
-        state_crs=config["state_crs"],
-    )
-    print("    Loading Census PUMA shapefiles via pygris...", flush=True)
-    pumas = cast(
-        gpd.GeoDataFrame,
-        get_pumas(state=state, year=config["puma_year"], cb=True),
-    )
-    pumas = pumas.to_crs(epsg=config["state_crs"])
+    if state == "RI":
+        return assign_utility_ri(metadata)
 
     if state == "NY":
+        config = _STATE_CONFIGS["NY"]
+        elec_file = electric_poly_filename or config.get("electric_poly_filename")
+        gas_file = gas_poly_filename or config.get("gas_poly_filename")
+        if not path_s3_gis_dir:
+            raise ValueError("--path-s3-gis-dir is required for NY utility assignment.")
+        if not elec_file:
+            raise ValueError(
+                "--electric-poly-filename (or state_configs.yaml "
+                "electric_poly_filename) is required for NY utility assignment."
+            )
+        if not gas_file:
+            raise ValueError(
+                "--gas-poly-filename (or state_configs.yaml "
+                "gas_poly_filename) is required for NY utility assignment."
+            )
+        gis_base = S3Path(path_s3_gis_dir.rstrip("/"))
+        electric_polygons = read_csv_to_gdf_from_s3(
+            gis_base / elec_file,
+            utility_type="electric",
+            state_crs=config["state_crs"],
+        )
+        gas_polygons = read_csv_to_gdf_from_s3(
+            gis_base / gas_file,
+            utility_type="gas",
+            state_crs=config["state_crs"],
+        )
+        print("    Loading Census PUMA shapefiles via pygris...", flush=True)
+        pumas = cast(
+            gpd.GeoDataFrame,
+            get_pumas(state=state, year=config["puma_year"], cb=True),
+        )
+        pumas = pumas.to_crs(epsg=config["state_crs"])
         return assign_utility_ny(
             input_metadata=metadata,
             electric_polygons=electric_polygons,
@@ -139,8 +117,8 @@ def assign_utility(
         )
 
     raise ValueError(
-        f"State {state!r} has polygon filenames configured but no "
-        f"GIS-based assignment implementation."
+        f"State {state!r} is in SUPPORTED_UTILITY_STATES but has no "
+        f"assignment implementation in assign_utility()."
     )
 
 

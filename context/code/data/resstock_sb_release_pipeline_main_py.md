@@ -372,28 +372,29 @@ When `--sample N` is passed (N > 0):
 
 ## Supporting modules
 
-| Module                                                 | Purpose                                                                             |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `data/resstock/config.yaml`                            | Pipeline defaults (release, paths, file types, PUMS)                                |
-| `data/resstock/constants.py`                           | Column-name constants for validation                                                |
-| `data/resstock/manifest.py`                            | Provenance: run records, YAML I/O, status CLI                                       |
-| `data/resstock/validations.py`                         | Post-step validation (local files, S3 objects, metadata schema)                     |
-| `data/resstock/nrel/fetch_resstock_data.py`            | bsf wrapper                                                                         |
-| `data/resstock/nrel/copy_resstock_data.py`             | Directory copy utility (`copy_dir`)                                                 |
-| `data/resstock/metadata/identify_hp_customers.py`      | Adds `postprocess_group.has_hp`                                                     |
-| `data/resstock/metadata/identify_heating_type.py`      | Adds heating-type and fuel-flag columns                                             |
-| `data/resstock/metadata/identify_natgas_connection.py` | Adds `has_natgas_connection` from `load_curve_annual`                               |
-| `data/resstock/metadata/add_vulnerability_columns.py`  | Adds LMI vulnerability columns from PUMS                                            |
-| `data/resstock/load_curve/approximate_non_hp_load.py`  | Re-exports from `utils/pre/approximate_non_hp_load.py`                              |
-| `utils/pre/approximate_non_hp_load.py`                 | Core approximation: neighbor search, HVAC replacement, metadata update              |
-| `data/resstock/load_curve/adjust_mf_electricity.py`    | Re-exports from `utils/pre/adjust_mf_electricity.py`                                |
-| `utils/pre/adjust_mf_electricity.py`                   | MF non-HVAC electricity scaling, per-building hourly adjustment                     |
-| `data/resstock/state_configs.yaml`                     | Per-state config: FIPS, CRS, polygon filenames, excluded gas utilities              |
-| `data/resstock/validations.py`                         | Post-step and pre-flight validation (local files, S3 objects, utility assignment)   |
-| `data/resstock/utility/assign_utility.py`              | Central utility assignment facade; loads `state_configs.yaml`, routes to NY/RI impl |
-| `data/resstock/utility/assign_utility_ny.py`           | GIS-based probabilistic utility assignment for NY                                   |
-| `data/resstock/utility/assign_utility_ri.py`           | Deterministic utility assignment for RI (single utility)                            |
-| `data/resstock/load_curve/add_monthly_loads.py`        | Hourly-to-monthly aggregation; called directly by `_add_monthly_loads` (step 2d)    |
+| Module                                                 | Purpose                                                                                                                 |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `data/resstock/config.yaml`                            | Pipeline defaults (release, paths, file types, PUMS)                                                                    |
+| `data/resstock/constants.py`                           | Column-name constants for validation                                                                                    |
+| `data/resstock/manifest.py`                            | Provenance: run records, YAML I/O, status CLI                                                                           |
+| `data/resstock/validations.py`                         | Post-step validation (local files, S3 objects, metadata schema)                                                         |
+| `data/resstock/nrel/fetch_resstock_data.py`            | bsf wrapper                                                                                                             |
+| `data/resstock/nrel/copy_resstock_data.py`             | Directory copy utility (`copy_dir`)                                                                                     |
+| `data/resstock/metadata/identify_hp_customers.py`      | Adds `postprocess_group.has_hp`                                                                                         |
+| `data/resstock/metadata/identify_heating_type.py`      | Adds heating-type and fuel-flag columns                                                                                 |
+| `data/resstock/metadata/identify_natgas_connection.py` | Adds `has_natgas_connection` from `load_curve_annual`                                                                   |
+| `data/resstock/metadata/add_vulnerability_columns.py`  | Adds LMI vulnerability columns from PUMS                                                                                |
+| `data/resstock/load_curve/approximate_non_hp_load.py`  | Re-exports from `utils/pre/approximate_non_hp_load.py`                                                                  |
+| `utils/pre/approximate_non_hp_load.py`                 | Core approximation: neighbor search, HVAC replacement, metadata update                                                  |
+| `data/resstock/load_curve/adjust_mf_electricity.py`    | Re-exports from `utils/pre/adjust_mf_electricity.py`                                                                    |
+| `utils/pre/adjust_mf_electricity.py`                   | MF non-HVAC electricity scaling, per-building hourly adjustment                                                         |
+| `data/resstock/state_configs.yaml`                     | Per-state config: FIPS, CRS, polygon filenames, excluded gas utilities                                                  |
+| `data/resstock/validations.py`                         | Post-step and pre-flight validation (local files, S3 objects, utility assignment)                                       |
+| `data/resstock/utility/utils.py`                       | State-generic GIS helpers: PUMA overlap, probability tables, sampling, diagnostics                                      |
+| `data/resstock/utility/assign_utility.py`              | Central utility assignment facade; loads `state_configs.yaml`, routes to NY/RI impl                                     |
+| `data/resstock/utility/assign_utility_ny.py`           | NY-specific thin wrapper: builds name map, passes excluded gas utilities to generic `create_hh_utilities` in `utils.py` |
+| `data/resstock/utility/assign_utility_ri.py`           | Deterministic utility assignment for RI (single utility)                                                                |
+| `data/resstock/load_curve/add_monthly_loads.py`        | Hourly-to-monthly aggregation; called directly by `_add_monthly_loads` (step 2d)                                        |
 
 ---
 
