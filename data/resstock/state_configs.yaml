@@ -8,10 +8,15 @@
 # consumed by that state's pipeline need to be set.
 #
 # Currently used by:
-#   - data/resstock/main.py (utility assignment step)
+#   - data/resstock/main.py (per-state defaults: add_vulnerability_columns, utility assignment)
+#   - data/resstock/utility/assign_utility.py (SUPPORTED_UTILITY_STATES, polygon filenames)
 #   - data/resstock/utility/assign_utility_ny.py (GIS-based assignment for NY)
 NY:
   state_fips: "36"
+  # Whether to add LMI vulnerability columns from PUMS during metadata
+  # transforms.  Used as the per-state default when the CLI flag
+  # --add-vulnerability-columns is not explicitly provided.
+  add_vulnerability_columns: true
   # NY State Plane (meters); used for accurate area calculations in PUMA <->
   # utility-polygon overlap.
   state_crs: 2260
@@ -37,6 +42,7 @@ NY:
     - stlaw
 RI:
   state_fips: "44"
+  add_vulnerability_columns: false
   # RI uses rule-based (non-GIS) utility assignment; no polygon files or
   # projected CRS needed.
   electric_poly_filename:

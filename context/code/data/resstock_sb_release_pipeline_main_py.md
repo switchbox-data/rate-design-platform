@@ -44,7 +44,7 @@ Release-level defaults are loaded from `data/resstock/config.yaml`. State-specif
 | `--identify-hp-customers`      | `True`                                         | Add `postprocess_group.has_hp`                                                      |
 | `--identify-heating-type`      | `True`                                         | Add heating-type columns                                                            |
 | `--identify-natgas-connection` | `True`                                         | Add `has_natgas_connection`                                                         |
-| `--add-vulnerability-columns`  | `True`                                         | Add LMI columns (NY only)                                                           |
+| `--add-vulnerability-columns`  | per-state from `state_configs.yaml`            | Add LMI columns; defaults True for NY, False for RI. Pass True/False to override.   |
 | `--approximate-non-hp-load`    | `True`                                         | Run k-nearest-neighbor HVAC substitution for upgrade 02                             |
 | `--adjust-mf-electricity`      | `True`                                         | Apply MF non-HVAC electricity adjustment (00 and 02)                                |
 | `--assign-utility`             | `True`                                         | Assign electric/gas utilities (NY, RI only)                                         |
@@ -64,16 +64,17 @@ Full NY run:
 uv run python -m data.resstock.main --state NY
 ```
 
-MD sample run (10 buildings, skip vulnerability columns which are NY-only):
+MD sample run (10 buildings):
 
 ```bash
 uv run python -m data.resstock.main \
   --state MD \
   --upgrade-ids 0 2 \
   --file-types metadata load_curve_hourly load_curve_annual \
-  --sample 10 \
-  --add-vulnerability-columns False
+  --sample 10
 ```
+
+The `--add-vulnerability-columns` flag is not needed here — it defaults to the per-state value from `state_configs.yaml` (states without an entry default to `False`).
 
 ---
 
@@ -106,6 +107,7 @@ Per-state configuration. Top-level keys are 2-letter state codes; each entry con
 ```yaml
 NY:
   state_fips: "36"
+  add_vulnerability_columns: true
   state_crs: 2260
   puma_year: 2019
   electric_poly_filename: ny_electric_utilities_20260309.csv
@@ -113,6 +115,7 @@ NY:
   excluded_gas_utilities: [bath, chautauqua, corning, fillmore, reserve, stlaw]
 RI:
   state_fips: "44"
+  add_vulnerability_columns: false
   electric_poly_filename:
   gas_poly_filename:
 ```
@@ -217,7 +220,7 @@ Iterates over all `(state, upgrade)` combinations. For each:
    - **`identify_hp_customers`** — adds `postprocess_group.has_hp`.
    - **`identify_heating_type`** — adds `postprocess_group.heating_type`, `heats_with_*` flags. Requires `has_hp`.
    - **`identify_natgas_connection`** — adds `has_natgas_connection`. **Reads `load_curve_annual` from `path_raw` (the raw release), not from `path_sb`.** This is correct because `load_curve_annual` is never copied to `_sb`, and the raw annual data is the appropriate baseline for this identification. For buildings whose HVAC is later approximated (step 2c-i), `has_natgas_connection` is re-derived from the modified `load_curve_hourly`.
-   - **`add_vulnerability_columns`** — adds LMI columns. NY only; pass `--add-vulnerability-columns False` for other states.
+   - **`add_vulnerability_columns`** — adds LMI columns. Per-state default from `state_configs.yaml` (True for NY, False for RI). CLI `--add-vulnerability-columns True/False` overrides for all states.
 3. Validates output schema for each active transform.
 4. Writes the result to `metadata-sb.parquet` in `path_sb`.
 

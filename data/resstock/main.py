@@ -78,6 +78,7 @@ from data.resstock.utility.assign_utility import (
     assign_utility,
 )
 from data.resstock.utils import (
+    load_state_configs,
     parse_bool,
     upload,
     upload_manifest,
@@ -115,6 +116,23 @@ _APPROX_UPGRADE: str = _cfg["resstock"]["approx_upgrade_id"]
 _UTILITY_ASSIGN_UPGRADE: str = _cfg["resstock"]["utility_assign_upgrade_id"]
 _DEFAULT_PUMS_SURVEY: str = _cfg["pums"]["survey"]
 _DEFAULT_PUMS_YEAR: str = str(_cfg["pums"]["year"])
+
+# ── Per-state defaults from data/resstock/state_configs.yaml ──────────────────
+
+_STATE_CONFIGS: dict[str, dict] = load_state_configs()
+
+
+def _resolve_state_flag(
+    cli_value: bool | None,
+    state: str,
+    key: str,
+    *,
+    default: bool = False,
+) -> bool:
+    """Resolve a per-state boolean flag: CLI override > state_configs > *default*."""
+    if cli_value is not None:
+        return cli_value
+    return _STATE_CONFIGS.get(state, {}).get(key, default)
 
 
 def _approximate_non_hp_load(
@@ -748,11 +766,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--add-vulnerability-columns",
         type=parse_bool,
-        default=True,
+        default=None,
         metavar="BOOL",
         help=(
-            "Add LMI vulnerability columns from PUMS (default: True). "
-            "NY only; pass False for RI."
+            "Add LMI vulnerability columns from PUMS. "
+            "Default: per-state from state_configs.yaml (True for NY, False for RI). "
+            "Pass True/False to override for all states."
         ),
     )
     parser.add_argument(
@@ -800,6 +819,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
 
+    # GIS-based utility assignment polygon filenames
     parser.add_argument(
         "--electric-poly-filename",
         default=None,
@@ -867,7 +887,12 @@ def main(argv: list[str] | None = None) -> None:
             "identify_hp_customers": args.identify_hp_customers,
             "identify_heating_type": args.identify_heating_type,
             "identify_natgas_connection": args.identify_natgas_connection,
-            "add_vulnerability_columns": args.add_vulnerability_columns,
+            "add_vulnerability_columns": args.add_vulnerability_columns
+            if args.add_vulnerability_columns is not None
+            else {
+                s: _resolve_state_flag(None, s, "add_vulnerability_columns")
+                for s in args.state
+            },
             "approximate_non_hp_load": args.approximate_non_hp_load,
             "adjust_mf_electricity": args.adjust_mf_electricity,
             "assign_utility": args.assign_utility,
@@ -971,15 +996,13 @@ def main(argv: list[str] | None = None) -> None:
                 NATGAS_CONNECTION_COLS,
                 "identify_natgas_connection",
             ),
-            (
-                args.add_vulnerability_columns,
-                VULNERABILITY_COLS,
-                "add_vulnerability_columns",
-            ),
         ]
         metadata_transforms_applied: list[str] = []
         print("Modifying metadata...", flush=True)
         for s in args.state:
+            add_vuln = _resolve_state_flag(
+                args.add_vulnerability_columns, s, "add_vulnerability_columns"
+            )
             for uid in args.upgrade_ids:
                 upgrade_id_padded = uid.zfill(2)
                 loc = f"state={s} upgrade={upgrade_id_padded}"
@@ -1006,7 +1029,7 @@ def main(argv: list[str] | None = None) -> None:
                     run_identify_natgas_connection=args.identify_natgas_connection,
                     path_raw=path_raw,
                     state=s,
-                    run_add_vulnerability_columns=args.add_vulnerability_columns,
+                    run_add_vulnerability_columns=add_vuln,
                     pums_base_dir=args.path_s3_pums_dir,
                     pums_survey=args.pums_survey,
                     pums_year=args.pums_year,
@@ -1018,6 +1041,15 @@ def main(argv: list[str] | None = None) -> None:
                         validate_metadata_columns(output_metadata, _cols, _name, loc)
                         if _name not in metadata_transforms_applied:
                             metadata_transforms_applied.append(_name)
+                if add_vuln:
+                    validate_metadata_columns(
+                        output_metadata,
+                        VULNERABILITY_COLS,
+                        "add_vulnerability_columns",
+                        loc,
+                    )
+                    if "add_vulnerability_columns" not in metadata_transforms_applied:
+                        metadata_transforms_applied.append("add_vulnerability_columns")
 
                 # Single sink at the end of the full transformation chain.
                 output_metadata.sink_parquet(str(output_path))

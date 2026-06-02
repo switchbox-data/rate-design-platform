@@ -40,9 +40,10 @@ Equivalent to:
 ```bash
 cd <repo_root> && uv run python -m data.resstock.main \
     --state RI \
-    --upgrade-ids 0 2 \
-    --add-vulnerability-columns False
+    --upgrade-ids 0 2
 ```
+
+The `--add-vulnerability-columns` flag defaults to `false` for RI via `state_configs.yaml`.
 
 **Generic (any state, any flags):**
 
@@ -51,7 +52,7 @@ just -f data/resstock/Justfile run-pipeline <STATE> \
     --upgrade-ids 0 2 \
     [--electric-poly-filename ...] \
     [--gas-poly-filename ...] \
-    [--add-vulnerability-columns False] \
+    [--add-vulnerability-columns True/False] \
     [--sample 10]
 ```
 
@@ -292,7 +293,7 @@ Calls `main.py` with `--state NY --upgrade-ids 0 2`. Polygon filenames default f
 just -f data/resstock/Justfile create-sb-release-for-upgrade-02-RI
 ```
 
-Calls `main.py` with `--state RI --upgrade-ids 0 2 --add-vulnerability-columns False`.
+Calls `main.py` with `--state RI --upgrade-ids 0 2`. The `--add-vulnerability-columns` flag defaults to `false` for RI via `state_configs.yaml`.
 
 ---
 
