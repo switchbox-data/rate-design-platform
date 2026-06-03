@@ -1,6 +1,10 @@
 # ResStock metadata pipeline: download, identify HP customers, heating type, assign utilities (NY).
 #
-# Usage (from project root):
+# Can be invoked from any directory — `set working-directory` ensures all shell
+# commands run from this file's directory, so relative paths (e.g. config.yaml)
+# always resolve correctly.
+#
+# Usage (from anywhere):
 #   just -f data/resstock/Justfile status                           # provenance / data status
 #   just -f data/resstock/Justfile status --state NY --location ebs # check EBS for NY only
 #   just -f data/resstock/Justfile fetch NY
@@ -9,26 +13,32 @@
 #   just -f data/resstock/Justfile resstock-identify-hp-customers NY
 #   just -f data/resstock/Justfile resstock-identify-hp-customers RI
 #   just -f data/resstock/Justfile assign-utility-ny res_2024_amy2018_2 00
+#
+# Or from within data/resstock/:
+#   just run-pipeline NY --upgrade-ids 0 2
+
+# All shell commands (backtick variable assignments and recipe bodies) run from
+# this directory, regardless of where `just` is invoked.  This means relative
+# paths like "config.yaml" always refer to data/resstock/config.yaml.
+set working-directory := "."
 
 path_local_repo := `git rev-parse --show-toplevel`
 
-# ── Read defaults from config.toml (single source of truth) ──────────────────
-# justfile_directory() always resolves to the directory containing this Justfile,
-# regardless of where `just` is invoked from.
-[private]
-_cfg := justfile_directory() + "/config.yaml"
+# ── Read defaults from config.yaml (single source of truth) ──────────────────
+# Because working-directory is set above, open('config.yaml') always resolves
+# to data/resstock/config.yaml regardless of how just is invoked.
 
-resstock_release_year := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['resstock']; print(c['release_year'])"`
-resstock_weather_file := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['resstock']; print(c['weather_file'])"`
-resstock_release_version := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['resstock']; print(c['release_version'])"`
-resstock_upgrade_ids := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['resstock']; print(' '.join(c['upgrade_ids']))"`
-resstock_upgrade_ids_padded := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['resstock']; print(' '.join(u.zfill(2) for u in c['upgrade_ids']))"`
-path_s3_parquet := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['paths']; print(c['s3_dir'])"`
-path_local_parquet := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['paths']; print(c['output_dir'])"`
-path_s3_pums := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['paths']; print(c['s3_pums_dir'])"`
+resstock_release_year := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['resstock']; print(c['release_year'])"`
+resstock_weather_file := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['resstock']; print(c['weather_file'])"`
+resstock_release_version := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['resstock']; print(c['release_version'])"`
+resstock_upgrade_ids := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['resstock']; print(' '.join(c['upgrade_ids']))"`
+resstock_upgrade_ids_padded := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['resstock']; print(' '.join(u.zfill(2) for u in c['upgrade_ids']))"`
+path_s3_parquet := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['paths']; print(c['s3_dir'])"`
+path_local_parquet := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['paths']; print(c['output_dir'])"`
+path_s3_pums := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['paths']; print(c['s3_pums_dir'])"`
 
-pums_survey := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['pums']; print(c['survey'])"`
-pums_year := `uv run python -c "import yaml; c=yaml.safe_load(open('{{ _cfg }}'))['pums']; print(c['year'])"`
+pums_survey := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['pums']; print(c['survey'])"`
+pums_year := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['pums']; print(c['year'])"`
 
 resstock_release := "res_" + resstock_release_year + "_" + resstock_weather_file + "_" + resstock_release_version
 resstock_release_sb := resstock_release + "_sb"
@@ -45,6 +55,12 @@ resstock_release_sb := resstock_release + "_sb"
 # Polygon filenames and add-vulnerability-columns default from state_configs.yaml;
 # override with CLI flags if needed.
 #
+# Crash recording: if the pipeline exits non-zero (including OOM kill / SIGKILL
+# exit code 137), the wrapper calls `manifest --mark-crashed --exit-code <N>` to
+# retroactively mark the in_progress run as crashed with the actual exit code.
+# This ensures the manifest always reflects the true outcome, even when Python
+# cannot catch the signal.  See also: `just -f data/resstock/Justfile mark-crashed`.
+#
 # Examples:
 #   just -f data/resstock/Justfile run-pipeline NY \
 #       --upgrade-ids 0 2
@@ -57,9 +73,18 @@ resstock_release_sb := resstock_release + "_sb"
 #   just -f data/resstock/Justfile run-pipeline NY --sample 10 \
 # --upgrade-ids 0 2
 run-pipeline state *args:
-    cd "{{ path_local_repo }}" && uv run python -m data.resstock.main \
+    #!/usr/bin/env bash
+    set -uo pipefail
+    cd "{{ path_local_repo }}"
+    uv run python -m data.resstock.main \
         --state "{{ state }}" \
         {{ args }}
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        echo "Pipeline exited with code $rc." >&2
+        uv run python -m data.resstock.manifest --mark-crashed --exit-code "$rc"
+    fi
+    exit $rc
 
 # Full NY _sb release pipeline for upgrades 0 and 2.
 # Polygon filenames default from state_configs.yaml.
@@ -94,6 +119,18 @@ create-sb-release-for-upgrade-02-RI:
 # just -f data/resstock/Justfile status --history 5 -v                      # last 5 runs, verbose
 status *args:
     cd "{{ path_local_repo }}" && uv run python -m data.resstock.manifest {{ args }}
+
+# Mark any stale in_progress runs in the local manifest as crashed.
+# Use after an unexpected kill (OOM, SIGKILL, hard reboot) to clean up
+# the manifest without starting a new pipeline run.  The run-pipeline
+# recipe calls this automatically on non-zero exit, but this recipe
+# is useful when running main.py directly or for manual cleanup.
+#
+# Examples:
+#   just -f data/resstock/Justfile mark-crashed
+# just -f data/resstock/Justfile mark-crashed --exit-code 137
+mark-crashed *args:
+    cd "{{ path_local_repo }}" && uv run python -m data.resstock.manifest --mark-crashed {{ args }}
 
 ################################################################################
 # Individual recipes

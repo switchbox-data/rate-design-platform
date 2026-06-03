@@ -198,6 +198,33 @@ A run record is created immediately via `new_run_record` from `data/resstock/man
 
 If any file type in `--file-types` is in `_SB_EXCLUDED_FILE_TYPES`, a warning is printed to stdout and recorded in the run record under a `warnings` key. This ensures the user is aware that `load_curve_annual` (or any future excluded type) is not part of the `_sb` release.
 
+### Crash recording
+
+When a pipeline run is killed by an uncatchable signal (e.g. OOM killer → SIGKILL → exit code 137), Python's `except` block never runs, so `fail_run` is never called and the manifest entry is left at `status: in_progress`. Three layers ensure these crashes are recorded:
+
+1. **Justfile wrapper (immediate, with exit code).** The `run-pipeline` recipe captures the pipeline's exit code. On any non-zero exit it calls `uv run python -m data.resstock.manifest --mark-crashed --exit-code <N>`, which retroactively marks the stale `in_progress` run as `status: crashed` with the actual exit code and a human-readable reason (e.g. `SIGKILL (likely OOM killer)` for code 137). This fires immediately after the crash — no waiting for the next run.
+
+2. **Manual CLI.** After noticing a crash (e.g. when not using the Justfile), run:
+
+   ```bash
+   uv run python -m data.resstock.manifest --mark-crashed
+   uv run python -m data.resstock.manifest --mark-crashed --exit-code 137
+   # Or via Justfile:
+   just -f data/resstock/Justfile mark-crashed
+   just -f data/resstock/Justfile mark-crashed --exit-code 137
+   ```
+
+3. **Startup safety net.** At the start of every new run (step 0), `main.py` calls `mark_crashed_runs` on both `path_raw` and `path_sb` as a fallback — catches any stale runs left by direct `python -m data.resstock.main` invocation without the Justfile wrapper.
+
+A crashed manifest entry looks like:
+
+```yaml
+status: crashed
+crashed_at: '2026-06-03T21:00:00+00:00'
+exit_code: 137
+error: 'Process exited with code 137: SIGKILL (likely OOM killer).'
+```
+
 ### Step 1a: Fetch raw ResStock data
 
 Calls `fetch_resstock_data.run()` (which wraps `bsf`) to download all requested file types, states, and upgrade IDs from NREL to `path_raw`. This includes `load_curve_annual` — it is needed by `identify_natgas_connection` in step 2a.
@@ -322,7 +349,7 @@ Manifests are uploaded separately via `_upload_manifest`.
 
 ### Finalization
 
-On success, the run record is marked `completed` and written to both manifests. On failure, the run is marked `failed` with the error message, written to whichever manifest directories exist, and the process exits with code 1.
+On success, the run record is marked `completed` and written to both manifests. On failure caught by Python (e.g. `RuntimeError`, `ValueError`), the run is marked `failed` with the error message, written to whichever manifest directories exist, and the process exits with code 1. On ungraceful termination (e.g. OOM kill), the crash recording system (see above) marks the run as `crashed` with the actual exit code.
 
 ---
 
@@ -380,7 +407,7 @@ When `--sample N` is passed (N > 0):
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
 | `data/resstock/config.yaml`                            | Pipeline defaults (release, paths, file types, PUMS)                                                                    |
 | `data/resstock/constants.py`                           | Column-name constants for validation                                                                                    |
-| `data/resstock/manifest.py`                            | Provenance: run records, YAML I/O, status CLI                                                                           |
+| `data/resstock/manifest.py`                            | Provenance: run records, YAML I/O, crash recording (`mark_crashed_runs`), status CLI (`--mark-crashed`)                 |
 | `data/resstock/validations.py`                         | Post-step validation (local files, S3 objects, metadata schema)                                                         |
 | `data/resstock/nrel/fetch_resstock_data.py`            | bsf wrapper                                                                                                             |
 | `data/resstock/nrel/copy_resstock_data.py`             | Directory copy utility (`copy_dir`)                                                                                     |

@@ -47,6 +47,8 @@ from typing import Any
 
 import yaml
 
+from data.resstock.constants import CONFIG_PATH
+
 MANIFEST_FILENAME = "manifest.yaml"
 
 
@@ -173,6 +175,73 @@ def fail_run(run: dict[str, Any], error: str) -> None:
     run["status"] = "failed"
     run["failed_at"] = _now_iso()
     run["error"] = error
+
+
+_EXIT_CODE_SIGNALS: dict[int, str] = {
+    137: "SIGKILL (likely OOM killer)",
+    139: "SIGSEGV (segmentation fault)",
+    134: "SIGABRT (abort)",
+    136: "SIGFPE (floating-point exception)",
+    143: "SIGTERM (terminated)",
+}
+
+
+def _crash_reason(exit_code: int | None) -> str:
+    """Human-readable crash reason from an exit code (or None if unknown)."""
+    if exit_code is not None and exit_code in _EXIT_CODE_SIGNALS:
+        return f"Process exited with code {exit_code}: {_EXIT_CODE_SIGNALS[exit_code]}."
+    if exit_code is not None:
+        return f"Process exited with code {exit_code} (no Python exception was raised)."
+    return (
+        "Process was killed before completing (no Python exception was raised). "
+        "Likely cause: OOM killer (exit code 137), hard reboot, or SIGKILL."
+    )
+
+
+def mark_crashed_runs(
+    release_dir: Path,
+    *,
+    exit_code: int | None = None,
+) -> int:
+    """Retroactively mark any stale ``in_progress`` runs in the manifest as ``crashed``.
+
+    When a pipeline run is killed unexpectedly (e.g. by the OOM killer, a hard
+    reboot, or ``kill -9``), Python never executes the ``except`` block, so
+    ``fail_run`` is never called and the manifest entry is left perpetually
+    ``in_progress``.
+
+    There are two invocation patterns:
+
+    1. **From the Justfile wrapper** — immediately after the pipeline process
+       exits, the wrapper calls ``manifest --mark-crashed --exit-code <N>``.
+       The actual exit code is recorded so the crash reason is precise.
+    2. **At startup of the next run** — ``main.py`` calls this without
+       ``exit_code`` as a safety net (e.g. when running without the Justfile).
+
+    Returns the number of runs that were updated.
+    """
+    if not release_dir.is_dir():
+        return 0
+    manifest = read_manifest(release_dir)
+    runs: list[dict[str, Any]] = manifest.get("runs", [])
+    updated = 0
+    for run in runs:
+        if run.get("status") == "in_progress":
+            run["status"] = "crashed"
+            run["crashed_at"] = _now_iso()
+            run["error"] = _crash_reason(exit_code)
+            if exit_code is not None:
+                run["exit_code"] = exit_code
+            updated += 1
+    if updated:
+        manifest["runs"] = runs
+        write_manifest(release_dir, manifest)
+        print(
+            f"  NOTE: marked {updated} stale in_progress run(s) as crashed "
+            f"in {release_dir / MANIFEST_FILENAME}.",
+            flush=True,
+        )
+    return updated
 
 
 # ── Status inspection ─────────────────────────────────────────────────────────
@@ -409,8 +478,7 @@ def print_status(
 
 def _status_main() -> None:
     """CLI entry point for ``uv run python -m data.resstock.manifest``."""
-    config_path = Path(__file__).parent / "config.yaml"
-    with config_path.open() as f:
+    with CONFIG_PATH.open() as f:
         cfg = yaml.safe_load(f)
 
     rs = cfg["resstock"]
@@ -496,16 +564,46 @@ def _status_main() -> None:
         action="store_true",
         help="Show additional details (flags, file types).",
     )
+    output_group.add_argument(
+        "--mark-crashed",
+        action="store_true",
+        help=(
+            "Scan the local manifest(s) and retroactively mark any stale "
+            "in_progress runs as crashed. Use this after an unexpected kill "
+            "(OOM, SIGKILL) to clean up the manifest without starting a new run. "
+            "Called automatically by the Justfile run-pipeline wrapper."
+        ),
+    )
+    output_group.add_argument(
+        "--exit-code",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Exit code of the crashed process (used with --mark-crashed). "
+            "Common codes: 137=OOM/SIGKILL, 139=SIGSEGV, 143=SIGTERM."
+        ),
+    )
 
     args = parser.parse_args()
 
     # Strip trailing _sb so the user can pass either form and get both variants.
     release = args.release.removesuffix("_sb")
+    release_sb = f"{release}_sb"
+    ebs_base = cfg["paths"]["output_dir"]
+
+    if args.mark_crashed:
+        for rel in (release, release_sb):
+            d = Path(ebs_base) / rel
+            n = mark_crashed_runs(d, exit_code=args.exit_code)
+            if n == 0:
+                print(f"  {d}: no stale in_progress runs found.")
+        return
 
     print_status(
         release=release,
-        release_sb=f"{release}_sb",
-        ebs_base=cfg["paths"]["output_dir"],
+        release_sb=release_sb,
+        ebs_base=ebs_base,
         s3_base=cfg["paths"]["s3_dir"],
         n_history=args.history,
         verbose=args.verbose,

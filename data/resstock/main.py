@@ -26,6 +26,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import gc
 import subprocess
 import sys
 from pathlib import Path
@@ -36,6 +37,7 @@ import yaml
 
 from data.resstock.nrel import fetch_resstock_data
 from data.resstock.constants import (
+    CONFIG_PATH,
     HEATING_TYPE_COLS,
     HP_CUSTOMERS_COLS,
     NATGAS_CONNECTION_COLS,
@@ -61,6 +63,7 @@ from data.resstock.load_curve.approximate_non_hp_load import (
 from data.resstock.manifest import (
     fail_run,
     finish_run,
+    mark_crashed_runs,
     new_run_record,
     record_step,
     upsert_run,
@@ -79,6 +82,7 @@ from data.resstock.utility.assign_utility import (
 )
 from data.resstock.utils import (
     load_state_configs,
+    normalize_nargs_list,
     parse_bool,
     upload,
     upload_manifest,
@@ -97,9 +101,7 @@ from data.resstock.warnings import collect_run_warnings
 
 # ── Defaults from data/resstock/config.yaml ───────────────────────────────────
 
-_CONFIG_PATH = Path(__file__).parent / "config.yaml"
-
-with _CONFIG_PATH.open() as _f:
+with CONFIG_PATH.open() as _f:
     _cfg = yaml.safe_load(_f)
 
 _DEFAULT_OUTPUT_DIR: str = _cfg["paths"]["output_dir"]
@@ -256,6 +258,12 @@ def _approximate_non_hp_load(
             flush=True,
         )
 
+        # Eagerly release the large intermediates so the next state starts with a
+        # clean memory budget.  Without this, the OOM killer can fire on multi-state
+        # runs (exit code 137).
+        del neighbor_map, natural_gas_usage, updated_metadata, non_hp_bldg_metadata
+        gc.collect()
+
 
 def _adjust_mf_electricity(
     *,
@@ -385,6 +393,9 @@ def _adjust_mf_electricity(
                 processed_upgrades.append(uid)
             print(f"    Done: MF adjustment complete for {loc}.", flush=True)
 
+            del metadata, input_lca
+            gc.collect()
+
     return processed_upgrades
 
 
@@ -476,6 +487,9 @@ def _assign_utility(
 
         print(f"    Done: utility assignment complete for {loc}.", flush=True)
 
+        del metadata, result, result_slim
+        gc.collect()
+
 
 def _add_monthly_loads(
     *,
@@ -558,10 +572,15 @@ def _add_monthly_loads(
         # all upgrades are done.
         monthly_state_dir = path_sb / "load_curve_monthly" / f"state={s}"
         if monthly_state_dir.exists():
+            n_monthly = sum(1 for _ in monthly_state_dir.rglob("*") if _.is_file())
             s3_dest = f"{s3_base_sb.rstrip('/')}/load_curve_monthly/state={s}/"
-            print(f"  Uploading {monthly_state_dir} → {s3_dest}", flush=True)
+            print(
+                f"  Uploading load_curve_monthly/state={s} "
+                f"({n_monthly:,} files) → {s3_dest}",
+                flush=True,
+            )
             upload_rc = subprocess.run(
-                ["aws", "s3", "sync", str(monthly_state_dir), s3_dest],
+                ["aws", "s3", "sync", str(monthly_state_dir), s3_dest, "--quiet"],
                 check=False,
             ).returncode
             if upload_rc != 0:
@@ -570,6 +589,8 @@ def _add_monthly_loads(
                     f"for load_curve_monthly/state={s}/.",
                     flush=True,
                 )
+            else:
+                print("    Done.", flush=True)
         else:
             print(
                 f"  WARNING: No monthly output directory found for state={s} — "
@@ -866,6 +887,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
+
+    # Normalize nargs="+" lists that may contain space-separated entries
+    # (e.g. from Justfile invocation: --state "MD CT" → ["MD CT"] → ["MD", "CT"]).
+    args.state = normalize_nargs_list(args.state)
+    args.upgrade_ids = normalize_nargs_list(args.upgrade_ids)
+    args.file_types = normalize_nargs_list(args.file_types)
+
     release = f"res_{args.release_year}_{args.weather_file}_{args.release_version}"
     release_sb = f"{release}_sb"
     path_raw = Path(args.path_output_dir) / release
@@ -907,6 +935,11 @@ def main(argv: list[str] | None = None) -> None:
         # These run before any I/O so the pipeline halts immediately on conflicts
         # that would otherwise corrupt the _sb release mid-run.
         print("Running pre-flight validations...", flush=True)
+
+        # Retroactively mark any stale in_progress runs left by a previous
+        # ungraceful exit (e.g. OOM kill, SIGKILL) as crashed.
+        mark_crashed_runs(path_raw)
+        mark_crashed_runs(path_sb)
         run_warnings = collect_run_warnings(
             file_types=args.file_types,
             upgrade_ids=args.upgrade_ids,
@@ -1057,6 +1090,7 @@ def main(argv: list[str] | None = None) -> None:
 
         record_step(run, "modify_metadata", transforms=metadata_transforms_applied)
         upsert_run(path_sb, run)
+        gc.collect()
 
         # ── 2b. Assign electric/gas utilities ─────────────────────────────────
         if args.assign_utility and "metadata" in args.file_types:
@@ -1072,6 +1106,7 @@ def main(argv: list[str] | None = None) -> None:
             )
             record_step(run, "assign_utility")
             upsert_run(path_sb, run)
+            gc.collect()
 
         # ── 2c. Modify load curves ─────────────────────────────────────────────
 
@@ -1089,6 +1124,7 @@ def main(argv: list[str] | None = None) -> None:
             )
             record_step(run, "approximate_non_hp_load", upgrades=[_APPROX_UPGRADE])
             upsert_run(path_sb, run)
+            gc.collect()
 
         # ── 2c-ii. Adjust MF non-HVAC electricity for upgrades 00 and 02 ──────
         if (
@@ -1106,6 +1142,7 @@ def main(argv: list[str] | None = None) -> None:
             )
             record_step(run, "adjust_mf_electricity", upgrades=processed_upgrades)
             upsert_run(path_sb, run)
+            gc.collect()
 
         # ── 2d. Add monthly load curves ────────────────────────────────────────
         if args.add_monthly_loads and "load_curve_hourly" in args.file_types:
@@ -1121,6 +1158,7 @@ def main(argv: list[str] | None = None) -> None:
             )
             record_step(run, "add_monthly_loads", processed=processed_monthly)
             upsert_run(path_sb, run)
+            gc.collect()
 
         # ── 3. Upload ─────────────────────────────────────────────────────────
         print("Uploading raw ResStock data to S3...", flush=True)

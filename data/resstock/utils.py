@@ -9,7 +9,7 @@ from pathlib import Path
 import polars as pl
 import yaml
 
-_STATE_CONFIGS_PATH = Path(__file__).parent / "state_configs.yaml"
+from data.resstock.constants import STATE_CONFIGS_PATH
 
 
 def load_state_configs(path: Path | None = None) -> dict[str, dict]:
@@ -20,9 +20,21 @@ def load_state_configs(path: Path | None = None) -> dict[str, dict]:
     ``add_vulnerability_columns``, ``utility_assignment``, etc.).  See
     ``state_configs.yaml`` for the schema and which fields each state needs.
     """
-    p = path or _STATE_CONFIGS_PATH
+    p = path or STATE_CONFIGS_PATH
     with p.open() as f:
         return yaml.safe_load(f)
+
+
+def normalize_nargs_list(values: list[str]) -> list[str]:
+    """Flatten a ``nargs="+"`` list that may contain space-separated entries.
+
+    argparse ``nargs="+"`` stores each shell token as one list element.
+    When invoked via a Justfile or wrapper script, multiple values sometimes
+    arrive as a single space-separated string (e.g. ``["MD CT"]`` instead of
+    ``["MD", "CT"]``).  This function splits each element on whitespace so
+    downstream code always gets one value per element.
+    """
+    return [token for value in values for token in value.split()]
 
 
 def parse_bool(v: str) -> bool:
@@ -49,20 +61,34 @@ def upload(
     local_base = Path(path_output_dir) / release
     s3_base = f"{path_s3_dir.rstrip('/')}/{release}"
 
+    total_combos = len(file_types) * len(state)
+    combo_idx = 0
     for file_type in file_types:
         for s in state:
+            combo_idx += 1
             local_path = local_base / file_type / f"state={s}"
             s3_path = f"{s3_base}/{file_type}/state={s}/"
-            print(f"Uploading {local_path} → {s3_path}", flush=True)
+            n_files = (
+                sum(1 for _ in local_path.rglob("*") if _.is_file())
+                if local_path.is_dir()
+                else 0
+            )
+            print(
+                f"  [{combo_idx}/{total_combos}] Uploading {file_type}/state={s} "
+                f"({n_files:,} files) → {s3_path}",
+                flush=True,
+            )
             result = subprocess.run(
-                ["aws", "s3", "sync", str(local_path), s3_path],
+                ["aws", "s3", "sync", str(local_path), s3_path, "--quiet"],
                 check=False,
             )
             if result.returncode != 0:
                 print(
-                    f"  WARNING: aws s3 sync exited with code {result.returncode}",
+                    f"    WARNING: aws s3 sync exited with code {result.returncode}",
                     flush=True,
                 )
+            else:
+                print("    Done.", flush=True)
 
 
 def upload_manifest(local_dir: Path, s3_base: str) -> None:

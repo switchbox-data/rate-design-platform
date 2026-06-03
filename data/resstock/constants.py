@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+# Absolute paths to the shared pipeline configuration files.  Use these instead
+# of re-deriving the path via Path(__file__).parent in individual scripts —
+# the constants are always correct regardless of how deeply a module is nested
+# under data/resstock/.
+CONFIG_PATH: Path = Path(__file__).parent / "config.yaml"
+STATE_CONFIGS_PATH: Path = Path(__file__).parent / "state_configs.yaml"
+
 # Columns added by identify_hp_customers.
 HP_CUSTOMERS_COLS: frozenset[str] = frozenset({"postprocess_group.has_hp"})
 

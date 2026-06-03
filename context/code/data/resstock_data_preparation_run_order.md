@@ -58,12 +58,13 @@ just -f data/resstock/Justfile run-pipeline <STATE> \
 
 **Key differences from the old Justfile workflow:**
 
-| Old workflow                                                     | main.py                                            |
-| ---------------------------------------------------------------- | -------------------------------------------------- |
-| Ran each step against S3 separately                              | Writes everything to local EBS, uploads at the end |
-| Utility assignment on the standard release, then copied to `_sb` | Utility assignment runs directly on `_sb`          |
-| Required `sudo aws s3 sync` before monthly loads                 | No intermediate S3 sync needed                     |
-| 9 separate Justfile invocations                                  | 1 invocation with manifest-based provenance        |
+| Old workflow                                                     | main.py                                                                                                                                 |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Ran each step against S3 separately                              | Writes everything to local EBS, uploads at the end                                                                                      |
+| Utility assignment on the standard release, then copied to `_sb` | Utility assignment runs directly on `_sb`                                                                                               |
+| Required `sudo aws s3 sync` before monthly loads                 | No intermediate S3 sync needed                                                                                                          |
+| 9 separate Justfile invocations                                  | 1 invocation with manifest-based provenance                                                                                             |
+| No crash recording                                               | Crash recording: Justfile wrapper, manual CLI, and startup safety net (see `resstock_sb_release_pipeline_main_py.md § Crash recording`) |
 
 ---
 

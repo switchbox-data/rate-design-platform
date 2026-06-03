@@ -21,11 +21,12 @@ from pathlib import Path
 
 import yaml
 
+from data.resstock.constants import CONFIG_PATH
+from data.resstock.utils import normalize_nargs_list
+
 # ── Defaults from data/resstock/config.yaml ───────────────────────────────────
 
-_CONFIG_PATH = Path(__file__).parent / "config.yaml"
-
-with _CONFIG_PATH.open() as _f:
+with CONFIG_PATH.open() as _f:
     _cfg = yaml.safe_load(_f)
 
 _DEFAULT_OUTPUT_DIR: str = _cfg["paths"]["output_dir"]
@@ -105,11 +106,13 @@ def run(
     sample: int = 0,
 ) -> int:
     """Invoke bsf and return its exit code."""
-    states = " ".join(state)
-    upgrade_ids_str = " ".join(str(u) for u in upgrade_ids)
-    file_types_str = " ".join(file_types)
+    states = normalize_nargs_list(state)
+    uids = normalize_nargs_list([str(u) for u in upgrade_ids])
+    ftypes = normalize_nargs_list(file_types)
     output_dir = Path(path_output_dir)
 
+    # bsf expects each multi-value flag as a single space-separated string,
+    # not as separate shell arguments, so we join after normalizing.
     cmd = [
         "bsf",
         "--product",
@@ -121,21 +124,21 @@ def run(
         "--release_version",
         str(release_version),
         "--states",
-        states,
+        " ".join(states),
         "--file_type",
-        file_types_str,
+        " ".join(ftypes),
         "--upgrade_id",
-        upgrade_ids_str,
+        " ".join(uids),
         "--output_directory",
         str(output_dir),
         "--sample",
         str(sample),
     ]
 
-    print(f"Fetching ResStock data for state(s): {states}", flush=True)
+    print(f"Fetching ResStock data for state(s): {' '.join(states)}", flush=True)
     print(f"  Output directory : {output_dir}", flush=True)
-    print(f"  File types       : {file_types_str}", flush=True)
-    print(f"  Upgrade IDs      : {upgrade_ids_str}", flush=True)
+    print(f"  File types       : {' '.join(ftypes)}", flush=True)
+    print(f"  Upgrade IDs      : {' '.join(uids)}", flush=True)
     print(f"  Running: {' '.join(cmd)}", flush=True)
 
     return subprocess.run(cmd, check=False).returncode
@@ -143,6 +146,9 @@ def run(
 
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
+    args.state = normalize_nargs_list(args.state)
+    args.upgrade_ids = normalize_nargs_list(args.upgrade_ids)
+    args.file_types = normalize_nargs_list(args.file_types)
     sys.exit(run(**vars(args)))
 
 

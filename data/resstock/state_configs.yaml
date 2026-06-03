@@ -55,3 +55,13 @@ RI:
   # RI uses rule-based (non-GIS) utility assignment; no kwargs needed.
   utility_assignment:
     module: data.resstock.utility.assign_utility_ri
+MD:
+  state_fips: "24"
+  # Utility assignment not yet implemented for MD.  Omitting the
+  # utility_assignment key intentionally keeps MD out of
+  # SUPPORTED_UTILITY_STATES so the pipeline won't try to assign utilities.
+  add_vulnerability_columns: false
+CT:
+  state_fips: "09"
+  # Utility assignment not yet implemented for CT.  Same as MD above.
+  add_vulnerability_columns: false
