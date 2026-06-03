@@ -3,7 +3,14 @@
 Thin wrapper around generic utility assignment functions in
 ``data.resstock.utility.utils``, providing NY-specific configuration
 (utility name crosswalk, excluded gas utilities).
+
+The public entry point is ``assign_utility()`` — called by the dynamic
+dispatch in ``data.resstock.utility.assign_utility`` with kwargs from
+``state_configs.yaml``.  The lower-level ``assign_utility_ny()`` takes
+pre-loaded GeoDataFrames and is used by the ``__main__`` block.
 """
+
+from __future__ import annotations
 
 import argparse
 from typing import cast
@@ -27,8 +34,54 @@ from utils.utility_codes import get_ny_open_data_to_std_name
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
 EXCLUDED_GAS_UTILITIES: frozenset[str] = frozenset(
-    load_state_configs()["NY"]["excluded_gas_utilities"]
+    (load_state_configs()["NY"]["utility_assignment"].get("kwargs") or {}).get(
+        "excluded_gas_utilities", []
+    )
 )
+
+
+def assign_utility(
+    metadata: pl.LazyFrame,
+    *,
+    path_s3_gis_dir: str,
+    electric_poly_filename: str,
+    gas_poly_filename: str,
+    state_crs: int,
+    puma_year: int,
+    excluded_gas_utilities: list[str] | None = None,
+) -> pl.LazyFrame:
+    """Entry point for dynamic dispatch from ``assign_utility.py``.
+
+    Loads GIS data (polygon CSVs from S3, Census PUMAs via pygris) and
+    delegates to :func:`assign_utility_ny`.
+    """
+    gis_base = S3Path(path_s3_gis_dir.rstrip("/"))
+    electric_polygons = read_csv_to_gdf_from_s3(
+        gis_base / electric_poly_filename,
+        utility_type="electric",
+        state_crs=state_crs,
+    )
+    gas_polygons = read_csv_to_gdf_from_s3(
+        gis_base / gas_poly_filename,
+        utility_type="gas",
+        state_crs=state_crs,
+    )
+    print("    Loading Census PUMA shapefiles via pygris...", flush=True)
+    pumas = cast(
+        gpd.GeoDataFrame,
+        get_pumas(state="NY", year=puma_year, cb=True),
+    )
+    pumas = pumas.to_crs(epsg=state_crs)
+
+    return assign_utility_ny(
+        input_metadata=metadata,
+        electric_polygons=electric_polygons,
+        gas_polygons=gas_polygons,
+        pumas=pumas,
+        state_crs=state_crs,
+        excluded_gas_utilities=frozenset(excluded_gas_utilities or [])
+        or EXCLUDED_GAS_UTILITIES,
+    )
 
 
 def assign_utility_ny(
@@ -36,25 +89,29 @@ def assign_utility_ny(
     electric_polygons: gpd.GeoDataFrame,
     gas_polygons: gpd.GeoDataFrame,
     pumas: gpd.GeoDataFrame,
-    config: dict,
+    state_crs: int,
+    excluded_gas_utilities: frozenset[str] | None = None,
 ) -> pl.LazyFrame:
-    """
-    Assign electric and gas utilities to ResStock buildings and add columns to metadata.
+    """Assign electric and gas utilities to ResStock buildings and add columns to metadata.
 
     Creates utility assignments based on PUMA-level probabilities and joins them
-    to the input metadata. Drops existing utility columns if present before joining.
+    to the input metadata.  Drops existing utility columns if present before joining.
 
     Args:
         input_metadata: input metadata LazyFrame
         electric_polygons: GeoDataFrame of electric utility service territories
         gas_polygons: GeoDataFrame of gas utility service territories
         pumas: GeoDataFrame of Census PUMAs
-        config: State config dictionary (see data/resstock/state_configs.yaml).
-            Must contain ``state_crs``.
+        state_crs: EPSG code for the projected CRS.
+        excluded_gas_utilities: Gas utilities to zero before sampling.
+            Defaults to the module-level ``EXCLUDED_GAS_UTILITIES``.
 
     Returns:
         LazyFrame with all original columns plus sb.electric_utility and sb.gas_utility
     """
+    if excluded_gas_utilities is None:
+        excluded_gas_utilities = EXCLUDED_GAS_UTILITIES
+
     puma_and_heating_fuel = select_puma_and_heating_fuel_metadata(input_metadata)
 
     utility_name_map = pl.DataFrame(
@@ -70,8 +127,8 @@ def assign_utility_ny(
         gas_polygons=gas_polygons,
         pumas=pumas,
         utility_name_map=utility_name_map,
-        state_crs=config["state_crs"],
-        excluded_gas_utilities=EXCLUDED_GAS_UTILITIES,
+        state_crs=state_crs,
+        excluded_gas_utilities=excluded_gas_utilities,
     )
 
     # Drop existing utility columns if they exist (equivalent to ADD COLUMN IF NOT EXISTS)
@@ -175,31 +232,30 @@ if __name__ == "__main__":
     electric_poly_path = S3Path(electric_poly_dir / args.electric_poly_filename)
     gas_poly_path = S3Path(gas_poly_dir / args.gas_poly_filename)
 
-    ny_config = load_state_configs()["NY"]
+    ny_ua_kwargs = load_state_configs()["NY"]["utility_assignment"]["kwargs"]
+    state_crs = ny_ua_kwargs["state_crs"]
 
-    # Load utility polygons (.csv files from S3) to GeoDataFrame
     electric_polygons = read_csv_to_gdf_from_s3(
         electric_poly_path,
         utility_type="electric",
-        state_crs=ny_config["state_crs"],
+        state_crs=state_crs,
         geometry_col="the_geom",
         crs="EPSG:4326",
     )
     gas_polygons = read_csv_to_gdf_from_s3(
         gas_poly_path,
         utility_type="gas",
-        state_crs=ny_config["state_crs"],
+        state_crs=state_crs,
         geometry_col="the_geom",
         crs="EPSG:4326",
     )
 
-    # Load PUMAS using pygris
     pumas = get_pumas(
         state="NY",
-        year=ny_config["puma_year"],
-        cb=True,  # Use cartographic boundaries (simplified)
+        year=ny_ua_kwargs["puma_year"],
+        cb=True,
     )
-    pumas = pumas.to_crs(epsg=ny_config["state_crs"])
+    pumas = pumas.to_crs(epsg=state_crs)
     pumas["puma_area"] = pumas.geometry.area
     pumas = cast(gpd.GeoDataFrame, pumas)
 
@@ -208,7 +264,7 @@ if __name__ == "__main__":
         electric_polygons=electric_polygons,
         gas_polygons=gas_polygons,
         pumas=pumas,
-        config=ny_config,
+        state_crs=state_crs,
     )
 
     # Write only the assignment columns — full metadata lives in metadata-sb.parquet.

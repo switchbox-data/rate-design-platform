@@ -31,7 +31,7 @@ For the older Justfile-based workflow, see `context/code/data/resstock_data_prep
 uv run python -m data.resstock.main --state <STATE> [options]
 ```
 
-Release-level defaults are loaded from `data/resstock/config.yaml`. State-specific settings (FIPS code, projected CRS, PUMA shapefile vintage, polygon filenames, excluded gas utilities) are loaded from `data/resstock/state_configs.yaml`.
+Release-level defaults are loaded from `data/resstock/config.yaml`. State-specific settings (FIPS code, per-state flags, and utility assignment config) are loaded from `data/resstock/state_configs.yaml`. Utility assignment parameters (CRS, PUMA vintage, polygon filenames, excluded gas utilities) are nested under each state's `utility_assignment` key.
 
 ### Key CLI arguments
 
@@ -102,27 +102,30 @@ pums:
 
 ### `data/resstock/state_configs.yaml`
 
-Per-state configuration. Top-level keys are 2-letter state codes; each entry contains state-specific settings consumed by the utility assignment step and `assign_utility_ny.py`.
+Per-state configuration. Top-level keys are 2-letter state codes. Each entry has top-level fields (`state_fips`, `add_vulnerability_columns`) and a `utility_assignment` sub-key that specifies the state's assignment module and kwargs.
 
 ```yaml
 NY:
   state_fips: "36"
   add_vulnerability_columns: true
-  state_crs: 2260
-  puma_year: 2019
-  electric_poly_filename: ny_electric_utilities_20260309.csv
-  gas_poly_filename: ny_gas_utilities_20260309.csv
-  excluded_gas_utilities: [bath, chautauqua, corning, fillmore, reserve, stlaw]
+  utility_assignment:
+    module: data.resstock.utility.assign_utility_ny
+    kwargs:
+      state_crs: 2260
+      puma_year: 2019
+      electric_poly_filename: ny_electric_utilities_20260309.csv
+      gas_poly_filename: ny_gas_utilities_20260309.csv
+      excluded_gas_utilities: [bath, chautauqua, corning, fillmore, reserve, stlaw]
 RI:
   state_fips: "44"
   add_vulnerability_columns: false
-  electric_poly_filename:
-  gas_poly_filename:
+  utility_assignment:
+    module: data.resstock.utility.assign_utility_ri
 ```
 
-**`SUPPORTED_UTILITY_STATES` is derived from this file:** Any state whose config entry contains both `electric_poly_filename` and `gas_poly_filename` keys (even if the values are null, as for RI) is automatically included in `SUPPORTED_UTILITY_STATES`. Adding a new state to this file with those two keys is sufficient to register it for utility assignment — no hardcoded set needs to be updated.
+**`SUPPORTED_UTILITY_STATES` is derived from this file:** Any state whose config entry contains a `utility_assignment` key is automatically included in `SUPPORTED_UTILITY_STATES`. Adding `utility_assignment:` with a `module` is sufficient — no hardcoded set or `if`-branch needs updating.
 
-Polygon filenames default from this config. The CLI flags `--electric-poly-filename` / `--gas-poly-filename` override the config defaults when provided. For rule-based states like RI (null filenames), the GIS path is skipped entirely.
+**Dynamic dispatch:** `assign_utility.py` uses `importlib.import_module()` to load the module at `utility_assignment.module`, merges `utility_assignment.kwargs` with any CLI overrides (`--electric-poly-filename`, `--gas-poly-filename`, `--path-s3-gis-dir`), and calls `mod.assign_utility(metadata, **kwargs)`. Each state module is responsible for its own data loading and assignment logic.
 
 ### `_SB_EXCLUDED_FILE_TYPES` (module-level constant in `main.py`)
 
@@ -234,9 +237,10 @@ Logic is in `_assign_utility()`. For each state:
 
 1. Reads upgrade-00 `metadata-sb.parquet` from `path_sb` (utility assignment is per-state, not per-upgrade).
 2. Calls `assign_utility(state, metadata, ...)` from `data/resstock/utility/assign_utility.py`, which:
-   - Looks up the state's configuration from `state_configs.yaml` internally.
-   - Resolves polygon filenames: CLI override (`--electric-poly-filename` / `--gas-poly-filename`) if provided, otherwise the default from `state_configs.yaml`.
-   - If filenames are empty/null (e.g. RI): uses rule-based assignment.
+   - Reads the state's `utility_assignment.module` and `utility_assignment.kwargs` from `state_configs.yaml`.
+   - Merges CLI overrides (`--electric-poly-filename`, `--gas-poly-filename`, `--path-s3-gis-dir`) into kwargs.
+   - Dynamically imports the module and calls `mod.assign_utility(metadata, **kwargs)`.
+   - The state module handles all data loading and assignment logic internally.
    - If filenames are present (e.g. NY): loads electric and gas polygon CSVs from `--path-s3-gis-dir`, fetches Census PUMA shapefiles via pygris, and calls `assign_utility_ny`.
 3. **Writes only `bldg_id`, `sb.electric_utility`, and `sb.gas_utility`** to `path_sb/metadata_utility/state=<s>/utility_assignment.parquet`.
 4. Immediately uploads the file to S3 via `aws s3 cp`.
@@ -388,10 +392,10 @@ When `--sample N` is passed (N > 0):
 | `utils/pre/approximate_non_hp_load.py`                 | Core approximation: neighbor search, HVAC replacement, metadata update                                                  |
 | `data/resstock/load_curve/adjust_mf_electricity.py`    | Re-exports from `utils/pre/adjust_mf_electricity.py`                                                                    |
 | `utils/pre/adjust_mf_electricity.py`                   | MF non-HVAC electricity scaling, per-building hourly adjustment                                                         |
-| `data/resstock/state_configs.yaml`                     | Per-state config: FIPS, CRS, polygon filenames, excluded gas utilities                                                  |
+| `data/resstock/state_configs.yaml`                     | Per-state config: FIPS, flags; `utility_assignment` sub-key with CRS, polygon filenames, excluded gas utilities         |
 | `data/resstock/validations.py`                         | Post-step and pre-flight validation (local files, S3 objects, utility assignment)                                       |
 | `data/resstock/utility/utils.py`                       | State-generic GIS helpers: PUMA overlap, probability tables, sampling, diagnostics                                      |
-| `data/resstock/utility/assign_utility.py`              | Central utility assignment facade; loads `state_configs.yaml`, routes to NY/RI impl                                     |
+| `data/resstock/utility/assign_utility.py`              | Dynamic dispatch facade; imports state module from `state_configs.yaml` via `importlib`                                 |
 | `data/resstock/utility/assign_utility_ny.py`           | NY-specific thin wrapper: builds name map, passes excluded gas utilities to generic `create_hh_utilities` in `utils.py` |
 | `data/resstock/utility/assign_utility_ri.py`           | Deterministic utility assignment for RI (single utility)                                                                |
 | `data/resstock/load_curve/add_monthly_loads.py`        | Hourly-to-monthly aggregation; called directly by `_add_monthly_loads` (step 2d)                                        |
@@ -406,6 +410,6 @@ When `--sample N` is passed (N > 0):
 
 3. **k and include_cooling are hardcoded**: `_approximate_non_hp_load` uses `k=15` and `include_cooling=False`. These should eventually become CLI arguments if they need to vary.
 
-4. **Utility assignment only supports NY and RI**: `SUPPORTED_UTILITY_STATES` is derived dynamically from `data/resstock/state_configs.yaml` — any state whose config entry contains both `electric_poly_filename` and `gas_poly_filename` keys is included. Adding a new state requires: (a) adding an entry to `state_configs.yaml` with those keys (null values for rule-based, filenames for GIS-based), and (b) implementing a state-specific assignment function and wiring it in `assign_utility.py`.
+4. **Utility assignment only supports NY and RI**: `SUPPORTED_UTILITY_STATES` is derived dynamically from `data/resstock/state_configs.yaml` — any state whose config entry contains a `utility_assignment` key is included. Adding a new state requires: (a) adding a `utility_assignment` section to the state's entry in `state_configs.yaml` with `module` (and `kwargs` for GIS-based states), and (b) creating the state module with an `assign_utility(metadata, **kwargs)` entry point. No changes to `assign_utility.py` are needed. See `context/code/data/ny_utility_assignment_resstock.md § Adding a new state`.
 
 5. **Monthly loads in sample mode produce N files**: When `--sample N` is active, only N hourly parquets exist locally, so only N monthly parquets are generated. This is expected — sample mode is for development/testing only.

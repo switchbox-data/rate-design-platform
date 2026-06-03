@@ -1,49 +1,57 @@
 # State-specific configuration for the ResStock pipeline.
 #
 # Top-level keys are 2-letter state codes; values are state-specific settings
-# (FIPS code, projected CRS for GIS area calculations, Census PUMA shapefile
-# vintage, etc.).
+# (FIPS code, per-state flags, utility assignment config, etc.).
 #
 # Add a new state by adding a new top-level key.  Only the fields actually
 # consumed by that state's pipeline need to be set.
 #
 # Currently used by:
 #   - data/resstock/main.py (per-state defaults: add_vulnerability_columns, utility assignment)
-#   - data/resstock/utility/assign_utility.py (SUPPORTED_UTILITY_STATES, polygon filenames)
-#   - data/resstock/utility/assign_utility_ny.py (GIS-based assignment for NY)
+#   - data/resstock/utility/assign_utility.py (SUPPORTED_UTILITY_STATES derived from
+#     presence of the "utility_assignment" key; dynamic module import via "module")
 NY:
   state_fips: "36"
   # Whether to add LMI vulnerability columns from PUMS during metadata
   # transforms.  Used as the per-state default when the CLI flag
   # --add-vulnerability-columns is not explicitly provided.
   add_vulnerability_columns: true
-  # NY State Plane (meters); used for accurate area calculations in PUMA <->
-  # utility-polygon overlap.
-  state_crs: 2260
-  # Census TIGER/Line PUMA shapefile vintage used for GIS-based utility
-  # assignment.  Must match the PUMA definitions ResStock uses.
-  puma_year: 2019
-  # Utility polygon CSV filenames in the GIS directory (--path-s3-gis-dir).
-  # Used by GIS-based utility assignment.  Override via CLI
-  # (--electric-poly-filename, --gas-poly-filename) if needed.
-  electric_poly_filename: ny_electric_utilities_20260309.csv
-  gas_poly_filename: ny_gas_utilities_20260309.csv
-  # Standardized names of gas utilities excluded from building assignment.
-  # Their PUMA-overlap probabilities are zeroed and the row is renormalized;
-  # if a PUMA would have no remaining gas utility after exclusion, the
-  # nearest-neighbor donor PUMA's distribution is used instead.  Update when
-  # the utility landscape changes.  Loaded as a frozenset in assign_utility_ny.py.
-  excluded_gas_utilities:
-    - bath
-    - chautauqua
-    - corning
-    - fillmore
-    - reserve
-    - stlaw
+  # Utility assignment configuration.  Presence of this key (even if empty)
+  # automatically includes the state in SUPPORTED_UTILITY_STATES.
+  #
+  # "module" is the dotted Python module path containing an assign_utility()
+  # function.  "kwargs" are passed as keyword arguments to that function
+  # (after merging in CLI overrides for electric_poly_filename,
+  # gas_poly_filename, and path_s3_gis_dir when provided).
+  utility_assignment:
+    module: data.resstock.utility.assign_utility_ny
+    kwargs:
+      # NY State Plane (meters); used for accurate area calculations in
+      # PUMA <-> utility-polygon overlap.
+      state_crs: 2260
+      # Census TIGER/Line PUMA shapefile vintage used for GIS-based utility
+      # assignment.  Must match the PUMA definitions ResStock uses.
+      puma_year: 2019
+      # Utility polygon CSV filenames in the GIS directory
+      # (--path-s3-gis-dir).  Override via CLI (--electric-poly-filename,
+      # --gas-poly-filename) if needed.
+      electric_poly_filename: ny_electric_utilities_20260309.csv
+      gas_poly_filename: ny_gas_utilities_20260309.csv
+      # Standardized names of gas utilities excluded from building
+      # assignment.  Their PUMA-overlap probabilities are zeroed and the row
+      # is renormalized; if a PUMA would have no remaining gas utility after
+      # exclusion, the nearest-neighbor donor PUMA's distribution is used
+      # instead.  Update when the utility landscape changes.
+      excluded_gas_utilities:
+        - bath
+        - chautauqua
+        - corning
+        - fillmore
+        - reserve
+        - stlaw
 RI:
   state_fips: "44"
   add_vulnerability_columns: false
-  # RI uses rule-based (non-GIS) utility assignment; no polygon files or
-  # projected CRS needed.
-  electric_poly_filename:
-  gas_poly_filename:
+  # RI uses rule-based (non-GIS) utility assignment; no kwargs needed.
+  utility_assignment:
+    module: data.resstock.utility.assign_utility_ri

@@ -17,8 +17,8 @@ def load_state_configs(path: Path | None = None) -> dict[str, dict]:
 
     Returns a dict keyed by 2-letter state code (e.g. ``"NY"``, ``"RI"``).
     Each value is a dict of state-specific settings (``state_fips``,
-    ``state_crs``, ``puma_year``, etc.).  See ``state_configs.yaml`` for the
-    schema and which fields each state needs.
+    ``add_vulnerability_columns``, ``utility_assignment``, etc.).  See
+    ``state_configs.yaml`` for the schema and which fields each state needs.
     """
     p = path or _STATE_CONFIGS_PATH
     with p.open() as f:

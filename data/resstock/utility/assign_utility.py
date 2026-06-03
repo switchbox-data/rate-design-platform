@@ -1,37 +1,30 @@
 """Utility assignment orchestration for the ResStock pipeline.
 
-Routes building-level utility assignment to state-specific implementations
-and handles all state-specific data loading (GIS polygon CSVs, Census PUMAs).
+Uses dynamic module import to dispatch to state-specific implementations.
+Each state's ``utility_assignment`` config in ``state_configs.yaml`` specifies
+the Python module to import (via ``module``) and keyword arguments to pass
+(via ``kwargs``).  The target module must expose an ``assign_utility()``
+function with the signature ``assign_utility(metadata, **kwargs) -> LazyFrame``.
 
 Callers (e.g. ``data/resstock/main.py``) should import only ``assign_utility``
-and ``SUPPORTED_UTILITY_STATES`` from here; state-specific functions are an
-implementation detail of this module.
+and ``SUPPORTED_UTILITY_STATES`` from here; state-specific modules are an
+implementation detail resolved at runtime.
 """
 
 from __future__ import annotations
 
-from typing import cast
+import importlib
 
-import geopandas as gpd
 import polars as pl
-from cloudpathlib import S3Path
-from pygris import pumas as get_pumas
 
 from data.resstock.utils import load_state_configs
-from data.resstock.utility.assign_utility_ny import assign_utility_ny
-from data.resstock.utility.utils import read_csv_to_gdf_from_s3
-from data.resstock.utility.assign_utility_ri import assign_utility_ri
 
-# States that have a utility assignment implementation — derived from
-# state_configs.yaml.  Any state whose config entry contains both
-# ``electric_poly_filename`` and ``gas_poly_filename`` keys (even if the values
-# are null) is considered supported.  Adding a new state to state_configs.yaml
-# automatically includes it here.
 _STATE_CONFIGS = load_state_configs()
+
+# Any state whose config entry contains a ``utility_assignment`` key (even if
+# the value only has ``module`` and no ``kwargs``) is considered supported.
 SUPPORTED_UTILITY_STATES: frozenset[str] = frozenset(
-    state
-    for state, cfg in _STATE_CONFIGS.items()
-    if "electric_poly_filename" in cfg and "gas_poly_filename" in cfg
+    state for state, cfg in _STATE_CONFIGS.items() if "utility_assignment" in cfg
 )
 
 
@@ -45,9 +38,10 @@ def assign_utility(
 ) -> pl.LazyFrame:
     """Assign electric and gas utilities to ResStock buildings for a given state.
 
-    Routes to the appropriate state-specific implementation. CLI values for
-    ``electric_poly_filename`` / ``gas_poly_filename`` override the defaults
-    from ``state_configs.yaml`` when provided.
+    Dynamically imports the state's module from ``state_configs.yaml`` and
+    calls its ``assign_utility(metadata, **kwargs)``.  CLI values for
+    ``electric_poly_filename`` / ``gas_poly_filename`` / ``path_s3_gis_dir``
+    override or supplement the YAML kwargs when provided.
 
     Returns a LazyFrame with all original metadata columns plus
     ``sb.electric_utility`` and ``sb.gas_utility``.
@@ -56,15 +50,15 @@ def assign_utility(
         state: 2-letter state code (e.g. ``"NY"``, ``"RI"``).
         metadata: ResStock metadata LazyFrame (from ``metadata-sb.parquet``).
         path_s3_gis_dir: S3 directory containing utility polygon CSV files.
-            Required for GIS-based states (e.g. NY).
+            Passed through to the state module when provided.
         electric_poly_filename: Override for the electric polygon CSV filename.
-            Falls back to ``state_configs.yaml`` when not provided.
+            Replaces the YAML default when provided.
         gas_poly_filename: Override for the gas polygon CSV filename.
-            Falls back to ``state_configs.yaml`` when not provided.
+            Replaces the YAML default when provided.
 
     Raises:
         ValueError: If ``state`` is not in ``SUPPORTED_UTILITY_STATES``, or if
-            a required input for the state is not provided.
+            the state's config is missing a ``module`` key.
     """
     if state not in SUPPORTED_UTILITY_STATES:
         raise ValueError(
@@ -72,54 +66,24 @@ def assign_utility(
             f"Supported states: {sorted(SUPPORTED_UTILITY_STATES)}."
         )
 
-    if state == "RI":
-        return assign_utility_ri(metadata)
-
-    if state == "NY":
-        config = _STATE_CONFIGS["NY"]
-        elec_file = electric_poly_filename or config.get("electric_poly_filename")
-        gas_file = gas_poly_filename or config.get("gas_poly_filename")
-        if not path_s3_gis_dir:
-            raise ValueError("--path-s3-gis-dir is required for NY utility assignment.")
-        if not elec_file:
-            raise ValueError(
-                "--electric-poly-filename (or state_configs.yaml "
-                "electric_poly_filename) is required for NY utility assignment."
-            )
-        if not gas_file:
-            raise ValueError(
-                "--gas-poly-filename (or state_configs.yaml "
-                "gas_poly_filename) is required for NY utility assignment."
-            )
-        gis_base = S3Path(path_s3_gis_dir.rstrip("/"))
-        electric_polygons = read_csv_to_gdf_from_s3(
-            gis_base / elec_file,
-            utility_type="electric",
-            state_crs=config["state_crs"],
-        )
-        gas_polygons = read_csv_to_gdf_from_s3(
-            gis_base / gas_file,
-            utility_type="gas",
-            state_crs=config["state_crs"],
-        )
-        print("    Loading Census PUMA shapefiles via pygris...", flush=True)
-        pumas = cast(
-            gpd.GeoDataFrame,
-            get_pumas(state=state, year=config["puma_year"], cb=True),
-        )
-        pumas = pumas.to_crs(epsg=config["state_crs"])
-        return assign_utility_ny(
-            input_metadata=metadata,
-            electric_polygons=electric_polygons,
-            gas_polygons=gas_polygons,
-            pumas=pumas,
-            config=config,
+    ua_cfg = _STATE_CONFIGS[state]["utility_assignment"]
+    module_path = ua_cfg.get("module")
+    if not module_path:
+        raise ValueError(
+            f"State {state!r} has a utility_assignment config but no 'module' key."
         )
 
-    raise ValueError(
-        f"State {state!r} is in SUPPORTED_UTILITY_STATES but has no "
-        f"assignment implementation in assign_utility()."
-    )
+    kwargs: dict = dict(ua_cfg.get("kwargs") or {})
+
+    if path_s3_gis_dir is not None:
+        kwargs["path_s3_gis_dir"] = path_s3_gis_dir
+    if electric_poly_filename is not None:
+        kwargs["electric_poly_filename"] = electric_poly_filename
+    if gas_poly_filename is not None:
+        kwargs["gas_poly_filename"] = gas_poly_filename
+
+    mod = importlib.import_module(module_path)
+    return mod.assign_utility(metadata, **kwargs)
 
 
 __all__ = [

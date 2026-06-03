@@ -1,4 +1,17 @@
+"""Utility assignment for ResStock buildings (RI).
+
+RI has a single electric and gas utility (RIE), so assignment is
+deterministic and requires no GIS data.
+
+The public entry point is ``assign_utility()`` — called by the dynamic
+dispatch in ``data.resstock.utility.assign_utility`` with kwargs from
+``state_configs.yaml``.
+"""
+
+from __future__ import annotations
+
 import argparse
+from typing import Any
 
 import polars as pl
 from cloudpathlib import S3Path
@@ -6,6 +19,11 @@ from cloudpathlib import S3Path
 from utils import get_aws_region
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
+
+
+def assign_utility(metadata: pl.LazyFrame, **_kwargs: Any) -> pl.LazyFrame:
+    """Entry point for dynamic dispatch from ``assign_utility.py``."""
+    return assign_utility_ri(metadata)
 
 
 def assign_utility_ri(input_metadata: pl.LazyFrame) -> pl.LazyFrame:
