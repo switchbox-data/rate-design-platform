@@ -268,6 +268,116 @@ validate-all-runs-ny timestamp="":
     just validate-rge "{{ timestamp }}"
 
 # =============================================================================
+# NY-only: ResStock data pipeline shortcuts
+#
+# Thin wrappers around the state-generic recipes in data/resstock/Justfile,
+# pinned to NY-specific defaults.  Config values (release, S3 paths, polygon
+# filenames) are read via the constants module CLI so they stay in sync with
+# config.yaml and state_configs.yaml.
+# =============================================================================
+
+[private]
+_resstock_jf := path_repo + "/data/resstock/Justfile"
+[private]
+_cfg := "data.resstock.constants"
+
+# ResStock config values needed for standalone recipes.
+[private]
+_rs_s3 := `uv run python -m data.resstock.constants paths.s3_dir`
+[private]
+_rs_s3_gis := `uv run python -m data.resstock.constants paths.s3_gis_dir`
+[private]
+_rs_release := `uv run python -m data.resstock.constants resstock_release`
+[private]
+_rs_release_sb := `uv run python -m data.resstock.constants resstock_release_sb`
+[private]
+_rs_upgrade_ids_padded := `uv run python -m data.resstock.constants upgrade_ids_padded`
+[private]
+_rs_elec_poly := `uv run python -m data.resstock.constants state_config.NY.utility_assignment.kwargs.electric_poly_filename`
+[private]
+_rs_gas_poly := `uv run python -m data.resstock.constants state_config.NY.utility_assignment.kwargs.gas_poly_filename`
+
+# ── Full pipeline ─────────────────────────────────────────────────────────────
+
+# Run the full NY _sb release pipeline for upgrades 0 and 2.
+resstock-run-pipeline *args:
+    just -f "{{ _resstock_jf }}" run-pipeline NY --upgrade-ids 0 2 {{ args }}
+
+# ── Fetch ─────────────────────────────────────────────────────────────────────
+
+# Download NY ResStock data from NREL.
+resstock-fetch *args:
+    just -f "{{ _resstock_jf }}" fetch NY {{ args }}
+
+# ── Copy / clone ──────────────────────────────────────────────────────────────
+
+# Copy NY data from standard to _sb release (upgrades 00 and 02).
+resstock-copy upgrade_ids="00 02" file_types="metadata metadata_utility load_curve_hourly":
+    just -f "{{ _resstock_jf }}" copy-resstock-data {{ _rs_release }} {{ _rs_release_sb }} NY "{{ upgrade_ids }}" "{{ file_types }}"
+
+# ── Metadata transforms ──────────────────────────────────────────────────────
+
+# Full NY metadata pipeline: HP → heating type → natgas → assign utility → vulnerability columns.
+# Pass lmi="false" to skip vulnerability columns.
+resstock-prepare-metadata lmi="true":
+    just -f "{{ _resstock_jf }}" identify-all-metadata NY
+    just resstock-assign-utility
+    {{ if lmi == "true" { "just -f \"" + _resstock_jf + "\" add-vulnerability-columns-all-upgrades NY" } else { "echo 'Skipping vulnerability columns (lmi=false)'" } }}
+
+# Add vulnerability (LMI) columns for NY.
+resstock-add-vulnerability-columns:
+    just -f "{{ _resstock_jf }}" add-vulnerability-columns-all-upgrades NY
+
+# ── Utility assignment ────────────────────────────────────────────────────────
+
+# Download NY electric and gas utility boundary polygons from data.ny.gov to S3.
+download-ny-utility-polygons:
+    just download-ny-electric-utility-polygons
+    just download-ny-gas-utility-polygons
+
+download-ny-electric-utility-polygons:
+    wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/resource/awza-4vgu.csv" | aws s3 cp - "s3://data.sb/gis/utility_boundaries/ny_electric_utilities_`date +%Y%m%d`.csv"
+    aws s3 ls "s3://data.sb/gis/utility_boundaries/" | grep "ny_electric_utilities_.*\.csv"
+
+download-ny-gas-utility-polygons:
+    wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/api/views/i7nm-ih89/rows.csv" | aws s3 cp - "s3://data.sb/gis/utility_boundaries/ny_gas_utilities_$(date +%Y%m%d).csv"
+    aws s3 ls "s3://data.sb/gis/utility_boundaries/" | grep "ny_gas_utilities_.*\.csv"
+
+# Assign electric/gas utilities to NY ResStock buildings (upgrade 00 only).
+# Polygon filenames default from state_configs.yaml; pass overrides if needed.
+resstock-assign-utility electric_poly="" gas_poly="":
+    just download-ny-utility-polygons
+    uv run python "{{ path_repo }}/data/resstock/utility/assign_utility_ny.py" \
+        --input_metadata_dir "{{ _rs_s3 }}/{{ _rs_release }}/metadata/state=NY/upgrade=00/" \
+        --input_metadata_filename "metadata-sb.parquet" \
+        --output_metadata_dir "{{ _rs_s3 }}/{{ _rs_release }}/metadata_utility/state=NY/" \
+        --output_utility_assignment_filename "utility_assignment.parquet" \
+        --electric_poly_dir "{{ _rs_s3_gis }}" \
+        --gas_poly_dir "{{ _rs_s3_gis }}" \
+        --electric_poly_filename "{{ if electric_poly != "" { electric_poly } else { _rs_elec_poly } }}" \
+        --gas_poly_filename "{{ if gas_poly != "" { gas_poly } else { _rs_gas_poly } }}"
+
+# ── Load curve modifications ─────────────────────────────────────────────────
+
+# Run non-HP load approximation for NY (upgrade 02, k=15).
+resstock-approximate-non-hp-load:
+    just -f "{{ _resstock_jf }}" approximate-non-hp-load NY 02 {{ _rs_release }} {{ _rs_release_sb }} 15 True True
+
+# Apply MF non-HVAC electricity adjustment for NY (upgrades 00 and 02).
+resstock-adjust-mf-electricity:
+    just -f "{{ _resstock_jf }}" adjust-mf-electricity NY {{ _rs_release }} {{ _rs_release_sb }} "00 02"
+
+# ── Monthly loads ─────────────────────────────────────────────────────────────
+
+# Aggregate NY _sb hourly load curves into monthly (upgrades 00 and 02).
+resstock-add-monthly-loads:
+    just -f "{{ _resstock_jf }}" add-monthly-loads NY "00 02"
+
+# Upload NY monthly load curves to S3 (upgrades 00 and 02).
+resstock-upload-monthly-loads:
+    just -f "{{ _resstock_jf }}" upload-monthly-loads NY "00 02"
+
+# =============================================================================
 # NY-only: demand-flex diagnostics
 # =============================================================================
 

@@ -12,48 +12,40 @@ All commands assume the project root as the current working directory unless not
 
 `main.py` runs the full pipeline end-to-end on the local EBS mount. All steps are enabled by default and controlled by flags. See `context/code/data/resstock_sb_release_pipeline_main_py.md` for full documentation.
 
-**NY:**
+### Justfile structure
+
+The ResStock data pipeline uses a three-tier Justfile structure:
+
+1. **`data/resstock/Justfile`** — State-generic recipes. Every recipe takes `state` as an argument. Config values (release, paths, etc.) are read via the `data.resstock.constants` CLI module. This is the primary interface for running the pipeline.
+
+2. **`rate_design/hp_rates/ny/Justfile`** — NY-specific wrappers (prefixed `resstock-*`). Pin NY defaults (state code, upgrade IDs, polygon filenames from `state_configs.yaml`) and delegate to the generic recipes. Also contain NY-only operations like polygon downloads.
+
+3. **`rate_design/hp_rates/ri/Justfile`** — RI-specific wrappers (prefixed `resstock-*`). Same pattern as NY but for RI. RI uses rule-based utility assignment (no polygon files).
+
+### Invocation examples
+
+**Via state-specific Justfile (recommended for state work):**
 
 ```bash
-just -f data/resstock/Justfile create-sb-release-for-upgrade-02-NY
+# NY — full pipeline
+just -f rate_design/hp_rates/ny/Justfile resstock-run-pipeline
+
+# RI — full pipeline
+just -f rate_design/hp_rates/ri/Justfile resstock-run-pipeline
 ```
 
-Equivalent to:
+**Via generic Justfile (for any state, any flags):**
 
 ```bash
-cd <repo_root> && uv run python -m data.resstock.main \
-    --state NY \
+# Full pipeline
+just -f data/resstock/Justfile run-pipeline NY --upgrade-ids 0 2
+
+# Generic with overrides
+just -f data/resstock/Justfile run-pipeline NY \
     --upgrade-ids 0 2 \
-    # Polygon filenames default from state_configs.yaml; override if needed:
-    # --electric-poly-filename ny_electric_utilities_20260309.csv \
-    # --gas-poly-filename ny_gas_utilities_20260309.csv
-```
-
-**RI:**
-
-```bash
-just -f data/resstock/Justfile create-sb-release-for-upgrade-02-RI
-```
-
-Equivalent to:
-
-```bash
-cd <repo_root> && uv run python -m data.resstock.main \
-    --state RI \
-    --upgrade-ids 0 2
-```
-
-The `--add-vulnerability-columns` flag defaults to `false` for RI via `state_configs.yaml`.
-
-**Generic (any state, any flags):**
-
-```bash
-just -f data/resstock/Justfile run-pipeline <STATE> \
-    --upgrade-ids 0 2 \
-    [--electric-poly-filename ...] \
-    [--gas-poly-filename ...] \
-    [--add-vulnerability-columns True/False] \
-    [--sample 10]
+    --electric-poly-filename ny_electric_utilities_20260309.csv \
+    --gas-poly-filename ny_gas_utilities_20260309.csv \
+    --sample 10
 ```
 
 **Key differences from the old Justfile workflow:**
@@ -65,6 +57,7 @@ just -f data/resstock/Justfile run-pipeline <STATE> \
 | Required `sudo aws s3 sync` before monthly loads                 | No intermediate S3 sync needed                                                                                                          |
 | 9 separate Justfile invocations                                  | 1 invocation with manifest-based provenance                                                                                             |
 | No crash recording                                               | Crash recording: Justfile wrapper, manual CLI, and startup safety net (see `resstock_sb_release_pipeline_main_py.md § Crash recording`) |
+| State-specific recipes in generic Justfile                       | Generic Justfile is fully state-agnostic; state recipes in `rate_design/hp_rates/{state}/`                                              |
 
 ---
 
@@ -87,39 +80,31 @@ just -f data/resstock/Justfile fetch <STATE>
 
 ## 2. Prepare metadata in the standard release
 
-Run the state-specific metadata preparation recipe on the standard release before utility assignment and copy.
+Run the metadata preparation chain on the standard release before utility assignment and copy.
 
-**NY:**
+**Via state-specific Justfile:**
 
 ```bash
-just -f data/resstock/Justfile prepare-metadata-ny lmi="true"
+# NY (includes vulnerability columns by default)
+just -f rate_design/hp_rates/ny/Justfile resstock-prepare-metadata
+
+# NY without vulnerability columns
+just -f rate_design/hp_rates/ny/Justfile resstock-prepare-metadata lmi="false"
+
+# RI (no vulnerability columns — RI default)
+just -f rate_design/hp_rates/ri/Justfile resstock-prepare-metadata
 ```
 
-- **What it does:** Runs, in order, across upgrades `00`-`05`:
-  - `identify-hp-customers` (`metadata.parquet` -> `metadata-sb.parquet`)
+**Via generic Justfile (metadata chain only, without utility assignment):**
+
+```bash
+just -f data/resstock/Justfile identify-all-metadata <STATE>
+```
+
+- **What it does:** Runs, in order, across all upgrade IDs:
+  - `identify-hp-customers` (`metadata.parquet` → `metadata-sb.parquet`)
   - `identify-heating-type` (`metadata-sb.parquet` in place)
   - `identify-natgas-connection` (`metadata-sb.parquet` in place)
-  - `add-vulnerability-columns` when `lmi="true"`
-- **When to use `lmi="false"`:** If you explicitly want to skip vulnerability columns.
-
-**RI:**
-
-```bash
-just -f data/resstock/Justfile prepare-metadata-ri
-```
-
-- **What it does:** Runs, in order, across upgrades `00`-`05`:
-  - `identify-hp-customers`
-  - `identify-heating-type`
-  - `identify-natgas-connection`
-- **Difference from NY:** No vulnerability-column step.
-
-**Equivalent lower-level shortcut still available:**
-
-```bash
-just -f data/resstock/Justfile identify-hp-and-heating-type-all-upgrades-and-natgas-connection <STATE>
-```
-
 - **Result:** Standard release metadata under `.../metadata/state=<STATE>/upgrade=<ID>/` now has `metadata-sb.parquet` with postprocess-group and related columns.
 
 ---
@@ -129,42 +114,44 @@ just -f data/resstock/Justfile identify-hp-and-heating-type-all-upgrades-and-nat
 Assign electric and gas utilities to buildings in the **standard** release so that downstream steps and the `sb` copy use utility-aware metadata. Run once for upgrade `00`; the assignments should remain constant across upgrades.
 For NY-specific details on small gas utilities and nearest-neighbor donor behavior, see `context/code/data/ny_utility_assignment_resstock.md`.
 
-**NY:**
+**Via state-specific Justfile:**
 
 ```bash
-just -f data/resstock/Justfile assign-utility-ny res_2024_amy2018_2 <UPGRADE> <ELECTRIC_POLY> <GAS_POLY>
+# NY — downloads fresh polygons then runs GIS-based assignment
+just -f rate_design/hp_rates/ny/Justfile resstock-assign-utility
+
+# NY — override polygon filenames
+just -f rate_design/hp_rates/ny/Justfile resstock-assign-utility \
+    electric_poly="ny_electric_utilities_20260601.csv" \
+    gas_poly="ny_gas_utilities_20260601.csv"
+
+# RI — rule-based assignment (no polygons)
+just -f rate_design/hp_rates/ri/Justfile resstock-assign-utility
 ```
 
-- `<UPGRADE>`: e.g. `00`.
-- `<ELECTRIC_POLY>` / `<GAS_POLY>`: filenames in `s3://data.sb/gis/utility_boundaries/`, e.g. `ny_electric_utilities_YYYYMMDD.csv`, `ny_gas_utilities_YYYYMMDD.csv`.
-- **Note:** `assign-utility-ny` itself runs `download-ny-utility-polygons` first.
-
-**RI:**
-
-```bash
-just -f data/resstock/Justfile assign-utility-ri res_2024_amy2018_2 <UPGRADE>
-```
-
+- **NY:** `resstock-assign-utility` runs `download-ny-utility-polygons` first, then calls `assign_utility_ny.py`. Polygon filenames default from `state_configs.yaml`.
+- **RI:** `resstock-assign-utility` calls `assign_utility_ri.py` directly (single-utility rule-based assignment).
 - **Result:** `.../res_2024_amy2018_2/metadata_utility/state=<STATE>/` contains utility assignment for that release.
 
 ---
 
 ## 4. Copy standard release -> sb release
 
-Copy the relevant release and upgrade(s) from the standard release to the new `sb` release, including `metadata_utility` so the `sb` release gets utility assignment by copy. The current wrapper recipes used by the end-to-end flow copy upgrades `00` and `02` and file types `metadata metadata_utility load_curve_hourly`.
+Copy the relevant release and upgrade(s) from the standard release to the new `sb` release, including `metadata_utility` so the `sb` release gets utility assignment by copy.
+
+**Via state-specific Justfile (defaults: upgrades 00+02, metadata+metadata_utility+load_curve_hourly):**
+
+```bash
+just -f rate_design/hp_rates/ny/Justfile resstock-copy
+just -f rate_design/hp_rates/ri/Justfile resstock-copy
+```
+
+**Via generic Justfile:**
 
 ```bash
 just -f data/resstock/Justfile copy-resstock-data res_2024_amy2018_2 res_2024_amy2018_2_sb <STATE> "<UPGRADE_IDS>" "<FILE_TYPES>"
 ```
 
-- **Example (generic):**\
-  `just -f data/resstock/Justfile copy-resstock-data res_2024_amy2018_2 res_2024_amy2018_2_sb NY "02" "metadata load_curve_hourly metadata_utility"`
-- **Example (all upgrades):**\
-  `just -f data/resstock/Justfile copy-resstock-data res_2024_amy2018_2 res_2024_amy2018_2_sb NY "00 01 02 03 04 05" "metadata load_curve_hourly metadata_utility"`
-- **Wrapper used by current NY shortcut:**\
-  `just -f data/resstock/Justfile copy-resstock-data-2024-amy2018-2-NY "00 02" "metadata metadata_utility load_curve_hourly"`
-- **Wrapper used by current RI shortcut:**\
-  `just -f data/resstock/Justfile copy-resstock-data-2024-amy2018-2-RI "00 02" "metadata metadata_utility load_curve_hourly"`
 - **Result:** `s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/` has the same structure and files for the chosen state and upgrade(s), including metadata_utility. Use `metadata-sb.parquet` and other files as the source for step 5.
 
 ---
@@ -191,21 +178,14 @@ just -f data/resstock/Justfile approximate-non-hp-load <STATE> <UPGRADE_ID> res_
 
 After approximation, run the multifamily non-HVAC electricity adjustment for both upgrades `00` and `02` in the `sb` release.
 
-**NY:**
+**Via state-specific Justfile:**
 
 ```bash
-just -f data/resstock/Justfile adjust-mf-electricity-NY-upgrade-00
-just -f data/resstock/Justfile adjust-mf-electricity-NY-upgrade-02
+just -f rate_design/hp_rates/ny/Justfile resstock-adjust-mf-electricity
+just -f rate_design/hp_rates/ri/Justfile resstock-adjust-mf-electricity
 ```
 
-**RI:**
-
-```bash
-just -f data/resstock/Justfile adjust-mf-electricity-RI-upgrade-00
-just -f data/resstock/Justfile adjust-mf-electricity-RI-upgrade-02
-```
-
-**Equivalent generic recipe:**
+**Via generic Justfile:**
 
 ```bash
 just -f data/resstock/Justfile adjust-mf-electricity <STATE> res_2024_amy2018_2 res_2024_amy2018_2_sb "<UPGRADE_IDS>"
@@ -232,25 +212,20 @@ sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nre
 
 Aggregate hourly load curves to monthly on local EBS (fast). Uses the same column-level aggregation rules as buildstock-fetch (sum for energy/emissions, mean for load/temperature). Output is written under `load_curve_monthly/state=<STATE>/upgrade=<ID>/` with one parquet per building (`{bldg_id}-{upgrade}.parquet`), consumed by gas/oil/propane bill logic in post-processing.
 
-**NY:**
+**Via state-specific Justfile:**
 
 ```bash
-just -f data/resstock/Justfile add-monthly-loads-NY
+just -f rate_design/hp_rates/ny/Justfile resstock-add-monthly-loads
+just -f rate_design/hp_rates/ri/Justfile resstock-add-monthly-loads
 ```
 
-**RI:**
-
-```bash
-just -f data/resstock/Justfile add-monthly-loads RI "00 02"
-```
-
-**Generic:**
+**Via generic Justfile:**
 
 ```bash
 just -f data/resstock/Justfile add-monthly-loads <STATE> "<UPGRADE_IDS>"
 ```
 
-- **Input:** `path_ebs_parquet` (default `/ebs/data/nrel/resstock/`) — expects `load_curve_hourly/state=<STATE>/upgrade=<ID>/` from step 7.
+- **Input:** `path_local_parquet` (default `/ebs/data/nrel/resstock/`, read from `config.yaml`) — expects `load_curve_hourly/state=<STATE>/upgrade=<ID>/` from step 7.
 - **Output:** `load_curve_monthly/state=<STATE>/upgrade=<ID>/` on EBS (12 rows per building, 140 columns).
 - **Result:** Local EBS has monthly load curves; upload to S3 in step 9 so the sb release on S3 is complete.
 
@@ -260,13 +235,14 @@ just -f data/resstock/Justfile add-monthly-loads <STATE> "<UPGRADE_IDS>"
 
 Sync the monthly load curves from EBS to S3 so the sb release on S3 includes `load_curve_monthly` for downstream (e.g. `build_master_bills`, gas/delivered-fuel bills).
 
-**NY:**
+**Via state-specific Justfile:**
 
 ```bash
-just -f data/resstock/Justfile upload-monthly-loads-NY
+just -f rate_design/hp_rates/ny/Justfile resstock-upload-monthly-loads
+just -f rate_design/hp_rates/ri/Justfile resstock-upload-monthly-loads
 ```
 
-**Generic:**
+**Via generic Justfile:**
 
 ```bash
 just -f data/resstock/Justfile upload-monthly-loads <STATE> "<UPGRADE_IDS>"
@@ -278,23 +254,20 @@ just -f data/resstock/Justfile upload-monthly-loads <STATE> "<UPGRADE_IDS>"
 
 ## End-to-end shortcuts
 
-Both recipes now call `main.py` directly. See the "Recommended approach" section at the top of this document for the equivalent command-line invocations.
+Both invoke `main.py` via the generic `run-pipeline` recipe. See the "Recommended approach" section at the top for full details.
 
-**NY:**
-
-```bash
-just -f data/resstock/Justfile create-sb-release-for-upgrade-02-NY
-```
-
-Calls `main.py` with `--state NY --upgrade-ids 0 2`. Polygon filenames default from `state_configs.yaml` (no need to pass explicitly). Runs all pipeline steps (fetch, metadata transforms, utility assignment, non-HP approximation, MF electricity adjustment, monthly loads, upload) in sequence.
-
-**RI:**
+**Via state-specific Justfile (simplest):**
 
 ```bash
-just -f data/resstock/Justfile create-sb-release-for-upgrade-02-RI
+just -f rate_design/hp_rates/ny/Justfile resstock-run-pipeline
+just -f rate_design/hp_rates/ri/Justfile resstock-run-pipeline
 ```
 
-Calls `main.py` with `--state RI --upgrade-ids 0 2`. The `--add-vulnerability-columns` flag defaults to `false` for RI via `state_configs.yaml`.
+**Via generic Justfile:**
+
+```bash
+just -f data/resstock/Justfile run-pipeline <STATE> --upgrade-ids 0 2 [flags]
+```
 
 ---
 
@@ -304,21 +277,23 @@ Calls `main.py` with `--state RI --upgrade-ids 0 2`. The `--add-vulnerability-co
 
 | Action                                                                              |
 | ----------------------------------------------------------------------------------- |
-| `just -f data/resstock/Justfile create-sb-release-for-upgrade-02-NY` (or `...-RI`)  |
+| `just -f rate_design/hp_rates/ny/Justfile resstock-run-pipeline` (or `.../ri/...`)  |
 | Or: `just -f data/resstock/Justfile run-pipeline <STATE> --upgrade-ids 0 2 [flags]` |
 
-**Legacy (individual Justfile recipes, for debugging or partial re-runs):**
+**Individual Justfile recipes (for debugging or partial re-runs):**
 
-| Step | Action                                                                                                                                                                                                                    |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | `just -f data/resstock/Justfile fetch <STATE>`                                                                                                                                                                            |
-| 2    | Prepare standard-release metadata: `prepare-metadata-ny lmi="true"` or `prepare-metadata-ri`                                                                                                                              |
-| 3    | Utility assignment on **standard** release: `assign-utility-ny res_2024_amy2018_2 00 <ELECTRIC_POLY> <GAS_POLY>` or `assign-utility-ri res_2024_amy2018_2 00`                                                             |
-| 4    | Copy standard -> `sb`: `copy-resstock-data ...` or the `copy-resstock-data-2024-amy2018-2-{NY,RI}` wrappers; current shortcut flow uses upgrades `"00 02"` and file types `"metadata metadata_utility load_curve_hourly"` |
-| 5    | `just -f data/resstock/Justfile approximate-non-hp-load <STATE> 02 res_2024_amy2018_2 res_2024_amy2018_2_sb 15 True True`                                                                                                 |
-| 6    | Adjust MF electricity in `sb`: `adjust-mf-electricity-<STATE>-upgrade-00` and `adjust-mf-electricity-<STATE>-upgrade-02`                                                                                                  |
-| 7    | `sudo aws s3 sync s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/ /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/`                                                                                                       |
-| 8    | Add monthly load curves on EBS: `add-monthly-loads-NY` or `add-monthly-loads <STATE> "00 02"`                                                                                                                             |
-| 9    | Upload monthly load curves to S3: `upload-monthly-loads-NY` or `upload-monthly-loads <STATE> "00 02"`                                                                                                                     |
+| Step | State-specific recipe                                        | Generic recipe                                                    |
+| ---- | ------------------------------------------------------------ | ----------------------------------------------------------------- |
+| 1    | `resstock-fetch`                                             | `fetch <STATE>`                                                   |
+| 2    | `resstock-prepare-metadata`                                  | `identify-all-metadata <STATE>`                                   |
+| 3    | `resstock-assign-utility`                                    | (use state-specific recipe — assignment logic is state-dependent) |
+| 4    | `resstock-copy`                                              | `copy-resstock-data <FROM> <TO> <STATE> "<IDS>" "<TYPES>"`        |
+| 5    | `resstock-approximate-non-hp-load`                           | `approximate-non-hp-load <STATE> 02 <FROM> <TO> 15 True True`     |
+| 6    | `resstock-adjust-mf-electricity`                             | `adjust-mf-electricity <STATE> <FROM> <TO> "<IDS>"`               |
+| 7    | _(N/A when using main.py — pipeline writes directly to EBS)_ | `sudo aws s3 sync ...`                                            |
+| 8    | `resstock-add-monthly-loads`                                 | `add-monthly-loads <STATE> "<IDS>"`                               |
+| 9    | `resstock-upload-monthly-loads`                              | `upload-monthly-loads <STATE> "<IDS>"`                            |
+
+State-specific recipes are in `rate_design/hp_rates/{ny,ri}/Justfile`; generic recipes are in `data/resstock/Justfile`. Both read config values from `data/resstock/config.yaml` and `data/resstock/state_configs.yaml` via the `data.resstock.constants` CLI.
 
 After the pipeline completes, the `_sb` release on S3 and EBS includes `metadata`, `metadata_utility`, `load_curve_hourly`, and `load_curve_monthly`, and is ready for rate-design runs (CAIRO) and post-processing (master bills, gas/oil/propane bills) using `res_2024_amy2018_2_sb` and the chosen state/upgrade.

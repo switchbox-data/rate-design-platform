@@ -146,7 +146,17 @@ File types that are fetched for the raw NREL release but **never copied to `_sb`
 
 ### `data/resstock/constants.py`
 
-Column-name constants used for schema validation after each metadata transform:
+Shared constants **and** a CLI for Justfile config access:
+
+**Path constants:**
+
+| Constant             | Value                              | Purpose             |
+| -------------------- | ---------------------------------- | ------------------- |
+| `CONFIG_PATH`        | `data/resstock/config.yaml`        | Pipeline config     |
+| `STATE_CONFIGS_PATH` | `data/resstock/state_configs.yaml` | Per-state config    |
+| `PATH_EBS_PARQUET`   | `/ebs/data/nrel/resstock`          | Local EBS data root |
+
+**Column-name constants** (used for schema validation after each metadata transform):
 
 | Constant                 | Columns                                                                                                                                                      | Set by                       |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- |
@@ -154,6 +164,17 @@ Column-name constants used for schema validation after each metadata transform:
 | `HEATING_TYPE_COLS`      | `postprocess_group.heating_type`, `postprocess_group.heating_type_v2`, `heats_with_electricity`, `heats_with_natgas`, `heats_with_oil`, `heats_with_propane` | `identify_heating_type`      |
 | `NATGAS_CONNECTION_COLS` | `has_natgas_connection`                                                                                                                                      | `identify_natgas_connection` |
 | `VULNERABILITY_COLS`     | `has_child_under_6`, `has_person_over_60`, `has_disabled_person`, `is_vulnerable`                                                                            | `add_vulnerability_columns`  |
+
+**CLI for Justfile config access:**
+
+`constants.py` doubles as a CLI tool (`uv run python -m data.resstock.constants <key>`) so Justfiles can read config values without inline Python. Supported key formats:
+
+- **config.yaml dotted paths:** `resstock.release_year`, `paths.s3_dir`, `pums.survey`
+- **Derived keys:** `resstock_release`, `resstock_release_sb`, `upgrade_ids_padded`
+- **Module constants:** `path_ebs_parquet`
+- **state_configs.yaml paths:** prefix with `state_config.`, e.g. `state_config.NY.utility_assignment.kwargs.electric_poly_filename`
+
+The `data/resstock/Justfile` and the state-specific Justfiles (`rate_design/hp_rates/{ny,ri}/Justfile`) both use this CLI to read their config variables.
 
 ### bsf sampling behavior (important for understanding `--sample` mode)
 
@@ -406,7 +427,7 @@ When `--sample N` is passed (N > 0):
 | Module                                                 | Purpose                                                                                                                 |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
 | `data/resstock/config.yaml`                            | Pipeline defaults (release, paths, file types, PUMS)                                                                    |
-| `data/resstock/constants.py`                           | Column-name constants for validation                                                                                    |
+| `data/resstock/constants.py`                           | Path constants, column-name constants, CLI for Justfile config access                                                   |
 | `data/resstock/manifest.py`                            | Provenance: run records, YAML I/O, crash recording (`mark_crashed_runs`), status CLI (`--mark-crashed`)                 |
 | `data/resstock/validations.py`                         | Post-step validation (local files, S3 objects, metadata schema)                                                         |
 | `data/resstock/nrel/fetch_resstock_data.py`            | bsf wrapper                                                                                                             |

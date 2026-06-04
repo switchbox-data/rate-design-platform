@@ -1,18 +1,18 @@
-# ResStock metadata pipeline: download, identify HP customers, heating type, assign utilities (NY).
+# ResStock data pipeline: fetch, modify, and upload to S3.
 #
-# Can be invoked from any directory — `set working-directory` ensures all shell
-# commands run from this file's directory, so relative paths (e.g. config.yaml)
-# always resolve correctly.
+# All recipes here are state-generic — they take a `state` argument and
+# dispatch to the appropriate scripts.  State-specific convenience wrappers
+# (e.g. NY polygon downloads, per-state shortcut recipes) live in the
+# relevant rate_design/hp_rates/{state}/Justfile.
+#
+# Config is read from data/resstock/config.yaml and state_configs.yaml via the
+# constants module CLI (data.resstock.constants).  See constants.py for
+# supported config keys.
 #
 # Usage (from anywhere):
-#   just -f data/resstock/Justfile status                           # provenance / data status
-#   just -f data/resstock/Justfile status --state NY --location ebs # check EBS for NY only
+#   just -f data/resstock/Justfile run-pipeline NY --upgrade-ids 0 2
 #   just -f data/resstock/Justfile fetch NY
-#   just -f data/resstock/Justfile fetch RI
-#   just -f data/resstock/Justfile test-download NY
-#   just -f data/resstock/Justfile resstock-identify-hp-customers NY
-#   just -f data/resstock/Justfile resstock-identify-hp-customers RI
-#   just -f data/resstock/Justfile assign-utility-ny res_2024_amy2018_2 00
+#   just -f data/resstock/Justfile status --state NY --location ebs
 #
 # Or from within data/resstock/:
 #   just run-pipeline NY --upgrade-ids 0 2
@@ -24,27 +24,27 @@ set working-directory := "."
 
 path_local_repo := `git rev-parse --show-toplevel`
 
-# ── Read defaults from config.yaml (single source of truth) ──────────────────
-# Because working-directory is set above, open('config.yaml') always resolves
-# to data/resstock/config.yaml regardless of how just is invoked.
+# ── Config from constants.py ─────────────────────────────────────────────────
+# Each variable is read via the constants module CLI, which resolves keys from
+# config.yaml (dotted paths), derived values (resstock_release), or module-level
+# constants (path_ebs_parquet).  See data/resstock/constants.py for all keys.
 
-resstock_release_year := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['resstock']; print(c['release_year'])"`
-resstock_weather_file := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['resstock']; print(c['weather_file'])"`
-resstock_release_version := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['resstock']; print(c['release_version'])"`
-resstock_upgrade_ids := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['resstock']; print(' '.join(c['upgrade_ids']))"`
-resstock_upgrade_ids_padded := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['resstock']; print(' '.join(u.zfill(2) for u in c['upgrade_ids']))"`
-path_s3_parquet := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['paths']; print(c['s3_dir'])"`
-path_local_parquet := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['paths']; print(c['output_dir'])"`
-path_s3_pums := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['paths']; print(c['s3_pums_dir'])"`
+[private]
+_cfg := "data.resstock.constants"
 
-pums_survey := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['pums']; print(c['survey'])"`
-pums_year := `uv run python -c "import yaml; c=yaml.safe_load(open('config.yaml'))['pums']; print(c['year'])"`
-
-resstock_release := "res_" + resstock_release_year + "_" + resstock_weather_file + "_" + resstock_release_version
-resstock_release_sb := resstock_release + "_sb"
+resstock_release := `uv run python -m data.resstock.constants resstock_release`
+resstock_release_sb := `uv run python -m data.resstock.constants resstock_release_sb`
+resstock_upgrade_ids := `uv run python -m data.resstock.constants resstock.upgrade_ids`
+resstock_upgrade_ids_padded := `uv run python -m data.resstock.constants upgrade_ids_padded`
+path_s3_parquet := `uv run python -m data.resstock.constants paths.s3_dir`
+path_local_parquet := `uv run python -m data.resstock.constants paths.output_dir`
+path_s3_pums := `uv run python -m data.resstock.constants paths.s3_pums_dir`
+path_s3_gis := `uv run python -m data.resstock.constants paths.s3_gis_dir`
+pums_survey := `uv run python -m data.resstock.constants pums.survey`
+pums_year := `uv run python -m data.resstock.constants pums.year`
 
 ################################################################################
-# Complete, all-in-one recipes (all via main.py)
+# Full pipeline (all via main.py)
 ################################################################################
 
 # Run the full _sb release pipeline for one or more states.
@@ -58,20 +58,12 @@ resstock_release_sb := resstock_release + "_sb"
 # Crash recording: if the pipeline exits non-zero (including OOM kill / SIGKILL
 # exit code 137), the wrapper calls `manifest --mark-crashed --exit-code <N>` to
 # retroactively mark the in_progress run as crashed with the actual exit code.
-# This ensures the manifest always reflects the true outcome, even when Python
-# cannot catch the signal.  See also: `just -f data/resstock/Justfile mark-crashed`.
+# See also: `just -f data/resstock/Justfile mark-crashed`.
 #
 # Examples:
-#   just -f data/resstock/Justfile run-pipeline NY \
-#       --upgrade-ids 0 2
-#   just -f data/resstock/Justfile run-pipeline NY \
-#       --upgrade-ids 0 2 \
-#       --electric-poly-filename ny_electric_utilities_20260309.csv \
-#       --gas-poly-filename ny_gas_utilities_20260309.csv
-#   just -f data/resstock/Justfile run-pipeline RI \
-#       --upgrade-ids 0 2
-#   just -f data/resstock/Justfile run-pipeline NY --sample 10 \
-# --upgrade-ids 0 2
+#   just -f data/resstock/Justfile run-pipeline NY --upgrade-ids 0 2
+#   just -f data/resstock/Justfile run-pipeline "NY RI" --upgrade-ids 0 2
+# just -f data/resstock/Justfile run-pipeline NY --sample 10 --upgrade-ids 0 2
 run-pipeline state *args:
     #!/usr/bin/env bash
     set -uo pipefail
@@ -86,20 +78,6 @@ run-pipeline state *args:
     fi
     exit $rc
 
-# Full NY _sb release pipeline for upgrades 0 and 2.
-# Polygon filenames default from state_configs.yaml.
-create-sb-release-for-upgrade-02-NY:
-    cd "{{ path_local_repo }}" && uv run python -m data.resstock.main \
-        --state NY \
-        --upgrade-ids 0 2
-
-# Full RI _sb release pipeline for upgrades 0 and 2.
-# add-vulnerability-columns defaults to False for RI via state_configs.yaml.
-create-sb-release-for-upgrade-02-RI:
-    cd "{{ path_local_repo }}" && uv run python -m data.resstock.main \
-        --state RI \
-        --upgrade-ids 0 2
-
 ################################################################################
 # Status / provenance
 ################################################################################
@@ -107,24 +85,16 @@ create-sb-release-for-upgrade-02-RI:
 # Check provenance of ResStock data on EBS and S3.
 #
 # Examples:
-#   just -f data/resstock/Justfile status                                     # default release, both locations
-#   just -f data/resstock/Justfile status --release res_2024_amy2018_2        # specific release
-#   just -f data/resstock/Justfile status --release res_2024_amy2018_2_sb     # _sb form also accepted
-#   just -f data/resstock/Justfile status --state NY                          # only runs that touched NY
-#   just -f data/resstock/Justfile status --upgrade 0 2                       # only runs for upgrade 0 or 2
-#   just -f data/resstock/Justfile status --state NY --upgrade 2              # combine filters
-#   just -f data/resstock/Justfile status --variant sb                        # only the _sb (modified) release
-#   just -f data/resstock/Justfile status --location ebs                      # skip S3, check local only
-#   just -f data/resstock/Justfile status --location s3                       # skip EBS, check S3 only
-# just -f data/resstock/Justfile status --history 5 -v                      # last 5 runs, verbose
+#   just -f data/resstock/Justfile status
+#   just -f data/resstock/Justfile status --state NY --location ebs
+# just -f data/resstock/Justfile status --history 5 -v
 status *args:
     cd "{{ path_local_repo }}" && uv run python -m data.resstock.manifest {{ args }}
 
 # Mark any stale in_progress runs in the local manifest as crashed.
 # Use after an unexpected kill (OOM, SIGKILL, hard reboot) to clean up
 # the manifest without starting a new pipeline run.  The run-pipeline
-# recipe calls this automatically on non-zero exit, but this recipe
-# is useful when running main.py directly or for manual cleanup.
+# recipe calls this automatically on non-zero exit.
 #
 # Examples:
 #   just -f data/resstock/Justfile mark-crashed
@@ -133,55 +103,41 @@ mark-crashed *args:
     cd "{{ path_local_repo }}" && uv run python -m data.resstock.manifest --mark-crashed {{ args }}
 
 ################################################################################
-# Individual recipes
+# Individual step recipes (for debugging and partial re-runs)
+#
+# Each recipe corresponds to one pipeline step in main.py.  They are useful
+# for re-running a single step without the full pipeline, or for debugging.
 ################################################################################
 
-# Download ResStock metadata and loads. Pass state: NY or RI (or both as space-separated).
-fetch state:
-    cd "{{ path_local_repo }}" && uv run python -m data.resstock.nrel.fetch_resstock_data \
-        --state {{ state }} \
-        --release-year {{ resstock_release_year }} \
-        --weather-file {{ resstock_weather_file }} \
-        --release-version {{ resstock_release_version }} \
-        --upgrade-ids {{ resstock_upgrade_ids }} \
-        --path-output-dir {{ path_local_parquet }}
+# ── 1. Fetch ──────────────────────────────────────────────────────────────────
 
-# Download only load_curve_annual file type.
-fetch-load-curve-annual state:
+# Download ResStock metadata and loads for a state (all file types).
+fetch state *args:
     cd "{{ path_local_repo }}" && uv run python -m data.resstock.nrel.fetch_resstock_data \
         --state {{ state }} \
-        --release-year {{ resstock_release_year }} \
-        --weather-file {{ resstock_weather_file }} \
-        --release-version {{ resstock_release_version }} \
         --upgrade-ids {{ resstock_upgrade_ids }} \
         --path-output-dir {{ path_local_parquet }} \
-        --file-types load_curve_annual
+        {{ args }}
 
-# Copy resstock data from one release to another.
+# Download only load_curve_annual file type for a state.
+fetch-load-curve-annual state:
+    just fetch {{ state }} --file-types load_curve_annual
+
+# ── 2. Copy / clone ──────────────────────────────────────────────────────────
+
+# Copy resstock data from one release to another (S3 to S3).
 copy-resstock-data release_from release_to state upgrade_ids file_types:
     uv run python "{{ path_local_repo }}/data/resstock/nrel/copy_resstock_data.py" \
-    	--data_path "{{ path_s3_parquet }}" \
-    	--release_from "{{ release_from }}" \
-    	--release_to "{{ release_to }}" \
-    	--state "{{ state }}" \
-    	--upgrade_ids "{{ upgrade_ids }}" \
-    	--file_types "{{ file_types }}"
+        --data_path "{{ path_s3_parquet }}" \
+        --release_from "{{ release_from }}" \
+        --release_to "{{ release_to }}" \
+        --state "{{ state }}" \
+        --upgrade_ids "{{ upgrade_ids }}" \
+        --file_types "{{ file_types }}"
 
-copy-resstock-data-2024-amy2018-2-NY upgrade_ids file_types:
-    just copy-resstock-data {{ resstock_release }} {{ resstock_release_sb }} NY "{{ upgrade_ids }}" "{{ file_types }}"
+# ── 3. Metadata transforms ───────────────────────────────────────────────────
 
-copy-resstock-data-2024-amy2018-2-RI upgrade_ids file_types:
-    just copy-resstock-data {{ resstock_release }} {{ resstock_release_sb }} RI "{{ upgrade_ids }}" "{{ file_types }}"
-
-# Verify ResStock download. Pass state (NY or RI).
-test-download state:
-    cd "{{ path_local_repo }}" && uv run python "{{ path_local_repo }}/tests/test_resstock_download_to_s3.py" \
-        --data_path "{{ path_s3_parquet }}/" \
-        --release {{ resstock_release }} \
-        --state {{ state }} \
-        --upgrade_id {{ resstock_upgrade_ids_padded }}
-
-# Identify HP customers and heating type for a state. Pass state (NY or RI).
+# Identify HP customers for a state across a set of upgrade IDs.
 identify-hp-customers release state upgrade_ids input_filename output_filename:
     #!/usr/bin/env bash
     set -e
@@ -197,6 +153,7 @@ identify-hp-customers release state upgrade_ids input_filename output_filename:
             --upgrade_id "$upgrade_id"
     done
 
+# Identify heating type for a state across a set of upgrade IDs.
 identify-heating-type release state upgrade_ids input_filename output_filename:
     #!/usr/bin/env bash
     set -e
@@ -212,6 +169,7 @@ identify-heating-type release state upgrade_ids input_filename output_filename:
             --upgrade_id "$upgrade_id"
     done
 
+# Identify natural gas connection for a state across a set of upgrade IDs.
 identify-natgas-connection release state upgrade_ids input_metadata_filename output_filename:
     #!/usr/bin/env bash
     set -e
@@ -228,27 +186,25 @@ identify-natgas-connection release state upgrade_ids input_metadata_filename out
             --output_filename "{{ output_filename }}"
     done
 
+# Shortcut: identify HP customers for a state (all upgrades, default filenames).
 identify-hp-customers-all-upgrades state:
     just identify-hp-customers {{ resstock_release }} {{ state }} "{{ resstock_upgrade_ids_padded }}" "metadata.parquet" "metadata-sb.parquet"
 
+# Shortcut: identify heating type for a state (all upgrades, default filenames).
 identify-heating-type-all-upgrades state:
     just identify-heating-type {{ resstock_release }} {{ state }} "{{ resstock_upgrade_ids_padded }}" "metadata.parquet" "metadata-sb.parquet"
 
+# Shortcut: identify natgas connection for a state (all upgrades, default filenames).
 identify-natgas-connection-all-upgrades state:
     just identify-natgas-connection {{ resstock_release }} {{ state }} "{{ resstock_upgrade_ids_padded }}" "metadata.parquet" "metadata-sb.parquet"
 
-identify-hp-and-heating-type-all-upgrades-and-natgas-connection state:
+# Shortcut: full metadata chain (HP → heating type → natgas) for a state.
+identify-all-metadata state:
     just identify-hp-customers {{ resstock_release }} {{ state }} "{{ resstock_upgrade_ids_padded }}" "metadata.parquet" "metadata-sb.parquet"
     just identify-heating-type {{ resstock_release }} {{ state }} "{{ resstock_upgrade_ids_padded }}" "metadata-sb.parquet" "metadata-sb.parquet"
     just identify-natgas-connection {{ resstock_release }} {{ state }} "{{ resstock_upgrade_ids_padded }}" "metadata-sb.parquet" "metadata-sb.parquet"
 
-# Identify HP customers for a state (shortcut).
-resstock-identify-hp-customers state:
-    just identify-hp-customers-all-upgrades {{ state }}
-
-# Add vulnerability columns (random placeholder) to metadata-sb.parquet.
-
-# Safe to re-run: drops pre-existing vulnerability columns before adding.
+# Add vulnerability (LMI) columns for a state across a set of upgrade IDs.
 add-vulnerability-columns release state upgrade_ids input_metadata_filename output_metadata_filename pums_type pums_year:
     uv run python "{{ path_local_repo }}/data/resstock/metadata/add_vulnerability_columns.py" \
         --input_metadata_dir "{{ path_s3_parquet }}/{{ release }}/metadata/" \
@@ -259,70 +215,13 @@ add-vulnerability-columns release state upgrade_ids input_metadata_filename outp
         --state "{{ state }}" \
         --upgrade_ids "{{ upgrade_ids }}"
 
-add-vulnerability-columns-NY-all-upgrades:
-    just add-vulnerability-columns {{ resstock_release }} NY "{{ resstock_upgrade_ids_padded }}" "metadata-sb.parquet" "metadata-sb.parquet" "{{ pums_survey }}" "{{ pums_year }}"
+# Shortcut: add vulnerability columns for a state (all upgrades, default filenames).
+add-vulnerability-columns-all-upgrades state:
+    just add-vulnerability-columns {{ resstock_release }} {{ state }} "{{ resstock_upgrade_ids_padded }}" "metadata-sb.parquet" "metadata-sb.parquet" "{{ pums_survey }}" "{{ pums_year }}"
 
-# Full NY metadata pipeline: HP customers → heating type → natural gas connection → vulnerability columns.
+# ── 4. Load curve modifications ──────────────────────────────────────────────
 
-# Pass lmi="false" to skip vulnerability (e.g. for runs that don't need LMI discounts).
-prepare-metadata-ny lmi="true":
-    just identify-hp-customers {{ resstock_release }} NY "{{ resstock_upgrade_ids_padded }}" "metadata.parquet" "metadata-sb.parquet"
-    just identify-heating-type {{ resstock_release }} NY "{{ resstock_upgrade_ids_padded }}" "metadata-sb.parquet" "metadata-sb.parquet"
-    just identify-natgas-connection {{ resstock_release }} NY "{{ resstock_upgrade_ids_padded }}" "metadata-sb.parquet" "metadata-sb.parquet"
-    just assign-utility-ny {{ resstock_release }} 00 "ny_electric_utilities_20260309.csv" "ny_gas_utilities_20260309.csv"
-    {{ if lmi == "true" { "just add-vulnerability-columns " + resstock_release + " NY \"" + resstock_upgrade_ids_padded + "\" \"metadata-sb.parquet\" \"metadata-sb.parquet\" " + pums_survey + " " + pums_year } else { "echo 'Skipping vulnerability columns (lmi=false)'" } }}
-
-# Full RI metadata pipeline: HP customers → heating type → natural gas connection.
-prepare-metadata-ri:
-    just identify-hp-customers {{ resstock_release }} RI "{{ resstock_upgrade_ids_padded }}" "metadata.parquet" "metadata-sb.parquet"
-    just identify-heating-type {{ resstock_release }} RI "{{ resstock_upgrade_ids_padded }}" "metadata-sb.parquet" "metadata-sb.parquet"
-    just identify-natgas-connection {{ resstock_release }} RI "{{ resstock_upgrade_ids_padded }}" "metadata-sb.parquet" "metadata-sb.parquet"
-    just assign-utility-ri {{ resstock_release }} 00
-
-# =============================================================================
-# NY-only: polygon downloads (data prep for utility assignment)
-# =============================================================================
-
-download-ny-utility-polygons:
-    just download-ny-electric-utility-polygons
-    just download-ny-gas-utility-polygons
-
-download-ny-electric-utility-polygons:
-    wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/resource/awza-4vgu.csv" | aws s3 cp - "s3://data.sb/gis/utility_boundaries/ny_electric_utilities_`date +%Y%m%d`.csv"
-    just test-ny-electric-utility-polygons-download
-
-download-ny-gas-utility-polygons:
-    wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0" "https://data.ny.gov/api/views/i7nm-ih89/rows.csv" | aws s3 cp - "s3://data.sb/gis/utility_boundaries/ny_gas_utilities_$(date +%Y%m%d).csv"
-    just test-ny-gas-utility-polygons-download
-
-test-ny-electric-utility-polygons-download:
-    aws s3 ls "s3://data.sb/gis/utility_boundaries/" | grep "ny_electric_utilities_.*\.csv"
-
-test-ny-gas-utility-polygons-download:
-    aws s3 ls "s3://data.sb/gis/utility_boundaries/" | grep "ny_gas_utilities_.*\.csv"
-
-# Assign electric/gas utilities to ResStock buildings (NY only). Run download-ny-utility-polygons first.
-assign-utility-ny release upgrade electric_poly gas_poly:
-    just download-ny-utility-polygons
-    uv run python "{{ path_local_repo }}/data/resstock/utility/assign_utility_ny.py" \
-        --input_metadata_dir "{{ path_s3_parquet }}/{{ release }}/metadata/state=NY/upgrade={{ upgrade }}/" \
-        --input_metadata_filename "metadata-sb.parquet" \
-        --output_metadata_dir "{{ path_s3_parquet }}/{{ release }}/metadata_utility/state=NY/" \
-        --output_utility_assignment_filename "utility_assignment.parquet" \
-        --electric_poly_dir "s3://data.sb/gis/utility_boundaries/" \
-        --gas_poly_dir "s3://data.sb/gis/utility_boundaries/" \
-        --electric_poly_filename "{{ electric_poly }}" \
-        --gas_poly_filename "{{ gas_poly }}"
-
-# Assign electric/gas utilities to ResStock buildings (RI only)
-assign-utility-ri release upgrade:
-    uv run python "{{ path_local_repo }}/data/resstock/utility/assign_utility_ri.py" \
-        --input_metadata_dir "{{ path_s3_parquet }}/{{ release }}/metadata/state=RI/upgrade={{ upgrade }}/" \
-        --input_metadata_filename "metadata-sb.parquet" \
-        --output_metadata_dir "{{ path_s3_parquet }}/{{ release }}/metadata_utility/state=RI/" \
-        --output_utility_assignment_filename "utility_assignment.parquet" \
-
-# Approximate non-HP load for a state
+# Run the non-HP load approximation for a state.
 approximate-non-hp-load state upgrade_id input_release output_release k update_MF update_other_fuel_types:
     uv run python "{{ path_local_repo }}/utils/pre/approximate_non_hp_load.py" \
         --path_s3 "{{ path_s3_parquet }}" \
@@ -334,6 +233,7 @@ approximate-non-hp-load state upgrade_id input_release output_release k update_M
         --update_MF "{{ update_MF }}" \
         --update_other_fuel_types "{{ update_other_fuel_types }}"
 
+# Apply MF non-HVAC electricity adjustment for a state.
 adjust-mf-electricity state input_release output_release upgrade_ids:
     uv run python "{{ path_local_repo }}/utils/pre/adjust_mf_electricity.py" \
         --path_s3 "{{ path_s3_parquet }}" \
@@ -342,44 +242,36 @@ adjust-mf-electricity state input_release output_release upgrade_ids:
         --output_release "{{ output_release }}" \
         --upgrade_ids "{{ upgrade_ids }}"
 
-adjust-mf-electricity-NY-upgrade-00:
-    just adjust-mf-electricity NY res_2024_amy2018_2 res_2024_amy2018_2_sb "00"
+# ── 5. Monthly load curves ───────────────────────────────────────────────────
 
-adjust-mf-electricity-NY-upgrade-02:
-    just adjust-mf-electricity NY res_2024_amy2018_2 res_2024_amy2018_2_sb "02"
-
-adjust-mf-electricity-RI-upgrade-00:
-    just adjust-mf-electricity RI res_2024_amy2018_2 res_2024_amy2018_2_sb "00"
-
-adjust-mf-electricity-RI-upgrade-02:
-    just adjust-mf-electricity RI res_2024_amy2018_2 res_2024_amy2018_2_sb "02"
-
-path_ebs_parquet := "/ebs/data/nrel/resstock"
-
+# Aggregate _sb hourly load curves into monthly for a state.
 add-monthly-loads state upgrade_ids:
     uv run python "{{ path_local_repo }}/data/resstock/load_curve/add_monthly_loads.py" \
-        --path-input "{{ path_ebs_parquet }}/{{ resstock_release_sb }}" \
-        --path-output "{{ path_ebs_parquet }}/{{ resstock_release_sb }}" \
+        --path-input "{{ path_local_parquet }}/{{ resstock_release_sb }}" \
+        --path-output "{{ path_local_parquet }}/{{ resstock_release_sb }}" \
         --state "{{ state }}" \
         --upgrade-ids "{{ upgrade_ids }}" \
         --bsf-release "{{ resstock_release }}" \
         --workers 50
 
-add-monthly-loads-NY:
-    just add-monthly-loads NY "00 02"
-
+# Upload monthly load curves for a state to S3.
 upload-monthly-loads state upgrade_ids:
     #!/usr/bin/env bash
     set -e
     for upgrade_id in {{ upgrade_ids }}; do
         echo "Uploading load_curve_monthly/state={{ state }}/upgrade=$upgrade_id to S3..."
         aws s3 sync \
-            "{{ path_ebs_parquet }}/{{ resstock_release_sb }}/load_curve_monthly/state={{ state }}/upgrade=$upgrade_id/" \
-            "{{ path_s3_parquet }}/{{ resstock_release_sb }}/load_curve_monthly/state={{ state }}/upgrade=$upgrade_id/"
+            "{{ path_local_parquet }}/{{ resstock_release_sb }}/load_curve_monthly/state={{ state }}/upgrade=$upgrade_id/" \
+            "{{ path_s3_parquet }}/{{ resstock_release_sb }}/load_curve_monthly/state={{ state }}/upgrade=$upgrade_id/" \
+            --quiet
     done
 
-upload-monthly-loads-NY:
-    just upload-monthly-loads NY "00 02"
+# ── 6. Verification ──────────────────────────────────────────────────────────
 
-# (create-sb-release-for-upgrade-02-NY and create-sb-release-for-upgrade-02-RI
-#  are defined at the top of this file under "Complete, all-in-one recipes".)
+# Verify ResStock download for a state.
+test-download state:
+    cd "{{ path_local_repo }}" && uv run python "{{ path_local_repo }}/tests/test_resstock_download_to_s3.py" \
+        --data_path "{{ path_s3_parquet }}/" \
+        --release {{ resstock_release }} \
+        --state {{ state }} \
+        --upgrade_id {{ resstock_upgrade_ids_padded }}
