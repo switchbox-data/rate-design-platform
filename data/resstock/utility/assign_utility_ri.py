@@ -18,6 +18,9 @@ from cloudpathlib import S3Path
 
 from utils import get_aws_region
 
+_STATE = "RI"
+_UTILITY = "rie"
+
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
 
@@ -47,11 +50,9 @@ def assign_utility_ri(input_metadata: pl.LazyFrame) -> pl.LazyFrame:
     )
 
     return input_metadata.with_columns(
-        # All rows get "rie" for electric utility
-        pl.lit("rie").alias("sb.electric_utility"),
-        # Only rows with has_natgas_connection=True get "rie" for gas utility, others get null
+        pl.lit(_UTILITY).alias("sb.electric_utility"),
         pl.when(pl.col("has_natgas_connection").eq(True))
-        .then(pl.lit("rie"))
+        .then(pl.lit(_UTILITY))
         .otherwise(None)
         .alias("sb.gas_utility"),
     )
@@ -59,7 +60,7 @@ def assign_utility_ri(input_metadata: pl.LazyFrame) -> pl.LazyFrame:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Assign electric and gas utilities to ResStock buildings in RI"
+        description=f"Assign electric and gas utilities to ResStock buildings in {_STATE}"
     )
     parser.add_argument(
         "--input_metadata_dir",

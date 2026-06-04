@@ -429,6 +429,85 @@ def test_excluded_gas_utilities_constant():
     assert EXCLUDED_GAS_UTILITIES == frozenset(expected)
 
 
+def test_assign_utility_empty_excluded_gas_does_not_revert_to_defaults():
+    """Passing excluded_gas_utilities=[] must not silently revert to the config defaults.
+
+    An empty list means "exclude nothing" — it must propagate as an empty
+    frozenset, not be replaced by EXCLUDED_GAS_UTILITIES.
+    """
+    _mod = "data.resstock.utility.assign_utility_ny"
+    metadata = pl.LazyFrame(
+        {
+            "bldg_id": [1],
+            "puma": ["00100"],
+            "heating_fuel": ["Natural Gas"],
+            "has_natgas_connection": [True],
+        }
+    )
+    dummy_gdf = gpd.GeoDataFrame({"geometry": [box(0, 0, 1, 1)]}, crs="EPSG:4326")
+    from unittest.mock import patch
+
+    with (
+        patch(f"{_mod}.read_csv_to_gdf_from_s3", return_value=dummy_gdf),
+        patch(f"{_mod}.get_pumas", return_value=dummy_gdf),
+        patch(f"{_mod}.assign_utility_ny") as mock_inner,
+    ):
+        mock_inner.return_value = metadata
+        from data.resstock.utility.assign_utility_ny import assign_utility
+
+        assign_utility(
+            metadata,
+            path_s3_gis_dir="s3://fake/",
+            electric_poly_filename="e.csv",
+            gas_poly_filename="g.csv",
+            state_crs=2260,
+            puma_year=2019,
+            excluded_gas_utilities=[],
+        )
+        _, kwargs = mock_inner.call_args
+        assert kwargs["excluded_gas_utilities"] == frozenset(), (
+            "Empty list should propagate as empty frozenset, not fall back to "
+            f"EXCLUDED_GAS_UTILITIES ({EXCLUDED_GAS_UTILITIES})"
+        )
+
+
+def test_assign_utility_none_excluded_gas_uses_defaults():
+    """Passing excluded_gas_utilities=None must fall back to the module default."""
+    _mod = "data.resstock.utility.assign_utility_ny"
+    metadata = pl.LazyFrame(
+        {
+            "bldg_id": [1],
+            "puma": ["00100"],
+            "heating_fuel": ["Natural Gas"],
+            "has_natgas_connection": [True],
+        }
+    )
+    dummy_gdf = gpd.GeoDataFrame({"geometry": [box(0, 0, 1, 1)]}, crs="EPSG:4326")
+    from unittest.mock import patch
+
+    with (
+        patch(f"{_mod}.read_csv_to_gdf_from_s3", return_value=dummy_gdf),
+        patch(f"{_mod}.get_pumas", return_value=dummy_gdf),
+        patch(f"{_mod}.assign_utility_ny") as mock_inner,
+    ):
+        mock_inner.return_value = metadata
+        from data.resstock.utility.assign_utility_ny import assign_utility
+
+        assign_utility(
+            metadata,
+            path_s3_gis_dir="s3://fake/",
+            electric_poly_filename="e.csv",
+            gas_poly_filename="g.csv",
+            state_crs=2260,
+            puma_year=2019,
+            excluded_gas_utilities=None,
+        )
+        _, kwargs = mock_inner.call_args
+        assert kwargs["excluded_gas_utilities"] is None, (
+            "None should propagate so assign_utility_ny applies the module default"
+        )
+
+
 def test_puma_id_series_for_join_pumace10():
     """puma_id_series_for_join returns 5-char zero-padded ids from PUMACE10."""
     gdf = gpd.GeoDataFrame(

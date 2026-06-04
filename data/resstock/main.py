@@ -696,7 +696,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=_DEFAULT_S3_GIS_DIR,
         metavar="S3_URI",
         help=(
-            "S3 directory containing NY utility polygon CSV files "
+            "S3 directory containing utility polygon CSV files "
             f"(default: {_DEFAULT_S3_GIS_DIR})."
         ),
     )

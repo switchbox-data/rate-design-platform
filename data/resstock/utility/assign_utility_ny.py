@@ -31,10 +31,12 @@ from data.resstock.utility.utils import (
 from utils import get_aws_region
 from utils.utility_codes import get_ny_open_data_to_std_name
 
+_STATE = "NY"
+
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
 EXCLUDED_GAS_UTILITIES: frozenset[str] = frozenset(
-    (load_state_configs()["NY"]["utility_assignment"].get("kwargs") or {}).get(
+    (load_state_configs()[_STATE]["utility_assignment"].get("kwargs") or {}).get(
         "excluded_gas_utilities", []
     )
 )
@@ -69,7 +71,7 @@ def assign_utility(
     print("    Loading Census PUMA shapefiles via pygris...", flush=True)
     pumas = cast(
         gpd.GeoDataFrame,
-        get_pumas(state="NY", year=puma_year, cb=True),
+        get_pumas(state=_STATE, year=puma_year, cb=True),
     )
     pumas = pumas.to_crs(epsg=state_crs)
 
@@ -79,8 +81,9 @@ def assign_utility(
         gas_polygons=gas_polygons,
         pumas=pumas,
         state_crs=state_crs,
-        excluded_gas_utilities=frozenset(excluded_gas_utilities or [])
-        or EXCLUDED_GAS_UTILITIES,
+        excluded_gas_utilities=frozenset(excluded_gas_utilities)
+        if excluded_gas_utilities is not None
+        else None,
     )
 
 
@@ -232,7 +235,7 @@ if __name__ == "__main__":
     electric_poly_path = S3Path(electric_poly_dir / args.electric_poly_filename)
     gas_poly_path = S3Path(gas_poly_dir / args.gas_poly_filename)
 
-    ny_ua_kwargs = load_state_configs()["NY"]["utility_assignment"]["kwargs"]
+    ny_ua_kwargs = load_state_configs()[_STATE]["utility_assignment"]["kwargs"]
     state_crs = ny_ua_kwargs["state_crs"]
 
     electric_polygons = read_csv_to_gdf_from_s3(
@@ -251,7 +254,7 @@ if __name__ == "__main__":
     )
 
     pumas = get_pumas(
-        state="NY",
+        state=_STATE,
         year=ny_ua_kwargs["puma_year"],
         cb=True,
     )

@@ -1,14 +1,13 @@
 """Validation helpers for the ResStock data pipeline.
 
-Each function exits with a clear error message if its check fails, so the
-pipeline halts immediately at the point of failure rather than propagating
-bad state downstream.
+Each function raises ``RuntimeError`` if its check fails, so the pipeline
+halts immediately at the point of failure and the caller's ``except``
+handler can record the failure in the manifest.
 """
 
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
 import polars as pl
@@ -35,13 +34,7 @@ def validate_local_files(
                         f" no .parquet files found in {d}"
                     )
     if errors:
-        print(
-            f"ERROR: Validation failed after {label}.\n"
-            + "\n".join(errors)
-            + "\nExiting.",
-            flush=True,
-        )
-        sys.exit(1)
+        raise RuntimeError(f"Validation failed after {label}.\n" + "\n".join(errors))
     print(
         "  Validation passed: found .parquet files for all"
         " (file_type, state, upgrade) combinations.",
@@ -98,13 +91,7 @@ def validate_s3_objects(
                             f" object not found at {s3_path}"
                         )
     if errors:
-        print(
-            f"ERROR: Validation failed after {label}.\n"
-            + "\n".join(errors)
-            + "\nExiting.",
-            flush=True,
-        )
-        sys.exit(1)
+        raise RuntimeError(f"Validation failed after {label}.\n" + "\n".join(errors))
     print(
         f"  Validation passed: spot-checked up to {spot_check_max} S3 objects per"
         " (file_type, state, upgrade) combination.",
@@ -117,15 +104,12 @@ def validate_metadata_readable(
     input_path: Path,
     loc: str,
 ) -> None:
-    """Exit if the metadata LazyFrame schema is empty (file unreadable or corrupt)."""
+    """Raise if the metadata LazyFrame schema is empty (file unreadable or corrupt)."""
     if not input_metadata.collect_schema():
-        print(
-            f"ERROR: Validation failed reading metadata ({loc}).\n"
-            f"  File appears empty or unreadable: {input_path}\n"
-            f"Exiting.",
-            flush=True,
+        raise RuntimeError(
+            f"Validation failed reading metadata ({loc}).\n"
+            f"  File appears empty or unreadable: {input_path}"
         )
-        sys.exit(1)
 
 
 def validate_metadata_columns(
@@ -134,33 +118,27 @@ def validate_metadata_columns(
     transform_name: str,
     loc: str,
 ) -> None:
-    """Exit if expected columns are missing from the output metadata schema."""
+    """Raise if expected columns are missing from the output metadata schema."""
     output_cols = set(output_metadata.collect_schema().names())
     missing = expected_cols - output_cols
     if missing:
-        print(
-            f"ERROR: Validation failed after {transform_name} ({loc}).\n"
+        raise RuntimeError(
+            f"Validation failed after {transform_name} ({loc}).\n"
             f"  Missing columns: {sorted(missing)}\n"
-            f"  Available columns: {sorted(output_cols)}\n"
-            f"Exiting.",
-            flush=True,
+            f"  Available columns: {sorted(output_cols)}"
         )
-        sys.exit(1)
 
 
 def validate_metadata_output(
     output_path: Path,
     loc: str,
 ) -> None:
-    """Exit if the output metadata file is missing or empty after sink_parquet."""
+    """Raise if the output metadata file is missing or empty after sink_parquet."""
     if not output_path.exists() or output_path.stat().st_size == 0:
-        print(
-            f"ERROR: Validation failed after metadata modification ({loc}).\n"
-            f"  Output file missing or empty: {output_path}\n"
-            f"Exiting.",
-            flush=True,
+        raise RuntimeError(
+            f"Validation failed after metadata modification ({loc}).\n"
+            f"  Output file missing or empty: {output_path}"
         )
-        sys.exit(1)
 
 
 def validate_utility_assignment_args(
