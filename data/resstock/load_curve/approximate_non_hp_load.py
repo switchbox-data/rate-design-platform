@@ -913,15 +913,22 @@ def update_load_curve_hourly(
     output_load_curve_hourly_dir: S3Path | Path,
     upgrade_id: str,
     *,
-    max_workers: int = 256,
+    max_workers: int = 128,
     neighbor_load_curve_hourly_dir: S3Path | Path | None = None,
 ) -> list[int]:
-    """Load original and neighbor parquets concurrently, replace hvac columns, sink back to original path. Returns list of bldg_ids that use natural gas after replacement.
+    """Load original and neighbor parquets, replace hvac columns, sink back.
+
+    Returns list of bldg_ids that use natural gas after replacement.
 
     ``neighbor_load_curve_hourly_dir`` overrides where neighbor parquets are read from.
     When omitted, neighbors are read from ``input_load_curve_hourly_dir``.  Pass an
     S3Path here when only a sampled subset was downloaded locally but the chosen
     neighbors live in the full S3 release.
+
+    Each building materialises 1 target + k neighbor parquets at
+    ``sink_parquet`` time.  With *max_workers* buildings in flight, peak
+    memory is roughly ``max_workers × (k + 1) × per-parquet-size``.
+    The default (128) keeps memory around ~4 GB for k=15.
     """
     upgrade_int = int(upgrade_id)
     scan_opts = _parquet_storage_options(input_load_curve_hourly_dir)
@@ -940,22 +947,15 @@ def update_load_curve_hourly(
     ) -> None:
         input_path = input_load_curve_hourly_dir / f"{bldg_id}-{upgrade_int}.parquet"
         neighbor_ids = [nid for nid, _ in k_nearest_bldg_ids_rmse]
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            original_future = executor.submit(
-                pl.scan_parquet,
-                str(input_path),
-                storage_options=scan_opts,
+
+        original_lf = pl.scan_parquet(str(input_path), storage_options=scan_opts)
+        neighbors_lf = [
+            pl.scan_parquet(
+                str(_neighbor_dir / f"{nid}-{upgrade_int}.parquet"),
+                storage_options=neighbor_scan_opts,
             )
-            neighbor_futures = [
-                executor.submit(
-                    pl.scan_parquet,
-                    str(_neighbor_dir / f"{nid}-{upgrade_int}.parquet"),
-                    storage_options=neighbor_scan_opts,
-                )
-                for nid in neighbor_ids
-            ]
-            original_lf = original_future.result()
-            neighbors_lf = [f.result() for f in neighbor_futures]
+            for nid in neighbor_ids
+        ]
         replaced, uses_natural_gas = replace_hvac_columns(original_lf, neighbors_lf)
         with usage_lock:
             if uses_natural_gas:

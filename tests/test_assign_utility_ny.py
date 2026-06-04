@@ -10,19 +10,19 @@ import pytest
 import geopandas as gpd
 from shapely.geometry import box
 
-from data.resstock.assign_utility_ny import (
-    SMALL_GAS_UTILITIES,
-    _calculate_prior_distributions,
-    _calculate_utility_probabilities,
-    _puma_id_series_for_join,
-    _sample_utility_per_building,
-    _zero_small_gas_utilities_and_renormalize,
+from data.resstock.utility.assign_utility_ny import EXCLUDED_GAS_UTILITIES
+from data.resstock.utility.utils import (
+    calculate_prior_distributions,
+    calculate_utility_probabilities,
+    puma_id_series_for_join,
+    sample_utility_per_building,
+    zero_excluded_gas_utilities_and_renormalize,
 )
 from utils.utility_codes import get_ny_open_data_to_std_name
 
 
 def _utility_name_map_lazy() -> pl.LazyFrame:
-    """Build utility_name_map from central crosswalk (matches data.resstock.assign_utility_ny)."""
+    """Build utility_name_map from central crosswalk (matches data.resstock.utility.assign_utility_ny)."""
     return pl.DataFrame(
         [
             {"state_name": k, "std_name": v}
@@ -48,7 +48,7 @@ def test_calculate_utility_probabilities_basic():
     )
     utility_name_map = _utility_name_map_lazy()
 
-    result = _calculate_utility_probabilities(
+    result = calculate_utility_probabilities(
         puma_overlap,
         utility_name_map,
         handle_municipal=False,
@@ -79,7 +79,7 @@ def test_calculate_utility_probabilities_filter_none_false():
     )
     utility_name_map = _utility_name_map_lazy()
 
-    result = _calculate_utility_probabilities(
+    result = calculate_utility_probabilities(
         puma_overlap,
         utility_name_map,
         handle_municipal=False,
@@ -103,7 +103,7 @@ def test_calculate_utility_probabilities_handle_municipal():
     )
     utility_name_map = _utility_name_map_lazy()
 
-    result = _calculate_utility_probabilities(
+    result = calculate_utility_probabilities(
         puma_overlap,
         utility_name_map,
         handle_municipal=True,
@@ -142,7 +142,7 @@ def test_calculate_prior_distributions_sums_to_one():
         }
     )
 
-    elec_prior, gas_prior = _calculate_prior_distributions(
+    elec_prior, gas_prior = calculate_prior_distributions(
         puma_elec_probs, puma_gas_probs, puma_and_heating_fuel
     )
 
@@ -167,7 +167,7 @@ def test_calculate_prior_distributions_gas_only_has_natgas_connection():
         }
     )
 
-    _, gas_prior = _calculate_prior_distributions(
+    _, gas_prior = calculate_prior_distributions(
         puma_elec_probs, puma_gas_probs, puma_and_heating_fuel
     )
     assert gas_prior == {"coned": 1.0}
@@ -181,7 +181,7 @@ def test_calculate_prior_distributions_gas_only_has_natgas_connection():
             "has_natgas_connection": [False],
         }
     )
-    _, gas_prior_no_gas = _calculate_prior_distributions(
+    _, gas_prior_no_gas = calculate_prior_distributions(
         puma_elec_probs, puma_gas_probs, puma_and_heating_fuel_no_gas
     )
     assert gas_prior_no_gas == {}
@@ -207,13 +207,13 @@ def test_sample_utility_per_building_deterministic():
 
     out1 = cast(
         pl.DataFrame,
-        _sample_utility_per_building(
+        sample_utility_per_building(
             bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
         ).collect(),
     )
     out2 = cast(
         pl.DataFrame,
-        _sample_utility_per_building(
+        sample_utility_per_building(
             bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
         ).collect(),
     )
@@ -246,7 +246,7 @@ def test_sample_utility_per_building_only_when_fuel():
 
     out = cast(
         pl.DataFrame,
-        _sample_utility_per_building(
+        sample_utility_per_building(
             bldgs,
             puma_probs,
             "sb.gas_utility",
@@ -280,7 +280,7 @@ def test_sample_utility_per_building_all_zero_probs_returns_none():
     # Building in 99999 has no row in puma_probs (left join) -> null probs -> null utility
     out = cast(
         pl.DataFrame,
-        _sample_utility_per_building(
+        sample_utility_per_building(
             bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
         ).collect(),
     )
@@ -318,13 +318,13 @@ def test_sample_utility_per_building_exact_assignments():
 
     elec = cast(
         pl.DataFrame,
-        _sample_utility_per_building(
+        sample_utility_per_building(
             bldgs, puma_elec, "sb.electric_utility", only_when_fuel=None
         ).collect(),
     )
     gas = cast(
         pl.DataFrame,
-        _sample_utility_per_building(
+        sample_utility_per_building(
             bldgs, puma_gas, "sb.gas_utility", only_when_fuel="Natural Gas"
         ).collect(),
     )
@@ -349,7 +349,7 @@ def test_sample_utility_per_building_exact_assignments():
 
 
 def test_sample_utility_per_building_deterministic_with_varying_probs():
-    """With varying probabilities (sum to 1) and seed 42, in-test assignment matches _sample_utility_per_building."""
+    """With varying probabilities (sum to 1) and seed 42, in-test assignment matches sample_utility_per_building."""
     # More complex setup: 6 buildings across 3 PUMAs with 5 different utilities
     bldgs = pl.LazyFrame(
         {
@@ -379,7 +379,7 @@ def test_sample_utility_per_building_deterministic_with_varying_probs():
         }
     )
 
-    # Perform assignment directly in test with seed 42 (same logic as _sample_utility_per_building)
+    # Perform assignment directly in test with seed 42 (same logic as sample_utility_per_building)
     bldgs_joined_df = cast(
         pl.DataFrame,
         bldgs.join(
@@ -406,7 +406,7 @@ def test_sample_utility_per_building_deterministic_with_varying_probs():
     # Function uses the same seed 42 internally; result must match
     out = cast(
         pl.DataFrame,
-        _sample_utility_per_building(
+        sample_utility_per_building(
             bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
         ).collect(),
     )
@@ -418,44 +418,124 @@ def test_sample_utility_per_building_deterministic_with_varying_probs():
 
 
 # ---------------------------------------------------------------------------
-# SMALL_GAS_UTILITIES and _zero_small_gas_utilities_and_renormalize
+# EXCLUDED_GAS_UTILITIES and zero_excluded_gas_utilities_and_renormalize
 # ---------------------------------------------------------------------------
 
 
-def test_small_gas_utilities_constant():
-    """SMALL_GAS_UTILITIES is the expected frozenset of small gas utility std names."""
+def test_excluded_gas_utilities_constant():
+    """EXCLUDED_GAS_UTILITIES is loaded from state_configs.yaml and matches the expected set."""
     expected = {"bath", "chautauqua", "corning", "fillmore", "reserve", "stlaw"}
-    assert SMALL_GAS_UTILITIES == frozenset(expected)
+    assert isinstance(EXCLUDED_GAS_UTILITIES, frozenset)
+    assert EXCLUDED_GAS_UTILITIES == frozenset(expected)
+
+
+def test_assign_utility_empty_excluded_gas_does_not_revert_to_defaults():
+    """Passing excluded_gas_utilities=[] must not silently revert to the config defaults.
+
+    An empty list means "exclude nothing" — it must propagate as an empty
+    frozenset, not be replaced by EXCLUDED_GAS_UTILITIES.
+    """
+    _mod = "data.resstock.utility.assign_utility_ny"
+    metadata = pl.LazyFrame(
+        {
+            "bldg_id": [1],
+            "puma": ["00100"],
+            "heating_fuel": ["Natural Gas"],
+            "has_natgas_connection": [True],
+        }
+    )
+    dummy_gdf = gpd.GeoDataFrame({"geometry": [box(0, 0, 1, 1)]}, crs="EPSG:4326")
+    from unittest.mock import patch
+
+    with (
+        patch(f"{_mod}.read_csv_to_gdf_from_s3", return_value=dummy_gdf),
+        patch(f"{_mod}.get_pumas", return_value=dummy_gdf),
+        patch(f"{_mod}.assign_utility_ny") as mock_inner,
+    ):
+        mock_inner.return_value = metadata
+        from data.resstock.utility.assign_utility_ny import assign_utility
+
+        assign_utility(
+            metadata,
+            path_s3_gis_dir="s3://fake/",
+            electric_poly_filename="e.csv",
+            gas_poly_filename="g.csv",
+            state_crs=2260,
+            puma_year=2019,
+            excluded_gas_utilities=[],
+        )
+        _, kwargs = mock_inner.call_args
+        assert kwargs["excluded_gas_utilities"] == frozenset(), (
+            "Empty list should propagate as empty frozenset, not fall back to "
+            f"EXCLUDED_GAS_UTILITIES ({EXCLUDED_GAS_UTILITIES})"
+        )
+
+
+def test_assign_utility_none_excluded_gas_uses_defaults():
+    """Passing excluded_gas_utilities=None must fall back to the module default."""
+    _mod = "data.resstock.utility.assign_utility_ny"
+    metadata = pl.LazyFrame(
+        {
+            "bldg_id": [1],
+            "puma": ["00100"],
+            "heating_fuel": ["Natural Gas"],
+            "has_natgas_connection": [True],
+        }
+    )
+    dummy_gdf = gpd.GeoDataFrame({"geometry": [box(0, 0, 1, 1)]}, crs="EPSG:4326")
+    from unittest.mock import patch
+
+    with (
+        patch(f"{_mod}.read_csv_to_gdf_from_s3", return_value=dummy_gdf),
+        patch(f"{_mod}.get_pumas", return_value=dummy_gdf),
+        patch(f"{_mod}.assign_utility_ny") as mock_inner,
+    ):
+        mock_inner.return_value = metadata
+        from data.resstock.utility.assign_utility_ny import assign_utility
+
+        assign_utility(
+            metadata,
+            path_s3_gis_dir="s3://fake/",
+            electric_poly_filename="e.csv",
+            gas_poly_filename="g.csv",
+            state_crs=2260,
+            puma_year=2019,
+            excluded_gas_utilities=None,
+        )
+        _, kwargs = mock_inner.call_args
+        assert kwargs["excluded_gas_utilities"] is None, (
+            "None should propagate so assign_utility_ny applies the module default"
+        )
 
 
 def test_puma_id_series_for_join_pumace10():
-    """_puma_id_series_for_join returns 5-char zero-padded ids from PUMACE10."""
+    """puma_id_series_for_join returns 5-char zero-padded ids from PUMACE10."""
     gdf = gpd.GeoDataFrame(
         {"PUMACE10": [100, 200, 3600], "geometry": [box(0, 0, 1, 1)] * 3}
     )
-    out = _puma_id_series_for_join(gdf)
+    out = puma_id_series_for_join(gdf)
     assert out is not None
     assert list(out) == ["00100", "00200", "03600"]
 
 
 def test_puma_id_series_for_join_geoid():
-    """_puma_id_series_for_join uses last 5 chars of GEOID when PUMACE10 missing."""
+    """puma_id_series_for_join uses last 5 chars of GEOID when PUMACE10 missing."""
     gdf = gpd.GeoDataFrame(
         {"GEOID": ["3600100", "3600200"], "geometry": [box(0, 0, 1, 1)] * 2}
     )
-    out = _puma_id_series_for_join(gdf)
+    out = puma_id_series_for_join(gdf)
     assert out is not None
     assert list(out) == ["00100", "00200"]
 
 
 def test_puma_id_series_for_join_no_id_column_returns_none():
-    """_puma_id_series_for_join returns None when neither PUMACE10 nor GEOID present."""
+    """puma_id_series_for_join returns None when neither PUMACE10 nor GEOID present."""
     gdf = gpd.GeoDataFrame({"other": [1], "geometry": [box(0, 0, 1, 1)]})
-    assert _puma_id_series_for_join(gdf) is None
+    assert puma_id_series_for_join(gdf) is None
 
 
-def test_zero_small_gas_utilities_no_small_cols_unchanged():
-    """When gas probs have no columns in SMALL_GAS_UTILITIES, result is unchanged."""
+def test_zero_excluded_gas_utilities_no_excluded_cols_unchanged():
+    """When gas probs have no columns in excluded_utilities, result is unchanged."""
     puma_gas_probs = pl.LazyFrame(
         {
             "puma_id": ["00100", "00200"],
@@ -463,15 +543,17 @@ def test_zero_small_gas_utilities_no_small_cols_unchanged():
             "nyseg": [0.5, 1.0],
         }
     )
-    out = _zero_small_gas_utilities_and_renormalize(puma_gas_probs)
+    out = zero_excluded_gas_utilities_and_renormalize(
+        puma_gas_probs, excluded_utilities=EXCLUDED_GAS_UTILITIES
+    )
     df = cast(pl.DataFrame, out.collect())
     assert df.shape == (2, 3)
     assert df.filter(pl.col("puma_id") == "00100").to_dicts()[0]["coned"] == 0.5
     assert df.filter(pl.col("puma_id") == "00100").to_dicts()[0]["nyseg"] == 0.5
 
 
-def test_zero_small_gas_utilities_renormalize():
-    """Small gas columns are zeroed and rows renormalized so each row sums to 1."""
+def test_zero_excluded_gas_utilities_renormalize():
+    """Excluded gas columns are zeroed and rows renormalized so each row sums to 1."""
     puma_gas_probs = pl.LazyFrame(
         {
             "puma_id": ["00100", "00200"],
@@ -480,7 +562,9 @@ def test_zero_small_gas_utilities_renormalize():
             "nimo": [0.2, 0.3],
         }
     )
-    out = _zero_small_gas_utilities_and_renormalize(puma_gas_probs)
+    out = zero_excluded_gas_utilities_and_renormalize(
+        puma_gas_probs, excluded_utilities=EXCLUDED_GAS_UTILITIES
+    )
     df = cast(pl.DataFrame, out.collect())
     # 00100: stlaw zeroed, nyseg+nimo renormalized from 0.4+0.2 to sum 1
     row1 = df.filter(pl.col("puma_id") == "00100").to_dicts()[0]
@@ -493,8 +577,8 @@ def test_zero_small_gas_utilities_renormalize():
     assert abs(row2["nyseg"] + row2["nimo"] - 1.0) < 1e-9
 
 
-def test_zero_small_gas_utilities_bad_puma_raises_without_pumas():
-    """When a PUMA has only small gas utilities and pumas is None, raises ValueError."""
+def test_zero_excluded_gas_utilities_bad_puma_raises_without_pumas():
+    """When a PUMA has only excluded gas utilities and pumas is None, raises ValueError."""
     puma_gas_probs = pl.LazyFrame(
         {
             "puma_id": ["00100"],
@@ -502,13 +586,15 @@ def test_zero_small_gas_utilities_bad_puma_raises_without_pumas():
         }
     )
     with pytest.raises(ValueError) as exc_info:
-        _zero_small_gas_utilities_and_renormalize(puma_gas_probs, pumas=None)
+        zero_excluded_gas_utilities_and_renormalize(
+            puma_gas_probs, excluded_utilities=EXCLUDED_GAS_UTILITIES, pumas=None
+        )
     assert "00100" in str(exc_info.value)
-    assert "small gas utilities" in str(exc_info.value).lower()
+    assert "excluded gas utilities" in str(exc_info.value).lower()
 
 
-def test_zero_small_gas_utilities_bad_puma_uses_donor_with_pumas():
-    """When a PUMA has only small gas utils, donor PUMA distribution is used (adjacent)."""
+def test_zero_excluded_gas_utilities_bad_puma_uses_donor_with_pumas():
+    """When a PUMA has only excluded gas utils, donor PUMA distribution is used (adjacent)."""
     # Two PUMAs: 00100 only stlaw (bad), 00200 has nyseg (good). Geometries touch.
     puma_gas_probs = pl.LazyFrame(
         {
@@ -524,8 +610,11 @@ def test_zero_small_gas_utilities_bad_puma_uses_donor_with_pumas():
             "geometry": [box(0, 0, 1, 1), box(1, 0, 2, 1)],
         }
     )
-    out = _zero_small_gas_utilities_and_renormalize(
-        puma_gas_probs, pumas=pumas, puma_and_heating_fuel=None
+    out = zero_excluded_gas_utilities_and_renormalize(
+        puma_gas_probs,
+        excluded_utilities=EXCLUDED_GAS_UTILITIES,
+        pumas=pumas,
+        puma_and_heating_fuel=None,
     )
     df = cast(pl.DataFrame, out.collect())
     # 00100 should get donor 00200's row: stlaw=0, nyseg=1
