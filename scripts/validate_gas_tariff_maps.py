@@ -25,7 +25,7 @@ UPGRADE = "00"
 S3_BASE = f"s3://data.sb/nrel/resstock/{RELEASE}"
 
 # Mirror gas_tariff_mapper.py
-SMALL_GAS_UTILITIES = frozenset(
+EXCLUDED_GAS_UTILITIES = frozenset(
     {"bath", "chautauqua", "corning", "fillmore", "reserve", "stlaw"}
 )
 
@@ -113,7 +113,7 @@ def expected_tariff_key_expr() -> pl.Expr:
         .then(gas_utility_col)
         .when(gas_utility_col.is_null())
         .then(pl.lit("null_gas_tariff"))
-        .when(gas_utility_col.is_in(list(SMALL_GAS_UTILITIES)))
+        .when(gas_utility_col.is_in(list(EXCLUDED_GAS_UTILITIES)))
         .then(pl.lit("null_gas_tariff"))
         .otherwise(gas_utility_col)
         .fill_null(gas_utility_col)

@@ -35,7 +35,7 @@ Adding a new state
     to resolve std_name to the exact dropdown string. Only set for utilities
     whose gas tariffs are fetched from Rate Acuity.
 
-3. Create or extend assign_utility_<state> in data/resstock/ to map building
+3. Create or extend assign_utility_<state> in data/resstock/utility/ to map building
    locations to std_name, using ny_open_data_state_names (or your state's
    equivalent) and get_ny_open_data_to_std_name() / a state-specific lookup.
 

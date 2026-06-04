@@ -1,6 +1,9 @@
 # RI heat pump rate design tasks.
 # Thin wrapper: sets state defaults, loads state.env, imports shared recipes.
 #
+# State-specific ResStock data pipeline shortcuts are in the
+# "RI-only: ResStock data pipeline shortcuts" section below.
+#
 # Usage (from rate_design/hp_rates/):
 #   just -f ri/Justfile all-pre
 #   just -f ri/Justfile run-all-sequential
@@ -13,6 +16,83 @@ state := env_var_or_default('STATE', 'ri')
 utility := env_var_or_default('UTILITY', 'rie')
 
 import '../Justfile'
+
+# =============================================================================
+# RI-only: ResStock data pipeline shortcuts
+#
+# Thin wrappers around the state-generic recipes in data/resstock/Justfile,
+# pinned to RI-specific defaults.  Config values are read via the constants
+# module CLI so they stay in sync with config.yaml and state_configs.yaml.
+# =============================================================================
+
+[private]
+_resstock_jf := path_repo + "/data/resstock/Justfile"
+
+# ResStock config values needed for standalone recipes.
+[private]
+_rs_s3 := `uv run python -m data.resstock.constants paths.s3_dir`
+[private]
+_rs_release := `uv run python -m data.resstock.constants resstock_release`
+[private]
+_rs_release_sb := `uv run python -m data.resstock.constants resstock_release_sb`
+
+# ── Full pipeline ─────────────────────────────────────────────────────────────
+
+# Run the full RI _sb release pipeline for upgrades 0 and 2.
+# add-vulnerability-columns defaults to False for RI via state_configs.yaml.
+resstock-run-pipeline *args:
+    just -f "{{ _resstock_jf }}" run-pipeline RI --upgrade-ids 0 2 {{ args }}
+
+# ── Fetch ─────────────────────────────────────────────────────────────────────
+
+# Download RI ResStock data from NREL.
+resstock-fetch *args:
+    just -f "{{ _resstock_jf }}" fetch RI {{ args }}
+
+# ── Copy / clone ──────────────────────────────────────────────────────────────
+
+# Copy RI data from standard to _sb release (upgrades 00 and 02).
+resstock-copy upgrade_ids="00 02" file_types="metadata metadata_utility load_curve_hourly":
+    just -f "{{ _resstock_jf }}" copy-resstock-data {{ _rs_release }} {{ _rs_release_sb }} RI "{{ upgrade_ids }}" "{{ file_types }}"
+
+# ── Metadata transforms ──────────────────────────────────────────────────────
+
+# Full RI metadata pipeline: HP → heating type → natgas → utility assignment.
+# RI does not add vulnerability columns (add_vulnerability_columns=false).
+resstock-prepare-metadata:
+    just -f "{{ _resstock_jf }}" identify-all-metadata RI
+    just resstock-assign-utility
+
+# ── Utility assignment ────────────────────────────────────────────────────────
+
+# Assign electric utilities to RI ResStock buildings (upgrade 00 only).
+# RI uses a rule-based (non-GIS) assignment; no polygon files needed.
+resstock-assign-utility:
+    uv run python "{{ path_repo }}/data/resstock/utility/assign_utility_ri.py" \
+        --input_metadata_dir "{{ _rs_s3 }}/{{ _rs_release }}/metadata/state=RI/upgrade=00/" \
+        --input_metadata_filename "metadata-sb.parquet" \
+        --output_metadata_dir "{{ _rs_s3 }}/{{ _rs_release }}/metadata_utility/state=RI/" \
+        --output_utility_assignment_filename "utility_assignment.parquet"
+
+# ── Load curve modifications ─────────────────────────────────────────────────
+
+# Run non-HP load approximation for RI (upgrade 02, k=15).
+resstock-approximate-non-hp-load:
+    just -f "{{ _resstock_jf }}" approximate-non-hp-load RI 02 {{ _rs_release }} {{ _rs_release_sb }} 15 True True
+
+# Apply MF non-HVAC electricity adjustment for RI (upgrades 00 and 02).
+resstock-adjust-mf-electricity:
+    just -f "{{ _resstock_jf }}" adjust-mf-electricity RI {{ _rs_release }} {{ _rs_release_sb }} "00 02"
+
+# ── Monthly loads ─────────────────────────────────────────────────────────────
+
+# Aggregate RI _sb hourly load curves into monthly (upgrades 00 and 02).
+resstock-add-monthly-loads:
+    just -f "{{ _resstock_jf }}" add-monthly-loads RI "00 02"
+
+# Upload RI monthly load curves to S3 (upgrades 00 and 02).
+resstock-upload-monthly-loads:
+    just -f "{{ _resstock_jf }}" upload-monthly-loads RI "00 02"
 
 # =============================================================================
 # RI-only: gas tariff fetch

@@ -17,13 +17,13 @@ STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 # assigning null_gas_tariff rather than changing utility assignment (e.g. re-running
 # assign_utility_ny to exclude or reassign them), which is simpler and avoids touching
 # polygon/overlap logic. CAIRO then uses the null tariff for these buildings.
-SMALL_GAS_UTILITIES = frozenset(
+EXCLUDED_GAS_UTILITIES = frozenset(
     {"bath", "chautauqua", "corning", "fillmore", "reserve", "stlaw"}
 )
-# Gas utilities we expect in assignment (IOUs we model + small + electric-only that may appear).
+# Gas utilities we expect in assignment (IOUs we model + excluded + electric-only that may appear).
 # If we see any other gas_utility value, we log a warning so new polygon data or new utilities
 # don't slip through unnoticed.
-EXPECTED_GAS_UTILITIES = SMALL_GAS_UTILITIES | {
+EXPECTED_GAS_UTILITIES = EXCLUDED_GAS_UTILITIES | {
     "coned",
     "kedny",
     "kedli",
@@ -115,7 +115,7 @@ def _tariff_key_expr() -> pl.Expr:
         ### Null value in the gas_utility column gets assigned to "null_gas_tariff" ####
         ### Small utilities (bath, chautauqua, corning, fillmore, reserve, stlaw): no tariffs, ###
         ### exclude from analysis; assign null_gas_tariff so we don't need placeholder tariffs. ###
-        .when(gas_utility_col.is_in(list(SMALL_GAS_UTILITIES)))
+        .when(gas_utility_col.is_in(list(EXCLUDED_GAS_UTILITIES)))
         .then(pl.lit("null_gas_tariff"))
         ### Small utilities ###
         # Default: passthrough utility code for any other gas utility
@@ -327,7 +327,7 @@ if __name__ == "__main__":
     else:
         warnings.warn(
             "metadata has no sb.electric_utility/sb.gas_utility columns; using synthetic data. "
-            "Run assign_utility_ny (data/resstock/) and point --metadata_path to metadata_utility for real data.",
+            "Run assign_utility_ny (data/resstock/utility/) and point --metadata_path to metadata_utility for real data.",
             DeprecationWarning,
             stacklevel=2,
         )

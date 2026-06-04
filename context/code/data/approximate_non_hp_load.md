@@ -68,6 +68,12 @@ For each replace group (electricity, heating/cooling load, natural_gas, fuel_oil
 - `_validate_one_building_load` / `_validate_one_building_energy_consumption`: load real + neighbor curves, compute RMSE/peak/diff metrics.
 - `_validate_nearest_neighbors_building_load` / `_validate_nearest_neighbors_heating_cooling_energy_consumption`: run validation over a map of bldg_id → neighbor list and print aggregates.
 
+## Invocation
+
+**Recommended:** This step is orchestrated via `data/resstock/main.py` as step 2c-i (`_approximate_non_hp_load` function). It runs on local EBS after the raw-to-`_sb` clone and utility assignment, using `k=15` and `include_cooling=False`. See `context/code/data/resstock_sb_release_pipeline_main_py.md`.
+
+**Legacy Justfile recipe:** `approximate-non-hp-load` in `data/resstock/Justfile` calls `utils/pre/approximate_non_hp_load.py` directly with S3 paths. Still available for debugging or partial re-runs.
+
 ## **main**
 
 When run as a script, loads metadata and paths from S3 (NY, upgrade 02, `res_2024_amy2018_2`), and can:
