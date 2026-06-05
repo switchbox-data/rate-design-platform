@@ -8,17 +8,35 @@ in the state-specific modules (``assign_utility_ny.py``, etc.).
 This module is intentionally *below* the orchestration layer
 (``assign_utility.py``) and the state-specific modules in the import
 hierarchy, so there are no circular-import concerns.
+
+In addition to the probability/assignment helpers, this module provides
+state-generic *fetch and cache* utilities for GIS data (PUMA shapefiles,
+HIFLD utility boundaries).  State-specific fetch scripts (e.g.
+``fetch_utility_boundary_md.py``) import these and pass state-specific
+constants (state code, HIFLD URLs, CRS, etc.).
 """
 
 from __future__ import annotations
 
+import io
+import subprocess
+import time
+from collections.abc import Callable
+from datetime import date
+from pathlib import Path
 from typing import cast
 
 import geopandas as gpd
+import httpx
 import numpy as np
 import pandas as pd
 import polars as pl
+import yaml
 from cloudpathlib import S3Path
+from pygris import pumas as pygris_pumas
+from ruamel.yaml import YAML
+
+from data.resstock.constants import CONFIG_PATH, STATE_CONFIGS_PATH
 
 
 # ---------------------------------------------------------------------------
@@ -51,10 +69,14 @@ def read_csv_to_gdf_from_s3(
     """
     df = pd.read_csv(str(s3_path), low_memory=False)
 
+    # Both casings appear in practice: NY source CSVs use COMP_FULL (uppercase);
+    # HIFLD-fetched CSVs written by write_utilities_csv use comp_full (lowercase).
+    _GAS_NAME_COL = "COMP_FULL" if "COMP_FULL" in df.columns else "comp_full"
+
     if utility_type == "electric":
         string_columns = {"comp_full", "utility", "state_name", "std_name"}
     elif utility_type == "gas":
-        string_columns = {"COMP_FULL", "utility", "state_name", "std_name"}
+        string_columns = {_GAS_NAME_COL, "utility", "state_name", "std_name"}
     else:
         string_columns: set[str] = set()
 
@@ -77,7 +99,7 @@ def read_csv_to_gdf_from_s3(
     if utility_type == "electric":
         gdf = cast(gpd.GeoDataFrame, gdf.rename(columns={"comp_full": "utility"}))
     elif utility_type == "gas":
-        gdf = cast(gpd.GeoDataFrame, gdf.rename(columns={"COMP_FULL": "utility"}))
+        gdf = cast(gpd.GeoDataFrame, gdf.rename(columns={_GAS_NAME_COL: "utility"}))
 
     return gdf
 
@@ -847,3 +869,375 @@ def create_hh_utilities(
     )
 
     return building_utilities
+
+
+# ---------------------------------------------------------------------------
+# Configuration loaders
+# ---------------------------------------------------------------------------
+
+_CONFIG = yaml.safe_load(CONFIG_PATH.open())
+S3_PUMAS_DIR: str = _CONFIG["paths"]["s3_pumas_dir"]
+S3_GIS_DIR: str = _CONFIG["paths"]["s3_gis_dir"]
+
+
+# ---------------------------------------------------------------------------
+# HIFLD source URLs
+# ---------------------------------------------------------------------------
+#
+# The DHS HIFLD Open portal was shut down on 2025-08-26.  Datasets are
+# mirrored by multiple hosts; callers try them in order.  Data vintage: 2022.
+# These endpoints accept a STATE filter via paginate_arcgis_geojson, so they
+# are fully state-generic.
+
+# Electric Retail Service Territories
+HIFLD_ELEC_URLS: list[str] = [
+    (
+        "https://maps.nccs.nasa.gov/mapping/rest/services/"
+        "hifld_open/energy/MapServer/26/query"
+    ),
+    (
+        "https://services3.arcgis.com/OYP7N6mAJJCyH6hd/ArcGIS/rest/services/"
+        "Electric_Retail_Service_Territories_HIFLD/FeatureServer/0/query"
+    ),
+]
+
+# Natural Gas LDC Service Territories
+HIFLD_GAS_URLS: list[str] = [
+    (
+        "https://maps.nccs.nasa.gov/mapping/rest/services/"
+        "hifld_open/energy/MapServer/29/query"
+    ),
+]
+
+# DataLumos mirror for the HIFLD gas dataset (Cloudflare-protected; manual
+# download only).  The ZIP contains a single shapefile covering all states.
+HIFLD_GAS_DATALUMOS_URL: str = (
+    "https://www.datalumos.org/datalumos/project/240245/version/V1/view"
+)
+HIFLD_GAS_ZIP_SHP: str = "NG_Service_Terr.shp"
+# Expected local path for the manually downloaded DataLumos ZIP.
+HIFLD_GAS_DATALUMOS_ZIP: Path = Path(
+    "data/resstock/utility/zips/natural-gas-service-territories-shapefile.zip"
+)
+
+
+# ---------------------------------------------------------------------------
+# HTTP / retry / ArcGIS pagination
+# ---------------------------------------------------------------------------
+
+_RETRY_ATTEMPTS = 3
+_RETRY_BACKOFF = [1.0, 3.0, 9.0]
+
+
+def get_with_retry(url: str, params: dict) -> httpx.Response:
+    """GET ``url`` with ``params``, retrying on network errors and 5xx."""
+    last_exc: Exception | None = None
+    for attempt in range(_RETRY_ATTEMPTS):
+        try:
+            resp = httpx.get(url, params=params, timeout=120)
+            if resp.status_code < 500:
+                resp.raise_for_status()
+                return resp
+            print(
+                f"    [{attempt + 1}/{_RETRY_ATTEMPTS}] HTTP {resp.status_code} — "
+                f"retrying in {_RETRY_BACKOFF[attempt]:.0f}s ...",
+                flush=True,
+            )
+            last_exc = httpx.HTTPStatusError(
+                f"HTTP {resp.status_code}", request=resp.request, response=resp
+            )
+        except (httpx.TransportError, httpx.TimeoutException) as exc:
+            print(
+                f"    [{attempt + 1}/{_RETRY_ATTEMPTS}] {exc} — "
+                f"retrying in {_RETRY_BACKOFF[attempt]:.0f}s ...",
+                flush=True,
+            )
+            last_exc = exc
+        if attempt < _RETRY_ATTEMPTS - 1:
+            time.sleep(_RETRY_BACKOFF[attempt])
+    raise RuntimeError(f"All {_RETRY_ATTEMPTS} attempts failed for {url}") from last_exc
+
+
+def paginate_arcgis_geojson(
+    base_url: str,
+    state: str,
+    record_count: int = 1000,
+) -> gpd.GeoDataFrame:
+    """Fetch all features for ``state`` from an ArcGIS query endpoint.
+
+    Pages through results using ``resultOffset`` / ``resultRecordCount`` until
+    a page returns fewer features than ``record_count``.
+    """
+    frames: list[gpd.GeoDataFrame] = []
+    offset = 0
+    while True:
+        params: dict[str, str | int] = {
+            "where": f"STATE='{state}'",
+            "outFields": "*",
+            "outSR": "4326",
+            "f": "geojson",
+            "resultOffset": offset,
+            "resultRecordCount": record_count,
+        }
+        resp = get_with_retry(base_url, params)
+        chunk = gpd.read_file(io.BytesIO(resp.content))
+        n = len(chunk)
+        print(f"    Page offset={offset}: {n} features retrieved.", flush=True)
+        if n > 0:
+            frames.append(chunk)
+        if n < record_count:
+            break
+        offset += record_count
+
+    if not frames:
+        raise RuntimeError(f"No features returned for STATE='{state}' from {base_url}")
+    if len(frames) == 1:
+        return frames[0]
+    return gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs=frames[0].crs)
+
+
+def fetch_geojson_with_fallback(
+    urls: list[str],
+    state: str,
+    manual_fallback: str | None = None,
+) -> gpd.GeoDataFrame:
+    """Try each ArcGIS URL in order; return from the first that succeeds."""
+    errors: list[tuple[str, Exception]] = []
+    for url in urls:
+        print(f"    Trying: {url}", flush=True)
+        try:
+            gdf = paginate_arcgis_geojson(url, state)
+            print(f"    ✓ Success ({len(gdf)} features).", flush=True)
+            return gdf
+        except Exception as exc:  # noqa: BLE001
+            print(f"    ✗ Failed: {exc}", flush=True)
+            errors.append((url, exc))
+
+    failed = "\n".join(f"  {u}: {e}" for u, e in errors)
+    extra = f"\n{manual_fallback}" if manual_fallback else ""
+    raise RuntimeError(f"All {len(urls)} endpoints failed:\n{failed}{extra}")
+
+
+# ---------------------------------------------------------------------------
+# S3 helpers
+# ---------------------------------------------------------------------------
+
+
+def s3_cp(local: Path, s3_dest: str) -> None:
+    """Copy a single local file to S3."""
+    rc = subprocess.run(
+        ["aws", "s3", "cp", str(local), s3_dest], check=False
+    ).returncode
+    if rc != 0:
+        print(
+            f"  WARNING: aws s3 cp exited with code {rc} for {local.name}.", flush=True
+        )
+
+
+def s3_sync(local_dir: Path, s3_dest: str) -> None:
+    """Sync a local directory to S3."""
+    rc = subprocess.run(
+        ["aws", "s3", "sync", str(local_dir), s3_dest], check=False
+    ).returncode
+    if rc != 0:
+        print(
+            f"  WARNING: aws s3 sync exited with code {rc} for {local_dir}.", flush=True
+        )
+
+
+# ---------------------------------------------------------------------------
+# PUMA loading (pygris with local cache)
+# ---------------------------------------------------------------------------
+
+
+def load_pumas(
+    state: str,
+    puma_year: int,
+    cache_dir: Path,
+) -> gpd.GeoDataFrame:
+    """Load Census PUMA boundaries for ``state``, caching locally and on S3.
+
+    Checks ``cache_dir/pumas/<state_lower>_pumas.shp`` first.  If absent,
+    fetches via ``pygris`` (2010-definition cartographic boundaries for
+    ``puma_year``), saves locally, and syncs to S3.
+
+    Args:
+        state: 2-letter state abbreviation (e.g. ``"MD"``).
+        puma_year: TIGER/Line vintage year (e.g. ``2019`` for 2010-def PUMAs).
+        cache_dir: Local directory; a ``pumas/`` subdirectory is created.
+    """
+    puma_dir = cache_dir / "pumas"
+    local_shp = puma_dir / f"{state.lower()}_pumas.shp"
+
+    if local_shp.exists():
+        print(f"  Re-using cached {state} PUMA shapefile: {local_shp}", flush=True)
+        pumas = gpd.read_file(str(local_shp))
+    else:
+        print(
+            f"  Fetching {state} PUMA boundaries via pygris (year={puma_year}) ...",
+            flush=True,
+        )
+        pumas = cast(
+            gpd.GeoDataFrame,
+            pygris_pumas(state=state, year=puma_year, cb=True),
+        )
+        puma_dir.mkdir(parents=True, exist_ok=True)
+        pumas.to_file(local_shp)
+        print(f"    Saved → {local_shp}", flush=True)
+
+        puma_s3 = f"{S3_PUMAS_DIR.rstrip('/')}/state={state}/"
+        print(f"    Syncing PUMA shapefile → {puma_s3}", flush=True)
+        s3_sync(puma_dir, puma_s3)
+
+    print(f"    {len(pumas)} PUMA polygons loaded (CRS: {pumas.crs}).", flush=True)
+    return pumas
+
+
+# ---------------------------------------------------------------------------
+# Utility boundary CSV loading (with HIFLD fetch + local cache)
+# ---------------------------------------------------------------------------
+
+
+def load_utility_boundaries(
+    state: str,
+    utility_type: str,
+    cache_dir: Path,
+    cached_filename: str,
+    hifld_urls: list[str],
+    hifld_fallback_fn: Callable[[], gpd.GeoDataFrame] | None = None,
+) -> gpd.GeoDataFrame:
+    """Load utility boundary polygons, fetching from HIFLD if not cached.
+
+    Checks ``cache_dir/<cached_filename>`` first.  If ``cached_filename`` is
+    empty or the file doesn't exist, fetches from HIFLD mirrors, writes a
+    dated WKT CSV, uploads to S3, and returns the GeoDataFrame.
+
+    Args:
+        state: 2-letter state abbreviation.
+        utility_type: ``"electric"`` or ``"gas"`` (used in log messages and
+            the generated filename).
+        cache_dir: Local directory for utility CSV files.
+        cached_filename: Filename from state_configs.yaml (may be empty).
+        hifld_urls: Ordered list of ArcGIS REST API URLs to try.
+        hifld_fallback_fn: Optional callable that returns a GeoDataFrame if
+            all HIFLD URLs fail (e.g. DataLumos ZIP reader for gas).
+
+    Returns:
+        GeoDataFrame with utility boundary polygons.
+    """
+    if cached_filename and (cache_dir / cached_filename).exists():
+        print(
+            f"  Re-using cached {state} {utility_type} utilities: {cached_filename}",
+            flush=True,
+        )
+        return load_csv_as_gdf(cache_dir / cached_filename)
+
+    if cached_filename:
+        print(
+            f"  Cached {state} {utility_type} filename {cached_filename!r} not found "
+            "locally — fetching from HIFLD ...",
+            flush=True,
+        )
+    else:
+        print(
+            f"  Fetching {state} {utility_type} utility territories from HIFLD ...",
+            flush=True,
+        )
+
+    try:
+        gdf = fetch_geojson_with_fallback(hifld_urls, state)
+    except RuntimeError:
+        if hifld_fallback_fn is not None:
+            gdf = hifld_fallback_fn()
+        else:
+            raise
+
+    today = date.today().strftime("%Y%m%d")
+    csv_name = f"{state.lower()}_{utility_type}_utilities_{today}.csv"
+    csv_path = cache_dir / csv_name
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    write_utilities_csv(gdf, csv_path, label=f"{state} {utility_type} utilities")
+
+    s3_dest = f"{S3_GIS_DIR.rstrip('/')}/{csv_name}"
+    print(f"    Uploading → {s3_dest}", flush=True)
+    s3_cp(csv_path, s3_dest)
+
+    return gdf
+
+
+def load_csv_as_gdf(csv_path: Path) -> gpd.GeoDataFrame:
+    """Load a WKT-geometry CSV as a GeoDataFrame (EPSG:4326)."""
+    df = pd.read_csv(str(csv_path))
+    gdf = gpd.GeoDataFrame(
+        df,
+        geometry=gpd.GeoSeries.from_wkt(df["the_geom"]),
+        crs="EPSG:4326",
+    )
+    return cast(gpd.GeoDataFrame, gdf.drop(columns="the_geom"))
+
+
+def write_utilities_csv(
+    utilities: gpd.GeoDataFrame, out_path: Path, label: str = "utilities"
+) -> None:
+    """Write a utility GeoDataFrame as a WKT-geometry CSV.
+
+    Column layout matches what ``read_csv_to_gdf_from_s3`` expects:
+    ``comp_full`` (utility name) and ``the_geom`` (WKT in EPSG:4326).
+    """
+    df = utilities.copy().to_crs(epsg=4326)
+    df["the_geom"] = df.geometry.to_wkt()
+    df = df.drop(columns="geometry")
+    if "NAME" in df.columns and "comp_full" not in df.columns:
+        df = df.rename(columns={"NAME": "comp_full"})
+    df.to_csv(str(out_path), index=False)
+    print(f"    {label} CSV: {out_path} ({len(df)} rows).", flush=True)
+
+
+# ---------------------------------------------------------------------------
+# State config write-back
+# ---------------------------------------------------------------------------
+
+
+def update_state_config_filenames(
+    state: str,
+    electric_filename: str | None = None,
+    gas_filename: str | None = None,
+) -> None:
+    """Write updated electric/gas polygon filenames into ``state_configs.yaml``.
+
+    Uses ``ruamel.yaml`` to preserve existing comments and formatting.
+    Only updates the fields that are provided (non-None).
+    """
+    ry = YAML()
+    ry.preserve_quotes = True
+    with STATE_CONFIGS_PATH.open() as f:
+        doc = ry.load(f)
+
+    kwargs = doc[state]["utility_assignment"]["kwargs"]
+    if electric_filename is not None:
+        kwargs["electric_poly_filename"] = electric_filename
+    if gas_filename is not None:
+        kwargs["gas_poly_filename"] = gas_filename
+
+    with STATE_CONFIGS_PATH.open("w") as f:
+        ry.dump(doc, f)
+
+    updates = []
+    if electric_filename is not None:
+        updates.append(f"electric={electric_filename!r}")
+    if gas_filename is not None:
+        updates.append(f"gas={gas_filename!r}")
+    print(f"  Updated state_configs.yaml [{state}]: {', '.join(updates)}", flush=True)
+
+
+def latest_utility_csv_name(
+    cache_dir: Path, state: str, utility_type: str
+) -> str | None:
+    """Return the name of the most recently written utility CSV in ``cache_dir``.
+
+    Matches files of the form ``<state_lower>_<utility_type>_utilities_YYYYMMDD.csv``.
+    Returns ``None`` if no matching file exists.
+    """
+    prefix = f"{state.lower()}_{utility_type}_utilities_"
+    matches = sorted(cache_dir.glob(f"{prefix}*.csv"), reverse=True)
+    return matches[0].name if matches else None

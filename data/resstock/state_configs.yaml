@@ -57,11 +57,24 @@ RI:
     module: data.resstock.utility.assign_utility_ri
 MD:
   state_fips: "24"
-  # Utility assignment not yet implemented for MD.  Omitting the
-  # utility_assignment key intentionally keeps MD out of
-  # SUPPORTED_UTILITY_STATES so the pipeline won't try to assign utilities.
   add_vulnerability_columns: false
+  utility_assignment:
+    module: data.resstock.utility.assign_utility_md
+    kwargs:
+      # NAD83 / Maryland State Plane (feet); used for PUMA overlap area calculations.
+      state_crs: 2248
+      # Census TIGER/Line PUMA shapefile vintage used for GIS-based utility
+      # assignment.  Must match the PUMA definitions ResStock uses (2010-def
+      # for res_2024_amy2018_2 — verified: all 44 MD PUMAs match pygris year=2019).
+      puma_year: 2019
+      # Utility polygon CSV filenames in the GIS directory (--path-s3-gis-dir).
+      # These are written by assign_utility_md.load_electric/gas_utilities() on
+      # first fetch.  Override via CLI if needed.
+      electric_poly_filename: "md_electric_utilities_20260605.csv"
+      gas_poly_filename: "md_gas_utilities_20260605.csv"
 CT:
   state_fips: "09"
-  # Utility assignment not yet implemented for CT.  Same as MD above.
+  # Utility assignment not yet implemented for CT.  Omitting the
+  # utility_assignment key intentionally keeps CT out of
+  # SUPPORTED_UTILITY_STATES so the pipeline won't try to assign utilities.
   add_vulnerability_columns: false
