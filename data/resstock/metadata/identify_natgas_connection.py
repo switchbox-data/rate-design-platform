@@ -38,30 +38,34 @@ def identify_natgas_connection(
         pl.col(NATGAS_CONSUMPTION_COLUMN).gt(0).alias("has_natgas_connection"),
     )
 
-    # Inner join: every metadata bldg_id must appear in load_curve_annual.
-    result = metadata.join(natgas_from_load, on="bldg_id", how="inner").with_columns(
-        pl.col("has_natgas_connection").fill_null(False)
-    )
-
-    # Check row counts in one collect (ensures load_curve_annual has all metadata bldg_ids).
-    counts = cast(
+    # Guard against duplicates in load_curve_annual: a duplicate bldg_id would
+    # silently fan out metadata rows during the join below.  Missing bldg_ids are
+    # intentional in sample-mode runs (only N buildings were downloaded) and are
+    # handled correctly by the left join + fill_null(False) that follows.
+    n_lca_unique = cast(
         pl.DataFrame,
-        metadata.select(pl.len().alias("n_metadata"))
-        .join(result.select(pl.len().alias("n_result")), how="cross")
-        .collect(),
-    )
-    n_metadata, n_result = counts.row(0)
-    if n_result != n_metadata:
+        natgas_from_load.select(pl.col("bldg_id").n_unique()).collect(),
+    ).item()
+    n_lca_total = cast(pl.DataFrame, natgas_from_load.select(pl.len()).collect()).item()
+    if n_lca_total != n_lca_unique:
         raise ValueError(
-            f"Row count mismatch: metadata has {n_metadata} rows, "
-            f"but result has {n_result} rows. "
-            "load_curve_annual must contain every bldg_id in metadata."
+            f"Row count mismatch: load_curve_annual has {n_lca_total} rows but only "
+            f"{n_lca_unique} unique bldg_ids (duplicates detected)."
         )
 
-    # Sanity check: heats_with_natgas=True => must have positive natural gas consumption
+    # Left join: buildings not present in load_curve_annual (e.g. sample runs) are
+    # retained with has_natgas_connection = null before fill_null below.
+    result = metadata.join(natgas_from_load, on="bldg_id", how="left")
+
+    # Sanity check: among buildings that DO have load curve data (non-null),
+    # any building that heats with natgas must have positive natgas consumption.
     n_violations = cast(
         pl.DataFrame,
-        result.filter(pl.col("heats_with_natgas") & ~pl.col("has_natgas_connection"))
+        result.filter(
+            pl.col("has_natgas_connection").is_not_null()
+            & pl.col("heats_with_natgas")
+            & ~pl.col("has_natgas_connection")
+        )
         .select(pl.len())
         .collect(),
     ).item()
@@ -70,7 +74,8 @@ def identify_natgas_connection(
             "Sanity check failed: If a bldg id has heats_with_natgas=True, then it must have positive natural gas consumption"
         )
 
-    return result
+    # Buildings with no load curve data default to no natgas connection.
+    return result.with_columns(pl.col("has_natgas_connection").fill_null(False))
 
 
 if __name__ == "__main__":

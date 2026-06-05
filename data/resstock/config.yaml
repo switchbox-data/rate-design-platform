@@ -1,0 +1,41 @@
+# ResStock pipeline defaults.
+#
+# Single source of truth for the fetch/modify/upload pipeline.
+# Read by nrel/fetch_resstock_data.py, main.py, and the Justfile.
+# Update here when switching to a new ResStock release or adding upgrade IDs.
+resstock:
+  release_year: 2024
+  weather_file: amy2018
+  release_version: 2
+  upgrade_ids:
+    - "0"
+    - "1"
+    - "2"
+    - "3"
+    - "4"
+    - "5"
+  # Subset of upgrade_ids that receive the MF non-HVAC electricity adjustment.
+  # Typically the baseline (00) and the heat-pump upgrade (02).
+  # Update here when switching to a release with different upgrade numbering.
+  mf_adj_upgrade_ids:
+    - "00"
+    - "02"
+  # Upgrade that receives the non-HP load approximation (k-nearest-neighbor
+  # HVAC substitution). This is the heat-pump upgrade in the ResStock release.
+  # Update here when switching to a release with different upgrade numbering.
+  approx_upgrade_id: "02"
+  # Upgrade used as the input for utility assignment. Assignment is per-state
+  # (not per-upgrade), so only one upgrade's metadata is needed as input.
+  utility_assign_upgrade_id: "00"
+  file_types:
+    - metadata
+    - load_curve_hourly
+    - load_curve_annual
+paths:
+  output_dir: /ebs/data/nrel/resstock
+  s3_dir: s3://data.sb/nrel/resstock
+  s3_pums_dir: s3://data.sb/census/pums
+  s3_gis_dir: s3://data.sb/gis/utility_boundaries/
+pums:
+  survey: acs5
+  year: "2021"

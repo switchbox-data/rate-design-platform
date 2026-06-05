@@ -101,11 +101,13 @@ def _copy_local_dir(
     dest_dir: Path,
     *,
     include_suffixes: list[str] | None = None,
+    max_workers: int = 128,
 ) -> int:
     """Copy all files from source_dir to dest_dir (local). Creates dest parents as needed."""
     if not source_dir.is_dir():
         return 0
-    count = 0
+
+    pairs: list[tuple[Path, Path]] = []
     for src_file in source_dir.rglob("*"):
         if not src_file.is_file():
             continue
@@ -117,11 +119,20 @@ def _copy_local_dir(
             rel = src_file.relative_to(source_dir)
         except ValueError:
             continue
-        dest_file = dest_dir / rel
-        dest_file.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src_file, dest_file)
-        count += 1
-    return count
+        pairs.append((src_file, dest_dir / rel))
+
+    # Pre-create all destination directories before launching threads to avoid
+    # races on mkdir.
+    for _, dst_file in pairs:
+        dst_file.parent.mkdir(parents=True, exist_ok=True)
+
+    def copy_one(args: tuple[Path, Path]) -> None:
+        shutil.copyfile(args[0], args[1])
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        list(executor.map(copy_one, pairs))
+
+    return len(pairs)
 
 
 def _copy_local_resstock_prefix(
@@ -196,6 +207,57 @@ def copy_resstock_data(
             upgrade_id,
             include_suffixes=metadata_only_sb,
         )
+
+
+def clone_release(
+    path_raw: Path,
+    path_sb: Path,
+    states: list[str],
+    upgrade_ids: list[str],
+    file_types: list[str],
+) -> int:
+    """Clone a set of file types from the raw release directory into the _sb release directory.
+
+    Iterates over every (file_type, state, upgrade_id) combination and calls
+    ``copy_dir`` for each source directory that exists.  Prints per-combination
+    progress and returns the total number of files copied.
+    """
+    print(
+        f"Cloning {path_raw} → {path_sb} (states={states}, file_types={file_types})...",
+        flush=True,
+    )
+
+    combos = [
+        (ft, s, uid.zfill(2))
+        for ft in file_types
+        for s in states
+        for uid in upgrade_ids
+    ]
+    total_combos = len(combos)
+
+    n_copied = 0
+    for i, (file_type, state, upgrade_id_padded) in enumerate(combos, start=1):
+        src = path_raw / file_type / f"state={state}" / f"upgrade={upgrade_id_padded}"
+        dst = path_sb / file_type / f"state={state}" / f"upgrade={upgrade_id_padded}"
+        if not src.is_dir():
+            print(
+                f"  [{i}/{total_combos}] {file_type}/state={state}/upgrade={upgrade_id_padded}: "
+                f"source not found, skipping.",
+                flush=True,
+            )
+            continue
+        n_src = sum(1 for _ in src.rglob("*") if _.is_file())
+        print(
+            f"  [{i}/{total_combos}] Copying {file_type}/state={state}/upgrade={upgrade_id_padded} "
+            f"({n_src:,} files)...",
+            flush=True,
+        )
+        n = copy_dir(src, dst)
+        n_copied += n
+        print(f"    Done: {n:,} files copied.", flush=True)
+
+    print(f"  Clone complete: {n_copied:,} files total.", flush=True)
+    return n_copied
 
 
 if __name__ == "__main__":
