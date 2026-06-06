@@ -112,7 +112,7 @@ just -f data/resstock/Justfile identify-all-metadata <STATE>
 ## 3. Add utility assignment (standard release)
 
 Assign electric and gas utilities to buildings in the **standard** release so that downstream steps and the `sb` copy use utility-aware metadata. Run once for upgrade `00`; the assignments should remain constant across upgrades.
-For NY-specific details on small gas utilities and nearest-neighbor donor behavior, see `context/code/data/ny_utility_assignment_resstock.md`.
+For state-specific details on utility assignment (excluded gas utilities, nearest-neighbor PUMA fill, HIFLD data sources), see `context/code/data/utility_assignment_resstock.md`.
 
 **Via state-specific Justfile:**
 

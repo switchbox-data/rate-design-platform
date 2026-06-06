@@ -1,18 +1,19 @@
 # ResStock utility assignment
 
-How electric and gas utilities are assigned to ResStock buildings — generic architecture, NY-specific implementation, and instructions for adding new states.
+How electric and gas utilities are assigned to ResStock buildings — generic architecture, state-specific implementations (NY, MD, RI), and instructions for adding new states.
 
-**Use when:** Working on utility assignment for any state, adding a new state, excluded gas utility handling, PUMA–utility overlap, or ResStock metadata columns `sb.electric_utility` / `sb.gas_utility`.
+**Use when:** Working on utility assignment for any state, adding a new state, excluded gas utility handling, PUMA–utility overlap, nearest-neighbor PUMA fill, or ResStock metadata columns `sb.electric_utility` / `sb.gas_utility`.
 
 ---
 
 ## Overview
 
-- **Entrypoint:** `assign_utility_ny()` in `data/resstock/utility/assign_utility_ny.py` (and CLI via `assign_utility_ny.py`). This is a thin wrapper that builds the NY utility-name crosswalk and passes NY-specific configuration (utility name map, excluded gas utilities, state CRS) to the generic `create_hh_utilities()` in `data/resstock/utility/utils.py`.
+- **Dispatcher:** `data/resstock/utility/assign_utility.py` — reads `state_configs.yaml`, dynamically imports the state-specific module, and calls its `assign_utility(metadata, **kwargs)` entry point. No `if state == "XX":` branches; adding a config entry and a module is enough.
+- **State modules:** `assign_utility_ny.py` (GIS-based, name crosswalk, excluded utilities), `assign_utility_md.py` (GIS-based, HIFLD names directly, nearest-neighbor PUMA fill), `assign_utility_ri.py` (rule-based, no GIS).
 - **Inputs:** ResStock metadata (with `in.puma`, `in.heating_fuel`, `has_natgas_connection`), electric and gas utility service-territory polygons (CSV with WKT), Census PUMAs (pygris).
 - **Outputs:** Same metadata with `sb.electric_utility` and `sb.gas_utility` added (or overwritten).
 - **Logic:** PUMA–utility overlap → PUMA-level probability tables → per-building sampling (deterministic seed). Electric: every building gets an electric utility. Gas: only buildings with `has_natgas_connection` get a gas utility; others get null.
-- **Generic functions:** `create_hh_utilities()`, `zero_excluded_gas_utilities_and_renormalize()`, `calculate_puma_utility_overlap()`, `calculate_utility_probabilities()`, `calculate_prior_distributions()`, `sample_utility_per_building()`, `print_comparison_summary()`, `puma_id_series_for_join()`, `read_csv_to_gdf_from_s3()` all live in `data/resstock/utility/utils.py` and are state-generic.
+- **Generic functions:** `create_hh_utilities()`, `zero_excluded_gas_utilities_and_renormalize()`, `fill_missing_puma_probabilities()`, `calculate_puma_utility_overlap()`, `calculate_utility_probabilities()`, `calculate_prior_distributions()`, `sample_utility_per_building()`, `print_comparison_summary()`, `puma_id_series_for_join()`, `read_csv_to_gdf_from_s3()` all live in `data/resstock/utility/utils.py` and are state-generic.
 
 ---
 
@@ -63,14 +64,14 @@ After zeroing excluded gas utilities (and optionally replacing bad-PUMA rows wit
 
 ## Invocation and data flow
 
-**Recommended (via main.py):** Utility assignment runs as step 2b inside `data/resstock/main.py` (`_assign_utility` function), immediately after metadata transforms (step 2a) and before load curve modifications. It operates directly on the `_sb` release -- reads `metadata-sb.parquet` from the `_sb` tree (after all metadata transforms have been applied), routes to `assign_utility()` in `data/resstock/utility/assign_utility.py` which loads state configuration from `state_configs.yaml` internally, and writes `metadata_utility/state=NY/utility_assignment.parquet` into the `_sb` tree on local EBS, then uploads immediately to S3 via `aws s3 cp`. No separate copy step is needed. See `context/code/data/resstock_sb_release_pipeline_main_py.md` for details.
+**Recommended (via main.py):** Utility assignment runs as step 2b inside `data/resstock/main.py` (`_assign_utility` function), immediately after metadata transforms (step 2a) and before load curve modifications. It operates directly on the `_sb` release — reads `metadata-sb.parquet` from the `_sb` tree (after all metadata transforms have been applied), routes to `assign_utility()` in `data/resstock/utility/assign_utility.py` which loads state configuration from `state_configs.yaml` internally, and writes `metadata_utility/state=<XX>/utility_assignment.parquet` into the `_sb` tree on local EBS, then uploads immediately to S3 via `aws s3 cp`. No separate copy step is needed. See `context/code/data/resstock_sb_release_pipeline_main_py.md` for details.
 
 **State support:** A state is included in `SUPPORTED_UTILITY_STATES` when its entry in `data/resstock/state_configs.yaml` contains a `utility_assignment` key. The `utility_assignment` section specifies a `module` (dotted Python module path) and optional `kwargs` (passed to the module's `assign_utility()` function). GIS-based states store polygon filenames, CRS, and PUMA year under `kwargs`; CLI flags `--electric-poly-filename` / `--gas-poly-filename` / `--path-s3-gis-dir` override or supplement these at runtime. Pre-flight validation (`validate_utility_assignment_args`) checks that all requested states are in `SUPPORTED_UTILITY_STATES` before any data processing begins.
 
 **Legacy (individual Justfile recipe):** `assign-utility-ny` in `data/resstock/Justfile` downloads NY polygons, then calls `assign_utility_ny.py` directly with S3 paths. In the old workflow this ran on the **standard** release (step 3), and the output was brought into `_sb` by the copy step (step 4). These individual recipes are still available for debugging.
 
 - **Run order (legacy):** After `identify-hp-and-heating-type-all-upgrades-and-natgas-connection` (metadata has `has_natgas_connection` and `in.puma`). See `context/code/data/resstock_data_preparation_run_order.md`.
-- **Output column file:** `metadata_utility/state=NY/utility_assignment.parquet` -- contains only `bldg_id`, `sb.electric_utility`, `sb.gas_utility`.
+- **Output column file:** `metadata_utility/state=<XX>/utility_assignment.parquet` — contains only `bldg_id`, `sb.electric_utility`, `sb.gas_utility`.
 
 ---
 
@@ -82,6 +83,103 @@ After zeroing excluded gas utilities (and optionally replacing bad-PUMA rows wit
 - `puma_id_series_for_join` (PUMACE10, GEOID, missing columns).
 - `zero_excluded_gas_utilities_and_renormalize`: no excluded cols (unchanged); zero + renormalize; bad PUMA with `pumas=None` (raises); bad PUMA with `pumas` and touching geometries (donor used, row sums to 1).
 - Other helpers: `calculate_utility_probabilities`, `calculate_prior_distributions`, `sample_utility_per_building` (determinism, gas only when `has_natgas_connection`, etc.).
+
+---
+
+## Maryland (MD)
+
+MD follows the same GIS-based pattern as NY — PUMA overlap → probability table → per-building sampling — with two key differences: no utility name crosswalk is needed (HIFLD names are used directly), and a **nearest-neighbor PUMA fill** is required because HIFLD boundaries leave 10 of 44 MD PUMAs (~23%) with no electric coverage and a different set of 10 with no gas coverage.
+
+### Data sources
+
+**Electric service territory polygons**
+
+- **Source:** HIFLD Open "Electric Retail Service Territories" feature layer. The DHS HIFLD Open portal was deactivated on **August 26, 2025**; the dataset is now archived at DataLumos: <https://www.datalumos.org/datalumos/project/239091>. Data vintage: September 2024 snapshot.
+- **Fetched by:** `load_utility_boundaries()` in `data/resstock/utility/utils.py`, which tries a list of ArcGIS REST endpoints (`HIFLD_ELEC_URLS`) in order and falls back to DataLumos if all fail.
+- **Cached locally** as a dated WKT CSV (e.g. `md_electric_utilities_20260605.csv`), uploaded to `s3://data.sb/gis/utility_boundaries/`, and the filename is stored in `state_configs.yaml` under `MD.utility_assignment.kwargs.electric_poly_filename`. Subsequent runs read directly from S3 without re-fetching.
+- **MD utilities present** (as of 2024 snapshot, 7 features after filtering to state=MD):
+  - Baltimore Gas & Electric Co (BGE) — 74.6% of buildings
+  - Choptank Electric Cooperative, Inc — 9.6%
+  - Southern Maryland Electric Coop Inc (SMECO) — 7.2%
+  - Hagerstown Light Department — 4.6%
+  - Thurmont Municipal Light Co — 3.9%
+  - Town of Williamsport (MD) — 0.1%
+  - Easton Utilities Comm — <0.1%
+
+**Gas (LDC) service territory polygons**
+
+- **Source:** HIFLD Open "Natural Gas Service Territories" feature layer. Same portal deactivation; archived at DataLumos: <https://portal.datarescueproject.org/datasets/hifld-open-natural-gas-service-territories/>. The fetch code (`HIFLD_GAS_URLS`) tries live ArcGIS endpoints first and falls back to a locally cached DataLumos ZIP (`HIFLD_GAS_DATALUMOS_ZIP`) as a last resort.
+- **Fetched and cached** identically to electric: dated WKT CSV → S3 → `state_configs.yaml` (`gas_poly_filename`).
+- **MD LDCs present** (as of 2024 snapshot, 5 features after filtering):
+  - Baltimore Gas and Electric Co — 92.9% of natgas-connected buildings
+  - Columbia Gas of Washington/Maryland — 3.4%
+  - Sand-Piper Energy — 2.3%
+  - Easton Utilities — 1.3%
+  - Elkton Gas Company — 0.1%
+
+**PUMA boundaries**
+
+- **Source:** Census TIGER/Line PUMA shapefiles fetched on demand via **pygris** (`pygris.pumas(state="MD", year=2019, cb=True)`).
+- **Vintage:** `puma_year: 2019` — the 2010-definition PUMAs used throughout ResStock `res_2024_amy2018_2`. MD has 44 PUMAs total.
+- **No separate upload to S3:** pygris is called fresh each run; the result is projected to `state_crs` in-memory. (Contrast with NY, which caches PUMAs as a local shapefile.)
+- **CRS:** `state_crs: 2248` — NAD83 / Maryland State Plane (feet). All area calculations for PUMA–utility overlap are done in this CRS.
+
+**No PUMS microdata used**
+
+`add_vulnerability_columns: false` in `state_configs.yaml` means the ACS PUMS-based vulnerability columns (LMI, has_child_under_6, etc.) are **not** added for MD. The Census PUMA _boundaries_ (from pygris) are used for GIS assignment, but ACS PUMS _person/housing microdata_ is not used.
+
+### Utility name crosswalk
+
+MD has **no name crosswalk** (`utility_name_map` is an empty DataFrame). HIFLD names are written to `sb.electric_utility` and `sb.gas_utility` verbatim. This differs from NY, which maps HIFLD names to standardised Switchbox names.
+
+### No excluded gas utilities
+
+`excluded_gas_utilities` is not set for MD (not in `state_configs.yaml`). All HIFLD LDCs in MD are assigned; none are zeroed before sampling.
+
+### Nearest-neighbor PUMA fill
+
+HIFLD boundaries do not cover the full land area of Maryland: 10 of 44 PUMAs have no electric coverage and 10 (a partly different set) have no gas coverage. Without a fill, ~25.8% of MD buildings (2,575 of 9,996) would be unassigned.
+
+**Why the gaps exist** — HIFLD utility boundaries are compiled from data submitted voluntarily by utilities; there is no federal mandate for every utility to provide precise GIS polygons. Common gap sources:
+
+1. **Municipal utilities and co-ops** that don't submit to national databases (state PUC filings are the authoritative source, but are not aggregated nationally).
+2. **County-level EIA-861 reporting** — some HIFLD features are derived from the EIA-861 survey, which maps utilities to counties rather than to precise polygon boundaries, leaving sub-county gaps.
+3. **Real physical gaps in gas distribution** — rural and exurban areas of MD genuinely have no gas LDC (residents use propane/oil), so no polygon is expected there.
+4. **HIFLD portal deactivation** — the portal was shut down in August 2025; the 2024 snapshot is the final maintained version.
+
+**Analysis of unassigned buildings (before fill):**
+
+Of the 2,575 buildings that would have been unassigned for at least one utility:
+
+- 100% use electricity (every ResStock building has electrical load).
+- 59.2% have `has_natgas_connection = True` — i.e. the gap is not just rural/no-gas areas; many are urban/suburban Baltimore-area PUMAs where BGE or SMECO should cover them but HIFLD polygons are missing.
+
+Per-utility breakdown:
+
+| Utility type | Unassigned PUMAs | Unassigned buildings | % with natgas |
+| ------------ | ---------------- | -------------------- | ------------- |
+| Electric     | 10 of 44         | 2,142                | 61.6%         |
+| Gas          | 10 of 44         | 2,162                | 61.8%         |
+
+**Fix:** `fill_missing_puma_probabilities()` in `data/resstock/utility/utils.py` is called when `fill_missing_pumas=True` (set in `assign_utility_md.py`). For each uncovered PUMA:
+
+1. Find all covered PUMAs whose geometry **touches** (shares a boundary with) the uncovered PUMA.
+2. Among touching PUMAs, pick the one whose centroid is **nearest** to the uncovered PUMA's centroid.
+3. If no touching covered PUMA exists, fall back to the globally nearest covered PUMA by centroid distance.
+4. Copy the donor's full probability distribution to the uncovered PUMA.
+
+After the fill, 0 buildings are unassigned for either utility. This function is state-generic and can be reused for any state with coverage gaps.
+
+**Post-fill assignment verified** (`dev_no_commit.py`):
+
+```
+PASS — all 9,996 buildings have sb.electric_utility assigned.
+PASS — all 5,231 natgas-connected buildings have sb.gas_utility assigned.
+```
+
+### Output
+
+`metadata_utility/state=MD/utility_assignment.parquet` — slim file with only `bldg_id`, `sb.electric_utility`, `sb.gas_utility`. Written to `res_2024_amy2018_2_sb/metadata_utility/state=MD/` on local EBS and uploaded to `s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet`.
 
 ---
 

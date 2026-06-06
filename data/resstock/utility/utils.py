@@ -550,6 +550,135 @@ def print_comparison_summary(
 # ---------------------------------------------------------------------------
 
 
+def fill_missing_puma_probabilities(
+    puma_probs: pl.LazyFrame,
+    pumas: gpd.GeoDataFrame,
+    label: str = "utility",
+) -> pl.LazyFrame:
+    """Add rows for PUMAs that are absent from ``puma_probs`` due to coverage gaps.
+
+    When a PUMA has no intersection with any utility polygon it receives no row
+    in ``puma_probs``, which causes every building in that PUMA to be assigned
+    ``None``.  For each such PUMA, the nearest donor PUMA that *does* have
+    coverage is found (adjacent first; centroid distance as fallback) and its
+    probability distribution is copied.
+
+    Args:
+        puma_probs: Wide-format LazyFrame with ``puma_id`` and one column per
+            utility, as returned by :func:`calculate_utility_probabilities`.
+        pumas: Census PUMA GeoDataFrame (any CRS; should match the one used to
+            build ``puma_probs`` so distances are meaningful).
+        label: Short descriptor used in log messages (e.g. ``"electric"``).
+
+    Returns:
+        ``puma_probs`` augmented with rows for previously missing PUMAs.
+    """
+    probs_df = cast(pl.DataFrame, puma_probs.collect())
+    covered_ids: set[str] = set(
+        probs_df["puma_id"].cast(pl.Utf8).str.zfill(5).to_list()
+    )
+
+    puma_id_col = puma_id_series_for_join(pumas)
+    if puma_id_col is None:
+        raise ValueError(
+            "pumas GeoDataFrame has no PUMACE10 or GEOID column; "
+            "cannot identify missing PUMAs."
+        )
+    pumas = pumas.copy()
+    pumas["_puma_id"] = puma_id_col.values
+
+    all_puma_ids: list[str] = pumas["_puma_id"].astype(str).str.zfill(5).tolist()
+    missing_ids = sorted(set(all_puma_ids) - covered_ids)
+
+    if not missing_ids:
+        return puma_probs
+
+    utility_cols = [c for c in probs_df.columns if c != "puma_id"]
+    good_ids = list(covered_ids)
+
+    pumas_geom = pumas.set_geometry("geometry")
+    pumas_geom = cast(gpd.GeoDataFrame, pumas_geom[pumas_geom.geometry.notna()].copy())
+    centroids = pumas_geom.geometry.centroid
+
+    print(
+        f"  {len(missing_ids)} PUMA(s) have no {label} coverage; "
+        "applying nearest-neighbor fill ...",
+        flush=True,
+    )
+
+    new_rows: list[pl.DataFrame] = []
+    for missing_str in missing_ids:
+        missing_idx = pumas_geom["_puma_id"].astype(str).str.zfill(5) == missing_str
+        if not missing_idx.any():
+            continue
+
+        missing_geom = pumas_geom.loc[missing_idx, "geometry"].iloc[0]
+        missing_centroid = centroids[missing_idx].iloc[0]
+
+        # Prefer adjacent (touching boundary) donor; fall back to pure centroid dist.
+        adjacent: list[str] = []
+        for gid in good_ids:
+            good_str = str(gid).zfill(5)
+            good_idx = pumas_geom["_puma_id"].astype(str).str.zfill(5) == good_str
+            if not good_idx.any():
+                continue
+            if missing_geom.touches(pumas_geom.loc[good_idx, "geometry"].iloc[0]):
+                adjacent.append(good_str)
+
+        candidates = adjacent if adjacent else [str(g).zfill(5) for g in good_ids]
+        nn_note = "adjacent" if adjacent else "nearest by centroid"
+
+        best_donor: str | None = None
+        best_dist = float("inf")
+        for cand in candidates:
+            cand_idx = pumas_geom["_puma_id"].astype(str).str.zfill(5) == cand
+            if not cand_idx.any():
+                continue
+            d = missing_centroid.distance(centroids[cand_idx].iloc[0])
+            if d < best_dist:
+                best_dist, best_donor = d, cand
+
+        if best_donor is None:
+            print(
+                f"    WARNING: no donor found for PUMA {missing_str!r}; skipping.",
+                flush=True,
+            )
+            continue
+
+        # Flexible donor lookup — puma_id may be stored with or without zero-padding.
+        donor_row = probs_df.filter(
+            pl.col("puma_id").cast(pl.Utf8).str.zfill(5) == best_donor
+        )
+        if donor_row.height == 0:
+            donor_row = probs_df.filter(pl.col("puma_id").cast(pl.Utf8) == best_donor)
+        if donor_row.height == 0:
+            print(
+                f"    WARNING: donor PUMA {best_donor!r} not found in probs; skipping.",
+                flush=True,
+            )
+            continue
+
+        donor_vals = donor_row.select(utility_cols).row(0)
+        new_rows.append(
+            pl.DataFrame(
+                {
+                    "puma_id": [missing_str],
+                    **{c: [donor_vals[i]] for i, c in enumerate(utility_cols)},
+                }
+            )
+        )
+        print(
+            f"    PUMA {missing_str!r} → donor {best_donor!r} "
+            f"({nn_note}, dist={best_dist:.0f})",
+            flush=True,
+        )
+
+    if not new_rows:
+        return puma_probs
+
+    return pl.concat([probs_df, pl.concat(new_rows)]).lazy()
+
+
 def zero_excluded_gas_utilities_and_renormalize(
     puma_gas_probs: pl.LazyFrame,
     excluded_utilities: frozenset[str],
@@ -794,6 +923,7 @@ def create_hh_utilities(
     utility_name_map: pl.LazyFrame,
     state_crs: int,
     excluded_gas_utilities: frozenset[str] = frozenset(),
+    fill_missing_pumas: bool = False,
 ) -> pl.LazyFrame:
     """Create a LazyFrame of households with their associated utilities.
 
@@ -812,6 +942,10 @@ def create_hh_utilities(
         state_crs: EPSG code of the projected CRS for area calculations.
         excluded_gas_utilities: Gas utility names whose prior probability
             should be zeroed before sampling (default: empty).
+        fill_missing_pumas: When ``True``, PUMAs with no utility polygon
+            coverage (absent from the overlap table) are filled using the
+            nearest covered PUMA's distribution.  Use for states where the
+            utility boundary data does not fully cover all PUMAs.
     """
     puma_elec_overlap = calculate_puma_utility_overlap(
         pumas, electric_polygons, state_crs
@@ -832,6 +966,14 @@ def create_hh_utilities(
         handle_municipal=False,
         filter_none=False,
     )
+
+    if fill_missing_pumas:
+        puma_elec_probs = fill_missing_puma_probabilities(
+            puma_elec_probs, pumas, label="electric"
+        )
+        puma_gas_probs = fill_missing_puma_probabilities(
+            puma_gas_probs, pumas, label="gas"
+        )
 
     if excluded_gas_utilities:
         puma_gas_probs = zero_excluded_gas_utilities_and_renormalize(

@@ -2,25 +2,17 @@
 
 Thin wrapper around the state-generic helpers in
 ``data.resstock.utility.utils``, providing MD-specific configuration
-(HIFLD fetch/cache loaders, CRS, PUMA year).
+(CRS, PUMA year).
 
 The public entry point is ``assign_utility()`` — called by the dynamic
 dispatch in ``data.resstock.utility.assign_utility`` with kwargs from
 ``state_configs.yaml``.  The lower-level ``assign_utility_md()`` takes
 pre-loaded GeoDataFrames and is used directly when GIS data is already
 in memory.
-
-GIS data fetch / cache helpers (``load_pumas``, ``load_electric_utilities``,
-``load_gas_utilities``) are also exported so callers can fetch and cache
-boundary files locally before running the assignment.  On first use, these
-pull data from HIFLD mirrors (electric/gas) and pygris (PUMAs), write dated
-WKT CSVs to a local cache directory, upload to S3, and write the filenames
-back to ``state_configs.yaml``.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import cast
 
 import geopandas as gpd
@@ -33,18 +25,9 @@ from data.resstock.utils import (
     select_puma_and_heating_fuel_metadata,
 )
 from data.resstock.utility.utils import (
-    HIFLD_ELEC_URLS,
-    HIFLD_GAS_DATALUMOS_URL,
-    HIFLD_GAS_DATALUMOS_ZIP,
-    HIFLD_GAS_URLS,
-    HIFLD_GAS_ZIP_SHP,
     S3_GIS_DIR,
     create_hh_utilities,
-    latest_utility_csv_name,
-    load_pumas as _load_pumas,
-    load_utility_boundaries,
     read_csv_to_gdf_from_s3,
-    update_state_config_filenames,
 )
 from utils import get_aws_region
 
@@ -57,7 +40,7 @@ _MD_CFG = _STATE_CONFIGS[_STATE]["utility_assignment"]["kwargs"]
 MD_STATE_CRS: int = _MD_CFG["state_crs"]
 MD_PUMA_YEAR: int = _MD_CFG["puma_year"]
 
-STORAGE_OPTIONS = {"aws_region": get_aws_region()}
+_STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
 
 # ── Pipeline entry point ──────────────────────────────────────────────────────
@@ -175,6 +158,7 @@ def assign_utility_md(
         utility_name_map=utility_name_map,
         state_crs=state_crs,
         excluded_gas_utilities=excluded_gas_utilities,
+        fill_missing_pumas=True,
     )
 
     input_metadata = input_metadata.drop(
@@ -203,83 +187,3 @@ def assign_utility_md(
         on="bldg_id",
         how="left",
     )
-
-
-# ── GIS data fetch / cache helpers ────────────────────────────────────────────
-
-
-def load_pumas(cache_dir: Path) -> gpd.GeoDataFrame:
-    """Load MD 2010-definition Census PUMA boundaries.
-
-    Checks ``cache_dir/pumas/md_pumas.shp`` first.  If absent, fetches via
-    pygris, saves locally, and syncs to S3.
-    """
-    return _load_pumas(state=_STATE, puma_year=MD_PUMA_YEAR, cache_dir=cache_dir)
-
-
-def load_electric_utilities(cache_dir: Path) -> gpd.GeoDataFrame:
-    """Load MD electric utility service territory boundaries.
-
-    Checks the cached filename in ``state_configs.yaml`` first.  If absent,
-    fetches from HIFLD mirrors, writes a dated WKT CSV, uploads to S3, and
-    records the new filename in ``state_configs.yaml``.
-    """
-    cached_name: str = _MD_CFG.get("electric_poly_filename") or ""
-
-    gdf = load_utility_boundaries(
-        state=_STATE,
-        utility_type="electric",
-        cache_dir=cache_dir,
-        cached_filename=cached_name,
-        hifld_urls=HIFLD_ELEC_URLS,
-    )
-
-    if not cached_name or not (cache_dir / cached_name).exists():
-        new_name = latest_utility_csv_name(cache_dir, _STATE, "electric")
-        if new_name:
-            update_state_config_filenames(_STATE, electric_filename=new_name)
-
-    return gdf
-
-
-def load_gas_utilities(cache_dir: Path) -> gpd.GeoDataFrame:
-    """Load MD natural gas LDC service territory boundaries.
-
-    Same cache-then-fetch pattern as :func:`load_electric_utilities`.
-    Falls back to a locally cached DataLumos ZIP if all HIFLD mirrors fail.
-    """
-    cached_name: str = _MD_CFG.get("gas_poly_filename") or ""
-
-    def _datalumos_fallback() -> gpd.GeoDataFrame:
-        zip_abs = HIFLD_GAS_DATALUMOS_ZIP.resolve()
-        if not zip_abs.exists():
-            raise RuntimeError(
-                f"Manual fallback: download the archived HIFLD gas territories "
-                f"shapefile from DataLumos at:\n  {HIFLD_GAS_DATALUMOS_URL}\n"
-                f"Save it to {HIFLD_GAS_DATALUMOS_ZIP} and retry."
-            )
-        print(f"    Falling back to local DataLumos ZIP: {zip_abs}", flush=True)
-        all_gas = gpd.read_file(f"/vsizip/{zip_abs}/{HIFLD_GAS_ZIP_SHP}")
-        md_slice = all_gas[all_gas["STATE"] == _STATE].copy()
-        print(
-            f"    Read {len(all_gas)} total features from ZIP; "
-            f"{len(md_slice)} in {_STATE}.",
-            flush=True,
-        )
-        return gpd.GeoDataFrame(md_slice, crs=all_gas.crs)
-
-    gdf = load_utility_boundaries(
-        state=_STATE,
-        utility_type="gas",
-        cache_dir=cache_dir,
-        cached_filename=cached_name,
-        hifld_urls=HIFLD_GAS_URLS,
-        hifld_fallback_fn=_datalumos_fallback,
-    )
-
-    if not cached_name or not (cache_dir / cached_name).exists():
-        new_name = latest_utility_csv_name(cache_dir, _STATE, "gas")
-        if new_name:
-            update_state_config_filenames(_STATE, gas_filename=new_name)
-
-    return gdf
