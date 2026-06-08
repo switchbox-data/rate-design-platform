@@ -1018,8 +1018,9 @@ def create_hh_utilities(
 # ---------------------------------------------------------------------------
 
 _CONFIG = yaml.safe_load(CONFIG_PATH.open())
-S3_PUMAS_DIR: str = _CONFIG["paths"]["s3_pumas_dir"]
 S3_GIS_DIR: str = _CONFIG["paths"]["s3_gis_dir"]
+S3_PUMAS_DIR: str = _CONFIG["paths"]["s3_pumas_dir"]
+GIS_CACHE_DIR: str = _CONFIG["paths"]["gis_cache_dir"]
 
 
 # ---------------------------------------------------------------------------
@@ -1176,20 +1177,72 @@ def s3_cp(local: Path, s3_dest: str) -> None:
         )
 
 
-def s3_sync(local_dir: Path, s3_dest: str) -> None:
-    """Sync a local directory to S3."""
-    rc = subprocess.run(
-        ["aws", "s3", "sync", str(local_dir), s3_dest], check=False
-    ).returncode
+def _s3_sync(src: str, dest: str) -> bool:
+    """Sync *src* to *dest* using ``aws s3 sync`` (either can be an s3:// URI).
+
+    Returns ``True`` on success, ``False`` on failure (prints a warning but
+    does not raise).
+    """
+    rc = subprocess.run(["aws", "s3", "sync", src, dest], check=False).returncode
     if rc != 0:
         print(
-            f"  WARNING: aws s3 sync exited with code {rc} for {local_dir}.", flush=True
+            f"  WARNING: aws s3 sync {src} → {dest} exited with code {rc}.", flush=True
+        )
+    return rc == 0
+
+
+# ---------------------------------------------------------------------------
+# PUMA loading (local cache → S3 → pygris fallback)
+# ---------------------------------------------------------------------------
+
+
+def fetch_and_sync_pumas(
+    state: str,
+    puma_year: int,
+    cache_dir: Path,
+) -> gpd.GeoDataFrame:
+    """Fetch PUMA boundaries via pygris, save locally, and sync to S3.
+
+    Always fetches fresh from the Census API via pygris, writes the shapefile
+    to ``cache_dir/pumas/<state>/<state_lower>_pumas.shp``, and syncs that
+    directory to ``S3_PUMAS_DIR/state=<state>/``.
+
+    Call this once when setting up a new state (alongside
+    :func:`load_utility_boundaries`).  Subsequent runs should call
+    :func:`load_pumas`, which reads the cached file rather than hitting Census.
+
+    Args:
+        state: 2-letter state abbreviation (e.g. ``"MD"``).
+        puma_year: TIGER/Line vintage year (e.g. ``2019`` for 2010-def PUMAs).
+        cache_dir: Root local GIS cache directory (e.g. ``Path(GIS_CACHE_DIR)``).
+
+    Returns:
+        GeoDataFrame of PUMA boundaries (unprojected; caller reprojects to
+        the desired CRS).
+    """
+    puma_dir = cache_dir / "pumas" / state
+    local_shp = puma_dir / f"{state.lower()}_pumas.shp"
+
+    print(
+        f"  Fetching {state} PUMA boundaries via pygris (year={puma_year}) ...",
+        flush=True,
+    )
+    pumas = cast(gpd.GeoDataFrame, pygris_pumas(state=state, year=puma_year, cb=True))
+    puma_dir.mkdir(parents=True, exist_ok=True)
+    pumas.to_file(local_shp)
+    print(f"    Saved → {local_shp}", flush=True)
+
+    s3_dest = f"{S3_PUMAS_DIR.rstrip('/')}/state={state}/"
+    print(f"    Syncing → {s3_dest}", flush=True)
+    if not _s3_sync(str(puma_dir), s3_dest):
+        raise RuntimeError(
+            f"Failed to sync {state} PUMA shapefiles to S3 ({s3_dest}). "
+            "The local cache was written but S3 was not updated. "
+            "Fix AWS credentials or permissions and re-run fetch_and_sync_pumas()."
         )
 
-
-# ---------------------------------------------------------------------------
-# PUMA loading (pygris with local cache)
-# ---------------------------------------------------------------------------
+    print(f"    {len(pumas)} PUMA polygons loaded.", flush=True)
+    return pumas
 
 
 def load_pumas(
@@ -1197,42 +1250,48 @@ def load_pumas(
     puma_year: int,
     cache_dir: Path,
 ) -> gpd.GeoDataFrame:
-    """Load Census PUMA boundaries for ``state``, caching locally and on S3.
+    """Load PUMA boundaries with fallback chain: local cache → S3 → pygris.
 
-    Checks ``cache_dir/pumas/<state_lower>_pumas.shp`` first.  If absent,
-    fetches via ``pygris`` (2010-definition cartographic boundaries for
-    ``puma_year``), saves locally, and syncs to S3.
+    1. **Local cache** — if ``cache_dir/pumas/<state>/<state_lower>_pumas.shp``
+       exists, reads and returns it immediately.
+    2. **S3** — syncs ``S3_PUMAS_DIR/state=<state>/`` down to the local cache
+       directory; if the shapefile is present after the sync, reads and returns
+       it.
+    3. **pygris fallback** — fetches fresh via :func:`fetch_and_sync_pumas`,
+       which also repopulates both local cache and S3 for future calls.
 
     Args:
         state: 2-letter state abbreviation (e.g. ``"MD"``).
         puma_year: TIGER/Line vintage year (e.g. ``2019`` for 2010-def PUMAs).
-        cache_dir: Local directory; a ``pumas/`` subdirectory is created.
+        cache_dir: Root local GIS cache directory (e.g. ``Path(GIS_CACHE_DIR)``).
+
+    Returns:
+        GeoDataFrame of PUMA boundaries (unprojected; caller reprojects to
+        the desired CRS).
     """
-    puma_dir = cache_dir / "pumas"
+    puma_dir = cache_dir / "pumas" / state
     local_shp = puma_dir / f"{state.lower()}_pumas.shp"
 
+    # 1. Local cache
     if local_shp.exists():
         print(f"  Re-using cached {state} PUMA shapefile: {local_shp}", flush=True)
-        pumas = gpd.read_file(str(local_shp))
-    else:
-        print(
-            f"  Fetching {state} PUMA boundaries via pygris (year={puma_year}) ...",
-            flush=True,
-        )
-        pumas = cast(
-            gpd.GeoDataFrame,
-            pygris_pumas(state=state, year=puma_year, cb=True),
-        )
-        puma_dir.mkdir(parents=True, exist_ok=True)
-        pumas.to_file(local_shp)
-        print(f"    Saved → {local_shp}", flush=True)
+        pumas = cast(gpd.GeoDataFrame, gpd.read_file(str(local_shp)))
+        print(f"    {len(pumas)} PUMA polygons loaded.", flush=True)
+        return pumas
 
-        puma_s3 = f"{S3_PUMAS_DIR.rstrip('/')}/state={state}/"
-        print(f"    Syncing PUMA shapefile → {puma_s3}", flush=True)
-        s3_sync(puma_dir, puma_s3)
+    # 2. S3
+    s3_src = f"{S3_PUMAS_DIR.rstrip('/')}/state={state}/"
+    print(f"  Local PUMA cache missing; trying S3: {s3_src}", flush=True)
+    puma_dir.mkdir(parents=True, exist_ok=True)
+    if _s3_sync(s3_src, str(puma_dir)) and local_shp.exists():
+        print(f"    Downloaded from S3 → {local_shp}", flush=True)
+        pumas = cast(gpd.GeoDataFrame, gpd.read_file(str(local_shp)))
+        print(f"    {len(pumas)} PUMA polygons loaded.", flush=True)
+        return pumas
 
-    print(f"    {len(pumas)} PUMA polygons loaded (CRS: {pumas.crs}).", flush=True)
-    return pumas
+    # 3. pygris fallback
+    print("  S3 sync failed or empty; falling back to pygris ...", flush=True)
+    return fetch_and_sync_pumas(state, puma_year, cache_dir)
 
 
 # ---------------------------------------------------------------------------

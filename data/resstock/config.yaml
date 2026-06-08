@@ -36,9 +36,10 @@ paths:
   s3_dir: s3://data.sb/nrel/resstock
   s3_pums_dir: s3://data.sb/census/pums
   s3_gis_dir: s3://data.sb/gis/utility_boundaries/
-  # Base S3 URI for PUMA boundary shapefiles (state-partitioned: .../state=XX/).
-  # Used by fetch_utility_boundary_md.py (and equivalent per-state scripts).
+  # S3 URI for PUMA boundary shapefiles (state-partitioned: .../state=XX/).
   s3_pumas_dir: s3://data.sb/gis/pumas
+  # Local EBS directory for caching GIS files (utility boundaries, PUMAs).
+  gis_cache_dir: /ebs/data/gis
 pums:
   survey: acs5
   year: "2021"

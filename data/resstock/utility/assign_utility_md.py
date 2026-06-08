@@ -13,20 +13,22 @@ in memory.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import cast
 
 import geopandas as gpd
 import polars as pl
 from cloudpathlib import S3Path
-from pygris import pumas as pygris_get_pumas
 
 from data.resstock.utils import (
     load_state_configs,
     select_puma_and_heating_fuel_metadata,
 )
 from data.resstock.utility.utils import (
+    GIS_CACHE_DIR,
     S3_GIS_DIR,
     create_hh_utilities,
+    load_pumas,
     read_csv_to_gdf_from_s3,
 )
 from utils import get_aws_region
@@ -55,11 +57,13 @@ def assign_utility(
     gas_poly_filename: str,
     path_s3_gis_dir: str | None = None,
     excluded_gas_utilities: list[str] | None = None,
+    puma_cache_dir: str | None = None,
 ) -> pl.LazyFrame:
     """Entry point for dynamic dispatch from ``assign_utility.py``.
 
-    Loads GIS data (polygon CSVs from S3, Census PUMAs via pygris) and
-    delegates to :func:`assign_utility_md`.
+    Loads utility boundary CSVs from S3 and PUMA boundaries via
+    :func:`~data.resstock.utility.utils.load_pumas` (local cache → S3 →
+    pygris fallback), then delegates to :func:`assign_utility_md`.
 
     Args:
         metadata: ResStock metadata LazyFrame.
@@ -74,6 +78,8 @@ def assign_utility(
             Defaults to the ``paths.s3_gis_dir`` value in ``config.yaml``.
         excluded_gas_utilities: Standardised gas utility names whose PUMA
             probabilities are zeroed before sampling (default: none).
+        puma_cache_dir: Root local directory for the PUMA shapefile cache.
+            Defaults to ``paths.gis_cache_dir`` in ``config.yaml``.
     """
     gis_base = S3Path((path_s3_gis_dir or S3_GIS_DIR).rstrip("/"))
 
@@ -88,10 +94,11 @@ def assign_utility(
         state_crs=state_crs,
     )
 
-    print("    Loading MD Census PUMA shapefiles via pygris ...", flush=True)
-    pumas = cast(
-        gpd.GeoDataFrame,
-        pygris_get_pumas(state=_STATE, year=puma_year, cb=True),
+    print("    Loading MD Census PUMA shapefiles ...", flush=True)
+    pumas = load_pumas(
+        state=_STATE,
+        puma_year=puma_year,
+        cache_dir=Path(puma_cache_dir or GIS_CACHE_DIR),
     )
     pumas = pumas.to_crs(epsg=state_crs)
 
