@@ -9,7 +9,7 @@ How electric and gas utilities are assigned to ResStock buildings — generic ar
 ## Overview
 
 - **Dispatcher:** `data/resstock/utility/assign_utility.py` — reads `state_configs.yaml`, dynamically imports the state-specific module, and calls its `assign_utility(metadata, **kwargs)` entry point. No `if state == "XX":` branches; adding a config entry and a module is enough.
-- **State modules:** `assign_utility_ny.py` (GIS-based, name crosswalk, excluded utilities), `assign_utility_md.py` (GIS-based, HIFLD names directly, nearest-neighbor PUMA fill), `assign_utility_ri.py` (rule-based, no GIS).
+- **State modules:** `assign_utility_ny.py` (GIS-based, HIFLD electric + gas, name crosswalk, excluded utilities), `assign_utility_md.py` (GIS-based, EIA-861 county polygons for electric + HIFLD for gas, nearest-neighbor PUMA fill for gas), `assign_utility_ri.py` (rule-based, no GIS).
 - **Inputs:** ResStock metadata (with `in.puma`, `in.heating_fuel`, `has_natgas_connection`), electric and gas utility service-territory polygons (CSV with WKT), Census PUMAs (pygris).
 - **Outputs:** Same metadata with `sb.electric_utility` and `sb.gas_utility` added (or overwritten).
 - **Logic:** PUMA–utility overlap → PUMA-level probability tables → per-building sampling (deterministic seed). Electric: every building gets an electric utility. Gas: only buildings with `has_natgas_connection` get a gas utility; others get null.
@@ -88,98 +88,133 @@ After zeroing excluded gas utilities (and optionally replacing bad-PUMA rows wit
 
 ## Maryland (MD)
 
-MD follows the same GIS-based pattern as NY — PUMA overlap → probability table → per-building sampling — with two key differences: no utility name crosswalk is needed (HIFLD names are used directly), and a **nearest-neighbor PUMA fill** is required because HIFLD boundaries leave 10 of 44 MD PUMAs (~23%) with no electric coverage and a different set of 10 with no gas coverage.
+MD follows the same GIS-based pattern as NY — PUMA overlap → probability table → per-building sampling — with one structural difference in the electric side: instead of HIFLD utility polygons, MD uses **Census county polygons weighted by EIA Form 861 service territory data**. Gas assignment continues to use HIFLD polygon CSVs, identical to NY.
 
-### Data sources
+### Why not HIFLD for electric
 
-**Electric service territory polygons**
+HIFLD is missing three of the five major MD investor-owned utilities — Pepco, Potomac Edison, and Delmarva Power — because those utilities never submitted their boundary shapes to the HIFLD portal. The 2024 HIFLD snapshot for MD covers only BGE, SMECO, Choptank, and a few small municipals, representing roughly 40% of MD customers. The other 60% would fall back to the nearest HIFLD polygon (BGE), producing systematically wrong assignments for all of Montgomery County, Prince George's County, the Eastern Shore, and western MD.
 
-- **Source:** HIFLD Open "Electric Retail Service Territories" feature layer. The DHS HIFLD Open portal was deactivated on **August 26, 2025**; the dataset is now archived at DataLumos: <https://www.datalumos.org/datalumos/project/239091>. Data vintage: September 2024 snapshot.
-- **Fetched by:** `load_utility_boundaries()` in `data/resstock/utility/utils.py`, which tries a list of ArcGIS REST endpoints (`HIFLD_ELEC_URLS`) in order and falls back to DataLumos if all fail.
-- **Cached locally** as a dated WKT CSV (e.g. `md_electric_utilities_20260605.csv`), uploaded to `s3://data.sb/gis/utility_boundaries/`, and the filename is stored in `state_configs.yaml` under `MD.utility_assignment.kwargs.electric_poly_filename`. Subsequent runs read directly from S3 without re-fetching.
-- **MD utilities present** (as of 2024 snapshot, 7 features after filtering to state=MD):
-  - Baltimore Gas & Electric Co (BGE) — 74.6% of buildings
-  - Choptank Electric Cooperative, Inc — 9.6%
-  - Southern Maryland Electric Coop Inc (SMECO) — 7.2%
-  - Hagerstown Light Department — 4.6%
-  - Thurmont Municipal Light Co — 3.9%
-  - Town of Williamsport (MD) — 0.1%
-  - Easton Utilities Comm — <0.1%
+PJM does not distribute service territory shapefiles (FERC critical infrastructure policy). The Maryland PSC publishes utility reports but no GIS data. No other federal or state source publishes complete sub-county boundaries for all MD utilities.
 
-**Gas (LDC) service territory polygons**
+The most complete authoritative source with full utility coverage is **EIA Form 861 Schedule 8**, which requires every distribution utility to report the counties it serves. PUDL processes this into `core_eia861__yearly_service_territory`, available via HTTPS at the same S3 bucket as the EIA-861 sales data already used in this pipeline.
 
-- **Source:** HIFLD Open "Natural Gas Service Territories" feature layer. Same portal deactivation; archived at DataLumos: <https://portal.datarescueproject.org/datasets/hifld-open-natural-gas-service-territories/>. The fetch code (`HIFLD_GAS_URLS`) tries live ArcGIS endpoints first and falls back to a locally cached DataLumos ZIP (`HIFLD_GAS_DATALUMOS_ZIP`) as a last resort.
-- **Fetched and cached** identically to electric: dated WKT CSV → S3 → `state_configs.yaml` (`gas_poly_filename`).
-- **MD LDCs present** (as of 2024 snapshot, 5 features after filtering):
+### Electric utility assignment: county-weighted PUMA overlap
+
+**Data sources**
+
+- **EIA-861 county service territory:** PUDL `core_eia861__yearly_service_territory.parquet` (PUDL stable release v2026.2.0). Maps each utility to the counties it serves. MD has 24 counties + Baltimore City; the 2023 data has 46 (county, utility) rows — many counties are served by more than one utility.
+- **EIA-861 utility stats:** Our existing `s3://data.sb/eia/861/electric_utility_stats/` (year=2023/state=MD). Provides statewide residential customer counts used to weight split counties.
+- **Census county polygons:** `pygris.counties(state="MD", year=2019)` — standard TIGER/Line county boundaries, 2019 vintage to match the PUMA year.
+
+**Pre-processing: `data/eia/861/fetch_service_territory.py`**
+
+Run once (or annually) to produce:
+
+```
+s3://data.sb/eia/861/service_territory/state=MD/data.parquet
+```
+
+Schema: `county_id_fips`, `county`, `utility_id_eia`, `utility_name_eia`, `residential_customers`, `weight`, `report_year`.
+
+- Only distribution utilities with residential customers > 0 are included (retail marketers and power marketers are excluded).
+- `weight` normalises `residential_customers` within each county so weights sum to 1.0. For single-utility counties, weight = 1.0. For split counties, each utility gets its share of statewide MD residential customers as a proxy.
+
+Invoked via:
+
+```
+just -f data/eia/861/Justfile fetch-service-territory MD
+```
+
+**Runtime: `assign_utility_md.py`**
+
+`assign_utility()` calls `calculate_puma_county_utility_overlap()` (in `utils.py`) instead of `calculate_puma_utility_overlap()`. The function:
+
+1. Projects PUMAs and county polygons to `state_crs` (2248).
+2. Computes the intersection area of every (PUMA, county) pair via `gpd.overlay(..., how="intersection")`.
+3. For each (PUMA, county) pair, fans out to one row per utility serving that county, with `pct_overlap = overlap_area × weight / puma_area × 100`.
+4. Groups by (PUMA, utility) and sums — so a PUMA spanning multiple counties accumulates weighted contributions from each.
+5. Returns a LazyFrame with `puma_id`, `utility`, `pct_overlap` — identical format to `calculate_puma_utility_overlap`, plugging directly into the existing probability and sampling machinery.
+
+**Granularity and accuracy**
+
+PUMAs that straddle a county line get geographic signal from both sides. A PUMA in western Frederick County (split BGE/Potomac Edison) that also overlaps Washington County (Potomac Edison-only) accumulates extra weight toward Potomac Edison; one in eastern Frederick that overlaps Howard County (BGE-only) tilts toward BGE. For PUMAs entirely inside a split county, the statewide customer-share proxy applies.
+
+Major utilities covered (2023 EIA-861, MD distribution utilities):
+
+| Utility                           | EIA ID | Std name         | Residential customers |
+| --------------------------------- | ------ | ---------------- | --------------------- |
+| Baltimore Gas & Electric Co       | 1167   | `bge`            | 1,208k                |
+| Potomac Electric Power Co (Pepco) | 15270  | `pepco`          | 548k                  |
+| The Potomac Edison Company        | 15263  | `potomac_edison` | 253k                  |
+| Delmarva Power                    | 5027   | `delmarva`       | 185k                  |
+| Southern Maryland Elec Coop       | 17637  | `smeco`          | 159k                  |
+| Choptank Electric Cooperative     | 3503   | `choptank`       | ~30k                  |
+| Somerset Rural Electric Coop      | 84     | `somerset_rec`   | small                 |
+| Town of Berlin (MD)               | 1615   | `berlin_muni`    | small                 |
+
+**EIA utility ID → std name mapping** is defined in `_EIA_ID_TO_STD_NAME` in `assign_utility_md.py`. Utilities not in the map fall back to the EIA name string.
+
+### Gas utility assignment
+
+Unchanged from the original HIFLD-based approach:
+
+- **Source:** HIFLD Open "Natural Gas Service Territories" feature layer (archived at DataLumos). Fetch via `load_utility_boundaries()`.
+- **Cached** as dated WKT CSV in `s3://data.sb/gis/utility_boundaries/`; filename in `state_configs.yaml` under `MD.utility_assignment.kwargs.gas_poly_filename`.
+- **MD LDCs present** (as of 2024 snapshot):
   - Baltimore Gas and Electric Co — 92.9% of natgas-connected buildings
   - Columbia Gas of Washington/Maryland — 3.4%
   - Sand-Piper Energy — 2.3%
   - Easton Utilities — 1.3%
   - Elkton Gas Company — 0.1%
 
-**PUMA boundaries**
+### PUMA boundaries
 
-- **Source:** Census TIGER/Line PUMA shapefiles fetched on demand via **pygris** (`pygris.pumas(state="MD", year=2019, cb=True)`).
-- **Vintage:** `puma_year: 2019` — the 2010-definition PUMAs used throughout ResStock `res_2024_amy2018_2`. MD has 44 PUMAs total.
-- **No separate upload to S3:** pygris is called fresh each run; the result is projected to `state_crs` in-memory. (Contrast with NY, which caches PUMAs as a local shapefile.)
-- **CRS:** `state_crs: 2248` — NAD83 / Maryland State Plane (feet). All area calculations for PUMA–utility overlap are done in this CRS.
-
-**No PUMS microdata used**
-
-`add_vulnerability_columns: false` in `state_configs.yaml` means the ACS PUMS-based vulnerability columns (LMI, has_child_under_6, etc.) are **not** added for MD. The Census PUMA _boundaries_ (from pygris) are used for GIS assignment, but ACS PUMS _person/housing microdata_ is not used.
-
-### Utility name crosswalk
-
-MD has **no name crosswalk** (`utility_name_map` is an empty DataFrame). HIFLD names are written to `sb.electric_utility` and `sb.gas_utility` verbatim. This differs from NY, which maps HIFLD names to standardised Switchbox names.
-
-### No excluded gas utilities
-
-`excluded_gas_utilities` is not set for MD (not in `state_configs.yaml`). All HIFLD LDCs in MD are assigned; none are zeroed before sampling.
+- **Source:** `pygris.pumas(state="MD", year=2019, cb=True)`.
+- **Vintage:** 2019 — 2010-definition PUMAs. MD has 44 PUMAs.
+- **CRS:** `state_crs: 2248` — NAD83 / Maryland State Plane (feet).
+- **Load/cache:** via `load_pumas()` in `utils.py` (local cache → S3 → pygris fallback).
 
 ### Nearest-neighbor PUMA fill
 
-HIFLD boundaries do not cover the full land area of Maryland: 10 of 44 PUMAs have no electric coverage and 10 (a partly different set) have no gas coverage. Without a fill, ~25.8% of MD buildings (2,575 of 9,996) would be unassigned.
+County polygons cover all of Maryland's land area by definition, so the electric assignment has no coverage gaps — every PUMA overlaps at least one county. The nearest-neighbor fill (`fill_missing_puma_probabilities`) is still called for electric as a safety net but should produce zero fills in practice.
 
-**Why the gaps exist** — HIFLD utility boundaries are compiled from data submitted voluntarily by utilities; there is no federal mandate for every utility to provide precise GIS polygons. Common gap sources:
+Gas coverage gaps remain (HIFLD gas boundaries still have the same rural/suburban gaps as before), so the nearest-neighbor fill is genuinely needed for gas, with the same behavior as documented in the previous HIFLD-based approach.
 
-1. **Municipal utilities and co-ops** that don't submit to national databases (state PUC filings are the authoritative source, but are not aggregated nationally).
-2. **County-level EIA-861 reporting** — some HIFLD features are derived from the EIA-861 survey, which maps utilities to counties rather than to precise polygon boundaries, leaving sub-county gaps.
-3. **Real physical gaps in gas distribution** — rural and exurban areas of MD genuinely have no gas LDC (residents use propane/oil), so no polygon is expected there.
-4. **HIFLD portal deactivation** — the portal was shut down in August 2025; the 2024 snapshot is the final maintained version.
+### No excluded gas utilities
 
-**Analysis of unassigned buildings (before fill):**
+`excluded_gas_utilities` is not set for MD. All gas LDCs are assigned; none are zeroed before sampling.
 
-Of the 2,575 buildings that would have been unassigned for at least one utility:
+### State_configs.yaml kwargs for MD
 
-- 100% use electricity (every ResStock building has electrical load).
-- 59.2% have `has_natgas_connection = True` — i.e. the gap is not just rural/no-gas areas; many are urban/suburban Baltimore-area PUMAs where BGE or SMECO should cover them but HIFLD polygons are missing.
-
-Per-utility breakdown:
-
-| Utility type | Unassigned PUMAs | Unassigned buildings | % with natgas |
-| ------------ | ---------------- | -------------------- | ------------- |
-| Electric     | 10 of 44         | 2,142                | 61.6%         |
-| Gas          | 10 of 44         | 2,162                | 61.8%         |
-
-**Fix:** `fill_missing_puma_probabilities()` in `data/resstock/utility/utils.py` is called when `fill_missing_pumas=True` (set in `assign_utility_md.py`). For each uncovered PUMA:
-
-1. Find all covered PUMAs whose geometry **touches** (shares a boundary with) the uncovered PUMA.
-2. Among touching PUMAs, pick the one whose centroid is **nearest** to the uncovered PUMA's centroid.
-3. If no touching covered PUMA exists, fall back to the globally nearest covered PUMA by centroid distance.
-4. Copy the donor's full probability distribution to the uncovered PUMA.
-
-After the fill, 0 buildings are unassigned for either utility. This function is state-generic and can be reused for any state with coverage gaps.
-
-**Post-fill assignment verified** (`dev_no_commit.py`):
-
+```yaml
+state_crs: 2248
+puma_year: 2019
+electric_service_territory_s3_path: "s3://data.sb/eia/861/service_territory/state=MD/data.parquet"
+gas_poly_filename: "md_gas_utilities_20260605.csv"
 ```
-PASS — all 9,996 buildings have sb.electric_utility assigned.
-PASS — all 5,231 natgas-connected buildings have sb.gas_utility assigned.
+
+### Full MD pipeline (start to finish)
+
+```bash
+# 1. Fetch EIA-861 utility stats to S3 (if not already current)
+just -f data/eia/861/Justfile update
+
+# 2. Fetch county service territory weights to S3 (electric assignment data)
+just -f data/eia/861/Justfile fetch-service-territory MD
+
+# 3. Download ResStock metadata for MD
+just s MD fetch-resstock-metadata
+
+# 4. Run utility assignment
+just s MD assign-utility
+
+# 5. Upload utility assignment to S3
+just s MD upload-utility-assignment
 ```
 
 ### Output
 
-`metadata_utility/state=MD/utility_assignment.parquet` — slim file with only `bldg_id`, `sb.electric_utility`, `sb.gas_utility`. Written to `res_2024_amy2018_2_sb/metadata_utility/state=MD/` on local EBS and uploaded to `s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet`.
+`metadata_utility/state=MD/utility_assignment.parquet` — `bldg_id`, `sb.electric_utility`, `sb.gas_utility`. Written to local EBS and uploaded to `s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet`.
 
 ---
 

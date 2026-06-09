@@ -13,11 +13,16 @@ implementation detail resolved at runtime.
 
 from __future__ import annotations
 
+import argparse
 import importlib
 
 import polars as pl
+import yaml
+from cloudpathlib import S3Path
 
+from data.resstock.constants import CONFIG_PATH
 from data.resstock.utils import load_state_configs
+from utils import get_aws_region
 
 _STATE_CONFIGS = load_state_configs()
 
@@ -90,3 +95,68 @@ __all__ = [
     "SUPPORTED_UTILITY_STATES",
     "assign_utility",
 ]
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Assign electric and gas utilities to ResStock buildings for a given state. "
+        "Input and output paths are derived from state_configs.yaml and config.yaml."
+    )
+    parser.add_argument(
+        "--state",
+        type=str,
+        required=True,
+        help=f"2-letter state code. Supported: {sorted(SUPPORTED_UTILITY_STATES)}",
+    )
+    parser.add_argument(
+        "--path_s3_gis_dir",
+        type=str,
+        default=None,
+        help="Override S3 directory for utility polygon CSV files",
+    )
+    parser.add_argument(
+        "--electric_poly_filename",
+        type=str,
+        default=None,
+        help="Override electric utility polygon CSV filename",
+    )
+    parser.add_argument(
+        "--gas_poly_filename",
+        type=str,
+        default=None,
+        help="Override gas utility polygon CSV filename",
+    )
+
+    args = parser.parse_args()
+    state = args.state.upper()
+
+    cfg = yaml.safe_load(CONFIG_PATH.open())
+    rs = cfg["resstock"]
+    release_sb = (
+        f"res_{rs['release_year']}_{rs['weather_file']}_{rs['release_version']}_sb"
+    )
+    upgrade = str(rs["utility_assign_upgrade_id"]).zfill(2)
+    s3_dir = cfg["paths"]["s3_dir"].rstrip("/")
+
+    input_path = S3Path(
+        f"{s3_dir}/{release_sb}/metadata/state={state}/upgrade={upgrade}/metadata-sb.parquet"
+    )
+    output_path = S3Path(
+        f"{s3_dir}/{release_sb}/metadata_utility/state={state}/utility_assignment.parquet"
+    )
+
+    storage_options = {"aws_region": get_aws_region()}
+    input_metadata = pl.scan_parquet(str(input_path), storage_options=storage_options)
+
+    result = assign_utility(
+        state,
+        input_metadata,
+        path_s3_gis_dir=args.path_s3_gis_dir,
+        electric_poly_filename=args.electric_poly_filename,
+        gas_poly_filename=args.gas_poly_filename,
+    )
+
+    result.select("bldg_id", "sb.electric_utility", "sb.gas_utility").sink_parquet(
+        str(output_path), compression="zstd", storage_options=storage_options
+    )
+    print(f"Wrote utility assignment → {output_path}", flush=True)

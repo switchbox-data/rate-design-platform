@@ -67,10 +67,8 @@ MD:
       # assignment.  Must match the PUMA definitions ResStock uses (2010-def
       # for res_2024_amy2018_2 — verified: all 44 MD PUMAs match pygris year=2019).
       puma_year: 2019
-      # Utility polygon CSV filenames in the GIS directory (--path-s3-gis-dir).
-      # These are written by assign_utility_md.load_electric/gas_utilities() on
-      # first fetch.  Override via CLI if needed.
-      electric_poly_filename: "md_electric_utilities_20260605.csv"
+      # Gas utility polygon CSV filename in the GIS directory (--path-s3-gis-dir).
+      # Written by load_utility_boundaries() on first fetch.  Override via CLI.
       gas_poly_filename: "md_gas_utilities_20260605.csv"
 CT:
   state_fips: "09"

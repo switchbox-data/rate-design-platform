@@ -19,6 +19,7 @@ constants (state code, HIFLD URLs, CRS, etc.).
 from __future__ import annotations
 
 import io
+import os
 import subprocess
 import time
 from collections.abc import Callable
@@ -36,7 +37,10 @@ from cloudpathlib import S3Path
 from pygris import pumas as pygris_pumas
 from ruamel.yaml import YAML
 
+from pygris import counties as pygris_counties
+
 from data.resstock.constants import CONFIG_PATH, STATE_CONFIGS_PATH
+from utils import get_aws_region
 
 
 # ---------------------------------------------------------------------------
@@ -104,6 +108,80 @@ def read_csv_to_gdf_from_s3(
     return gdf
 
 
+def load_county_boundaries(state: str, year: int, state_crs: int) -> gpd.GeoDataFrame:
+    """Fetch Census county boundaries for ``state`` via pygris.
+
+    Args:
+        state: 2-letter state abbreviation (e.g. ``"MD"``).
+        year: TIGER/Line vintage year (e.g. ``2019``).
+        state_crs: EPSG code to project the result into.
+
+    Returns:
+        GeoDataFrame with a ``GEOID`` column (5-char county FIPS) projected
+        to ``state_crs``.
+    """
+    return cast(
+        gpd.GeoDataFrame,
+        pygris_counties(state=state, year=year).to_crs(epsg=state_crs),
+    )
+
+
+def load_county_utility_weights(
+    s3_path: str,
+    eia_id_to_std_name: dict[int, str],
+) -> pl.DataFrame:
+    """Load pre-computed county service territory weights from S3.
+
+    Applies an EIA utility ID -> standardised name mapping so downstream code
+    works with short names (e.g. ``"bge"``) instead of full EIA names.
+    Utilities not in the map fall back to their ``utility_name_eia``.
+
+    Args:
+        s3_path: Full S3 path to the service territory parquet
+            (e.g. ``s3://data.sb/eia/861/service_territory/state=MD/data.parquet``).
+        eia_id_to_std_name: Mapping from ``utility_id_eia`` (int) to
+            standardised short name (str).
+
+    Returns:
+        DataFrame with columns ``county_id_fips``, ``utility`` (std name),
+        and ``weight`` (float, sums to 1.0 per county).
+
+    Raises:
+        RuntimeError: If the S3 path cannot be read (likely the data hasn't
+            been fetched yet).
+    """
+    region = get_aws_region()
+    opts = {"region": region, "default_region": region}
+
+    try:
+        df = pl.read_parquet(s3_path, storage_options=opts)
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to read county service territory from {s3_path!r}. "
+            "This data must be fetched before running utility assignment.\n"
+            "  Run:  just -f data/eia/861/Justfile fetch-service-territory <STATE>"
+        ) from exc
+
+    name_map = pl.DataFrame(
+        {
+            "utility_id_eia": pl.Series(
+                list(eia_id_to_std_name.keys()), dtype=pl.Int32
+            ),
+            "utility": pl.Series(list(eia_id_to_std_name.values()), dtype=pl.Utf8),
+        }
+    )
+
+    df = (
+        df.join(name_map, on="utility_id_eia", how="left")
+        .with_columns(
+            pl.col("utility").fill_null(pl.col("utility_name_eia")).alias("utility")
+        )
+        .select(["county_id_fips", "utility", "weight"])
+    )
+
+    return df
+
+
 # ---------------------------------------------------------------------------
 # PUMA–utility overlap
 # ---------------------------------------------------------------------------
@@ -140,6 +218,82 @@ def calculate_puma_utility_overlap(
     )
 
     return pl.from_pandas(puma_overlap).lazy()
+
+
+def calculate_puma_county_utility_overlap(
+    pumas: gpd.GeoDataFrame,
+    county_gdf: gpd.GeoDataFrame,
+    county_utility_weights: pl.DataFrame,
+    state_crs: int,
+) -> pl.LazyFrame:
+    """Calculate PUMA-utility overlap using county polygons with utility weights.
+
+    An alternative to :func:`calculate_puma_utility_overlap` for states where
+    sub-county utility boundary shapefiles are unavailable.  County polygons
+    (Census TIGER/Line, e.g. from ``pygris.counties()``) are used as proxy
+    boundaries.  When a county is served by multiple utilities, the
+    PUMA–county intersection area is split proportionally using
+    ``county_utility_weights``.
+
+    The returned LazyFrame has the same columns as
+    :func:`calculate_puma_utility_overlap` — ``puma_id``, ``utility``, and
+    ``pct_overlap`` — so it plugs directly into
+    :func:`calculate_utility_probabilities`.
+
+    Args:
+        pumas: Census PUMA GeoDataFrame (must contain a ``PUMACE10`` column).
+        county_gdf: Census county GeoDataFrame (must contain a ``GEOID``
+            column with 5-char FIPS strings, e.g. from
+            ``pygris.counties(state="MD", year=2019)``).
+        county_utility_weights: DataFrame with columns ``county_id_fips``
+            (5-char FIPS string), ``utility`` (utility name), and ``weight``
+            (float, sums to 1.0 per county).
+        state_crs: EPSG code for the projected CRS used for area calculations.
+
+    Returns:
+        LazyFrame with columns ``puma_id`` (str), ``utility`` (str), and
+        ``pct_overlap`` (float).  Values reflect weighted intersections;
+        a PUMA whose area falls entirely within a single-utility county has
+        ``pct_overlap ≈ 100`` for that utility.
+    """
+    pumas_proj = pumas[["PUMACE10", "geometry"]].to_crs(epsg=state_crs).copy()
+    pumas_proj["puma_area"] = pumas_proj.geometry.area
+
+    counties_proj = county_gdf[["GEOID", "geometry"]].to_crs(epsg=state_crs)
+
+    # One row per (PUMA × county) intersection.
+    intersection = gpd.overlay(pumas_proj, counties_proj, how="intersection")
+    intersection["overlap_area"] = intersection.geometry.area
+
+    overlap_df = pl.from_pandas(
+        intersection[["PUMACE10", "GEOID", "puma_area", "overlap_area"]].rename(
+            columns={"PUMACE10": "puma_id", "GEOID": "county_id_fips"}
+        )
+    )
+
+    # Expand: each (PUMA, county) row fans out to one row per utility serving
+    # that county, weighted by the utility's share of the county.
+    weighted = overlap_df.join(
+        county_utility_weights.select(["county_id_fips", "utility", "weight"]),
+        on="county_id_fips",
+        how="left",
+    )
+
+    weighted = weighted.with_columns(
+        (pl.col("overlap_area") * pl.col("weight") / pl.col("puma_area") * 100).alias(
+            "pct_overlap"
+        )
+    )
+
+    # Sum across counties: a PUMA spanning multiple counties accumulates
+    # weighted overlap area from each.
+    result = (
+        weighted.group_by(["puma_id", "utility"])
+        .agg(pl.col("pct_overlap").sum())
+        .sort("puma_id")
+    )
+
+    return result.lazy()
 
 
 # ---------------------------------------------------------------------------
@@ -1022,6 +1176,29 @@ S3_GIS_DIR: str = _CONFIG["paths"]["s3_gis_dir"]
 S3_PUMAS_DIR: str = _CONFIG["paths"]["s3_pumas_dir"]
 GIS_CACHE_DIR: str = _CONFIG["paths"]["gis_cache_dir"]
 
+_USER_CACHE_DIR = Path.home() / ".cache" / "switchbox" / "gis"
+
+
+def _resolve_writable_cache_dir(configured: Path) -> Path:
+    """Return *configured* if it (or an ancestor) is writable, else a per-user fallback.
+
+    The GIS cache directory in config.yaml may live on a shared EBS volume
+    owned by a different user.  Rather than failing on ``mkdir``, we
+    transparently fall back to ``~/.cache/switchbox/gis`` so PUMA shapefiles
+    and utility CSVs are still cached across runs.
+    """
+    check = configured
+    while not check.exists():
+        check = check.parent
+    if os.access(check, os.W_OK):
+        return configured
+    print(
+        f"  NOTE: configured cache dir {configured} is not writable; "
+        f"using {_USER_CACHE_DIR} instead.",
+        flush=True,
+    )
+    return _USER_CACHE_DIR
+
 
 # ---------------------------------------------------------------------------
 # HIFLD source URLs
@@ -1269,6 +1446,7 @@ def load_pumas(
         GeoDataFrame of PUMA boundaries (unprojected; caller reprojects to
         the desired CRS).
     """
+    cache_dir = _resolve_writable_cache_dir(cache_dir)
     puma_dir = cache_dir / "pumas" / state
     local_shp = puma_dir / f"{state.lower()}_pumas.shp"
 
