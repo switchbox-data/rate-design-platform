@@ -22,6 +22,7 @@ import io
 import os
 import subprocess
 import time
+import zipfile
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
@@ -41,6 +42,7 @@ from pygris import counties as pygris_counties
 
 from data.resstock.constants import CONFIG_PATH, STATE_CONFIGS_PATH
 from utils import get_aws_region
+from utils.utility_codes import get_hifld_to_std_name
 
 
 # ---------------------------------------------------------------------------
@@ -1280,19 +1282,27 @@ def get_with_retry(url: str, params: dict) -> httpx.Response:
 
 def paginate_arcgis_geojson(
     base_url: str,
-    state: str,
+    where: str = "1=1",
     record_count: int = 1000,
 ) -> gpd.GeoDataFrame:
-    """Fetch all features for ``state`` from an ArcGIS query endpoint.
+    """Fetch features from an ArcGIS query endpoint, paginating automatically.
 
     Pages through results using ``resultOffset`` / ``resultRecordCount`` until
     a page returns fewer features than ``record_count``.
+
+    Args:
+        base_url: ArcGIS REST API query endpoint URL.
+        where: ArcGIS REST ``where`` parameter.  The ArcGIS REST API requires
+            this parameter — it cannot be omitted.  Use ``"1=1"`` (the
+            default) to return all features with no filter, or
+            ``f"STATE='{state}'"`` to filter to a single state attribute.
+        record_count: Page size for pagination.
     """
     frames: list[gpd.GeoDataFrame] = []
     offset = 0
     while True:
         params: dict[str, str | int] = {
-            "where": f"STATE='{state}'",
+            "where": where,
             "outFields": "*",
             "outSR": "4326",
             "f": "geojson",
@@ -1310,7 +1320,7 @@ def paginate_arcgis_geojson(
         offset += record_count
 
     if not frames:
-        raise RuntimeError(f"No features returned for STATE='{state}' from {base_url}")
+        raise RuntimeError(f"No features returned for where={where!r} from {base_url}")
     if len(frames) == 1:
         return frames[0]
     return gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs=frames[0].crs)
@@ -1318,15 +1328,22 @@ def paginate_arcgis_geojson(
 
 def fetch_geojson_with_fallback(
     urls: list[str],
-    state: str,
+    where: str = "1=1",
     manual_fallback: str | None = None,
 ) -> gpd.GeoDataFrame:
-    """Try each ArcGIS URL in order; return from the first that succeeds."""
+    """Try each ArcGIS URL in order; return from the first that succeeds.
+
+    Args:
+        urls: Ordered list of ArcGIS REST API query endpoint URLs to try.
+        where: SQL-style WHERE clause (default ``"1=1"`` for all features).
+        manual_fallback: Optional message appended to the error when all
+            URLs fail, to guide the user toward a manual download.
+    """
     errors: list[tuple[str, Exception]] = []
     for url in urls:
         print(f"    Trying: {url}", flush=True)
         try:
-            gdf = paginate_arcgis_geojson(url, state)
+            gdf = paginate_arcgis_geojson(url, where=where)
             print(f"    ✓ Success ({len(gdf)} features).", flush=True)
             return gdf
         except Exception as exc:  # noqa: BLE001
@@ -1524,7 +1541,7 @@ def load_utility_boundaries(
         )
 
     try:
-        gdf = fetch_geojson_with_fallback(hifld_urls, state)
+        gdf = fetch_geojson_with_fallback(hifld_urls, where=f"STATE='{state}'")
     except RuntimeError:
         if hifld_fallback_fn is not None:
             gdf = hifld_fallback_fn()
@@ -1570,6 +1587,226 @@ def write_utilities_csv(
         df = df.rename(columns={"NAME": "comp_full"})
     df.to_csv(str(out_path), index=False)
     print(f"    {label} CSV: {out_path} ({len(df)} rows).", flush=True)
+
+
+# ---------------------------------------------------------------------------
+# National HIFLD fetch / load / filter
+# ---------------------------------------------------------------------------
+#
+# The national HIFLD shapefiles are the authoritative source for utility
+# service territory polygons.  They are downloaded once and cached locally
+# (and on S3), then filtered to the valid utilities for a given state+fuel
+# at assignment time.  This avoids the STATE attribute filter problem where
+# multi-state utilities (e.g. Pepco filed under DC, Potomac Edison under PA)
+# are silently dropped.
+
+
+_HIFLD_NATIONAL_DIR = "hifld"
+
+
+def _national_parquet_path(cache_dir: Path, utility_type: str) -> Path:
+    """Local parquet path for a national HIFLD dataset."""
+    return cache_dir / _HIFLD_NATIONAL_DIR / f"hifld_{utility_type}_national.parquet"
+
+
+def _national_s3_key(utility_type: str) -> str:
+    """S3 key (relative to S3_GIS_DIR) for a national HIFLD parquet."""
+    return f"hifld_{utility_type}_national.parquet"
+
+
+def fetch_national_hifld(
+    utility_type: str,
+    cache_dir: Path | None = None,
+    upload: bool = True,
+) -> gpd.GeoDataFrame:
+    """Download the full national HIFLD dataset, cache locally, and upload to S3.
+
+    Args:
+        utility_type: ``"electric"`` or ``"gas"``.
+        cache_dir: Local cache root (default: ``GIS_CACHE_DIR``).
+        upload: Whether to upload the parquet to S3.
+
+    Returns:
+        GeoDataFrame with all national features (CRS: EPSG:4326).
+    """
+    cache_dir = _resolve_writable_cache_dir(Path(cache_dir or GIS_CACHE_DIR))
+    local_pq = _national_parquet_path(cache_dir, utility_type)
+    local_pq.parent.mkdir(parents=True, exist_ok=True)
+
+    if utility_type == "electric":
+        print(
+            "  Fetching full national HIFLD electric service territories ...",
+            flush=True,
+        )
+        gdf = fetch_geojson_with_fallback(HIFLD_ELEC_URLS, where="1=1")
+    elif utility_type == "gas":
+        gdf = _load_gas_from_zip_or_api()
+    else:
+        raise ValueError(
+            f"utility_type must be 'electric' or 'gas', got {utility_type!r}"
+        )
+
+    gdf = gdf.to_crs(epsg=4326)
+    gdf.to_parquet(local_pq)
+    print(
+        f"    Saved national {utility_type} HIFLD ({len(gdf)} features) → {local_pq}",
+        flush=True,
+    )
+
+    if upload:
+        s3_dest = f"{S3_GIS_DIR.rstrip('/')}/{_national_s3_key(utility_type)}"
+        print(f"    Uploading → {s3_dest}", flush=True)
+        s3_cp(local_pq, s3_dest)
+
+    return gdf
+
+
+def _load_gas_from_zip_or_api() -> gpd.GeoDataFrame:
+    """Load the national HIFLD gas dataset from the local DataLumos ZIP or API.
+
+    Tries the local ZIP first (already downloaded); falls back to the HIFLD
+    gas API endpoints.
+    """
+    zip_path = HIFLD_GAS_DATALUMOS_ZIP
+    if zip_path.exists():
+        print(
+            f"  Reading national gas territories from DataLumos ZIP: {zip_path}",
+            flush=True,
+        )
+        with zipfile.ZipFile(zip_path) as zf:
+            shp_names = [n for n in zf.namelist() if n.endswith(".shp")]
+            if not shp_names:
+                raise RuntimeError(f"No .shp found inside {zip_path}")
+            gdf = gpd.read_file(f"zip://{zip_path}")
+        print(f"    {len(gdf)} national gas features loaded.", flush=True)
+        return gdf
+
+    print(
+        "  DataLumos gas ZIP not found locally; fetching from HIFLD API ...",
+        flush=True,
+    )
+    return fetch_geojson_with_fallback(
+        HIFLD_GAS_URLS,
+        where="1=1",
+        manual_fallback=(
+            f"Download the gas shapefile ZIP manually from {HIFLD_GAS_DATALUMOS_URL} "
+            f"and place it at {HIFLD_GAS_DATALUMOS_ZIP}"
+        ),
+    )
+
+
+def load_national_hifld(
+    utility_type: str,
+    cache_dir: Path | None = None,
+) -> gpd.GeoDataFrame:
+    """Load the national HIFLD dataset: local cache -> S3 -> fetch from source.
+
+    Args:
+        utility_type: ``"electric"`` or ``"gas"``.
+        cache_dir: Local cache root (default: ``GIS_CACHE_DIR``).
+
+    Returns:
+        GeoDataFrame of all national features (CRS: EPSG:4326).
+    """
+    cache_dir = _resolve_writable_cache_dir(Path(cache_dir or GIS_CACHE_DIR))
+    local_pq = _national_parquet_path(cache_dir, utility_type)
+
+    # 1. Local cache
+    if local_pq.exists():
+        print(
+            f"  Re-using cached national {utility_type} HIFLD: {local_pq}",
+            flush=True,
+        )
+        gdf = gpd.read_parquet(str(local_pq))
+        print(f"    {len(gdf)} features loaded.", flush=True)
+        return gdf
+
+    # 2. S3
+    s3_key = _national_s3_key(utility_type)
+    s3_src = f"{S3_GIS_DIR.rstrip('/')}/{s3_key}"
+    print(
+        f"  National {utility_type} HIFLD not cached locally; trying S3: {s3_src}",
+        flush=True,
+    )
+    local_pq.parent.mkdir(parents=True, exist_ok=True)
+    dl_rc = subprocess.run(
+        ["aws", "s3", "cp", s3_src, str(local_pq)], check=False
+    ).returncode
+    if dl_rc == 0 and local_pq.exists():
+        print(f"    Downloaded from S3 → {local_pq}", flush=True)
+        gdf = gpd.read_parquet(str(local_pq))
+        print(f"    {len(gdf)} features loaded.", flush=True)
+        return gdf
+
+    # 3. Fetch from source
+    print(
+        f"  S3 download failed; fetching national {utility_type} HIFLD from source ...",
+        flush=True,
+    )
+    return fetch_national_hifld(utility_type, cache_dir)
+
+
+def filter_hifld_for_state(
+    national_gdf: gpd.GeoDataFrame,
+    state: str,
+    fuel: str,
+) -> gpd.GeoDataFrame:
+    """Filter a national HIFLD GeoDataFrame to valid utilities for a state.
+
+    Uses the HIFLD NAME -> std_name mapping from ``utility_codes.py`` to
+    keep only features matching pre-defined valid utilities for the given
+    state and fuel type.  The ``NAME`` column is replaced with a ``utility``
+    column containing the standardised short name, which is what downstream
+    functions (``calculate_puma_utility_overlap``, etc.) expect.
+
+    Args:
+        national_gdf: Full national HIFLD GeoDataFrame (from
+            :func:`load_national_hifld`).
+        state: 2-letter state code.
+        fuel: ``"electric"`` or ``"gas"``.
+
+    Returns:
+        GeoDataFrame with only the valid utilities for this state, with a
+        ``utility`` column containing std_names.
+    """
+    hifld_map = get_hifld_to_std_name(state, fuel)
+    if not hifld_map:
+        raise ValueError(
+            f"No HIFLD name mappings found for state={state!r}, fuel={fuel!r}. "
+            "Add hifld_names to the relevant records in utils/utility_codes.py."
+        )
+
+    name_col = "NAME" if "NAME" in national_gdf.columns else "comp_full"
+    mask = national_gdf[name_col].isin(hifld_map.keys())
+    filtered = national_gdf[mask].copy()
+
+    if filtered.empty:
+        found_names = sorted(national_gdf[name_col].unique()[:20])
+        raise RuntimeError(
+            f"No HIFLD features matched any valid {fuel} utility for {state}. "
+            f"Expected HIFLD names: {sorted(hifld_map.keys())}. "
+            f"Sample names in data: {found_names}"
+        )
+
+    filtered["utility"] = filtered[name_col].map(hifld_map)
+
+    matched = sorted(filtered["utility"].unique())
+    expected = sorted(set(hifld_map.values()))
+    missing = sorted(set(expected) - set(matched))
+    if missing:
+        print(
+            f"  NOTE: {len(missing)} {fuel} utility(ies) for {state} had no HIFLD "
+            f"polygon match: {missing}. Their PUMAs will be filled via "
+            "nearest-neighbor.",
+            flush=True,
+        )
+
+    print(
+        f"    Filtered to {len(filtered)} {fuel} features for {state} "
+        f"({len(matched)} utilities: {matched})",
+        flush=True,
+    )
+    return cast(gpd.GeoDataFrame, filtered)
 
 
 # ---------------------------------------------------------------------------

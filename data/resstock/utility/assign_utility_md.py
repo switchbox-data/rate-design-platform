@@ -2,7 +2,7 @@
 
 Thin wrapper around the state-generic helpers in
 ``data.resstock.utility.utils``, providing MD-specific configuration
-(CRS, PUMA year, utility name mapping).
+(CRS, PUMA year, excluded utilities).
 
 The public entry point is ``assign_utility()`` — called by the dynamic
 dispatch in ``data.resstock.utility.assign_utility`` with kwargs from
@@ -10,35 +10,21 @@ dispatch in ``data.resstock.utility.assign_utility`` with kwargs from
 pre-loaded GeoDataFrames and is used directly when GIS data is already
 in memory.
 
-Electric utility assignment
----------------------------
-MD uses EIA Form 861 county-level service territory data (via PUDL) instead
-of HIFLD utility polygons.  HIFLD is missing Pepco, Potomac Edison, and
-Delmarva Power — three of the five major MD investor-owned utilities — because
-those utilities never submitted their boundary shapes to the HIFLD portal.
+Electric and gas utility assignment
+------------------------------------
+Both electric and gas utilities are assigned from the full national HIFLD
+shapefiles (Electric Retail Service Territories and Natural Gas LDC Service
+Territories).  The national data is downloaded once, cached locally and on
+S3, and then filtered to the valid utilities for MD (defined in
+``utils/utility_codes.py``).
 
-The approach: Census county polygons are used as proxy utility boundaries.
-For counties served by a single utility, the county polygon maps 1-to-1 to
-that utility.  For counties served by multiple utilities (e.g. Montgomery
-County has BGE, Pepco, and Potomac Edison all reporting in EIA-861), the
-county's PUMA-overlap area is split proportionally using statewide residential
-customer counts as a proxy for each utility's share of the county.
+This avoids the STATE attribute filter problem where multi-state utilities
+(Pepco filed under DC, Potomac Edison under PA, Delmarva under DE) were
+silently dropped when querying ``WHERE STATE='MD'``.
 
-This gives sub-county precision where PUMAs cross county lines: a PUMA in
-western Frederick County that also overlaps Washington County (Potomac Edison
-only) accumulates overlap weight toward Potomac Edison, while a PUMA in
-eastern Frederick that overlaps Howard County (BGE only) tilts toward BGE.
-
-Gas utility assignment
-----------------------
-Gas utilities continue to use HIFLD-derived polygon CSVs from S3 (loaded
-via ``read_csv_to_gdf_from_s3``), the same approach as NY and RI.
-
-Service territory data
-----------------------
-Pre-computed county weights parquet produced by::
-
-    just -f data/eia/861/Justfile fetch-service-territory MD
+The filtered polygons are spatially intersected with Census PUMAs to compute
+per-PUMA utility probability distributions, which are then used to sample a
+utility assignment for each ResStock building.
 """
 
 from __future__ import annotations
@@ -48,30 +34,24 @@ from typing import cast
 
 import geopandas as gpd
 import polars as pl
-from cloudpathlib import S3Path
 
-from data.eia.constants import service_territory_s3_path
 from data.resstock.utils import (
     load_state_configs,
     select_puma_and_heating_fuel_metadata,
 )
 from data.resstock.utility.utils import (
     GIS_CACHE_DIR,
-    S3_GIS_DIR,
     calculate_prior_distributions,
-    calculate_puma_county_utility_overlap,
     calculate_puma_utility_overlap,
     calculate_utility_probabilities,
     fill_missing_puma_probabilities,
-    load_county_boundaries,
-    load_county_utility_weights,
+    filter_hifld_for_state,
+    load_national_hifld,
     load_pumas,
     print_comparison_summary,
-    read_csv_to_gdf_from_s3,
     sample_utility_per_building,
     zero_excluded_gas_utilities_and_renormalize,
 )
-from utils.utility_codes import get_eia_utility_id_to_std_name
 
 # ── MD-specific constants ─────────────────────────────────────────────────────
 
@@ -91,52 +71,42 @@ def assign_utility(
     *,
     state_crs: int,
     puma_year: int,
-    gas_poly_filename: str,
-    path_s3_gis_dir: str | None = None,
     excluded_gas_utilities: list[str] | None = None,
     puma_cache_dir: str | None = None,
+    hifld_cache_dir: str | None = None,
+    **_kwargs: object,
 ) -> pl.LazyFrame:
     """Entry point for dynamic dispatch from ``assign_utility.py``.
 
-    Electric utilities: loaded from EIA-861 county service territory
-    (county polygons + per-county utility weights from S3).
-    Gas utilities: loaded from HIFLD-derived polygon CSV on S3.
+    Loads national HIFLD polygons, filters to valid MD utilities, loads
+    Census PUMAs, and delegates to :func:`assign_utility_md`.
 
     Args:
         metadata: ResStock metadata LazyFrame.
         state_crs: EPSG code for MD projected CRS (2248 = NAD83 / Maryland
             State Plane feet).
         puma_year: Census TIGER/Line PUMA vintage year (2019 for 2010-def).
-        gas_poly_filename: Filename of the gas utility polygon CSV in
-            ``path_s3_gis_dir``.
-        path_s3_gis_dir: S3 directory containing the gas polygon CSV.
-            Defaults to ``paths.s3_gis_dir`` in ``config.yaml``.
         excluded_gas_utilities: Standardised gas utility names whose PUMA
             probabilities are zeroed before sampling (default: none).
         puma_cache_dir: Root local directory for the PUMA shapefile cache.
             Defaults to ``paths.gis_cache_dir`` in ``config.yaml``.
+        hifld_cache_dir: Root local directory for national HIFLD parquets.
+            Defaults to ``paths.gis_cache_dir`` in ``config.yaml``.
     """
-    gis_base = S3Path((path_s3_gis_dir or S3_GIS_DIR).rstrip("/"))
-    elec_st_path = service_territory_s3_path(_STATE)
-    eia_id_map = get_eia_utility_id_to_std_name(_STATE)
+    cache_dir = Path(hifld_cache_dir or GIS_CACHE_DIR)
 
-    # ── Electric: county-based approach ───────────────────────────────────────
-    print("    Loading MD county service territory weights from S3 ...", flush=True)
-    county_utility_weights = load_county_utility_weights(elec_st_path, eia_id_map)
+    # ── Load national HIFLD and filter to valid MD utilities ───────────────
+    print("    Loading national HIFLD electric territories ...", flush=True)
+    elec_national = load_national_hifld("electric", cache_dir)
+    elec_md = filter_hifld_for_state(elec_national, _STATE, "electric")
+    elec_md = elec_md.to_crs(epsg=state_crs)
 
-    print("    Loading MD Census county shapefiles ...", flush=True)
-    county_gdf = load_county_boundaries(
-        state=_STATE, year=puma_year, state_crs=state_crs
-    )
+    print("    Loading national HIFLD gas territories ...", flush=True)
+    gas_national = load_national_hifld("gas", cache_dir)
+    gas_md = filter_hifld_for_state(gas_national, _STATE, "gas")
+    gas_md = gas_md.to_crs(epsg=state_crs)
 
-    # ── Gas: HIFLD-derived polygon CSV ────────────────────────────────────────
-    gas_polygons = read_csv_to_gdf_from_s3(
-        gis_base / gas_poly_filename,
-        utility_type="gas",
-        state_crs=state_crs,
-    )
-
-    # ── PUMA shapefiles ───────────────────────────────────────────────────────
+    # ── PUMA shapefiles ───────────────────────────────────────────────────
     print("    Loading MD Census PUMA shapefiles ...", flush=True)
     pumas = load_pumas(
         state=_STATE,
@@ -147,9 +117,8 @@ def assign_utility(
 
     return assign_utility_md(
         input_metadata=metadata,
-        county_gdf=county_gdf,
-        county_utility_weights=county_utility_weights,
-        gas_polygons=gas_polygons,
+        electric_polygons=elec_md,
+        gas_polygons=gas_md,
         pumas=pumas,
         state_crs=state_crs,
         excluded_gas_utilities=frozenset(excluded_gas_utilities)
@@ -163,8 +132,7 @@ def assign_utility(
 
 def assign_utility_md(
     input_metadata: pl.LazyFrame,
-    county_gdf: gpd.GeoDataFrame,
-    county_utility_weights: pl.DataFrame,
+    electric_polygons: gpd.GeoDataFrame,
     gas_polygons: gpd.GeoDataFrame,
     pumas: gpd.GeoDataFrame,
     state_crs: int,
@@ -172,16 +140,17 @@ def assign_utility_md(
 ) -> pl.LazyFrame:
     """Assign electric and gas utilities to ResStock buildings in MD.
 
-    Electric utilities are assigned via PUMA-county area overlap weighted by
-    per-county utility shares (from EIA-861 service territory data).
-    Gas utilities are assigned via PUMA-polygon overlap on HIFLD shapes.
+    Both electric and gas utilities are assigned via PUMA-polygon area
+    overlap on HIFLD service territory shapes.
 
     Args:
         input_metadata: ResStock metadata LazyFrame.
-        county_gdf: Census county GeoDataFrame for MD (with GEOID column).
-        county_utility_weights: DataFrame with county_id_fips, utility,
-            weight columns (weights sum to 1.0 per county).
-        gas_polygons: GeoDataFrame of MD gas utility territories (HIFLD).
+        electric_polygons: GeoDataFrame of MD electric utility territories
+            (filtered from national HIFLD, with ``utility`` column containing
+            std_names).
+        gas_polygons: GeoDataFrame of MD gas utility territories (filtered
+            from national HIFLD, with ``utility`` column containing
+            std_names).
         pumas: GeoDataFrame of MD Census PUMAs projected to ``state_crs``.
         state_crs: EPSG code for the MD projected CRS.
         excluded_gas_utilities: Gas utility names whose PUMA probabilities
@@ -193,15 +162,8 @@ def assign_utility_md(
     """
     puma_and_heating_fuel = select_puma_and_heating_fuel_metadata(input_metadata)
 
-    # Electric: county-weighted PUMA overlap.
-    puma_elec_overlap = calculate_puma_county_utility_overlap(
-        pumas=pumas,
-        county_gdf=county_gdf,
-        county_utility_weights=county_utility_weights,
-        state_crs=state_crs,
-    )
-
-    # Gas: standard HIFLD polygon overlap.
+    # Utility name map — HIFLD names are already mapped to std_names by
+    # filter_hifld_for_state, so we pass an empty map.
     utility_name_map = pl.DataFrame(
         {
             "state_name": pl.Series([], dtype=pl.Utf8),
@@ -209,6 +171,9 @@ def assign_utility_md(
         }
     ).lazy()
 
+    puma_elec_overlap = calculate_puma_utility_overlap(
+        pumas, electric_polygons, state_crs
+    )
     puma_gas_overlap = calculate_puma_utility_overlap(pumas, gas_polygons, state_crs)
 
     puma_elec_probs = calculate_utility_probabilities(
@@ -217,7 +182,6 @@ def assign_utility_md(
         handle_municipal=False,
         filter_none=True,
     )
-
     puma_gas_probs = calculate_utility_probabilities(
         puma_gas_overlap,
         utility_name_map,
@@ -241,17 +205,16 @@ def assign_utility_md(
     building_elec = sample_utility_per_building(
         puma_and_heating_fuel, puma_elec_probs, "sb.electric_utility"
     )
-
     building_gas = sample_utility_per_building(
         puma_and_heating_fuel,
         puma_gas_probs,
         "sb.gas_utility",
+        only_when_fuel="Natural Gas",
     )
 
     elec_prior_weighted, gas_prior_weighted = calculate_prior_distributions(
         puma_elec_probs, puma_gas_probs, puma_and_heating_fuel=puma_and_heating_fuel
     )
-
     print_comparison_summary(
         building_elec,
         building_gas,

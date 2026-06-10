@@ -67,9 +67,9 @@ MD:
       # assignment.  Must match the PUMA definitions ResStock uses (2010-def
       # for res_2024_amy2018_2 — verified: all 44 MD PUMAs match pygris year=2019).
       puma_year: 2019
-      # Gas utility polygon CSV filename in the GIS directory (--path-s3-gis-dir).
-      # Written by load_utility_boundaries() on first fetch.  Override via CLI.
-      gas_poly_filename: "md_gas_utilities_20260605.csv"
+      # MD uses national HIFLD shapefiles (not per-state CSVs).  Valid
+      # utilities are defined in utils/utility_codes.py and filtered at
+      # assignment time via filter_hifld_for_state().
 CT:
   state_fips: "09"
   # Utility assignment not yet implemented for CT.  Omitting the
