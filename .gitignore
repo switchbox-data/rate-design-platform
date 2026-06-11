@@ -45,6 +45,9 @@ data/nyiso/transmission/csv/
 data/nyiso/hourly_demand/zones/
 data/nyiso/hourly_demand/utilities/
 data/nyiso/zone_mapping/csv/
+data/pjm/capacity/rpm/parquet/
+data/pjm/capacity/5cp/parquet/
+data/pjm/zone_mapping/csv/
 rate_design/hp_rates/ny/config/buildstock_raw/
 rate_design/hp_rates/ny/config/buildstock_processed/
 rate_design/hp_rates/ny/config/cairo_cases/
@@ -66,6 +69,8 @@ build/
 *.csv
 !data/nyiso/gold_book/2025_proposed_transmission_facilities_raw.csv
 !data/isone/capacity/fca/fca_clearing_prices.csv
+!data/pjm/capacity/rpm/rpm_capacity_prices.csv
+!data/pjm/capacity/5cp/fivecp_peaks.csv
 *.json
 *.png
 !dprint.json
