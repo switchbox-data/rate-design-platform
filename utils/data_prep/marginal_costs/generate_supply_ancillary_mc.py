@@ -7,8 +7,8 @@ import argparse
 from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.pre.marginal_costs.supply_ancillary import compute_supply_ancillary_mc
-from utils.pre.marginal_costs.supply_utils import (
+from utils.data_prep.marginal_costs.supply_ancillary import compute_supply_ancillary_mc
+from utils.data_prep.marginal_costs.supply_utils import (
     DEFAULT_ISONE_ANCILLARY_S3_BASE,
     DEFAULT_ISONE_OUTPUT_S3_BASE,
     ISONE_UTILITY_ZONES,

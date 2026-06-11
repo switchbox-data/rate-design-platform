@@ -7,10 +7,10 @@ from datetime import datetime, timedelta
 import polars as pl
 import pytest
 
-from utils.pre.marginal_costs.supply_ancillary import (
+from utils.data_prep.marginal_costs.supply_ancillary import (
     compute_supply_ancillary_mc,
 )
-from utils.pre.marginal_costs.supply_utils import build_cairo_8760_timestamps
+from utils.data_prep.marginal_costs.supply_utils import build_cairo_8760_timestamps
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +112,7 @@ def _make_compute_ancillary_mc_with_patch(
         }
     )
 
-    import utils.pre.marginal_costs.supply_ancillary as mod
+    import utils.data_prep.marginal_costs.supply_ancillary as mod
 
     def _fake_load(
         yr: int,
@@ -187,7 +187,7 @@ def test_compute_ancillary_mc_leap_year_is_8760(
         }
     )
 
-    import utils.pre.marginal_costs.supply_ancillary as mod
+    import utils.data_prep.marginal_costs.supply_ancillary as mod
 
     def _fake_load(
         yr: int,

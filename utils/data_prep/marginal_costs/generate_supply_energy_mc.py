@@ -1,4 +1,4 @@
-"""Generate utility-level supply capacity marginal costs (NYISO ICAP or ISO-NE FCA)."""
+"""Generate utility-level supply energy marginal costs from LBMP (NYISO) or LMP (ISO-NE)."""
 
 from __future__ import annotations
 
@@ -7,35 +7,34 @@ import argparse
 from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.pre.marginal_costs.supply_capacity_nyiso import (
-    N_PEAK_HOURS_PER_MONTH,
-    compute_supply_capacity_mc,
+from utils.data_prep.marginal_costs.supply_energy import (
+    compute_isone_supply_energy_mc,
+    compute_supply_energy_mc,
 )
-from utils.pre.marginal_costs.supply_utils import (
-    DEFAULT_ICAP_S3_BASE,
-    DEFAULT_ISONE_FCA_S3_PATH,
+from utils.data_prep.marginal_costs.supply_utils import (
+    DEFAULT_ISONE_LMP_S3_BASE,
     DEFAULT_ISONE_OUTPUT_S3_BASE,
-    DEFAULT_ISONE_ZONE_LOADS_S3_BASE,
+    DEFAULT_LBMP_S3_BASE,
     DEFAULT_OUTPUT_S3_BASE,
     DEFAULT_ZONE_LOADS_S3_BASE,
     DEFAULT_ZONE_MAPPING_PATH,
-    ISONE_UTILITY_CAPACITY_ZONES,
+    ISONE_UTILITY_ZONES,
     VALID_ISONE_UTILITIES,
     VALID_UTILITIES,
-    generate_zero_capacity_mc,
+    generate_zero_energy_mc,
     get_utility_mapping,
     load_zone_mapping,
     prepare_component_output,
     save_component_output,
-    save_zero_capacity_mc,
+    save_zero_energy_mc,
 )
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Generate utility-level supply capacity marginal costs from "
-            "NYISO ICAP or ISO-NE FCA."
+            "Generate utility-level supply energy marginal costs from "
+            "NYISO LBMP or ISO-NE LMP."
         )
     )
     parser.add_argument(
@@ -63,12 +62,13 @@ def _parse_args() -> argparse.Namespace:
     )
     # NYISO-only args
     parser.add_argument(
-        "--capacity-load-year",
+        "--energy-load-year",
         type=int,
         default=None,
         help=(
-            "[NYISO only] Year of zone load profile for ICAP peak identification. "
-            "Defaults to --year."
+            "[NYISO only] Year of zone load profile for LBMP weighting "
+            "(multi-zone utilities). Defaults to --year. "
+            "Single-zone utilities ignore this."
         ),
     )
     parser.add_argument(
@@ -78,10 +78,10 @@ def _parse_args() -> argparse.Namespace:
         help=f"[NYISO only] Path to zone mapping CSV (default: {DEFAULT_ZONE_MAPPING_PATH}).",
     )
     parser.add_argument(
-        "--icap-s3-base",
+        "--lbmp-s3-base",
         type=str,
-        default=DEFAULT_ICAP_S3_BASE,
-        help=f"[NYISO only] S3 base for ICAP data (default: {DEFAULT_ICAP_S3_BASE}).",
+        default=DEFAULT_LBMP_S3_BASE,
+        help=f"[NYISO only] S3 base for LBMP data (default: {DEFAULT_LBMP_S3_BASE}).",
     )
     parser.add_argument(
         "--zone-loads-s3-base",
@@ -89,33 +89,21 @@ def _parse_args() -> argparse.Namespace:
         default=DEFAULT_ZONE_LOADS_S3_BASE,
         help=f"[NYISO only] S3 base for NYISO zone loads (default: {DEFAULT_ZONE_LOADS_S3_BASE}).",
     )
-    parser.add_argument(
-        "--peak-hours",
-        type=int,
-        default=N_PEAK_HOURS_PER_MONTH,
-        help=f"[NYISO only] Peak hours per month for ICAP allocation (default: {N_PEAK_HOURS_PER_MONTH}).",
-    )
     # ISO-NE-only args
     parser.add_argument(
         "--zone",
         type=str,
         default=None,
-        help="[ISO-NE only] Load zone for aggregate peak identification (e.g. 'RI').",
-    )
-    parser.add_argument(
-        "--fca-s3-path",
-        type=str,
-        default=DEFAULT_ISONE_FCA_S3_PATH,
-        help=f"[ISO-NE only] S3 path to FCA parquet (default: {DEFAULT_ISONE_FCA_S3_PATH}).",
-    )
-    parser.add_argument(
-        "--capacity-zone-id",
-        type=int,
-        default=None,
         help=(
-            "[ISO-NE only] FCA capacity zone ID (e.g. 8506 for SENE). "
-            "Defaults to ISONE_UTILITY_CAPACITY_ZONES[utility]."
+            "[ISO-NE only] Load zone to use for LMP (e.g. 'RI'). "
+            "Defaults to the zone mapped to --utility in ISONE_UTILITY_ZONES."
         ),
+    )
+    parser.add_argument(
+        "--lmp-s3-base",
+        type=str,
+        default=DEFAULT_ISONE_LMP_S3_BASE,
+        help=f"[ISO-NE only] S3 base for LMP data (default: {DEFAULT_ISONE_LMP_S3_BASE}).",
     )
     # Shared args
     parser.add_argument(
@@ -162,7 +150,7 @@ def main() -> None:
         output_s3_base = args.output_s3_base or DEFAULT_ISONE_OUTPUT_S3_BASE
 
     print("=" * 60)
-    print(f"SUPPLY CAPACITY MARGINAL COST GENERATION ({iso.upper()})")
+    print(f"SUPPLY ENERGY MARGINAL COST GENERATION ({iso.upper()})")
     print("=" * 60)
     print(f"  ISO:                  {iso.upper()}")
     print(f"  Utility:              {utility}")
@@ -170,9 +158,8 @@ def main() -> None:
     print(f"  Upload to S3:         {'Yes' if args.upload else 'No (inspect only)'}")
 
     if iso == "nyiso":
-        capacity_load_year = args.capacity_load_year or price_year
-        print(f"  Capacity load year:   {capacity_load_year}")
-        print(f"  Peak hours:           {args.peak_hours}/month")
+        energy_load_year = args.energy_load_year or price_year
+        print(f"  Energy load year:     {energy_load_year}")
         print("=" * 60)
 
         print("\n── Zone Mapping ──")
@@ -180,89 +167,77 @@ def main() -> None:
         utility_mapping = get_utility_mapping(mapping_df, utility)
         print(utility_mapping)
 
-        print("\n── Capacity MC (ICAP MCOS) ──")
-        capacity_df = compute_supply_capacity_mc(
-            utility_mapping=utility_mapping,
-            utility=utility,
-            icap_s3_base=args.icap_s3_base,
-            zone_loads_s3_base=args.zone_loads_s3_base,
-            price_year=price_year,
-            storage_options=storage_options,
-            peak_hours=args.peak_hours,
-            capacity_load_year=(
-                capacity_load_year if capacity_load_year != price_year else None
-            ),
+        print("\n── Energy MC (LBMP) ──")
+        energy_df = compute_supply_energy_mc(
+            utility_mapping,
+            args.lbmp_s3_base,
+            args.zone_loads_s3_base,
+            price_year,
+            storage_options,
+            zone_load_year=energy_load_year if energy_load_year != price_year else None,
         )
     else:  # isone
-        capacity_zone_id = args.capacity_zone_id or ISONE_UTILITY_CAPACITY_ZONES.get(
-            utility
-        )
-        if capacity_zone_id is None:
+        zone = args.zone or ISONE_UTILITY_ZONES.get(utility)
+        if zone is None:
             raise SystemExit(
-                f"Error: no capacity_zone_id mapping found for utility {utility!r}. "
-                "Provide --capacity-zone-id explicitly."
+                f"Error: no zone mapping found for utility {utility!r}. "
+                "Provide --zone explicitly."
             )
-        print(f"  Capacity zone ID:     {capacity_zone_id}")
+        print(f"  Zone:                 {zone}")
         print("=" * 60)
 
-        from utils.pre.marginal_costs.supply_capacity_isone import (
-            compute_isone_supply_capacity_mc,
-        )
-
-        print("\n── Capacity MC (FCA) ──")
-        capacity_df = compute_isone_supply_capacity_mc(
-            utility=utility,
+        print("\n── Energy MC (LMP) ──")
+        energy_df = compute_isone_supply_energy_mc(
+            zone=zone,
             year=price_year,
             storage_options=storage_options,
-            fca_s3_path=args.fca_s3_path,
-            zone_loads_s3_base=DEFAULT_ISONE_ZONE_LOADS_S3_BASE,
-            capacity_zone_id=capacity_zone_id,
+            lmp_s3_base=args.lmp_s3_base,
         )
 
-    capacity_output = prepare_component_output(
-        df=capacity_df,
+    energy_output = prepare_component_output(
+        df=energy_df,
         year=price_year,
-        input_col="capacity_cost_per_kw",
-        output_col="capacity_cost_enduse",
-        scale=1000.0,
+        input_col="energy_cost_enduse",
+        output_col="energy_cost_enduse",
+        scale=1.0,
     )
 
     print("\n── Output Preparation ──")
-    print("\nSAMPLE: Top 10 hours by capacity cost")
+    print("\nSAMPLE: Top 10 hours by energy cost")
     print("=" * 60)
-    sample = capacity_output.sort("capacity_cost_enduse", descending=True).head(10)
+    sample = energy_output.sort("energy_cost_enduse", descending=True).head(10)
     print(sample)
 
     if args.upload:
         save_component_output(
-            component_df=capacity_output,
+            component_df=energy_output,
             utility=utility,
             year=price_year,
             output_s3_base=output_s3_base,
             storage_options=storage_options,
-            component="capacity",
+            component="energy",
         )
-        # Generate zero-filled capacity parquet for delivery-only runs
+        # Generate zero-filled energy parquet for delivery-only runs
         # Note: This is ONLY a placeholder for delivery-only runs.
         # For supply runs, actual supply MCs should be loaded.
-        print("\n── Zero-Filled Capacity MC (Placeholder for delivery-only runs) ──")
-        zero_capacity_output = generate_zero_capacity_mc(year=price_year)
-        save_zero_capacity_mc(
-            capacity_df=zero_capacity_output,
+        print("\n── Zero-Filled Energy MC (Placeholder for delivery-only runs) ──")
+        zero_energy_output = generate_zero_energy_mc(year=price_year)
+        save_zero_energy_mc(
+            energy_df=zero_energy_output,
             utility=utility,
             year=price_year,
             output_s3_base=output_s3_base,
             storage_options=storage_options,
         )
         print("\n" + "=" * 60)
-        print("✓ Supply capacity marginal cost generation completed and uploaded")
+        print("✓ Supply energy marginal cost generation completed and uploaded")
         print("=" * 60)
     else:
         print("\n" + "=" * 60)
-        print("✓ Supply capacity marginal cost generation completed (inspect only)")
+        print("✓ Supply energy marginal cost generation completed (inspect only)")
         print("⚠️  No data uploaded to S3 (use --upload flag to enable)")
         print(
-            "\nNote: When uploading, zero-filled capacity parquet "
+            "\nNote: When uploading, zero-filled energy parquet "
             "(placeholder for delivery-only runs) will also be generated."
         )
         print("=" * 60)

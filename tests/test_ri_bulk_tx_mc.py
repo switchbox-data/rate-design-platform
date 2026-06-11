@@ -7,14 +7,14 @@ from datetime import datetime
 import polars as pl
 import pytest
 
-from utils.pre.marginal_costs.bulk_tx_isone import (
+from utils.data_prep.marginal_costs.bulk_tx_isone import (
     AESC_2024_AVOIDED_PTF_KW_YEAR,
     DEFAULT_N_PEAK_HOURS,
     compute_isone_bulk_tx_signal,
     prepare_output,
     validate_allocation,
 )
-from utils.pre.marginal_costs.supply_utils import (
+from utils.data_prep.marginal_costs.supply_utils import (
     ISONE_ALL_LOAD_ZONES,
     allocate_annual_exceedance_to_hours,
 )

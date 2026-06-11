@@ -3,23 +3,23 @@
 Usage
 -----
     # ISO-NE / RI (inspect only)
-    uv run python utils/pre/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
         --iso isone --utility rie --year 2025 --load-year 2025
 
     # ISO-NE / RI (upload)
-    uv run python utils/pre/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
         --iso isone --utility rie --year 2025 --load-year 2025 --upload
 
     # ISO-NE with custom AESC PTF override
-    uv run python utils/pre/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
         --iso isone --utility rie --year 2025 --aesc-ptf-kw-year 184.0 --upload
 
     # NYISO (inspect only)
-    uv run python utils/pre/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
         --iso nyiso --utility nyseg --year 2025 --load-year 2024
 
     # NYISO (upload)
-    uv run python utils/pre/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
         --iso nyiso --utility nyseg --year 2025 --load-year 2024 --upload
 """
 
@@ -31,16 +31,16 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.pre.marginal_costs.bulk_tx_isone import (
+from utils.data_prep.marginal_costs.bulk_tx_isone import (
     AESC_2024_AVOIDED_PTF_KW_YEAR,
     DEFAULT_N_PEAK_HOURS,
 )
-from utils.pre.marginal_costs.bulk_tx_nyiso import (
+from utils.data_prep.marginal_costs.bulk_tx_nyiso import (
     DEFAULT_NYISO_BULK_TX_CONSTRAINT_GROUP_TABLE_PATH,
     DEFAULT_SCR_WINTER_MONTHS,
     N_SCR_HOURS_PER_SEASON,
 )
-from utils.pre.marginal_costs.supply_utils import (
+from utils.data_prep.marginal_costs.supply_utils import (
     DEFAULT_ISONE_BULK_TX_OUTPUT_S3_BASE,
     DEFAULT_ISONE_ZONE_LOADS_S3_BASE,
     DEFAULT_NYISO_BULK_TX_OUTPUT_S3_BASE,
@@ -254,7 +254,7 @@ def _run_nyiso(
     zone_loads_s3_base: str,
     storage_options: dict[str, str],
 ) -> None:
-    from utils.pre.marginal_costs.bulk_tx_nyiso import (
+    from utils.data_prep.marginal_costs.bulk_tx_nyiso import (
         ICAP_RAW_TO_NESTED_LOCALITY,
         NESTED_LOCALITY_ZONES,
         compute_paying_locality_costs,
@@ -264,7 +264,10 @@ def _run_nyiso(
         print_summary,
         save_output,
     )
-    from utils.pre.marginal_costs.supply_utils import load_zone_loads, load_zone_mapping
+    from utils.data_prep.marginal_costs.supply_utils import (
+        load_zone_loads,
+        load_zone_mapping,
+    )
 
     n_scr = args.scr_hours_per_season
 
@@ -336,7 +339,7 @@ def _run_nyiso(
         storage_options,
     )
 
-    from utils.pre.marginal_costs.bulk_tx_nyiso import (
+    from utils.data_prep.marginal_costs.bulk_tx_nyiso import (
         build_nested_locality_load_profiles,
     )
 
@@ -378,14 +381,16 @@ def _run_isone(
     zone_loads_s3_base: str,
     storage_options: dict[str, str],
 ) -> None:
-    from utils.pre.marginal_costs.bulk_tx_isone import (
+    from utils.data_prep.marginal_costs.bulk_tx_isone import (
         compute_isone_bulk_tx_signal,
         prepare_output,
         print_summary,
         save_output,
         validate_allocation,
     )
-    from utils.pre.marginal_costs.supply_capacity_isone import load_isone_zone_loads
+    from utils.data_prep.marginal_costs.supply_capacity_isone import (
+        load_isone_zone_loads,
+    )
 
     aesc_ptf = args.aesc_ptf_kw_year
     n_peak = args.n_peak_hours

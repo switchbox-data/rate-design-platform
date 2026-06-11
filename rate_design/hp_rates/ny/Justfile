@@ -49,7 +49,7 @@ create-supply-mc-data-all:
     just create-supply-mc-data psegli
 
 create-supply_energy-mc-data utility_arg:
-    cd {{ project_root }} && uv run python {{ project_root }}/utils/pre/marginal_costs/generate_supply_energy_mc.py \
+    cd {{ project_root }} && uv run python {{ project_root }}/utils/data_prep/marginal_costs/generate_supply_energy_mc.py \
       --utility {{ utility_arg }} \
       --year {{ supply_mc_year }} \
       --energy-load-year {{ supply_energy_load_year }} \
@@ -57,7 +57,7 @@ create-supply_energy-mc-data utility_arg:
       --upload
 
 create-supply_capacity-mc-data utility_arg:
-    cd {{ project_root }} && uv run python {{ project_root }}/utils/pre/marginal_costs/generate_supply_capacity_mc.py \
+    cd {{ project_root }} && uv run python {{ project_root }}/utils/data_prep/marginal_costs/generate_supply_capacity_mc.py \
       --utility {{ utility_arg }} \
       --year {{ supply_mc_year }} \
       --capacity-load-year {{ supply_capacity_load_year }} \
@@ -92,7 +92,7 @@ path_constraint_group_table := "s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_constraint
 path_bulk_tx_mc := "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility=" + utility + "/year=" + tx_mc_year + "/data.parquet"
 
 create-bulk-tx-mc-data utility_arg:
-    cd {{ project_root }} && uv run python {{ project_root }}/utils/pre/marginal_costs/generate_bulk_tx_mc.py \
+    cd {{ project_root }} && uv run python {{ project_root }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
       --iso nyiso \
       --utility {{ utility_arg }} \
       --year {{ tx_mc_year }} \
