@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import polars as pl
 
-from utils.pre.marginal_costs.generate_utility_tx_dx_mc import (
+from utils.data_prep.marginal_costs.generate_utility_tx_dx_mc import (
     normalize_load_to_cairo_8760,
 )
-from utils.pre.marginal_costs.supply_utils import load_zone_loads, remap_year_if_needed
+from utils.data_prep.marginal_costs.supply_utils import (
+    load_zone_loads,
+    remap_year_if_needed,
+)
 
 N_PEAK_HOURS_PER_MONTH = 8
 

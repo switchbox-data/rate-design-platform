@@ -445,7 +445,7 @@ def load_dist_and_sub_tx_marginal_costs(
     """Load *distribution + upstream (Tx/Sub-Tx)* marginal costs and return a tz-aware Series.
 
     The parquet this function loads is produced by
-    `utils/pre/marginal_costs/generate_utility_tx_dx_mc.py`
+    `utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py`
     and contains:
     - `mc_upstream_per_kwh` (Tx/Sub-Tx component, $/kWh)
     - `mc_dist_per_kwh` (distribution component, $/kWh)

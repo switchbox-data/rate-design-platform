@@ -43,7 +43,7 @@ from plotnine import (
 from plotnine.composition import Compose
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.pre.marginal_costs.supply_utils import (
+from utils.data_prep.marginal_costs.supply_utils import (
     build_mc_partition_parquet_path,
     build_mc_partition_path,
     list_partition_parquet_paths,
