@@ -59,6 +59,7 @@ class UtilityRecord(TypedDict, total=False):
     fuels: list[str]
     display_name: str
     ny_open_data_state_names: list[str]
+    hifld_names: list[str]
     eia_utility_ids: list[int]
     gas_tariff_key: str
     electric_tariff_key: str
@@ -258,6 +259,135 @@ UTILITIES: list[UtilityRecord] = [
         "display_name": "Woodhull",
         "ny_open_data_state_names": ["Woodhull Municipal Gas Company"],
     },
+    # ── Maryland ───────────────────────────────────────────────────────────────
+    # Electric utilities
+    {
+        "std_name": "bge",
+        "state": "MD",
+        "fuels": ["electric", "gas"],
+        "display_name": "Baltimore Gas & Electric",
+        "hifld_names": [
+            "BALTIMORE GAS & ELECTRIC CO",
+            "BALTIMORE GAS AND ELECTRIC CO",
+        ],
+        "eia_utility_ids": [1167],
+    },
+    {
+        "std_name": "pepco",
+        "state": "MD",
+        "fuels": ["electric"],
+        "display_name": "Pepco",
+        "hifld_names": ["POTOMAC ELECTRIC POWER CO"],
+        "eia_utility_ids": [15270],
+    },
+    {
+        "std_name": "potomac_edison",
+        "state": "MD",
+        "fuels": ["electric"],
+        "display_name": "Potomac Edison",
+        "hifld_names": ["THE POTOMAC EDISON COMPANY"],
+        "eia_utility_ids": [15263],
+    },
+    {
+        "std_name": "delmarva",
+        "state": "MD",
+        "fuels": ["electric"],
+        "display_name": "Delmarva Power",
+        "hifld_names": ["DELMARVA POWER"],
+        "eia_utility_ids": [5027],
+    },
+    {
+        "std_name": "smeco",
+        "state": "MD",
+        "fuels": ["electric"],
+        "display_name": "SMECO",
+        "hifld_names": ["SOUTHERN MARYLAND ELEC COOP INC"],
+        "eia_utility_ids": [17637],
+    },
+    {
+        "std_name": "choptank",
+        "state": "MD",
+        "fuels": ["electric"],
+        "display_name": "Choptank Electric Cooperative",
+        "hifld_names": ["CHOPTANK ELECTRIC COOPERATIVE, INC"],
+        "eia_utility_ids": [3503],
+    },
+    {
+        "std_name": "somerset_rec",
+        "state": "MD",
+        "fuels": ["electric"],
+        "display_name": "Somerset Rural Electric Cooperative",
+        "hifld_names": ["SOMERSET RURAL ELECTRIC COOPERATIVE"],
+        "eia_utility_ids": [84],
+    },
+    {
+        "std_name": "berlin_muni",
+        "state": "MD",
+        "fuels": ["electric"],
+        "display_name": "Town of Berlin",
+        "hifld_names": ["TOWN OF BERLIN - (MD)"],
+        "eia_utility_ids": [1615],
+    },
+    {
+        "std_name": "hagerstown_muni",
+        "state": "MD",
+        "fuels": ["electric"],
+        "display_name": "Hagerstown Light Department",
+        "hifld_names": ["HAGERSTOWN LIGHT DEPARTMENT"],
+        "eia_utility_ids": [7908],
+    },
+    {
+        "std_name": "easton_muni",
+        "state": "MD",
+        "fuels": ["electric", "gas"],
+        "display_name": "Easton Utilities",
+        "hifld_names": ["EASTON UTILITIES COMM", "EASTON UTILITIES"],
+        "eia_utility_ids": [5625],
+    },
+    # Gas-only utilities
+    {
+        "std_name": "washington_gas",
+        "state": "MD",
+        "fuels": ["gas"],
+        "display_name": "Washington Gas",
+        "hifld_names": ["WASHINGTON GAS"],
+    },
+    {
+        "std_name": "columbia_gas_md",
+        "state": "MD",
+        "fuels": ["gas"],
+        "display_name": "Columbia Gas of Maryland",
+        "hifld_names": ["COLUMBIA GAS OF WASHINGTON/MARYLAND"],
+    },
+    {
+        "std_name": "chesapeake_utilities",
+        "state": "MD",
+        "fuels": ["gas"],
+        "display_name": "Chesapeake Utilities",
+        "hifld_names": ["CHESAPEAKE UTILITIES CORPORATION"],
+    },
+    {
+        "std_name": "sandpiper",
+        "state": "MD",
+        "fuels": ["gas"],
+        "display_name": "Sand-Piper Energy",
+        "hifld_names": ["SAND-PIPER ENERGY"],
+    },
+    {
+        "std_name": "elkton_gas",
+        "state": "MD",
+        "fuels": ["gas"],
+        "display_name": "Elkton Gas",
+        "hifld_names": ["ELKTON GAS COMPANY"],
+    },
+    {
+        "std_name": "ugi_central_penn",
+        "state": "MD",
+        "fuels": ["gas"],
+        "display_name": "UGI Central Penn Gas",
+        "hifld_names": ["UGI CENTRAL PENN GAS"],
+    },
+    # ── Rhode Island ──────────────────────────────────────────────────────────
     {
         "std_name": "rie",
         "state": "RI",
@@ -302,6 +432,31 @@ def get_ny_open_data_to_std_name() -> dict[str, str]:
     result: dict[str, str] = {}
     for u in UTILITIES:
         for name in u.get("ny_open_data_state_names", []):
+            result[name] = u["std_name"]
+    return result
+
+
+def get_hifld_to_std_name(state: str, fuel: str) -> dict[str, str]:
+    """Map HIFLD NAME field values -> std_name for a state and fuel type.
+
+    Args:
+        state: 2-letter state code.
+        fuel: ``"electric"`` or ``"gas"``.
+
+    Returns:
+        Mapping from HIFLD NAME (uppercase, as stored in the shapefile) to the
+        standardised short name.  A utility may have multiple HIFLD names
+        (e.g. different spellings in the electric vs gas datasets); all are
+        included.
+    """
+    state_upper = state.upper()
+    result: dict[str, str] = {}
+    for u in UTILITIES:
+        if u.get("state") != state_upper:
+            continue
+        if fuel not in u.get("fuels", []):
+            continue
+        for name in u.get("hifld_names", []):
             result[name] = u["std_name"]
     return result
 
