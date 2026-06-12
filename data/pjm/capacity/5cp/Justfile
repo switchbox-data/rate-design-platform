@@ -1,24 +1,35 @@
 # PJM summer 5CP peaks pipeline
 #
-# This is a curated reference dataset (no API fetch; the source is PJM's annual
-# "Summer YYYY Peaks and 5CPs" PDF). The CSV is version-controlled.
-# Validate the CSV, convert to parquet, and upload to S3.
+# Curated reference dataset (no API). PJM publishes 5CP only as annual
+# "Summer YYYY Peaks and 5CPs" PDFs. The PDF->text step is done once and
+# captured as committed, reviewable markdown intermediates under sources/
+# (5cp_YYYY.md); `convert` deterministically rebuilds fivecp_peaks.csv from
+# them. To add/revise a summer: extract the PDF to sources/5cp_YYYY.md (see the
+# repo extract-pdf-to-markdown command), `just convert`, review the CSV diff,
+# `just validate`, commit, `just upload`.
 #
 # Run from repo root: just -f data/pjm/capacity/5cp/Justfile <recipe>
 # Or from this dir:   just <recipe>
 
 path_local_repo := `git rev-parse --show-toplevel`
 path_local_base := justfile_directory()
+path_local_sources := path_local_base + "/sources"
 path_local_csv := path_local_base + "/fivecp_peaks.csv"
 path_local_parquet := path_local_base + "/parquet"
 path_s3_parquet := "s3://data.sb/pjm/capacity/5cp/"
+
+# Convert: rebuild the CSV from the markdown source intermediates
+convert:
+    uv run python "{{ path_local_base }}/convert_5cp_md_to_csv.py" \
+        --path-sources "{{ path_local_sources }}" \
+        --path-csv "{{ path_local_csv }}"
 
 # Validate: run QA checks on the curated CSV
 validate:
     uv run python "{{ path_local_base }}/validate_fivecp_reference.py" \
         --path-csv "{{ path_local_csv }}"
 
-# Prepare: just validate (no fetch for curated data)
+# Prepare: just validate (run `convert` first if intermediates changed)
 prepare: validate
 
 # Upload: convert CSV to parquet and sync to S3

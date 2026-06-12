@@ -27,6 +27,7 @@ EXPECTED_COLUMNS = [
     "bra_price_per_mw_day",
     "final_zonal_capacity_price_per_mw_day",
     "source_url",
+    "bra_source_url",
     "final_price_as_of",
     "notes",
 ]
@@ -40,9 +41,13 @@ EXPECTED_TYPES = {
     "bra_price_per_mw_day": pl.Float64,
     "final_zonal_capacity_price_per_mw_day": pl.Float64,
     "source_url": pl.String,
+    "bra_source_url": pl.String,
     "final_price_as_of": pl.Date,
     "notes": pl.String,
 }
+
+# Citation columns: the final-zonal file and the BRA-results file URLs.
+URL_COLUMNS = ("source_url", "bra_source_url")
 
 # Canonical PJM transmission-zone labels (see data/pjm/README.md crosswalk).
 # UGI is part of the canonical vocabulary but is not separately reported in the
@@ -193,6 +198,29 @@ def check_no_nulls(df: pl.DataFrame, result: ValidationResult) -> None:
             result.error("Nulls", f"{col}: {df[col].null_count()} nulls")
     else:
         result.passed("Nulls", "zero nulls in required columns")
+
+
+def check_source_urls(df: pl.DataFrame, result: ValidationResult) -> None:
+    """Every row must carry a well-formed pjm.com citation for both prices."""
+    errors: list[str] = []
+    for col in URL_COLUMNS:
+        if col not in df.columns:
+            continue
+        bad = df.filter(
+            ~pl.col(col).str.starts_with("https://www.pjm.com/")
+            | pl.col(col).is_null()
+        )
+        if bad.height:
+            sample = bad.select("delivery_year", "zone", col).head(3).to_dicts()
+            errors.append(f"{col}: {bad.height} non-pjm.com/empty URLs, e.g. {sample}")
+    if errors:
+        for e in errors:
+            result.error("Source URLs", e)
+    else:
+        result.passed(
+            "Source URLs",
+            f"all rows cite pjm.com for {', '.join(URL_COLUMNS)}",
+        )
 
 
 def check_uniqueness(df: pl.DataFrame, result: ValidationResult) -> None:
@@ -461,6 +489,7 @@ def main() -> int:
 
     check_schema(df, result)
     check_no_nulls(df, result)
+    check_source_urls(df, result)
     check_uniqueness(df, result)
     check_dy_coverage(df, result)
     check_dy_dates(df, result)

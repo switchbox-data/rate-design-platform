@@ -18,46 +18,46 @@ Related docs:
 
 **Critical distinction:**
 
-| PJM market reality | Our BAT MC construct |
-| ------------------ | -------------------- |
-| Locational Reliability Charge assessed **daily** all delivery year | We spread **annual** `$/kW-year` across **K peak hours** |
-| 5CP defines **who owes how much capacity** (PLC) | K=5 is an **analog** to obligation causation, not a PJM billing rule |
-| Capacity PLC based on **5 summer hours** | Nonzero MC hours = our choice of K and season filter |
+| PJM market reality                                                 | Our BAT MC construct                                                 |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| Locational Reliability Charge assessed **daily** all delivery year | We spread **annual** `$/kW-year` across **K peak hours**             |
+| 5CP defines **who owes how much capacity** (PLC)                   | K=5 is an **analog** to obligation causation, not a PJM billing rule |
+| Capacity PLC based on **5 summer hours**                           | Nonzero MC hours = our choice of K and season filter                 |
 
 ---
 
 ## Glossary
 
-| Term | Full name | Meaning |
-| ---- | --------- | ------- |
-| **BAT** | Bill Alignment Test | CAIRO framework comparing customer marginal cost to bills |
-| **BRA** | Base Residual Auction | Primary PJM RPM auction; procures most capacity for a delivery year |
-| **5CP** | Five Coincident Peaks | Five highest non-holiday weekday RTO unrestricted daily peak hours (Jun 1–Sep 30) used for capacity PLC |
-| **CCP** | Capacity Commitment Period | ISO-NE term; PJM equivalent is **delivery year** (included for cross-ISO comparison) |
-| **CTR** | Capacity Transfer Rights | Rights that can offset part of an LSE's Locational Reliability Charge |
-| **DY** | Delivery Year | PJM capacity year: **June 1 – May 31** |
-| **EDC** | Electric Distribution Company | Local utility (e.g. BGE) that allocates PLCs and uploads obligation data to PJM |
-| **FCM** | Forward Capacity Market | ISO-NE capacity market (analog to PJM RPM, not PJM) |
-| **FPR** | Forecast Pool Requirement | PJM reserve margin multiplier applied in UCAP obligation |
-| **FLIC** | Forward-Looking Incremental Cost | Our MC class for capacity auction prices |
-| **IA** | Incremental Auction | PJM RPM auction after BRA; adjusts obligations/prices within a delivery year |
-| **ICAP** | Installed Capacity | NYISO capacity market (not PJM) |
-| **LDA** | Locational Deliverability Area | PJM subregion that may clear at a different capacity price than RTO |
-| **LMP** | Locational Marginal Price | Real-time wholesale energy price (separate from capacity MC) |
-| **LRC** | Locational Reliability Charge | Daily charge = UCAP obligation × Final Zonal Capacity Price |
-| **LSE** | Load Serving Entity | Entity responsible for serving load and paying RPM charges (supplier or utility) |
-| **LRMC** | Long-Run Marginal Cost | Economic cost of permanent output increase; capacity is LRMC-like |
-| **NSPL** | Network Service Peak Load | Transmission peak contribution; **different hours/window** than capacity PLC |
-| **OATT** | Open Access Transmission Tariff | FERC-jurisdictional transmission tariff; governs NSPL |
-| **PLC** | Peak Load Contribution | Customer's average reconciled load during the five PJM-designated capacity peak hours; drives capacity obligation share |
-| **PoP** | Probability of Peak | Exceedance-based peak allocation (used in platform for dist/bulk TX) |
-| **RAA** | Reliability Assurance Agreement | PJM agreement governing capacity compliance |
-| **RMR** | Reliability Must-Run | Out-of-market payments to keep specific units online (separate from RPM MC, but affects bills) |
-| **RPM** | Reliability Pricing Model | PJM's capacity market |
-| **RTO** | Regional Transmission Organization | PJM-wide unconstrained region; default LDA for many zones |
-| **SOS** | Standard Offer Service | Default retail supply service (Maryland term; analogous concept elsewhere) |
-| **UCAP** | Unforced Capacity | De-rated capacity obligation (MW) |
-| **VRR** | Variable Resource Requirement | Administered demand curve in RPM auctions |
+| Term     | Full name                          | Meaning                                                                                                                 |
+| -------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **BAT**  | Bill Alignment Test                | CAIRO framework comparing customer marginal cost to bills                                                               |
+| **BRA**  | Base Residual Auction              | Primary PJM RPM auction; procures most capacity for a delivery year                                                     |
+| **5CP**  | Five Coincident Peaks              | Five highest non-holiday weekday RTO unrestricted daily peak hours (Jun 1–Sep 30) used for capacity PLC                 |
+| **CCP**  | Capacity Commitment Period         | ISO-NE term; PJM equivalent is **delivery year** (included for cross-ISO comparison)                                    |
+| **CTR**  | Capacity Transfer Rights           | Rights that can offset part of an LSE's Locational Reliability Charge                                                   |
+| **DY**   | Delivery Year                      | PJM capacity year: **June 1 – May 31**                                                                                  |
+| **EDC**  | Electric Distribution Company      | Local utility (e.g. BGE) that allocates PLCs and uploads obligation data to PJM                                         |
+| **FCM**  | Forward Capacity Market            | ISO-NE capacity market (analog to PJM RPM, not PJM)                                                                     |
+| **FPR**  | Forecast Pool Requirement          | PJM reserve margin multiplier applied in UCAP obligation                                                                |
+| **FLIC** | Forward-Looking Incremental Cost   | Our MC class for capacity auction prices                                                                                |
+| **IA**   | Incremental Auction                | PJM RPM auction after BRA; adjusts obligations/prices within a delivery year                                            |
+| **ICAP** | Installed Capacity                 | NYISO capacity market (not PJM)                                                                                         |
+| **LDA**  | Locational Deliverability Area     | PJM subregion that may clear at a different capacity price than RTO                                                     |
+| **LMP**  | Locational Marginal Price          | Real-time wholesale energy price (separate from capacity MC)                                                            |
+| **LRC**  | Locational Reliability Charge      | Daily charge = UCAP obligation × Final Zonal Capacity Price                                                             |
+| **LSE**  | Load Serving Entity                | Entity responsible for serving load and paying RPM charges (supplier or utility)                                        |
+| **LRMC** | Long-Run Marginal Cost             | Economic cost of permanent output increase; capacity is LRMC-like                                                       |
+| **NSPL** | Network Service Peak Load          | Transmission peak contribution; **different hours/window** than capacity PLC                                            |
+| **OATT** | Open Access Transmission Tariff    | FERC-jurisdictional transmission tariff; governs NSPL                                                                   |
+| **PLC**  | Peak Load Contribution             | Customer's average reconciled load during the five PJM-designated capacity peak hours; drives capacity obligation share |
+| **PoP**  | Probability of Peak                | Exceedance-based peak allocation (used in platform for dist/bulk TX)                                                    |
+| **RAA**  | Reliability Assurance Agreement    | PJM agreement governing capacity compliance                                                                             |
+| **RMR**  | Reliability Must-Run               | Out-of-market payments to keep specific units online (separate from RPM MC, but affects bills)                          |
+| **RPM**  | Reliability Pricing Model          | PJM's capacity market                                                                                                   |
+| **RTO**  | Regional Transmission Organization | PJM-wide unconstrained region; default LDA for many zones                                                               |
+| **SOS**  | Standard Offer Service             | Default retail supply service (Maryland term; analogous concept elsewhere)                                              |
+| **UCAP** | Unforced Capacity                  | De-rated capacity obligation (MW)                                                                                       |
+| **VRR**  | Variable Resource Requirement      | Administered demand curve in RPM auctions                                                                               |
 
 ---
 
@@ -79,13 +79,13 @@ PJM procures generation adequacy through the **Reliability Pricing Model (RPM)**
 
 ### Comparison to NY and ISO-NE (platform context)
 
-| Feature | NYISO ICAP | ISO-NE FCM | PJM RPM |
-| ------- | ---------- | ---------- | ------- |
-| Primary forward auction | Strip (6 mo) | FCA (annual) | BRA (delivery year) |
-| In-period adjustment | Spot (monthly) | MRA (monthly) | IA |
-| Delivery period | Monthly capability | Jun–May CCP | **Jun–May DY** |
-| Obligation driver | Coincident peak / UCAP | PLC | **5CP → PLC** |
-| Platform template | Monthly 8 peaks | Annual 100 peaks | **Annual DY + 5CP analog** |
+| Feature                 | NYISO ICAP             | ISO-NE FCM       | PJM RPM                    |
+| ----------------------- | ---------------------- | ---------------- | -------------------------- |
+| Primary forward auction | Strip (6 mo)           | FCA (annual)     | BRA (delivery year)        |
+| In-period adjustment    | Spot (monthly)         | MRA (monthly)    | IA                         |
+| Delivery period         | Monthly capability     | Jun–May CCP      | **Jun–May DY**             |
+| Obligation driver       | Coincident peak / UCAP | PLC              | **5CP → PLC**              |
+| Platform template       | Monthly 8 peaks        | Annual 100 peaks | **Annual DY + 5CP analog** |
 
 ---
 
@@ -161,12 +161,12 @@ Each decision below is **independent**. Recommended defaults are marked ★.
 
 ### Decision A — Price signal
 
-| Option | Description | Pros | Cons |
-| ------ | ----------- | ---- | ---- |
-| **A1 ★ BRA / Final Zonal Capacity Price** | Use cleared RPM price for the utility's LDA for the delivery year (BRA + finalized IAs) | Matches **LRC** mechanics; stable; LRMC/committed-cost interpretation; aligns with DSM avoided-cost studies | Not contemporaneous spot signal; 3-year-forward BRA can diverge from in-year reality |
-| **A2 BRA only (exclude IA adjustments)** | Lock price at BRA clearing, ignore later IAs | Simple; stable within DY | Diverges from actual in-year LRC when IAs fire; understates/overstates vs realized costs |
-| **A3 Latest IA-inclusive (trued-up)** | Use Final Zonal Capacity Price as it stands when utility files retail rates | Matches **realized** wholesale cost for that year; good bill reconciliation | More volatile; mixes forward and adjusted prices |
-| **A4 IA-only / near-term auction** | Use incremental auction clearing prices only | Most "current" marginal signal | Poor match to committed revenue requirement; not what long-run adequacy costs represent |
+| Option                                    | Description                                                                             | Pros                                                                                                        | Cons                                                                                     |
+| ----------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **A1 ★ BRA / Final Zonal Capacity Price** | Use cleared RPM price for the utility's LDA for the delivery year (BRA + finalized IAs) | Matches **LRC** mechanics; stable; LRMC/committed-cost interpretation; aligns with DSM avoided-cost studies | Not contemporaneous spot signal; 3-year-forward BRA can diverge from in-year reality     |
+| **A2 BRA only (exclude IA adjustments)**  | Lock price at BRA clearing, ignore later IAs                                            | Simple; stable within DY                                                                                    | Diverges from actual in-year LRC when IAs fire; understates/overstates vs realized costs |
+| **A3 Latest IA-inclusive (trued-up)**     | Use Final Zonal Capacity Price as it stands when utility files retail rates             | Matches **realized** wholesale cost for that year; good bill reconciliation                                 | More volatile; mixes forward and adjusted prices                                         |
+| **A4 IA-only / near-term auction**        | Use incremental auction clearing prices only                                            | Most "current" marginal signal                                                                              | Poor match to committed revenue requirement; not what long-run adequacy costs represent  |
 
 **Platform analogy:** A1 ≈ RI FCA; A4 ≈ NY ICAP Spot / ISO-NE MRA.
 
@@ -174,10 +174,10 @@ Each decision below is **independent**. Recommended defaults are marked ★.
 
 ### Decision B — Allocation time window (monthly vs annual)
 
-| Option | Description | Pros | Cons |
-| ------ | ----------- | ---- | ---- |
-| **B1 ★ Annual delivery-year cost** | One `$/kW-year` per calendar year (5/7 month DY blend) | Matches RPM's **annual adequacy framing**; parallels `supply_capacity_isone.py` | Ignores within-year IA price changes unless using A3 |
-| **B2 Monthly** | Allocate a monthly `$/kW-month` to each month's peaks | Parallels NY ICAP Spot | **Poor fit for RPM** — LRC is daily, not monthly spot; no PJM monthly capacity spot market equivalent |
+| Option                             | Description                                            | Pros                                                                            | Cons                                                                                                  |
+| ---------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **B1 ★ Annual delivery-year cost** | One `$/kW-year` per calendar year (5/7 month DY blend) | Matches RPM's **annual adequacy framing**; parallels `supply_capacity_isone.py` | Ignores within-year IA price changes unless using A3                                                  |
+| **B2 Monthly**                     | Allocate a monthly `$/kW-month` to each month's peaks  | Parallels NY ICAP Spot                                                          | **Poor fit for RPM** — LRC is daily, not monthly spot; no PJM monthly capacity spot market equivalent |
 
 **Recommendation:** B1 for all PJM utilities. Do not use NY's monthly pattern unless explicitly modeling a different price series.
 
@@ -185,13 +185,13 @@ Each decision below is **independent**. Recommended defaults are marked ★.
 
 ### Decision C — Peak hours K (how many nonzero MC hours)
 
-| Option | Description | Pros | Cons |
-| ------ | ----------- | ---- | ---- |
-| **C1 ★ K = 5 (PJM 5CP timestamps)** | Allocate only to PJM-published five summer coincident peak hours | **Strongest alignment with PLC obligation logic**; clear citation (Manual 19, EDC docs) | Very peaky; only 5 nonzero hours; differs from NY (96) and RI (100) |
-| **C2 K = 5, summer pool** | Pick top 5 hours from Jun–Sep zone load (replicate PJM algorithm) | Reproducible without waiting for published 5CP; same season logic | May not exactly match published timestamps; EDC reconciliation differs |
-| **C3 K = 100, annual exceedance** | Platform default from RI dist/capacity/bulk TX | Cross-component consistency within a state run | **No PJM citation** for 100; weak obligation alignment |
-| **C4 K = 8/month × 12** | NY ICAP pattern | Familiar to NY team | Wrong price granularity for RPM; no PJM basis |
-| **C5 K = 500** | BAT paper Appendix A reference | Literature anchor | Extremely peaky in `$/MWh`; unused elsewhere in platform |
+| Option                              | Description                                                       | Pros                                                                                    | Cons                                                                   |
+| ----------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **C1 ★ K = 5 (PJM 5CP timestamps)** | Allocate only to PJM-published five summer coincident peak hours  | **Strongest alignment with PLC obligation logic**; clear citation (Manual 19, EDC docs) | Very peaky; only 5 nonzero hours; differs from NY (96) and RI (100)    |
+| **C2 K = 5, summer pool**           | Pick top 5 hours from Jun–Sep zone load (replicate PJM algorithm) | Reproducible without waiting for published 5CP; same season logic                       | May not exactly match published timestamps; EDC reconciliation differs |
+| **C3 K = 100, annual exceedance**   | Platform default from RI dist/capacity/bulk TX                    | Cross-component consistency within a state run                                          | **No PJM citation** for 100; weak obligation alignment                 |
+| **C4 K = 8/month × 12**             | NY ICAP pattern                                                   | Familiar to NY team                                                                     | Wrong price granularity for RPM; no PJM basis                          |
+| **C5 K = 500**                      | BAT paper Appendix A reference                                    | Literature anchor                                                                       | Extremely peaky in `$/MWh`; unused elsewhere in platform               |
 
 **Important:** K determines **nonzero hours in the MC parquet**, not PJM's billing calendar. PJM charges LRC **every day**.
 
@@ -199,11 +199,11 @@ Each decision below is **independent**. Recommended defaults are marked ★.
 
 ### Decision D — Season filter for peak identification
 
-| Option | Description | Pros | Cons |
-| ------ | ----------- | ---- | ---- |
-| **D1 ★ Jun 1 – Sep 30 only** | Search for peaks only in PJM 5CP window | **Definitionally correct** for capacity PLC per Manual 19 | Excludes winter peaks entirely from capacity MC |
-| **D2 Full calendar year** | Rank peaks across all 8760 hours | Captures winter load if system winter-peaks | **Contradicts** PJM capacity 5CP methodology |
-| **D3 Summer + May (dispatch compliance)** | Manual 19 references broader "summer period" for some compliance equations | Slightly broader causation | Harder to defend for BAT; blurs 5CP definition |
+| Option                                    | Description                                                                | Pros                                                      | Cons                                            |
+| ----------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------- |
+| **D1 ★ Jun 1 – Sep 30 only**              | Search for peaks only in PJM 5CP window                                    | **Definitionally correct** for capacity PLC per Manual 19 | Excludes winter peaks entirely from capacity MC |
+| **D2 Full calendar year**                 | Rank peaks across all 8760 hours                                           | Captures winter load if system winter-peaks               | **Contradicts** PJM capacity 5CP methodology    |
+| **D3 Summer + May (dispatch compliance)** | Manual 19 references broader "summer period" for some compliance equations | Slightly broader causation                                | Harder to defend for BAT; blurs 5CP definition  |
 
 **Recommendation:** D1 for capacity MC. Winter peak matters for other components (e.g. winter peak load in some compliance contexts) but **not** for capacity PLC.
 
@@ -211,21 +211,21 @@ Each decision below is **independent**. Recommended defaults are marked ★.
 
 ### Decision E — Load profile for peak identification
 
-| Option | Description | Pros | Cons |
-| ------ | ----------- | ---- | ---- |
-| **E1 ★ PJM RTO for hour selection, utility zone for weighting** | Use RTO aggregate to find 5CP hours; weight by utility-zone load at those timestamps | Matches PJM system-peaks + zonal reconciliation | Requires both RTO and zonal load data |
-| **E2 Utility zone top-K** | Rank hours by utility zone load only | Simple; single-zone utilities | Hour selection may differ from PJM 5CP when zone peak ≠ RTO peak |
-| **E3 LDA aggregate** | Sum loads across LDA for constrained areas | Needed for constrained LDAs (EMAAC, etc.) | BGE is RTO; overkill for unconstrained zones |
+| Option                                                          | Description                                                                          | Pros                                            | Cons                                                             |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------- | ---------------------------------------------------------------- |
+| **E1 ★ PJM RTO for hour selection, utility zone for weighting** | Use RTO aggregate to find 5CP hours; weight by utility-zone load at those timestamps | Matches PJM system-peaks + zonal reconciliation | Requires both RTO and zonal load data                            |
+| **E2 Utility zone top-K**                                       | Rank hours by utility zone load only                                                 | Simple; single-zone utilities                   | Hour selection may differ from PJM 5CP when zone peak ≠ RTO peak |
+| **E3 LDA aggregate**                                            | Sum loads across LDA for constrained areas                                           | Needed for constrained LDAs (EMAAC, etc.)       | BGE is RTO; overkill for unconstrained zones                     |
 
 ---
 
 ### Decision F — Weighting among the K peak hours
 
-| Option | Description | Pros | Cons |
-| ------ | ----------- | ---- | ---- |
-| **F1 ★ Equal 1/K weights** | Each of 5 hours gets `annual_cost / 5` | Matches EDC definition: PLC = **average** of five hourly loads | Differs from platform exceedance convention |
+| Option                      | Description                                                        | Pros                                                                                    | Cons                                                 |
+| --------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| **F1 ★ Equal 1/K weights**  | Each of 5 hours gets `annual_cost / 5`                             | Matches EDC definition: PLC = **average** of five hourly loads                          | Differs from platform exceedance convention          |
 | **F2 Exceedance weighting** | Threshold-exceedance among the 5 hours (or top-K from summer pool) | Consistent with `allocate_annual_exceedance_to_hours` in `supply_utils.py`; used for RI | **Not** how PLC is defined (average, not exceedance) |
-| **F3 Load-proportional** | Weight by zone load in each hour | Simple physical interpretation | Still not identical to PLC reconciliation |
+| **F3 Load-proportional**    | Weight by zone load in each hour                                   | Simple physical interpretation                                                          | Still not identical to PLC reconciliation            |
 
 **Recommendation:** F1 if prioritizing PJM fidelity; F2 if prioritizing platform consistency. Document the choice explicitly.
 
@@ -233,11 +233,11 @@ Each decision below is **independent**. Recommended defaults are marked ★.
 
 ### Decision G — Hourly MC vs retail bill recovery
 
-| Option | Description | Pros | Cons |
-| ------ | ----------- | ---- | ---- |
-| **G1 ★ Peak-hour MC + volumetric bill** | MC on 5CP hours; residential supply charge flat `¢/kWh` | Correct BAT cross-subsidy story (peak cost, flat recovery) | MC timing ≠ bill timing |
-| **G2 Spread MC across all hours** | Uniform `$/MWh` | Matches flat bill mathematically | **Wrong** cost-causation signal; understates peak HP cross-subsidy |
-| **G3 TOU-block MC** | Put MC in defined on-peak periods matching utility TOU | Aligns with shaped SOS for TOU customers | Requires tariff-specific period definitions; more work |
+| Option                                  | Description                                             | Pros                                                       | Cons                                                               |
+| --------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------ |
+| **G1 ★ Peak-hour MC + volumetric bill** | MC on 5CP hours; residential supply charge flat `¢/kWh` | Correct BAT cross-subsidy story (peak cost, flat recovery) | MC timing ≠ bill timing                                            |
+| **G2 Spread MC across all hours**       | Uniform `$/MWh`                                         | Matches flat bill mathematically                           | **Wrong** cost-causation signal; understates peak HP cross-subsidy |
+| **G3 TOU-block MC**                     | Put MC in defined on-peak periods matching utility TOU  | Aligns with shaped SOS for TOU customers                   | Requires tariff-specific period definitions; more work             |
 
 BAT residential analysis typically uses **G1** for the cross-subsidy diagnosis.
 
@@ -262,12 +262,12 @@ For any new PJM utility MC pipeline:
 
 ## 6. Relationship to platform code
 
-| PJM step | Platform analog |
-| -------- | --------------- |
-| DY 5/7 blend | `resolve_fca_price_for_calendar_year()` in `supply_capacity_isone.py` |
-| Exceedance allocation | `allocate_annual_exceedance_to_hours()` in `supply_utils.py` |
-| 8760 output | `prepare_component_output()` in `supply_utils.py` |
-| CLI entrypoint | Extend `generate_supply_capacity_mc.py` with `--iso pjm` |
+| PJM step              | Platform analog                                                       |
+| --------------------- | --------------------------------------------------------------------- |
+| DY 5/7 blend          | `resolve_fca_price_for_calendar_year()` in `supply_capacity_isone.py` |
+| Exceedance allocation | `allocate_annual_exceedance_to_hours()` in `supply_utils.py`          |
+| 8760 output           | `prepare_component_output()` in `supply_utils.py`                     |
+| CLI entrypoint        | Extend `generate_supply_capacity_mc.py` with `--iso pjm`              |
 
 **Do not clone NY** (`supply_capacity_nyiso.py`) unless implementing a monthly price series (not recommended for RPM).
 
@@ -376,15 +376,15 @@ Useful for validating order-of-magnitude but **not** a direct hourly MC formula.
 
 ## 11. ★ Recommended BGE v1 package
 
-| Parameter | BGE choice |
-| --------- | ---------- |
-| LDA / price zone | RTO (BGE zone unconstrained) |
-| Price | Final Zonal Capacity Price, 5/7 DY calendar-year blend; sensitivity with IA-trued price |
-| K | 5 (PJM 5CP timestamps) |
-| Season | Jun 1 – Sep 30 |
-| Load | BGE zone load at 5CP timestamps (E1) |
-| Weights | Equal 1/5 (F1, PLC-average) |
-| Bill side | Schedule R flat SOS; note PSC shoulder smoothing as non-MC |
+| Parameter              | BGE choice                                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------------------- |
+| LDA / price zone       | RTO (BGE zone unconstrained)                                                                 |
+| Price                  | Final Zonal Capacity Price, 5/7 DY calendar-year blend; sensitivity with IA-trued price      |
+| K                      | 5 (PJM 5CP timestamps)                                                                       |
+| Season                 | Jun 1 – Sep 30                                                                               |
+| Load                   | BGE zone load at 5CP timestamps (E1)                                                         |
+| Weights                | Equal 1/5 (F1, PLC-average)                                                                  |
+| Bill side              | Schedule R flat SOS; note PSC shoulder smoothing as non-MC                                   |
 | Output path (proposed) | `s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year={Y}/data.parquet` |
 
 ---
@@ -393,25 +393,32 @@ Useful for validating order-of-magnitude but **not** a direct hourly MC formula.
 
 ### PJM data needed (any utility)
 
-| Dataset | Source | Use |
-| ------- | ------ | --- |
+| Dataset                         | Source                                                          | Use                        |
+| ------------------------------- | --------------------------------------------------------------- | -------------------------- |
 | BRA / IA clearing prices by LDA | [PJM Data Miner](https://dataminer2.pjm.com/) / auction results | Final Zonal Capacity Price |
-| 5CP hour timestamps | PJM posting (~October) | Peak hour selection |
-| RTO + zonal hourly load | PJM Data Miner / EIA | PLC-weighting |
-| Delivery year calendar | PJM Manual 18 | 5/7 month blend |
+| 5CP hour timestamps             | PJM posting (~October)                                          | Peak hour selection        |
+| RTO + zonal hourly load         | PJM Data Miner / EIA                                            | PLC-weighting              |
+| Delivery year calendar          | PJM Manual 18                                                   | 5/7 month blend            |
 
 ### BGE-specific
 
-| Dataset | Source | Use |
-| ------- | ------ | --- |
-| BGE zone hourly load | PJM `BGE` zone | Zonal weighting at 5CP |
-| SOS energy rate | BGE Rider 1 filings | Bill reconciliation |
-| Utility zone mapping | To be created (`data/pjm/`) | `utility → zone, LDA` |
+| Dataset              | Source                      | Use                    |
+| -------------------- | --------------------------- | ---------------------- |
+| BGE zone hourly load | PJM `BGE` zone              | Zonal weighting at 5CP |
+| SOS energy rate      | BGE Rider 1 filings         | Bill reconciliation    |
+| Utility zone mapping | To be created (`data/pjm/`) | `utility → zone, LDA`  |
 
-### Platform work (not yet implemented)
+### Platform work
 
-- `data/pjm/capacity/rpm/` — auction price pipeline
-- `data/pjm/hourly_demand/zones/` — zone load pipeline
+Implemented (curated data pipelines, reproducible from committed source intermediates):
+
+- `data/pjm/capacity/rpm/` — RPM BRA + Final Zonal prices, DY 2018/19–2026/27. Per-DY markdown intermediates under `sources/` (`rpm_YYYY_YY.md`, both source URLs in the header) → `just convert` → CSV. Rows carry `source_url` (final zonal) and `bra_source_url` citations.
+- `data/pjm/capacity/5cp/` — summer 5CP peaks, **summers 2021–2025** (only those feeding 2025+ runs are retained; earlier summers dropped). Per-summer markdown intermediates under `sources/` (`5cp_YYYY.md`) → `just convert` → CSV.
+- `data/pjm/zone_mapping/` — utility → zone/LDA crosswalk.
+
+Not yet implemented:
+
+- `data/pjm/hourly_demand/zones/` — zone load pipeline (deferred; see Future work below)
 - `utils/pre/marginal_costs/supply_capacity_pjm.py` — computation
 - `rate_design/hp_rates/md/` — state config (future)
 

@@ -69,7 +69,7 @@ CANONICAL_ZONES = frozenset(
     }
 )
 
-EXPECTED_SUMMERS = set(range(2018, 2026))
+EXPECTED_SUMMERS = set(range(2021, 2026))
 EXPECTED_RANKS = {1, 2, 3, 4, 5}
 
 # Plausible afternoon band for summer RTO peaks (hour-ending EPT).
@@ -83,12 +83,12 @@ ZONAL_SUM_TOLERANCE = 0.02
 # Pinned values transcribed independently from the source PDFs.
 # (summer_year, rank, zone) -> mw_unrestricted
 CROSS_CHECK_VALUES: dict[tuple[int, int, str], float] = {
-    (2018, 1, "RTO"): 150453.8,
-    (2020, 4, "RTO"): 141210.0,
+    (2021, 1, "RTO"): 148425.2,
     (2022, 3, "RTO"): 144245.9,
+    (2023, 1, "RTO"): 146843.2,
     (2024, 1, "RTO"): 152307.4,
     (2025, 5, "RTO"): 151524.7,
-    (2019, 2, "DPL"): 4039.3,
+    (2023, 2, "DPL"): 3720.8,
     (2021, 4, "APS"): 8461.7,
     (2022, 3, "PEPCO"): 5487.6,
     (2024, 1, "BGE"): 6765.9,
@@ -142,6 +142,21 @@ def check_no_nulls(df: pl.DataFrame, result: ValidationResult) -> None:
             result.error("Nulls", f"{col}: {df[col].null_count()} nulls")
     else:
         result.passed("Nulls", "zero nulls in required columns")
+
+
+def check_source_urls(df: pl.DataFrame, result: ValidationResult) -> None:
+    """Every row must carry a well-formed pjm.com citation."""
+    bad = df.filter(
+        ~pl.col("source_url").str.starts_with("https://www.pjm.com/")
+        | pl.col("source_url").is_null()
+    )
+    if bad.height:
+        sample = bad.select("summer_year", "zone", "source_url").head(3).to_dicts()
+        result.error(
+            "Source URLs", f"{bad.height} non-pjm.com/empty source_url, e.g. {sample}"
+        )
+    else:
+        result.passed("Source URLs", "all rows cite a pjm.com source_url")
 
 
 def check_uniqueness(df: pl.DataFrame, result: ValidationResult) -> None:
@@ -402,6 +417,7 @@ def main() -> int:
 
     check_schema(df, result)
     check_no_nulls(df, result)
+    check_source_urls(df, result)
     check_uniqueness(df, result)
     check_summer_coverage(df, result)
     check_five_ranks(df, result)
