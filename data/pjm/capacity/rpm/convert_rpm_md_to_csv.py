@@ -27,6 +27,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import re
 import sys
 from dataclasses import dataclass
@@ -50,6 +52,10 @@ CSV_HEADER = """\
 #     "<DY> 3IA Results" XLSX) -> final_zonal_capacity_price_per_mw_day.
 #   - bra_source_url: "<DY> Base Residual Auction Results" XLS(X)
 #     -> bra_price_per_mw_day (per LDA; copied to each member zone).
+#
+# As-of: the BRA clears once, so the BRA price's as-of is the fixed BRA posting
+# date implied by the DY and is not tracked in its own column; only the Final
+# Zonal price (which drifts as IAs settle) carries a final_price_as_of column.
 #
 # Zones are canonical labels (see data/pjm/README.md crosswalk). UGI is not
 # separately reported (inside the PPL LDA); OVEC is excluded (no retail LSE
@@ -174,26 +180,26 @@ def parse_intermediate(path: Path) -> list[Row]:
 
 def write_csv(rows: list[Row], path: Path) -> None:
     rows = sorted(rows, key=lambda r: (r.delivery_year, r.zone))
-    lines = [CSV_HEADER.rstrip("\n"), ",".join(COLUMNS)]
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow(COLUMNS)
     for r in rows:
-        cells = [
-            r.delivery_year,
-            r.dy_start,
-            r.dy_end,
-            r.zone,
-            r.lda,
-            r.bra_price_per_mw_day,
-            r.final_zonal_capacity_price_per_mw_day,
-            r.source_url,
-            r.bra_source_url,
-            r.final_price_as_of,
-            r.notes,
-        ]
-        for c in cells:
-            if any(ch in c for ch in (",", '"', "\n")):
-                raise ValueError(f"field needs quoting (unsupported): {c!r}")
-        lines.append(",".join(cells))
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        writer.writerow(
+            [
+                r.delivery_year,
+                r.dy_start,
+                r.dy_end,
+                r.zone,
+                r.lda,
+                r.bra_price_per_mw_day,
+                r.final_zonal_capacity_price_per_mw_day,
+                r.source_url,
+                r.bra_source_url,
+                r.final_price_as_of,
+                r.notes,
+            ]
+        )
+    path.write_text(CSV_HEADER.rstrip("\n") + "\n" + buf.getvalue(), encoding="utf-8")
 
 
 def main() -> int:

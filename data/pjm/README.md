@@ -70,14 +70,14 @@ BRA Resource Clearing Prices (per LDA) and Final Zonal Capacity Prices (per zone
 | **S3 path**        | `s3://data.sb/pjm/capacity/rpm/data.parquet`                                                                                                                                                                                            |
 | **Update cadence** | New BRA ~annually; IA true-ups within a DY                                                                                                                                                                                              |
 
-**How to update**: (1) Download the two Excel files for the new DY (Final Zonal + BRA results). (2) Transcribe into a new `sources/rpm_YYYY_YY.md` (citation header with both URLs + a per-zone `lda / bra / final / notes` table; normalize zone labels to canonical). (3) `just convert` to rebuild `rpm_capacity_prices.csv`. (4) Review the `git diff` of the CSV. (5) `just validate`. (6) Commit intermediate + CSV. (7) `just upload`. IA true-up: edit the intermediate in place, bump **Final price as of**, re-convert.
+**How to update**: (1) Download the two Excel files for the new DY (Final Zonal + BRA results). (2) Transcribe into a new `sources/rpm_YYYY_YY.md` (citation header with both URLs + a per-zone `lda / bra / final / notes` table; normalize zone labels to canonical). (3) When adding a new DY, also bump `EXPECTED_DYS` in `validate_rpm_reference.py` (and ideally add a `CROSS_CHECK_VALUES` pin from the new report); otherwise the new DY reports as an unexpected-period WARN. (4) `just convert` to rebuild `rpm_capacity_prices.csv`. (5) Review the `git diff` of the CSV. (6) `just validate`. (7) Commit intermediate + CSV. (8) `just upload`. IA true-up: edit the intermediate in place, bump **Final price as of**, re-convert.
 
 **Reproducibility**: the per-DY markdown intermediates under `sources/` are the **source of record**; `convert_rpm_md_to_csv.py` deterministically rebuilds the CSV from them. The Excel→intermediate step is done once and reviewed (the spreadsheets are binaries with drifting names/paths and are not committed). The LDA-assignment-per-zone editorial judgment lives, reviewable, in the intermediate tables.
 
 **Gotchas**:
 
 - **DY = Jun 1–May 31.** Calendar-year consumers blend 5/7; this dataset just stores per-DY.
-- **Two price concepts per row, two citations**: the BRA price is per-LDA at auction time (cited by `bra_source_url`); the Final Zonal price is per-zone after Incremental Auctions and locational adders (cited by `source_url`). They differ whenever IAs cleared or the zone sits in a constrained LDA — and the final price can drop _below_ the system BRA price after IA true-downs (e.g. PPL in 2018/19).
+- **Two price concepts per row, two citations**: the BRA price is per-LDA at auction time (cited by `bra_source_url`); the Final Zonal price is per-zone after Incremental Auctions and locational adders (cited by `source_url`). They differ whenever IAs cleared or the zone sits in a constrained LDA — and the final price can drop _below_ the system BRA price after IA true-downs (e.g. PPL in 2018/19). Only the Final Zonal price carries a tracked `final_price_as_of` (it drifts as IAs settle); the BRA price's as-of is the fixed BRA posting date implied by the DY, so it has no separate column.
 - **LDA membership changes by DY** — see LDA nesting above.
 - **Excel formats and URLs vary across DYs** (sheet names, layouts, paths) — hence the committed-intermediate approach. From DY 2023/24, the FZSF-FZCP sheet ships inside the "3IA Results" XLSX instead of a standalone Final Zonal file; BRA file stems also drift (`…-base-residual-auction-results.xlsx`, the older `…-base-residual-auction-results-xls.xls`, the newest `…-bra-results.xlsx`).
 - **Sub-LDA blending**: DPL-S (inside the DPL zone) cleared separately in 2023/24 and 2024/25; the zone-level `lda` stays at the containing LDA and the final zonal price blends sub-LDA pricing (noted in `notes`; flagged by the `Final vs BRA` WARN).
@@ -95,7 +95,7 @@ The 5 highest non-holiday-weekday RTO unrestricted daily peaks per summer (PJM's
 | **S3 path**        | `s3://data.sb/pjm/capacity/5cp/data.parquet`                                                                                                               |
 | **Update cadence** | Mid-October posting + possible November revision                                                                                                           |
 
-**How to update**: (1) Download the new PDF. (2) Extract its peak tables to a new `sources/5cp_YYYY.md` intermediate (citation header + an RTO peaks table + a by-zone MW table; normalize zone labels to canonical). Use the repo `extract-pdf-to-markdown` command as a starting point. (3) `just convert` to rebuild `fivecp_peaks.csv`. (4) Review the `git diff` of the CSV. (5) `just validate`. (6) Commit intermediate + CSV. (7) `just upload`. For a November revision, edit the intermediate's MW in place, bump its **As of**, re-convert.
+**How to update**: (1) Download the new PDF. (2) Extract its peak tables to a new `sources/5cp_YYYY.md` intermediate (citation header + an RTO peaks table + a by-zone MW table; normalize zone labels to canonical). Use the repo `extract-pdf-to-markdown` command as a starting point. (3) When adding a new summer, also bump `EXPECTED_SUMMERS` in `validate_fivecp_reference.py` (and ideally add a `CROSS_CHECK_VALUES` pin from the new PDF); otherwise the new summer reports as an unexpected-period WARN. (4) `just convert` to rebuild `fivecp_peaks.csv`. (5) Review the `git diff` of the CSV. (6) `just validate`. (7) Commit intermediate + CSV. (8) `just upload`. For a November revision, edit the intermediate's MW in place, bump its **As of**, re-convert.
 
 **Reproducibility**: the per-summer markdown intermediates under `sources/` are the **source of record**; `convert_5cp_md_to_csv.py` deterministically rebuilds the CSV from them. PJM publishes 5CP only as PDFs and pulls old ones from pjm.com, so the PDF→text step is done once and captured as a committed, reviewable intermediate rather than re-parsed live.
 
@@ -106,6 +106,7 @@ The 5 highest non-holiday-weekday RTO unrestricted daily peaks per summer (PJM's
 - **Zone label drift**: PDFs use `DLCo`, `PENLC`, `PPL-EU` (and `PL-EU` in 2025) — normalize to canonical in the intermediate; never store PDF-native labels.
 - **Scope**: only summers feeding 2025+ runs are retained (2021–2025). Earlier summers (2018–2020, since removed from pjm.com) were dropped; recover from the Wayback Machine if ever needed.
 - **Unrestricted ≠ metered**: these MW include load-drop add-backs and are not exactly reconcilable against Data Miner `hrl_load_metered` (see Future work).
+- **`notes` is file-level here**: the 5CP `notes` is a single value per summer (from the intermediate's `**Notes:**` header, may be empty) copied onto every row, unlike RPM where `notes` is per-row in the price table.
 
 ### `zone_mapping/` — utility → zone crosswalk
 
@@ -128,6 +129,7 @@ One row per (utility, zone, weight); the single place the per-source zone aliase
 - **Three naming systems, one crosswalk**: Data Miner legacy codes (`BC`, `PEP`, `AP`) vs PDF/XLS labels (`BGE`, `PEPCO`, `APS`) — this CSV is the only place the mapping lives.
 - **Zone ≠ retail territory**: the PEPCO and DPL zones span MD + DC/DE; `state` here is the _analysis_ state, customer filtering happens upstream in ResStock utility assignment.
 - **`potomac-edison`** is a retail brand inside the APS zone — zone-level data includes WV/PA load.
+- **UGI / PPL-folded zones**: UGI has no separate row in the RPM price files (it sits inside the PPL LDA), so a mapping row with `price_zone=UGI` will fail the RPM cross-check. Set `price_zone=PPL` for such utilities (UGI is still valid for `fivecp_zone_label` and `dataminer_zone`, which both carry a UGI row).
 
 ## Historical source URLs
 
@@ -145,7 +147,7 @@ Final Zonal (→ `source_url`):
 | 2023/24 | `2023-2024/2023-2024-3ia-results.xlsx` (FZSF-FZCP sheet)                                     |
 | 2024/25 | `2024-2025/2024-2025-3ia-results.xlsx` (FZSF-FZCP sheet)                                     |
 | 2025/26 | `2025-2026/2025-2026-3ia-results.xlsx` (FZSF-FZCP sheet)                                     |
-| 2026/27 | `2026-2027/2026-2027-3ia-results.xlsx` (FZSF-FZCP sheet; BRA-only so far)                    |
+| 2026/27 | `2026-2027/2026-2027-3ia-results.xlsx` (FZSF-FZCP sheet)                                     |
 
 BRA Resource Clearing Prices (→ `bra_source_url`):
 

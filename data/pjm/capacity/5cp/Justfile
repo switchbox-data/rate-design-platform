@@ -11,7 +11,6 @@
 # Run from repo root: just -f data/pjm/capacity/5cp/Justfile <recipe>
 # Or from this dir:   just <recipe>
 
-path_local_repo := `git rev-parse --show-toplevel`
 path_local_base := justfile_directory()
 path_local_sources := path_local_base + "/sources"
 path_local_csv := path_local_base + "/fivecp_peaks.csv"
@@ -29,11 +28,11 @@ validate:
     uv run python "{{ path_local_base }}/validate_fivecp_reference.py" \
         --path-csv "{{ path_local_csv }}"
 
-# Prepare: just validate (run `convert` first if intermediates changed)
-prepare: validate
+# Prepare: rebuild the CSV from intermediates, then validate
+prepare: convert validate
 
-# Upload: convert CSV to parquet and sync to S3
-upload: validate
+# Upload: convert + validate (via prepare), then convert CSV to parquet and sync to S3
+upload: prepare
     mkdir -p "{{ path_local_parquet }}"
     uv run python -c "\
         import polars as pl; \

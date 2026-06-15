@@ -86,9 +86,11 @@ def build_zone_mapping() -> pl.DataFrame:
         price_zone,
         capacity_weight,
     ) in _MAPPING_ROWS:
-        assert dataminer_zone in VALID_DATAMINER_ZONES, (
-            f"dataminer_zone '{dataminer_zone}' not in {sorted(VALID_DATAMINER_ZONES)}"
-        )
+        if dataminer_zone not in VALID_DATAMINER_ZONES:
+            raise ValueError(
+                f"dataminer_zone '{dataminer_zone}' not in "
+                f"{sorted(VALID_DATAMINER_ZONES)}"
+            )
         rows.append(
             {
                 "utility": utility,

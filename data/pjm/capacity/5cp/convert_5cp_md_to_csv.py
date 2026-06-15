@@ -13,6 +13,9 @@ Notes) plus two tables: the RTO coincident peaks (rank -> date, hour-ending, MW)
 and the by-zone unrestricted MW (zone -> rank1..rank5). The citation header is
 written onto every CSV row so provenance survives into the parquet on S3.
 
+Note: ``notes`` here is a single file-level value (copied onto every row of the
+summer, and may be empty), unlike the RPM dataset where ``notes`` is per-row.
+
 Workflow: edit/add an intermediate -> ``just convert`` -> review ``git diff`` of
 the CSV -> ``just validate`` -> commit -> ``just upload``.
 
@@ -25,6 +28,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import re
 import sys
 from dataclasses import dataclass
@@ -72,10 +77,12 @@ COLUMNS = [
 ]
 
 _SUMMER_RE = re.compile(r"5cp_(\d{4})\.md$")
+# source_url / source_as_of are required (non-empty); notes is a file-level
+# field copied onto every row of the summer and may be left empty.
 _FIELD_RE = {
     "source_url": re.compile(r"^\*\*Source:\*\*\s*(.+?)\s*$", re.MULTILINE),
     "source_as_of": re.compile(r"^\*\*As of:\*\*\s*(.+?)\s*$", re.MULTILINE),
-    "notes": re.compile(r"^\*\*Notes:\*\*\s*(.+?)\s*$", re.MULTILINE),
+    "notes": re.compile(r"^\*\*Notes:\*\*\s*(.*?)\s*$", re.MULTILINE),
 }
 
 
@@ -177,24 +184,24 @@ def parse_intermediate(path: Path) -> list[Row]:
 
 def write_csv(rows: list[Row], path: Path) -> None:
     rows = sorted(rows, key=lambda r: (r.summer_year, r.rank, r.zone != "RTO", r.zone))
-    lines = [CSV_HEADER.rstrip("\n"), ",".join(COLUMNS)]
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow(COLUMNS)
     for r in rows:
-        cells = [
-            str(r.summer_year),
-            str(r.rank),
-            r.peak_date,
-            r.hour_ending_ept,
-            r.zone,
-            r.mw_unrestricted,
-            r.source_url,
-            r.source_as_of,
-            r.notes,
-        ]
-        for c in cells:
-            if any(ch in c for ch in (",", '"', "\n")):
-                raise ValueError(f"field needs quoting (unsupported): {c!r}")
-        lines.append(",".join(cells))
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        writer.writerow(
+            [
+                str(r.summer_year),
+                str(r.rank),
+                r.peak_date,
+                r.hour_ending_ept,
+                r.zone,
+                r.mw_unrestricted,
+                r.source_url,
+                r.source_as_of,
+                r.notes,
+            ]
+        )
+    path.write_text(CSV_HEADER.rstrip("\n") + "\n" + buf.getvalue(), encoding="utf-8")
 
 
 def main() -> int:

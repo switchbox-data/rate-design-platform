@@ -16,6 +16,10 @@
 #   - bra_source_url: "<DY> Base Residual Auction Results" XLS(X)
 #     -> bra_price_per_mw_day (per LDA; copied to each member zone).
 #
+# As-of: the BRA clears once, so the BRA price's as-of is the fixed BRA posting
+# date implied by the DY and is not tracked in its own column; only the Final
+# Zonal price (which drifts as IAs settle) carries a final_price_as_of column.
+#
 # Zones are canonical labels (see data/pjm/README.md crosswalk). UGI is not
 # separately reported (inside the PPL LDA); OVEC is excluded (no retail LSE
 # load). lda is the most-specific LDA that cleared separately for the zone that
