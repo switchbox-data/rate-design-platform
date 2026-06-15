@@ -29,24 +29,32 @@ Usage::
 from __future__ import annotations
 
 import argparse
-import io
 
-import boto3
 import polars as pl
 
+from data.pjm.zone_mapping.generate_zone_mapping_csv import build_zone_mapping
+from utils.file_io import read_csv_from_s3, write_hive_partitioned_parquet_to_s3
+
 # ---------------------------------------------------------------------------
-# MD utility → PJM zone code mapping
+# Zone map helpers
 # ---------------------------------------------------------------------------
 
-# Maps Switchbox std_name → PJM zone code that appears as pnode_name for the
-# ZONE-type aggregate node.  These codes also appear in the ``zone`` column
-# for non-aggregate node types (LOAD, GEN, EHV) within that zone.
-MD_UTILITY_ZONE_MAP: dict[str, str] = {
-    "bge": "BGE",
-    "pepco": "PEPCO",
-    "delmarva": "DPL",
-    "potomac_edison": "APS",
-}
+
+def _zone_map_for_state(state: str) -> dict[str, str]:
+    """Return {utility_slug: pnode_name} for a given state from the zone mapping CSV.
+
+    The ``fivecp_zone_label`` column holds the canonical zone label (e.g. "BGE",
+    "PEPCO", "DPL", "APS") which matches the ``pnode_name`` value for ZONE-type
+    aggregate rows in PJM Data Miner's ``rt_hrl_lmps`` / ``da_hrl_lmps`` feeds.
+
+    See ``data/pjm/zone_mapping/generate_zone_mapping_csv.py`` for the full
+    crosswalk schema and vocabulary.
+    """
+    df = build_zone_mapping().filter(pl.col("state") == state)
+    return dict(
+        zip(df["utility"].to_list(), df["fivecp_zone_label"].to_list(), strict=True)
+    )
+
 
 # Canonical output column order
 _OUTPUT_COLS = [
@@ -67,29 +75,13 @@ S3_PATH_DEFAULT = "s3://data.sb/pjm/lmp/real_time/rt_hrl_lmps.csv"
 
 
 # ---------------------------------------------------------------------------
-# I/O helpers
-# ---------------------------------------------------------------------------
-
-
-def read_csv_from_s3(s3_path: str) -> pl.DataFrame:
-    """Read a CSV from S3 into a Polars DataFrame using boto3."""
-    path = s3_path.removeprefix("s3://")
-    bucket, key = path.split("/", 1)
-    s3 = boto3.client("s3")
-    obj = s3.get_object(Bucket=bucket, Key=key)
-    df = pl.read_csv(io.BytesIO(obj["Body"].read()), infer_schema_length=10_000)
-    print(f"Read {df.height:,} rows × {df.width} cols from s3://{bucket}/{key}")
-    return df
-
-
-# ---------------------------------------------------------------------------
 # Core extraction
 # ---------------------------------------------------------------------------
 
 
 def extract_md_zone_lmps(
     df: pl.DataFrame,
-    zone_map: dict[str, str] = MD_UTILITY_ZONE_MAP,
+    zone_map: dict[str, str] | None = None,
 ) -> pl.DataFrame:
     """Extract ZONE-type aggregate LMP rows for Maryland utilities.
 
@@ -103,7 +95,17 @@ def extract_md_zone_lmps(
     Returns a tidy DataFrame with one row per (utility_zone, timestamp), with
     an added ``zone`` column populated from ``pnode_name`` and a ``year``
     column extracted from ``datetime_beginning_utc`` for Hive partitioning.
+
+    Parameters
+    ----------
+    df:
+        Raw LMP DataFrame read from the PJM rt_hrl_lmps CSV.
+    zone_map:
+        Optional override mapping of ``{utility_slug: pnode_name}``. Defaults
+        to the MD entries from ``data/pjm/zone_mapping/generate_zone_mapping_csv.py``.
     """
+    if zone_map is None:
+        zone_map = _zone_map_for_state("md")
     pjm_zone_codes = list(zone_map.values())
 
     result = (
@@ -178,34 +180,9 @@ def upload_to_s3(
         s3_base:  Base S3 prefix (e.g. ``s3://data.sb/pjm/lmp/real_time/zones``).
         dry_run:  If True, print paths without writing.
     """
-    s3 = boto3.client("s3")
-    base = s3_base.rstrip("/").removeprefix("s3://")
-    bucket, prefix = base.split("/", 1)
-
-    zones = sorted(df["zone"].unique().to_list())
-    years = sorted(df["year"].unique().to_list())
-
-    for zone in zones:
-        for year in years:
-            partition = df.filter(
-                (pl.col("zone") == zone) & (pl.col("year") == year)
-            ).drop("year")
-
-            if partition.is_empty():
-                continue
-
-            key = f"{prefix}/zone={zone}/year={year}/data.parquet"
-            if dry_run:
-                print(
-                    f"  [dry-run] would write {partition.height} rows → s3://{bucket}/{key}"
-                )
-                continue
-
-            buf = io.BytesIO()
-            partition.write_parquet(buf)
-            buf.seek(0)
-            s3.put_object(Bucket=bucket, Key=key, Body=buf.getvalue())
-            print(f"  Uploaded {partition.height} rows → s3://{bucket}/{key}")
+    write_hive_partitioned_parquet_to_s3(
+        df, s3_base, partition_cols=["zone", "year"], dry_run=dry_run
+    )
 
 
 # ---------------------------------------------------------------------------

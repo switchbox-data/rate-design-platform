@@ -1,0 +1,38 @@
+# PJM utility zone mapping
+#
+# Generate the PJM utility → zone crosswalk CSV (Data Miner code / 5CP label /
+# RPM price zone) and upload to S3 for use by supply marginal cost scripts.
+#
+# Run from repo root: just -f data/pjm/zone_mapping/Justfile <recipe>
+
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_base := justfile_directory()
+path_local_csv := path_local_base + "/csv"
+path_local_rpm_csv := path_local_repo + "/data/pjm/capacity/rpm/rpm_capacity_prices.csv"
+path_local_fivecp_csv := path_local_repo + "/data/pjm/capacity/5cp/fivecp_peaks.csv"
+path_s3_zone_mapping := "s3://data.sb/pjm/zone_mapping/"
+
+# Generate: build the zone mapping CSV locally
+generate:
+    uv run python "{{ path_local_base }}/generate_zone_mapping_csv.py" \
+        --path-output-csv "{{ path_local_csv }}/pjm_utility_zone_mapping.csv"
+
+# Validate: run QA checks incl. cross-dataset crosswalk against rpm/5cp CSVs
+validate:
+    uv run python "{{ path_local_base }}/validate_pjm_zone_mapping.py" \
+        --path-csv "{{ path_local_csv }}/pjm_utility_zone_mapping.csv" \
+        --path-rpm-csv "{{ path_local_rpm_csv }}" \
+        --path-fivecp-csv "{{ path_local_fivecp_csv }}"
+
+# Prepare: generate then validate
+prepare: generate validate
+
+# Upload: sync local CSV to S3
+upload: validate
+    aws s3 sync "{{ path_local_csv }}/" "{{ path_s3_zone_mapping }}" --exclude "*" --include "*.csv"
+    @echo "Uploaded zone mapping to {{ path_s3_zone_mapping }}"
+
+# Clean: remove local CSV staging dir
+clean:
+    rm -rf "{{ path_local_csv }}"
+    @echo "Removed csv/"
