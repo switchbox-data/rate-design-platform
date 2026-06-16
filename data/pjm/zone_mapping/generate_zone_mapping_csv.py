@@ -36,15 +36,54 @@ import polars as pl
 # Each tuple: (utility, state, dataminer_zone, fivecp_zone_label, price_zone,
 # capacity_weight). Single-zone utilities have weight 1.0; the schema supports
 # multi-row weighted utilities later (ConEd analog in NY).
+#
+# Source of truth for MD zone assignments:
+#   - PJM Energy Credits utility↔zone table (pjmenergycredits.com/About-PJM)
+#   - MD PSC Ten-Year Plan (2024–2033 and 2025–2034 editions)
+#   - ODEC Wholesale Power Contract (SEC filing): confirms Choptank and A&N
+#     are in the DPL zone; SMECO is in the PEPCO zone (SMECO website + PJM
+#     Tariff Attachment H-9C).
+#   - Somerset REC: APS in MD, PENELEC in PA (PJM Energy Credits confirms).
+#
+# All MD utilities map entirely (1.0) to a single PJM zone — no split-zone
+# cases exist among MD electric utilities.
 _MAPPING_ROWS: list[tuple[str, str, str, str, str, float]] = [
-    # BGE — Baltimore Gas & Electric; entire zone within Maryland
+    # ── Investor-Owned Utilities ──────────────────────────────────────────────
+    # BGE — Baltimore Gas & Electric; only PJM zone entirely within Maryland.
     ("bge", "md", "BC", "BGE", "BGE", 1.0),
-    # Pepco — MD analysis; the Pepco zone also covers DC
+    # Pepco — Potomac Electric Power Co.; zone also covers DC.
     ("pepco", "md", "PEP", "PEPCO", "PEPCO", 1.0),
-    # Delmarva Power & Light — MD analysis; the DPL zone also covers DE
+    # Delmarva Power & Light; zone also covers DE and parts of VA.
     ("dpl", "md", "DPL", "DPL", "DPL", 1.0),
-    # Potomac Edison — retail brand inside the APS zone (also WV/PA load)
+    # Potomac Edison — FirstEnergy subsidiary; operates within the APS zone
+    # (Allegheny Power Systems), which also covers parts of WV, PA, VA.
     ("potomac-edison", "md", "AP", "APS", "APS", 1.0),
+    # ── Cooperatives ──────────────────────────────────────────────────────────
+    # SMECO — Southern Maryland Electric Cooperative; distribution co-op whose
+    # 6 interties connect to the PEPCO transmission zone (per SMECO website
+    # and PJM Tariff Attachment H-9C).
+    ("smeco", "md", "PEP", "PEPCO", "PEPCO", 1.0),
+    # Choptank Electric Cooperative — ODEC member serving MD Eastern Shore;
+    # interconnected to DPL transmission system (ODEC Wholesale Contract, SEC).
+    ("choptank", "md", "DPL", "DPL", "DPL", 1.0),
+    # A&N Electric Cooperative — ODEC member; serves Smith Island (MD) and VA
+    # Eastern Shore; interconnected to DPL transmission (ODEC Wholesale Contract).
+    ("an-electric", "md", "DPL", "DPL", "DPL", 1.0),
+    # Somerset Rural Electric Cooperative — Allegheny Electric Cooperative
+    # member; serves Garrett County MD within the APS zone. (In PA it is in
+    # the PENELEC zone, but its MD territory is APS.)
+    ("somerset-rec", "md", "AP", "APS", "APS", 1.0),
+    # ── Municipal Utilities ───────────────────────────────────────────────────
+    # Hagerstown Light Department — municipal utility within the APS zone.
+    ("hagerstown", "md", "AP", "APS", "APS", 1.0),
+    # Thurmont Municipal Light Company — municipal utility within the APS zone.
+    ("thurmont", "md", "AP", "APS", "APS", 1.0),
+    # Town of Williamsport — municipal utility within the APS zone.
+    ("williamsport", "md", "AP", "APS", "APS", 1.0),
+    # Easton Utilities Commission — municipal utility within the DPL zone.
+    ("easton", "md", "DPL", "DPL", "DPL", 1.0),
+    # Town of Berlin Municipal Electric Plant — municipal within the DPL zone.
+    ("berlin", "md", "DPL", "DPL", "DPL", 1.0),
 ]
 
 # Valid Data Miner legacy transmission-zone codes (hrl_load_metered vocabulary).
