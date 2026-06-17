@@ -9,7 +9,7 @@
 path_repo := `git -C "$(dirname '{{justfile()}}')" rev-parse --show-toplevel`
 
 [private]
-path_script := path_repo + "/utils/pre/marginal_costs/generate_supply_energy_mc.py"
+path_script := path_repo + "/utils/data_prep/marginal_costs/generate_supply_energy_mc.py"
 
 # Available years from PJM LMP download (2019-2025, excluding incomplete 2026).
 pjm_lmp_years := "2019 2020 2021 2022 2023 2024 2025"

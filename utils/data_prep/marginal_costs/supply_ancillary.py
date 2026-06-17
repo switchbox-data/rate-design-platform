@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from utils.pre.marginal_costs.supply_utils import (
+from utils.data_prep.marginal_costs.supply_utils import (
     DEFAULT_ISONE_ANCILLARY_S3_BASE,
     prepare_component_output,
     strip_tz_if_needed,

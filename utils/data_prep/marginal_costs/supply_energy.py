@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from utils.pre.marginal_costs.supply_utils import (
+from utils.data_prep.marginal_costs.supply_utils import (
     DEFAULT_ISONE_LMP_S3_BASE,
     DEFAULT_PJM_LMP_S3_BASE,
     load_zone_loads,

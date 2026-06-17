@@ -7,11 +7,11 @@ import argparse
 from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.pre.marginal_costs.supply_capacity_nyiso import (
+from utils.data_prep.marginal_costs.supply_capacity_nyiso import (
     N_PEAK_HOURS_PER_MONTH,
     compute_supply_capacity_mc,
 )
-from utils.pre.marginal_costs.supply_utils import (
+from utils.data_prep.marginal_costs.supply_utils import (
     DEFAULT_ICAP_S3_BASE,
     DEFAULT_ISONE_FCA_S3_PATH,
     DEFAULT_ISONE_OUTPUT_S3_BASE,
@@ -205,7 +205,7 @@ def main() -> None:
         print(f"  Capacity zone ID:     {capacity_zone_id}")
         print("=" * 60)
 
-        from utils.pre.marginal_costs.supply_capacity_isone import (
+        from utils.data_prep.marginal_costs.supply_capacity_isone import (
             compute_isone_supply_capacity_mc,
         )
 

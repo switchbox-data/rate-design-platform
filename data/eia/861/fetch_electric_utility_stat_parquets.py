@@ -39,67 +39,8 @@ from typing import cast
 
 import polars as pl
 
+from data.eia.constants import PUDL_YEARLY_SALES_URL, VALID_STATE_CODES
 from utils.utility_codes import get_eia_utility_id_to_std_name
-
-# EIA-861 yearly sales (PUDL Catalyst Coop stable release; see https://github.com/catalyst-cooperative/pudl/releases)
-PUDL_STABLE_VERSION = "v2026.2.0"
-CORE_EIA861_YEARLY_SALES_URL = f"https://s3.us-west-2.amazonaws.com/pudl.catalyst.coop/{PUDL_STABLE_VERSION}/core_eia861__yearly_sales.parquet"
-
-VALID_STATE_CODES = frozenset(
-    {
-        "al",
-        "ak",
-        "az",
-        "ar",
-        "ca",
-        "co",
-        "ct",
-        "de",
-        "fl",
-        "ga",
-        "hi",
-        "id",
-        "il",
-        "in",
-        "ia",
-        "ks",
-        "ky",
-        "la",
-        "me",
-        "md",
-        "ma",
-        "mi",
-        "mn",
-        "ms",
-        "mo",
-        "mt",
-        "ne",
-        "nv",
-        "nh",
-        "nj",
-        "nm",
-        "ny",
-        "nc",
-        "nd",
-        "oh",
-        "ok",
-        "or",
-        "pa",
-        "ri",
-        "sc",
-        "sd",
-        "tn",
-        "tx",
-        "ut",
-        "vt",
-        "va",
-        "wa",
-        "wv",
-        "wi",
-        "wy",
-        "dc",
-    }
-)
 
 # Fixed order for lazy aggregation and column output; must match dataset (validated in tests).
 CUSTOMER_CLASSES_ORDERED = (
@@ -185,7 +126,7 @@ def _output_columns() -> list[str]:
 
 def _base_lazy() -> pl.LazyFrame:
     """Scan EIA-861 and add report year; no entity-type or latest-date filter."""
-    return pl.scan_parquet(CORE_EIA861_YEARLY_SALES_URL).with_columns(
+    return pl.scan_parquet(PUDL_YEARLY_SALES_URL).with_columns(
         pl.col("report_date").dt.year().alias("year")
     )
 

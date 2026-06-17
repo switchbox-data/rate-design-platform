@@ -7,12 +7,12 @@ import argparse
 from dotenv import load_dotenv
 
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
-from utils.pre.marginal_costs.supply_energy import (
+from utils.data_prep.marginal_costs.supply_energy import (
     compute_isone_supply_energy_mc,
     compute_pjm_supply_energy_mc,
     compute_supply_energy_mc,
 )
-from utils.pre.marginal_costs.supply_utils import (
+from utils.data_prep.marginal_costs.supply_utils import (
     DEFAULT_ISONE_LMP_S3_BASE,
     DEFAULT_ISONE_OUTPUT_S3_BASE,
     DEFAULT_LBMP_S3_BASE,

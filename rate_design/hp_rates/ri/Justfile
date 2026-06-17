@@ -152,7 +152,7 @@ tx_mc_year := env_var_or_default('TX_MC_YEAR', '2025')
 tx_load_year := env_var_or_default('TX_LOAD_YEAR', tx_mc_year)
 
 create-bulk-tx-mc-data:
-    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/pre/marginal_costs/generate_bulk_tx_mc.py \
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
       --iso isone \
       --utility {{ utility }} \
       --year {{ tx_mc_year }} \
@@ -164,7 +164,7 @@ create-bulk-tx-mc-data:
 # =============================================================================
 
 create-supply-energy-mc:
-    uv run python {{ path_repo }}/utils/pre/marginal_costs/generate_supply_energy_mc.py \
+    uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_energy_mc.py \
       --iso isone \
       --utility {{ utility }} \
       --zone RI \
@@ -172,14 +172,14 @@ create-supply-energy-mc:
       --upload
 
 create-supply-ancillary-mc:
-    uv run python {{ path_repo }}/utils/pre/marginal_costs/generate_supply_ancillary_mc.py \
+    uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_ancillary_mc.py \
       --utility {{ utility }} \
       --zone RI \
       --year {{ year }} \
       --upload
 
 create-supply-capacity-mc:
-    uv run python {{ path_repo }}/utils/pre/marginal_costs/generate_supply_capacity_mc.py \
+    uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_capacity_mc.py \
       --iso isone \
       --utility {{ utility }} \
       --zone RI \
