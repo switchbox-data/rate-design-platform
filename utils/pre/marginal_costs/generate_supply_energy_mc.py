@@ -1,4 +1,4 @@
-"""Generate utility-level supply energy marginal costs from LBMP (NYISO) or LMP (ISO-NE)."""
+"""Generate utility-level supply energy marginal costs from LBMP (NYISO) or LMP (ISO-NE / PJM)."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
 from utils.pre.marginal_costs.supply_energy import (
     compute_isone_supply_energy_mc,
+    compute_pjm_supply_energy_mc,
     compute_supply_energy_mc,
 )
 from utils.pre.marginal_costs.supply_utils import (
@@ -16,10 +17,14 @@ from utils.pre.marginal_costs.supply_utils import (
     DEFAULT_ISONE_OUTPUT_S3_BASE,
     DEFAULT_LBMP_S3_BASE,
     DEFAULT_OUTPUT_S3_BASE,
+    DEFAULT_PJM_LMP_S3_BASE,
+    DEFAULT_PJM_OUTPUT_S3_BASE,
     DEFAULT_ZONE_LOADS_S3_BASE,
     DEFAULT_ZONE_MAPPING_PATH,
     ISONE_UTILITY_ZONES,
+    PJM_UTILITY_ZONES,
     VALID_ISONE_UTILITIES,
+    VALID_PJM_UTILITIES,
     VALID_UTILITIES,
     generate_zero_energy_mc,
     get_utility_mapping,
@@ -41,8 +46,8 @@ def _parse_args() -> argparse.Namespace:
         "--iso",
         type=str,
         default="nyiso",
-        choices=["nyiso", "isone"],
-        help="ISO to use as source: 'nyiso' (default) or 'isone'.",
+        choices=["nyiso", "isone", "pjm"],
+        help="ISO to use as source: 'nyiso' (default), 'isone', or 'pjm'.",
     )
     parser.add_argument(
         "--utility",
@@ -51,7 +56,8 @@ def _parse_args() -> argparse.Namespace:
         help=(
             "Utility short name. NYISO: one of "
             f"{sorted(VALID_UTILITIES)}. "
-            f"ISO-NE: one of {sorted(VALID_ISONE_UTILITIES)}."
+            f"ISO-NE: one of {sorted(VALID_ISONE_UTILITIES)}. "
+            f"PJM (MD): one of {sorted(VALID_PJM_UTILITIES)}."
         ),
     )
     parser.add_argument(
@@ -89,21 +95,25 @@ def _parse_args() -> argparse.Namespace:
         default=DEFAULT_ZONE_LOADS_S3_BASE,
         help=f"[NYISO only] S3 base for NYISO zone loads (default: {DEFAULT_ZONE_LOADS_S3_BASE}).",
     )
-    # ISO-NE-only args
+    # ISO-NE / PJM args
     parser.add_argument(
         "--zone",
         type=str,
         default=None,
         help=(
-            "[ISO-NE only] Load zone to use for LMP (e.g. 'RI'). "
-            "Defaults to the zone mapped to --utility in ISONE_UTILITY_ZONES."
+            "[ISO-NE / PJM] LMP zone to use (e.g. 'RI' or 'BGE'). "
+            "Defaults to the zone mapped to --utility in the ISO's utility-zone table."
         ),
     )
     parser.add_argument(
         "--lmp-s3-base",
         type=str,
-        default=DEFAULT_ISONE_LMP_S3_BASE,
-        help=f"[ISO-NE only] S3 base for LMP data (default: {DEFAULT_ISONE_LMP_S3_BASE}).",
+        default=None,
+        help=(
+            "[ISO-NE / PJM] S3 base for LMP data. "
+            f"ISO-NE default: {DEFAULT_ISONE_LMP_S3_BASE}. "
+            f"PJM default: {DEFAULT_PJM_LMP_S3_BASE}."
+        ),
     )
     # Shared args
     parser.add_argument(
@@ -112,8 +122,9 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "S3 base for output. "
-            f"Defaults to {DEFAULT_OUTPUT_S3_BASE!r} (NYISO) "
-            f"or {DEFAULT_ISONE_OUTPUT_S3_BASE!r} (ISO-NE)."
+            f"Defaults to {DEFAULT_OUTPUT_S3_BASE!r} (NYISO), "
+            f"{DEFAULT_ISONE_OUTPUT_S3_BASE!r} (ISO-NE), "
+            f"or {DEFAULT_PJM_OUTPUT_S3_BASE!r} (PJM)."
         ),
     )
     parser.add_argument(
@@ -133,7 +144,7 @@ def main() -> None:
     utility = args.utility
     price_year = args.year
 
-    # Validate utility against the correct ISO's set
+    # Validate utility and resolve defaults per ISO
     if iso == "nyiso":
         if utility not in VALID_UTILITIES:
             raise SystemExit(
@@ -141,13 +152,24 @@ def main() -> None:
                 f"Valid choices: {sorted(VALID_UTILITIES)}"
             )
         output_s3_base = args.output_s3_base or DEFAULT_OUTPUT_S3_BASE
-    else:  # isone
+    elif iso == "isone":
         if utility not in VALID_ISONE_UTILITIES:
             raise SystemExit(
                 f"Error: utility {utility!r} is not valid for ISO-NE. "
                 f"Valid choices: {sorted(VALID_ISONE_UTILITIES)}"
             )
         output_s3_base = args.output_s3_base or DEFAULT_ISONE_OUTPUT_S3_BASE
+    elif iso == "pjm":  # pjm
+        if utility not in VALID_PJM_UTILITIES:
+            raise SystemExit(
+                f"Error: utility {utility!r} is not valid for PJM. "
+                f"Valid choices: {sorted(VALID_PJM_UTILITIES)}"
+            )
+        output_s3_base = args.output_s3_base or DEFAULT_PJM_OUTPUT_S3_BASE
+    else:
+        raise SystemExit(
+            f"Error: invalid ISO {iso!r}. Valid choices: ['nyiso', 'isone', 'pjm']"
+        )
 
     print("=" * 60)
     print(f"SUPPLY ENERGY MARGINAL COST GENERATION ({iso.upper()})")
@@ -176,13 +198,14 @@ def main() -> None:
             storage_options,
             zone_load_year=energy_load_year if energy_load_year != price_year else None,
         )
-    else:  # isone
+    elif iso == "isone":
         zone = args.zone or ISONE_UTILITY_ZONES.get(utility)
         if zone is None:
             raise SystemExit(
                 f"Error: no zone mapping found for utility {utility!r}. "
                 "Provide --zone explicitly."
             )
+        lmp_s3_base = args.lmp_s3_base or DEFAULT_ISONE_LMP_S3_BASE
         print(f"  Zone:                 {zone}")
         print("=" * 60)
 
@@ -191,7 +214,29 @@ def main() -> None:
             zone=zone,
             year=price_year,
             storage_options=storage_options,
-            lmp_s3_base=args.lmp_s3_base,
+            lmp_s3_base=lmp_s3_base,
+        )
+    elif iso == "pjm":  # pjm
+        zone = args.zone or PJM_UTILITY_ZONES.get(utility)
+        if zone is None:
+            raise SystemExit(
+                f"Error: no zone mapping found for utility {utility!r}. "
+                "Provide --zone explicitly."
+            )
+        lmp_s3_base = args.lmp_s3_base or DEFAULT_PJM_LMP_S3_BASE
+        print(f"  Zone:                 {zone}")
+        print("=" * 60)
+
+        print("\n── Energy MC (LMP) ──")
+        energy_df = compute_pjm_supply_energy_mc(
+            zone=zone,
+            year=price_year,
+            storage_options=storage_options,
+            lmp_s3_base=lmp_s3_base,
+        )
+    else:
+        raise SystemExit(
+            f"Error: invalid ISO {iso!r}. Valid choices: ['nyiso', 'isone', 'pjm']"
         )
 
     energy_output = prepare_component_output(

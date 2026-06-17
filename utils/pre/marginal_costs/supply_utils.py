@@ -77,6 +77,35 @@ ISONE_ALL_LOAD_ZONES: list[str] = [
 DEFAULT_ISONE_BULK_TX_OUTPUT_S3_BASE = (
     "s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/"
 )
+
+# ---------------------------------------------------------------------------
+# PJM defaults (Maryland)
+# ---------------------------------------------------------------------------
+DEFAULT_PJM_LMP_S3_BASE = "s3://data.sb/pjm/lmp/real_time/zones/"
+DEFAULT_PJM_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/md/supply/"
+
+# Maps each MD utility slug to its PJM zone aggregate pnode_name.
+# Co-ops and municipals that sit inside an IOU zone share that IOU's zone LMP.
+PJM_UTILITY_ZONES: dict[str, str] = {
+    # IOUs
+    "bge": "BGE",
+    "pepco": "PEPCO",
+    "dpl": "DPL",
+    "potomac-edison": "APS",
+    # Cooperatives (mapped to host IOU zone)
+    "smeco": "PEPCO",
+    "choptank": "DPL",
+    "an-electric": "DPL",
+    "somerset-rec": "APS",
+    # Municipal utilities (mapped to host IOU zone)
+    "hagerstown": "APS",
+    "thurmont": "APS",
+    "williamsport": "APS",
+    "easton": "DPL",
+    "berlin": "DPL",
+}
+
+VALID_PJM_UTILITIES: frozenset[str] = frozenset(PJM_UTILITY_ZONES)
 DEFAULT_NYISO_BULK_TX_OUTPUT_S3_BASE = (
     "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/"
 )

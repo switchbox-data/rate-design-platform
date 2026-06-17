@@ -6,6 +6,7 @@ import polars as pl
 
 from utils.pre.marginal_costs.supply_utils import (
     DEFAULT_ISONE_LMP_S3_BASE,
+    DEFAULT_PJM_LMP_S3_BASE,
     load_zone_loads,
     remap_year_if_needed,
     strip_tz_if_needed,
@@ -207,6 +208,98 @@ def compute_isone_supply_energy_mc(
 
     avg_lmp = result["energy_cost_enduse"].mean()
     print(f"  Energy MC (ISO-NE): {result.height} hours, avg LMP = ${avg_lmp:.2f}/MWh")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# PJM LMP helpers (Maryland)
+# ---------------------------------------------------------------------------
+
+
+def load_lmp_for_pjm_zone(
+    zone: str,
+    year: int,
+    storage_options: dict[str, str],
+    lmp_s3_base: str = DEFAULT_PJM_LMP_S3_BASE,
+) -> pl.DataFrame:
+    """Load PJM hourly real-time LMP for a single zone aggregate and year.
+
+    PJM data is already hourly (one row per hour per zone) and stored as
+    timezone-naive EPT timestamps in ``datetime_beginning_ept``.  The
+    ``total_lmp_rt`` column is the zone-aggregate real-time LMP in $/MWh.
+
+    DST handling:
+    - Spring-forward: the 2:00 AM EPT hour does not exist — one hour is
+      missing.  ``prepare_component_output`` interpolates it.
+    - Fall-back: the 1:00 AM EPT hour occurs twice — PJM stores both rows
+      with the same naive EPT timestamp.  We collapse them by taking the
+      mean, consistent with how the ISO-NE pipeline handles this.
+    """
+    base = lmp_s3_base.rstrip("/") + "/"
+    collected = (
+        pl.scan_parquet(
+            base,
+            hive_partitioning=True,
+            storage_options=storage_options,
+        )
+        .filter(pl.col("zone") == zone, pl.col("year") == year)
+        .select("datetime_beginning_ept", "total_lmp_rt")
+        .collect()
+    )
+    if not isinstance(collected, pl.DataFrame):
+        raise TypeError("Expected DataFrame from PJM LMP collect()")
+    if collected.is_empty():
+        raise FileNotFoundError(
+            f"No PJM LMP data found for zone={zone!r}, year={year} under {base}"
+        )
+
+    collected = strip_tz_if_needed(collected, "datetime_beginning_ept").rename(
+        {"datetime_beginning_ept": "timestamp", "total_lmp_rt": "lmp_usd_per_mwh"}
+    )
+
+    n_before = collected.height
+    n_unique = collected["timestamp"].n_unique()
+    if n_before != n_unique:
+        n_dup = n_before - n_unique
+        print(
+            f"  {n_dup} duplicate EPT timestamp(s) in zone={zone!r} year={year} "
+            f"(DST fall-back — collapsing by mean)"
+        )
+        collected = (
+            collected.group_by("timestamp")
+            .agg(pl.col("lmp_usd_per_mwh").mean())
+            .sort("timestamp")
+        )
+
+    print(
+        f"Loaded PJM LMP data: {collected.height:,} hourly rows "
+        f"for zone={zone!r}, year={year}"
+    )
+    return collected
+
+
+def compute_pjm_supply_energy_mc(
+    zone: str,
+    year: int,
+    storage_options: dict[str, str],
+    lmp_s3_base: str = DEFAULT_PJM_LMP_S3_BASE,
+) -> pl.DataFrame:
+    """Compute hourly supply energy MC from PJM real-time zone-aggregate LMP.
+
+    All MD utilities map to a single PJM zone, so no load-weighting is
+    needed.  The zone-aggregate ``total_lmp_rt`` ($/MWh) is used directly
+    as ``energy_cost_enduse``.  DST gaps (spring-forward) and duplicates
+    (fall-back) are handled in ``prepare_component_output``.
+    """
+    lmp_df = load_lmp_for_pjm_zone(zone, year, storage_options, lmp_s3_base)
+
+    result = lmp_df.select(
+        "timestamp",
+        pl.col("lmp_usd_per_mwh").alias("energy_cost_enduse"),
+    ).sort("timestamp")
+
+    avg_lmp = result["energy_cost_enduse"].mean()
+    print(f"  Energy MC (PJM): {result.height} hours, avg LMP = ${avg_lmp:.2f}/MWh")
     return result
 
 
