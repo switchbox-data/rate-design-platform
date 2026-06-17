@@ -242,15 +242,11 @@ if __name__ == "__main__":
         electric_poly_path,
         utility_type="electric",
         state_crs=state_crs,
-        geometry_col="the_geom",
-        crs="EPSG:4326",
     )
     gas_polygons = read_csv_to_gdf_from_s3(
         gas_poly_path,
         utility_type="gas",
         state_crs=state_crs,
-        geometry_col="the_geom",
-        crs="EPSG:4326",
     )
 
     pumas = get_pumas(

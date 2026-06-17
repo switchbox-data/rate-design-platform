@@ -29,6 +29,12 @@ upload:
 fetch-state-stats state:
     uv run python "{{ path_local_repo }}/data/eia/861/fetch_electric_utility_stat_parquets.py" {{ state }}
 
+# Fetch county-level service territory for a state and upload to S3.
+# Requires EIA-861 utility stats to already be on S3 (run `just update` first).
+# Output: s3://data.sb/eia/861/service_territory/state=<STATE>/data.parquet
+fetch-service-territory state year="2023":
+    uv run python "{{ path_local_repo }}/data/eia/861/fetch_service_territory.py" {{ state }} --year {{ year }}
+
 # Remove local parquet/
 clean:
     rm -rf "{{ path_local_parquet }}"

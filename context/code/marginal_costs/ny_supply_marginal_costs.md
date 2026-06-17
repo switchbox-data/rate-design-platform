@@ -4,8 +4,8 @@ How energy (LBMP) and capacity (ICAP) supply marginal costs are generated for NY
 
 ## Scripts
 
-- `utils/pre/marginal_costs/generate_supply_energy_mc.py`
-- `utils/pre/marginal_costs/generate_supply_capacity_mc.py`
+- `utils/data_prep/marginal_costs/generate_supply_energy_mc.py`
+- `utils/data_prep/marginal_costs/generate_supply_capacity_mc.py`
 
 CLI (energy): `--utility cenhud --year 2025 [--energy-load-year 2018] --zone-mapping-path s3://... [--upload]`
 CLI (capacity): `--utility cenhud --year 2025 [--capacity-load-year 2018] --zone-mapping-path s3://... [--upload]`

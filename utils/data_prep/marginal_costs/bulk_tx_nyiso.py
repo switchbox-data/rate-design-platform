@@ -18,7 +18,7 @@ from typing import cast
 import polars as pl
 from cloudpathlib import S3Path
 
-from utils.pre.marginal_costs.supply_utils import (
+from utils.data_prep.marginal_costs.supply_utils import (
     build_cairo_8760_timestamps,
 )
 from utils.pre.season_config import (

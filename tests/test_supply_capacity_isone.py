@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta
 import polars as pl
 import pytest
 
-from utils.pre.marginal_costs.supply_capacity_isone import (
+from utils.data_prep.marginal_costs.supply_capacity_isone import (
     _get_fca_price_for_ccp,
     allocate_fca_to_hours,
     resolve_fca_price_for_calendar_year,
