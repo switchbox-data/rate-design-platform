@@ -51,6 +51,7 @@ import polars as pl
 import requests
 from dotenv import load_dotenv
 
+from data.pjm.validate_pjm_lmp import validate_zone_lmp
 from data.pjm.zone_mapping.generate_zone_mapping_csv import build_zone_mapping
 from utils.file_io import read_csv_from_s3, write_hive_partitioned_parquet_to_s3
 
@@ -226,6 +227,33 @@ def _fetch_page(
     raise RuntimeError(f"Failed after {_MAX_RETRIES} attempts. Last error: {last_exc}")
 
 
+_TS_FORMATS = [
+    "%m/%d/%Y %I:%M:%S %p",  # US with AM/PM  ("1/1/2019 12:00:00 AM")
+    "%m/%d/%Y %H:%M:%S",  # US 24-hour      ("1/1/2019 0:00:00")
+    "%Y-%m-%dT%H:%M:%S",  # ISO 8601        ("2019-01-01T00:00:00")
+    "%Y-%m-%d %H:%M:%S",  # ISO-like        ("2019-01-01 00:00:00")
+]
+
+
+def _parse_ts_column(df: pl.DataFrame, col: str) -> pl.DataFrame:
+    """Parse a string timestamp column, trying multiple date formats.
+
+    Tries each format in ``_TS_FORMATS`` and keeps the first that produces
+    at least some non-null values.  Raises if none succeed.
+    """
+    sample = df[col].drop_nulls().head(1).to_list()
+    for fmt in _TS_FORMATS:
+        parsed = df.with_columns(
+            pl.col(col).str.to_datetime(fmt, strict=False).alias(col)
+        )
+        if parsed[col].null_count() < parsed.height:
+            return parsed
+    raise ValueError(
+        f"Could not parse timestamp column '{col}' with any known format. "
+        f"Sample value: {sample}"
+    )
+
+
 def fetch_rt_lmps_for_zone(
     zone_code: str,
     start_date: date,
@@ -364,18 +392,14 @@ def fetch_rt_lmps_for_zone(
     # Normalise column names to lowercase (API returns mixed case).
     df = df.rename({c: c.lower() for c in df.columns})
 
-    # Parse timestamps and add year partition column.
+    # Parse timestamps — the API may return different formats than the CSV
+    # (e.g. ISO 8601 vs US-style with AM/PM).
+    for ts_col in ("datetime_beginning_utc", "datetime_beginning_ept"):
+        if df.schema[ts_col] == pl.String:
+            df = _parse_ts_column(df, ts_col)
+
     df = (
-        df.with_columns(
-            pl.col("datetime_beginning_utc")
-            .str.to_datetime("%m/%d/%Y %I:%M:%S %p", strict=False)
-            .alias("datetime_beginning_utc"),
-            pl.col("datetime_beginning_ept")
-            .str.to_datetime("%m/%d/%Y %I:%M:%S %p", strict=False)
-            .alias("datetime_beginning_ept"),
-            # Populate zone from pnode_name (zone col is null for ZONE-type rows).
-            pl.col("pnode_name").alias("zone"),
-        )
+        df.with_columns(pl.col("pnode_name").alias("zone"))
         .with_columns(pl.col("datetime_beginning_utc").dt.year().alias("year"))
         .select(_OUTPUT_COLS + ["year"])
         .sort("zone", "datetime_beginning_utc")
@@ -437,25 +461,17 @@ def extract_md_zone_lmps(
         zone_map = _zone_map_for_state("md")
     pjm_zone_codes = list(zone_map.values())
 
+    filtered = df.filter(
+        (pl.col("type") == "ZONE") & pl.col("pnode_name").is_in(pjm_zone_codes)
+    )
+
+    for ts_col in ("datetime_beginning_utc", "datetime_beginning_ept"):
+        if filtered.schema[ts_col] == pl.String:
+            filtered = _parse_ts_column(filtered, ts_col)
+
     result = (
-        df.filter(
-            (pl.col("type") == "ZONE") & pl.col("pnode_name").is_in(pjm_zone_codes)
-        )
-        .with_columns(
-            # Populate zone from pnode_name (zone col is null for ZONE-type rows)
-            pl.col("pnode_name").alias("zone"),
-            # Parse timestamps to Datetime for downstream use
-            pl.col("datetime_beginning_utc")
-            .str.to_datetime("%m/%d/%Y %I:%M:%S %p", strict=False)
-            .alias("datetime_beginning_utc"),
-            pl.col("datetime_beginning_ept")
-            .str.to_datetime("%m/%d/%Y %I:%M:%S %p", strict=False)
-            .alias("datetime_beginning_ept"),
-        )
-        .with_columns(
-            # Extract year for Hive partition key
-            pl.col("datetime_beginning_utc").dt.year().alias("year"),
-        )
+        filtered.with_columns(pl.col("pnode_name").alias("zone"))
+        .with_columns(pl.col("datetime_beginning_utc").dt.year().alias("year"))
         .select(_OUTPUT_COLS + ["year"])
         .sort("zone", "datetime_beginning_utc")
     )
@@ -542,6 +558,9 @@ def _cmd_fetch_api(args: argparse.Namespace) -> None:
         print(f"\nOutput would go to: {args.s3_output}")
         return
 
+    local_dir = Path("data/pjm/_local_lmp")
+    local_dir.mkdir(parents=True, exist_ok=True)
+
     for zone_code in zones:
         lmps = fetch_rt_lmps_for_zone(
             zone_code,
@@ -550,7 +569,25 @@ def _cmd_fetch_api(args: argparse.Namespace) -> None:
             page_delay_seconds=args.page_delay,
         )
         if lmps.is_empty():
-            continue
+            raise SystemExit(
+                f"\nERROR: no data returned for zone={zone_code}. Stopping."
+            )
+
+        # Save locally first so data isn't lost if validation or upload fails.
+        local_path = local_dir / f"{zone_code}_{start}_{end}.parquet"
+        lmps.write_parquet(local_path)
+        print(f"\n  Saved locally to {local_path}")
+
+        zone_ok, msgs = validate_zone_lmp(lmps, zone_code, start, end)
+        print(f"\n  Validation for {zone_code}:")
+        for m in msgs:
+            print(f"    {m}")
+        if not zone_ok:
+            raise SystemExit(
+                f"\nERROR: validation failed for zone={zone_code}. "
+                f"Data saved to {local_path} for inspection. Not uploaded."
+            )
+
         print(f"\nUploading {zone_code} data to {args.s3_output} ...")
         upload_to_s3(lmps, args.s3_output)
 

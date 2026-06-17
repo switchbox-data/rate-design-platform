@@ -26,6 +26,7 @@ data/resstock/utility/csv/
 data/resstock/utility/parquet/
 data/resstock/utility/shapefiles/
 data/resstock/utility/zips/
+data/pjm/_local_lmp/
 data/eia/hourly_loads/zone_parquet/
 data/eia/hourly_loads/utility_parquet/
 data/fred/cpi/parquet/
