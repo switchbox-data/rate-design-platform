@@ -1,0 +1,51 @@
+# PJM RPM capacity prices pipeline
+#
+# Curated reference dataset (no API). PJM publishes RPM results as per-DY Excel
+# files whose names/layouts/paths drift, with BRA and Final Zonal prices in two
+# different files. The Excel->table step is done once and captured as committed,
+# reviewable markdown intermediates under sources/ (rpm_YYYY_YY.md, one per
+# delivery year, with both source URLs in the header); `convert` deterministically
+# rebuilds rpm_capacity_prices.csv from them. To add/revise a DY: extract the
+# Excel files to sources/rpm_YYYY_YY.md, `just convert`, review the CSV diff,
+# `just validate`, commit, `just upload`.
+#
+# Run from repo root: just -f data/pjm/capacity/rpm/Justfile <recipe>
+# Or from this dir:   just <recipe>
+
+path_local_base := justfile_directory()
+path_local_sources := path_local_base + "/sources"
+path_local_csv := path_local_base + "/rpm_capacity_prices.csv"
+path_local_parquet := path_local_base + "/parquet"
+path_s3_parquet := "s3://data.sb/pjm/capacity/rpm/"
+
+# Convert: rebuild the CSV from the markdown source intermediates
+convert:
+    uv run python "{{ path_local_base }}/convert_rpm_md_to_csv.py" \
+        --path-sources "{{ path_local_sources }}" \
+        --path-csv "{{ path_local_csv }}"
+
+# Validate: run QA checks on the curated CSV
+validate:
+    uv run python "{{ path_local_base }}/validate_rpm_reference.py" \
+        --path-csv "{{ path_local_csv }}"
+
+# Prepare: rebuild the CSV from intermediates, then validate
+prepare: convert validate
+
+# Upload: convert + validate (via prepare), then convert CSV to parquet and sync to S3
+upload: prepare
+    mkdir -p "{{ path_local_parquet }}"
+    uv run python -c "\
+        import polars as pl; \
+        df = pl.read_csv('{{ path_local_csv }}', comment_prefix='#', try_parse_dates=True); \
+        df.write_parquet('{{ path_local_parquet }}/data.parquet'); \
+        print(f'Wrote {df.height} rows to parquet') \
+    "
+    aws s3 sync "{{ path_local_parquet }}/" "{{ path_s3_parquet }}" \
+        --exclude "*" --include "*.parquet"
+    @echo "Uploaded to {{ path_s3_parquet }}"
+
+# Clean: remove local parquet
+clean:
+    rm -rf "{{ path_local_parquet }}"
+    @echo "Removed parquet/"
