@@ -207,8 +207,7 @@ def check_source_urls(df: pl.DataFrame, result: ValidationResult) -> None:
         if col not in df.columns:
             continue
         bad = df.filter(
-            ~pl.col(col).str.starts_with("https://www.pjm.com/")
-            | pl.col(col).is_null()
+            ~pl.col(col).str.starts_with("https://www.pjm.com/") | pl.col(col).is_null()
         )
         if bad.height:
             sample = bad.select("delivery_year", "zone", col).head(3).to_dicts()
