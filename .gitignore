@@ -53,7 +53,9 @@ data/pjm/capacity/rpm/parquet/
 data/pjm/capacity/5cp/parquet/
 data/pjm/hourly_demand/zones/
 data/pjm/hourly_demand/utilities/
-data/pjm/zone_mapping/csv/
+# Generated zone-mapping CSVs (the canonical crosswalk is committed via the
+# *.csv exception below, since the PJM hourly_demand aggregate step needs it).
+data/pjm/zone_mapping/csv/*
 # Local source downloads during manual extraction to sources/*.md (binaries,
 # never committed; the committed markdown intermediates are the source of record)
 data/pjm/capacity/5cp/pdf/
@@ -81,6 +83,7 @@ build/
 !data/isone/capacity/fca/fca_clearing_prices.csv
 !data/pjm/capacity/rpm/rpm_capacity_prices.csv
 !data/pjm/capacity/5cp/fivecp_peaks.csv
+!data/pjm/zone_mapping/csv/pjm_utility_zone_mapping.csv
 *.json
 *.png
 !dprint.json
