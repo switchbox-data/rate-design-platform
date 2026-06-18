@@ -142,17 +142,23 @@ def fetch_zone_loads(
 
 
 def write_zone_data_local(df: pl.DataFrame, local_base: str) -> None:
-    """Write zone load data to local parquet partitioned by zone/year."""
+    """Write zone load data to local Hive parquet (zone={CODE}/year=YYYY/data.parquet).
+
+    Writes one ``data.parquet`` per partition (matching the documented S3 layout
+    and the ISO-NE pipeline) rather than relying on Polars' auto-named partition
+    files. Partition columns are encoded in the path, not the file.
+    """
     df = df.with_columns(pl.col("timestamp").dt.year().alias("year"))
-    partition_count = df.select(["zone", "year"]).n_unique()
-    print(f"\nWriting {partition_count} partitions ({len(df):,} rows) to {local_base}")
-    Path(local_base).mkdir(parents=True, exist_ok=True)
-    df.write_parquet(
-        str(local_base),
-        compression="zstd",
-        partition_by=["zone", "year"],
-    )
-    print(f"Wrote partitioned zone data to {local_base}")
+    base = Path(local_base)
+    partitions = df.partition_by(["zone", "year"], as_dict=True)
+    print(f"\nWriting {len(partitions)} partitions ({len(df):,} rows) to {base}")
+    for (zone, year), part_df in partitions.items():
+        part_dir = base / f"zone={zone}" / f"year={year}"
+        part_dir.mkdir(parents=True, exist_ok=True)
+        part_df.select("timestamp", "load_mw").write_parquet(
+            part_dir / "data.parquet", compression="zstd"
+        )
+    print(f"Wrote partitioned zone data to {base}")
 
 
 def main() -> None:

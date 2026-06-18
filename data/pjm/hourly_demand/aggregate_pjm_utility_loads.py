@@ -63,7 +63,7 @@ def get_utility_zone_mapping(mapping_df: pl.DataFrame) -> dict[str, list[str]]:
 def load_zone_data(zone_base: str, year: int, zones: list[str]) -> pl.DataFrame:
     """Load local zone parquet for the given zones and year."""
     collected = (
-        pl.scan_parquet(zone_base)
+        pl.scan_parquet(zone_base, hive_partitioning=True)
         .filter(pl.col("zone").is_in(zones))
         .filter(pl.col("year") == year)
         .collect()
@@ -98,15 +98,23 @@ def aggregate_utility_load(
 def write_utility_loads_local(
     utility_df: pl.DataFrame, utility_base: str, utility_name: str
 ) -> None:
-    """Write utility load parquet to a local dir, partitioned by utility/year."""
+    """Write utility load Hive parquet (utility={slug}/year=YYYY/data.parquet).
+
+    Writes one ``data.parquet`` per partition (matching the documented S3 layout)
+    rather than relying on Polars' auto-named partition files. Partition columns
+    are encoded in the path, not the file.
+    """
     output_df = utility_df.with_columns(pl.col("timestamp").dt.year().alias("year"))
-    Path(utility_base).mkdir(parents=True, exist_ok=True)
-    output_df.write_parquet(
-        utility_base,
-        compression="zstd",
-        partition_by=["utility", "year"],
-    )
-    print(f"  Wrote utility={utility_name} partition under {utility_base}")
+    base = Path(utility_base)
+    for (utility, year), part_df in output_df.partition_by(
+        ["utility", "year"], as_dict=True
+    ).items():
+        part_dir = base / f"utility={utility}" / f"year={year}"
+        part_dir.mkdir(parents=True, exist_ok=True)
+        part_df.select("timestamp", "load_mw").write_parquet(
+            part_dir / "data.parquet", compression="zstd"
+        )
+    print(f"  Wrote utility={utility_name} partition under {base}")
 
 
 def main() -> None:
