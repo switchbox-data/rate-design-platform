@@ -11,8 +11,14 @@ dpl->DPL, potomac-edison->AP), so a utility series equals its zone series. The
 ``capacity_weight`` column is for capacity-cost allocation and is intentionally
 NOT applied here — load is assigned in full to the mapped utility.
 
+Flagged zone-hours (``value_flag=True`` in the raw zone data) are linearly
+interpolated before aggregation; the utility output carries an ``interpolated``
+boolean marking any utility-hour built from an interpolated zone-hour.
+
 Input:  zone parquet:    zone={CODE}/year=YYYY/data.parquet
+        (timestamp, load_mw, value_flag)
 Output: utility parquet: utility={slug}/year=YYYY/data.parquet
+        (timestamp, utility, load_mw, interpolated)
 
 Upload to S3 via the Justfile `upload` recipe.
 
@@ -78,19 +84,67 @@ def load_zone_data(zone_base: str, year: int, zones: list[str]) -> pl.DataFrame:
     return collected
 
 
+def interpolate_flagged_zone_hours(zone_df: pl.DataFrame) -> pl.DataFrame:
+    """Linearly interpolate zone-hours marked bad in the raw zone data.
+
+    Zones are stored as a faithful mirror of PJM with a ``value_flag`` column
+    marking hours where a constituent load area reported a bad value. Here, for
+    the curated utility product, we null those hours' ``load_mw`` and interpolate
+    per zone in timestamp order (the hourly grid is uniform in instant order, so
+    position-based interpolation is exact), then forward/backward fill any
+    flagged endpoints.
+    """
+    if "value_flag" not in zone_df.columns:
+        return zone_df
+
+    flagged = zone_df.filter(pl.col("value_flag"))
+    if flagged.height:
+        print(f"  Interpolating {flagged.height} flagged zone-hour(s):")
+        for r in flagged.select("zone", "timestamp", "load_mw").iter_rows(named=True):
+            print(
+                f"    {r['zone']} {r['timestamp']}: raw {r['load_mw']:.1f} MW -> interpolated"
+            )
+
+    return (
+        zone_df.sort("zone", "timestamp")
+        .with_columns(
+            pl.when(pl.col("value_flag"))
+            .then(None)
+            .otherwise(pl.col("load_mw"))
+            .alias("load_mw")
+        )
+        .with_columns(pl.col("load_mw").interpolate().over("zone"))
+        .with_columns(pl.col("load_mw").fill_null(strategy="forward").over("zone"))
+        .with_columns(pl.col("load_mw").fill_null(strategy="backward").over("zone"))
+    )
+
+
 def aggregate_utility_load(
     zone_df: pl.DataFrame, utility_name: str, zones: list[str]
 ) -> pl.DataFrame:
-    """Sum zone loads for a single utility by timestamp."""
+    """Sum zone loads for a single utility by timestamp.
+
+    Carries an ``interpolated`` flag forward: a utility-hour is marked
+    interpolated when any constituent zone-hour was ``value_flag=True`` (and so
+    had its ``load_mw`` interpolated by :func:`interpolate_flagged_zone_hours`).
+    """
     utility_data = zone_df.filter(pl.col("zone").is_in(zones))
     if utility_data.is_empty():
         raise ValueError(f"No data found for utility {utility_name} zones {zones}")
 
+    interpolated_flag = (
+        pl.col("value_flag").any()
+        if "value_flag" in utility_data.columns
+        else pl.lit(False)  # noqa: FBT003
+    )
     return (
         utility_data.group_by("timestamp")
-        .agg(pl.col("load_mw").sum().alias("load_mw"))
+        .agg(
+            pl.col("load_mw").sum().alias("load_mw"),
+            interpolated_flag.alias("interpolated"),
+        )
         .with_columns(pl.lit(utility_name).alias("utility"))
-        .select(["timestamp", "utility", "load_mw"])
+        .select(["timestamp", "utility", "load_mw", "interpolated"])
         .sort("timestamp")
     )
 
@@ -111,7 +165,7 @@ def write_utility_loads_local(
     ).items():
         part_dir = base / f"utility={utility}" / f"year={year}"
         part_dir.mkdir(parents=True, exist_ok=True)
-        part_df.select("timestamp", "load_mw").write_parquet(
+        part_df.select("timestamp", "load_mw", "interpolated").write_parquet(
             part_dir / "data.parquet", compression="zstd"
         )
     print(f"  Wrote utility={utility_name} partition under {base}")
@@ -181,6 +235,8 @@ def main() -> None:
 
     zone_df = load_zone_data(args.path_local_zones, year, sorted(all_zones_needed))
     print(f"  Total zone rows: {len(zone_df):,}")
+
+    zone_df = interpolate_flagged_zone_hours(zone_df)
 
     expected = expected_hours_in_year(year)
 

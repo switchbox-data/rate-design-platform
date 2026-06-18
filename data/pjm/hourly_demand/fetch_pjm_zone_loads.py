@@ -22,6 +22,8 @@ Key feed facts (confirmed against the live feed):
 
 Output schema:
     timestamp (tz-aware America/New_York), zone (Data Miner code), load_mw
+    (raw sum of load areas), value_flag (True where a constituent load area
+    reported a bad single-hour value; interpolated only at the utility step)
 
 Output layout:
     <path_local_zones>/zone={CODE}/year=YYYY/data.parquet
@@ -53,6 +55,13 @@ from data.pjm.zone_mapping.generate_zone_mapping_csv import build_zone_mapping
 _FEED = "hrl_load_metered"
 _TIMEZONE = "America/New_York"
 
+# A load area whose value is an isolated single-hour spike vs BOTH temporal
+# neighbours is treated as a bad value, not real load variation. Symmetric in
+# ratio terms: below 1/4 of the lower neighbour (e.g. a hard 0.0 at a DST
+# transition) OR above 4x the higher neighbour (a garbage high reading).
+_SPIKE_DOWN_FRACTION = 0.25
+_SPIKE_UP_FACTOR = 4.0
+
 
 def _reject_just_placeholders(val: str) -> None:
     if "{{" in val or "}}" in val:
@@ -77,7 +86,10 @@ def fetch_zone_loads(
     """Fetch and aggregate hourly metered load for *zones* over calendar *year*.
 
     Returns a tidy DataFrame with one row per (zone, hour):
-    ``timestamp`` (tz-aware Eastern), ``zone`` (Data Miner code), ``load_mw``.
+    ``timestamp`` (tz-aware Eastern), ``zone`` (Data Miner code), ``load_mw``
+    (raw sum of load areas), ``value_flag`` (True where a constituent load area
+    reported a bad value). Values are NOT altered here — the zone dataset is a
+    faithful mirror of PJM; interpolation happens when building utilities.
     """
 
     def build_params(
@@ -130,15 +142,66 @@ def fetch_zone_loads(
         pl.col("mw").cast(pl.Float64),
     )
 
-    # Sum load areas to a single series per zone-hour.
-    df = (
+    return sum_load_areas_to_zone(df, year)
+
+
+def sum_load_areas_to_zone(df: pl.DataFrame, year: int) -> pl.DataFrame:
+    """Sum load areas to one series per zone-hour and flag bad values.
+
+    The feed is ``load_area``-grained and a zone is the sum of its load areas.
+    Occasionally a load area reports a bogus value for a single hour (observed at
+    DST transitions — e.g. DPL's DPLCO reports a hard ``0.0`` at ``2025-03-09
+    01:00`` while flanked by ~2,000 MW). We do NOT alter the raw sum here; instead
+    we set ``value_flag=True`` for any zone-hour where a constituent load area is
+    an isolated single-hour spike vs BOTH temporal neighbours — either down
+    (below ``_SPIKE_DOWN_FRACTION`` of the lower neighbour, e.g. a hard 0.0) or
+    up (above ``_SPIKE_UP_FACTOR`` of the higher neighbour, a garbage high
+    reading). Interpolation of flagged hours happens at the utility step.
+
+    Input columns: ``timestamp`` (tz-aware), ``zone``, ``load_area``, ``mw``.
+    Output columns: ``timestamp``, ``zone``, ``load_mw``, ``value_flag``.
+    """
+    df = df.sort("zone", "load_area", "timestamp").with_columns(
+        pl.col("mw").shift(1).over("zone", "load_area").alias("_prev"),
+        pl.col("mw").shift(-1).over("zone", "load_area").alias("_next"),
+    )
+    df = df.with_columns(
+        (
+            pl.col("_prev").is_not_null()
+            & pl.col("_next").is_not_null()
+            & (
+                (
+                    pl.col("mw")
+                    < _SPIKE_DOWN_FRACTION * pl.min_horizontal("_prev", "_next")
+                )
+                | (
+                    pl.col("mw")
+                    > _SPIKE_UP_FACTOR * pl.max_horizontal("_prev", "_next")
+                )
+            )
+        ).alias("_area_bad")
+    )
+
+    zone_hours = (
         df.group_by("zone", "timestamp")
-        .agg(pl.col("mw").sum().alias("load_mw"))
+        .agg(
+            pl.col("mw").sum().alias("load_mw"),
+            pl.col("_area_bad").any().alias("value_flag"),
+        )
         .filter(pl.col("timestamp").dt.year() == year)
-        .select("timestamp", "zone", "load_mw")
         .sort("zone", "timestamp")
     )
-    return df
+
+    flagged = zone_hours.filter(pl.col("value_flag"))
+    if flagged.height:
+        print(f"\n  Flagged {flagged.height} zone-hour(s) with bad load-area values:")
+        for r in flagged.select("zone", "timestamp", "load_mw").iter_rows(named=True):
+            print(
+                f"    {r['zone']} {r['timestamp']}: raw sum {r['load_mw']:.1f} MW "
+                "(value_flag=True; interpolated at utility step)"
+            )
+
+    return zone_hours.select("timestamp", "zone", "load_mw", "value_flag")
 
 
 def write_zone_data_local(df: pl.DataFrame, local_base: str) -> None:
@@ -155,7 +218,7 @@ def write_zone_data_local(df: pl.DataFrame, local_base: str) -> None:
     for (zone, year), part_df in partitions.items():
         part_dir = base / f"zone={zone}" / f"year={year}"
         part_dir.mkdir(parents=True, exist_ok=True)
-        part_df.select("timestamp", "load_mw").write_parquet(
+        part_df.select("timestamp", "load_mw", "value_flag").write_parquet(
             part_dir / "data.parquet", compression="zstd"
         )
     print(f"Wrote partitioned zone data to {base}")

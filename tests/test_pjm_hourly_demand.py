@@ -18,8 +18,12 @@ from data.pjm import dataminer
 from data.pjm.hourly_demand.aggregate_pjm_utility_loads import (
     aggregate_utility_load,
     get_utility_zone_mapping,
+    interpolate_flagged_zone_hours,
 )
-from data.pjm.hourly_demand.fetch_pjm_zone_loads import md_zone_codes
+from data.pjm.hourly_demand.fetch_pjm_zone_loads import (
+    md_zone_codes,
+    sum_load_areas_to_zone,
+)
 from data.pjm.hourly_demand.validate_pjm_demand_parquet import (
     expected_hours_in_year,
     validate_zone_loads,
@@ -107,6 +111,120 @@ def test_get_utility_zone_mapping_single_zone_per_md_utility():
     assert util_map["potomac-edison"] == ["AP"]
 
 
+def _four_hours():
+    return pl.datetime_range(
+        datetime(2025, 6, 1, 0),
+        datetime(2025, 6, 1, 3),
+        interval="1h",
+        time_zone="America/New_York",
+        eager=True,
+    )
+
+
+def test_sum_load_areas_flags_bad_value_but_keeps_raw():
+    """Zone = raw sum of load areas; a load-area spike-down (DPLCO=0 between
+    ~2,000s) sets value_flag=True without altering the raw sum."""
+    ts = _four_hours()
+    dplco = pl.DataFrame(
+        {
+            "timestamp": ts,
+            "zone": "DPL",
+            "load_area": "DPLCO",
+            "mw": [2032.0, 0.0, 2064.0, 2114.0],
+        }
+    )
+    # EASTON is a genuinely tiny load area (~28-30 MW) — never flagged.
+    easton = pl.DataFrame(
+        {
+            "timestamp": ts,
+            "zone": "DPL",
+            "load_area": "EASTON",
+            "mw": [28.0, 29.58, 29.5, 30.0],
+        }
+    )
+    out = sum_load_areas_to_zone(pl.concat([dplco, easton]), 2025).sort("timestamp")
+    # Raw sums preserved (the flagged hour stays 29.58, NOT interpolated here).
+    assert out["load_mw"].round(2).to_list() == [2060.0, 29.58, 2093.5, 2144.0]
+    assert out["value_flag"].to_list() == [False, True, False, False]
+
+
+def test_sum_load_areas_flags_spike_up():
+    """A garbage HIGH single-hour reading is flagged symmetrically (>4x neighbors)."""
+    ts = _four_hours()
+    bc = pl.DataFrame(
+        {
+            "timestamp": ts,
+            "zone": "BC",
+            "load_area": "BC",
+            "mw": [3000.0, 20000.0, 3200.0, 3100.0],
+        }
+    )
+    out = sum_load_areas_to_zone(bc, 2025).sort("timestamp")
+    assert out["value_flag"].to_list() == [False, True, False, False]
+    # Raw value is preserved at the zone level (interpolation happens later).
+    assert out["load_mw"][1] == 20000.0
+
+
+def test_sum_load_areas_good_neighbor_of_bad_point_not_flagged():
+    """A good hour adjacent to a bad one is NOT falsely flagged: the down-test
+    uses min(neighbors) and the up-test uses max(neighbors), so the bad neighbor
+    is neutralized in the direction that matters."""
+    ts = pl.datetime_range(
+        datetime(2025, 6, 1, 0),
+        datetime(2025, 6, 1, 4),
+        interval="1h",
+        time_zone="America/New_York",
+        eager=True,
+    )
+    # Bad-low at the middle (index 2); indices 1 and 3 are good and sit directly
+    # beside it (and have valid prev/next, so they're genuinely tested).
+    bc = pl.DataFrame(
+        {
+            "timestamp": ts,
+            "zone": "BC",
+            "load_area": "BC",
+            "mw": [3000.0, 3000.0, 50.0, 3000.0, 3000.0],
+        }
+    )
+    out = sum_load_areas_to_zone(bc, 2025).sort("timestamp")
+    assert out["value_flag"].to_list() == [False, False, True, False, False]
+
+
+def test_sum_load_areas_single_area_zone_never_flagged():
+    """A single-load-area zone (e.g. BC) with normal diurnal values isn't flagged."""
+    ts = _four_hours()
+    bc = pl.DataFrame(
+        {
+            "timestamp": ts,
+            "zone": "BC",
+            "load_area": "BC",
+            "mw": [3000.0, 2800.0, 3200.0, 4000.0],
+        }
+    )
+    out = sum_load_areas_to_zone(bc, 2025).sort("timestamp")
+    assert out["load_mw"].to_list() == [3000.0, 2800.0, 3200.0, 4000.0]
+    assert out["value_flag"].to_list() == [False, False, False, False]
+
+
+def test_interpolate_flagged_zone_hours():
+    """The utility step nulls flagged hours and linearly interpolates per zone."""
+    ts = _four_hours()
+    zone_df = pl.DataFrame(
+        {
+            "timestamp": ts,
+            "zone": "DPL",
+            "load_mw": [2060.0, 29.58, 2093.5, 2144.0],
+            "value_flag": [False, True, False, False],
+        }
+    )
+    out = interpolate_flagged_zone_hours(zone_df).sort("timestamp")
+    # Flagged hour is replaced by the mean of its neighbours; others untouched.
+    assert out["load_mw"][1] == (2060.0 + 2093.5) / 2
+    assert out["load_mw"].null_count() == 0
+    assert out["load_mw"][0] == 2060.0
+    assert out["load_mw"][3] == 2144.0
+
+
 def test_aggregate_utility_load_sums_zones_by_timestamp():
     ts = pl.datetime_range(
         datetime(2025, 1, 1), datetime(2025, 1, 1, 2), interval="1h", eager=True
@@ -123,10 +241,45 @@ def test_aggregate_utility_load_sums_zones_by_timestamp():
     bge = aggregate_utility_load(zone_df, "bge", ["BC"])
     assert bge["load_mw"].to_list() == [1.0, 2.0, 3.0]
     assert bge["utility"].unique().to_list() == ["bge"]
+    # No value_flag column on input -> interpolated is all False.
+    assert bge["interpolated"].to_list() == [False, False, False]
 
     # A hypothetical multi-zone utility sums across its zones per timestamp.
     multi = aggregate_utility_load(zone_df, "multi", ["BC", "PEP"])
     assert multi["load_mw"].to_list() == [11.0, 22.0, 33.0]
+
+
+def test_aggregate_utility_load_propagates_interpolated_flag():
+    """A utility-hour is marked interpolated when any constituent zone-hour was."""
+    ts = pl.datetime_range(
+        datetime(2025, 1, 1), datetime(2025, 1, 1, 2), interval="1h", eager=True
+    )
+    zone_df = pl.concat(
+        [
+            pl.DataFrame(
+                {
+                    "timestamp": ts,
+                    "zone": "PEP",
+                    "load_mw": [10.0, 20.0, 30.0],
+                    "value_flag": [False, True, False],
+                }
+            ),
+            pl.DataFrame(
+                {
+                    "timestamp": ts,
+                    "zone": "BC",
+                    "load_mw": [1.0, 2.0, 3.0],
+                    "value_flag": [False, False, False],
+                }
+            ),
+        ]
+    )
+    # Single-zone utility inherits its zone's flag.
+    pep = aggregate_utility_load(zone_df, "pepco", ["PEP"]).sort("timestamp")
+    assert pep["interpolated"].to_list() == [False, True, False]
+    # Multi-zone utility is interpolated if ANY constituent zone-hour was.
+    multi = aggregate_utility_load(zone_df, "multi", ["BC", "PEP"]).sort("timestamp")
+    assert multi["interpolated"].to_list() == [False, True, False]
 
 
 # ── Validator ────────────────────────────────────────────────────────────────

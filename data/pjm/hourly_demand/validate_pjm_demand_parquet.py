@@ -34,6 +34,7 @@ EXPECTED_SCHEMA = {
     "timestamp": pl.Datetime("us", "America/New_York"),
     "zone": pl.String,
     "load_mw": pl.Float64,
+    "value_flag": pl.Boolean,
 }
 
 LOAD_FLOOR = 0.0
@@ -100,6 +101,14 @@ def validate_zone_loads(
         if n_gaps:
             ok = False
             msgs.append(f"FAIL {zone}: {n_gaps} gap(s) > 1 hour")
+
+        if "value_flag" in zdf.columns:
+            n_flagged = int(zdf["value_flag"].sum())
+            if n_flagged:
+                msgs.append(
+                    f"WARN {zone}: {n_flagged} hour(s) value_flag=True "
+                    "(raw bad load-area value; interpolated at utility step)"
+                )
 
         peak = float(zdf["load_mw"].max())  # type: ignore[arg-type]
         sanity = PEAK_SANITY.get(zone)
