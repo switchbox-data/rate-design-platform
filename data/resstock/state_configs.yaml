@@ -72,7 +72,16 @@ MD:
       # assignment time via filter_hifld_for_state().
 CT:
   state_fips: "09"
-  # Utility assignment not yet implemented for CT.  Omitting the
-  # utility_assignment key intentionally keeps CT out of
-  # SUPPORTED_UTILITY_STATES so the pipeline won't try to assign utilities.
   add_vulnerability_columns: false
+  utility_assignment:
+    module: data.resstock.utility.assign_utility_ct
+    kwargs:
+      # NAD83 / Connecticut State Plane (feet); used for PUMA overlap area calculations.
+      state_crs: 2234
+      # Census TIGER/Line PUMA shapefile vintage used for GIS-based utility
+      # assignment.  Must match the PUMA definitions ResStock uses (2010-def
+      # for res_2024_amy2018_2 — verified: all CT PUMAs use pygris year=2019).
+      puma_year: 2019
+      # CT uses national HIFLD shapefiles (not per-state CSVs).  Valid
+      # utilities are defined in utils/utility_codes.py and filtered at
+      # assignment time via filter_hifld_for_state().

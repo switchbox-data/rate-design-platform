@@ -387,6 +387,122 @@ UTILITIES: list[UtilityRecord] = [
         "display_name": "UGI Central Penn Gas",
         "hifld_names": ["UGI CENTRAL PENN GAS"],
     },
+    # ── Connecticut ───────────────────────────────────────────────────────────
+    # Electric IOUs
+    {
+        "std_name": "cl_p",
+        "state": "CT",
+        "fuels": ["electric"],
+        "display_name": "Connecticut Light & Power (Eversource)",
+        "hifld_names": ["CONNECTICUT LIGHT & POWER CO"],
+        "eia_utility_ids": [4176],
+    },
+    {
+        "std_name": "ui",
+        "state": "CT",
+        "fuels": ["electric"],
+        "display_name": "United Illuminating (Avangrid)",
+        "hifld_names": ["UNITED ILLUMINATING CO"],
+        "eia_utility_ids": [19497],
+    },
+    {
+        "std_name": "farmington_river_power",
+        "state": "CT",
+        "fuels": ["electric"],
+        "display_name": "Farmington River Power Company",
+        "hifld_names": ["FARMINGTON RIVER POWER COMPANY"],
+        "eia_utility_ids": [6207],
+    },
+    # Electric + gas municipal
+    {
+        "std_name": "norwich_muni",
+        "state": "CT",
+        "fuels": ["electric", "gas"],
+        "display_name": "Norwich Public Utilities",
+        # Electric HIFLD: CITY OF NORWICH - (CT); gas HIFLD: NORWICH PUB UTILITIES
+        "hifld_names": ["CITY OF NORWICH - (CT)", "NORWICH PUB UTILITIES"],
+        "eia_utility_ids": [13831],
+    },
+    # Electric-only municipals
+    {
+        "std_name": "bozrah_muni",
+        "state": "CT",
+        "fuels": ["electric"],
+        "display_name": "Bozrah Light & Power",
+        "hifld_names": ["BOZRAH LIGHT & POWER COMPANY"],
+        "eia_utility_ids": [2089],
+    },
+    {
+        "std_name": "jewett_city_muni",
+        "state": "CT",
+        "fuels": ["electric"],
+        "display_name": "City of Jewett City",
+        "hifld_names": ["CITY OF JEWETT CITY - (CT)"],
+        "eia_utility_ids": [9734],
+    },
+    {
+        "std_name": "south_norwalk_muni",
+        "state": "CT",
+        "fuels": ["electric"],
+        "display_name": "City of South Norwalk",
+        "hifld_names": ["CITY OF SOUTH NORWALK - (CT)"],
+        "eia_utility_ids": [17569],
+    },
+    {
+        "std_name": "groton_muni",
+        "state": "CT",
+        "fuels": ["electric"],
+        "display_name": "Groton Department of Utilities",
+        "hifld_names": ["GROTON DEPT OF UTILITIES - (CT)"],
+        "eia_utility_ids": [7716],
+    },
+    {
+        "std_name": "mohegan_tribal",
+        "state": "CT",
+        "fuels": ["electric"],
+        "display_name": "Mohegan Tribal Utility Authority",
+        "hifld_names": ["MOHEGAN TRIBAL UTILITY AUTHORITY"],
+        "eia_utility_ids": [49826],
+    },
+    {
+        "std_name": "norwalk_third_taxing",
+        "state": "CT",
+        "fuels": ["electric"],
+        "display_name": "Norwalk Third Taxing District",
+        "hifld_names": ["NORWALK THIRD TAXING DISTRICT"],
+        "eia_utility_ids": [13825],
+    },
+    {
+        "std_name": "wallingford_muni",
+        "state": "CT",
+        "fuels": ["electric"],
+        "display_name": "Town of Wallingford",
+        "hifld_names": ["TOWN OF WALLINGFORD - (CT)"],
+        "eia_utility_ids": [20038],
+    },
+    # Gas-only utilities (Eversource CT gas brands)
+    {
+        "std_name": "ct_natural_gas",
+        "state": "CT",
+        "fuels": ["gas"],
+        "display_name": "Connecticut Natural Gas (Eversource)",
+        # Note: HIFLD has a typo — "CONNETICUT" (missing 'c')
+        "hifld_names": ["CONNETICUT NATURAL GAS CORP"],
+    },
+    {
+        "std_name": "yankee_gas",
+        "state": "CT",
+        "fuels": ["gas"],
+        "display_name": "Yankee Gas (Eversource)",
+        "hifld_names": ["YANKEE GAS SERVICE CO."],
+    },
+    {
+        "std_name": "southern_ct_gas",
+        "state": "CT",
+        "fuels": ["gas"],
+        "display_name": "Southern Connecticut Gas (Avangrid)",
+        "hifld_names": ["SOUTHERN CONNECTICUT GAS"],
+    },
     # ── Rhode Island ──────────────────────────────────────────────────────────
     {
         "std_name": "rie",
