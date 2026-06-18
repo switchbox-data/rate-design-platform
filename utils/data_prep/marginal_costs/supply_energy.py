@@ -224,16 +224,19 @@ def load_lmp_for_pjm_zone(
 ) -> pl.DataFrame:
     """Load PJM hourly real-time LMP for a single zone aggregate and year.
 
-    PJM data is already hourly (one row per hour per zone) and stored as
-    timezone-naive EPT timestamps in ``datetime_beginning_ept``.  The
-    ``total_lmp_rt`` column is the zone-aggregate real-time LMP in $/MWh.
+    PJM data is already hourly (one row per hour per zone).  ``datetime_beginning_ept``
+    is stored as a tz-aware ``America/New_York`` datetime (derived from the
+    unambiguous UTC column at fetch time).  ``total_lmp_rt`` is the zone-aggregate
+    real-time LMP in $/MWh.
 
     DST handling:
-    - Spring-forward: the 2:00 AM EPT hour does not exist — one hour is
-      missing.  ``prepare_component_output`` interpolates it.
-    - Fall-back: the 1:00 AM EPT hour occurs twice — PJM stores both rows
-      with the same naive EPT timestamp.  We collapse them by taking the
-      mean, consistent with how the ISO-NE pipeline handles this.
+    - Spring-forward: the 2:00 AM EPT hour does not exist — one hour is missing.
+      ``prepare_component_output`` interpolates it.
+    - Fall-back: the two 1:00 AM EPT hours are stored as two distinct tz-aware
+      Eastern datetimes (different UTC offsets: ``-04:00`` and ``-05:00``).
+      ``strip_tz_if_needed`` strips the offset, producing two rows with the same
+      naive wall-clock timestamp; we collapse them by mean, consistent with the
+      ISO-NE pipeline.
     """
     base = lmp_s3_base.rstrip("/") + "/"
     collected = (

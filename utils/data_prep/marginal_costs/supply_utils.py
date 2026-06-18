@@ -10,6 +10,8 @@ from pathlib import Path
 import polars as pl
 from cloudpathlib import S3Path
 
+from data.pjm import PJM_LMP_S3_BASE
+
 # ---------------------------------------------------------------------------
 # NYISO defaults
 # ---------------------------------------------------------------------------
@@ -81,7 +83,7 @@ DEFAULT_ISONE_BULK_TX_OUTPUT_S3_BASE = (
 # ---------------------------------------------------------------------------
 # PJM defaults (Maryland)
 # ---------------------------------------------------------------------------
-DEFAULT_PJM_LMP_S3_BASE = "s3://data.sb/pjm/lmp/real_time/zones/"
+DEFAULT_PJM_LMP_S3_BASE = PJM_LMP_S3_BASE
 DEFAULT_PJM_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/md/supply/"
 
 # Maps each MD utility slug to its PJM zone aggregate pnode_name.
@@ -170,13 +172,31 @@ def warn_if_multiple_partition_parquets(
     path_partition: str,
     expected_filename: str,
     context: str,
+    allowed_filenames: set[str] | None = None,
 ) -> None:
-    """Emit a non-destructive warning when a partition has multiple parquet files."""
+    """Emit a non-destructive warning when a partition has unexpected parquet files.
+
+    Args:
+        path_partition: S3 or local path to the Hive partition directory.
+        expected_filename: The canonical filename this write is producing
+            (e.g. ``"data.parquet"`` or ``"zero.parquet"``).
+        context: Short label included in warning messages for traceability.
+        allowed_filenames: Set of filenames that are permitted to coexist in the
+            partition alongside *expected_filename*.  No warning is emitted when
+            all files in the partition belong to this set.  Defaults to
+            ``{expected_filename}`` (only the canonical file is allowed).
+    """
     parquet_paths = list_partition_parquet_paths(path_partition)
     if len(parquet_paths) <= 1:
         return
 
-    filenames = [Path(path).name for path in parquet_paths]
+    filenames = set(Path(path).name for path in parquet_paths)
+    permitted = (allowed_filenames or set()) | {expected_filename}
+    unexpected = filenames - permitted
+    if not unexpected:
+        # All files are expected — no warning needed.
+        return
+
     if expected_filename not in filenames:
         print(
             f"⚠️  WARNING [{context}]: partition has {len(parquet_paths)} parquet files, "
@@ -185,10 +205,11 @@ def warn_if_multiple_partition_parquets(
     else:
         print(
             f"⚠️  WARNING [{context}]: partition has {len(parquet_paths)} parquet files; "
-            f"canonical file is '{expected_filename}'."
+            f"unexpected files present alongside '{expected_filename}'."
         )
     print(f"    Partition: {path_partition}")
-    print(f"    Files: {', '.join(filenames)}")
+    print(f"    Unexpected files: {', '.join(sorted(unexpected))}")
+    print(f"    All files: {', '.join(sorted(filenames))}")
 
 
 def allocate_annual_exceedance_to_hours(
@@ -297,7 +318,18 @@ def get_utility_mapping(mapping_df: pl.DataFrame, utility: str) -> pl.DataFrame:
 
 
 def strip_tz_if_needed(df: pl.DataFrame, col: str) -> pl.DataFrame:
-    """Strip timezone from datetime column when present."""
+    """Strip timezone annotation from a datetime column, preserving the wall-clock value.
+
+    Uses ``replace_time_zone(None)`` which removes the timezone label WITHOUT
+    converting the underlying time value.  For example:
+
+    - ``2023-11-05T01:00:00-04:00`` (1 AM EDT) → ``2023-11-05T01:00:00`` (naive)
+    - ``2023-11-05T01:00:00-05:00`` (1 AM EST) → ``2023-11-05T01:00:00`` (naive)
+
+    This means both DST fall-back hours — which have different UTC offsets but the
+    same wall-clock time — map to the same naive timestamp.  The caller is
+    responsible for detecting and collapsing that duplicate (typically by mean).
+    """
     ts_dtype = df.schema[col]
     if isinstance(ts_dtype, pl.Datetime) and ts_dtype.time_zone is not None:
         return df.with_columns(pl.col(col).dt.replace_time_zone(None).alias(col))
@@ -350,7 +382,16 @@ def remap_year_if_needed(
 
 
 def build_cairo_8760_timestamps(year: int) -> pl.DataFrame:
-    """Build Cairo-compatible 8760 naive timestamps (drops Dec 31 in leap years)."""
+    """Build Cairo-compatible 8760 naive Eastern wall-clock timestamps.
+
+    Generates one timestamp per hour from Jan 1 00:00 through Dec 31 23:00,
+    interpreted as naive Eastern time (no timezone annotation).  Leap years
+    have 8784 calendar hours; the extra 24 hours on Dec 31 are dropped so the
+    output is always exactly 8760 rows, matching CAIRO's expected input length.
+
+    The 2:00 AM spring-forward slot is included even though that hour does not
+    exist in Eastern time — callers are expected to fill it by interpolation
+    after a left-join against actual source data."""
     start = datetime(year, 1, 1, 0, 0, 0)
     end = datetime(year, 12, 31, 23, 0, 0)
     timestamps: list[datetime] = []
@@ -609,6 +650,7 @@ def save_zero_energy_mc(
         path_partition=path_partition,
         expected_filename="zero.parquet",
         context="pre-write zero energy MC",
+        allowed_filenames={"data.parquet"},
     )
 
     # Write directly to the specific path (not using partitioning)
@@ -621,6 +663,7 @@ def save_zero_energy_mc(
         path_partition=path_partition,
         expected_filename="zero.parquet",
         context="post-write zero energy MC",
+        allowed_filenames={"data.parquet"},
     )
 
     print(f"\n✓ Saved zero-filled energy MC to {output_path}")
@@ -655,6 +698,7 @@ def save_zero_capacity_mc(
         path_partition=path_partition,
         expected_filename="zero.parquet",
         context="pre-write zero capacity MC",
+        allowed_filenames={"data.parquet"},
     )
 
     # Write directly to the specific path (not using partitioning)
@@ -667,6 +711,7 @@ def save_zero_capacity_mc(
         path_partition=path_partition,
         expected_filename="zero.parquet",
         context="post-write zero capacity MC",
+        allowed_filenames={"data.parquet"},
     )
 
     print(f"\n✓ Saved zero-filled capacity MC to {output_path}")
@@ -705,6 +750,7 @@ def save_component_output(
         path_partition=path_partition,
         expected_filename="data.parquet",
         context=f"pre-write {component} MC",
+        allowed_filenames={"zero.parquet"},
     )
     component_df.write_parquet(output_path, storage_options=storage_options)
 
@@ -712,6 +758,7 @@ def save_component_output(
         path_partition=path_partition,
         expected_filename="data.parquet",
         context=f"post-write {component} MC",
+        allowed_filenames={"zero.parquet"},
     )
 
     print(f"\n✓ Saved {component} MC to {output_path}")

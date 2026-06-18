@@ -62,6 +62,7 @@ import polars as pl
 import requests
 from dotenv import load_dotenv
 
+from data.pjm import PJM_LMP_S3_BASE
 from data.pjm.validate_pjm_lmp import validate_zone_lmp
 from data.pjm.zone_mapping.generate_zone_mapping_csv import build_zone_mapping
 from utils.file_io import read_csv_from_s3, write_hive_partitioned_parquet_to_s3
@@ -155,7 +156,8 @@ def _split_date_range(start: date, end: date) -> list[tuple[date, date]]:
 
     Rules enforced:
     - A single chunk must not span the archive/standard boundary.
-    - Archive (historic) chunks must stay within one calendar year (UTC).
+    - Archive (historic) chunks must stay within one EPT calendar year (the API
+      filter is ``datetime_beginning_ept``, so year boundaries are Eastern).
     - Standard chunks must be ≤ 365 days.
     """
     cutoff = _archive_cutoff()
@@ -264,8 +266,13 @@ _TS_FORMATS = [
 ]
 
 
-def _parse_ts_column(df: pl.DataFrame, col: str) -> pl.DataFrame:
-    """Parse a string timestamp column, trying multiple date formats.
+def _parse_utc_string_to_naive(df: pl.DataFrame, col: str) -> pl.DataFrame:
+    """Parse a bare UTC timestamp string to a naive Polars Datetime.
+
+    PJM API returns UTC timestamps without an offset suffix (e.g.
+    ``"1/1/2023 0:00:00"`` not ``"2023-01-01T00:00:00+00:00"``), so we
+    parse with known formats and produce a naive datetime first, then the
+    caller annotates it as UTC via ``replace_time_zone("UTC")``.
 
     Tries each format in ``_TS_FORMATS`` and keeps the first that produces
     at least some non-null values.  Raises if none succeed.
@@ -281,6 +288,50 @@ def _parse_ts_column(df: pl.DataFrame, col: str) -> pl.DataFrame:
         f"Could not parse timestamp column '{col}' with any known format. "
         f"Sample value: {sample}"
     )
+
+
+def _attach_timezone_to_ts_columns(df: pl.DataFrame) -> pl.DataFrame:
+    """Attach timezone metadata to both PJM timestamp columns.
+
+    The PJM API returns ``datetime_beginning_utc`` and ``datetime_beginning_ept``
+    as bare strings with no UTC offset suffix.  This helper:
+
+    1. Parses ``datetime_beginning_utc`` from its string representation (if still
+       a string) into a naive Polars Datetime, then annotates it as UTC via
+       ``replace_time_zone("UTC")``.  ``replace_time_zone`` is correct here because
+       the value *is* UTC — the string simply omits the ``+00:00`` offset.
+
+    2. Derives ``datetime_beginning_ept`` (Eastern Prevailing Time,
+       ``America/New_York``) from the now-annotated UTC column via
+       ``convert_time_zone``.  Deriving from UTC rather than annotating the raw
+       EPT string directly handles the DST fall-back transition correctly: the
+       two consecutive 1:00 AM EPT hours have distinct UTC timestamps
+       (e.g. 06:00 UTC and 07:00 UTC), which ``convert_time_zone`` maps to two
+       distinct tz-aware Eastern datetimes (``01:00-04:00`` and ``01:00-05:00``).
+       Annotating the EPT string directly would require guessing the ambiguous
+       offset at that hour.
+
+    This matches how ISO-NE and NYISO LMP data are stored: tz-aware
+    ``America/New_York`` timestamps.
+    """
+    # Step 1 — parse UTC string if still raw, then annotate as UTC.
+    if isinstance(df.schema.get("datetime_beginning_utc"), pl.String):
+        df = _parse_utc_string_to_naive(df, "datetime_beginning_utc")
+    utc_dtype = df.schema.get("datetime_beginning_utc")
+    if isinstance(utc_dtype, pl.Datetime) and utc_dtype.time_zone != "UTC":
+        df = df.with_columns(
+            pl.col("datetime_beginning_utc").dt.replace_time_zone("UTC")
+        )
+
+    # Step 2 — derive EPT from UTC (tz-aware America/New_York).
+    # This overwrites whatever raw EPT string/naive value the API returned.
+    df = df.with_columns(
+        pl.col("datetime_beginning_utc")
+        .dt.convert_time_zone("America/New_York")
+        .alias("datetime_beginning_ept")
+    )
+
+    return df
 
 
 def fetch_rt_lmps_for_zone(
@@ -304,9 +355,11 @@ def fetch_rt_lmps_for_zone(
         PJM canonical zone label, e.g. ``"BGE"``, ``"PEPCO"``, ``"DPL"``,
         ``"APS"``.  Must match ``pnode_name`` for ZONE-type aggregate rows.
     start_date:
-        First date (inclusive) to fetch, in UTC.
+        First date (inclusive) to fetch, interpreted as an EPT calendar date.
+        The API filter is ``datetime_beginning_ept``, so ``2023-01-01`` means
+        "hours where EPT date ≥ Jan 1 2023."
     end_date:
-        Last date (inclusive) to fetch, in UTC.
+        Last date (inclusive) to fetch, interpreted as an EPT calendar date.
     api_key:
         PJM Data Miner 2 API key.  If omitted, read from ``PJM_API_PRIMARY_KEY``
         in the project ``.env`` file.
@@ -473,15 +526,17 @@ def fetch_rt_lmps_for_zone(
     # Normalise column names to lowercase (API returns mixed case).
     df = df.rename({c: c.lower() for c in df.columns})
 
-    # Parse timestamps — the API may return different formats than the CSV
-    # (e.g. ISO 8601 vs US-style with AM/PM).
-    for ts_col in ("datetime_beginning_utc", "datetime_beginning_ept"):
-        if df.schema[ts_col] == pl.String:
-            df = _parse_ts_column(df, ts_col)
+    # Attach timezone metadata: UTC on datetime_beginning_utc, then derive
+    # datetime_beginning_ept (America/New_York) from UTC.
+    df = _attach_timezone_to_ts_columns(df)
 
     df = (
         df.with_columns(pl.col("pnode_name").alias("zone"))
-        .with_columns(pl.col("datetime_beginning_utc").dt.year().alias("year"))
+        # Partition by EPT year so that each year-over-year fetch lands in the
+        # correct calendar-year partition. Using the UTC year would mis-assign
+        # the last EPT hour of Dec 31 (≈ 04:00–05:00 UTC Jan 1) to the next
+        # year's partition.
+        .with_columns(pl.col("datetime_beginning_ept").dt.year().alias("year"))
         .select(_OUTPUT_COLS + ["year"])
         .sort("zone", "datetime_beginning_utc")
     )
@@ -528,7 +583,8 @@ def extract_md_zone_lmps(
 
     Returns a tidy DataFrame with one row per (utility_zone, timestamp), with
     an added ``zone`` column populated from ``pnode_name`` and a ``year``
-    column extracted from ``datetime_beginning_utc`` for Hive partitioning.
+    column extracted from ``datetime_beginning_ept`` (Eastern year) for Hive
+    partitioning.
 
     Parameters
     ----------
@@ -546,13 +602,11 @@ def extract_md_zone_lmps(
         (pl.col("type") == "ZONE") & pl.col("pnode_name").is_in(pjm_zone_codes)
     )
 
-    for ts_col in ("datetime_beginning_utc", "datetime_beginning_ept"):
-        if filtered.schema[ts_col] == pl.String:
-            filtered = _parse_ts_column(filtered, ts_col)
+    filtered = _attach_timezone_to_ts_columns(filtered)
 
     result = (
         filtered.with_columns(pl.col("pnode_name").alias("zone"))
-        .with_columns(pl.col("datetime_beginning_utc").dt.year().alias("year"))
+        .with_columns(pl.col("datetime_beginning_ept").dt.year().alias("year"))
         .select(_OUTPUT_COLS + ["year"])
         .sort("zone", "datetime_beginning_utc")
     )
@@ -614,8 +668,6 @@ def upload_to_s3(
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
-
-_S3_OUTPUT_DEFAULT = "s3://data.sb/pjm/lmp/real_time/zones"
 
 
 def _cmd_fetch_api(args: argparse.Namespace) -> None:
@@ -682,7 +734,7 @@ def _cmd_extract_csv(args: argparse.Namespace) -> None:
         print(f"\nUploading to {args.s3_output} ...")
         upload_to_s3(lmps, args.s3_output)
     elif args.dry_run:
-        out = args.s3_output or _S3_OUTPUT_DEFAULT
+        out = args.s3_output or PJM_LMP_S3_BASE
         print(f"\n[dry-run] Would upload to {out}")
         upload_to_s3(lmps, out, dry_run=True)
 
@@ -713,7 +765,7 @@ def main() -> None:
     )
     p_api.add_argument(
         "--s3-output",
-        default=_S3_OUTPUT_DEFAULT,
+        default=PJM_LMP_S3_BASE,
         help="S3 base URI for Hive-partitioned output (default: %(default)s).",
     )
     p_api.add_argument(
