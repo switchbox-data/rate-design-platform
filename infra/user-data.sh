@@ -322,16 +322,6 @@ sed -i 's/^#\?ClientAliveInterval.*/ClientAliveInterval 60/' /etc/ssh/sshd_confi
 sed -i 's/^#\?ClientAliveCountMax.*/ClientAliveCountMax 10/' /etc/ssh/sshd_config
 systemctl reload sshd || systemctl reload ssh || true
 
-# Disable PackageKit offline-update and unattended-upgrades auto-reboot.
-# On a dev EC2 instance, automatic OS-update reboots break open IDE sessions
-# (Cursor/VS Code SSH) without warning. We keep unattended-upgrades for
-# security patches but disable the automatic reboot trigger so updates are
-# applied at a time we choose (e.g. before starting a work session).
-systemctl mask packagekit-offline-update.service packagekit-trigger-offline-update.service 2>/dev/null || true
-systemctl disable --now packagekit.service 2>/dev/null || true
-sed -i 's|^//\(Unattended-Upgrade::Automatic-Reboot\) "false";|\1 "false";|' /etc/apt/apt.conf.d/50unattended-upgrades
-sed -i 's|^Unattended-Upgrade::Automatic-Reboot "true";|Unattended-Upgrade::Automatic-Reboot "false";|' /etc/apt/apt.conf.d/50unattended-upgrades
-
 # Start and enable SSM agent (for AWS Systems Manager Session Manager)
 systemctl enable amazon-ssm-agent || true
 systemctl start amazon-ssm-agent || true
