@@ -50,6 +50,7 @@ data/nyiso/hourly_demand/zones/
 data/nyiso/hourly_demand/utilities/
 data/nyiso/zone_mapping/csv/
 data/pjm/_local_lmp/
+data/pjm/bulk_tx/nits/_local_pdfs/
 data/pjm/capacity/rpm/parquet/
 data/pjm/capacity/5cp/parquet/
 data/pjm/zone_mapping/csv/

@@ -111,9 +111,9 @@ NITS rates update up to twice per year (some TOs update January 1, some June 1).
 | Zone  | Transmission Owner(s)                 | ATRR ($M)  | NITS Rate ($/MW-yr) | Equiv. ($/kW-yr) |
 | ----- | ------------------------------------- | ---------- | ------------------- | ---------------- |
 | BGE   | Baltimore Gas and Electric Company    | $357.8     | $55,851             | $55.85           |
-| DPL   | Delmarva Power & Light Company        | $246.8     | $61,897             | $61.90           |
+| DPL   | Delmarva Power & Light Company + ODEC | $246.8     | $61,897             | $61.90           |
 | PEPCO | Potomac Electric Power Co. + SMECO    | (see note) | $54,684             | $54.68           |
-| APS   | South FirstEnergy Operating Companies | (see note) | ~$17–18             | ~$17–18          |
+| APS   | South FirstEnergy Operating Companies | $156.1     | $25,052             | $25.05           |
 
 **As of June 1, 2025:**
 
@@ -129,27 +129,30 @@ NITS rates update up to twice per year (some TOs update January 1, some June 1).
 - Jan 2025: https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-jan-2025.pdf
 - Jun 2025: https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-june-2025.pdf
 
-**Note on APS:** The Jan 2025 APS NITS rate was not captured in the initial search; the Jun 2025
-rate of $25,052/MW-yr is confirmed. To get Jan 2025, retrieve the Jan 2025 PDF directly. The
-full-year 2025 blended rate should use 5/7 month weighting (Jan–May / Jun–Dec).
+**Note on APS:** The APS NITS rate did not change between Jan and Jun 2025 ($25,051.72/MW-yr).
+The ATRR ($156.1M) and NSPL (8,937.6 MW) remained constant across both periods.
 
 **Note on DPL zone:** DPL zone includes Old Dominion Electric Cooperative (ODEC) as a second
-transmission owner. The total zonal ATRR includes both Delmarva P&L and ODEC contributions; the
-published NITS rate is the combined zonal rate applied to all LSEs in the DPL zone.
+transmission owner ($5.8M ATRR at Jun 2025). The total zonal ATRR includes both Delmarva P&L
+and ODEC contributions; the published NITS rate is the combined zonal rate applied to all LSEs
+in the DPL zone.
 
 **Note on PEPCO zone:** PEPCO zone includes SMECO as a second transmission owner ($17.1M ATRR
 at Jun 2025). The NITS rate is the combined zonal rate.
 
-### Calendar-year 2025 blended rate (5/7 method)
+### Calendar-year 2025 blended rate (day-weighted)
 
-Formula: `(5 × Jan_rate + 7 × Jun_rate) / 12`
+PJM bills NITS daily (Manual 27 §5.2.2). For non-leap 2025: 151 days (Jan 1–May 31) at Jan
+rate + 214 days (Jun 1–Dec 31) at Jun rate.
+
+Formula: `blended = (151 × jan + 214 × jun) / 365`
 
 | Zone  | Jan Rate ($/kW-yr) | Jun Rate ($/kW-yr) | 2025 Blended ($/kW-yr) |
 | ----- | ------------------ | ------------------ | ---------------------- |
-| BGE   | $55.85             | $59.07             | ~$57.72                |
-| DPL   | $61.90             | $65.83             | ~$64.25                |
-| PEPCO | $54.68             | $60.52             | ~$58.12                |
-| APS   | TBD (need Jan PDF) | $25.05             | ~$25 (est.)            |
+| BGE   | $55.85             | $59.07             | $57.74                 |
+| DPL   | $61.90             | $65.83             | $64.20                 |
+| PEPCO | $54.68             | $60.52             | $58.10                 |
+| APS   | $25.05             | $25.05             | $25.05                 |
 
 ### NSPL zonal peak data (for seasonal allocation)
 
@@ -261,18 +264,95 @@ K = 5 (NSPL strict). The difference is unlikely to be material for the BAT but i
 
 ---
 
+## Transmission zone coverage for all MD utilities
+
+Four PJM transmission zones cover every electric utility in Maryland (IOUs,
+cooperatives, and municipals). Co-ops and municipals do not own transmission;
+they pay through their host zone's NITS rate. The utility-to-zone mapping is
+already defined in `utils/data_prep/marginal_costs/supply_utils.py`
+(`PJM_UTILITY_ZONES`) and `data/pjm/zone_mapping/generate_zone_mapping_csv.py`.
+For bulk TX, the same four zones suffice:
+
+| Zone  | IOUs           | Co-ops/Municipals in zone                        |
+| ----- | -------------- | ------------------------------------------------ |
+| BGE   | BGE            | (none)                                           |
+| PEPCO | Pepco          | SMECO                                            |
+| DPL   | Delmarva Power | Choptank, A&N Electric, Easton, Berlin           |
+| APS   | Potomac Edison | Somerset REC, Hagerstown, Thurmont, Williamsport |
+
+All 13 MD electric utilities are covered by these four zones. No additional
+zones are needed.
+
+---
+
+## Calendar-year blending methodology
+
+PJM publishes NITS rates effective January 1 and June 1 each year. PJM bills
+NITS daily (Manual 27 §5.2.2):
+
+    Daily NITS Charge = Daily PLC × (Annual Zonal NITS Rate / days_in_year)
+
+For a calendar-year BAT run, the effective annual rate is the **day-weighted
+average** of the two rates in effect:
+
+    blended_rate = (days_jan × jan_rate + days_jun × jun_rate) / days_in_year
+
+| Year type | Jan 1 – May 31 | Jun 1 – Dec 31 | Total |
+| --------- | -------------- | -------------- | ----- |
+| Non-leap  | 151 days       | 214 days       | 365   |
+| Leap      | 152 days       | 214 days       | 366   |
+
+The simpler 5/7 month approximation (`(5 × jan + 7 × jun) / 12`) differs by
+< 0.5% and is acceptable when exact day counts are impractical. The reference
+CSV stores per-period rates; blending is done at consumption time.
+
+---
+
+## Reference data storage
+
+NITS rates are stored as an in-repo CSV following the same pattern as the PJM
+RPM capacity prices (`data/pjm/capacity/rpm/`):
+
+| Path                                           | Purpose                                                 |
+| ---------------------------------------------- | ------------------------------------------------------- |
+| `data/pjm/bulk_tx/nits/nits_rates.csv`         | Generated CSV: one row per (year, effective_date, zone) |
+| `data/pjm/bulk_tx/nits/sources/nits_{year}.md` | Per-year markdown intermediates (citation + tables)     |
+| `data/pjm/bulk_tx/nits/validate_nits_rates.py` | Schema and value validation script                      |
+| `data/pjm/bulk_tx/nits/Justfile`               | `validate` recipe                                       |
+
+CSV schema:
+
+| Column            | Type   | Description                                       |
+| ----------------- | ------ | ------------------------------------------------- |
+| `year`            | Int    | Calendar year                                     |
+| `effective_date`  | Date   | Rate effective date (YYYY-MM-DD)                  |
+| `zone`            | String | PJM transmission zone (APS, BGE, DPL, PEPCO)      |
+| `nits_rate_mw_yr` | Float  | NITS rate in $/MW-year (as published by PJM)      |
+| `nits_rate_kw_yr` | Float  | Same rate in $/kW-year (= nits_rate_mw_yr / 1000) |
+| `source_url`      | String | URL of the PJM PDF this row was transcribed from  |
+
+This approach (RI-style constant, but stored in a versionable CSV instead of
+hardcoded) was chosen because:
+
+- RI uses a single hardcoded AESC constant (`$69/kW-yr`) — too simple for 4
+  zones × 2 periods × multiple years
+- NY uses a derived constraint-group CSV on S3 — too complex; MD's source is
+  a single published scalar per zone per period
+- PJM RPM capacity prices CSV (`data/pjm/capacity/rpm/rpm_capacity_prices.csv`)
+  is the closest analogue: same data provider, same in-repo + validate pattern
+
+---
+
 ## Plan of next actions
 
-### 1 — Retrieve missing NITS data points
+### 1 — NITS reference data (DONE for 2021-2025)
 
-- [ ] Download the Jan 2025 PJM NITS PDF and extract the APS (South FirstEnergy) Jan 2025 rate.
-      URL: `https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-jan-2025.pdf`
-- [ ] Retrieve historical NITS rates for 2019–2024 from PJM archive PDFs (same URL pattern).
-      This enables multi-year BAT runs using the correct in-year blended rate rather than 2025 values
-      for all years.
-- [ ] Check the 2025 NSPL PDF for the APS zone: confirm 1/22/2024 peak was winter (already confirmed),
-      and check whether the 5 peak hours for APS are all in December–March.
-      URL: `https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-service-peak-loads-2025.pdf`
+- [x] 2021–2025 rates extracted for all 4 zones (Jan + Jun) from PJM PDFs and CAPS Handbook
+- [x] CSV, source markdown (5 years), and validator created at `data/pjm/bulk_tx/nits/`
+- [x] Validation passing for 40 rows (4 zones × 2 periods × 5 years)
+- [ ] Historical rates (2018–2020): retrieve from alternative sources when needed for pre-2021 BAT runs.
+      PJM PDFs for these years are no longer accessible (404); ETCC historical table + inference
+      can be used if needed. Add one `sources/nits_{year}.md` per year; re-run convert.
 
 ### 2 — Verify zone-level EIA/PJM hourly load data availability
 
@@ -294,26 +374,13 @@ Create `utils/data_prep/marginal_costs/bulk_tx_pjm.py` following the same struct
 
 Extend `generate_bulk_tx_mc.py` with `--iso pjm` path.
 
-### 4 — Create utility-to-zone mapping for MD
-
-Create `data/pjm/zone_mapping/md_utility_zone_mapping.csv` (or extend the existing zone mapping
-if one exists for capacity) with columns:
-
-- `utility` (std_name from `utils/utility_codes.py`)
-- `pjm_zone` (bgd, dpl, pepco, aps)
-- `nits_rate_jan_kw_yr` (Jan value for each year)
-- `nits_rate_jun_kw_yr` (Jun value for each year)
-- `nspl_season` (summer / winter, from annual NSPL publication)
-
-For co-ops: SMECO → PEPCO zone; Choptank → DPL zone.
-
-### 5 — Create Justfile recipes for MD bulk TX MC
+### 4 — Create Justfile recipes for MD bulk TX MC
 
 Add recipes to `rate_design/hp_rates/md/Justfile` analogous to the existing supply energy MC
 recipes. Each recipe should take `utility` and `year` as arguments and invoke
 `generate_bulk_tx_mc.py --iso pjm`.
 
-### 6 — Sensitivity analysis
+### 5 — Sensitivity analysis
 
 After implementation, run the BAT with:
 
@@ -322,7 +389,7 @@ After implementation, run the BAT with:
 - Sensitivity B: Use the MD OPC report's forward-looking cost estimates (if available) as an
   alternative to the embedded NITS rate
 
-### 7 — Document in context/README.md
+### 6 — Document in context/README.md
 
 After creating the implementation files, update `context/README.md` to add this doc to the
 methods/marginal_costs index.

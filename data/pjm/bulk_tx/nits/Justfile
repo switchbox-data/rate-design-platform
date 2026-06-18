@@ -1,0 +1,20 @@
+# PJM NITS rates: fetch PDFs, validate reference CSV.
+#
+# Usage (from data/pjm/bulk_tx/nits/):
+#   just fetch YEARS="2021 2022 2023 2024 2025"  # fetch PDFs for specified years
+#   just fetch YEARS="2021-2025"                 # fetch PDFs for year range
+#   just validate                                # validate the CSV
+
+path_csv := justfile_directory() + "/nits_rates.csv"
+path_pdf_cache := justfile_directory() + "/_local_pdfs"
+
+# Fetch NITS rate PDFs from PJM website for specified years.
+fetch YEARS="2021-2025":
+    uv run python {{ justfile_directory() }}/fetch_nits_pdfs.py \
+      --years {{ YEARS }} \
+      --output-dir {{ path_pdf_cache }}
+
+# Validate the NITS rates CSV (schema, value ranges, zone coverage).
+validate:
+    uv run python {{ justfile_directory() }}/validate_nits_rates.py \
+      --path-csv {{ path_csv }}
