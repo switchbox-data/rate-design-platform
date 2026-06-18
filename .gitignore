@@ -51,6 +51,8 @@ data/nyiso/hourly_demand/utilities/
 data/nyiso/zone_mapping/csv/
 data/pjm/capacity/rpm/parquet/
 data/pjm/capacity/5cp/parquet/
+data/pjm/hourly_demand/zones/
+data/pjm/hourly_demand/utilities/
 data/pjm/zone_mapping/csv/
 # Local source downloads during manual extraction to sources/*.md (binaries,
 # never committed; the committed markdown intermediates are the source of record)

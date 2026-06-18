@@ -1,0 +1,73 @@
+# PJM zonal hourly demand pipeline
+#
+# Fetch hourly metered load by transmission zone from PJM Data Miner 2
+# (hrl_load_metered), aggregate to utility-level profiles, and upload to S3.
+# Zone naming uses PJM Data Miner legacy codes (BC, PEP, DPL, AP), consistent
+# with the dataminer_zone column of data/pjm/zone_mapping/.
+#
+# Scripts run as modules (uv run python -m ...) because they import from the
+# `data.pjm` package, so each recipe cd's to the repo root first.
+#
+# Usage (from project root):
+#   just -f data/pjm/hourly_demand/Justfile fetch-zone-data 2025
+#   just -f data/pjm/hourly_demand/Justfile aggregate-all-utility-loads 2025
+#   just -f data/pjm/hourly_demand/Justfile validate
+#   just -f data/pjm/hourly_demand/Justfile prepare 2025
+#   just -f data/pjm/hourly_demand/Justfile upload
+
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_base := justfile_directory()
+path_local_zones := path_local_base + "/zones/"
+path_local_utilities := path_local_base + "/utilities/"
+path_s3_zones := "s3://data.sb/pjm/hourly_demand/zones/"
+path_s3_utilities := "s3://data.sb/pjm/hourly_demand/utilities/"
+path_zone_mapping_csv := path_local_repo + "/data/pjm/zone_mapping/csv/pjm_utility_zone_mapping.csv"
+
+# Fetch zonal metered load from Data Miner 2; write local Hive parquet.
+fetch-zone-data year:
+    cd "{{ path_local_repo }}" && uv run python -m data.pjm.hourly_demand.fetch_pjm_zone_loads \
+        --year {{ year }} \
+        --path-local-zones "{{ path_local_zones }}"
+
+# Aggregate zone loads to a single utility profile; read/write local parquet.
+aggregate-utility-loads year utility:
+    cd "{{ path_local_repo }}" && uv run python -m data.pjm.hourly_demand.aggregate_pjm_utility_loads \
+        --year {{ year }} \
+        --utility {{ utility }} \
+        --path-zone-mapping-csv "{{ path_zone_mapping_csv }}" \
+        --path-local-zones "{{ path_local_zones }}" \
+        --path-local-utilities "{{ path_local_utilities }}"
+
+# Aggregate zone loads for ALL mapped utilities; read/write local parquet.
+aggregate-all-utility-loads year:
+    cd "{{ path_local_repo }}" && uv run python -m data.pjm.hourly_demand.aggregate_pjm_utility_loads \
+        --year {{ year }} \
+        --utility all \
+        --path-zone-mapping-csv "{{ path_zone_mapping_csv }}" \
+        --path-local-zones "{{ path_local_zones }}" \
+        --path-local-utilities "{{ path_local_utilities }}"
+
+# Validate local zone parquet (schema, completeness, ranges, gaps).
+validate:
+    cd "{{ path_local_repo }}" && uv run python -m data.pjm.hourly_demand.validate_pjm_demand_parquet \
+        --path-local-zones "{{ path_local_zones }}"
+
+# Fetch + aggregate-all + validate for a year (no upload).
+prepare year: (fetch-zone-data year) (aggregate-all-utility-loads year) validate
+
+# Download zone and utility parquet from S3 to local.
+download:
+    aws s3 sync "{{ path_s3_zones }}" "{{ path_local_zones }}" --exclude "*" --include "*.parquet"
+    aws s3 sync "{{ path_s3_utilities }}" "{{ path_local_utilities }}" --exclude "*" --include "*.parquet"
+    @echo "Synced zone and utility parquet from S3 to local"
+
+# Upload local zone and utility parquet to S3.
+upload:
+    aws s3 sync "{{ path_local_zones }}" "{{ path_s3_zones }}" --exclude "*" --include "*.parquet"
+    aws s3 sync "{{ path_local_utilities }}" "{{ path_s3_utilities }}" --exclude "*" --include "*.parquet"
+    @echo "Synced zone and utility parquet to S3"
+
+# Remove local parquet dirs.
+clean:
+    rm -rf "{{ path_local_zones }}" "{{ path_local_utilities }}"
+    @echo "Removed zones/, utilities/"
