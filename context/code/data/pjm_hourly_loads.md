@@ -28,7 +28,7 @@ precedent, where the shared EIA default is overridden to use NYISO-native loads.
 
 ### Two facts that shape the pipeline
 
-1. **Zone labels are Data Miner *legacy* codes.** BGE is `zone="BC"` (there is
+1. **Zone labels are Data Miner _legacy_ codes.** BGE is `zone="BC"` (there is
    no literal `BGE` in this feed), Pepco is `PEP`, Delmarva is `DPL`, APS is
    `AP`. This matches the `dataminer_zone` column of the PJM zone crosswalk
    (`data/pjm/zone_mapping/`) — NOT the `price_zone`/`fivecp_zone_label`
@@ -39,6 +39,34 @@ precedent, where the shared EIA default is overridden to use NYISO-native loads.
    span several load areas (e.g. `PEP -> {PEPCO, SMECO}`, `DPL -> {DPLCO,
    EASTON}`; `BC` and `AP` are single-area). A zone series is therefore the
    **sum of `mw` over its load areas, per hour**.
+
+### Bad values and the raw-zone / clean-utility split
+
+Occasionally a load area reports a bogus value for a single hour (observed at
+DST transitions — e.g. DPL's `DPLCO` reports a hard `0.0` at `2025-03-09 01:00`
+while flanked by ~2,000 MW; PJM even marks it `is_verified=true`). This is a
+**present but bad value**, not a missing row, so a row-count check can't catch
+it. We handle it with a deliberate two-layer split:
+
+- **Zones are a faithful raw mirror of PJM.** `sum_load_areas_to_zone` keeps the
+  raw sum and instead sets a boolean **`value_flag`** for any zone-hour where a
+  constituent load area is an isolated single-hour spike vs _both_ its temporal
+  neighbours — either down (< 25% of the lower neighbour, e.g. a hard `0.0`) or
+  up (> 4× the higher neighbour, a garbage high reading). The genuinely tiny
+  EASTON area at ~28 MW is never flagged. Nothing is altered, so the dataset
+  reconciles exactly against Data Miner. (Known blind spots: runs of ≥2 bad
+  hours, and moderate distortions that aren't distinguishable from real load
+  variation without an external reference.)
+- **Utilities are the curated product.** When building utility profiles,
+  `interpolate_flagged_zone_hours` nulls the flagged hours and linearly
+  interpolates per zone (uniform hourly grid → position-based interpolation is
+  exact) before summing zones into utilities. The MC workflow consumes utilities,
+  so it gets clean load shapes. The utility output carries an **`interpolated`**
+  boolean (True for any utility-hour built from an interpolated zone-hour) so the
+  cleaning stays auditable downstream.
+
+The zone validator **warns** (does not fail) on `value_flag` hours so the raw
+artifacts stay visible.
 
 Note: `row_is_current` (a valid filter on the LMP feed) is **not** valid on
 `hrl_load_metered`; use `is_verified` if you need verified-only rows.
@@ -83,13 +111,18 @@ no server-side `type`/`pnode_id` filter; it filters to the MD zones client-side
 
 Local staging (gitignored), then `aws s3 sync` to S3:
 
-- Zones:     `zone={CODE}/year=YYYY/data.parquet`
+- Zones: `zone={CODE}/year=YYYY/data.parquet`
   → `s3://data.sb/pjm/hourly_demand/zones/`
 - Utilities: `utility={slug}/year=YYYY/data.parquet`
   → `s3://data.sb/pjm/hourly_demand/utilities/`
 
-Output schema (both): `timestamp` (tz-aware `America/New_York`),
-`zone`/`utility`, `load_mw` (`Float64`).
+Output schema:
+
+- Zones: `timestamp` (tz-aware `America/New_York`), `zone`, `load_mw` (`Float64`,
+  raw), `value_flag` (`Boolean`, marks raw bad load-area values).
+- Utilities: `timestamp`, `utility`, `load_mw` (`Float64`, flagged hours
+  interpolated), `interpolated` (`Boolean`, marks hours built from an
+  interpolated zone-hour).
 
 Utility aggregation maps each utility to its zone(s) via
 `data/pjm/zone_mapping/csv/pjm_utility_zone_mapping.csv` and sums zone loads by
