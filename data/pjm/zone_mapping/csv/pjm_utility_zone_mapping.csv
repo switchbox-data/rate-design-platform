@@ -1,0 +1,5 @@
+utility,state,dataminer_zone,fivecp_zone_label,price_zone,capacity_weight
+bge,md,BC,BGE,BGE,1.0
+pepco,md,PEP,PEPCO,PEPCO,1.0
+dpl,md,DPL,DPL,DPL,1.0
+potomac-edison,md,AP,APS,APS,1.0
