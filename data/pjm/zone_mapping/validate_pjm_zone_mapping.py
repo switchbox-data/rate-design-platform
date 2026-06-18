@@ -31,6 +31,7 @@ EXPECTED_COLUMNS = [
     "fivecp_zone_label",
     "price_zone",
     "capacity_weight",
+    "pnode_id",
 ]
 
 EXPECTED_TYPES = {
@@ -40,6 +41,7 @@ EXPECTED_TYPES = {
     "fivecp_zone_label": pl.String,
     "price_zone": pl.String,
     "capacity_weight": pl.Float64,
+    "pnode_id": pl.Int64,
 }
 
 KNOWN_STATES = {"md"}
@@ -194,6 +196,48 @@ def check_internal_consistency(df: pl.DataFrame, result: ValidationResult) -> No
         )
 
 
+def check_pnode_ids(df: pl.DataFrame, result: ValidationResult) -> None:
+    """pnode_id must be a positive integer; rows sharing a fivecp_zone_label must share it."""
+    errors: list[str] = []
+
+    # All values must be positive.
+    non_positive = df.filter(pl.col("pnode_id") <= 0)
+    for row in non_positive.iter_rows(named=True):
+        errors.append(f"{row['utility']}: pnode_id {row['pnode_id']} is not positive")
+
+    # Within each fivecp_zone_label the pnode_id must be unique (same zone → same node).
+    zone_ids = (
+        df.group_by("fivecp_zone_label")
+        .agg(pl.col("pnode_id").n_unique().alias("n_unique"))
+        .filter(pl.col("n_unique") > 1)
+    )
+    for row in zone_ids.iter_rows(named=True):
+        ids = (
+            df.filter(pl.col("fivecp_zone_label") == row["fivecp_zone_label"])[
+                "pnode_id"
+            ]
+            .unique()
+            .to_list()
+        )
+        errors.append(
+            f"fivecp_zone_label '{row['fivecp_zone_label']}' has {row['n_unique']} "
+            f"different pnode_ids: {sorted(ids)} (all rows for a zone must share one id)"
+        )
+
+    if errors:
+        for e in errors:
+            result.error("Pnode IDs", e)
+    else:
+        unique_ids = sorted(
+            df.select(["fivecp_zone_label", "pnode_id"]).unique().rows()
+        )
+        result.passed(
+            "Pnode IDs",
+            f"{len(unique_ids)} zone→pnode mappings: "
+            + ", ".join(f"{z}={n}" for z, n in unique_ids),
+        )
+
+
 def check_price_zone_crosswalk(
     df: pl.DataFrame, path_rpm_csv: Path, result: ValidationResult
 ) -> None:
@@ -315,6 +359,7 @@ def main() -> int:
     check_weights_sum(df, result)
     check_dataminer_codes(df, result)
     check_internal_consistency(df, result)
+    check_pnode_ids(df, result)
     check_price_zone_crosswalk(df, args.path_rpm_csv.resolve(), result)
     check_fivecp_crosswalk(df, args.path_fivecp_csv.resolve(), result)
 

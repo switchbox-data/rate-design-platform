@@ -16,7 +16,18 @@ instead (e.g. ``pnode_name == "BGE"`` for the BGE zone aggregate).
 Filtering on ``zone == "BGE"`` alone returns only bus/load/gen nodes inside
 that zone — never the zone aggregate.  The correct filter is::
 
-    type == "ZONE"  AND  pnode_name == <pjm_zone_code>
+    type == "ZONE"  AND  pnode_id == <pnode_id>   # standard (non-archive) data
+    type == "ZONE"  AND  pnode_name == <name>      # archive data (pnode_id rejected)
+
+**Archive vs standard API behaviour**: The PJM Data Miner 2 API (API Guide
+§ on historic data) only permits ``dates``, ``type``, ``row_is_current``, and
+``version_nbr`` as filters for archived data (any date older than 731 days).
+Passing ``pnode_id`` on an archive request returns a 400 error.  For standard
+(recent) data both ``pnode_id`` (exact match) and ``pnode_name`` (partial
+case-insensitive) are accepted.  :func:`fetch_rt_lmps_for_zone` branches
+automatically: standard chunks use server-side ``pnode_id`` filtering
+(one zone, no pagination for year-by-year fetches); archive chunks fall back
+to fetching all ZONE rows and filtering client-side.
 
 Mapping from Switchbox utility std_name to PJM zone codes (pnode_name for
 ZONE-type rows):
@@ -74,6 +85,24 @@ def _zone_map_for_state(state: str) -> dict[str, str]:
     return dict(
         zip(df["utility"].to_list(), df["fivecp_zone_label"].to_list(), strict=True)
     )
+
+
+def _pnode_id_for_zone_code(zone_code: str) -> int | None:
+    """Return the PJM pnode_id for a zone aggregate label (e.g. ``"BGE"`` → 51292).
+
+    Looks up ``fivecp_zone_label`` in the zone mapping.  All utilities that share
+    the same zone aggregate carry the same ``pnode_id``, so the first matching row
+    is used.  Returns ``None`` if the zone code is not found in the mapping.
+    """
+    df = build_zone_mapping()
+    match = df.filter(pl.col("fivecp_zone_label") == zone_code)
+    if match.is_empty():
+        return None
+    val = match["pnode_id"].first()
+    if val is None:
+        return None
+    # match["pnode_id"] is Int64; .first() returns Python int for non-null values.
+    return val  # type: ignore[return-value]
 
 
 # ---------------------------------------------------------------------------
@@ -298,10 +327,23 @@ def fetch_rt_lmps_for_zone(
 
     Notes
     -----
-    ``pnode_name`` is not a filterable field in the PJM Data Miner API, so
-    all ZONE-type rows are fetched and filtered client-side for the requested
-    zone.  This returns ~20 rows per hour (one per PJM zone) instead of 1,
-    but the extra rows are dropped before returning.
+    **Archive vs standard filtering**: the PJM Data Miner 2 API only allows
+    ``pnode_id`` as a filter on *standard* (non-archive) data.  Archive data
+    (older than 731 days) rejects ``pnode_id`` with a 400 error; the API guide
+    states only ``dates``, ``type``, ``row_is_current``, and ``version_nbr``
+    are valid archive filters.  This function automatically detects which path
+    applies per chunk:
+
+    - **Standard chunks**: ``pnode_id`` is added to the request, so the server
+      returns only the one zone aggregate (~8 760 rows/year).  No pagination is
+      needed for year-by-year calls.
+    - **Archive chunks**: all ZONE-type rows (~20 zones × 8 760 = ~175 k rows/
+      year) are fetched with pagination and filtered client-side on ``pnode_name``.
+
+    The ``pnode_id`` for each zone is looked up from the zone mapping CSV
+    (``data/pjm/zone_mapping/generate_zone_mapping_csv.py``).  If the lookup
+    returns ``None`` the function falls back to the all-zones client-side path
+    for all chunks.
     """
     key = _load_api_key(api_key)
     cutoff = _archive_cutoff()
@@ -309,16 +351,25 @@ def fetch_rt_lmps_for_zone(
     session = requests.Session()
     all_rows: list[dict] = []
 
+    # Resolve the pnode_id once; used by _fetch_chunk to decide server vs client filter.
+    pnode_id = _pnode_id_for_zone_code(zone_code)
+
     print(
-        f"Fetching rt_hrl_lmps for zone={zone_code} "
+        f"Fetching rt_hrl_lmps for zone={zone_code} (pnode_id={pnode_id}) "
         f"{start_date} → {end_date} ({len(chunks)} chunk(s))"
     )
 
     def _fetch_chunk(chunk_start: date, chunk_end: date) -> list[dict]:
         """Fetch all pages for one date chunk.
 
+        For standard (non-archive) chunks, adds ``pnode_id`` to the request so
+        the server returns only rows for this zone — eliminating pagination for
+        typical year-by-year fetches.  For archive chunks, ``pnode_id`` is
+        omitted (API rejects it) and client-side filtering on ``pnode_name`` is
+        used instead.
+
         If PJM rejects the request because the range straddles the
-        archive/standard boundary, bisect the chunk and fetch each half.
+        archive/standard boundary, bisects the chunk and fetches each half.
         This handles off-by-one uncertainty in the cutoff date.
         """
         is_archive = chunk_start < cutoff
@@ -335,9 +386,19 @@ def fetch_rt_lmps_for_zone(
             "row_is_current": "true" if row_is_current else "false",
         }
 
+        # Standard data: pnode_id is a valid server-side filter → one zone returned,
+        # no pagination for typical year-by-year fetches (8 760 rows << 50 k page).
+        # Archive data: pnode_id filter is rejected by the API (400 error) → fetch
+        # all ZONE rows and filter client-side on pnode_name.
+        use_server_filter = not is_archive and pnode_id is not None
+        if use_server_filter:
+            assert pnode_id is not None  # narrowed: use_server_filter guarantees this
+            base_params["pnode_id"] = pnode_id
+
         print(
             f"  chunk {chunk_start} → {chunk_end} "
-            f"({'archive' if is_archive else 'standard'})"
+            f"({'archive' if is_archive else 'standard'}, "
+            f"{'server pnode_id=' + str(pnode_id) if use_server_filter else 'client-side filter'})"
         )
 
         chunk_rows: list[dict] = []
@@ -350,12 +411,32 @@ def fetch_rt_lmps_for_zone(
                 if not rows:
                     break
 
-                rows = [r for r in rows if r.get("pnode_name") == zone_code]
+                # page_size must be captured BEFORE any client-side filtering so
+                # that fetched_so_far correctly tracks the raw API cursor position.
+                page_size = len(rows)
+
+                if use_server_filter:
+                    # Server already restricted to this pnode_id; spot-check that
+                    # returned pnode_name matches the expected zone label.
+                    wrong = {
+                        r.get("pnode_name")
+                        for r in rows
+                        if r.get("pnode_name") != zone_code
+                    }
+                    if wrong:
+                        raise ValueError(
+                            f"pnode_id={pnode_id} returned unexpected pnode_name "
+                            f"values: {wrong} (expected '{zone_code}')"
+                        )
+                else:
+                    rows = [r for r in rows if r.get("pnode_name") == zone_code]
 
                 chunk_rows.extend(rows)
 
-                fetched_so_far = start_row + len(rows) - 1
-                print(f"    rows {start_row}–{fetched_so_far} of {total}")
+                fetched_so_far = start_row + page_size - 1
+                print(
+                    f"    rows {start_row}–{fetched_so_far} of {total}, kept {len(rows)}"
+                )
 
                 if fetched_so_far >= total:
                     break
