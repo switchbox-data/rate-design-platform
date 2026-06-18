@@ -146,6 +146,7 @@ Pipelines and config that build the marginal-cost signal used in BAT and TOU.
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ny_bulk_tx_marginal_costs.md       | NY bulk transmission MC: constraint-group model, NYISO zone loads, per-pipeline load year (BULK_TX_LOAD_YEAR in state.env), canonical zone names, per-locality v_z derivation                              |
 | ny_supply_marginal_costs.md        | NY supply MC pipeline: LBMP energy + ICAP capacity, NYISO zone loads, per-pipeline load years (SUPPLY_ENERGY/CAPACITY_LOAD_YEAR in state.env), component-by-component capacity allocation, MCOS allocation |
+| md_supply_energy_marginal_costs.md | MD supply energy MC pipeline: PJM LMP fetch (archive vs standard API, pnode_id filtering), utility-to-zone mapping (13 MD utilities → 4 PJM zones), EPT timezone handling, DST normalization, 8760 prep    |
 | compute_tou_from_marginal_costs.md | MC-driven TOU tariff derivation: peak-window finder, cost-causation ratio, URDB JSON                                                                                                                       |
 
 ## docs/
