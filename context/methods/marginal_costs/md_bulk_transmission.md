@@ -186,51 +186,141 @@ back to summer-peaking.
 
 ---
 
-## Recommended methodology
+## Recommended methodology (FINALIZED)
 
-### Step 1 — Annual $/kW-yr value
+### Step 1 — Annual $/kW-yr value (day-weighted blended NITS rate)
 
 Use the published PJM **NITS rate** from OATT Attachment H as the bulk TX marginal cost value.
-This is the embedded-cost upper-bound proxy, following the E3 Illinois approach (same method as
-NY Option 1 in `ny_bulk_transmission_marginal_cost.md`). Document it as an upper bound.
+This is the embedded-cost upper-bound proxy, following E3's 2025 Illinois ICC-VDER methodology
+(Section 3.2, Table 8). Document it as an upper bound, acknowledging the RTO pushback but noting
+no better alternative exists (see "Clarification" section at top of this doc).
 
-For a calendar-year BAT run, compute the **5/7 delivery-year blend** using the Jan and Jun NITS
-rates (same method as the supply capacity blend in `pjm_supply_capacity_marginal_cost.md`).
+For a calendar-year BAT run, compute a **day-weighted blended rate** from the Jan and Jun values:
 
-### Step 2 — Seasonal allocation
+    blended_rate = (151 × jan_rate + 214 × jun_rate) / 365   # non-leap
+    blended_rate = (152 × jan_rate + 214 × jun_rate) / 366   # leap
 
-Use the zonal NSPL peak date (from PJM's annual NSPL publication) to determine whether the
-zone's bulk TX costs are summer- or winter-driven:
+This reflects PJM's daily NITS billing (Manual 27 §5.2.2): each day's charge uses the rate in
+effect that day, so Jan 1–May 31 uses the Jan rate and Jun 1–Dec 31 uses the Jun rate.
 
-- **Summer-peaking zones (BGE, DPL, PEPCO):** Allocate 100% of the annual $/kW-yr to summer
-  peak hours (June–September). Winter hours receive zero.
-- **Winter-peaking zones (APS):** Allocate 100% to winter peak hours (December–March).
+**Rationale for a single blended rate (not two separate allocations):**
 
-Verify each year: PJM publishes the updated NSPL document in late fall for the following January.
-If APS shifts back to summer-peaking, update accordingly.
+- PJM bills NITS as a single annual scalar applied to daily load contributions.
+- For BGE/DPL/PEPCO, all top peak hours fall in Jun–Sep (inside the Jun-rate period), so
+  separating Jan/Jun would assign all cost to Jun hours regardless.
+- For APS, the rate does not change between Jan and Jun in any year (2021–2025 confirmed),
+  so there is nothing to split.
+- Two passes add complexity with zero material benefit.
 
-**Source for seasonal logic:** [PA PUC Act 129 Avoided T&D Cost Study (2025)](https://www.puc.pa.gov/pcdocs/1855615.pdf),
-Table 7 — directly shows how Pennsylvania PJM utilities (structurally identical to MD utilities)
-split their transmission avoided costs between summer and winter based on historical NSPL frequency.
+### Step 2 — Seasonal filter (NSPL-driven)
 
-### Step 3 — Hourly allocation within the relevant season
+Apply a **seasonal filter** before identifying peak hours, following PJM's NSPL mechanism:
 
-Apply the **PoP (Probability of Peak) exceedance** method to the appropriate season's zone load,
-consistent with the platform convention used for RI ISO-NE:
+- **Summer-peaking zones (BGE, DPL, PEPCO):** Retain only June–September hours.
+- **Winter-peaking zones (APS):** Retain only December–March hours.
 
-1. Load the EIA/PJM zone hourly load for the relevant zone and year.
-2. Filter to the relevant season (June–September for BGE/DPL/PEPCO; December–March for APS).
-3. Identify the top-K hours by load (K = 5 for strict NSPL fidelity per the FirstEnergy PEMD
-   manual, or K = 100 for platform consistency; see Decision C in
-   `context/domain/marginal_costs/pjm_supply_capacity_marginal_cost.md`).
-4. Allocate the annual $/kW-yr to those hours using exceedance weighting
-   (`allocate_annual_exceedance_to_hours()` in `supply_utils.py`) or equal 1/K weights
-   (strict PLC-average analog, Decision F1 from the capacity doc).
-5. Fill all other hours with zero.
-6. Validate: sum of hourly allocations = annual $/kW-yr.
+The seasonal assignment is determined each year from PJM's published NSPL zonal peak dates:
 
-**K choice recommendation:** Start with K = 100 (platform consistency), then run sensitivity at
-K = 5 (NSPL strict). The difference is unlikely to be material for the BAT but is worth documenting.
+| Zone  | 2025 NSPL peak date | Season |
+| ----- | ------------------- | ------ |
+| BGE   | 7/16/2024           | Summer |
+| DPL   | 7/16/2024           | Summer |
+| PEPCO | 7/16/2024           | Summer |
+| APS   | 1/22/2024           | Winter |
+
+**Rationale for seasonal filter (divergence from E3):**
+
+- E3's Illinois method uses top-150 hours from the full year with no seasonal filter. However,
+  E3's context is a DER avoided-cost study measuring when DERs provide load relief — it does
+  not need to match PJM billing mechanics.
+- Our BAT context is cost-causation analysis: we need to identify which hours drive the bulk
+  TX cost allocation that PJM bills to customers. PJM's NSPL is explicitly seasonal — it uses
+  the single highest zonal peak in a rolling 12-month window, and the billing is pegged to
+  that hour's season.
+- Applying the seasonal filter follows the PA PUC Act 129 Avoided T&D Cost Study (2025),
+  Table 7, which splits PJM utility transmission costs by summer vs. winter frequency.
+- For BGE/DPL/PEPCO, the filter has minimal effect — their top-150 full-year hours are almost
+  entirely in Jun–Sep anyway. For APS, the filter is critical: without it, some Jun–Jul hours
+  (which are comparably high) would dilute the winter allocation signal.
+
+### Step 3 — Hourly allocation: PCAF (Peak Capacity Allocation Factor) method, K = 150
+
+Apply the **PCAF load-share** method (following E3's ICC-VDER Appendix C) to allocate the
+blended annual $/kW-yr across the top-K hours within the relevant season:
+
+1. Load the PJM zone hourly demand for the relevant utility and year.
+   Source: `s3://data.sb/pjm/hourly_demand/utilities/utility={name}/year={year}/data.parquet`
+2. Filter to the relevant season (Jun–Sep for BGE/DPL/PEPCO; Dec–Mar for APS).
+3. Rank hours by `load_mw` descending.
+4. Select the **top K = 150 hours** by load within the season.
+5. Compute each hour's **load-share allocation factor**:
+
+       AF_h = load_h / Σ(load in top-K hours)
+
+   where `load_h` is the zonal demand in hour `h`, and the sum is over all K = 150 peak hours.
+   The sum of all AFs equals exactly 1.0.
+
+6. Compute each hour's allocated cost:
+
+       cost_h = AF_h × annual_cost_kw_yr
+
+   This distributes the full annual $/kW-yr across exactly 150 hours.
+   All other 8610 hours (8760 − 150) receive **zero** marginal cost.
+
+7. **Validate:** sum of `cost_h` across all 8760 hours = blended annual $/kW-yr (tolerance < 0.01).
+
+**Key property: exactly 150 non-zero hours.** All other hours have zero bulk TX marginal cost.
+This is by construction — only the top-150 seasonal hours receive allocation. The practical
+implication for heat pump rate design: HP winter heating load only contributes to bulk TX costs
+if it falls in one of the 150 highest-demand hours in the relevant season (Dec–Mar for APS,
+Jun–Sep for BGE/DPL/PEPCO where HP winter load is guaranteed to be zero-cost).
+
+### Why K = 150 (not K = 100 or K = 5)?
+
+| K       | Source                          | Rationale                                                        | Tradeoff                                                         |
+| ------- | ------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
+| 5       | PJM NSPL billing (strict)       | Matches PJM's 1-peak billing mechanism                           | Too narrow; overly concentrates cost; one extreme hour dominates |
+| 100     | NY/RI platform convention       | Consistent with sub-TX and capacity                              | No external state-commissioned precedent for this number         |
+| **150** | **E3 Illinois ICC-VDER (2025)** | **State-commissioned study for a PJM-territory utility (ComEd)** | Slightly wider spread; matches the closest official methodology  |
+
+**K = 150 was chosen because:**
+
+1. E3's ICC-VDER is a state-commissioned avoided cost study for PJM territory (ComEd is in PJM).
+2. The study was published Jan 2025 and represents the most recent official methodology for
+   allocating PJM transmission capacity costs to hours.
+3. E3 explicitly chose K = 150 for transmission and distribution capacity allocation, distinct
+   from generation capacity (K = 100). Quote from Appendix C: _"Allocation factors for
+   transmission and distribution capacity were then assigned to the top 150 load hours."_
+4. Using the same K as an official state-commissioned study provides regulatory defensibility.
+
+### Why PCAF load-share (not exceedance weighting)?
+
+Our existing platform uses PoP exceedance weighting (`allocate_annual_exceedance_to_hours()` in
+`supply_utils.py`), which allocates proportionally to each hour's exceedance above a threshold.
+For MD bulk TX, we instead use **PCAF load-share** weighting because:
+
+1. **E3 precedent:** E3's Illinois methodology (the official source) uses raw load-share
+   weighting, not exceedance. Quote from Appendix C: _"based on the share of load in each
+   of these hours divided by the total load across these 150 top load hours."_
+2. **Simplicity and transparency:** PCAF is easier to explain — each peak hour's share is
+   simply its proportion of total peak load. No threshold parameter to calibrate.
+3. **Practical difference is small:** For K = 150, exceedance vs. load-share produces nearly
+   identical results (peak hours are close in magnitude, so the threshold is near the floor
+   of the top-150 set). The choice is about defensibility, not material outcome.
+4. **Matching official methodology:** When an official state-commissioned study exists for the
+   same RTO (PJM) and cost component (transmission capacity), we follow it.
+
+**PCAF formula (from E3 Appendix C, Figure 42):**
+
+    PCAF_h = L_h / Σ_{k ∈ top-K} L_k     for h in top-K hours
+    PCAF_h = 0                              for all other hours
+
+    cost_h = PCAF_h × annual_$/kW-yr
+
+Where `L_h` is the hourly load (MW) in hour `h`. The resulting hourly costs sum to the annual rate.
+
+**Source:** [E3 ICC-VDER Report, Illinois, Jan 2025](https://www.ethree.com/wp-content/uploads/2025/01/ICC-VDER-Report-FINAL-2025-1-17.pdf),
+Appendix C, pp. 98-99, Figure 42.
 
 ---
 
