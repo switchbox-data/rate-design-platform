@@ -17,12 +17,10 @@ from pathlib import Path
 
 import requests
 
-# Known URL patterns for NITS rate PDFs (PJM has changed patterns over time)
-URL_PATTERNS = [
-    "https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-jan-{year}.pdf",
-    "https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-june-{year}.pdf",
-    "https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-{year}.pdf",
-]
+# PJM URL patterns for NITS rate PDFs (PJM has changed naming conventions over time)
+_URL_JAN = "https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-jan-{year}.pdf"
+_URL_JUN = "https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-june-{year}.pdf"
+_URL_ANNUAL = "https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-{year}.pdf"
 
 
 def fetch_pdf(url: str, output_path: Path, timeout: int = 30) -> bool:
@@ -65,8 +63,7 @@ def fetch_year(year: int, output_dir: Path) -> dict[str, bool]:
         print(f"  Jan {year}: already exists, skipping")
         results["jan"] = True
     else:
-        jan_url = URL_PATTERNS[0].format(year=year)
-        results["jan"] = fetch_pdf(jan_url, jan_path)
+        results["jan"] = fetch_pdf(_URL_JAN.format(year=year), jan_path)
 
     # Try Jun PDF
     jun_path = output_dir / f"nits_jun_{year}.pdf"
@@ -74,15 +71,13 @@ def fetch_year(year: int, output_dir: Path) -> dict[str, bool]:
         print(f"  Jun {year}: already exists, skipping")
         results["jun"] = True
     else:
-        jun_url = URL_PATTERNS[1].format(year=year)
-        results["jun"] = fetch_pdf(jun_url, jun_path)
+        results["jun"] = fetch_pdf(_URL_JUN.format(year=year), jun_path)
 
-    # If both failed, try the combined annual PDF
+    # If both failed, try the combined annual PDF (older PJM naming convention)
     if not results["jan"] and not results["jun"]:
         annual_path = output_dir / f"nits_{year}.pdf"
         if not annual_path.exists():
-            annual_url = URL_PATTERNS[2].format(year=year)
-            if fetch_pdf(annual_url, annual_path):
+            if fetch_pdf(_URL_ANNUAL.format(year=year), annual_path):
                 print(f"    → Combined annual PDF saved as nits_{year}.pdf")
                 results["annual"] = True
 

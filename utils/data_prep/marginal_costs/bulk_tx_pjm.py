@@ -52,6 +52,11 @@ from utils.data_prep.marginal_costs.supply_utils import build_cairo_8760_timesta
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 DEFAULT_K_PEAK_HOURS: int = 150
+_VALIDATION_TOLERANCE_PCT: float = 0.01
+
+# Jun 1 – Dec 31 is always 214 days regardless of leap year
+# (30+31+31+30+31+30+31 = Jun through Dec)
+_DAYS_JUN_TO_DEC: int = 214
 
 PJM_HOURLY_DEMAND_S3_BASE = "s3://data.sb/pjm/hourly_demand/utilities"
 DEFAULT_PJM_BULK_TX_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/md/bulk_tx"
@@ -59,15 +64,15 @@ NITS_CSV_PATH = (
     Path(__file__).resolve().parents[3] / "data/pjm/bulk_tx/nits/nits_rates.csv"
 )
 
-VALID_PJM_UTILITIES = {"bge", "dpl", "pepco", "potomac-edison"}
-
-# Map utility name to NITS zone (used for looking up rates in CSV)
+# Map utility name to NITS zone (used for looking up rates in CSV).
+# VALID_PJM_UTILITIES is derived from this mapping — add entries here only.
 UTILITY_TO_NITS_ZONE: dict[str, str] = {
     "bge": "BGE",
     "dpl": "DPL",
     "pepco": "PEPCO",
     "potomac-edison": "APS",
 }
+VALID_PJM_UTILITIES: frozenset[str] = frozenset(UTILITY_TO_NITS_ZONE)
 
 
 # ── NITS rate loading ─────────────────────────────────────────────────────────
@@ -84,8 +89,8 @@ def compute_blended_nits_rate(nits_df: pl.DataFrame, zone: str, year: int) -> fl
     Formula (PJM Manual 27 §5.2.2):
         blended = (days_jan × jan_rate + days_jun × jun_rate) / days_in_year
 
-    Non-leap: 151 × jan + 214 × jun / 365
-    Leap:     152 × jan + 214 × jun / 366
+    Non-leap: (151 × jan + 214 × jun) / 365
+    Leap:     (152 × jan + 214 × jun) / 366
     """
     year_rows = nits_df.filter((pl.col("year") == year) & (pl.col("zone") == zone))
 
@@ -109,11 +114,10 @@ def compute_blended_nits_rate(nits_df: pl.DataFrame, zone: str, year: int) -> fl
     jun_rate_kw = float(jun_rows["nits_rate_kw_yr"][0])
 
     is_leap = calendar.isleap(year)
-    days_jan = 152 if is_leap else 151
-    days_jun = 214
+    days_jan = 152 if is_leap else 151  # Jan 1 – May 31
     days_year = 366 if is_leap else 365
 
-    blended = (days_jan * jan_rate_kw + days_jun * jun_rate_kw) / days_year
+    blended = (days_jan * jan_rate_kw + _DAYS_JUN_TO_DEC * jun_rate_kw) / days_year
     return blended
 
 
@@ -281,10 +285,9 @@ def compute_pjm_bulk_tx_mc(
     n_nonzero = output.filter(pl.col("bulk_tx_cost_enduse") > 0).height
     print(f"  Non-zero hours:      {n_nonzero} (expected {k_peak_hours})")
 
-    tolerance = 0.01
-    if error_pct > tolerance:
+    if error_pct > _VALIDATION_TOLERANCE_PCT:
         raise ValueError(
-            f"PCAF validation failed: error {error_pct:.6f}% exceeds {tolerance}%. "
+            f"PCAF validation failed: error {error_pct:.6f}% exceeds {_VALIDATION_TOLERANCE_PCT}%. "
             f"Expected ${blended_rate:.6f}/kW-yr, got ${actual_sum:.6f}/kW-yr."
         )
     if n_nonzero != k_peak_hours:
