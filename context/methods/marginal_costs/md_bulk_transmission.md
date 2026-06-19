@@ -195,25 +195,56 @@ This is the embedded-cost upper-bound proxy, following E3's 2025 Illinois ICC-VD
 (Section 3.2, Table 8). Document it as an upper bound, acknowledging the RTO pushback but noting
 no better alternative exists (see "Clarification" section at top of this doc).
 
-For a calendar-year BAT run, compute a **day-weighted blended rate** from the Jan and Jun values:
+#### What value does E3 use?
 
-    blended_rate = (151 × jan_rate + 214 × jun_rate) / 365   # non-leap
-    blended_rate = (152 × jan_rate + 214 × jun_rate) / 366   # leap
+E3's ICC-VDER report (Table 8) uses a single **"2024 Network Transmission Service Rate"** taken
+directly from MISO and PJM:
 
-**Source: PJM's own billing formula (not E3).** Per PJM Manual 27 §5.2.2, NITS is billed daily:
+| Utility | NTS Rate (E3 Table 8) | RTO  |
+| ------- | --------------------- | ---- |
+| ComEd   | $39.80/kW-yr          | PJM  |
+| Ameren  | $80.00/kW-yr          | MISO |
+
+ComEd is in PJM (same RTO as MD utilities), so this is a direct precedent. E3 uses **a single
+snapshot rate** labeled "2024" — they do not discuss PJM's mid-year rate update schedule or blend
+the Jan and Jun rates. Their study was published January 2025, so the "2024" rate is almost
+certainly the January 2024 NITS rate that was in effect for the 2024 measurement year.
+
+E3 explicitly notes (pp. 28–29):
+
+> _"It is important to note that the network transmission service rates are driven by gross annual
+> transmission expenses incurred by the RTOs, plus a rate of return... each RTO independently noted
+> that the NTS rate is not an appropriate indicator of their capacity-driven marginal costs."_
+
+And:
+
+> _"After extensive discussions with both utilities and RTOs, these organizations indicated to E3
+> that they were not able to provide a more accurate, specific marginal cost for transmission
+> capacity at this time."_
+
+This is the authoritative confirmation that NITS/NTS is the best available estimate despite its
+embedded-cost limitations.
+
+#### Our adaptation: day-weighted blended rate
+
+E3 uses a single rate snapshot because they are analyzing a given study year with one published
+rate. For an ongoing BAT platform that runs against specific calendar years, PJM's mid-year rate
+structure must be handled explicitly.
+
+PJM publishes NITS rates **twice per year** (Jan 1 and Jun 1). Per PJM Manual 27 §5.2.2, NITS is
+billed **daily** using whichever rate is in effect that day:
 
     Daily charge for customer i = PLCᵢ × (Annual Zonal NITS Rate / days_in_year)
 
-Because the rate changes on June 1, a constant 1 kW customer's annual bill is:
+A customer with constant 1 kW load pays over the full calendar year:
 
-    Annual cost = 1 kW × (151 × jan_rate + 214 × jun_rate) / 365
+    Annual cost = (151 × jan_rate + 214 × jun_rate) / 365   # non-leap
+    Annual cost = (152 × jan_rate + 214 × jun_rate) / 366   # leap
 
-That expression is exactly the blended rate — it is not an approximation but the literal sum of
-PJM's daily charges over the calendar year. E3's ICC-VDER uses a single $/kW-yr NITS figure per
-utility and allocates it via PCAF; the day-weighted blending is our PJM-specific adaptation to
-handle the fact that PJM publishes two rates per year, not something E3 explicitly prescribes.
+This is the **blended rate** — not an approximation, but the exact arithmetic of PJM's daily
+billing integrated over the year. It is the correct annual scalar to use for the BAT.
 
-**Does the seasonal top-150 filter conflict with the blended rate? No — they answer different
+**Does the seasonal top-150 filter conflict with the blended rate? No — they answer separate
 questions:**
 
 - The **blended rate** (Step 1) answers: _How much annual bulk TX cost does a constant 1 kW
@@ -227,30 +258,25 @@ They compose without contradiction:
     cost_h = 0                                    for all other hours
     Σ cost_h across all 8760 hours = B            ← full annual cost recovered ✓
 
-The intuition: under PJM NITS billing, the **causal event** is your load at the NSPL hour (one
-summer or winter peak). PJM then bills you based on that PLC every day of the year at the
-prevailing rate. The blended rate represents the full-year billing liability. The seasonal PCAF
-correctly attributes that liability's causation to peak-season hours. These are orthogonal
-choices — one quantifies the annual cost, the other localizes it to specific hours.
+The intuition: under PJM NITS billing, the **causal event** is your load at the NSPL hour. PJM
+then bills you based on that PLC every day of the year at the prevailing rate. The blended rate
+represents the full-year billing liability. The seasonal PCAF correctly identifies the causal
+hours. These are orthogonal choices — one quantifies the annual cost, the other localizes it.
 
-**Rationale for a single blended rate (not two separate rate-period passes):**
+**Rationale for blending rather than two separate rate-period passes:**
 
 - **Summer-peaking utilities (BGE, DPL, PEPCO):** All 150 peak hours under the seasonal filter
-  fall in Jun–Sep, which is entirely within the Jun-rate period. If we split costs into a
-  Jan-rate pass (allocate to Jan–May peak hours) and a Jun-rate pass (allocate to Jun–Dec peak
-  hours), the Jan-rate portion — `(151 × jan_rate / 365)` of the annual cost — would have zero
-  seasonal peak hours to land on. That slice of cost is stranded with no allocation target. The
-  blended approach avoids this by combining both rate periods before allocation.
-- **Winter-peaking utility (APS):** The APS rate does not change between Jan and Jun in any
-  year (2021–2025 confirmed), so blending and splitting are arithmetically equivalent.
+  fall in Jun–Sep, entirely within the Jun-rate period. A two-pass approach (Jan-rate costs →
+  Jan–May peak hours; Jun-rate costs → Jun–Dec peak hours) would leave the Jan-rate portion —
+  `(151 × jan_rate / 365)` of annual cost — with zero seasonal peak hours to allocate to. That
+  slice of cost would be stranded. Blending avoids this by combining both rate periods first.
+- **Winter-peaking utility (APS):** APS rate is unchanged between Jan and Jun every year
+  (2021–2025 confirmed), so blending and splitting are arithmetically equivalent.
 - **Comparison with NYISO:** NYISO's bulk TX allocation does use a two-pass seasonal approach
-  (top-40 summer SCR hours + top-40 winter SCR hours, with `phi_s`/`phi_w` weights splitting
-  the annual cost between seasons). But NYISO's split is driven by **transmission constraint
-  geography** — NYISO constraints bind in different locations in summer and winter, so costs
-  must be spread across both seasonal peak windows. PJM NITS rates are zone-level annual
-  charges pegged to one NSPL peak per zone; there is no structural need to split costs between
-  two seasons. The blended rate collapses the two mid-year rate updates into the single annual
-  figure that PJM's billing formula implies.
+  (top-40 summer SCR hours + top-40 winter SCR hours). But NYISO's split is driven by
+  **transmission constraint geography** — constraints bind in different locations in summer and
+  winter. PJM NITS rates are zone-level annual charges pegged to one NSPL peak per zone; there
+  is no structural reason to split costs across two seasons.
 
 ### Step 2 — Seasonal filter (NSPL-driven)
 
@@ -268,20 +294,36 @@ The seasonal assignment is determined each year from PJM's published NSPL zonal 
 | PEPCO | 7/16/2024           | Summer |
 | APS   | 1/22/2024           | Winter |
 
-**Rationale for seasonal filter (divergence from E3):**
+**Rationale for seasonal filter (deliberate departure from E3):**
 
-- E3's Illinois method uses top-150 hours from the full year with no seasonal filter. However,
-  E3's context is a DER avoided-cost study measuring when DERs provide load relief — it does
-  not need to match PJM billing mechanics.
-- Our BAT context is cost-causation analysis: we need to identify which hours drive the bulk
-  TX cost allocation that PJM bills to customers. PJM's NSPL is explicitly seasonal — it uses
-  the single highest zonal peak in a rolling 12-month window, and the billing is pegged to
-  that hour's season.
-- Applying the seasonal filter follows the PA PUC Act 129 Avoided T&D Cost Study (2025),
-  Table 7, which splits PJM utility transmission costs by summer vs. winter frequency.
-- For BGE/DPL/PEPCO, the filter has minimal effect — their top-150 full-year hours are almost
-  entirely in Jun–Sep anyway. For APS, the filter is critical: without it, some Jun–Jul hours
-  (which are comparably high) would dilute the winter allocation signal.
+E3's ICC-VDER uses top-150 hours from the **full year with no seasonal filter**. They note that
+in early years, allocation factors are concentrated in summer months, but they do not restrict
+the analysis to summer. E3's context is a DER avoided-cost study; for their purposes, a winter
+hour can also carry transmission capacity value.
+
+We apply a seasonal filter for a different reason — our context is BAT cost-causation analysis
+grounded in PJM's actual billing mechanism:
+
+- PJM's NSPL identifies **one peak per zone per year** in a rolling Nov 1–Oct 31 window. That
+  peak is either summer or winter depending on the zone. The NITS billing for the full year is
+  driven entirely by that one seasonal peak — not by the 2nd highest hour or any cross-season
+  comparison.
+- For BGE/DPL/PEPCO (summer-peaking): all cost causation flows from summer peak hours. Including
+  winter hours in the top-150 set would attribute cost to hours that, under PJM's actual billing,
+  have no effect on a customer's NITS charge.
+- For APS (winter-peaking): including summer hours would similarly misattribute cost causation.
+
+The seasonal filter makes the PCAF signal as faithful as possible to PJM's NSPL cost-causation
+logic, even while we use K = 150 rather than K = 1 for rate design tractability.
+
+Additional support: the PA PUC Act 129 Avoided T&D Cost Study (2025), Table 7, explicitly splits
+PJM utility transmission costs into summer and winter allocation factors, consistent with the
+seasonal-filter approach.
+
+For BGE/DPL/PEPCO, the filter has minimal practical effect — their top-150 full-year hours are
+almost entirely in Jun–Sep anyway. For APS, the filter is critical: without it, Jun–Jul hours
+(which are comparably high due to summer AC load) would dilute the winter allocation signal and
+mis-attribute costs to summer hours that APS's NSPL mechanism does not penalize.
 
 ### Step 3 — Hourly allocation: PCAF (Peak Capacity Allocation Factor) method, K = 150
 
@@ -315,23 +357,70 @@ implication for heat pump rate design: HP winter heating load only contributes t
 if it falls in one of the 150 highest-demand hours in the relevant season (Dec–Mar for APS,
 Jun–Sep for BGE/DPL/PEPCO where HP winter load is guaranteed to be zero-cost).
 
-### Why K = 150 (not K = 100 or K = 5)?
+### Why K = 150? E3's approach vs. PJM's billing mechanism
 
-| K       | Source                          | Rationale                                                        | Tradeoff                                                         |
-| ------- | ------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
-| 5       | PJM NSPL billing (strict)       | Matches PJM's 1-peak billing mechanism                           | Too narrow; overly concentrates cost; one extreme hour dominates |
-| 100     | NY/RI platform convention       | Consistent with sub-TX and capacity                              | No external state-commissioned precedent for this number         |
-| **150** | **E3 Illinois ICC-VDER (2025)** | **State-commissioned study for a PJM-territory utility (ComEd)** | Slightly wider spread; matches the closest official methodology  |
+This is a deliberate design choice. There are two defensible approaches:
 
-**K = 150 was chosen because:**
+**PJM's actual billing mechanism — K = 1 (the NSPL mechanism):**
 
-1. E3's ICC-VDER is a state-commissioned avoided cost study for PJM territory (ComEd is in PJM).
-2. The study was published Jan 2025 and represents the most recent official methodology for
-   allocating PJM transmission capacity costs to hours.
-3. E3 explicitly chose K = 150 for transmission and distribution capacity allocation, distinct
-   from generation capacity (K = 100). Quote from Appendix C: _"Allocation factors for
-   transmission and distribution capacity were then assigned to the top 150 load hours."_
-4. Using the same K as an official state-commissioned study provides regulatory defensibility.
+PJM determines each customer's annual NITS bill using exactly **one peak hour** — the single
+highest zonal load hour in the measurement period (Nov 1–Oct 31). That hour sets the customer's
+Peak Load Contribution (PLC), which is then applied to daily billing for the entire year.
+
+Under strict K = 1 logic, the hourly MC signal would be:
+
+- cost at the single NSPL peak hour = blended\_rate (all annual cost concentrated there)
+- cost at all other 8,759 hours = 0
+
+This is mechanically accurate to PJM's billing. However, for rate design and BAT analysis it has
+serious problems:
+
+- The NSPL peak hour is **not known in advance** — it is only revealed after the measurement
+  period ends. You cannot design a rate structure around one unknown hour per year.
+- With K = 1, the BAT assigns all bulk TX cost responsibility based on what a customer happened
+  to be doing at a single extreme hour. This is over-sensitive and not useful for differentiating
+  HP vs. non-HP customers in a rate design context.
+- A K = 1 signal cannot inform TOU rate design — no customer can reliably manage their load at
+  one anonymous peak hour per year.
+
+**E3's DER avoided-cost approach — K = 150 (our choice):**
+
+E3's ICC-VDER report (Appendix C) explicitly chose K = 150 for transmission and distribution
+capacity allocation. Verbatim from Appendix C:
+
+> _"Allocation factors for transmission and distribution capacity were then assigned to the top
+> 150 load hours based on the share of load in each of these hours divided by the total load
+> across these 150 top load hours."_
+
+E3 uses Cambium PJM West forecast load (not actual metered zone load) and applies this to the
+**full year** with **no seasonal filter**. The resulting signal shows which 150 hours out of 8760
+are highest-value for transmission capacity deferral — which is the relevant concept for DER
+compensation and rate design.
+
+| K       | Source                          | Rationale                                                          | Problem                                                           |
+| ------- | ------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| 1       | PJM NSPL billing (strict)       | Matches PJM's actual billing mechanism exactly                     | Unknown in advance; not actionable for rate design; oversensitive |
+| 100     | NY/RI platform convention       | Consistent with sub-TX and capacity                                | No state-commissioned precedent for PJM territory                 |
+| **150** | **E3 Illinois ICC-VDER (2025)** | **State-commissioned study for ComEd (PJM), transmission + dist.** | Slight departure from PJM billing; deliberate design choice       |
+
+**We use K = 150 (E3's approach, not PJM's K = 1) because:**
+
+1. **Rate design purpose:** The goal is a BAT signal that can inform TOU or demand-charge rate
+   design. K = 150 creates an actionable signal covering a peak season window rather than a
+   single unknowable hour. K = 1 is a billing rule, not a rate design tool.
+2. **E3 precedent:** E3's ICC-VDER is the most recent official state-commissioned avoided cost
+   study for a PJM-territory utility (ComEd). It explicitly chose K = 150 for transmission and
+   distribution costs. This provides regulatory defensibility for the same methodology in MD.
+3. **Robustness:** K = 1 is over-sensitive to a single extreme weather event. K = 150 averages
+   cost-causation over a seasonally consistent set of peak hours, producing a stable signal
+   across years.
+4. **Consistency with E3's generation capacity methodology:** E3 uses K = 100 for generation
+   capacity and K = 150 for T&D. Using K = 150 for bulk TX is internally consistent with the
+   framework.
+
+This is a **deliberate departure from PJM's billing mechanism**, clearly documented as such. If a
+reviewer prefers strict K = 1 fidelity to PJM billing, the implementation can be changed; the
+choice is explicit, not inadvertent.
 
 ### Why PCAF load-share (not exceedance weighting)?
 
