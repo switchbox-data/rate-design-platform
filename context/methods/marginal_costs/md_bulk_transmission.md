@@ -19,25 +19,32 @@ Related docs:
 ## Clarification: what the RTO pushback on NITS rates means
 
 The E3 2025 Illinois ICC-VDER report used the PJM/MISO **NTS (Network Transmission Service) rate
-as an upper-bound proxy** for avoided transmission capacity cost. In response, E3 noted:
+as an upper-bound proxy** for avoided transmission capacity cost. E3 explicitly addresses the
+limitation in Section 6.1.2 of the report:
 
-> _"each RTO independently noted that the NTS rate is not an appropriate indicator of their
-> capacity-driven marginal costs… [they] were not able to provide a more accurate, specific
-> marginal cost for transmission capacity at this time."_
+> _"Like the current long-term distribution costs, the Network Transmission Service rates used as
+> a proxy for transmission avoided costs in this analysis are more indicative of an average cost
+> of capacity rather than a marginal cost. MISO and PJM explicitly noted this in our discussions,
+> though did not yet have a means for providing marginal cost estimates in terms of capacity or an
+> avenue for sharing the data necessary for us to calculate these values ourselves. However, both
+> RTOs expressed an interest in exploring these values further to determine a more appropriate
+> avoided transmission cost value for future use."_
 
 This does **not** mean the RTOs endorse the NITS rate as the right answer. It means:
 
 - The NITS rate (= OATT Attachment H ATRR ÷ NSPL billing units) is an **embedded average
   cost** — a blend of depreciated decades-old plant and new investment — not a true LRMC.
-- PJM and MISO themselves said they cannot produce a better LRMC estimate today.
-- E3's conclusion: use it as an **acknowledged upper-bound proxy**, document it, and update
-  when better data is available (e.g., PJM's FERC Order 1920 long-term transmission plan).
+- PJM and MISO were directly asked and confirmed they cannot produce a better LRMC estimate
+  today, and do not have the data infrastructure to share inputs that would allow E3 to compute
+  one independently.
+- E3's conclusion: use it as an **acknowledged upper-bound proxy**, document it, and pursue
+  better data through closer RTO collaboration in future transmission planning processes.
 
-This is the accepted practice for PJM-territory avoided-cost studies. The same framing should be
-used for MD.
+This is the authoritative justification for using NITS as the bulk TX marginal cost proxy in
+PJM-territory avoided-cost and BAT analyses. The same framing applies to MD.
 
 **Source:** [E3 ICC-VDER Report, Illinois, Jan 2025](https://www.ethree.com/wp-content/uploads/2025/01/ICC-VDER-Report-FINAL-2025-1-17.pdf),
-Section 3.2, Table 8.
+Section 6.1.2 (primary), Section 3.2 Table 8 (values).
 
 ---
 
