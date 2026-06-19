@@ -205,12 +205,25 @@ effect that day, so Jan 1–May 31 uses the Jan rate and Jun 1–Dec 31 uses the
 
 **Rationale for a single blended rate (not two separate allocations):**
 
-- PJM bills NITS as a single annual scalar applied to daily load contributions.
-- For BGE/DPL/PEPCO, all top peak hours fall in Jun–Sep (inside the Jun-rate period), so
-  separating Jan/Jun would assign all cost to Jun hours regardless.
-- For APS, the rate does not change between Jan and Jun in any year (2021–2025 confirmed),
-  so there is nothing to split.
-- Two passes add complexity with zero material benefit.
+- **PJM's billing formula is day-weighted:** Per PJM Manual 27 §5.2.2, each day's NITS charge
+  uses the rate in effect that day (`Daily charge = Daily PLC × Annual Rate / days_in_year`).
+  Integrating over the calendar year, a customer with constant 1 kW load pays exactly the
+  blended rate defined above — making the blended rate the correct annual scalar for the BAT.
+- **Summer-peaking utilities (BGE, DPL, PEPCO):** All 150 peak hours under the seasonal filter
+  fall in Jun–Sep, which is entirely within the Jun-rate period. If we split costs into a
+  Jan-rate pass and a Jun-rate pass, the Jan-rate portion (151 × jan_rate / 365 of the annual
+  cost) would have zero seasonal peak hours to land on — it would be stranded with no
+  allocation target. The blended approach avoids this by combining both rate periods into one
+  annual figure before allocation.
+- **Winter-peaking utility (APS):** The APS rate does not change between Jan and Jun in any
+  year (2021–2025 confirmed), so blending and splitting are arithmetically equivalent.
+- **Comparison with NYISO:** NYISO's bulk TX allocation does use a two-pass seasonal approach
+  (top-40 summer SCR hours + top-40 winter SCR hours, split by `phi_s`/`phi_w` weights). But
+  NYISO's seasonal split is driven by **transmission constraint geography** — NYISO constraints
+  bind in different locations in summer and winter, so costs must be spread across both seasonal
+  peak windows. That rationale does not apply to PJM NITS rates, which are zone-level annual
+  charges pegged to a single NSPL peak per zone. Blending the two mid-year rate updates into
+  one annual figure is the PJM-appropriate analog.
 
 ### Step 2 — Seasonal filter (NSPL-driven)
 
