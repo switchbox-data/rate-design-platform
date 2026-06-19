@@ -200,30 +200,57 @@ For a calendar-year BAT run, compute a **day-weighted blended rate** from the Ja
     blended_rate = (151 × jan_rate + 214 × jun_rate) / 365   # non-leap
     blended_rate = (152 × jan_rate + 214 × jun_rate) / 366   # leap
 
-This reflects PJM's daily NITS billing (Manual 27 §5.2.2): each day's charge uses the rate in
-effect that day, so Jan 1–May 31 uses the Jan rate and Jun 1–Dec 31 uses the Jun rate.
+**Source: PJM's own billing formula (not E3).** Per PJM Manual 27 §5.2.2, NITS is billed daily:
 
-**Rationale for a single blended rate (not two separate allocations):**
+    Daily charge for customer i = PLCᵢ × (Annual Zonal NITS Rate / days_in_year)
 
-- **PJM's billing formula is day-weighted:** Per PJM Manual 27 §5.2.2, each day's NITS charge
-  uses the rate in effect that day (`Daily charge = Daily PLC × Annual Rate / days_in_year`).
-  Integrating over the calendar year, a customer with constant 1 kW load pays exactly the
-  blended rate defined above — making the blended rate the correct annual scalar for the BAT.
+Because the rate changes on June 1, a constant 1 kW customer's annual bill is:
+
+    Annual cost = 1 kW × (151 × jan_rate + 214 × jun_rate) / 365
+
+That expression is exactly the blended rate — it is not an approximation but the literal sum of
+PJM's daily charges over the calendar year. E3's ICC-VDER uses a single $/kW-yr NITS figure per
+utility and allocates it via PCAF; the day-weighted blending is our PJM-specific adaptation to
+handle the fact that PJM publishes two rates per year, not something E3 explicitly prescribes.
+
+**Does the seasonal top-150 filter conflict with the blended rate? No — they answer different
+questions:**
+
+- The **blended rate** (Step 1) answers: _How much annual bulk TX cost does a constant 1 kW
+  load incur?_ Answer: B = `(151 × jan_rate + 214 × jun_rate) / 365`.
+- The **seasonal filter + PCAF** (Steps 2–3) answers: _Which specific hours drive that cost?_
+  Answer: the top-150 load hours in the season when the zone's NSPL peak occurs.
+
+They compose without contradiction:
+
+    cost_h = (load_h / Σ_{top-150} load) × B    for the 150 peak seasonal hours
+    cost_h = 0                                    for all other hours
+    Σ cost_h across all 8760 hours = B            ← full annual cost recovered ✓
+
+The intuition: under PJM NITS billing, the **causal event** is your load at the NSPL hour (one
+summer or winter peak). PJM then bills you based on that PLC every day of the year at the
+prevailing rate. The blended rate represents the full-year billing liability. The seasonal PCAF
+correctly attributes that liability's causation to peak-season hours. These are orthogonal
+choices — one quantifies the annual cost, the other localizes it to specific hours.
+
+**Rationale for a single blended rate (not two separate rate-period passes):**
+
 - **Summer-peaking utilities (BGE, DPL, PEPCO):** All 150 peak hours under the seasonal filter
   fall in Jun–Sep, which is entirely within the Jun-rate period. If we split costs into a
-  Jan-rate pass and a Jun-rate pass, the Jan-rate portion (151 × jan_rate / 365 of the annual
-  cost) would have zero seasonal peak hours to land on — it would be stranded with no
-  allocation target. The blended approach avoids this by combining both rate periods into one
-  annual figure before allocation.
+  Jan-rate pass (allocate to Jan–May peak hours) and a Jun-rate pass (allocate to Jun–Dec peak
+  hours), the Jan-rate portion — `(151 × jan_rate / 365)` of the annual cost — would have zero
+  seasonal peak hours to land on. That slice of cost is stranded with no allocation target. The
+  blended approach avoids this by combining both rate periods before allocation.
 - **Winter-peaking utility (APS):** The APS rate does not change between Jan and Jun in any
   year (2021–2025 confirmed), so blending and splitting are arithmetically equivalent.
 - **Comparison with NYISO:** NYISO's bulk TX allocation does use a two-pass seasonal approach
-  (top-40 summer SCR hours + top-40 winter SCR hours, split by `phi_s`/`phi_w` weights). But
-  NYISO's seasonal split is driven by **transmission constraint geography** — NYISO constraints
-  bind in different locations in summer and winter, so costs must be spread across both seasonal
-  peak windows. That rationale does not apply to PJM NITS rates, which are zone-level annual
-  charges pegged to a single NSPL peak per zone. Blending the two mid-year rate updates into
-  one annual figure is the PJM-appropriate analog.
+  (top-40 summer SCR hours + top-40 winter SCR hours, with `phi_s`/`phi_w` weights splitting
+  the annual cost between seasons). But NYISO's split is driven by **transmission constraint
+  geography** — NYISO constraints bind in different locations in summer and winter, so costs
+  must be spread across both seasonal peak windows. PJM NITS rates are zone-level annual
+  charges pegged to one NSPL peak per zone; there is no structural need to split costs between
+  two seasons. The blended rate collapses the two mid-year rate updates into the single annual
+  figure that PJM's billing formula implies.
 
 ### Step 2 — Seasonal filter (NSPL-driven)
 
