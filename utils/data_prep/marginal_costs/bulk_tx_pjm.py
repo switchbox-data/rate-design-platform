@@ -6,13 +6,16 @@ PJM Network Integration Transmission Service (NITS) rates represent the bulk
 transmission cost per MW-year for each transmission zone. Following the E3 2025
 Illinois ICC-VDER methodology (Appendix C), we allocate the annual $/kW-yr cost
 to the top-K hours using Peak Capacity Allocation Factor (PCAF) load-share
-weighting within the relevant peak season.
+weighting across the full year — no seasonal filter.
 
 Key design choices (see context/methods/marginal_costs/md_bulk_transmission.md):
 
-1. **Annual value**: Day-weighted blend of Jan and Jun NITS rates.
-2. **Seasonal filter**: Summer (Jun–Sep) for BGE/DPL/PEPCO; winter (Dec–Mar)
-   for APS, based on PJM's NSPL zonal peak dates.
+1. **Annual value**: Day-weighted blend of Jan and Jun NITS rates (derived from
+   PJM Manual 27 §5.2.2 daily billing formula).
+2. **No seasonal filter**: Following E3's ICC-VDER methodology, which uses
+   full-year top-K hours with no seasonal restriction. This is a deliberate
+   departure from PJM's K=1 NSPL billing mechanism, chosen for rate design
+   tractability (see methodology doc for full rationale).
 3. **Allocation method**: PCAF load-share (not exceedance). Each of the top-K
    hours receives a share proportional to its load divided by total load across
    all K peak hours.
@@ -24,15 +27,16 @@ Result: exactly K = 150 hours have non-zero cost; all others are zero.
 Unit chain
 ----------
 $/kW-year (blended NITS)
-  --[PCAF load-share on top-150 seasonal hours]--> $/kW per peak hour
+  --[PCAF load-share on top-150 full-year hours]--> $/kW per peak hour
   --[output as bulk_tx_cost_enduse]--> hourly signal for CAIRO BAT
 
 Sources
 -------
-- E3 ICC-VDER Report, Illinois (Jan 2025), Appendix C, pp. 98-99.
+- E3 ICC-VDER Report, Illinois (Jan 2025), Section 3.2 Table 8 and Appendix C.
+  E3 uses a single NTS rate snapshot (ComEd: $39.80/kW-yr = PJM NITS rate of
+  $39,796/MW-yr from the June 2023 formula rate filing, in effect through
+  early 2024). Source: ETCC PJM Transmission Rates History 2015-2024.
 - PJM Manual 27, §5.2.2 (daily NITS billing formula).
-- PJM NSPL zonal peak dates (seasonal assignment).
-- PA PUC Act 129 Avoided T&D Cost Study (2025), Table 7.
 """
 
 from __future__ import annotations
@@ -55,17 +59,7 @@ NITS_CSV_PATH = (
     Path(__file__).resolve().parents[3] / "data/pjm/bulk_tx/nits/nits_rates.csv"
 )
 
-SUMMER_MONTHS = [6, 7, 8, 9]
-WINTER_MONTHS = [12, 1, 2, 3]
-
-ZONE_SEASON: dict[str, str] = {
-    "bge": "summer",
-    "dpl": "summer",
-    "pepco": "summer",
-    "potomac-edison": "winter",
-}
-
-VALID_PJM_UTILITIES = set(ZONE_SEASON.keys())
+VALID_PJM_UTILITIES = {"bge", "dpl", "pepco", "potomac-edison"}
 
 # Map utility name to NITS zone (used for looking up rates in CSV)
 UTILITY_TO_NITS_ZONE: dict[str, str] = {
@@ -158,11 +152,10 @@ def allocate_pcaf(
     load_df: pl.DataFrame,
     annual_cost_kw_year: float,
     k_peak_hours: int = DEFAULT_K_PEAK_HOURS,
-    season_months: list[int] | None = None,
 ) -> pl.DataFrame:
-    """Allocate annual $/kW-yr to top-K seasonal hours using PCAF load-share.
+    """Allocate annual $/kW-yr to top-K full-year hours using PCAF load-share.
 
-    Implements E3's ICC-VDER Appendix C methodology:
+    Implements E3's ICC-VDER Appendix C methodology (no seasonal filter):
         AF_h = load_h / sum(load across top-K hours)
         cost_h = AF_h * annual_cost_kw_year
 
@@ -170,29 +163,19 @@ def allocate_pcaf(
         load_df: DataFrame with 'timestamp' (tz-aware or naive) and 'load_mw'.
         annual_cost_kw_year: Blended annual NITS rate in $/kW-year.
         k_peak_hours: Number of top hours for allocation (default 150).
-        season_months: Months to include in seasonal filter. If None, use all.
 
     Returns:
         DataFrame with 'timestamp' and 'bulk_tx_cost_enduse' for the K peak hours.
         Exactly k_peak_hours rows with non-zero cost.
     """
-    # Apply seasonal filter
-    if season_months is not None:
-        seasonal_df = load_df.filter(
-            pl.col("timestamp").dt.month().is_in(season_months)
-        )
-    else:
-        seasonal_df = load_df
-
-    if seasonal_df.height < k_peak_hours:
+    if load_df.height < k_peak_hours:
         raise ValueError(
-            f"Seasonal filter leaves only {seasonal_df.height} hours, "
-            f"need at least {k_peak_hours} for PCAF allocation. "
-            f"Season months: {season_months}"
+            f"Load data has only {load_df.height} hours, "
+            f"need at least {k_peak_hours} for PCAF allocation."
         )
 
-    # Select top-K hours by load
-    top_k = seasonal_df.sort("load_mw", descending=True).head(k_peak_hours)
+    # Select top-K hours by load across the full year
+    top_k = load_df.sort("load_mw", descending=True).head(k_peak_hours)
 
     # Compute PCAF load-share weights
     total_peak_load = float(top_k["load_mw"].sum())
@@ -226,10 +209,9 @@ def compute_pjm_bulk_tx_mc(
     Steps:
         1. Load NITS rates and compute blended annual $/kW-yr.
         2. Load hourly demand for the utility.
-        3. Apply seasonal filter (summer or winter based on NSPL).
-        4. Run PCAF load-share allocation on top-K hours.
-        5. Expand to full 8760 output.
-        6. Validate sum equals blended rate.
+        3. Run PCAF load-share allocation on top-K full-year hours.
+        4. Expand to full 8760 output.
+        5. Validate sum equals blended rate.
 
     Returns:
         8760-row DataFrame with columns: timestamp, bulk_tx_cost_enduse
@@ -244,17 +226,13 @@ def compute_pjm_bulk_tx_mc(
     nits_df = load_nits_rates(nits_csv_path)
     blended_rate = compute_blended_nits_rate(nits_df, nits_zone, year)
 
-    season = ZONE_SEASON[utility]
-    season_months = SUMMER_MONTHS if season == "summer" else WINTER_MONTHS
-
     print("\n── PJM Bulk TX MC Configuration ──")
     print(f"  Utility:        {utility}")
     print(f"  NITS zone:      {nits_zone}")
     print(f"  Year:           {year}")
     print(f"  Blended rate:   ${blended_rate:.4f}/kW-yr")
-    print(f"  Season:         {season} (months {season_months})")
     print(f"  K peak hours:   {k_peak_hours}")
-    print("  Method:         PCAF load-share (E3 ICC-VDER)")
+    print("  Method:         PCAF load-share, full-year (E3 ICC-VDER)")
 
     # Step 2: Load hourly demand
     print("\n── Loading hourly demand ──")
@@ -268,17 +246,16 @@ def compute_pjm_bulk_tx_mc(
             pl.col("timestamp").dt.replace_time_zone(None).alias("timestamp")
         )
 
-    # Step 3-4: PCAF allocation with seasonal filter
+    # Step 3: PCAF allocation on full-year load
     print("\n── PCAF Allocation ──")
     peak_hours_df = allocate_pcaf(
         load_df=load_df,
         annual_cost_kw_year=blended_rate,
         k_peak_hours=k_peak_hours,
-        season_months=season_months,
     )
     print(f"  Allocated to {peak_hours_df.height} hours")
 
-    # Step 5: Expand to full 8760
+    # Step 4: Expand to full 8760
     ref_8760 = build_cairo_8760_timestamps(year)
     output = (
         ref_8760.join(peak_hours_df, on="timestamp", how="left")
@@ -291,7 +268,7 @@ def compute_pjm_bulk_tx_mc(
     if output.height != 8760:
         raise ValueError(f"Output has {output.height} rows, expected 8760")
 
-    # Step 6: Validate
+    # Step 5: Validate
     actual_sum = float(output["bulk_tx_cost_enduse"].sum())
     error = abs(actual_sum - blended_rate)
     error_pct = (error / blended_rate * 100) if blended_rate > 0 else 0.0

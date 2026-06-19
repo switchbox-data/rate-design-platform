@@ -3,8 +3,8 @@
 How to create a bulk transmission marginal cost signal for the BAT in Maryland. All MD utilities
 are within PJM territory, so the relevant framework is PJM's OATT Attachment H (NITS rates and
 NSPL peaks), not ISO-NE's RNS/AESC. This document covers the available data, the recommended
-methodology, the NITS/ATRR values sourced from PJM's published documents, and the seasonal
-allocation logic derived from PJM's NSPL peak-date data.
+methodology (following E3's ICC-VDER full-year PCAF approach with K=150), and the NITS/ATRR
+values sourced from PJM's published documents.
 
 Related docs:
 
@@ -64,7 +64,9 @@ Section 3.2, Table 8.
 The **5-CP** is the right methodology for **supply capacity MC** (see
 `context/domain/marginal_costs/pjm_supply_capacity_marginal_cost.md`).
 
-The **NSPL** is the right methodology for **bulk TX MC**. The key difference:
+The **NSPL** is how PJM bills transmission costs. Our allocation methodology (K=150 PCAF,
+full year) deliberately departs from NSPL billing — see "Why K = 150" section below. The key
+NSPL difference vs. 5-CP:
 
 - NSPL uses a **12-month rolling window ending October 31** (varies by EDC; see each
   utility's OATT Attachment M-2 filing at https://www.pjm.com/markets-and-operations/billing-settlements-and-credit/theo-plc-and-nspl).
@@ -244,48 +246,55 @@ A customer with constant 1 kW load pays over the full calendar year:
 This is the **blended rate** — not an approximation, but the exact arithmetic of PJM's daily
 billing integrated over the year. It is the correct annual scalar to use for the BAT.
 
-**Does the seasonal top-150 filter conflict with the blended rate? No — they answer separate
-questions:**
+**The blended rate and full-year PCAF answer separate, composable questions:**
 
 - The **blended rate** (Step 1) answers: _How much annual bulk TX cost does a constant 1 kW
   load incur?_ Answer: B = `(151 × jan_rate + 214 × jun_rate) / 365`.
-- The **seasonal filter + PCAF** (Steps 2–3) answers: _Which specific hours drive that cost?_
-  Answer: the top-150 load hours in the season when the zone's NSPL peak occurs.
+- The **full-year PCAF** (Steps 2–3) answers: _Which specific hours drive that cost?_
+  Answer: the top-150 load hours across the full year.
 
-They compose without contradiction:
+They compose cleanly:
 
-    cost_h = (load_h / Σ_{top-150} load) × B    for the 150 peak seasonal hours
+    cost_h = (load_h / Σ_{top-150} load) × B    for the 150 peak hours
     cost_h = 0                                    for all other hours
     Σ cost_h across all 8760 hours = B            ← full annual cost recovered ✓
 
-The intuition: under PJM NITS billing, the **causal event** is your load at the NSPL hour. PJM
-then bills you based on that PLC every day of the year at the prevailing rate. The blended rate
-represents the full-year billing liability. The seasonal PCAF correctly identifies the causal
-hours. These are orthogonal choices — one quantifies the annual cost, the other localizes it.
-
 **Rationale for blending rather than two separate rate-period passes:**
 
-- **Summer-peaking utilities (BGE, DPL, PEPCO):** All 150 peak hours under the seasonal filter
-  fall in Jun–Sep, entirely within the Jun-rate period. A two-pass approach (Jan-rate costs →
-  Jan–May peak hours; Jun-rate costs → Jun–Dec peak hours) would leave the Jan-rate portion —
-  `(151 × jan_rate / 365)` of annual cost — with zero seasonal peak hours to allocate to. That
-  slice of cost would be stranded. Blending avoids this by combining both rate periods first.
-- **Winter-peaking utility (APS):** APS rate is unchanged between Jan and Jun every year
-  (2021–2025 confirmed), so blending and splitting are arithmetically equivalent.
-- **Comparison with NYISO:** NYISO's bulk TX allocation does use a two-pass seasonal approach
-  (top-40 summer SCR hours + top-40 winter SCR hours). But NYISO's split is driven by
-  **transmission constraint geography** — constraints bind in different locations in summer and
-  winter. PJM NITS rates are zone-level annual charges pegged to one NSPL peak per zone; there
-  is no structural reason to split costs across two seasons.
+A two-pass approach (allocate Jan-rate costs to top hours in Jan–May, Jun-rate costs to top
+hours in Jun–Dec) was considered but rejected. For summer-peaking utilities like BGE/DPL/PEPCO,
+the top-150 full-year hours are almost entirely in Jun–Sep, so the Jan-rate portion would have
+very few hours to land on — most of the annual cost would be allocated via the Jun rate anyway.
+For APS, the Jan and Jun rates are identical (2021–2025), so splitting is a no-op. The blended
+rate is simpler and directly represents PJM's actual annual billing arithmetic.
 
-### Step 2 — Seasonal filter (NSPL-driven)
+### Step 2 — No seasonal filter (full-year, following E3)
 
-Apply a **seasonal filter** before identifying peak hours, following PJM's NSPL mechanism:
+Use the **full year** of hourly load data — no seasonal restriction. This directly follows E3's
+ICC-VDER methodology, which selects the top-150 hours from the entire year.
 
-- **Summer-peaking zones (BGE, DPL, PEPCO):** Retain only June–September hours.
-- **Winter-peaking zones (APS):** Retain only December–March hours.
+**Why no seasonal filter:**
 
-The seasonal assignment is determined each year from PJM's published NSPL zonal peak dates:
+An earlier draft applied a seasonal filter (summer for BGE/DPL/PEPCO, winter for APS) to align
+with PJM's NSPL mechanism. This was removed because:
+
+1. **Consistency with our K choice:** We already deliberately depart from PJM's strict NSPL
+   billing mechanism by using K = 150 instead of K = 1 (see rationale below). Applying a
+   seasonal filter was an attempt to partially follow PJM's billing logic, but if we're not
+   following PJM's K = 1 approach, there is no coherent reason to carry the seasonal restriction
+   either. We either follow PJM's billing (K = 1, single NSPL hour) or follow E3's rate design
+   methodology (K = 150, full year). Mixing the two is internally inconsistent.
+2. **E3 uses full year:** E3's Appendix C explicitly states that allocation factors are computed
+   from the top-150 load hours of the full year. They note that in early years these hours are
+   concentrated in summer, and that as electrification progresses they shift toward winter — but
+   they make no seasonal restriction. This is the methodology we are adopting.
+3. **APS winter consideration:** Without a seasonal filter, APS (a winter-peaking zone) will
+   naturally have some of its top-150 hours fall in winter, since its peak is in January. The
+   full-year approach lets the load data speak for itself rather than imposing a prior.
+
+**Note on NSPL zonal peaks (informational — retained for reference, not used for filtering):**
+
+PJM's 2025 NSPL zonal peak data shows:
 
 | Zone  | 2025 NSPL peak date | Season |
 | ----- | ------------------- | ------ |
@@ -294,68 +303,36 @@ The seasonal assignment is determined each year from PJM's published NSPL zonal 
 | PEPCO | 7/16/2024           | Summer |
 | APS   | 1/22/2024           | Winter |
 
-**Rationale for seasonal filter (deliberate departure from E3):**
-
-E3's ICC-VDER uses top-150 hours from the **full year with no seasonal filter**. They note that
-in early years, allocation factors are concentrated in summer months, but they do not restrict
-the analysis to summer. E3's context is a DER avoided-cost study; for their purposes, a winter
-hour can also carry transmission capacity value.
-
-We apply a seasonal filter for a different reason — our context is BAT cost-causation analysis
-grounded in PJM's actual billing mechanism:
-
-- PJM's NSPL identifies **one peak per zone per year** in a rolling Nov 1–Oct 31 window. That
-  peak is either summer or winter depending on the zone. The NITS billing for the full year is
-  driven entirely by that one seasonal peak — not by the 2nd highest hour or any cross-season
-  comparison.
-- For BGE/DPL/PEPCO (summer-peaking): all cost causation flows from summer peak hours. Including
-  winter hours in the top-150 set would attribute cost to hours that, under PJM's actual billing,
-  have no effect on a customer's NITS charge.
-- For APS (winter-peaking): including summer hours would similarly misattribute cost causation.
-
-The seasonal filter makes the PCAF signal as faithful as possible to PJM's NSPL cost-causation
-logic, even while we use K = 150 rather than K = 1 for rate design tractability.
-
-Additional support: the PA PUC Act 129 Avoided T&D Cost Study (2025), Table 7, explicitly splits
-PJM utility transmission costs into summer and winter allocation factors, consistent with the
-seasonal-filter approach.
-
-For BGE/DPL/PEPCO, the filter has minimal practical effect — their top-150 full-year hours are
-almost entirely in Jun–Sep anyway. For APS, the filter is critical: without it, Jun–Jul hours
-(which are comparably high due to summer AC load) would dilute the winter allocation signal and
-mis-attribute costs to summer hours that APS's NSPL mechanism does not penalize.
+This is informative context for understanding cost-causation under PJM billing, but we do not
+use it to restrict which hours are eligible for PCAF allocation.
 
 ### Step 3 — Hourly allocation: PCAF (Peak Capacity Allocation Factor) method, K = 150
 
 Apply the **PCAF load-share** method (following E3's ICC-VDER Appendix C) to allocate the
-blended annual $/kW-yr across the top-K hours within the relevant season:
+blended annual $/kW-yr across the top-K hours of the full year:
 
 1. Load the PJM zone hourly demand for the relevant utility and year.
    Source: `s3://data.sb/pjm/hourly_demand/utilities/utility={name}/year={year}/data.parquet`
-2. Filter to the relevant season (Jun–Sep for BGE/DPL/PEPCO; Dec–Mar for APS).
-3. Rank hours by `load_mw` descending.
-4. Select the **top K = 150 hours** by load within the season.
-5. Compute each hour's **load-share allocation factor**:
+2. Rank all 8760 hours by `load_mw` descending.
+3. Select the **top K = 150 hours** by load.
+4. Compute each hour's **load-share allocation factor**:
 
        AF_h = load_h / Σ(load in top-K hours)
 
    where `load_h` is the zonal demand in hour `h`, and the sum is over all K = 150 peak hours.
    The sum of all AFs equals exactly 1.0.
 
-6. Compute each hour's allocated cost:
+5. Compute each hour's allocated cost:
 
        cost_h = AF_h × annual_cost_kw_yr
 
    This distributes the full annual $/kW-yr across exactly 150 hours.
    All other 8610 hours (8760 − 150) receive **zero** marginal cost.
 
-7. **Validate:** sum of `cost_h` across all 8760 hours = blended annual $/kW-yr (tolerance < 0.01).
+6. **Validate:** sum of `cost_h` across all 8760 hours = blended annual $/kW-yr (tolerance < 0.01).
 
 **Key property: exactly 150 non-zero hours.** All other hours have zero bulk TX marginal cost.
-This is by construction — only the top-150 seasonal hours receive allocation. The practical
-implication for heat pump rate design: HP winter heating load only contributes to bulk TX costs
-if it falls in one of the 150 highest-demand hours in the relevant season (Dec–Mar for APS,
-Jun–Sep for BGE/DPL/PEPCO where HP winter load is guaranteed to be zero-cost).
+This is by construction — only the top-150 full-year hours receive allocation.
 
 ### Why K = 150? E3's approach vs. PJM's billing mechanism
 
@@ -460,8 +437,8 @@ Appendix C, pp. 98-99, Figure 42.
 | Best available MC source   | OATT ATRR proxy (each TO)                   | AESC avoided PTF cost (LRMC)       | **OATT NITS rate proxy (each zone)**                                    |
 | Institutional backing      | None for bulk TX MC                         | AESC used by RI PUC                | E3 Illinois report (state-commissioned)                                 |
 | Data quality               | Embedded average only                       | Year-by-year LRMC projections      | Embedded average; updated annually                                      |
-| Peak allocation            | NYISO zonal load, SCR hours (summer+winter) | NE system load, 12-CP informed     | **Zonal load, NSPL season-dependent**                                   |
-| Season                     | Summer + winter (SCR)                       | Primarily summer (12-CP)           | **Summer (BGE/DPL/PEPCO); winter (APS)**                                |
+| Peak allocation            | NYISO zonal load, SCR hours (summer+winter) | NE system load, 12-CP informed     | **Zonal load, top-150 full year (PCAF)**                                |
+| Season                     | Summer + winter (SCR)                       | Primarily summer (12-CP)           | **Full year (following E3); no seasonal filter**                        |
 | RTO pushback on rate       | FERC/NYISO have no better estimate          | AESC is preferred; RNS is fallback | **PJM/MISO said NTS is not ideal LRMC; no better alternative provided** |
 | Approximate $/kW-yr (2025) | ~$36–120 (by TO)                            | ~$69 (AESC PTF)                    | **~$25–65 (by zone)**                                                   |
 
@@ -469,17 +446,17 @@ Appendix C, pp. 98-99, Figure 42.
 
 ## Data sources and where to get them
 
-| Dataset                      | URL / Location                                                                                                           | Use                                                |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
-| PJM NITS rates (current)     | https://www.pjm.com/markets-and-operations/billing-settlements-and-credit                                                | Annual $/kW-yr value per zone                      |
-| PJM NITS archive PDFs        | Jan/Jun each year: `network-integration-trans-service-{jan,june}-{year}.pdf` at above URL                                | Historical year-by-year blended rates              |
-| PJM NSPL (zonal peak dates)  | https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-service-peak-loads-{year}.pdf                         | Seasonal allocation (which season each zone peaks) |
-| PJM OATT Formula Rates       | https://www.pjm.com/markets-and-operations/billing-settlements-and-credit/formula-rates                                  | ATRR inputs, true-up filings                       |
-| NSPL methodology (per EDC)   | https://www.pjm.com/markets-and-operations/billing-settlements-and-credit/theo-plc-and-nspl                              | How each EDC computes NSPL (OATT Attachment M-2)   |
-| EIA/PJM zone hourly loads    | Already on S3: `data/eia/hourly_loads/pjm/` or `data/pjm/` (see existing pipelines)                                      | Hourly peak identification for PoP allocation      |
-| MD OPC rising TX cost report | https://opc.maryland.gov/Portals/0/Files/Publications/Rising%20Transmission%20Costs%202026-03-25%20CORRECTED%20FINAL.pdf | MD-specific policy context and scaling rationale   |
-| E3 Illinois ICC-VDER report  | https://www.ethree.com/wp-content/uploads/2025/01/ICC-VDER-Report-FINAL-2025-1-17.pdf                                    | Precedent for NITS-as-upper-bound approach         |
-| PA PUC avoided TX study      | https://www.puc.pa.gov/pcdocs/1855615.pdf                                                                                | Seasonal allocation precedent for PJM utilities    |
+| Dataset                      | URL / Location                                                                                                           | Use                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| PJM NITS rates (current)     | https://www.pjm.com/markets-and-operations/billing-settlements-and-credit                                                | Annual $/kW-yr value per zone                                                |
+| PJM NITS archive PDFs        | Jan/Jun each year: `network-integration-trans-service-{jan,june}-{year}.pdf` at above URL                                | Historical year-by-year blended rates                                        |
+| PJM NSPL (zonal peak dates)  | https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-service-peak-loads-{year}.pdf                         | Informational context (which season each zone peaks; not used for filtering) |
+| PJM OATT Formula Rates       | https://www.pjm.com/markets-and-operations/billing-settlements-and-credit/formula-rates                                  | ATRR inputs, true-up filings                                                 |
+| NSPL methodology (per EDC)   | https://www.pjm.com/markets-and-operations/billing-settlements-and-credit/theo-plc-and-nspl                              | How each EDC computes NSPL (OATT Attachment M-2)                             |
+| EIA/PJM zone hourly loads    | Already on S3: `data/eia/hourly_loads/pjm/` or `data/pjm/` (see existing pipelines)                                      | Hourly peak identification for PoP allocation                                |
+| MD OPC rising TX cost report | https://opc.maryland.gov/Portals/0/Files/Publications/Rising%20Transmission%20Costs%202026-03-25%20CORRECTED%20FINAL.pdf | MD-specific policy context and scaling rationale                             |
+| E3 Illinois ICC-VDER report  | https://www.ethree.com/wp-content/uploads/2025/01/ICC-VDER-Report-FINAL-2025-1-17.pdf                                    | Precedent for NITS-as-upper-bound approach                                   |
+| PA PUC avoided TX study      | https://www.puc.pa.gov/pcdocs/1855615.pdf                                                                                | Reference for PJM utility transmission cost studies                          |
 
 ---
 
@@ -585,9 +562,9 @@ hardcoded) was chosen because:
 Create `utils/data_prep/marginal_costs/bulk_tx_pjm.py` following the same structure as
 `bulk_tx_isone.py` and `bulk_tx_nyiso.py`:
 
-- Input: zone name (`bge`, `dpl`, `pepco`, `aps`), year, NITS rate ($/kW-yr)
-- Seasonal filter: summer (Jun–Sep) for BGE/DPL/PEPCO; winter (Dec–Mar) for APS
-- Hourly allocation: `allocate_annual_exceedance_to_hours()` on zone load, top-K hours
+- Input: zone name (`bge`, `dpl`, `pepco`, `potomac-edison`), year, NITS rate ($/kW-yr)
+- No seasonal filter (full-year top-K, following E3)
+- Hourly allocation: PCAF load-share on zone load, top-K hours
 - Output: 8760-row DataFrame with `timestamp`, `bulk_tx_cost_enduse`
 - Validation: sum of allocations = annual $/kW-yr
 
@@ -603,8 +580,8 @@ recipes. Each recipe should take `utility` and `year` as arguments and invoke
 
 After implementation, run the BAT with:
 
-- Primary: 2025 NITS blended rate, K = 100 summer peak hours
-- Sensitivity A: K = 5 (strict NSPL)
+- Primary: 2025 NITS blended rate, K = 150 full-year peak hours
+- Sensitivity A: K = 5 (strict NSPL) or K = 100 (NY/RI convention)
 - Sensitivity B: Use the MD OPC report's forward-looking cost estimates (if available) as an
   alternative to the embedded NITS rate
 
