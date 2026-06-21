@@ -32,11 +32,11 @@ path_s3_utility_loads := "s3://data.sb/pjm/hourly_demand/utilities/"
 # Available years from PJM LMP download (2018-2025, excluding incomplete 2026).
 pjm_lmp_years := "2018 2019 2020 2021 2022 2023 2024 2025"
 
-# All MD utilities and their PJM zones (IOUs + co-ops + municipals).
-# IOUs: bge (BGE), pepco (PEPCO), dpl (DPL), potomac-edison (APS)
-# Co-ops: smeco (PEPCO), choptank (DPL), an-electric (DPL), somerset-rec (APS)
-# Municipals: hagerstown (APS), thurmont (APS), williamsport (APS), easton (DPL), berlin (DPL)
-pjm_utilities := "bge pepco dpl potomac-edison smeco choptank an-electric somerset-rec hagerstown thurmont williamsport easton berlin"
+# All MD utilities (canonical std_names) and their PJM zones (IOUs + co-ops + municipals).
+# IOUs: bge (BGE), pepco (PEPCO), dpl (DPL), poted (APS)
+# Co-ops: smeco (PEPCO), choptank (DPL), somerset_rec (APS)
+# Municipals: hagerstown_muni (APS), easton_muni (DPL), berlin_muni (DPL)
+pjm_utilities := "bge pepco dpl poted smeco choptank somerset_rec hagerstown_muni easton_muni berlin_muni"
 
 # Generate supply energy MC for one MD utility and one year.
 #
