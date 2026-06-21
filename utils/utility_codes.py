@@ -281,7 +281,7 @@ UTILITIES: list[UtilityRecord] = [
         "eia_utility_ids": [15270],
     },
     {
-        "std_name": "potomac_edison",
+        "std_name": "poted",
         "state": "MD",
         "fuels": ["electric"],
         "display_name": "Potomac Edison",
@@ -289,7 +289,7 @@ UTILITIES: list[UtilityRecord] = [
         "eia_utility_ids": [15263],
     },
     {
-        "std_name": "delmarva",
+        "std_name": "dpl",
         "state": "MD",
         "fuels": ["electric"],
         "display_name": "Delmarva Power",
