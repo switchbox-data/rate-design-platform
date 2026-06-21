@@ -66,6 +66,23 @@ STATE_CONFIGS: dict[str, StateConfig] = {
         iso_region="isone",
         label="ISONE",
     ),
+    # MD does not use the EIA-930 load pipeline: its sub-TX/DX marginal-cost
+    # workflow reads PJM-native utility loads from
+    # s3://data.sb/pjm/hourly_demand/utilities/ (see data/pjm/hourly_demand/).
+    # This entry exists so get_state_config("MD") resolves for that workflow;
+    # the EIA-specific fields (eia_parent, eia_subba_filters, zone_mapping,
+    # zones) are unused for MD. The ISO-native load layout has no region=
+    # partition, so iso_region is not used as a load filter for MD.
+    "MD": StateConfig(
+        state="MD",
+        eia_parent="PJM",
+        eia_subba_filters=None,
+        zone_mapping={},
+        zones=[],
+        timezone="America/New_York",
+        iso_region="pjm",
+        label="PJM",
+    ),
 }
 
 
