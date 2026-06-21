@@ -112,13 +112,13 @@ The 5 highest non-holiday-weekday RTO unrestricted daily peaks per summer (PJM's
 
 One row per (utility, zone, weight); the single place the per-source zone aliases (`dataminer_zone`, `fivecp_zone_label`, `price_zone`) live. MC scripts use it to filter the region-wide datasets down to one utility.
 
-|                    |                                                                  |
-| ------------------ | ---------------------------------------------------------------- |
-| **Source**         | Hardcoded rows in `generate_zone_mapping_csv.py` (nyiso pattern) |
-| **Format**         | Generated CSV (uploaded as CSV, not parquet)                     |
-| **Coverage**       | MD utilities: bge, pepco, dpl, potomac-edison                    |
-| **S3 path**        | `s3://data.sb/pjm/zone_mapping/pjm_utility_zone_mapping.csv`     |
-| **Update cadence** | When onboarding a utility                                        |
+|                    |                                                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Source**         | Hardcoded rows in `generate_zone_mapping_csv.py` (nyiso pattern)                                                                     |
+| **Format**         | Generated CSV (uploaded as CSV, not parquet)                                                                                         |
+| **Coverage**       | MD utilities (canonical std_names): bge, pepco, dpl, poted, smeco, choptank, somerset_rec, hagerstown_muni, easton_muni, berlin_muni |
+| **S3 path**        | `s3://data.sb/pjm/zone_mapping/pjm_utility_zone_mapping.csv`                                                                         |
+| **Update cadence** | When onboarding a utility                                                                                                            |
 
 **How to update**: Edit `_MAPPING_ROWS` in `generate_zone_mapping_csv.py`, then `just prepare && just upload`. Validation cross-checks every mapped zone against both capacity CSVs (the single enforcement point of zone-code integrity between the three datasets).
 
@@ -128,7 +128,7 @@ One row per (utility, zone, weight); the single place the per-source zone aliase
 
 - **Three naming systems, one crosswalk**: Data Miner legacy codes (`BC`, `PEP`, `AP`) vs PDF/XLS labels (`BGE`, `PEPCO`, `APS`) — this CSV is the only place the mapping lives.
 - **Zone ≠ retail territory**: the PEPCO and DPL zones span MD + DC/DE; `state` here is the _analysis_ state, customer filtering happens upstream in ResStock utility assignment.
-- **`potomac-edison`** is a retail brand inside the APS zone — zone-level data includes WV/PA load.
+- **`poted`** (Potomac Edison) is a retail brand inside the APS zone — zone-level data includes WV/PA load.
 - **UGI / PPL-folded zones**: UGI has no separate row in the RPM price files (it sits inside the PPL LDA), so a mapping row with `price_zone=UGI` will fail the RPM cross-check. Set `price_zone=PPL` for such utilities (UGI is still valid for `fivecp_zone_label` and `dataminer_zone`, which both carry a UGI row).
 
 ## Historical source URLs
