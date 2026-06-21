@@ -111,10 +111,13 @@ no server-side `type`/`pnode_id` filter; it filters to the MD zones client-side
 
 Local staging (gitignored), then `aws s3 sync` to S3:
 
-- Zones: `zone={CODE}/year=YYYY/data.parquet`
+- Zones: `zone={CODE}/year=YYYY/month=MM/data.parquet`
   → `s3://data.sb/pjm/hourly_demand/zones/`
-- Utilities: `utility={slug}/year=YYYY/data.parquet`
+- Utilities: `utility={slug}/year=YYYY/month=MM/data.parquet`
   → `s3://data.sb/pjm/hourly_demand/utilities/`
+
+Year/month are Eastern wall-clock (`year`/`month` of the local `timestamp`),
+matching the NYISO/ISO-NE/EIA partition convention so all ISO load layouts agree.
 
 Output schema:
 
@@ -145,7 +148,8 @@ just -f data/pjm/hourly_demand/Justfile upload                # aws s3 sync to S
 
 ## Scope
 
-This pipeline produces the loads only. Pointing the MD sub-TX/DX workflow at
-these PJM-native utility loads (the consumer-side `path_s3_utility_loads`
-override and `generate_utility_tx_dx_mc.py` native-path handling) is a separate
-follow-up.
+This pipeline produces the loads only. The MD sub-TX/DX workflow consumes these
+PJM-native utility loads via the `md/Justfile` `path_s3_utility_loads` override
+(`s3://data.sb/pjm/hourly_demand/utilities/`) and the ISO-native-path handling in
+`generate_utility_tx_dx_mc.py` (the region filter applies only to EIA paths; all
+ISO-native paths, including PJM, skip it).

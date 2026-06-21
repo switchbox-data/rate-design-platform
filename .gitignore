@@ -96,6 +96,7 @@ build/
 !rate_design/hp_rates/ri/config/tariff_maps/**
 !rate_design/hp_rates/ny/config/marginal_costs/**
 !rate_design/hp_rates/ri/config/marginal_costs/**
+!rate_design/hp_rates/md/config/marginal_costs/**
 !rate_design/hp_rates/ri/config/distribution_cost_params.json
 
 # Terraform state files

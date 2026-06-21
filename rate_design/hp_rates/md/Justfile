@@ -1,15 +1,33 @@
 # MD heat pump rate design tasks.
+# Thin wrapper: sets state defaults, loads state.env, imports shared recipes.
 #
 # Usage (from rate_design/hp_rates/):
 #   just -f md/Justfile create-supply-energy-mc bge 2023
-#   just -f md/Justfile create-supply-energy-mc-all-years bge
-#   just -f md/Justfile create-supply-energy-mc-all 2023
+#   just -f md/Justfile create-dist-and-sub-tx-mc-data        # uses state.env UTILITY
+# Or via dispatch:
+#   just s md create-dist-and-sub-tx-mc-data
 
-[private]
-path_repo := `git -C "$(dirname '{{justfile()}}')" rev-parse --show-toplevel`
+set dotenv-path := "state.env"
 
-[private]
-path_script := path_repo + "/utils/data_prep/marginal_costs/generate_supply_energy_mc.py"
+state := env_var_or_default('STATE', 'md')
+utility := env_var_or_default('UTILITY', 'bge')
+
+import '../Justfile'
+
+# =============================================================================
+# MD-only: ISO-native load source for sub-TX/DX marginal costs
+#
+# MD reads PJM-native utility loads (data/pjm/hourly_demand/) instead of the
+# shared EIA default. Layout: utility={slug}/year=YYYY/month=MM/data.parquet,
+# which the ISO-native path handling in generate_utility_tx_dx_mc.py reads
+# without a region= filter.
+# =============================================================================
+
+path_s3_utility_loads := "s3://data.sb/pjm/hourly_demand/utilities/"
+
+# =============================================================================
+# MD-only: supply energy marginal costs (PJM LMP)
+# =============================================================================
 
 # Available years from PJM LMP download (2018-2025, excluding incomplete 2026).
 pjm_lmp_years := "2018 2019 2020 2021 2022 2023 2024 2025"
@@ -25,7 +43,7 @@ pjm_utilities := "bge pepco dpl potomac-edison smeco choptank an-electric somers
 #   just -f md/Justfile create-supply-energy-mc bge 2023
 # just -f md/Justfile create-supply-energy-mc bge 2023 --upload
 create-supply-energy-mc utility year *extra_args:
-    uv run python {{ path_script }} \
+    uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_energy_mc.py \
       --iso pjm \
       --utility {{ utility }} \
       --year {{ year }} \
@@ -40,7 +58,7 @@ create-supply-energy-mc-all-years utility *extra_args:
     set -euo pipefail
     for year in {{ pjm_lmp_years }}; do
         echo ">> Generating PJM supply energy MC: utility={{ utility }} year=${year}" >&2
-        uv run python {{ path_script }} \
+        uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_energy_mc.py \
           --iso pjm \
           --utility {{ utility }} \
           --year "${year}" \
@@ -57,7 +75,7 @@ create-supply-energy-mc-all year *extra_args:
     set -euo pipefail
     for utility in {{ pjm_utilities }}; do
         echo ">> Generating PJM supply energy MC: utility=${utility} year={{ year }}" >&2
-        uv run python {{ path_script }} \
+        uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_energy_mc.py \
           --iso pjm \
           --utility "${utility}" \
           --year {{ year }} \
@@ -76,7 +94,7 @@ create-supply-energy-mc-full-backfill *extra_args:
     for utility in {{ pjm_utilities }}; do
         for year in {{ pjm_lmp_years }}; do
             echo ">> Generating PJM supply energy MC: utility=${utility} year=${year}" >&2
-            uv run python {{ path_script }} \
+            uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_energy_mc.py \
               --iso pjm \
               --utility "${utility}" \
               --year "${year}" \

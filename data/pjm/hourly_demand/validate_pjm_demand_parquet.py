@@ -6,7 +6,8 @@ Two entry points:
 - :func:`validate_zone_loads` — in-memory check used by the fetch script before
   it writes anything. Returns ``(ok, messages)``; ``ok=False`` blocks the write.
 - :func:`main` — CLI QA battery over local Hive-partitioned parquet
-  (``zone=*/year=*/data.parquet``), run after fetch/aggregate and before upload.
+  (``zone=*/year=*/month=*/data.parquet``), run after fetch/aggregate and before
+  upload.
 
 Completeness is checked against the **Eastern calendar year**: a full year is
 8760 hours (8784 in a leap year), counted DST-aware off UTC so the spring-forward
@@ -131,7 +132,7 @@ def main() -> int:
         "--path-local-zones",
         type=Path,
         required=True,
-        help="Local parquet root (zone=*/year=*/data.parquet).",
+        help="Local parquet root (zone=*/year=*/month=*/data.parquet).",
     )
     args = parser.parse_args()
     root = args.path_local_zones.resolve()
@@ -140,7 +141,7 @@ def main() -> int:
         print(f"Not a directory: {root}", file=sys.stderr)
         return 1
 
-    parquet_files = list(root.glob("zone=*/year=*/data.parquet"))
+    parquet_files = list(root.glob("zone=*/year=*/month=*/data.parquet"))
     if not parquet_files:
         print(f"No parquet partitions found under {root}", file=sys.stderr)
         return 1
