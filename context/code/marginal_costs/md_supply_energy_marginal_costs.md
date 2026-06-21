@@ -44,21 +44,18 @@ host IOU, map to one of four PJM zone aggregate pricing nodes. Defined in
 `utils/data_prep/marginal_costs/supply_utils.py` (`PJM_UTILITY_ZONES`) and
 `data/pjm/zone_mapping/generate_zone_mapping_csv.py` (`_MAPPING_ROWS`).
 
-| Utility slug     | Type                         | PJM zone | pnode_id |
-| ---------------- | ---------------------------- | -------- | -------- |
-| `bge`            | IOU                          | BGE      | 51292    |
-| `pepco`          | IOU                          | PEPCO    | 51298    |
-| `dpl`            | IOU                          | DPL      | 51293    |
-| `potomac-edison` | IOU                          | APS      | 8394954  |
-| `smeco`          | Co-op (in PEPCO territory)   | PEPCO    | 51298    |
-| `choptank`       | Co-op (in DPL territory)     | DPL      | 51293    |
-| `an-electric`    | Co-op (in DPL territory)     | DPL      | 51293    |
-| `somerset-rec`   | Co-op (in APS territory)     | APS      | 8394954  |
-| `hagerstown`     | Municipal (in APS territory) | APS      | 8394954  |
-| `thurmont`       | Municipal (in APS territory) | APS      | 8394954  |
-| `williamsport`   | Municipal (in APS territory) | APS      | 8394954  |
-| `easton`         | Municipal (in DPL territory) | DPL      | 51293    |
-| `berlin`         | Municipal (in DPL territory) | DPL      | 51293    |
+| Utility slug      | Type                         | PJM zone | pnode_id |
+| ----------------- | ---------------------------- | -------- | -------- |
+| `bge`             | IOU                          | BGE      | 51292    |
+| `pepco`           | IOU                          | PEPCO    | 51298    |
+| `dpl`             | IOU                          | DPL      | 51293    |
+| `poted`           | IOU                          | APS      | 8394954  |
+| `smeco`           | Co-op (in PEPCO territory)   | PEPCO    | 51298    |
+| `choptank`        | Co-op (in DPL territory)     | DPL      | 51293    |
+| `somerset_rec`    | Co-op (in APS territory)     | APS      | 8394954  |
+| `hagerstown_muni` | Municipal (in APS territory) | APS      | 8394954  |
+| `easton_muni`     | Municipal (in DPL territory) | DPL      | 51293    |
+| `berlin_muni`     | Municipal (in DPL territory) | DPL      | 51293    |
 
 Utilities that share a zone get identical supply energy marginal cost profiles
 (the zone LMP is the same for all of them).
