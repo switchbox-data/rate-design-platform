@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Aggregate PJM zone loads to utility-level profiles.
 
-Reads local zone parquet (``zone={CODE}/year=YYYY/data.parquet``, Data Miner
-zone codes), maps each utility to its zone(s) via the PJM utility-zone crosswalk
+Reads local zone parquet (``zone={CODE}/year=YYYY/month=MM/data.parquet``, Data
+Miner zone codes), maps each utility to its zone(s) via the PJM utility-zone crosswalk
 (`data/pjm/zone_mapping/csv/pjm_utility_zone_mapping.csv`), sums zone loads by
 timestamp, and writes utility-level parquet locally.
 
@@ -15,9 +15,9 @@ Flagged zone-hours (``value_flag=True`` in the raw zone data) are linearly
 interpolated before aggregation; the utility output carries an ``interpolated``
 boolean marking any utility-hour built from an interpolated zone-hour.
 
-Input:  zone parquet:    zone={CODE}/year=YYYY/data.parquet
+Input:  zone parquet:    zone={CODE}/year=YYYY/month=MM/data.parquet
         (timestamp, load_mw, value_flag)
-Output: utility parquet: utility={slug}/year=YYYY/data.parquet
+Output: utility parquet: utility={slug}/year=YYYY/month=MM/data.parquet
         (timestamp, utility, load_mw, interpolated)
 
 Upload to S3 via the Justfile `upload` recipe.
@@ -152,18 +152,24 @@ def aggregate_utility_load(
 def write_utility_loads_local(
     utility_df: pl.DataFrame, utility_base: str, utility_name: str
 ) -> None:
-    """Write utility load Hive parquet (utility={slug}/year=YYYY/data.parquet).
+    """Write utility load Hive parquet.
+
+    Layout: utility={slug}/year=YYYY/month=MM/data.parquet (Eastern wall-clock
+    year/month), matching the NYISO/ISO-NE/EIA convention.
 
     Writes one ``data.parquet`` per partition (matching the documented S3 layout)
     rather than relying on Polars' auto-named partition files. Partition columns
     are encoded in the path, not the file.
     """
-    output_df = utility_df.with_columns(pl.col("timestamp").dt.year().alias("year"))
+    output_df = utility_df.with_columns(
+        pl.col("timestamp").dt.year().alias("year"),
+        pl.col("timestamp").dt.month().alias("month"),
+    )
     base = Path(utility_base)
-    for (utility, year), part_df in output_df.partition_by(
-        ["utility", "year"], as_dict=True
+    for (utility, year, month), part_df in output_df.partition_by(
+        ["utility", "year", "month"], as_dict=True
     ).items():
-        part_dir = base / f"utility={utility}" / f"year={year}"
+        part_dir = base / f"utility={utility}" / f"year={year}" / f"month={month:02d}"
         part_dir.mkdir(parents=True, exist_ok=True)
         part_df.select("timestamp", "load_mw", "interpolated").write_parquet(
             part_dir / "data.parquet", compression="zstd"

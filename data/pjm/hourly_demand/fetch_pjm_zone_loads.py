@@ -26,7 +26,7 @@ Output schema:
     reported a bad single-hour value; interpolated only at the utility step)
 
 Output layout:
-    <path_local_zones>/zone={CODE}/year=YYYY/data.parquet
+    <path_local_zones>/zone={CODE}/year=YYYY/month=MM/data.parquet
 
 Usage:
     uv run python data/pjm/hourly_demand/fetch_pjm_zone_loads.py \\
@@ -205,18 +205,24 @@ def sum_load_areas_to_zone(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
 
 def write_zone_data_local(df: pl.DataFrame, local_base: str) -> None:
-    """Write zone load data to local Hive parquet (zone={CODE}/year=YYYY/data.parquet).
+    """Write zone load data to local Hive parquet.
+
+    Layout: zone={CODE}/year=YYYY/month=MM/data.parquet (Eastern wall-clock
+    year/month), matching the NYISO/ISO-NE/EIA convention.
 
     Writes one ``data.parquet`` per partition (matching the documented S3 layout
     and the ISO-NE pipeline) rather than relying on Polars' auto-named partition
     files. Partition columns are encoded in the path, not the file.
     """
-    df = df.with_columns(pl.col("timestamp").dt.year().alias("year"))
+    df = df.with_columns(
+        pl.col("timestamp").dt.year().alias("year"),
+        pl.col("timestamp").dt.month().alias("month"),
+    )
     base = Path(local_base)
-    partitions = df.partition_by(["zone", "year"], as_dict=True)
+    partitions = df.partition_by(["zone", "year", "month"], as_dict=True)
     print(f"\nWriting {len(partitions)} partitions ({len(df):,} rows) to {base}")
-    for (zone, year), part_df in partitions.items():
-        part_dir = base / f"zone={zone}" / f"year={year}"
+    for (zone, year, month), part_df in partitions.items():
+        part_dir = base / f"zone={zone}" / f"year={year}" / f"month={month:02d}"
         part_dir.mkdir(parents=True, exist_ok=True)
         part_df.select("timestamp", "load_mw", "value_flag").write_parquet(
             part_dir / "data.parquet", compression="zstd"
