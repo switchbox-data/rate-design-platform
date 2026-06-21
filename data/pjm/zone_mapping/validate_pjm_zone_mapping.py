@@ -74,7 +74,10 @@ CANONICAL_CROSSWALK: dict[str, str] = {
 
 VALID_DATAMINER_ZONES = frozenset(CANONICAL_CROSSWALK.values())
 
-UTILITY_SLUG_RE = re.compile(r"^[a-z0-9-]+$")
+# Canonical utility std_names are lowercase, underscore-separated — never
+# hyphens (see utils/utility_codes.py). Disallowing hyphens here actively
+# prevents a hyphenated slug from drifting back into the crosswalk.
+UTILITY_SLUG_RE = re.compile(r"^[a-z0-9_]+$")
 
 
 class ValidationResult:
@@ -129,7 +132,7 @@ def check_utility_slugs(df: pl.DataFrame, result: ValidationResult) -> None:
     errors: list[str] = []
     for utility in df["utility"].unique().to_list():
         if not UTILITY_SLUG_RE.match(utility):
-            errors.append(f"utility '{utility}' is not a lowercase [a-z0-9-]+ slug")
+            errors.append(f"utility '{utility}' is not a lowercase [a-z0-9_]+ slug")
     bad_states = set(df["state"].unique().to_list()) - KNOWN_STATES
     if bad_states:
         errors.append(f"unknown states: {sorted(bad_states)} (known: {KNOWN_STATES})")
