@@ -27,8 +27,10 @@ validate:
 # Prepare: generate then validate
 prepare: generate validate
 
-# Upload: sync local CSV to S3
-upload: validate
+# Upload: regenerate + validate, then sync local CSV to S3.
+# Depends on `prepare` (generate → validate) so S3 can never receive a stale or
+# hand-edited CSV — the uploaded file is always a fresh render of the generator.
+upload: prepare
     aws s3 sync "{{ path_local_csv }}/" "{{ path_s3_zone_mapping }}" --exclude "*" --include "*.csv"
     @echo "Uploaded zone mapping to {{ path_s3_zone_mapping }}"
 
