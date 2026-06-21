@@ -16,7 +16,7 @@
 
 ## 1. Brattle avoided distribution cost: `$32/kW-yr` (2022$) — the figure we adopt
 
-**Primary citation**: `001_2_BGE MYP 2_Case Direct Testimony_FinaL_w Att.pdf`, Appendix B.2.b / Brattle Group report (p. 53 of the Brattle report; **p. 138 of the testimony PDF**).
+**Primary citation**: `001_2_BGE MYP 2_Case Direct Testimony_FinaL_w Att.pdf`, Appendix B.2.b / Brattle Group report (p. 53 of the Brattle report; **p. 138 of the testimony PDF**). @bge_Docket9692Direct_2023
 
 **Direct source link**: <https://www.documentcloud.org/documents/28269392-001-2-bge-myp-2-case-direct-testimony-final-w-att/#document/p138/a2821808>
 
