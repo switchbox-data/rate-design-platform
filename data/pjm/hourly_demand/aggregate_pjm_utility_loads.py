@@ -7,7 +7,7 @@ Miner zone codes), maps each utility to its zone(s) via the PJM utility-zone cro
 timestamp, and writes utility-level parquet locally.
 
 Each Maryland utility maps to exactly one Data Miner zone (bge->BC, pepco->PEP,
-dpl->DPL, potomac-edison->AP), so a utility series equals its zone series. The
+dpl->DPL, poted->AP), so a utility series equals its zone series. The
 ``capacity_weight`` column is for capacity-cost allocation and is intentionally
 NOT applied here — load is assigned in full to the mapped utility.
 
