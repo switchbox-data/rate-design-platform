@@ -1,7 +1,7 @@
 # BGE sub-transmission + distribution marginal cost (Maryland)
 
 How we set the `sub_tx_and_dist` BAT marginal-cost input for Baltimore Gas & Electric (BGE, Maryland
-/ PJM). This is the **implementation** note. For the cross-platform choice of LRMC *definition*
+/ PJM). This is the **implementation** note. For the cross-platform choice of LRMC _definition_
 (FLIC vs avoided cost), the full taxonomy, the source-number table, and the platform tension, see
 [dist_mc_definition_choice.md](dist_mc_definition_choice.md). For the verbatim source citations see
 [bge_case9692_dist_mc.md](../../sources/mcos/bge_case9692_dist_mc.md).
@@ -62,7 +62,7 @@ an intervention in BGE's rate case:
   substations are "planned and sized based primarily on substation load center peak demands"
   (O'Neill, p. 15–16).
 - **BGE's own marginal numbers use a peak denominator**: Brattle = replacement value ÷ peak
-  (`$32`); E3 = capital ÷ peak *change* (`$203–258`). Neither uses capital-over-system-peak (FLIC).
+  (`$32`); E3 = capital ÷ peak _change_ (`$203–258`). Neither uses capital-over-system-peak (FLIC).
 - **Lumpy load growth**: BGE faces large, capacity-driving additions (e.g. a 400 MW data-center
   substation). The LRMC methodology doc
   ([§9](../bat_mc_residual/bat_lrmc_residual_allocation_methodology.md)) warns FLIC's steady-state

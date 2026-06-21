@@ -83,7 +83,7 @@ Cost-causation framing (p. 16):
 > sufficient capacity is available to meet peak customer loads whenever they may occur."
 
 The ECOSS is an **embedded** (historical/average) study (p. 6, 10): it "identifies electric
-distribution system embedded costs for the 2021 calendar year." BGE's *marginal* numbers (Brattle,
+distribution system embedded costs for the 2021 calendar year." BGE's _marginal_ numbers (Brattle,
 E3) are computed outside the ECOSS.
 
 ---
@@ -136,7 +136,7 @@ match for our combined `sub_tx_and_dist` bucket without overlapping bulk transmi
 **Citation**: `001_11_BGE MYP_ONeill Direct_FINAL-F-wATT.pdf`, p. 12 — <https://www.documentcloud.org/documents/28269436-001-11-bge-myp-oneill-direct-final-f-watt/>.
 
 - Historical coincident peak: **6,102 MW**, on **August 12, 2021, hour ending 18:00**.
-- A system-wide *forecasted* peak by year for 2024–2026 was **not found** in these filings.
+- A system-wide _forecasted_ peak by year for 2024–2026 was **not found** in these filings.
 
 ---
 
