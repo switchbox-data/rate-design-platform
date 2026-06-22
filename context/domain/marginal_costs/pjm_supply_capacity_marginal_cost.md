@@ -6,7 +6,7 @@ Related docs:
 
 - `context/methods/marginal_costs/capacity_market_comparison_nyiso_isone.md` — NYISO ICAP vs ISO-NE FCM
 - `context/code/marginal_costs/ny_supply_marginal_costs.md` — NY implementation (monthly ICAP)
-- `utils/pre/marginal_costs/supply_capacity_isone.py` — closest platform template (annual FCA + exceedance)
+- `utils/data_prep/marginal_costs/supply_capacity_isone.py` — closest platform template (annual FCA + exceedance)
 
 ---
 
@@ -144,14 +144,16 @@ $$\text{LRC} = \text{Daily UCAP Obligation (MW)} \times \text{Final Zonal Capaci
 
 ### Annualizing for BAT
 
-For a **calendar year** analysis (e.g. 2025), blend two overlapping delivery years (same logic as ISO-NE CCP):
+For a **calendar year** analysis (e.g. 2025), blend the two overlapping delivery years (same idea as the ISO-NE CCP blend):
 
-- **DY1** (Jun 2024–May 2025): covers Jan–May of calendar year → **5 months**
-- **DY2** (Jun 2025–May 2026): covers Jun–Dec of calendar year → **7 months**
+- **DY1** (Jun 2024–May 2025): covers Jan 1 – May 31 of the calendar year
+- **DY2** (Jun 2025–May 2026): covers Jun 1 – Dec 31 of the calendar year
 
-$$\text{capacity\_cost\_kw\_year} = P_{\text{DY1}} \times 5 + P_{\text{DY2}} \times 7$$
+The RPM Final Zonal Capacity Price is natively `$/MW-day`, so we blend by the **actual number of calendar-year days** each DY covers (an exact day-count blend), rather than ISO-NE's `$/kW-month × months` shape:
 
-where $P$ is the annualized `$/kW-year` from Final Zonal Capacity Price (convert from `$/MW-day`).
+$$\overline{P}_{\text{kW-yr}} = \frac{P^{\text{day}}_{\text{DY1}} \cdot d_{\text{Jan–May}} + P^{\text{day}}_{\text{DY2}} \cdot d_{\text{Jun–Dec}}}{1000}$$
+
+where $P^{\text{day}}$ is the Final Zonal Capacity Price in `$/MW-day`, $d_{\text{Jan–May}}$ is 151 days (152 in a leap year), $d_{\text{Jun–Dec}}$ is 214 days, and the `/1000` converts MW → kW. (The earlier `× 5 / × 7` month split is the same idea approximated to whole months; the day-count form is exact and dimensionally consistent for a daily price.)
 
 ---
 
@@ -227,7 +229,16 @@ Each decision below is **independent**. Recommended defaults are marked ★.
 | **F2 Exceedance weighting** | Threshold-exceedance among the 5 hours (or top-K from summer pool) | Consistent with `allocate_annual_exceedance_to_hours` in `supply_utils.py`; used for RI | **Not** how PLC is defined (average, not exceedance) |
 | **F3 Load-proportional**    | Weight by zone load in each hour                                   | Simple physical interpretation                                                          | Still not identical to PLC reconciliation            |
 
-**Recommendation:** F1 if prioritizing PJM fidelity; F2 if prioritizing platform consistency. Document the choice explicitly.
+**Decision: F1 (equal 1/K weights).** This is the implemented choice in `supply_capacity_pjm.py`.
+
+**Rationale.** PJM defines a customer's capacity obligation (PLC) as the **simple average** of that customer's reconciled load across the five coincident-peak hours (PJM Manual 19 §4.3; BGE PLC Overview). Averaging across the five hours is mathematically equivalent to giving each hour a weight of exactly **1/5**. Equal weighting is therefore the literal analog of how the capacity obligation is assigned: it is _definitionally_ correct, not merely a convenient default. The exceedance (F2) and load-proportional (F3) alternatives re-introduce a within-peak load signal that the PLC _average_ deliberately removes, so both deviate from the obligation definition. F2 is retained only as a cross-component-consistency sensitivity (it matches the RI dist/bulk-TX convention), not as a capacity-fidelity option.
+
+**Empirical note (BGE).** For BGE the choice is also immaterial in practice: BGE's zonal load at the five summer-2025 5CP hours is nearly flat (≈ 6.1–6.6 GW), so F1 vs. load-weighting changes the within-peak split by only about ±4%. Both options place the same total `$/kW-year` on the same five hours.
+
+**Sources:**
+
+- [PJM Manual 19 §4.3 — Peak Load Allocation (5CP), PLC = average of five hourly loads](https://www.pjm.com/-/media/DotCom/documents/manuals/m19.pdf)
+- [BGE Peak Load Contribution (PLC) Overview — "average of … load during those five hours"](https://supplier.bge.com/electric/load/plcs.asp)
 
 ---
 
@@ -278,7 +289,7 @@ For any new PJM utility MC pipeline:
 ## 7. Zone and LDA
 
 - BGE serves the **BGE zone** in PJM (Maryland territory).
-- BGE is **not** a separately constrained LDA; it typically clears at the **RTO** Final Zonal Capacity Price.
+- BGE **is frequently a separately constrained LDA**: in the curated RPM dataset it clears at a BGE-specific Final Zonal Capacity Price (above the RTO system price) in 6 of 9 delivery years, including DY2024/25 and DY2025/26 (the DYs that feed calendar-year 2025). The implementation therefore selects the utility's **own zone row** (`zone == "BGE"`) and uses its `final_zonal_capacity_price_per_mw_day`, which already incorporates the locational adder — it does **not** assume the RTO price. (Only DY2018/19 and DY2026/27 had BGE at the RTO price.)
 - Pepco/DPL serve other Maryland areas under different zones/LDAs — do not reuse BGE prices for them.
 
 **Sources:**
@@ -376,16 +387,16 @@ Useful for validating order-of-magnitude but **not** a direct hourly MC formula.
 
 ## 11. ★ Recommended BGE v1 package
 
-| Parameter              | BGE choice                                                                                   |
-| ---------------------- | -------------------------------------------------------------------------------------------- |
-| LDA / price zone       | RTO (BGE zone unconstrained)                                                                 |
-| Price                  | Final Zonal Capacity Price, 5/7 DY calendar-year blend; sensitivity with IA-trued price      |
-| K                      | 5 (PJM 5CP timestamps)                                                                       |
-| Season                 | Jun 1 – Sep 30                                                                               |
-| Load                   | BGE zone load at 5CP timestamps (E1)                                                         |
-| Weights                | Equal 1/5 (F1, PLC-average)                                                                  |
-| Bill side              | Schedule R flat SOS; note PSC shoulder smoothing as non-MC                                   |
-| Output path (proposed) | `s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year={Y}/data.parquet` |
+| Parameter              | BGE choice                                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------------------------- |
+| LDA / price zone       | BGE zone (a constrained LDA in most DYs; use the BGE Final Zonal price, which bakes in the adder) |
+| Price                  | Final Zonal Capacity Price, 5/7 DY calendar-year blend; sensitivity with IA-trued price           |
+| K                      | 5 (PJM 5CP timestamps)                                                                            |
+| Season                 | Jun 1 – Sep 30                                                                                    |
+| Load                   | BGE zone load at 5CP timestamps (E1)                                                              |
+| Weights                | Equal 1/5 (F1, PLC-average)                                                                       |
+| Bill side              | Schedule R flat SOS; note PSC shoulder smoothing as non-MC                                        |
+| Output path (proposed) | `s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year={Y}/data.parquet`      |
 
 ---
 
@@ -412,15 +423,13 @@ Useful for validating order-of-magnitude but **not** a direct hourly MC formula.
 
 Implemented (curated data pipelines, reproducible from committed source intermediates):
 
-- `data/pjm/capacity/rpm/` — RPM BRA + Final Zonal prices, DY 2018/19–2026/27. Per-DY markdown intermediates under `sources/` (`rpm_YYYY_YY.md`, both source URLs in the header) → `just convert` → CSV. Rows carry `source_url` (final zonal) and `bra_source_url` citations.
-- `data/pjm/capacity/5cp/` — summer 5CP peaks, **summers 2021–2025** (only those feeding 2025+ runs are retained; earlier summers dropped). Per-summer markdown intermediates under `sources/` (`5cp_YYYY.md`) → `just convert` → CSV.
+- `data/pjm/capacity/rpm/` — RPM BRA + Final Zonal prices, DY 2018/19–2026/27. Per-DY markdown intermediates under `sources/` (`rpm_YYYY_YY.md`, both source URLs in the header) → `just convert` → CSV → `s3://data.sb/pjm/capacity/rpm/data.parquet`. Rows carry `source_url` (final zonal) and `bra_source_url` citations.
+- `data/pjm/capacity/5cp/` — summer 5CP peaks, **summers 2021–2025** (only those feeding 2025+ runs are retained; earlier summers dropped). Per-summer markdown intermediates under `sources/` (`5cp_YYYY.md`) → `just convert` → CSV → `s3://data.sb/pjm/capacity/5cp/data.parquet`.
 - `data/pjm/zone_mapping/` — utility → zone/LDA crosswalk.
-
-Not yet implemented:
-
-- `data/pjm/hourly_demand/zones/` — zone load pipeline (deferred; see Future work below)
-- `utils/pre/marginal_costs/supply_capacity_pjm.py` — computation
-- `rate_design/hp_rates/md/` — state config (future)
+- `data/pjm/hourly_demand/zones/` — PJM-native zonal hourly loads on S3 (only needed for the E1/F2 load-weighted sensitivity, not the v1 equal-weight pipeline).
+- `utils/data_prep/marginal_costs/supply_capacity_pjm.py` — computation (RPM day-count blend + 5CP equal-weight allocation + 1 kW validation).
+- `generate_supply_capacity_mc.py --iso pjm` — CLI entrypoint.
+- `rate_design/hp_rates/md/Justfile` — `create-supply-capacity-mc[-all-years|-all|-full-backfill]` recipes.
 
 ---
 
@@ -441,4 +450,4 @@ Not yet implemented:
 13. [MD PSC Order 87591 — BGE rate case (PDF)](https://psc.maryland.gov/wp-content/uploads/Order-No.-87591-Case-No.-9406-BGE-Rate-Case.pdf)
 14. Platform: `context/methods/marginal_costs/capacity_market_comparison_nyiso_isone.md`
 15. Platform: `context/code/marginal_costs/ny_supply_marginal_costs.md`
-16. Platform: `utils/pre/marginal_costs/supply_capacity_isone.py`
+16. Platform: `utils/data_prep/marginal_costs/supply_capacity_isone.py`
