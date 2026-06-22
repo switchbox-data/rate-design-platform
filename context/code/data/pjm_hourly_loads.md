@@ -130,9 +130,55 @@ Output schema:
 Utility aggregation maps each utility to its zone(s) via
 `data/pjm/zone_mapping/csv/pjm_utility_zone_mapping.csv` and sums zone loads by
 timestamp. Each MD utility maps to exactly one zone (bge→BC, pepco→PEP, dpl→DPL,
-potomac-edison→AP), so a utility series equals its zone series. The
+poted→AP), so a utility series equals its zone series. The
 `capacity_weight` column is for capacity-cost allocation and is **not** applied
 to load.
+
+## Zone vs utility load (shared zones, scale-invariance, multi-state zones)
+
+PJM zones and retail utilities are not 1:1, and the aggregation deliberately
+treats them as distinct things. Three consequences are worth spelling out, since
+they look surprising at first glance.
+
+**Utilities that share a zone get identical load profiles.** A co-op or
+municipal that sits inside a host IOU's transmission zone (e.g. `smeco` inside
+PEPCO; `choptank`, `easton_muni`, `berlin_muni` inside DPL; `poted`,
+`somerset_rec`, `hagerstown_muni` inside APS) is mapped to that zone and receives
+the **full zone load series** — `capacity_weight` is for capacity-cost
+allocation and is never applied to split load. So every utility in a zone gets
+the same hourly shape. Each utility is also computed independently, so
+adding or dropping a co-op/municipal in a zone does **not** change any other
+utility's load — dropping the phantom slugs that were never assigned in ResStock
+(`an-electric`, `thurmont`, `williamsport`) left `poted`/`dpl` etc. unchanged.
+
+**Why identical (and full-zone) profiles are acceptable: the MC allocation is
+scale-invariant.** The sub-TX/DX marginal-cost methods that consume these loads
+(`generate_utility_tx_dx_mc.py`: peak-of-peak weighting, exceedance weighting)
+allocate a fixed `$/kW-yr` cost across hours using only the **shape** of the load
+profile — they normalize by the profile's own peak/exceedance, so the absolute
+magnitude divides out. Two utilities with the same shape but different absolute
+MW get the same hourly MC allocation; a utility assigned its whole zone's MW
+rather than just its retail slice gets the same allocation it would from a scaled
+copy of that shape. Magnitude is not over- or under-attributed because magnitude
+does not enter the allocation.
+
+**Multi-state zones are a shape proxy, not a magnitude error.** Several PJM zones
+extend well beyond Maryland — APS (Allegheny Power Systems) covers parts of WV,
+PA, and VA; the PEPCO and DPL zones include DC and DE. So `poted`'s load shape is
+the whole APS zone's shape, which mixes non-MD load. This is an acknowledged
+approximation: we use the zone shape as a **proxy** for the MD retail territory's
+shape, accepting that the wider footprint can smear the timing of the local peak.
+Because the allocation is scale-invariant, the concern is purely "is the _shape_
+representative?", not "are we attributing too many MW?". Customer filtering to the
+MD retail territory happens upstream in ResStock utility assignment, not here.
+
+**Consistent with the NY (NYISO) treatment.** NYISO load aggregation
+(`data/nyiso/hourly_demand/aggregate_nyiso_utility_loads.py`) follows the same
+rule: it sums full zone loads for each utility and uses `capacity_weight` only
+for capacity allocation, not to split load. NY utilities that cover the same
+zone(s) likewise end up with identical load profiles. The MD approach (shared
+APS/PEPCO/DPL profiles, full-zone load) is the PJM analogue of that established
+NY precedent.
 
 ## Running it
 

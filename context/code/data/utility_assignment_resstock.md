@@ -141,16 +141,16 @@ PUMAs that straddle a county line get geographic signal from both sides. A PUMA 
 
 Major utilities covered (2023 EIA-861, MD distribution utilities):
 
-| Utility                           | EIA ID | Std name         | Residential customers |
-| --------------------------------- | ------ | ---------------- | --------------------- |
-| Baltimore Gas & Electric Co       | 1167   | `bge`            | 1,208k                |
-| Potomac Electric Power Co (Pepco) | 15270  | `pepco`          | 548k                  |
-| The Potomac Edison Company        | 15263  | `potomac_edison` | 253k                  |
-| Delmarva Power                    | 5027   | `delmarva`       | 185k                  |
-| Southern Maryland Elec Coop       | 17637  | `smeco`          | 159k                  |
-| Choptank Electric Cooperative     | 3503   | `choptank`       | ~30k                  |
-| Somerset Rural Electric Coop      | 84     | `somerset_rec`   | small                 |
-| Town of Berlin (MD)               | 1615   | `berlin_muni`    | small                 |
+| Utility                           | EIA ID | Std name       | Residential customers |
+| --------------------------------- | ------ | -------------- | --------------------- |
+| Baltimore Gas & Electric Co       | 1167   | `bge`          | 1,208k                |
+| Potomac Electric Power Co (Pepco) | 15270  | `pepco`        | 548k                  |
+| The Potomac Edison Company        | 15263  | `poted`        | 253k                  |
+| Delmarva Power                    | 5027   | `dpl`          | 185k                  |
+| Southern Maryland Elec Coop       | 17637  | `smeco`        | 159k                  |
+| Choptank Electric Cooperative     | 3503   | `choptank`     | ~30k                  |
+| Somerset Rural Electric Coop      | 84     | `somerset_rec` | small                 |
+| Town of Berlin (MD)               | 1615   | `berlin_muni`  | small                 |
 
 **EIA utility ID → std name mapping** is defined in `_EIA_ID_TO_STD_NAME` in `assign_utility_md.py`. Utilities not in the map fall back to the EIA name string.
 

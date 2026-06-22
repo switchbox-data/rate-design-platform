@@ -32,10 +32,10 @@ to fetching all ZONE rows and filtering client-side.
 Mapping from Switchbox utility std_name to PJM zone codes (pnode_name for
 ZONE-type rows):
 
-    bge            → BGE      (pnode_id 51292)
-    pepco          → PEPCO    (pnode_id 51298)
-    delmarva       → DPL      (pnode_id 51293)
-    potomac_edison → APS      (pnode_id 8394954)
+    bge   → BGE      (pnode_id 51292)
+    pepco → PEPCO    (pnode_id 51298)
+    dpl   → DPL      (pnode_id 51293)
+    poted → APS      (pnode_id 8394954)
 
 Usage::
 

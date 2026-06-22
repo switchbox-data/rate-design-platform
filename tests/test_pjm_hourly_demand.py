@@ -108,7 +108,7 @@ def test_get_utility_zone_mapping_single_zone_per_md_utility():
     assert util_map["bge"] == ["BC"]
     assert util_map["pepco"] == ["PEP"]
     assert util_map["dpl"] == ["DPL"]
-    assert util_map["potomac-edison"] == ["AP"]
+    assert util_map["poted"] == ["AP"]
 
 
 def _four_hours():

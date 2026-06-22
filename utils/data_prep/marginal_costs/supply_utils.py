@@ -87,25 +87,24 @@ DEFAULT_ISONE_BULK_TX_OUTPUT_S3_BASE = (
 DEFAULT_PJM_LMP_S3_BASE = PJM_LMP_S3_BASE
 DEFAULT_PJM_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/md/supply/"
 
-# Maps each MD utility slug to its PJM zone aggregate pnode_name.
-# Co-ops and municipals that sit inside an IOU zone share that IOU's zone LMP.
+# Maps each MD utility slug (canonical std_name from utils/utility_codes.py) to
+# its PJM zone aggregate pnode_name. Co-ops and municipals that sit inside an IOU
+# zone share that IOU's zone LMP. Keep this set in sync with the registered MD
+# electric std_names and the PJM zone_mapping crosswalk.
 PJM_UTILITY_ZONES: dict[str, str] = {
     # IOUs
     "bge": "BGE",
     "pepco": "PEPCO",
     "dpl": "DPL",
-    "potomac-edison": "APS",
+    "poted": "APS",
     # Cooperatives (mapped to host IOU zone)
     "smeco": "PEPCO",
     "choptank": "DPL",
-    "an-electric": "DPL",
-    "somerset-rec": "APS",
+    "somerset_rec": "APS",
     # Municipal utilities (mapped to host IOU zone)
-    "hagerstown": "APS",
-    "thurmont": "APS",
-    "williamsport": "APS",
-    "easton": "DPL",
-    "berlin": "DPL",
+    "hagerstown_muni": "APS",
+    "easton_muni": "DPL",
+    "berlin_muni": "DPL",
 }
 
 VALID_PJM_UTILITIES: frozenset[str] = frozenset(PJM_UTILITY_ZONES)
