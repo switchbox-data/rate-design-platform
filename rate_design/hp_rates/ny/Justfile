@@ -82,6 +82,28 @@ create-supply_capacity-mc-data-all:
     just create-supply_capacity-mc-data rge
     just create-supply_capacity-mc-data psegli
 
+# NYISO ancillary clearing prices -> same Switchbox layout as energy/capacity
+# (s3://data.sb/switchbox/marginal_costs/ny/supply/ancillary/...). Raw inputs:
+# s3://data.sb/nyiso/ancillary/ (see data/nyiso/ancillary/ Justfile).
+# Opt-in: not part of create-supply-mc-data. To run NY with ancillary, generate
+# the parquet here, then set SUPPLY_ANCILLARY_MC before a supply run.
+
+create-supply-ancillary-mc-data utility_arg:
+    cd {{ project_root }} && uv run python {{ project_root }}/utils/data_prep/marginal_costs/generate_supply_ancillary_mc.py \
+      --iso nyiso \
+      --utility {{ utility_arg }} \
+      --year {{ supply_mc_year }} \
+      --upload
+
+create-supply-ancillary-mc-data-all:
+    just create-supply-ancillary-mc-data cenhud
+    just create-supply-ancillary-mc-data coned
+    just create-supply-ancillary-mc-data nimo
+    just create-supply-ancillary-mc-data nyseg
+    just create-supply-ancillary-mc-data or
+    just create-supply-ancillary-mc-data rge
+    just create-supply-ancillary-mc-data psegli
+
 # =============================================================================
 # NY-only: bulk transmission marginal costs (NYISO AC Tx / LI Export, SCR)
 # =============================================================================

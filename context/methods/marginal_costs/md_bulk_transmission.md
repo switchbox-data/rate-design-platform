@@ -569,7 +569,7 @@ hardcoded) was chosen because:
 Create `utils/data_prep/marginal_costs/bulk_tx_pjm.py` following the same structure as
 `bulk_tx_isone.py` and `bulk_tx_nyiso.py`:
 
-- Input: zone name (`bge`, `dpl`, `pepco`, `potomac-edison`), year, NITS rate ($/kW-yr)
+- Input: zone name (`bge`, `dpl`, `pepco`, `poted`), year, NITS rate ($/kW-yr)
 - No seasonal filter (full-year top-K, following E3)
 - Hourly allocation: PCAF load-share on zone load, top-K hours
 - Output: 8760-row DataFrame with `timestamp`, `bulk_tx_cost_enduse`

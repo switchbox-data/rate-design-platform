@@ -70,7 +70,7 @@ UTILITY_TO_NITS_ZONE: dict[str, str] = {
     "bge": "BGE",
     "dpl": "DPL",
     "pepco": "PEPCO",
-    "potomac-edison": "APS",
+    "poted": "APS",
 }
 VALID_PJM_UTILITIES: frozenset[str] = frozenset(UTILITY_TO_NITS_ZONE)
 

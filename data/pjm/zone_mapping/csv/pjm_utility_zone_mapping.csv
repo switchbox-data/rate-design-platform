@@ -1,0 +1,11 @@
+utility,state,dataminer_zone,fivecp_zone_label,price_zone,capacity_weight,pnode_id
+bge,md,BC,BGE,BGE,1.0,51292
+pepco,md,PEP,PEPCO,PEPCO,1.0,51298
+dpl,md,DPL,DPL,DPL,1.0,51293
+poted,md,AP,APS,APS,1.0,8394954
+smeco,md,PEP,PEPCO,PEPCO,1.0,51298
+choptank,md,DPL,DPL,DPL,1.0,51293
+somerset_rec,md,AP,APS,APS,1.0,8394954
+hagerstown_muni,md,AP,APS,APS,1.0,8394954
+easton_muni,md,DPL,DPL,DPL,1.0,51293
+berlin_muni,md,DPL,DPL,DPL,1.0,51293

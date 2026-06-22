@@ -30,6 +30,7 @@ data/resstock/utility/csv/
 data/resstock/utility/parquet/
 data/resstock/utility/shapefiles/
 data/resstock/utility/zips/
+data/pjm/_local_lmp/
 data/eia/hourly_loads/zone_parquet/
 data/eia/hourly_loads/utility_parquet/
 data/fred/cpi/parquet/
@@ -53,7 +54,11 @@ data/pjm/_local_lmp/
 data/pjm/bulk_tx/nits/_local_pdfs/
 data/pjm/capacity/rpm/parquet/
 data/pjm/capacity/5cp/parquet/
-data/pjm/zone_mapping/csv/
+data/pjm/hourly_demand/zones/
+data/pjm/hourly_demand/utilities/
+# Generated zone-mapping CSVs (the canonical crosswalk is committed via the
+# *.csv exception below, since the PJM hourly_demand aggregate step needs it).
+data/pjm/zone_mapping/csv/*
 # Local source downloads during manual extraction to sources/*.md (binaries,
 # never committed; the committed markdown intermediates are the source of record)
 data/pjm/capacity/5cp/pdf/
@@ -81,6 +86,7 @@ build/
 !data/isone/capacity/fca/fca_clearing_prices.csv
 !data/pjm/capacity/rpm/rpm_capacity_prices.csv
 !data/pjm/capacity/5cp/fivecp_peaks.csv
+!data/pjm/zone_mapping/csv/pjm_utility_zone_mapping.csv
 *.json
 *.png
 !dprint.json
@@ -91,6 +97,7 @@ build/
 !rate_design/hp_rates/ri/config/tariff_maps/**
 !rate_design/hp_rates/ny/config/marginal_costs/**
 !rate_design/hp_rates/ri/config/marginal_costs/**
+!rate_design/hp_rates/md/config/marginal_costs/**
 !rate_design/hp_rates/ri/config/distribution_cost_params.json
 
 # Terraform state files

@@ -19,6 +19,10 @@ Output schema (one row per utility × zone; weights sum to 1.0 per utility):
   fivecp_zone_label – canonical zone label as it appears in fivecp_peaks.csv
   price_zone        – canonical zone label as it appears in rpm_capacity_prices.csv
   capacity_weight   – fraction of utility capacity obligation from this row
+  pnode_id          – PJM pricing node ID for the zone aggregate (ZONE-type row
+                      in rt_hrl_lmps / da_hrl_lmps). Used for server-side filtering
+                      on standard (non-archive) API requests. Multiple utilities that
+                      share the same zone aggregate carry the same pnode_id.
 
 Note: zone ≠ retail territory. The PEPCO and DPL zones span MD + DC/DE; the
 ``state`` column is the analysis state, and customer-level territory filtering
@@ -34,17 +38,60 @@ import polars as pl
 
 # ── Utility mapping rows ──────────────────────────────────────────────────────
 # Each tuple: (utility, state, dataminer_zone, fivecp_zone_label, price_zone,
-# capacity_weight). Single-zone utilities have weight 1.0; the schema supports
-# multi-row weighted utilities later (ConEd analog in NY).
-_MAPPING_ROWS: list[tuple[str, str, str, str, str, float]] = [
-    # BGE — Baltimore Gas & Electric; entire zone within Maryland
-    ("bge", "md", "BC", "BGE", "BGE", 1.0),
-    # Pepco — MD analysis; the Pepco zone also covers DC
-    ("pepco", "md", "PEP", "PEPCO", "PEPCO", 1.0),
-    # Delmarva Power & Light — MD analysis; the DPL zone also covers DE
-    ("dpl", "md", "DPL", "DPL", "DPL", 1.0),
-    # Potomac Edison — retail brand inside the APS zone (also WV/PA load)
-    ("potomac-edison", "md", "AP", "APS", "APS", 1.0),
+# capacity_weight, pnode_id). Single-zone utilities have weight 1.0; the
+# schema supports multi-row weighted utilities later (ConEd analog in NY).
+#
+# pnode_id is the PJM pricing node ID for the zone aggregate (ZONE-type row in
+# rt_hrl_lmps). Multiple utilities sharing the same zone carry the same
+# pnode_id. Source: PJM Data Miner 2 pnode feed / rt_hrl_lmps ZONE rows:
+#   BGE    51292
+#   PEPCO  51298
+#   DPL    51293
+#   APS    8394954
+#
+# Source of truth for MD zone assignments:
+#   - PJM Energy Credits utility↔zone table (pjmenergycredits.com/About-PJM)
+#   - MD PSC Ten-Year Plan (2024–2033 and 2025–2034 editions)
+#   - ODEC Wholesale Power Contract (SEC filing): confirms Choptank and A&N
+#     are in the DPL zone; SMECO is in the PEPCO zone (SMECO website + PJM
+#     Tariff Attachment H-9C).
+#   - Somerset REC: APS in MD, PENELEC in PA (PJM Energy Credits confirms).
+#
+# All MD utilities map entirely (1.0) to a single PJM zone — no split-zone
+# cases exist among MD electric utilities.
+# Slugs are the canonical std_names from utils/utility_codes.py (lowercase,
+# underscore-separated — never hyphens). Co-ops and municipals that sit inside
+# an IOU transmission zone share that IOU's zone codes and pnode_id.
+_MAPPING_ROWS: list[tuple[str, str, str, str, str, float, int]] = [
+    # ── Investor-Owned Utilities ──────────────────────────────────────────────
+    # BGE — Baltimore Gas & Electric; only PJM zone entirely within Maryland.
+    ("bge", "md", "BC", "BGE", "BGE", 1.0, 51292),
+    # Pepco — Potomac Electric Power Co.; zone also covers DC.
+    ("pepco", "md", "PEP", "PEPCO", "PEPCO", 1.0, 51298),
+    # Delmarva Power & Light (std_name dpl); zone also covers DE and parts of VA.
+    ("dpl", "md", "DPL", "DPL", "DPL", 1.0, 51293),
+    # Potomac Edison (std_name poted) — FirstEnergy subsidiary; operates within
+    # the APS zone (Allegheny Power Systems), which also covers parts of WV, PA, VA.
+    ("poted", "md", "AP", "APS", "APS", 1.0, 8394954),
+    # ── Cooperatives ──────────────────────────────────────────────────────────
+    # SMECO — Southern Maryland Electric Cooperative; distribution co-op whose
+    # 6 interties connect to the PEPCO transmission zone (per SMECO website
+    # and PJM Tariff Attachment H-9C).
+    ("smeco", "md", "PEP", "PEPCO", "PEPCO", 1.0, 51298),
+    # Choptank Electric Cooperative — ODEC member serving MD Eastern Shore;
+    # interconnected to DPL transmission system (ODEC Wholesale Contract, SEC).
+    ("choptank", "md", "DPL", "DPL", "DPL", 1.0, 51293),
+    # Somerset Rural Electric Cooperative — Allegheny Electric Cooperative
+    # member; serves Garrett County MD within the APS zone. (In PA it is in
+    # the PENELEC zone, but its MD territory is APS.)
+    ("somerset_rec", "md", "AP", "APS", "APS", 1.0, 8394954),
+    # ── Municipal Utilities ───────────────────────────────────────────────────
+    # Hagerstown Light Department — municipal utility within the APS zone.
+    ("hagerstown_muni", "md", "AP", "APS", "APS", 1.0, 8394954),
+    # Easton Utilities Commission — municipal utility within the DPL zone.
+    ("easton_muni", "md", "DPL", "DPL", "DPL", 1.0, 51293),
+    # Town of Berlin Municipal Electric Plant — municipal within the DPL zone.
+    ("berlin_muni", "md", "DPL", "DPL", "DPL", 1.0, 51293),
 ]
 
 # Valid Data Miner legacy transmission-zone codes (hrl_load_metered vocabulary).
@@ -77,7 +124,7 @@ VALID_DATAMINER_ZONES = frozenset(
 
 def build_zone_mapping() -> pl.DataFrame:
     """Build the PJM zone mapping DataFrame from the hardcoded mapping table."""
-    rows: list[dict[str, str | float]] = []
+    rows: list[dict[str, str | float | int]] = []
     for (
         utility,
         state,
@@ -85,6 +132,7 @@ def build_zone_mapping() -> pl.DataFrame:
         fivecp_zone_label,
         price_zone,
         capacity_weight,
+        pnode_id,
     ) in _MAPPING_ROWS:
         if dataminer_zone not in VALID_DATAMINER_ZONES:
             raise ValueError(
@@ -99,6 +147,7 @@ def build_zone_mapping() -> pl.DataFrame:
                 "fivecp_zone_label": fivecp_zone_label,
                 "price_zone": price_zone,
                 "capacity_weight": capacity_weight,
+                "pnode_id": pnode_id,
             }
         )
 
@@ -111,6 +160,7 @@ def build_zone_mapping() -> pl.DataFrame:
             "fivecp_zone_label": pl.Utf8,
             "price_zone": pl.Utf8,
             "capacity_weight": pl.Float64,
+            "pnode_id": pl.Int64,
         },
     )
 

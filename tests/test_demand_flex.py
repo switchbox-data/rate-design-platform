@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
-from utils.demand_flex import recompute_tou_precalc_mapping
+from utils.demand_flex import find_tou_derivation_path, recompute_tou_precalc_mapping
 from utils.pre.compute_tou import Season, SeasonTouSpec
 
 
@@ -54,6 +55,37 @@ def _make_specs() -> list[SeasonTouSpec]:
             peak_offpeak_ratio=2.5,
         ),
     ]
+
+
+def test_find_tou_derivation_path_key_only(tmp_path: Path) -> None:
+    ddir = tmp_path / "tou_derivation"
+    ddir.mkdir()
+    # One re.sub removes both trailing _flex and _calibrated from the key.
+    target = ddir / "nimo_hp_seasonalTOU_derivation.json"
+    target.write_text("[]", encoding="utf-8")
+    assert (
+        find_tou_derivation_path("nimo_hp_seasonalTOU_flex_calibrated", ddir) == target
+    )
+
+
+def test_find_tou_derivation_path_supply_stem_does_not_use_delivery_json(
+    tmp_path: Path,
+) -> None:
+    """Supply stems strip to ``…_supply``; do not load delivery ``…_derivation.json``."""
+    ddir = tmp_path / "tou_derivation"
+    ddir.mkdir()
+    delivery = ddir / "nimo_hp_seasonalTOU_derivation.json"
+    delivery.write_text("[]", encoding="utf-8")
+    assert (
+        find_tou_derivation_path("nimo_hp_seasonalTOU_flex_supply_calibrated", ddir)
+        is None
+    )
+    supply = ddir / "nimo_hp_seasonalTOU_supply_derivation.json"
+    supply.write_text("[]", encoding="utf-8")
+    assert (
+        find_tou_derivation_path("nimo_hp_seasonalTOU_flex_supply_calibrated", ddir)
+        == supply
+    )
 
 
 def test_recompute_tou_precalc_mapping_warns_for_multiple_tou_tariffs(

@@ -112,13 +112,13 @@ The 5 highest non-holiday-weekday RTO unrestricted daily peaks per summer (PJM's
 
 One row per (utility, zone, weight); the single place the per-source zone aliases (`dataminer_zone`, `fivecp_zone_label`, `price_zone`) live. MC scripts use it to filter the region-wide datasets down to one utility.
 
-|                    |                                                                  |
-| ------------------ | ---------------------------------------------------------------- |
-| **Source**         | Hardcoded rows in `generate_zone_mapping_csv.py` (nyiso pattern) |
-| **Format**         | Generated CSV (uploaded as CSV, not parquet)                     |
-| **Coverage**       | MD utilities: bge, pepco, dpl, potomac-edison                    |
-| **S3 path**        | `s3://data.sb/pjm/zone_mapping/pjm_utility_zone_mapping.csv`     |
-| **Update cadence** | When onboarding a utility                                        |
+|                    |                                                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Source**         | Hardcoded rows in `generate_zone_mapping_csv.py` (nyiso pattern)                                                                     |
+| **Format**         | Generated CSV (uploaded as CSV, not parquet)                                                                                         |
+| **Coverage**       | MD utilities (canonical std_names): bge, pepco, dpl, poted, smeco, choptank, somerset_rec, hagerstown_muni, easton_muni, berlin_muni |
+| **S3 path**        | `s3://data.sb/pjm/zone_mapping/pjm_utility_zone_mapping.csv`                                                                         |
+| **Update cadence** | When onboarding a utility                                                                                                            |
 
 **How to update**: Edit `_MAPPING_ROWS` in `generate_zone_mapping_csv.py`, then `just prepare && just upload`. Validation cross-checks every mapped zone against both capacity CSVs (the single enforcement point of zone-code integrity between the three datasets).
 
@@ -128,7 +128,7 @@ One row per (utility, zone, weight); the single place the per-source zone aliase
 
 - **Three naming systems, one crosswalk**: Data Miner legacy codes (`BC`, `PEP`, `AP`) vs PDF/XLS labels (`BGE`, `PEPCO`, `APS`) — this CSV is the only place the mapping lives.
 - **Zone ≠ retail territory**: the PEPCO and DPL zones span MD + DC/DE; `state` here is the _analysis_ state, customer filtering happens upstream in ResStock utility assignment.
-- **`potomac-edison`** is a retail brand inside the APS zone — zone-level data includes WV/PA load.
+- **`poted`** (Potomac Edison) is a retail brand inside the APS zone — zone-level data includes WV/PA load.
 - **UGI / PPL-folded zones**: UGI has no separate row in the RPM price files (it sits inside the PPL LDA), so a mapping row with `price_zone=UGI` will fail the RPM cross-check. Set `price_zone=PPL` for such utilities (UGI is still valid for `fivecp_zone_label` and `dataminer_zone`, which both carry a UGI row).
 
 ## Historical source URLs
@@ -171,6 +171,6 @@ Each summer's PDF URL lives in the citation header of `sources/5cp_YYYY.md` and 
 | --------- | --------------------------------------------------------------------------------------------------- |
 | 2021–2025 | `https://www.pjm.com/-/media/DotCom/planning/res-adeq/load-forecast/summer-YYYY-peaks-and-5cps.pdf` |
 
-## Future work (deferred): `hourly_demand/zones/`
+## `hourly_demand/` — zonal + utility hourly loads
 
-Data Miner 2 [`hrl_load_metered`](https://dataminer2.pjm.com/feed/hrl_load_metered/definition) pipeline — all zones + RTO, hourly metered load, Hive-partitioned `zone={dataminer_zone}/year={YYYY}/data.parquet` at `s3://data.sb/pjm/hourly_demand/zones/`. Needs `PJM_API_KEY` (free registration). Model on `data/isone/hourly_demand/` (fetch + update-to-latest watermark). Required only for exceedance sensitivity runs, zonal-weighting cross-checks against 5CP MW, and future PJM components (supply energy, bulk TX). The mapping CSV's `dataminer_zone` column already anticipates it. **Not needed for v1 capacity MC** — PJM publishes the 5 peak hours directly.
+Data Miner 2 [`hrl_load_metered`](https://dataminer2.pjm.com/feed/hrl_load_metered/definition) pipeline (`data/pjm/hourly_demand/`): hourly metered load by transmission zone, summed from the feed's `load_area` grain up to the zone, Hive-partitioned `zone={dataminer_zone}/year={YYYY}/month={MM}/data.parquet` at `s3://data.sb/pjm/hourly_demand/zones/`, plus utility-level profiles (`utility={slug}/year={YYYY}/month={MM}/data.parquet`) at `s3://data.sb/pjm/hourly_demand/utilities/`. Zone labels are the legacy `dataminer_zone` codes (BGE = `BC`), matching the mapping CSV's `dataminer_zone` column. Needs `PJM_API_PRIMARY_KEY` in `.env`. Shared Data Miner client (`data/pjm/dataminer.py`) handles the archive/standard 731-day boundary, pagination, and retries. Timestamps are tz-aware `America/New_York` built from `datetime_beginning_utc`; the calendar year is derived from `datetime_beginning_ept`. Zones are a faithful raw mirror (with a `value_flag` column marking bad load-area values, e.g. a load area reporting `0.0` at a DST transition); those flagged hours are interpolated only when building the curated utility profiles, which carry an `interpolated` boolean marking the cleaned hours. See `context/code/data/pjm_hourly_loads.md` for the full design. Used for sub-TX/DX (and later bulk-TX) load shapes, exceedance sensitivity runs, and zonal-weighting cross-checks against 5CP MW. **Not needed for v1 capacity MC** — PJM publishes the 5 peak hours directly.

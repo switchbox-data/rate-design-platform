@@ -5,7 +5,12 @@ the Probability of Peak (PoP) method to allocate $/kW-yr costs to $/kWh hourly
 price signals.
 
 Input:
-    - Utility hourly load profile: s3://data.sb/eia/hourly_demand/utilities/region=<iso_region>/utility=X/year=YYYY/month=M/data.parquet
+    - Utility hourly load profile. Two layouts are supported:
+      - ISO-native (NY, MD, and eventually RI): utility=X/year=YYYY[/month=MM]/data.parquet
+        (e.g. s3://data.sb/nyiso/hourly_demand/utilities/, s3://data.sb/pjm/hourly_demand/utilities/)
+      - EIA legacy (RI today): s3://data.sb/eia/hourly_demand/utilities/region=<iso_region>/utility=X/year=YYYY/month=M/data.parquet
+      The region= partition (and its filter) applies only to EIA paths; ISO-native
+      paths have no region key and skip the filter.
     - Marginal cost table CSV with columns: utility, sub_tx_and_dist_mc_kw_yr[, dollar_year]
     - Load year (determines which load profile year to use)
 
@@ -19,19 +24,29 @@ table), the raw value is used as-is with no inflation applied.
 Output partitions written as:
     - NY default base: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/
     - RI default base: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
+    - MD default base: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/
     - Partition path: utility=X/year=YYYY/data.parquet
 
 Usage:
     # Inspect results (no upload) - uses 2025 loads, inflates RI 2019$ → 2025$
+    # (RI reads the EIA legacy layout, so the region= filter applies)
     python generate_utility_tx_dx_mc.py --state RI --utility rie --year 2025 \
         --mc-table-path rate_design/hp_rates/ri/config/marginal_costs/ri_marginal_costs_2025.csv \
         --utility-load-s3-base s3://data.sb/eia/hourly_demand/utilities/ \
         --output-s3-base s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
 
+    # MD/BGE on PJM-native loads (ISO-native layout, no region= filter),
+    # inflates Brattle 2022$ → 2025$
+    python generate_utility_tx_dx_mc.py --state MD --utility bge --year 2025 \
+        --mc-table-path rate_design/hp_rates/md/config/marginal_costs/md_marginal_costs_2025.csv \
+        --utility-load-s3-base s3://data.sb/pjm/hourly_demand/utilities/ \
+        --output-s3-base s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/ \
+        --upload
+
     # Upload to S3 (NY table has no dollar_year — no inflation applied)
     python generate_utility_tx_dx_mc.py --state NY --utility nyseg --year 2024 \
         --mc-table-path rate_design/hp_rates/ny/config/marginal_costs/ny_sub_tx_and_dist_mc_levelized.csv \
-        --utility-load-s3-base s3://data.sb/eia/hourly_demand/utilities/ \
+        --utility-load-s3-base s3://data.sb/nyiso/hourly_demand/utilities/ \
         --output-s3-base s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/ \
         --upload
 """
@@ -516,8 +531,8 @@ def main():
         "--state",
         type=str,
         required=True,
-        choices=["NY", "RI"],
-        help="State to process (supported: NY, RI)",
+        choices=["NY", "RI", "MD"],
+        help="State to process (supported: NY, RI, MD)",
     )
     parser.add_argument(
         "--utility",
@@ -603,12 +618,15 @@ def main():
         args.target_dollar_year if args.target_dollar_year else output_year
     )
 
-    # Detect whether load path uses EIA layout (with region partition) or
-    # NYISO layout (no region partition) based on path prefix.
+    # Only the EIA load layout carries a `region=<iso>` partition. Every
+    # ISO-native layout (NYISO, PJM, and the future ISO-NE utilities path)
+    # partitions on utility/year[/month] with no region key, so the region
+    # filter must be skipped for them. RI still reads EIA, so its region filter
+    # is retained via the EIA-path branch below.
     s3_base = args.utility_load_s3_base
-    iso_region: str | None = config.iso_region
-    if "nyiso/hourly_demand" in s3_base:
-        iso_region = None
+    iso_region: str | None = (
+        config.iso_region if "eia/hourly_demand" in s3_base else None
+    )
 
     print("=" * 60)
     print("MARGINAL COST ALLOCATION")
