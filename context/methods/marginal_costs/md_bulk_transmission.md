@@ -582,11 +582,19 @@ hardcoded) was chosen because:
   ```
   Valid utilities: `bge`, `dpl`, `pepco`, `poted`. Optional `--k-peak-hours` (default 150).
 
-### 4 — Create Justfile recipes for MD bulk TX MC
+### 4 — Create Justfile recipes for MD bulk TX MC (DONE)
 
-- [ ] Add recipes to `rate_design/hp_rates/md/Justfile` analogous to the existing supply energy
-      MC recipes. Each recipe should take `utility` and `year` as arguments and invoke
-      `generate_bulk_tx_mc.py --iso pjm`.
+- [x] `create-bulk-tx-mc-data utility year [--upload]` added to `rate_design/hp_rates/md/Justfile`
+- [x] `create-bulk-tx-mc-data-all [--upload]` loops over all 4 IOU zones × 5 years (2021–2025)
+
+  ```
+  # Single utility/year (inspect):
+  just -f rate_design/hp_rates/md/Justfile create-bulk-tx-mc-data bge 2025
+  # Single utility/year (upload):
+  just -f rate_design/hp_rates/md/Justfile create-bulk-tx-mc-data bge 2025 --upload
+  # Full backfill (upload):
+  just -f rate_design/hp_rates/md/Justfile create-bulk-tx-mc-data-all --upload
+  ```
 
 ### 5 — Sensitivity analysis
 

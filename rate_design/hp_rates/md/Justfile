@@ -3,8 +3,11 @@
 #
 # Usage (from rate_design/hp_rates/):
 #   just -f md/Justfile create-supply-energy-mc bge 2023
+#   just -f md/Justfile create-bulk-tx-mc-data bge 2025
+#   just -f md/Justfile create-bulk-tx-mc-data-all
 #   just -f md/Justfile create-dist-and-sub-tx-mc-data        # uses state.env UTILITY
 # Or via dispatch:
+#   just s md create-bulk-tx-mc-data bge 2025
 #   just s md create-dist-and-sub-tx-mc-data
 
 set dotenv-path := "state.env"
@@ -102,3 +105,47 @@ create-supply-energy-mc-full-backfill *extra_args:
         done
     done
     echo ">> Done: full backfill" >&2
+
+# =============================================================================
+# MD-only: bulk transmission marginal costs (PJM NITS + PCAF)
+#
+# Uses NITS rates from data/pjm/bulk_tx/nits/nits_rates.csv and PJM-native
+# hourly demand from s3://data.sb/pjm/hourly_demand/utilities/.
+# Only the four IOU transmission zones have NITS rates: bge, dpl, pepco, poted.
+# Co-ops and municipals share the zone of their host IOU.
+# Years with NITS data: 2021-2025.
+# =============================================================================
+
+# IOU utilities that have direct NITS zone mappings.
+pjm_bulk_tx_utilities := "bge dpl pepco poted"
+pjm_bulk_tx_years := "2021 2022 2023 2024 2025"
+
+# Generate bulk TX MC for one utility and one year.
+#
+#   just -f md/Justfile create-bulk-tx-mc-data bge 2025
+#   just -f md/Justfile create-bulk-tx-mc-data bge 2025 --upload
+create-bulk-tx-mc-data utility_arg year_arg *extra_args:
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
+      --iso pjm \
+      --utility {{ utility_arg }} \
+      --year {{ year_arg }} \
+      {{ extra_args }}
+
+# Generate bulk TX MC for all four IOU utilities across all available NITS years.
+#
+#   just -f md/Justfile create-bulk-tx-mc-data-all
+#   just -f md/Justfile create-bulk-tx-mc-data-all --upload
+create-bulk-tx-mc-data-all *extra_args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for utility in {{ pjm_bulk_tx_utilities }}; do
+        for year in {{ pjm_bulk_tx_years }}; do
+            echo ">> Generating PJM bulk TX MC: utility=${utility} year=${year}" >&2
+            cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
+              --iso pjm \
+              --utility "${utility}" \
+              --year "${year}" \
+              {{ extra_args }}
+        done
+    done
+    echo ">> Done: all MD bulk TX MC" >&2
