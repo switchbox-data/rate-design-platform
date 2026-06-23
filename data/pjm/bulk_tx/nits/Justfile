@@ -1,0 +1,35 @@
+# PJM NITS rates: fetch PDFs, convert source intermediates to CSV, validate.
+#
+# Workflow for adding a new year:
+#   1. just fetch YEARS="YYYY"          # download the Jan/Jun PDFs locally
+#   2. Transcribe rates into sources/nits_YYYY.md (from the PDFs)
+#   3. just convert                     # rebuild nits_rates.csv from all sources
+#   4. just validate                    # verify schema, ranges, and zone coverage
+#   5. git diff nits_rates.csv          # review changes, then commit
+#
+# Usage (from data/pjm/bulk_tx/nits/):
+#   just fetch YEARS="2021 2022 2023 2024 2025"  # fetch PDFs for specified years
+#   just fetch YEARS="2021-2025"                 # fetch PDFs for year range
+#   just convert                                 # rebuild CSV from source intermediates
+#   just validate                                # validate the CSV
+
+path_csv := justfile_directory() + "/nits_rates.csv"
+path_sources := justfile_directory() + "/sources"
+path_pdf_cache := justfile_directory() + "/_local_pdfs"
+
+# Convert: rebuild the CSV from the markdown source intermediates.
+convert:
+    uv run python {{ justfile_directory() }}/convert_nits_md_to_csv.py \
+      --path-sources {{ path_sources }} \
+      --path-csv {{ path_csv }}
+
+# Fetch NITS rate PDFs from PJM website for specified years.
+fetch YEARS="2021-2025":
+    uv run python {{ justfile_directory() }}/fetch_nits_pdfs.py \
+      --years {{ YEARS }} \
+      --output-dir {{ path_pdf_cache }}
+
+# Validate the NITS rates CSV (schema, value ranges, zone coverage).
+validate:
+    uv run python {{ justfile_directory() }}/validate_nits_rates.py \
+      --path-csv {{ path_csv }}
