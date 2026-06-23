@@ -575,7 +575,12 @@ hardcoded) was chosen because:
   - Applies PCAF load-share weighting to allocate annual cost to peak hours
   - Outputs 8760-row DataFrame with `timestamp`, `bulk_tx_cost_enduse`
   - Validates that allocated cost sums to the blended annual rate
-- [ ] Extend `generate_bulk_tx_mc.py` with `--iso pjm` path (CLI wiring still TODO)
+- [x] `generate_bulk_tx_mc.py` extended with `--iso pjm` path:
+  ```
+  uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
+      --iso pjm --utility bge --year 2025 [--upload]
+  ```
+  Valid utilities: `bge`, `dpl`, `pepco`, `poted`. Optional `--k-peak-hours` (default 150).
 
 ### 4 — Create Justfile recipes for MD bulk TX MC
 
