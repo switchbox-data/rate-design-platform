@@ -487,8 +487,9 @@ Appendix C, pp. 98-99, Figure 42.
 Four PJM transmission zones cover every electric utility in Maryland (IOUs,
 cooperatives, and municipals). Co-ops and municipals do not own transmission;
 they pay through their host zone's NITS rate. The utility-to-zone mapping is
-already defined in `utils/data_prep/marginal_costs/supply_utils.py`
-(`PJM_UTILITY_ZONES`) and `data/pjm/zone_mapping/generate_zone_mapping_csv.py`.
+defined in `utils/data_prep/marginal_costs/supply_utils.py` (`PJM_UTILITY_ZONES`),
+which is the single source of truth shared by supply energy and bulk TX. See also
+`data/pjm/zone_mapping/generate_zone_mapping_csv.py` for the crosswalk.
 For bulk TX, the same four zones suffice:
 
 | Zone  | IOUs           | Co-ops/Municipals in zone                        |

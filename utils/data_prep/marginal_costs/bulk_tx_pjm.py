@@ -47,7 +47,10 @@ from typing import cast
 
 import polars as pl
 
-from utils.data_prep.marginal_costs.supply_utils import build_cairo_8760_timestamps
+from utils.data_prep.marginal_costs.supply_utils import (
+    PJM_UTILITY_ZONES,
+    build_cairo_8760_timestamps,
+)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -64,14 +67,10 @@ NITS_CSV_PATH = (
     Path(__file__).resolve().parents[3] / "data/pjm/bulk_tx/nits/nits_rates.csv"
 )
 
-# Map utility name to NITS zone (used for looking up rates in CSV).
-# VALID_PJM_UTILITIES is derived from this mapping — add entries here only.
-#
-# Each utility maps to the PJM transmission zone it operates in. Since PJM
-# bills NITS at the zone level, and the utility-level load data on S3 is the
-# full zone load (all MD utilities map 1:1 to a single zone per the crosswalk
-# at data/pjm/zone_mapping/csv/pjm_utility_zone_mapping.csv), the PCAF
-# calculation produces an identical 8760 for all utilities within a zone.
+# Utility → NITS zone mapping.
+# Re-uses PJM_UTILITY_ZONES from supply_utils (the canonical single source of
+# truth for all MD utility-to-PJM-zone mappings). The zone label is the NITS
+# zone key used to look up rates in nits_rates.csv.
 #
 # APS multi-state zone — no scaling applied (intentional):
 #   The APS zone spans western MD, PA, WV, VA, and OH. We use the full APS
@@ -86,21 +85,7 @@ NITS_CSV_PATH = (
 #   jurisdictional revenue allocation (how much of the pie is MD's). That is
 #   a different question from "what does 1 kW cost?" — the BAT measures
 #   marginal cost recovery, which is the per-kW zone rate.
-UTILITY_TO_NITS_ZONE: dict[str, str] = {
-    # IOUs (each IS a PJM transmission zone)
-    "bge": "BGE",
-    "dpl": "DPL",
-    "pepco": "PEPCO",
-    "poted": "APS",
-    # Co-ops
-    "smeco": "PEPCO",
-    "choptank": "DPL",
-    "somerset_rec": "APS",
-    # Municipals
-    "hagerstown_muni": "APS",
-    "easton_muni": "DPL",
-    "berlin_muni": "DPL",
-}
+UTILITY_TO_NITS_ZONE: dict[str, str] = PJM_UTILITY_ZONES
 VALID_PJM_UTILITIES: frozenset[str] = frozenset(UTILITY_TO_NITS_ZONE)
 
 
