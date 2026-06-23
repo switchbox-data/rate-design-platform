@@ -551,37 +551,37 @@ hardcoded) was chosen because:
 ### 1 — NITS reference data (DONE for 2021-2025)
 
 - [x] 2021–2025 rates extracted for all 4 zones (Jan + Jun) from PJM PDFs and CAPS Handbook
-- [x] CSV, source markdown (5 years), and validator created at `data/pjm/bulk_tx/nits/`
-- [x] Validation passing for 40 rows (4 zones × 2 periods × 5 years)
-- [ ] Historical rates (2018–2020): retrieve from alternative sources when needed for pre-2021 BAT runs.
-      PJM PDFs for these years are no longer accessible (404); ETCC historical table + inference
-      can be used if needed. Add one `sources/nits_{year}.md` per year; re-run convert.
+- [x] Source markdown intermediates committed at `data/pjm/bulk_tx/nits/sources/nits_{year}.md`
+- [x] `convert_nits_md_to_csv.py` and `just convert` recipe added; `nits_rates.csv` generated
+      deterministically from the source intermediates
+- [x] Validator (`validate_nits_rates.py` / `just validate`) passing for 40 rows
+      (4 zones × 2 periods × 5 years)
+- [ ] Historical rates (2018–2020): retrieve from alternative sources when needed for pre-2021
+      BAT runs. PJM PDFs for these years are no longer accessible (404); ETCC historical table
+      + inference can be used if needed. Add one `sources/nits_{year}.md` per year; re-run
+      `just convert`.
 
-### 2 — Verify zone-level EIA/PJM hourly load data availability
+### 2 — Verify zone-level PJM hourly load data availability (DONE)
 
-- [ ] Confirm that PJM zone-level hourly loads (BGE, DPL, PEPCO, APS) are already on S3 or
-      available via the existing `data/eia/hourly_loads/pjm/` or `data/pjm/` pipeline.
-      These are needed for Step 3 (hourly PoP allocation).
-- [ ] If not available, extend the existing EIA zone load fetch to include PJM zones for MD.
+- [x] PJM zone-level hourly loads (BGE, DPL, PEPCO, APS) confirmed on S3 at
+      `s3://data.sb/pjm/hourly_demand/utilities/utility={slug}/year={year}/month={month}/data.parquet`
+- [x] All 4 MD zones present for 2018–2025; schema confirmed compatible with PCAF allocation
 
-### 3 — Implement `bulk_tx_pjm.py`
+### 3 — Implement `bulk_tx_pjm.py` (DONE)
 
-Create `utils/data_prep/marginal_costs/bulk_tx_pjm.py` following the same structure as
-`bulk_tx_isone.py` and `bulk_tx_nyiso.py`:
-
-- Input: zone name (`bge`, `dpl`, `pepco`, `poted`), year, NITS rate ($/kW-yr)
-- No seasonal filter (full-year top-K, following E3)
-- Hourly allocation: PCAF load-share on zone load, top-K hours
-- Output: 8760-row DataFrame with `timestamp`, `bulk_tx_cost_enduse`
-- Validation: sum of allocations = annual $/kW-yr
-
-Extend `generate_bulk_tx_mc.py` with `--iso pjm` path.
+- [x] `utils/data_prep/marginal_costs/bulk_tx_pjm.py` implemented:
+  - Reads `nits_rates.csv`, computes day-weighted blended rate per year
+  - Loads zone hourly demand from S3, selects top-K=150 peak hours (full year)
+  - Applies PCAF load-share weighting to allocate annual cost to peak hours
+  - Outputs 8760-row DataFrame with `timestamp`, `bulk_tx_cost_enduse`
+  - Validates that allocated cost sums to the blended annual rate
+- [ ] Extend `generate_bulk_tx_mc.py` with `--iso pjm` path (CLI wiring still TODO)
 
 ### 4 — Create Justfile recipes for MD bulk TX MC
 
-Add recipes to `rate_design/hp_rates/md/Justfile` analogous to the existing supply energy MC
-recipes. Each recipe should take `utility` and `year` as arguments and invoke
-`generate_bulk_tx_mc.py --iso pjm`.
+- [ ] Add recipes to `rate_design/hp_rates/md/Justfile` analogous to the existing supply energy
+      MC recipes. Each recipe should take `utility` and `year` as arguments and invoke
+      `generate_bulk_tx_mc.py --iso pjm`.
 
 ### 5 — Sensitivity analysis
 
@@ -592,7 +592,6 @@ After implementation, run the BAT with:
 - Sensitivity B: Use the MD OPC report's forward-looking cost estimates (if available) as an
   alternative to the embedded NITS rate
 
-### 6 — Document in context/README.md
+### 6 — Document in context/README.md (DONE)
 
-After creating the implementation files, update `context/README.md` to add this doc to the
-methods/marginal_costs index.
+- [x] `context/README.md` updated with this document under methods/marginal_costs
