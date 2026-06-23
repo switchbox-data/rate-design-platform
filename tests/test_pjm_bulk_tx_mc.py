@@ -258,14 +258,36 @@ class TestAllocatePcaf:
 
 
 class TestUtilityZoneMapping:
-    def test_all_four_pjm_zones_present(self) -> None:
-        assert set(UTILITY_TO_NITS_ZONE.keys()) == {"bge", "dpl", "pepco", "poted"}
+    def test_all_ten_md_utilities_present(self) -> None:
+        expected = {
+            "bge",
+            "dpl",
+            "pepco",
+            "poted",
+            "smeco",
+            "choptank",
+            "somerset_rec",
+            "hagerstown_muni",
+            "easton_muni",
+            "berlin_muni",
+        }
+        assert set(UTILITY_TO_NITS_ZONE.keys()) == expected
 
-    def test_canonical_zone_labels(self) -> None:
+    def test_iou_zone_labels(self) -> None:
         assert UTILITY_TO_NITS_ZONE["bge"] == "BGE"
         assert UTILITY_TO_NITS_ZONE["dpl"] == "DPL"
         assert UTILITY_TO_NITS_ZONE["pepco"] == "PEPCO"
         assert UTILITY_TO_NITS_ZONE["poted"] == "APS"
+
+    def test_coops_map_to_host_zone(self) -> None:
+        assert UTILITY_TO_NITS_ZONE["smeco"] == "PEPCO"
+        assert UTILITY_TO_NITS_ZONE["choptank"] == "DPL"
+        assert UTILITY_TO_NITS_ZONE["somerset_rec"] == "APS"
+
+    def test_municipals_map_to_host_zone(self) -> None:
+        assert UTILITY_TO_NITS_ZONE["hagerstown_muni"] == "APS"
+        assert UTILITY_TO_NITS_ZONE["easton_muni"] == "DPL"
+        assert UTILITY_TO_NITS_ZONE["berlin_muni"] == "DPL"
 
     def test_valid_pjm_utilities_matches_mapping_keys(self) -> None:
         """VALID_PJM_UTILITIES must be exactly the keys of UTILITY_TO_NITS_ZONE."""

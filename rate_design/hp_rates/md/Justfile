@@ -109,13 +109,13 @@ create-supply-energy-mc-full-backfill *extra_args:
 # =============================================================================
 # MD-only: bulk transmission marginal costs (PJM NITS + PCAF)
 #
-# PJM bulk TX is zone-level: one NITS rate per transmission zone, and peak hours
-# are identified from zone-aggregate load. The four zones in MD are BGE, DPL,
-# PEPCO, and APS (named after their IOUs). Co-ops and municipals within a zone
-# face the same hourly signal, so we generate 4 zone files then fan out (S3 copy)
-# to each dependent utility path that CAIRO expects.
+# PJM bulk TX is zone-level: one NITS rate per transmission zone, peak hours
+# identified from zone-aggregate load. Each MD utility maps 1:1 to a zone
+# (data/pjm/zone_mapping/csv/pjm_utility_zone_mapping.csv), and the utility-
+# level load on S3 IS the full zone load. So we just run the same calculation
+# for each utility — all utilities in the same zone produce the same output.
 #
-# Zone → utility mapping:
+# Zone → utilities:
 #   BGE   → bge
 #   DPL   → dpl, choptank, easton_muni, berlin_muni
 #   PEPCO → pepco, smeco
@@ -126,75 +126,36 @@ create-supply-energy-mc-full-backfill *extra_args:
 # Years with NITS data: 2021-2025.
 # =============================================================================
 
-path_s3_bulk_tx := "s3://data.sb/switchbox/marginal_costs/md/bulk_tx"
-
-# The four PJM transmission zones (IOU slugs).
-pjm_bulk_tx_zones := "bge dpl pepco poted"
+pjm_bulk_tx_utilities := "bge dpl pepco poted smeco choptank somerset_rec hagerstown_muni easton_muni berlin_muni"
 pjm_bulk_tx_years := "2021 2022 2023 2024 2025"
 
-# Generate zone-level bulk TX MC for one zone and one year.
+# Generate bulk TX MC for one utility and one year.
 #
 #   just -f md/Justfile create-bulk-tx-mc-data bge 2025
-#   just -f md/Justfile create-bulk-tx-mc-data bge 2025 --upload
-create-bulk-tx-mc-data zone_arg year_arg *extra_args:
+#   just -f md/Justfile create-bulk-tx-mc-data smeco 2025 --upload
+create-bulk-tx-mc-data utility_arg year_arg *extra_args:
     cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
       --iso pjm \
-      --utility {{ zone_arg }} \
+      --utility {{ utility_arg }} \
       --year {{ year_arg }} \
       {{ extra_args }}
 
-# Generate zone-level bulk TX MC for all 4 zones across all available NITS years.
+# Generate bulk TX MC for all MD utilities across all available NITS years.
 #
 #   just -f md/Justfile create-bulk-tx-mc-data-all --upload
 create-bulk-tx-mc-data-all *extra_args:
     #!/usr/bin/env bash
     set -euo pipefail
-    for zone in {{ pjm_bulk_tx_zones }}; do
+    for utility in {{ pjm_bulk_tx_utilities }}; do
         for year in {{ pjm_bulk_tx_years }}; do
-            echo ">> Generating PJM bulk TX MC: zone=${zone} year=${year}" >&2
+            echo ">> Generating PJM bulk TX MC: utility=${utility} year=${year}" >&2
             cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
               --iso pjm \
-              --utility "${zone}" \
+              --utility "${utility}" \
               --year "${year}" \
               {{ extra_args }}
         done
     done
-    echo ">> Done: all zone-level bulk TX MC" >&2
+    echo ">> Done: all MD bulk TX MC ($(echo {{ pjm_bulk_tx_utilities }} | wc -w) utilities × $(echo {{ pjm_bulk_tx_years }} | wc -w) years)" >&2
 
-# Fan out: copy each IOU zone's bulk TX MC to its dependent co-ops/municipals.
-# Run this AFTER create-bulk-tx-mc-data-all --upload has placed zone files on S3.
-#
-#   just -f md/Justfile fanout-bulk-tx-mc-data 2025
-#   just -f md/Justfile fanout-bulk-tx-mc-data-all
-fanout-bulk-tx-mc-data year_arg:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    base="{{ path_s3_bulk_tx }}"
-    copy_from_zone() {
-        local zone="$1"; shift
-        local src="${base}/utility=${zone}/year={{ year_arg }}/data.parquet"
-        for dep in "$@"; do
-            local dst="${base}/utility=${dep}/year={{ year_arg }}/data.parquet"
-            echo ">> Copying ${zone} -> ${dep} (year={{ year_arg }})" >&2
-            aws s3 cp "${src}" "${dst}"
-        done
-    }
-    # DPL zone dependents
-    copy_from_zone dpl choptank easton_muni berlin_muni
-    # PEPCO zone dependents
-    copy_from_zone pepco smeco
-    # APS zone dependents
-    copy_from_zone poted somerset_rec hagerstown_muni
-    echo ">> Done: fanout for year={{ year_arg }}" >&2
-
-# Fan out for all years.
-#
-#   just -f md/Justfile fanout-bulk-tx-mc-data-all
-fanout-bulk-tx-mc-data-all:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    for year in {{ pjm_bulk_tx_years }}; do
-        just -f {{ justfile() }} fanout-bulk-tx-mc-data "${year}"
-    done
-    echo ">> Done: fanout all years" >&2
 

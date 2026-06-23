@@ -67,17 +67,25 @@ NITS_CSV_PATH = (
 # Map utility name to NITS zone (used for looking up rates in CSV).
 # VALID_PJM_UTILITIES is derived from this mapping — add entries here only.
 #
-# Only the four PJM transmission zones (identified by their IOU slugs) are
-# listed here. Each IOU slug IS the zone: PJM names the zone after the IOU
-# and uses the zone-aggregate load for NSPL billing. Co-ops and municipals
-# operate within one of these four zones; they do not have separate NITS
-# rates or separate zone load profiles. Their bulk TX MC files are produced
-# by copying the host zone's output — see the MD Justfile fanout recipe.
+# Each utility maps to the PJM transmission zone it operates in. Since PJM
+# bills NITS at the zone level, and the utility-level load data on S3 is the
+# full zone load (all MD utilities map 1:1 to a single zone per the crosswalk
+# at data/pjm/zone_mapping/csv/pjm_utility_zone_mapping.csv), the PCAF
+# calculation produces an identical 8760 for all utilities within a zone.
 UTILITY_TO_NITS_ZONE: dict[str, str] = {
+    # IOUs (each IS a PJM transmission zone)
     "bge": "BGE",
     "dpl": "DPL",
     "pepco": "PEPCO",
     "poted": "APS",
+    # Co-ops
+    "smeco": "PEPCO",
+    "choptank": "DPL",
+    "somerset_rec": "APS",
+    # Municipals
+    "hagerstown_muni": "APS",
+    "easton_muni": "DPL",
+    "berlin_muni": "DPL",
 }
 VALID_PJM_UTILITIES: frozenset[str] = frozenset(UTILITY_TO_NITS_ZONE)
 
