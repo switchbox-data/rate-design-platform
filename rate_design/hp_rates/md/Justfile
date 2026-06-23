@@ -127,7 +127,8 @@ create-supply-energy-mc-full-backfill *extra_args:
 # =============================================================================
 
 pjm_bulk_tx_utilities := "bge dpl pepco poted smeco choptank somerset_rec hagerstown_muni easton_muni berlin_muni"
-pjm_bulk_tx_years := "2021 2022 2023 2024 2025"
+# Expand as more years are uploaded to s3://data.sb/pjm/hourly_demand/utilities/.
+pjm_bulk_tx_years := "2025"
 
 # Generate bulk TX MC for one utility and one year.
 #

@@ -147,21 +147,55 @@ def load_hourly_demand(
 ) -> pl.DataFrame:
     """Load PJM hourly demand for a utility and year from S3.
 
-    Returns DataFrame with columns: timestamp (tz-aware Eastern), load_mw.
+    The S3 layout is Hive-partitioned:
+        {s3_base}/utility={slug}/year=YYYY/month=MM/data.parquet
+
+    Reads all 12 months via scan_parquet with hive_partitioning, filters to
+    the requested utility and year, and returns a DataFrame with columns:
+    timestamp, load_mw (exactly 8760 rows after DST handling).
     """
-    path = f"{s3_base.rstrip('/')}/utility={utility}/year={year}/data.parquet"
+    base = s3_base.rstrip("/") + "/"
     kwargs: dict = {}
     if storage_options:
         kwargs["storage_options"] = storage_options
 
-    df = pl.read_parquet(path, **kwargs)
+    raw = cast(
+        pl.DataFrame,
+        pl.scan_parquet(base, hive_partitioning=True, **kwargs)
+        .filter(pl.col("utility") == utility, pl.col("year") == year)
+        .select("timestamp", "load_mw")
+        .collect(),
+    )
 
-    if "timestamp" not in df.columns or "load_mw" not in df.columns:
-        raise ValueError(
-            f"Expected columns 'timestamp' and 'load_mw' in {path}, got: {df.columns}"
+    if raw.is_empty():
+        raise FileNotFoundError(
+            f"No PJM hourly demand data for utility={utility!r}, year={year} "
+            f"under {base}. Check that the data has been uploaded."
         )
 
-    return df.select("timestamp", "load_mw")
+    # Strip timezone if present (PCAF works on naive Eastern timestamps)
+    ts_dtype = raw.schema["timestamp"]
+    if isinstance(ts_dtype, pl.Datetime) and ts_dtype.time_zone is not None:
+        raw = raw.with_columns(
+            pl.col("timestamp").dt.replace_time_zone(None).alias("timestamp")
+        )
+
+    # DST fall-back: average any duplicate timestamps
+    deduped = raw.group_by("timestamp").agg(pl.col("load_mw").mean()).sort("timestamp")
+
+    # Align to the 8760 grid (interpolate DST spring-forward gap)
+    ref_8760 = build_cairo_8760_timestamps(year)
+    aligned = (
+        ref_8760.join(deduped, on="timestamp", how="left")
+        .sort("timestamp")
+        .with_columns(pl.col("load_mw").interpolate())
+    )
+
+    n_null = aligned.filter(pl.col("load_mw").is_null()).height
+    if n_null > 0:
+        aligned = aligned.with_columns(pl.col("load_mw").fill_null(0.0))
+
+    return aligned.select("timestamp", "load_mw")
 
 
 # ── PCAF allocation ───────────────────────────────────────────────────────────
@@ -257,13 +291,6 @@ def compute_pjm_bulk_tx_mc(
     print("\n── Loading hourly demand ──")
     load_df = load_hourly_demand(utility, year, s3_base, storage_options)
     print(f"  Loaded {load_df.height} hours")
-
-    # Strip timezone for joining with naive CAIRO timestamps
-    ts_dtype = load_df.schema["timestamp"]
-    if isinstance(ts_dtype, pl.Datetime) and ts_dtype.time_zone is not None:
-        load_df = load_df.with_columns(
-            pl.col("timestamp").dt.replace_time_zone(None).alias("timestamp")
-        )
 
     # Step 3: PCAF allocation on full-year load
     print("\n── PCAF Allocation ──")
