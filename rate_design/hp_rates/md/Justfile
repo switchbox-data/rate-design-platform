@@ -133,7 +133,7 @@ pjm_bulk_tx_years := "2025"
 # Generate bulk TX MC for one utility and one year.
 #
 #   just -f md/Justfile create-bulk-tx-mc-data bge 2025
-#   just -f md/Justfile create-bulk-tx-mc-data smeco 2025 --upload
+# just -f md/Justfile create-bulk-tx-mc-data smeco 2025 --upload
 create-bulk-tx-mc-data utility_arg year_arg *extra_args:
     cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
       --iso pjm \
@@ -143,7 +143,7 @@ create-bulk-tx-mc-data utility_arg year_arg *extra_args:
 
 # Generate bulk TX MC for all MD utilities across all available NITS years.
 #
-#   just -f md/Justfile create-bulk-tx-mc-data-all --upload
+# just -f md/Justfile create-bulk-tx-mc-data-all --upload
 create-bulk-tx-mc-data-all *extra_args:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -232,4 +232,3 @@ create-supply-capacity-mc-full-backfill *extra_args:
         done
     done
     echo ">> Done: full backfill" >&2
-
