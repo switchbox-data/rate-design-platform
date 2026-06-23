@@ -72,6 +72,20 @@ NITS_CSV_PATH = (
 # full zone load (all MD utilities map 1:1 to a single zone per the crosswalk
 # at data/pjm/zone_mapping/csv/pjm_utility_zone_mapping.csv), the PCAF
 # calculation produces an identical 8760 for all utilities within a zone.
+#
+# APS multi-state zone — no scaling applied (intentional):
+#   The APS zone spans western MD, PA, WV, VA, and OH. We use the full APS
+#   NITS rate and full zone load. This is correct for the BAT because:
+#   1. PJM bills every kW in the APS zone at the same NITS rate regardless
+#      of state. A 1 kW customer in western MD costs their LSE exactly the
+#      APS zone rate — there is no state-level rate differentiation.
+#   2. The peak-hour timing from zone-wide load is the actual cost signal
+#      customers face: PJM's NSPL is based on the zone aggregate, so bulk TX
+#      costs are incurred when the full zone peaks.
+#   The MD OPC (March 2026 report) scales APS costs by MD_peak/APS_peak for
+#   jurisdictional revenue allocation (how much of the pie is MD's). That is
+#   a different question from "what does 1 kW cost?" — the BAT measures
+#   marginal cost recovery, which is the per-kW zone rate.
 UTILITY_TO_NITS_ZONE: dict[str, str] = {
     # IOUs (each IS a PJM transmission zone)
     "bge": "BGE",

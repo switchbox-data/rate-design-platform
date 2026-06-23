@@ -104,6 +104,21 @@ through their host zone's NITS rate. For BAT purposes, assign them the NITS rate
 Note: The APS zone spans multiple states. The MD OPC (March 2026 report) scales APS zone costs to
 MD using the ratio of MD's 2024 peak load to total APS zonal peak load.
 
+**APS multi-state zone — no scaling applied.** The OPC's scaling method answers a jurisdictional
+revenue allocation question: "what share of the total APS ATRR is attributable to MD?" For the BAT,
+the relevant question is different: "what does 1 kW of bulk TX cost a customer in western MD?" The
+answer is the full APS zone NITS rate, because:
+
+1. PJM bills every kW in the APS zone at the same rate regardless of state. There is no
+   state-level rate differentiation in NITS billing.
+2. The peak-hour timing from zone-wide load matches the actual cost signal customers face — PJM's
+   NSPL (and therefore NITS cost exposure) is driven by the zone aggregate, not by a state subset.
+
+The OPC's `rate × MD_peak / APS_total_peak` would be appropriate for policy analysis of how much
+total transmission revenue should be allocated to MD as a jurisdiction, but it would understate the
+marginal cost faced by a customer adding 1 kW in the APS zone. Since the BAT measures whether each
+customer covers their marginal cost, the full zone rate is correct.
+
 ---
 
 ## PJM NITS rates and NSPL data
