@@ -66,6 +66,13 @@ NITS_CSV_PATH = (
 
 # Map utility name to NITS zone (used for looking up rates in CSV).
 # VALID_PJM_UTILITIES is derived from this mapping — add entries here only.
+#
+# Only the four PJM transmission zones (identified by their IOU slugs) are
+# listed here. Each IOU slug IS the zone: PJM names the zone after the IOU
+# and uses the zone-aggregate load for NSPL billing. Co-ops and municipals
+# operate within one of these four zones; they do not have separate NITS
+# rates or separate zone load profiles. Their bulk TX MC files are produced
+# by copying the host zone's output — see the MD Justfile fanout recipe.
 UTILITY_TO_NITS_ZONE: dict[str, str] = {
     "bge": "BGE",
     "dpl": "DPL",

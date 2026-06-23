@@ -258,7 +258,7 @@ class TestAllocatePcaf:
 
 
 class TestUtilityZoneMapping:
-    def test_all_four_md_utilities_present(self) -> None:
+    def test_all_four_pjm_zones_present(self) -> None:
         assert set(UTILITY_TO_NITS_ZONE.keys()) == {"bge", "dpl", "pepco", "poted"}
 
     def test_canonical_zone_labels(self) -> None:
