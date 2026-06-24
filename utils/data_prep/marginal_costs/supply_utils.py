@@ -22,6 +22,9 @@ DEFAULT_NYISO_ZONE_MAPPING_PATH = (
     "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
 )
 DEFAULT_NYISO_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/ny/supply/"
+DEFAULT_NYISO_BULK_TX_OUTPUT_S3_BASE = (
+    "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/"
+)
 DEFAULT_NYISO_ANCILLARY_S3_BASE = "s3://data.sb/nyiso/ancillary/"
 
 VALID_NYISO_UTILITIES = frozenset(
@@ -44,6 +47,9 @@ DEFAULT_ISONE_ANCILLARY_S3_BASE = "s3://data.sb/isone/ancillary/"
 DEFAULT_ISONE_ZONE_LOADS_S3_BASE = "s3://data.sb/isone/hourly_demand/zones/"
 DEFAULT_ISONE_FCA_S3_PATH = "s3://data.sb/isone/capacity/fca/data.parquet"
 DEFAULT_ISONE_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/ri/supply/"
+DEFAULT_ISONE_BULK_TX_OUTPUT_S3_BASE = (
+    "s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/"
+)
 
 VALID_ISONE_UTILITIES = frozenset({"rie"})
 
@@ -77,15 +83,12 @@ ISONE_ALL_LOAD_ZONES: list[str] = [
     "WCMA",
 ]
 
-DEFAULT_ISONE_BULK_TX_OUTPUT_S3_BASE = (
-    "s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/"
-)
-
 # ---------------------------------------------------------------------------
 # PJM defaults (Maryland)
 # ---------------------------------------------------------------------------
 DEFAULT_PJM_LMP_S3_BASE = PJM_LMP_S3_BASE
 DEFAULT_PJM_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/md/supply/"
+DEFAULT_PJM_BULK_TX_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/md/bulk_tx"
 
 # Curated PJM capacity reference datasets (see data/pjm/capacity/{rpm,5cp}/).
 # RPM: BRA + Final Zonal Capacity Prices per (delivery_year, zone), $/MW-day.
@@ -114,9 +117,6 @@ PJM_UTILITY_ZONES: dict[str, str] = {
 }
 
 VALID_PJM_UTILITIES: frozenset[str] = frozenset(PJM_UTILITY_ZONES)
-DEFAULT_NYISO_BULK_TX_OUTPUT_S3_BASE = (
-    "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/"
-)
 
 MC_COMPONENT_RELATIVE_PATHS: dict[str, str] = {
     "supply_energy": "supply/energy",
