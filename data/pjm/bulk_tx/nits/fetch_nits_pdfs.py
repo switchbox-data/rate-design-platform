@@ -5,8 +5,9 @@ Downloads NITS rate PDFs for specified years to a local cache directory. PDFs ar
 not committed to git; they're fetched on-demand for extraction or verification.
 
 Usage:
-    uv run python data/pjm/bulk_tx/nits/fetch_nits_pdfs.py --years 2021 2022 2023 2024 2025
-    uv run python data/pjm/bulk_tx/nits/fetch_nits_pdfs.py --years 2021-2025
+    uv run python data/pjm/bulk_tx/nits/fetch_nits_pdfs.py --years 2025
+    uv run python data/pjm/bulk_tx/nits/fetch_nits_pdfs.py --years 2021 2022 2025
+    uv run python data/pjm/bulk_tx/nits/fetch_nits_pdfs.py --years "2021,2022,2025"
 """
 
 from __future__ import annotations
@@ -84,12 +85,23 @@ def fetch_year(year: int, output_dir: Path) -> dict[str, bool]:
     return results
 
 
-def parse_year_range(year_spec: str) -> list[int]:
-    """Parse a year spec like '2021-2025' or '2021' into a list of years."""
-    if "-" in year_spec:
-        start, end = year_spec.split("-")
-        return list(range(int(start), int(end) + 1))
-    return [int(year_spec)]
+def parse_years(year_specs: list[str]) -> list[int]:
+    """Parse a list of year tokens (space- or comma-separated) into a sorted list of ints.
+
+    Each token is a single year or a comma-separated string of years.
+    Examples:
+        ["2025"]              → [2025]
+        ["2021", "2022"]      → [2021, 2022]
+        ["2021,2022,2025"]    → [2021, 2022, 2025]
+        ["2021", "2022,2025"] → [2021, 2022, 2025]
+    """
+    years: list[int] = []
+    for spec in year_specs:
+        for token in spec.split(","):
+            token = token.strip()
+            if token:
+                years.append(int(token))
+    return sorted(set(years))
 
 
 def main() -> None:
@@ -100,7 +112,7 @@ def main() -> None:
         "--years",
         nargs="+",
         required=True,
-        help="Years to fetch (e.g., 2021 2022 or 2021-2025)",
+        help="Years to fetch, space- or comma-separated (e.g., 2025 or 2021 2022 2025 or '2021,2022,2025')",
     )
     parser.add_argument(
         "--output-dir",
@@ -118,11 +130,7 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Parse year specs
-    years = []
-    for spec in args.years:
-        years.extend(parse_year_range(spec))
-    years = sorted(set(years))
+    years = parse_years(args.years)
 
     print(f"Fetching NITS rate PDFs for years: {', '.join(map(str, years))}")
     print(f"Output directory: {output_dir}\n")

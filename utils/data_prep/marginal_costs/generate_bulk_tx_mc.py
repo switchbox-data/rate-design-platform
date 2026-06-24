@@ -52,7 +52,6 @@ from utils.data_prep.marginal_costs.bulk_tx_nyiso import (
 )
 from utils.data_prep.marginal_costs.bulk_tx_pjm import (
     DEFAULT_K_PEAK_HOURS,
-    DEFAULT_PJM_BULK_TX_OUTPUT_S3_BASE,
     PJM_HOURLY_DEMAND_S3_BASE,
     VALID_PJM_UTILITIES,
 )
@@ -62,6 +61,7 @@ from utils.data_prep.marginal_costs.supply_utils import (
     DEFAULT_NYISO_BULK_TX_OUTPUT_S3_BASE,
     DEFAULT_NYISO_ZONE_LOADS_S3_BASE,
     DEFAULT_NYISO_ZONE_MAPPING_PATH,
+    DEFAULT_PJM_BULK_TX_OUTPUT_S3_BASE,
     ISONE_ALL_LOAD_ZONES,
     VALID_ISONE_UTILITIES,
     VALID_NYISO_UTILITIES,

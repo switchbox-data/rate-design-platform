@@ -8,8 +8,9 @@
 #   5. git diff nits_rates.csv          # review changes, then commit
 #
 # Usage (from data/pjm/bulk_tx/nits/):
-#   just fetch YEARS="2021 2022 2023 2024 2025"  # fetch PDFs for specified years
-#   just fetch YEARS="2021-2025"                 # fetch PDFs for year range
+#   just fetch YEARS="2025"                      # fetch PDFs for a single year
+#   just fetch YEARS="2021 2022 2025"            # fetch PDFs for specific years
+#   just fetch YEARS="2021 2022 2023 2024 2025"  # fetch PDFs for all years
 #   just convert                                 # rebuild CSV from source intermediates
 #   just validate                                # validate the CSV
 
@@ -24,7 +25,7 @@ convert:
       --path-csv {{ path_csv }}
 
 # Fetch NITS rate PDFs from PJM website for specified years.
-fetch YEARS="2021-2025":
+fetch YEARS="2021 2022 2023 2024 2025":
     uv run python {{ justfile_directory() }}/fetch_nits_pdfs.py \
       --years {{ YEARS }} \
       --output-dir {{ path_pdf_cache }}

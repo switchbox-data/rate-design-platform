@@ -62,7 +62,6 @@ _VALIDATION_TOLERANCE_PCT: float = 0.01
 _DAYS_JUN_TO_DEC: int = 214
 
 PJM_HOURLY_DEMAND_S3_BASE = "s3://data.sb/pjm/hourly_demand/utilities"
-DEFAULT_PJM_BULK_TX_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/md/bulk_tx"
 NITS_CSV_PATH = (
     Path(__file__).resolve().parents[3] / "data/pjm/bulk_tx/nits/nits_rates.csv"
 )
