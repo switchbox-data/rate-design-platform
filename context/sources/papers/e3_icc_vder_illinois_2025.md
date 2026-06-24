@@ -43,7 +43,7 @@ methodology for Maryland. Key uses:
 - 2 A Framework for Compensation Design
 - 3 DER Benefits
   - 3.1 Distribution Avoided Costs
-  - **3.2 Avoided Transmission** ← *key section*
+  - **3.2 Avoided Transmission** ← _key section_
   - 3.3 Other Avoided Costs
   - 3.4 Total Avoided Costs
   - 3.5 Bill savings
@@ -54,7 +54,7 @@ methodology for Maryland. Key uses:
 - 6 Update process and future improvements
   - 6.1 Data updates on DER values
     - 6.1.1 Distribution system value
-    - **6.1.2 Transmission** ← *key section*
+    - **6.1.2 Transmission** ← _key section_
     - 6.1.3 Generation
     - 6.1.4 Non-monetized benefits
   - 6.2 External triggers for update
@@ -62,7 +62,7 @@ methodology for Maryland. Key uses:
 - 8 Summary of Recommendations
 - Appendix A. Stakeholder Feedback
 - Appendix B. Avoided Cost Methodology
-- **Appendix C. Hourly Allocation** ← *key section*
+- **Appendix C. Hourly Allocation** ← _key section_
 - Appendix D. Weather Re-mapping
 
 ---
@@ -93,11 +93,11 @@ as net metering — and through DER-specific incentive programs.
 
 **Table 7. Distribution Capacity Values by Utility (2024 $/kW-yr)**
 
-| Source | Near-Term Distribution Value | Long-Term Distribution Value |
-|---|---|---|
-| | Utility Cost of Service Studies | FERC Form 1 and Refiled Grid Plans |
-| Ameren | $9.43 | $34.30 |
-| ComEd | $5.54 | $27.98 |
+| Source | Near-Term Distribution Value    | Long-Term Distribution Value       |
+| ------ | ------------------------------- | ---------------------------------- |
+|        | Utility Cost of Service Studies | FERC Form 1 and Refiled Grid Plans |
+| Ameren | $9.43                           | $34.30                             |
+| ComEd  | $5.54                           | $27.98                             |
 
 ---
 
@@ -123,10 +123,10 @@ approach described in Appendix C.
 
 **Table 8. Transmission Capacity Values by Utility (2024 $/kW-yr)**
 
-| | Source | 2024 Network Transmission Service Rate |
-|---|---|---|
-| Ameren | MISO | $80.00/kW-yr |
-| ComEd | PJM | $39.80/kW-yr |
+|        | Source | 2024 Network Transmission Service Rate |
+| ------ | ------ | -------------------------------------- |
+| Ameren | MISO   | $80.00/kW-yr                           |
+| ComEd  | PJM    | $39.80/kW-yr                           |
 
 It is important to note that the network transmission service rates are driven by gross annual
 transmission expenses incurred by the RTOs, plus a rate of return. While these rates are expressed
@@ -224,9 +224,9 @@ during a portion of the peak load hours would be estimated to provide some alloc
 portion of the maximum potential benefit to the electric grid.
 
 [^39]: Transmission and distribution allocation factors are based on the total end-use load minus distributed solar data,
-while generation capacity allocation factors are based on the total end-use load minus all renewable generation.
+    while generation capacity allocation factors are based on the total end-use load minus all renewable generation.
 
 [^40]: For years when multiple hours are 'tied' at the threshold for the 150th peak hour, all of these threshold hours are
-included within the set of peak hours.
+    included within the set of peak hours.
 
 [^41]: The use of only 100 hours for generation capacity is intended to align with Cambium's allocation of these costs.
