@@ -18,10 +18,10 @@ See `utils/pre/rev_requirement/fetch_electric_tariffs_genability.py` and
 | `dpl`             | Delmarva Power           | IOU                  | 5027   | Confirmed            |
 | `smeco`           | SMECO                    | Co-op                | 17637  | Likely yes           |
 | `choptank`        | Choptank Electric        | Co-op                | 3503   | Likely yes           |
-| `somerset_rec`    | Somerset REC             | Small co-op          | 84     | May not exist        |
-| `berlin_muni`     | Town of Berlin           | Municipal            | 1615   | May not exist        |
-| `hagerstown_muni` | Hagerstown Light Dept    | Municipal            | 7908   | May not exist        |
-| `easton_muni`     | Easton Utilities         | Municipal (elec+gas) | 5625   | May not exist        |
+| `somerset_rec`    | Somerset REC             | Small co-op          | 40167  | Confirmed            |
+| `berlin_muni`     | Town of Berlin           | Municipal            | 1615   | Confirmed            |
+| `hagerstown_muni` | Hagerstown Light Dept    | Municipal            | 7908   | Confirmed            |
+| `easton_muni`     | Easton Utilities         | Municipal (elec+gas) | 5625   | Confirmed            |
 
 ### Gas (8 utilities — from HIFLD + utility_codes.py)
 
@@ -38,7 +38,7 @@ See `utils/pre/rev_requirement/fetch_electric_tariffs_genability.py` and
 
 ---
 
-## Phase 1: Electric default tariffs (snapshot + URDB)
+## Phase 1: Electric default tariffs (snapshot + URDB) — DONE
 
 **Source:** Arcadia/Genability API (`ARCADIA_APP_ID`, `ARCADIA_APP_KEY`)
 
@@ -48,11 +48,14 @@ See `utils/pre/rev_requirement/fetch_electric_tariffs_genability.py` and
 - `config/tariffs/electric/{std_name}_default_supply.json` — delivery + supply URDB (adds SUPPLY + CONTRACTED)
 - `config/rev_requirement/top-ups/default_tariffs/{std_name}_default_2025-01-01.json` — raw Genability snapshot (not URDB; reference for revenue-requirement pipeline)
 
+All 10 electric utilities converted successfully on 2026-06-24. All 20 URDB files are present in
+`config/tariffs/electric/`. All 10 Genability snapshots are in `top-ups/default_tariffs/`.
+
 ### Step 1.1 — Config (done)
 
 `config/rev_requirement/top-ups/tariffs_by_utility.yaml` created with all 10 utilities.
 
-### Step 1.2 — Run fetch
+### Step 1.2 — Run fetch (done)
 
 ```bash
 # From rate_design/hp_rates/
@@ -64,18 +67,35 @@ This runs `fetch_electric_tariffs_genability.py` with `--urdb`, writing:
 - Snapshot → `top-ups/default_tariffs/`
 - URDB delivery + supply → `config/tariffs/electric/`
 
-### Step 1.3 — Handle small-utility failures
+#### tariff_fetch library bugs patched
 
-Small co-ops and municipals (`somerset_rec`, `berlin_muni`, `hagerstown_muni`, `easton_muni`) may not
-exist in Arcadia. If the fetch raises for them:
+Three utilities (BGE, Pepco, DPL) initially failed URDB conversion due to bugs in the
+`tariff_fetch` library. Both bugs are patched via monkey-patches in
+`fetch_electric_tariffs_genability.py`. See
+`context/code/data/tariff_rates_and_genability.md` for full details.
 
-1. Remove them from `tariffs_by_utility.yaml` temporarily
-2. Search Arcadia interactively: `tariff-fetch --state md --provider genability`
-3. If found by name substring or masterTariffId, update the YAML entry
-4. If not in Arcadia, use OpenEI as fallback: `tariff-fetch ni openei <eia_id> residential`
-5. If not available anywhere, these buildings will need a `null_electric_tariff.json`
+**BGE — empty band list from BOOLEAN applicability filtering:**
+BGE has a "Competitive Billing" FIXED_PRICE rate whose single band carries
+`applicabilityValue=true`. When the non-interactive resolver sets `competitiveBilling=False`,
+`rate_filter_bands` skips the band and returns `[]`. The original code then checks
+`"COST_PER_UNIT" not in set()` — always true — and raises a misleading error. Fix: return `0.0`
+when `rate_filter_bands` returns an empty list, because an empty list means the rate simply
+doesn't apply to this customer scenario.
 
-### Step 1.4 — Inspect outputs
+**Pepco / DPL — `calculation_factor` on GRT and DSIC charges:**
+Arcadia models percentage-based regulatory charges (Pepco's 2.04% DC Gross Receipts Tax and
+DPL's 4.23% Distribution System Improvement Charge) as companion rates where `rateAmount` is
+the base being taxed and `calculationFactor` is the percentage multiplier. The effective charge
+is `rateAmount × calculationFactor`. `tariff_fetch` raises unconditionally on any band with
+`calculation_factor`. Fix: patch `rate_filter_bands` to fold the factor into `rateAmount`
+before the band is processed, producing a normal flat-rate band at the effective dollar amount.
+
+### Step 1.3 — Small-utility availability (all confirmed)
+
+All four small utilities (`somerset_rec`, `berlin_muni`, `hagerstown_muni`, `easton_muni`) were
+found in Arcadia and converted successfully. No null tariff fallback was needed.
+
+### Step 1.4 — Inspect outputs (pending)
 
 Check each `*_default.json` has `energyratestructure` populated. Check `*_default_supply.json`
 has both delivery and supply charges. Spot-check BGE's filed rate structure against PSC filings.
