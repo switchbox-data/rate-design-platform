@@ -271,6 +271,8 @@ UTILITIES: list[UtilityRecord] = [
             "BALTIMORE GAS AND ELECTRIC CO",
         ],
         "eia_utility_ids": [1167],
+        "electric_tariff_key": "bge",
+        "gas_tariff_key": "bge",
     },
     {
         "std_name": "pepco",
@@ -279,6 +281,7 @@ UTILITIES: list[UtilityRecord] = [
         "display_name": "Pepco",
         "hifld_names": ["POTOMAC ELECTRIC POWER CO"],
         "eia_utility_ids": [15270],
+        "electric_tariff_key": "pepco",
     },
     {
         "std_name": "poted",
@@ -287,6 +290,7 @@ UTILITIES: list[UtilityRecord] = [
         "display_name": "Potomac Edison",
         "hifld_names": ["THE POTOMAC EDISON COMPANY"],
         "eia_utility_ids": [15263],
+        "electric_tariff_key": "poted",
     },
     {
         "std_name": "dpl",
@@ -295,6 +299,7 @@ UTILITIES: list[UtilityRecord] = [
         "display_name": "Delmarva Power",
         "hifld_names": ["DELMARVA POWER"],
         "eia_utility_ids": [5027],
+        "electric_tariff_key": "dpl",
     },
     {
         "std_name": "smeco",
@@ -303,6 +308,7 @@ UTILITIES: list[UtilityRecord] = [
         "display_name": "SMECO",
         "hifld_names": ["SOUTHERN MARYLAND ELEC COOP INC"],
         "eia_utility_ids": [17637],
+        "electric_tariff_key": "smeco",
     },
     {
         "std_name": "choptank",
@@ -311,6 +317,7 @@ UTILITIES: list[UtilityRecord] = [
         "display_name": "Choptank Electric Cooperative",
         "hifld_names": ["CHOPTANK ELECTRIC COOPERATIVE, INC"],
         "eia_utility_ids": [3503],
+        "electric_tariff_key": "choptank",
     },
     {
         "std_name": "somerset_rec",
@@ -318,7 +325,8 @@ UTILITIES: list[UtilityRecord] = [
         "fuels": ["electric"],
         "display_name": "Somerset Rural Electric Cooperative",
         "hifld_names": ["SOMERSET RURAL ELECTRIC COOPERATIVE"],
-        "eia_utility_ids": [84],
+        "eia_utility_ids": [40167],
+        "electric_tariff_key": "somerset_rec",
     },
     {
         "std_name": "berlin_muni",
@@ -327,6 +335,7 @@ UTILITIES: list[UtilityRecord] = [
         "display_name": "Town of Berlin",
         "hifld_names": ["TOWN OF BERLIN - (MD)"],
         "eia_utility_ids": [1615],
+        "electric_tariff_key": "berlin_muni",
     },
     {
         "std_name": "hagerstown_muni",
@@ -335,6 +344,7 @@ UTILITIES: list[UtilityRecord] = [
         "display_name": "Hagerstown Light Department",
         "hifld_names": ["HAGERSTOWN LIGHT DEPARTMENT"],
         "eia_utility_ids": [7908],
+        "electric_tariff_key": "hagerstown_muni",
     },
     {
         "std_name": "easton_muni",
@@ -343,6 +353,8 @@ UTILITIES: list[UtilityRecord] = [
         "display_name": "Easton Utilities",
         "hifld_names": ["EASTON UTILITIES COMM", "EASTON UTILITIES"],
         "eia_utility_ids": [5625],
+        "electric_tariff_key": "easton_muni",
+        "gas_tariff_key": "easton_muni",
     },
     # Gas-only utilities
     {
@@ -351,6 +363,7 @@ UTILITIES: list[UtilityRecord] = [
         "fuels": ["gas"],
         "display_name": "Washington Gas",
         "hifld_names": ["WASHINGTON GAS"],
+        "gas_tariff_key": "washington_gas",
     },
     {
         "std_name": "columbia_gas_md",
@@ -358,6 +371,7 @@ UTILITIES: list[UtilityRecord] = [
         "fuels": ["gas"],
         "display_name": "Columbia Gas of Maryland",
         "hifld_names": ["COLUMBIA GAS OF WASHINGTON/MARYLAND"],
+        "gas_tariff_key": "columbia_gas_md",
     },
     {
         "std_name": "chesapeake_utilities",
@@ -365,6 +379,7 @@ UTILITIES: list[UtilityRecord] = [
         "fuels": ["gas"],
         "display_name": "Chesapeake Utilities",
         "hifld_names": ["CHESAPEAKE UTILITIES CORPORATION"],
+        "gas_tariff_key": "chesapeake_utilities",
     },
     {
         "std_name": "sandpiper",
@@ -372,6 +387,7 @@ UTILITIES: list[UtilityRecord] = [
         "fuels": ["gas"],
         "display_name": "Sand-Piper Energy",
         "hifld_names": ["SAND-PIPER ENERGY"],
+        "gas_tariff_key": "sandpiper",
     },
     {
         "std_name": "elkton_gas",
@@ -379,6 +395,7 @@ UTILITIES: list[UtilityRecord] = [
         "fuels": ["gas"],
         "display_name": "Elkton Gas",
         "hifld_names": ["ELKTON GAS COMPANY"],
+        "gas_tariff_key": "elkton_gas",
     },
     {
         "std_name": "ugi_central_penn",
@@ -386,6 +403,7 @@ UTILITIES: list[UtilityRecord] = [
         "fuels": ["gas"],
         "display_name": "UGI Central Penn Gas",
         "hifld_names": ["UGI CENTRAL PENN GAS"],
+        "gas_tariff_key": "ugi_central_penn",
     },
     # ── Connecticut ───────────────────────────────────────────────────────────
     # Electric IOUs

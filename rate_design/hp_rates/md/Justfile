@@ -18,6 +18,34 @@ utility := env_var_or_default('UTILITY', 'bge')
 import '../Justfile'
 
 # =============================================================================
+# MD-only: tariff fetching
+#
+# fetch-default-electric-tariffs: fetches both the Genability snapshot (for the
+#   revenue-requirement pipeline) and URDB v7 delivery + supply JSONs (for CAIRO).
+#   Snapshot → config/rev_requirement/top-ups/default_tariffs/
+#   URDB     → config/tariffs/electric/{utility}_default.json
+#              config/tariffs/electric/{utility}_default_supply.json
+#
+# fetch-gas-tariffs: fetches gas tariffs from RateAcuity as URDB v7 JSON.
+#   Requires rateacuity_tariffs.yaml and rate_acuity_utility_names in utility_codes.py.
+#   Output → config/tariffs/gas/{tariff_key}.json
+# =============================================================================
+
+fetch-default-electric-tariffs effective_date="2025-01-01":
+    uv run python {{ path_repo }}/utils/pre/rev_requirement/fetch_electric_tariffs_genability.py \
+      "{{ path_genability_yaml }}" \
+      "{{ path_genability }}/default_tariffs" \
+      --state "{{ state_upper }}" \
+      --effective-date "{{ effective_date }}" \
+      --urdb \
+      --path-urdb-dir "{{ path_tariffs_electric }}"
+
+fetch-gas-tariffs:
+    uv run python {{ path_repo }}/utils/pre/fetch_gas_tariffs_rateacuity.py \
+      "{{ path_rateacuity_yaml }}" \
+      "{{ path_tariffs_gas }}"
+
+# =============================================================================
 # MD-only: ISO-native load source for sub-TX/DX marginal costs
 #
 # MD reads PJM-native utility loads (data/pjm/hourly_demand/) instead of the
