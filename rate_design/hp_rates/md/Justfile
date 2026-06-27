@@ -40,10 +40,28 @@ fetch-default-electric-tariffs effective_date="2025-01-01":
       --urdb \
       --path-urdb-dir "{{ path_tariffs_electric }}"
 
+path_rateacuity_phase2_yaml := path_tariffs_gas / "rateacuity_tariffs_chesapeake_phase2.yaml"
+
 fetch-gas-tariffs:
     uv run python {{ path_repo }}/utils/pre/fetch_gas_tariffs_rateacuity.py \
       "{{ path_rateacuity_yaml }}" \
       "{{ path_tariffs_gas }}"
+    just fetch-chesapeake-gas-phase2
+    just split-chesapeake-gas-tariffs
+
+fetch-chesapeake-gas-phase2:
+    uv run python {{ path_repo }}/utils/pre/fetch_gas_tariffs_rateacuity.py \
+      "{{ path_rateacuity_phase2_yaml }}" \
+      "{{ path_tariffs_gas }}" \
+      --year 2027
+
+split-chesapeake-gas-tariffs:
+    uv run python {{ path_repo }}/utils/data_prep/tariffs/split_chesapeake_gas_tariffs.py \
+      --path-res1-csv "{{ path_tariffs_gas }}/chesapeake_utilities_res1.csv" \
+      --path-res2-csv "{{ path_tariffs_gas }}/chesapeake_utilities_res2.csv" \
+      --path-res1-phase2-csv "{{ path_tariffs_gas }}/chesapeake_utilities_res1_phase2.csv" \
+      --path-res2-phase2-csv "{{ path_tariffs_gas }}/chesapeake_utilities_res2_phase2.csv" \
+      --output-dir "{{ path_tariffs_gas }}"
 
 # =============================================================================
 # MD-only: ISO-native load source for sub-TX/DX marginal costs
