@@ -5,7 +5,7 @@
 # IOUs (bge, pepco, poted, dpl) are confirmed in Arcadia.
 # Larger co-ops (smeco, choptank) are likely in Arcadia; verify on first run.
 # Small co-ops/municipals (somerset_rec, berlin_muni, hagerstown_muni, easton_muni)
-# may not be in Arcadia; see TARIFF_FETCH_PLAN.md for fallback options.
+# may not be in Arcadia; see MD_TARIFF_FETCH.md for fallback options.
 bge: default
 pepco: default
 poted: default

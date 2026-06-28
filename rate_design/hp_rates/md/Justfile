@@ -48,6 +48,25 @@ fetch-gas-tariffs:
       "{{ path_tariffs_gas }}"
     just fetch-chesapeake-gas-phase2
     just split-chesapeake-gas-tariffs
+    just fetch-ugi-pgc
+
+# Fetch UGI Central Penn residential price-to-compare (commodity rate) from
+# pennsylvaniaenergy.com/pricing-history/ and write to ugi_central_penn_pgc.csv.
+#
+# The site publishes a rolling ~24-month history; requesting dates outside that
+# window raises an error. Data availability starts roughly 24 months before today.
+#
+#   just -f md/Justfile fetch-ugi-pgc               # default: 2024-01 to current month
+#   just -f md/Justfile fetch-ugi-pgc 2025-01 2025-12
+path_ugi_pgc_csv := path_tariffs_gas / "ugi_central_penn_pgc.csv"
+ugi_pgc_default_start := "2024-01"
+ugi_pgc_default_end := `date +%Y-%m`
+
+fetch-ugi-pgc start=ugi_pgc_default_start end=ugi_pgc_default_end:
+    uv run python {{ path_repo }}/utils/data_prep/tariffs/fetch_ugi_pgc.py \
+      --start "{{ start }}" \
+      --end "{{ end }}" \
+      --path-output "{{ path_ugi_pgc_csv }}"
 
 fetch-chesapeake-gas-phase2:
     uv run python {{ path_repo }}/utils/pre/fetch_gas_tariffs_rateacuity.py \
