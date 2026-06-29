@@ -618,11 +618,9 @@ def main():
         args.target_dollar_year if args.target_dollar_year else output_year
     )
 
-    # Only the EIA load layout carries a `region=<iso>` partition. Every
-    # ISO-native layout (NYISO, PJM, and the future ISO-NE utilities path)
-    # partitions on utility/year[/month] with no region key, so the region
-    # filter must be skipped for them. RI still reads EIA, so its region filter
-    # is retained via the EIA-path branch below.
+    # Only the EIA load layout carries a `region=<iso>` partition. ISO-native
+    # layouts (NYISO, PJM, ISONE) partition on utility/year[/month] with no
+    # region key, so the region filter is skipped for them.
     s3_base = args.utility_load_s3_base
     iso_region: str | None = (
         config.iso_region if "eia/hourly_demand" in s3_base else None
@@ -631,7 +629,7 @@ def main():
     print("=" * 60)
     print("MARGINAL COST ALLOCATION")
     print(f"State: {config.state}")
-    print(f"ISO region partition: {iso_region or '(none — NYISO native path)'}")
+    print(f"ISO region partition: {iso_region or '(none — ISO-native path)'}")
     print(f"AWS bucket region: {storage_options.get('region')}")
     print("=" * 60)
     print(f"Utility: {args.utility}")
