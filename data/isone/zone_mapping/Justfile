@@ -1,0 +1,15 @@
+# ISO-NE utility zone mapping
+#
+# Regenerate the committed CSV from the hardcoded mapping table in
+# generate_zone_mapping_csv.py whenever utilities are added or changed.
+#
+# Usage (from repo root):
+#   just -f data/isone/zone_mapping/Justfile generate
+
+path_local_repo := `git rev-parse --show-toplevel`
+path_output_csv := justfile_directory() + "/csv/isone_utility_zone_mapping.csv"
+
+# Regenerate isone_utility_zone_mapping.csv from generate_zone_mapping_csv.py.
+generate:
+    cd "{{ path_local_repo }}" && uv run python -m data.isone.zone_mapping.generate_zone_mapping_csv \
+        --path-output-csv "{{ path_output_csv }}"
