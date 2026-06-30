@@ -4,11 +4,23 @@ from __future__ import annotations
 
 import io
 import itertools
+import os
 from pathlib import Path
 from typing import Any
 
 import boto3
 import polars as pl
+
+
+def get_aws_storage_options() -> dict[str, str]:
+    """Return Polars-compatible AWS storage options for S3 access."""
+    aws_region = (
+        os.getenv("AWS_DEFAULT_REGION") or os.getenv("AWS_REGION") or "us-west-2"
+    )
+    return {
+        "region": aws_region,
+        "default_region": aws_region,
+    }
 
 
 def read_csv_from_s3(s3_path: str, **kwargs: Any) -> pl.DataFrame:

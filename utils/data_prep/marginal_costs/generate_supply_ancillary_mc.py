@@ -120,7 +120,7 @@ def main() -> None:
     )
 
     load_dotenv()
-    from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+    from utils.file_io import get_aws_storage_options
 
     storage_options = get_aws_storage_options()
 

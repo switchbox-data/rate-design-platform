@@ -6,7 +6,7 @@ import argparse
 
 from dotenv import load_dotenv
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils.data_prep.marginal_costs.supply_capacity_nyiso import (
     N_PEAK_HOURS_PER_MONTH,
     compute_supply_capacity_mc,
@@ -17,10 +17,15 @@ from utils.data_prep.marginal_costs.supply_utils import (
     DEFAULT_ISONE_OUTPUT_S3_BASE,
     DEFAULT_ISONE_ZONE_LOADS_S3_BASE,
     DEFAULT_OUTPUT_S3_BASE,
+    DEFAULT_PJM_5CP_S3_PATH,
+    DEFAULT_PJM_OUTPUT_S3_BASE,
+    DEFAULT_PJM_RPM_S3_PATH,
     DEFAULT_ZONE_LOADS_S3_BASE,
     DEFAULT_ZONE_MAPPING_PATH,
     ISONE_UTILITY_CAPACITY_ZONES,
+    PJM_UTILITY_ZONES,
     VALID_ISONE_UTILITIES,
+    VALID_PJM_UTILITIES,
     VALID_UTILITIES,
     generate_zero_capacity_mc,
     get_utility_mapping,
@@ -35,15 +40,15 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Generate utility-level supply capacity marginal costs from "
-            "NYISO ICAP or ISO-NE FCA."
+            "NYISO ICAP, ISO-NE FCA, or PJM RPM."
         )
     )
     parser.add_argument(
         "--iso",
         type=str,
         default="nyiso",
-        choices=["nyiso", "isone"],
-        help="ISO to use as source: 'nyiso' (default) or 'isone'.",
+        choices=["nyiso", "isone", "pjm"],
+        help="ISO to use as source: 'nyiso' (default), 'isone', or 'pjm'.",
     )
     parser.add_argument(
         "--utility",
@@ -52,7 +57,8 @@ def _parse_args() -> argparse.Namespace:
         help=(
             "Utility short name. NYISO: one of "
             f"{sorted(VALID_UTILITIES)}. "
-            f"ISO-NE: one of {sorted(VALID_ISONE_UTILITIES)}."
+            f"ISO-NE: one of {sorted(VALID_ISONE_UTILITIES)}. "
+            f"PJM (MD): one of {sorted(VALID_PJM_UTILITIES)}."
         ),
     )
     parser.add_argument(
@@ -117,6 +123,28 @@ def _parse_args() -> argparse.Namespace:
             "Defaults to ISONE_UTILITY_CAPACITY_ZONES[utility]."
         ),
     )
+    # PJM-only args
+    parser.add_argument(
+        "--rpm-s3-path",
+        type=str,
+        default=DEFAULT_PJM_RPM_S3_PATH,
+        help=f"[PJM only] S3 path to RPM prices parquet (default: {DEFAULT_PJM_RPM_S3_PATH}).",
+    )
+    parser.add_argument(
+        "--fivecp-s3-path",
+        type=str,
+        default=DEFAULT_PJM_5CP_S3_PATH,
+        help=f"[PJM only] S3 path to 5CP peaks parquet (default: {DEFAULT_PJM_5CP_S3_PATH}).",
+    )
+    parser.add_argument(
+        "--price-zone",
+        type=str,
+        default=None,
+        help=(
+            "[PJM only] RPM price zone (e.g. 'BGE'). "
+            "Defaults to PJM_UTILITY_ZONES[utility]."
+        ),
+    )
     # Shared args
     parser.add_argument(
         "--output-s3-base",
@@ -124,8 +152,9 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "S3 base for output. "
-            f"Defaults to {DEFAULT_OUTPUT_S3_BASE!r} (NYISO) "
-            f"or {DEFAULT_ISONE_OUTPUT_S3_BASE!r} (ISO-NE)."
+            f"Defaults to {DEFAULT_OUTPUT_S3_BASE!r} (NYISO), "
+            f"{DEFAULT_ISONE_OUTPUT_S3_BASE!r} (ISO-NE), "
+            f"or {DEFAULT_PJM_OUTPUT_S3_BASE!r} (PJM)."
         ),
     )
     parser.add_argument(
@@ -153,13 +182,20 @@ def main() -> None:
                 f"Valid choices: {sorted(VALID_UTILITIES)}"
             )
         output_s3_base = args.output_s3_base or DEFAULT_OUTPUT_S3_BASE
-    else:  # isone
+    elif iso == "isone":
         if utility not in VALID_ISONE_UTILITIES:
             raise SystemExit(
                 f"Error: utility {utility!r} is not valid for ISO-NE. "
                 f"Valid choices: {sorted(VALID_ISONE_UTILITIES)}"
             )
         output_s3_base = args.output_s3_base or DEFAULT_ISONE_OUTPUT_S3_BASE
+    else:  # pjm
+        if utility not in VALID_PJM_UTILITIES:
+            raise SystemExit(
+                f"Error: utility {utility!r} is not valid for PJM. "
+                f"Valid choices: {sorted(VALID_PJM_UTILITIES)}"
+            )
+        output_s3_base = args.output_s3_base or DEFAULT_PJM_OUTPUT_S3_BASE
 
     print("=" * 60)
     print(f"SUPPLY CAPACITY MARGINAL COST GENERATION ({iso.upper()})")
@@ -193,7 +229,7 @@ def main() -> None:
                 capacity_load_year if capacity_load_year != price_year else None
             ),
         )
-    else:  # isone
+    elif iso == "isone":
         capacity_zone_id = args.capacity_zone_id or ISONE_UTILITY_CAPACITY_ZONES.get(
             utility
         )
@@ -217,6 +253,29 @@ def main() -> None:
             fca_s3_path=args.fca_s3_path,
             zone_loads_s3_base=DEFAULT_ISONE_ZONE_LOADS_S3_BASE,
             capacity_zone_id=capacity_zone_id,
+        )
+    else:  # pjm
+        price_zone = args.price_zone or PJM_UTILITY_ZONES.get(utility)
+        if price_zone is None:
+            raise SystemExit(
+                f"Error: no price_zone mapping found for utility {utility!r}. "
+                "Provide --price-zone explicitly."
+            )
+        print(f"  Price zone:           {price_zone}")
+        print("=" * 60)
+
+        from utils.data_prep.marginal_costs.supply_capacity_pjm import (
+            compute_supply_capacity_mc_pjm,
+        )
+
+        print("\n── Capacity MC (RPM 5CP) ──")
+        capacity_df = compute_supply_capacity_mc_pjm(
+            utility=utility,
+            year=price_year,
+            storage_options=storage_options,
+            rpm_s3_path=args.rpm_s3_path,
+            fivecp_s3_path=args.fivecp_s3_path,
+            price_zone=price_zone,
         )
 
     capacity_output = prepare_component_output(

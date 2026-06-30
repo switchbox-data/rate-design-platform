@@ -3,8 +3,11 @@
 #
 # Usage (from rate_design/hp_rates/):
 #   just -f md/Justfile create-supply-energy-mc bge 2023
+#   just -f md/Justfile create-bulk-tx-mc-data bge 2025
+#   just -f md/Justfile create-bulk-tx-mc-data-all
 #   just -f md/Justfile create-dist-and-sub-tx-mc-data        # uses state.env UTILITY
 # Or via dispatch:
+#   just s md create-bulk-tx-mc-data bge 2025
 #   just s md create-dist-and-sub-tx-mc-data
 
 set dotenv-path := "state.env"
@@ -95,6 +98,133 @@ create-supply-energy-mc-full-backfill *extra_args:
         for year in {{ pjm_lmp_years }}; do
             echo ">> Generating PJM supply energy MC: utility=${utility} year=${year}" >&2
             uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_energy_mc.py \
+              --iso pjm \
+              --utility "${utility}" \
+              --year "${year}" \
+              {{ extra_args }}
+        done
+    done
+    echo ">> Done: full backfill" >&2
+
+# =============================================================================
+# MD-only: bulk transmission marginal costs (PJM NITS + PCAF)
+#
+# PJM bulk TX is zone-level: one NITS rate per transmission zone, peak hours
+# identified from zone-aggregate load. Each MD utility maps 1:1 to a zone
+# (data/pjm/zone_mapping/csv/pjm_utility_zone_mapping.csv), and the utility-
+# level load on S3 IS the full zone load. So we just run the same calculation
+# for each utility — all utilities in the same zone produce the same output.
+#
+# Zone → utilities:
+#   BGE   → bge
+#   DPL   → dpl, choptank, easton_muni, berlin_muni
+#   PEPCO → pepco, smeco
+#   APS   → poted, somerset_rec, hagerstown_muni
+#
+# Uses NITS rates from data/pjm/bulk_tx/nits/nits_rates.csv and PJM-native
+# hourly demand from s3://data.sb/pjm/hourly_demand/utilities/.
+# Years with NITS data: 2021-2025.
+# =============================================================================
+
+pjm_bulk_tx_utilities := "bge dpl pepco poted smeco choptank somerset_rec hagerstown_muni easton_muni berlin_muni"
+# Expand as more years are uploaded to s3://data.sb/pjm/hourly_demand/utilities/.
+pjm_bulk_tx_years := "2025"
+
+# Generate bulk TX MC for one utility and one year.
+#
+#   just -f md/Justfile create-bulk-tx-mc-data bge 2025
+# just -f md/Justfile create-bulk-tx-mc-data smeco 2025 --upload
+create-bulk-tx-mc-data utility_arg year_arg *extra_args:
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
+      --iso pjm \
+      --utility {{ utility_arg }} \
+      --year {{ year_arg }} \
+      {{ extra_args }}
+
+# Generate bulk TX MC for all MD utilities across all available NITS years.
+#
+# just -f md/Justfile create-bulk-tx-mc-data-all --upload
+create-bulk-tx-mc-data-all *extra_args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for utility in {{ pjm_bulk_tx_utilities }}; do
+        for year in {{ pjm_bulk_tx_years }}; do
+            echo ">> Generating PJM bulk TX MC: utility=${utility} year=${year}" >&2
+            cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
+              --iso pjm \
+              --utility "${utility}" \
+              --year "${year}" \
+              {{ extra_args }}
+        done
+    done
+    echo ">> Done: all MD bulk TX MC ($(echo {{ pjm_bulk_tx_utilities }} | wc -w) utilities × $(echo {{ pjm_bulk_tx_years }} | wc -w) years)" >&2
+
+# =============================================================================
+# MD-only: supply capacity marginal costs (PJM RPM + 5CP)
+# =============================================================================
+
+# Years with both an RPM calendar-year blend and a published summer 5CP set.
+# 5CP data covers summers 2021-2025; RPM covers DY 2018/19-2026/27. The binding
+# constraint is the 5CP summer, so capacity MC is available for 2021-2025.
+pjm_capacity_years := "2021 2022 2023 2024 2025"
+
+# Generate supply capacity MC for one MD utility and one year.
+#
+#   just -f md/Justfile create-supply-capacity-mc bge 2025
+# just -f md/Justfile create-supply-capacity-mc bge 2025 --upload
+create-supply-capacity-mc utility year *extra_args:
+    uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_capacity_mc.py \
+      --iso pjm \
+      --utility {{ utility }} \
+      --year {{ year }} \
+      {{ extra_args }}
+
+# Generate supply capacity MC for one utility across all available years.
+#
+#   just -f md/Justfile create-supply-capacity-mc-all-years bge
+# just -f md/Justfile create-supply-capacity-mc-all-years bge --upload
+create-supply-capacity-mc-all-years utility *extra_args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for year in {{ pjm_capacity_years }}; do
+        echo ">> Generating PJM supply capacity MC: utility={{ utility }} year=${year}" >&2
+        uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_capacity_mc.py \
+          --iso pjm \
+          --utility {{ utility }} \
+          --year "${year}" \
+          {{ extra_args }}
+    done
+    echo ">> Done: {{ utility }} all years" >&2
+
+# Generate supply capacity MC for all MD utilities for one year.
+#
+#   just -f md/Justfile create-supply-capacity-mc-all 2025
+# just -f md/Justfile create-supply-capacity-mc-all 2025 --upload
+create-supply-capacity-mc-all year *extra_args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for utility in {{ pjm_utilities }}; do
+        echo ">> Generating PJM supply capacity MC: utility=${utility} year={{ year }}" >&2
+        uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_capacity_mc.py \
+          --iso pjm \
+          --utility "${utility}" \
+          --year {{ year }} \
+          {{ extra_args }}
+    done
+    echo ">> Done: all utilities year={{ year }}" >&2
+
+# Generate supply capacity MC for ALL utilities across ALL available years.
+# This is the full backfill. Runs sequentially utility-by-utility, year-by-year.
+#
+#   just -f md/Justfile create-supply-capacity-mc-full-backfill
+# just -f md/Justfile create-supply-capacity-mc-full-backfill --upload
+create-supply-capacity-mc-full-backfill *extra_args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for utility in {{ pjm_utilities }}; do
+        for year in {{ pjm_capacity_years }}; do
+            echo ">> Generating PJM supply capacity MC: utility=${utility} year=${year}" >&2
+            uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_capacity_mc.py \
               --iso pjm \
               --utility "${utility}" \
               --year "${year}" \

@@ -23,7 +23,7 @@ import polars as pl
 from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils import get_aws_region
 from utils.cairo import (
     add_bulk_tx_and_dist_and_sub_tx_marginal_cost,

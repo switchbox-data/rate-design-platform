@@ -44,7 +44,7 @@ from typing import cast
 
 import polars as pl
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils.post import apply_ny_lmi_to_master_bills as ny_lmi_master_bills
 from utils.post.apply_ny_lmi_to_master_bills import apply_ny_lmi_to_master
 from utils.post.apply_ri_lmi_discounts_to_bills import apply_ri_lmi_to_master

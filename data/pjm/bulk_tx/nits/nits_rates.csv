@@ -1,0 +1,64 @@
+# PJM NITS rates for MD-relevant transmission zones: BGE, DPL, PEPCO, APS.
+# One row per (year, effective_date, zone).
+#
+# GENERATED FILE - do not edit by hand. Regenerate with:
+#   just -f data/pjm/bulk_tx/nits/Justfile convert
+# The source of record is the per-year markdown intermediates under
+# sources/nits_{year}.md. To add a year, create the intermediate from the
+# PJM PDF and re-run convert; review the git diff before committing.
+#
+# Schema:
+#   year             – calendar year this rate applies to
+#   effective_date   – date this rate took effect (YYYY-MM-DD)
+#   zone             – PJM transmission zone label (BGE, DPL, PEPCO, APS)
+#   nits_rate_mw_yr  – Network Integration Transmission Service rate ($/MW-year)
+#   nits_rate_kw_yr  – same rate in $/kW-year (= nits_rate_mw_yr / 1000)
+#   source_url       – URL of the PJM NITS PDF this row was transcribed from
+#
+# Blending for calendar-year BAT runs:
+#   PJM bills NITS daily (Manual 27 §5.2.2). The correct calendar-year
+#   effective rate is day-weighted:
+#     blended = (days_jan_rate × jan_rate + days_jun_rate × jun_rate) / days_in_year
+#   For a non-leap year: 151 days at Jan rate + 214 days at Jun rate.
+#   For a leap year:     152 days at Jan rate + 214 days at Jun rate.
+year,effective_date,zone,nits_rate_mw_yr,nits_rate_kw_yr,source_url
+2021,2021-01-01,APS,13930.00,13.93,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2021.pdf
+2021,2021-01-01,BGE,31311.00,31.31,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2021.pdf
+2021,2021-01-01,DPL,33000.00,33.00,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2021.pdf
+2021,2021-01-01,PEPCO,28166.00,28.17,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2021.pdf
+2021,2021-06-01,APS,13930.00,13.93,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2021.pdf
+2021,2021-06-01,BGE,40962.00,40.96,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2021.pdf
+2021,2021-06-01,DPL,46184.00,46.18,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2021.pdf
+2021,2021-06-01,PEPCO,31497.00,31.50,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2021.pdf
+2022,2022-01-01,APS,18162.00,18.16,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2022.pdf
+2022,2022-01-01,BGE,40962.00,40.96,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2022.pdf
+2022,2022-01-01,DPL,46184.00,46.18,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2022.pdf
+2022,2022-01-01,PEPCO,31525.00,31.52,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2022.pdf
+2022,2022-06-01,APS,18162.00,18.16,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2022.pdf
+2022,2022-06-01,BGE,45531.00,45.53,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2022.pdf
+2022,2022-06-01,DPL,49476.00,49.48,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2022.pdf
+2022,2022-06-01,PEPCO,37201.00,37.20,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2022.pdf
+2023,2023-01-01,APS,16760.00,16.76,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2023.pdf
+2023,2023-01-01,BGE,45531.00,45.53,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2023.pdf
+2023,2023-01-01,DPL,49476.00,49.48,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2023.pdf
+2023,2023-01-01,PEPCO,37201.00,37.20,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2023.pdf
+2023,2023-06-01,APS,16760.00,16.76,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2023.pdf
+2023,2023-06-01,BGE,46400.00,46.40,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2023.pdf
+2023,2023-06-01,DPL,55166.00,55.17,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2023.pdf
+2023,2023-06-01,PEPCO,42675.00,42.67,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-2023.pdf
+2024,2024-01-01,APS,17115.00,17.11,https://dgardiner.com/wp-content/uploads/2024/02/CAPS-Transmission-Handbook-Volume-6_Version-1-Updated-Feb-2024.pdf
+2024,2024-01-01,BGE,46400.00,46.40,https://dgardiner.com/wp-content/uploads/2024/02/CAPS-Transmission-Handbook-Volume-6_Version-1-Updated-Feb-2024.pdf
+2024,2024-01-01,DPL,55166.00,55.17,https://dgardiner.com/wp-content/uploads/2024/02/CAPS-Transmission-Handbook-Volume-6_Version-1-Updated-Feb-2024.pdf
+2024,2024-01-01,PEPCO,42656.00,42.66,https://dgardiner.com/wp-content/uploads/2024/02/CAPS-Transmission-Handbook-Volume-6_Version-1-Updated-Feb-2024.pdf
+2024,2024-06-01,APS,17115.00,17.11,http://electricitytransmissioncompetitioncoalition.org/wp-content/uploads/PJM-Transmission-Rates-History-2015-2024.pdf
+2024,2024-06-01,BGE,55851.00,55.85,http://electricitytransmissioncompetitioncoalition.org/wp-content/uploads/PJM-Transmission-Rates-History-2015-2024.pdf
+2024,2024-06-01,DPL,61897.00,61.90,http://electricitytransmissioncompetitioncoalition.org/wp-content/uploads/PJM-Transmission-Rates-History-2015-2024.pdf
+2024,2024-06-01,PEPCO,54821.00,54.82,http://electricitytransmissioncompetitioncoalition.org/wp-content/uploads/PJM-Transmission-Rates-History-2015-2024.pdf
+2025,2025-01-01,APS,25051.72,25.05,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-jan-2025.pdf
+2025,2025-01-01,BGE,55851.00,55.85,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-jan-2025.pdf
+2025,2025-01-01,DPL,61897.00,61.90,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-jan-2025.pdf
+2025,2025-01-01,PEPCO,54683.97,54.68,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-jan-2025.pdf
+2025,2025-06-01,APS,25051.72,25.05,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-june-2025.pdf
+2025,2025-06-01,BGE,59070.00,59.07,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-june-2025.pdf
+2025,2025-06-01,DPL,65833.00,65.83,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-june-2025.pdf
+2025,2025-06-01,PEPCO,60516.97,60.52,https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-june-2025.pdf

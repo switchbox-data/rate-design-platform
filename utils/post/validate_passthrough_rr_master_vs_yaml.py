@@ -25,7 +25,7 @@ from typing import TextIO, cast
 import polars as pl
 import yaml
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils import get_project_root
 from utils.mid.compute_subclass_rr import parse_group_value_to_subclass
 from utils.mid.resolve_subclass_config import resolve_subclass_config

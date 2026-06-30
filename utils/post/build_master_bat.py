@@ -58,7 +58,7 @@ from typing import cast
 
 import polars as pl
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils.post.io import BLDG_ID, scan
 from utils.post.master_run12_passthrough import (
     REFERENCE_COMB_RUN_PAIR,

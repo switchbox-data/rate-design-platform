@@ -1,7 +1,17 @@
-"""Generate utility-level bulk transmission marginal costs (NYISO SCR or ISO-NE AESC PTF).
+"""Generate utility-level bulk transmission marginal costs.
+
+Supports PJM (MD), NYISO (NY), and ISO-NE (RI).
 
 Usage
 -----
+    # PJM / MD (inspect only)
+    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+        --iso pjm --utility bge --year 2025
+
+    # PJM / MD (upload)
+    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+        --iso pjm --utility bge --year 2025 --upload
+
     # ISO-NE / RI (inspect only)
     uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
         --iso isone --utility rie --year 2025 --load-year 2025
@@ -30,7 +40,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils.data_prep.marginal_costs.bulk_tx_isone import (
     AESC_2024_AVOIDED_PTF_KW_YEAR,
     DEFAULT_N_PEAK_HOURS,
@@ -40,12 +50,18 @@ from utils.data_prep.marginal_costs.bulk_tx_nyiso import (
     DEFAULT_SCR_WINTER_MONTHS,
     N_SCR_HOURS_PER_SEASON,
 )
+from utils.data_prep.marginal_costs.bulk_tx_pjm import (
+    DEFAULT_K_PEAK_HOURS,
+    PJM_HOURLY_DEMAND_S3_BASE,
+    VALID_PJM_UTILITIES,
+)
 from utils.data_prep.marginal_costs.supply_utils import (
     DEFAULT_ISONE_BULK_TX_OUTPUT_S3_BASE,
     DEFAULT_ISONE_ZONE_LOADS_S3_BASE,
     DEFAULT_NYISO_BULK_TX_OUTPUT_S3_BASE,
     DEFAULT_NYISO_ZONE_LOADS_S3_BASE,
     DEFAULT_NYISO_ZONE_MAPPING_PATH,
+    DEFAULT_PJM_BULK_TX_OUTPUT_S3_BASE,
     ISONE_ALL_LOAD_ZONES,
     VALID_ISONE_UTILITIES,
     VALID_NYISO_UTILITIES,
@@ -62,16 +78,16 @@ from utils.pre.season_config import (
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Generate utility-level bulk transmission marginal costs from "
-            "NYISO SCR constraint groups or ISO-NE AESC avoided PTF."
+            "Generate utility-level bulk transmission marginal costs. "
+            "Supports PJM (MD), NYISO (NY), and ISO-NE (RI)."
         )
     )
     parser.add_argument(
         "--iso",
         type=str,
         required=True,
-        choices=["nyiso", "isone"],
-        help="ISO to use as source: 'nyiso' or 'isone'.",
+        choices=["pjm", "nyiso", "isone"],
+        help="ISO to use as source: 'pjm', 'nyiso', or 'isone'.",
     )
     parser.add_argument(
         "--utility",
@@ -79,6 +95,7 @@ def _parse_args() -> argparse.Namespace:
         required=True,
         help=(
             "Utility short name. "
+            f"PJM: one of {sorted(VALID_PJM_UTILITIES)}. "
             f"NYISO: one of {sorted(VALID_NYISO_UTILITIES)}. "
             f"ISO-NE: one of {sorted(VALID_ISONE_UTILITIES)}."
         ),
@@ -148,6 +165,16 @@ def _parse_args() -> argparse.Namespace:
             "Overrides --periods-yaml."
         ),
     )
+    # PJM-only args
+    parser.add_argument(
+        "--k-peak-hours",
+        type=int,
+        default=DEFAULT_K_PEAK_HOURS,
+        help=(
+            "[PJM only] Number of top full-year hours for PCAF load-share allocation "
+            f"(default: {DEFAULT_K_PEAK_HOURS}, following E3 ICC-VDER Appendix C)."
+        ),
+    )
     # ISO-NE-only args
     parser.add_argument(
         "--aesc-ptf-kw-year",
@@ -196,8 +223,16 @@ def main() -> None:
     year = args.year
     load_year = args.load_year if args.load_year else year
 
-    # Validate utility against the correct ISO's set
-    if iso == "nyiso":
+    # Validate utility against the correct ISO's set and resolve defaults
+    if iso == "pjm":
+        if utility not in VALID_PJM_UTILITIES:
+            raise SystemExit(
+                f"Error: utility {utility!r} is not valid for PJM. "
+                f"Valid choices: {sorted(VALID_PJM_UTILITIES)}"
+            )
+        output_s3_base = args.output_s3_base or DEFAULT_PJM_BULK_TX_OUTPUT_S3_BASE
+        zone_loads_s3_base = args.zone_loads_s3_base or PJM_HOURLY_DEMAND_S3_BASE
+    elif iso == "nyiso":
         if utility not in VALID_NYISO_UTILITIES:
             raise SystemExit(
                 f"Error: utility {utility!r} is not valid for NYISO. "
@@ -223,7 +258,11 @@ def main() -> None:
     print(f"  Load year:            {load_year}")
     print(f"  Upload to S3:         {'Yes' if args.upload else 'No (inspect only)'}")
 
-    if iso == "nyiso":
+    if iso == "pjm":
+        _run_pjm(
+            args, utility, year, output_s3_base, zone_loads_s3_base, storage_options
+        )
+    elif iso == "nyiso":
         _run_nyiso(
             args,
             utility,
@@ -243,6 +282,41 @@ def main() -> None:
             zone_loads_s3_base,
             storage_options,
         )
+
+
+def _run_pjm(
+    args: argparse.Namespace,
+    utility: str,
+    year: int,
+    output_s3_base: str,
+    utility_loads_s3_base: str,
+    storage_options: dict[str, str],
+) -> None:
+    from utils.data_prep.marginal_costs.bulk_tx_pjm import (
+        compute_pjm_bulk_tx_mc,
+        print_summary,
+        save_output,
+    )
+
+    k_peak_hours = args.k_peak_hours
+    print(f"  K peak hours:         {k_peak_hours}")
+    print("  Method:               PCAF load-share, full-year (E3 ICC-VDER)")
+    print("=" * 60)
+
+    output_df = compute_pjm_bulk_tx_mc(
+        utility=utility,
+        year=year,
+        k_peak_hours=k_peak_hours,
+        s3_base=utility_loads_s3_base,
+        storage_options=storage_options,
+    )
+    print_summary(output_df)
+
+    if args.upload:
+        save_output(output_df, utility, year, output_s3_base, storage_options)
+        print("\n✓ PJM bulk transmission MC generation completed and uploaded")
+    else:
+        print("\n✓ PJM bulk transmission MC generation completed (inspect only)")
 
 
 def _run_nyiso(
