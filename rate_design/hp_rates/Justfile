@@ -94,7 +94,8 @@ path_utility_assignment := path_resstock_release + "/metadata_utility"
 path_resstock_loads_00 := path_resstock_release + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
 path_mc_table := env_var_or_default('MC_TABLE', path_config / "marginal_costs" / state + "_marginal_costs_" + year + ".csv")
 path_s3_mc_output := "s3://data.sb/switchbox/marginal_costs/" + state + "/dist_and_sub_tx/"
-path_s3_utility_loads := "s3://data.sb/eia/hourly_demand/utilities/"
+# Must be overridden in each state Justfile (ny→nyiso, md→pjm, ri→isone).
+path_s3_utility_loads := ""
 path_electric_utility_stats := "s3://data.sb/eia/861/electric_utility_stats/year=2024/state=" + state_upper + "/data.parquet"
 path_genability := path_rev_requirement / "top-ups"
 path_genability_yaml := path_genability / "tariffs_by_utility.yaml"

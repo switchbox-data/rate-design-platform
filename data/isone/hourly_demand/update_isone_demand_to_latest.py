@@ -129,7 +129,7 @@ def main() -> int:
     print(f"Months to fetch: {len(months_to_fetch)} ({start_str} to {end_str})")
 
     # Import and call the fetch function
-    from fetch_isone_zone_loads import _load_env, fetch
+    from data.isone.hourly_demand.fetch_isone_zone_loads import _load_env, fetch
 
     repo_root = Path(__file__).resolve().parents[3]
     auth = _load_env(repo_root)
