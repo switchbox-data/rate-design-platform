@@ -41,6 +41,7 @@ data/isone/capacity/ara/parquet/
 data/isone/capacity/fca/parquet/
 data/isone/lmp/parquet/
 data/isone/hourly_demand/zones/
+data/isone/hourly_demand/utilities/
 data/isone/ancillary/parquet/
 data/nyiso/icap/parquet/
 data/nyiso/lbmp/zips/

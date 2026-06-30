@@ -60,10 +60,8 @@ import polars as pl
 from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
-from data.eia.hourly_loads.eia_region_config import (
-    get_aws_storage_options,
-    get_state_config,
-)
+from data.eia.hourly_loads.eia_region_config import get_state_config
+from utils.file_io import get_aws_storage_options
 from utils.data_prep.marginal_costs.supply_utils import (
     warn_if_multiple_partition_parquets,
 )

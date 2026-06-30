@@ -27,7 +27,7 @@ from typing import Any, cast
 import polars as pl
 import yaml
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils.pre.electric_tariff_mapper import generate_tariff_map_from_scenario_keys
 
 _S3_OPTS = get_aws_storage_options()

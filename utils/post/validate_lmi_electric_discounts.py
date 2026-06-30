@@ -24,7 +24,7 @@ import numpy as np
 import polars as pl
 from dotenv import load_dotenv
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils.post.lmi_common import get_ny_eap_credits_df
 
 matplotlib.use("Agg")

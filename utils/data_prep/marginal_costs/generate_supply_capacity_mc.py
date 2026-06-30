@@ -6,7 +6,7 @@ import argparse
 
 from dotenv import load_dotenv
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils.data_prep.marginal_costs.supply_capacity_nyiso import (
     N_PEAK_HOURS_PER_MONTH,
     compute_supply_capacity_mc,

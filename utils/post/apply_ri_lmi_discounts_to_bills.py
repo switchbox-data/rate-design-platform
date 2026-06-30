@@ -26,7 +26,7 @@ import polars as pl
 from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils.post.lmi_common import (
     assign_ri_gas_tier_expr,
     assign_ri_tier_expr,
