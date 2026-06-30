@@ -28,7 +28,7 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils.post.build_master_bat import VALID_RUN_PAIRS
 from utils.post.io import BLDG_ID, path_or_s3
 

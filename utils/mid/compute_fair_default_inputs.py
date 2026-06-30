@@ -15,7 +15,7 @@ import polars as pl
 from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils.loads import ELECTRIC_LOAD_COL, ELECTRIC_PV_COL, grid_consumption_expr
 from utils.loads import scan_resstock_loads, scan_resstock_loads_monthly
 from utils.mid.compute_subclass_rr import (

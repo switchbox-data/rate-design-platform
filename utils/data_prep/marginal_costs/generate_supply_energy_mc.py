@@ -6,7 +6,7 @@ import argparse
 
 from dotenv import load_dotenv
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils.data_prep.marginal_costs.supply_energy import (
     compute_isone_supply_energy_mc,
     compute_pjm_supply_energy_mc,

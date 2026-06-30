@@ -39,7 +39,7 @@ def _s3_storage_options(path: str) -> dict[str, str] | None:
     if not path.startswith("s3://"):
         return None
     try:
-        from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+        from utils.file_io import get_aws_storage_options
 
         return get_aws_storage_options()
     except ImportError:

@@ -14,7 +14,7 @@ from cairo.rates_tool import config
 from cairo.rates_tool.loads import __timeshift__
 from cloudpathlib import S3Path
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils.types import ElectricUtility
 
 CambiumPathLike = str | Path | S3Path

@@ -40,7 +40,7 @@ With a **Dask Distributed** cluster, the driver and scheduler run on one node; w
   - **Overhead:** You must deploy workers (e.g. EC2 or Batch) that have the same mount. With Fargate or generic Batch workers, that can be fiddly (custom AMI or entrypoint that mounts S3).
 
 - **B. S3 URIs + storage_options (no shared mount)**\
-  Pass **S3 URIs** (e.g. `s3://data.sb/nrel/resstock/...`) and **storage_options** (e.g. `{"region_name": "us-west-2"}` or from `get_aws_storage_options()`) through the stack so that workers can call `pd.read_parquet(s3_uri, storage_options=...)` and read directly from S3.
+  Pass **S3 URIs** (e.g. `s3://data.sb/nrel/resstock/...`) and **storage_options** (e.g. `{"region_name": "us-west-2"}` or from `utils.file_io.get_aws_storage_options()`) through the stack so that workers can call `pd.read_parquet(s3_uri, storage_options=...)` and read directly from S3.
   - **Overhead:** Requires code changes in both codebases (see below). No need for a shared mount; any worker with AWS credentials and network can read.
 
 Option **B** is more portable (works with Fargate, Batch, any node with S3 access) and is the one that forces the concrete changes below. Option A is “no code change” but constrains how you run workers.
@@ -92,7 +92,7 @@ CAIRO does **not** need to know about “the cluster”; it only needs to be abl
 2. **Pass storage_options into CAIRO**
    - Where the platform calls CAIRO (e.g. `_return_load`, `return_buildingstock`, and the top-level `simulate()` or helpers that take paths), it must pass `storage_options` when the paths are S3. That implies:
      - CAIRO’s public API (e.g. `MeetRevenueSufficiencySystemWide`, `simulate()`, or the load/buildingstock functions) must accept an optional `storage_options` (or a “run config” that includes it) and pass it through to all parquet-reading code.
-     - The platform already has `get_aws_storage_options()` (e.g. in `data.eia.hourly_loads.eia_region_config` or similar). When running in “cluster mode” with S3 URIs, the platform should pass that (or equivalent) into CAIRO.
+     - The platform already has `get_aws_storage_options()` (in `utils.file_io`). When running in “cluster mode” with S3 URIs, the platform should pass that (or equivalent) into CAIRO.
 
 3. **Use Dask Distributed instead of the process scheduler**
    - Instead of `dask.config.set(scheduler="processes", num_workers=...)`, the platform (or a cluster launcher script) would create a `distributed.Client` connected to a Dask scheduler (e.g. one started by dask-cloudprovider), and either:

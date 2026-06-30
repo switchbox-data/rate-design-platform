@@ -5,7 +5,6 @@ This module centralizes:
 - utility service areas used by utility aggregation scripts
 """
 
-import os
 from dataclasses import dataclass
 from typing import TypedDict
 
@@ -139,14 +138,3 @@ def get_utility_zone_mapping_for_state(state: str) -> dict[str, list[str]]:
                 break
 
     return utility_zone_mapping
-
-
-def get_aws_storage_options() -> dict[str, str]:
-    """Return Polars-compatible AWS storage options for S3 access."""
-    aws_region = (
-        os.getenv("AWS_DEFAULT_REGION") or os.getenv("AWS_REGION") or "us-west-2"
-    )
-    return {
-        "region": aws_region,
-        "default_region": aws_region,
-    }

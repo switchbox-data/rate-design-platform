@@ -37,7 +37,7 @@ import pandas as pd
 import polars as pl
 import yaml
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils.cairo import (
     _build_period_consumption,
     _build_period_shift_targets,

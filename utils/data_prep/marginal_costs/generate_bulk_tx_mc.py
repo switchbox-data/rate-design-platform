@@ -40,7 +40,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils.data_prep.marginal_costs.bulk_tx_isone import (
     AESC_2024_AVOIDED_PTF_KW_YEAR,
     DEFAULT_N_PEAK_HOURS,

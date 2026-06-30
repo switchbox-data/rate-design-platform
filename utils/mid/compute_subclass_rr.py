@@ -23,7 +23,7 @@ import yaml
 from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
-from data.eia.hourly_loads.eia_region_config import get_aws_storage_options
+from utils.file_io import get_aws_storage_options
 from utils.loads import ELECTRIC_PV_COL, grid_consumption_expr, scan_resstock_loads
 from utils.pre.season_config import (
     DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS,
