@@ -41,6 +41,7 @@ data/isone/capacity/ara/parquet/
 data/isone/capacity/fca/parquet/
 data/isone/lmp/parquet/
 data/isone/hourly_demand/zones/
+data/isone/hourly_demand/utilities/
 data/isone/ancillary/parquet/
 data/nyiso/icap/parquet/
 data/nyiso/lbmp/zips/
@@ -88,6 +89,7 @@ build/
 !data/pjm/capacity/rpm/rpm_capacity_prices.csv
 !data/pjm/capacity/5cp/fivecp_peaks.csv
 !data/pjm/zone_mapping/csv/pjm_utility_zone_mapping.csv
+!data/isone/zone_mapping/csv/isone_utility_zone_mapping.csv
 *.json
 *.png
 !dprint.json
