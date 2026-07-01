@@ -1,0 +1,41 @@
+# Rate Acuity gas schedule names by utility shortcode (std_name).
+# Pass this file to fetch_gas_tariffs_rateacuity.py to fetch all MD gas tariffs.
+# Update schedule name values when Rate Acuity names change.
+#
+# Schedule selection rationale:
+#   BGE Rate D: single residential schedule, no sub-classes.
+#   Chesapeake RES-1/RES-2: two separate rate classes assigned by ANNUAL consumption
+#     (<=150 therms/yr → RES-1, >150 therms/yr → RES-2); reviewed at calendar year-end.
+#     NOT a monthly tier and NOT tied to heating end-use. Effective 4/19/2025 for the
+#     consolidated territory (former Chesapeake MD Div, Sandpiper, and Elkton).
+#     The fetched CSVs contain county-specific rates in the `location` column for
+#     three county groups: Caroline/Dorchester/Somerset/Wicomico (main territory),
+#     Cecil County (former Elkton Gas), and Worcester County (former Sandpiper Energy).
+#     Cecil County has phased non-fuel energy charges (Phase 1: 1yr, Phase 2: 4yr,
+#     Phase 3: permanent = time-weighted avg of Phase 1 & 2). A separate Phase 2
+#     fetch (rateacuity_tariffs_chesapeake_phase2.yaml, --year 2027) captures the
+#     Phase 2 values. The split script computes the levelized rate for Cecil.
+#     A post-processing script (split_chesapeake_gas_tariffs.py) splits these CSVs
+#     into six county-specific URDB JSONs.
+#   Columbia Gas RATE RS: single residential schedule.
+#   Easton R: single residential schedule.
+#   UGI B-DOMESTIC: single rate class with within-bill declining block tiers (5 tiers by
+#     monthly ccf). Every customer pays the same tiers; no annual-consumption sub-classes.
+#   Washington Gas Rate 1 (Sales): bundled (delivery + supply); heating and non-heating
+#     are separate sub-classes within Rate 1, classified by end-use (principal space
+#     heating vs. other uses), not by consumption level.
+state: MD
+bge:
+  bge_residential: "D-RESIDENTIAL SERVICE-BGE Commodity Service--"
+chesapeake_utilities:
+  chesapeake_utilities_res1: "RES-1-RESIDENTIAL SERVICE-1---150"
+  chesapeake_utilities_res2: "RES-2-RESIDENTIAL SERVICE-2--151-"
+columbia_gas_md:
+  columbia_gas_md_residential: "RATE RS-RESIDENTIAL SERVICE---"
+easton_muni:
+  easton_muni_residential: "R-RESIDENTIAL SERVICE---"
+ugi_central_penn:
+  ugi_central_penn_residential: "B-DOMESTIC RATE---"
+washington_gas:
+  washington_gas_nonheating: "1-FIRM RESIDENTIAL SALES-Non-Heating/Non-Cooling--"
+  washington_gas_heating: "1-FIRM RESIDENTIAL SALES-Heating and/or Cooling--"

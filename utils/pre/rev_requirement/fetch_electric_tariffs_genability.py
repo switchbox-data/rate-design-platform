@@ -123,7 +123,11 @@ for _cls in (
 # API key can't access (403).  The direct endpoint works and doesn't paginate.
 from pydantic import TypeAdapter as _TypeAdapter  # noqa: E402
 
+import tariff_fetch.urdb.arcadia.fixedcharge as _fc_mod  # noqa: E402
 import tariff_fetch.urdb.arcadia.rateutils as _ru_mod  # noqa: E402
+from tariff_fetch.arcadia.schema.tariffrate import (  # noqa: E402
+    TariffRateExtended as _TariffRateExtended,
+)
 from tariff_fetch.urdb.arcadia.library import TariffLibrary as _TariffLibrary  # noqa: E402
 
 _tariff_list_adapter = _TypeAdapter(list[_tariff_schema.TariffExtended])
@@ -190,6 +194,73 @@ def _iter_rates_skip_forbidden(tariff, scenario, library, dt):
 
 
 _ru_mod.tariff_iter_rates_for_dt = _iter_rates_skip_forbidden  # type: ignore[assignment]
+
+# ---------------------------------------------------------------------------
+# Patch rate_filter_bands to fold calculation_factor into rate_amount
+# ---------------------------------------------------------------------------
+# Arcadia models percentage-based charges (Gross Receipts Tax for Pepco/DC, and
+# the Distribution System Improvement Charge rider for DPL/Delaware) using a
+# calculation_factor field on rate bands.  The semantics: effective charge =
+# rate_amount × calculation_factor.  The rateAmount field stores the *base*
+# charge being taxed; calculation_factor is the percentage multiplier.
+# tariff_fetch raises RateConversionError on any band with calculation_factor.
+# We patch rate_filter_bands to fold the factor in before the rest of the
+# function sees the band, producing a normal flat-rate band at the effective
+# dollar/kWh amount.
+_original_rate_filter_bands = _ru_mod.rate_filter_bands
+
+
+def _rate_filter_bands_fold_calc_factor(rate, scenario, library):
+    bands = rate.get("rate_bands") or []
+    has_cf = any(b.get("calculation_factor") is not None for b in bands)
+    if not has_cf:
+        return _original_rate_filter_bands(rate, scenario, library)
+
+    folded_bands = []
+    for band in bands:
+        cf = band.get("calculation_factor")
+        if cf is not None:
+            base = band.get("rate_amount") or 0.0
+            effective = base * cf
+            logging.getLogger(__name__).debug(
+                "Folding calculation_factor into rate %r: %s × %s = %s",
+                rate.get("rate_name"),
+                base,
+                cf,
+                effective,
+            )
+            band = {**band, "rate_amount": effective, "calculation_factor": None}
+        folded_bands.append(band)
+
+    modified_rate: _TariffRateExtended = {**rate, "rate_bands": folded_bands}  # type: ignore[typeddict-unknown-key]
+    return _original_rate_filter_bands(modified_rate, scenario, library)
+
+
+_ru_mod.rate_filter_bands = _rate_filter_bands_fold_calc_factor  # type: ignore[assignment]
+
+# ---------------------------------------------------------------------------
+# Patch get_rate_fixed_charge_at_dt to handle empty band lists (BGE)
+# ---------------------------------------------------------------------------
+# Two BGE FIXED_PRICE rates ("Competitive Billing", "Smart Meter Opt-Out
+# Charge") each have a single band with applicability_value=true for a BOOLEAN
+# property.  When the scenario resolves that property to False (non-competitive
+# billing, no opt-out), rate_filter_bands filters out all bands and returns [].
+# The original function then checks "COST_PER_UNIT" not in set() → always True
+# → raises a misleading "Fixed price rate bands units should be COST_PER_UNIT"
+# error, aborting the entire BGE URDB conversion.
+# An empty band list simply means the rate doesn't apply to this scenario/dt —
+# its contribution to the fixed charge is 0.
+_original_get_rate_fixed_charge_at_dt = _fc_mod.get_rate_fixed_charge_at_dt
+
+
+def _get_rate_fixed_charge_at_dt_empty_bands_safe(scenario, library, rate, dt):
+    bands = _ru_mod.rate_filter_bands(rate, scenario, library)
+    if not bands:
+        return 0.0
+    return _original_get_rate_fixed_charge_at_dt(scenario, library, rate, dt)
+
+
+_fc_mod.get_rate_fixed_charge_at_dt = _get_rate_fixed_charge_at_dt_empty_bands_safe  # type: ignore[assignment]
 
 # ---------------------------------------------------------------------------
 # CHOICE property opt-out heuristic
