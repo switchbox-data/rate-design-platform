@@ -390,7 +390,7 @@ UTILITIES: list[UtilityRecord] = [
     # ── Connecticut ───────────────────────────────────────────────────────────
     # Electric IOUs
     {
-        "std_name": "cl_p",
+        "std_name": "clp",
         "state": "CT",
         "fuels": ["electric"],
         "display_name": "Connecticut Light & Power (Eversource)",
@@ -406,7 +406,7 @@ UTILITIES: list[UtilityRecord] = [
         "eia_utility_ids": [19497],
     },
     {
-        "std_name": "farmington_river_power",
+        "std_name": "frp",
         "state": "CT",
         "fuels": ["electric"],
         "display_name": "Farmington River Power Company",
@@ -433,7 +433,7 @@ UTILITIES: list[UtilityRecord] = [
         "eia_utility_ids": [2089],
     },
     {
-        "std_name": "jewett_city_muni",
+        "std_name": "jewett_muni",
         "state": "CT",
         "fuels": ["electric"],
         "display_name": "City of Jewett City",
