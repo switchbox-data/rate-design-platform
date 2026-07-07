@@ -1,0 +1,5 @@
+rate,effective_date,season,start,end,determinant,rate_determinant,1/1/2025,2/1/2025,3/1/2025,4/1/2025,5/1/2025,6/1/2025,7/1/2025,8/1/2025,9/1/2025,10/1/2025,11/1/2025,12/1/2025
+distribution charge,07/01/2024,,,,,per ccf,0.5791,0.5791,0.5791,0.5791,0.5791,0.5791,0.5791,0.5791,0.5791,0.5791,0.5791,0.5791
+customer charge,07/01/2024,,,,,per month,12.0,12.0,12.0,12.0,12.0,12.0,12.0,12.0,12.0,12.0,12.0,12.0
+purchased gas charge applies,,,,,,,,,,,,,,,,,,
+billing normalization adjustment applies,,,,,,,,,,,,,,,,,,
