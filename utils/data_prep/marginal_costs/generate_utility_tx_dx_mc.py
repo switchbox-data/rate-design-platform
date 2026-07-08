@@ -25,22 +25,21 @@ Output partitions written as:
     - Partition path: utility=X/year=YYYY/data.parquet
 
 Usage:
-    # Inspect results (no upload) - uses 2025 loads, inflates RI 2019$ → 2025$
-    # (RI reads the EIA legacy layout, so the region= filter applies)
+    # RI on ISO-NE native loads, inflates 2019$ → 2025$
     python generate_utility_tx_dx_mc.py --state RI --utility rie --year 2025 \
         --mc-table-path rate_design/hp_rates/ri/config/marginal_costs/ri_marginal_costs_2025.csv \
-        --utility-load-s3-base s3://data.sb/eia/hourly_demand/utilities/ \
-        --output-s3-base s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
+        --utility-load-s3-base s3://data.sb/isone/hourly_demand/utilities/ \
+        --output-s3-base s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/ \
+        --upload
 
-    # MD/BGE on PJM-native loads (ISO-native layout, no region= filter),
-    # inflates Brattle 2022$ → 2025$
+    # MD/BGE on PJM-native loads, inflates Brattle 2022$ → 2025$
     python generate_utility_tx_dx_mc.py --state MD --utility bge --year 2025 \
         --mc-table-path rate_design/hp_rates/md/config/marginal_costs/md_marginal_costs_2025.csv \
         --utility-load-s3-base s3://data.sb/pjm/hourly_demand/utilities/ \
         --output-s3-base s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/ \
         --upload
 
-    # Upload to S3 (NY table has no dollar_year — no inflation applied)
+    # NY (table has no dollar_year — no inflation applied)
     python generate_utility_tx_dx_mc.py --state NY --utility nyseg --year 2024 \
         --mc-table-path rate_design/hp_rates/ny/config/marginal_costs/ny_sub_tx_and_dist_mc_levelized.csv \
         --utility-load-s3-base s3://data.sb/nyiso/hourly_demand/utilities/ \

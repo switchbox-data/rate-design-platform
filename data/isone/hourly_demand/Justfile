@@ -8,7 +8,7 @@
 # import from the `data.isone` package, so each recipe cd's to the repo root.
 #
 # Usage (from project root):
-#   just -f data/isone/hourly_demand/Justfile fetch
+#   just -f data/isone/hourly_demand/Justfile fetch-zone-data
 #   just -f data/isone/hourly_demand/Justfile aggregate-all-utility-loads 2025
 #   just -f data/isone/hourly_demand/Justfile validate
 #   just -f data/isone/hourly_demand/Justfile upload
@@ -22,13 +22,13 @@ path_s3_zones := "s3://data.sb/isone/hourly_demand/zones/"
 path_s3_utilities := "s3://data.sb/isone/hourly_demand/utilities/"
 path_zone_mapping_csv := path_local_repo + "/data/isone/zone_mapping/csv/isone_utility_zone_mapping.csv"
 
-# Defaults (override: just start=2020-01 end=2025-02 fetch)
+# Defaults (override: just start=2020-01 end=2025-02 fetch-zone-data)
 start := "2018-01"
 end := ""
 workers := "1"
 
 # Fetch: ISO-NE API → local Hive-partitioned parquet (zone={ZONE}/year={YYYY}/month={MM}/data.parquet)
-fetch:
+fetch-zone-data:
     uv run python "{{ path_local_base }}/fetch_isone_zone_loads.py" \
         --start "{{ start }}" --end "{{ end }}" \
         --path-local-zones "{{ path_local_zones }}" --workers "{{ workers }}"
@@ -39,7 +39,7 @@ validate:
         --path-local-zones "{{ path_local_zones }}"
 
 # Fetch + validate (no upload)
-prepare: fetch validate
+prepare: fetch-zone-data validate
 
 # Update: discover latest month on disk/S3, fetch newer months
 update:
