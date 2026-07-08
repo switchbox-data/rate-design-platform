@@ -1,41 +1,45 @@
 # ISO-NE hourly demand pipeline
 #
 # Fetch real-time hourly demand for all 8 ISO-NE load zones via the Web
-# Services API (one API call per zone per day), write to Hive-partitioned
-# parquet, and upload to S3.
+# Services API (one API call per zone per day), aggregate to utility-level
+# profiles, and upload to S3.
 #
-# Run from repo root: just -f data/isone/hourly_demand/Justfile <recipe>
-# Or from this dir:   just <recipe>
+# Aggregation scripts run as modules (uv run python -m ...) because they
+# import from the `data.isone` package, so each recipe cd's to the repo root.
+#
+# Usage (from project root):
+#   just -f data/isone/hourly_demand/Justfile fetch-zone-data
+#   just -f data/isone/hourly_demand/Justfile aggregate-all-utility-loads 2025
+#   just -f data/isone/hourly_demand/Justfile validate
+#   just -f data/isone/hourly_demand/Justfile upload
+# Or from this dir: just <recipe>
 
 path_local_repo := `git rev-parse --show-toplevel`
 path_local_base := justfile_directory()
 path_local_zones := path_local_base + "/zones"
+path_local_utilities := path_local_base + "/utilities"
 path_s3_zones := "s3://data.sb/isone/hourly_demand/zones/"
+path_s3_utilities := "s3://data.sb/isone/hourly_demand/utilities/"
+path_zone_mapping_csv := path_local_repo + "/data/isone/zone_mapping/csv/isone_utility_zone_mapping.csv"
 
-# Defaults (override: just start=2020-01 end=2025-02 fetch)
-
+# Defaults (override: just start=2020-01 end=2025-02 fetch-zone-data)
 start := "2018-01"
 end := ""
 workers := "1"
 
 # Fetch: ISO-NE API → local Hive-partitioned parquet (zone={ZONE}/year={YYYY}/month={MM}/data.parquet)
-fetch:
+fetch-zone-data:
     uv run python "{{ path_local_base }}/fetch_isone_zone_loads.py" \
         --start "{{ start }}" --end "{{ end }}" \
         --path-local-zones "{{ path_local_zones }}" --workers "{{ workers }}"
 
-# Validate: run QA checks on local parquet
+# Validate: run QA checks on local zone parquet
 validate:
     uv run python "{{ path_local_base }}/validate_isone_demand_parquet.py" \
         --path-local-zones "{{ path_local_zones }}"
 
 # Fetch + validate (no upload)
-prepare: fetch validate
-
-# Upload: sync local parquet to S3
-upload:
-    aws s3 sync "{{ path_local_zones }}/" "{{ path_s3_zones }}" --exclude "*" --include "*.parquet"
-    @echo "Uploaded to {{ path_s3_zones }}"
+prepare: fetch-zone-data validate
 
 # Update: discover latest month on disk/S3, fetch newer months
 update:
@@ -43,7 +47,37 @@ update:
         --path-local-zones "{{ path_local_zones }}" \
         --path-s3-zones "{{ path_s3_zones }}"
 
-# Clean: remove local parquet
+# Aggregate zone loads to a single utility profile; read/write local parquet.
+aggregate-utility-loads year utility:
+    cd "{{ path_local_repo }}" && uv run python -m data.isone.hourly_demand.aggregate_isone_utility_loads \
+        --year {{ year }} \
+        --utility {{ utility }} \
+        --path-zone-mapping-csv "{{ path_zone_mapping_csv }}" \
+        --path-local-zones "{{ path_local_zones }}" \
+        --path-local-utilities "{{ path_local_utilities }}"
+
+# Aggregate zone loads for ALL mapped utilities; read/write local parquet.
+aggregate-all-utility-loads year:
+    cd "{{ path_local_repo }}" && uv run python -m data.isone.hourly_demand.aggregate_isone_utility_loads \
+        --year {{ year }} \
+        --utility all \
+        --path-zone-mapping-csv "{{ path_zone_mapping_csv }}" \
+        --path-local-zones "{{ path_local_zones }}" \
+        --path-local-utilities "{{ path_local_utilities }}"
+
+# Download zone and utility parquet from S3 to local.
+download:
+    aws s3 sync "{{ path_s3_zones }}" "{{ path_local_zones }}/" --exclude "*" --include "*.parquet"
+    aws s3 sync "{{ path_s3_utilities }}" "{{ path_local_utilities }}/" --exclude "*" --include "*.parquet"
+    @echo "Synced zone and utility parquet from S3 to local"
+
+# Upload local zone and utility parquet to S3.
+upload:
+    aws s3 sync "{{ path_local_zones }}/" "{{ path_s3_zones }}" --exclude "*" --include "*.parquet"
+    aws s3 sync "{{ path_local_utilities }}/" "{{ path_s3_utilities }}" --exclude "*" --include "*.parquet"
+    @echo "Synced zone and utility parquet to S3"
+
+# Remove local parquet dirs.
 clean:
-    rm -rf "{{ path_local_zones }}"
-    @echo "Removed zones/"
+    rm -rf "{{ path_local_zones }}" "{{ path_local_utilities }}"
+    @echo "Removed zones/, utilities/"

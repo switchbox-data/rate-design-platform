@@ -5,12 +5,9 @@ the Probability of Peak (PoP) method to allocate $/kW-yr costs to $/kWh hourly
 price signals.
 
 Input:
-    - Utility hourly load profile. Two layouts are supported:
-      - ISO-native (NY, MD, and eventually RI): utility=X/year=YYYY[/month=MM]/data.parquet
-        (e.g. s3://data.sb/nyiso/hourly_demand/utilities/, s3://data.sb/pjm/hourly_demand/utilities/)
-      - EIA legacy (RI today): s3://data.sb/eia/hourly_demand/utilities/region=<iso_region>/utility=X/year=YYYY/month=M/data.parquet
-      The region= partition (and its filter) applies only to EIA paths; ISO-native
-      paths have no region key and skip the filter.
+    - Utility hourly load profile (ISO-native layout): utility=X/year=YYYY[/month=MM]/data.parquet
+      (e.g. s3://data.sb/nyiso/hourly_demand/utilities/, s3://data.sb/pjm/hourly_demand/utilities/,
+      s3://data.sb/isone/hourly_demand/utilities/)
     - Marginal cost table CSV with columns: utility, sub_tx_and_dist_mc_kw_yr[, dollar_year]
     - Load year (determines which load profile year to use)
 
@@ -28,22 +25,21 @@ Output partitions written as:
     - Partition path: utility=X/year=YYYY/data.parquet
 
 Usage:
-    # Inspect results (no upload) - uses 2025 loads, inflates RI 2019$ → 2025$
-    # (RI reads the EIA legacy layout, so the region= filter applies)
+    # RI on ISO-NE native loads, inflates 2019$ → 2025$
     python generate_utility_tx_dx_mc.py --state RI --utility rie --year 2025 \
         --mc-table-path rate_design/hp_rates/ri/config/marginal_costs/ri_marginal_costs_2025.csv \
-        --utility-load-s3-base s3://data.sb/eia/hourly_demand/utilities/ \
-        --output-s3-base s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
+        --utility-load-s3-base s3://data.sb/isone/hourly_demand/utilities/ \
+        --output-s3-base s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/ \
+        --upload
 
-    # MD/BGE on PJM-native loads (ISO-native layout, no region= filter),
-    # inflates Brattle 2022$ → 2025$
+    # MD/BGE on PJM-native loads, inflates Brattle 2022$ → 2025$
     python generate_utility_tx_dx_mc.py --state MD --utility bge --year 2025 \
         --mc-table-path rate_design/hp_rates/md/config/marginal_costs/md_marginal_costs_2025.csv \
         --utility-load-s3-base s3://data.sb/pjm/hourly_demand/utilities/ \
         --output-s3-base s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/ \
         --upload
 
-    # Upload to S3 (NY table has no dollar_year — no inflation applied)
+    # NY (table has no dollar_year — no inflation applied)
     python generate_utility_tx_dx_mc.py --state NY --utility nyseg --year 2024 \
         --mc-table-path rate_design/hp_rates/ny/config/marginal_costs/ny_sub_tx_and_dist_mc_levelized.csv \
         --utility-load-s3-base s3://data.sb/nyiso/hourly_demand/utilities/ \
@@ -60,7 +56,6 @@ import polars as pl
 from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
-from data.eia.hourly_loads.eia_region_config import get_state_config
 from utils.file_io import get_aws_storage_options
 from utils.data_prep.marginal_costs.supply_utils import (
     warn_if_multiple_partition_parquets,
@@ -69,22 +64,19 @@ from utils.data_prep.marginal_costs.supply_utils import (
 
 def load_utility_load_profile(
     s3_base: str,
-    iso_region: str | None,
     year_load: int,
     utility: str,
     storage_options: dict[str, str],
 ) -> pl.DataFrame:
     """Load utility 8760 load profile from S3.
 
-    Supports two partition layouts:
-    - EIA: region=<iso_region>/utility=X/year=YYYY/month=M/data.parquet
-    - NYISO: utility=X/year=YYYY/month=M/data.parquet (no region partition)
-
-    When iso_region is None, the region filter is skipped.
+    Expects ISO-native layout: utility=X/year=YYYY[/month=MM]/data.parquet
+    (e.g. s3://data.sb/nyiso/hourly_demand/utilities/,
+          s3://data.sb/pjm/hourly_demand/utilities/,
+          s3://data.sb/isone/hourly_demand/utilities/)
 
     Args:
         s3_base: Base S3 path for utility loads.
-        iso_region: ISO region partition key (nyiso/isone), or None to skip.
         year_load: Year of the load profile to use.
         utility: Utility name.
         storage_options: Polars S3 storage options with AWS bucket region.
@@ -98,18 +90,15 @@ def load_utility_load_profile(
         hive_partitioning=True,
         storage_options=storage_options,
     )
-    if iso_region is not None:
-        lf = lf.filter(pl.col("region") == iso_region)
     lf = lf.filter(pl.col("utility") == utility).filter(pl.col("year") == year_load)
     collected = lf.collect()
     if not isinstance(collected, pl.DataFrame):
         raise TypeError("Expected DataFrame from utility load collect()")
     df = collected
     if df.is_empty():
-        region_msg = f"region={iso_region}, " if iso_region else ""
         raise FileNotFoundError(
             f"Utility load profile not found for "
-            f"{region_msg}utility={utility}, year={year_load} under {s3_base}"
+            f"utility={utility}, year={year_load} under {s3_base}"
         )
 
     print(f"Loaded {len(df):,} hourly load records for {utility} (year {year_load})")
@@ -456,7 +445,6 @@ def validate_allocation(
 
 def save_allocated_costs(
     df: pl.DataFrame,
-    iso_region: str,
     utility: str,
     year: int,
     s3_base: str,
@@ -470,7 +458,6 @@ def save_allocated_costs(
 
     Args:
         df: DataFrame with allocated costs
-        iso_region: ISO region (unused in output path, kept for interface consistency)
         utility: Utility name
         year: Load year used
         s3_base: Base S3 path for marginal costs
@@ -607,7 +594,6 @@ def main():
     args = parser.parse_args()
     validate_mc_table_path(args.mc_table_path)
     load_dotenv()
-    config = get_state_config(args.state)
     storage_options = get_aws_storage_options()
 
     output_year = args.year
@@ -616,20 +602,11 @@ def main():
         args.target_dollar_year if args.target_dollar_year else output_year
     )
 
-    # Only the EIA load layout carries a `region=<iso>` partition. Every
-    # ISO-native layout (NYISO, PJM, and the future ISO-NE utilities path)
-    # partitions on utility/year[/month] with no region key, so the region
-    # filter must be skipped for them. RI still reads EIA, so its region filter
-    # is retained via the EIA-path branch below.
     s3_base = args.utility_load_s3_base
-    iso_region: str | None = (
-        config.iso_region if "eia/hourly_demand" in s3_base else None
-    )
 
     print("=" * 60)
     print("MARGINAL COST ALLOCATION")
-    print(f"State: {config.state}")
-    print(f"ISO region partition: {iso_region or '(none — NYISO native path)'}")
+    print(f"State: {args.state}")
     print(f"AWS bucket region: {storage_options.get('region')}")
     print("=" * 60)
     print(f"Utility: {args.utility}")
@@ -642,7 +619,6 @@ def main():
 
     load_df = load_utility_load_profile(
         s3_base,
-        iso_region,
         load_year,
         args.utility,
         storage_options,
@@ -705,7 +681,6 @@ def main():
     if args.upload:
         save_allocated_costs(
             load_df,
-            config.iso_region,
             args.utility,
             output_year,
             args.output_s3_base,

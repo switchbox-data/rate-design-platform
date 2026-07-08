@@ -15,6 +15,8 @@ set dotenv-path := "state.env"
 state := env_var_or_default('STATE', 'ri')
 utility := env_var_or_default('UTILITY', 'rie')
 
+path_s3_utility_loads := "s3://data.sb/isone/hourly_demand/utilities/"
+
 import '../Justfile'
 
 # =============================================================================
