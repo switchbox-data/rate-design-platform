@@ -170,11 +170,17 @@ def _fetch_tariff_direct(
 
 _TariffLibrary._fetch_tariff = _fetch_tariff_direct  # type: ignore[assignment]
 
-# Patch rate iteration to skip individual riders that return 403.
+# Patch rate iteration to:
+# 1. Skip individual riders that return 403.
+# 2. Deduplicate by tariff_rate_id — Arcadia inlines rider rates into the parent
+#    tariff AND keeps the rider pointer, so without dedup the same rate is yielded
+#    twice (e.g. BGE's Universal Service Charge: once inline, once via rider 669).
 _original_iter_rates = _ru_mod.tariff_iter_rates_for_dt
 
 
-def _iter_rates_skip_forbidden(tariff, scenario, library, dt):
+def _iter_rates_dedup(tariff, scenario, library, dt, _seen: set[int] | None = None):
+    if _seen is None:
+        _seen = set()
     rates = tariff.get("rates", [])
     for rate in rates:
         if not _ru_mod.rate_is_applied_to_scenario(rate, scenario, library):
@@ -182,6 +188,10 @@ def _iter_rates_skip_forbidden(tariff, scenario, library, dt):
         if not _ru_mod.rate_is_applied_to_datetime(rate, dt):
             continue
         if rate["rate_bands"]:
+            rate_id = rate["tariff_rate_id"]
+            if rate_id in _seen:
+                continue
+            _seen.add(rate_id)
             yield rate
         elif rider_id := rate.get("rider_id"):
             try:
@@ -190,7 +200,11 @@ def _iter_rates_skip_forbidden(tariff, scenario, library, dt):
                 if "403" in str(exc) or isinstance(exc, PermissionError):
                     continue
                 raise
-            yield from _iter_rates_skip_forbidden(rider_tariff, scenario, library, dt)
+            yield from _iter_rates_dedup(rider_tariff, scenario, library, dt, _seen)
+
+
+def _iter_rates_skip_forbidden(tariff, scenario, library, dt):
+    return _iter_rates_dedup(tariff, scenario, library, dt)
 
 
 _ru_mod.tariff_iter_rates_for_dt = _iter_rates_skip_forbidden  # type: ignore[assignment]

@@ -2,73 +2,73 @@
   "energyratestructure": [
     [
       {
-        "rate": 0.31472,
+        "rate": 0.18289,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.31606,
+        "rate": 0.18356,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.30466,
+        "rate": 0.17659,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.31246,
+        "rate": 0.18049,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.31454,
+        "rate": 0.18153,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.313,
+        "rate": 0.18076,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.32532,
+        "rate": 0.18692,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.32126,
+        "rate": 0.18489,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.38092,
+        "rate": 0.21472,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.41128,
+        "rate": 0.2299,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.39228,
+        "rate": 0.2204,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.34078,
+        "rate": 0.19465,
         "unit": "kWh"
       }
     ]
@@ -701,7 +701,7 @@
       11
     ]
   ],
-  "fixedchargefirstmeter": 10.290000000000001,
+  "fixedchargefirstmeter": 9.97,
   "fixedchargeunits": "$/month",
   "label": "BGE",
   "utility": "Baltimore Gas & Electric Co",

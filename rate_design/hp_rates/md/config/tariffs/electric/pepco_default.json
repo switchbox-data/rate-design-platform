@@ -2,85 +2,85 @@
   "energyratestructure": [
     [
       {
-        "rate": 0.109171,
+        "rate": 0.106791,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.103375,
+        "rate": 0.100995,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.101607,
+        "rate": 0.099227,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.099173,
+        "rate": 0.096793,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.103144,
+        "rate": 0.101029,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.155306,
+        "rate": 0.151306,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.15028,
+        "rate": 0.14628,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.16017,
+        "rate": 0.15617,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.146384,
+        "rate": 0.142384,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.146434,
+        "rate": 0.142434,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.097969,
+        "rate": 0.095589,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.104647,
+        "rate": 0.102267,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.10858,
+        "rate": 0.1062,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.142199,
+        "rate": 0.138373,
         "unit": "kWh"
       }
     ]
@@ -713,7 +713,7 @@
       11
     ]
   ],
-  "fixedchargefirstmeter": 9.03224352,
+  "fixedchargefirstmeter": 8.982243519999999,
   "fixedchargeunits": "$/month",
   "label": "PEPCO",
   "utility": "Potomac Electric Power Co",

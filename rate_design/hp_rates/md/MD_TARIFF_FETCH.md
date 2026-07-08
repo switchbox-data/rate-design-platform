@@ -81,8 +81,8 @@ the delivery-only file (and are also present in the supply file).
 
 ### Genability bug patches
 
-Three utilities (BGE, Pepco, DPL) initially failed URDB conversion. Both bugs are patched
-via monkey-patches in `fetch_electric_tariffs_genability.py`. See
+Four utilities (BGE, Pepco, DPL, Hagerstown) were affected by bugs in `tariff_fetch`. All
+three bugs are patched via monkey-patches in `fetch_electric_tariffs_genability.py`. See
 `context/code/data/tariff_rates_and_genability.md` for full details.
 
 **BGE — empty band list from BOOLEAN applicability filtering:**
@@ -97,6 +97,13 @@ Arcadia models percentage-based regulatory charges (Pepco's 2.04% DC Gross Recei
 DPL's 4.23% Distribution System Improvement Charge) as companion rates where `rateAmount` is
 the base being taxed and `calculationFactor` is the percentage multiplier. Fix: patch
 `rate_filter_bands` to fold the factor into `rateAmount` before band processing.
+
+**BGE / Pepco / DPL / Hagerstown — duplicate rate from inline + rider traversal:**
+Arcadia inlines certain rider rates into the parent tariff AND keeps the rider pointer. Without
+deduplication, `tariff_iter_rates_for_dt` yields the same `tariff_rate_id` twice (once from the
+inline entry, once from the rider). Fix: deduplicate by `tariff_rate_id` during iteration. This
+corrected BGE's fixed charge from `$10.29` → `$9.97` (Universal Service Charge was counted
+twice at `$0.32` each).
 
 ### Small-utility availability (all confirmed)
 

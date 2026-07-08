@@ -2,73 +2,73 @@
   "energyratestructure": [
     [
       {
-        "rate": 0.071577,
+        "rate": 0.062148,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.074687,
+        "rate": 0.063703,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.075133,
+        "rate": 0.063926,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.078263,
+        "rate": 0.065491,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.078327,
+        "rate": 0.065523,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.073481,
+        "rate": 0.0631,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.072075,
+        "rate": 0.062397,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.071161,
+        "rate": 0.06194,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.071091,
+        "rate": 0.061905,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.072195,
+        "rate": 0.062457,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.074717,
+        "rate": 0.063718,
         "unit": "kWh"
       }
     ],
     [
       {
-        "rate": 0.072563,
+        "rate": 0.062641,
         "unit": "kWh"
       }
     ]
@@ -701,7 +701,7 @@
       11
     ]
   ],
-  "fixedchargefirstmeter": 15.0228,
+  "fixedchargefirstmeter": 15.08355,
   "fixedchargeunits": "$/month",
   "label": "DP",
   "utility": "Delmarva Power",

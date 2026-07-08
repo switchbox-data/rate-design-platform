@@ -59,7 +59,7 @@ skipped, the function returns an empty list `[]`.
 
 ## `tariff_fetch` library bugs and patches
 
-`fetch_electric_tariffs_genability.py` monkey-patches the `tariff_fetch` library to fix two
+`fetch_electric_tariffs_genability.py` monkey-patches the `tariff_fetch` library to fix three
 bugs that surface with MD utility tariffs. The patches follow the same pattern as the existing
 patches already in that file (xdrlib stub, 403 rider cache, non-interactive property resolver).
 
@@ -146,6 +146,72 @@ than `rateAmount`. The fold sets `rateAmount = 0.0 × 0.020408 = 0.0`, which is 
 by the variable lookup. This means the GRT on the variable transmission charge is not applied.
 The understatement is minor (2% of a small per-kWh variable rate) and is the inherent
 limitation of the URDB format, which cannot express multiplicative variable adjustments.
+
+### Bug 3 — Duplicate rate yielded via inline entry + rider traversal (affects BGE, Pepco, DPL, Hagerstown)
+
+**Root cause:** Arcadia "inlines" certain rider rates into the parent tariff: the parent
+tariff contains both (a) a direct rate entry with populated `rate_bands` and (b) a separate
+rider-pointer entry (`rider_id` set, `rate_bands` empty) whose referenced rider tariff
+contains the exact same rate (identical `tariff_rate_id`).
+
+`tariff_iter_rates_for_dt` in `rateutils.py` does not deduplicate by `tariff_rate_id`:
+
+```python
+if rate["rate_bands"]:
+    yield rate                         # yields the inline copy
+elif rider_id := rate.get("rider_id"):
+    rider_tariff = library.tariffs.get_tariff(rider_id)
+    yield from tariff_iter_rates_for_dt(rider_tariff, ...)  # yields the same rate again
+```
+
+The result is that the same dollar amount is counted twice in the URDB output.
+
+**Affected utilities and charges (MD):**
+
+| Utility    | Duplicate rate                        | tariff_rate_id | Single value | Previous (2×) |
+| ---------- | ------------------------------------- | -------------- | ------------ | ------------- |
+| BGE        | Universal Service Charge              | 18603035       | $0.32/mo     | $0.64/mo      |
+| Pepco      | Electric Universal Service (delivery) | varies         | ~$0.05       | ~$0.10        |
+| DPL        | Renewable Portfolio Credit (credit)   | varies         | –$0.06       | –$0.12        |
+| Hagerstown | Universal Service Program Charge      | varies         | $0.32/mo     | $0.64/mo      |
+
+DPL's difference is positive (+$0.06) because the duplicate was a credit: removing the
+extra credit raises the total.
+
+**Verification:** The Maryland OPC Summer 2025 Electric Rates factsheet confirms a single
+"fixed monthly charge of 36 cents for the Electric Universal Service Program" for all
+residential customers. Arcadia's stored value ($0.32) is slightly stale but should NOT be
+doubled.
+
+**Fix:** Add `tariff_rate_id` deduplication to the patched `tariff_iter_rates_for_dt`
+iterator. A `_seen` set is passed through the recursive rider traversal so that once a
+`tariff_rate_id` is yielded, it is never yielded again:
+
+```python
+def _iter_rates_dedup(tariff, scenario, library, dt, _seen=None):
+    if _seen is None:
+        _seen = set()
+    rates = tariff.get("rates", [])
+    for rate in rates:
+        if not rate_is_applied_to_scenario(rate, scenario, library):
+            continue
+        if not rate_is_applied_to_datetime(rate, dt):
+            continue
+        if rate["rate_bands"]:
+            rate_id = rate["tariff_rate_id"]
+            if rate_id in _seen:
+                continue
+            _seen.add(rate_id)
+            yield rate
+        elif rider_id := rate.get("rider_id"):
+            rider_tariff = library.tariffs.get_tariff(rider_id)
+            yield from _iter_rates_dedup(rider_tariff, scenario, library, dt, _seen)
+```
+
+**Correctness:** Each physical rate (identified by `tariff_rate_id`) represents a single
+line item on the customer's bill. Yielding it once produces the correct total. The inline
+copy and the rider copy are the same charge — Arcadia's inlining is a data-model
+convenience, not a signal that the charge should be applied twice.
 
 ### Why NY utilities did not trigger these bugs
 
