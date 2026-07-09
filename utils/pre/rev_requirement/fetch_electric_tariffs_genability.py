@@ -586,8 +586,9 @@ def _build_urdb_noninteractive(
 
 
 def _write_urdb_json(urdb: dict, path: Path) -> None:
-    """Write URDB dict as pretty-printed JSON with trailing newline."""
-    path.write_text(json.dumps(urdb, indent=2) + "\n")
+    """Write URDB dict wrapped in the standard {"items": [...]} envelope."""
+    wrapped = {"items": [urdb]}
+    path.write_text(json.dumps(wrapped, indent=2) + "\n")
     log.info("Wrote URDB %s", path)
 
 

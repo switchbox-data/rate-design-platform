@@ -2380,7 +2380,7 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "scipy", specifier = ">=1.11.0" },
     { name = "sodapy", specifier = ">=2.2.0" },
-    { name = "tariff-fetch", specifier = ">=0.4.1" },
+    { name = "tariff-fetch", specifier = ">=1.1.0" },
     { name = "tqdm", specifier = ">=4.67.3" },
 ]
 
@@ -2762,12 +2762,13 @@ wheels = [
 
 [[package]]
 name = "tariff-fetch"
-version = "0.4.3"
+version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastexcel" },
     { name = "fuzzywuzzy" },
     { name = "pathvalidate" },
+    { name = "platformdirs" },
     { name = "polars" },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -2781,9 +2782,9 @@ dependencies = [
     { name = "typer" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f2/c6/bc964808a75e11d3acca545f295e866b49e8d61385483162a826fa1d11a1/tariff_fetch-0.4.3.tar.gz", hash = "sha256:8b7914ace7c2d28e9af50cfb31977b4076bc91aba1236cdf82516766332f396e", size = 385055, upload-time = "2026-03-05T12:13:27.702Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8d/16/ef956a9884282c82988179fef51dc2ae70fda291a2b571ddb924502f748d/tariff_fetch-1.1.0.tar.gz", hash = "sha256:fc0ed456d67604b2eec52b03564d61d51ab9a2b84a2a7c8d118acf80c05a460e", size = 317153, upload-time = "2026-04-07T14:17:47.693Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/93/4f/e260b785cd48ba2b33b5181a5a64d290046f6db7cf5fd9bd130719bceeaf/tariff_fetch-0.4.3-py3-none-any.whl", hash = "sha256:932868f458a3d03ac91950276989c759853ea5390e5b9489494de054495c74f3", size = 68757, upload-time = "2026-03-05T12:13:26.16Z" },
+    { url = "https://files.pythonhosted.org/packages/30/98/5bb6db45c542f1cceeec3a50759274c222d925b4f308485baf85d61aaad8/tariff_fetch-1.1.0-py3-none-any.whl", hash = "sha256:179fd648a9234c4865a1168f78f874531499a971fec718007daca60608441030", size = 89944, upload-time = "2026-04-07T14:17:45.73Z" },
 ]
 
 [[package]]

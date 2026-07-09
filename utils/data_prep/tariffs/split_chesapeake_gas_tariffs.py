@@ -443,7 +443,7 @@ def split_chesapeake_tariffs(
             urdb = _build_urdb(monthly_rates, fixed_charge, schedule_name, county_label)
             out_name = f"chesapeake_{group_key}_{rate_class}.json"
             out_path = output_dir / out_name
-            out_path.write_text(json.dumps(urdb, indent=2) + "\n")
+            out_path.write_text(json.dumps({"items": [urdb]}, indent=2) + "\n")
             written.append(out_path)
             log.info("  Wrote %s", out_path)
 

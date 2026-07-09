@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import re
+import time
 from collections.abc import Collection
 from datetime import date
 from pathlib import Path
@@ -246,7 +247,23 @@ def fetch_gas_urdb(
                     .set_number_of_comparisons(12)
                     .set_frequency(1)
                 )
-                df = report.as_dataframe()
+                for attempt in range(3):
+                    try:
+                        df = report.as_dataframe(timeout=60)
+                        break
+                    except StopIteration:
+                        if attempt < 2:
+                            log.warning(
+                                "Download timeout for %s (attempt %d/3), retrying in 5s...",
+                                tariff_key,
+                                attempt + 1,
+                            )
+                            time.sleep(5)
+                        else:
+                            raise RuntimeError(
+                                f"Excel download failed after 3 attempts for '{schedule_name}' "
+                                f"(tariff_key={tariff_key}). RateAcuity may be unresponsive."
+                            )
                 csv_path = output_dir / f"{tariff_key}.csv"
                 if csv_path.exists():
                     log.info("Overwriting existing %s", csv_path)
@@ -267,7 +284,7 @@ def fetch_gas_urdb(
                 out_path = output_dir / f"{tariff_key}.json"
                 if out_path.exists():
                     log.info("Overwriting existing %s", out_path)
-                out_path.write_text(json.dumps(urdb, indent=2))
+                out_path.write_text(json.dumps({"items": [urdb]}, indent=2) + "\n")
                 written.append((tariff_key, out_path))
                 log.info("Wrote %s -> %s", tariff_key, out_path)
 
