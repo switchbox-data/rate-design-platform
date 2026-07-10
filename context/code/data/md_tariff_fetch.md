@@ -466,10 +466,13 @@ not included.
 
 ## Remaining work (not in scope for this PR)
 
-1. **Add commodity charges to UGI and Easton URDB JSONs** — write post-processing script
-   to read `ugi_central_penn_pgc.csv` and `easton_muni_pgc.csv`, compute annual-average
-   commodity rates, convert $/ccf → $/kWh, and add to tier rates in the distribution-only
-   URDB JSONs.
+1. **Add commodity charges to UGI and Easton URDB JSONs** ✅ Done — script
+   `utils/data_prep/tariffs/add_pgc_to_gas_urdb.py` reads the PGC CSV,
+   averages all available months of the target year (filling any missing month
+   with the Jan–Nov mean), converts `$/ccf → $/kWh` (÷ 29.3001), and adds the
+   scalar to every tier. Called automatically as `add-pgc-to-gas-urdbs` at the
+   end of `just fetch-gas-tariffs`. UGI 2025 avg: `$0.667/ccf` → `$0.0228/kWh`;
+   Easton 2025 avg (11 months, Dec filled): `$0.939/ccf` → `$0.0320/kWh`.
 
 2. **Gas tariff maps** — assign each ResStock building to the correct gas tariff key.
    - Chesapeake territory: map by `sb.gas_utility` → county-group JSON, then split by

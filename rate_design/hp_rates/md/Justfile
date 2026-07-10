@@ -41,6 +41,10 @@ fetch-default-electric-tariffs effective_date="2025-01-01":
       --path-urdb-dir "{{ path_tariffs_electric }}"
 
 path_rateacuity_phase2_yaml := path_tariffs_gas / "rateacuity_tariffs_chesapeake_phase2.yaml"
+path_add_pgc := path_repo / "utils/data_prep/tariffs/add_pgc_to_gas_urdb.py"
+path_ugi_pgc_csv := path_tariffs_gas / "ugi_central_penn_pgc.csv"
+path_easton_pgc_csv := path_tariffs_gas / "easton_muni_pgc.csv"
+tariff_year := "2025"
 
 fetch-gas-tariffs:
     uv run python {{ path_repo }}/utils/pre/fetch_gas_tariffs_rateacuity.py \
@@ -49,6 +53,23 @@ fetch-gas-tariffs:
     just fetch-chesapeake-gas-phase2
     just split-chesapeake-gas-tariffs
     just fetch-ugi-pgc
+    just add-pgc-to-gas-urdbs
+
+# Add annual-average commodity (PGC) rates to the distribution-only UGI and
+# Easton URDB JSONs. Called automatically by fetch-gas-tariffs after fetch-ugi-pgc.
+# Can also be run standalone if only the PGC CSVs were updated:
+# just -f md/Justfile add-pgc-to-gas-urdbs
+add-pgc-to-gas-urdbs:
+    uv run python {{ path_add_pgc }} \
+      --path-urdb "{{ path_tariffs_gas }}/ugi_central_penn_residential.json" \
+      --path-pgc  "{{ path_ugi_pgc_csv }}" \
+      --pgc-col   price_to_compare_per_ccf \
+      --year      {{ tariff_year }}
+    uv run python {{ path_add_pgc }} \
+      --path-urdb "{{ path_tariffs_gas }}/easton_muni_residential.json" \
+      --path-pgc  "{{ path_easton_pgc_csv }}" \
+      --pgc-col   total_supply_per_ccf \
+      --year      {{ tariff_year }}
 
 # Fetch UGI Central Penn residential price-to-compare (commodity rate) from
 # pennsylvaniaenergy.com/pricing-history/ and write to ugi_central_penn_pgc.csv.
@@ -58,7 +79,6 @@ fetch-gas-tariffs:
 #
 #   just -f md/Justfile fetch-ugi-pgc               # default: 2024-01 to current month
 #   just -f md/Justfile fetch-ugi-pgc 2025-01 2025-12
-path_ugi_pgc_csv := path_tariffs_gas / "ugi_central_penn_pgc.csv"
 ugi_pgc_default_start := "2024-01"
 ugi_pgc_default_end := `date +%Y-%m`
 

@@ -4,27 +4,27 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.025247,
+            "rate": 0.0480142,
             "unit": "kWh",
             "max": 234
           },
           {
-            "rate": 0.01361,
+            "rate": 0.0363772,
             "unit": "kWh",
             "max": 586
           },
           {
-            "rate": 0.011024,
+            "rate": 0.0337912,
             "unit": "kWh",
             "max": 14655
           },
           {
-            "rate": 0.010809,
+            "rate": 0.0335762,
             "unit": "kWh",
             "max": 29310
           },
           {
-            "rate": 0.01059,
+            "rate": 0.0333572,
             "unit": "kWh"
           }
         ]
