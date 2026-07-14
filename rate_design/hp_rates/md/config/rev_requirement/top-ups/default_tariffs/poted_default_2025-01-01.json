@@ -1,0 +1,617 @@
+[
+  {
+    "isActive": true,
+    "tariffId": 3467680,
+    "masterTariffId": 80819,
+    "tariffCode": "R",
+    "tariffName": "Residential",
+    "lseId": 875,
+    "lseName": "The Potomac Edison Co",
+    "serviceType": "ELECTRICITY",
+    "priorTariffId": 3455271,
+    "tariffType": "DEFAULT",
+    "customerClass": "RESIDENTIAL",
+    "customerCount": 168162,
+    "customerLikelihood": 100.0,
+    "territoryId": 966,
+    "effectiveDate": "2024-03-01",
+    "endDate": null,
+    "timeZone": "US/Eastern",
+    "effectiveOnRule": "TARIFF_EFFECTIVE_DATE",
+    "billingPeriod": "MONTHLY",
+    "currency": "USD",
+    "chargeTypes": [
+      "FIXED_PRICE",
+      "CONSUMPTION_BASED",
+      "MINIMUM"
+    ],
+    "chargePeriod": "MONTHLY",
+    "hasTimeOfUseRates": false,
+    "hasTieredRates": false,
+    "hasContractedRates": true,
+    "hasRateApplicability": true,
+    "tariffBookName": "Residential",
+    "lseCode": "PotEd",
+    "customerCountSource": "FERC Form 1",
+    "closedDate": null,
+    "minMonthlyConsumption": null,
+    "maxMonthlyConsumption": null,
+    "minMonthlyDemand": null,
+    "maxMonthlyDemand": null,
+    "hasTariffApplicability": false,
+    "hasNetMetering": true,
+    "privacy": "PUBLIC",
+    "properties": [
+      {
+        "quantityKey": null,
+        "keyName": "consumption",
+        "displayName": "Consumption (kWh)",
+        "keyspace": "electricity",
+        "family": "load",
+        "description": "Quantity in kWh of load that is used for a period of time",
+        "dataType": "DECIMAL",
+        "propertyTypes": "RATE_CRITERIA",
+        "operator": null,
+        "isDefault": false
+      },
+      {
+        "quantityKey": null,
+        "quantityUnit": "",
+        "keyName": "hasMontgomeryCountySurcharge",
+        "displayName": "Has Montgomery County Surcharge",
+        "keyspace": "electricity",
+        "family": "billing",
+        "description": "Montgomery County Surcharge applies to the customer.",
+        "dataType": "BOOLEAN",
+        "propertyTypes": "RATE_CRITERIA",
+        "operator": "=",
+        "propertyValue": "false",
+        "isDefault": true
+      },
+      {
+        "quantityKey": null,
+        "keyName": "chargeClass",
+        "displayName": "Charge Class Type",
+        "keyspace": "electricity",
+        "family": "service",
+        "description": "The tariff has rates with the following charge class.",
+        "dataType": "CHOICE",
+        "propertyTypes": "SERVICE_TERMS",
+        "operator": "=",
+        "propertyValue": "TRANSMISSION,DISTRIBUTION,TAX,CONTRACTED,NON_BYPASSABLE",
+        "choices": [
+          {
+            "value": "1",
+            "displayValue": "Transmission",
+            "dataValue": "1",
+            "likelihood": null
+          },
+          {
+            "value": "2",
+            "displayValue": "Distribution",
+            "dataValue": "2",
+            "likelihood": null
+          },
+          {
+            "value": "4",
+            "displayValue": "Supply",
+            "dataValue": "4",
+            "likelihood": null
+          },
+          {
+            "value": "8",
+            "displayValue": "Tax",
+            "dataValue": "8",
+            "likelihood": null
+          },
+          {
+            "value": "16",
+            "displayValue": "Other",
+            "dataValue": "16",
+            "likelihood": null
+          },
+          {
+            "value": "32",
+            "displayValue": "Contracted",
+            "dataValue": "32",
+            "likelihood": null
+          }
+        ],
+        "isDefault": false
+      }
+    ],
+    "rates": [
+      {
+        "masterTariffRateId": 1443089,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20096542,
+        "tariffId": 3467680,
+        "tariffSequenceNumber": 7,
+        "rateGroupName": "Distribution Charges",
+        "rateName": "Fixed Distribution Charge",
+        "fromDateTime": "2024-03-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "FIXED_PRICE",
+        "chargeClass": [
+          "DISTRIBUTION",
+          "NON_BYPASSABLE"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14808026,
+            "tariffRateId": 20096542,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 6.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Distribution Charges",
+        "tariffBookRateName": "Fixed Distribution Charge",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 16978742,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20096543,
+        "tariffId": 3467680,
+        "tariffSequenceNumber": 8,
+        "rateGroupName": "RGGI Rate Credit",
+        "rateName": "RGGI Rate Credit",
+        "fromDateTime": "2024-03-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "FIXED_PRICE",
+        "chargeClass": [
+          "DISTRIBUTION",
+          "NON_BYPASSABLE"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "rGGIRateCreditScheduleR875",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14808027,
+            "tariffRateId": 20096543,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "RGGI Rate Credit",
+        "tariffBookRateName": "RGGI Rate Credit",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 16978736,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20096544,
+        "tariffId": 3467680,
+        "tariffSequenceNumber": 9,
+        "rateGroupName": "Universal Service Program Surcharge",
+        "rateName": "Universal Service Program Surcharge",
+        "fromDateTime": "2024-03-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "FIXED_PRICE",
+        "chargeClass": [
+          "DISTRIBUTION",
+          "NON_BYPASSABLE"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "universalServiceProgramSurcharge875",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14808028,
+            "tariffRateId": 20096544,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Universal Service Program Surcharge",
+        "tariffBookRateName": "Universal Service Program Surcharge",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 1443091,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20096545,
+        "tariffId": 3467680,
+        "tariffSequenceNumber": 10,
+        "rateGroupName": "Transmission Charge",
+        "rateName": "Transmission Charge",
+        "fromDateTime": "2024-03-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "TRANSMISSION",
+          "CONTRACTED"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14808029,
+            "tariffRateId": 20096545,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.00396,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Transmission Charge",
+        "tariffBookRateName": "Transmission Charge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 1443090,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20096546,
+        "tariffId": 3467680,
+        "tariffSequenceNumber": 11,
+        "rateGroupName": "Distribution Charges",
+        "rateName": "Energy Charge",
+        "fromDateTime": "2024-03-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14808030,
+            "tariffRateId": 20096546,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.02287,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Distribution Charges",
+        "tariffBookRateName": "Energy Charge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 16985867,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20096547,
+        "tariffId": 3467680,
+        "tariffSequenceNumber": 12,
+        "rateGroupName": "Electric Supply Charge",
+        "rateName": "Electric Supply Charge",
+        "fromDateTime": "2024-03-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "SUPPLY",
+          "CONTRACTED"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "energySupplyChargeResidential",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14808031,
+            "tariffRateId": 20096547,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Electric Supply Charge",
+        "tariffBookRateName": "Electric Supply Charge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 16978743,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20096548,
+        "tariffId": 3467680,
+        "tariffSequenceNumber": 13,
+        "rateGroupName": "Administrative Credit",
+        "rateName": "Administrative Credit",
+        "fromDateTime": "2024-03-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "administrativeCreditAdjustmentResidential875",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14808032,
+            "tariffRateId": 20096548,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Administrative Credit",
+        "tariffBookRateName": "Administrative Credit",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 16978737,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20096549,
+        "tariffId": 3467680,
+        "tariffSequenceNumber": 14,
+        "rateGroupName": "Cogeneration PURPA Surcharge",
+        "rateName": "Cogeneration PURPA Surcharge",
+        "fromDateTime": "2024-03-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "cogenerationPURPASurchargeR875",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14808033,
+            "tariffRateId": 20096549,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Cogeneration PURPA Surcharge",
+        "tariffBookRateName": "Cogeneration PURPA Surcharge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 16978738,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20096550,
+        "tariffId": 3467680,
+        "tariffSequenceNumber": 15,
+        "rateGroupName": "Franchise Tax Surcharge",
+        "rateName": "Franchise Tax Surcharge",
+        "fromDateTime": "2024-03-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "TAX"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "franchiseTaxSurcharge",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14808034,
+            "tariffRateId": 20096550,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Franchise Tax Surcharge",
+        "tariffBookRateName": "Franchise Tax Surcharge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 16978741,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20096552,
+        "tariffId": 3467680,
+        "tariffSequenceNumber": 16,
+        "rateGroupName": "EmPower MD Charge",
+        "rateName": "EmPower MD Charge",
+        "fromDateTime": "2024-03-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "emPowerMDSurchargeR875",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14808036,
+            "tariffRateId": 20096552,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "EmPower MD Charge",
+        "tariffBookRateName": "EmPower MD Charge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 16978744,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20096554,
+        "tariffId": 3467680,
+        "tariffSequenceNumber": 17,
+        "rateGroupName": "Energy Cost Adjustment Surcharge",
+        "rateName": "Energy Cost Adjustment Surcharge",
+        "fromDateTime": "2024-03-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "SUPPLY",
+          "CONTRACTED"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "energyCostAdjustmentResidential875",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14808038,
+            "tariffRateId": 20096554,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Energy Cost Adjustment Surcharge",
+        "tariffBookRateName": "Energy Cost Adjustment Surcharge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 16985869,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20096555,
+        "tariffId": 3467680,
+        "tariffSequenceNumber": 18,
+        "rateGroupName": "Montgomery Fuel Energy Tax",
+        "rateName": "Montgomery Fuel Energy Tax",
+        "fromDateTime": "2024-03-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "TAX"
+        ],
+        "chargePeriod": "MONTHLY",
+        "applicabilityKey": "hasMontgomeryCountySurcharge",
+        "variableRateKey": "montgomerySurchargeRateResidential",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14808039,
+            "tariffRateId": 20096555,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "applicabilityValue": "true",
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Montgomery Fuel Energy Tax",
+        "tariffBookRateName": "Montgomery Fuel Energy Tax",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 16978740,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20096557,
+        "tariffId": 3467680,
+        "tariffSequenceNumber": 19,
+        "rateGroupName": "Maryland Environmental Surcharge",
+        "rateName": "Maryland Environmental Surcharge",
+        "fromDateTime": "2024-03-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "marylandEnvironmentalSurcharge875",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14808041,
+            "tariffRateId": 20096557,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Maryland Environmental Surcharge",
+        "tariffBookRateName": "Maryland Environmental Surcharge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 17072762,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20096559,
+        "tariffId": 3467680,
+        "tariffSequenceNumber": 20,
+        "rateGroupName": "Minimum",
+        "rateName": "Minimum",
+        "fromDateTime": "2024-03-01T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "MINIMUM",
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14808043,
+            "tariffRateId": 20096559,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 6.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Minimum",
+        "tariffBookRateName": "Minimum",
+        "transactionType": "BUY"
+      }
+    ]
+  }
+]

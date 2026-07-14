@@ -1,0 +1,247 @@
+[
+  {
+    "isActive": true,
+    "tariffId": 3492107,
+    "masterTariffId": 3240933,
+    "tariffCode": "R",
+    "tariffName": "Residential",
+    "lseId": 2496,
+    "lseName": "Easton Utilities Comm",
+    "serviceType": "ELECTRICITY",
+    "priorTariffId": 3476823,
+    "tariffType": "DEFAULT",
+    "customerClass": "RESIDENTIAL",
+    "customerCount": 8218,
+    "customerLikelihood": 100.0,
+    "territoryId": 2837,
+    "effectiveDate": "2024-10-01",
+    "endDate": null,
+    "timeZone": "US/Eastern",
+    "effectiveOnRule": "TARIFF_EFFECTIVE_DATE",
+    "billingPeriod": "MONTHLY",
+    "currency": "USD",
+    "chargeTypes": [
+      "FIXED_PRICE",
+      "CONSUMPTION_BASED"
+    ],
+    "chargePeriod": "MONTHLY",
+    "hasTimeOfUseRates": false,
+    "hasTieredRates": false,
+    "hasContractedRates": false,
+    "hasRateApplicability": false,
+    "tariffBookName": "Residential",
+    "lseCode": "EUC",
+    "customerCountSource": "Genability Estimate",
+    "closedDate": null,
+    "minMonthlyConsumption": null,
+    "maxMonthlyConsumption": null,
+    "minMonthlyDemand": null,
+    "maxMonthlyDemand": null,
+    "hasTariffApplicability": false,
+    "hasNetMetering": true,
+    "privacy": "PUBLIC",
+    "properties": [
+      {
+        "quantityKey": null,
+        "keyName": "consumption",
+        "displayName": "Consumption (kWh)",
+        "keyspace": "electricity",
+        "family": "load",
+        "description": "Quantity in kWh of load that is used for a period of time",
+        "dataType": "DECIMAL",
+        "propertyTypes": "RATE_CRITERIA",
+        "operator": null,
+        "isDefault": false
+      }
+    ],
+    "rates": [
+      {
+        "masterTariffRateId": 17446088,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20397048,
+        "tariffId": 3492107,
+        "tariffSequenceNumber": 9,
+        "rateGroupName": "Customer Charge",
+        "rateName": "Customer Charge",
+        "fromDateTime": "2024-10-01T00:00:00-04:00",
+        "toDateTime": null,
+        "chargeType": "FIXED_PRICE",
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15221267,
+            "tariffRateId": 20397048,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 7.25,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Distribution Charges",
+        "tariffBookRateName": "Customer Charge",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 17446090,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20397049,
+        "tariffId": 3492107,
+        "tariffSequenceNumber": 10,
+        "rateGroupName": "Distribution Charge",
+        "rateName": "Distribution Charge",
+        "fromDateTime": "2024-10-01T00:00:00-04:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15221268,
+            "tariffRateId": 20397049,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0718,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Distribution Charge",
+        "tariffBookRateName": "Distribution Charge - Winter",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 17446091,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20397050,
+        "tariffId": 3492107,
+        "tariffSequenceNumber": 11,
+        "rateGroupName": "Distribution Charges",
+        "rateName": "Universal Service Program",
+        "fromDateTime": "2024-10-01T00:00:00-04:00",
+        "toDateTime": null,
+        "chargeType": "FIXED_PRICE",
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15221269,
+            "tariffRateId": 20397050,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.32,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Distribution Charges",
+        "tariffBookRateName": "Universal Service Program",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 17446092,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20397051,
+        "tariffId": 3492107,
+        "tariffSequenceNumber": 11,
+        "rateGroupName": "Distribution Charges",
+        "rateName": "Franchise Tax",
+        "fromDateTime": "2024-10-01T00:00:00-04:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15221270,
+            "tariffRateId": 20397051,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.00062,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 2,
+        "tariffBookRateGroupName": "Distribution Charges",
+        "tariffBookRateName": "Franchise Tax",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 17446093,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20397052,
+        "tariffId": 3492107,
+        "tariffSequenceNumber": 11,
+        "rateGroupName": "Distribution Charges",
+        "rateName": "Environmental Surcharge",
+        "fromDateTime": "2024-10-01T00:00:00-04:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15221271,
+            "tariffRateId": 20397052,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.00015,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 3,
+        "tariffBookRateGroupName": "Distribution Charges",
+        "tariffBookRateName": "Environmental Surcharge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 17446094,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20397053,
+        "tariffId": 3492107,
+        "tariffSequenceNumber": 12,
+        "rateGroupName": "Energy Charge",
+        "rateName": "Energy Charge",
+        "fromDateTime": "2024-10-01T00:00:00-04:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "energyRateRider2496",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15221272,
+            "tariffRateId": 20397053,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Energy Charge",
+        "tariffBookRateName": "Energy Charge",
+        "transactionType": "NET"
+      }
+    ]
+  }
+]

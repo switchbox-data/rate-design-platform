@@ -1,0 +1,940 @@
+[
+  {
+    "isActive": false,
+    "tariffId": 3495330,
+    "masterTariffId": 2639,
+    "tariffCode": "R",
+    "tariffName": "Residential",
+    "lseId": 2376,
+    "lseName": "Delmarva Power",
+    "serviceType": "ELECTRICITY",
+    "priorTariffId": 3478619,
+    "tariffType": "DEFAULT",
+    "customerClass": "RESIDENTIAL",
+    "customerCount": 209348,
+    "customerLikelihood": 100.0,
+    "territoryId": 2669,
+    "effectiveDate": "2025-01-01",
+    "endDate": "2025-06-01",
+    "timeZone": "US/Eastern",
+    "effectiveOnRule": "TARIFF_EFFECTIVE_DATE",
+    "billingPeriod": "MONTHLY",
+    "currency": "USD",
+    "chargeTypes": [
+      "FIXED_PRICE",
+      "CONSUMPTION_BASED",
+      "DEMAND_BASED",
+      "QUANTITY",
+      "MINIMUM"
+    ],
+    "chargePeriod": "MONTHLY",
+    "hasTimeOfUseRates": false,
+    "hasTieredRates": false,
+    "hasContractedRates": true,
+    "hasRateApplicability": true,
+    "tariffBookName": "Residential",
+    "lseCode": "DP",
+    "customerCountSource": "Genability Estimate",
+    "closedDate": null,
+    "minMonthlyConsumption": null,
+    "maxMonthlyConsumption": null,
+    "minMonthlyDemand": null,
+    "maxMonthlyDemand": null,
+    "hasTariffApplicability": false,
+    "hasNetMetering": true,
+    "privacy": "PUBLIC",
+    "properties": [
+      {
+        "quantityKey": null,
+        "keyName": "consumption",
+        "displayName": "Consumption (kWh)",
+        "keyspace": "electricity",
+        "family": "load",
+        "description": "Quantity in kWh of load that is used for a period of time",
+        "dataType": "DECIMAL",
+        "propertyTypes": "RATE_CRITERIA",
+        "operator": null,
+        "isDefault": false
+      },
+      {
+        "quantityKey": "billingDemand15min2376",
+        "quantityUnit": "kW",
+        "keyName": "demand",
+        "displayName": "15 Minute Billing Demand",
+        "keyspace": "tariff",
+        "family": "peakDemand",
+        "description": "The peak 15 minute interval during the previous month.",
+        "dataType": "DEMAND",
+        "propertyTypes": "RATE_CRITERIA",
+        "operator": null,
+        "isDefault": false,
+        "lookbackQuantity": 1,
+        "lookbackPeriod": "BILLING_PERIOD",
+        "lookbackIntervalQuantity": 15
+      },
+      {
+        "quantityKey": null,
+        "keyName": "hasRenewablePortfolioCredit",
+        "displayName": "Renewable Portfolio Charge Credit",
+        "keyspace": "customer",
+        "family": "customerStatus",
+        "description": "A Renewable Portfolio Standard Credit  will be applied to the Delivery Service Charges for customers  who entered into an energy supply contract with a Third Party Supplier that includes the cost of RPS compliance prior to  March 1, 2012",
+        "dataType": "BOOLEAN",
+        "propertyTypes": "RATE_CRITERIA",
+        "operator": "=",
+        "propertyValue": "false",
+        "isDefault": true
+      },
+      {
+        "quantityKey": null,
+        "keyName": "chargeClass",
+        "displayName": "Charge Class Type",
+        "keyspace": "electricity",
+        "family": "service",
+        "description": "The tariff has rates with the following charge class.",
+        "dataType": "CHOICE",
+        "propertyTypes": "SERVICE_TERMS",
+        "operator": "=",
+        "propertyValue": "DISTRIBUTION,SUPPLY,CONTRACTED",
+        "choices": [
+          {
+            "value": "1",
+            "displayValue": "Transmission",
+            "dataValue": "1",
+            "likelihood": null
+          },
+          {
+            "value": "2",
+            "displayValue": "Distribution",
+            "dataValue": "2",
+            "likelihood": null
+          },
+          {
+            "value": "4",
+            "displayValue": "Supply",
+            "dataValue": "4",
+            "likelihood": null
+          },
+          {
+            "value": "8",
+            "displayValue": "Tax",
+            "dataValue": "8",
+            "likelihood": null
+          },
+          {
+            "value": "16",
+            "displayValue": "Other",
+            "dataValue": "16",
+            "likelihood": null
+          },
+          {
+            "value": "32",
+            "displayValue": "Contracted",
+            "dataValue": "32",
+            "likelihood": null
+          }
+        ],
+        "isDefault": false
+      }
+    ],
+    "rates": [
+      {
+        "masterTariffRateId": 17026427,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20447028,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 2,
+        "rateGroupName": "Delivery Service Charges",
+        "rateName": "Customer Charge",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "FIXED_PRICE",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15297343,
+            "tariffRateId": 20447028,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 13.5,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 2,
+        "tariffBookRateGroupName": "Delivery Service Charges",
+        "tariffBookRateName": "Customer Charge",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 17026428,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20447029,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 2,
+        "rateGroupName": "Delivery Service Charges",
+        "rateName": "Distribution Charge",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15297344,
+            "tariffRateId": 20447029,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.046594,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 3,
+        "tariffBookRateGroupName": "Delivery Service Charges",
+        "tariffBookRateName": "Distribution Charge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 17026431,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20447030,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 2,
+        "rateGroupName": "Delivery Service Charges",
+        "rateName": "Green Energy Fund",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "environmentalFundRate",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15297345,
+            "tariffRateId": 20447030,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 4,
+        "tariffBookRateGroupName": "Delivery Service Charges",
+        "tariffBookRateName": "Green Energy Fund",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 17026432,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20447031,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 2,
+        "rateGroupName": "Delivery Service Charges",
+        "rateName": "Low-Income Fund Rate",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "lowIncomeFundRate",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15297346,
+            "tariffRateId": 20447031,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 5,
+        "tariffBookRateGroupName": "Delivery Service Charges",
+        "tariffBookRateName": "Low-Income Fund Rate",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 17026434,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20447032,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 3,
+        "rateGroupName": "Supply Service Charges",
+        "rateName": "Procurement Cost Adjustment",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "SUPPLY",
+          "CONTRACTED"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "procurementCostAdjustment",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15297347,
+            "tariffRateId": 20447032,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Supply Service Charges",
+        "tariffBookRateName": "Procurement Cost Adjustment",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 17026429,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20447033,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 3,
+        "rateGroupName": "Supply Service Charges",
+        "rateName": "Supply Capacity, Energy and Ancillary Rate - Summer",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "SUPPLY",
+          "CONTRACTED"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "dESupplyCapacityEnergyAncillaryEnergyRateRSummer",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15297348,
+            "tariffRateId": 20447033,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 2,
+        "tariffBookRateGroupName": "Supply Service Charges",
+        "tariffBookRateName": "Supply Capacity, Energy and Ancillary Rate - Summer",
+        "transactionType": "NET",
+        "season": {
+          "seasonId": 320,
+          "lseId": 2376,
+          "seasonGroupId": 1,
+          "seasonName": "Summer",
+          "seasonFromMonth": 6,
+          "seasonFromDay": 1,
+          "seasonToMonth": 9,
+          "seasonToDay": 30
+        }
+      },
+      {
+        "masterTariffRateId": 17026430,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20447034,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 3,
+        "rateGroupName": "Supply Service Charges",
+        "rateName": "Supply Capacity, Energy and Ancillary Rate - Winter",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "SUPPLY",
+          "CONTRACTED"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "dESupplyCapacityEnergyAncillaryEnergyRateRWinter",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15297349,
+            "tariffRateId": 20447034,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 3,
+        "tariffBookRateGroupName": "Supply Service Charges",
+        "tariffBookRateName": "Supply Capacity, Energy and Ancillary Rate - Winter",
+        "transactionType": "NET",
+        "season": {
+          "seasonId": 321,
+          "lseId": 2376,
+          "seasonGroupId": 1,
+          "seasonName": "Winter",
+          "seasonFromMonth": 10,
+          "seasonFromDay": 1,
+          "seasonToMonth": 5,
+          "seasonToDay": 31
+        }
+      },
+      {
+        "masterTariffRateId": 17227664,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20447035,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 3,
+        "rateGroupName": "Supply Service Charges",
+        "rateName": "Transmission Rate",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "DEMAND_BASED",
+        "chargeClass": [
+          "TRANSMISSION",
+          "CONTRACTED"
+        ],
+        "chargePeriod": "MONTHLY",
+        "quantityKey": "billingDemand15min2376",
+        "variableRateKey": "transmissionRate",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15297350,
+            "tariffRateId": 20447035,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 4,
+        "tariffBookRateGroupName": "Supply Service Charges",
+        "tariffBookRateName": "Transmission Rate",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 17026435,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20447036,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 4,
+        "rateGroupName": "Minimum Charge",
+        "rateName": "Minimum Charge",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "MINIMUM",
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15297351,
+            "tariffRateId": 20447036,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 13.5,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Minimum Charge",
+        "tariffBookRateName": "Minimum Charge",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 18067933,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20447037,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 5,
+        "rateGroupName": "Utility Facility Relocation Charge",
+        "rateName": "Utility Facility Relocation Charge",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "QUANTITY",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15297352,
+            "tariffRateId": 20447037,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "PERCENTAGE",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Utility Facility Relocation Charge",
+        "tariffBookRateName": "Utility Facility Relocation Charge",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 18180985,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20447039,
+        "tariffId": 3495330,
+        "riderId": 3315682,
+        "tariffSequenceNumber": 6,
+        "rateGroupName": "Excess Deferred Income Tax Credit - R",
+        "rateName": "Excess Deferred Income Tax Credit - R",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Excess Deferred Income Tax Credit - R",
+        "tariffBookRateName": "Excess Deferred Income Tax Credit - R",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 18207582,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20447040,
+        "tariffId": 3495330,
+        "riderId": 3318194,
+        "tariffSequenceNumber": 7,
+        "rateGroupName": "QFCP Rider",
+        "rateName": "QFCP Rider",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "QFCP Rider",
+        "tariffBookRateName": "QFCP Rider",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 18208816,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20447041,
+        "tariffId": 3495330,
+        "riderId": 3318361,
+        "tariffSequenceNumber": 8,
+        "rateGroupName": "RPS Rider",
+        "rateName": "RPS Rider",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "RPS Rider",
+        "tariffBookRateName": "RPS Rider",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 18626097,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20447042,
+        "tariffId": 3495330,
+        "riderId": 3351738,
+        "tariffSequenceNumber": 9,
+        "rateGroupName": "Energy Efficiency Surcharge Rider - Residential",
+        "rateName": "Energy Efficiency Surcharge Rider - Residential",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Energy Efficiency Surcharge Rider - Residential",
+        "tariffBookRateName": "Energy Efficiency Surcharge Rider - Residential",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 20142619,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20447043,
+        "tariffId": 3495330,
+        "riderId": 3471728,
+        "tariffSequenceNumber": 10,
+        "rateGroupName": "Significant Storm Expense Rate - R",
+        "rateName": "Significant Storm Expense Rate - R",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Significant Storm Expense Rate - R",
+        "tariffBookRateName": "Significant Storm Expense Rate - R",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 20785889,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20786271,
+        "tariffId": 3495330,
+        "riderId": 3526458,
+        "tariffSequenceNumber": 11,
+        "rateGroupName": "Distribution System Improvement Charge - Residential",
+        "rateName": "Distribution System Improvement Charge - Residential",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Distribution System Improvement Charge - Residential",
+        "tariffBookRateName": "Distribution System Improvement Charge - Residential",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 18180860,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 19872127,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 6,
+        "rateGroupName": "Excess Deferred Income Tax Credit",
+        "rateName": "EDIT Credit - Non-Property Related",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14481783,
+            "tariffRateId": 19872127,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 3450283,
+        "tariffBookSequenceNumber": 2,
+        "tariffBookRateGroupName": "Excess Deferred Income Tax Credit",
+        "tariffBookRateName": "EDIT Credit - Non-Property Related",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 18180861,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 19872128,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 6,
+        "rateGroupName": "Excess Deferred Income Tax Credit",
+        "rateName": "EDIT Credit - Property Related",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14481784,
+            "tariffRateId": 19872128,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": true
+          }
+        ],
+        "riderTariffId": 3450283,
+        "tariffBookSequenceNumber": 3,
+        "tariffBookRateGroupName": "Excess Deferred Income Tax Credit",
+        "tariffBookRateName": "EDIT Credit - Property Related",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": null,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 18206992,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 7,
+        "rateGroupName": "Qualified Fuel Cell Provider Charge",
+        "rateName": "Qualified Fuel Cell Provider Charge",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "qualifiedFuelCellProviderR",
+        "rateBands": [
+          {
+            "tariffRateBandId": 12093199,
+            "tariffRateId": 18206992,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 3318194,
+        "tariffBookSequenceNumber": 2,
+        "tariffBookRateGroupName": "Qualified Fuel Cell Provider Charge",
+        "tariffBookRateName": "Qualified Fuel Cell Provider Charge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": null,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 18208649,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 8,
+        "rateGroupName": "Renewable Portfolio Standard",
+        "rateName": "Renewable Portfolio Standard Charge",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "renewablePortfolioStandardCharge2376",
+        "rateBands": [
+          {
+            "tariffRateBandId": 12094820,
+            "tariffRateId": 18208649,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 3318361,
+        "tariffBookSequenceNumber": 2,
+        "tariffBookRateGroupName": "Renewable Portfolio Standard",
+        "tariffBookRateName": "Renewable Portfolio Standard Charge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": null,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 18208650,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 8,
+        "rateGroupName": "Renewable Portfolio Standard",
+        "rateName": "Renewable Portfolio Standard Credit",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "applicabilityKey": "hasRenewablePortfolioCredit",
+        "variableRateKey": "renewablePortfolioStandardCredit2376",
+        "rateBands": [
+          {
+            "tariffRateBandId": 12094821,
+            "tariffRateId": 18208650,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "applicabilityValue": "true",
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 3318361,
+        "tariffBookSequenceNumber": 3,
+        "tariffBookRateGroupName": "Renewable Portfolio Standard",
+        "tariffBookRateName": "Renewable Portfolio Standard Credit",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": null,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 18626055,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 9,
+        "rateGroupName": "Energy Efficiency Surcharge",
+        "rateName": "Energy Efficiency Surcharge",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "energyEfficiencySurchargeRes2376",
+        "rateBands": [
+          {
+            "tariffRateBandId": 12701704,
+            "tariffRateId": 18626055,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 3351738,
+        "tariffBookSequenceNumber": 2,
+        "tariffBookRateGroupName": "Energy Efficiency Surcharge",
+        "tariffBookRateName": "Energy Efficiency Surcharge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 20142607,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20142607,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 10,
+        "rateGroupName": "Significant Storm Expense Rate",
+        "rateName": "Significant Storm Expense Rate",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14877496,
+            "tariffRateId": 20142607,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 3471728,
+        "tariffBookSequenceNumber": 2,
+        "tariffBookRateGroupName": "Significant Storm Expense Rate",
+        "tariffBookRateName": "Significant Storm Expense Rate",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 20783534,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20785743,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 11,
+        "rateGroupName": "Distribution System Improvement Charge",
+        "rateName": "Customer Charge - Component",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "FIXED_PRICE",
+        "chargeClass": [
+          "DISTRIBUTION",
+          "NON_BYPASSABLE"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15751498,
+            "tariffRateId": 20785743,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "calculationFactor": 0.0423,
+            "rateAmount": 13.5,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 3526635,
+        "tariffBookSequenceNumber": 2,
+        "tariffBookRateGroupName": "Distribution System Improvement Charge",
+        "tariffBookRateName": "Customer Charge - Component",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 20783535,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20785744,
+        "tariffId": 3495330,
+        "tariffSequenceNumber": 11,
+        "rateGroupName": "Distribution System Improvement Charge",
+        "rateName": "Distribution Charge - Component",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-06-01T00:00:00-04:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15751499,
+            "tariffRateId": 20785744,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "calculationFactor": 0.0423,
+            "rateAmount": 0.046594,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 3526635,
+        "tariffBookSequenceNumber": 3,
+        "tariffBookRateGroupName": "Distribution System Improvement Charge",
+        "tariffBookRateName": "Distribution Charge - Component",
+        "transactionType": "NET"
+      }
+    ]
+  }
+]

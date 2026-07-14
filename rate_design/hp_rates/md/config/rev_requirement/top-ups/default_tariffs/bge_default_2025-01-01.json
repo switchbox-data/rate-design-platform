@@ -1,0 +1,1146 @@
+[
+  {
+    "isActive": false,
+    "tariffId": 3491377,
+    "masterTariffId": 674,
+    "tariffCode": "R",
+    "tariffName": "Residential",
+    "lseId": 286,
+    "lseName": "Baltimore Gas & Electric Co",
+    "serviceType": "ELECTRICITY",
+    "priorTariffId": 3463910,
+    "tariffType": "DEFAULT",
+    "customerClass": "RESIDENTIAL",
+    "customerCount": 1116033,
+    "customerLikelihood": 100.0,
+    "territoryId": 304,
+    "effectiveDate": "2025-01-01",
+    "endDate": "2025-03-01",
+    "timeZone": "US/Eastern",
+    "effectiveOnRule": "TARIFF_EFFECTIVE_DATE",
+    "billingPeriod": "MONTHLY",
+    "currency": "USD",
+    "chargeTypes": [
+      "FIXED_PRICE",
+      "CONSUMPTION_BASED",
+      "MINIMUM"
+    ],
+    "chargePeriod": "MONTHLY",
+    "hasTimeOfUseRates": false,
+    "hasTieredRates": false,
+    "hasContractedRates": true,
+    "hasRateApplicability": true,
+    "tariffBookName": "Residential",
+    "lseCode": "BGE",
+    "customerCountSource": "FERC Form 1",
+    "closedDate": null,
+    "minMonthlyConsumption": null,
+    "maxMonthlyConsumption": null,
+    "minMonthlyDemand": null,
+    "maxMonthlyDemand": null,
+    "hasTariffApplicability": true,
+    "hasNetMetering": true,
+    "privacy": "PUBLIC",
+    "properties": [
+      {
+        "quantityKey": null,
+        "quantityUnit": "",
+        "keyName": "solarPvEligible",
+        "displayName": "Solar PV Eligible",
+        "keyspace": "solarPV",
+        "family": "system",
+        "description": "Whether a tariff can be selected if solar PV is installed.",
+        "dataType": "BOOLEAN",
+        "propertyTypes": "APPLICABILITY",
+        "operator": "=",
+        "propertyValue": "true",
+        "isDefault": true
+      },
+      {
+        "quantityKey": null,
+        "quantityUnit": "",
+        "keyName": "competitiveBilling",
+        "displayName": "Has Non-BGE third party or Competitive Provider Billing",
+        "keyspace": "electricity",
+        "family": "billing",
+        "description": "The Customer may receive a single bill from either BGE or the competitive electricity service provider that includes charges for both distribution service and electricity supply. Another option is that the Customer may choose to receive two separate bills, one from BGE for distribution charges and one from the electricity service provider for electricity supply. A third possible choice is for the Customer to receive a bill from an independent third party providing billing services that is neither BGE nor electricity service provider. When the Customer chooses other than BGE for billing, the Competitive Billing credit stated in the applicable Rate Schedule will be applied to the Schedule's Delivery Service Customer Charge.",
+        "dataType": "BOOLEAN",
+        "propertyTypes": "RATE_CRITERIA",
+        "operator": "=",
+        "propertyValue": "false",
+        "isDefault": true
+      },
+      {
+        "quantityKey": null,
+        "keyName": "consumption",
+        "displayName": "Consumption (kWh)",
+        "keyspace": "electricity",
+        "family": "load",
+        "description": "Quantity in kWh of load that is used for a period of time",
+        "dataType": "DECIMAL",
+        "propertyTypes": "RATE_CRITERIA",
+        "operator": null,
+        "isDefault": false
+      },
+      {
+        "quantityKey": null,
+        "quantityUnit": "",
+        "keyName": "smartMeterOptOut",
+        "displayName": "Has Smart Meter Opt-Out",
+        "keyspace": "electricity",
+        "family": "billing",
+        "description": "Customers  who elect to opt-out of receiving a smart meter and choose to retain a non-smart meter, are subject to the Smart Meter Opt-Out fees.  Smart Meter Opt-Out Customers are subject to one-time, up-front fee and a recurring monthly fee",
+        "dataType": "BOOLEAN",
+        "propertyTypes": "RATE_CRITERIA",
+        "operator": "=",
+        "propertyValue": "false",
+        "isDefault": true
+      },
+      {
+        "quantityKey": null,
+        "keyName": "chargeClass",
+        "displayName": "Charge Class Type",
+        "keyspace": "electricity",
+        "family": "service",
+        "description": "The tariff has rates with the following charge class.",
+        "dataType": "CHOICE",
+        "propertyTypes": "SERVICE_TERMS",
+        "operator": "=",
+        "propertyValue": "DISTRIBUTION,TAX,CONTRACTED,NON_BYPASSABLE",
+        "choices": [
+          {
+            "value": "1",
+            "displayValue": "Transmission",
+            "dataValue": "1",
+            "likelihood": null
+          },
+          {
+            "value": "2",
+            "displayValue": "Distribution",
+            "dataValue": "2",
+            "likelihood": null
+          },
+          {
+            "value": "4",
+            "displayValue": "Supply",
+            "dataValue": "4",
+            "likelihood": null
+          },
+          {
+            "value": "8",
+            "displayValue": "Tax",
+            "dataValue": "8",
+            "likelihood": null
+          },
+          {
+            "value": "16",
+            "displayValue": "Other",
+            "dataValue": "16",
+            "likelihood": null
+          },
+          {
+            "value": "32",
+            "displayValue": "Contracted",
+            "dataValue": "32",
+            "likelihood": null
+          }
+        ],
+        "isDefault": false
+      }
+    ],
+    "rates": [
+      {
+        "masterTariffRateId": 16966978,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390592,
+        "tariffId": 3491377,
+        "riderId": 84736,
+        "tariffSequenceNumber": 2,
+        "rateGroupName": "Delivery Charge",
+        "rateName": "Monthly Rate Adjustment (R)",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 2,
+        "tariffBookRateGroupName": "Delivery Charge",
+        "tariffBookRateName": "Monthly Rate Adjustment (R)",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 16966979,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390593,
+        "tariffId": 3491377,
+        "riderId": 19651,
+        "tariffSequenceNumber": 2,
+        "rateGroupName": "Delivery Charge",
+        "rateName": "RGGI Rate Credit (Residential)",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 3,
+        "tariffBookRateGroupName": "Delivery Charge",
+        "tariffBookRateName": "RGGI Rate Credit (Residential)",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 16966980,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390594,
+        "tariffId": 3491377,
+        "riderId": 6309,
+        "tariffSequenceNumber": 2,
+        "rateGroupName": "Delivery Charge",
+        "rateName": "RSP Charge/Misc  (RSP,ND, POLR, Financing) - R,RL",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 4,
+        "tariffBookRateGroupName": "Delivery Charge",
+        "tariffBookRateName": "RSP Charge/Misc  (RSP,ND, POLR, Financing) - R,RL",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 16966981,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390595,
+        "tariffId": 3491377,
+        "riderId": 669,
+        "tariffSequenceNumber": 2,
+        "rateGroupName": "Delivery Charge",
+        "rateName": "Miscellaneous Taxes and Surcharges",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 5,
+        "tariffBookRateGroupName": "Delivery Charge",
+        "tariffBookRateName": "Miscellaneous Taxes and Surcharges",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 1404332,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390596,
+        "tariffId": 3491377,
+        "riderId": 85134,
+        "tariffSequenceNumber": 3,
+        "rateGroupName": "Minimum Charge",
+        "rateName": "Standard Offer Service (R)",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Minimum Charge",
+        "tariffBookRateName": "Standard Offer Service (R)",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 1404336,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390597,
+        "tariffId": 3491377,
+        "riderId": 6279,
+        "tariffSequenceNumber": 3,
+        "rateGroupName": "Minimum Charge",
+        "rateName": "Administrative Cost Adjustment (R, RL)",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 2,
+        "tariffBookRateGroupName": "Minimum Charge",
+        "tariffBookRateName": "Administrative Cost Adjustment (R, RL)",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 17097980,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390598,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 4,
+        "rateGroupName": "Dmd Res Chg/Cr",
+        "rateName": "Dmd Res Chg/Cr",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "demandResourceChargeCreditR",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15214705,
+            "tariffRateId": 20390598,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Dmd Res Chg/Cr",
+        "tariffBookRateName": "Dmd Res Chg/Cr",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 17183654,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390599,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 5,
+        "rateGroupName": "Electric Reliability Initiative Surcharge",
+        "rateName": "Electric Reliability Initiative Surcharge",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "electricReliabilityInitiativeR",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15214706,
+            "tariffRateId": 20390599,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Electric Reliability Initiative Surcharge",
+        "tariffBookRateName": "Electric Reliability Initiative Surcharge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 1404333,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390600,
+        "tariffId": 3491377,
+        "riderId": 668,
+        "tariffSequenceNumber": 6,
+        "rateGroupName": "Minimum Charge",
+        "rateName": "Electric Efficiency Charge (R, RL - Residential)",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Minimum Charge",
+        "tariffBookRateName": "Electric Efficiency Charge (R, RL - Residential)",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 17214188,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390601,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 7,
+        "rateGroupName": "Smart Meter Opt-Out Charge",
+        "rateName": "Smart Meter Opt-Out Charge",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "FIXED_PRICE",
+        "chargeClass": [
+          "NON_BYPASSABLE"
+        ],
+        "chargePeriod": "MONTHLY",
+        "applicabilityKey": "smartMeterOptOut",
+        "variableRateKey": "smartMeterOptOutCharge",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15214707,
+            "tariffRateId": 20390601,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "applicabilityValue": "true",
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Smart Meter Opt-Out Charge",
+        "tariffBookRateName": "Smart Meter Opt-Out Charge",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 1477730,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390602,
+        "tariffId": 3491377,
+        "riderId": 84504,
+        "tariffSequenceNumber": 8,
+        "rateGroupName": "Minimum Charge",
+        "rateName": "Energy Cost Adjustment (R)",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Minimum Charge",
+        "tariffBookRateName": "Energy Cost Adjustment (R)",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 17097981,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390603,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 9,
+        "rateGroupName": "Envir Srchg",
+        "rateName": "Envir Srchg",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "environmentalSurcharge",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15214708,
+            "tariffRateId": 20390603,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Envir Srchg",
+        "tariffBookRateName": "Envir Srchg",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 1404328,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390604,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 10,
+        "rateGroupName": "Delivery Service Customer Charge",
+        "rateName": "Delivery Service Customer Charge",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "FIXED_PRICE",
+        "chargeClass": [
+          "DISTRIBUTION",
+          "NON_BYPASSABLE"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15214709,
+            "tariffRateId": 20390604,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 9.65,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Delivery Service Customer Charge",
+        "tariffBookRateName": "Delivery Service Customer Charge",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 1404329,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390605,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 11,
+        "rateGroupName": "Competitive Billing",
+        "rateName": "Competitive Billing",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "FIXED_PRICE",
+        "chargeClass": [
+          "DISTRIBUTION",
+          "NON_BYPASSABLE"
+        ],
+        "chargePeriod": "MONTHLY",
+        "applicabilityKey": "competitiveBilling",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15214710,
+            "tariffRateId": 20390605,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "applicabilityValue": "true",
+            "rateAmount": 0.62,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": true
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Competitive Billing",
+        "tariffBookRateName": "Competitive Billing",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 1404330,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390606,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 12,
+        "rateGroupName": "Delivery Service Charge",
+        "rateName": "Delivery Service Charge",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15214711,
+            "tariffRateId": 20390606,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.04751,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Delivery Service Charge",
+        "tariffBookRateName": "Delivery Service Charge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 1404331,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390607,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 13,
+        "rateGroupName": "Minimum Charge",
+        "rateName": "Minimum Charge",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "MINIMUM",
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15214712,
+            "tariffRateId": 20390607,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 9.65,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Minimum Charge",
+        "tariffBookRateName": "Minimum Charge",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 19160087,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390608,
+        "tariffId": 3491377,
+        "riderId": 3393795,
+        "tariffSequenceNumber": 14,
+        "rateGroupName": "Additional Rates - Residential",
+        "rateName": "Additional Rates - Residential",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Additional Rates - Residential",
+        "tariffBookRateName": "Additional Rates - Residential",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 19369082,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390609,
+        "tariffId": 3491377,
+        "riderId": 3408792,
+        "tariffSequenceNumber": 15,
+        "rateGroupName": "Base Distribution Revenue Offset Rider - R, EV",
+        "rateName": "Base Distribution Revenue Offset Rider - R, EV",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Base Distribution Revenue Offset Rider - R, EV",
+        "tariffBookRateName": "Base Distribution Revenue Offset Rider - R, EV",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 20111336,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20390610,
+        "tariffId": 3491377,
+        "riderId": 3469152,
+        "tariffSequenceNumber": 16,
+        "rateGroupName": "Multi-Year Plan Adjustment (R)",
+        "rateName": "Multi-Year Plan Adjustment (R)",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": null,
+        "chargePeriod": "MONTHLY",
+        "rateBands": [],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Multi-Year Plan Adjustment (R)",
+        "tariffBookRateName": "Multi-Year Plan Adjustment (R)",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 1400262,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 1400262,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 2,
+        "rateGroupName": "Monthly Rate Adjustment",
+        "rateName": "Monthly Rate Adjustment",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "monthlyRateAdjustmentR286",
+        "rateBands": [
+          {
+            "tariffRateBandId": 1404292,
+            "tariffRateId": 1400262,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 84736,
+        "tariffBookSequenceNumber": 0,
+        "tariffBookRateGroupName": "Monthly Rate Adjustment",
+        "tariffBookRateName": "Monthly Rate Adjustment",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 1477731,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 1477731,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 2,
+        "rateGroupName": "RGGI Rate Credit (Residential)",
+        "rateName": "RGGI Rate Credit (Residential)",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "FIXED_PRICE",
+        "chargeClass": [
+          "DISTRIBUTION",
+          "NON_BYPASSABLE"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "rggiRRL",
+        "rateBands": [
+          {
+            "tariffRateBandId": 1432627,
+            "tariffRateId": 1477731,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 19651,
+        "tariffBookSequenceNumber": 2,
+        "tariffBookRateGroupName": "RGGI Rate Credit (Residential)",
+        "tariffBookRateName": "RGGI Rate Credit (Residential)",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 16966973,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 16966973,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 2,
+        "rateGroupName": "RSP Charge/Misc  (RSP,ND, POLR, Financing) - R,RL",
+        "rateName": "RSP Charge/Misc",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "rspChargeMiscCreditsTotalChargeScRandRL",
+        "rateBands": [
+          {
+            "tariffRateBandId": 10146280,
+            "tariffRateId": 16966973,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 6309,
+        "tariffBookSequenceNumber": 0,
+        "tariffBookRateGroupName": "RSP Charge/Misc  (RSP,ND, POLR, Financing) - R,RL",
+        "tariffBookRateName": "RSP Charge/Misc",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 4551,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 18603035,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 2,
+        "rateGroupName": "Universal Service Charge",
+        "rateName": "Universal Service Charge",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "FIXED_PRICE",
+        "chargeClass": [
+          "DISTRIBUTION",
+          "NON_BYPASSABLE"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 12661883,
+            "tariffRateId": 18603035,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.32,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 3350152,
+        "tariffBookSequenceNumber": 2,
+        "tariffBookRateGroupName": "Universal Service Charge",
+        "tariffBookRateName": "Universal Service Charge",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 16976379,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 16976379,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 3,
+        "rateGroupName": "Generation Charge",
+        "rateName": "Generation Charge",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "SUPPLY",
+          "CONTRACTED"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "GenerationRateScR",
+        "rateBands": [
+          {
+            "tariffRateBandId": 10161071,
+            "tariffRateId": 16976379,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 85134,
+        "tariffBookSequenceNumber": 3,
+        "tariffBookRateGroupName": "Generation Charge",
+        "tariffBookRateName": "Generation Charge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 16976380,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 16976380,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 3,
+        "rateGroupName": "Transmission Rate Adjustment",
+        "rateName": "Transmission Rate Adjustments",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "TRANSMISSION",
+          "CONTRACTED"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "TransmissionRateScR",
+        "rateBands": [
+          {
+            "tariffRateBandId": 10161072,
+            "tariffRateId": 16976380,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 85134,
+        "tariffBookSequenceNumber": 4,
+        "tariffBookRateGroupName": "Transmission Rate Adjustment",
+        "tariffBookRateName": "Transmission Rate Adjustments",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 16966976,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 16966976,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 3,
+        "rateGroupName": "Administrative Cost Adjustment (R, RL)",
+        "rateName": "Administrative Cost Adjustment",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "CONTRACTED"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "adminCostAdjustmentScR",
+        "rateBands": [
+          {
+            "tariffRateBandId": 10146283,
+            "tariffRateId": 16966976,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 6279,
+        "tariffBookSequenceNumber": 0,
+        "tariffBookRateGroupName": "Administrative Cost Adjustment (R, RL)",
+        "tariffBookRateName": "Administrative Cost Adjustment",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 16960272,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 16960272,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 6,
+        "rateGroupName": "EmPOWER Md. Charge",
+        "rateName": "Electric Efficiency & Demand Response Charge",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "empowerElecEffDemandRespRRL",
+        "rateBands": [
+          {
+            "tariffRateBandId": 10140068,
+            "tariffRateId": 16960272,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 2643473,
+        "tariffBookSequenceNumber": 0,
+        "tariffBookRateGroupName": "EmPOWER Md. Charge",
+        "tariffBookRateName": "Electric Efficiency & Demand Response Charge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 1399398,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 1399398,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 8,
+        "rateGroupName": "Energy Cost Adjustment (R)",
+        "rateName": "Energy Cost Adjustment",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "SUPPLY",
+          "CONTRACTED"
+        ],
+        "chargePeriod": "MONTHLY",
+        "variableRateKey": "energyCostAdjustmentScR",
+        "rateBands": [
+          {
+            "tariffRateBandId": 1403008,
+            "tariffRateId": 1399398,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 84504,
+        "tariffBookSequenceNumber": 13,
+        "tariffBookRateGroupName": "Energy Cost Adjustment (R)",
+        "tariffBookRateName": "Energy Cost Adjustment",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 19160085,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20716712,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 14,
+        "rateGroupName": "Franchise Tax",
+        "rateName": "Franchise Tax",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "TAX"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15658391,
+            "tariffRateId": 20716712,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.00062,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 3520758,
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Franchise Tax",
+        "tariffBookRateName": "Franchise Tax",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 19160086,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20716713,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 14,
+        "rateGroupName": "Local Tax",
+        "rateName": "Local Tax",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "TAX"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15658392,
+            "tariffRateId": 20716713,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.003356,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 3520758,
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Local Tax",
+        "tariffBookRateName": "Local Tax",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 19369058,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20511704,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 15,
+        "rateGroupName": "Base Distribution Revenue Offset",
+        "rateName": "Customer Charge Offset",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "FIXED_PRICE",
+        "chargeClass": [
+          "DISTRIBUTION",
+          "NON_BYPASSABLE"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15381564,
+            "tariffRateId": 20511704,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 3501626,
+        "tariffBookSequenceNumber": 2,
+        "tariffBookRateGroupName": "Base Distribution Revenue Offset",
+        "tariffBookRateName": "Customer Charge Offset",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 19369059,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20511705,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 15,
+        "rateGroupName": "Base Distribution Revenue Offset",
+        "rateName": "Delivery Service Charge Offset",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15381565,
+            "tariffRateId": 20511705,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 3501626,
+        "tariffBookSequenceNumber": 3,
+        "tariffBookRateGroupName": "Base Distribution Revenue Offset",
+        "tariffBookRateName": "Delivery Service Charge Offset",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 20111327,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20111327,
+        "tariffId": 3491377,
+        "tariffSequenceNumber": 16,
+        "rateGroupName": "Multi-Year Plan Adjustment",
+        "rateName": "Multi-Year Plan Adjustment",
+        "fromDateTime": "2025-01-01T00:00:00-05:00",
+        "toDateTime": "2025-03-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 14830408,
+            "tariffRateId": 20111327,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.00254,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "riderTariffId": 3469152,
+        "tariffBookSequenceNumber": 2,
+        "tariffBookRateGroupName": "Multi-Year Plan Adjustment",
+        "tariffBookRateName": "Multi-Year Plan Adjustment",
+        "transactionType": "NET"
+      }
+    ]
+  }
+]

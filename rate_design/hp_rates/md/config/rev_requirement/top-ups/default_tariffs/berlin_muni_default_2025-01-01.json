@@ -1,0 +1,195 @@
+[
+  {
+    "isActive": true,
+    "tariffId": 3316554,
+    "masterTariffId": 3316554,
+    "tariffCode": "1",
+    "tariffName": "Residential",
+    "lseId": 1000,
+    "lseName": "Berlin Town of",
+    "serviceType": "ELECTRICITY",
+    "tariffType": "DEFAULT",
+    "customerClass": "RESIDENTIAL",
+    "customerCount": 1946,
+    "customerLikelihood": 100.0,
+    "territoryId": 1107,
+    "effectiveDate": "2012-11-28",
+    "endDate": null,
+    "timeZone": "US/Eastern",
+    "effectiveOnRule": "TARIFF_EFFECTIVE_DATE",
+    "billingPeriod": "MONTHLY",
+    "currency": "USD",
+    "chargeTypes": [
+      "FIXED_PRICE",
+      "CONSUMPTION_BASED"
+    ],
+    "chargePeriod": "MONTHLY",
+    "hasTimeOfUseRates": false,
+    "hasTieredRates": true,
+    "hasContractedRates": false,
+    "hasRateApplicability": false,
+    "tariffBookName": "Residential",
+    "lseCode": "TOB",
+    "closedDate": null,
+    "minMonthlyConsumption": null,
+    "maxMonthlyConsumption": null,
+    "minMonthlyDemand": null,
+    "maxMonthlyDemand": null,
+    "hasTariffApplicability": false,
+    "hasNetMetering": true,
+    "privacy": "PUBLIC",
+    "properties": [
+      {
+        "quantityKey": null,
+        "keyName": "consumption",
+        "displayName": "Consumption (kWh)",
+        "keyspace": "electricity",
+        "family": "load",
+        "description": "Quantity in kWh of load that is used for a period of time",
+        "dataType": "DECIMAL",
+        "propertyTypes": "RATE_CRITERIA",
+        "operator": null,
+        "isDefault": false
+      }
+    ],
+    "rates": [
+      {
+        "masterTariffRateId": null,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 18187572,
+        "tariffId": 3316554,
+        "tariffSequenceNumber": 2,
+        "rateGroupName": "Customer Charge",
+        "rateName": "Customer Charge",
+        "fromDateTime": "2012-11-28T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "FIXED_PRICE",
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 12064806,
+            "tariffRateId": 18187572,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 4.6,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Customer Charge",
+        "tariffBookRateName": "Customer Charge",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": null,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 18187573,
+        "tariffId": 3316554,
+        "tariffSequenceNumber": 3,
+        "rateGroupName": "Energy Charge",
+        "rateName": "Energy Charge",
+        "fromDateTime": "2012-11-28T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 12064807,
+            "tariffRateId": 18187573,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": true,
+            "consumptionUpperLimit": 500.0,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.09892,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          },
+          {
+            "tariffRateBandId": 12064808,
+            "tariffRateId": 18187573,
+            "rateSequenceNumber": 2,
+            "hasConsumptionLimit": true,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.08465,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Energy Charge",
+        "tariffBookRateName": "Energy Charge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": null,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 18187574,
+        "tariffId": 3316554,
+        "tariffSequenceNumber": 4,
+        "rateGroupName": "Power Cost Adjustment",
+        "rateName": "Power Cost Adjustment",
+        "fromDateTime": "2012-11-28T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 12064809,
+            "tariffRateId": 18187574,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Power Cost Adjustment",
+        "tariffBookRateName": "Power Cost Adjustment",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": null,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 18187575,
+        "tariffId": 3316554,
+        "tariffSequenceNumber": 5,
+        "rateGroupName": "Conservation Cost Recovery",
+        "rateName": "Conservation Cost Recovery",
+        "fromDateTime": "2012-11-28T00:00:00-05:00",
+        "toDateTime": null,
+        "chargeType": "CONSUMPTION_BASED",
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 12064810,
+            "tariffRateId": 18187575,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.0,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Conservation Cost Recovery",
+        "tariffBookRateName": "Conservation Cost Recovery",
+        "transactionType": "NET"
+      }
+    ]
+  }
+]
