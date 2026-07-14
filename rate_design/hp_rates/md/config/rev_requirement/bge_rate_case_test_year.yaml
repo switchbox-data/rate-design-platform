@@ -3,11 +3,9 @@
 # Source: Docket 331766, Karas Direct Testimony w/ Exhibits (7/2/2026)
 # https://www.documentcloud.org/documents/28475935-331766-7-karas-direct-testimony-wexhibits-7022026-f/
 utility: bge
-
 # --- Karas Exhibit E-2, Schedule R + RL current distribution revenue (col 5) ---
 # https://www.documentcloud.org/documents/28475935-331766-7-karas-direct-testimony-wexhibits-7022026-f/#document/p40/a2823474
 delivery_revenue_requirement_from_rate_case: 780357582 # 731,639,007 (Schedule R) + 48,718,575 (Schedule RL)
-
 # --- Karas Exhibit E-3, row 2 Delivery Service Charge, col 1 (test-year kWh determinants) ---
 # Schedule R + Schedule RL kWh are summed for residential delivery volumetric budgets.
 # Schedule R: https://www.documentcloud.org/documents/28475935-331766-7-karas-direct-testimony-wexhibits-7022026-f/#document/p41/a2823476
@@ -15,7 +13,6 @@ test_year_residential_kwh_schedule_r: 12191675329
 # Schedule RL: https://www.documentcloud.org/documents/28475935-331766-7-karas-direct-testimony-wexhibits-7022026-f/#document/p42/a2823477
 test_year_residential_kwh_schedule_rl: 818801439
 test_year_residential_kwh: 13010476768 # test_year_residential_kwh_schedule_r + test_year_residential_kwh_schedule_rl
-
 # --- Karas Exhibit E-3, row 1 Customer Charge, col 1 (annual bills) ---
 # Schedule R: https://www.documentcloud.org/documents/28475935-331766-7-karas-direct-testimony-wexhibits-7022026-f/#document/p41/a2823476
 test_year_customer_bills_schedule_r: 13973317
