@@ -50,6 +50,7 @@ UTILITY_MASTER_TARIFF_IDS: dict[str, int] = {
     "or": 81134,
     "cenhud": 85880,
     "rie": 859,
+    "bge": 674,
 }
 
 
