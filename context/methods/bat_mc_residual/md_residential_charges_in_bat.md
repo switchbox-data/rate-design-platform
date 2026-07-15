@@ -27,7 +27,7 @@ Charges are classified by **economic structure**, not tariff label. BGE's bill g
 | **Supply commodity** | SOS generation energy rate (Rider 1), month-varying | Mixed — energy scales with load; embedded capacity may not | `add_to_srr` |
 | **Cost reconciliation** | Uniform $/kWh true-ups of costs already in base rates or SOS | No — shifts all bills equally | `exclude_trueup` |
 | **Revenue true-up** | Decoupling, MYRP reconciliation, base-revenue offsets | No — shifts all bills equally | `exclude_trueup` |
-| **Tax pass-through** | Franchise tax, local tax, environmental surcharge | No — small uniform noise or % effects | `exclude_trueup` |
+| **Tax pass-through** | Franchise tax, local tax | No — small uniform noise or % effects | `exclude_tax` |
 | **Eligibility / optional** | Competitive supplier billing credit, smart-meter opt-out | N/A — not default customer | `exclude_eligibility` |
 | **Redundant** | Minimum charge equals customer charge | N/A | `exclude_redundant` |
 
@@ -35,31 +35,33 @@ Charges are classified by **economic structure**, not tariff label. BGE's bill g
 
 ## Summary table (BGE Schedule R, 22 Genability rates)
 
-Rates in the **Current** column are illustrative for the rate-case test year (Jan 2026 MYRP Rate Year 3 values where applicable). See `bge_monthly_rates_2025.yaml` for full month-by-month history.
+Rates in the **Current** column are illustrative for the rate-case test year (Jan 2026 MYRP Rate Year 3 values where applicable). See `bge_monthly_rates_2025.yaml` for full month-by-month history. **Rider #** values follow the Karas Rider Index (Docket 331766) where listed; **Sch. R** = Schedule R base tariff (no rider). **Table sorted by Rider #:** Sch. R first, then ascending rider number, then —.
 
-| Charge (master) | Genability name | Rider | Unit | Current rate | In rev req? | Fixed budget? | HP cross-subsidy? | Decision | MC 8760? |
-| --------------- | --------------- | ----- | ---- | ------------ | ----------- | ------------- | ----------------- | -------- | -------- |
-| **Customer Charge** | Delivery Service Customer Charge | Base | $/mo | $10.00 | Yes (base DRR) | — | Yes | `already_in_drr` | No—residual |
-| **Core Delivery Rate** | Delivery Service Charge | Base | $/kWh | $0.04859 | Yes (base DRR) | — | Yes | `already_in_drr` | Yes—sub-tx + dx |
-| **EmPOWER Maryland Charge** | Electric Efficiency & Demand Response Charge | Rider 2 | $/kWh | $0.01310 | **No** (outside DRR) | Yes | **Yes** | `add_to_drr` | No—residual |
-| **Transmission Rate Adjustment** | Transmission Rate Adjustments | Rider 1 (SOS) | $/kWh | $0.02322 | **No** | Mixed | **Yes** | `add_to_drr` | Yes—bulk TX *(if in BAT)* |
-| **Universal Service Charge** | Universal Service Charge | Rider 3 | $/mo | $0.32 | **No** | Yes | **Yes** (per-customer) | `add_to_drr` | No—residual |
-| **Demand Response** | Dmd Res Chg/Cr | Rider 15 | $/kWh | $0.00 | **No** | Yes (when active) | **Yes** | `add_to_drr` | No—residual |
-| **Electric Reliability Initiative** | Electric Reliability Initiative Surcharge | — | $/kWh | $0.00 | **No** | Yes (when active) | **Yes** | `add_to_drr` | No—residual |
-| **Supply commodity (bundled)** | Generation Charge | Rider 1 (SOS) | $/kWh | varies monthly | **No** | Mixed | Mixed | `add_to_srr` | See sub-components |
-| **Energy Cost Adjustment** | Energy Cost Adjustment (R) | Rider 8 | $/kWh | ~(credit) | N/A | — | No | `exclude_trueup` | — |
-| **Monthly Rate Adjustment** | Monthly Rate Adjustment | Rider 25 | $/kWh | varies | N/A | — | No | `exclude_trueup` | — |
-| **Multi-Year Plan Adjustment** | Multi-Year Plan Adjustment | Rider 16 | $/kWh | $0.00086 | N/A | — | No | `exclude_trueup` | — |
-| **Administrative Cost Adjustment** | Administrative Cost Adjustment | Rider 10 | $/kWh | ~(credit) | N/A | — | No | `exclude_trueup` | — |
-| **Base Distribution Revenue Offset** | Customer / Delivery Service Charge Offset | Rider 34 | $/mo, $/kWh | $0 | N/A | — | No | `exclude_trueup` | — |
-| **RGGI Rate Credit** | RGGI Rate Credit (Residential) | — | $/mo | $0 | N/A | — | No | `exclude_trueup` | — |
-| **RSP Charge/Misc** | RSP Charge/Misc | — | $/kWh | $0 | N/A | — | No | `exclude_trueup` | — |
-| **Franchise Tax** | Franchise Tax | Rider 3 | $/kWh | $0.00062 | N/A | — | No | `exclude_trueup` | — |
-| **Local Tax** | Local Tax | Rider 3 | $/kWh | $0.00347 | N/A | — | No | `exclude_trueup` | — |
-| **Environmental Surcharge** | Envir Srchg | — | $/kWh | $0.00015 | N/A | — | No | `exclude_trueup` | — |
-| **Competitive Billing** | Competitive Billing | Base | $/mo | ($0.62) credit | N/A | — | N/A | `exclude_eligibility` | — |
-| **Smart Meter Opt-Out** | Smart Meter Opt-Out Charge | Rider 23 | $/mo | $5.50 | N/A | — | N/A | `exclude_eligibility` | — |
-| **Minimum Charge** | Minimum Charge | Base | $/mo | $10.00 | Yes | — | N/A | `exclude_redundant` | — |
+| Charge (master) | Genability name | Rider # | Unit | Current rate | In rev req? | Fixed budget? | HP cross-subsidy? | Decision | MC 8760? |
+| --------------- | --------------- | ------- | ---- | ------------ | ----------- | ------------- | ----------------- | -------- | -------- |
+| **Competitive Billing** | Competitive Billing | Sch. R | $/mo | ($0.62) credit | N/A | — | N/A | `exclude_eligibility` | — |
+| **Core Delivery Rate** | Delivery Service Charge | Sch. R | $/kWh | $0.04859 | Yes (base DRR) | — | Yes | `already_in_drr` | Yes—sub-tx + dx |
+| **Customer Charge** | Delivery Service Customer Charge | Sch. R | $/mo | $10.00 | Yes (base DRR) | — | Yes | `already_in_drr` | No—residual |
+| **Demand Response** | Dmd Res Chg/Cr | 15 | $/kWh | $0.00 | N/A | — | N/A | `exclude_eligibility` | — |
+| **Environmental Surcharge** | Envir Srchg | Sch. R | $/kWh | $0.00015 | **No** | Yes | **Yes** | `add_to_drr` | No—residual |
+| **Minimum Charge** | Minimum Charge | Sch. R | $/mo | $10.00 | Yes | — | N/A | `exclude_redundant` | — |
+| **Supply commodity (bundled)** | Generation Charge | 1 | $/kWh | varies monthly | **No** | Mixed | Mixed | `add_to_srr` | See sub-components |
+| **Transmission Rate Adjustment** | Transmission Rate Adjustments | 1 | $/kWh | $0.02322 | **No** | Mixed | **Yes** | `add_to_drr` | Yes—bulk TX *(if in BAT)* |
+| **EmPOWER Maryland Charge** | Electric Efficiency & Demand Response Charge | 2 | $/kWh | $0.01310 | **No** (outside DRR) | Yes | **Yes** | `add_to_drr` | No—residual |
+| **Franchise Tax** | Franchise Tax | 3 | $/kWh | $0.00062 | N/A | — | No | `exclude_tax` | — |
+| **Local Tax** | Local Tax | 3 | $/kWh | $0.00347 | N/A | — | No | `exclude_tax` | — |
+| **Energy Cost Adjustment** | Energy Cost Adjustment (R) | 8 | $/kWh | ~(credit) | N/A | — | No | `exclude_trueup` | — |
+| **Administrative Cost Adjustment** | Administrative Cost Adjustment | 10 | $/kWh | ~(credit) | N/A | — | No | `exclude_trueup` | — |
+| **Multi-Year Plan Adjustment** | Multi-Year Plan Adjustment | 16 | $/kWh | $0.00086 | N/A | — | No | `exclude_trueup` | — |
+| **Monthly Rate Adjustment** | Monthly Rate Adjustment | 25 | $/kWh | varies | N/A | — | No | `exclude_trueup` | — |
+| **Smart Meter Opt-Out** | Smart Meter Opt-Out Charge | 27 | $/mo | $5.50 | N/A | — | N/A | `exclude_eligibility` | — |
+| **Electric Reliability Initiative** | Electric Reliability Initiative Surcharge | 31 | $/kWh | $0.00 | N/A | — | N/A | `exclude_inactive` | — |
+| **Base Distribution Revenue Offset** | Customer / Delivery Service Charge Offset | 34 | $/mo, $/kWh | $0 | N/A | — | No | `exclude_trueup` | — |
+| **RGGI Rate Credit** | RGGI Rate Credit (Residential) | — | $/mo | $0 | **No** | Yes (when active) | **Yes** (per-customer) | `add_to_drr` | No—residual |
+| **RSP Charge/Misc** | RSP Charge/Misc | — | $/kWh | $0 | **No** | Yes (when active) | **Yes** | `add_to_drr` | No—residual |
+| **Universal Service Charge** | Universal Service Charge | — | $/mo | $0.32 | **No** | Yes | **Yes** (per-customer) | `add_to_drr` | No—residual |
+
+**Rider # notes:** **1** = Standard Offer Service (generation and transmission on the SOS bill). **2** = Electric Efficiency Charge (EmPOWER Maryland). **3** = Miscellaneous Taxes and Surcharges (franchise and local tax components). **31** = Electric Reliability Initiative Surcharge (ERI) per BGE's tariff-book / POLR miscellaneous-charges sheet; Genability still hosts a legacy Sch. R line (`electricReliabilityInitiativeR`) at `$0` — phased out for residential. Karas JAK-1 Rider Index (331766) **does not list Rider 31** (numbers jump 30 → 32). **Dmd Res Chg/Cr** is on the Schedule R base tariff in Genability (not Rider 15; Rider 15 in the Karas index is a separate Demand Response Service rider). Mandatory DR program costs are in **Rider 2 EmPOWER** (`$0.00198`/kWh of `$0.01310`). **—** = active in Genability but not listed in the Karas Rider Index (Universal Service / EUSP; RGGI Rate Credit rider tariff 19651 at `$0` in test year; RSP Charge/Misc aggregate rider tariff 6309 at `$0`). Karas JAK-1 also lists Environmental Surcharge and MD Universal Service Program as bill components without rider numbers; we map Environmental to **Sch. R** and Universal Service to **—** pending tariff-book confirmation.
 
 **Rate-case DRR base (Schedules R + RL):** **$780,357,582** (Karas Exhibit E-2). Test-year residential kWh: **13,010,476,768**; test-year customer count: **1,222,270.17** (Karas Exhibit E-3).
 
@@ -110,7 +112,7 @@ These collect the **delivery revenue requirement** filed in Docket 331766 (Karas
 - **Decision:** `add_to_drr` *(draft — team chose to top up into delivery RR for BAT; confirm whether supply-side treatment is preferred)*
 - **MC note:** Bulk TX marginal cost input is separate (`context/methods/marginal_costs/md_bulk_transmission.md`); topping TX into DRR is about revenue collection, not MC double-counting, but alignment with Frain's bill presentation should be reviewed
 
-#### Universal Service Charge (Rider 3)
+#### Universal Service Charge (EUSP; no rider in Karas index)
 
 - **Rate:** **$0.32/month** per customer (Genability; stable across test year)
 - Funds Maryland's Electric Universal Service Program (bill assistance)
@@ -118,11 +120,28 @@ These collect the **delivery revenue requirement** filed in Docket 331766 (Karas
 - OPC consumer materials sometimes cite **$0.36/month** — Genability shows $0.32; verify against live bills before finalizing
 - **Decision:** `add_to_drr`
 
-#### Demand Response (Rider 15) and Electric Reliability Initiative
+#### Environmental Surcharge (Sch. R) — state Environmental Trust Fund
 
-- **Rate:** **$0.00/kWh** throughout Apr 2025–Mar 2026 test year
-- Structural placeholders for program surcharges; included in `add_to_drr` so future non-zero rates flow through automatically
-- **Decision:** `add_to_drr` (zero budget in test year)
+- **Rate:** **$0.00015/kWh** (0.15 mills — statutory cap; stable across test year)
+- **Not in rate-case DRR** — state-mandated surcharge per [Md. Public Utilities Code § 7-203](https://govt.westlaw.com/mdc/Document/NE9001300820E11E9A4B1C23A99BDCD11) and COMAR 20.50.01.04; PSC sets the rate annually from the Environmental Trust Fund budget (Power Plant Research Program, Chesapeake Conservation and Climate Corps). Karas bill-component summary lists **Environmental Surcharge: $0.000150/kWh** alongside EmPOWER and universal service.
+- Fixed statewide program budget recovered volumetrically → HP cross-subsidy (same mechanic as EmPOWER, though magnitude is small: ~**$1.95M**/yr at test-year kWh of 13.01B)
+- **Not a tax pass-through** — unlike Rider 3 franchise/local taxes, which are true tax remittances. Initial classification as `exclude_trueup` conflated "appears in Taxes & Fees on the bill" with "uniform cost recon."
+- **Decision:** `add_to_drr`
+
+#### RGGI Rate Credit (rider tariff 19651)
+
+- **Rate:** **$0.00/month** throughout Apr 2025–Mar 2026 test year (Genability `rggiRRL`)
+- Maryland requires electric companies to return **Regional Greenhouse Gas Initiative** (RGGI) allowance-auction and related Strategic Energy Investment Fund revenues to residential customers. BGE implements via **RGGI Rate Credit (Residential)** on a separate rider tariff (`rider_tariff_id` 19651); not in the Karas 331766 rate-case delivery revenue requirement.
+- When active, treated as a **fixed per-customer** delivery bill line (Genability `FIXED_PRICE`, `$/month`) — top up DRR with `rate × customer count` (same pattern as Universal Service). A non-zero credit reduces effective delivery recovery; included in `add_to_drr` so future PSC-authorized credits flow through automatically.
+- **Note:** The 2025 Next Generation Energy Act **Legislative Energy Relief Refund** (~`$80`/customer, usage-weighted, summer + winter 2025–26) is a separate mechanism; it may not appear on this Genability line in the test year.
+- **Decision:** `add_to_drr`
+
+#### RSP Charge/Misc (rider tariff 6309)
+
+- **Rate:** **$0.00/kWh** throughout Apr 2025–Mar 2026 test year (Genability `rspChargeMiscCreditsTotalChargeScRandRL`)
+- BGE aggregate line for legacy **Rate Stabilization Plan** and miscellaneous delivery credits/charges (RSP, nuclear decommissioning, POLR margin, financing — per tariff-book label). Implemented on rider tariff 6309; not in the Karas 331766 rate-case delivery revenue requirement.
+- When active, volumetric `$/kWh` recovery of a fixed misc pool → HP cross-subsidy. Included in `add_to_drr` so future non-zero rider filings flow through automatically.
+- **Decision:** `add_to_drr`
 
 ---
 
@@ -144,21 +163,27 @@ These collect the **delivery revenue requirement** filed in Docket 331766 (Karas
 
 #### Cost reconciliation and revenue true-ups (`exclude_trueup`)
 
-| Charge | Rider | Rationale |
-| ------ | ----- | --------- |
+| Charge | Rider # | Rationale |
+| ------ | ------- | --------- |
 | Energy Cost Adjustment | 8 | SOS wholesale cost true-up |
 | Administrative Cost Adjustment | 10 | SOS admin true-up; Frain: excluded from delivery volumetric "Delivery Service Charge" definition |
-| Monthly Rate Adjustment | 25 | Revenue decoupling / load forecast error (RDM-like) |
 | Multi-Year Plan Adjustment | 16 | MYRP reconciliation; OPC "distribution rate" summaries often bundle this with core delivery — we keep it out of DRR to avoid double-counting with rate-case base |
+| Monthly Rate Adjustment | 25 | Revenue decoupling / load forecast error (RDM-like) |
 | Base Distribution Revenue Offset | 34 | Revenue offset rider; $0 in test year |
-| RGGI Rate Credit | — | Cost recon / credit; $0 residential |
-| RSP Charge/Misc | — | Miscellaneous supply/delivery reconciliation; $0 |
-| Franchise Tax, Local Tax, Envir Srchg | 3 / misc | Tax and fee pass-throughs; uniform noise |
+
+#### Tax pass-through (`exclude_tax`)
+
+| Charge | Rider # | Rationale |
+| ------ | ------- | --------- |
+| Franchise Tax | 3 | State/local franchise tax remittance on Rider 3 (Miscellaneous Taxes and Surcharges) |
+| Local Tax | 3 | Local tax remittance on Rider 3 |
 
 #### Eligibility / optional (`exclude_eligibility`)
 
-- **Competitive Billing:** $0.62/month **credit** for customers who choose a competitive supplier — not the default SOS customer
-- **Smart Meter Opt-Out:** $5.50/month for customers who opt out of AMI — not the default metered customer
+- **Competitive Billing (Sch. R):** $0.62/month **credit** for customers who choose a competitive supplier — not the default SOS customer
+- **Demand Response — Dmd Res Chg/Cr (Sch. R):** **$0.00/kWh** test year. Participant charge/credit for demand-response programs, not the default residential customer. **Karas (331766):** mandatory DR funding is already in **Rider 2 EmPOWER** (`$0.00198`/kWh of the `$0.01310`/kWh total). The Sch. R **Dmd Res Chg/Cr** line is distinct from **Rider 15 — Demand Response Service** in the Karas Rider Index. Older BGE tariff sheets mapped a similar line to Rider 30; Docket 331766 repurposed Rider 30 to Storm Restoration Expense.
+- **Electric Reliability Initiative — ERI (Rider 31):** **$0.00/kWh** test year. **Phased out** for the residential class — BGE's [POLR rates / miscellaneous charges](https://azure-na-assets.contentstack.com/v3/assets/blt71bfe6e8a1c2d265/blte65b1dd8c5037101/65ae8887835578000a5ee439/POLR_Rates_PTC_MiscCharges.pdf?branch=prod_alias) sheet still labels **Rider 31 — Electric Reliability Initiative Surcharge (ERI)**, but Genability retains only a legacy Sch. R placeholder (`electricReliabilityInitiativeR`). **Karas (331766):** Rider Index omits Rider 31; bill-component summary does not list ERI. **Frain (331766):** delivery charges are Customer + Distribution (Delivery Service + Riders 10, 16, 25) + EmPOWER — ERI is not named; Frain separately proposes **Rider 30 Storm Restoration Expense** for storm O&M true-ups (not ERI).
+- **Smart Meter Opt-Out (27):** $5.50/month for customers who opt out of AMI — not the default metered customer
 
 ---
 

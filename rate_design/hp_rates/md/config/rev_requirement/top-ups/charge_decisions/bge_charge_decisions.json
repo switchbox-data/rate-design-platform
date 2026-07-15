@@ -73,9 +73,9 @@
     "season": null,
     "time_of_use": null,
     "source": "rider_resolved",
-    "decision": "exclude_trueup",
+    "decision": "add_to_drr",
     "master_charge": "RGGI Rate Credit",
-    "master_type": "Cost recon"
+    "master_type": "Program surcharge"
   },
   "16960272": {
     "rate_name": "Electric Efficiency & Demand Response Charge",
@@ -125,9 +125,9 @@
     "season": null,
     "time_of_use": null,
     "source": "rider_resolved",
-    "decision": "exclude_trueup",
+    "decision": "add_to_drr",
     "master_charge": "RSP Charge/Misc",
-    "master_type": "Cost recon"
+    "master_type": "Program surcharge"
   },
   "16966976": {
     "rate_name": "Administrative Cost Adjustment",
@@ -307,7 +307,7 @@
     "season": null,
     "time_of_use": null,
     "source": "rider_resolved",
-    "decision": "exclude_trueup",
+    "decision": "exclude_tax",
     "master_charge": "Franchise Tax",
     "master_type": "Tax pass-through"
   },
@@ -333,7 +333,7 @@
     "season": null,
     "time_of_use": null,
     "source": "rider_resolved",
-    "decision": "exclude_trueup",
+    "decision": "exclude_tax",
     "master_charge": "Local Tax",
     "master_type": "Tax pass-through"
   },
@@ -437,9 +437,9 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "add_to_drr",
+    "decision": "exclude_eligibility",
     "master_charge": "Demand Response",
-    "master_type": "Program surcharge"
+    "master_type": "Eligibility / optional"
   },
   "20798606": {
     "rate_name": "Electric Reliability Initiative Surcharge",
@@ -463,9 +463,9 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "add_to_drr",
+    "decision": "exclude_eligibility",
     "master_charge": "Electric Reliability Initiative",
-    "master_type": "Program surcharge"
+    "master_type": "Eligibility / optional"
   },
   "20798607": {
     "rate_name": "Smart Meter Opt-Out Charge",
@@ -515,9 +515,9 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "exclude_trueup",
+    "decision": "add_to_drr",
     "master_charge": "Environmental Surcharge",
-    "master_type": "Tax pass-through"
+    "master_type": "Program surcharge"
   },
   "20798611": {
     "rate_name": "Minimum Charge",

@@ -50,8 +50,23 @@ add_to_drr:
         2026-01: 0.32
         2026-02: 0.32
         2026-03: 0.32
-    demand_response:
+    environmental_surcharge:
       charge_unit: $/kWh
+      monthly_rates:
+        2025-04: 0.00015
+        2025-05: 0.00015
+        2025-06: 0.00015
+        2025-07: 0.00015
+        2025-08: 0.00015
+        2025-09: 0.00015
+        2025-10: 0.00015
+        2025-11: 0.00015
+        2025-12: 0.00015
+        2026-01: 0.00015
+        2026-02: 0.00015
+        2026-03: 0.00015
+    rggi_rate_credit_residential:
+      charge_unit: $/month
       monthly_rates:
         2025-04: 0.0
         2025-05: 0.0
@@ -65,7 +80,7 @@ add_to_drr:
         2026-01: 0.0
         2026-02: 0.0
         2026-03: 0.0
-    electric_reliability_initiative:
+    rsp_charge_misc:
       charge_unit: $/kWh
       monthly_rates:
         2025-04: 0.0
@@ -136,10 +151,6 @@ excluded:
     decision: exclude_trueup
   monthly_rate_adjustment:
     decision: exclude_trueup
-  rggi_rate_credit_residential:
-    decision: exclude_trueup
-  rsp_charge_misc:
-    decision: exclude_trueup
   administrative_cost_adjustment:
     decision: exclude_trueup
   customer_charge_offset:
@@ -147,15 +158,17 @@ excluded:
   delivery_service_charge_offset:
     decision: exclude_trueup
   franchise_tax:
-    decision: exclude_trueup
+    decision: exclude_tax
   local_tax:
-    decision: exclude_trueup
+    decision: exclude_tax
   competitive_billing:
+    decision: exclude_eligibility
+  demand_response:
+    decision: exclude_eligibility
+  electric_reliability_initiative:
     decision: exclude_eligibility
   smart_meter_opt_out_charge:
     decision: exclude_eligibility
-  envir_srchg:
-    decision: exclude_trueup
   minimum_charge:
     decision: exclude_redundant
   multi_year_plan_adjustment:
