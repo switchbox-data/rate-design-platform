@@ -1,10 +1,16 @@
 """Add commodity (PGC) charges to distribution-only gas URDB JSONs.
 
 UGI Central Penn and Easton Muni gas tariffs from RateAcuity contain only
-distribution rates. Their commodity (Purchased Gas Cost / Price to Compare) is
-published separately and stored in PGC CSVs. This script reads the PGC CSV,
-computes the annual-average $/kWh commodity rate for the target year, and adds
-it uniformly to all energy tiers in every period of the URDB JSON.
+distribution rates.  Their commodity (Purchased Gas Cost / Price to Compare) is
+published separately and stored in PGC CSVs.  This script reads the
+*distribution-only* URDB JSON (``--path-urdb-dist``), computes the
+annual-average $/kWh commodity rate for the target year, adds it uniformly to
+every energy tier in every period, and writes the combined result to a
+*separate* output file (``--path-urdb-out``).
+
+Because the source (dist) and destination (out) are different files, the
+operation is **idempotent**: re-running always starts from the clean
+distribution-only tariff and overwrites only the combined output.
 
 The CCF-to-kWh conversion uses the standard factor: 1 CCF ≈ 1 therm =
 29.3001 kWh.
@@ -12,17 +18,19 @@ The CCF-to-kWh conversion uses the standard factor: 1 CCF ≈ 1 therm =
 Usage:
     # UGI Central Penn (price_to_compare_per_ccf column)
     uv run python utils/data_prep/tariffs/add_pgc_to_gas_urdb.py \\
-        --path-urdb rate_design/hp_rates/md/config/tariffs/gas/ugi_central_penn_residential.json \\
-        --path-pgc  rate_design/hp_rates/md/config/tariffs/gas/ugi_central_penn_pgc.csv \\
-        --pgc-col   price_to_compare_per_ccf \\
-        --year      2025
+        --path-urdb-dist rate_design/hp_rates/md/config/tariffs/gas/ugi_central_penn_residential_dist.json \\
+        --path-urdb-out  rate_design/hp_rates/md/config/tariffs/gas/ugi_central_penn_residential.json \\
+        --path-pgc       rate_design/hp_rates/md/config/tariffs/gas/ugi_central_penn_pgc.csv \\
+        --pgc-col        price_to_compare_per_ccf \\
+        --year           2025
 
     # Easton Muni (total_supply_per_ccf column; Dec 2025 missing → Jan-Nov avg)
     uv run python utils/data_prep/tariffs/add_pgc_to_gas_urdb.py \\
-        --path-urdb rate_design/hp_rates/md/config/tariffs/gas/easton_muni_residential.json \\
-        --path-pgc  rate_design/hp_rates/md/config/tariffs/gas/easton_muni_pgc.csv \\
-        --pgc-col   total_supply_per_ccf \\
-        --year      2025
+        --path-urdb-dist rate_design/hp_rates/md/config/tariffs/gas/easton_muni_residential_dist.json \\
+        --path-urdb-out  rate_design/hp_rates/md/config/tariffs/gas/easton_muni_residential.json \\
+        --path-pgc       rate_design/hp_rates/md/config/tariffs/gas/easton_muni_pgc.csv \\
+        --pgc-col        total_supply_per_ccf \\
+        --year           2025
 """
 
 from __future__ import annotations
@@ -44,7 +52,7 @@ def _load_pgc_annual_avg(path_pgc: Path, pgc_col: str, year: int) -> float:
     """Return annual-average PGC in $/kWh for *year*.
 
     Reads monthly $/ccf values from the CSV, filters to the requested year,
-    averages all available months, and converts to $/kWh. Missing months
+    averages all available months, and converts to $/kWh.  Missing months
     (e.g. Easton's December) are filled with the mean of the available months
     before averaging — equivalent to carrying the last known rate forward.
     """
@@ -106,20 +114,23 @@ def _load_pgc_annual_avg(path_pgc: Path, pgc_col: str, year: int) -> float:
     return avg_per_kwh
 
 
-def add_pgc_to_urdb(path_urdb: Path, commodity_per_kwh: float) -> dict:
-    """Return a new URDB dict with *commodity_per_kwh* added to every tier."""
-    with path_urdb.open() as f:
+def add_pgc_to_urdb(path_urdb_dist: Path, commodity_per_kwh: float) -> dict:
+    """Return a new URDB dict with *commodity_per_kwh* added to every tier.
+
+    Reads from the distribution-only JSON at *path_urdb_dist*.
+    """
+    with path_urdb_dist.open() as f:
         data = json.load(f)
 
     if "items" not in data:
         raise ValueError(
-            f'{path_urdb}: expected top-level {{"items": [...]}} envelope.'
+            f'{path_urdb_dist}: expected top-level {{"items": [...]}} envelope.'
         )
 
     item: dict = data["items"][0]
     energy_rates = item.get("energyratestructure")
     if not energy_rates:
-        raise ValueError(f"{path_urdb}: no 'energyratestructure' found.")
+        raise ValueError(f"{path_urdb_dist}: no 'energyratestructure' found.")
 
     updated_rates = []
     for period in energy_rates:
@@ -135,13 +146,22 @@ def add_pgc_to_urdb(path_urdb: Path, commodity_per_kwh: float) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Add annual-average PGC commodity rate to a distribution-only gas URDB JSON."
+        description=(
+            "Add annual-average PGC commodity rate to a distribution-only gas "
+            "URDB JSON, writing the combined result to a separate output file."
+        ),
     )
     parser.add_argument(
-        "--path-urdb",
+        "--path-urdb-dist",
         type=Path,
         required=True,
-        help="Path to the distribution-only URDB JSON file to update.",
+        help="Path to the distribution-only URDB JSON (read, never modified).",
+    )
+    parser.add_argument(
+        "--path-urdb-out",
+        type=Path,
+        required=True,
+        help="Path to write the combined (dist + commodity) URDB JSON.",
     )
     parser.add_argument(
         "--path-pgc",
@@ -163,20 +183,24 @@ def main() -> None:
     args = parser.parse_args()
 
     commodity_per_kwh = _load_pgc_annual_avg(args.path_pgc, args.pgc_col, args.year)
+
     log.info(
-        "Adding %.6f $/kWh to all tiers in %s", commodity_per_kwh, args.path_urdb.name
+        "Reading dist-only tariff from %s, adding %.6f $/kWh",
+        args.path_urdb_dist.name,
+        commodity_per_kwh,
     )
 
-    updated = add_pgc_to_urdb(args.path_urdb, commodity_per_kwh)
+    updated = add_pgc_to_urdb(args.path_urdb_dist, commodity_per_kwh)
 
-    # Log before/after for first period
-    orig_tiers = json.load(args.path_urdb.open())["items"][0]["energyratestructure"][0]
+    dist_tiers = json.load(args.path_urdb_dist.open())["items"][0][
+        "energyratestructure"
+    ][0]
     new_tiers = updated["items"][0]["energyratestructure"][0]
-    log.info("Period 1 tiers before: %s", [round(t["rate"], 6) for t in orig_tiers])
-    log.info("Period 1 tiers after:  %s", [round(t["rate"], 6) for t in new_tiers])
+    log.info("Period 1 tiers (dist): %s", [round(t["rate"], 6) for t in dist_tiers])
+    log.info("Period 1 tiers (out):  %s", [round(t["rate"], 6) for t in new_tiers])
 
-    args.path_urdb.write_text(json.dumps(updated, indent=2) + "\n")
-    log.info("Wrote updated URDB to %s", args.path_urdb)
+    args.path_urdb_out.write_text(json.dumps(updated, indent=2) + "\n")
+    log.info("Wrote combined URDB to %s", args.path_urdb_out)
 
 
 if __name__ == "__main__":

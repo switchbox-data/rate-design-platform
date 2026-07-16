@@ -143,30 +143,32 @@ applied to the URDB JSONs before CAIRO runs.
 
 All URDB JSONs are present in `config/tariffs/gas/`:
 
-| File                                    | Utility              | Notes                                                            |
-| --------------------------------------- | -------------------- | ---------------------------------------------------------------- |
-| `bge_residential.json`                  | BGE                  | Single rate class; bundled delivery + supply                     |
-| `columbia_gas_md_residential.json`      | Columbia Gas MD      | Single rate class; bundled delivery + supply                     |
-| `easton_muni_residential.json`          | Easton Utilities     | **Distribution-only**; supply in `easton_muni_pgc.csv`           |
-| `ugi_central_penn_residential.json`     | UGI (Emmitsburg)     | **Distribution-only**; supply in `ugi_central_penn_pgc.csv`      |
-| `washington_gas_heating.json`           | Washington Gas       | Heating/cooling sub-class; bundled delivery + supply             |
-| `washington_gas_nonheating.json`        | Washington Gas       | Non-heating sub-class; bundled delivery + supply                 |
-| `chesapeake_main_res1.json`             | Chesapeake Utilities | Main territory, RES-1 (≤150 therms/yr); bundled                  |
-| `chesapeake_main_res2.json`             | Chesapeake Utilities | Main territory, RES-2 (>150 therms/yr); bundled                  |
-| `chesapeake_cecil_res1.json`            | Chesapeake (Cecil)   | Cecil Co, RES-1; levelized Phase-3 NFEC; bundled                 |
-| `chesapeake_cecil_res2.json`            | Chesapeake (Cecil)   | Cecil Co, RES-2; levelized Phase-3 NFEC; bundled                 |
-| `chesapeake_worcester_res1.json`        | Chesapeake (Worcs.)  | Worcester Co, RES-1; includes SIR; bundled                       |
-| `chesapeake_worcester_res2.json`        | Chesapeake (Worcs.)  | Worcester Co, RES-2; includes SIR; bundled                       |
-| `chesapeake_utilities_res1.csv`         | Chesapeake Utilities | Phase 1 raw CSV (`--year 2025`); do not use JSON directly        |
-| `chesapeake_utilities_res2.csv`         | Chesapeake Utilities | Phase 1 raw CSV; do not use JSON directly                        |
-| `chesapeake_utilities_res1_phase2.csv`  | Chesapeake Utilities | Phase 2 raw CSV (`--year 2027`); used for Cecil levelization     |
-| `chesapeake_utilities_res2_phase2.csv`  | Chesapeake Utilities | Phase 2 raw CSV; used for Cecil levelization                     |
-| `chesapeake_utilities_res1.json`        | Chesapeake Utilities | Blended (all-county avg); artifact of standard fetch; **unused** |
-| `chesapeake_utilities_res2.json`        | Chesapeake Utilities | Blended (all-county avg); artifact of standard fetch; **unused** |
-| `chesapeake_utilities_res1_phase2.json` | Chesapeake Utilities | Blended Phase 2; artifact; **unused**                            |
-| `chesapeake_utilities_res2_phase2.json` | Chesapeake Utilities | Blended Phase 2; artifact; **unused**                            |
-| `ugi_central_penn_pgc.csv`              | UGI (Emmitsburg)     | Monthly commodity rates (Rider B); see UGI section               |
-| `easton_muni_pgc.csv`                   | Easton Utilities     | Monthly CGA+ACA rates from PSC filing; see Easton section        |
+| File                                     | Utility              | Notes                                                            |
+| ---------------------------------------- | -------------------- | ---------------------------------------------------------------- |
+| `bge_residential.json`                   | BGE                  | Single rate class; bundled delivery + supply                     |
+| `columbia_gas_md_residential.json`       | Columbia Gas MD      | Single rate class; bundled delivery + supply                     |
+| `easton_muni_residential_dist.json`      | Easton Utilities     | **Distribution-only** (RateAcuity source)                        |
+| `easton_muni_residential.json`           | Easton Utilities     | Combined dist + commodity; built by `add-pgc-to-gas-urdbs`       |
+| `ugi_central_penn_residential_dist.json` | UGI (Emmitsburg)     | **Distribution-only** (RateAcuity source)                        |
+| `ugi_central_penn_residential.json`      | UGI (Emmitsburg)     | Combined dist + commodity; built by `add-pgc-to-gas-urdbs`       |
+| `washington_gas_heating.json`            | Washington Gas       | Heating/cooling sub-class; bundled delivery + supply             |
+| `washington_gas_nonheating.json`         | Washington Gas       | Non-heating sub-class; bundled delivery + supply                 |
+| `chesapeake_main_res1.json`              | Chesapeake Utilities | Main territory, RES-1 (≤150 therms/yr); bundled                  |
+| `chesapeake_main_res2.json`              | Chesapeake Utilities | Main territory, RES-2 (>150 therms/yr); bundled                  |
+| `chesapeake_cecil_res1.json`             | Chesapeake (Cecil)   | Cecil Co, RES-1; levelized Phase-3 NFEC; bundled                 |
+| `chesapeake_cecil_res2.json`             | Chesapeake (Cecil)   | Cecil Co, RES-2; levelized Phase-3 NFEC; bundled                 |
+| `chesapeake_worcester_res1.json`         | Chesapeake (Worcs.)  | Worcester Co, RES-1; includes SIR; bundled                       |
+| `chesapeake_worcester_res2.json`         | Chesapeake (Worcs.)  | Worcester Co, RES-2; includes SIR; bundled                       |
+| `chesapeake_utilities_res1.csv`          | Chesapeake Utilities | Phase 1 raw CSV (`--year 2025`); do not use JSON directly        |
+| `chesapeake_utilities_res2.csv`          | Chesapeake Utilities | Phase 1 raw CSV; do not use JSON directly                        |
+| `chesapeake_utilities_res1_phase2.csv`   | Chesapeake Utilities | Phase 2 raw CSV (`--year 2027`); used for Cecil levelization     |
+| `chesapeake_utilities_res2_phase2.csv`   | Chesapeake Utilities | Phase 2 raw CSV; used for Cecil levelization                     |
+| `chesapeake_utilities_res1.json`         | Chesapeake Utilities | Blended (all-county avg); artifact of standard fetch; **unused** |
+| `chesapeake_utilities_res2.json`         | Chesapeake Utilities | Blended (all-county avg); artifact of standard fetch; **unused** |
+| `chesapeake_utilities_res1_phase2.json`  | Chesapeake Utilities | Blended Phase 2; artifact; **unused**                            |
+| `chesapeake_utilities_res2_phase2.json`  | Chesapeake Utilities | Blended Phase 2; artifact; **unused**                            |
+| `ugi_central_penn_pgc.csv`               | UGI (Emmitsburg)     | Monthly commodity rates (Rider B); see UGI section               |
+| `easton_muni_pgc.csv`                    | Easton Utilities     | Monthly CGA+ACA rates from PSC filing; see Easton section        |
 
 ### Fetch commands
 
@@ -337,11 +339,11 @@ Rider E (Gas Procurement), and is not embedded in Rate B. RateAcuity's CSV notes
 "purchased gas adjustment applies" without a dollar value. For 2025, the commodity
 component is roughly equal to the distribution charge:
 
-| Component    | Source                              | 2025 avg rate     |
-| ------------ | ----------------------------------- | ----------------- |
-| Distribution | `ugi_central_penn_residential.json` | `~$0.025/kWh`     |
-| Commodity    | `ugi_central_penn_pgc.csv`          | `~$0.023/kWh`     |
-| **Total**    | —                                   | **`~$0.048/kWh`** |
+| Component    | Source                                   | 2025 avg rate     |
+| ------------ | ---------------------------------------- | ----------------- |
+| Distribution | `ugi_central_penn_residential_dist.json` | `~$0.025/kWh`     |
+| Commodity    | `ugi_central_penn_pgc.csv`               | `~$0.023/kWh`     |
+| **Total**    | `ugi_central_penn_residential.json`      | **`~$0.048/kWh`** |
 
 ### Programmatic PGC fetch
 
@@ -424,16 +426,15 @@ as of mid-2026. For annual-average purposes, the 2025 Jan–Nov mean total commo
 is approximately `$0.93/ccf` (~`$0.032/kWh` at 29.3001 kWh/ccf), compared to the
 distribution charge of `$0.020/kWh`.
 
-| Component                | Source                         | Rate              |
-| ------------------------ | ------------------------------ | ----------------- |
-| Distribution             | `easton_muni_residential.json` | `$0.020/kWh`      |
-| Commodity (11-month avg) | `easton_muni_pgc.csv`          | `~$0.032/kWh`     |
-| **Total (est.)**         | —                              | **`~$0.052/kWh`** |
+| Component                | Source                              | Rate              |
+| ------------------------ | ----------------------------------- | ----------------- |
+| Distribution             | `easton_muni_residential_dist.json` | `$0.020/kWh`      |
+| Commodity (11-month avg) | `easton_muni_pgc.csv`               | `~$0.032/kWh`     |
+| **Total (est.)**         | `easton_muni_residential.json`      | **`~$0.052/kWh`** |
 
-**Remaining work:** A post-processing script (not yet written) must read
-`easton_muni_pgc.csv`, convert $/ccf → $/kWh (÷ 29.3001), and add the monthly or
-annual-average commodity rate to the distribution URDB JSON. For the missing December 2025,
-use the Jan–Nov average or estimate from the prior year's December rate as a fallback.
+The `add-pgc-to-gas-urdbs` recipe reads from the dist-only JSON (`_dist.json`) and writes
+the combined result to the standard name, so re-running is always safe. For the missing
+December 2025, the script fills with the Jan–Nov average.
 
 ---
 
@@ -456,11 +457,11 @@ delivery + supply + STRIDE. Washington Gas non-heating: `$1.01/therm`, `$13.12/m
 main RES-2: `$1.64/therm`, `$10/month` fixed. Cecil and Worcester county groups differ by
 NFEC (see above).
 
-**UGI (Tier 1)** — `$0.74/ccf` (`$0.025/kWh`), no fixed charge. Distribution-only;
-commodity not included.
+**UGI (Tier 1)** — `$0.74/ccf` (`$0.025/kWh`) distribution, no fixed charge.
+Combined (dist + commodity): `~$0.048/kWh` tier 1 in `ugi_central_penn_residential.json`.
 
-**Easton** — `$0.58/ccf` (`$0.020/kWh`), `$12/month` fixed. Distribution-only; commodity
-not included.
+**Easton** — `$0.58/ccf` (`$0.020/kWh`) distribution, `$12/month` fixed.
+Combined (dist + commodity): `~$0.052/kWh` in `easton_muni_residential.json`.
 
 ---
 
@@ -470,8 +471,13 @@ not included.
    `utils/data_prep/tariffs/add_pgc_to_gas_urdb.py` reads the PGC CSV,
    averages all available months of the target year (filling any missing month
    with the Jan–Nov mean), converts `$/ccf → $/kWh` (÷ 29.3001), and adds the
-   scalar to every tier. Called automatically as `add-pgc-to-gas-urdbs` at the
-   end of `just fetch-gas-tariffs`. UGI 2025 avg: `$0.667/ccf` → `$0.0228/kWh`;
+   scalar to every tier. The operation is **idempotent**: RateAcuity writes
+   distribution-only tariffs to `*_dist.json` files (e.g.
+   `ugi_central_penn_residential_dist.json`), and the PGC script reads from
+   those clean sources and writes the combined result to the standard name
+   (e.g. `ugi_central_penn_residential.json`). Re-running
+   `just add-pgc-to-gas-urdbs` is always safe. Called automatically at the end
+   of `just fetch-gas-tariffs`. UGI 2025 avg: `$0.667/ccf` → `$0.0228/kWh`;
    Easton 2025 avg (11 months, Dec filled): `$0.939/ccf` → `$0.0320/kWh`.
 
 2. **Gas tariff maps** — assign each ResStock building to the correct gas tariff key.

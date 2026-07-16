@@ -56,20 +56,23 @@ fetch-gas-tariffs:
     just add-pgc-to-gas-urdbs
 
 # Add annual-average commodity (PGC) rates to the distribution-only UGI and
-# Easton URDB JSONs. Called automatically by fetch-gas-tariffs after fetch-ugi-pgc.
-# Can also be run standalone if only the PGC CSVs were updated:
+# Easton URDB JSONs.  Reads from the *_dist.json files (never modified) and
+# writes the combined result to the standard *_residential.json names.
+# Idempotent: safe to re-run any time after updating PGC CSVs.
 # just -f md/Justfile add-pgc-to-gas-urdbs
 add-pgc-to-gas-urdbs:
     uv run python {{ path_add_pgc }} \
-      --path-urdb "{{ path_tariffs_gas }}/ugi_central_penn_residential.json" \
-      --path-pgc  "{{ path_ugi_pgc_csv }}" \
-      --pgc-col   price_to_compare_per_ccf \
-      --year      {{ tariff_year }}
+      --path-urdb-dist "{{ path_tariffs_gas }}/ugi_central_penn_residential_dist.json" \
+      --path-urdb-out  "{{ path_tariffs_gas }}/ugi_central_penn_residential.json" \
+      --path-pgc       "{{ path_ugi_pgc_csv }}" \
+      --pgc-col        price_to_compare_per_ccf \
+      --year           {{ tariff_year }}
     uv run python {{ path_add_pgc }} \
-      --path-urdb "{{ path_tariffs_gas }}/easton_muni_residential.json" \
-      --path-pgc  "{{ path_easton_pgc_csv }}" \
-      --pgc-col   total_supply_per_ccf \
-      --year      {{ tariff_year }}
+      --path-urdb-dist "{{ path_tariffs_gas }}/easton_muni_residential_dist.json" \
+      --path-urdb-out  "{{ path_tariffs_gas }}/easton_muni_residential.json" \
+      --path-pgc       "{{ path_easton_pgc_csv }}" \
+      --pgc-col        total_supply_per_ccf \
+      --year           {{ tariff_year }}
 
 # Fetch UGI Central Penn residential price-to-compare (commodity rate) from
 # pennsylvaniaenergy.com/pricing-history/ and write to ugi_central_penn_pgc.csv.

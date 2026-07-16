@@ -33,9 +33,9 @@ chesapeake_utilities:
 columbia_gas_md:
   columbia_gas_md_residential: "RATE RS-RESIDENTIAL SERVICE---"
 easton_muni:
-  easton_muni_residential: "R-RESIDENTIAL SERVICE---"
+  easton_muni_residential_dist: "R-RESIDENTIAL SERVICE---"
 ugi_central_penn:
-  ugi_central_penn_residential: "B-DOMESTIC RATE---"
+  ugi_central_penn_residential_dist: "B-DOMESTIC RATE---"
 washington_gas:
   washington_gas_nonheating: "1-FIRM RESIDENTIAL SALES-Non-Heating/Non-Cooling--"
   washington_gas_heating: "1-FIRM RESIDENTIAL SALES-Heating and/or Cooling--"
