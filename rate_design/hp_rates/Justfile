@@ -201,6 +201,14 @@ compute-rr:
       --output "{{ path_default_rev_requirement }}" \
       {{ if use_resstock_loads == "true" { '--use-resstock-loads --path-resstock-release "' + path_resstock_release + '" --state "' + state_upper + '"' } else { "" } }}
 
+build-rate-case-test-year:
+    uv run python {{ path_repo }}/utils/pre/rev_requirement/build_rate_case_test_year.py \
+      --path-partial-yaml "{{ path_rev_requirement }}/{{ utility }}_rate_case_test_year.yaml" \
+      --path-monthly-rates "{{ path_monthly_rates }}" \
+      --path-resstock-release "{{ path_resstock_release }}" \
+      --state "{{ state_upper }}" \
+      --output "{{ path_rev_requirement }}/{{ utility }}_rate_case_test_year.yaml"
+
 estimate-psegli-rr:
     uv run python {{ path_repo }}/utils/pre/rev_requirement/estimate_psegli_rr.py \
       --path-budget-md "{{ path_repo }}/context/sources/lipa_2025_2026_budget_one_pager.md" \
