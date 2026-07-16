@@ -1,0 +1,12 @@
+rate,effective_date,season,start,end,determinant,location,rate_determinant,1/1/2027,2/1/2027,3/1/2027,4/1/2027,5/1/2027,6/1/2027,7/1/2027,8/1/2027,9/1/2027,10/1/2027,11/1/2027,12/1/2027
+maryland franchise tax rider,04/19/2025,,,,,,per therm,0.00402,0.00402,0.00402,0.00402,0.00402,0.00402,0.00402,0.00402,0.00402,0.00402,0.00402,0.00402
+customer charge,04/19/2025,,,,,,per meter per month,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0
+non-fuel energy charge,04/19/2025,,,,,"caroline, dorchester, somerset and wicomico counties",per therm,1.13792,1.13792,1.13792,1.13792,1.13792,1.13792,1.13792,1.13792,1.13792,1.13792,1.13792,1.13792
+non-fuel energy charge,04/19/2026,,,,,cecil county,per therm,1.47362,1.47362,1.47362,1.47362,1.47362,1.47362,1.47362,1.47362,1.47362,1.47362,1.47362,1.47362
+non-fuel energy charge,04/19/2025,,,,,worcester county,per therm,2.10631,2.10631,2.10631,2.10631,2.10631,2.10631,2.10631,2.10631,2.10631,2.10631,2.10631,2.10631
+gas sales service rate,04/01/2026,,,,,cecil county,per therm,0.902,0.902,0.902,0.902,0.902,0.902,0.902,0.902,0.902,0.902,0.902,0.902
+gas sales service rate,04/01/2026,,,,,worcester county,per therm,1.207,1.207,1.207,1.207,1.207,1.207,1.207,1.207,1.207,1.207,1.207,1.207
+gas sales service rate,04/01/2026,,,,,"caroline, dorchester, somerset and wicomico counties",per therm,1.483,1.483,1.483,1.483,1.483,1.483,1.483,1.483,1.483,1.483,1.483,1.483
+system improvement rate,12/01/2025,,,,,worcester county - all areas except ocean city,per therm,0.052,0.052,0.052,0.052,0.052,0.052,0.052,0.052,0.052,0.052,0.052,0.052
+system improvement rate,12/01/2025,,,,,worcester county - ocean city,per therm,0.064,0.064,0.064,0.064,0.064,0.064,0.064,0.064,0.064,0.064,0.064,0.064
+revenue normalization adjustment applies to heating customers.,,,,,,,,,,,,,,,,,,,

@@ -18,6 +18,94 @@ utility := env_var_or_default('UTILITY', 'bge')
 import '../Justfile'
 
 # =============================================================================
+# MD-only: tariff fetching
+#
+# fetch-default-electric-tariffs: fetches both the Genability snapshot (for the
+#   revenue-requirement pipeline) and URDB v7 delivery + supply JSONs (for CAIRO).
+#   Snapshot → config/rev_requirement/top-ups/default_tariffs/
+#   URDB     → config/tariffs/electric/{utility}_default.json
+#              config/tariffs/electric/{utility}_default_supply.json
+#
+# fetch-gas-tariffs: fetches gas tariffs from RateAcuity as URDB v7 JSON.
+#   Requires rateacuity_tariffs.yaml and rate_acuity_utility_names in utility_codes.py.
+#   Output → config/tariffs/gas/{tariff_key}.json
+# =============================================================================
+
+fetch-default-electric-tariffs effective_date="2025-01-01":
+    uv run python {{ path_repo }}/utils/pre/rev_requirement/fetch_electric_tariffs_genability.py \
+      "{{ path_genability_yaml }}" \
+      "{{ path_genability }}/default_tariffs" \
+      --state "{{ state_upper }}" \
+      --effective-date "{{ effective_date }}" \
+      --urdb \
+      --path-urdb-dir "{{ path_tariffs_electric }}"
+
+path_rateacuity_phase2_yaml := path_tariffs_gas / "rateacuity_tariffs_chesapeake_phase2.yaml"
+path_add_pgc := path_repo / "utils/data_prep/tariffs/add_pgc_to_gas_urdb.py"
+path_ugi_pgc_csv := path_tariffs_gas / "ugi_central_penn_pgc.csv"
+path_easton_pgc_csv := path_tariffs_gas / "easton_muni_pgc.csv"
+tariff_year := "2025"
+
+fetch-gas-tariffs:
+    uv run python {{ path_repo }}/utils/pre/fetch_gas_tariffs_rateacuity.py \
+      "{{ path_rateacuity_yaml }}" \
+      "{{ path_tariffs_gas }}"
+    just fetch-chesapeake-gas-phase2
+    just split-chesapeake-gas-tariffs
+    just fetch-ugi-pgc
+    just add-pgc-to-gas-urdbs
+
+# Add annual-average commodity (PGC) rates to the distribution-only UGI and
+# Easton URDB JSONs.  Reads from the *_dist.json files (never modified) and
+# writes the combined result to the standard *_residential.json names.
+# Idempotent: safe to re-run any time after updating PGC CSVs.
+# just -f md/Justfile add-pgc-to-gas-urdbs
+add-pgc-to-gas-urdbs:
+    uv run python {{ path_add_pgc }} \
+      --path-urdb-dist "{{ path_tariffs_gas }}/ugi_central_penn_residential_dist.json" \
+      --path-urdb-out  "{{ path_tariffs_gas }}/ugi_central_penn_residential.json" \
+      --path-pgc       "{{ path_ugi_pgc_csv }}" \
+      --pgc-col        price_to_compare_per_ccf \
+      --year           {{ tariff_year }}
+    uv run python {{ path_add_pgc }} \
+      --path-urdb-dist "{{ path_tariffs_gas }}/easton_muni_residential_dist.json" \
+      --path-urdb-out  "{{ path_tariffs_gas }}/easton_muni_residential.json" \
+      --path-pgc       "{{ path_easton_pgc_csv }}" \
+      --pgc-col        total_supply_per_ccf \
+      --year           {{ tariff_year }}
+
+# Fetch UGI Central Penn residential price-to-compare (commodity rate) from
+# pennsylvaniaenergy.com/pricing-history/ and write to ugi_central_penn_pgc.csv.
+#
+# The site publishes a rolling ~24-month history; requesting dates outside that
+# window raises an error. Data availability starts roughly 24 months before today.
+#
+#   just -f md/Justfile fetch-ugi-pgc               # default: 2024-01 to current month
+#   just -f md/Justfile fetch-ugi-pgc 2025-01 2025-12
+ugi_pgc_default_start := "2024-01"
+ugi_pgc_default_end := `date +%Y-%m`
+
+fetch-ugi-pgc start=ugi_pgc_default_start end=ugi_pgc_default_end:
+    uv run python {{ path_repo }}/utils/data_prep/tariffs/fetch_ugi_pgc.py \
+      --start "{{ start }}" \
+      --end "{{ end }}" \
+      --path-output "{{ path_ugi_pgc_csv }}"
+
+fetch-chesapeake-gas-phase2:
+    uv run python {{ path_repo }}/utils/pre/fetch_gas_tariffs_rateacuity.py \
+      "{{ path_rateacuity_phase2_yaml }}" \
+      "{{ path_tariffs_gas }}" \
+      --year 2027
+
+split-chesapeake-gas-tariffs:
+    uv run python {{ path_repo }}/utils/data_prep/tariffs/split_chesapeake_gas_tariffs.py \
+      --path-res1-csv "{{ path_tariffs_gas }}/chesapeake_utilities_res1.csv" \
+      --path-res2-csv "{{ path_tariffs_gas }}/chesapeake_utilities_res2.csv" \
+      --path-res1-phase2-csv "{{ path_tariffs_gas }}/chesapeake_utilities_res1_phase2.csv" \
+      --path-res2-phase2-csv "{{ path_tariffs_gas }}/chesapeake_utilities_res2_phase2.csv" \
+      --output-dir "{{ path_tariffs_gas }}"
+
+# =============================================================================
 # MD-only: ISO-native load source for sub-TX/DX marginal costs
 #
 # MD reads PJM-native utility loads (data/pjm/hourly_demand/) instead of the

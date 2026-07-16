@@ -1,0 +1,9 @@
+rate,effective_date,season,min_therms,max_therms,start,end,determinant,rate_determinant,1/1/2025,2/1/2025,3/1/2025,4/1/2025,5/1/2025,6/1/2025,7/1/2025,8/1/2025,9/1/2025,10/1/2025,11/1/2025,12/1/2025
+distribution charge,04/22/2025,,,,,,,per therm,1.00385,1.00385,1.00385,1.00385,1.237,1.237,1.237,1.237,1.237,1.237,1.237,1.237
+energy efficiency rider,05/30/2024,,,,,,,per therm,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+volumetric franchise tax rider,01/30/2013,,,,,,,per therm,0.00402,0.00402,0.00402,0.00402,0.00402,0.00402,0.00402,0.00402,0.00402,0.00402,0.00402,0.00402
+purchased gas adjustment,04/01/2026,,,,,,,per therm,0.51759,0.59172,0.59172,0.86984,0.77306,0.77306,0.75262,0.56911,0.49924,0.57241,0.57241,0.67383
+system charge,04/22/2025,,,,,,,per month,16.25,16.25,16.25,16.25,16.5,16.5,16.5,16.5,16.5,16.5,16.5,16.5
+infrastructure replacement & improvement surcharge,01/01/2024,,,,,,,per month,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+weather normalization adjustment applies to quantity of gas sales for the heating season november through march.,,,,,,,,,,,,,,,,,,,,
+the monthly distribution charges shall be subject to revenue normalization adjustment.,,,,,,,,,,,,,,,,,,,,

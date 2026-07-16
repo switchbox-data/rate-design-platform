@@ -96,6 +96,7 @@ build/
 !.markdownlint.json
 !rate_design/hp_rates/ny/config/tariffs/**
 !rate_design/hp_rates/ri/config/tariffs/**
+!rate_design/hp_rates/md/config/tariffs/**
 !rate_design/hp_rates/ny/config/tariff_maps/**
 !rate_design/hp_rates/ri/config/tariff_maps/**
 !rate_design/hp_rates/ny/config/marginal_costs/**

@@ -1,0 +1,18 @@
+# Genability/Arcadia default electric tariffs by utility (std_name).
+# Pass this file to fetch_electric_tariffs_genability.py with --state MD.
+# Identifier: "default" | masterTariffId (int) | "tariff name" (substring match).
+#
+# IOUs (bge, pepco, poted, dpl) are confirmed in Arcadia.
+# Larger co-ops (smeco, choptank) are likely in Arcadia; verify on first run.
+# Small co-ops/municipals (somerset_rec, berlin_muni, hagerstown_muni, easton_muni)
+# may not be in Arcadia; see context/code/data/md_tariff_fetch.md for fallback options.
+bge: default
+pepco: default
+poted: default
+dpl: default
+smeco: default
+choptank: default
+somerset_rec: default
+berlin_muni: default
+hagerstown_muni: default
+easton_muni: default
