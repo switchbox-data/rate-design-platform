@@ -19,17 +19,17 @@ Every charge on a Baltimore Gas and Electric (BGE) default residential electric 
 
 Charges are classified by **economic structure**, not tariff label. BGE's bill groups charges into Delivery, Supply, and Taxes & Fees (Frain, Part I).
 
-| Type | What it is | Cross-subsidy? | Decision |
-| ---- | ---------- | -------------- | -------- |
-| **Base delivery** | Rates set in the rate case / MYRP that collect the delivery revenue requirement | Yes (BAT core) | `already_in_drr` |
-| **Program surcharge** | Fixed state- or PSC-mandated program budgets recovered via uniform $/kWh or $/mo | Yes — fixed pool ÷ kWh or ÷ customers | `add_to_drr` or `add_to_srr` |
-| **Transmission service** | FERC/PJM transmission pass-through (often on SOS bill) | Yes if topped up volumetrically | `add_to_drr` *(open question)* |
-| **Supply commodity** | SOS generation energy rate (Rider 1), month-varying | Mixed — energy scales with load; embedded capacity may not | `add_to_srr` |
-| **Cost reconciliation** | Uniform $/kWh true-ups of costs already in base rates or SOS | No — shifts all bills equally | `exclude_trueup` |
-| **Revenue true-up** | Decoupling, MYRP reconciliation, base-revenue offsets | No — shifts all bills equally | `exclude_trueup` |
-| **Tax pass-through** | Franchise tax, local tax | No — small uniform noise or % effects | `exclude_tax` |
-| **Eligibility / optional** | Competitive supplier billing credit, smart-meter opt-out | N/A — not default customer | `exclude_eligibility` |
-| **Redundant** | Minimum charge equals customer charge | N/A | `exclude_redundant` |
+| Type                       | What it is                                                                       | Cross-subsidy?                                             | Decision                       |
+| -------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------ |
+| **Base delivery**          | Rates set in the rate case / MYRP that collect the delivery revenue requirement  | Yes (BAT core)                                             | `already_in_drr`               |
+| **Program surcharge**      | Fixed state- or PSC-mandated program budgets recovered via uniform $/kWh or $/mo | Yes — fixed pool ÷ kWh or ÷ customers                      | `add_to_drr` or `add_to_srr`   |
+| **Transmission service**   | FERC/PJM transmission pass-through (often on SOS bill)                           | Yes if topped up volumetrically                            | `add_to_drr` _(open question)_ |
+| **Supply commodity**       | SOS generation energy rate (Rider 1), month-varying                              | Mixed — energy scales with load; embedded capacity may not | `add_to_srr`                   |
+| **Cost reconciliation**    | Uniform $/kWh true-ups of costs already in base rates or SOS                     | No — shifts all bills equally                              | `exclude_trueup`               |
+| **Revenue true-up**        | Decoupling, MYRP reconciliation, base-revenue offsets                            | No — shifts all bills equally                              | `exclude_trueup`               |
+| **Tax pass-through**       | Franchise tax, local tax                                                         | No — small uniform noise or % effects                      | `exclude_tax`                  |
+| **Eligibility / optional** | Competitive supplier billing credit, smart-meter opt-out                         | N/A — not default customer                                 | `exclude_eligibility`          |
+| **Redundant**              | Minimum charge equals customer charge                                            | N/A                                                        | `exclude_redundant`            |
 
 ---
 
@@ -37,29 +37,29 @@ Charges are classified by **economic structure**, not tariff label. BGE's bill g
 
 Rates in the **Current** column are illustrative for the rate-case test year (Jan 2026 MYRP Rate Year 3 values where applicable). See `bge_monthly_rates_2025.yaml` for full month-by-month history. **Rider #** values follow the Karas Rider Index (Docket 331766) where listed; **Sch. R** = Schedule R base tariff (no rider). **Table sorted by Rider #:** Sch. R first, then ascending rider number, then —.
 
-| Charge (master) | Genability name | Rider # | Unit | Current rate | In rev req? | Fixed budget? | HP cross-subsidy? | Decision | MC 8760? |
-| --------------- | --------------- | ------- | ---- | ------------ | ----------- | ------------- | ----------------- | -------- | -------- |
-| **Competitive Billing** | Competitive Billing | Sch. R | $/mo | ($0.62) credit | N/A | — | N/A | `exclude_eligibility` | — |
-| **Core Delivery Rate** | Delivery Service Charge | Sch. R | $/kWh | $0.04859 | Yes (base DRR) | — | Yes | `already_in_drr` | Yes—sub-tx + dx |
-| **Customer Charge** | Delivery Service Customer Charge | Sch. R | $/mo | $10.00 | Yes (base DRR) | — | Yes | `already_in_drr` | No—residual |
-| **Demand Response** | Dmd Res Chg/Cr | 15 | $/kWh | $0.00 | N/A | — | N/A | `exclude_eligibility` | — |
-| **Environmental Surcharge** | Envir Srchg | Sch. R | $/kWh | $0.00015 | **No** | Yes | **Yes** | `add_to_drr` | No—residual |
-| **Minimum Charge** | Minimum Charge | Sch. R | $/mo | $10.00 | Yes | — | N/A | `exclude_redundant` | — |
-| **Supply commodity (bundled)** | Generation Charge | 1 | $/kWh | varies monthly | **No** | Mixed | Mixed | `add_to_srr` | See sub-components |
-| **Transmission Rate Adjustment** | Transmission Rate Adjustments | 1 | $/kWh | $0.02322 | **No** | Mixed | **Yes** | `add_to_drr` | Yes—bulk TX *(if in BAT)* |
-| **EmPOWER Maryland Charge** | Electric Efficiency & Demand Response Charge | 2 | $/kWh | $0.01310 | **No** (outside DRR) | Yes | **Yes** | `add_to_drr` | No—residual |
-| **Franchise Tax** | Franchise Tax | 3 | $/kWh | $0.00062 | N/A | — | No | `exclude_tax` | — |
-| **Local Tax** | Local Tax | 3 | $/kWh | $0.00347 | N/A | — | No | `exclude_tax` | — |
-| **Energy Cost Adjustment** | Energy Cost Adjustment (R) | 8 | $/kWh | ~(credit) | N/A | — | No | `exclude_trueup` | — |
-| **Administrative Cost Adjustment** | Administrative Cost Adjustment | 10 | $/kWh | ~(credit) | N/A | — | No | `exclude_trueup` | — |
-| **Multi-Year Plan Adjustment** | Multi-Year Plan Adjustment | 16 | $/kWh | $0.00086 | N/A | — | No | `exclude_trueup` | — |
-| **Monthly Rate Adjustment** | Monthly Rate Adjustment | 25 | $/kWh | varies | N/A | — | No | `exclude_trueup` | — |
-| **Smart Meter Opt-Out** | Smart Meter Opt-Out Charge | 27 | $/mo | $5.50 | N/A | — | N/A | `exclude_eligibility` | — |
-| **Electric Reliability Initiative** | Electric Reliability Initiative Surcharge | 31 | $/kWh | $0.00 | N/A | — | N/A | `exclude_inactive` | — |
-| **Base Distribution Revenue Offset** | Customer / Delivery Service Charge Offset | 34 | $/mo, $/kWh | $0 | N/A | — | No | `exclude_trueup` | — |
-| **RGGI Rate Credit** | RGGI Rate Credit (Residential) | — | $/mo | $0 | **No** | Yes (when active) | **Yes** (per-customer) | `add_to_drr` | No—residual |
-| **RSP Charge/Misc** | RSP Charge/Misc | — | $/kWh | $0 | **No** | Yes (when active) | **Yes** | `add_to_drr` | No—residual |
-| **Universal Service Charge** | Universal Service Charge | — | $/mo | $0.32 | **No** | Yes | **Yes** (per-customer) | `add_to_drr` | No—residual |
+| Charge (master)                      | Genability name                              | Rider # | Unit        | Current rate   | In rev req?          | Fixed budget?     | HP cross-subsidy?      | Decision              | MC 8760?                  |
+| ------------------------------------ | -------------------------------------------- | ------- | ----------- | -------------- | -------------------- | ----------------- | ---------------------- | --------------------- | ------------------------- |
+| **Competitive Billing**              | Competitive Billing                          | Sch. R  | $/mo        | ($0.62) credit | N/A                  | —                 | N/A                    | `exclude_eligibility` | —                         |
+| **Core Delivery Rate**               | Delivery Service Charge                      | Sch. R  | $/kWh       | $0.04859       | Yes (base DRR)       | —                 | Yes                    | `already_in_drr`      | Yes—sub-tx + dx           |
+| **Customer Charge**                  | Delivery Service Customer Charge             | Sch. R  | $/mo        | $10.00         | Yes (base DRR)       | —                 | Yes                    | `already_in_drr`      | No—residual               |
+| **Demand Response**                  | Dmd Res Chg/Cr                               | 15      | $/kWh       | $0.00          | N/A                  | —                 | N/A                    | `exclude_eligibility` | —                         |
+| **Environmental Surcharge**          | Envir Srchg                                  | Sch. R  | $/kWh       | $0.00015       | **No**               | Yes               | **Yes**                | `add_to_drr`          | No—residual               |
+| **Minimum Charge**                   | Minimum Charge                               | Sch. R  | $/mo        | $10.00         | Yes                  | —                 | N/A                    | `exclude_redundant`   | —                         |
+| **Supply commodity (bundled)**       | Generation Charge                            | 1       | $/kWh       | varies monthly | **No**               | Mixed             | Mixed                  | `add_to_srr`          | See sub-components        |
+| **Transmission Rate Adjustment**     | Transmission Rate Adjustments                | 1       | $/kWh       | $0.02322       | **No**               | Mixed             | **Yes**                | `add_to_drr`          | Yes—bulk TX _(if in BAT)_ |
+| **EmPOWER Maryland Charge**          | Electric Efficiency & Demand Response Charge | 2       | $/kWh       | $0.01310       | **No** (outside DRR) | Yes               | **Yes**                | `add_to_drr`          | No—residual               |
+| **Franchise Tax**                    | Franchise Tax                                | 3       | $/kWh       | $0.00062       | N/A                  | —                 | No                     | `exclude_tax`         | —                         |
+| **Local Tax**                        | Local Tax                                    | 3       | $/kWh       | $0.00347       | N/A                  | —                 | No                     | `exclude_tax`         | —                         |
+| **Energy Cost Adjustment**           | Energy Cost Adjustment (R)                   | 8       | $/kWh       | ~(credit)      | N/A                  | —                 | No                     | `exclude_trueup`      | —                         |
+| **Administrative Cost Adjustment**   | Administrative Cost Adjustment               | 10      | $/kWh       | ~(credit)      | N/A                  | —                 | No                     | `exclude_trueup`      | —                         |
+| **Multi-Year Plan Adjustment**       | Multi-Year Plan Adjustment                   | 16      | $/kWh       | $0.00086       | N/A                  | —                 | No                     | `exclude_trueup`      | —                         |
+| **Monthly Rate Adjustment**          | Monthly Rate Adjustment                      | 25      | $/kWh       | varies         | N/A                  | —                 | No                     | `exclude_trueup`      | —                         |
+| **Smart Meter Opt-Out**              | Smart Meter Opt-Out Charge                   | 27      | $/mo        | $5.50          | N/A                  | —                 | N/A                    | `exclude_eligibility` | —                         |
+| **Electric Reliability Initiative**  | Electric Reliability Initiative Surcharge    | 31      | $/kWh       | $0.00          | N/A                  | —                 | N/A                    | `exclude_inactive`    | —                         |
+| **Base Distribution Revenue Offset** | Customer / Delivery Service Charge Offset    | 34      | $/mo, $/kWh | $0             | N/A                  | —                 | No                     | `exclude_trueup`      | —                         |
+| **RGGI Rate Credit**                 | RGGI Rate Credit (Residential)               | —       | $/mo        | $0             | **No**               | Yes (when active) | **Yes** (per-customer) | `add_to_drr`          | No—residual               |
+| **RSP Charge/Misc**                  | RSP Charge/Misc                              | —       | $/kWh       | $0             | **No**               | Yes (when active) | **Yes**                | `add_to_drr`          | No—residual               |
+| **Universal Service Charge**         | Universal Service Charge                     | —       | $/mo        | $0.32          | **No**               | Yes               | **Yes** (per-customer) | `add_to_drr`          | No—residual               |
 
 **Rider # notes:** **1** = Standard Offer Service (generation and transmission on the SOS bill). **2** = Electric Efficiency Charge (EmPOWER Maryland). **3** = Miscellaneous Taxes and Surcharges (franchise and local tax components). **31** = Electric Reliability Initiative Surcharge (ERI) per BGE's tariff-book / POLR miscellaneous-charges sheet; Genability still hosts a legacy Sch. R line (`electricReliabilityInitiativeR`) at `$0` — phased out for residential. Karas JAK-1 Rider Index (331766) **does not list Rider 31** (numbers jump 30 → 32). **Dmd Res Chg/Cr** is on the Schedule R base tariff in Genability (not Rider 15; Rider 15 in the Karas index is a separate Demand Response Service rider). Mandatory DR program costs are in **Rider 2 EmPOWER** (`$0.00198`/kWh of `$0.01310`). **—** = active in Genability but not listed in the Karas Rider Index (Universal Service / EUSP; RGGI Rate Credit rider tariff 19651 at `$0` in test year; RSP Charge/Misc aggregate rider tariff 6309 at `$0`). Karas JAK-1 also lists Environmental Surcharge and MD Universal Service Program as bill components without rider numbers; we map Environmental to **Sch. R** and Universal Service to **—** pending tariff-book confirmation.
 
@@ -109,7 +109,7 @@ These collect the **delivery revenue requirement** filed in Docket 331766 (Karas
 - **Rate:** $0.01682/kWh (Apr–May 2025); **$0.02322/kWh** (Jun 2025–Mar 2026)
 - FERC-regulated PJM transmission pass-through; appears on the **supply (SOS)** portion of the customer bill per Frain
 - Volumetric recovery of transmission costs → structural HP cross-subsidy if treated as a fixed pool
-- **Decision:** `add_to_drr` *(draft — team chose to top up into delivery RR for BAT; confirm whether supply-side treatment is preferred)*
+- **Decision:** `add_to_drr` _(draft — team chose to top up into delivery RR for BAT; confirm whether supply-side treatment is preferred)_
 - **MC note:** Bulk TX marginal cost input is separate (`context/methods/marginal_costs/md_bulk_transmission.md`); topping TX into DRR is about revenue collection, not MC double-counting, but alignment with Frain's bill presentation should be reviewed
 
 #### Universal Service Charge (EUSP; no rider in Karas index)
@@ -163,25 +163,25 @@ These collect the **delivery revenue requirement** filed in Docket 331766 (Karas
 
 #### Cost reconciliation and revenue true-ups (`exclude_trueup`)
 
-| Charge | Rider # | Rationale |
-| ------ | ------- | --------- |
-| Energy Cost Adjustment | 8 | SOS wholesale cost true-up |
-| Administrative Cost Adjustment | 10 | SOS admin true-up; Frain: excluded from delivery volumetric "Delivery Service Charge" definition |
-| Multi-Year Plan Adjustment | 16 | MYRP reconciliation; OPC "distribution rate" summaries often bundle this with core delivery — we keep it out of DRR to avoid double-counting with rate-case base |
-| Monthly Rate Adjustment | 25 | Revenue decoupling / load forecast error (RDM-like) |
-| Base Distribution Revenue Offset | 34 | Revenue offset rider; $0 in test year |
+| Charge                           | Rider # | Rationale                                                                                                                                                        |
+| -------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Energy Cost Adjustment           | 8       | SOS wholesale cost true-up                                                                                                                                       |
+| Administrative Cost Adjustment   | 10      | SOS admin true-up; Frain: excluded from delivery volumetric "Delivery Service Charge" definition                                                                 |
+| Multi-Year Plan Adjustment       | 16      | MYRP reconciliation; OPC "distribution rate" summaries often bundle this with core delivery — we keep it out of DRR to avoid double-counting with rate-case base |
+| Monthly Rate Adjustment          | 25      | Revenue decoupling / load forecast error (RDM-like)                                                                                                              |
+| Base Distribution Revenue Offset | 34      | Revenue offset rider; $0 in test year                                                                                                                            |
 
 #### Tax pass-through (`exclude_tax`)
 
-| Charge | Rider # | Rationale |
-| ------ | ------- | --------- |
-| Franchise Tax | 3 | State/local franchise tax remittance on Rider 3 (Miscellaneous Taxes and Surcharges) |
-| Local Tax | 3 | Local tax remittance on Rider 3 |
+| Charge        | Rider # | Rationale                                                                            |
+| ------------- | ------- | ------------------------------------------------------------------------------------ |
+| Franchise Tax | 3       | State/local franchise tax remittance on Rider 3 (Miscellaneous Taxes and Surcharges) |
+| Local Tax     | 3       | Local tax remittance on Rider 3                                                      |
 
 #### Eligibility / optional (`exclude_eligibility`)
 
 - **Competitive Billing (Sch. R):** $0.62/month **credit** for customers who choose a competitive supplier — not the default SOS customer
-- **Demand Response — Dmd Res Chg/Cr (Sch. R):** **$0.00/kWh** test year. Participant charge/credit for demand-response programs, not the default residential customer. **Karas (331766):** mandatory DR funding is already in **Rider 2 EmPOWER** (`$0.00198`/kWh of the `$0.01310`/kWh total). The Sch. R **Dmd Res Chg/Cr** line is distinct from **Rider 15 — Demand Response Service** in the Karas Rider Index. Older BGE tariff sheets mapped a similar line to Rider 30; Docket 331766 repurposed Rider 30 to Storm Restoration Expense.
+- **Demand Response — Dmd Res Chg/Cr (Sch. R):** **$0.00/kWh** test year. Participant charge/credit for demand-response programs, not the default residential customer. **Karas (331766):** mandatory DR funding is already in **Rider 2 EmPOWER** (`$0.00198`/kWh of the`$0.01310`/kWh total). The Sch. R **Dmd Res Chg/Cr** line is distinct from **Rider 15 — Demand Response Service** in the Karas Rider Index. Older BGE tariff sheets mapped a similar line to Rider 30; Docket 331766 repurposed Rider 30 to Storm Restoration Expense.
 - **Electric Reliability Initiative — ERI (Rider 31):** **$0.00/kWh** test year. **Phased out** for the residential class — BGE's [POLR rates / miscellaneous charges](https://azure-na-assets.contentstack.com/v3/assets/blt71bfe6e8a1c2d265/blte65b1dd8c5037101/65ae8887835578000a5ee439/POLR_Rates_PTC_MiscCharges.pdf?branch=prod_alias) sheet still labels **Rider 31 — Electric Reliability Initiative Surcharge (ERI)**, but Genability retains only a legacy Sch. R placeholder (`electricReliabilityInitiativeR`). **Karas (331766):** Rider Index omits Rider 31; bill-component summary does not list ERI. **Frain (331766):** delivery charges are Customer + Distribution (Delivery Service + Riders 10, 16, 25) + EmPOWER — ERI is not named; Frain separately proposes **Rider 30 Storm Restoration Expense** for storm O&M true-ups (not ERI).
 - **Smart Meter Opt-Out (27):** $5.50/month for customers who opt out of AMI — not the default metered customer
 
