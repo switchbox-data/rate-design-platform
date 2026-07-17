@@ -70,6 +70,12 @@ MD:
       # MD uses national HIFLD shapefiles (not per-state CSVs).  Valid
       # utilities are defined in utils/utility_codes.py and filtered at
       # assignment time via filter_hifld_for_state().
+      # Small municipal gas LDC excluded from building assignment (same
+      # pattern as NY excluded_gas_utilities). Remains in utility_codes.py
+      # for tariffs / EIA / zone mapping; PUMA probabilities are zeroed and
+      # renormalized (donor PUMA if a row would go all-zero).
+      excluded_gas_utilities:
+        - easton_muni
 CT:
   state_fips: "09"
   add_vulnerability_columns: false

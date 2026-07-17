@@ -180,17 +180,28 @@ County polygons cover all of Maryland's land area by definition, so the electric
 
 Gas coverage gaps remain (HIFLD gas boundaries still have the same rural/suburban gaps as before), so the nearest-neighbor fill is genuinely needed for gas, with the same behavior as documented in the previous HIFLD-based approach.
 
-### No excluded gas utilities
+### Excluded gas utilities
 
-`excluded_gas_utilities` is not set for MD. All gas LDCs are assigned; none are zeroed before sampling.
+`excluded_gas_utilities` for MD (in `state_configs.yaml`):
 
-### State_configs.yaml kwargs for MD
+- `easton_muni` — Easton Utilities municipal gas LDC; too small for ResStock
+  rate-design sampling. Still present in `utility_codes.py` (tariffs, EIA IDs,
+  HIFLD names). Assignment zeros its PUMA gas probability and renormalizes;
+  donor-PUMA fill applies if a PUMA would otherwise have no gas utility left.
+
+### State_configs.yaml for MD
 
 ```yaml
-state_crs: 2248
-puma_year: 2019
-electric_service_territory_s3_path: "s3://data.sb/eia/861/service_territory/state=MD/data.parquet"
-gas_poly_filename: "md_gas_utilities_20260605.csv"
+MD:
+  state_fips: "24"
+  add_vulnerability_columns: false
+  utility_assignment:
+    module: data.resstock.utility.assign_utility_md
+    kwargs:
+      state_crs: 2248
+      puma_year: 2019
+      excluded_gas_utilities:
+        - easton_muni
 ```
 
 ### Full MD pipeline (start to finish)
