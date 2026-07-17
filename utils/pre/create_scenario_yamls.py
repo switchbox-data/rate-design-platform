@@ -110,7 +110,8 @@ path_tou_supply_mc formula (for runs where num = 13 or 14):
     Where:
     - $C18 is the utility column
 
-    After updating the Google Sheet, run: just create-scenario-yamls
+    After updating the Google Sheet, run: just s <state> create-scenario-yamls
+    (reads SCENARIO_SHEET_ID from rate_design/hp_rates/<state>/state.env).
 
     Electric heat seasonal tariff filenames (NY runs 33–36):
         Repo tariffs/maps were renamed from ``*_elec_heat_seasonal_epmc*`` to
@@ -146,7 +147,18 @@ def _gspread_token_path() -> Path:
     return base / "gspread" / "authorized_user_rate_design.json"
 
 
-DEFAULT_SHEET_ID = "14naAchDw95hom88a9tdw4Y8DVxfqhx948x2UbBPujuI"
+SCENARIO_SHEET_ID_ENV = "SCENARIO_SHEET_ID"
+
+
+def _resolve_sheet_id(sheet_id: str | None) -> str:
+    """Return sheet ID from CLI arg or SCENARIO_SHEET_ID env var."""
+    resolved = (sheet_id or os.environ.get(SCENARIO_SHEET_ID_ENV) or "").strip()
+    if not resolved:
+        raise SystemExit(
+            "Google Spreadsheet ID is required. Pass --sheet-id or set "
+            f"{SCENARIO_SHEET_ID_ENV} (e.g. in rate_design/hp_rates/<state>/state.env)."
+        )
+    return resolved
 
 
 def _normalize_header(name: str) -> str:
@@ -516,7 +528,7 @@ def _get_worksheet(
 
 
 def run(
-    sheet_id: str = DEFAULT_SHEET_ID,
+    sheet_id: str,
     worksheet_name: str | None = None,
     worksheet_index: int | None = None,
     output_dir: Path | None = None,
@@ -687,8 +699,11 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--sheet-id",
-        default=DEFAULT_SHEET_ID,
-        help="Google Spreadsheet ID (default: Runs & Charts sheet).",
+        default=None,
+        help=(
+            "Google Spreadsheet ID. Defaults to SCENARIO_SHEET_ID env var "
+            "(set in rate_design/hp_rates/<state>/state.env)."
+        ),
     )
     parser.add_argument(
         "--sheet-name",
@@ -715,9 +730,10 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    load_dotenv()
     args = _parse_args()
     run(
-        sheet_id=args.sheet_id,
+        sheet_id=_resolve_sheet_id(args.sheet_id),
         worksheet_name=args.sheet_name,
         worksheet_index=args.worksheet_index,
         output_dir=args.output_dir,

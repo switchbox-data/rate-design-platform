@@ -8,9 +8,11 @@ project_root := `git rev-parse --show-toplevel`
 # Create scenario YAMLs from the Runs & Charts Google Sheet (requires G_* env and browser auth).
 # Writes rate_design/hp_rates/<state>/config/scenarios/scenarios_<utility>.yaml.
 
-# Pass state="" to generate for all states.
-create-scenario-yamls state="":
+# Pass state="" to generate for all states in the sheet (requires SCENARIO_SHEET_ID).
+# Prefer: just s <state> create-scenario-yamls (sources state.env per state).
+create-scenario-yamls state="" sheet_id=env_var_or_default('SCENARIO_SHEET_ID', ''):
     uv run python {{ project_root }}/utils/pre/create_scenario_yamls.py \
+        {{ if sheet_id != "" { "--sheet-id " + sheet_id } else { "" } }} \
         {{ if state != "" { "--state " + state } else { "" } }}
 
 # Update Google Sheet with MC path formulas for all states (NY + RI).
