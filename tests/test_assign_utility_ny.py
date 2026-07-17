@@ -16,7 +16,7 @@ from data.resstock.utility.utils import (
     calculate_utility_probabilities,
     puma_id_series_for_join,
     sample_utility_per_building,
-    zero_excluded_gas_utilities_and_renormalize,
+    zero_excluded_utilities_and_renormalize,
 )
 from utils.utility_codes import get_ny_open_data_to_std_name
 
@@ -418,7 +418,7 @@ def test_sample_utility_per_building_deterministic_with_varying_probs():
 
 
 # ---------------------------------------------------------------------------
-# EXCLUDED_GAS_UTILITIES and zero_excluded_gas_utilities_and_renormalize
+# EXCLUDED_GAS_UTILITIES and zero_excluded_utilities_and_renormalize
 # ---------------------------------------------------------------------------
 
 
@@ -543,8 +543,8 @@ def test_zero_excluded_gas_utilities_no_excluded_cols_unchanged():
             "nyseg": [0.5, 1.0],
         }
     )
-    out = zero_excluded_gas_utilities_and_renormalize(
-        puma_gas_probs, excluded_utilities=EXCLUDED_GAS_UTILITIES
+    out = zero_excluded_utilities_and_renormalize(
+        puma_gas_probs, excluded_utilities=EXCLUDED_GAS_UTILITIES, label="gas"
     )
     df = cast(pl.DataFrame, out.collect())
     assert df.shape == (2, 3)
@@ -562,8 +562,8 @@ def test_zero_excluded_gas_utilities_renormalize():
             "nimo": [0.2, 0.3],
         }
     )
-    out = zero_excluded_gas_utilities_and_renormalize(
-        puma_gas_probs, excluded_utilities=EXCLUDED_GAS_UTILITIES
+    out = zero_excluded_utilities_and_renormalize(
+        puma_gas_probs, excluded_utilities=EXCLUDED_GAS_UTILITIES, label="gas"
     )
     df = cast(pl.DataFrame, out.collect())
     # 00100: stlaw zeroed, nyseg+nimo renormalized from 0.4+0.2 to sum 1
@@ -586,8 +586,11 @@ def test_zero_excluded_gas_utilities_bad_puma_raises_without_pumas():
         }
     )
     with pytest.raises(ValueError) as exc_info:
-        zero_excluded_gas_utilities_and_renormalize(
-            puma_gas_probs, excluded_utilities=EXCLUDED_GAS_UTILITIES, pumas=None
+        zero_excluded_utilities_and_renormalize(
+            puma_gas_probs,
+            excluded_utilities=EXCLUDED_GAS_UTILITIES,
+            pumas=None,
+            label="gas",
         )
     assert "00100" in str(exc_info.value)
     assert "excluded gas utilities" in str(exc_info.value).lower()
@@ -610,11 +613,12 @@ def test_zero_excluded_gas_utilities_bad_puma_uses_donor_with_pumas():
             "geometry": [box(0, 0, 1, 1), box(1, 0, 2, 1)],
         }
     )
-    out = zero_excluded_gas_utilities_and_renormalize(
+    out = zero_excluded_utilities_and_renormalize(
         puma_gas_probs,
         excluded_utilities=EXCLUDED_GAS_UTILITIES,
         pumas=pumas,
         puma_and_heating_fuel=None,
+        label="gas",
     )
     df = cast(pl.DataFrame, out.collect())
     # 00100 should get donor 00200's row: stlaw=0, nyseg=1
@@ -625,3 +629,39 @@ def test_zero_excluded_gas_utilities_bad_puma_uses_donor_with_pumas():
     for row in df.iter_rows(named=True):
         utility_cols = [c for c in row if c != "puma_id"]
         assert abs(sum(row[c] for c in utility_cols) - 1.0) < 1e-9
+
+
+def test_zero_excluded_electric_utilities_renormalize():
+    """Electric exclusion zeros columns and renormalizes (same helper, label=electric)."""
+    puma_elec_probs = pl.LazyFrame(
+        {
+            "puma_id": ["00100", "00200"],
+            "berlin_muni": [0.3, 0.0],
+            "bge": [0.5, 0.6],
+            "pepco": [0.2, 0.4],
+        }
+    )
+    out = zero_excluded_utilities_and_renormalize(
+        puma_elec_probs,
+        excluded_utilities=frozenset({"berlin_muni", "hagerstown_muni"}),
+        label="electric",
+    )
+    df = cast(pl.DataFrame, out.collect())
+    row = df.filter(pl.col("puma_id") == "00100").to_dicts()[0]
+    assert row["berlin_muni"] == 0.0
+    assert abs(row["bge"] + row["pepco"] - 1.0) < 1e-9
+    assert abs(row["bge"] - 0.5 / 0.7) < 1e-9
+
+
+def test_md_excluded_electric_utilities_in_state_configs():
+    """MD excluded_electric_utilities lists the small municipals + somerset_rec."""
+    from data.resstock.utils import load_state_configs
+
+    kwargs = load_state_configs()["MD"]["utility_assignment"]["kwargs"]
+    assert set(kwargs["excluded_electric_utilities"]) == {
+        "berlin_muni",
+        "hagerstown_muni",
+        "easton_muni",
+        "somerset_rec",
+    }
+    assert kwargs["excluded_gas_utilities"] == ["easton_muni"]

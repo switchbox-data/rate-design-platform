@@ -50,7 +50,7 @@ from data.resstock.utility.utils import (
     load_pumas,
     print_comparison_summary,
     sample_utility_per_building,
-    zero_excluded_gas_utilities_and_renormalize,
+    zero_excluded_utilities_and_renormalize,
 )
 
 # ── MD-specific constants ─────────────────────────────────────────────────────
@@ -72,6 +72,7 @@ def assign_utility(
     state_crs: int,
     puma_year: int,
     excluded_gas_utilities: list[str] | None = None,
+    excluded_electric_utilities: list[str] | None = None,
     puma_cache_dir: str | None = None,
     hifld_cache_dir: str | None = None,
     **_kwargs: object,
@@ -88,6 +89,8 @@ def assign_utility(
         puma_year: Census TIGER/Line PUMA vintage year (2019 for 2010-def).
         excluded_gas_utilities: Standardised gas utility names whose PUMA
             probabilities are zeroed before sampling (default: none).
+        excluded_electric_utilities: Standardised electric utility names
+            whose PUMA probabilities are zeroed before sampling (default: none).
         puma_cache_dir: Root local directory for the PUMA shapefile cache.
             Defaults to ``paths.gis_cache_dir`` in ``config.yaml``.
         hifld_cache_dir: Root local directory for national HIFLD parquets.
@@ -124,6 +127,9 @@ def assign_utility(
         excluded_gas_utilities=frozenset(excluded_gas_utilities)
         if excluded_gas_utilities is not None
         else frozenset(),
+        excluded_electric_utilities=frozenset(excluded_electric_utilities)
+        if excluded_electric_utilities is not None
+        else frozenset(),
     )
 
 
@@ -137,6 +143,7 @@ def assign_utility_md(
     pumas: gpd.GeoDataFrame,
     state_crs: int,
     excluded_gas_utilities: frozenset[str] = frozenset(),
+    excluded_electric_utilities: frozenset[str] = frozenset(),
 ) -> pl.LazyFrame:
     """Assign electric and gas utilities to ResStock buildings in MD.
 
@@ -155,6 +162,8 @@ def assign_utility_md(
         state_crs: EPSG code for the MD projected CRS.
         excluded_gas_utilities: Gas utility names whose PUMA probabilities
             are zeroed before sampling (default: empty).
+        excluded_electric_utilities: Electric utility names whose PUMA
+            probabilities are zeroed before sampling (default: empty).
 
     Returns:
         LazyFrame with all original metadata columns plus
@@ -194,12 +203,22 @@ def assign_utility_md(
     )
     puma_gas_probs = fill_missing_puma_probabilities(puma_gas_probs, pumas, label="gas")
 
+    if excluded_electric_utilities:
+        puma_elec_probs = zero_excluded_utilities_and_renormalize(
+            puma_elec_probs,
+            excluded_utilities=excluded_electric_utilities,
+            pumas=pumas,
+            puma_and_heating_fuel=puma_and_heating_fuel,
+            label="electric",
+        )
+
     if excluded_gas_utilities:
-        puma_gas_probs = zero_excluded_gas_utilities_and_renormalize(
+        puma_gas_probs = zero_excluded_utilities_and_renormalize(
             puma_gas_probs,
             excluded_utilities=excluded_gas_utilities,
             pumas=pumas,
             puma_and_heating_fuel=puma_and_heating_fuel,
+            label="gas",
         )
 
     building_elec = sample_utility_per_building(

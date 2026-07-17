@@ -13,22 +13,29 @@ How electric and gas utilities are assigned to ResStock buildings — generic ar
 - **Inputs:** ResStock metadata (with `in.puma`, `in.heating_fuel`, `has_natgas_connection`), electric and gas utility service-territory polygons (CSV with WKT), Census PUMAs (pygris).
 - **Outputs:** Same metadata with `sb.electric_utility` and `sb.gas_utility` added (or overwritten).
 - **Logic:** PUMA–utility overlap → PUMA-level probability tables → per-building sampling (deterministic seed). Electric: every building gets an electric utility. Gas: only buildings with `has_natgas_connection` get a gas utility; others get null.
-- **Generic functions:** `create_hh_utilities()`, `zero_excluded_gas_utilities_and_renormalize()`, `fill_missing_puma_probabilities()`, `calculate_puma_utility_overlap()`, `calculate_utility_probabilities()`, `calculate_prior_distributions()`, `sample_utility_per_building()`, `print_comparison_summary()`, `puma_id_series_for_join()`, `read_csv_to_gdf_from_s3()` all live in `data/resstock/utility/utils.py` and are state-generic.
+- **Generic functions:** `create_hh_utilities()`, `zero_excluded_utilities_and_renormalize()`, `fill_missing_puma_probabilities()`, `calculate_puma_utility_overlap()`, `calculate_utility_probabilities()`, `calculate_prior_distributions()`, `sample_utility_per_building()`, `print_comparison_summary()`, `puma_id_series_for_join()`, `read_csv_to_gdf_from_s3()` all live in `data/resstock/utility/utils.py` and are state-generic.
 
 ---
 
-## Excluded gas utilities
+## Excluded utilities (gas and electric)
 
-A fixed set of **excluded gas utilities** are excluded from assignment: their prior probability is set to zero before sampling.
+A fixed set of **excluded utilities** can be dropped from assignment: their prior
+probability is set to zero before sampling.
 
-- **Constant:** `EXCLUDED_GAS_UTILITIES` in `assign_utility_ny.py` (loaded from `data/resstock/state_configs.yaml` → `NY.utility_assignment.kwargs.excluded_gas_utilities`):
-  - `bath`, `chautauqua`, `corning`, `fillmore`, `reserve`, `stlaw`
-- **Rationale:** These utilities have very few customers; we do not assign ResStock buildings to them for rate-design/BAT purposes.
-- **Implementation:** `zero_excluded_gas_utilities_and_renormalize()` (in `data/resstock/utility/utils.py`), called from `create_hh_utilities()` when `excluded_gas_utilities` is non-empty:
+- **Config:** `excluded_gas_utilities` and/or `excluded_electric_utilities` under
+  `data/resstock/state_configs.yaml` → `<STATE>.utility_assignment.kwargs`.
+- **NY gas example:** `bath`, `chautauqua`, `corning`, `fillmore`, `reserve`, `stlaw`
+  (loaded in `assign_utility_ny.py` as `EXCLUDED_GAS_UTILITIES`).
+- **Rationale:** These utilities have very few customers; we do not assign ResStock
+  buildings to them for rate-design/BAT purposes. They remain in `utility_codes.py`.
+- **Implementation:** `zero_excluded_utilities_and_renormalize()` (in
+  `data/resstock/utility/utils.py`), invoked when the
+  corresponding exclude list is non-empty:
   1. Set to 0 the probability columns whose name is in `excluded_utilities`.
-  2. For each PUMA row, if the remaining (non-excluded) gas probabilities sum to zero, the PUMA is "bad" and must be handled (see below).
-  3. Otherwise, renormalize each row so gas probabilities sum to 1.
-  4. Final gas probability table is used by `sample_utility_per_building(..., only_when_fuel="Natural Gas")`.
+  2. For each PUMA row, if the remaining probabilities sum to zero, the PUMA is
+     "bad" and must be handled (see below).
+  3. Otherwise, renormalize each row so probabilities sum to 1.
+  4. Final probability table is used by `sample_utility_per_building`.
 
 ---
 
@@ -36,7 +43,7 @@ A fixed set of **excluded gas utilities** are excluded from assignment: their pr
 
 If, for a given PUMA, **all** gas probability was in excluded utilities, then after zeroing that PUMA has no gas utility left. Two behaviors:
 
-1. **`pumas` not provided:** `zero_excluded_gas_utilities_and_renormalize(..., pumas=None)` raises `ValueError` with the affected `puma_id`(s).
+1. **`pumas` not provided:** `zero_excluded_utilities_and_renormalize(..., pumas=None)` raises `ValueError` with the affected `puma_id`(s).
 2. **`pumas` provided (GeoDataFrame):** A **donor** PUMA is chosen and its gas probability row is used for the bad PUMA.
    - **Donor selection:** Prefer a **good** PUMA (non-zero gas probability after exclusion) that is **adjacent** to the bad PUMA (geometries touch). Among adjacent good PUMAs, choose the one whose centroid is closest to the bad PUMA's centroid. If no adjacent good PUMA exists, use the good PUMA with the nearest centroid (fallback).
    - **Result:** The bad PUMA's row is replaced by the donor's gas probability row; then all rows are renormalized so each sums to 1.
@@ -52,7 +59,7 @@ PUMA identifiers can appear as integers or strings (e.g. `100` vs `"00100"`). Fo
   - If `PUMACE10` exists: `pumas["PUMACE10"].astype(str).str.zfill(5)`.
   - Else if `GEOID` exists: last 5 characters of `GEOID`.
   - Else `None`.
-- Bad/donor PUMA matching in `zero_excluded_gas_utilities_and_renormalize` uses this normalization (e.g. `str(bad_puma_id).zfill(5)`) so that geometry lookups and probability row replacement are consistent.
+- Bad/donor PUMA matching in `zero_excluded_utilities_and_renormalize` uses this normalization (e.g. `str(bad_puma_id).zfill(5)`) so that geometry lookups and probability row replacement are consistent.
 
 ---
 
@@ -81,7 +88,7 @@ After zeroing excluded gas utilities (and optionally replacing bad-PUMA rows wit
 
 - `EXCLUDED_GAS_UTILITIES` constant (loaded from `state_configs.yaml`).
 - `puma_id_series_for_join` (PUMACE10, GEOID, missing columns).
-- `zero_excluded_gas_utilities_and_renormalize`: no excluded cols (unchanged); zero + renormalize; bad PUMA with `pumas=None` (raises); bad PUMA with `pumas` and touching geometries (donor used, row sums to 1).
+- `zero_excluded_utilities_and_renormalize`: no excluded cols (unchanged); zero + renormalize; bad PUMA with `pumas=None` (raises); bad PUMA with `pumas` and touching geometries (donor used, row sums to 1).
 - Other helpers: `calculate_utility_probabilities`, `calculate_prior_distributions`, `sample_utility_per_building` (determinism, gas only when `has_natgas_connection`, etc.).
 
 ---
@@ -189,6 +196,16 @@ Gas coverage gaps remain (HIFLD gas boundaries still have the same rural/suburba
   HIFLD names). Assignment zeros its PUMA gas probability and renormalizes;
   donor-PUMA fill applies if a PUMA would otherwise have no gas utility left.
 
+### Excluded electric utilities
+
+`excluded_electric_utilities` for MD (same zero + renormalize / donor-PUMA
+mechanism as gas, via `zero_excluded_utilities_and_renormalize(..., label="electric")`):
+
+- `berlin_muni`
+- `hagerstown_muni`
+- `easton_muni`
+- `somerset_rec`
+
 ### State_configs.yaml for MD
 
 ```yaml
@@ -202,6 +219,11 @@ MD:
       puma_year: 2019
       excluded_gas_utilities:
         - easton_muni
+      excluded_electric_utilities:
+        - berlin_muni
+        - hagerstown_muni
+        - easton_muni
+        - somerset_rec
 ```
 
 ### Full MD pipeline (start to finish)
@@ -264,6 +286,8 @@ XX:
       gas_poly_filename: xx_gas_utilities_YYYYMMDD.csv
       excluded_gas_utilities:    # optional — gas utility names to zero before sampling
         - smallutil1
+      excluded_electric_utilities:  # optional — electric utility names to zero
+        - smallmuni1
 ```
 
 **How `SUPPORTED_UTILITY_STATES` is derived:** `assign_utility.py` reads `state_configs.yaml` at import time and includes every state whose entry contains a `utility_assignment` key. Adding the key is enough; no manual set update is needed.

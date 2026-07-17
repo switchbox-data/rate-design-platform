@@ -64,7 +64,7 @@ from data.resstock.utility.utils import (
     load_pumas,
     print_comparison_summary,
     sample_utility_per_building,
-    zero_excluded_gas_utilities_and_renormalize,
+    zero_excluded_utilities_and_renormalize,
 )
 
 # ── CT-specific constants ─────────────────────────────────────────────────────
@@ -209,11 +209,12 @@ def assign_utility_ct(
     puma_gas_probs = fill_missing_puma_probabilities(puma_gas_probs, pumas, label="gas")
 
     if excluded_gas_utilities:
-        puma_gas_probs = zero_excluded_gas_utilities_and_renormalize(
+        puma_gas_probs = zero_excluded_utilities_and_renormalize(
             puma_gas_probs,
             excluded_utilities=excluded_gas_utilities,
             pumas=pumas,
             puma_and_heating_fuel=puma_and_heating_fuel,
+            label="gas",
         )
 
     building_elec = sample_utility_per_building(

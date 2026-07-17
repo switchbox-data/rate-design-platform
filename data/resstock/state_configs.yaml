@@ -76,6 +76,13 @@ MD:
       # renormalized (donor PUMA if a row would go all-zero).
       excluded_gas_utilities:
         - easton_muni
+      # Small electric municipals + Somerset REC excluded from assignment
+      # (same zero + renormalize / donor-PUMA pattern as gas).
+      excluded_electric_utilities:
+        - berlin_muni
+        - hagerstown_muni
+        - easton_muni
+        - somerset_rec
 CT:
   state_fips: "09"
   add_vulnerability_columns: false

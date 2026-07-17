@@ -835,71 +835,79 @@ def fill_missing_puma_probabilities(
     return pl.concat([probs_df, pl.concat(new_rows)]).lazy()
 
 
-def zero_excluded_gas_utilities_and_renormalize(
-    puma_gas_probs: pl.LazyFrame,
+def zero_excluded_utilities_and_renormalize(
+    puma_probs: pl.LazyFrame,
     excluded_utilities: frozenset[str],
     pumas: gpd.GeoDataFrame | None = None,
     puma_and_heating_fuel: pl.LazyFrame | None = None,
+    *,
+    label: str = "gas",
 ) -> pl.LazyFrame:
-    """Set prior probability to zero for excluded gas utilities; renormalize.
+    """Set prior probability to zero for excluded utilities; renormalize.
 
-    For each PUMA row, columns corresponding to *excluded_utilities* are set
-    to 0, then the row is renormalized so probabilities sum to 1.  If any PUMA
-    would have all gas utilities zeroed (no gas utility left with positive
-    probability), either raises ``ValueError`` (when *pumas* is ``None``) or
-    uses the nearest-neighbor PUMA's gas probability distribution (when *pumas*
-    is provided).  When *puma_and_heating_fuel* is provided, prints how many
-    gas buildings (``has_natgas_connection``) are in each affected PUMA.
+    Works for either electric or gas probability tables.  For each PUMA row,
+    columns in *excluded_utilities* are set to 0, then the row is renormalized
+    so probabilities sum to 1.  If any PUMA would have all utilities zeroed,
+    either raises ``ValueError`` (when *pumas* is ``None``) or uses the
+    nearest-neighbor PUMA's probability distribution (when *pumas* is
+    provided).
+
+    When *puma_and_heating_fuel* is provided, debug output includes building
+    counts per affected PUMA: for ``label="gas"`` only
+    ``has_natgas_connection`` buildings are counted; for ``label="electric"``
+    all buildings in the PUMA are counted.
 
     Args:
-        puma_gas_probs: Wide-format LazyFrame with ``puma_id`` and gas
-            utility probability columns.
-        excluded_utilities: Set of utility column names whose prior
-            probability should be zeroed.
-        pumas: Census PUMA GeoDataFrame (needed for nearest-neighbor
-            donor resolution).
+        puma_probs: Wide-format LazyFrame with ``puma_id`` and one probability
+            column per utility.
+        excluded_utilities: Utility column names whose prior probability
+            should be zeroed.
+        pumas: Census PUMA GeoDataFrame (needed for nearest-neighbor donor
+            resolution).
         puma_and_heating_fuel: LazyFrame with ``bldg_id``, ``puma``,
             ``heating_fuel``, ``has_natgas_connection`` (for debug counts).
+        label: ``"gas"`` or ``"electric"`` — used in log/error messages and
+            to select the building-count filter.
     """
-    gas_probs_df = cast(pl.DataFrame, puma_gas_probs.collect())
-    utility_cols = [c for c in gas_probs_df.columns if c != "puma_id"]
+    probs_df = cast(pl.DataFrame, puma_probs.collect())
+    utility_cols = [c for c in probs_df.columns if c != "puma_id"]
     excluded_cols = [c for c in utility_cols if c in excluded_utilities]
 
     if not excluded_cols:
-        return puma_gas_probs
+        return puma_probs
 
-    gas_probs_df_before_zero = gas_probs_df.clone()
+    probs_df_before_zero = probs_df.clone()
 
-    gas_probs_df = gas_probs_df.with_columns(
-        [pl.lit(0.0).alias(c) for c in excluded_cols]
-    )
+    probs_df = probs_df.with_columns([pl.lit(0.0).alias(c) for c in excluded_cols])
 
-    row_sums = gas_probs_df.select(pl.sum_horizontal(utility_cols)).to_series()
-    gas_probs_df = gas_probs_df.with_columns(row_sums.alias("_row_sum"))
+    row_sums = probs_df.select(pl.sum_horizontal(utility_cols)).to_series()
+    probs_df = probs_df.with_columns(row_sums.alias("_row_sum"))
     bad_mask = row_sums == 0
 
     if bad_mask.any():
-        bad_puma_ids = gas_probs_df.filter(bad_mask)["puma_id"].to_list()
+        bad_puma_ids = probs_df.filter(bad_mask)["puma_id"].to_list()
         if pumas is None:
             raise ValueError(
-                "Zero gas probability for all utilities in PUMA(s) after excluding "
-                f"excluded gas utilities {sorted(excluded_utilities)}. Affected puma_id(s): {bad_puma_ids}. "
-                "Excluding these utilities leaves no gas utility with positive probability."
+                f"Zero {label} probability for all utilities in PUMA(s) after excluding "
+                f"excluded {label} utilities {sorted(excluded_utilities)}. "
+                f"Affected puma_id(s): {bad_puma_ids}. "
+                f"Excluding these utilities leaves no {label} utility with positive "
+                "probability."
             )
 
-        gas_bldg_counts: dict[str, int] = {}
+        bldg_counts: dict[str, int] = {}
         if puma_and_heating_fuel is not None:
+            counts_lf = puma_and_heating_fuel
+            if label == "gas":
+                counts_lf = counts_lf.filter(pl.col("has_natgas_connection"))
             counts_df = cast(
                 pl.DataFrame,
-                puma_and_heating_fuel.filter(pl.col("has_natgas_connection"))
-                .group_by("puma")
-                .agg(pl.len().alias("n_bldgs"))
-                .collect(),
+                counts_lf.group_by("puma").agg(pl.len().alias("n_bldgs")).collect(),
             )
             for row in counts_df.iter_rows(named=True):
                 puma_val = row["puma"]
                 key = str(puma_val).zfill(5) if puma_val is not None else ""
-                gas_bldg_counts[key] = int(row["n_bldgs"])
+                bldg_counts[key] = int(row["n_bldgs"])
 
         puma_id_in_pumas = puma_id_series_for_join(pumas)
         if puma_id_in_pumas is None:
@@ -909,11 +917,11 @@ def zero_excluded_gas_utilities_and_renormalize(
         pumas = pumas.copy()
         pumas["_puma_id"] = puma_id_in_pumas.values
 
-        good_df = gas_probs_df.filter(~bad_mask)
+        good_df = probs_df.filter(~bad_mask)
         good_puma_ids = good_df["puma_id"].to_list()
         if not good_puma_ids:
             raise ValueError(
-                "No PUMA has non-zero gas probability after excluding small utilities; "
+                f"No PUMA has non-zero {label} probability after excluding utilities; "
                 "cannot assign nearest neighbor."
             )
 
@@ -966,9 +974,7 @@ def zero_excluded_gas_utilities_and_renormalize(
                     if d < best_dist:
                         best_dist = d
                         best_donor = good_str
-                nn_note = (
-                    "no adjacent PUMA with gas; using nearest by centroid (fallback)"
-                )
+                nn_note = f"no adjacent PUMA with {label}; using nearest by centroid (fallback)"
 
             if best_donor is None:
                 raise ValueError(f"No donor PUMA found for bad PUMA {bad_puma_id!r}.")
@@ -994,15 +1000,15 @@ def zero_excluded_gas_utilities_and_renormalize(
                 )
             )
 
-            orig_row_df = gas_probs_df_before_zero.filter(
+            orig_row_df = probs_df_before_zero.filter(
                 pl.col("puma_id").cast(pl.Utf8).str.zfill(5) == bad_str
             )
             if orig_row_df.height == 0:
-                orig_row_df = gas_probs_df_before_zero.filter(
+                orig_row_df = probs_df_before_zero.filter(
                     pl.col("puma_id").cast(pl.Utf8) == bad_str
                 )
             if orig_row_df.height == 0:
-                orig_row_df = gas_probs_df_before_zero.filter(
+                orig_row_df = probs_df_before_zero.filter(
                     pl.col("puma_id") == bad_puma_id
                 )
             orig_vals = (
@@ -1032,15 +1038,21 @@ def zero_excluded_gas_utilities_and_renormalize(
             )
             row_sum_before = sum(orig_probs.get(u, 0) for u in utility_cols)
 
-            n_bldgs = gas_bldg_counts.get(bad_str, 0)
-            print(
-                f"PUMA {bad_puma_id!r} had zero gas probability "
-                f"after excluding utilities; using donor PUMA {best_donor!r} "
-                f"({nn_note}; distance={best_dist:.0f} m). "
-                f"Affected bldg_ids (gas buildings in this PUMA): {n_bldgs}."
+            n_bldgs = bldg_counts.get(bad_str, 0)
+            bldg_desc = (
+                "gas buildings in this PUMA"
+                if label == "gas"
+                else "buildings in this PUMA"
             )
             print(
-                f"  Excluded gas utilities zeroed in this PUMA: {excluded_that_had_prob}; "
+                f"PUMA {bad_puma_id!r} had zero {label} probability "
+                f"after excluding utilities; using donor PUMA {best_donor!r} "
+                f"({nn_note}; distance={best_dist:.0f} m). "
+                f"Affected bldg_ids ({bldg_desc}): {n_bldgs}."
+            )
+            print(
+                f"  Excluded {label} utilities zeroed in this PUMA: "
+                f"{excluded_that_had_prob}; "
                 f"their prior probs before removal: {small_probs_before}."
             )
             print(
@@ -1050,20 +1062,20 @@ def zero_excluded_gas_utilities_and_renormalize(
                 u for u in utility_cols if orig_probs.get(u, 0) > 0
             ):
                 print(
-                    "  → So before the fix, all gas bldg_ids in this PUMA would have been "
+                    f"  → So before the fix, all {label} bldg_ids in this PUMA would have been "
                     f"assigned to one of {excluded_that_had_prob}."
                 )
             print(f"  After nearest-neighbor approximation: {after_nn_str}")
 
-        gas_probs_df = pl.concat([good_df, pl.concat(fixed_rows)])
+        probs_df = pl.concat([good_df, pl.concat(fixed_rows)])
 
-    gas_probs_df = gas_probs_df.drop("_row_sum")
+    probs_df = probs_df.drop("_row_sum")
 
-    row_sums = gas_probs_df.select(pl.sum_horizontal(utility_cols)).to_series()
-    gas_probs_df = gas_probs_df.with_columns(
+    row_sums = probs_df.select(pl.sum_horizontal(utility_cols)).to_series()
+    probs_df = probs_df.with_columns(
         [(pl.col(c) / row_sums).alias(c) for c in utility_cols]
     )
-    return gas_probs_df.lazy()
+    return probs_df.lazy()
 
 
 # ---------------------------------------------------------------------------
@@ -1079,6 +1091,7 @@ def create_hh_utilities(
     utility_name_map: pl.LazyFrame,
     state_crs: int,
     excluded_gas_utilities: frozenset[str] = frozenset(),
+    excluded_electric_utilities: frozenset[str] = frozenset(),
     fill_missing_pumas: bool = False,
 ) -> pl.LazyFrame:
     """Create a LazyFrame of households with their associated utilities.
@@ -1098,6 +1111,8 @@ def create_hh_utilities(
         state_crs: EPSG code of the projected CRS for area calculations.
         excluded_gas_utilities: Gas utility names whose prior probability
             should be zeroed before sampling (default: empty).
+        excluded_electric_utilities: Electric utility names whose prior
+            probability should be zeroed before sampling (default: empty).
         fill_missing_pumas: When ``True``, PUMAs with no utility polygon
             coverage (absent from the overlap table) are filled using the
             nearest covered PUMA's distribution.  Use for states where the
@@ -1131,12 +1146,22 @@ def create_hh_utilities(
             puma_gas_probs, pumas, label="gas"
         )
 
+    if excluded_electric_utilities:
+        puma_elec_probs = zero_excluded_utilities_and_renormalize(
+            puma_elec_probs,
+            excluded_utilities=excluded_electric_utilities,
+            pumas=pumas,
+            puma_and_heating_fuel=puma_and_heating_fuel,
+            label="electric",
+        )
+
     if excluded_gas_utilities:
-        puma_gas_probs = zero_excluded_gas_utilities_and_renormalize(
+        puma_gas_probs = zero_excluded_utilities_and_renormalize(
             puma_gas_probs,
             excluded_utilities=excluded_gas_utilities,
             pumas=pumas,
             puma_and_heating_fuel=puma_and_heating_fuel,
+            label="gas",
         )
 
     elec_prior_weighted, gas_prior_weighted = calculate_prior_distributions(
