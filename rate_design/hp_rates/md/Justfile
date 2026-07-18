@@ -106,6 +106,34 @@ split-chesapeake-gas-tariffs:
       --output-dir "{{ path_tariffs_gas }}"
 
 # =============================================================================
+# MD-only: gas tariff maps
+#
+# MD has 6 modeled electric utilities (excluded municipals / somerset_rec are
+# dropped from assignment, so their buildings get null_gas_tariff).
+# For each we generate tariff_maps/gas/<utility>_u00.csv and _u02.csv.
+#
+# Chesapeake-territory RES-1/RES-2 split reads load_curve_annual from the raw
+# NREL release (passed automatically by the shared create-gas-tariff-map recipe).
+#
+#   just -f md/Justfile create-gas-tariff-maps-md-all   # all 6 utilities × 2 upgrades
+#   just -f md/Justfile create-gas-tariff-map bge 00 …  # one utility / upgrade
+# =============================================================================
+
+md_electric_utilities := "bge pepco dpl poted smeco choptank"
+
+create-gas-tariff-maps-md-all:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p {{ path_tariff_maps }}/gas
+    for utility in {{ md_electric_utilities }}; do
+        for upgrade in 00 02; do
+            echo ">> MD gas tariff map: utility=${utility} upgrade=${upgrade}" >&2
+            just create-gas-tariff-map "${utility}" "${upgrade}" "{{ path_tariff_maps }}/gas"
+        done
+    done
+    echo ">> Done: all MD gas tariff maps" >&2
+
+# =============================================================================
 # MD-only: ISO-native load source for sub-TX/DX marginal costs
 #
 # MD reads PJM-native utility loads (data/pjm/hourly_demand/) instead of the

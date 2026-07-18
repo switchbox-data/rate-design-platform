@@ -89,6 +89,8 @@ path_supply_energy_mc := env_var_or_default('SUPPLY_ENERGY_MC', "s3://data.sb/sw
 path_supply_capacity_mc := env_var_or_default('SUPPLY_CAPACITY_MC', "s3://data.sb/switchbox/marginal_costs/" + state + "/supply/capacity/utility=" + utility + "/year=" + mc_year + "/data.parquet")
 path_supply_ancillary_mc := env_var_or_default('SUPPLY_ANCILLARY_MC', "")
 path_resstock_release := "/ebs/data/nrel/resstock/res_2024_amy2018_2_sb"
+# Raw NREL release (no _sb): full-population load_curve_annual lives here.
+path_resstock_raw := "/ebs/data/nrel/resstock/res_2024_amy2018_2"
 path_resstock_metadata := path_resstock_release + "/metadata"
 path_utility_assignment := path_resstock_release + "/metadata_utility"
 path_resstock_loads_00 := path_resstock_release + "/load_curve_hourly/state=" + state_upper + "/upgrade=" + upgrade
@@ -344,7 +346,8 @@ create-gas-tariff-map electric_utility upgrade_id output_dir:
       "{{ state_upper }}" \
       "{{ electric_utility }}" \
       "{{ upgrade_id }}" \
-      "{{ output_dir }}"
+      "{{ output_dir }}" \
+      "{{ path_resstock_raw }}/load_curve_annual/state={{ state_upper }}/upgrade={{ upgrade_id }}"
 
 create-gas-tariff-maps-all:
     just create-gas-tariff-map {{ utility }} "00" {{ path_tariff_maps }}/gas

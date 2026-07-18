@@ -33,14 +33,17 @@ write-tariff-maps-all scenarios_dir:
     done
 
 # Create gas tariff map for a given electric utility.
-create-gas-tariff-map metadata_path utility_assignment_path state electric_utility upgrade_id output_dir:
+# path_load_curve_annual: optional; needed for MD Chesapeake RES-1/RES-2 (annual therms).
+# If empty, the mapper auto-derives the raw-release sibling of an *_sb metadata root.
+create-gas-tariff-map metadata_path utility_assignment_path state electric_utility upgrade_id output_dir path_load_curve_annual="":
     uv run python {{ project_root }}/utils/pre/gas_tariff_mapper.py \
       --metadata_path "{{ metadata_path }}" \
       --utility_assignment_path "{{ utility_assignment_path }}" \
       --state "{{ state }}" \
       --upgrade_id "{{ upgrade_id }}" \
       --electric_utility "{{ electric_utility }}" \
-      --output_dir "{{ output_dir }}"
+      --output_dir "{{ output_dir }}" \
+      {{ if path_load_curve_annual != "" { "--path_load_curve_annual \"" + path_load_curve_annual + "\"" } else { "" } }}
 
 # Derive seasonal TOU tariff + derivation spec. Rates are derived directly from MC
 # without rescaling to any reference base rate (CAIRO precalc calibrates revenue neutrality).
