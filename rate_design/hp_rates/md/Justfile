@@ -108,19 +108,58 @@ split-chesapeake-gas-tariffs:
 # =============================================================================
 # MD-only: gas tariff maps
 #
-# MD has 6 modeled electric utilities (excluded municipals / somerset_rec are
-# dropped from assignment, so their buildings get null_gas_tariff).
-# For each we generate tariff_maps/gas/<utility>_u00.csv and _u02.csv.
+# Gas tariff maps are partitioned by electric utility (output:
+# tariff_maps/gas/<electric_utility>_u00.csv and _u02.csv). MD has 7 modeled
+# gas utilities (bge, washington_gas, columbia_gas_md, chesapeake_utilities,
+# sandpiper, elkton_gas, ugi_central_penn) served across 6 modeled electric
+# utilities; excluded municipals (easton_muni) and somerset_rec get
+# null_gas_tariff.
 #
 # Chesapeake-territory RES-1/RES-2 split reads load_curve_annual from the raw
 # NREL release (passed automatically by the shared create-gas-tariff-map recipe).
 #
-#   just -f md/Justfile create-gas-tariff-maps-md-all   # all 6 utilities × 2 upgrades
-#   just -f md/Justfile create-gas-tariff-map bge 00 …  # one utility / upgrade
+# Shortcuts (upgrade 00 only — quick per-utility run):
+#   just -f md/Justfile map-gas-bge
+#   just -f md/Justfile map-gas-all-utilities
+#
+# Full batch (upgrades 00 + 02):
+#   just -f md/Justfile create-gas-tariff-maps-md-all
 # =============================================================================
 
+# Electric utilities for which gas tariff maps are generated (covers all 7
+# modeled MD gas utilities across these 6 electric service territories).
 md_electric_utilities := "bge pepco dpl poted smeco choptank"
 
+# Per-utility shortcuts (upgrade 00). Mirror NY map-gas-<name> convention.
+map-gas-bge:
+    just create-gas-tariff-map bge 00 {{ path_tariff_maps }}/gas
+
+map-gas-pepco:
+    just create-gas-tariff-map pepco 00 {{ path_tariff_maps }}/gas
+
+map-gas-dpl:
+    just create-gas-tariff-map dpl 00 {{ path_tariff_maps }}/gas
+
+map-gas-poted:
+    just create-gas-tariff-map poted 00 {{ path_tariff_maps }}/gas
+
+map-gas-smeco:
+    just create-gas-tariff-map smeco 00 {{ path_tariff_maps }}/gas
+
+map-gas-choptank:
+    just create-gas-tariff-map choptank 00 {{ path_tariff_maps }}/gas
+
+# Run upgrade-00 gas tariff maps for all 6 MD electric utilities.
+map-gas-all-utilities:
+    mkdir -p {{ path_tariff_maps }}/gas
+    just map-gas-bge
+    just map-gas-pepco
+    just map-gas-dpl
+    just map-gas-poted
+    just map-gas-smeco
+    just map-gas-choptank
+
+# Full batch: upgrades 00 + 02 for all 6 MD electric utilities.
 create-gas-tariff-maps-md-all:
     #!/usr/bin/env bash
     set -euo pipefail
