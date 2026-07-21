@@ -7,16 +7,16 @@ Supply MC Google Sheet column formulas
 --------------------------------------
 
 path_supply_energy_mc (required):
-    NY supply runs (add_supply_revenue_requirement=TRUE):
+    NY supply runs (run_includes_supply=TRUE):
         "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" & LOWER($B18) & "/year=2025/data.parquet"
     NY delivery-only runs:
         "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" & LOWER($B18) & "/year=2025/zero.parquet"
-    RI supply runs (add_supply_revenue_requirement=TRUE):
+    RI supply runs (run_includes_supply=TRUE):
         "s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=" & LOWER($B18) & "/year=2025/data.parquet"
     RI delivery-only runs:
         "s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=" & LOWER($B18) & "/year=2025/zero.parquet"
 
-    Full formula (where E18 = add_supply_revenue_requirement column, X = TRUE):
+    Full formula (where E18 = run_includes_supply column, X = TRUE):
     =IF(AND($A18="NY", E18="X"),
         "s3://data.sb/switchbox/marginal_costs/ny/supply/energy/utility=" & LOWER($B18) & "/year=2025/data.parquet",
         IF(AND($A18="NY", E18<>"X"),
@@ -29,16 +29,16 @@ path_supply_energy_mc (required):
     Zero parquets are placeholders for delivery-only runs where supply MCs are not needed.
 
 path_supply_capacity_mc (required):
-    NY supply runs (add_supply_revenue_requirement=TRUE):
+    NY supply runs (run_includes_supply=TRUE):
         "s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=" & LOWER($B18) & "/year=2025/data.parquet"
     NY delivery-only runs:
         "s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=" & LOWER($B18) & "/year=2025/zero.parquet"
-    RI supply runs (add_supply_revenue_requirement=TRUE):
+    RI supply runs (run_includes_supply=TRUE):
         "s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=" & LOWER($B18) & "/year=2025/data.parquet"
     RI delivery-only runs:
         "s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=" & LOWER($B18) & "/year=2025/zero.parquet"
 
-    Full formula (where E18 = add_supply_revenue_requirement column, X = TRUE):
+    Full formula (where E18 = run_includes_supply column, X = TRUE):
     =IF(AND($A18="NY", E18="X"),
         "s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=" & LOWER($B18) & "/year=2025/data.parquet",
         IF(AND($A18="NY", E18<>"X"),
@@ -53,14 +53,14 @@ path_supply_capacity_mc (required):
     NY uses separate NYISO LBMP + ICAP parquets for supply runs, and zero-filled parquets for delivery-only runs.
 
 path_supply_ancillary_mc (optional):
-    RI supply runs (add_supply_revenue_requirement=TRUE):
+    RI supply runs (run_includes_supply=TRUE):
         "s3://data.sb/switchbox/marginal_costs/ri/supply/ancillary/utility=" & LOWER($B18) & "/year=2025/data.parquet"
     RI delivery-only runs:
         "" (empty, not used)
     NY runs:
         "" (empty, not used)
 
-    Full formula (where E18 = add_supply_revenue_requirement column, X = TRUE):
+    Full formula (where E18 = run_includes_supply column, X = TRUE):
     =IF(AND($A18="RI", E18="X"),
         "s3://data.sb/switchbox/marginal_costs/ri/supply/ancillary/utility=" & LOWER($B18) & "/year=2025/data.parquet",
         "")
@@ -112,13 +112,6 @@ path_tou_supply_mc formula (for runs where num = 13 or 14):
 
     After updating the Google Sheet, run: just s <state> create-scenario-yamls
     (reads SCENARIO_SHEET_ID from rate_design/hp_rates/<state>/state.env).
-
-    Electric heat seasonal tariff filenames (NY runs 33–36):
-        Repo tariffs/maps were renamed from ``*_elec_heat_seasonal_epmc*`` to
-        ``*_elec_heat_seasonal*``. The sheet may still contain the old token;
-        ``create_scenario_yamls`` normalizes those path strings when writing YAML
-        so CAIRO resolves existing files. Prefer updating sheet formulas to the
-        new names when convenient.
 """
 
 from __future__ import annotations
@@ -169,16 +162,24 @@ def _normalize_header(name: str) -> str:
     return s
 
 
-def _normalize_deprecated_elec_heat_seasonal_paths(value: str) -> str:
-    """Rewrite deprecated ``_elec_heat_seasonal_epmc`` path segments to ``_elec_heat_seasonal``.
-
-    Tariff JSON and tariff-map CSVs were renamed on disk; the Runs & Charts sheet
-    may still emit the old filenames. This does not alter ``hp_seasonal_epmc`` or
-    other keys that do not contain ``_elec_heat_seasonal_epmc``.
-    """
-    if not value:
-        return value
-    return value.replace("_elec_heat_seasonal_epmc", "_elec_heat_seasonal")
+def _require_utility_for_data_row(
+    row: dict[str, str],
+    *,
+    state_key: str,
+    utility_key: str,
+    num_key: str,
+) -> None:
+    """Raise if a sheet row has state set but utility is missing or invalid."""
+    state_val = (row.get(state_key) or "").strip()
+    if not state_val:
+        return
+    utility_val = (row.get(utility_key) or "").strip()
+    num_val = (row.get(num_key) or "").strip()
+    if not utility_val or utility_val.isdigit():
+        raise ValueError(
+            f"Row with state={state_val!r} num={num_val!r} has blank or invalid "
+            f"utility {utility_val!r}. Fill the utility column for every data row."
+        )
 
 
 def _path_tariffs_to_dict(comma_separated: str) -> dict[str, str]:
@@ -407,25 +408,17 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         "path_tariffs_gas",
         "path_outputs",
     ):
-        val = get(key)
-        if key == "path_tariff_maps_electric":
-            val = _normalize_deprecated_elec_heat_seasonal_paths(val)
-        run[key] = val
+        run[key] = get(key)
 
     run["path_supply_energy_mc"] = require_non_empty("path_supply_energy_mc")
     run["path_supply_capacity_mc"] = require_non_empty("path_supply_capacity_mc")
 
     path_tariffs_raw = require_non_empty("path_tariffs_electric")
-    path_tariffs_raw = _normalize_deprecated_elec_heat_seasonal_paths(path_tariffs_raw)
     run["path_tariffs_electric"] = _path_tariffs_to_dict(path_tariffs_raw)
 
     run["utility_revenue_requirement"] = get("utility_revenue_requirement")
 
-    # Accept either the new column name or the old one for backward compatibility
-    supply_raw = get_optional("run_includes_supply")
-    if not supply_raw:
-        supply_raw = require_non_empty("add_supply_revenue_requirement")
-    run["run_includes_supply"] = _parse_bool(supply_raw)
+    run["run_includes_supply"] = _parse_bool(require_non_empty("run_includes_supply"))
 
     run["run_includes_subclasses"] = _parse_bool(
         require_non_empty("run_includes_subclasses")
@@ -616,18 +609,18 @@ def run(
             f"Normalized headers: {list(norm_to_header)}"
         )
 
-    # Filter to data rows with state set; forward-fill utility
+    # Filter to data rows with state set; require utility on every row
     data_rows: list[dict[str, str]] = []
-    prev_utility = ""
     for row in rows_as_dicts:
         state_val = (row.get(state_key) or "").strip()
         if not state_val:
             continue
-        utility_val = (row.get(utility_key) or "").strip()
-        if utility_val and not utility_val.isdigit():
-            prev_utility = utility_val
-        elif prev_utility:
-            row[utility_key] = prev_utility
+        _require_utility_for_data_row(
+            row,
+            state_key=state_key,
+            utility_key=utility_key,
+            num_key=num_key,
+        )
         data_rows.append(row)
 
     # Group by (state, utility)
