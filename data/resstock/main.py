@@ -67,7 +67,6 @@ from data.resstock.manifest import (
     new_run_record,
     record_step,
     upsert_run,
-    write_manifest,
 )
 from data.resstock.metadata.add_vulnerability_columns import (
     add_vulnerability_columns,
@@ -480,9 +479,9 @@ def _assign_utility(
             check=False,
         ).returncode
         if upload_rc != 0:
-            print(
-                f"    WARNING: aws s3 cp exited with code {upload_rc} for {loc}.",
-                flush=True,
+            raise RuntimeError(
+                f"aws s3 cp failed (exit {upload_rc}): "
+                f"utility_assignment for {loc} → {s3_dest}"
             )
 
         print(f"    Done: utility assignment complete for {loc}.", flush=True)
@@ -584,10 +583,9 @@ def _add_monthly_loads(
                 check=False,
             ).returncode
             if upload_rc != 0:
-                print(
-                    f"  WARNING: aws s3 sync exited with code {upload_rc} "
-                    f"for load_curve_monthly/state={s}/.",
-                    flush=True,
+                raise RuntimeError(
+                    f"aws s3 sync failed (exit {upload_rc}): "
+                    f"load_curve_monthly/state={s}/ → {s3_dest}"
                 )
             else:
                 print("    Done.", flush=True)
@@ -905,6 +903,10 @@ def main(argv: list[str] | None = None) -> None:
     sb_file_types = [ft for ft in args.file_types if ft not in SB_EXCLUDED_FILE_TYPES]
 
     # ── Manifest: start a run record ──────────────────────────────────────────
+    # Ensure _sb directory and manifest exist before any I/O so that even a
+    # pre-flight crash produces a record in the _sb manifest.
+    path_sb.mkdir(parents=True, exist_ok=True)
+
     run = new_run_record(
         release=release,
         release_sb=release_sb,
@@ -935,6 +937,10 @@ def main(argv: list[str] | None = None) -> None:
         # These run before any I/O so the pipeline halts immediately on conflicts
         # that would otherwise corrupt the _sb release mid-run.
         print("Running pre-flight validations...", flush=True)
+
+        # Record the run in _sb immediately so that even a pre-flight crash
+        # leaves a trace in the manifest.
+        upsert_run(path_sb, run)
 
         # Retroactively mark any stale in_progress runs left by a previous
         # ungraceful exit (e.g. OOM kill, SIGKILL) as crashed.
@@ -1004,7 +1010,6 @@ def main(argv: list[str] | None = None) -> None:
             file_types=sb_file_types,
         )
         path_sb.mkdir(parents=True, exist_ok=True)
-        write_manifest(path_sb, {"runs": []})
         print("Validating clone...", flush=True)
         validate_local_files(
             label="clone (step 1b)",
@@ -1095,17 +1100,29 @@ def main(argv: list[str] | None = None) -> None:
         # ── 2b. Assign electric/gas utilities ─────────────────────────────────
         if args.assign_utility and "metadata" in args.file_types:
             print("Assigning utilities...", flush=True)
-            _assign_utility(
-                states=args.state,
-                path_sb=path_sb,
-                sample=args.sample,
-                s3_base_sb=s3_base_sb,
-                path_s3_gis_dir=args.path_s3_gis_dir,
-                electric_poly_filename=args.electric_poly_filename,
-                gas_poly_filename=args.gas_poly_filename,
-            )
-            record_step(run, "assign_utility")
-            upsert_run(path_sb, run)
+            try:
+                _assign_utility(
+                    states=args.state,
+                    path_sb=path_sb,
+                    sample=args.sample,
+                    s3_base_sb=s3_base_sb,
+                    path_s3_gis_dir=args.path_s3_gis_dir,
+                    electric_poly_filename=args.electric_poly_filename,
+                    gas_poly_filename=args.gas_poly_filename,
+                )
+                record_step(run, "assign_utility")
+                upsert_run(path_sb, run)
+                upload_manifest(path_sb, s3_base_sb)
+            except Exception as exc:
+                run.setdefault("warnings", []).append(
+                    f"assign_utility S3 upload failed: {exc}"
+                )
+                upsert_run(path_sb, run)
+                try:
+                    upload_manifest(path_sb, s3_base_sb)
+                except Exception:
+                    pass
+                raise
             gc.collect()
 
         # ── 2c. Modify load curves ─────────────────────────────────────────────
@@ -1147,43 +1164,73 @@ def main(argv: list[str] | None = None) -> None:
         # ── 2d. Add monthly load curves ────────────────────────────────────────
         if args.add_monthly_loads and "load_curve_hourly" in args.file_types:
             print("Adding monthly load curves...", flush=True)
-            processed_monthly = _add_monthly_loads(
-                states=args.state,
-                path_sb=path_sb,
-                upgrade_ids=args.upgrade_ids,
-                release=release,
-                s3_base_sb=s3_base_sb,
-                sample=args.sample,
-                workers=args.monthly_workers,
-            )
-            record_step(run, "add_monthly_loads", processed=processed_monthly)
-            upsert_run(path_sb, run)
+            try:
+                processed_monthly = _add_monthly_loads(
+                    states=args.state,
+                    path_sb=path_sb,
+                    upgrade_ids=args.upgrade_ids,
+                    release=release,
+                    s3_base_sb=s3_base_sb,
+                    sample=args.sample,
+                    workers=args.monthly_workers,
+                )
+                record_step(run, "add_monthly_loads", processed=processed_monthly)
+                upsert_run(path_sb, run)
+                upload_manifest(path_sb, s3_base_sb)
+            except Exception as exc:
+                run.setdefault("warnings", []).append(
+                    f"add_monthly_loads S3 upload failed: {exc}"
+                )
+                upsert_run(path_sb, run)
+                try:
+                    upload_manifest(path_sb, s3_base_sb)
+                except Exception:
+                    pass
+                raise
             gc.collect()
 
         # ── 3. Upload ─────────────────────────────────────────────────────────
         print("Uploading raw ResStock data to S3...", flush=True)
-        upload(
-            state=args.state,
-            file_types=args.file_types,
-            release=release,
-            path_output_dir=args.path_output_dir,
-            path_s3_dir=args.path_s3_dir,
-        )
-        record_step(run, "upload_raw", s3_base=s3_base_raw)
-        upsert_run(path_raw, run)
-        upload_manifest(path_raw, s3_base_raw)
+        try:
+            upload(
+                state=args.state,
+                file_types=args.file_types,
+                release=release,
+                path_output_dir=args.path_output_dir,
+                path_s3_dir=args.path_s3_dir,
+            )
+            record_step(run, "upload_raw", s3_base=s3_base_raw)
+            upsert_run(path_raw, run)
+            upload_manifest(path_raw, s3_base_raw)
+        except Exception as exc:
+            run.setdefault("warnings", []).append(f"upload_raw S3 upload failed: {exc}")
+            upsert_run(path_raw, run)
+            try:
+                upload_manifest(path_raw, s3_base_raw)
+            except Exception:
+                pass
+            raise
 
         print("Uploading modified sb ResStock data to S3...", flush=True)
-        upload(
-            state=args.state,
-            file_types=sb_file_types,
-            release=release_sb,
-            path_output_dir=args.path_output_dir,
-            path_s3_dir=args.path_s3_dir,
-        )
-        record_step(run, "upload_sb", s3_base=s3_base_sb)
-        upsert_run(path_sb, run)
-        upload_manifest(path_sb, s3_base_sb)
+        try:
+            upload(
+                state=args.state,
+                file_types=sb_file_types,
+                release=release_sb,
+                path_output_dir=args.path_output_dir,
+                path_s3_dir=args.path_s3_dir,
+            )
+            record_step(run, "upload_sb", s3_base=s3_base_sb)
+            upsert_run(path_sb, run)
+            upload_manifest(path_sb, s3_base_sb)
+        except Exception as exc:
+            run.setdefault("warnings", []).append(f"upload_sb S3 upload failed: {exc}")
+            upsert_run(path_sb, run)
+            try:
+                upload_manifest(path_sb, s3_base_sb)
+            except Exception:
+                pass
+            raise
 
         print("Validating S3 uploads...", flush=True)
         validate_s3_objects(
@@ -1204,9 +1251,13 @@ def main(argv: list[str] | None = None) -> None:
         )
 
         # ── Done ──────────────────────────────────────────────────────────────
+        # Finalize the run record before uploading manifests to S3 so the S3
+        # copy reflects the completed status, not in_progress.
         finish_run(run)
         upsert_run(path_raw, run)
         upsert_run(path_sb, run)
+        upload_manifest(path_raw, s3_base_raw)
+        upload_manifest(path_sb, s3_base_sb)
         print("Pipeline complete.", flush=True)
 
     except Exception as e:

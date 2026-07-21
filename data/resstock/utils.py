@@ -57,12 +57,18 @@ def upload(
     path_output_dir: str | Path,
     path_s3_dir: str,
 ) -> None:
-    """Sync fetched/modified local files to S3 (data only, not the manifest)."""
+    """Sync fetched/modified local files to S3 (data only, not the manifest).
+
+    Raises RuntimeError if any ``aws s3 sync`` command fails, listing every
+    failed combination.  All combinations are attempted regardless so a partial
+    failure does not silently skip remaining uploads.
+    """
     local_base = Path(path_output_dir) / release
     s3_base = f"{path_s3_dir.rstrip('/')}/{release}"
 
     total_combos = len(file_types) * len(state)
     combo_idx = 0
+    failures: list[str] = []
     for file_type in file_types:
         for s in state:
             combo_idx += 1
@@ -83,12 +89,20 @@ def upload(
                 check=False,
             )
             if result.returncode != 0:
-                print(
-                    f"    WARNING: aws s3 sync exited with code {result.returncode}",
-                    flush=True,
+                msg = (
+                    f"aws s3 sync failed (exit {result.returncode}): "
+                    f"{file_type}/state={s} → {s3_path}"
                 )
+                print(f"    ERROR: {msg}", flush=True)
+                failures.append(msg)
             else:
                 print("    Done.", flush=True)
+
+    if failures:
+        raise RuntimeError(
+            f"upload() failed for {len(failures)} combination(s):\n"
+            + "\n".join(f"  - {f}" for f in failures)
+        )
 
 
 def upload_manifest(local_dir: Path, s3_base: str) -> None:

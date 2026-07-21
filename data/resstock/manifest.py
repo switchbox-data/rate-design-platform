@@ -458,9 +458,20 @@ def print_status(
             )
 
         if check_ebs and check_s3:
-            ebs_runs = ebs_manifest.get("runs", [])
-            s3_runs = s3_manifest.get("runs", [])
-            if ebs_runs and s3_runs:
+            ebs_runs = _filter_runs(
+                ebs_manifest.get("runs", []), states=states, upgrades=upgrades
+            )
+            s3_runs = _filter_runs(
+                s3_manifest.get("runs", []), states=states, upgrades=upgrades
+            )
+            if not ebs_runs or not s3_runs:
+                filter_desc = _describe_filter(states, upgrades)
+                print(
+                    f"  EBS ↔ S3:   ? cannot determine sync "
+                    f"(no matching runs on {'EBS' if not ebs_runs else 'S3'}"
+                    f" for filter: {filter_desc})"
+                )
+            else:
                 ebs_last = ebs_runs[-1].get("run_id")
                 s3_last = s3_runs[-1].get("run_id")
                 if ebs_last == s3_last:
