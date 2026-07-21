@@ -1,0 +1,175 @@
+utility: bge
+master_tariff_id: 674
+start_month: 2025-04
+end_month: 2026-03
+add_to_drr:
+  rate_structure: flat
+  charges:
+    empower_maryland_charge:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-04: 0.01028
+        2025-05: 0.01028
+        2025-06: 0.01028
+        2025-07: 0.01028
+        2025-08: 0.01028
+        2025-09: 0.01028
+        2025-10: 0.01028
+        2025-11: 0.01028
+        2025-12: 0.01028
+        2026-01: 0.0131
+        2026-02: 0.0131
+        2026-03: 0.0131
+    transmission_rate_adjustment:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-04: 0.01682
+        2025-05: 0.01682
+        2025-06: 0.02322
+        2025-07: 0.02322
+        2025-08: 0.02322
+        2025-09: 0.02322
+        2025-10: 0.02322
+        2025-11: 0.02322
+        2025-12: 0.02322
+        2026-01: 0.02322
+        2026-02: 0.02322
+        2026-03: 0.02322
+    universal_service_charge:
+      charge_unit: $/month
+      monthly_rates:
+        2025-04: 0.32
+        2025-05: 0.32
+        2025-06: 0.32
+        2025-07: 0.32
+        2025-08: 0.32
+        2025-09: 0.32
+        2025-10: 0.32
+        2025-11: 0.32
+        2025-12: 0.32
+        2026-01: 0.32
+        2026-02: 0.32
+        2026-03: 0.32
+    environmental_surcharge:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-04: 0.00015
+        2025-05: 0.00015
+        2025-06: 0.00015
+        2025-07: 0.00015
+        2025-08: 0.00015
+        2025-09: 0.00015
+        2025-10: 0.00015
+        2025-11: 0.00015
+        2025-12: 0.00015
+        2026-01: 0.00015
+        2026-02: 0.00015
+        2026-03: 0.00015
+    rggi_rate_credit_residential:
+      charge_unit: $/month
+      monthly_rates:
+        2025-04: 0.0
+        2025-05: 0.0
+        2025-06: 0.0
+        2025-07: 0.0
+        2025-08: 0.0
+        2025-09: 0.0
+        2025-10: 0.0
+        2025-11: 0.0
+        2025-12: 0.0
+        2026-01: 0.0
+        2026-02: 0.0
+        2026-03: 0.0
+    rsp_charge_misc:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-04: 0.0
+        2025-05: 0.0
+        2025-06: 0.0
+        2025-07: 0.0
+        2025-08: 0.0
+        2025-09: 0.0
+        2025-10: 0.0
+        2025-11: 0.0
+        2025-12: 0.0
+        2026-01: 0.0
+        2026-02: 0.0
+        2026-03: 0.0
+add_to_srr:
+  rate_structure: flat
+  charges:
+    supply_commodity_bundled:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-04: 0.10397
+        2025-05: 0.10397
+        2025-06: 0.10247
+        2025-07: 0.10247
+        2025-08: 0.10247
+        2025-09: 0.13496
+        2025-10: 0.14321
+        2025-11: 0.14321
+        2025-12: 0.11071
+        2026-01: 0.11071
+        2026-02: 0.11115
+        2026-03: 0.14365
+already_in_drr:
+  rate_structure: flat
+  charges:
+    customer_charge:
+      charge_unit: $/month
+      monthly_rates:
+        2025-04: 9.65
+        2025-05: 9.65
+        2025-06: 9.65
+        2025-07: 9.65
+        2025-08: 9.65
+        2025-09: 9.65
+        2025-10: 9.65
+        2025-11: 9.65
+        2025-12: 9.65
+        2026-01: 10.0
+        2026-02: 10.0
+        2026-03: 10.0
+    core_delivery_rate:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-04: 0.04751
+        2025-05: 0.04751
+        2025-06: 0.04751
+        2025-07: 0.04751
+        2025-08: 0.04751
+        2025-09: 0.04751
+        2025-10: 0.04751
+        2025-11: 0.04751
+        2025-12: 0.04751
+        2026-01: 0.04859
+        2026-02: 0.04859
+        2026-03: 0.04859
+excluded:
+  energy_cost_adjustment:
+    decision: exclude_trueup
+  monthly_rate_adjustment:
+    decision: exclude_trueup
+  administrative_cost_adjustment:
+    decision: exclude_trueup
+  customer_charge_offset:
+    decision: exclude_trueup
+  delivery_service_charge_offset:
+    decision: exclude_trueup
+  franchise_tax:
+    decision: exclude_tax
+  local_tax:
+    decision: exclude_tax
+  competitive_billing:
+    decision: exclude_eligibility
+  demand_response:
+    decision: exclude_eligibility
+  electric_reliability_initiative:
+    decision: exclude_eligibility
+  smart_meter_opt_out_charge:
+    decision: exclude_eligibility
+  minimum_charge:
+    decision: exclude_redundant
+  multi_year_plan_adjustment:
+    decision: exclude_trueup

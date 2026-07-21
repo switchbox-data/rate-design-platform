@@ -1,0 +1,223 @@
+[
+  {
+    "isActive": false,
+    "tariffId": 3520073,
+    "masterTariffId": 3301132,
+    "tariffCode": "R",
+    "tariffName": "Residential",
+    "lseId": 2178,
+    "lseName": "Somerset Rural Elec Coop, Inc",
+    "serviceType": "ELECTRICITY",
+    "priorTariffId": 3301132,
+    "tariffType": "DEFAULT",
+    "customerClass": "RESIDENTIAL",
+    "customerCount": 12269,
+    "customerLikelihood": 100.0,
+    "territoryId": 2442,
+    "effectiveDate": "2024-08-01",
+    "endDate": "2026-01-01",
+    "timeZone": "US/Eastern",
+    "effectiveOnRule": "TARIFF_EFFECTIVE_DATE",
+    "billingPeriod": "MONTHLY",
+    "currency": "USD",
+    "chargeTypes": [
+      "FIXED_PRICE",
+      "CONSUMPTION_BASED"
+    ],
+    "chargePeriod": "MONTHLY",
+    "hasTimeOfUseRates": false,
+    "hasTieredRates": true,
+    "hasContractedRates": false,
+    "hasRateApplicability": false,
+    "tariffBookName": "Residential",
+    "lseCode": "SREC",
+    "customerCountSource": "Genability Estimate",
+    "closedDate": null,
+    "minMonthlyConsumption": null,
+    "maxMonthlyConsumption": null,
+    "minMonthlyDemand": null,
+    "maxMonthlyDemand": null,
+    "hasTariffApplicability": false,
+    "hasNetMetering": true,
+    "privacy": "PUBLIC",
+    "properties": [
+      {
+        "quantityKey": null,
+        "keyName": "consumption",
+        "displayName": "Consumption (kWh)",
+        "keyspace": "electricity",
+        "family": "load",
+        "description": "Quantity in kWh of load that is used for a period of time",
+        "dataType": "DECIMAL",
+        "propertyTypes": "RATE_CRITERIA",
+        "operator": null,
+        "isDefault": false
+      },
+      {
+        "quantityKey": null,
+        "keyName": "chargeClass",
+        "displayName": "Charge Class Type",
+        "keyspace": "electricity",
+        "family": "service",
+        "description": "The tariff has rates with the following charge class.",
+        "dataType": "CHOICE",
+        "propertyTypes": "SERVICE_TERMS",
+        "operator": "=",
+        "propertyValue": "TRANSMISSION,DISTRIBUTION",
+        "choices": [
+          {
+            "value": "1",
+            "displayValue": "Transmission",
+            "dataValue": "1",
+            "likelihood": null
+          },
+          {
+            "value": "2",
+            "displayValue": "Distribution",
+            "dataValue": "2",
+            "likelihood": null
+          },
+          {
+            "value": "4",
+            "displayValue": "Supply",
+            "dataValue": "4",
+            "likelihood": null
+          },
+          {
+            "value": "8",
+            "displayValue": "Tax",
+            "dataValue": "8",
+            "likelihood": null
+          },
+          {
+            "value": "16",
+            "displayValue": "Other",
+            "dataValue": "16",
+            "likelihood": null
+          },
+          {
+            "value": "32",
+            "displayValue": "Contracted",
+            "dataValue": "32",
+            "likelihood": null
+          }
+        ],
+        "isDefault": false
+      }
+    ],
+    "rates": [
+      {
+        "masterTariffRateId": 18027340,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20710251,
+        "tariffId": 3520073,
+        "tariffSequenceNumber": 4,
+        "rateGroupName": "Customer Charge",
+        "rateName": "Customer Charge",
+        "fromDateTime": "2024-08-01T00:00:00-04:00",
+        "toDateTime": "2026-01-01T00:00:00-05:00",
+        "chargeType": "FIXED_PRICE",
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15649793,
+            "tariffRateId": 20710251,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 33.15,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Customer Charge",
+        "tariffBookRateName": "Customer Charge",
+        "transactionType": "BUY"
+      },
+      {
+        "masterTariffRateId": 18027341,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20710252,
+        "tariffId": 3520073,
+        "tariffSequenceNumber": 5,
+        "rateGroupName": "Distribution Delivery Charge",
+        "rateName": "Distribution Delivery Charge",
+        "fromDateTime": "2024-08-01T00:00:00-04:00",
+        "toDateTime": "2026-01-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "DISTRIBUTION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15649794,
+            "tariffRateId": 20710252,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": true,
+            "consumptionUpperLimit": 300.0,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.04429,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          },
+          {
+            "tariffRateBandId": 15649795,
+            "tariffRateId": 20710252,
+            "rateSequenceNumber": 2,
+            "hasConsumptionLimit": true,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.02207,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Energy Charge",
+        "tariffBookRateName": "Energy Charge",
+        "transactionType": "NET"
+      },
+      {
+        "masterTariffRateId": 20710253,
+        "hasApplicabilityFormula": false,
+        "tariffRateId": 20710253,
+        "tariffId": 3520073,
+        "tariffSequenceNumber": 6,
+        "rateGroupName": "Generation and Transmission Charge",
+        "rateName": "Generation and Transmission Charge",
+        "fromDateTime": "2024-08-01T00:00:00-04:00",
+        "toDateTime": "2026-01-01T00:00:00-05:00",
+        "chargeType": "CONSUMPTION_BASED",
+        "chargeClass": [
+          "TRANSMISSION"
+        ],
+        "chargePeriod": "MONTHLY",
+        "rateBands": [
+          {
+            "tariffRateBandId": 15649796,
+            "tariffRateId": 20710253,
+            "rateSequenceNumber": 1,
+            "hasConsumptionLimit": false,
+            "hasDemandLimit": false,
+            "hasPropertyLimit": false,
+            "prevUpperLimit": null,
+            "rateAmount": 0.07701,
+            "rateUnit": "COST_PER_UNIT",
+            "isCredit": false
+          }
+        ],
+        "tariffBookSequenceNumber": 1,
+        "tariffBookRateGroupName": "Generation and Transmission Charge",
+        "tariffBookRateName": "Generation and Transmission Charge",
+        "transactionType": "NET"
+      }
+    ]
+  }
+]

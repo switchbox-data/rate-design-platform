@@ -1,0 +1,574 @@
+{
+  "1399398": {
+    "rate_name": "Energy Cost Adjustment",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "energyCostAdjustmentScR",
+    "rate_group_name": "Energy Cost Adjustment (R)",
+    "rider_tariff_id": 84504,
+    "master_tariff_rate_id": 1399398,
+    "charge_unit": "$/kWh",
+    "sample_rate": -0.00049,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.00049,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_trueup",
+    "master_charge": "Supply cost true-up",
+    "master_type": "Cost recon"
+  },
+  "1400262": {
+    "rate_name": "Monthly Rate Adjustment",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "monthlyRateAdjustmentR286",
+    "rate_group_name": "Monthly Rate Adjustment",
+    "rider_tariff_id": 84736,
+    "master_tariff_rate_id": 1400262,
+    "charge_unit": "$/kWh",
+    "sample_rate": -0.00189,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.00189,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_trueup",
+    "master_charge": "Revenue Decoupling (RDM)",
+    "master_type": "Revenue true-up"
+  },
+  "1477731": {
+    "rate_name": "RGGI Rate Credit (Residential)",
+    "charge_type": "FIXED_PRICE",
+    "charge_class": "DISTRIBUTION,NON_BYPASSABLE",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "rggiRRL",
+    "rate_group_name": "RGGI Rate Credit (Residential)",
+    "rider_tariff_id": 19651,
+    "master_tariff_rate_id": 1477731,
+    "charge_unit": "$/month",
+    "sample_rate": 0.0,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "add_to_drr",
+    "master_charge": "RGGI Rate Credit",
+    "master_type": "Program surcharge"
+  },
+  "16960272": {
+    "rate_name": "Electric Efficiency & Demand Response Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "empowerElecEffDemandRespRRL",
+    "rate_group_name": "EmPOWER Md. Charge",
+    "rider_tariff_id": 2643473,
+    "master_tariff_rate_id": 16960272,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0131,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0131,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "add_to_drr",
+    "master_charge": "EmPOWER Maryland Charge",
+    "master_type": "Program surcharge"
+  },
+  "16966973": {
+    "rate_name": "RSP Charge/Misc",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "rspChargeMiscCreditsTotalChargeScRandRL",
+    "rate_group_name": "RSP Charge/Misc  (RSP,ND, POLR, Financing) - R,RL",
+    "rider_tariff_id": 6309,
+    "master_tariff_rate_id": 16966973,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "add_to_drr",
+    "master_charge": "RSP Charge/Misc",
+    "master_type": "Program surcharge"
+  },
+  "16966976": {
+    "rate_name": "Administrative Cost Adjustment",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "adminCostAdjustmentScR",
+    "rate_group_name": "Administrative Cost Adjustment (R, RL)",
+    "rider_tariff_id": 6279,
+    "master_tariff_rate_id": 16966976,
+    "charge_unit": "$/kWh",
+    "sample_rate": -0.00111,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.00111,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_trueup",
+    "master_charge": "Administrative Cost Adjustment",
+    "master_type": "Cost recon"
+  },
+  "16976379": {
+    "rate_name": "Generation Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "GenerationRateScR",
+    "rate_group_name": "Generation Charge",
+    "rider_tariff_id": 85134,
+    "master_tariff_rate_id": 16976379,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.14365,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.14365,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "add_to_srr",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
+  },
+  "16976380": {
+    "rate_name": "Transmission Rate Adjustments",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "TRANSMISSION,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "TransmissionRateScR",
+    "rate_group_name": "Transmission Rate Adjustment",
+    "rider_tariff_id": 85134,
+    "master_tariff_rate_id": 16976380,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.02322,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.02322,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "add_to_drr",
+    "master_charge": "Transmission Rate Adjustment",
+    "master_type": "Program surcharge"
+  },
+  "18603035": {
+    "rate_name": "Universal Service Charge",
+    "charge_type": "FIXED_PRICE",
+    "charge_class": "DISTRIBUTION,NON_BYPASSABLE",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Universal Service Charge",
+    "rider_tariff_id": 3350152,
+    "master_tariff_rate_id": 4551,
+    "charge_unit": "$/month",
+    "sample_rate": 0.32,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.32,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "add_to_drr",
+    "master_charge": "Universal Service Charge",
+    "master_type": "Program surcharge"
+  },
+  "20511704": {
+    "rate_name": "Customer Charge Offset",
+    "charge_type": "FIXED_PRICE",
+    "charge_class": "DISTRIBUTION,NON_BYPASSABLE",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Base Distribution Revenue Offset",
+    "rider_tariff_id": 3501626,
+    "master_tariff_rate_id": 19369058,
+    "charge_unit": "$/month",
+    "sample_rate": 0.0,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_trueup",
+    "master_charge": "Base Distribution Revenue Offset",
+    "master_type": "Revenue true-up"
+  },
+  "20511705": {
+    "rate_name": "Delivery Service Charge Offset",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Base Distribution Revenue Offset",
+    "rider_tariff_id": 3501626,
+    "master_tariff_rate_id": 19369059,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_trueup",
+    "master_charge": "Base Distribution Revenue Offset",
+    "master_type": "Revenue true-up"
+  },
+  "20716716": {
+    "rate_name": "Franchise Tax",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "TAX",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Franchise Tax",
+    "rider_tariff_id": 3520760,
+    "master_tariff_rate_id": 19160085,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00062,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00062,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_tax",
+    "master_charge": "Franchise Tax",
+    "master_type": "Tax pass-through"
+  },
+  "20716717": {
+    "rate_name": "Local Tax",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "TAX",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Local Tax",
+    "rider_tariff_id": 3520760,
+    "master_tariff_rate_id": 19160086,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00347,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00347,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_tax",
+    "master_charge": "Local Tax",
+    "master_type": "Tax pass-through"
+  },
+  "20798596": {
+    "rate_name": "Delivery Service Customer Charge",
+    "charge_type": "FIXED_PRICE",
+    "charge_class": "DISTRIBUTION,NON_BYPASSABLE",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Delivery Service Customer Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 1404328,
+    "charge_unit": "$/month",
+    "sample_rate": 10.0,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 10.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Customer Charge",
+    "master_type": "Base delivery"
+  },
+  "20798597": {
+    "rate_name": "Competitive Billing",
+    "charge_type": "FIXED_PRICE",
+    "charge_class": "DISTRIBUTION,NON_BYPASSABLE",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Competitive Billing",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 1404329,
+    "charge_unit": "$/month",
+    "sample_rate": -0.62,
+    "is_credit": true,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": -0.62,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_eligibility",
+    "master_charge": "Competitive Billing",
+    "master_type": "Optional"
+  },
+  "20798598": {
+    "rate_name": "Delivery Service Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Delivery Service Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 1404330,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.04859,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.04859,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery"
+  },
+  "20798605": {
+    "rate_name": "Dmd Res Chg/Cr",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "demandResourceChargeCreditR",
+    "rate_group_name": "Dmd Res Chg/Cr",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17097980,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_eligibility",
+    "master_charge": "Demand Response",
+    "master_type": "Eligibility / optional"
+  },
+  "20798606": {
+    "rate_name": "Electric Reliability Initiative Surcharge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "electricReliabilityInitiativeR",
+    "rate_group_name": "Electric Reliability Initiative Surcharge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17183654,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_eligibility",
+    "master_charge": "Electric Reliability Initiative",
+    "master_type": "Eligibility / optional"
+  },
+  "20798607": {
+    "rate_name": "Smart Meter Opt-Out Charge",
+    "charge_type": "FIXED_PRICE",
+    "charge_class": "NON_BYPASSABLE",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "smartMeterOptOutCharge",
+    "rate_group_name": "Smart Meter Opt-Out Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17214188,
+    "charge_unit": "$/month",
+    "sample_rate": 5.5,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 5.5,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_eligibility",
+    "master_charge": "Smart Meter Opt-Out",
+    "master_type": "Optional"
+  },
+  "20798610": {
+    "rate_name": "Envir Srchg",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "environmentalSurcharge",
+    "rate_group_name": "Envir Srchg",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17097981,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00015,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00015,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "Environmental Surcharge",
+    "master_type": "Program surcharge"
+  },
+  "20798611": {
+    "rate_name": "Minimum Charge",
+    "charge_type": "MINIMUM",
+    "charge_class": null,
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Minimum Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 1404331,
+    "charge_unit": "$/month",
+    "sample_rate": 10.0,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 10.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_redundant",
+    "master_charge": "Minimum Charge",
+    "master_type": "Bill floor (rarely binds)"
+  },
+  "20926142": {
+    "rate_name": "Multi-Year Plan Adjustment",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Multi-Year Plan Adjustment",
+    "rider_tariff_id": 3539015,
+    "master_tariff_rate_id": 20111327,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00086,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00086,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "rider_resolved",
+    "decision": "exclude_trueup",
+    "master_charge": "Multi-Year Plan Adjustment",
+    "master_type": "Cost recon"
+  }
+}

@@ -46,16 +46,16 @@ This classification was done through extensive manual research documented in
 `<key>_charge_decisions.json` per utility in `charge_decisions/`, where every
 `tariffRateId` is mapped to a `decision`:
 
-- **`add_to_drr`** — volumetric surcharge that should be "topped up" into the delivery revenue requirement (e.g. SBC, CES Delivery, DLM Surcharge)
-- **`add_to_srr`** — supply-side surcharge for the supply revenue requirement (e.g. CES Supply, MFC, bundled commodity)
-- **`already_in_drr`** — base delivery rate already covered by the rate-case revenue requirement (e.g. core delivery $/kWh, customer charge)
-- **`exclude_trueup`** — cost reconciliation or revenue true-up (uniform $/kWh noise): MAC, RAM, DSA, RDM, transition charges, GRT, PILOTs, etc.
-- **`exclude_negligible`** — structurally a cross-subsidy but negligible in magnitude (e.g. Earnings Adjustment Mechanism)
-- **`exclude_expired`** — stale or expired charge (e.g. Tax Sur-Credit)
-- **`exclude_zonal`** — zonal duplicate or VRK overlap duplicate excluded solely to prevent double-counting (e.g. ConEd MSC Zone I when Zone H is the representative, NiMo MFC entries whose VRK duplicates supply commodity rates)
-- **`exclude_percentage`** — QUANTITY/% charge the pipeline cannot process; `fetch_monthly_rates.py` only handles $/kWh, $/month, and $/day (e.g. GRT when QUANTITY type, CBC, PSEG-LI Shoreham SPT, NY State Assessment)
-- **`exclude_redundant`** — structurally redundant charge (e.g. minimum charge / bill floor that rarely binds and is redundant with the customer charge)
-- **`exclude_eligibility`** — eligibility-gated or optional charge; $0 for the default residential customer (e.g. low-income discounts, solar CBC, agricultural discounts, GreenUp)
+- `add_to_drr` — volumetric surcharge that should be "topped up" into the delivery revenue requirement (e.g. SBC, CES Delivery, DLM Surcharge)
+- `add_to_srr` — supply-side surcharge for the supply revenue requirement (e.g. CES Supply, MFC, bundled commodity)
+- `already_in_drr` — base delivery rate already covered by the rate-case revenue requirement (e.g. core delivery $/kWh, customer charge)
+- `exclude_trueup` — cost reconciliation or revenue true-up (uniform $/kWh noise): MAC, RAM, DSA, RDM, transition charges, GRT, PILOTs, etc.
+- `exclude_negligible` — structurally a cross-subsidy but negligible in magnitude (e.g. Earnings Adjustment Mechanism)
+- `exclude_expired` — stale or expired charge (e.g. Tax Sur-Credit)
+- `exclude_zonal` — zonal duplicate or VRK overlap duplicate excluded solely to prevent double-counting (e.g. ConEd MSC Zone I when Zone H is the representative, NiMo MFC entries whose VRK duplicates supply commodity rates)
+- `exclude_percentage` — QUANTITY/% charge the pipeline cannot process; `fetch_monthly_rates.py` only handles $/kWh, $/month, and $/day (e.g. GRT when QUANTITY type, CBC, PSEG-LI Shoreham SPT, NY State Assessment)
+- `exclude_redundant` — structurally redundant charge (e.g. minimum charge / bill floor that rarely binds and is redundant with the customer charge)
+- `exclude_eligibility` — eligibility-gated or optional charge; $0 for the default residential customer (e.g. low-income discounts, solar CBC, agricultural discounts, GreenUp)
 
 ### 3. Fetch actual monthly rates
 
@@ -69,14 +69,14 @@ The output YAML groups charges by decision (`add_to_drr`, `add_to_srr`,
 `rate_structure` discriminator that tells consumer code how to interpret the
 charge data:
 
-- **`flat`** — standard `monthly_rates: {month: rate}` per charge. Used by
+- `flat` — standard `monthly_rates: {month: rate}` per charge. Used by
   NiMo, NYSEG, RG&E, CenHud (all sections) and by ConEd/O&R/PSEG-LI for
   `add_to_drr` surcharges.
-- **`seasonal_tiered`** — tiered rates with per-season monthly values. ConEd
+- `seasonal_tiered` — tiered rates with per-season monthly values. ConEd
   and O&R delivery rates have a 250 kWh first-tier / unlimited second-tier
   structure where the summer second tier carries a premium. Each charge has
   `tiers: [{upper_limit_kwh, monthly_rates: {season: {month: rate}}}]`.
-- **`seasonal_tou`** — time-of-use rates with per-season×TOU-period monthly
+- `seasonal_tou` — time-of-use rates with per-season×TOU-period monthly
   values. PSEG-LI delivery and supply have on-peak/off-peak × summer/winter
   structure. Each charge has `monthly_rates: {season_tou: {month: rate}}`.
 
@@ -120,8 +120,7 @@ zones would overcount. The `classify_charges.py` script handles these automatica
   zonal supply entries; keeps the representative zone (H for ConEd, Central for
   NiMo, Regular for NYSEG), marks others `exclude_zonal`.
 - **Phase 4 (post-classification dedup)**: Catches remaining zone duplicates
-  where entries share the same `(rate_name, decision, charge_class,
-  rate_group_name, season, tou)` tuple. This handles ConEd's 3 Summer Rate
+  where entries share the same `(rate_name, decision, charge_class, rate_group_name, season, tou)` tuple. This handles ConEd's 3 Summer Rate
   entries (zones H/I/J) → keeps 1, marks 2 as `exclude_zonal`.
 
 ### Seasonal/TOU variants (keep)
@@ -131,28 +130,28 @@ Rate, PSEG-LI's 4 season×TOU delivery entries) represent genuinely different ra
 periods. The classify pipeline preserves these, and `fetch_monthly_rates.py` merges
 them into a single combined charge entry in the YAML output:
 
-- **`seasonal_tiered`**: ConEd/O&R delivery — Summer Rate + Winter Rate entries
+- `seasonal_tiered`: ConEd/O&R delivery — Summer Rate + Winter Rate entries
   become a single `core_delivery_rate` with per-season per-tier monthly rates.
-- **`seasonal_tou`**: PSEG-LI delivery and supply — 4 season×TOU entries become
+- `seasonal_tou`: PSEG-LI delivery and supply — 4 season×TOU entries become
   a single charge with `summer_on_peak`, `summer_off_peak`, `winter_on_peak`,
   `winter_off_peak` monthly rates.
 
 ### Other multi-entry cases
 
-| Utility | Charge                       | Entries | Verdict                                          |
-| ------- | ---------------------------- | ------: | ------------------------------------------------ |
-| CenHud  | Merchant Function Charge     |       3 | Distinct components (allocation/base/admin)      |
-| NiMo    | Arrears / COVID forgiveness  |       2 | Temporal phases (Phase 1 + Phase 2)              |
-| NYSEG   | Arrears / COVID forgiveness  |       2 | Temporal phases (Phase 1 + Phase 2)              |
-| RGE     | CES Supply Surcharge         |       2 | Distinct tiers (Tier 1 + Tier 2)                 |
-| PSEG-LI | Securitization Charge/Offset |       2 | Charge + equal-and-opposite offset (nets to \$0) |
+| Utility | Charge                       | Entries | Verdict                                        |
+| ------- | ---------------------------- | ------- | ---------------------------------------------- |
+| CenHud  | Merchant Function Charge     | 3       | Distinct components (allocation/base/admin)    |
+| NiMo    | Arrears / COVID forgiveness  | 2       | Temporal phases (Phase 1 + Phase 2)            |
+| NYSEG   | Arrears / COVID forgiveness  | 2       | Temporal phases (Phase 1 + Phase 2)            |
+| RGE     | CES Supply Surcharge         | 2       | Distinct tiers (Tier 1 + Tier 2)               |
+| PSEG-LI | Securitization Charge/Offset | 2       | Charge + equal-and-opposite offset (nets to 0) |
 
 ## Adding a new state
 
 To replicate this for a new state/utility:
 
-1. **Add the utility to `utils/utility_codes.py`** with its EIA utility ID so the fetch script can resolve it to a Genability LSE.
-2. **Add an entry to `tariffs_by_utility.yaml`** in the state's `rev_requirement/top-ups/` directory (use `default` to get the residential default tariff, or a specific `masterTariffId`).
+1. **Add the utility to** `utils/utility_codes.py` with its EIA utility ID so the fetch script can resolve it to a Genability LSE.
+2. **Add an entry to** `tariffs_by_utility.yaml` in the state's `rev_requirement/top-ups/` directory (use `default` to get the residential default tariff, or a specific `masterTariffId`).
 3. **Fetch the base tariff**: run `fetch-genability-tariffs` with the appropriate effective date.
 4. **Classify every charge** by reading through the tariff JSON and regulatory filings. This is unavoidable manual research — see `context/methods/bat_mc_residual/ny_residential_charges_in_bat.md` for the kind of analysis required. Document the research in a `context/methods/bat_mc_residual/<state>_residential_charges_in_bat.md` file, then encode the decisions in a `<key>_charge_decisions.json`.
 5. **Fetch the monthly rates**: run `fetch-monthly-rates` for the utility.

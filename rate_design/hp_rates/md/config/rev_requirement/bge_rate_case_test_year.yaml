@@ -1,0 +1,102 @@
+# BGE revenue requirement budgets sourced from rate case filings.
+#
+# Source: Docket 331766, Karas Direct Testimony w/ Exhibits (7/2/2026)
+# https://www.documentcloud.org/documents/28475935-331766-7-karas-direct-testimony-wexhibits-7022026-f/
+utility: bge
+# --- Karas Exhibit E-2, Schedule R + RL current distribution revenue (col 5) ---
+# https://www.documentcloud.org/documents/28475935-331766-7-karas-direct-testimony-wexhibits-7022026-f/#document/p40/a2823474
+delivery_revenue_requirement_from_rate_case: 780357582.0 # 731,639,007 (Schedule R) + 48,718,575 (Schedule RL)
+delivery_revenue_requirement_topups: 437626934.32 # sum(delivery_top_ups.total_budget)
+total_delivery_revenue_requirement: 1217984516.32 # delivery_revenue_requirement_from_rate_case + delivery_revenue_requirement_topups
+supply_revenue_requirement_topups: 1523698025.12 # sum(supply_top_ups.total_budget)
+total_delivery_and_supply_revenue_requirement: 2741682541.44 # total_delivery_revenue_requirement + supply_revenue_requirement_topups
+delivery_revenue_requirement:
+  customer_charge:
+    charge_unit: $/month
+    budget_method: rate_case
+    total_budget: 142822269.36
+  core_delivery_rate:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 621592459.03
+delivery_top_ups:
+  empower_maryland_charge:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 142794438.17
+  transmission_rate_adjustment:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 288187407.18
+  universal_service_charge:
+    charge_unit: $/month
+    budget_method: rate_case
+    total_budget: 4693517.45
+  environmental_surcharge:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 1951571.52
+  rggi_rate_credit_residential:
+    charge_unit: $/month
+    budget_method: rate_case
+    total_budget: 0.0
+  rsp_charge_misc:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 0.0
+supply_top_ups:
+  supply_commodity_bundled:
+    charge_unit: $/kWh
+    budget_method: resstock
+    total_budget: 1523698025.12
+test_year_residential_kwh: 13010476768.0 # test_year_residential_kwh_schedule_r + test_year_residential_kwh_schedule_rl
+# --- Karas Exhibit E-3, row 2 Delivery Service Charge, col 1 (test-year kWh determinants) ---
+# Schedule R + Schedule RL kWh are summed for residential delivery volumetric budgets.
+# Schedule R: https://www.documentcloud.org/documents/28475935-331766-7-karas-direct-testimony-wexhibits-7022026-f/#document/p41/a2823476
+test_year_residential_kwh_schedule_r: 12191675329
+# Schedule RL: https://www.documentcloud.org/documents/28475935-331766-7-karas-direct-testimony-wexhibits-7022026-f/#document/p42/a2823477
+test_year_residential_kwh_schedule_rl: 818801439
+# --- Karas Exhibit E-3, row 1 Customer Charge, col 1 (annual bills) ---
+# Schedule R: https://www.documentcloud.org/documents/28475935-331766-7-karas-direct-testimony-wexhibits-7022026-f/#document/p41/a2823476
+test_year_customer_bills_schedule_r: 13973317
+# Schedule RL: https://www.documentcloud.org/documents/28475935-331766-7-karas-direct-testimony-wexhibits-7022026-f/#document/p42/a2823477
+test_year_customer_bills_schedule_rl: 693925
+test_year_customer_count: 1222270.17 # (test_year_customer_bills_schedule_r + test_year_customer_bills_schedule_rl) / 12
+# --- Karas Exhibit E-3, row 1 Customer Charge: flat $10/month per testimony ---
+# Permanent, hand-maintained reference. The Genability monthly_rates snapshot
+# blends $9.65 -> $10.00 and is regenerated, so reference this value instead.
+test_year_fixed_charge_from_rate_case: 10.0 # $/month
+resstock_total_residential_kwh: 15883418277.59 # sum(grid_cons * weight) where utility = bge
+resstock_customer_count: 1235521.12 # sum(weight) where utility = bge
+resstock_customer_scale_factor: 0.9892750074479504 # test_year_customer_count / resstock_customer_count
+resstock_total_residential_kwh_scaled_customer: 15713068734.86 # resstock_total_residential_kwh * resstock_customer_scale_factor
+resstock_kwh_scale_factor: 0.8280035547183955 # test_year_residential_kwh / resstock_total_residential_kwh_scaled_customer
+resstock_total_residential_kwh_scaled_customer_kwh: 13010476768.0 # = test_year_residential_kwh (sanity check)
+resstock_monthly_kwh_scaled_customer_kwh:
+  1: 1788661993.14
+  2: 1159120888.71
+  3: 1212180269.34
+  4: 817202674.02
+  5: 825874336.11
+  6: 920619129.25
+  7: 1163477912.12
+  8: 1166868488.91
+  9: 897733403.13
+  10: 791580677.51
+  11: 1022609195.24
+  12: 1244547800.53
+supply_commodity_bundled_rates:
+  charge_unit: $/kWh
+  monthly_rates:
+    2025-04: 0.10397
+    2025-05: 0.10397
+    2025-06: 0.10247
+    2025-07: 0.10247
+    2025-08: 0.10247
+    2025-09: 0.13496
+    2025-10: 0.14321
+    2025-11: 0.14321
+    2025-12: 0.11071
+    2026-01: 0.11071
+    2026-02: 0.11115
+    2026-03: 0.14365

@@ -50,6 +50,7 @@ UTILITY_MASTER_TARIFF_IDS: dict[str, int] = {
     "or": 81134,
     "cenhud": 85880,
     "rie": 859,
+    "bge": 674,
 }
 
 
@@ -765,6 +766,23 @@ def main() -> None:
     known_trids: set[int] = set()
     known_vrks: set[str] = set()
     known_names: set[str] = set()
+
+    # Every charge must be classified before fetching rates. An unclassified
+    # charge (missing/empty decision) is almost always an oversight after a
+    # discovery run — catch it here rather than silently dropping the charge.
+    missing_decision: list[str] = []
+    for key, info in charge_list_raw.items():
+        if not info.get("decision"):
+            rn = (info.get("rate_name") or "").strip() or "<no rate_name>"
+            missing_decision.append(f"{key} ({rn})")
+    if missing_decision:
+        joined = "\n  ".join(missing_decision)
+        raise SystemExit(
+            f"{len(missing_decision)} charge(s) in {args.path_charge_list.name} "
+            "have no decision. Every charge must be classified as one of "
+            "add_to_drr / add_to_srr / already_in_drr / exclude_* before "
+            f"fetching rates:\n  {joined}"
+        )
 
     classified_charges: dict[int, dict] = {}
     excluded_entries: dict[int, dict] = {}
