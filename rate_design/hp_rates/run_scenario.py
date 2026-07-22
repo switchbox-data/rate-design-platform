@@ -620,7 +620,7 @@ def run(
     *,
     billing_kwh: bool = False,
     floor_electricity_net: bool = True,
-) -> None:
+) -> Path | None:
     log.info(
         ".... Beginning %s residential (non-LMI) rate scenario simulation: %s",
         settings.state,
@@ -891,6 +891,10 @@ def run(
         ".... Completed %s residential (non-LMI) rate scenario simulation",
         settings.state,
     )
+
+    if save_file_loc is not None:
+        return Path(save_file_loc)
+    return None
 
 
 def main() -> None:
