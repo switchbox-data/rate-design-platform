@@ -1,5 +1,6 @@
 """Tests for NY utility assignment helpers (deterministic)."""
 
+from pathlib import Path
 from typing import cast
 
 import numpy as np
@@ -427,6 +428,35 @@ def test_excluded_gas_utilities_constant():
     expected = {"bath", "chautauqua", "corning", "fillmore", "reserve", "stlaw"}
     assert isinstance(EXCLUDED_GAS_UTILITIES, frozenset)
     assert EXCLUDED_GAS_UTILITIES == frozenset(expected)
+
+
+def test_get_excluded_gas_utilities_union_and_per_state(tmp_path: Path):
+    """Helper reads per-state lists from YAML; None returns the cross-state union."""
+    from data.resstock.utils import get_excluded_gas_utilities
+
+    path = tmp_path / "state_configs.yaml"
+    path.write_text(
+        "\n".join(
+            [
+                "NY:",
+                "  utility_assignment:",
+                "    kwargs:",
+                "      excluded_gas_utilities:",
+                "        - bath",
+                "        - stlaw",
+                "MD:",
+                "  utility_assignment:",
+                "    kwargs: {}",
+                "RI:",
+                "  utility_assignment:",
+                "    module: data.resstock.utility.assign_utility_ri",
+            ]
+        )
+        + "\n"
+    )
+    assert get_excluded_gas_utilities("NY", path=path) == frozenset({"bath", "stlaw"})
+    assert get_excluded_gas_utilities("MD", path=path) == frozenset()
+    assert get_excluded_gas_utilities(path=path) == frozenset({"bath", "stlaw"})
 
 
 def test_assign_utility_empty_excluded_gas_does_not_revert_to_defaults():

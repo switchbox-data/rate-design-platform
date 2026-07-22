@@ -25,6 +25,42 @@ def load_state_configs(path: Path | None = None) -> dict[str, dict]:
         return yaml.safe_load(f)
 
 
+def get_excluded_gas_utilities(
+    state: str | None = None,
+    *,
+    path: Path | None = None,
+) -> frozenset[str]:
+    """Return excluded gas utility ``std_name``s from ``state_configs.yaml``.
+
+    Canonical source: each state's
+    ``utility_assignment.kwargs.excluded_gas_utilities`` list (utilities we do
+    not model — zeroed in assignment and mapped to ``null_gas_tariff``).
+
+    Args:
+        state: 2-letter state code (e.g. ``"NY"``). If ``None``, return the
+            union across all states (for cross-state consumers like the gas
+            tariff mapper).
+        path: Optional override for the config file path (tests).
+    """
+    configs = load_state_configs(path)
+    if state is not None:
+        if state not in configs:
+            raise KeyError(
+                f"State {state!r} not found in state_configs.yaml "
+                f"(known: {sorted(configs)})"
+            )
+        state_codes = [state]
+    else:
+        state_codes = list(configs)
+
+    excluded: set[str] = set()
+    for code in state_codes:
+        ua = configs[code].get("utility_assignment") or {}
+        kwargs = ua.get("kwargs") or {}
+        excluded.update(kwargs.get("excluded_gas_utilities") or [])
+    return frozenset(excluded)
+
+
 def normalize_nargs_list(values: list[str]) -> list[str]:
     """Flatten a ``nargs="+"`` list that may contain space-separated entries.
 

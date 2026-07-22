@@ -106,6 +106,79 @@ split-chesapeake-gas-tariffs:
       --output-dir "{{ path_tariffs_gas }}"
 
 # =============================================================================
+# MD-only: gas tariff maps
+#
+# Gas tariff maps are partitioned by electric utility (output:
+# tariff_maps/gas/<electric_utility>_u00.csv and _u02.csv). MD has 8 modeled
+# gas utilities (bge, washington_gas, columbia_gas_md, chesapeake_utilities,
+# sandpiper, elkton_gas, ugi_central_penn, easton_muni) served across these
+# electric territories. Gas-only LDCs (washington_gas, etc.) appear as
+# tariff_keys inside the electric utility's map — only easton_muni among the
+# munis is dual-fuel and needs its own map file. somerset_rec / berlin_muni /
+# hagerstown_muni stay outside this list (electric-only for our purposes).
+#
+# Chesapeake-territory RES-1/RES-2 split reads load_curve_annual from the raw
+# NREL release (passed automatically by the shared create-gas-tariff-map recipe).
+#
+# Shortcuts (upgrade 00 only — quick per-utility run):
+#   just -f md/Justfile map-gas-bge
+#   just -f md/Justfile map-gas-all-utilities
+#
+# Full batch (upgrades 00 + 02):
+#   just -f md/Justfile create-gas-tariff-maps-md-all
+# =============================================================================
+
+# Electric utilities for which gas tariff maps are generated (covers all 8
+# modeled MD gas utilities, including easton_muni dual-fuel territory).
+md_electric_utilities := "bge pepco dpl poted smeco choptank easton_muni"
+
+# Per-utility shortcuts (upgrade 00). Mirror NY map-gas-<name> convention.
+map-gas-bge:
+    just create-gas-tariff-map bge 00 {{ path_tariff_maps }}/gas
+
+map-gas-pepco:
+    just create-gas-tariff-map pepco 00 {{ path_tariff_maps }}/gas
+
+map-gas-dpl:
+    just create-gas-tariff-map dpl 00 {{ path_tariff_maps }}/gas
+
+map-gas-poted:
+    just create-gas-tariff-map poted 00 {{ path_tariff_maps }}/gas
+
+map-gas-smeco:
+    just create-gas-tariff-map smeco 00 {{ path_tariff_maps }}/gas
+
+map-gas-choptank:
+    just create-gas-tariff-map choptank 00 {{ path_tariff_maps }}/gas
+
+map-gas-easton_muni:
+    just create-gas-tariff-map easton_muni 00 {{ path_tariff_maps }}/gas
+
+# Run upgrade-00 gas tariff maps for all MD electric utilities in the list.
+map-gas-all-utilities:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p {{ path_tariff_maps }}/gas
+    for utility in {{ md_electric_utilities }}; do
+        echo ">> MD gas tariff map: utility=${utility} upgrade=00" >&2
+        just create-gas-tariff-map "${utility}" "00" "{{ path_tariff_maps }}/gas"
+    done
+    echo ">> Done: MD gas tariff maps (upgrade 00)" >&2
+
+# Full batch: upgrades 00 + 02 for all MD electric utilities in the list.
+create-gas-tariff-maps-md-all:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p {{ path_tariff_maps }}/gas
+    for utility in {{ md_electric_utilities }}; do
+        for upgrade in 00 02; do
+            echo ">> MD gas tariff map: utility=${utility} upgrade=${upgrade}" >&2
+            just create-gas-tariff-map "${utility}" "${upgrade}" "{{ path_tariff_maps }}/gas"
+        done
+    done
+    echo ">> Done: all MD gas tariff maps" >&2
+
+# =============================================================================
 # MD-only: ISO-native load source for sub-TX/DX marginal costs
 #
 # MD reads PJM-native utility loads (data/pjm/hourly_demand/) instead of the

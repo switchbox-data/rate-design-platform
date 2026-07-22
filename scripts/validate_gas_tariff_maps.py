@@ -18,16 +18,12 @@ from typing import cast
 import polars as pl
 
 from utils import get_aws_region
+from utils.pre.gas_tariff_mapper import EXCLUDED_GAS_UTILITIES
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 RELEASE = "res_2024_amy2018_2"
 UPGRADE = "00"
 S3_BASE = f"s3://data.sb/nrel/resstock/{RELEASE}"
-
-# Mirror gas_tariff_mapper.py
-EXCLUDED_GAS_UTILITIES = frozenset(
-    {"bath", "chautauqua", "corning", "fillmore", "reserve", "stlaw"}
-)
 
 
 def expected_tariff_key_expr() -> pl.Expr:

@@ -21,6 +21,7 @@ from cloudpathlib import S3Path
 from pygris import pumas as get_pumas
 
 from data.resstock.utils import (
+    get_excluded_gas_utilities,
     load_state_configs,
     select_puma_and_heating_fuel_metadata,
 )
@@ -35,11 +36,7 @@ _STATE = "NY"
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
-EXCLUDED_GAS_UTILITIES: frozenset[str] = frozenset(
-    (load_state_configs()[_STATE]["utility_assignment"].get("kwargs") or {}).get(
-        "excluded_gas_utilities", []
-    )
-)
+EXCLUDED_GAS_UTILITIES: frozenset[str] = get_excluded_gas_utilities(_STATE)
 
 
 def assign_utility(
