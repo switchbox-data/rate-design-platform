@@ -388,8 +388,8 @@ def test_map_gas_tariff_md_washington_gas_heating():
     ]
 
 
-def test_map_gas_tariff_md_easton_muni_excluded():
-    """MD easton_muni is excluded from modeling → null_gas_tariff."""
+def test_map_gas_tariff_md_easton_muni_residential():
+    """MD easton_muni maps to easton_muni_residential (combined dist + commodity)."""
     metadata = pl.LazyFrame(
         {
             "bldg_id": [1, 2],
@@ -404,7 +404,10 @@ def test_map_gas_tariff_md_easton_muni_excluded():
     )
     result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="bge")
     df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
-    assert df["tariff_key"].to_list() == ["null_gas_tariff", "bge_residential"]
+    assert df["tariff_key"].to_list() == [
+        "easton_muni_residential",
+        "bge_residential",
+    ]
 
 
 def test_map_gas_tariff_md_chesapeake_res1_res2():
@@ -634,6 +637,7 @@ def test_map_gas_tariff_md_keys_match_tariff_json_files() -> None:
         "bge",
         "columbia_gas_md",
         "ugi_central_penn",
+        "easton_muni",
         "washington_gas",
         "washington_gas",
         "chesapeake_utilities",
@@ -644,6 +648,7 @@ def test_map_gas_tariff_md_keys_match_tariff_json_files() -> None:
         "sandpiper",
     ]
     heats_with_natgas = [
+        True,
         True,
         True,
         True,
@@ -662,6 +667,7 @@ def test_map_gas_tariff_md_keys_match_tariff_json_files() -> None:
         {
             "bldg_id": bldg_ids,
             "annual_gas_therms": [
+                0.0,
                 0.0,
                 0.0,
                 0.0,

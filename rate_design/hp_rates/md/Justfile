@@ -109,11 +109,10 @@ split-chesapeake-gas-tariffs:
 # MD-only: gas tariff maps
 #
 # Gas tariff maps are partitioned by electric utility (output:
-# tariff_maps/gas/<electric_utility>_u00.csv and _u02.csv). MD has 7 modeled
+# tariff_maps/gas/<electric_utility>_u00.csv and _u02.csv). MD has 8 modeled
 # gas utilities (bge, washington_gas, columbia_gas_md, chesapeake_utilities,
-# sandpiper, elkton_gas, ugi_central_penn) served across 6 modeled electric
-# utilities; excluded municipals (easton_muni) and somerset_rec get
-# null_gas_tariff.
+# sandpiper, elkton_gas, ugi_central_penn, easton_muni) served across 6
+# modeled electric utilities; somerset_rec is outside the gas-map electric list.
 #
 # Chesapeake-territory RES-1/RES-2 split reads load_curve_annual from the raw
 # NREL release (passed automatically by the shared create-gas-tariff-map recipe).
@@ -126,7 +125,7 @@ split-chesapeake-gas-tariffs:
 #   just -f md/Justfile create-gas-tariff-maps-md-all
 # =============================================================================
 
-# Electric utilities for which gas tariff maps are generated (covers all 7
+# Electric utilities for which gas tariff maps are generated (covers all 8
 # modeled MD gas utilities across these 6 electric service territories).
 md_electric_utilities := "bge pepco dpl poted smeco choptank"
 

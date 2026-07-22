@@ -18,7 +18,7 @@ STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 # simpler and avoids touching polygon/overlap logic. CAIRO then uses the null tariff
 # for these buildings.
 # NY: bath, chautauqua, corning, fillmore, reserve, stlaw
-# MD: easton_muni (also listed under excluded_gas_utilities in state_configs.yaml)
+# (also listed under excluded_gas_utilities in state_configs.yaml for NY)
 EXCLUDED_GAS_UTILITIES = frozenset(
     {
         "bath",
@@ -27,7 +27,6 @@ EXCLUDED_GAS_UTILITIES = frozenset(
         "fillmore",
         "reserve",
         "stlaw",
-        "easton_muni",
     }
 )
 # Gas utilities we expect in assignment (IOUs we model + excluded + electric-only that may appear).
@@ -54,6 +53,7 @@ EXPECTED_GAS_UTILITIES = EXCLUDED_GAS_UTILITIES | {
     "chesapeake_utilities",
     "elkton_gas",
     "sandpiper",
+    "easton_muni",
 }
 
 # Post-merger Chesapeake territory: county group from sb.gas_utility, RES-1/RES-2 from
@@ -170,7 +170,7 @@ def _tariff_key_expr() -> pl.Expr:
         )
         .then(gas_utility_col)
         #### nimo | rge | cenhud | or | nfg ####
-        #### MD: bge | columbia_gas_md | ugi_central_penn ####
+        #### MD: bge | columbia_gas_md | ugi_central_penn | easton_muni ####
         # Single residential tariff JSON per utility (stem matches tariff filename).
         .when(gas_utility_col == "bge")
         .then(pl.lit("bge_residential"))
@@ -178,7 +178,9 @@ def _tariff_key_expr() -> pl.Expr:
         .then(pl.lit("columbia_gas_md_residential"))
         .when(gas_utility_col == "ugi_central_penn")
         .then(pl.lit("ugi_central_penn_residential"))
-        #### MD: bge | columbia_gas_md | ugi_central_penn ####
+        .when(gas_utility_col == "easton_muni")
+        .then(pl.lit("easton_muni_residential"))
+        #### MD: bge | columbia_gas_md | ugi_central_penn | easton_muni ####
         #### MD: washington_gas ####
         # Heating vs non-heating subclasses (matches RateAcuity / URDB JSON stems).
         .when((gas_utility_col == "washington_gas") & heats_with_natgas_column.eq(True))
