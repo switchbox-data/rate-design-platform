@@ -30,6 +30,7 @@ data/resstock/utility/csv/
 data/resstock/utility/parquet/
 data/resstock/utility/shapefiles/
 data/resstock/utility/zips/
+data/resstock/integrity_report_*.yaml
 data/pjm/_local_lmp/
 data/eia/hourly_loads/zone_parquet/
 data/eia/hourly_loads/utility_parquet/

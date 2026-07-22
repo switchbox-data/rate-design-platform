@@ -276,3 +276,273 @@ def test_filter_runs_by_upgrade() -> None:
 def test_filter_runs_no_filter_returns_all() -> None:
     runs = [_make_run(f"r{i}", ["MD"], ["0"]) for i in range(3)]
     assert _filter_runs(runs) == runs
+
+
+# ── Integrity check ──────────────────────────────────────────────────────────
+
+
+def test_check_integrity_unions_file_types_across_runs(tmp_path: Path) -> None:
+    """Expected types are the union of all matching runs, not just the latest."""
+    import time
+
+    from data.resstock.manifest import check_integrity
+
+    ebs_base = str(tmp_path)
+    release = "res_2024_amy2018_2"
+    raw_dir = tmp_path / release
+    sb_dir = tmp_path / f"{release}_sb"
+    sb_dir.mkdir(parents=True)
+
+    # Files from two separate runs: metadata then load_curve_hourly
+    for d in (
+        raw_dir / "metadata" / "state=MD" / "upgrade=00",
+        raw_dir / "load_curve_hourly" / "state=MD" / "upgrade=00",
+    ):
+        d.mkdir(parents=True)
+        (d / "data.parquet").write_bytes(b"ok")
+    time.sleep(0.05)
+
+    run1 = _make_run("run-meta", ["MD"], ["0"])
+    run1["args"]["file_types"] = ["metadata"]
+    record_step(run1, "fetch")
+    finish_run(run1)
+    upsert_run(raw_dir, run1)
+
+    run2 = _make_run("run-loads", ["MD"], ["0"])
+    run2["args"]["file_types"] = ["load_curve_hourly"]
+    record_step(run2, "fetch")
+    finish_run(run2)
+    upsert_run(raw_dir, run2)
+
+    # Empty _sb manifest so it doesn't confuse the raw assertion
+    sb_run = _make_run("run-sb", ["MD"], ["0"])
+    sb_run["args"]["file_types"] = ["metadata"]
+    finish_run(sb_run)
+    upsert_run(sb_dir, sb_run)
+
+    with patch("data.resstock.manifest._list_s3_files", return_value=[]):
+        report = check_integrity(
+            release=release,
+            state="MD",
+            ebs_base=ebs_base,
+            s3_base="s3://data.sb/nrel/resstock",
+            location="ebs",
+            output_path=tmp_path / "report.yaml",
+        )
+
+    raw_issues = [
+        m
+        for m in report["mismatches"]
+        if m.get("release") == release
+        and m.get("issue")
+        in (
+            "unexpected_file_type",
+            "missing_file_type",
+        )
+    ]
+    assert raw_issues == [], (
+        f"Union of metadata + load_curve_hourly runs should expect both; "
+        f"got issues: {raw_issues}"
+    )
+
+
+def test_check_integrity_file_type_bijection_passes(tmp_path: Path) -> None:
+    """Expected file types present with matching timestamps → no mismatches."""
+    import time
+
+    from data.resstock.manifest import check_integrity
+
+    ebs_base = str(tmp_path)
+    release = "res_2024_amy2018_2"
+    release_sb = f"{release}_sb"
+    sb_dir = tmp_path / release_sb
+    raw_dir = tmp_path / release
+
+    # Create expected dirs before recording steps so mtimes precede completed_at
+    for d in (
+        sb_dir / "metadata" / "state=MD" / "upgrade=00",
+        sb_dir / "metadata_utility" / "state=MD",
+        raw_dir / "metadata" / "state=MD" / "upgrade=00",
+    ):
+        d.mkdir(parents=True)
+        (d / "data.parquet").write_bytes(b"ok")
+    time.sleep(0.05)
+
+    sb_run = _make_run("run-MD-001", ["MD"], ["0"])
+    sb_run["args"]["file_types"] = ["metadata"]
+    record_step(sb_run, "clone")
+    record_step(sb_run, "assign_utility")
+    finish_run(sb_run)
+    upsert_run(sb_dir, sb_run)
+
+    raw_run = _make_run("run-MD-001", ["MD"], ["0"])
+    raw_run["args"]["file_types"] = ["metadata"]
+    record_step(raw_run, "fetch")
+    finish_run(raw_run)
+    upsert_run(raw_dir, raw_run)
+
+    report_path = tmp_path / "report.yaml"
+    with patch("data.resstock.manifest._list_s3_files", return_value=[]):
+        report = check_integrity(
+            release=release,
+            state="MD",
+            ebs_base=ebs_base,
+            s3_base="s3://data.sb/nrel/resstock",
+            location="ebs",
+            output_path=report_path,
+        )
+
+    assert report["mismatches"] == []
+    assert "match the manifest" in report["summary"]
+    assert report_path.exists()
+
+
+def test_check_integrity_flags_unexpected_file_type_on_sb(tmp_path: Path) -> None:
+    """load_curve_annual on _sb must fail: excluded from _sb and not in expected set."""
+    from data.resstock.manifest import check_integrity
+
+    ebs_base = str(tmp_path)
+    release = "res_2024_amy2018_2"
+    release_sb = f"{release}_sb"
+    sb_dir = tmp_path / release_sb
+    raw_dir = tmp_path / release
+
+    # Expected types for _sb with these steps: metadata, load_curve_hourly, metadata_utility
+    for d in (
+        sb_dir / "metadata" / "state=MD" / "upgrade=00",
+        sb_dir / "load_curve_hourly" / "state=MD" / "upgrade=00",
+        sb_dir / "metadata_utility" / "state=MD",
+        # Forbidden leftover:
+        sb_dir / "load_curve_annual" / "state=MD" / "upgrade=00",
+    ):
+        d.mkdir(parents=True)
+        (d / "data.parquet").write_bytes(b"x")
+
+    sb_run = _make_run("run-MD-001", ["MD"], ["0"])
+    sb_run["args"]["file_types"] = [
+        "metadata",
+        "load_curve_hourly",
+        "load_curve_annual",
+    ]
+    record_step(sb_run, "clone")
+    record_step(sb_run, "assign_utility")
+    finish_run(sb_run)
+    upsert_run(sb_dir, sb_run)
+
+    # Raw: no files needed for this assertion (will report missing, that's fine —
+    # we only assert on the unexpected_file_type for load_curve_annual on _sb)
+    raw_run = _make_run("run-MD-001", ["MD"], ["0"])
+    raw_run["args"]["file_types"] = ["metadata"]
+    finish_run(raw_run)
+    upsert_run(raw_dir, raw_run)
+
+    with patch("data.resstock.manifest._list_s3_files", return_value=[]):
+        report = check_integrity(
+            release=release,
+            state="MD",
+            ebs_base=ebs_base,
+            s3_base="s3://data.sb/nrel/resstock",
+            location="ebs",
+            output_path=tmp_path / "report.yaml",
+        )
+
+    unexpected = [
+        m
+        for m in report["mismatches"]
+        if m.get("issue") == "unexpected_file_type"
+        and m.get("file_type") == "load_curve_annual"
+    ]
+    assert unexpected, f"Expected unexpected_file_type for load_curve_annual:\n{report}"
+
+
+def test_check_integrity_flags_missing_file_type(tmp_path: Path) -> None:
+    """Manifest expects metadata but directory is absent → missing_file_type."""
+    from data.resstock.manifest import check_integrity
+
+    ebs_base = str(tmp_path)
+    release = "res_2024_amy2018_2"
+    sb_dir = tmp_path / f"{release}_sb"
+    raw_dir = tmp_path / release
+    sb_dir.mkdir(parents=True)
+    raw_dir.mkdir(parents=True)
+
+    sb_run = _make_run("run-MD-001", ["MD"], ["0"])
+    sb_run["args"]["file_types"] = ["metadata", "load_curve_hourly"]
+    record_step(sb_run, "clone")
+    finish_run(sb_run)
+    upsert_run(sb_dir, sb_run)
+
+    raw_run = _make_run("run-MD-001", ["MD"], ["0"])
+    raw_run["args"]["file_types"] = ["metadata"]
+    finish_run(raw_run)
+    upsert_run(raw_dir, raw_run)
+
+    with patch("data.resstock.manifest._list_s3_files", return_value=[]):
+        report = check_integrity(
+            release=release,
+            state="MD",
+            ebs_base=ebs_base,
+            s3_base="s3://data.sb/nrel/resstock",
+            location="ebs",
+            output_path=tmp_path / "report.yaml",
+        )
+
+    missing = [
+        m
+        for m in report["mismatches"]
+        if m.get("issue") == "missing_file_type" and m.get("release") == f"{release}_sb"
+    ]
+    assert any(m["file_type"] == "metadata" for m in missing)
+    assert any(m["file_type"] == "load_curve_hourly" for m in missing)
+
+
+def test_check_integrity_flags_timestamp_mismatch(tmp_path: Path) -> None:
+    """Newest file mtime after the step completed_at (+ tolerance) → timestamp_mismatch."""
+    import os
+    import time
+
+    from data.resstock.manifest import check_integrity
+
+    ebs_base = str(tmp_path)
+    release = "res_2024_amy2018_2"
+    release_sb = f"{release}_sb"
+    sb_dir = tmp_path / release_sb
+    raw_dir = tmp_path / release
+
+    sb_run = _make_run("run-MD-001", ["MD"], ["0"])
+    sb_run["args"]["file_types"] = ["metadata"]
+    record_step(sb_run, "clone")
+    record_step(sb_run, "assign_utility")
+    finish_run(sb_run)
+    upsert_run(sb_dir, sb_run)
+
+    raw_run = _make_run("run-MD-001", ["MD"], ["0"])
+    raw_run["args"]["file_types"] = ["metadata"]
+    finish_run(raw_run)
+    upsert_run(raw_dir, raw_run)
+
+    # Create files AFTER the step timestamps, with future mtime
+    for d in (
+        sb_dir / "metadata" / "state=MD" / "upgrade=00",
+        sb_dir / "metadata_utility" / "state=MD",
+    ):
+        d.mkdir(parents=True)
+        f = d / "data.parquet"
+        f.write_bytes(b"late")
+        os.utime(f, (time.time() + 3600, time.time() + 3600))
+
+    with patch("data.resstock.manifest._list_s3_files", return_value=[]):
+        report = check_integrity(
+            release=release,
+            state="MD",
+            ebs_base=ebs_base,
+            s3_base="s3://data.sb/nrel/resstock",
+            location="ebs",
+            tolerance_seconds=300,
+            output_path=tmp_path / "report.yaml",
+        )
+
+    ts_issues = [
+        m for m in report["mismatches"] if m.get("issue") == "timestamp_mismatch"
+    ]
+    assert ts_issues, f"Expected timestamp_mismatch:\n{report}"
