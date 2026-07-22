@@ -2,8 +2,8 @@ from typing import cast
 
 from utils.pre.create_scenario_yamls import (
     _hoist_shared_subclass_config,
-    _normalize_deprecated_elec_heat_seasonal_paths,
     _parse_subclass_selectors,
+    _require_utility_for_data_row,
     _row_to_run,
 )
 
@@ -27,7 +27,7 @@ def _base_row() -> dict[str, str]:
         "path_outputs": "/data.sb/switchbox/cairo/outputs/hp_rates/ri/test",
         "path_tariffs_electric": "hp: tariffs/electric/rie_hp_seasonalTOU_supply.json, non-hp: tariffs/electric/rie_flat_supply.json",
         "utility_revenue_requirement": "rev_requirement/rie_hp_vs_nonhp.yaml",
-        "add_supply_revenue_requirement": "FALSE",
+        "run_includes_supply": "FALSE",
         "run_includes_subclasses": "TRUE",
         "subclass_group_col": "has_hp",
         "subclass_selectors": "hp:true,non-hp:false",
@@ -42,13 +42,21 @@ def _base_row() -> dict[str, str]:
 
 
 def test_row_to_run_uses_run_includes_supply() -> None:
-    """run_includes_supply is emitted (from either new or old column name)."""
+    """run_includes_supply is read from the sheet column."""
     row = _base_row()
     headers = list(row.keys())
     run = _row_to_run(row, headers)
-    assert "run_includes_supply" in run
     assert run["run_includes_supply"] is False
-    assert "add_supply_revenue_requirement" not in run
+
+
+def test_row_to_run_requires_run_includes_supply() -> None:
+    import pytest
+
+    row = _base_row()
+    row.pop("run_includes_supply")
+    headers = list(row.keys())
+    with pytest.raises(ValueError, match="run_includes_supply"):
+        _row_to_run(row, headers)
 
 
 def test_row_to_run_reads_run_includes_subclasses_from_sheet() -> None:
@@ -108,51 +116,37 @@ def test_row_to_run_omits_path_tou_supply_mc_when_blank() -> None:
     assert "path_tou_supply_mc" not in run
 
 
-def test_normalize_deprecated_elec_heat_seasonal_paths() -> None:
-    assert _normalize_deprecated_elec_heat_seasonal_paths("") == ""
-    assert (
-        _normalize_deprecated_elec_heat_seasonal_paths(
-            "tariff_maps/electric/u_elec_heat_seasonal_epmc_vs_non_elec_heat_supply.csv"
-        )
-        == "tariff_maps/electric/u_elec_heat_seasonal_vs_non_elec_heat_supply.csv"
-    )
-    assert (
-        _normalize_deprecated_elec_heat_seasonal_paths(
-            "tariffs/electric/u_elec_heat_seasonal_epmc_supply_calibrated.json"
-        )
-        == "tariffs/electric/u_elec_heat_seasonal_supply_calibrated.json"
-    )
-    # hp_seasonal_epmc paths must be unchanged
-    assert (
-        _normalize_deprecated_elec_heat_seasonal_paths(
-            "tariffs/electric/u_hp_seasonal_epmc.json"
-        )
-        == "tariffs/electric/u_hp_seasonal_epmc.json"
+def test_require_utility_for_data_row_accepts_valid_utility() -> None:
+    row = {"state": "NY", "utility": "coned", "num": "1"}
+    _require_utility_for_data_row(
+        row, state_key="state", utility_key="utility", num_key="num"
     )
 
 
-def test_row_to_run_normalizes_deprecated_elec_heat_seasonal_sheet_paths() -> None:
-    """Runs 33–36 sheet rows may still reference *_elec_heat_seasonal_epmc* files."""
-    row = _base_row()
-    row["path_tariff_maps_electric"] = (
-        "tariff_maps/electric/rie_elec_heat_seasonal_epmc_vs_non_elec_heat.csv"
-    )
-    row["path_tariffs_electric"] = (
-        "electric_heating: tariffs/electric/rie_elec_heat_seasonal_epmc.json, "
-        "non_electric_heating: tariffs/electric/rie_non_electric_heating.json"
-    )
-    headers = list(row.keys())
-    run = _row_to_run(row, headers)
-    assert (
-        run["path_tariff_maps_electric"]
-        == "tariff_maps/electric/rie_elec_heat_seasonal_vs_non_elec_heat.csv"
-    )
-    path_tariffs_electric = cast(dict[str, str], run["path_tariffs_electric"])
-    assert path_tariffs_electric["electric_heating"] == (
-        "tariffs/electric/rie_elec_heat_seasonal.json"
-    )
-    assert path_tariffs_electric["non_electric_heating"] == (
-        "tariffs/electric/rie_non_electric_heating.json"
+def test_require_utility_for_data_row_raises_on_blank_utility() -> None:
+    import pytest
+
+    row = {"state": "NY", "utility": "", "num": "5"}
+    with pytest.raises(ValueError, match="blank or invalid utility"):
+        _require_utility_for_data_row(
+            row, state_key="state", utility_key="utility", num_key="num"
+        )
+
+
+def test_require_utility_for_data_row_raises_on_numeric_utility() -> None:
+    import pytest
+
+    row = {"state": "RI", "utility": "123", "num": "2"}
+    with pytest.raises(ValueError, match="blank or invalid utility"):
+        _require_utility_for_data_row(
+            row, state_key="state", utility_key="utility", num_key="num"
+        )
+
+
+def test_require_utility_for_data_row_skips_rows_without_state() -> None:
+    row = {"state": "", "utility": "", "num": "1"}
+    _require_utility_for_data_row(
+        row, state_key="state", utility_key="utility", num_key="num"
     )
 
 
