@@ -7,6 +7,7 @@ from typing import cast
 import polars as pl
 from cloudpathlib import S3Path
 
+from data.resstock.utils import get_excluded_gas_utilities
 from utils import get_aws_region
 from utils.types import ElectricUtility
 
@@ -17,18 +18,10 @@ STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 # assignment (e.g. re-running assign_utility_* to exclude or reassign them), which is
 # simpler and avoids touching polygon/overlap logic. CAIRO then uses the null tariff
 # for these buildings.
-# NY: bath, chautauqua, corning, fillmore, reserve, stlaw
-# (also listed under excluded_gas_utilities in state_configs.yaml for NY)
-EXCLUDED_GAS_UTILITIES = frozenset(
-    {
-        "bath",
-        "chautauqua",
-        "corning",
-        "fillmore",
-        "reserve",
-        "stlaw",
-    }
-)
+#
+# Canonical per-state lists live in data/resstock/state_configs.yaml under
+# utility_assignment.kwargs.excluded_gas_utilities; this is the cross-state union.
+EXCLUDED_GAS_UTILITIES = get_excluded_gas_utilities()
 # Gas utilities we expect in assignment (IOUs we model + excluded + electric-only that may appear).
 # If we see any other gas_utility value, we log a warning so new polygon data or new utilities
 # don't slip through unnoticed.

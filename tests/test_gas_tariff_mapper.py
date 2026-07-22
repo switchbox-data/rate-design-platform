@@ -8,7 +8,16 @@ import polars as pl
 import pytest
 
 from utils.pre.fetch_gas_tariffs_rateacuity import load_config
-from utils.pre.gas_tariff_mapper import map_gas_tariff
+from utils.pre.gas_tariff_mapper import EXCLUDED_GAS_UTILITIES, map_gas_tariff
+
+
+def test_excluded_gas_utilities_compiled_from_state_configs():
+    """Mapper exclusion set is the union of state_configs.yaml lists."""
+    from data.resstock.utils import get_excluded_gas_utilities
+
+    assert EXCLUDED_GAS_UTILITIES == get_excluded_gas_utilities()
+    assert EXCLUDED_GAS_UTILITIES == get_excluded_gas_utilities("NY")
+    assert "easton_muni" not in EXCLUDED_GAS_UTILITIES
 
 
 def test_map_gas_tariff_uses_crosswalk_for_tariff_key():

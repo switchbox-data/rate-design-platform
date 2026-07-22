@@ -111,8 +111,11 @@ split-chesapeake-gas-tariffs:
 # Gas tariff maps are partitioned by electric utility (output:
 # tariff_maps/gas/<electric_utility>_u00.csv and _u02.csv). MD has 8 modeled
 # gas utilities (bge, washington_gas, columbia_gas_md, chesapeake_utilities,
-# sandpiper, elkton_gas, ugi_central_penn, easton_muni) served across 6
-# modeled electric utilities; somerset_rec is outside the gas-map electric list.
+# sandpiper, elkton_gas, ugi_central_penn, easton_muni) served across these
+# electric territories. Gas-only LDCs (washington_gas, etc.) appear as
+# tariff_keys inside the electric utility's map — only easton_muni among the
+# munis is dual-fuel and needs its own map file. somerset_rec / berlin_muni /
+# hagerstown_muni stay outside this list (electric-only for our purposes).
 #
 # Chesapeake-territory RES-1/RES-2 split reads load_curve_annual from the raw
 # NREL release (passed automatically by the shared create-gas-tariff-map recipe).
@@ -126,8 +129,8 @@ split-chesapeake-gas-tariffs:
 # =============================================================================
 
 # Electric utilities for which gas tariff maps are generated (covers all 8
-# modeled MD gas utilities across these 6 electric service territories).
-md_electric_utilities := "bge pepco dpl poted smeco choptank"
+# modeled MD gas utilities, including easton_muni dual-fuel territory).
+md_electric_utilities := "bge pepco dpl poted smeco choptank easton_muni"
 
 # Per-utility shortcuts (upgrade 00). Mirror NY map-gas-<name> convention.
 map-gas-bge:
@@ -148,17 +151,21 @@ map-gas-smeco:
 map-gas-choptank:
     just create-gas-tariff-map choptank 00 {{ path_tariff_maps }}/gas
 
-# Run upgrade-00 gas tariff maps for all 6 MD electric utilities.
-map-gas-all-utilities:
-    mkdir -p {{ path_tariff_maps }}/gas
-    just map-gas-bge
-    just map-gas-pepco
-    just map-gas-dpl
-    just map-gas-poted
-    just map-gas-smeco
-    just map-gas-choptank
+map-gas-easton_muni:
+    just create-gas-tariff-map easton_muni 00 {{ path_tariff_maps }}/gas
 
-# Full batch: upgrades 00 + 02 for all 6 MD electric utilities.
+# Run upgrade-00 gas tariff maps for all MD electric utilities in the list.
+map-gas-all-utilities:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p {{ path_tariff_maps }}/gas
+    for utility in {{ md_electric_utilities }}; do
+        echo ">> MD gas tariff map: utility=${utility} upgrade=00" >&2
+        just create-gas-tariff-map "${utility}" "00" "{{ path_tariff_maps }}/gas"
+    done
+    echo ">> Done: MD gas tariff maps (upgrade 00)" >&2
+
+# Full batch: upgrades 00 + 02 for all MD electric utilities in the list.
 create-gas-tariff-maps-md-all:
     #!/usr/bin/env bash
     set -euo pipefail
