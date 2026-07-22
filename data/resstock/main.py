@@ -938,14 +938,16 @@ def main(argv: list[str] | None = None) -> None:
         # that would otherwise corrupt the _sb release mid-run.
         print("Running pre-flight validations...", flush=True)
 
+        # Retroactively mark any stale in_progress runs left by a previous
+        # ungraceful exit (e.g. OOM kill, SIGKILL) as crashed.  Must run
+        # *before* inserting this run — otherwise mark_crashed_runs would
+        # immediately mark the brand-new in_progress entry as crashed.
+        mark_crashed_runs(path_raw)
+        mark_crashed_runs(path_sb)
+
         # Record the run in _sb immediately so that even a pre-flight crash
         # leaves a trace in the manifest.
         upsert_run(path_sb, run)
-
-        # Retroactively mark any stale in_progress runs left by a previous
-        # ungraceful exit (e.g. OOM kill, SIGKILL) as crashed.
-        mark_crashed_runs(path_raw)
-        mark_crashed_runs(path_sb)
         run_warnings = collect_run_warnings(
             file_types=args.file_types,
             upgrade_ids=args.upgrade_ids,
