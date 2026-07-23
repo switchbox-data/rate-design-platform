@@ -75,6 +75,40 @@ def _state_config(state: str) -> Path:
     return PATH_PROJECT / state.lower() / "config"
 
 
+def assert_output_dir_is_mounted(
+    path_results: Path, mount_root: Path = Path("/data.sb")
+) -> None:
+    """Fail fast if *path_results* lives under an unmounted FUSE mountpoint.
+
+    CAIRO's postprocessing (and our own ``write_billing_kwh``) writes outputs
+    with plain ``pathlib``/``open()`` calls, which have no concept of S3 — they
+    only work because ``mount_root`` is normally an s3fs FUSE mount that makes
+    the bucket look like a local filesystem. If that mount isn't actually
+    active, those writes silently succeed against local disk instead of S3,
+    which is exactly what happened on 2026-07-22/23 (see the incident writeup
+    in the mount-fix plan): a run wrote ~745MB to local disk with no error,
+    and it took a manual S3 diff to notice the outputs never landed in the
+    bucket. Raise loudly here instead so a broken mount fails the run
+    immediately rather than silently.
+
+    No-op when *path_results* doesn't fall under *mount_root* at all (e.g. a
+    local scratch output dir passed via ``--output-dir``).
+    """
+    resolved = path_results.resolve()
+    resolved_mount_root = mount_root.resolve()
+    try:
+        resolved.relative_to(resolved_mount_root)
+    except ValueError:
+        return
+    if not mount_root.is_mount():
+        raise RuntimeError(
+            f"{mount_root} is not mounted, but the run's output dir is "
+            f"{resolved}. Writes would silently land on local disk instead "
+            f"of S3. Fix: `sudo mount {mount_root}` (if that fails with "
+            "'not empty', clear local contents under it first)."
+        )
+
+
 @contextlib.contextmanager
 def _timed(label: str) -> Iterator[None]:
     t0 = time.perf_counter()
@@ -626,6 +660,8 @@ def run(
         settings.state,
         settings.run_name,
     )
+
+    assert_output_dir_is_mounted(settings.path_results)
 
     _effective_workers = (
         num_workers
