@@ -12,7 +12,6 @@ conventions — no per-run path duplication.
 from __future__ import annotations
 
 import logging
-import os
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -199,11 +198,8 @@ def derive_settings(
     run_name = f"{config.state}_{config.utility}_{config.scenario}_{stage_suffix}_{variant_suffix}"
 
     path_config = config.state_config_dir
-    outputs_base = Path(
-        os.environ.get(
-            "RDP_OUTPUT_BASE",
-            f"/data.sb/switchbox/cairo/outputs/hp_rates/{config.state}/{config.utility}",
-        )
+    output_dir = Path(
+        f"/data.sb/switchbox/cairo/outputs/hp_rates/{config.state}/{config.utility}"
     )
     output_dir = outputs_base / batch
 
