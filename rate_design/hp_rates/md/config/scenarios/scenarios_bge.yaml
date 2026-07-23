@@ -14,7 +14,7 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/<execution_time>/md_bge_run1_up00_precalc__default__pc
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/zero.parquet
-    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=bge/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/zero.parquet
     path_tariffs_electric:
       all: tariffs/electric/bge_default.json
     utility_revenue_requirement: rev_requirement/bge_rate_case_test_year.yaml
@@ -74,7 +74,7 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/<execution_time>/md_bge_run3_up02_default__default
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/zero.parquet
-    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=bge/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/zero.parquet
     path_tariffs_electric:
       all: tariffs/electric/bge_default_calibrated.json
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
@@ -130,7 +130,7 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/<execution_time>/md_bge_run5_up00_precalc__hp_seasonal_vs_nhpdefault__pc
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/zero.parquet
-    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=bge/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/zero.parquet
     path_tariffs_electric:
       hp: tariffs/electric/bge_hp_seasonal.json
       non-hp: tariffs/electric/bge_nonhp_nhpdefault.json
@@ -192,7 +192,7 @@ runs:
     path_tariffs_gas: tariffs/gas
     path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/<execution_time>/md_bge_run7_up02_default__hp_seasonal
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/zero.parquet
-    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility=bge/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/zero.parquet
     path_tariffs_electric:
       all: tariffs/electric/bge_hp_seasonal_calibrated.json
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
