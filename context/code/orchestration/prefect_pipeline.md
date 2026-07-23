@@ -13,11 +13,11 @@ The Justfile shell orchestration (`just run-1` ... `just run-all-sequential`) wi
 
 ## Files
 
-| File | Purpose |
-| ---- | ------- |
-| `rate_design/hp_rates/run_pipeline.py` | Prefect pipeline: config loader, settings derivation, tasks, flows, CLI |
-| `rate_design/hp_rates/ri/config/scenarios/pipeline_rie.yaml` | Compact pipeline YAML for RIE |
-| `rate_design/hp_rates/md/config/scenarios/pipeline_bge.yaml` | Compact pipeline YAML for BGE |
+| File                                                         | Purpose                                                                 |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| `rate_design/hp_rates/run_pipeline.py`                       | Prefect pipeline: config loader, settings derivation, tasks, flows, CLI |
+| `rate_design/hp_rates/ri/config/scenarios/pipeline_rie.yaml` | Compact pipeline YAML for RIE                                           |
+| `rate_design/hp_rates/md/config/scenarios/pipeline_bge.yaml` | Compact pipeline YAML for BGE                                           |
 
 ## Current architecture (default scenario only)
 
@@ -66,6 +66,7 @@ scenario: default
 ```
 
 All tariff JSON/map paths are **derived** from `utility` + `scenario` + naming conventions. For example, `scenario: default` produces:
+
 - Tariff JSON: `tariffs/electric/rie_default.json` (delivery), `rie_default_supply.json` (supply)
 - Tariff map: `tariff_maps/electric/rie_default.csv` (precalc delivery)
 - Calibrated: `tariff_maps/electric/rie_default_calibrated.csv` (calibrated delivery)
@@ -133,6 +134,7 @@ Outputs go to the FUSE mount at `/data.sb/switchbox/cairo/outputs/hp_rates/{stat
 Prefect caching replaces the old `check_s3_duplicate` logic. The cache key for each task is `{state}/{utility}/{batch}/{scenario}/{stage}`. If a task has already run with the same key, Prefect skips re-execution and returns the cached result.
 
 To force re-execution, either:
+
 - Change the `--batch` name
 - Clear the Prefect result store: `rm -rf ~/.prefect/storage/`
 
