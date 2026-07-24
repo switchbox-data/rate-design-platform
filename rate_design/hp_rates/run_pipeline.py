@@ -21,6 +21,7 @@ from typing import Any
 
 import yaml
 from prefect import flow, task
+from prefect.artifacts import create_markdown_artifact
 from prefect.cache_policies import CacheKeyFnPolicy
 from prefect.context import TaskRunContext
 
@@ -198,10 +199,12 @@ def derive_settings(
     run_name = f"{config.state}_{config.utility}_{config.scenario}_{stage_suffix}_{variant_suffix}"
 
     path_config = config.state_config_dir
-    output_dir = Path(
-        f"/data.sb/switchbox/cairo/outputs/hp_rates/{config.state}/{config.utility}"
+    output_dir = (
+        Path(
+            f"/data.sb/switchbox/cairo/outputs/hp_rates/{config.state}/{config.utility}"
+        )
+        / batch
     )
-    output_dir = outputs_base / batch
 
     rr_yaml_rel = config.rr_calibrated_path if calibrated else config.rr_precalc_path
     raw_path_tariffs_electric: dict[str, Any] = {
@@ -329,16 +332,23 @@ def _git_metadata() -> dict[str, str]:
     }
 
 
-def _write_log(utility: str, scenario: str, stage: str, batch: str) -> None:
-    """Write git metadata log for this run."""
-    log_dir = Path.home() / "rdp_run_logs"
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_path = log_dir / f"{utility}_{scenario}_{stage}_{batch}.log"
+def _log_provenance(utility: str, scenario: str, stage: str, batch: str) -> None:
+    """Record git provenance as a Prefect markdown artifact."""
     meta = _git_metadata()
-    with log_path.open("w") as f:
-        for k, v in meta.items():
-            f.write(f"{k}: {v}\n")
-    log.info("Wrote metadata to %s", log_path)
+    markdown = (
+        f"## {utility} / {scenario} / {stage}\n\n"
+        f"| Field | Value |\n"
+        f"| ----- | ----- |\n"
+        f"| batch | `{batch}` |\n"
+        f"| git_commit | `{meta['git_commit']}` |\n"
+        f"| git_dirty | {meta['git_dirty']} |\n"
+        f"| timestamp | {meta['timestamp']} |\n"
+    )
+    create_markdown_artifact(
+        key=f"{utility}-{scenario}-{stage}",
+        markdown=markdown,
+        description=f"Git provenance for {utility}/{scenario}/{stage}",
+    )
 
 
 def _run_single(settings: ScenarioSettings, *, billing_kwh: bool) -> Path:
@@ -425,7 +435,7 @@ def precalc_task(
     config: PipelineConfig, batch: str, stage: str = "precalc"
 ) -> StageResult:
     """Run precalc delivery + supply in parallel, extract calibrated tariffs."""
-    _write_log(config.utility, config.scenario, "precalc", batch)
+    _log_provenance(config.utility, config.scenario, "precalc", batch)
 
     delivery_dir, supply_dir = _run_pair(config, batch, calibrated=False)
 
@@ -458,7 +468,7 @@ def calibrated_task(
     The precalc_tariffs argument encodes the Prefect dependency on precalc_task —
     by the time this task executes, precalc has completed and written tariff files.
     """
-    _write_log(config.utility, config.scenario, "calibrated", batch)
+    _log_provenance(config.utility, config.scenario, "calibrated", batch)
 
     delivery_dir, supply_dir = _run_pair(config, batch, calibrated=True)
 
