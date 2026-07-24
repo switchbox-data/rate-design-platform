@@ -8,21 +8,25 @@ The pipeline is described in canonical terms — not the legacy "run 1..8" numbe
 
 - **Scenario** — one rate design to evaluate (`default`, `hp_seasonal_percustomer`, …), declared with a `quartet` kind.
 - **Variant** — the cost scope of one CAIRO run: `delivery` (delivery only, supply MC zeroed, `billing_kwh=True`) or `supply` (real supply MC, `billing_kwh=False`).
-- **Stage** — the calibration lifecycle position: `precalc` (baseline population; CAIRO solves the tariffs) then `calibrated` (target population; **stage-1 outputs `*_calibrated.json` as input, never stage-1 inputs**).
+- **Stage** — the calibration lifecycle position: `precalc` (baseline population; CAIRO solves the tariffs) then `calibrated` (target population; **stage-1 outputs** `*_calibrated.json` **as input, never stage-1 inputs**).
 - **Rate mode** — how many tariffs a stage runs: `single` (one `all` tariff) or `multi` (per-subgroup tariffs + a bldg→tariff map).
 - **Run** — one CAIRO invocation = one (stage, variant) pair; the atomic unit of work (`cairo_run`).
 - **Quartet** — the four runs that fully evaluate one scenario: two stages × two variants. `quartet_evaluator` owns one.
 - **tariff_promotion seam** — the handoff joining a quartet's two stages: the precalc stage's calibrated tariffs become the calibrated stage's inputs (`promote_subgroup_tariff` → `PromotionResult`).
 
+
+
 ### Quartet kinds
 
 A scenario picks exactly one `quartet` kind, which fixes both stages' rate modes and the derived promotion policy (no separate promotion knob):
 
-| quartet                | precalc | calibrated | tariff_promotion      | subgroups |
-| ---------------------- | ------- | ---------- | --------------------- | --------- |
-| `single_rate`          | single  | single     | `identity`            | no        |
-| `multi_rate_collapsed` | multi   | single     | `collapse_to_derived` | yes       |
-| `multi_rate_preserved` | multi   | multi      | `keep_subgroups`      | yes       |
+
+| quartet                | precalc | calibrated | tariff_promotion      | subgroups | run number equivalent                                                                                                                          |
+| ---------------------- | ------- | ---------- | --------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `single_rate`          | single  | single     | `identity`            | no        | Runs 1-4 - calibrate default tariff on up00, evaluate on up02                                                                                  |
+| `multi_rate_collapsed` | multi   | single     | `collapse_to_derived` | yes       | Runs 5-8 - derive HP rate, calibrate HP vs Non-HP tariff on up00, evaluate only the HP rate on up02                                            |
+| `multi_rate_preserved` | multi   | multi      | `keep_subgroups`      | yes       | Not currently done. Use case could be calibrate on existing default vs TOU tariff, evaluate change when people modify equipment but keep rates |
+
 
 - `multi_rate_collapsed` — calibrate N per-subgroup tariffs, then evaluate the target population on **one** promoted subgroup's calibrated tariff (`promote_subgroup`, defaulting to the sole `source: derived` subgroup). Right for HP-adoption scenarios (the target world is all-HP).
 - `multi_rate_preserved` — keep every subgroup's calibrated tariff through the calibrated stage. Right when the grouping dimension persists across the population change (income tier, geography, building type).
@@ -53,13 +57,19 @@ The Justfile shell orchestration (`just run-1` ... `just run-all-sequential`) wi
 - Uses Prefect caching instead of manual S3 duplicate guards
 - Bounds memory with a global Prefect concurrency limit instead of hand-rolled parallelism
 
+
+
 ## Files
+
 
 | File                                                         | Purpose                                                                 |
 | ------------------------------------------------------------ | ----------------------------------------------------------------------- |
 | `rate_design/hp_rates/run_pipeline.py`                       | Prefect pipeline: config loader, settings derivation, tasks, flows, CLI |
 | `rate_design/hp_rates/ri/config/scenarios/pipeline_rie.yaml` | Compact multi-scenario pipeline YAML for RIE                            |
 | `rate_design/hp_rates/md/config/scenarios/pipeline_bge.yaml` | Compact multi-scenario pipeline YAML for BGE                            |
+
+
+
 
 ## Architecture (three tiers)
 
@@ -78,10 +88,12 @@ hp_rates_pipeline (master flow, sets provenance tags)
        └─ quartet_evaluator (subflow) → both stages run (precalc multi, calibrated per kind)
 ```
 
-- **`cairo_run`** is the atomic `@task`: one CAIRO `run()`, cached and gated (see below). Delivery uses `billing_kwh=True`, supply `billing_kwh=False`.
-- **`quartet_evaluator` is a subflow** with `ThreadPoolTaskRunner(max_workers=2)`, so `run_stage` can submit the delivery+supply pair to run concurrently. One evaluator handles all three quartet kinds and always runs both stages.
+- `cairo_run` is the atomic `@task`: one CAIRO `run()`, cached and gated (see below). Delivery uses `billing_kwh=True`, supply `billing_kwh=False`.
+- `quartet_evaluator` **is a subflow** with `ThreadPoolTaskRunner(max_workers=2)`, so `run_stage` can submit the delivery+supply pair to run concurrently. One evaluator handles all three quartet kinds and always runs both stages.
 - **Designers/bridges are tasks**: `resolve_subgroups`, `compute_subclass_rr`, `derive_seasonal_tariff`.
 - **The calibrated stage always runs**: `quartet_evaluator` crosses the `tariff_promotion` seam (`promote_subgroup_tariff`) to pick the calibrated stage's tariffs (always `*_calibrated.json`) and map, then runs it. Every subgroup's calibrated tariff from the precalc stage is persisted even when only one is promoted forward (`collapse_to_derived`).
+
+
 
 ## Global concurrency gate (memory bound)
 
@@ -126,6 +138,8 @@ scenarios:
         non-hp: { values: ["false"], structure: default,  source: default_calibrated }
 ```
 
+
+
 ### Naming derivation
 
 - Single-rate JSON: `{utility}_default[_supply][_calibrated].json`; map `{utility}_default[_calibrated][_supply].csv`.
@@ -133,7 +147,11 @@ scenarios:
 - Multi-rate map (scenario-based, expresses N groups): `{utility}_{scenario}[_calibrated][_supply].csv`.
 - `ALLOCATION_TO_BAT_COL`: `percustomer→BAT_percustomer`, `epmc→BAT_epmc`, `volumetric→BAT_vol`.
 
+
+
 ## Invocation
+
+
 
 ### Start Prefect server (one-time, background)
 
@@ -171,3 +189,4 @@ The pipeline does **not** replace the Justfile — both coexist. The Prefect pip
 - `multi_rate_preserved` in production — the kind is implemented (precalc multi → calibrated multi), but no shipped scenario uses it yet; it also needs a per-subgroup `multi_rate_calibrated` RR YAML (the current one is the single "large number" rate case).
 - Concurrent scenario fan-out (async subflows) — the global gate already bounds memory, so flipping the master flow to concurrent needs no run-task changes.
 - Additional allocations (`epmc`, `volumetric`) and designers (TOU) — add scenario blocks / designer tasks.
+
