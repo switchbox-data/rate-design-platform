@@ -15,13 +15,11 @@ import logging
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import yaml
-from prefect import flow, task
-from prefect.artifacts import create_markdown_artifact
+from prefect import flow, tags, task
 from prefect.cache_policies import CacheKeyFnPolicy
 from prefect.context import TaskRunContext
 
@@ -302,53 +300,18 @@ def derive_settings(
 # ---------------------------------------------------------------------------
 
 
-def _git_metadata() -> dict[str, str]:
-    """Collect git commit and dirty status."""
+def _git_short_sha() -> str:
+    """Return the short git commit hash, or 'unknown' if unavailable."""
     try:
-        commit = (
+        return (
             subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL
+                ["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL
             )
             .decode()
             .strip()
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
-        commit = "unknown"
-    try:
-        dirty = len(
-            subprocess.check_output(
-                ["git", "status", "--porcelain"], stderr=subprocess.DEVNULL
-            )
-            .decode()
-            .strip()
-            .splitlines()
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        dirty = -1
-    return {
-        "git_commit": commit,
-        "git_dirty": f"{dirty} files",
-        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    }
-
-
-def _log_provenance(utility: str, scenario: str, stage: str, batch: str) -> None:
-    """Record git provenance as a Prefect markdown artifact."""
-    meta = _git_metadata()
-    markdown = (
-        f"## {utility} / {scenario} / {stage}\n\n"
-        f"| Field | Value |\n"
-        f"| ----- | ----- |\n"
-        f"| batch | `{batch}` |\n"
-        f"| git_commit | `{meta['git_commit']}` |\n"
-        f"| git_dirty | {meta['git_dirty']} |\n"
-        f"| timestamp | {meta['timestamp']} |\n"
-    )
-    create_markdown_artifact(
-        key=f"{utility}-{scenario}-{stage}",
-        markdown=markdown,
-        description=f"Git provenance for {utility}/{scenario}/{stage}",
-    )
+        return "unknown"
 
 
 def _run_single(settings: ScenarioSettings, *, billing_kwh: bool) -> Path:
@@ -435,8 +398,6 @@ def precalc_task(
     config: PipelineConfig, batch: str, stage: str = "precalc"
 ) -> StageResult:
     """Run precalc delivery + supply in parallel, extract calibrated tariffs."""
-    _log_provenance(config.utility, config.scenario, "precalc", batch)
-
     delivery_dir, supply_dir = _run_pair(config, batch, calibrated=False)
 
     calibrated_paths: list[Path] = []
@@ -468,8 +429,6 @@ def calibrated_task(
     The precalc_tariffs argument encodes the Prefect dependency on precalc_task —
     by the time this task executes, precalc has completed and written tariff files.
     """
-    _log_provenance(config.utility, config.scenario, "calibrated", batch)
-
     delivery_dir, supply_dir = _run_pair(config, batch, calibrated=True)
 
     log.info("Calibrated complete: delivery=%s, supply=%s", delivery_dir, supply_dir)
@@ -509,7 +468,13 @@ def hp_rates_pipeline(yaml_path: str, batch: str) -> QuartetResult:
     wired together via return values.
     """
     config = load_pipeline_config(Path(yaml_path))
-    return quartet(config, batch)
+    with tags(
+        f"batch:{batch}",
+        f"utility:{config.utility}",
+        f"scenario:{config.scenario}",
+        f"commit:{_git_short_sha()}",
+    ):
+        return quartet(config, batch)
 
 
 # ---------------------------------------------------------------------------
