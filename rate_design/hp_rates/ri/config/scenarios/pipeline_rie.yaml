@@ -3,6 +3,7 @@ utility: rie
 year: 2025
 solar_pv_compensation: net_metering
 process_workers: 8
+max_concurrent_cairo_runs: 2
 resstock:
   base: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb
   upgrade_precalc: "00"
@@ -13,9 +14,30 @@ marginal_costs:
   supply_energy: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/data.parquet
   supply_capacity: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/data.parquet
 revenue_requirement:
-  precalc: rev_requirement/rie_rate_case_test_year.yaml
-  calibrated: rev_requirement/rie_large_number_rate_case_test_year.yaml
-residual_allocation:
-  delivery: percustomer
-  supply: passthrough
-scenario: default
+  single_rate: rev_requirement/rie_rate_case_test_year.yaml
+  single_rate_calibrated: rev_requirement/rie_large_number_rate_case_test_year.yaml
+  # multi_rate is written by compute_subclass_rr from the default precalc runs.
+  multi_rate: rev_requirement/rie_hp_vs_nonhp_rate_case_test_year.yaml
+  multi_rate_calibrated: rev_requirement/rie_large_number_rate_case_test_year.yaml
+scenarios:
+  default:
+    quartet: single_rate
+  hp_seasonal_percustomer:
+    # multi-rate precalc (HP + non-HP), then a single promoted rate for the
+    # all-HP target population.
+    quartet: multi_rate_collapsed
+    depends_on: default
+    residual_allocation:
+      delivery: percustomer
+      supply: passthrough
+    subclass_config:
+      group_col: has_hp
+      subgroups:
+        hp:
+          values: ["true"]
+          structure: seasonal
+          source: derived
+        non-hp:
+          values: ["false"]
+          structure: default
+          source: default_calibrated
