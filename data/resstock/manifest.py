@@ -41,7 +41,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -458,9 +458,20 @@ def print_status(
             )
 
         if check_ebs and check_s3:
-            ebs_runs = ebs_manifest.get("runs", [])
-            s3_runs = s3_manifest.get("runs", [])
-            if ebs_runs and s3_runs:
+            ebs_runs = _filter_runs(
+                ebs_manifest.get("runs", []), states=states, upgrades=upgrades
+            )
+            s3_runs = _filter_runs(
+                s3_manifest.get("runs", []), states=states, upgrades=upgrades
+            )
+            if not ebs_runs or not s3_runs:
+                filter_desc = _describe_filter(states, upgrades)
+                print(
+                    f"  EBS ↔ S3:   ? cannot determine sync "
+                    f"(no matching runs on {'EBS' if not ebs_runs else 'S3'}"
+                    f" for filter: {filter_desc})"
+                )
+            else:
                 ebs_last = ebs_runs[-1].get("run_id")
                 s3_last = s3_runs[-1].get("run_id")
                 if ebs_last == s3_last:
@@ -474,6 +485,434 @@ def print_status(
                         " Re-run the pipeline or sync manually."
                     )
         print()
+
+
+# ── Integrity check ───────────────────────────────────────────────────────────
+
+# Maps pipeline step names to the file-type directories they create or modify.
+# Used to derive (1) which file types the manifest expects and (2) the
+# most recent ``completed_at`` timestamp for each file type.
+_STEP_FILE_TYPES: dict[str, frozenset[str]] = {
+    "fetch": frozenset(),  # filled from args.file_types at runtime (raw only)
+    "clone": frozenset(),  # filled from args.file_types minus SB_EXCLUDED (_sb only)
+    "modify_metadata": frozenset({"metadata"}),
+    "assign_utility": frozenset({"metadata_utility"}),
+    "approximate_non_hp_load": frozenset({"load_curve_hourly"}),
+    "adjust_mf_electricity": frozenset({"load_curve_hourly"}),
+    "add_monthly_loads": frozenset({"load_curve_monthly"}),
+    "upload_raw": frozenset(),  # does not create new types
+    "upload_sb": frozenset(),
+}
+
+
+def _parse_s3_ls_line(line: str) -> tuple[str, int, datetime] | None:
+    """Parse one line of ``aws s3 ls --recursive`` output.
+
+    Each line looks like:  2026-07-17 17:25:27    12345 path/to/file.parquet
+    Returns (key, size_bytes, last_modified) or None on parse failure.
+    """
+    parts = line.split(maxsplit=3)
+    if len(parts) < 4:
+        return None
+    try:
+        ts = datetime.fromisoformat(f"{parts[0]}T{parts[1]}+00:00")
+        size = int(parts[2])
+        key = parts[3]
+        return (key, size, ts)
+    except (ValueError, IndexError):
+        return None
+
+
+def _list_s3_files(s3_prefix: str) -> list[tuple[str, int, datetime]]:
+    """Recursively list all objects under an S3 prefix.
+
+    Returns a list of (relative_key, size_bytes, last_modified_utc).
+    The relative_key is stripped of the prefix so it matches local paths.
+    """
+    result = subprocess.run(
+        ["aws", "s3", "ls", "--recursive", s3_prefix],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+
+    prefix_path = s3_prefix.split("/", 3)[-1] if s3_prefix.count("/") >= 3 else ""
+
+    entries: list[tuple[str, int, datetime]] = []
+    for line in result.stdout.splitlines():
+        parsed = _parse_s3_ls_line(line)
+        if parsed:
+            key, size, ts = parsed
+            rel_key = key.removeprefix(prefix_path).lstrip("/")
+            entries.append((rel_key, size, ts))
+    return entries
+
+
+def _list_ebs_files(local_dir: Path, state: str) -> list[tuple[str, int, datetime]]:
+    """List all files under a local release directory filtered by state partition.
+
+    Returns (relative_path, size_bytes, mtime_utc).
+    """
+    entries: list[tuple[str, int, datetime]] = []
+    if not local_dir.is_dir():
+        return entries
+    for f in local_dir.rglob("*"):
+        if not f.is_file():
+            continue
+        rel = str(f.relative_to(local_dir))
+        if f"state={state}" not in rel:
+            continue
+        if rel == MANIFEST_FILENAME or rel.startswith(f"{MANIFEST_FILENAME}/"):
+            continue
+        stat = f.stat()
+        mtime = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+        entries.append((rel, stat.st_size, mtime))
+    return entries
+
+
+def _file_types_from_paths(paths: list[str]) -> set[str]:
+    """Extract top-level file-type directory names from relative paths."""
+    types: set[str] = set()
+    for p in paths:
+        top = p.split("/", 1)[0]
+        if top and top != MANIFEST_FILENAME:
+            types.add(top)
+    return types
+
+
+def _expected_file_types(runs: list[dict[str, Any]], *, is_sb: bool) -> set[str]:
+    """Derive expected file-type directories from *all* matching manifest runs.
+
+    Pipeline runs are additive: a later run that only fetches load curves does
+    not erase metadata written by an earlier run.  So the expected set is the
+    **union** across every run that touched this state, not just the latest.
+
+    For the raw release: union of ``args.file_types`` over all runs.
+    For the _sb release: the same union minus ``SB_EXCLUDED_FILE_TYPES``, plus
+    any types produced by completed steps (``metadata_utility``,
+    ``load_curve_monthly``, etc.).
+    """
+    from data.resstock.constants import SB_EXCLUDED_FILE_TYPES
+
+    expected: set[str] = set()
+    for run in runs:
+        base_types = set(run.get("args", {}).get("file_types", []))
+        if is_sb:
+            expected |= {ft for ft in base_types if ft not in SB_EXCLUDED_FILE_TYPES}
+            for step in run.get("steps", []):
+                expected |= set(_STEP_FILE_TYPES.get(step.get("step", ""), frozenset()))
+        else:
+            expected |= base_types
+    return expected
+
+
+def _latest_step_times_by_file_type(
+    runs: list[dict[str, Any]], *, is_sb: bool
+) -> dict[str, datetime]:
+    """Map each file type to the newest step ``completed_at`` across all runs."""
+    from data.resstock.constants import SB_EXCLUDED_FILE_TYPES
+
+    times: dict[str, datetime] = {}
+
+    for run in runs:
+        args = run.get("args", {})
+        base_types = set(args.get("file_types", []))
+        if is_sb:
+            base_types = {ft for ft in base_types if ft not in SB_EXCLUDED_FILE_TYPES}
+
+        for step in run.get("steps", []):
+            name = step.get("step", "")
+            completed_raw = step.get("completed_at")
+            if not completed_raw:
+                continue
+            completed = datetime.fromisoformat(completed_raw).astimezone(timezone.utc)
+
+            if name == "fetch" and not is_sb:
+                touched = base_types
+            elif name == "clone" and is_sb:
+                touched = base_types
+            elif name == "upload_raw" and not is_sb:
+                touched = base_types
+            elif name == "upload_sb" and is_sb:
+                touched = set(base_types)
+                for s in run.get("steps", []):
+                    touched |= set(_STEP_FILE_TYPES.get(s.get("step", ""), frozenset()))
+            else:
+                touched = set(_STEP_FILE_TYPES.get(name, frozenset()))
+
+            for ft in touched:
+                if ft not in times or completed > times[ft]:
+                    times[ft] = completed
+
+    return times
+
+
+def _aggregate_mtimes_by_file_type(
+    files: list[tuple[str, int, datetime]],
+) -> dict[str, tuple[datetime, datetime, int]]:
+    """Group files by top-level file type.
+
+    Returns ``{file_type: (min_mtime, max_mtime, n_files)}``.
+    """
+    agg: dict[str, tuple[datetime, datetime, int]] = {}
+    for path, _size, mtime in files:
+        ft = path.split("/", 1)[0]
+        if ft == MANIFEST_FILENAME:
+            continue
+        if ft not in agg:
+            agg[ft] = (mtime, mtime, 1)
+        else:
+            mn, mx, n = agg[ft]
+            agg[ft] = (min(mn, mtime), max(mx, mtime), n + 1)
+    return agg
+
+
+def check_integrity(
+    *,
+    release: str,
+    state: str,
+    ebs_base: str,
+    s3_base: str,
+    tolerance_seconds: int = 300,
+    output_path: Path | None = None,
+    location: str = "both",
+) -> dict[str, Any]:
+    """Check that file-type directories match the manifest (bijection + timestamps).
+
+    For each of the raw and ``_sb`` releases, scoped to *state*:
+
+    1. **Expected file types** are the **union** across *all* matching
+       manifest runs (not just the latest).  Pipeline runs are additive: a
+       later run that only fetches load curves does not erase metadata from
+       an earlier run.  For ``_sb``, ``SB_EXCLUDED_FILE_TYPES`` are dropped
+       and step-produced types (``metadata_utility``, ``load_curve_monthly``)
+       are included.
+    2. **Actual file types** are the top-level directories under the release that
+       contain ``state=<state>`` data, on EBS and/or S3.
+    3. Fail if a type exists on disk/S3 but is not expected by the manifest,
+       or if the manifest expects a type that is missing.
+    4. For each matching type, compare the newest file mtime against the
+       newest manifest step (across all runs) that touched that type.  Fail
+       if the newest file is more than ``tolerance_seconds`` after that step.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from tqdm import tqdm
+
+    release_sb = f"{release}_sb"
+    releases_to_check = [release, release_sb]
+
+    check_ebs = location in ("ebs", "both")
+    check_s3 = location in ("s3", "both")
+
+    report: dict[str, Any] = {
+        "state": state,
+        "checked_at": _now_iso(),
+        "tolerance_seconds": tolerance_seconds,
+        "location": location,
+        "releases_checked": releases_to_check,
+        "mismatches": [],
+        "summary": "",
+    }
+
+    all_mismatches: list[dict[str, Any]] = []
+
+    for rel in releases_to_check:
+        is_sb = rel.endswith("_sb")
+        ebs_dir = Path(ebs_base) / rel
+        s3_prefix = f"{s3_base.rstrip('/')}/{rel}/"
+
+        # Prefer the local manifest; fall back to S3 if EBS has none.
+        manifest = read_manifest(ebs_dir)
+        if not manifest.get("runs") and check_s3:
+            manifest = read_manifest_from_s3(f"{s3_prefix}{MANIFEST_FILENAME}")
+
+        runs = _filter_runs(manifest.get("runs", []), states=[state])
+        if not runs:
+            all_mismatches.append(
+                {
+                    "release": rel,
+                    "location": "manifest",
+                    "issue": f"No pipeline run found for state={state}",
+                    "file_type": None,
+                }
+            )
+            continue
+
+        expected = _expected_file_types(runs, is_sb=is_sb)
+        step_times = _latest_step_times_by_file_type(runs, is_sb=is_sb)
+        run_ids = [r.get("run_id", "?") for r in runs]
+
+        print(
+            f"  [{rel}] Expected file types from {len(runs)} manifest run(s): "
+            f"{sorted(expected) or '(none)'}",
+            flush=True,
+        )
+
+        # List files for this state
+        loc_labels = [x for x, on in (("EBS", check_ebs), ("S3", check_s3)) if on]
+        print(
+            f"  [{rel}] Listing state={state} files ({' + '.join(loc_labels)})...",
+            flush=True,
+        )
+
+        ebs_files: list[tuple[str, int, datetime]] = []
+        s3_files: list[tuple[str, int, datetime]] = []
+
+        if check_ebs and check_s3:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                fut_ebs = pool.submit(_list_ebs_files, ebs_dir, state)
+                fut_s3 = pool.submit(_list_s3_files, s3_prefix)
+                ebs_files = fut_ebs.result()
+                s3_files = [
+                    (k, sz, ts)
+                    for k, sz, ts in fut_s3.result()
+                    if f"state={state}" in k and not k.endswith(MANIFEST_FILENAME)
+                ]
+        elif check_ebs:
+            ebs_files = _list_ebs_files(ebs_dir, state)
+        else:
+            s3_files = [
+                (k, sz, ts)
+                for k, sz, ts in _list_s3_files(s3_prefix)
+                if f"state={state}" in k and not k.endswith(MANIFEST_FILENAME)
+            ]
+
+        checks: list[tuple[str, list[tuple[str, int, datetime]]]] = []
+        if check_ebs:
+            checks.append(("ebs", ebs_files))
+        if check_s3:
+            checks.append(("s3", s3_files))
+
+        for loc_name, files in checks:
+            actual_types = _file_types_from_paths([p for p, _, _ in files])
+            print(
+                f"  [{rel}/{loc_name}] Actual file types: "
+                f"{sorted(actual_types) or '(none)'} "
+                f"({len(files):,} files)",
+                flush=True,
+            )
+
+            unexpected = sorted(actual_types - expected)
+            missing = sorted(expected - actual_types)
+
+            for ft in unexpected:
+                all_mismatches.append(
+                    {
+                        "release": rel,
+                        "location": loc_name,
+                        "issue": "unexpected_file_type",
+                        "file_type": ft,
+                        "detail": (
+                            f"Directory '{ft}/' exists for state={state} but is not "
+                            f"expected from the union of {len(runs)} manifest run(s) "
+                            f"(run_ids={run_ids})."
+                        ),
+                    }
+                )
+
+            for ft in missing:
+                all_mismatches.append(
+                    {
+                        "release": rel,
+                        "location": loc_name,
+                        "issue": "missing_file_type",
+                        "file_type": ft,
+                        "detail": (
+                            f"Manifest expects '{ft}/' for state={state} "
+                            f"(union of run_ids={run_ids}) but it was not found."
+                        ),
+                    }
+                )
+
+            # Timestamp check for types present in both expected and actual
+            mtimes = _aggregate_mtimes_by_file_type(files)
+            shared = sorted(expected & actual_types)
+            with tqdm(
+                total=len(shared),
+                desc=f"  {rel}/{loc_name} timestamps",
+                unit="type",
+                leave=True,
+            ) as pbar:
+                for ft in shared:
+                    pbar.update(1)
+                    _mn, mx, n_files = mtimes[ft]
+                    step_ts = step_times.get(ft)
+                    if step_ts is None:
+                        # No step timestamp for this type — skip time check
+                        continue
+                    cutoff = step_ts + timedelta(seconds=tolerance_seconds)
+                    if mx > cutoff:
+                        all_mismatches.append(
+                            {
+                                "release": rel,
+                                "location": loc_name,
+                                "issue": "timestamp_mismatch",
+                                "file_type": ft,
+                                "detail": (
+                                    f"Newest file in '{ft}/' "
+                                    f"({mx.isoformat(timespec='seconds')}) is "
+                                    f"{int((mx - step_ts).total_seconds())}s after "
+                                    f"the latest manifest step for this type "
+                                    f"({step_ts.isoformat(timespec='seconds')}); "
+                                    f"tolerance={tolerance_seconds}s. "
+                                    f"({n_files:,} files checked)"
+                                ),
+                                "file_mtime_max": mx.isoformat(timespec="seconds"),
+                                "step_completed_at": step_ts.isoformat(
+                                    timespec="seconds"
+                                ),
+                                "delta_seconds": int((mx - step_ts).total_seconds()),
+                                "n_files": n_files,
+                            }
+                        )
+
+    report["mismatches"] = all_mismatches
+
+    n = len(all_mismatches)
+    if n == 0:
+        report["summary"] = (
+            f"All file types for state={state} match the manifest on "
+            f"{location} (set equality + timestamps within {tolerance_seconds}s)."
+        )
+    else:
+        by_issue: dict[str, int] = {}
+        for m in all_mismatches:
+            by_issue[m["issue"]] = by_issue.get(m["issue"], 0) + 1
+        parts = [f"{count} {issue}" for issue, count in sorted(by_issue.items())]
+        report["summary"] = f"Found {n} integrity issue(s): " + ", ".join(parts) + "."
+
+    if output_path is None:
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        output_path = Path(__file__).parent / f"integrity_report_{state}_{ts}.yaml"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w") as f:
+        yaml.dump(report, f, default_flow_style=False, sort_keys=False)
+
+    print(f"\n{'=' * 72}")
+    print(f"Integrity check: state={state}")
+    print(f"{'=' * 72}")
+    print(f"  Releases:  {', '.join(releases_to_check)}")
+    print(f"  Location:  {location}")
+    print(f"  Tolerance: {tolerance_seconds}s")
+    print(f"  Result:    {report['summary']}")
+    if all_mismatches:
+        print("\n  Issues:")
+        for m in all_mismatches[:30]:
+            print(
+                f"    [{m['location'].upper()}] {m['release']}/"
+                f"{m.get('file_type') or '?'} — {m['issue']}"
+            )
+            if m.get("detail"):
+                print(f"      {m['detail']}")
+        if n > 30:
+            print(f"    ... and {n - 30} more (see full report)")
+    print(f"\n  Full report: {output_path}")
+    print(f"{'=' * 72}\n")
+
+    return report
 
 
 def _status_main() -> None:
@@ -585,6 +1024,47 @@ def _status_main() -> None:
         ),
     )
 
+    integrity_group = parser.add_argument_group(
+        "integrity check",
+        "Deep per-file comparison of actual modification times against the manifest. "
+        "Checks both EBS and S3, for both raw and _sb releases.",
+    )
+    integrity_group.add_argument(
+        "--check-integrity",
+        action="store_true",
+        help=(
+            "Run a full integrity check for the given state(s). "
+            "Requires --state.  Compares every file's modification time against "
+            "the pipeline's completed_at timestamp.  Outputs a YAML report."
+        ),
+    )
+    integrity_group.add_argument(
+        "--tolerance",
+        type=int,
+        default=300,
+        metavar="SECS",
+        help=(
+            "Seconds after pipeline completion within which a file's mtime is "
+            "still considered in sync. Default 300 (5 minutes)."
+        ),
+    )
+    integrity_group.add_argument(
+        "--check-location",
+        choices=["ebs", "s3", "both"],
+        default="both",
+        help=(
+            "Which storage to check. 'ebs' is fast (local stat calls only). "
+            "'s3' requires aws s3 ls --recursive and can take minutes for large releases. "
+            "Default: both."
+        ),
+    )
+    integrity_group.add_argument(
+        "--output",
+        default=None,
+        metavar="PATH",
+        help="Path to write the integrity report YAML. Default: auto-generated in data/resstock/.",
+    )
+
     args = parser.parse_args()
 
     # Strip trailing _sb so the user can pass either form and get both variants.
@@ -598,6 +1078,22 @@ def _status_main() -> None:
             n = mark_crashed_runs(d, exit_code=args.exit_code)
             if n == 0:
                 print(f"  {d}: no stale in_progress runs found.")
+        return
+
+    if args.check_integrity:
+        if not args.state:
+            parser.error("--check-integrity requires --state")
+        output_path = Path(args.output) if args.output else None
+        for s in args.state:
+            check_integrity(
+                release=release,
+                state=s,
+                ebs_base=ebs_base,
+                s3_base=cfg["paths"]["s3_dir"],
+                tolerance_seconds=args.tolerance,
+                location=args.check_location,
+                output_path=output_path,
+            )
         return
 
     print_status(

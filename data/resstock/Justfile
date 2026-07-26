@@ -102,6 +102,22 @@ status *args:
 mark-crashed *args:
     cd "{{ path_local_repo }}" && uv run python -m data.resstock.manifest --mark-crashed {{ args }}
 
+# Deep integrity check: compare every file's modification time on EBS and S3
+# against what the manifest recorded as the pipeline's completion time.
+# Outputs a YAML report listing all files modified after the pipeline finished.
+#
+# EBS listing is fast (local stat calls).  S3 listing uses aws s3 ls --recursive
+# and can take several minutes for large releases — use --check-location ebs
+# to skip S3 when you only need to check local files.
+#
+# Examples:
+#   just -f data/resstock/Justfile check-integrity MD
+#   just -f data/resstock/Justfile check-integrity MD --check-location ebs
+#   just -f data/resstock/Justfile check-integrity MD --tolerance 600
+# just -f data/resstock/Justfile check-integrity NY --output /tmp/report.yaml
+check-integrity state *args:
+    cd "{{ path_local_repo }}" && uv run python -m data.resstock.manifest --check-integrity --state {{ state }} {{ args }}
+
 ################################################################################
 # Individual step recipes (for debugging and partial re-runs)
 #
