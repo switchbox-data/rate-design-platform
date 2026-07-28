@@ -1,6 +1,6 @@
 """Generate utility-level bulk transmission marginal costs.
 
-Supports PJM (MD), NYISO (NY), and ISO-NE (RI).
+Supports PJM (MD), NYISO (NY), and ISO-NE (RI, CT).
 
 Usage
 -----
@@ -19,6 +19,15 @@ Usage
     # ISO-NE / RI (upload)
     uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
         --iso isone --utility rie --year 2025 --load-year 2025 --upload
+
+    # ISO-NE / CT using NE system load for peak identification (default)
+    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+        --iso isone --utility ct_eversource --year 2025 --load-year 2025
+
+    # ISO-NE / CT using CT zone load for peak identification
+    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+        --iso isone --utility ct_eversource --year 2025 --load-year 2025 \\
+        --allocation-load utility_zone
 
     # ISO-NE with custom AESC PTF override
     uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
@@ -56,13 +65,13 @@ from utils.data_prep.marginal_costs.bulk_tx_pjm import (
     VALID_PJM_UTILITIES,
 )
 from utils.data_prep.marginal_costs.supply_utils import (
-    DEFAULT_ISONE_BULK_TX_OUTPUT_S3_BASE,
     DEFAULT_ISONE_ZONE_LOADS_S3_BASE,
     DEFAULT_NYISO_BULK_TX_OUTPUT_S3_BASE,
     DEFAULT_NYISO_ZONE_LOADS_S3_BASE,
     DEFAULT_NYISO_ZONE_MAPPING_PATH,
     DEFAULT_PJM_BULK_TX_OUTPUT_S3_BASE,
     ISONE_ALL_LOAD_ZONES,
+    ISONE_UTILITY_ZONES,
     VALID_ISONE_UTILITIES,
     VALID_NYISO_UTILITIES,
     remap_year_if_needed,
@@ -190,8 +199,21 @@ def _parse_args() -> argparse.Namespace:
         type=int,
         default=DEFAULT_N_PEAK_HOURS,
         help=(
-            "[ISO-NE only] Number of top NE system-load hours for exceedance "
+            "[ISO-NE only] Number of top allocation-load hours for exceedance "
             f"allocation (default: {DEFAULT_N_PEAK_HOURS})."
+        ),
+    )
+    parser.add_argument(
+        "--allocation-load",
+        type=str,
+        default="ne_system",
+        choices=["ne_system", "utility_zone"],
+        help=(
+            "[ISO-NE only] Load series used to identify peak hours for exceedance "
+            "allocation. 'ne_system' (default) sums all 8 ISO-NE zones — consistent "
+            "with how bulk TX peaks are driven regionally. 'utility_zone' uses only "
+            "the utility's own zone load — closer to embedded-cost RNS allocation "
+            "mechanics but defensible for marginal cost work."
         ),
     )
     # Shared args
@@ -202,7 +224,7 @@ def _parse_args() -> argparse.Namespace:
         help=(
             "S3 base for output. "
             f"Defaults to {DEFAULT_NYISO_BULK_TX_OUTPUT_S3_BASE!r} (NYISO) "
-            f"or {DEFAULT_ISONE_BULK_TX_OUTPUT_S3_BASE!r} (ISO-NE)."
+            "or 's3://data.sb/switchbox/marginal_costs/<state>/bulk_tx/' (ISO-NE)."
         ),
     )
     parser.add_argument(
@@ -246,7 +268,11 @@ def main() -> None:
                 f"Error: utility {utility!r} is not valid for ISO-NE. "
                 f"Valid choices: {sorted(VALID_ISONE_UTILITIES)}"
             )
-        output_s3_base = args.output_s3_base or DEFAULT_ISONE_BULK_TX_OUTPUT_S3_BASE
+        state = ISONE_UTILITY_ZONES[utility].lower()
+        output_s3_base = (
+            args.output_s3_base
+            or f"s3://data.sb/switchbox/marginal_costs/{state}/bulk_tx/"
+        )
         zone_loads_s3_base = args.zone_loads_s3_base or DEFAULT_ISONE_ZONE_LOADS_S3_BASE
 
     print("=" * 60)
@@ -468,42 +494,57 @@ def _run_isone(
 
     aesc_ptf = args.aesc_ptf_kw_year
     n_peak = args.n_peak_hours
+    allocation_load = args.allocation_load
+
+    # Resolve utility-specific zone (e.g. "RI" for rie, "CT" for ct_eversource)
+    utility_zone = ISONE_UTILITY_ZONES[utility]
+    # Zones used for allocation load
+    allocation_zones = (
+        ISONE_ALL_LOAD_ZONES if allocation_load == "ne_system" else [utility_zone]
+    )
 
     print(f"  AESC avoided PTF:     ${aesc_ptf:.2f}/kW-yr")
     print(f"  Peak hours:           {n_peak}")
-    print(f"  NE zones:             {ISONE_ALL_LOAD_ZONES}")
+    print(
+        f"  Allocation load:      {allocation_load} ({', '.join(sorted(allocation_zones))})"
+    )
     print("=" * 60)
 
-    # Load all New England zone loads (aggregate to NE system load)
-    print(f"\n── NE System Load (year={load_year}) ──")
-    ne_load_df = load_isone_zone_loads(
+    # Load the allocation load (NE system or utility zone)
+    print(f"\n── Allocation Load (year={load_year}) ──")
+    alloc_load_df = load_isone_zone_loads(
         zone_loads_s3_base=zone_loads_s3_base,
-        zone_names=ISONE_ALL_LOAD_ZONES,
+        zone_names=allocation_zones,
         year=load_year,
         storage_options=storage_options,
     )
 
-    # Load RI zone load separately for informational RNS share display
-    print(f"\n── RI Zone Load (year={load_year}) ──")
-    ri_zone_load_df = load_isone_zone_loads(
-        zone_loads_s3_base=zone_loads_s3_base,
-        zone_names=["RI"],
-        year=load_year,
-        storage_options=storage_options,
-    )
+    # When using NE system load, also load the utility's own zone for informational
+    # load-share display.  When using utility zone, skip — it's already the alloc load.
+    utility_zone_load_df = None
+    if allocation_load == "ne_system":
+        print(f"\n── {utility_zone} Zone Load (year={load_year}) ──")
+        utility_zone_load_df = load_isone_zone_loads(
+            zone_loads_s3_base=zone_loads_s3_base,
+            zone_names=[utility_zone],
+            year=load_year,
+            storage_options=storage_options,
+        )
 
     # Remap timestamps if load year differs from target year
-    ne_load_df = remap_year_if_needed(ne_load_df, "timestamp", load_year, year)
-    ri_zone_load_df = remap_year_if_needed(
-        ri_zone_load_df, "timestamp", load_year, year
-    )
+    alloc_load_df = remap_year_if_needed(alloc_load_df, "timestamp", load_year, year)
+    if utility_zone_load_df is not None:
+        utility_zone_load_df = remap_year_if_needed(
+            utility_zone_load_df, "timestamp", load_year, year
+        )
 
     # Compute ISO-NE bulk TX signal
     bulk_tx_hourly = compute_isone_bulk_tx_signal(
-        ne_load_df=ne_load_df,
+        load_df=alloc_load_df,
         aesc_ptf_kw_year=aesc_ptf,
         n_peak_hours=n_peak,
-        ri_zone_load_df=ri_zone_load_df,
+        utility_zone_load_df=utility_zone_load_df,
+        utility_label=utility_zone,
     )
 
     # Expand to full 8760 and validate

@@ -62,44 +62,55 @@ DEFAULT_N_PEAK_HOURS: int = 100
 
 
 def compute_isone_bulk_tx_signal(
-    ne_load_df: pl.DataFrame,
+    load_df: pl.DataFrame,
     aesc_ptf_kw_year: float,
     n_peak_hours: int = DEFAULT_N_PEAK_HOURS,
-    ri_zone_load_df: pl.DataFrame | None = None,
+    utility_zone_load_df: pl.DataFrame | None = None,
+    utility_label: str = "Utility zone",
 ) -> pl.DataFrame:
-    """Compute ISO-NE bulk transmission hourly signal from NE system load.
+    """Compute ISO-NE bulk transmission hourly signal via exceedance allocation.
 
     Args:
-        ne_load_df: NE-wide aggregate load (8760 rows, columns: timestamp, load_mw).
+        load_df: Allocation load (8760 rows, columns: timestamp, load_mw).
+            This is the load used to identify peak hours and drive exceedance
+            allocation.  Typically either the NE system aggregate (all 8 zones)
+            or the utility's own zone load, depending on the ``--allocation-load``
+            CLI flag.
         aesc_ptf_kw_year: AESC avoided PTF cost in $/kW-year.
-        n_peak_hours: Number of top NE system-load hours for exceedance allocation.
-        ri_zone_load_df: Optional RI zone load for informational RNS share display.
-            Not used in the cost calculation.
+        n_peak_hours: Number of top load hours for exceedance allocation.
+        utility_zone_load_df: Optional utility zone load for informational load-share
+            display at the allocation peak.  Not used in the cost calculation.
+            Only meaningful when ``load_df`` is system-wide (otherwise the utility
+            zone IS the allocation load and its share is trivially 100%).
+        utility_label: Human-readable label for the utility zone in the display
+            (e.g. ``"RI"`` or ``"CT"``).
 
     Returns:
         DataFrame with columns ``timestamp`` and ``bulk_tx_cost_enduse``
         ($/kW per hour).  Contains *n_peak_hours* non-zero rows.
     """
-    # Informational: show RI's share of NE peak for context
-    if ri_zone_load_df is not None:
-        ne_peak_hour = ne_load_df.sort("load_mw", descending=True).head(1)
-        ne_peak_ts = ne_peak_hour["timestamp"][0]
-        ne_peak_mw = float(ne_peak_hour["load_mw"][0])
+    # Informational: show utility's share of the allocation load peak
+    if utility_zone_load_df is not None:
+        peak_hour = load_df.sort("load_mw", descending=True).head(1)
+        peak_ts = peak_hour["timestamp"][0]
+        peak_mw = float(peak_hour["load_mw"][0])
 
-        ri_at_peak = ri_zone_load_df.filter(pl.col("timestamp") == ne_peak_ts)
-        if not ri_at_peak.is_empty():
-            ri_peak_mw = float(ri_at_peak["load_mw"][0])
-            rns_share = ri_peak_mw / ne_peak_mw
-            print("\n── RNS Share at NE System Peak ──")
-            print(f"  NE peak hour:   {ne_peak_ts}")
-            print(f"  NE peak load:   {ne_peak_mw:,.1f} MW")
-            print(f"  RI load at peak: {ri_peak_mw:,.1f} MW")
-            print(f"  RI RNS share:   {rns_share:.4f} ({rns_share * 100:.2f}%)")
+        util_at_peak = utility_zone_load_df.filter(pl.col("timestamp") == peak_ts)
+        if not util_at_peak.is_empty():
+            util_peak_mw = float(util_at_peak["load_mw"][0])
+            load_share = util_peak_mw / peak_mw
+            print("\n── Load Share at Allocation Peak ──")
+            print(f"  Peak hour:               {peak_ts}")
+            print(f"  Allocation load at peak: {peak_mw:,.1f} MW")
+            print(f"  {utility_label} load at peak:   {util_peak_mw:,.1f} MW")
+            print(
+                f"  Load share:              {load_share:.4f} ({load_share * 100:.2f}%)"
+            )
 
-    # Allocate AESC PTF value to top-N NE system peak hours
+    # Allocate AESC PTF value to top-N peak hours
     print("\n── Bulk TX Exceedance Allocation ──")
     peak_hours_df = allocate_annual_exceedance_to_hours(
-        load_df=ne_load_df,
+        load_df=load_df,
         annual_cost_kw_year=aesc_ptf_kw_year,
         n_peak_hours=n_peak_hours,
         cost_col="bulk_tx_cost_enduse",

@@ -1,0 +1,59 @@
+# CT heat pump rate design tasks.
+# Thin wrapper: sets state defaults, imports shared recipes.
+#
+# Usage (from rate_design/hp_rates/):
+#   just -f ct/Justfile create-bulk-tx-mc-data ct_eversource 2025 --upload
+#   just -f ct/Justfile create-bulk-tx-mc-data ct_ui 2025 --upload
+#   just -f ct/Justfile create-bulk-tx-mc-data-all --upload
+# Or via dispatch:
+#   just s ct create-bulk-tx-mc-data ct_eversource 2025 --upload
+#   just s ct create-bulk-tx-mc-data-all --upload
+
+set dotenv-path := "state.env"
+
+state := env_var_or_default('STATE', 'ct')
+
+import '../Justfile'
+
+# =============================================================================
+# CT-only: bulk transmission marginal costs (ISO-NE AESC PTF)
+#
+# Uses AESC 2024 avoided PTF cost ($69/kW-yr) allocated to the top-100 NE
+# system peak hours via exceedance weighting — same methodology as RI.
+# Outputs land at s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/.
+# =============================================================================
+
+ct_bulk_tx_years := "2025"
+
+# Generate bulk TX MC for one CT utility and one year.
+#
+#   just -f ct/Justfile create-bulk-tx-mc-data ct_eversource 2025
+# just -f ct/Justfile create-bulk-tx-mc-data ct_eversource 2025 --upload
+create-bulk-tx-mc-data utility_arg year_arg *extra_args:
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
+      --iso isone \
+      --utility {{ utility_arg }} \
+      --year {{ year_arg }} \
+      --load-year {{ year_arg }} \
+      {{ extra_args }}
+
+# Generate bulk TX MC for all CT utilities across all available years.
+#
+#   just -f ct/Justfile create-bulk-tx-mc-data-all
+# just -f ct/Justfile create-bulk-tx-mc-data-all --upload
+create-bulk-tx-mc-data-all *extra_args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    IFS=',' read -ra utils <<< "{{ utilities }}"
+    for utility in "${utils[@]}"; do
+        for year in {{ ct_bulk_tx_years }}; do
+            echo ">> Generating ISO-NE bulk TX MC: utility=${utility} year=${year}" >&2
+            cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
+              --iso isone \
+              --utility "${utility}" \
+              --year "${year}" \
+              --load-year "${year}" \
+              {{ extra_args }}
+        done
+    done
+    echo ">> Done: all CT bulk TX MC (${#utils[@]} utilities × $(echo {{ ct_bulk_tx_years }} | wc -w) years)" >&2
