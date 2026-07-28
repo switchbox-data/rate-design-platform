@@ -168,7 +168,7 @@ def _require_value(run: dict[str, Any], field_name: str) -> Any:
     return value
 
 
-def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
+def _load_run_from_yaml(scenario_config: Path, run_num: str | int) -> dict[str, Any]:
     with scenario_config.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
     if not isinstance(data, dict):
@@ -179,7 +179,9 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
         dict[str | int, Any],
         _require_mapping(data.get("runs"), "runs"),
     )
-    run = runs.get(run_num) or runs.get(str(run_num))
+    run = runs.get(run_num)
+    if run is None and isinstance(run_num, str) and run_num.isdigit():
+        run = runs.get(int(run_num))
     if run is None:
         raise ValueError(f"Run {run_num} not found in {scenario_config}")
     run_dict = dict(_require_mapping(run, f"runs[{run_num}]"))
@@ -198,7 +200,7 @@ def _load_run_from_yaml(scenario_config: Path, run_num: int) -> dict[str, Any]:
 
 def _resolve_output_dir(
     run: dict[str, Any],
-    run_num: int,
+    run_num: str | int,
     output_dir_override: Path | None,
 ) -> Path:
     """Determine the CAIRO output root directory.
@@ -221,7 +223,7 @@ def _resolve_output_dir(
 
 def _build_settings_from_yaml_run(
     run: dict[str, Any],
-    run_num: int,
+    run_num: str | int,
     state: str,
     output_dir_override: Path | None,
     run_name_override: str | None,
@@ -399,9 +401,12 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--run-num",
-        type=int,
         required=True,
-        help="Run number in the YAML `runs` mapping (e.g. 1 or 2).",
+        help=(
+            "Run key in the YAML `runs` mapping. Accepts a canonical name "
+            "(e.g. 'md_bge_default_precalc_delivery') or a legacy integer "
+            "(e.g. '1')."
+        ),
     )
     parser.add_argument(
         "--output-dir",
@@ -897,6 +902,14 @@ def run(
     return None
 
 
+def _write_run_index(settings: ScenarioSettings, output_dir: Path) -> None:
+    """Write a run index file so the pipeline can discover the output dir."""
+    index_path = settings.path_results / ".runs" / f"{settings.run_name}.path"
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(str(output_dir))
+    log.info(".... Wrote run index: %s", index_path)
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -905,12 +918,14 @@ def main() -> None:
     )
     args = _parse_args()
     settings = _resolve_settings(args)
-    run(
+    output_dir = run(
         settings,
         num_workers=args.num_workers,
         billing_kwh=args.billing_kwh,
         floor_electricity_net=not args.no_floor_electricity_net,
     )
+    if output_dir is not None:
+        _write_run_index(settings, output_dir)
 
 
 if __name__ == "__main__":
