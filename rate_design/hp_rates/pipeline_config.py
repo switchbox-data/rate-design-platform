@@ -693,7 +693,7 @@ def _resolve_tariff_paths(
                 tariffs[sg.alias] = f"tariffs/electric/{stem}.json"
             map_stem = _scenario_map_stem(
                 config.utility,
-                scenario.name,
+                scenario,
                 supply=is_supply,
                 calibrated=True,
             )
@@ -711,7 +711,7 @@ def _resolve_tariff_paths(
             tariffs = {"all": f"tariffs/electric/{promoted_stem}.json"}
             map_stem = _scenario_map_stem(
                 config.utility,
-                scenario.name,
+                scenario,
                 supply=is_supply,
                 calibrated=True,
             )
@@ -730,7 +730,7 @@ def _resolve_tariff_paths(
             tariffs[sg.alias] = f"tariffs/electric/{stem}.json"
         map_stem = _scenario_map_stem(
             config.utility,
-            scenario.name,
+            scenario,
             supply=is_supply,
             calibrated=False,
         )
@@ -739,17 +739,23 @@ def _resolve_tariff_paths(
 
 def _scenario_map_stem(
     utility: str,
-    scenario_name: str,
+    scenario: ScenarioConfig,
     *,
     supply: bool,
     calibrated: bool,
 ) -> str:
     """Build the tariff map CSV stem for a multi-rate scenario.
 
-    Maps are named ``{utility}_{scenario_name}[_supply][_calibrated]``.
+    Maps partition buildings by subgroup membership, which is independent of
+    residual allocation.  The stem is derived from each subgroup's alias and
+    structure: ``{utility}_{alias1}_{structure1}_vs_{alias2}_{structure2}[_supply][_calibrated]``.
     ``_supply`` before ``_calibrated`` matches the tariff stem convention.
     """
-    name = f"{utility}_{scenario_name}"
+    assert scenario.subclass_config is not None
+    segments = "_vs_".join(
+        f"{sg.alias}_{sg.structure}" for sg in scenario.subclass_config.subgroups
+    )
+    name = f"{utility}_{segments}"
     if supply:
         name += "_supply"
     if calibrated:
