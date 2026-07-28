@@ -169,12 +169,202 @@ uv run python -m rate_design.hp_rates.run_pipeline \
 
 The `--scenarios` filter restricts which scenarios run (preflight is also scoped). Omit for all.
 
-## Naming conventions
+## Derived path anatomy
 
-- **Tariff stem** (single-rate): `{utility}_{tariff_base}[_supply][_calibrated]`
-- **Tariff stem** (multi-rate subgroup): `{utility}_{subgroup_alias}_{structure}_{delivery_allocation}_{supply_allocation}[_supply][_calibrated]`
-- **Tariff map stem**: derived from subgroup aliases and structures (e.g. `bge_hp_seasonal_vs_non-hp_base`)
-- **Multi-rate RR YAML**: `rev_requirement/{utility}_{alias1}_vs_{alias2}.yaml`
+Every path the pipeline constructs is listed below with its template, source components, and a concrete BGE example.
+
+### Batch output directory
+
+```
+{output_base}/{state}/{utility}/{batch}
+```
+
+| Component     | Source                      | Example           |
+| ------------- | --------------------------- | ----------------- |
+| `output_base` | `PipelineConfig.output_base` (YAML top-level) | `/data.sb/switchbox/cairo/outputs/hp_rates` |
+| `state`       | `PipelineConfig.state`      | `md`              |
+| `utility`     | `PipelineConfig.utility`    | `bge`             |
+| `batch`       | CLI `--batch`               | `md_20260728`     |
+
+Example: `/data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260728`
+
+### Canonical run name
+
+```
+{batch}_{scenario_name}_{stage}_{variant}
+```
+
+| Component       | Source                         | Example                              |
+| --------------- | ------------------------------ | ------------------------------------ |
+| `batch`         | CLI `--batch`                  | `md_20260728`                        |
+| `scenario_name` | scenario key in pipeline YAML  | `hp_seasonal_percustomer_passthrough` |
+| `stage`         | quartet position               | `precalc` or `calibrated`            |
+| `variant`       | cost scope                     | `delivery` or `supply`               |
+
+Example: `md_20260728_hp_seasonal_percustomer_passthrough_precalc_delivery`
+
+### Run index file
+
+```
+{batch_dir}/.runs/{canonical_run_name}.path
+```
+
+Example: `/data.sb/.../md_20260728/.runs/md_20260728_default_precalc_delivery.path`
+
+### Run output directory (CAIRO writes here)
+
+```
+{batch_dir}/{canonical_run_name}
+```
+
+Example: `/data.sb/.../md_20260728/md_20260728_default_precalc_delivery`
+
+(The actual timestamped subdir is written by CAIRO; the run index file records its absolute path.)
+
+### Tariff JSON stem
+
+**Single-rate:**
+
+```
+{utility}_{tariff_base}[_supply][_calibrated]
+```
+
+| Component     | Source                           | Example               |
+| ------------- | -------------------------------- | --------------------- |
+| `utility`     | `PipelineConfig.utility`         | `bge`                 |
+| `tariff_base` | `ScenarioConfig.tariff_base`     | `default`             |
+| `_supply`     | appended when `variant=supply`   |                       |
+| `_calibrated` | appended when `stage=calibrated` |                       |
+
+Examples: `bge_default`, `bge_default_supply`, `bge_default_calibrated`, `bge_default_supply_calibrated`
+
+**Multi-rate (per subgroup):**
+
+```
+{utility}_{alias}_{structure}_{delivery_allocation}_{supply_allocation}[_supply][_calibrated]
+```
+
+| Component             | Source                                       | Example        |
+| --------------------- | -------------------------------------------- | -------------- |
+| `utility`             | `PipelineConfig.utility`                     | `bge`          |
+| `alias`               | `SubgroupConfig.alias`                       | `hp`           |
+| `structure`           | `SubgroupConfig.structure`                   | `seasonal`     |
+| `delivery_allocation` | `ScenarioConfig.residual_allocation_delivery` | `percustomer`  |
+| `supply_allocation`   | `ScenarioConfig.residual_allocation_supply`  | `passthrough`  |
+| `_supply`             | appended when `variant=supply`               |                |
+| `_calibrated`         | appended when `stage=calibrated`             |                |
+
+Examples: `bge_hp_seasonal_percustomer_passthrough`, `bge_hp_seasonal_percustomer_passthrough_supply_calibrated`, `bge_non-hp_base_percustomer_passthrough_calibrated`
+
+### Tariff JSON path (on disk)
+
+```
+{state_config_dir}/tariffs/electric/{stem}.json
+```
+
+Where `state_config_dir` = `rate_design/hp_rates/{state}/config`
+
+Example: `rate_design/hp_rates/md/config/tariffs/electric/bge_default_calibrated.json`
+
+### Tariff map stem (electric)
+
+**Single-rate:** same as tariff JSON stem.
+
+**Multi-rate:** maps are allocation-independent (they only partition buildings by subgroup membership):
+
+```
+{utility}_{alias1}_{structure1}_vs_{alias2}_{structure2}[_supply][_calibrated]
+```
+
+| Component         | Source                           | Example      |
+| ----------------- | -------------------------------- | ------------ |
+| `alias1`, `alias2` | Subgroup aliases (declaration order) | `hp`, `non-hp` |
+| `structure1`, `structure2` | Subgroup structures     | `seasonal`, `base` |
+
+Example: `bge_hp_seasonal_vs_non-hp_base`, `bge_hp_seasonal_vs_non-hp_base_supply_calibrated`
+
+### Tariff map CSV path (on disk)
+
+```
+{state_config_dir}/tariff_maps/electric/{map_stem}.csv
+```
+
+Example: `rate_design/hp_rates/md/config/tariff_maps/electric/bge_hp_seasonal_vs_non-hp_base.csv`
+
+### Gas tariff map path
+
+```
+{state_config_dir}/tariff_maps/gas/{utility}_u{upgrade}.csv
+```
+
+| Component | Source                                         | Example     |
+| --------- | ---------------------------------------------- | ----------- |
+| `utility`  | `PipelineConfig.utility`                      | `bge`       |
+| `upgrade`  | `RunDefaults.upgrade_precalc` or `upgrade_calibrated` | `00`, `02`  |
+
+Example: `rate_design/hp_rates/md/config/tariff_maps/gas/bge_u00.csv`
+
+### ResStock paths
+
+```
+{resstock_base}/metadata/state={STATE}/upgrade={upgrade}/metadata-sb.parquet
+{resstock_base}/load_curve_hourly/state={STATE}/upgrade={upgrade}/
+{resstock_base}/metadata_utility/state={STATE}/utility_assignment.parquet
+```
+
+| Component       | Source                        | Example                                    |
+| --------------- | ----------------------------- | ------------------------------------------ |
+| `resstock_base` | `YAML RunDefaults.resstock_base`   | `/ebs/data/nrel/resstock/res_2024_amy2018_2_sb` |
+| `STATE`         | `config.state.upper()`        | `MD`                                       |
+| `upgrade`       | `YAML upgrade_precalc` or `upgrade_calibrated` | `00`, `02`                   |
+
+### Multi-rate revenue requirement YAML
+
+```
+rev_requirement/{utility}_{alias1}_vs_{alias2}.yaml
+```
+
+Derived from subgroup aliases in declaration order. Relative to `state_config_dir`.
+
+Example: `rev_requirement/bge_hp_vs_nonhp.yaml`
+
+### EIA utility stats
+
+```
+s3://data.sb/eia/861/electric_utility_stats/year={year-1}/state={STATE}/data.parquet
+```
+
+| Component | Source                     | Example |
+| --------- | -------------------------- | ------- |
+| `year-1`  | `PipelineConfig.year - 1`  | `2024`  |
+| `STATE`   | `config.state.upper()`     | `MD`    |
+
+### Generated scenarios YAML
+
+```
+{state_config_dir}/scenarios/scenarios_{utility}.yaml
+```
+
+Example: `rate_design/hp_rates/md/config/scenarios/scenarios_bge.yaml`
+
+### Periods YAML
+
+```
+{state_config_dir}/{periods_yaml}
+```
+
+| Component      | Source                                              | Example              |
+| -------------- | --------------------------------------------------- | -------------------- |
+| `periods_yaml` | `YAML RunDefaults.periods_yaml` (default: `periods/{utility}.yaml`) | `periods/bge.yaml`   |
+
+### Supply MC path (zeroed for delivery-only)
+
+```
+delivery: {mc_path} → replaced suffix /data.parquet with /zero.parquet
+supply:   {mc_path} → used as-is
+```
+
+Applies to `mc_supply_energy` and `mc_supply_capacity`.
 
 ## Deferred
 
