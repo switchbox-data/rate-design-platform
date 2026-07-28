@@ -13,20 +13,20 @@ marginal_costs:
   bulk_tx: s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year=2025/data.parquet
   supply_energy: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/data.parquet
   supply_capacity: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/data.parquet
+  supply_ancillary: "" # TODO: populate when RI ancillary MC is available
 revenue_requirement:
   single_rate: rev_requirement/rie_rate_case_test_year.yaml
   single_rate_calibrated: rev_requirement/rie_large_number_rate_case_test_year.yaml
-  # multi_rate is written by compute_subclass_rr from the default precalc runs.
-  multi_rate: rev_requirement/rie_hp_vs_nonhp_rate_case_test_year.yaml
+  # multi_rate: DERIVED from utility + subgroup aliases (e.g. rie_hp_vs_nonhp.yaml)
   multi_rate_calibrated: rev_requirement/rie_large_number_rate_case_test_year.yaml
 scenarios:
   default:
     quartet: single_rate
-  hp_seasonal_percustomer:
-    # multi-rate precalc (HP + non-HP), then a single promoted rate for the
-    # all-HP target population.
+    tariff_base: default
+  hp_seasonal_percustomer_passthrough:
     quartet: multi_rate_collapsed
     depends_on: default
+    promote: hp
     residual_allocation:
       delivery: percustomer
       supply: passthrough
@@ -36,8 +36,6 @@ scenarios:
         hp:
           values: ["true"]
           structure: seasonal
-          source: derived
         non-hp:
           values: ["false"]
-          structure: default
-          source: default_calibrated
+          structure: base
