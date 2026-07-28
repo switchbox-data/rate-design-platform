@@ -4,6 +4,8 @@ year: 2025
 solar_pv_compensation: net_metering
 process_workers: 8
 max_concurrent_cairo_runs: 2
+# sample_size: 200  # optional, limits buildings for smoke testing
+
 resstock:
   base: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb
   upgrade_precalc: "00"
@@ -12,22 +14,21 @@ marginal_costs:
   dist_and_sub_tx: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/utility=bge/year=2025/data.parquet
   bulk_tx: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/utility=bge/year=2025/data.parquet
   supply_energy: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/data.parquet
-  # NOTE: fixed from ny/supply/capacity (copy-paste bug) to md/supply/capacity.
   supply_capacity: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/data.parquet
+  supply_ancillary: s3://data.sb/switchbox/marginal_costs/md/supply/ancillary/utility=bge/year=2025/data.parquet
 revenue_requirement:
   single_rate: rev_requirement/bge_rate_case_test_year.yaml
   single_rate_calibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
-  # multi_rate is written by compute_subclass_rr from the default precalc runs.
-  multi_rate: rev_requirement/bge_hp_vs_nonhp_rate_case_test_year.yaml
+  # multi_rate: DERIVED from utility + subgroup aliases (e.g. bge_hp_vs_nonhp.yaml)
   multi_rate_calibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
 scenarios:
   default:
     quartet: single_rate
-  hp_seasonal_percustomer:
-    # multi-rate precalc (HP + non-HP), then a single promoted rate for the
-    # all-HP target population.
+    tariff_base: default
+  hp_seasonal_percustomer_passthrough:
     quartet: multi_rate_collapsed
     depends_on: default
+    promote: hp
     residual_allocation:
       delivery: percustomer
       supply: passthrough
@@ -37,8 +38,6 @@ scenarios:
         hp:
           values: ["true"]
           structure: seasonal
-          source: derived
         non-hp:
           values: ["false"]
-          structure: default
-          source: default_calibrated
+          structure: base
