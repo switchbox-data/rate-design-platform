@@ -179,12 +179,12 @@ Every path the pipeline constructs is listed below with its template, source com
 {output_base}/{state}/{utility}/{batch}
 ```
 
-| Component     | Source                      | Example           |
-| ------------- | --------------------------- | ----------------- |
+| Component     | Source                                        | Example                                     |
+| ------------- | --------------------------------------------- | ------------------------------------------- |
 | `output_base` | `PipelineConfig.output_base` (YAML top-level) | `/data.sb/switchbox/cairo/outputs/hp_rates` |
-| `state`       | `PipelineConfig.state`      | `md`              |
-| `utility`     | `PipelineConfig.utility`    | `bge`             |
-| `batch`       | CLI `--batch`               | `md_20260728`     |
+| `state`       | `PipelineConfig.state`                        | `md`                                        |
+| `utility`     | `PipelineConfig.utility`                      | `bge`                                       |
+| `batch`       | CLI `--batch`                                 | `md_20260728`                               |
 
 Example: `/data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260728`
 
@@ -194,12 +194,12 @@ Example: `/data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260728`
 {batch}_{scenario_name}_{stage}_{variant}
 ```
 
-| Component       | Source                         | Example                              |
-| --------------- | ------------------------------ | ------------------------------------ |
-| `batch`         | CLI `--batch`                  | `md_20260728`                        |
-| `scenario_name` | scenario key in pipeline YAML  | `hp_seasonal_percustomer_passthrough` |
-| `stage`         | quartet position               | `precalc` or `calibrated`            |
-| `variant`       | cost scope                     | `delivery` or `supply`               |
+| Component       | Source                        | Example                               |
+| --------------- | ----------------------------- | ------------------------------------- |
+| `batch`         | CLI `--batch`                 | `md_20260728`                         |
+| `scenario_name` | scenario key in pipeline YAML | `hp_seasonal_percustomer_passthrough` |
+| `stage`         | quartet position              | `precalc` or `calibrated`             |
+| `variant`       | cost scope                    | `delivery` or `supply`                |
 
 Example: `md_20260728_hp_seasonal_percustomer_passthrough_precalc_delivery`
 
@@ -229,12 +229,12 @@ Example: `/data.sb/.../md_20260728/md_20260728_default_precalc_delivery`
 {utility}_{tariff_base}[_supply][_calibrated]
 ```
 
-| Component     | Source                           | Example               |
-| ------------- | -------------------------------- | --------------------- |
-| `utility`     | `PipelineConfig.utility`         | `bge`                 |
-| `tariff_base` | `ScenarioConfig.tariff_base`     | `default`             |
-| `_supply`     | appended when `variant=supply`   |                       |
-| `_calibrated` | appended when `stage=calibrated` |                       |
+| Component     | Source                           | Example   |
+| ------------- | -------------------------------- | --------- |
+| `utility`     | `PipelineConfig.utility`         | `bge`     |
+| `tariff_base` | `ScenarioConfig.tariff_base`     | `default` |
+| `_supply`     | appended when `variant=supply`   |           |
+| `_calibrated` | appended when `stage=calibrated` |           |
 
 Examples: `bge_default`, `bge_default_supply`, `bge_default_calibrated`, `bge_default_supply_calibrated`
 
@@ -244,15 +244,15 @@ Examples: `bge_default`, `bge_default_supply`, `bge_default_calibrated`, `bge_de
 {utility}_{alias}_{structure}_{delivery_allocation}_{supply_allocation}[_supply][_calibrated]
 ```
 
-| Component             | Source                                       | Example        |
-| --------------------- | -------------------------------------------- | -------------- |
-| `utility`             | `PipelineConfig.utility`                     | `bge`          |
-| `alias`               | `SubgroupConfig.alias`                       | `hp`           |
-| `structure`           | `SubgroupConfig.structure`                   | `seasonal`     |
-| `delivery_allocation` | `ScenarioConfig.residual_allocation_delivery` | `percustomer`  |
-| `supply_allocation`   | `ScenarioConfig.residual_allocation_supply`  | `passthrough`  |
-| `_supply`             | appended when `variant=supply`               |                |
-| `_calibrated`         | appended when `stage=calibrated`             |                |
+| Component             | Source                                        | Example       |
+| --------------------- | --------------------------------------------- | ------------- |
+| `utility`             | `PipelineConfig.utility`                      | `bge`         |
+| `alias`               | `SubgroupConfig.alias`                        | `hp`          |
+| `structure`           | `SubgroupConfig.structure`                    | `seasonal`    |
+| `delivery_allocation` | `ScenarioConfig.residual_allocation_delivery` | `percustomer` |
+| `supply_allocation`   | `ScenarioConfig.residual_allocation_supply`   | `passthrough` |
+| `_supply`             | appended when `variant=supply`                |               |
+| `_calibrated`         | appended when `stage=calibrated`              |               |
 
 Examples: `bge_hp_seasonal_percustomer_passthrough`, `bge_hp_seasonal_percustomer_passthrough_supply_calibrated`, `bge_non-hp_base_percustomer_passthrough_calibrated`
 
@@ -276,10 +276,10 @@ Example: `rate_design/hp_rates/md/config/tariffs/electric/bge_default_calibrated
 {utility}_{alias1}_{structure1}_vs_{alias2}_{structure2}[_supply][_calibrated]
 ```
 
-| Component         | Source                           | Example      |
-| ----------------- | -------------------------------- | ------------ |
-| `alias1`, `alias2` | Subgroup aliases (declaration order) | `hp`, `non-hp` |
-| `structure1`, `structure2` | Subgroup structures     | `seasonal`, `base` |
+| Component                  | Source                               | Example            |
+| -------------------------- | ------------------------------------ | ------------------ |
+| `alias1`, `alias2`         | Subgroup aliases (declaration order) | `hp`, `non-hp`     |
+| `structure1`, `structure2` | Subgroup structures                  | `seasonal`, `base` |
 
 Example: `bge_hp_seasonal_vs_non-hp_base`, `bge_hp_seasonal_vs_non-hp_base_supply_calibrated`
 
@@ -297,10 +297,10 @@ Example: `rate_design/hp_rates/md/config/tariff_maps/electric/bge_hp_seasonal_vs
 {state_config_dir}/tariff_maps/gas/{utility}_u{upgrade}.csv
 ```
 
-| Component | Source                                         | Example     |
-| --------- | ---------------------------------------------- | ----------- |
-| `utility`  | `PipelineConfig.utility`                      | `bge`       |
-| `upgrade`  | `RunDefaults.upgrade_precalc` or `upgrade_calibrated` | `00`, `02`  |
+| Component | Source                                                | Example    |
+| --------- | ----------------------------------------------------- | ---------- |
+| `utility` | `PipelineConfig.utility`                              | `bge`      |
+| `upgrade` | `RunDefaults.upgrade_precalc` or `upgrade_calibrated` | `00`, `02` |
 
 Example: `rate_design/hp_rates/md/config/tariff_maps/gas/bge_u00.csv`
 
@@ -312,11 +312,11 @@ Example: `rate_design/hp_rates/md/config/tariff_maps/gas/bge_u00.csv`
 {resstock_base}/metadata_utility/state={STATE}/utility_assignment.parquet
 ```
 
-| Component       | Source                        | Example                                    |
-| --------------- | ----------------------------- | ------------------------------------------ |
-| `resstock_base` | `YAML RunDefaults.resstock_base`   | `/ebs/data/nrel/resstock/res_2024_amy2018_2_sb` |
-| `STATE`         | `config.state.upper()`        | `MD`                                       |
-| `upgrade`       | `YAML upgrade_precalc` or `upgrade_calibrated` | `00`, `02`                   |
+| Component       | Source                                         | Example                                         |
+| --------------- | ---------------------------------------------- | ----------------------------------------------- |
+| `resstock_base` | `YAML RunDefaults.resstock_base`               | `/ebs/data/nrel/resstock/res_2024_amy2018_2_sb` |
+| `STATE`         | `config.state.upper()`                         | `MD`                                            |
+| `upgrade`       | `YAML upgrade_precalc` or `upgrade_calibrated` | `00`, `02`                                      |
 
 ### Multi-rate revenue requirement YAML
 
@@ -334,10 +334,10 @@ Example: `rev_requirement/bge_hp_vs_nonhp.yaml`
 s3://data.sb/eia/861/electric_utility_stats/year={year-1}/state={STATE}/data.parquet
 ```
 
-| Component | Source                     | Example |
-| --------- | -------------------------- | ------- |
-| `year-1`  | `PipelineConfig.year - 1`  | `2024`  |
-| `STATE`   | `config.state.upper()`     | `MD`    |
+| Component | Source                    | Example |
+| --------- | ------------------------- | ------- |
+| `year-1`  | `PipelineConfig.year - 1` | `2024`  |
+| `STATE`   | `config.state.upper()`    | `MD`    |
 
 ### Generated scenarios YAML
 
@@ -353,9 +353,9 @@ Example: `rate_design/hp_rates/md/config/scenarios/scenarios_bge.yaml`
 {state_config_dir}/{periods_yaml}
 ```
 
-| Component      | Source                                              | Example              |
-| -------------- | --------------------------------------------------- | -------------------- |
-| `periods_yaml` | `YAML RunDefaults.periods_yaml` (default: `periods/{utility}.yaml`) | `periods/bge.yaml`   |
+| Component      | Source                                                              | Example            |
+| -------------- | ------------------------------------------------------------------- | ------------------ |
+| `periods_yaml` | `YAML RunDefaults.periods_yaml` (default: `periods/{utility}.yaml`) | `periods/bge.yaml` |
 
 ### Supply MC path (zeroed for delivery-only)
 
