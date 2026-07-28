@@ -27,7 +27,12 @@ import sys
 import threading
 from pathlib import Path
 
-from prefect import task
+from prefect import flow, task
+from prefect.task_runners import ThreadPoolTaskRunner
+
+from utils.mid.copy_calibrated_tariff_from_run import (
+    copy_calibrated_tariff_from_run_dir,
+)
 
 
 log = logging.getLogger(__name__)
@@ -176,3 +181,132 @@ def cairo_run(
         )
 
     return read_run_output_dir(batch_dir, run_id)
+
+
+# ---------------------------------------------------------------------------
+# Tariff promotion (precalc -> calibrated seam)
+# ---------------------------------------------------------------------------
+
+
+def _promote_calibrated_tariffs(
+    output_dirs: list[Path],
+    state: str,
+) -> list[Path]:
+    """Extract calibrated tariffs from precalc output dirs.
+
+    Reads ``tariff_final_config.json`` from each output directory, converts
+    each tariff key to URDB format, and writes ``<key>_calibrated.json`` to
+    the state's config tariffs directory.  Returns all written paths.
+
+    This is the **tariff promotion seam** — the handoff between precalc and
+    calibrated stages.  The generated scenario YAML already references the
+    ``*_calibrated.json`` paths for calibrated-stage inputs, so promotion
+    simply ensures those files exist on disk.
+    """
+    written: list[Path] = []
+    for output_dir in output_dirs:
+        if (output_dir / "tariff_final_config.json").exists():
+            written.extend(copy_calibrated_tariff_from_run_dir(output_dir, state=state))
+    return written
+
+
+# ---------------------------------------------------------------------------
+# Quartet flow
+# ---------------------------------------------------------------------------
+
+
+@flow(  # type: ignore[no-matching-overload]  # ty: ignore[no-matching-overload]
+    name="run-quartet",
+    task_runner=ThreadPoolTaskRunner(max_workers=2),
+)
+def run_quartet(
+    scenario_name: str,
+    *,
+    batch: str,
+    yaml_path: Path,
+    batch_dir: Path,
+    state: str,
+) -> dict[str, Path]:
+    """Run one scenario's full quartet: 2 stages × 2 variants = 4 CAIRO runs.
+
+    Steps:
+
+    1. **Precalc stage** — submit delivery and supply ``cairo_run`` tasks
+       concurrently (gated by the semaphore).
+    2. **Tariff promotion** — extract ``*_calibrated.json`` from precalc
+       outputs so they are available as inputs for the calibrated stage.
+    3. **Calibrated stage** — submit delivery and supply ``cairo_run`` tasks
+       concurrently.
+
+    All run configurations are already materialised in the scenario YAML by
+    preflight — this flow only constructs canonical run names and dispatches.
+
+    Args:
+        scenario_name: Scenario key (e.g. ``default``).
+        batch: Batch prefix for canonical names (e.g. ``md_bge``).
+        yaml_path: Path to the generated scenario YAML.
+        batch_dir: Batch output directory (contains ``.runs/`` index).
+        state: Two-letter state code (e.g. ``md``).
+
+    Returns:
+        Mapping of ``{stage}_{variant}`` to the output directory path for
+        each of the four runs.
+    """
+    results: dict[str, Path] = {}
+
+    # --- Stage 1: precalc (delivery + supply in parallel) ---
+    precalc_d_name = canonical_run_name(batch, scenario_name, "precalc", "delivery")
+    precalc_s_name = canonical_run_name(batch, scenario_name, "precalc", "supply")
+
+    precalc_d_future = cairo_run.submit(
+        precalc_d_name,
+        yaml_path=yaml_path,
+        batch_dir=batch_dir,
+        state=state,
+        is_delivery=True,
+    )
+    precalc_s_future = cairo_run.submit(
+        precalc_s_name,
+        yaml_path=yaml_path,
+        batch_dir=batch_dir,
+        state=state,
+        is_delivery=False,
+    )
+
+    precalc_d_dir = precalc_d_future.result()
+    precalc_s_dir = precalc_s_future.result()
+    results["precalc_delivery"] = precalc_d_dir
+    results["precalc_supply"] = precalc_s_dir
+
+    # --- Tariff promotion seam ---
+    promoted = _promote_calibrated_tariffs([precalc_d_dir, precalc_s_dir], state=state)
+    log.info(
+        "run_quartet[%s]: promoted %d calibrated tariffs: %s",
+        scenario_name,
+        len(promoted),
+        [p.name for p in promoted],
+    )
+
+    # --- Stage 2: calibrated (delivery + supply in parallel) ---
+    cal_d_name = canonical_run_name(batch, scenario_name, "calibrated", "delivery")
+    cal_s_name = canonical_run_name(batch, scenario_name, "calibrated", "supply")
+
+    cal_d_future = cairo_run.submit(
+        cal_d_name,
+        yaml_path=yaml_path,
+        batch_dir=batch_dir,
+        state=state,
+        is_delivery=True,
+    )
+    cal_s_future = cairo_run.submit(
+        cal_s_name,
+        yaml_path=yaml_path,
+        batch_dir=batch_dir,
+        state=state,
+        is_delivery=False,
+    )
+
+    results["calibrated_delivery"] = cal_d_future.result()
+    results["calibrated_supply"] = cal_s_future.result()
+
+    return results
