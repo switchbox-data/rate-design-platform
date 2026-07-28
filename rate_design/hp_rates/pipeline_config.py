@@ -146,6 +146,7 @@ class RunDefaults:
     rr_multi_rate_calibrated: str
 
     solar_pv_compensation: str
+    periods_yaml: str
     sample_size: int | None = None
     elasticity: float = 0.0
 
@@ -320,6 +321,7 @@ def load_pipeline_config(yaml_path: Path) -> PipelineConfig:
         rr_single_rate_calibrated=rr["single_rate_calibrated"],
         rr_multi_rate_calibrated=rr["multi_rate_calibrated"],
         solar_pv_compensation=data.get("solar_pv_compensation", "net_metering"),
+        periods_yaml=data.get("periods_yaml", f"periods/{data['utility']}.yaml"),
         sample_size=_parse_optional_int(data.get("sample_size")),
         elasticity=float(data.get("elasticity", 0.0)),
     )
