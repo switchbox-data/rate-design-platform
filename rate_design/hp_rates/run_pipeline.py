@@ -577,3 +577,182 @@ def run_quartet(
     results["calibrated_supply"] = cal_s_future.result()
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Preflight flow
+# ---------------------------------------------------------------------------
+
+
+@flow(name="preflight")
+def preflight(
+    config: PipelineConfig,
+    batch: str,
+    *,
+    scenarios: list[str] | None = None,
+) -> Path:
+    """Generate all artifacts needed before any CAIRO run.
+
+    Steps:
+
+    1. Validate that all non-derived inputs exist.
+    2. Generate the scenario YAML (``scenarios_<utility>.yaml``) from the
+       pipeline config — expands every scenario × stage × variant into the
+       per-run format that ``run_scenario.py`` reads.
+    3. Generate electric tariff maps by calling
+       ``write_tariff_maps_from_scenario.main()`` on the generated YAML.
+
+    Args:
+        config: Loaded pipeline config.
+        batch: Batch name (e.g. ``md_20260728``).
+        scenarios: Optional list of scenario names to restrict preflight to.
+
+    Returns:
+        Path to the generated scenario YAML.
+    """
+    from rate_design.hp_rates.pipeline_config import (
+        generate_scenarios_yaml,
+        validate_preflight_inputs,
+    )
+    from utils.pre.write_tariff_maps_from_scenario import (
+        main as write_tariff_maps,
+    )
+
+    # Step 1: Validate inputs
+    errors = validate_preflight_inputs(config, scenarios=scenarios)
+    if errors:
+        raise RuntimeError(
+            f"Preflight validation failed with {len(errors)} error(s):\n"
+            + "\n".join(f"  - {e}" for e in errors)
+        )
+    log.info("preflight: validation passed")
+
+    # Step 2: Generate scenario YAML
+    yaml_path = (
+        config.state_config_dir / "scenarios" / f"scenarios_{config.utility}.yaml"
+    )
+    generate_scenarios_yaml(config, batch, yaml_path, scenarios=scenarios)
+    log.info("preflight: wrote scenario YAML at %s", yaml_path)
+
+    # Step 3: Generate electric tariff maps
+    write_tariff_maps(yaml_path)
+    log.info("preflight: generated electric tariff maps")
+
+    return yaml_path
+
+
+# ---------------------------------------------------------------------------
+# Master flow
+# ---------------------------------------------------------------------------
+
+
+@flow(name="run-batch")
+def run_batch(
+    yaml_path: Path,
+    batch: str,
+    *,
+    scenarios: list[str] | None = None,
+) -> None:
+    """Master flow: load config, preflight, run scenarios in dependency order.
+
+    Scenarios without ``depends_on`` (independent) are run first; scenarios
+    with dependencies run after their dependency has completed (with a
+    ``derive_tariffs`` step in between).
+
+    Args:
+        yaml_path: Path to the pipeline YAML (e.g. ``pipeline_bge.yaml``).
+        batch: Batch name (e.g. ``md_20260728``).
+        scenarios: Optional list of scenario names to run (filters the full
+            set).  If omitted, all scenarios in the pipeline YAML are run.
+    """
+    from rate_design.hp_rates.pipeline_config import load_pipeline_config
+
+    config = load_pipeline_config(yaml_path)
+    _init_semaphore(config.max_concurrent_cairo_runs)
+
+    # Determine batch output directory
+    batch_dir = Path(config.output_base) / config.state / config.utility / batch
+    batch_dir.mkdir(parents=True, exist_ok=True)
+
+    # --- Preflight ---
+    scenarios_yaml = preflight(config, batch, scenarios=scenarios)
+
+    # --- Partition scenarios into independent and dependent ---
+    selected = list(config.scenarios.values())
+    if scenarios is not None:
+        selected = [s for s in selected if s.name in scenarios]
+
+    independent = [s for s in selected if s.depends_on is None]
+    dependent = [s for s in selected if s.depends_on is not None]
+
+    # --- Run independent scenarios ---
+    for scenario in independent:
+        run_quartet(
+            scenario.name,
+            batch=batch,
+            yaml_path=scenarios_yaml,
+            batch_dir=batch_dir,
+            state=config.state,
+        )
+
+    # --- Run dependent scenarios (after dependency + derive step) ---
+    for scenario in dependent:
+        assert scenario.depends_on is not None
+        dep_outputs = check_dependency(batch_dir, batch, scenario.depends_on)
+        dep_precalc = {
+            "precalc_delivery": dep_outputs["precalc_delivery"],
+            "precalc_supply": dep_outputs["precalc_supply"],
+        }
+        derive_tariffs(config, scenario, dep_precalc)
+        run_quartet(
+            scenario.name,
+            batch=batch,
+            yaml_path=scenarios_yaml,
+            batch_dir=batch_dir,
+            state=config.state,
+        )
+
+    log.info("run_batch: all scenarios complete for batch %s", batch)
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def _cli() -> None:
+    """Entry point: ``uv run python -m rate_design.hp_rates.run_pipeline``."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Run the hp_rates Prefect pipeline for a given utility."
+    )
+    parser.add_argument(
+        "--yaml",
+        required=True,
+        type=Path,
+        help="Path to pipeline YAML (e.g. pipeline_bge.yaml).",
+    )
+    parser.add_argument(
+        "--batch",
+        required=True,
+        help="Batch name (e.g. md_20260728).",
+    )
+    parser.add_argument(
+        "--scenarios",
+        nargs="*",
+        default=None,
+        help="Optional scenario names to run (space-separated). Omit for all.",
+    )
+    args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+    )
+
+    run_batch(args.yaml, args.batch, scenarios=args.scenarios)
+
+
+if __name__ == "__main__":
+    _cli()

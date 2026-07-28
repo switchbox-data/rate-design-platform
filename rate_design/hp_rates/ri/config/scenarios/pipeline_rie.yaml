@@ -1,6 +1,7 @@
 state: ri
 utility: rie
 year: 2025
+output_base: /data.sb/switchbox/cairo/outputs/hp_rates
 solar_pv_compensation: net_metering
 process_workers: 8
 max_concurrent_cairo_runs: 2
