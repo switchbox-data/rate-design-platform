@@ -135,14 +135,16 @@ _SB_EXCLUDED_FILE_TYPES: frozenset[str] = frozenset({"load_curve_annual"})
 
 File types that are fetched for the raw NREL release but **never copied to `_sb`**, never uploaded under the `_sb` prefix, and never validated against `_sb`. Currently contains only `load_curve_annual`.
 
-**Why `load_curve_annual` is excluded:** The `_sb` release modifies `load_curve_hourly` in place (non-HP approximation, MF electricity adjustment). There is no mechanism to re-derive `load_curve_annual` from the modified hourly data, so including the unmodified raw annual in `_sb` would be misleading — it would not reflect the approximation or adjustment. The correct sub-annual aggregation is `load_curve_monthly`, which is derived from the modified hourly in step 2d.
+**Why `load_curve_annual` is excluded (today):** The `_sb` release modifies `load_curve_hourly` in place (non-HP approximation, MF electricity adjustment). Copying unmodified NREL annual into `_sb` would disagree with those hourly edits. Sub-annual aggregation already in the pipeline is `load_curve_monthly` (step 2d).
 
-**How to expand `_sb` to include `load_curve_annual` in the future:** If a need arises for an `_sb` annual file (e.g., a downstream consumer requires it), the steps would be:
+**Status of `_sb` annual:** `data/resstock/load_curve/add_annual_loads.py` implements hourly→annual aggregation for `_sb` (sum energy + load-delivered from modified hourly; keep `bldg_id` / `upgrade` / `weight` / `out.params.*` / `upgrade_name` from raw annual; drop savings, emissions, peaks, bills, etc.). Column decisions, the bsf `energy_delivered` 4× bug, and re-download prerequisites are documented in **`resstock_sb_annual_load_curves.md`**. That script is **not yet wired** into `main.py`, so `_SB_EXCLUDED_FILE_TYPES` still excludes `load_curve_annual` from clone/upload/validate.
 
-1. Implement an hourly-to-annual aggregation script (analogous to `data/resstock/load_curve/add_monthly_loads.py` but aggregating to 1 row per building).
-2. Add a pipeline step after all hourly modifications are complete (after step 2c-ii) that runs the aggregation on the `_sb` hourly files and writes `load_curve_annual/` under `path_sb`.
-3. Remove `"load_curve_annual"` from `_SB_EXCLUDED_FILE_TYPES` so the clone, upload, and validation steps include it.
-4. Ensure `_modify_metadata` still reads `load_curve_annual` from `path_raw` (the raw release) for the `identify_natgas_connection` step, since that runs before any hourly modifications. (Or, if the new annual file is generated after modifications, decide whether natgas identification should use the pre- or post-modification annual.)
+**How to wire `_sb` `load_curve_annual` into the pipeline:**
+
+1. Ensure raw hourly was fetched with **buildstock-fetch ≥ 1.6.6** (see the annual-load-curves doc).
+2. After all hourly modifications (after step 2c-ii), run `add_annual_loads.py` with `--path-hourly` / `--path-output` = `path_sb` and `--path-annual-raw` = `path_raw`.
+3. Remove `"load_curve_annual"` from `_SB_EXCLUDED_FILE_TYPES` so clone is unnecessary for annual (it is generated under `path_sb`) and upload/validation include it. Adjust clone logic if needed so raw annual is not copied over the generated file.
+4. Keep `_modify_metadata` reading `load_curve_annual` from `path_raw` for `identify_natgas_connection` (runs before hourly modifications).
 
 ### `data/resstock/constants.py`
 
@@ -387,9 +389,9 @@ On success, the run record is marked `completed` and written to both manifests. 
 
 ### Currently excluded
 
-| File type           | Reason                                                                                             | Path to inclusion                                                                                                 |
-| ------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `load_curve_annual` | No mechanism to re-derive from modified hourly; raw annual would be inconsistent with `_sb` hourly | Build an hourly-to-annual aggregation step, run it after all modifications, remove from `_SB_EXCLUDED_FILE_TYPES` |
+| File type           | Reason                                                                                                                     | Path to inclusion                                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `load_curve_annual` | Script exists (`add_annual_loads.py`) but not wired into `main.py` yet; raw annual would be inconsistent with `_sb` hourly | Wire after hourly mods; see `resstock_sb_annual_load_curves.md`; remove from `_SB_EXCLUDED_FILE_TYPES` |
 
 ---
 
@@ -452,7 +454,7 @@ When `--sample N` is passed (N > 0):
 
 ## Known limitations and TODO items
 
-1. **No `load_curve_annual` in `_sb`**: Intentional. See the `_SB_EXCLUDED_FILE_TYPES` section above for how to change this if needed.
+1. **No `load_curve_annual` in `_sb` yet**: Still intentional for the pipeline until `add_annual_loads.py` is wired. See `_SB_EXCLUDED_FILE_TYPES` and **`resstock_sb_annual_load_curves.md`**.
 
 2. **`has_natgas_connection` has two sources of truth**: For non-approximated buildings, it comes from `load_curve_annual` in the raw release (step 2a). For approximated buildings, it is re-derived from the modified `load_curve_hourly` in `_sb` (step 2c-i). This is correct behavior but worth understanding when debugging metadata values.
 
