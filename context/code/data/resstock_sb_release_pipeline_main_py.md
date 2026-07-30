@@ -19,8 +19,8 @@ For the older Justfile-based workflow, see `context/code/data/resstock_data_prep
 | 5. Approximate non-HP load | Step 2c-i: `_approximate_non_hp_load` | Implemented |
 | 6. Adjust MF electricity   | Step 2c-ii: `_adjust_mf_electricity`  | Implemented |
 | 7. Sync `_sb` to EBS       | N/A (pipeline writes directly to EBS) | N/A         |
-| 8. Add monthly load curves | Step 2d: `_add_monthly_loads`         | Implemented |
-| 9. Upload monthly to S3    | Step 2d: `_add_monthly_loads`         | Implemented |
+| 8. Aggregate load curves   | Step 2d: `_add_aggregate_loads`       | Implemented |
+| 9. Upload aggregated to S3 | Step 2d: `_add_aggregate_loads`       | Implemented |
 | Upload raw + `_sb` to S3   | Step 3: `_upload`                     | Implemented |
 
 ---
@@ -52,7 +52,8 @@ Release-level defaults are loaded from `data/resstock/config.yaml`. State-specif
 | `--gas-poly-filename`          | from `state_configs.yaml`                      | Gas utility polygon CSV; overrides config default                                   |
 | `--path-s3-gis-dir`            | `s3://data.sb/gis/utility_boundaries/`         | S3 directory for NY utility polygon CSVs                                            |
 | `--add-monthly-loads`          | `True`                                         | Aggregate hourly → monthly and upload (needs `load_curve_hourly` in `--file-types`) |
-| `--monthly-workers`            | `50`                                           | Parallel worker count for monthly aggregation                                       |
+| `--add-annual-loads`           | `True`                                         | Aggregate hourly → annual and upload (needs `load_curve_hourly` in `--file-types`)  |
+| `--aggregation-workers`        | `50`                                           | Parallel worker count for load curve aggregation                                    |
 | `--path-output-dir`            | `/ebs/data/nrel/resstock`                      | Local EBS output root                                                               |
 | `--path-s3-dir`                | `s3://data.sb/nrel/resstock`                   | S3 mirror root                                                                      |
 
@@ -127,24 +128,24 @@ RI:
 
 **Dynamic dispatch:** `assign_utility.py` uses `importlib.import_module()` to load the module at `utility_assignment.module`, merges `utility_assignment.kwargs` with any CLI overrides (`--electric-poly-filename`, `--gas-poly-filename`, `--path-s3-gis-dir`), and calls `mod.assign_utility(metadata, **kwargs)`. Each state module is responsible for its own data loading and assignment logic.
 
-### `_SB_EXCLUDED_FILE_TYPES` (module-level constant in `main.py`)
+### `SB_CLONE_EXCLUDED_FILE_TYPES` (module-level constant in `constants.py`)
 
 ```python
-_SB_EXCLUDED_FILE_TYPES: frozenset[str] = frozenset({"load_curve_annual"})
+SB_CLONE_EXCLUDED_FILE_TYPES: frozenset[str] = frozenset({"load_curve_annual"})
 ```
 
 File types that are fetched for the raw NREL release but **never copied to `_sb`**, never uploaded under the `_sb` prefix, and never validated against `_sb`. Currently contains only `load_curve_annual`.
 
 **Why `load_curve_annual` is excluded (today):** The `_sb` release modifies `load_curve_hourly` in place (non-HP approximation, MF electricity adjustment). Copying unmodified NREL annual into `_sb` would disagree with those hourly edits. Sub-annual aggregation already in the pipeline is `load_curve_monthly` (step 2d).
 
-**Status of `_sb` annual:** `data/resstock/load_curve/add_annual_loads.py` implements hourly→annual aggregation for `_sb` (sum energy + load-delivered from modified hourly; keep `bldg_id` / `upgrade` / `weight` / `out.params.*` / `upgrade_name` from raw annual; drop savings, emissions, peaks, bills, etc.). Column decisions, the bsf `energy_delivered` 4× bug, and re-download prerequisites are documented in **`resstock_sb_annual_load_curves.md`**. That script is **not yet wired** into `main.py`, so `_SB_EXCLUDED_FILE_TYPES` still excludes `load_curve_annual` from clone/upload/validate.
+**Status of `_sb` annual:** Produced in pipeline step 2d (`_add_aggregate_loads`) when `--add-annual-loads True`: one hourly read → annual row; consolidated annual joined to raw params. Details in **`resstock_sb_annual_load_curves.md`**. Raw `load_curve_annual` remains in `SB_CLONE_EXCLUDED_FILE_TYPES` so **clone** never copies NREL annual onto `_sb`; the generated file is uploaded from the aggregation step and expected by the manifest when `add_aggregate_loads` has run.
 
-**How to wire `_sb` `load_curve_annual` into the pipeline:**
+**How `_sb` annual stays consistent:**
 
-1. Ensure raw hourly was fetched with **buildstock-fetch ≥ 1.6.6** (see the annual-load-curves doc).
-2. After all hourly modifications (after step 2c-ii), run `add_annual_loads.py` with `--path-hourly` / `--path-output` = `path_sb` and `--path-annual-raw` = `path_raw`.
-3. Remove `"load_curve_annual"` from `_SB_EXCLUDED_FILE_TYPES` so clone is unnecessary for annual (it is generated under `path_sb`) and upload/validation include it. Adjust clone logic if needed so raw annual is not copied over the generated file.
-4. Keep `_modify_metadata` reading `load_curve_annual` from `path_raw` for `identify_natgas_connection` (runs before hourly modifications).
+1. Fetch hourly with **buildstock-fetch ≥ 1.6.6**.
+2. After hourly modifications (after step 2c-ii), run step 2d with `--add-monthly-loads True --add-annual-loads True` (both default True).
+3. Keep `_modify_metadata` reading `load_curve_annual` from `path_raw` for `identify_natgas_connection`.
+4. Do not remove `load_curve_annual` from `SB_CLONE_EXCLUDED_FILE_TYPES` unless clone logic is changed to skip overwriting generated annual.
 
 ### `data/resstock/constants.py`
 
@@ -210,7 +211,7 @@ S3 paths:
 Computed at the top of `main()`:
 
 ```python
-sb_file_types = [ft for ft in args.file_types if ft not in _SB_EXCLUDED_FILE_TYPES]
+sb_file_types = [ft for ft in args.file_types if ft not in SB_CLONE_EXCLUDED_FILE_TYPES]
 ```
 
 This list drives the clone, clone validation, `_sb` upload, and `_sb` S3 validation. With current defaults, `sb_file_types` = `["metadata", "load_curve_hourly"]`.
@@ -219,7 +220,7 @@ This list drives the clone, clone validation, `_sb` upload, and `_sb` S3 validat
 
 A run record is created immediately via `new_run_record` from `data/resstock/manifest.py`. This captures the git commit, branch, CLI arguments, and all flags. The record is updated after each step via `record_step` and `upsert_run`, providing a persistent audit trail in `manifest.yaml` (one per release directory, synced to S3).
 
-If any file type in `--file-types` is in `_SB_EXCLUDED_FILE_TYPES`, a warning is printed to stdout and recorded in the run record under a `warnings` key. This ensures the user is aware that `load_curve_annual` (or any future excluded type) is not part of the `_sb` release.
+If any file type in `--file-types` is in `SB_CLONE_EXCLUDED_FILE_TYPES`, a warning is printed to stdout and recorded in the run record under a `warnings` key. This ensures the user is aware that `load_curve_annual` (or any future excluded type) is not part of the `_sb` clone.
 
 ### Crash recording
 
@@ -336,38 +337,37 @@ Logic is in `_adjust_mf_electricity()`. For each (state, upgrade) pair in `["00"
 
 In sample mode, a warning is printed that ratios are derived from the sampled buildings only. If the sample has no MF buildings, the step is skipped; if fewer than 2 SF buildings, ratios default to 1.0.
 
-### Step 2d: Add monthly load curves
+### Step 2d: Aggregate load curves
 
-**Function:** `_add_monthly_loads`
+**Function:** `_add_aggregate_loads`
 
-**Gate condition:** `args.add_monthly_loads and "load_curve_hourly" in args.file_types`
+**Gate condition:** `(args.add_monthly_loads or args.add_annual_loads) and "load_curve_hourly" in args.file_types`
 
-Aggregates the modified `_sb` hourly load curves into monthly load curves and uploads them to S3. This step runs after all hourly modifications (steps 2c-i, 2c-ii) so that monthly curves reflect non-HP approximation and MF electricity adjustment.
+Aggregates modified `_sb` hourly into **monthly** and/or **annual** load curves and uploads produced outputs to S3. Runs after all hourly modifications (steps 2c-i, 2c-ii) so outputs reflect non-HP approximation and MF electricity adjustment. See **`resstock_sb_annual_load_curves.md`**.
 
 **Logic:**
 
-1. Loads bsf column aggregation rules via `load_aggregation_rules(release)` (using the **raw** release name, e.g. `res_2024_amy2018_2`, not the `_sb` variant). The rules CSV lives in the bsf package (`buildstock_fetch.constants.LOAD_CURVE_COLUMN_AGGREGATION`).
-2. For each (state, upgrade) pair, calls `process_upgrade(path_sb, path_sb, state, upgrade, agg_rules, workers)`, which:
-   - Reads all hourly parquets from `path_sb/load_curve_hourly/state=<s>/upgrade=<uid>/`
-   - Groups by `month`, applies sum/mean/first rules per column, reconstructs a `timestamp` datetime column
-   - Writes one monthly parquet per building to `path_sb/load_curve_monthly/state=<s>/upgrade=<uid>/`
-   - Runs up to `--monthly-workers` (default 50) files in parallel via `ThreadPoolExecutor`
-3. After all upgrades for a state are done, uploads `path_sb/load_curve_monthly/state=<s>/` to `s3://.../load_curve_monthly/state=<s>/` via `aws s3 sync`. The upload is per state (covers all upgrades in one sync call).
-4. Returns the list of `"state=<s> upgrade=<uid>"` labels that were processed, for manifest recording.
+1. Loads bsf column aggregation rules via `load_bsf_aggregation_map(release)` (raw release name, e.g. `res_2024_amy2018_2`). CSV in `buildstock_fetch.constants.LOAD_CURVE_COLUMN_AGGREGATION`.
+2. For each (state, upgrade), calls `process_upgrade(..., add_monthly=True/False, add_annual=True/False)`, which for each building (ThreadPool, `--aggregation-workers` default 50):
+   - Reads the hourly parquet **once**
+   - If `add_monthly`: writes one monthly parquet (`group_by month`, full bsf sum/mean/first rules)
+   - If `add_annual`: returns one annual row (same rules, subset: energy consumption + energy_delivered only)
+   - After the pool (when `add_annual`): concat annual rows, join raw annual params from `path_raw`, write one consolidated `_sb` annual parquet
+3. After all upgrades for a state, syncs whichever of `load_curve_monthly/state=<s>/` and `load_curve_annual/state=<s>/` were produced to S3.
+4. Returns `"state=<s> upgrade=<uid>"` labels for the manifest. Step name: `add_aggregate_loads`; `_STEP_FILE_TYPES` maps it to both `load_curve_monthly` and `load_curve_annual` (also maps individual `add_monthly_loads`/`add_annual_loads` names for legacy/future use).
 
-**Important:** `load_curve_monthly` is **not** in `args.file_types` (which controls what is fetched from NREL and uploaded by the main `_upload` call). Monthly files are generated locally and uploaded exclusively by `_add_monthly_loads`. The main `_upload` step at the end does not touch `load_curve_monthly`.
+**Important:** Neither monthly nor generated annual is in `sb_file_types` used by the final `_upload` of cloned types. Both are uploaded exclusively by `_add_aggregate_loads`. Raw `load_curve_annual` stays in `SB_CLONE_EXCLUDED_FILE_TYPES` so clone does not overwrite generated annual.
 
-**Sample mode:** When `--sample N` is active, only N hourly files exist for each (state, upgrade). `process_upgrade` processes whatever files are present, producing N monthly files. A `NOTE` is printed but the step is not skipped. This is expected behavior for development/testing.
+**Sample mode:** When `--sample N` is active, only N hourly files exist; the step writes N monthly files and/or an N-row annual file. A `NOTE` is printed but the step is not skipped.
 
 ### Step 3: Upload to S3
 
 Uploads both releases to S3 via `aws s3 sync`:
 
-- **Raw release**: all `args.file_types` (including `load_curve_annual`).
-- **`_sb` release**: only `sb_file_types` (excludes `load_curve_annual`).
+- **Raw release**: all `args.file_types` (including raw `load_curve_annual`).
+- **`_sb` release**: `sb_file_types` (excludes raw annual from clone set). Generated monthly/annual were already uploaded in step 2d.
 
-Validation: `validate_s3_objects` spot-checks up to 5 S3 objects per `(file_type, state, upgrade)`. The `_sb` validation uses `sb_file_types`.
-
+Validation: `validate_s3_objects` spot-checks up to 5 S3 objects per `(file_type, state, upgrade)`. The `_sb` validation uses `sb_file_types` (plus integrity expects step-produced monthly/annual when `add_aggregate_loads` ran).
 Manifests are uploaded separately via `_upload_manifest`.
 
 ### Finalization
@@ -385,13 +385,13 @@ On success, the run record is marked `completed` and written to both manifests. 
 | `metadata`           | Cloned from raw, then modified in place (`metadata-sb.parquet`)                        | Contains all SB-specific columns                                  |
 | `load_curve_hourly`  | Cloned from raw, then modified in place by approximation and MF electricity adjustment | One parquet per building                                          |
 | `metadata_utility`   | Generated by `_assign_utility` (step 2b), uploaded to S3 immediately                   | Contains only `bldg_id`, `sb.electric_utility`, `sb.gas_utility`  |
-| `load_curve_monthly` | Derived by `_add_monthly_loads` (step 2d) from the modified `load_curve_hourly`        | One parquet per building; synced to S3 per state after generation |
+| `load_curve_monthly` | Derived by `_add_aggregate_loads` (step 2d) from the modified `load_curve_hourly`      | One parquet per building; synced to S3 per state after generation |
 
 ### Currently excluded
 
-| File type           | Reason                                                                                                                     | Path to inclusion                                                                                      |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `load_curve_annual` | Script exists (`add_annual_loads.py`) but not wired into `main.py` yet; raw annual would be inconsistent with `_sb` hourly | Wire after hourly mods; see `resstock_sb_annual_load_curves.md`; remove from `_SB_EXCLUDED_FILE_TYPES` |
+| File type           | Reason                                                                                                 | Path to inclusion                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `load_curve_annual` | Not cloned from raw; generated from modified hourly in `_add_aggregate_loads` (with `add_annual=True`) | See `resstock_sb_annual_load_curves.md`; stays in `SB_CLONE_EXCLUDED_FILE_TYPES` for clone only |
 
 ---
 
@@ -448,13 +448,13 @@ When `--sample N` is passed (N > 0):
 | `data/resstock/utility/assign_utility.py`              | Dynamic dispatch facade; imports state module from `state_configs.yaml` via `importlib`                                 |
 | `data/resstock/utility/assign_utility_ny.py`           | NY-specific thin wrapper: builds name map, passes excluded gas utilities to generic `create_hh_utilities` in `utils.py` |
 | `data/resstock/utility/assign_utility_ri.py`           | Deterministic utility assignment for RI (single utility)                                                                |
-| `data/resstock/load_curve/add_monthly_loads.py`        | Hourly-to-monthly aggregation; called directly by `_add_monthly_loads` (step 2d)                                        |
+| `data/resstock/load_curve/aggregate_loads.py`          | Hourly-to-monthly/annual aggregation; called by `_add_aggregate_loads` (step 2d)                                        |
 
 ---
 
 ## Known limitations and TODO items
 
-1. **No `load_curve_annual` in `_sb` yet**: Still intentional for the pipeline until `add_annual_loads.py` is wired. See `_SB_EXCLUDED_FILE_TYPES` and **`resstock_sb_annual_load_curves.md`**.
+1. **`load_curve_annual` on `_sb`:** Not cloned from raw. Generated with monthly in step 2d from modified hourly. See `SB_CLONE_EXCLUDED_FILE_TYPES` and **`resstock_sb_annual_load_curves.md`**.
 
 2. **`has_natgas_connection` has two sources of truth**: For non-approximated buildings, it comes from `load_curve_annual` in the raw release (step 2a). For approximated buildings, it is re-derived from the modified `load_curve_hourly` in `_sb` (step 2c-i). This is correct behavior but worth understanding when debugging metadata values.
 

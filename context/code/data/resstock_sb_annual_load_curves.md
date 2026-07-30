@@ -2,9 +2,11 @@
 
 How we build `load_curve_annual` for the Switchbox `_sb` ResStock release (`res_2024_amy2018_2_sb`), and why specific columns are kept, aggregated, or dropped.
 
-**Implementation:** `data/resstock/load_curve/add_annual_loads.py`
+**Implementation:** `data/resstock/load_curve/aggregate_loads.py` — one hourly read per building conditionally produces monthly parquet **and/or** an in-memory annual row, controlled by `add_monthly` / `add_annual` flags in `process_upgrade`. Rows are concatenated into one ResStock-style annual file after the thread pool finishes.
 
-**Related:** `resstock_sb_release_pipeline_main_py.md` (pipeline / `_SB_EXCLUDED_FILE_TYPES`), `approximate_non_hp_load.md` (hourly HVAC rewrite), `investigate_resstock_eia_load_discrepancy.md` / MF adj (hourly electricity rewrite).
+**Pipeline:** `data/resstock/main.py` step 2d (`_add_aggregate_loads`) runs when `--add-monthly-loads` and/or `--add-annual-loads` is True (both default True) and `load_curve_hourly` is in `--file-types`. Manifest step `add_aggregate_loads` records whichever of `load_curve_monthly` / `load_curve_annual` were produced.
+
+**Related:** `resstock_sb_release_pipeline_main_py.md` (pipeline / `SB_CLONE_EXCLUDED_FILE_TYPES`), `approximate_non_hp_load.md` (hourly HVAC rewrite), `investigate_resstock_eia_load_discrepancy.md` / MF adj (hourly electricity rewrite).
 
 ---
 
@@ -15,36 +17,55 @@ The `_sb` release modifies **hourly** load curves in place:
 1. Non-HP approximation (upgrade 02): rewrites heating/cooling energy consumption and `out.load.{heating,cooling}.energy_delivered.kbtu` for selected MF highrise buildings.
 2. Multifamily electricity adjustment: scales selected electricity columns.
 
-NREL’s shipped `load_curve_annual` is computed from **unmodified** 15-minute/hourly simulations. Copying raw annual into `_sb` would disagree with `_sb` hourly. Historically that is why `load_curve_annual` was listed in `_SB_EXCLUDED_FILE_TYPES` and never cloned to `_sb`.
-
-`add_annual_loads.py` re-derives annual totals by **summing `_sb` hourly**, then joining a slim slice of identity/params from the **raw** NREL annual file. The result is an `_sb`-consistent annual parquet in NREL’s consolidated layout (one file per state/upgrade).
+NREL’s shipped `load_curve_annual` is computed from **unmodified** 15-minute/hourly simulations. Copying raw annual into `_sb` would disagree with `_sb` hourly. Raw annual remains listed in `SB_CLONE_EXCLUDED_FILE_TYPES` so **clone** never copies it; `_sb` annual is generated from modified hourly instead.
 
 **Prerequisite:** Hourly curves must have been downloaded/aggregated with **buildstock-fetch ≥ 1.6.6**. See [Energy delivered and the 4× bug](#energy-delivered-and-the-4-bug) below. Re-download raw hourly before building `_sb` if older hourly (mean-aggregated delivered) is still on disk or S3.
 
 ---
 
-## High-level procedure
+## High-level procedure (combined monthly + annual)
 
-For each `(state, upgrade)`:
+I/O dominates, so each worker does **one** hourly read:
 
-1. For every building parquet under `_sb` `load_curve_hourly/state=…/upgrade=…/`:
-   - Sum selected hourly columns → one row per `bldg_id`.
-   - Rename energy columns to the annual naming convention.
-2. From raw NREL `load_curve_annual/state=…/upgrade=…/`, select only identity / weight / params / upgrade label.
-3. Left-join aggregated metrics onto that slim annual slice on `bldg_id`.
-4. Write one consolidated parquet under `_sb` `load_curve_annual/…` (same filename pattern as NREL when a single raw file exists).
+For each `(state, upgrade)` building parquet under `_sb` `load_curve_hourly/`:
 
-CLI sketch:
+1. Read hourly parquet once into memory.
+2. **Monthly** (when `add_monthly=True`): `group_by("month")` with the **full** bsf column-aggregation CSV (sum for energy / emissions / energy_delivered; mean for temperatures; first for `bldg_id`) → write one monthly parquet per building.
+3. **Annual** (when `add_annual=True`): apply the **same** bsf CSV but only the [annual metric subset](#columns-aggregated-from-hourly--sb-annual) → one in-memory row (`bldg_id` + energy `.kwh` + delivered).
+
+After all buildings for the upgrade:
+
+4. Concatenate annual rows.
+5. From raw NREL `load_curve_annual`, keep `bldg_id`, `upgrade`, `weight`, `out.params.*`, and `upgrade_name` when present.
+6. Left-join aggregated metrics onto that slim slice on `bldg_id`.
+7. Write one consolidated parquet under `_sb` `load_curve_annual/…`.
+8. Pipeline syncs whichever of `load_curve_monthly/state=<s>/` and `load_curve_annual/state=<s>/` were produced to S3.
+
+CLI (both monthly + annual):
 
 ```bash
-uv run python data/resstock/load_curve/add_annual_loads.py \
-  --path-hourly /ebs/data/nrel/resstock/res_2024_amy2018_2_sb \
-  --path-annual-raw /ebs/data/nrel/resstock/res_2024_amy2018_2 \
+uv run python data/resstock/load_curve/aggregate_loads.py \
+  --path-input /ebs/data/nrel/resstock/res_2024_amy2018_2_sb \
   --path-output /ebs/data/nrel/resstock/res_2024_amy2018_2_sb \
-  --state CT --upgrade-ids "00 02" --workers 256
+  --path-annual-raw /ebs/data/nrel/resstock/res_2024_amy2018_2 \
+  --state CT --upgrade-ids "00 02" \
+  --bsf-release res_2024_amy2018_2 --workers 50 \
+  --add-monthly --add-annual
 ```
 
-This step is **not yet wired** into `data/resstock/main.py`. Until it is, `load_curve_annual` remains excluded from `_sb` clone/upload/validate. Wiring later means: run after all hourly modifications, write under `path_sb`, then remove `load_curve_annual` from `_SB_EXCLUDED_FILE_TYPES` (and keep reading raw annual for `identify_natgas_connection` before modifications).
+Annual-only (same CLI, omit `--add-monthly`):
+
+```bash
+uv run python data/resstock/load_curve/aggregate_loads.py \
+  --path-input /ebs/data/nrel/resstock/res_2024_amy2018_2_sb \
+  --path-output /ebs/data/nrel/resstock/res_2024_amy2018_2_sb \
+  --path-annual-raw /ebs/data/nrel/resstock/res_2024_amy2018_2 \
+  --state CT --upgrade-ids "00 02" \
+  --bsf-release res_2024_amy2018_2 --workers 50 \
+  --add-annual
+```
+
+`load_curve_annual` stays in `SB_CLONE_EXCLUDED_FILE_TYPES` so clone does not overwrite generated `_sb` annual with raw NREL. The file type becomes expected on `_sb` once the manifest records an `add_aggregate_loads` step.
 
 ---
 
@@ -62,6 +83,13 @@ Hourly energy and the three load-delivered columns map 1:1 onto annual absolute 
 
 ## Columns aggregated from hourly → `_sb` annual
 
+Annual uses the **same** bsf aggregation CSV as monthly (`res_2024_amy2018_2.csv`, etc.), filtered to:
+
+- columns ending in `.energy_consumption` but **not** `.energy_consumption_intensity`
+- any column whose name contains `energy_delivered`
+
+Aggregation function comes from the CSV (`sum` for these under bsf ≥ 1.6.6). Energy columns are renamed with a `.kwh` suffix for the annual file.
+
 ### Energy consumption (sum + rename)
 
 | Hourly name                            | Annual name                | Aggregation |
@@ -73,6 +101,8 @@ Example: `out.electricity.heating.energy_consumption` → `out.electricity.heati
 There are **50** such end-use/fuel columns in 2024.2 (electricity, natural gas, fuel oil, propane, site_energy nets/totals, etc.). Mapping was checked for MD upgrades 00–05: every hourly energy column has an annual `.kwh` counterpart and vice versa.
 
 **Why aggregate these:** They are the quantities `_sb` modifies (HVAC approximation, MF electricity adj). Annual must reflect those edits. Units are already kWh-equivalent in the hourly series; annual only adds the `.kwh` suffix in the column name.
+
+**Why not intensities:** Annual NREL files have no intensity columns; intensities are rates, not annual totals. Monthly still aggregates them via the full bsf rule set.
 
 ### Load delivered (sum, no rename)
 

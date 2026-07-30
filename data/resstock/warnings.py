@@ -8,7 +8,7 @@ so the caller can attach them to the manifest run record.
 
 from __future__ import annotations
 
-from data.resstock.constants import SB_EXCLUDED_FILE_TYPES
+from data.resstock.constants import SB_CLONE_EXCLUDED_FILE_TYPES
 
 
 def collect_run_warnings(
@@ -21,6 +21,7 @@ def collect_run_warnings(
     mf_adj_upgrades: list[str],
     assign_utility: bool,
     add_monthly_loads: bool,
+    add_annual_loads: bool = True,
 ) -> list[str]:
     """Run all pre-run argument/file-type mismatch checks.
 
@@ -45,6 +46,8 @@ def collect_run_warnings(
         Whether the utility assignment step is enabled.
     add_monthly_loads:
         Whether the monthly load aggregation step is enabled.
+    add_annual_loads:
+        Whether the annual load aggregation step is enabled.
     """
     warnings: list[str] = []
 
@@ -52,13 +55,13 @@ def collect_run_warnings(
         print(f"WARNING: {msg}", flush=True)
         warnings.append(msg)
 
-    for ft in SB_EXCLUDED_FILE_TYPES:
+    for ft in SB_CLONE_EXCLUDED_FILE_TYPES:
         if ft in file_types:
             _warn(
                 f"'{ft}' will be fetched for the raw release but is NOT copied to "
-                f"the _sb release. The _sb release has no post-modification annual "
-                f"equivalent; use load_curve_monthly (derived from load_curve_hourly) "
-                f"for month-level aggregations of the modified _sb data."
+                f"the _sb release via clone. When --add-annual-loads is enabled, "
+                f"_sb load_curve_annual is derived from modified _sb hourly; "
+                f"when --add-monthly-loads is enabled, _sb load_curve_monthly is too."
             )
 
     if approximate_non_hp_load and "load_curve_hourly" not in file_types:
@@ -105,6 +108,13 @@ def collect_run_warnings(
             "--add-monthly-loads is enabled but 'load_curve_hourly' is not in "
             "--file-types. The monthly aggregation step will be skipped. Add "
             "'load_curve_hourly' to --file-types if you want monthly load curves generated."
+        )
+
+    if add_annual_loads and "load_curve_hourly" not in file_types:
+        _warn(
+            "--add-annual-loads is enabled but 'load_curve_hourly' is not in "
+            "--file-types. The annual aggregation step will be skipped. Add "
+            "'load_curve_hourly' to --file-types if you want annual load curves generated."
         )
 
     return warnings
